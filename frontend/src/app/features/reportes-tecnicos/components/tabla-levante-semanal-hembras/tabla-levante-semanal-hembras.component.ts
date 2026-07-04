@@ -1,12 +1,12 @@
 // src/app/features/reportes-tecnicos/components/tabla-levante-semanal-hembras/tabla-levante-semanal-hembras.component.ts
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReporteTecnicoLevanteSemanalDto, ReporteTecnicoLoteInfoDto } from '../../services/reporte-tecnico.service';
 
 @Component({
   selector: 'app-tabla-levante-semanal-hembras',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './tabla-levante-semanal-hembras.component.html',
   styleUrls: ['./tabla-levante-semanal-hembras.component.scss']
 })

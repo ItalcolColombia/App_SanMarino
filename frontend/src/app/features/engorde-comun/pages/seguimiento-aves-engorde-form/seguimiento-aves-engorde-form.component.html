@@ -4,7 +4,7 @@
       <div class="ux-header__title">
         <h1>{{ isEdit ? 'Editar Seguimiento diario pollo de engorde' : 'Nuevo Seguimiento diario pollo de engorde' }}</h1>
         <div class="ux-header__meta">
-          <ng-container *ngIf="form.get('loteId')?.value as lid; else noLoteChip">
+          @if (form.get('loteId')?.value; as lid) {
             <span class="chip chip--info">
               <span class="chip__dot"></span>
               Lote: {{ loteLabel(lid) }}
@@ -12,16 +12,17 @@
             <span class="chip chip--muted">
               {{ calcularEdadDias(lotesById[lid]?.fechaEncaset) }} días
             </span>
-            <span class="chip chip--muted" *ngIf="loteErp(lid)">
-              ERP: {{ loteErp(lid) }}
-            </span>
-          </ng-container>
-          <ng-template #noLoteChip>
+            @if (loteErp(lid)) {
+              <span class="chip chip--muted">
+                ERP: {{ loteErp(lid) }}
+              </span>
+            }
+          } @else {
             <span class="chip chip--warning">
               <span class="chip__dot"></span>
               Selecciona un lote para continuar
             </span>
-          </ng-template>
+          }
         </div>
       </div>
       <button
@@ -42,20 +43,28 @@
             <div class="ux-select">
               <select id="loteId" formControlName="loteId" [attr.aria-invalid]="f['loteId'].invalid && f['loteId'].touched ? 'true' : null">
                 <option value="" disabled>— Selecciona un lote —</option>
-                <option *ngFor="let l of lotes" [ngValue]="l.loteId">
-                  {{ l.loteNombre }} - ERP: {{ l.loteErp || '—' }} ({{ calcularEdadDias(l.fechaEncaset) }} días)
-                </option>
+                @for (l of lotes; track l) {
+                  <option [ngValue]="l.loteId">
+                    {{ l.loteNombre }} - ERP: {{ l.loteErp || '—' }} ({{ calcularEdadDias(l.fechaEncaset) }} días)
+                  </option>
+                }
               </select>
             </div>
-            <small class="field-hint" *ngIf="f['loteId'].valid && form.value.loteId">
-              Edad: {{ calcularEdadDias(lotesById[form.value.loteId]?.fechaEncaset) || '—' }} días
-            </small>
-            <small class="field-error" *ngIf="f['loteId'].invalid && f['loteId'].touched">Obligatorio.</small>
+            @if (f['loteId'].valid && form.value.loteId) {
+              <small class="field-hint">
+                Edad: {{ calcularEdadDias(lotesById[form.value.loteId]?.fechaEncaset) || '—' }} días
+              </small>
+            }
+            @if (f['loteId'].invalid && f['loteId'].touched) {
+              <small class="field-error">Obligatorio.</small>
+            }
           </div>
           <div class="form-field">
             <label for="fechaRegistro">Fecha <span class="req">*</span></label>
             <input id="fechaRegistro" type="date" formControlName="fechaRegistro" [max]="maxDateForInput()" [attr.aria-invalid]="f['fechaRegistro'].invalid && f['fechaRegistro'].touched ? 'true' : null" />
-            <small class="field-error" *ngIf="f['fechaRegistro'].invalid && f['fechaRegistro'].touched">Obligatorio.</small>
+            @if (f['fechaRegistro'].invalid && f['fechaRegistro'].touched) {
+              <small class="field-error">Obligatorio.</small>
+            }
           </div>
         </div>
 
@@ -107,23 +116,23 @@
           </div>
         </div>
 
-        <ng-container *ngIf="opciones.mostrarQq">
-        <h3 class="section-title">Alimento (Quintales)</h3>
-        <div class="grid grid-2">
-          <div class="form-field">
-            <label for="qqMixtas">QQ Mixtas</label>
-            <input id="qqMixtas" type="number" step="0.01" min="0" formControlName="qqMixtas" />
+        @if (opciones.mostrarQq) {
+          <h3 class="section-title">Alimento (Quintales)</h3>
+          <div class="grid grid-2">
+            <div class="form-field">
+              <label for="qqMixtas">QQ Mixtas</label>
+              <input id="qqMixtas" type="number" step="0.01" min="0" formControlName="qqMixtas" />
+            </div>
+            <div class="form-field">
+              <label for="qqHembras">QQ Hembras</label>
+              <input id="qqHembras" type="number" step="0.01" min="0" formControlName="qqHembras" />
+            </div>
+            <div class="form-field">
+              <label for="qqMachos">QQ Machos</label>
+              <input id="qqMachos" type="number" step="0.01" min="0" formControlName="qqMachos" />
+            </div>
           </div>
-          <div class="form-field">
-            <label for="qqHembras">QQ Hembras</label>
-            <input id="qqHembras" type="number" step="0.01" min="0" formControlName="qqHembras" />
-          </div>
-          <div class="form-field">
-            <label for="qqMachos">QQ Machos</label>
-            <input id="qqMachos" type="number" step="0.01" min="0" formControlName="qqMachos" />
-          </div>
-        </div>
-        </ng-container>
+        }
 
         <div class="grid grid-2">
           <div class="form-field form-field--full">
@@ -148,9 +157,11 @@
         </footer>
       </form>
 
-      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-        <div class="spinner"></div> Procesando…
-      </div>
+      @if (loading) {
+        <div class="loading-overlay" aria-live="polite">
+          <div class="spinner"></div> Procesando…
+        </div>
+      }
     </section>
   </div>
 </div>

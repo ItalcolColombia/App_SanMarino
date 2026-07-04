@@ -7,7 +7,9 @@
       <header class="gge-head">
         <div class="title-row">
           <h2 class="title"><fa-icon [icon]="faDna" class="title-icon"></fa-icon> Guia Genetica</h2>
-          <span *ngIf="activePaisNombre" class="pais-chip">{{ activePaisNombre }}</span>
+          @if (activePaisNombre) {
+            <span class="pais-chip">{{ activePaisNombre }}</span>
+          }
         </div>
         <p class="subtitle">Curvas genéticas por raza y año, filtradas por empresa y país activos.</p>
       </header>
@@ -22,16 +24,20 @@
               class="input"
               [(ngModel)]="razaSel"
               (ngModelChange)="onRazaChange($event)"
-            >
+              >
               <option value="">— Seleccione raza —</option>
-              <option *ngFor="let r of razas" [value]="r">{{ r }}</option>
+              @for (r of razas; track r) {
+                <option [value]="r">{{ r }}</option>
+              }
             </select>
           </div>
           <div class="field">
             <label for="anio">Año guía</label>
             <select id="anio" class="input" [(ngModel)]="anioSel" (ngModelChange)="onAnioChange($event)">
               <option [ngValue]="null">— Seleccione año —</option>
-              <option *ngFor="let a of anos" [ngValue]="a">{{ a }}</option>
+              @for (a of anos; track a) {
+                <option [ngValue]="a">{{ a }}</option>
+              }
             </select>
           </div>
           <div class="field filters-actions">
@@ -56,330 +62,378 @@
       </div>
 
       <!-- ── Alerta de error ─────────────────────────────────────── -->
-      <div class="alert error" *ngIf="error" role="alert">
-        <strong>Error:</strong> {{ error }}
-      </div>
+      @if (error) {
+        <div class="alert error" role="alert">
+          <strong>Error:</strong> {{ error }}
+        </div>
+      }
 
       <!-- ── Tabs de sexo ────────────────────────────────────────── -->
-      <nav class="tabs" role="tablist" *ngIf="puedeConsultar">
-        <button
-          *ngIf="sexosDisponibles.includes('mixto')"
-          type="button" role="tab"
-          [class.active]="tab === 'mixto'"
-          (click)="setTab('mixto')"
-        >Mixto</button>
-        <button
-          *ngIf="sexosDisponibles.includes('hembra')"
-          type="button" role="tab"
-          [class.active]="tab === 'hembra'"
-          (click)="setTab('hembra')"
-        >Hembra</button>
-        <button
-          *ngIf="sexosDisponibles.includes('macho')"
-          type="button" role="tab"
-          [class.active]="tab === 'macho'"
-          (click)="setTab('macho')"
-        >Macho</button>
-      </nav>
+      @if (puedeConsultar) {
+        <nav class="tabs" role="tablist">
+          @if (sexosDisponibles.includes('mixto')) {
+            <button
+              type="button" role="tab"
+              [class.active]="tab === 'mixto'"
+              (click)="setTab('mixto')"
+            >Mixto</button>
+          }
+          @if (sexosDisponibles.includes('hembra')) {
+            <button
+              type="button" role="tab"
+              [class.active]="tab === 'hembra'"
+              (click)="setTab('hembra')"
+            >Hembra</button>
+          }
+          @if (sexosDisponibles.includes('macho')) {
+            <button
+              type="button" role="tab"
+              [class.active]="tab === 'macho'"
+              (click)="setTab('macho')"
+            >Macho</button>
+          }
+        </nav>
+      }
 
       <!-- ── Estado vacío (sin filtro seleccionado) ─────────────── -->
-      <div class="empty-state" *ngIf="!puedeConsultar && !loading">
-        <fa-icon [icon]="faDna" class="empty-icon"></fa-icon>
-        <p>Seleccione una <strong>raza</strong> y <strong>año</strong> para ver las curvas genéticas.</p>
-      </div>
+      @if (!puedeConsultar && !loading) {
+        <div class="empty-state">
+          <fa-icon [icon]="faDna" class="empty-icon"></fa-icon>
+          <p>Seleccione una <strong>raza</strong> y <strong>año</strong> para ver las curvas genéticas.</p>
+        </div>
+      }
 
       <!-- ── Tabla de datos ──────────────────────────────────────── -->
-      <div class="table-wrap" *ngIf="!loading && puedeConsultar">
-        <table class="gg-table" *ngIf="filas.length; else sinDatos">
-          <thead>
-            <tr>
-              <th>Día</th>
-              <th class="text-right">Peso (g)</th>
-              <th class="text-right">G. diaria (g)</th>
-              <th class="text-right">Prom. G. (g)</th>
-              <th class="text-right">Alim. día (g)</th>
-              <th class="text-right">Alim. acum. (g)</th>
-              <th class="text-right">CA</th>
-              <th class="text-right">Mort.+sel. %</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let r of paginatedFilas">
-              <td><strong>{{ r.dia }}</strong></td>
-              <td class="text-right mono">{{ r.pesoCorporalG | number : '1.0-3' }}</td>
-              <td class="text-right mono">{{ r.gananciaDiariaG | number : '1.0-3' }}</td>
-              <td class="text-right mono">{{ r.promedioGananciaDiariaG | number : '1.0-3' }}</td>
-              <td class="text-right mono">{{ r.cantidadAlimentoDiarioG | number : '1.0-3' }}</td>
-              <td class="text-right mono">{{ r.alimentoAcumuladoG | number : '1.0-3' }}</td>
-              <td class="text-right mono">{{ r.ca | number : '1.0-4' }}</td>
-              <td class="text-right mono">{{ r.mortalidadSeleccionDiaria | number : '1.2-2' }}&nbsp;%</td>
-              <td class="actions-cell">
-                <button type="button" class="icon-btn" title="Editar fila" (click)="openEditRow(r)">
-                  <fa-icon [icon]="faPen"></fa-icon>
-                </button>
-                <button type="button" class="icon-btn danger" title="Eliminar fila" (click)="openDeleteRow(r)">
-                  <fa-icon [icon]="faTrash"></fa-icon>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <ng-template #sinDatos>
-          <div class="empty-state">
-            <fa-icon [icon]="faDna" class="empty-icon"></fa-icon>
-            <p>No hay datos para <strong>{{ tab }}</strong> con la raza y año seleccionados.</p>
-          </div>
-        </ng-template>
-      </div>
+      @if (!loading && puedeConsultar) {
+        <div class="table-wrap">
+          @if (filas.length) {
+            <table class="gg-table">
+              <thead>
+                <tr>
+                  <th>Día</th>
+                  <th class="text-right">Peso (g)</th>
+                  <th class="text-right">G. diaria (g)</th>
+                  <th class="text-right">Prom. G. (g)</th>
+                  <th class="text-right">Alim. día (g)</th>
+                  <th class="text-right">Alim. acum. (g)</th>
+                  <th class="text-right">CA</th>
+                  <th class="text-right">Mort.+sel. %</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of paginatedFilas; track r) {
+                  <tr>
+                    <td><strong>{{ r.dia }}</strong></td>
+                    <td class="text-right mono">{{ r.pesoCorporalG | number : '1.0-3' }}</td>
+                    <td class="text-right mono">{{ r.gananciaDiariaG | number : '1.0-3' }}</td>
+                    <td class="text-right mono">{{ r.promedioGananciaDiariaG | number : '1.0-3' }}</td>
+                    <td class="text-right mono">{{ r.cantidadAlimentoDiarioG | number : '1.0-3' }}</td>
+                    <td class="text-right mono">{{ r.alimentoAcumuladoG | number : '1.0-3' }}</td>
+                    <td class="text-right mono">{{ r.ca | number : '1.0-4' }}</td>
+                    <td class="text-right mono">{{ r.mortalidadSeleccionDiaria | number : '1.2-2' }}&nbsp;%</td>
+                    <td class="actions-cell">
+                      <button type="button" class="icon-btn" title="Editar fila" (click)="openEditRow(r)">
+                        <fa-icon [icon]="faPen"></fa-icon>
+                      </button>
+                      <button type="button" class="icon-btn danger" title="Eliminar fila" (click)="openDeleteRow(r)">
+                        <fa-icon [icon]="faTrash"></fa-icon>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <div class="empty-state">
+              <fa-icon [icon]="faDna" class="empty-icon"></fa-icon>
+              <p>No hay datos para <strong>{{ tab }}</strong> con la raza y año seleccionados.</p>
+            </div>
+          }
+        </div>
+      }
 
       <!-- ── Paginación ──────────────────────────────────────────── -->
-      <div class="pager" *ngIf="!loading && puedeConsultar && filas.length">
-        <span class="pager-info">Página <strong>{{ page }}</strong> de {{ totalPages }} — {{ totalFilas }} filas</span>
-        <div class="pager-controls">
-          <label class="pager-size-label">
-            Por página:
-            <select class="input pager-size-select" [(ngModel)]="pageSize" (change)="onChangePageSize(pageSize)">
-              <option *ngFor="let s of pageSizeOptions" [ngValue]="s">{{ s }}</option>
-            </select>
-          </label>
-          <button class="btn-subtle pager-btn" type="button" (click)="cambiarPage(page-1)" [disabled]="page<=1">
-            <fa-icon [icon]="faChevronLeft"></fa-icon>
-          </button>
-          <button class="btn-subtle pager-btn" type="button" (click)="cambiarPage(page+1)" [disabled]="page>=totalPages">
-            <fa-icon [icon]="faChevronRight"></fa-icon>
-          </button>
+      @if (!loading && puedeConsultar && filas.length) {
+        <div class="pager">
+          <span class="pager-info">Página <strong>{{ page }}</strong> de {{ totalPages }} — {{ totalFilas }} filas</span>
+          <div class="pager-controls">
+            <label class="pager-size-label">
+              Por página:
+              <select class="input pager-size-select" [(ngModel)]="pageSize" (change)="onChangePageSize(pageSize)">
+                @for (s of pageSizeOptions; track s) {
+                  <option [ngValue]="s">{{ s }}</option>
+                }
+              </select>
+            </label>
+            <button class="btn-subtle pager-btn" type="button" (click)="cambiarPage(page-1)" [disabled]="page<=1">
+              <fa-icon [icon]="faChevronLeft"></fa-icon>
+            </button>
+            <button class="btn-subtle pager-btn" type="button" (click)="cambiarPage(page+1)" [disabled]="page>=totalPages">
+              <fa-icon [icon]="faChevronRight"></fa-icon>
+            </button>
+          </div>
         </div>
-      </div>
+      }
 
       <!-- ── Loading overlay ────────────────────────────────────── -->
-      <div class="loading-overlay" *ngIf="loading">
-        <fa-icon [icon]="faSpinner" [spin]="true"></fa-icon> Cargando datos…
-      </div>
+      @if (loading) {
+        <div class="loading-overlay">
+          <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon> Cargando datos…
+        </div>
+      }
     </div>
 
     <!-- ══════════════════════════════════════════════════════════ -->
     <!-- MODAL: Carga masiva Excel                                   -->
     <!-- ══════════════════════════════════════════════════════════ -->
-    <div class="modal-backdrop" *ngIf="importOpen" (click)="closeImport()">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-title" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <h3 id="import-title"><fa-icon [icon]="faUpload"></fa-icon> Carga masiva Excel</h3>
-          <button type="button" class="icon-btn" (click)="closeImport()" aria-label="Cerrar">
-            <fa-icon [icon]="faTimes"></fa-icon>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="import-grid">
-            <div class="field import-file">
-              <label>Archivo (.xlsx / .xls)</label>
-              <input type="file" accept=".xlsx,.xls" (change)="onImportFile($event)" />
-            </div>
-            <div class="field">
-              <label>Raza</label>
-              <select class="input" [(ngModel)]="importRaza">
-                <option value="">— Seleccione —</option>
-                <option *ngFor="let r of razas" [value]="r">{{ r }}</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Año</label>
-              <input class="input" type="number" [(ngModel)]="importAnio" placeholder="Ej: 2026" />
-            </div>
-            <div class="field">
-              <label>Estado guía</label>
-              <select class="input" [(ngModel)]="importEstado">
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
-              </select>
-            </div>
+    @if (importOpen) {
+      <div class="modal-backdrop" (click)="closeImport()">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-title" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3 id="import-title"><fa-icon [icon]="faUpload"></fa-icon> Carga masiva Excel</h3>
+            <button type="button" class="icon-btn" (click)="closeImport()" aria-label="Cerrar">
+              <fa-icon [icon]="faTimes"></fa-icon>
+            </button>
           </div>
-          <div *ngIf="importResult" class="import-result" [class.ok]="importResult.success" [class.err]="!importResult.success">
-            <p *ngIf="importResult.success">
-              ✓ Importación exitosa — {{ importResult.totalFilasProcesadas }} filas procesadas,
-              {{ importResult.totalDetallesInsertados }} detalles insertados.
-            </p>
-            <ul *ngIf="importResult.errors?.length">
-              <li *ngFor="let e of importResult.errors">{{ e }}</li>
-            </ul>
+          <div class="modal-body">
+            <div class="import-grid">
+              <div class="field import-file">
+                <label>Archivo (.xlsx / .xls)</label>
+                <input type="file" accept=".xlsx,.xls" (change)="onImportFile($event)" />
+              </div>
+              <div class="field">
+                <label>Raza</label>
+                <select class="input" [(ngModel)]="importRaza">
+                  <option value="">— Seleccione —</option>
+                  @for (r of razas; track r) {
+                    <option [value]="r">{{ r }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label>Año</label>
+                <input class="input" type="number" [(ngModel)]="importAnio" placeholder="Ej: 2026" />
+              </div>
+              <div class="field">
+                <label>Estado guía</label>
+                <select class="input" [(ngModel)]="importEstado">
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                </select>
+              </div>
+            </div>
+            @if (importResult) {
+              <div class="import-result" [class.ok]="importResult.success" [class.err]="!importResult.success">
+                @if (importResult.success) {
+                  <p>
+                    ✓ Importación exitosa — {{ importResult.totalFilasProcesadas }} filas procesadas,
+                    {{ importResult.totalDetallesInsertados }} detalles insertados.
+                  </p>
+                }
+                @if (importResult.errors?.length) {
+                  <ul>
+                    @for (e of importResult.errors; track e) {
+                      <li>{{ e }}</li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
           </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-subtle" (click)="closeImport()">Cerrar</button>
-          <button type="button" class="btn-primary" (click)="ejecutarImport()" [disabled]="importBusy || !importFile">
-            <fa-icon *ngIf="importBusy" [icon]="faSpinner" [spin]="true"></fa-icon>
-            Importar
-          </button>
+          <div class="modal-footer">
+            <button type="button" class="btn-subtle" (click)="closeImport()">Cerrar</button>
+            <button type="button" class="btn-primary" (click)="ejecutarImport()" [disabled]="importBusy || !importFile">
+              @if (importBusy) {
+                <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon>
+              }
+              Importar
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    }
 
     <!-- ══════════════════════════════════════════════════════════ -->
     <!-- MODAL: Editar fila                                          -->
     <!-- ══════════════════════════════════════════════════════════ -->
-    <div class="modal-backdrop" *ngIf="editOpen" (click)="closeEdit()">
-      <div class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <h3>Editar día — {{ editRowDia }}</h3>
-          <button type="button" class="icon-btn" (click)="closeEdit()">
-            <fa-icon [icon]="faTimes"></fa-icon>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="grid-2">
-            <div class="field">
-              <label>Día</label>
-              <input class="input" type="number" [ngModel]="editForm.dia" disabled />
+    @if (editOpen) {
+      <div class="modal-backdrop" (click)="closeEdit()">
+        <div class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3>Editar día — {{ editRowDia }}</h3>
+            <button type="button" class="icon-btn" (click)="closeEdit()">
+              <fa-icon [icon]="faTimes"></fa-icon>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="grid-2">
+              <div class="field">
+                <label>Día</label>
+                <input class="input" type="number" [ngModel]="editForm.dia" disabled />
+              </div>
+              <div class="field">
+                <label>CA</label>
+                <input class="input" type="number" step="0.0001" [(ngModel)]="editForm.ca" />
+              </div>
             </div>
-            <div class="field">
-              <label>CA</label>
-              <input class="input" type="number" step="0.0001" [(ngModel)]="editForm.ca" />
+            <div class="grid-2 mt-field">
+              <div class="field">
+                <label>Peso corporal (g)</label>
+                <input class="input" type="number" step="0.001" [(ngModel)]="editForm.pesoCorporalG" />
+              </div>
+              <div class="field">
+                <label>Ganancia diaria (g)</label>
+                <input class="input" type="number" step="0.001" [(ngModel)]="editForm.gananciaDiariaG" />
+              </div>
+            </div>
+            <div class="grid-2 mt-field">
+              <div class="field">
+                <label>Promedio ganancia diaria (g)</label>
+                <input class="input" type="number" step="0.001" [(ngModel)]="editForm.promedioGananciaDiariaG" />
+              </div>
+              <div class="field">
+                <label>Mortalidad / selección diaria (%)</label>
+                <input class="input" type="number" step="0.0001" [(ngModel)]="editForm.mortalidadSeleccionDiaria" />
+              </div>
+            </div>
+            <div class="grid-2 mt-field">
+              <div class="field">
+                <label>Cantidad alimento diario (g)</label>
+                <input class="input" type="number" step="0.001" [(ngModel)]="editForm.cantidadAlimentoDiarioG" />
+              </div>
+              <div class="field">
+                <label>Alimento acumulado (g)</label>
+                <input class="input" type="number" step="0.001" [(ngModel)]="editForm.alimentoAcumuladoG" />
+              </div>
             </div>
           </div>
-          <div class="grid-2 mt-field">
-            <div class="field">
-              <label>Peso corporal (g)</label>
-              <input class="input" type="number" step="0.001" [(ngModel)]="editForm.pesoCorporalG" />
-            </div>
-            <div class="field">
-              <label>Ganancia diaria (g)</label>
-              <input class="input" type="number" step="0.001" [(ngModel)]="editForm.gananciaDiariaG" />
-            </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-subtle" (click)="closeEdit()" [disabled]="editBusy">Cancelar</button>
+            <button type="button" class="btn-primary" (click)="guardarEdit()" [disabled]="editBusy">
+              @if (editBusy) {
+                <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon>
+              }
+              Guardar cambios
+            </button>
           </div>
-          <div class="grid-2 mt-field">
-            <div class="field">
-              <label>Promedio ganancia diaria (g)</label>
-              <input class="input" type="number" step="0.001" [(ngModel)]="editForm.promedioGananciaDiariaG" />
-            </div>
-            <div class="field">
-              <label>Mortalidad / selección diaria (%)</label>
-              <input class="input" type="number" step="0.0001" [(ngModel)]="editForm.mortalidadSeleccionDiaria" />
-            </div>
-          </div>
-          <div class="grid-2 mt-field">
-            <div class="field">
-              <label>Cantidad alimento diario (g)</label>
-              <input class="input" type="number" step="0.001" [(ngModel)]="editForm.cantidadAlimentoDiarioG" />
-            </div>
-            <div class="field">
-              <label>Alimento acumulado (g)</label>
-              <input class="input" type="number" step="0.001" [(ngModel)]="editForm.alimentoAcumuladoG" />
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-subtle" (click)="closeEdit()" [disabled]="editBusy">Cancelar</button>
-          <button type="button" class="btn-primary" (click)="guardarEdit()" [disabled]="editBusy">
-            <fa-icon *ngIf="editBusy" [icon]="faSpinner" [spin]="true"></fa-icon>
-            Guardar cambios
-          </button>
         </div>
       </div>
-    </div>
+    }
 
     <!-- ══════════════════════════════════════════════════════════ -->
     <!-- MODAL: Eliminar fila (danger)                               -->
     <!-- ══════════════════════════════════════════════════════════ -->
-    <div class="modal-backdrop" *ngIf="deleteOpen" (click)="closeDelete()">
-      <div class="modal modal-sm" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-        <div class="modal-header danger-header">
-          <h3>Eliminar día {{ deleteDia }}</h3>
-          <button type="button" class="icon-btn" (click)="closeDelete()">
-            <fa-icon [icon]="faTimes"></fa-icon>
-          </button>
-        </div>
-        <div class="modal-body">
-          <p class="delete-msg">
-            Se eliminará la fila del día <strong>{{ deleteDia }}</strong> del sexo <strong>{{ tab }}</strong>.
-          </p>
-          <p class="delete-warning">Esta acción no se puede deshacer.</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-subtle" (click)="closeDelete()" [disabled]="deleteBusy">Cancelar</button>
-          <button type="button" class="btn-danger" (click)="confirmarDelete()" [disabled]="deleteBusy">
-            <fa-icon *ngIf="deleteBusy" [icon]="faSpinner" [spin]="true"></fa-icon>
-            Sí, eliminar
-          </button>
+    @if (deleteOpen) {
+      <div class="modal-backdrop" (click)="closeDelete()">
+        <div class="modal modal-sm" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+          <div class="modal-header danger-header">
+            <h3>Eliminar día {{ deleteDia }}</h3>
+            <button type="button" class="icon-btn" (click)="closeDelete()">
+              <fa-icon [icon]="faTimes"></fa-icon>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="delete-msg">
+              Se eliminará la fila del día <strong>{{ deleteDia }}</strong> del sexo <strong>{{ tab }}</strong>.
+            </p>
+            <p class="delete-warning">Esta acción no se puede deshacer.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-subtle" (click)="closeDelete()" [disabled]="deleteBusy">Cancelar</button>
+            <button type="button" class="btn-danger" (click)="confirmarDelete()" [disabled]="deleteBusy">
+              @if (deleteBusy) {
+                <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon>
+              }
+              Sí, eliminar
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    }
 
     <!-- ══════════════════════════════════════════════════════════ -->
     <!-- MODAL: Alta manual                                          -->
     <!-- ══════════════════════════════════════════════════════════ -->
-    <div class="modal-backdrop" *ngIf="manualOpen" (click)="closeManual()">
-      <div class="modal wide" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <h3>Alta manual — {{ razaSel }} / {{ anioSel }}</h3>
-          <button type="button" class="icon-btn" (click)="closeManual()">
-            <fa-icon [icon]="faTimes"></fa-icon>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="grid-2">
-            <div class="field">
-              <label>Sexo</label>
-              <select class="input" [(ngModel)]="manualSexo">
-                <option value="mixto">Mixto</option>
-                <option value="hembra">Hembra</option>
-                <option value="macho">Macho</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Estado guía</label>
-              <select class="input" [(ngModel)]="manualEstado">
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
-              </select>
-            </div>
+    @if (manualOpen) {
+      <div class="modal-backdrop" (click)="closeManual()">
+        <div class="modal wide" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3>Alta manual — {{ razaSel }} / {{ anioSel }}</h3>
+            <button type="button" class="icon-btn" (click)="closeManual()">
+              <fa-icon [icon]="faTimes"></fa-icon>
+            </button>
           </div>
-          <p class="muted small mt-field">Reemplaza todas las filas del sexo elegido con los datos ingresados.</p>
-          <div class="manual-table-wrap">
-            <table class="gg-table compact">
-              <thead>
-                <tr>
-                  <th>Día</th>
-                  <th>Peso (g)</th>
-                  <th>G. día (g)</th>
-                  <th>Prom. G. (g)</th>
-                  <th>Alim. día (g)</th>
-                  <th>Alim. acum. (g)</th>
-                  <th>CA</th>
-                  <th>Mort. (%)</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of manualRows; let i = index">
-                  <td><input type="number" class="input sm" [(ngModel)]="row.dia" /></td>
-                  <td><input type="number" class="input sm" [(ngModel)]="row.pesoCorporalG" step="0.001" /></td>
-                  <td><input type="number" class="input sm" [(ngModel)]="row.gananciaDiariaG" step="0.001" /></td>
-                  <td><input type="number" class="input sm" [(ngModel)]="row.promedioGananciaDiariaG" step="0.001" /></td>
-                  <td><input type="number" class="input sm" [(ngModel)]="row.cantidadAlimentoDiarioG" step="0.001" /></td>
-                  <td><input type="number" class="input sm" [(ngModel)]="row.alimentoAcumuladoG" step="0.001" /></td>
-                  <td><input type="number" class="input sm" [(ngModel)]="row.ca" step="0.0001" /></td>
-                  <td><input type="number" class="input sm" [(ngModel)]="row.mortalidadSeleccionDiaria" step="0.0001" /></td>
-                  <td>
-                    <button type="button" class="btn-remove-row" title="Quitar fila" (click)="removeManualRow(i)">
-                      <fa-icon [icon]="faTimes"></fa-icon>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-body">
+            <div class="grid-2">
+              <div class="field">
+                <label>Sexo</label>
+                <select class="input" [(ngModel)]="manualSexo">
+                  <option value="mixto">Mixto</option>
+                  <option value="hembra">Hembra</option>
+                  <option value="macho">Macho</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Estado guía</label>
+                <select class="input" [(ngModel)]="manualEstado">
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                </select>
+              </div>
+            </div>
+            <p class="muted small mt-field">Reemplaza todas las filas del sexo elegido con los datos ingresados.</p>
+            <div class="manual-table-wrap">
+              <table class="gg-table compact">
+                <thead>
+                  <tr>
+                    <th>Día</th>
+                    <th>Peso (g)</th>
+                    <th>G. día (g)</th>
+                    <th>Prom. G. (g)</th>
+                    <th>Alim. día (g)</th>
+                    <th>Alim. acum. (g)</th>
+                    <th>CA</th>
+                    <th>Mort. (%)</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of manualRows; track row; let i = $index) {
+                    <tr>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.dia" /></td>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.pesoCorporalG" step="0.001" /></td>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.gananciaDiariaG" step="0.001" /></td>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.promedioGananciaDiariaG" step="0.001" /></td>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.cantidadAlimentoDiarioG" step="0.001" /></td>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.alimentoAcumuladoG" step="0.001" /></td>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.ca" step="0.0001" /></td>
+                      <td><input type="number" class="input sm" [(ngModel)]="row.mortalidadSeleccionDiaria" step="0.0001" /></td>
+                      <td>
+                        <button type="button" class="btn-remove-row" title="Quitar fila" (click)="removeManualRow(i)">
+                          <fa-icon [icon]="faTimes"></fa-icon>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <button type="button" class="btn-subtle btn-add-row" (click)="addManualRow()">
+              <fa-icon [icon]="faPlus"></fa-icon> Agregar fila
+            </button>
           </div>
-          <button type="button" class="btn-subtle btn-add-row" (click)="addManualRow()">
-            <fa-icon [icon]="faPlus"></fa-icon> Agregar fila
-          </button>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-subtle" (click)="closeManual()">Cancelar</button>
-          <button type="button" class="btn-primary" (click)="guardarManual()" [disabled]="manualBusy">
-            <fa-icon *ngIf="manualBusy" [icon]="faSpinner" [spin]="true"></fa-icon>
-            Guardar
-          </button>
+          <div class="modal-footer">
+            <button type="button" class="btn-subtle" (click)="closeManual()">Cancelar</button>
+            <button type="button" class="btn-primary" (click)="guardarManual()" [disabled]="manualBusy">
+              @if (manualBusy) {
+                <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon>
+              }
+              Guardar
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    }
   </main>
 </div>

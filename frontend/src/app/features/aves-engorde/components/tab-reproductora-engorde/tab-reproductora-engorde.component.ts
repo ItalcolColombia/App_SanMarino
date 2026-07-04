@@ -3,7 +3,7 @@
 // cálculo a las funciones puras de ../../funciones. Solo lectura.
 // Compartido por los paises que usan el modulo aves-engorde (Ecuador y Panama).
 import { Component, Input, OnChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -23,7 +23,7 @@ import { calcularResumenVpi } from '../../funciones/calcular-resumen-vpi.funcion
 @Component({
   selector: 'app-tab-reproductora-engorde',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './tab-reproductora-engorde.component.html',
   styleUrls: ['./tab-reproductora-engorde.component.scss']
 })

@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -24,12 +24,11 @@ import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engo
   templateUrl: './lote-reproductora-ave-engorde-list.component.html',
   styleUrls: ['./lote-reproductora-ave-engorde-list.component.scss'],
   imports: [
-    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     FontAwesomeModule,
     ConfirmationModalComponent
-  ]
+]
 })
 export class LoteReproductoraAveEngordeListComponent implements OnInit {
   faPlus = faPlus;

@@ -10,7 +10,7 @@ import {
   signal,
   DestroyRef
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   FormBuilder,
   FormGroup,
@@ -46,7 +46,7 @@ type TabKey = 'listado' | 'resumen';
 @Component({
   selector: 'app-lesion-tab',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [ReactiveFormsModule],
   templateUrl: './lesion-tab.component.html',
   styleUrls: ['./lesion-tab.component.scss']
 })

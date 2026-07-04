@@ -2,7 +2,7 @@ import {
   Component, Input, Output, EventEmitter,
   OnChanges, SimpleChanges, ChangeDetectorRef, HostListener
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -26,7 +26,7 @@ export interface ItemDetalleEngorde {
 @Component({
   selector: 'app-modal-detalle-seguimiento-engorde',
   standalone: true,
-  imports: [CommonModule, FontAwesomeModule, ShowIfEcuadorPanamaDirective],
+  imports: [FontAwesomeModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-detalle-seguimiento-engorde.component.html',
   styleUrls: ['./modal-detalle-seguimiento-engorde.component.scss']
 })

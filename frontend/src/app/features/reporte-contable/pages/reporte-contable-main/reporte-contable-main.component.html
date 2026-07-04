@@ -11,39 +11,50 @@
         </p>
 
         <div class="ux-header__meta">
-          <ng-template #noGranjaChip>
+
+          @if (selectedGranjaId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Granja: {{ selectedGranjaNombre || selectedGranjaId }}
+            </span>
+          } @else {
             <span class="chip chip--warning">
               <span class="chip__dot" aria-hidden="true"></span>
               Selecciona una granja
             </span>
-          </ng-template>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaNombre || selectedGranjaId }}
-          </span>
+          @if (selectedNucleoId) {
+            <span class="chip chip--muted">
+              Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
+          @if (selectedGalponId) {
+            <span class="chip chip--muted">
+              Galpón: {{ selectedGalponNombre }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
+          @if (selectedLoteBaseId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Lote Base: {{ selectedLoteBaseNombre }}
+            </span>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedLoteBaseId">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote Base: {{ selectedLoteBaseNombre }}
-          </span>
+          @if (faseDelLote) {
+            <span class="chip chip--warning">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Fase: {{ faseDelLote === 'Levante' ? 'Levante' : 'Producción' }}
+            </span>
+          }
 
-          <span class="chip chip--warning" *ngIf="faseDelLote">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Fase: {{ faseDelLote === 'Levante' ? 'Levante' : 'Producción' }}
-          </span>
-
-          <span class="chip chip--success" *ngIf="semanaContable">
-            Semana Contable: {{ semanaContable }}
-          </span>
+          @if (semanaContable) {
+            <span class="chip chip--success">
+              Semana Contable: {{ semanaContable }}
+            </span>
+          }
         </div>
       </div>
 
@@ -54,8 +65,12 @@
           (click)="generarReporte()"
           [disabled]="loading() || !puedeGenerarReporte()"
           [title]="!puedeGenerarReporte() ? 'Selecciona un lote base y la fase del lote para generar el reporte' : 'Generar reporte contable'">
-          <fa-icon *ngIf="loading()" [icon]="faSpinner" class="spinning"></fa-icon>
-          <fa-icon *ngIf="!loading()" [icon]="faSearch"></fa-icon>
+          @if (loading()) {
+            <fa-icon [icon]="faSpinner" class="spinning"></fa-icon>
+          }
+          @if (!loading()) {
+            <fa-icon [icon]="faSearch"></fa-icon>
+          }
           Generar Reporte
         </button>
 
@@ -173,356 +188,387 @@
     </section>
 
     <!-- Filtros de Reporte -->
-    <section class="ux-card" *ngIf="selectedLoteBaseId && faseDelLote">
-      <h3 class="sr-only">Configuración del Reporte Contable</h3>
-
-      <div class="ux-form">
-        <div class="grid grid-2">
-          <!-- Selector de Semana Contable -->
-          <div class="form-field">
-            <label class="ux-label">Semana Contable</label>
-            <div class="ux-select">
-              <select
-                class="ux-input"
-                [(ngModel)]="semanaContable"
-                (change)="onSemanaChange()"
-                [disabled]="!!(usarRangoFechas && (fechaInicio || fechaFin))">
-                <option [ngValue]="null">Todas las semanas</option>
-                <option *ngFor="let semana of semanasContablesDisponibles" [ngValue]="semana">
-                  Semana {{ semana }}
-                </option>
-              </select>
-            </div>
-            <small class="ux-hint">
-              La semana contable inicia cuando llega el primer lote/sublote y dura 7 días calendario.
-              <span *ngIf="usarRangoFechas && (fechaInicio || fechaFin)" class="text-warning">(Desactive el rango de fechas para usar semana contable)</span>
-            </small>
-          </div>
-
-          <!-- Información del Lote Base -->
-          @if (selectedLoteBase) {
+    @if (selectedLoteBaseId && faseDelLote) {
+      <section class="ux-card">
+        <h3 class="sr-only">Configuración del Reporte Contable</h3>
+        <div class="ux-form">
+          <div class="grid grid-2">
+            <!-- Selector de Semana Contable -->
             <div class="form-field">
-              <label class="ux-label">Información del Lote Base</label>
-              <div class="info-display">
-                <p><strong>Lote:</strong> {{ selectedLoteBase.loteNombre }}</p>
-                @if (selectedLoteBase.codigoErp) {
-                  <p><strong>Código ERP:</strong> {{ selectedLoteBase.codigoErp }}</p>
+              <label class="ux-label">Semana Contable</label>
+              <div class="ux-select">
+                <select
+                  class="ux-input"
+                  [(ngModel)]="semanaContable"
+                  (change)="onSemanaChange()"
+                  [disabled]="!!(usarRangoFechas && (fechaInicio || fechaFin))">
+                  <option [ngValue]="null">Todas las semanas</option>
+                  @for (semana of semanasContablesDisponibles; track semana) {
+                    <option [ngValue]="semana">
+                      Semana {{ semana }}
+                    </option>
+                  }
+                </select>
+              </div>
+              <small class="ux-hint">
+                La semana contable inicia cuando llega el primer lote/sublote y dura 7 días calendario.
+                @if (usarRangoFechas && (fechaInicio || fechaFin)) {
+                  <span class="text-warning">(Desactive el rango de fechas para usar semana contable)</span>
+                }
+              </small>
+            </div>
+            <!-- Información del Lote Base -->
+            @if (selectedLoteBase) {
+              <div class="form-field">
+                <label class="ux-label">Información del Lote Base</label>
+                <div class="info-display">
+                  <p><strong>Lote:</strong> {{ selectedLoteBase.loteNombre }}</p>
+                  @if (selectedLoteBase.codigoErp) {
+                    <p><strong>Código ERP:</strong> {{ selectedLoteBase.codigoErp }}</p>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+          <!-- Filtro por Rango de Fechas -->
+          <div class="grid grid-2" style="margin-top: 1rem;">
+            <div class="form-field">
+              <label class="ux-label">Fecha Inicio</label>
+              <input
+                type="date"
+                class="ux-input"
+                [(ngModel)]="fechaInicio"
+                (change)="onFechaInicioChange()"
+                [max]="fechaFin || ''"
+                [disabled]="semanaContable !== null">
+                <small class="ux-hint">
+                  Fecha inicial del rango para generar el reporte semanal
+                  @if (semanaContable !== null) {
+                    <span class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
+                  }
+                </small>
+              </div>
+              <div class="form-field">
+                <label class="ux-label">Fecha Fin</label>
+                <input
+                  type="date"
+                  class="ux-input"
+                  [(ngModel)]="fechaFin"
+                  (change)="onFechaFinChange()"
+                  [min]="fechaInicio || ''"
+                  [disabled]="semanaContable !== null">
+                  <small class="ux-hint">
+                    Fecha final del rango para generar el reporte semanal
+                    @if (semanaContable !== null) {
+                      <span class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
+                    }
+                  </small>
+                </div>
+              </div>
+              <div class="form-field" style="margin-top: 0.5rem;">
+                <small class="ux-hint">
+                  <strong>Nota:</strong> Puede seleccionar una semana contable específica O un rango de fechas.
+                  Si selecciona un rango de fechas, se generarán reportes semanales para todas las semanas que caigan dentro del rango.
+                </small>
+              </div>
+            </div>
+          </section>
+        }
+
+        <!-- Mensaje de Error -->
+        @if (error) {
+          <div class="ux-card" role="alert">
+            <div class="alert alert-danger">
+              <strong>Error:</strong> {{ error }}
+            </div>
+          </div>
+        }
+
+        <!-- Reporte Generado -->
+        @if (reporte()) {
+          <section class="ux-card">
+            <div class="reporte-header">
+              <div class="reporte-info">
+                <h2>
+                  Informe Contable {{ reporte()!.lotePadreNombre }}
+                  @if (semanaContable) {
+                    <span class="chip chip--warning">
+                      Semana {{ semanaContable }}
+                    </span>
+                  }
+                </h2>
+                <div class="reporte-metadata">
+                  <span><strong>Granja:</strong> {{ reporte()!.granjaNombre }}</span>
+                  @if (reporte()!.nucleoNombre) {
+                    <span><strong>Núcleo:</strong> {{ reporte()!.nucleoNombre }}</span>
+                  }
+                  <span><strong>Fecha Primera Llegada:</strong> {{ formatDate(reporte()!.fechaPrimeraLlegada) }}</span>
+                  <span><strong>Semana Contable Actual:</strong> {{ reporte()!.semanaContableActual }}</span>
+                  <span><strong>Período Actual:</strong> {{ formatDate(reporte()!.fechaInicioSemanaActual) }} - {{ formatDate(reporte()!.fechaFinSemanaActual) }}</span>
+                  @if (sublotes.length > 0) {
+                    <span>
+                      <strong>Sub-lotes:</strong> {{ sublotes.join(', ') }}
+                    </span>
+                  }
+                </div>
+              </div>
+            </div>
+            <!-- ===== TABS EXTERNOS: Un tab por sub-lote ===== -->
+            @if (sublotes.length > 0) {
+              <div class="sublotes-nav">
+                <div class="sublotes-nav__header">
+                  <span class="sublotes-nav__label">Sub-lotes</span>
+                </div>
+                <div class="sublotes-nav__tabs">
+                  @for (sublote of sublotes; track sublote) {
+                    <button
+                      type="button"
+                      class="sublote-tab"
+                      [class.sublote-tab--active]="selectedSublote === sublote"
+                      (click)="selectSublote(sublote)">
+                      {{ sublote }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+            <!-- ===== CONTENIDO DEL SUB-LOTE SELECCIONADO ===== -->
+            @if (selectedSublote) {
+              <div class="sublote-content">
+                <!-- Tabs internos: Resumen | Movimientos Huevos | Semana N... -->
+                @if (semanasParaSubloteActual.length > 0) {
+                  <div class="tabs-container">
+                    <!-- Navegación de Tabs internos -->
+                    <div class="tabs-nav">
+                      <button
+                        type="button"
+                        class="tab-button"
+                        [class.active]="isTabActive('resumen')"
+                        (click)="setActiveTab('resumen')">
+                        Resumen
+                      </button>
+                      <button
+                        type="button"
+                        class="tab-button"
+                        [class.active]="isTabActive('movimientos-huevos')"
+                        (click)="setActiveTab('movimientos-huevos')">
+                        Movimientos Huevos
+                      </button>
+                      @for (reporteSemanal of semanasParaSubloteActual; track reporteSemanal) {
+                        <button
+                          type="button"
+                          class="tab-button"
+                          [class.active]="isTabActive(reporteSemanal.semanaContable)"
+                          (click)="setActiveTab(reporteSemanal.semanaContable)">
+                          {{ getTabLabel(reporteSemanal.semanaContable) }}
+                        </button>
+                      }
+                    </div>
+                    <!-- Contenido de Tabs internos -->
+                    <div class="tabs-content">
+                      <!-- Tab Resumen -->
+                      @if (isTabActive('resumen')) {
+                        <div class="tab-panel">
+                          <div class="datos-section">
+                            <h2>Resumen Semanal — {{ selectedSublote }}</h2>
+                            <table class="table">
+                              <thead>
+                                <tr>
+                                  <th>Semana</th>
+                                  <th>Período</th>
+                                  <th>Mortalidad</th>
+                                  <th>Traslados</th>
+                                  <th>Ventas</th>
+                                  <th>Alimento (kg)</th>
+                                  <th>Agua (L)</th>
+                                  <th>Medicamento</th>
+                                  <th>Vacuna</th>
+                                  <th>Otros</th>
+                                  <th>Total General</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (reporteSemanal of semanasParaSubloteActual; track reporteSemanal) {
+                                  <tr>
+                                    <td><strong>{{ reporteSemanal.semanaContable }}</strong></td>
+                                    <td>{{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}</td>
+                                    <td>{{ (reporteSemanal.mortalidadHembrasSemanal + reporteSemanal.mortalidadMachosSemanal) | number:'1.0-0' }}</td>
+                                    <td>{{ (reporteSemanal.trasladosHembrasSemanal + reporteSemanal.trasladosMachosSemanal) | number:'1.0-0' }}</td>
+                                    <td>{{ (reporteSemanal.ventasHembrasSemanal + reporteSemanal.ventasMachosSemanal) | number:'1.0-0' }}</td>
+                                    <td>{{ reporteSemanal.consumoTotalAlimento | number:'1.0-2' }}</td>
+                                    <td>{{ reporteSemanal.consumoTotalAgua | number:'1.0-2' }}</td>
+                                    <td>{{ reporteSemanal.consumoTotalMedicamento | number:'1.0-2' }}</td>
+                                    <td>{{ reporteSemanal.consumoTotalVacuna | number:'1.0-2' }}</td>
+                                    <td>{{ reporteSemanal.otrosConsumos | number:'1.0-2' }}</td>
+                                    <td><strong>{{ reporteSemanal.totalGeneral | number:'1.0-2' }}</strong></td>
+                                  </tr>
+                                }
+                              </tbody>
+                              <tfoot>
+                                <tr>
+                                  <td colspan="2"><strong>TOTAL GENERAL</strong></td>
+                                  <td><strong>{{ getTotalMortalidad() | number:'1.0-0' }}</strong></td>
+                                  <td><strong>{{ getTotalTraslados() | number:'1.0-0' }}</strong></td>
+                                  <td><strong>{{ getTotalVentas() | number:'1.0-0' }}</strong></td>
+                                  <td><strong>{{ getTotalAlimento() | number:'1.0-2' }}</strong></td>
+                                  <td><strong>{{ getTotalAgua() | number:'1.0-2' }}</strong></td>
+                                  <td><strong>{{ getTotalMedicamento() | number:'1.0-2' }}</strong></td>
+                                  <td><strong>{{ getTotalVacuna() | number:'1.0-2' }}</strong></td>
+                                  <td><strong>{{ getTotalOtros() | number:'1.0-2' }}</strong></td>
+                                  <td><strong>{{ getTotalGeneral() | number:'1.0-2' }}</strong></td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      }
+                      <!-- Tab Movimientos de Huevos -->
+                      @if (isTabActive('movimientos-huevos')) {
+                        <div class="tab-panel">
+                          @if (movimientosHuevosParaSubloteActual) {
+                            <div class="datos-section">
+                              <h2>Movimientos de Huevos — {{ selectedSublote }}</h2>
+                              @if (movimientosHuevosParaSubloteActual!.movimientosDiarios.length === 0) {
+                                <div class="empty-state">
+                                  <p>No hay datos de movimientos de huevos para este sub-lote en el período seleccionado.</p>
+                                </div>
+                              }
+                              @if (movimientosHuevosParaSubloteActual!.movimientosDiarios.length > 0) {
+                                <app-tabla-movimientos-huevos
+                                  [reporte]="movimientosHuevosParaSubloteActual!">
+                                </app-tabla-movimientos-huevos>
+                              }
+                            </div>
+                          } @else {
+                            <div class="loading-state">
+                              <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon>
+                              <p>Cargando movimientos de huevos...</p>
+                            </div>
+                          }
+                        </div>
+                      }
+                      <!-- Tabs de Semanas -->
+                      @for (reporteSemanal of semanasParaSubloteActual; track reporteSemanal) {
+                        @if (isTabActive(reporteSemanal.semanaContable)) {
+                          <div
+                            class="tab-panel"
+                            >
+                            <div class="semana-header">
+                              <h2>Semana {{ reporteSemanal.semanaContable }} — {{ selectedSublote }}</h2>
+                              <p class="periodo-info">
+                                Período: {{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}
+                              </p>
+                            </div>
+                            <!-- Sección AVES -->
+                            <app-tabla-aves-contable [reporteSemanal]="reporteSemanal"></app-tabla-aves-contable>
+                            <!-- Sección BULTO -->
+                            <app-tabla-bultos-contable [reporteSemanal]="reporteSemanal"></app-tabla-bultos-contable>
+                            <!-- Sección INICIO (Primeros 7 días) -->
+                            @if (reporteSemanal.seccionInicio) {
+                              <div class="datos-section">
+                                <h3>BULTO / INICIO (Primeros 7 días)</h3>
+                                <div class="seccion-info">
+                                  <p><strong>Período:</strong> {{ formatDate(reporteSemanal.seccionInicio.fechaInicio) }} - {{ formatDate(reporteSemanal.seccionInicio.fechaFin) }}</p>
+                                </div>
+                                <table class="table">
+                                  <thead>
+                                    <tr>
+                                      <th>Concepto</th>
+                                      <th>Saldo Ant.</th>
+                                      <th>Traslados</th>
+                                      <th>Entradas</th>
+                                      <th>Producto - Hembra</th>
+                                      <th>Producto - Macho</th>
+                                      <th>Saldo</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr>
+                                      <td>Totales</td>
+                                      <td>{{ reporteSemanal.seccionInicio.saldoBultosAnterior | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionInicio.trasladosBultos | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionInicio.entradasBultos | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionInicio.consumoBultosHembras | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionInicio.consumoBultosMachos | number:'1.0-1' }}</td>
+                                      <td><strong>{{ reporteSemanal.seccionInicio.saldoBultosFinal | number:'1.0-1' }}</strong></td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                            <!-- Sección LEVANTE (Después de 7 días) -->
+                            @if (reporteSemanal.seccionLevante) {
+                              <div class="datos-section">
+                                <h3>BULTO / LEVANTE (Después de 7 días)</h3>
+                                <div class="seccion-info">
+                                  <p><strong>Período:</strong> {{ formatDate(reporteSemanal.seccionLevante.fechaInicio) }} - {{ formatDate(reporteSemanal.seccionLevante.fechaFin) }}</p>
+                                </div>
+                                <table class="table">
+                                  <thead>
+                                    <tr>
+                                      <th>Concepto</th>
+                                      <th>Saldo Ant.</th>
+                                      <th>Traslados</th>
+                                      <th>Entradas</th>
+                                      <th>Producto - Hembra</th>
+                                      <th>Producto - Macho</th>
+                                      <th>Saldo</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr>
+                                      <td>Totales</td>
+                                      <td>{{ reporteSemanal.seccionLevante.saldoBultosAnterior | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionLevante.trasladosBultos | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionLevante.entradasBultos | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionLevante.consumoBultosHembras | number:'1.0-1' }}</td>
+                                      <td>{{ reporteSemanal.seccionLevante.consumoBultosMachos | number:'1.0-1' }}</td>
+                                      <td><strong>{{ reporteSemanal.seccionLevante.saldoBultosFinal | number:'1.0-1' }}</strong></td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                            <!-- Resumen de Consumos (Kg) -->
+                            <div class="datos-section">
+                              <h3>Resumen de Consumos (Kg)</h3>
+                              <app-tabla-detalle-diario-contable [consumosDiarios]="reporteSemanal.consumosDiarios"></app-tabla-detalle-diario-contable>
+                            </div>
+                          </div>
+                        }
+                      }
+                    </div>
+                  </div>
+                }
+                <!-- Sin datos para este sub-lote -->
+                @if (semanasParaSubloteActual.length === 0) {
+                  <div class="empty-state">
+                    <p>No se encontraron datos para <strong>{{ selectedSublote }}</strong> en el período seleccionado.</p>
+                  </div>
                 }
               </div>
+            }
+            <!-- Mensaje si no hay sublotes -->
+            @if (reporte()!.reportesSemanales.length === 0) {
+              <div class="empty-state">
+                <p>No se encontraron datos para el período seleccionado.</p>
+              </div>
+            }
+          </section>
+        }
+
+        <!-- Mensaje cuando no hay reporte -->
+        @if (!reporte() && !loading() && selectedLoteBaseId && faseDelLote) {
+          <div class="ux-card ux-card--empty">
+            <div class="empty-state">
+              <fa-icon [icon]="faFileAlt" class="empty-icon"></fa-icon>
+              <p>Selecciona los filtros y genera el reporte contable</p>
+              <p class="empty-hint">
+                El reporte consolidará los sub-lotes del lote base seleccionado para la fase
+                <strong>{{ faseDelLote === 'Levante' ? 'Levante' : 'Producción' }}</strong>
+              </p>
             </div>
-          }
-        </div>
-
-        <!-- Filtro por Rango de Fechas -->
-        <div class="grid grid-2" style="margin-top: 1rem;">
-          <div class="form-field">
-            <label class="ux-label">Fecha Inicio</label>
-            <input
-              type="date"
-              class="ux-input"
-              [(ngModel)]="fechaInicio"
-              (change)="onFechaInicioChange()"
-              [max]="fechaFin || ''"
-              [disabled]="semanaContable !== null">
-            <small class="ux-hint">
-              Fecha inicial del rango para generar el reporte semanal
-              <span *ngIf="semanaContable !== null" class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
-            </small>
           </div>
-
-          <div class="form-field">
-            <label class="ux-label">Fecha Fin</label>
-            <input
-              type="date"
-              class="ux-input"
-              [(ngModel)]="fechaFin"
-              (change)="onFechaFinChange()"
-              [min]="fechaInicio || ''"
-              [disabled]="semanaContable !== null">
-            <small class="ux-hint">
-              Fecha final del rango para generar el reporte semanal
-              <span *ngIf="semanaContable !== null" class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
-            </small>
-          </div>
-        </div>
-
-        <div class="form-field" style="margin-top: 0.5rem;">
-          <small class="ux-hint">
-            <strong>Nota:</strong> Puede seleccionar una semana contable específica O un rango de fechas.
-            Si selecciona un rango de fechas, se generarán reportes semanales para todas las semanas que caigan dentro del rango.
-          </small>
-        </div>
-      </div>
-    </section>
-
-    <!-- Mensaje de Error -->
-    <div class="ux-card" *ngIf="error" role="alert">
-      <div class="alert alert-danger">
-        <strong>Error:</strong> {{ error }}
+        }
       </div>
     </div>
-
-    <!-- Reporte Generado -->
-    <section class="ux-card" *ngIf="reporte()">
-      <div class="reporte-header">
-        <div class="reporte-info">
-          <h2>
-            Informe Contable {{ reporte()!.lotePadreNombre }}
-            <span class="chip chip--warning" *ngIf="semanaContable">
-              Semana {{ semanaContable }}
-            </span>
-          </h2>
-          <div class="reporte-metadata">
-            <span><strong>Granja:</strong> {{ reporte()!.granjaNombre }}</span>
-            <span *ngIf="reporte()!.nucleoNombre"><strong>Núcleo:</strong> {{ reporte()!.nucleoNombre }}</span>
-            <span><strong>Fecha Primera Llegada:</strong> {{ formatDate(reporte()!.fechaPrimeraLlegada) }}</span>
-            <span><strong>Semana Contable Actual:</strong> {{ reporte()!.semanaContableActual }}</span>
-            <span><strong>Período Actual:</strong> {{ formatDate(reporte()!.fechaInicioSemanaActual) }} - {{ formatDate(reporte()!.fechaFinSemanaActual) }}</span>
-            <span *ngIf="sublotes.length > 0">
-              <strong>Sub-lotes:</strong> {{ sublotes.join(', ') }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ===== TABS EXTERNOS: Un tab por sub-lote ===== -->
-      <div class="sublotes-nav" *ngIf="sublotes.length > 0">
-        <div class="sublotes-nav__header">
-          <span class="sublotes-nav__label">Sub-lotes</span>
-        </div>
-        <div class="sublotes-nav__tabs">
-          <button
-            *ngFor="let sublote of sublotes"
-            type="button"
-            class="sublote-tab"
-            [class.sublote-tab--active]="selectedSublote === sublote"
-            (click)="selectSublote(sublote)">
-            {{ sublote }}
-          </button>
-        </div>
-      </div>
-
-      <!-- ===== CONTENIDO DEL SUB-LOTE SELECCIONADO ===== -->
-      <div class="sublote-content" *ngIf="selectedSublote">
-
-        <!-- Tabs internos: Resumen | Movimientos Huevos | Semana N... -->
-        <div class="tabs-container" *ngIf="semanasParaSubloteActual.length > 0">
-          <!-- Navegación de Tabs internos -->
-          <div class="tabs-nav">
-            <button
-              type="button"
-              class="tab-button"
-              [class.active]="isTabActive('resumen')"
-              (click)="setActiveTab('resumen')">
-              Resumen
-            </button>
-            <button
-              type="button"
-              class="tab-button"
-              [class.active]="isTabActive('movimientos-huevos')"
-              (click)="setActiveTab('movimientos-huevos')">
-              Movimientos Huevos
-            </button>
-            <button
-              type="button"
-              *ngFor="let reporteSemanal of semanasParaSubloteActual"
-              class="tab-button"
-              [class.active]="isTabActive(reporteSemanal.semanaContable)"
-              (click)="setActiveTab(reporteSemanal.semanaContable)">
-              {{ getTabLabel(reporteSemanal.semanaContable) }}
-            </button>
-          </div>
-
-          <!-- Contenido de Tabs internos -->
-          <div class="tabs-content">
-            <!-- Tab Resumen -->
-            <div class="tab-panel" *ngIf="isTabActive('resumen')">
-              <div class="datos-section">
-                <h2>Resumen Semanal — {{ selectedSublote }}</h2>
-                <table class="table">
-                  <thead>
-                    <tr>
-                      <th>Semana</th>
-                      <th>Período</th>
-                      <th>Mortalidad</th>
-                      <th>Traslados</th>
-                      <th>Ventas</th>
-                      <th>Alimento (kg)</th>
-                      <th>Agua (L)</th>
-                      <th>Medicamento</th>
-                      <th>Vacuna</th>
-                      <th>Otros</th>
-                      <th>Total General</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let reporteSemanal of semanasParaSubloteActual">
-                      <td><strong>{{ reporteSemanal.semanaContable }}</strong></td>
-                      <td>{{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}</td>
-                      <td>{{ (reporteSemanal.mortalidadHembrasSemanal + reporteSemanal.mortalidadMachosSemanal) | number:'1.0-0' }}</td>
-                      <td>{{ (reporteSemanal.trasladosHembrasSemanal + reporteSemanal.trasladosMachosSemanal) | number:'1.0-0' }}</td>
-                      <td>{{ (reporteSemanal.ventasHembrasSemanal + reporteSemanal.ventasMachosSemanal) | number:'1.0-0' }}</td>
-                      <td>{{ reporteSemanal.consumoTotalAlimento | number:'1.0-2' }}</td>
-                      <td>{{ reporteSemanal.consumoTotalAgua | number:'1.0-2' }}</td>
-                      <td>{{ reporteSemanal.consumoTotalMedicamento | number:'1.0-2' }}</td>
-                      <td>{{ reporteSemanal.consumoTotalVacuna | number:'1.0-2' }}</td>
-                      <td>{{ reporteSemanal.otrosConsumos | number:'1.0-2' }}</td>
-                      <td><strong>{{ reporteSemanal.totalGeneral | number:'1.0-2' }}</strong></td>
-                    </tr>
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colspan="2"><strong>TOTAL GENERAL</strong></td>
-                      <td><strong>{{ getTotalMortalidad() | number:'1.0-0' }}</strong></td>
-                      <td><strong>{{ getTotalTraslados() | number:'1.0-0' }}</strong></td>
-                      <td><strong>{{ getTotalVentas() | number:'1.0-0' }}</strong></td>
-                      <td><strong>{{ getTotalAlimento() | number:'1.0-2' }}</strong></td>
-                      <td><strong>{{ getTotalAgua() | number:'1.0-2' }}</strong></td>
-                      <td><strong>{{ getTotalMedicamento() | number:'1.0-2' }}</strong></td>
-                      <td><strong>{{ getTotalVacuna() | number:'1.0-2' }}</strong></td>
-                      <td><strong>{{ getTotalOtros() | number:'1.0-2' }}</strong></td>
-                      <td><strong>{{ getTotalGeneral() | number:'1.0-2' }}</strong></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-
-            <!-- Tab Movimientos de Huevos -->
-            <div class="tab-panel" *ngIf="isTabActive('movimientos-huevos')">
-              <div class="datos-section" *ngIf="movimientosHuevosParaSubloteActual; else loadingMovimientosHuevos">
-                <h2>Movimientos de Huevos — {{ selectedSublote }}</h2>
-                <div *ngIf="movimientosHuevosParaSubloteActual!.movimientosDiarios.length === 0" class="empty-state">
-                  <p>No hay datos de movimientos de huevos para este sub-lote en el período seleccionado.</p>
-                </div>
-                <app-tabla-movimientos-huevos
-                  *ngIf="movimientosHuevosParaSubloteActual!.movimientosDiarios.length > 0"
-                  [reporte]="movimientosHuevosParaSubloteActual!">
-                </app-tabla-movimientos-huevos>
-              </div>
-              <ng-template #loadingMovimientosHuevos>
-                <div class="loading-state">
-                  <fa-icon [icon]="faSpinner" [spin]="true"></fa-icon>
-                  <p>Cargando movimientos de huevos...</p>
-                </div>
-              </ng-template>
-            </div>
-
-            <!-- Tabs de Semanas -->
-            <ng-container *ngFor="let reporteSemanal of semanasParaSubloteActual">
-              <div
-                class="tab-panel"
-                *ngIf="isTabActive(reporteSemanal.semanaContable)">
-                <div class="semana-header">
-                  <h2>Semana {{ reporteSemanal.semanaContable }} — {{ selectedSublote }}</h2>
-                  <p class="periodo-info">
-                    Período: {{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}
-                  </p>
-                </div>
-
-                <!-- Sección AVES -->
-                <app-tabla-aves-contable [reporteSemanal]="reporteSemanal"></app-tabla-aves-contable>
-
-                <!-- Sección BULTO -->
-                <app-tabla-bultos-contable [reporteSemanal]="reporteSemanal"></app-tabla-bultos-contable>
-
-                <!-- Sección INICIO (Primeros 7 días) -->
-                <div class="datos-section" *ngIf="reporteSemanal.seccionInicio">
-                  <h3>BULTO / INICIO (Primeros 7 días)</h3>
-                  <div class="seccion-info">
-                    <p><strong>Período:</strong> {{ formatDate(reporteSemanal.seccionInicio.fechaInicio) }} - {{ formatDate(reporteSemanal.seccionInicio.fechaFin) }}</p>
-                  </div>
-                  <table class="table">
-                    <thead>
-                      <tr>
-                        <th>Concepto</th>
-                        <th>Saldo Ant.</th>
-                        <th>Traslados</th>
-                        <th>Entradas</th>
-                        <th>Producto - Hembra</th>
-                        <th>Producto - Macho</th>
-                        <th>Saldo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Totales</td>
-                        <td>{{ reporteSemanal.seccionInicio.saldoBultosAnterior | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionInicio.trasladosBultos | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionInicio.entradasBultos | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionInicio.consumoBultosHembras | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionInicio.consumoBultosMachos | number:'1.0-1' }}</td>
-                        <td><strong>{{ reporteSemanal.seccionInicio.saldoBultosFinal | number:'1.0-1' }}</strong></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Sección LEVANTE (Después de 7 días) -->
-                <div class="datos-section" *ngIf="reporteSemanal.seccionLevante">
-                  <h3>BULTO / LEVANTE (Después de 7 días)</h3>
-                  <div class="seccion-info">
-                    <p><strong>Período:</strong> {{ formatDate(reporteSemanal.seccionLevante.fechaInicio) }} - {{ formatDate(reporteSemanal.seccionLevante.fechaFin) }}</p>
-                  </div>
-                  <table class="table">
-                    <thead>
-                      <tr>
-                        <th>Concepto</th>
-                        <th>Saldo Ant.</th>
-                        <th>Traslados</th>
-                        <th>Entradas</th>
-                        <th>Producto - Hembra</th>
-                        <th>Producto - Macho</th>
-                        <th>Saldo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Totales</td>
-                        <td>{{ reporteSemanal.seccionLevante.saldoBultosAnterior | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionLevante.trasladosBultos | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionLevante.entradasBultos | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionLevante.consumoBultosHembras | number:'1.0-1' }}</td>
-                        <td>{{ reporteSemanal.seccionLevante.consumoBultosMachos | number:'1.0-1' }}</td>
-                        <td><strong>{{ reporteSemanal.seccionLevante.saldoBultosFinal | number:'1.0-1' }}</strong></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Resumen de Consumos (Kg) -->
-                <div class="datos-section">
-                  <h3>Resumen de Consumos (Kg)</h3>
-                  <app-tabla-detalle-diario-contable [consumosDiarios]="reporteSemanal.consumosDiarios"></app-tabla-detalle-diario-contable>
-                </div>
-              </div>
-            </ng-container>
-          </div>
-        </div>
-
-        <!-- Sin datos para este sub-lote -->
-        <div class="empty-state" *ngIf="semanasParaSubloteActual.length === 0">
-          <p>No se encontraron datos para <strong>{{ selectedSublote }}</strong> en el período seleccionado.</p>
-        </div>
-
-      </div>
-
-      <!-- Mensaje si no hay sublotes -->
-      <div class="empty-state" *ngIf="reporte()!.reportesSemanales.length === 0">
-        <p>No se encontraron datos para el período seleccionado.</p>
-      </div>
-    </section>
-
-    <!-- Mensaje cuando no hay reporte -->
-    <div *ngIf="!reporte() && !loading() && selectedLoteBaseId && faseDelLote" class="ux-card ux-card--empty">
-      <div class="empty-state">
-        <fa-icon [icon]="faFileAlt" class="empty-icon"></fa-icon>
-        <p>Selecciona los filtros y genera el reporte contable</p>
-        <p class="empty-hint">
-          El reporte consolidará los sub-lotes del lote base seleccionado para la fase
-          <strong>{{ faseDelLote === 'Levante' ? 'Levante' : 'Producción' }}</strong>
-        </p>
-      </div>
-    </div>
-  </div>
-</div>

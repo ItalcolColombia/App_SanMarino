@@ -6,11 +6,17 @@
     <div class="flex items-center justify-between rounded-t-lg bg-[#F5821F] px-5 py-3 text-white">
       <div>
         <h2 class="text-lg font-semibold">Verificar liquidación</h2>
-        <p class="text-xs opacity-90" *ngIf="scope">
-          Granja {{ scope.granjaId }}
-          <span *ngIf="scope.nucleoId"> · Núcleo {{ scope.nucleoId }}</span>
-          <span *ngIf="scope.loteCodigo"> · Lote {{ scope.loteCodigo }}</span>
-        </p>
+        @if (scope) {
+          <p class="text-xs opacity-90">
+            Granja {{ scope.granjaId }}
+            @if (scope.nucleoId) {
+              <span> · Núcleo {{ scope.nucleoId }}</span>
+            }
+            @if (scope.loteCodigo) {
+              <span> · Lote {{ scope.loteCodigo }}</span>
+            }
+          </p>
+        }
       </div>
       <button (click)="close()" class="rounded p-1 text-2xl leading-none hover:bg-white/20" aria-label="Cerrar">&times;</button>
     </div>
@@ -18,142 +24,168 @@
     <div class="max-h-[80vh] overflow-y-auto p-5">
 
       <!-- Paso 1: subir Excel -->
-      <div *ngIf="!resultado" class="space-y-4">
-        <p class="text-sm text-gray-600">
-          Suba el <strong>Excel correcto</strong> (formato vertical: una columna de indicadores y otra de valores, con el TOTAL de la corrida).
-          El sistema compara contra los datos cargados y muestra dónde está la falla y una simulación de corrección.
-        </p>
-
-        <div class="rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-2">
-          <p class="text-xs text-gray-600">
-            ¿No estás seguro del formato? Descarga la plantilla, llénala con tus valores (solo números, sin fórmulas) y súbela.
+      @if (!resultado) {
+        <div class="space-y-4">
+          <p class="text-sm text-gray-600">
+            Suba el <strong>Excel correcto</strong> (formato vertical: una columna de indicadores y otra de valores, con el TOTAL de la corrida).
+            El sistema compara contra los datos cargados y muestra dónde está la falla y una simulación de corrección.
           </p>
-          <button type="button" (click)="descargarPlantilla()"
-                  class="mt-1 inline-flex items-center gap-1 text-sm font-medium text-[#F5821F] underline hover:text-[#C85A0E]">
-            ⬇ Descargar plantilla (.xlsx)
-          </button>
+          <div class="rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-2">
+            <p class="text-xs text-gray-600">
+              ¿No estás seguro del formato? Descarga la plantilla, llénala con tus valores (solo números, sin fórmulas) y súbela.
+            </p>
+            <button type="button" (click)="descargarPlantilla()"
+              class="mt-1 inline-flex items-center gap-1 text-sm font-medium text-[#F5821F] underline hover:text-[#C85A0E]">
+              ⬇ Descargar plantilla (.xlsx)
+            </button>
+          </div>
+          <input type="file" accept=".xlsx,.xls"
+            (change)="onArchivo($event)"
+            class="block w-full text-sm text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-[#F5821F] file:px-4 file:py-2 file:text-white hover:file:bg-[#C85A0E]" />
+          @if (archivo) {
+            <p class="text-xs text-gray-500">Archivo: {{ archivo.name }}</p>
+          }
+          @if (error) {
+            <div class="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
+          }
+          <div class="flex justify-end gap-2">
+            <button (click)="close()" class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
+            <button (click)="analizar()" [disabled]="cargando || !archivo"
+              class="rounded bg-[#F5821F] px-4 py-2 text-sm font-medium text-white hover:bg-[#C85A0E] disabled:opacity-50">
+              {{ cargando ? 'Analizando…' : 'Analizar' }}
+            </button>
+          </div>
         </div>
-
-        <input type="file" accept=".xlsx,.xls"
-               (change)="onArchivo($event)"
-               class="block w-full text-sm text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-[#F5821F] file:px-4 file:py-2 file:text-white hover:file:bg-[#C85A0E]" />
-        <p *ngIf="archivo" class="text-xs text-gray-500">Archivo: {{ archivo.name }}</p>
-
-        <div *ngIf="error" class="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
-
-        <div class="flex justify-end gap-2">
-          <button (click)="close()" class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
-          <button (click)="analizar()" [disabled]="cargando || !archivo"
-                  class="rounded bg-[#F5821F] px-4 py-2 text-sm font-medium text-white hover:bg-[#C85A0E] disabled:opacity-50">
-            {{ cargando ? 'Analizando…' : 'Analizar' }}
-          </button>
-        </div>
-      </div>
+      }
 
       <!-- Resultado -->
-      <div *ngIf="resultado" class="space-y-6">
-
-        <!-- Aviso: corrección aplicada -->
-        <div *ngIf="mensajeOk" class="rounded border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
-          ✅ {{ mensajeOk }}
-        </div>
-
-        <!-- Aviso: Excel incompleto / incorrecto -->
-        <div *ngIf="resultado.resumen.excelValido === false"
-             class="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
-          ⚠️ El Excel cargado parece <strong>incompleto o no es el correcto</strong>: faltan valores clave
-          (aves sacrificadas / producción) o tiene fórmulas en error (<code>#DIV/0!</code>). Suba el archivo
-          de liquidación ya calculado y con valores. El detalle de abajo es solo referencial mientras tanto.
-        </div>
-
-        <!-- Resumen -->
-        <div class="flex flex-wrap items-center gap-3 text-sm">
-          <span class="rounded-full px-3 py-1 font-medium"
-                [ngClass]="resultado.resumen.fallasDato > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'">
-            {{ resultado.resumen.fallasDato }} falla(s) de dato
-          </span>
-          <span class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-700">
-            {{ resultado.resumen.difDefinicion }} dif. de definición
-          </span>
-          <span class="rounded-full bg-sky-100 px-3 py-1 font-medium text-sky-700">
-            {{ resultado.resumen.hallazgos }} hallazgo(s)
-          </span>
-          <span class="ml-auto text-xs text-gray-400">
-            Lotes: {{ resultado.scope.lotes.join(', ') }}
-          </span>
-        </div>
-
-        <!-- 1. Reconciliación -->
-        <section>
-          <h3 class="mb-2 text-sm font-semibold text-gray-700">1 · Reconciliación (sistema vs Excel)</h3>
-          <div class="overflow-x-auto rounded border border-gray-200">
-            <table class="min-w-full text-sm">
-              <thead class="bg-gray-100 text-left text-xs uppercase text-gray-500">
-                <tr>
-                  <th class="px-3 py-2">Indicador</th>
-                  <th class="px-3 py-2 text-right">Sistema</th>
-                  <th class="px-3 py-2 text-right">Excel</th>
-                  <th class="px-3 py-2 text-right">Diferencia</th>
-                  <th class="px-3 py-2">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let r of resultado.reconciliacion" [ngClass]="filaClase(r)" class="border-t border-gray-100">
-                  <td class="px-3 py-1.5">{{ r.label }} <span class="text-gray-400" *ngIf="r.unidad">({{ r.unidad }})</span></td>
-                  <td class="px-3 py-1.5 text-right tabular-nums">{{ num(r.sistema) }}</td>
-                  <td class="px-3 py-1.5 text-right tabular-nums">{{ num(r.excel) }}</td>
-                  <td class="px-3 py-1.5 text-right tabular-nums">
-                    {{ num(r.diferencia) }}<span *ngIf="r.difPct !== null" class="text-xs text-gray-400"> ({{ num(r.difPct) }}%)</span>
-                  </td>
-                  <td class="px-3 py-1.5 text-xs">{{ estadoTexto(r) }}</td>
-                </tr>
+      @if (resultado) {
+        <div class="space-y-6">
+          <!-- Aviso: corrección aplicada -->
+          @if (mensajeOk) {
+            <div class="rounded border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
+              ✅ {{ mensajeOk }}
+            </div>
+          }
+          <!-- Aviso: Excel incompleto / incorrecto -->
+          @if (resultado.resumen.excelValido === false) {
+            <div
+              class="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+              ⚠️ El Excel cargado parece <strong>incompleto o no es el correcto</strong>: faltan valores clave
+              (aves sacrificadas / producción) o tiene fórmulas en error (<code>#DIV/0!</code>). Suba el archivo
+              de liquidación ya calculado y con valores. El detalle de abajo es solo referencial mientras tanto.
+            </div>
+          }
+          <!-- Resumen -->
+          <div class="flex flex-wrap items-center gap-3 text-sm">
+            <span class="rounded-full px-3 py-1 font-medium"
+              [ngClass]="resultado.resumen.fallasDato > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'">
+              {{ resultado.resumen.fallasDato }} falla(s) de dato
+            </span>
+            <span class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-700">
+              {{ resultado.resumen.difDefinicion }} dif. de definición
+            </span>
+            <span class="rounded-full bg-sky-100 px-3 py-1 font-medium text-sky-700">
+              {{ resultado.resumen.hallazgos }} hallazgo(s)
+            </span>
+            <span class="ml-auto text-xs text-gray-400">
+              Lotes: {{ resultado.scope.lotes.join(', ') }}
+            </span>
+          </div>
+          <!-- 1. Reconciliación -->
+          <section>
+            <h3 class="mb-2 text-sm font-semibold text-gray-700">1 · Reconciliación (sistema vs Excel)</h3>
+            <div class="overflow-x-auto rounded border border-gray-200">
+              <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 text-left text-xs uppercase text-gray-500">
+                  <tr>
+                    <th class="px-3 py-2">Indicador</th>
+                    <th class="px-3 py-2 text-right">Sistema</th>
+                    <th class="px-3 py-2 text-right">Excel</th>
+                    <th class="px-3 py-2 text-right">Diferencia</th>
+                    <th class="px-3 py-2">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of resultado.reconciliacion; track r) {
+                    <tr [ngClass]="filaClase(r)" class="border-t border-gray-100">
+                      <td class="px-3 py-1.5">{{ r.label }} @if (r.unidad) {
+                        <span class="text-gray-400">({{ r.unidad }})</span>
+                      }</td>
+                      <td class="px-3 py-1.5 text-right tabular-nums">{{ num(r.sistema) }}</td>
+                      <td class="px-3 py-1.5 text-right tabular-nums">{{ num(r.excel) }}</td>
+                      <td class="px-3 py-1.5 text-right tabular-nums">
+                        {{ num(r.diferencia) }}@if (r.difPct !== null) {
+                        <span class="text-xs text-gray-400"> ({{ num(r.difPct) }}%)</span>
+                      }
+                    </td>
+                    <td class="px-3 py-1.5 text-xs">{{ estadoTexto(r) }}</td>
+                  </tr>
+                }
               </tbody>
             </table>
           </div>
           <p class="mt-1 text-xs text-gray-400">Verde = cuadra · Rojo = falla de dato · Ámbar = diferencia de definición (merma %, días, edad).</p>
         </section>
-
         <!-- 2. Hallazgos -->
-        <section *ngIf="resultado.hallazgos.length">
-          <h3 class="mb-2 text-sm font-semibold text-gray-700">2 · Hallazgos</h3>
-          <div class="space-y-3">
-            <div *ngFor="let h of resultado.hallazgos" class="rounded border-l-4 p-3" [ngClass]="sevBorde(h.severidad)">
-              <div class="flex items-center gap-2">
-                <span class="rounded px-2 py-0.5 text-xs font-semibold uppercase" [ngClass]="sevBadge(h.severidad)">{{ h.severidad }}</span>
-                <span class="text-sm font-semibold text-gray-800">{{ h.titulo }}</span>
-              </div>
-              <p class="mt-1 text-sm text-gray-600">{{ h.descripcion }}</p>
-              <p *ngIf="h.impactoKgEstimado" class="mt-1 text-xs text-gray-500">
-                Impacto estimado: {{ num(h.impactoKgEstimado) }} kg
-                <span *ngIf="h.pesoAvePromedioResto"> · peso prom. del resto: {{ num(h.pesoAvePromedioResto) }} kg/ave</span>
-              </p>
-
-              <!-- Registros afectados -->
-              <div *ngIf="h.registros?.length" class="mt-2 overflow-x-auto rounded border border-gray-200 bg-white">
-                <table class="min-w-full text-xs">
-                  <thead class="bg-gray-50 text-left uppercase text-gray-500">
-                    <tr><th *ngFor="let c of columnasRegistro(h)" class="px-2 py-1">{{ c }}</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let reg of h.registros" class="border-t border-gray-100">
-                      <td *ngFor="let c of columnasRegistro(h)" class="px-2 py-1 tabular-nums">{{ reg[c] }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+        @if (resultado.hallazgos.length) {
+          <section>
+            <h3 class="mb-2 text-sm font-semibold text-gray-700">2 · Hallazgos</h3>
+            <div class="space-y-3">
+              @for (h of resultado.hallazgos; track h) {
+                <div class="rounded border-l-4 p-3" [ngClass]="sevBorde(h.severidad)">
+                  <div class="flex items-center gap-2">
+                    <span class="rounded px-2 py-0.5 text-xs font-semibold uppercase" [ngClass]="sevBadge(h.severidad)">{{ h.severidad }}</span>
+                    <span class="text-sm font-semibold text-gray-800">{{ h.titulo }}</span>
+                  </div>
+                  <p class="mt-1 text-sm text-gray-600">{{ h.descripcion }}</p>
+                  @if (h.impactoKgEstimado) {
+                    <p class="mt-1 text-xs text-gray-500">
+                      Impacto estimado: {{ num(h.impactoKgEstimado) }} kg
+                      @if (h.pesoAvePromedioResto) {
+                        <span> · peso prom. del resto: {{ num(h.pesoAvePromedioResto) }} kg/ave</span>
+                      }
+                    </p>
+                  }
+                  <!-- Registros afectados -->
+                  @if (h.registros?.length) {
+                    <div class="mt-2 overflow-x-auto rounded border border-gray-200 bg-white">
+                      <table class="min-w-full text-xs">
+                        <thead class="bg-gray-50 text-left uppercase text-gray-500">
+                          <tr>@for (c of columnasRegistro(h); track c) {
+                            <th class="px-2 py-1">{{ c }}</th>
+                          }</tr>
+                        </thead>
+                        <tbody>
+                          @for (reg of h.registros; track reg) {
+                            <tr class="border-t border-gray-100">
+                              @for (c of columnasRegistro(h); track c) {
+                                <td class="px-2 py-1 tabular-nums">{{ reg[c] }}</td>
+                              }
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              }
             </div>
-          </div>
-        </section>
-
+          </section>
+        }
         <!-- 3. Simulación -->
         <section>
           <h3 class="mb-2 text-sm font-semibold text-gray-700">3 · Simulación de corrección</h3>
           <div class="rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
             <p>{{ resultado.simulacion.nota }}</p>
-            <p *ngIf="resultado.simulacion.gapKg !== null" class="mt-1 text-xs text-gray-500">
-              Faltante (gap): <strong>{{ num(resultado.simulacion.gapKg) }} kg</strong>
-              <span *ngIf="resultado.simulacion.pesoAveImplicito"> · peso implícito {{ num(resultado.simulacion.pesoAveImplicito) }} kg/ave</span>
-            </p>
+            @if (resultado.simulacion.gapKg !== null) {
+              <p class="mt-1 text-xs text-gray-500">
+                Faltante (gap): <strong>{{ num(resultado.simulacion.gapKg) }} kg</strong>
+                @if (resultado.simulacion.pesoAveImplicito) {
+                  <span> · peso implícito {{ num(resultado.simulacion.pesoAveImplicito) }} kg/ave</span>
+                }
+              </p>
+            }
           </div>
           <div class="mt-2 overflow-x-auto rounded border border-gray-200">
             <table class="min-w-full text-sm">
@@ -167,33 +199,35 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let i of resultado.simulacion.indicadores" class="border-t border-gray-100" [ngClass]="i.cuadra ? 'bg-green-50' : 'bg-red-50'">
-                  <td class="px-3 py-1.5">{{ i.label }}</td>
-                  <td class="px-3 py-1.5 text-right tabular-nums">{{ num(i.sistemaActual) }}</td>
-                  <td class="px-3 py-1.5 text-right font-medium tabular-nums">{{ num(i.corregido) }}</td>
-                  <td class="px-3 py-1.5 text-right tabular-nums">{{ num(i.excel) }}</td>
-                  <td class="px-3 py-1.5 text-center">{{ i.cuadra ? '✓' : '✗' }}</td>
-                </tr>
+                @for (i of resultado.simulacion.indicadores; track i) {
+                  <tr class="border-t border-gray-100" [ngClass]="i.cuadra ? 'bg-green-50' : 'bg-red-50'">
+                    <td class="px-3 py-1.5">{{ i.label }}</td>
+                    <td class="px-3 py-1.5 text-right tabular-nums">{{ num(i.sistemaActual) }}</td>
+                    <td class="px-3 py-1.5 text-right font-medium tabular-nums">{{ num(i.corregido) }}</td>
+                    <td class="px-3 py-1.5 text-right tabular-nums">{{ num(i.excel) }}</td>
+                    <td class="px-3 py-1.5 text-center">{{ i.cuadra ? '✓' : '✗' }}</td>
+                  </tr>
+                }
               </tbody>
             </table>
           </div>
         </section>
-
         <!-- 4. Aplicar corrección (solo usuarios con el permiso liquidacion.aplicar_correccion) -->
-        <section *ngIf="puedeAplicar">
-          <ng-container *appHasPermission="'liquidacion.aplicar_correccion'">
-            <div class="rounded border border-[#F5821F]/40 bg-[#F5821F]/5 p-3">
-              <h3 class="text-sm font-semibold text-[#F5821F]">4 · Aplicar corrección</h3>
-              <p class="mt-1 text-xs text-gray-600">
-                Carga el peso faltante en los despachos sin peso (se distribuye por aves). <strong>Modifica los
+        @if (puedeAplicar) {
+          <section>
+            <ng-container *appHasPermission="'liquidacion.aplicar_correccion'">
+              <div class="rounded border border-[#F5821F]/40 bg-[#F5821F]/5 p-3">
+                <h3 class="text-sm font-semibold text-[#F5821F]">4 · Aplicar corrección</h3>
+                <p class="mt-1 text-xs text-gray-600">
+                  Carga el peso faltante en los despachos sin peso (se distribuye por aves). <strong>Modifica los
                 movimientos</strong> (queda auditado). Confirma el total con el tiquete físico de báscula antes de aplicar.
               </p>
               <div class="mt-2 flex flex-wrap items-center gap-2">
                 <label class="text-sm text-gray-700">Kg a cargar:</label>
                 <input type="number" min="0" step="0.01" [(ngModel)]="kgAplicar"
-                       class="w-36 rounded border border-gray-300 px-2 py-1 text-sm tabular-nums" />
+                  class="w-36 rounded border border-gray-300 px-2 py-1 text-sm tabular-nums" />
                 <button (click)="aplicarCorreccion()" [disabled]="aplicando || !kgAplicar"
-                        class="rounded bg-[#F5821F] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#C85A0E] disabled:opacity-50">
+                  class="rounded bg-[#F5821F] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#C85A0E] disabled:opacity-50">
                   {{ aplicando ? 'Aplicando…' : 'Aplicar corrección' }}
                 </button>
                 <span class="text-xs text-gray-400">Sugerido: {{ num(resultado.simulacion.gapKg) }} kg (para cuadrar con el Excel)</span>
@@ -201,14 +235,16 @@
             </div>
           </ng-container>
         </section>
-
-        <div *ngIf="error" class="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
-
-        <div class="flex justify-end gap-2 border-t border-gray-100 pt-3">
-          <button (click)="reiniciar()" class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Verificar otro</button>
-          <button (click)="close()" class="rounded bg-[#F5821F] px-4 py-2 text-sm font-medium text-white hover:bg-[#C85A0E]">Cerrar</button>
-        </div>
+      }
+      @if (error) {
+        <div class="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
+      }
+      <div class="flex justify-end gap-2 border-t border-gray-100 pt-3">
+        <button (click)="reiniciar()" class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Verificar otro</button>
+        <button (click)="close()" class="rounded bg-[#F5821F] px-4 py-2 text-sm font-medium text-white hover:bg-[#C85A0E]">Cerrar</button>
       </div>
     </div>
-  </div>
+  }
+</div>
+</div>
 </div>

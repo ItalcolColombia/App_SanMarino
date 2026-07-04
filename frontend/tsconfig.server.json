@@ -5,7 +5,7 @@
     "outDir": "./dist/frontend/server",
     "module": "ES2022",
     "target": "ES2022",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "baseUrl": "./src",
     "types": [],
     "importHelpers": true,

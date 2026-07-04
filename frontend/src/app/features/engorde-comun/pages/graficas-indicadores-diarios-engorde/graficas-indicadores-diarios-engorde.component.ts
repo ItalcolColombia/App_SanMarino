@@ -1,5 +1,5 @@
 ﻿import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { SeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
@@ -12,7 +12,7 @@ import { IndicadorDiarioFilaEngorde } from '../../models/indicadores-diarios-eng
 @Component({
   selector: 'app-graficas-indicadores-diarios-engorde',
   standalone: true,
-  imports: [CommonModule, NgChartsModule],
+  imports: [NgChartsModule],
   templateUrl: './graficas-indicadores-diarios-engorde.component.html',
   styleUrls: ['./graficas-indicadores-diarios-engorde.component.scss']
 })

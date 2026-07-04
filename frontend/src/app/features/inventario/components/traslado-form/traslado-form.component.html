@@ -2,33 +2,37 @@
 <form class="ux-form" [formGroup]="form" (ngSubmit)="submit()">
   <div class="filters">
     <!-- Visualización de Traslado -->
-    <div class="filter filter-visual" *ngIf="form.value.fromFarmId && form.value.toFarmId">
-      <div class="transfer-visual">
-        <div class="transfer-farm">
-          <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
-          <div class="transfer-info">
-            <span class="transfer-label">Desde</span>
-            <span class="transfer-name">{{ getFromFarmName() }}</span>
+    @if (form.value.fromFarmId && form.value.toFarmId) {
+      <div class="filter filter-visual">
+        <div class="transfer-visual">
+          <div class="transfer-farm">
+            <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
+            <div class="transfer-info">
+              <span class="transfer-label">Desde</span>
+              <span class="transfer-name">{{ getFromFarmName() }}</span>
+            </div>
           </div>
-        </div>
-        <div class="transfer-arrow">
-          <fa-icon [icon]="faArrowRight"></fa-icon>
-        </div>
-        <div class="transfer-farm">
-          <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
-          <div class="transfer-info">
-            <span class="transfer-label">Hacia</span>
-            <span class="transfer-name">{{ getToFarmName() }}</span>
+          <div class="transfer-arrow">
+            <fa-icon [icon]="faArrowRight"></fa-icon>
+          </div>
+          <div class="transfer-farm">
+            <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
+            <div class="transfer-info">
+              <span class="transfer-label">Hacia</span>
+              <span class="transfer-name">{{ getToFarmName() }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    }
 
     <div class="filter">
       <label class="ux-label" for="fromFarm">Granja Origen *</label>
       <select id="fromFarm" class="ux-select" formControlName="fromFarmId">
         <option value="" disabled>Seleccione…</option>
-        <option *ngFor="let f of farms" [value]="f.id">{{ f.name }}</option>
+        @for (f of farms; track f) {
+          <option [value]="f.id">{{ f.name }}</option>
+        }
       </select>
     </div>
 
@@ -36,7 +40,9 @@
       <label class="ux-label" for="toFarm">Granja Destino *</label>
       <select id="toFarm" class="ux-select" formControlName="toFarmId">
         <option value="" disabled>Seleccione…</option>
-        <option *ngFor="let f of farms" [value]="f.id">{{ f.name }}</option>
+        @for (f of farms; track f) {
+          <option [value]="f.id">{{ f.name }}</option>
+        }
       </select>
     </div>
 
@@ -44,9 +50,11 @@
       <label class="ux-label" for="itemId">Producto *</label>
       <select id="itemId" class="ux-select" formControlName="catalogItemId">
         <option value="" disabled>Seleccione…</option>
-        <option *ngFor="let it of items" [value]="it.id">
-          {{ it.codigo }} — {{ it.nombre }}
-        </option>
+        @for (it of items; track it) {
+          <option [value]="it.id">
+            {{ it.codigo }} — {{ it.nombre }}
+          </option>
+        }
       </select>
     </div>
 
@@ -77,40 +85,50 @@
       <span>Limpiar</span>
     </button>
     <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">
-      <fa-icon [icon]="faArrowRight" *ngIf="!loading"></fa-icon>
-      <span *ngIf="loading">Procesando...</span>
-      <span *ngIf="!loading">Registrar traslado</span>
+      @if (!loading) {
+        <fa-icon [icon]="faArrowRight"></fa-icon>
+      }
+      @if (loading) {
+        <span>Procesando...</span>
+      }
+      @if (!loading) {
+        <span>Registrar traslado</span>
+      }
     </button>
   </div>
 </form>
 
 <!-- Modal de Confirmación de Éxito -->
-<div class="success-modal-backdrop" *ngIf="showSuccessModal" (click)="closeSuccessModal()">
-  <div class="success-modal" (click)="$event.stopPropagation()">
-    <div class="success-modal__icon">
-      <fa-icon [icon]="faCheckCircle"></fa-icon>
+@if (showSuccessModal) {
+  <div class="success-modal-backdrop" (click)="closeSuccessModal()">
+    <div class="success-modal" (click)="$event.stopPropagation()">
+      <div class="success-modal__icon">
+        <fa-icon [icon]="faCheckCircle"></fa-icon>
+      </div>
+      <h3 class="success-modal__title">¡Traslado Registrado Exitosamente!</h3>
+      @if (transferData) {
+        <div class="success-modal__details">
+          <div class="detail-item">
+            <span class="detail-label">Desde:</span>
+            <span class="detail-value">{{ transferData.fromFarm }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Hacia:</span>
+            <span class="detail-value">{{ transferData.toFarm }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Producto:</span>
+            <span class="detail-value">{{ transferData.product }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Cantidad:</span>
+            <span class="detail-value">{{ transferData.quantity }} kg</span>
+          </div>
+        </div>
+      }
+      <button class="btn-primary btn-primary--modal" type="button" (click)="closeSuccessModal()">
+        Aceptar
+      </button>
     </div>
-    <h3 class="success-modal__title">¡Traslado Registrado Exitosamente!</h3>
-    <div class="success-modal__details" *ngIf="transferData">
-      <div class="detail-item">
-        <span class="detail-label">Desde:</span>
-        <span class="detail-value">{{ transferData.fromFarm }}</span>
-      </div>
-      <div class="detail-item">
-        <span class="detail-label">Hacia:</span>
-        <span class="detail-value">{{ transferData.toFarm }}</span>
-      </div>
-      <div class="detail-item">
-        <span class="detail-label">Producto:</span>
-        <span class="detail-value">{{ transferData.product }}</span>
-      </div>
-      <div class="detail-item">
-        <span class="detail-label">Cantidad:</span>
-        <span class="detail-value">{{ transferData.quantity }} kg</span>
-      </div>
-    </div>
-    <button class="btn-primary btn-primary--modal" type="button" (click)="closeSuccessModal()">
-      Aceptar
-    </button>
   </div>
-</div>
+}

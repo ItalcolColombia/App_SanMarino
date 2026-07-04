@@ -1,6 +1,6 @@
 // src/app/features/reporte-tecnico-produccion/components/tabla-clasificacion-huevo-comercio/tabla-clasificacion-huevo-comercio.component.ts
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { 
   ReporteClasificacionHuevoComercioDto, 
   ReporteTecnicoProduccionLoteInfoDto 
@@ -9,7 +9,7 @@ import {
 @Component({
   selector: 'app-tabla-clasificacion-huevo-comercio',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './tabla-clasificacion-huevo-comercio.component.html',
   styleUrls: ['./tabla-clasificacion-huevo-comercio.component.scss']
 })

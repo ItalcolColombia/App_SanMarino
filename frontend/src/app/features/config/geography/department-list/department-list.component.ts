@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -23,10 +23,9 @@ import { Observable } from 'rxjs/internal/Observable';
   selector: 'app-department-list',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     FontAwesomeModule
-  ],
+],
   templateUrl: './department-list.component.html',
   styleUrls: ['./department-list.component.scss']
 })

@@ -3,7 +3,7 @@ import {
   Component, Input, Output, EventEmitter, OnChanges, SimpleChanges,
   ChangeDetectorRef, inject
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
@@ -25,7 +25,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 @Component({
   selector: 'app-modal-reset-password',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FontAwesomeModule],
+  imports: [ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './modal-reset-password.component.html',
   styleUrls: ['./modal-reset-password.component.scss']
 })

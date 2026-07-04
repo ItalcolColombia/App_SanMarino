@@ -1,6 +1,6 @@
 // src/app/features/config/master-lists/master-lists.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterModule, Router } from '@angular/router';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
@@ -22,11 +22,10 @@ import { finalize } from 'rxjs';
   selector: 'app-master-lists',
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     FontAwesomeModule,
     ModalEditMasterListComponent
-  ],
+],
   templateUrl: './master-lists.component.html',
   styleUrls: ['./master-lists.component.scss']
 })

@@ -1,6 +1,6 @@
 // src/app/features/inventario/components/movimiento-alimento-form/movimiento-alimento-form.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -30,7 +30,7 @@ type TipoEntrada = 'Entrada Nueva' | 'Traslado entre galpon' | 'Traslados entre 
 @Component({
   selector: 'app-movimiento-alimento-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, FontAwesomeModule],
+  imports: [ReactiveFormsModule, FormsModule, FontAwesomeModule],
   templateUrl: './movimiento-alimento-form.component.html',
   styleUrls: ['./movimiento-alimento-form.component.scss']
 })

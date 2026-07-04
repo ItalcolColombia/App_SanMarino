@@ -6,24 +6,24 @@
       <label class="ux-label">Tipo de Operación *</label>
       <div class="type-selector">
         <label class="type-option"
-               [class.type-option--selected]="operationType === 'entrada'"
-               [class.type-option--entry]="operationType === 'entrada'">
+          [class.type-option--selected]="operationType === 'entrada'"
+          [class.type-option--entry]="operationType === 'entrada'">
           <input type="radio" formControlName="operationType" value="entrada" class="sr-only" />
           <fa-icon [icon]="faIn" class="type-icon"></fa-icon>
           <span class="type-text">Entrada</span>
           <span class="type-badge">+</span>
         </label>
         <label class="type-option"
-               [class.type-option--selected]="operationType === 'salida'"
-               [class.type-option--exit]="operationType === 'salida'">
+          [class.type-option--selected]="operationType === 'salida'"
+          [class.type-option--exit]="operationType === 'salida'">
           <input type="radio" formControlName="operationType" value="salida" class="sr-only" />
           <fa-icon [icon]="faOut" class="type-icon"></fa-icon>
           <span class="type-text">Salida</span>
           <span class="type-badge">−</span>
         </label>
         <label class="type-option"
-               [class.type-option--selected]="operationType === 'traslado'"
-               [class.type-option--transfer]="operationType === 'traslado'">
+          [class.type-option--selected]="operationType === 'traslado'"
+          [class.type-option--transfer]="operationType === 'traslado'">
           <input type="radio" formControlName="operationType" value="traslado" class="sr-only" />
           <fa-icon [icon]="faTransfer" class="type-icon"></fa-icon>
           <span class="type-text">Traslado</span>
@@ -33,223 +33,271 @@
     </div>
 
     <!-- Visualización de Traslado (solo para traslado) -->
-    <div class="filter filter-visual" *ngIf="isTransfer && form.value.fromFarmId && form.value.toFarmId">
-      <div class="transfer-visual">
-        <div class="transfer-farm">
-          <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
-          <div class="transfer-info">
-            <span class="transfer-label">Desde</span>
-            <span class="transfer-name">{{ getFromFarmName() }}</span>
+    @if (isTransfer && form.value.fromFarmId && form.value.toFarmId) {
+      <div class="filter filter-visual">
+        <div class="transfer-visual">
+          <div class="transfer-farm">
+            <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
+            <div class="transfer-info">
+              <span class="transfer-label">Desde</span>
+              <span class="transfer-name">{{ getFromFarmName() }}</span>
+            </div>
           </div>
-        </div>
-        <div class="transfer-arrow">
-          <fa-icon [icon]="faTransfer"></fa-icon>
-        </div>
-        <div class="transfer-farm">
-          <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
-          <div class="transfer-info">
-            <span class="transfer-label">Hacia</span>
-            <span class="transfer-name">{{ getToFarmName() }}</span>
+          <div class="transfer-arrow">
+            <fa-icon [icon]="faTransfer"></fa-icon>
+          </div>
+          <div class="transfer-farm">
+            <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
+            <div class="transfer-info">
+              <span class="transfer-label">Hacia</span>
+              <span class="transfer-name">{{ getToFarmName() }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    }
 
     <!-- Campos de Granja: Dinámicos según el tipo -->
-    <ng-container *ngIf="!isTransfer">
+    @if (!isTransfer) {
       <!-- Para Entrada/Salida: 1 campo de granja -->
       <div class="filter">
         <label class="ux-label" for="farmId">Granja *</label>
         <select id="farmId" class="ux-select" formControlName="farmId">
           <option value="" disabled>Seleccione…</option>
-          <option *ngFor="let f of farms" [value]="f.id">{{ f.name }}</option>
+          @for (f of farms; track f) {
+            <option [value]="f.id">{{ f.name }}</option>
+          }
         </select>
       </div>
-    </ng-container>
+    }
 
-    <ng-container *ngIf="isTransfer">
+    @if (isTransfer) {
       <!-- Para Traslado: 2 campos de granja -->
       <div class="filter">
         <label class="ux-label" for="fromFarm">Granja Origen *</label>
         <select id="fromFarm" class="ux-select" formControlName="fromFarmId">
           <option value="" disabled>Seleccione…</option>
-          <option *ngFor="let f of farms" [value]="f.id">{{ f.name }}</option>
+          @for (f of farms; track f) {
+            <option [value]="f.id">{{ f.name }}</option>
+          }
         </select>
       </div>
       <div class="filter">
         <label class="ux-label" for="toFarm">Granja Destino *</label>
         <select id="toFarm" class="ux-select" formControlName="toFarmId">
           <option value="" disabled>Seleccione…</option>
-          <option *ngFor="let f of farms" [value]="f.id">{{ f.name }}</option>
+          @for (f of farms; track f) {
+            <option [value]="f.id">{{ f.name }}</option>
+          }
         </select>
       </div>
-    </ng-container>
+    }
 
     <!-- Tipo de Item (filtro para productos) -->
     <div class="filter">
       <label class="ux-label" for="typeItem">Tipo de Item</label>
       <select id="typeItem" class="ux-select" formControlName="typeItem">
         <option value="">Todos los tipos</option>
-        <option *ngFor="let tipo of tiposItem" [value]="tipo">
-          {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
-        </option>
+        @for (tipo of tiposItem; track tipo) {
+          <option [value]="tipo">
+            {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
+          </option>
+        }
       </select>
     </div>
 
     <!-- Campos Comunes -->
     <div class="filter">
       <label class="ux-label" for="itemId">Producto *</label>
-      
+
       <!-- Input de búsqueda -->
       <div class="product-search-wrapper">
-        <input 
-          type="text" 
-          class="ux-input product-search-input" 
+        <input
+          type="text"
+          class="ux-input product-search-input"
           placeholder="Buscar por código o nombre..."
           [(ngModel)]="searchTerm"
           (ngModelChange)="onSearchChange($event)"
           [ngModelOptions]="{standalone: true}"
-        />
-        <span class="product-search-count" *ngIf="filteredItems.length > 0">
-          {{ filteredItems.length }} producto{{ filteredItems.length !== 1 ? 's' : '' }}
-        </span>
-        <span class="product-search-loading" *ngIf="searching">
-          Buscando...
-        </span>
+          />
+          @if (filteredItems.length > 0) {
+            <span class="product-search-count">
+              {{ filteredItems.length }} producto{{ filteredItems.length !== 1 ? 's' : '' }}
+            </span>
+          }
+          @if (searching) {
+            <span class="product-search-loading">
+              Buscando...
+            </span>
+          }
+        </div>
+
+        <!-- Select de productos -->
+        <select
+          id="itemId"
+          class="ux-select"
+          formControlName="catalogItemId"
+          [disabled]="searching || filteredItems.length === 0">
+          <option value="" disabled>
+            {{ searching ? 'Buscando...' : (filteredItems.length === 0 ? 'No hay productos' : 'Seleccione…') }}
+          </option>
+          @for (it of filteredItems; track it) {
+            <option [value]="it.id">
+              {{ it.codigo }} — {{ it.nombre }}
+            </option>
+          }
+        </select>
+        @if (filteredItems.length === 0 && !searching) {
+          <small class="help">
+            No se encontraron productos. Intente cambiar el filtro de tipo o la búsqueda.
+          </small>
+        }
       </div>
-      
-      <!-- Select de productos -->
-      <select 
-        id="itemId" 
-        class="ux-select" 
-        formControlName="catalogItemId"
-        [disabled]="searching || filteredItems.length === 0">
-        <option value="" disabled>
-          {{ searching ? 'Buscando...' : (filteredItems.length === 0 ? 'No hay productos' : 'Seleccione…') }}
-        </option>
-        <option *ngFor="let it of filteredItems" [value]="it.id">
-          {{ it.codigo }} — {{ it.nombre }}
-        </option>
-      </select>
-      <small class="help" *ngIf="filteredItems.length === 0 && !searching">
-        No se encontraron productos. Intente cambiar el filtro de tipo o la búsqueda.
-      </small>
-    </div>
 
-    <div class="filter">
-      <label class="ux-label" for="qty">Cantidad *</label>
-      <input id="qty" type="number" step="0.0001" class="ux-input" formControlName="quantity" />
-    </div>
-
-    <div class="filter">
-      <label class="ux-label" for="unit">Unidad</label>
-      <input id="unit" class="ux-input" formControlName="unit" />
-    </div>
-
-    <div class="filter">
-      <label class="ux-label" for="ref">Referencia</label>
-      <input id="ref" class="ux-input" formControlName="reference" />
-    </div>
-
-    <!-- Campo Origen: solo para entrada -->
-    <div class="filter" *ngIf="isEntry">
-      <label class="ux-label" for="origin">Origen *</label>
-      <select id="origin" class="ux-select" formControlName="origin">
-        <option value="" disabled>Seleccione origen…</option>
-        <option *ngFor="let reason of entryReasons" [value]="reason">{{ reason }}</option>
-      </select>
-    </div>
-
-    <!-- Campo Destino: solo para salida -->
-    <div class="filter" *ngIf="isExit">
-      <label class="ux-label" for="destination">Destino *</label>
-      <select id="destination" class="ux-select" formControlName="destination">
-        <option value="" disabled>Seleccione destino…</option>
-        <option *ngFor="let dest of exitDestinations" [value]="dest">{{ dest }}</option>
-      </select>
-    </div>
-
-    <!-- Campo Motivo: select según tipo (para entrada) -->
-    <div class="filter" *ngIf="isEntry">
-      <label class="ux-label" for="reason">Motivo</label>
-      <select id="reason" class="ux-select" formControlName="reason">
-        <option value="">Sin motivo específico</option>
-        <option *ngFor="let reason of entryReasons" [value]="reason">{{ reason }}</option>
-      </select>
-    </div>
-
-    <!-- Campo Motivo: select según tipo (para salida) -->
-    <div class="filter" *ngIf="isExit">
-      <label class="ux-label" for="reason">Motivo</label>
-      <select id="reason" class="ux-select" formControlName="reason">
-        <option value="">Sin motivo específico</option>
-        <option *ngFor="let dest of exitDestinations" [value]="dest">{{ dest }}</option>
-      </select>
-    </div>
-
-    <!-- Campo Motivo: texto libre para traslado -->
-    <div class="filter" *ngIf="isTransfer">
-      <label class="ux-label" for="reason">Motivo</label>
-      <input id="reason" type="text" class="ux-input" formControlName="reason" placeholder="Motivo del traslado" />
-    </div>
-  </div>
-
-  <div class="form-actions">
-    <button class="btn-clear" type="button" (click)="clearForm()" [disabled]="loading">
-      <fa-icon [icon]="faTrash"></fa-icon>
-      <span>Limpiar</span>
-    </button>
-    <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">
-      <fa-icon [icon]="submitButtonIcon" *ngIf="!loading"></fa-icon>
-      <span *ngIf="loading">Procesando...</span>
-      <span *ngIf="!loading">{{ submitButtonText }}</span>
-    </button>
-  </div>
-</form>
-
-<!-- Modal de Confirmación de Éxito -->
-<div class="success-modal-backdrop" *ngIf="showSuccessModal" (click)="closeSuccessModal()">
-  <div class="success-modal" (click)="$event.stopPropagation()">
-    <div class="success-modal__icon">
-      <fa-icon [icon]="faCheckCircle"></fa-icon>
-    </div>
-
-    <!-- Título dinámico según tipo -->
-    <h3 class="success-modal__title" *ngIf="lastOperationType === 'traslado'">
-      ¡Traslado Registrado Exitosamente!
-    </h3>
-    <h3 class="success-modal__title" *ngIf="lastOperationType !== 'traslado'">
-      ¡{{ lastOperationType === 'entrada' ? 'Entrada' : 'Salida' }} Registrada Exitosamente!
-    </h3>
-
-    <!-- Mensaje para traslado con detalles -->
-    <div class="success-modal__details" *ngIf="lastOperationType === 'traslado' && transferData">
-      <div class="detail-item">
-        <span class="detail-label">Desde:</span>
-        <span class="detail-value">{{ transferData.fromFarm }}</span>
+      <div class="filter">
+        <label class="ux-label" for="qty">Cantidad *</label>
+        <input id="qty" type="number" step="0.0001" class="ux-input" formControlName="quantity" />
       </div>
-      <div class="detail-item">
-        <span class="detail-label">Hacia:</span>
-        <span class="detail-value">{{ transferData.toFarm }}</span>
+
+      <div class="filter">
+        <label class="ux-label" for="unit">Unidad</label>
+        <input id="unit" class="ux-input" formControlName="unit" />
       </div>
-      <div class="detail-item">
-        <span class="detail-label">Producto:</span>
-        <span class="detail-value">{{ transferData.product }}</span>
+
+      <div class="filter">
+        <label class="ux-label" for="ref">Referencia</label>
+        <input id="ref" class="ux-input" formControlName="reference" />
       </div>
-      <div class="detail-item">
-        <span class="detail-label">Cantidad:</span>
-        <span class="detail-value">{{ transferData.quantity }} kg</span>
-      </div>
+
+      <!-- Campo Origen: solo para entrada -->
+      @if (isEntry) {
+        <div class="filter">
+          <label class="ux-label" for="origin">Origen *</label>
+          <select id="origin" class="ux-select" formControlName="origin">
+            <option value="" disabled>Seleccione origen…</option>
+            @for (reason of entryReasons; track reason) {
+              <option [value]="reason">{{ reason }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <!-- Campo Destino: solo para salida -->
+      @if (isExit) {
+        <div class="filter">
+          <label class="ux-label" for="destination">Destino *</label>
+          <select id="destination" class="ux-select" formControlName="destination">
+            <option value="" disabled>Seleccione destino…</option>
+            @for (dest of exitDestinations; track dest) {
+              <option [value]="dest">{{ dest }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <!-- Campo Motivo: select según tipo (para entrada) -->
+      @if (isEntry) {
+        <div class="filter">
+          <label class="ux-label" for="reason">Motivo</label>
+          <select id="reason" class="ux-select" formControlName="reason">
+            <option value="">Sin motivo específico</option>
+            @for (reason of entryReasons; track reason) {
+              <option [value]="reason">{{ reason }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <!-- Campo Motivo: select según tipo (para salida) -->
+      @if (isExit) {
+        <div class="filter">
+          <label class="ux-label" for="reason">Motivo</label>
+          <select id="reason" class="ux-select" formControlName="reason">
+            <option value="">Sin motivo específico</option>
+            @for (dest of exitDestinations; track dest) {
+              <option [value]="dest">{{ dest }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <!-- Campo Motivo: texto libre para traslado -->
+      @if (isTransfer) {
+        <div class="filter">
+          <label class="ux-label" for="reason">Motivo</label>
+          <input id="reason" type="text" class="ux-input" formControlName="reason" placeholder="Motivo del traslado" />
+        </div>
+      }
     </div>
 
-    <!-- Mensaje para entrada/salida -->
-    <p class="success-modal__message" *ngIf="lastOperationType !== 'traslado'">
-      El {{ lastOperationType === 'entrada' ? 'ingreso' : 'egreso' }} de productos ha sido registrado correctamente.
-    </p>
+    <div class="form-actions">
+      <button class="btn-clear" type="button" (click)="clearForm()" [disabled]="loading">
+        <fa-icon [icon]="faTrash"></fa-icon>
+        <span>Limpiar</span>
+      </button>
+      <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">
+        @if (!loading) {
+          <fa-icon [icon]="submitButtonIcon"></fa-icon>
+        }
+        @if (loading) {
+          <span>Procesando...</span>
+        }
+        @if (!loading) {
+          <span>{{ submitButtonText }}</span>
+        }
+      </button>
+    </div>
+  </form>
 
-    <button class="btn-primary btn-primary--modal" type="button" (click)="closeSuccessModal()">
-      Aceptar
-    </button>
-  </div>
-</div>
+  <!-- Modal de Confirmación de Éxito -->
+  @if (showSuccessModal) {
+    <div class="success-modal-backdrop" (click)="closeSuccessModal()">
+      <div class="success-modal" (click)="$event.stopPropagation()">
+        <div class="success-modal__icon">
+          <fa-icon [icon]="faCheckCircle"></fa-icon>
+        </div>
+        <!-- Título dinámico según tipo -->
+        @if (lastOperationType === 'traslado') {
+          <h3 class="success-modal__title">
+            ¡Traslado Registrado Exitosamente!
+          </h3>
+        }
+        @if (lastOperationType !== 'traslado') {
+          <h3 class="success-modal__title">
+            ¡{{ lastOperationType === 'entrada' ? 'Entrada' : 'Salida' }} Registrada Exitosamente!
+          </h3>
+        }
+        <!-- Mensaje para traslado con detalles -->
+        @if (lastOperationType === 'traslado' && transferData) {
+          <div class="success-modal__details">
+            <div class="detail-item">
+              <span class="detail-label">Desde:</span>
+              <span class="detail-value">{{ transferData.fromFarm }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Hacia:</span>
+              <span class="detail-value">{{ transferData.toFarm }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Producto:</span>
+              <span class="detail-value">{{ transferData.product }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Cantidad:</span>
+              <span class="detail-value">{{ transferData.quantity }} kg</span>
+            </div>
+          </div>
+        }
+        <!-- Mensaje para entrada/salida -->
+        @if (lastOperationType !== 'traslado') {
+          <p class="success-modal__message">
+            El {{ lastOperationType === 'entrada' ? 'ingreso' : 'egreso' }} de productos ha sido registrado correctamente.
+          </p>
+        }
+        <button class="btn-primary btn-primary--modal" type="button" (click)="closeSuccessModal()">
+          Aceptar
+        </button>
+      </div>
+    </div>
+  }
 

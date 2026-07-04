@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
@@ -15,7 +15,7 @@ import {
 @Component({
   selector: 'app-mapa-ejecutar-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink],
   templateUrl: './mapa-ejecutar-modal.component.html',
   styleUrls: ['./mapa-ejecutar-modal.component.scss']
 })

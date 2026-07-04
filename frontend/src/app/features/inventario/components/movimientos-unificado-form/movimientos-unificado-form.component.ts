@@ -1,6 +1,6 @@
 // src/app/features/inventario/components/movimientos-unificado-form/movimientos-unificado-form.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -25,7 +25,7 @@ type CatalogItemType = 'alimento' | 'medicamento' | 'accesorio' | 'biologico' | 
 @Component({
   selector: 'app-movimientos-unificado-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, FontAwesomeModule],
+  imports: [ReactiveFormsModule, FormsModule, FontAwesomeModule],
   templateUrl: './movimientos-unificado-form.component.html',
   styleUrls: ['./movimientos-unificado-form.component.scss']
 })

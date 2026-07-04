@@ -1,21 +1,27 @@
 <div class="rep-tab">
   <!-- Estados -->
-  <div *ngIf="cargando" class="rep-state" aria-busy="true">
-    <div class="rep-spinner" aria-hidden="true"></div>
-    <span>Cargando lotes reproductora…</span>
-  </div>
+  @if (cargando) {
+    <div class="rep-state" aria-busy="true">
+      <div class="rep-spinner" aria-hidden="true"></div>
+      <span>Cargando lotes reproductora…</span>
+    </div>
+  }
 
-  <div *ngIf="!cargando && error" class="rep-state rep-state--error">
-    <span>{{ error }}</span>
-    <button type="button" class="rep-btn" (click)="recargar()">Reintentar</button>
-  </div>
+  @if (!cargando && error) {
+    <div class="rep-state rep-state--error">
+      <span>{{ error }}</span>
+      <button type="button" class="rep-btn" (click)="recargar()">Reintentar</button>
+    </div>
+  }
 
-  <div *ngIf="!cargando && !error && bloques.length === 0" class="rep-state rep-state--empty">
-    <div class="rep-state__icon" aria-hidden="true">🐣</div>
-    <p>Este lote no tiene lotes reproductora asociados.</p>
-  </div>
+  @if (!cargando && !error && bloques.length === 0) {
+    <div class="rep-state rep-state--empty">
+      <div class="rep-state__icon" aria-hidden="true">🐣</div>
+      <p>Este lote no tiene lotes reproductora asociados.</p>
+    </div>
+  }
 
-  <ng-container *ngIf="!cargando && !error && bloques.length > 0">
+  @if (!cargando && !error && bloques.length > 0) {
     <!-- ===== Barra superior ===== -->
     <div class="rep-topbar">
       <span class="rep-topbar__titulo">Lotes de pollitos — primera semana</span>
@@ -23,235 +29,247 @@
         📋 Ver fórmulas
       </button>
     </div>
-
     <!-- ===== Modal de fórmulas ===== -->
-    <div class="rep-modal-overlay" *ngIf="mostrarFormulas" (click)="mostrarFormulas = false"
-         role="dialog" aria-modal="true" aria-label="Fórmulas aplicadas">
-      <div class="rep-modal" (click)="$event.stopPropagation()">
-        <div class="rep-modal__header">
-          <h4 class="rep-modal__titulo">📋 Fórmulas aplicadas</h4>
-          <button type="button" class="rep-modal__close" (click)="mostrarFormulas = false" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="rep-modal__body">
-
-          <!-- Sección: tablas por día -->
-          <section class="rep-fml-seccion">
-            <h5 class="rep-fml-seccion__titulo">Tablas por día (bloque H / M)</h5>
-            <table class="rep-fml-tabla">
-              <thead>
-                <tr><th>Campo</th><th>Fórmula</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>QQ real</td>
-                  <td>Consumo (kg) ÷ 45.36</td>
-                </tr>
-                <tr>
-                  <td>Grs./ave</td>
-                  <td>Consumo (kg) × 1,000 ÷ Aves al inicio del día</td>
-                </tr>
-                <tr>
-                  <td>Ganancia (g)</td>
-                  <td>Peso día N − Peso día N−1 · <em>día 1: Peso día 1 − Peso de llegada</em></td>
-                </tr>
-                <tr>
-                  <td>Conversión <em>(día 1)</em></td>
-                  <td>Grs./ave ÷ <strong>Peso de llegada (g)</strong></td>
-                </tr>
-                <tr>
-                  <td>Conversión <em>(días 2–7)</em></td>
-                  <td>Grs./ave ÷ Ganancia (g)</td>
-                </tr>
-                <tr>
-                  <td>% Norm.</td>
-                  <td>Muertos Norm. ÷ Aves al inicio del día × 100</td>
-                </tr>
-                <tr>
-                  <td>% Sel.</td>
-                  <td>Muertos Sel. ÷ Aves al inicio del día × 100</td>
-                </tr>
-                <tr>
-                  <td>Saldo</td>
-                  <td>Saldo anterior − Muertos Norm. − Muertos Sel.</td>
-                </tr>
-                <tr>
-                  <td>Aves inicio día</td>
-                  <td>Saldo del día anterior · <em>día 1: pollitos encasetados</em></td>
-                </tr>
-              </tbody>
-            </table>
-          </section>
-
-          <!-- Sección: resumen VPI -->
-          <section class="rep-fml-seccion">
-            <h5 class="rep-fml-seccion__titulo">Resumen superior — VPI</h5>
-            <table class="rep-fml-tabla">
-              <thead>
-                <tr><th>Campo</th><th>Fórmula</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Cantidad × Peso</td>
-                  <td>Cantidad inicial × Peso de llegada (g)</td>
-                </tr>
-                <tr>
-                  <td>Cantidad × 7 días</td>
-                  <td>Cantidad inicial × Peso día 7 (g)</td>
-                </tr>
-                <tr>
-                  <td>VPI (por lote)</td>
-                  <td>Peso 7 días (g) ÷ Peso de llegada (g)</td>
-                </tr>
-                <tr>
-                  <td>VPI total</td>
-                  <td>Σ (Cantidad × 7 días) ÷ Σ (Cantidad × Peso)</td>
-                </tr>
-              </tbody>
-            </table>
-            <p class="rep-fml-nota">Sin pesaje del día 7 el VPI queda en 0.00.</p>
-          </section>
-
-          <!-- Sección: constantes -->
-          <section class="rep-fml-seccion">
-            <h5 class="rep-fml-seccion__titulo">Constantes y convenciones</h5>
-            <ul class="rep-fml-lista">
-              <li><strong>1 QQ = 45.36 kg</strong> (constante oficial del sistema)</li>
-              <li><strong>Edad del día</strong> = días transcurridos desde la fecha de encasetamiento (día 1 = primer día)</li>
-              <li><strong>Filas «—»</strong> = no hay registro de seguimiento para ese día</li>
-              <li><strong>Fila Total</strong> = suma de QQ, consumo, mortalidades acumuladas; saldo = saldo final del día 7</li>
-            </ul>
-          </section>
-
+    @if (mostrarFormulas) {
+      <div class="rep-modal-overlay" (click)="mostrarFormulas = false"
+        role="dialog" aria-modal="true" aria-label="Fórmulas aplicadas">
+        <div class="rep-modal" (click)="$event.stopPropagation()">
+          <div class="rep-modal__header">
+            <h4 class="rep-modal__titulo">📋 Fórmulas aplicadas</h4>
+            <button type="button" class="rep-modal__close" (click)="mostrarFormulas = false" aria-label="Cerrar">✕</button>
+          </div>
+          <div class="rep-modal__body">
+            <!-- Sección: tablas por día -->
+            <section class="rep-fml-seccion">
+              <h5 class="rep-fml-seccion__titulo">Tablas por día (bloque H / M)</h5>
+              <table class="rep-fml-tabla">
+                <thead>
+                  <tr><th>Campo</th><th>Fórmula</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>QQ real</td>
+                    <td>Consumo (kg) ÷ 45.36</td>
+                  </tr>
+                  <tr>
+                    <td>Grs./ave</td>
+                    <td>Consumo (kg) × 1,000 ÷ Aves al inicio del día</td>
+                  </tr>
+                  <tr>
+                    <td>Ganancia (g)</td>
+                    <td>Peso día N − Peso día N−1 · <em>día 1: Peso día 1 − Peso de llegada</em></td>
+                  </tr>
+                  <tr>
+                    <td>Conversión <em>(día 1)</em></td>
+                    <td>Grs./ave ÷ <strong>Peso de llegada (g)</strong></td>
+                  </tr>
+                  <tr>
+                    <td>Conversión <em>(días 2–7)</em></td>
+                    <td>Grs./ave ÷ Ganancia (g)</td>
+                  </tr>
+                  <tr>
+                    <td>% Norm.</td>
+                    <td>Muertos Norm. ÷ Aves al inicio del día × 100</td>
+                  </tr>
+                  <tr>
+                    <td>% Sel.</td>
+                    <td>Muertos Sel. ÷ Aves al inicio del día × 100</td>
+                  </tr>
+                  <tr>
+                    <td>Saldo</td>
+                    <td>Saldo anterior − Muertos Norm. − Muertos Sel.</td>
+                  </tr>
+                  <tr>
+                    <td>Aves inicio día</td>
+                    <td>Saldo del día anterior · <em>día 1: pollitos encasetados</em></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <!-- Sección: resumen VPI -->
+            <section class="rep-fml-seccion">
+              <h5 class="rep-fml-seccion__titulo">Resumen superior — VPI</h5>
+              <table class="rep-fml-tabla">
+                <thead>
+                  <tr><th>Campo</th><th>Fórmula</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Cantidad × Peso</td>
+                    <td>Cantidad inicial × Peso de llegada (g)</td>
+                  </tr>
+                  <tr>
+                    <td>Cantidad × 7 días</td>
+                    <td>Cantidad inicial × Peso día 7 (g)</td>
+                  </tr>
+                  <tr>
+                    <td>VPI (por lote)</td>
+                    <td>Peso 7 días (g) ÷ Peso de llegada (g)</td>
+                  </tr>
+                  <tr>
+                    <td>VPI total</td>
+                    <td>Σ (Cantidad × 7 días) ÷ Σ (Cantidad × Peso)</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="rep-fml-nota">Sin pesaje del día 7 el VPI queda en 0.00.</p>
+            </section>
+            <!-- Sección: constantes -->
+            <section class="rep-fml-seccion">
+              <h5 class="rep-fml-seccion__titulo">Constantes y convenciones</h5>
+              <ul class="rep-fml-lista">
+                <li><strong>1 QQ = 45.36 kg</strong> (constante oficial del sistema)</li>
+                <li><strong>Edad del día</strong> = días transcurridos desde la fecha de encasetamiento (día 1 = primer día)</li>
+                <li><strong>Filas «—»</strong> = no hay registro de seguimiento para ese día</li>
+                <li><strong>Fila Total</strong> = suma de QQ, consumo, mortalidades acumuladas; saldo = saldo final del día 7</li>
+              </ul>
+            </section>
+          </div>
         </div>
       </div>
-    </div>
-
+    }
     <!-- ===== Resumen superior (cabecera del Excel) ===== -->
-    <section class="rep-card" *ngIf="resumen">
-      <h4 class="rep-card__title">Resumen lotes reproductora</h4>
-      <div class="rep-table-wrap">
-        <table class="rep-table rep-table--resumen">
-          <thead>
-            <tr>
-              <th class="rep-th--left"></th>
-              <th class="rep-th--left">Lote</th>
-              <th>Cantidad</th>
-              <th>Peso llegada (g)</th>
-              <th>Cantidad × Peso</th>
-              <th>Peso 7 días (g)</th>
-              <th>Cantidad × 7 días</th>
-              <th>VPI</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let f of resumen.filas">
-              <td class="rep-td--grupo">{{ f.esPrimeraDelGrupo ? f.grupo : '' }}</td>
-              <td class="rep-td--lote">{{ f.lote }}</td>
-              <td class="num">{{ formatNumber(f.cantidad) }}</td>
-              <td class="num">{{ formatDec(f.pesoLlegadaG) }}</td>
-              <td class="num">{{ formatDec(f.cantidadXPeso) }}</td>
-              <td class="num">{{ f.peso7DiasG != null ? formatDec(f.peso7DiasG) : '0' }}</td>
-              <td class="num">{{ f.cantidadX7Dias != null ? formatDec(f.cantidadX7Dias) : '—' }}</td>
-              <td class="num">{{ f.vpi != null ? formatDec(f.vpi) : '0.00' }}</td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr class="rep-row--total">
-              <td colspan="2">TOTAL</td>
-              <td class="num">{{ formatNumber(resumen.totalCantidad) }}</td>
-              <td></td>
-              <td class="num">{{ formatDec(resumen.totalCantidadXPeso) }}</td>
-              <td></td>
-              <td class="num">{{ formatDec(resumen.totalCantidadX7Dias) }}</td>
-              <td class="num">{{ resumen.vpiTotal != null ? formatDec(resumen.vpiTotal) : '0.00' }}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      <p class="rep-hint">
-        VPI = peso 7 días ÷ peso de llegada · VPI total = Σ(Cantidad×7 días) ÷ Σ(Cantidad×Peso).
-        Sin pesaje del día 7 el VPI queda en 0.
-      </p>
-    </section>
-
+    @if (resumen) {
+      <section class="rep-card">
+        <h4 class="rep-card__title">Resumen lotes reproductora</h4>
+        <div class="rep-table-wrap">
+          <table class="rep-table rep-table--resumen">
+            <thead>
+              <tr>
+                <th class="rep-th--left"></th>
+                <th class="rep-th--left">Lote</th>
+                <th>Cantidad</th>
+                <th>Peso llegada (g)</th>
+                <th>Cantidad × Peso</th>
+                <th>Peso 7 días (g)</th>
+                <th>Cantidad × 7 días</th>
+                <th>VPI</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of resumen.filas; track f) {
+                <tr>
+                  <td class="rep-td--grupo">{{ f.esPrimeraDelGrupo ? f.grupo : '' }}</td>
+                  <td class="rep-td--lote">{{ f.lote }}</td>
+                  <td class="num">{{ formatNumber(f.cantidad) }}</td>
+                  <td class="num">{{ formatDec(f.pesoLlegadaG) }}</td>
+                  <td class="num">{{ formatDec(f.cantidadXPeso) }}</td>
+                  <td class="num">{{ f.peso7DiasG != null ? formatDec(f.peso7DiasG) : '0' }}</td>
+                  <td class="num">{{ f.cantidadX7Dias != null ? formatDec(f.cantidadX7Dias) : '—' }}</td>
+                  <td class="num">{{ f.vpi != null ? formatDec(f.vpi) : '0.00' }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="rep-row--total">
+                <td colspan="2">TOTAL</td>
+                <td class="num">{{ formatNumber(resumen.totalCantidad) }}</td>
+                <td></td>
+                <td class="num">{{ formatDec(resumen.totalCantidadXPeso) }}</td>
+                <td></td>
+                <td class="num">{{ formatDec(resumen.totalCantidadX7Dias) }}</td>
+                <td class="num">{{ resumen.vpiTotal != null ? formatDec(resumen.vpiTotal) : '0.00' }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="rep-hint">
+          VPI = peso 7 días ÷ peso de llegada · VPI total = Σ(Cantidad×7 días) ÷ Σ(Cantidad×Peso).
+          Sin pesaje del día 7 el VPI queda en 0.
+        </p>
+      </section>
+    }
     <!-- ===== Bloques primera semana por sexo ===== -->
     <h4 class="rep-section-title">Lotes de pollitos primera semana — lotes reproductoras</h4>
-
-    <section class="rep-card" *ngFor="let b of bloques; trackBy: trackByBloque">
-      <header class="rep-bloque__header">
-        <h5 class="rep-bloque__titulo">{{ b.titulo }}</h5>
-        <dl class="rep-bloque__meta">
-          <div><dt>Fecha encaset</dt><dd>{{ formatFechaUtc(b.fechaEncaset) }}</dd></div>
-          <div><dt># Pollitos</dt><dd>{{ formatNumber(b.pollitos) }}</dd></div>
-          <div><dt>Peso llegada (g)</dt><dd>{{ formatDec(b.pesoLlegadaG) }}</dd></div>
-          <div><dt>Saldo final</dt><dd>{{ formatNumber(b.saldoFinal) }}</dd></div>
-        </dl>
-      </header>
-
-      <div class="rep-table-wrap">
-        <table class="rep-table">
-          <thead>
-            <tr>
-              <th>Día</th>
-              <th *ngIf="mostrarGuiaGenetica">Consumo tabla (gr)</th>
-              <th *ngIf="mostrarGuiaGenetica">QQ tabla</th>
-              <th>QQ real</th>
-              <th>Consumo (kg)</th>
-              <th>Grs./ave</th>
-              <th>Peso (g)</th>
-              <th>Ganancia (g)</th>
-              <th>Conv.</th>
-              <th>Muertos Norm.</th>
-              <th>Sel.</th>
-              <th>Saldos</th>
-              <th>% Norm.</th>
-              <th>% Sel.</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let f of b.filas" [class.rep-row--sin-registro]="!f.conRegistro">
-              <td class="num">{{ f.dia }}</td>
-              <td class="num" *ngIf="mostrarGuiaGenetica">{{ formatDec(f.consumoTablaGr) }}</td>
-              <td class="num" *ngIf="mostrarGuiaGenetica">{{ formatDec(f.qqTabla) }}</td>
-              <td class="num">{{ formatDec(f.qqReal) }}</td>
-              <td class="num">{{ formatDec(f.consumoKg) }}</td>
-              <td class="num">{{ formatDec(f.grsAve) }}</td>
-              <td class="num">{{ f.pesoG != null ? formatDec(f.pesoG) : '—' }}</td>
-              <td class="num">{{ f.gananciaG != null ? formatDec(f.gananciaG) : '—' }}</td>
-              <td class="num">{{ f.conv != null ? formatDec(f.conv) : '—' }}</td>
-              <td class="num">{{ f.conRegistro ? f.muertosNorm : '—' }}</td>
-              <td class="num">{{ f.conRegistro ? f.muertosSel : '—' }}</td>
-              <td class="num">{{ formatNumber(f.saldo) }}</td>
-              <td class="num">{{ formatPct(f.pctNorm) }}</td>
-              <td class="num">{{ formatPct(f.pctSel) }}</td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr class="rep-row--total">
-              <td>Total</td>
-              <td *ngIf="mostrarGuiaGenetica"></td>
-              <td *ngIf="mostrarGuiaGenetica"></td>
-              <td class="num">{{ formatDec(b.totales.qqReal) }}</td>
-              <td class="num">{{ formatDec(b.totales.consumoKg) }}</td>
-              <td class="num">{{ formatDec(b.totales.grsAve) }}</td>
-              <td></td>
-              <td></td>
-              <td></td>
-              <td class="num">{{ b.totales.muertosNorm }}</td>
-              <td class="num">{{ b.totales.muertosSel }}</td>
-              <td class="num">{{ formatNumber(b.saldoFinal) }}</td>
-              <td class="num">{{ formatPct(b.totales.pctNorm) }}</td>
-              <td class="num">{{ formatPct(b.totales.pctSel) }}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </section>
-
+    @for (b of bloques; track trackByBloque($index, b)) {
+      <section class="rep-card">
+        <header class="rep-bloque__header">
+          <h5 class="rep-bloque__titulo">{{ b.titulo }}</h5>
+          <dl class="rep-bloque__meta">
+            <div><dt>Fecha encaset</dt><dd>{{ formatFechaUtc(b.fechaEncaset) }}</dd></div>
+            <div><dt># Pollitos</dt><dd>{{ formatNumber(b.pollitos) }}</dd></div>
+            <div><dt>Peso llegada (g)</dt><dd>{{ formatDec(b.pesoLlegadaG) }}</dd></div>
+            <div><dt>Saldo final</dt><dd>{{ formatNumber(b.saldoFinal) }}</dd></div>
+          </dl>
+        </header>
+        <div class="rep-table-wrap">
+          <table class="rep-table">
+            <thead>
+              <tr>
+                <th>Día</th>
+                @if (mostrarGuiaGenetica) {
+                  <th>Consumo tabla (gr)</th>
+                }
+                @if (mostrarGuiaGenetica) {
+                  <th>QQ tabla</th>
+                }
+                <th>QQ real</th>
+                <th>Consumo (kg)</th>
+                <th>Grs./ave</th>
+                <th>Peso (g)</th>
+                <th>Ganancia (g)</th>
+                <th>Conv.</th>
+                <th>Muertos Norm.</th>
+                <th>Sel.</th>
+                <th>Saldos</th>
+                <th>% Norm.</th>
+                <th>% Sel.</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of b.filas; track f) {
+                <tr [class.rep-row--sin-registro]="!f.conRegistro">
+                  <td class="num">{{ f.dia }}</td>
+                  @if (mostrarGuiaGenetica) {
+                    <td class="num">{{ formatDec(f.consumoTablaGr) }}</td>
+                  }
+                  @if (mostrarGuiaGenetica) {
+                    <td class="num">{{ formatDec(f.qqTabla) }}</td>
+                  }
+                  <td class="num">{{ formatDec(f.qqReal) }}</td>
+                  <td class="num">{{ formatDec(f.consumoKg) }}</td>
+                  <td class="num">{{ formatDec(f.grsAve) }}</td>
+                  <td class="num">{{ f.pesoG != null ? formatDec(f.pesoG) : '—' }}</td>
+                  <td class="num">{{ f.gananciaG != null ? formatDec(f.gananciaG) : '—' }}</td>
+                  <td class="num">{{ f.conv != null ? formatDec(f.conv) : '—' }}</td>
+                  <td class="num">{{ f.conRegistro ? f.muertosNorm : '—' }}</td>
+                  <td class="num">{{ f.conRegistro ? f.muertosSel : '—' }}</td>
+                  <td class="num">{{ formatNumber(f.saldo) }}</td>
+                  <td class="num">{{ formatPct(f.pctNorm) }}</td>
+                  <td class="num">{{ formatPct(f.pctSel) }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="rep-row--total">
+                <td>Total</td>
+                @if (mostrarGuiaGenetica) {
+                  <td></td>
+                }
+                @if (mostrarGuiaGenetica) {
+                  <td></td>
+                }
+                <td class="num">{{ formatDec(b.totales.qqReal) }}</td>
+                <td class="num">{{ formatDec(b.totales.consumoKg) }}</td>
+                <td class="num">{{ formatDec(b.totales.grsAve) }}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td class="num">{{ b.totales.muertosNorm }}</td>
+                <td class="num">{{ b.totales.muertosSel }}</td>
+                <td class="num">{{ formatNumber(b.saldoFinal) }}</td>
+                <td class="num">{{ formatPct(b.totales.pctNorm) }}</td>
+                <td class="num">{{ formatPct(b.totales.pctSel) }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    }
     <p class="rep-hint">
       QQ real = consumo (kg) ÷ 45.36 · Grs./ave = kg × 1000 ÷ aves al inicio del día ·
       Conv. = Grs./ave ÷ ganancia (día 1: ÷ peso de llegada) ·
       % = sobre aves al inicio del día. Filas con «—» no tienen registro de seguimiento.
     </p>
-  </ng-container>
+  }
 </div>

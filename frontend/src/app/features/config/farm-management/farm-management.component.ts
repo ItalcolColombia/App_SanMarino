@@ -1,6 +1,6 @@
 // src/app/features/config/farm-management/farm-management.component.ts
 import { Component, OnInit, ChangeDetectionStrategy, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -54,13 +54,12 @@ interface Farm {
   selector: 'app-farm-management',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     FontAwesomeModule,
     CompanySelectorComponent,
     CompanyTestComponent,
     CompanyAdminTestComponent
-  ],
+],
   templateUrl: './farm-management.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })

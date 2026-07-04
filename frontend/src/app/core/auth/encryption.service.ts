@@ -338,7 +338,7 @@ export class EncryptionService {
     const data = encoder.encode(plaintext);
 
     const encrypted = await crypto.subtle!.encrypt(
-      { name: 'AES-CBC', iv: iv },
+      { name: 'AES-CBC', iv: iv as BufferSource },
       key,
       data
     );

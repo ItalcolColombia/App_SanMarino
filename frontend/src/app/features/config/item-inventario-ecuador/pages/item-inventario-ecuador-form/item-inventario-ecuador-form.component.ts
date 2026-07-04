@@ -1,6 +1,6 @@
 // src/app/features/config/item-inventario-ecuador/pages/item-inventario-ecuador-form/item-inventario-ecuador-form.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ItemInventarioEcuadorService, ItemInventarioEcuadorCreateRequest, ItemInventarioEcuadorUpdateRequest } from '../../services/item-inventario-ecuador.service';
@@ -8,7 +8,7 @@ import { ItemInventarioEcuadorService, ItemInventarioEcuadorCreateRequest, ItemI
 @Component({
   selector: 'app-item-inventario-ecuador-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [FormsModule, RouterModule],
   templateUrl: './item-inventario-ecuador-form.component.html',
   styleUrls: ['./item-inventario-ecuador-form.component.scss']
 })

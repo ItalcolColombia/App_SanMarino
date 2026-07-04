@@ -1,6 +1,6 @@
 // src/app/features/config/user-management/user-management.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
@@ -16,7 +16,7 @@ import { UserListItem } from '../../../core/services/user/user.service';
 @Component({
   selector: 'app-user-management',
   standalone: true,
-  imports: [CommonModule, FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent],
+  imports: [FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent],
   templateUrl: './user-management.component.html',
   styleUrls: ['./user-management.component.scss']
 })

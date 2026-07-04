@@ -26,7 +26,7 @@
               (click)="refreshData()"
               [disabled]="loading()"
               title="Actualizar datos del dashboard"
-            >
+              >
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
               </svg>
@@ -40,7 +40,7 @@
               (click)="toggleRealTime()"
               [attr.aria-pressed]="isRealTimeEnabled()"
               title="Activar/Desactivar actualización en tiempo real"
-            >
+              >
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5v14l11-7z"/>
               </svg>
@@ -62,9 +62,11 @@
                   class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red min-w-[180px]"
                   [value]="filterCompanyId() ?? ''"
                   (change)="onCompanyFilterChange($any($event.target).value ? +$any($event.target).value : null)"
-                >
+                  >
                   <option value="">Todas</option>
-                  <option *ngFor="let c of companiesList()" [value]="c.id">{{ c.name }}</option>
+                  @for (c of companiesList(); track c) {
+                    <option [value]="c.id">{{ c.name }}</option>
+                  }
                 </select>
               </label>
               <label class="flex items-center gap-2">
@@ -73,39 +75,45 @@
                   class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red min-w-[180px]"
                   [value]="filterFarmId() ?? ''"
                   (change)="onFarmFilterChange($any($event.target).value ? +$any($event.target).value : null)"
-                >
+                  >
                   <option value="">Todas</option>
-                  <option *ngFor="let f of farmsList()" [value]="f.id">{{ f.name }}</option>
+                  @for (f of farmsList(); track f) {
+                    <option [value]="f.id">{{ f.name }}</option>
+                  }
                 </select>
               </label>
             </div>
-            <span *ngIf="loadingFilters()" class="text-xs text-slate-500">Cargando opciones…</span>
+            @if (loadingFilters()) {
+              <span class="text-xs text-slate-500">Cargando opciones…</span>
+            }
           </div>
         </div>
       </div>
     </header>
 
     <!-- BANNER DE ERROR -->
-    <div
-      *ngIf="error()"
-      role="alert"
-      class="mx-4 sm:mx-6 lg:mx-8 mt-4 rounded-lg bg-red-600 text-white px-4 py-3 shadow-md flex items-center gap-3"
-    >
-      <span aria-hidden="true">⚠️</span>
-      <span class="flex-1 font-medium">{{ error() }}</span>
-      <button type="button" class="rounded px-2 py-1 hover:bg-white/20 text-sm font-medium transition-colors" (click)="error.set(null)" aria-label="Cerrar error">✕</button>
-    </div>
+    @if (error()) {
+      <div
+        role="alert"
+        class="mx-4 sm:mx-6 lg:mx-8 mt-4 rounded-lg bg-red-600 text-white px-4 py-3 shadow-md flex items-center gap-3"
+        >
+        <span aria-hidden="true">⚠️</span>
+        <span class="flex-1 font-medium">{{ error() }}</span>
+        <button type="button" class="rounded px-2 py-1 hover:bg-white/20 text-sm font-medium transition-colors" (click)="error.set(null)" aria-label="Cerrar error">✕</button>
+      </div>
+    }
 
     <!-- LOADING OVERLAY INICIAL -->
-    <div
-      *ngIf="loading() && loadedSections().size === 0"
-      aria-live="polite"
-      aria-busy="true"
-      class="fixed inset-0 z-30 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
-    >
-      <div class="w-12 h-12 border-4 border-warm-gray-200 border-t-brand-red rounded-full animate-spin" aria-hidden="true"></div>
-      <p class="mt-4 text-slate-600 font-medium">Cargando dashboard corporativo...</p>
-    </div>
+    @if (loading() && loadedSections().size === 0) {
+      <div
+        aria-live="polite"
+        aria-busy="true"
+        class="fixed inset-0 z-30 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
+        >
+        <div class="w-12 h-12 border-4 border-warm-gray-200 border-t-brand-red rounded-full animate-spin" aria-hidden="true"></div>
+        <p class="mt-4 text-slate-600 font-medium">Cargando dashboard corporativo...</p>
+      </div>
+    }
 
     <!-- CONTENIDO -->
     <main class="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8" role="main">
@@ -117,90 +125,91 @@
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6" [attr.aria-busy]="loadingKPIs()">
-          <ng-container *ngIf="loadingKPIs(); else kpisContent">
-            <div *ngFor="let i of [1,2,3,4]" class="h-48 rounded-xl border border-slate-200 bg-slate-50 animate-pulse p-5">
-              <div class="h-5 bg-slate-200 rounded w-3/5 mb-3"></div>
-              <div class="h-4 bg-slate-200 rounded w-2/5 mb-2"></div>
-              <div class="h-4 bg-slate-200 rounded w-4/5"></div>
-            </div>
-          </ng-container>
+          @if (loadingKPIs()) {
+            @for (i of [1,2,3,4]; track i) {
+              <div class="h-48 rounded-xl border border-slate-200 bg-slate-50 animate-pulse p-5">
+                <div class="h-5 bg-slate-200 rounded w-3/5 mb-3"></div>
+                <div class="h-4 bg-slate-200 rounded w-2/5 mb-2"></div>
+                <div class="h-4 bg-slate-200 rounded w-4/5"></div>
+              </div>
+            }
+          } @else {
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-blue-500">
+              <div class="flex justify-between items-start mb-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-blue-600">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H17c-.8 0-1.54.37-2.01.99L14 10.5 12.01 8.99A2.5 2.5 0 0 0 10 8H8.46c-.8 0-1.54.37-2.01.99L4 10.5V22h2v-6h2.5l2.5 2.5L11.5 16H14v6h2z"/></svg>
+                </div>
+                <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+12%</span>
+              </div>
+              <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalUsuarios || 0) }}</h3>
+              <p class="text-slate-600 font-semibold mb-2">Total Usuarios</p>
+              <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ estadisticasGenerales()?.usuariosActivos || 0 }}</span> <span class="text-slate-500 text-xs">activos</span></span></div>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-chicken-yellow">
+              <div class="flex justify-between items-start mb-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-amber-600">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+5%</span>
+              </div>
+              <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalGranjas || 0) }}</h3>
+              <p class="text-slate-600 font-semibold mb-2">Total Granjas</p>
+              <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ distribucionLotes().length }}</span> <span class="text-slate-500 text-xs">con lotes activos</span></span></div>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-warm-gray-500">
+              <div class="flex justify-between items-start mb-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                </div>
+                <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-600">0%</span>
+              </div>
+              <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotes || 0) }}</h3>
+              <p class="text-slate-600 font-semibold mb-2">Total Lotes</p>
+              <div class="flex flex-wrap gap-2">
+                <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesReproductora || 0) }}</span> <span class="text-slate-500 text-xs">Reproductora</span></span>
+                <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesProduccion || 0) }}</span> <span class="text-slate-500 text-xs">Producción</span></span>
+                <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesLevante || 0) }}</span> <span class="text-slate-500 text-xs">Levante</span></span>
+              </div>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-emerald-500">
+              <div class="flex justify-between items-start mb-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-emerald-600">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                </div>
+                <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+8%</span>
+              </div>
+              <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(totalAves()) }}</h3>
+              <p class="text-slate-600 font-semibold mb-2">Total Aves</p>
+              <div class="flex flex-wrap gap-2">
+                <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesHembras || 0) }}</span> <span class="text-slate-500 text-xs">Hembras</span></span>
+                <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMachos || 0) }}</span> <span class="text-slate-500 text-xs">Machos</span></span>
+                <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMixtas || 0) }}</span> <span class="text-slate-500 text-xs">Mixtas</span></span>
+              </div>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-amber-500">
+              <div class="flex justify-between items-start mb-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-amber-600">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+                </div>
+                <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">-3%</span>
+              </div>
+              <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalMovimientosPendientes || 0) }}</h3>
+              <p class="text-slate-600 font-semibold mb-2">Movimientos Pendientes</p>
+              <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalMovimientosCompletados || 0) }}</span> <span class="text-slate-500 text-xs">completados</span></span></div>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-brand-red">
+              <div class="flex justify-between items-start mb-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-brand-red">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+                </div>
+                <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+15%</span>
+              </div>
+              <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatPercentage(eficienciaPromedio()) }}</h3>
+              <p class="text-slate-600 font-semibold mb-2">Eficiencia Promedio</p>
+              <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">Producción</span> <span class="text-slate-500 text-xs">por granja</span></span></div>
+            </article>
+          }
 
-           <ng-template #kpisContent>
-             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-blue-500">
-               <div class="flex justify-between items-start mb-3">
-                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-blue-600">
-                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H17c-.8 0-1.54.37-2.01.99L14 10.5 12.01 8.99A2.5 2.5 0 0 0 10 8H8.46c-.8 0-1.54.37-2.01.99L4 10.5V22h2v-6h2.5l2.5 2.5L11.5 16H14v6h2z"/></svg>
-                 </div>
-                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+12%</span>
-               </div>
-               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalUsuarios || 0) }}</h3>
-               <p class="text-slate-600 font-semibold mb-2">Total Usuarios</p>
-               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ estadisticasGenerales()?.usuariosActivos || 0 }}</span> <span class="text-slate-500 text-xs">activos</span></span></div>
-             </article>
-             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-chicken-yellow">
-               <div class="flex justify-between items-start mb-3">
-                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-amber-600">
-                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                 </div>
-                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+5%</span>
-               </div>
-               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalGranjas || 0) }}</h3>
-               <p class="text-slate-600 font-semibold mb-2">Total Granjas</p>
-               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ distribucionLotes().length }}</span> <span class="text-slate-500 text-xs">con lotes activos</span></span></div>
-             </article>
-             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-warm-gray-500">
-               <div class="flex justify-between items-start mb-3">
-                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                 </div>
-                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-600">0%</span>
-               </div>
-               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotes || 0) }}</h3>
-               <p class="text-slate-600 font-semibold mb-2">Total Lotes</p>
-               <div class="flex flex-wrap gap-2">
-                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesReproductora || 0) }}</span> <span class="text-slate-500 text-xs">Reproductora</span></span>
-                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesProduccion || 0) }}</span> <span class="text-slate-500 text-xs">Producción</span></span>
-                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesLevante || 0) }}</span> <span class="text-slate-500 text-xs">Levante</span></span>
-               </div>
-             </article>
-             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-emerald-500">
-               <div class="flex justify-between items-start mb-3">
-                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-emerald-600">
-                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                 </div>
-                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+8%</span>
-               </div>
-               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(totalAves()) }}</h3>
-               <p class="text-slate-600 font-semibold mb-2">Total Aves</p>
-               <div class="flex flex-wrap gap-2">
-                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesHembras || 0) }}</span> <span class="text-slate-500 text-xs">Hembras</span></span>
-                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMachos || 0) }}</span> <span class="text-slate-500 text-xs">Machos</span></span>
-                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMixtas || 0) }}</span> <span class="text-slate-500 text-xs">Mixtas</span></span>
-               </div>
-             </article>
-             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-amber-500">
-               <div class="flex justify-between items-start mb-3">
-                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-amber-600">
-                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-                 </div>
-                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">-3%</span>
-               </div>
-               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalMovimientosPendientes || 0) }}</h3>
-               <p class="text-slate-600 font-semibold mb-2">Movimientos Pendientes</p>
-               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalMovimientosCompletados || 0) }}</span> <span class="text-slate-500 text-xs">completados</span></span></div>
-             </article>
-             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-brand-red">
-               <div class="flex justify-between items-start mb-3">
-                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-brand-red">
-                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                 </div>
-                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+15%</span>
-               </div>
-               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatPercentage(eficienciaPromedio()) }}</h3>
-               <p class="text-slate-600 font-semibold mb-2">Eficiencia Promedio</p>
-               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">Producción</span> <span class="text-slate-500 text-xs">por granja</span></span></div>
-             </article>
-           </ng-template>
         </div>
       </section>
 
@@ -212,14 +221,14 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6" [attr.aria-busy]="loadingCharts()">
-          <ng-container *ngIf="loadingCharts(); else chartsContent">
-            <div *ngFor="let i of [1,2,3,4]" class="rounded-xl border border-slate-200 bg-white p-5 h-[320px] animate-pulse">
-              <div class="h-5 bg-slate-200 rounded w-1/3 mb-4"></div>
-              <div class="flex-1 bg-slate-100 rounded h-48"></div>
-            </div>
-          </ng-container>
-
-          <ng-template #chartsContent>
+          @if (loadingCharts()) {
+            @for (i of [1,2,3,4]; track i) {
+              <div class="rounded-xl border border-slate-200 bg-white p-5 h-[320px] animate-pulse">
+                <div class="h-5 bg-slate-200 rounded w-1/3 mb-4"></div>
+                <div class="flex-1 bg-slate-100 rounded h-48"></div>
+              </div>
+            }
+          } @else {
             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
               <div class="mb-4">
                 <h3 class="text-lg font-semibold text-slate-900">Registros Diarios</h3>
@@ -301,7 +310,8 @@
                 </div>
               </div>
             </article>
-          </ng-template>
+          }
+
         </div>
       </section>
 
@@ -313,15 +323,15 @@
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6" [attr.aria-busy]="loadingReports()">
-          <ng-container *ngIf="loadingReports(); else reportsContent">
-            <div *ngFor="let i of [1,2,3]" class="rounded-xl border border-slate-200 bg-white p-5 h-64 animate-pulse">
-              <div class="h-5 bg-slate-200 rounded w-1/2 mb-3"></div>
-              <div class="h-4 bg-slate-100 rounded w-full mb-2"></div>
-              <div class="h-4 bg-slate-100 rounded w-4/5"></div>
-            </div>
-          </ng-container>
-
-          <ng-template #reportsContent>
+          @if (loadingReports()) {
+            @for (i of [1,2,3]; track i) {
+              <div class="rounded-xl border border-slate-200 bg-white p-5 h-64 animate-pulse">
+                <div class="h-5 bg-slate-200 rounded w-1/2 mb-3"></div>
+                <div class="h-4 bg-slate-100 rounded w-full mb-2"></div>
+                <div class="h-4 bg-slate-100 rounded w-4/5"></div>
+              </div>
+            }
+          } @else {
             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm overflow-hidden xl:col-span-2" aria-label="Tabla de producción por granja">
               <div class="mb-4">
                 <h3 class="text-lg font-semibold text-slate-900">🏭 Producción por Granja</h3>
@@ -339,25 +349,27 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let granja of produccionPorGranja()" class="border-t border-slate-100 hover:bg-slate-50">
-                      <td class="px-4 py-2 text-slate-700">{{ granja.granjaNombre }}</td>
-                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalLotes) }}</td>
-                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalHuevos) }}</td>
-                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalAves) }}</td>
-                      <td class="px-4 py-2">
-                        <span
-                          class="inline-block px-2 py-0.5 rounded text-xs font-semibold"
-                          [class.bg-emerald-100]="granja.eficiencia > 0.8"
-                          [class.text-emerald-700]="granja.eficiencia > 0.8"
-                          [class.bg-amber-100]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
-                          [class.text-amber-700]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
-                          [class.bg-red-100]="granja.eficiencia < 0.6"
-                          [class.text-red-700]="granja.eficiencia < 0.6"
-                        >
-                          {{ formatPercentage(granja.eficiencia) }}
-                        </span>
-                      </td>
-                    </tr>
+                    @for (granja of produccionPorGranja(); track granja) {
+                      <tr class="border-t border-slate-100 hover:bg-slate-50">
+                        <td class="px-4 py-2 text-slate-700">{{ granja.granjaNombre }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalLotes) }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalHuevos) }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalAves) }}</td>
+                        <td class="px-4 py-2">
+                          <span
+                            class="inline-block px-2 py-0.5 rounded text-xs font-semibold"
+                            [class.bg-emerald-100]="granja.eficiencia > 0.8"
+                            [class.text-emerald-700]="granja.eficiencia > 0.8"
+                            [class.bg-amber-100]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
+                            [class.text-amber-700]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
+                            [class.bg-red-100]="granja.eficiencia < 0.6"
+                            [class.text-red-700]="granja.eficiencia < 0.6"
+                            >
+                            {{ formatPercentage(granja.eficiencia) }}
+                          </span>
+                        </td>
+                      </tr>
+                    }
                   </tbody>
                 </table>
               </div>
@@ -379,13 +391,15 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let distribucion of distribucionLotes()" class="border-t border-slate-100 hover:bg-slate-50">
-                      <td class="px-3 py-2 text-slate-700">{{ distribucion.granjaNombre }}</td>
-                      <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesReproductora) }}</td>
-                      <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesProduccion) }}</td>
-                      <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesLevante) }}</td>
-                      <td class="px-3 py-2 font-bold text-slate-900">{{ formatNumber(distribucion.totalLotes) }}</td>
-                    </tr>
+                    @for (distribucion of distribucionLotes(); track distribucion) {
+                      <tr class="border-t border-slate-100 hover:bg-slate-50">
+                        <td class="px-3 py-2 text-slate-700">{{ distribucion.granjaNombre }}</td>
+                        <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesReproductora) }}</td>
+                        <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesProduccion) }}</td>
+                        <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesLevante) }}</td>
+                        <td class="px-3 py-2 font-bold text-slate-900">{{ formatNumber(distribucion.totalLotes) }}</td>
+                      </tr>
+                    }
                   </tbody>
                 </table>
               </div>
@@ -407,18 +421,21 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let mortalidad of mortalidades().slice(0, 10)" class="border-t border-slate-100 hover:bg-slate-50">
-                      <td class="px-4 py-2 text-slate-700">{{ formatDate(mortalidad.fecha) }}</td>
-                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(mortalidad.cantidadMuertas) }}</td>
-                      <td class="px-4 py-2 text-slate-700">{{ mortalidad.loteId }}</td>
-                      <td class="px-4 py-2 text-slate-700">{{ mortalidad.granjaNombre }}</td>
-                      <td class="px-4 py-2 text-slate-700">{{ mortalidad.causaMuerte }}</td>
-                    </tr>
+                    @for (mortalidad of mortalidades().slice(0, 10); track mortalidad) {
+                      <tr class="border-t border-slate-100 hover:bg-slate-50">
+                        <td class="px-4 py-2 text-slate-700">{{ formatDate(mortalidad.fecha) }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ formatNumber(mortalidad.cantidadMuertas) }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ mortalidad.loteId }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ mortalidad.granjaNombre }}</td>
+                        <td class="px-4 py-2 text-slate-700">{{ mortalidad.causaMuerte }}</td>
+                      </tr>
+                    }
                   </tbody>
                 </table>
               </div>
             </article>
-          </ng-template>
+          }
+
         </div>
       </section>
 
@@ -429,43 +446,48 @@
           <p class="text-slate-600 font-medium">Últimas operaciones del sistema</p>
         </div>
 
-        <div *ngIf="!loadingActivities(); else activitiesSkeleton" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
-            <div>
-              <h3 class="text-lg font-semibold text-slate-900">🔄 Actividades Recientes</h3>
-              <p class="text-sm text-slate-600">Últimas operaciones del sistema</p>
-            </div>
-            <span class="px-2 py-1 rounded bg-slate-100 text-xs font-semibold text-slate-600" aria-live="polite">{{ actividadesRecientes().length }} registros</span>
-          </div>
-          <div class="space-y-0 divide-y divide-slate-100">
-            <div *ngFor="let actividad of actividadesRecientes()" class="flex items-center gap-4 py-4 first:pt-0 hover:bg-slate-50 -mx-5 px-5 rounded-lg transition-colors">
-              <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-lg" aria-hidden="true">{{ actividad.icono }}</div>
-              <div class="flex-1 min-w-0">
-                <h4 class="font-semibold text-slate-900 text-sm">{{ actividad.tipo }}</h4>
-                <p class="text-sm text-slate-600 truncate">{{ actividad.descripcion }}</p>
-                <div class="flex gap-3 mt-1 text-xs text-slate-500">
-                  <span>{{ actividad.usuario }}</span>
-                  <span>{{ getTimeAgo(actividad.fecha) }}</span>
-                </div>
+        @if (!loadingActivities()) {
+          <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+              <div>
+                <h3 class="text-lg font-semibold text-slate-900">🔄 Actividades Recientes</h3>
+                <p class="text-sm text-slate-600">Últimas operaciones del sistema</p>
               </div>
+              <span class="px-2 py-1 rounded bg-slate-100 text-xs font-semibold text-slate-600" aria-live="polite">{{ actividadesRecientes().length }} registros</span>
+            </div>
+            <div class="space-y-0 divide-y divide-slate-100">
+              @for (actividad of actividadesRecientes(); track actividad) {
+                <div class="flex items-center gap-4 py-4 first:pt-0 hover:bg-slate-50 -mx-5 px-5 rounded-lg transition-colors">
+                  <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-lg" aria-hidden="true">{{ actividad.icono }}</div>
+                  <div class="flex-1 min-w-0">
+                    <h4 class="font-semibold text-slate-900 text-sm">{{ actividad.tipo }}</h4>
+                    <p class="text-sm text-slate-600 truncate">{{ actividad.descripcion }}</p>
+                    <div class="flex gap-3 mt-1 text-xs text-slate-500">
+                      <span>{{ actividad.usuario }}</span>
+                      <span>{{ getTimeAgo(actividad.fecha) }}</span>
+                    </div>
+                  </div>
+                </div>
+              }
             </div>
           </div>
-        </div>
-
-        <ng-template #activitiesSkeleton>
+        } @else {
           <div class="rounded-xl border border-slate-200 bg-white p-5 animate-pulse">
             <div class="h-5 bg-slate-200 rounded w-1/3 mb-2"></div>
             <div class="h-4 bg-slate-100 rounded w-1/4 mb-6"></div>
-            <div *ngFor="let i of [1,2,3]" class="flex gap-4 py-4 border-t border-slate-100">
-              <div class="w-10 h-10 rounded-lg bg-slate-200"></div>
-              <div class="flex-1 space-y-2">
-                <div class="h-4 bg-slate-100 rounded w-1/4"></div>
-                <div class="h-3 bg-slate-100 rounded w-3/4"></div>
-                <div class="h-3 bg-slate-100 rounded w-1/2"></div>
+            @for (i of [1,2,3]; track i) {
+              <div class="flex gap-4 py-4 border-t border-slate-100">
+                <div class="w-10 h-10 rounded-lg bg-slate-200"></div>
+                <div class="flex-1 space-y-2">
+                  <div class="h-4 bg-slate-100 rounded w-1/4"></div>
+                  <div class="h-3 bg-slate-100 rounded w-3/4"></div>
+                  <div class="h-3 bg-slate-100 rounded w-1/2"></div>
+                </div>
               </div>
-            </div>
+            }
           </div>
-        </ng-template>
+        }
+
       </section>
 
       <!-- INFO DE ACTUALIZACIÓN -->
@@ -479,7 +501,7 @@
             [class.text-emerald-700]="isRealTimeEnabled()"
             [class.bg-slate-100]="!isRealTimeEnabled()"
             [class.text-slate-600]="!isRealTimeEnabled()"
-          >
+            >
             {{ isRealTimeEnabled() ? 'Tiempo Real Activo' : 'Tiempo Real Pausado' }}
           </span>
         </div>

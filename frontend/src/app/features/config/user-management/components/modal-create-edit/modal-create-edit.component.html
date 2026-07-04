@@ -6,492 +6,551 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="modal-title"
->
+  >
   <div
     class="modal-content"
     (click)="$event.stopPropagation()"
     [attr.aria-busy]="loading ? 'true' : null"
-  >
+    >
     <!-- Compact Header -->
     <div class="modal-header">
       <div class="header-content">
         <fa-icon [icon]="isEditing ? faUser : faUserPlus" class="header-icon"></fa-icon>
         <div class="header-text">
           <h2 id="modal-title" class="modal-title">{{ modalTitle }}</h2>
-          <p *ngIf="isEditing" class="modal-subtitle">{{ editingUser?.firstName }} {{ editingUser?.surName }}</p>
+          @if (isEditing) {
+            <p class="modal-subtitle">{{ editingUser?.firstName }} {{ editingUser?.surName }}</p>
+          }
         </div>
         <!-- Icono de estado del correo (solo al crear usuario) -->
-        <div *ngIf="!isEditing && emailQueueId" class="email-status-indicator" [title]="getEmailStatusIcon().tooltip">
-          <fa-icon
-            [icon]="getEmailStatusIcon().icon"
-            [style.color]="getEmailStatusIcon().color"
-            class="email-icon"
-          ></fa-icon>
-          <span
-            class="status-dot"
-            [style.background-color]="getEmailStatusIcon().color"
-          ></span>
-        </div>
+        @if (!isEditing && emailQueueId) {
+          <div class="email-status-indicator" [title]="getEmailStatusIcon().tooltip">
+            <fa-icon
+              [icon]="getEmailStatusIcon().icon"
+              [style.color]="getEmailStatusIcon().color"
+              class="email-icon"
+            ></fa-icon>
+            <span
+              class="status-dot"
+              [style.background-color]="getEmailStatusIcon().color"
+            ></span>
+          </div>
+        }
       </div>
       <button
         (click)="closeModal()"
         class="modal-close-btn"
         aria-label="Cerrar modal"
-      >
+        >
         <fa-icon [icon]="faTimes"></fa-icon>
       </button>
     </div>
 
     <!-- Loading State -->
-    <div *ngIf="loading" class="modal-loading">
-      <div class="spinner"></div>
-      <p>Cargando información...</p>
-    </div>
+    @if (loading) {
+      <div class="modal-loading">
+        <div class="spinner"></div>
+        <p>Cargando información...</p>
+      </div>
+    }
 
     <!-- Tabs Navigation -->
-    <div *ngIf="!loading" class="tabs-navigation">
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'personal'"
-        [class.has-errors]="getTabErrorCount('personal') > 0"
-        (click)="setActiveTab('personal')"
-      >
-        <fa-icon [icon]="faUser" class="tab-icon"></fa-icon>
-        <span class="tab-label">Personal</span>
-        <span *ngIf="getTabErrorCount('personal') > 0" class="error-count">{{ getTabErrorCount('personal') }}</span>
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'access'"
-        [class.has-errors]="getTabErrorCount('access') > 0"
-        (click)="setActiveTab('access')"
-      >
-        <fa-icon [icon]="faEnvelope" class="tab-icon"></fa-icon>
-        <span class="tab-label">Acceso</span>
-        <span *ngIf="getTabErrorCount('access') > 0" class="error-count">{{ getTabErrorCount('access') }}</span>
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'roles'"
-        [class.has-errors]="getTabErrorCount('roles') > 0"
-        (click)="setActiveTab('roles')"
-      >
-        <fa-icon [icon]="faBuilding" class="tab-icon"></fa-icon>
-        <span class="tab-label">Empresas & Roles</span>
-        <span *ngIf="getTabErrorCount('roles') > 0" class="error-count">{{ getTabErrorCount('roles') }}</span>
-      </button>
-
-      <!-- Tab Tickets (solo en modo edición, cuando ya tenemos el Guid del usuario) -->
-      <button *ngIf="isEditing"
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'tickets'"
-        (click)="setActiveTab('tickets')"
-      >
-        <span class="tab-icon">🎫</span>
-        <span class="tab-label">Perfil de Atención</span>
-      </button>
-    </div>
+    @if (!loading) {
+      <div class="tabs-navigation">
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'personal'"
+          [class.has-errors]="getTabErrorCount('personal') > 0"
+          (click)="setActiveTab('personal')"
+          >
+          <fa-icon [icon]="faUser" class="tab-icon"></fa-icon>
+          <span class="tab-label">Personal</span>
+          @if (getTabErrorCount('personal') > 0) {
+            <span class="error-count">{{ getTabErrorCount('personal') }}</span>
+          }
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'access'"
+          [class.has-errors]="getTabErrorCount('access') > 0"
+          (click)="setActiveTab('access')"
+          >
+          <fa-icon [icon]="faEnvelope" class="tab-icon"></fa-icon>
+          <span class="tab-label">Acceso</span>
+          @if (getTabErrorCount('access') > 0) {
+            <span class="error-count">{{ getTabErrorCount('access') }}</span>
+          }
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'roles'"
+          [class.has-errors]="getTabErrorCount('roles') > 0"
+          (click)="setActiveTab('roles')"
+          >
+          <fa-icon [icon]="faBuilding" class="tab-icon"></fa-icon>
+          <span class="tab-label">Empresas & Roles</span>
+          @if (getTabErrorCount('roles') > 0) {
+            <span class="error-count">{{ getTabErrorCount('roles') }}</span>
+          }
+        </button>
+        <!-- Tab Tickets (solo en modo edición, cuando ya tenemos el Guid del usuario) -->
+        @if (isEditing) {
+          <button
+            type="button"
+            class="tab-button"
+            [class.active]="activeTab === 'tickets'"
+            (click)="setActiveTab('tickets')"
+            >
+            <span class="tab-icon">🎫</span>
+            <span class="tab-label">Perfil de Atención</span>
+          </button>
+        }
+      </div>
+    }
 
     <!-- Content -->
-    <div *ngIf="!loading" class="modal-body">
-      <form [formGroup]="userForm" (ngSubmit)="saveUser()" class="user-form">
-
-        <!-- Tab: Información Personal -->
-        <div *ngIf="activeTab === 'personal'" class="tab-content">
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="firstName" class="form-label">Nombre *</label>
-              <input
-                id="firstName"
-                type="text"
-                formControlName="firstName"
-                class="form-input"
-                [class.error]="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched"
-                placeholder="Ingrese el nombre"
-              />
-              <div *ngIf="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched"
-                   class="error-message">
-                {{ getFieldError('firstName') }}
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="surName" class="form-label">Apellido *</label>
-              <input
-                id="surName"
-                type="text"
-                formControlName="surName"
-                class="form-input"
-                [class.error]="userForm.get('surName')?.invalid && userForm.get('surName')?.touched"
-                placeholder="Ingrese el apellido"
-              />
-              <div *ngIf="userForm.get('surName')?.invalid && userForm.get('surName')?.touched"
-                   class="error-message">
-                {{ getFieldError('surName') }}
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="cedula" class="form-label">
-                <fa-icon [icon]="faIdCard" class="mr-1"></fa-icon>
-                Cédula *
-              </label>
-              <input
-                id="cedula"
-                type="text"
-                formControlName="cedula"
-                class="form-input"
-                [class.error]="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched"
-                placeholder="Ingrese la cédula"
-              />
-              <div *ngIf="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched"
-                   class="error-message">
-                {{ getFieldError('cedula') }}
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="telefono" class="form-label">
-                <fa-icon [icon]="faPhone" class="mr-1"></fa-icon>
-                Teléfono
-              </label>
-              <input
-                id="telefono"
-                type="text"
-                formControlName="telefono"
-                class="form-input"
-                [class.error]="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched"
-                placeholder="Ingrese el teléfono"
-              />
-              <div *ngIf="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched"
-                   class="error-message">
-                {{ getFieldError('telefono') }}
-              </div>
-            </div>
-
-            <div class="form-group full-width">
-              <label for="ubicacion" class="form-label">Ubicación</label>
-              <input
-                id="ubicacion"
-                type="text"
-                formControlName="ubicacion"
-                class="form-input"
-                placeholder="Ingrese la ubicación"
-              />
-            </div>
-
-            <div *appShowIfCountry="3" class="form-group full-width">
-              <label for="zona" class="form-label">Zona</label>
-              <select
-                id="zona"
-                formControlName="zona"
-                class="form-input"
-                [class.error]="userForm.get('zona')?.invalid && userForm.get('zona')?.touched"
-              >
-                <option *ngFor="let z of zonas" [value]="z.value">{{ z.label }}</option>
-              </select>
-              <small class="hint">Restringe las granjas visibles según la zona asignada.</small>
-              <div *ngIf="userForm.get('zona')?.invalid && userForm.get('zona')?.touched"
-                   class="error-message">
-                {{ getFieldError('zona') }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab: Información de Acceso -->
-        <div *ngIf="activeTab === 'access'" class="tab-content">
-
-          <!-- Toggle tipo de usuario (solo en creación) -->
-          <div *ngIf="!isEditing" class="user-type-toggle">
-            <button
-              type="button"
-              class="user-type-btn"
-              [class.active]="!isPlatformUser"
-              (click)="onUserTypeToggle(false)"
-            >
-              <fa-icon [icon]="faEnvelope" class="mr-1"></fa-icon>
-              Email real
-            </button>
-            <button
-              type="button"
-              class="user-type-btn"
-              [class.active]="isPlatformUser"
-              (click)="onUserTypeToggle(true)"
-            >
-              <fa-icon [icon]="faLaptop" class="mr-1"></fa-icon>
-              Usuario de plataforma
-            </button>
-          </div>
-
-          <div class="form-grid">
-
-            <!-- Campo Email real -->
-            <div *ngIf="!isPlatformUser" class="form-group full-width">
-              <label for="email" class="form-label">Email *</label>
-              <input
-                id="email"
-                type="email"
-                formControlName="email"
-                class="form-input"
-                [class.error]="userForm.get('email')?.invalid && userForm.get('email')?.touched"
-                placeholder="Ingrese el email"
-              />
-              <div *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched"
-                   class="error-message">
-                {{ getFieldError('email') }}
-              </div>
-            </div>
-
-            <!-- Campo Usuario de plataforma -->
-            <div *ngIf="isPlatformUser" class="form-group full-width">
-              <label for="platformUsername" class="form-label">
-                <fa-icon [icon]="faAt" class="mr-1"></fa-icon>
-                Usuario de plataforma *
-              </label>
-              <div class="platform-username-wrapper">
-                <input
-                  id="platformUsername"
-                  type="text"
-                  formControlName="platformUsername"
-                  class="form-input platform-username-input"
-                  [class.error]="userForm.get('platformUsername')?.invalid && userForm.get('platformUsername')?.touched"
-                  placeholder="nombre.usuario"
-                  autocomplete="off"
-                />
-                <span class="platform-domain-suffix">{{ PLATFORM_DOMAIN }}</span>
-              </div>
-              <div *ngIf="userForm.get('platformUsername')?.invalid && userForm.get('platformUsername')?.touched"
-                   class="error-message">
-                {{ getFieldError('platformUsername') }}
-                <span *ngIf="userForm.get('platformUsername')?.errors?.['pattern']">
-                  Solo se permiten letras, números, puntos, guiones y guiones bajos (sin espacios)
-                </span>
-              </div>
-              <!-- Nota informativa -->
-              <div class="platform-info-note">
-                <fa-icon [icon]="faExclamationTriangle" class="mr-1"></fa-icon>
-                Este usuario accederá a la aplicación con
-                <strong>{{ (userForm.get('platformUsername')?.value || 'nombre.usuario') | lowercase }}{{ PLATFORM_DOMAIN }}</strong>
-                como identificador. No se enviará ningún correo de bienvenida.
-              </div>
-            </div>
-
-            <!-- Contraseña autogenerada (email real) — visible pero deshabilitada -->
-            <div *ngIf="!isEditing && !isPlatformUser" class="form-group">
-              <label for="password" class="form-label">
-                Contraseña inicial
-                <span class="auto-badge">autogenerada</span>
-              </label>
-              <input
-                id="password"
-                type="text"
-                formControlName="password"
-                class="form-input autogenerated-pwd"
-                readonly
-              />
-              <small class="hint">Se enviará al usuario en el correo de bienvenida.</small>
-            </div>
-
-            <div *ngIf="!isEditing && !isPlatformUser" class="form-group">
-              <label for="confirmPassword" class="form-label">
-                Confirmar contraseña
-                <span class="auto-badge">autogenerada</span>
-              </label>
-              <input
-                id="confirmPassword"
-                type="text"
-                formControlName="confirmPassword"
-                class="form-input autogenerated-pwd"
-                readonly
-              />
-            </div>
-
-            <!-- Contraseña manual (usuario de plataforma) -->
-            <div *ngIf="!isEditing && isPlatformUser" class="form-group">
-              <label for="password" class="form-label">Contraseña *</label>
-              <div class="password-input">
-                <input
-                  id="password"
-                  [type]="showPassword ? 'text' : 'password'"
-                  formControlName="password"
-                  class="form-input"
-                  [class.error]="userForm.get('password')?.invalid && userForm.get('password')?.touched"
-                  placeholder="Ingrese la contraseña"
-                />
-                <button
-                  type="button"
-                  class="password-toggle"
-                  (click)="togglePasswordVisibility()"
-                  [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-                >
-                  <fa-icon [icon]="showPassword ? faEyeSlash : faEye"></fa-icon>
-                </button>
-              </div>
-              <div *ngIf="userForm.get('password')?.invalid && userForm.get('password')?.touched"
-                   class="error-message">
-                {{ getFieldError('password') }}
-              </div>
-            </div>
-
-            <div *ngIf="!isEditing && isPlatformUser" class="form-group">
-              <label for="confirmPassword" class="form-label">Confirmar Contraseña *</label>
-              <div class="password-input">
-                <input
-                  id="confirmPassword"
-                  [type]="showConfirmPassword ? 'text' : 'password'"
-                  formControlName="confirmPassword"
-                  class="form-input"
-                  [class.error]="userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched"
-                  placeholder="Confirme la contraseña"
-                />
-                <button
-                  type="button"
-                  class="password-toggle"
-                  (click)="toggleConfirmPasswordVisibility()"
-                  [attr.aria-label]="showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-                >
-                  <fa-icon [icon]="showConfirmPassword ? faEyeSlash : faEye"></fa-icon>
-                </button>
-              </div>
-              <div *ngIf="userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched"
-                   class="error-message">
-                {{ getFieldError('confirmPassword') }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab: Empresas y Roles -->
-        <div *ngIf="activeTab === 'roles'" class="tab-content">
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label">Empresas *</label>
-              <div class="checkbox-group">
-                <label *ngFor="let company of companies" class="checkbox-item">
+    @if (!loading) {
+      <div class="modal-body">
+        <form [formGroup]="userForm" (ngSubmit)="saveUser()" class="user-form">
+          <!-- Tab: Información Personal -->
+          @if (activeTab === 'personal') {
+            <div class="tab-content">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="firstName" class="form-label">Nombre *</label>
                   <input
-                    type="checkbox"
-                    [value]="company.id"
-                    (change)="toggleCompany(company.id!)"
-                    [checked]="userForm.get('companyIds')?.value?.includes(company.id)"
-                  />
-                  <span class="checkbox-label">{{ company.name }}</span>
-                </label>
-              </div>
-              <div *ngIf="userForm.get('companyIds')?.invalid && userForm.get('companyIds')?.touched"
-                   class="error-message">
-                {{ getFieldError('companyIds') }}
-              </div>
-            </div>
+                    id="firstName"
+                    type="text"
+                    formControlName="firstName"
+                    class="form-input"
+                    [class.error]="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched"
+                    placeholder="Ingrese el nombre"
+                    />
+                    @if (userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched) {
+                      <div
+                        class="error-message">
+                        {{ getFieldError('firstName') }}
+                      </div>
+                    }
+                  </div>
+                  <div class="form-group">
+                    <label for="surName" class="form-label">Apellido *</label>
+                    <input
+                      id="surName"
+                      type="text"
+                      formControlName="surName"
+                      class="form-input"
+                      [class.error]="userForm.get('surName')?.invalid && userForm.get('surName')?.touched"
+                      placeholder="Ingrese el apellido"
+                      />
+                      @if (userForm.get('surName')?.invalid && userForm.get('surName')?.touched) {
+                        <div
+                          class="error-message">
+                          {{ getFieldError('surName') }}
+                        </div>
+                      }
+                    </div>
+                    <div class="form-group">
+                      <label for="cedula" class="form-label">
+                        <fa-icon [icon]="faIdCard" class="mr-1"></fa-icon>
+                        Cédula *
+                      </label>
+                      <input
+                        id="cedula"
+                        type="text"
+                        formControlName="cedula"
+                        class="form-input"
+                        [class.error]="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched"
+                        placeholder="Ingrese la cédula"
+                        />
+                        @if (userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched) {
+                          <div
+                            class="error-message">
+                            {{ getFieldError('cedula') }}
+                          </div>
+                        }
+                      </div>
+                      <div class="form-group">
+                        <label for="telefono" class="form-label">
+                          <fa-icon [icon]="faPhone" class="mr-1"></fa-icon>
+                          Teléfono
+                        </label>
+                        <input
+                          id="telefono"
+                          type="text"
+                          formControlName="telefono"
+                          class="form-input"
+                          [class.error]="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched"
+                          placeholder="Ingrese el teléfono"
+                          />
+                          @if (userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched) {
+                            <div
+                              class="error-message">
+                              {{ getFieldError('telefono') }}
+                            </div>
+                          }
+                        </div>
+                        <div class="form-group full-width">
+                          <label for="ubicacion" class="form-label">Ubicación</label>
+                          <input
+                            id="ubicacion"
+                            type="text"
+                            formControlName="ubicacion"
+                            class="form-input"
+                            placeholder="Ingrese la ubicación"
+                            />
+                          </div>
+                          <div *appShowIfCountry="3" class="form-group full-width">
+                            <label for="zona" class="form-label">Zona</label>
+                            <select
+                              id="zona"
+                              formControlName="zona"
+                              class="form-input"
+                              [class.error]="userForm.get('zona')?.invalid && userForm.get('zona')?.touched"
+                              >
+                              @for (z of zonas; track z) {
+                                <option [value]="z.value">{{ z.label }}</option>
+                              }
+                            </select>
+                            <small class="hint">Restringe las granjas visibles según la zona asignada.</small>
+                            @if (userForm.get('zona')?.invalid && userForm.get('zona')?.touched) {
+                              <div
+                                class="error-message">
+                                {{ getFieldError('zona') }}
+                              </div>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    }
+                    <!-- Tab: Información de Acceso -->
+                    @if (activeTab === 'access') {
+                      <div class="tab-content">
+                        <!-- Toggle tipo de usuario (solo en creación) -->
+                        @if (!isEditing) {
+                          <div class="user-type-toggle">
+                            <button
+                              type="button"
+                              class="user-type-btn"
+                              [class.active]="!isPlatformUser"
+                              (click)="onUserTypeToggle(false)"
+                              >
+                              <fa-icon [icon]="faEnvelope" class="mr-1"></fa-icon>
+                              Email real
+                            </button>
+                            <button
+                              type="button"
+                              class="user-type-btn"
+                              [class.active]="isPlatformUser"
+                              (click)="onUserTypeToggle(true)"
+                              >
+                              <fa-icon [icon]="faLaptop" class="mr-1"></fa-icon>
+                              Usuario de plataforma
+                            </button>
+                          </div>
+                        }
+                        <div class="form-grid">
+                          <!-- Campo Email real -->
+                          @if (!isPlatformUser) {
+                            <div class="form-group full-width">
+                              <label for="email" class="form-label">Email *</label>
+                              <input
+                                id="email"
+                                type="email"
+                                formControlName="email"
+                                class="form-input"
+                                [class.error]="userForm.get('email')?.invalid && userForm.get('email')?.touched"
+                                placeholder="Ingrese el email"
+                                />
+                                @if (userForm.get('email')?.invalid && userForm.get('email')?.touched) {
+                                  <div
+                                    class="error-message">
+                                    {{ getFieldError('email') }}
+                                  </div>
+                                }
+                              </div>
+                            }
+                            <!-- Campo Usuario de plataforma -->
+                            @if (isPlatformUser) {
+                              <div class="form-group full-width">
+                                <label for="platformUsername" class="form-label">
+                                  <fa-icon [icon]="faAt" class="mr-1"></fa-icon>
+                                  Usuario de plataforma *
+                                </label>
+                                <div class="platform-username-wrapper">
+                                  <input
+                                    id="platformUsername"
+                                    type="text"
+                                    formControlName="platformUsername"
+                                    class="form-input platform-username-input"
+                                    [class.error]="userForm.get('platformUsername')?.invalid && userForm.get('platformUsername')?.touched"
+                                    placeholder="nombre.usuario"
+                                    autocomplete="off"
+                                    />
+                                    <span class="platform-domain-suffix">{{ PLATFORM_DOMAIN }}</span>
+                                  </div>
+                                  @if (userForm.get('platformUsername')?.invalid && userForm.get('platformUsername')?.touched) {
+                                    <div
+                                      class="error-message">
+                                      {{ getFieldError('platformUsername') }}
+                                      @if (userForm.get('platformUsername')?.errors?.['pattern']) {
+                                        <span>
+                                          Solo se permiten letras, números, puntos, guiones y guiones bajos (sin espacios)
+                                        </span>
+                                      }
+                                    </div>
+                                  }
+                                  <!-- Nota informativa -->
+                                  <div class="platform-info-note">
+                                    <fa-icon [icon]="faExclamationTriangle" class="mr-1"></fa-icon>
+                                    Este usuario accederá a la aplicación con
+                                    <strong>{{ (userForm.get('platformUsername')?.value || 'nombre.usuario') | lowercase }}{{ PLATFORM_DOMAIN }}</strong>
+                                    como identificador. No se enviará ningún correo de bienvenida.
+                                  </div>
+                                </div>
+                              }
+                              <!-- Contraseña autogenerada (email real) — visible pero deshabilitada -->
+                              @if (!isEditing && !isPlatformUser) {
+                                <div class="form-group">
+                                  <label for="password" class="form-label">
+                                    Contraseña inicial
+                                    <span class="auto-badge">autogenerada</span>
+                                  </label>
+                                  <input
+                                    id="password"
+                                    type="text"
+                                    formControlName="password"
+                                    class="form-input autogenerated-pwd"
+                                    readonly
+                                    />
+                                    <small class="hint">Se enviará al usuario en el correo de bienvenida.</small>
+                                  </div>
+                                }
+                                @if (!isEditing && !isPlatformUser) {
+                                  <div class="form-group">
+                                    <label for="confirmPassword" class="form-label">
+                                      Confirmar contraseña
+                                      <span class="auto-badge">autogenerada</span>
+                                    </label>
+                                    <input
+                                      id="confirmPassword"
+                                      type="text"
+                                      formControlName="confirmPassword"
+                                      class="form-input autogenerated-pwd"
+                                      readonly
+                                      />
+                                    </div>
+                                  }
+                                  <!-- Contraseña manual (usuario de plataforma) -->
+                                  @if (!isEditing && isPlatformUser) {
+                                    <div class="form-group">
+                                      <label for="password" class="form-label">Contraseña *</label>
+                                      <div class="password-input">
+                                        <input
+                                          id="password"
+                                          [type]="showPassword ? 'text' : 'password'"
+                                          formControlName="password"
+                                          class="form-input"
+                                          [class.error]="userForm.get('password')?.invalid && userForm.get('password')?.touched"
+                                          placeholder="Ingrese la contraseña"
+                                          />
+                                          <button
+                                            type="button"
+                                            class="password-toggle"
+                                            (click)="togglePasswordVisibility()"
+                                            [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                                            >
+                                            <fa-icon [icon]="showPassword ? faEyeSlash : faEye"></fa-icon>
+                                          </button>
+                                        </div>
+                                        @if (userForm.get('password')?.invalid && userForm.get('password')?.touched) {
+                                          <div
+                                            class="error-message">
+                                            {{ getFieldError('password') }}
+                                          </div>
+                                        }
+                                      </div>
+                                    }
+                                    @if (!isEditing && isPlatformUser) {
+                                      <div class="form-group">
+                                        <label for="confirmPassword" class="form-label">Confirmar Contraseña *</label>
+                                        <div class="password-input">
+                                          <input
+                                            id="confirmPassword"
+                                            [type]="showConfirmPassword ? 'text' : 'password'"
+                                            formControlName="confirmPassword"
+                                            class="form-input"
+                                            [class.error]="userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched"
+                                            placeholder="Confirme la contraseña"
+                                            />
+                                            <button
+                                              type="button"
+                                              class="password-toggle"
+                                              (click)="toggleConfirmPasswordVisibility()"
+                                              [attr.aria-label]="showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                                              >
+                                              <fa-icon [icon]="showConfirmPassword ? faEyeSlash : faEye"></fa-icon>
+                                            </button>
+                                          </div>
+                                          @if (userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched) {
+                                            <div
+                                              class="error-message">
+                                              {{ getFieldError('confirmPassword') }}
+                                            </div>
+                                          }
+                                        </div>
+                                      }
+                                    </div>
+                                  </div>
+                                }
+                                <!-- Tab: Empresas y Roles -->
+                                @if (activeTab === 'roles') {
+                                  <div class="tab-content">
+                                    <div class="form-grid">
+                                      <div class="form-group">
+                                        <label class="form-label">Empresas *</label>
+                                        <div class="checkbox-group">
+                                          @for (company of companies; track company) {
+                                            <label class="checkbox-item">
+                                              <input
+                                                type="checkbox"
+                                                [value]="company.id"
+                                                (change)="toggleCompany(company.id!)"
+                                                [checked]="userForm.get('companyIds')?.value?.includes(company.id)"
+                                                />
+                                                <span class="checkbox-label">{{ company.name }}</span>
+                                              </label>
+                                            }
+                                          </div>
+                                          @if (userForm.get('companyIds')?.invalid && userForm.get('companyIds')?.touched) {
+                                            <div
+                                              class="error-message">
+                                              {{ getFieldError('companyIds') }}
+                                            </div>
+                                          }
+                                        </div>
+                                        <div class="form-group">
+                                          <label class="form-label">Roles *</label>
+                                          <div class="checkbox-group">
+                                            @if (filteredRoles.length === 0) {
+                                              <div class="no-roles-message">
+                                                <fa-icon [icon]="faExclamationTriangle" class="mr-2"></fa-icon>
+                                                Seleccione al menos una empresa para ver los roles disponibles
+                                              </div>
+                                            }
+                                            @for (role of filteredRoles; track role) {
+                                              <label class="checkbox-item">
+                                                <input
+                                                  type="checkbox"
+                                                  [value]="role.id"
+                                                  (change)="toggleRole(role.id)"
+                                                  [checked]="userForm.get('roleIds')?.value?.includes(role.id)"
+                                                  />
+                                                  <span class="checkbox-label">{{ role.name }}</span>
+                                                </label>
+                                              }
+                                            </div>
+                                            @if (userForm.get('roleIds')?.invalid && userForm.get('roleIds')?.touched) {
+                                              <div
+                                                class="error-message">
+                                                {{ getFieldError('roleIds') }}
+                                              </div>
+                                            }
+                                          </div>
+                                        </div>
+                                        <!-- Resumen de Selecciones -->
+                                        @if (selectedCompanies.length > 0 || selectedRoles.length > 0) {
+                                          <div class="selection-summary">
+                                            <h4 class="summary-title">Resumen de Selecciones</h4>
+                                            @if (selectedCompanies.length > 0) {
+                                              <div class="summary-section">
+                                                <h5 class="summary-subtitle">Empresas Seleccionadas:</h5>
+                                                <div class="summary-tags">
+                                                  @for (company of selectedCompanies; track company) {
+                                                    <span class="summary-tag company-tag">
+                                                      <fa-icon [icon]="faBuilding" class="mr-1"></fa-icon>
+                                                      {{ company.name }}
+                                                    </span>
+                                                  }
+                                                </div>
+                                              </div>
+                                            }
+                                            @if (selectedRoles.length > 0) {
+                                              <div class="summary-section">
+                                                <h5 class="summary-subtitle">Roles Seleccionados:</h5>
+                                                <div class="summary-tags">
+                                                  @for (role of selectedRoles; track role) {
+                                                    <span class="summary-tag role-tag">
+                                                      <fa-icon [icon]="faUsers" class="mr-1"></fa-icon>
+                                                      {{ role.name }}
+                                                    </span>
+                                                  }
+                                                </div>
+                                              </div>
+                                            }
+                                          </div>
+                                        }
+                                      </div>
+                                    }
+                                    <!-- Tab: Perfil de Atención de Tickets (solo edición) -->
+                                    @if (activeTab === 'tickets' && isEditing && editingUser) {
+                                      <div class="tab-content p-4">
+                                        <!-- Callout explicativo -->
+                                        <div class="mb-4 flex gap-3 items-start rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-3.5 shadow-sm">
+                                          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white shadow ring-1 ring-slate-200 text-base mt-0.5">🎫</span>
+                                          <div class="space-y-1">
+                                            <p class="text-xs font-semibold text-slate-700">Nivel de creación de tickets</p>
+                                            <p class="text-[0.72rem] text-slate-500 leading-relaxed">
+                                              Define qué tipos de ticket puede <strong>abrir</strong> esta persona.
+                                              <span class="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 ring-1 ring-orange-200 mx-0.5">Normal</span>
+                                              puede crear Soporte y Dudas.
+                                              <span class="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 ring-1 ring-orange-200 mx-0.5">Implementador</span>
+                                              además puede crear Desarrollo y Requerimiento.
+                                              La <strong>atención</strong> (quién recibe y gestiona) se configura desde los Roles.
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <app-ticket-perfil-editor
+                                          modo="usuario"
+                                          [entityId]="editingUser!.id"
+                                          [hideSaveButton]="true"
+                                          (changed)="onTicketEditorChanged()">
+                                        </app-ticket-perfil-editor>
+                                      </div>
+                                    }
+                                  </form>
+                                </div>
+                              }
 
-            <div class="form-group">
-              <label class="form-label">Roles *</label>
-              <div class="checkbox-group">
-                <div *ngIf="filteredRoles.length === 0" class="no-roles-message">
-                  <fa-icon [icon]="faExclamationTriangle" class="mr-2"></fa-icon>
-                  Seleccione al menos una empresa para ver los roles disponibles
-                </div>
-                <label *ngFor="let role of filteredRoles" class="checkbox-item">
-                  <input
-                    type="checkbox"
-                    [value]="role.id"
-                    (change)="toggleRole(role.id)"
-                    [checked]="userForm.get('roleIds')?.value?.includes(role.id)"
-                  />
-                  <span class="checkbox-label">{{ role.name }}</span>
-                </label>
-              </div>
-              <div *ngIf="userForm.get('roleIds')?.invalid && userForm.get('roleIds')?.touched"
-                   class="error-message">
-                {{ getFieldError('roleIds') }}
-              </div>
-            </div>
-          </div>
+                              <!-- Footer -->
+                              <div class="modal-footer">
+                                <button
+                                  type="button"
+                                  (click)="closeModal()"
+                                  class="btn-secondary"
+                                  [disabled]="saving"
+                                  >
+                                  <fa-icon [icon]="faTimes" class="mr-2"></fa-icon>
+                                  Cancelar
+                                </button>
 
-          <!-- Resumen de Selecciones -->
-          <div *ngIf="selectedCompanies.length > 0 || selectedRoles.length > 0" class="selection-summary">
-            <h4 class="summary-title">Resumen de Selecciones</h4>
-
-            <div *ngIf="selectedCompanies.length > 0" class="summary-section">
-              <h5 class="summary-subtitle">Empresas Seleccionadas:</h5>
-              <div class="summary-tags">
-                <span *ngFor="let company of selectedCompanies" class="summary-tag company-tag">
-                  <fa-icon [icon]="faBuilding" class="mr-1"></fa-icon>
-                  {{ company.name }}
-                </span>
-              </div>
-            </div>
-
-            <div *ngIf="selectedRoles.length > 0" class="summary-section">
-              <h5 class="summary-subtitle">Roles Seleccionados:</h5>
-              <div class="summary-tags">
-                <span *ngFor="let role of selectedRoles" class="summary-tag role-tag">
-                  <fa-icon [icon]="faUsers" class="mr-1"></fa-icon>
-                  {{ role.name }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab: Perfil de Atención de Tickets (solo edición) -->
-        <div *ngIf="activeTab === 'tickets' && isEditing && editingUser" class="tab-content p-4">
-          <!-- Callout explicativo -->
-          <div class="mb-4 flex gap-3 items-start rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-3.5 shadow-sm">
-            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white shadow ring-1 ring-slate-200 text-base mt-0.5">🎫</span>
-            <div class="space-y-1">
-              <p class="text-xs font-semibold text-slate-700">Nivel de creación de tickets</p>
-              <p class="text-[0.72rem] text-slate-500 leading-relaxed">
-                Define qué tipos de ticket puede <strong>abrir</strong> esta persona.
-                <span class="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 ring-1 ring-orange-200 mx-0.5">Normal</span>
-                puede crear Soporte y Dudas.
-                <span class="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 ring-1 ring-orange-200 mx-0.5">Implementador</span>
-                además puede crear Desarrollo y Requerimiento.
-                La <strong>atención</strong> (quién recibe y gestiona) se configura desde los Roles.
-              </p>
-            </div>
-          </div>
-          <app-ticket-perfil-editor
-            modo="usuario"
-            [entityId]="editingUser!.id"
-            [hideSaveButton]="true"
-            (changed)="onTicketEditorChanged()">
-          </app-ticket-perfil-editor>
-        </div>
-
-      </form>
-    </div>
-
-    <!-- Footer -->
-    <div class="modal-footer">
-      <button
-        type="button"
-        (click)="closeModal()"
-        class="btn-secondary"
-        [disabled]="saving"
-      >
-        <fa-icon [icon]="faTimes" class="mr-2"></fa-icon>
-        Cancelar
-      </button>
-
-      <button
-        type="button"
-        (click)="saveUser()"
-        class="btn-primary"
-        [disabled]="saving || userForm.invalid"
-      >
-        <fa-icon [icon]="faSave" class="mr-2"></fa-icon>
-        {{ submitButtonText }}
-        <span *ngIf="ticketEditorDirty"
-              class="ml-2 inline-flex h-2 w-2 rounded-full bg-yellow-400 ring-2 ring-white"
-              title="Hay cambios de perfil de tickets pendientes de guardar"></span>
-      </button>
-    </div>
-  </div>
-</div>
+                                <button
+                                  type="button"
+                                  (click)="saveUser()"
+                                  class="btn-primary"
+                                  [disabled]="saving || userForm.invalid"
+                                  >
+                                  <fa-icon [icon]="faSave" class="mr-2"></fa-icon>
+                                  {{ submitButtonText }}
+                                  @if (ticketEditorDirty) {
+                                    <span
+                                      class="ml-2 inline-flex h-2 w-2 rounded-full bg-yellow-400 ring-2 ring-white"
+                                    title="Hay cambios de perfil de tickets pendientes de guardar"></span>
+                                  }
+                                </button>
+                              </div>
+                            </div>
+                          </div>

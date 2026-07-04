@@ -1,6 +1,6 @@
 // src/app/features/config/master-lists/list-detail/list-detail.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   FormBuilder,
   FormGroup,
@@ -29,10 +29,10 @@ import { finalize } from 'rxjs';
   selector: 'app-list-detail',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     RouterModule,
-    FontAwesomeModule, ],
+    FontAwesomeModule
+],
   templateUrl: './list-detail.component.html',
   styleUrls: ['./list-detail.component.scss']
 })

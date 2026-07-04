@@ -12,36 +12,39 @@
         <p class="ux-header__subtitle">Gestión y control de inventarios de aves por lote</p>
       </div>
       <div class="ux-header__actions">
-        <div class="traslado-type-selector" *ngIf="tieneLoteSeleccionadoCompleto">
+        @if (tieneLoteSeleccionadoCompleto) {
+          <div class="traslado-type-selector">
+            <button type="button"
+              class="btn btn--primary"
+              [class.btn--outline]="tipoTrasladoSeleccionado() !== 'lote'"
+              [title]="'Trasladar el lote completo a otra granja'"
+              (click)="abrirModalTrasladoLote()">
+              📦 Traslado de Lote
+            </button>
+            <button type="button"
+              class="btn btn--primary"
+              [class.btn--outline]="tipoTrasladoSeleccionado() !== 'aves'"
+              [title]="'Registrar traslado o retiro de aves'"
+              (click)="abrirModalTrasladoRetiro('aves')">
+              🐔 Traslado de Aves
+            </button>
+            <button type="button"
+              class="btn btn--primary"
+              [class.btn--outline]="tipoTrasladoSeleccionado() !== 'huevos'"
+              [title]="'Registrar traslado o retiro de huevos'"
+              (click)="abrirModalTrasladoRetiro('huevos')">
+              🥚 Traslado de Huevos
+            </button>
+          </div>
+        }
+        @if (!tieneLoteSeleccionadoCompleto) {
           <button type="button"
-                  class="btn btn--primary"
-                  [class.btn--outline]="tipoTrasladoSeleccionado() !== 'lote'"
-                  [title]="'Trasladar el lote completo a otra granja'"
-                  (click)="abrirModalTrasladoLote()">
-            📦 Traslado de Lote
+            class="btn btn--outline"
+            disabled
+            title="Primero selecciona un lote completo en los filtros">
+            Selecciona un lote para trasladar
           </button>
-          <button type="button"
-                  class="btn btn--primary"
-                  [class.btn--outline]="tipoTrasladoSeleccionado() !== 'aves'"
-                  [title]="'Registrar traslado o retiro de aves'"
-                  (click)="abrirModalTrasladoRetiro('aves')">
-            🐔 Traslado de Aves
-          </button>
-          <button type="button"
-                  class="btn btn--primary"
-                  [class.btn--outline]="tipoTrasladoSeleccionado() !== 'huevos'"
-                  [title]="'Registrar traslado o retiro de huevos'"
-                  (click)="abrirModalTrasladoRetiro('huevos')">
-            🥚 Traslado de Huevos
-          </button>
-        </div>
-        <button type="button"
-                class="btn btn--outline"
-                *ngIf="!tieneLoteSeleccionadoCompleto"
-                disabled
-                title="Primero selecciona un lote completo en los filtros">
-          Selecciona un lote para trasladar
-        </button>
+        }
       </div>
     </header>
 
@@ -61,10 +64,12 @@
           <div class="filter-group">
             <label for="f-farm" class="filter-label">🏠 Granja <span class="text-red-500">*</span></label>
             <select id="f-farm" class="filter-control"
-                    [(ngModel)]="selectedFarmId"
-                    (ngModelChange)="onFarmChange($event)">
+              [(ngModel)]="selectedFarmId"
+              (ngModelChange)="onFarmChange($event)">
               <option [ngValue]="null">Todas las granjas</option>
-              <option *ngFor="let f of farmsFiltered" [ngValue]="f.id">{{ f.name }}</option>
+              @for (f of farmsFiltered; track f) {
+                <option [ngValue]="f.id">{{ f.name }}</option>
+              }
             </select>
           </div>
 
@@ -72,11 +77,13 @@
           <div class="filter-group">
             <label for="f-nucleo" class="filter-label">🏗️ Núcleo</label>
             <select id="f-nucleo" class="filter-control"
-                    [(ngModel)]="selectedNucleoId"
-                    (ngModelChange)="onNucleoChange($event)"
-                    [disabled]="!selectedFarmId">
+              [(ngModel)]="selectedNucleoId"
+              (ngModelChange)="onNucleoChange($event)"
+              [disabled]="!selectedFarmId">
               <option [ngValue]="null">Todos</option>
-              <option *ngFor="let n of nucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              @for (n of nucleosFiltered; track n) {
+                <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
             </select>
           </div>
 
@@ -84,11 +91,13 @@
           <div class="filter-group">
             <label for="f-galpon" class="filter-label">🐔 Galpón</label>
             <select id="f-galpon" class="filter-control"
-                    [(ngModel)]="selectedGalponId"
-                    (ngModelChange)="onGalponChange($event)"
-                    [disabled]="!selectedFarmId">
+              [(ngModel)]="selectedGalponId"
+              (ngModelChange)="onGalponChange($event)"
+              [disabled]="!selectedFarmId">
               <option [ngValue]="null">Todos</option>
-              <option *ngFor="let g of galponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+              @for (g of galponesFiltered; track g) {
+                <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+              }
             </select>
           </div>
 
@@ -96,9 +105,11 @@
           <div class="filter-group">
             <label for="f-lote" class="filter-label">
               📋 Lote
-              <small *ngIf="selectedGalponId && !lotesLoading()">
-                ({{ lotesForGalpon().length }} encontrado{{ lotesForGalpon().length === 1 ? '' : 's' }})
-              </small>
+              @if (selectedGalponId && !lotesLoading()) {
+                <small>
+                  ({{ lotesForGalpon().length }} encontrado{{ lotesForGalpon().length === 1 ? '' : 's' }})
+                </small>
+              }
             </label>
 
             <select
@@ -108,1460 +119,1709 @@
               [ngModel]="selectedLoteId"
               (ngModelChange)="onLoteSelectChange($event)">
               <option [ngValue]="null">Todos</option>
-              <option *ngFor="let l of lotesForGalpon()" [ngValue]="l.id">
-                {{ l.label }}
-              </option>
+              @for (l of lotesForGalpon(); track l) {
+                <option [ngValue]="l.id">
+                  {{ l.label }}
+                </option>
+              }
             </select>
 
-            <div class="text-muted text-xs mt-1" *ngIf="selectedGalponId && lotesLoading()">Cargando lotes…</div>
-            <div class="text-muted text-xs mt-1" *ngIf="selectedGalponId && !lotesLoading() && lotesForGalpon().length === 0">
-              No hay lotes para este galpón.
-            </div>
+            @if (selectedGalponId && lotesLoading()) {
+              <div class="text-muted text-xs mt-1">Cargando lotes…</div>
+            }
+            @if (selectedGalponId && !lotesLoading() && lotesForGalpon().length === 0) {
+              <div class="text-muted text-xs mt-1">
+                No hay lotes para este galpón.
+              </div>
+            }
           </div>
 
           <!-- Búsqueda -->
           <div class="filter-group">
             <label for="f-search" class="filter-label">🔍 Buscar</label>
             <input id="f-search" type="text" class="filter-control"
-                   placeholder="Buscar por lote, núcleo, granja…"
-                   [(ngModel)]="filtro" (ngModelChange)="recomputeList()" />
+              placeholder="Buscar por lote, núcleo, granja…"
+              [(ngModel)]="filtro" (ngModelChange)="recomputeList()" />
+            </div>
+
+            <!-- Ordenar por -->
+            <div class="filter-group">
+              <label for="f-sort-key" class="filter-label">📊 Ordenar por</label>
+              <select id="f-sort-key" class="filter-control"
+                [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
+                <option [ngValue]="'edad'">Edad (días desde último conteo)</option>
+                <option [ngValue]="'fecha'">Fecha de último conteo</option>
+              </select>
+            </div>
+
+            <!-- Dirección -->
+            <div class="filter-group">
+              <label for="f-sort-dir" class="filter-label">↕️ Dirección</label>
+              <select id="f-sort-dir" class="filter-control"
+                [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
+                <option [ngValue]="'desc'">Descendente</option>
+                <option [ngValue]="'asc'">Ascendente</option>
+              </select>
+            </div>
           </div>
 
-          <!-- Ordenar por -->
-          <div class="filter-group">
-            <label for="f-sort-key" class="filter-label">📊 Ordenar por</label>
-            <select id="f-sort-key" class="filter-control"
-                    [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
-              <option [ngValue]="'edad'">Edad (días desde último conteo)</option>
-              <option [ngValue]="'fecha'">Fecha de último conteo</option>
-            </select>
-          </div>
-
-          <!-- Dirección -->
-          <div class="filter-group">
-            <label for="f-sort-dir" class="filter-label">↕️ Dirección</label>
-            <select id="f-sort-dir" class="filter-control"
-                    [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
-              <option [ngValue]="'desc'">Descendente</option>
-              <option [ngValue]="'asc'">Ascendente</option>
-            </select>
-          </div>
+          <!-- Chips Filtros -->
+          @if (tieneFiltrosAplicados()) {
+            <div class="filters-applied">
+              <h4>Filtros Aplicados:</h4>
+              <div class="filter-chips">
+                @if (selectedFarmId) {
+                  <span class="filter-chip">
+                    Granja: {{ obtenerNombreGranja(selectedFarmId) }}
+                    <button type="button" (click)="onFarmChange(null)" aria-label="Quitar filtro granja">×</button>
+                  </span>
+                }
+                @if (selectedNucleoId) {
+                  <span class="filter-chip">
+                    Núcleo: {{ nucleoMap[selectedNucleoId] }}
+                    <button type="button" (click)="onNucleoChange(null)" aria-label="Quitar filtro núcleo">×</button>
+                  </span>
+                }
+                @if (selectedGalponId) {
+                  <span class="filter-chip">
+                    Galpón: {{ galponMap[selectedGalponId] }}
+                    <button type="button" (click)="onGalponChange(null)" aria-label="Quitar filtro galpón">×</button>
+                  </span>
+                }
+                @if (selectedLoteId) {
+                  <span class="filter-chip">
+                    Lote: {{ selectedLoteId }}
+                    <button type="button" (click)="onLoteSelectChange(null)" aria-label="Quitar filtro lote">×</button>
+                  </span>
+                }
+                @if (filtro) {
+                  <span class="filter-chip">
+                    Búsqueda: "{{ filtro }}"
+                    <button type="button" (click)="filtro=''; recomputeList()" aria-label="Limpiar búsqueda">×</button>
+                  </span>
+                }
+              </div>
+            </div>
+          }
         </div>
+      </section>
 
-        <!-- Chips Filtros -->
-        <div class="filters-applied" *ngIf="tieneFiltrosAplicados()">
-          <h4>Filtros Aplicados:</h4>
-          <div class="filter-chips">
-            <span class="filter-chip" *ngIf="selectedFarmId">
-              Granja: {{ obtenerNombreGranja(selectedFarmId) }}
-              <button type="button" (click)="onFarmChange(null)" aria-label="Quitar filtro granja">×</button>
-            </span>
-            <span class="filter-chip" *ngIf="selectedNucleoId">
-              Núcleo: {{ nucleoMap[selectedNucleoId] }}
-              <button type="button" (click)="onNucleoChange(null)" aria-label="Quitar filtro núcleo">×</button>
-            </span>
-            <span class="filter-chip" *ngIf="selectedGalponId">
-              Galpón: {{ galponMap[selectedGalponId] }}
-              <button type="button" (click)="onGalponChange(null)" aria-label="Quitar filtro galpón">×</button>
-            </span>
-            <span class="filter-chip" *ngIf="selectedLoteId">
-              Lote: {{ selectedLoteId }}
-              <button type="button" (click)="onLoteSelectChange(null)" aria-label="Quitar filtro lote">×</button>
-            </span>
-            <span class="filter-chip" *ngIf="filtro">
-              Búsqueda: "{{ filtro }}"
-              <button type="button" (click)="filtro=''; recomputeList()" aria-label="Limpiar búsqueda">×</button>
-            </span>
+      <!-- ========== MENSAJE: Selecciona un lote ========== -->
+      @if (!loteSeleccionado()) {
+        <section class="ux-card">
+          <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <h3>Selecciona un Lote</h3>
+            <p>Usa los filtros de arriba para seleccionar un lote y ver sus registros de traslados.</p>
+            <p class="text-muted">Los registros se mostrarán organizados por tipo: Huevos, Aves y Lotes.</p>
           </div>
-        </div>
-      </div>
-    </section>
+        </section>
+      }
 
-    <!-- ========== MENSAJE: Selecciona un lote ========== -->
-    <section class="ux-card" *ngIf="!loteSeleccionado()">
-      <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <h3>Selecciona un Lote</h3>
-        <p>Usa los filtros de arriba para seleccionar un lote y ver sus registros de traslados.</p>
-        <p class="text-muted">Los registros se mostrarán organizados por tipo: Huevos, Aves y Lotes.</p>
-      </div>
-    </section>
-
-    <!-- ========== REGISTROS DE TRASLADOS (solo cuando hay lote seleccionado) ========== -->
-    <section class="ux-card" *ngIf="loteSeleccionado()">
-      <header class="ux-card__header">
-        <h2>📊 Registros de Traslados - Lote #{{ loteSeleccionado()?.loteId }}</h2>
-        <button type="button" class="btn btn--ghost btn--sm" (click)="seleccionarLote(null)">
-          ✕ Cerrar
-        </button>
-      </header>
-
-      <div class="ux-card__content">
-        <!-- Tabs de Registros (solo cuando hay lote seleccionado) -->
-        <div class="registros-tabs-section">
-          <div class="registros-tabs">
-            <button
-              type="button"
-              class="registros-tab"
-              [class.active]="tabRegistrosActivo() === 'huevos'"
-              (click)="tabRegistrosActivo.set('huevos')">
-              🥚 Huevos
-              <span class="tab-badge" *ngIf="trasladosHuevosLote().length > 0">
-                {{ trasladosHuevosLote().length }}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="registros-tab"
-              [class.active]="tabRegistrosActivo() === 'aves'"
-              (click)="tabRegistrosActivo.set('aves')">
-              🐔 Aves
-              <span class="tab-badge" *ngIf="movimientosAvesLote().length > 0">
-                {{ movimientosAvesLote().length }}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="registros-tab"
-              [class.active]="tabRegistrosActivo() === 'lotes'"
-              (click)="tabRegistrosActivo.set('lotes')">
-              📦 Lotes
-              <span class="tab-badge" *ngIf="historialTrasladosLote().length > 0">
-                {{ historialTrasladosLote().length }}
-              </span>
-            </button>
-          </div>
-
-          <!-- Tab Panel: Huevos -->
-          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'huevos'">
-            <!-- Loading state -->
-            <div class="loading-state" *ngIf="loadingTrasladosHuevos()">
-              <div class="spinner"></div>
-              <p>Cargando registros de huevos...</p>
-            </div>
-
-            <!-- Table -->
-            <div class="table-container" *ngIf="!loadingTrasladosHuevos()">
-              <table class="ux-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>N° Traslado</th>
-                    <th>Operación</th>
-                    <th>Origen</th>
-                    <th>Destino</th>
-                    <th>Total</th>
-                    <th>Limpio</th>
-                    <th>Tratado</th>
-                    <th>Sucio</th>
-                    <th>Deforme</th>
-                    <th>Blanco</th>
-                    <th>Doble Yema</th>
-                    <th>Piso</th>
-                    <th>Pequeño</th>
-                    <th>Roto</th>
-                    <th>Desecho</th>
-                    <th>Otro</th>
-                    <th>Estado</th>
-                    <th>Observaciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let traslado of trasladosHuevosLote()" class="ux-row">
-                    <td>{{ formatearFecha(traslado.fechaTraslado) }}</td>
-                    <td><strong>{{ traslado.numeroTraslado }}</strong></td>
-                    <td>
-                      <span class="badge" [class.badge--primary]="traslado.tipoOperacion === 'Traslado'"
-                            [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
-                        {{ traslado.tipoOperacion }}
-                      </span>
-                    </td>
-                    <td>{{ traslado.granjaOrigenNombre || '—' }}</td>
-                    <td>{{ traslado.granjaDestinoNombre || traslado.tipoDestino || '—' }}</td>
-                    <td class="number-cell primary"><strong>{{ formatearNumero(traslado.totalHuevos || 0) }}</strong></td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadLimpio || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadTratado || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadSucio || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadDeforme || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadBlanco || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadDobleYema || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadPiso || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadPequeno || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadRoto || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadDesecho || 0) }}</td>
-                    <td class="number-cell">{{ formatearNumero(traslado.cantidadOtro || 0) }}</td>
-                    <td>
-                      <span class="badge" [class.badge--success]="traslado.estado === 'Completado'"
-                            [class.badge--warning]="traslado.estado === 'Pendiente'"
-                            [class.badge--error]="traslado.estado === 'Cancelado'">
-                        {{ traslado.estado }}
-                      </span>
-                    </td>
-                    <td class="text-sm">{{ traslado.observaciones || '—' }}</td>
-                  </tr>
-                  <tr *ngIf="!loadingTrasladosHuevos() && trasladosHuevosLote().length === 0">
-                    <td colspan="19" class="empty-state">
-                      <div class="empty-illustration">🥚</div>
-                      <p>No hay registros de traslado de huevos para este lote.</p>
-                      <p class="text-muted text-sm">Total registros: {{ trasladosHuevosLote().length }}</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Tab Panel: Aves -->
-          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'aves'">
-            <!-- Loading state -->
-            <div class="loading-state" *ngIf="loadingMovimientos()">
-              <div class="spinner"></div>
-              <p>Cargando registros de aves...</p>
-            </div>
-
-            <!-- Table -->
-            <div class="table-container" *ngIf="!loadingMovimientos()">
-              <table class="ux-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>N° Traslado</th>
-                    <th>Tipo</th>
-                    <th>Operación</th>
-                    <th>Origen</th>
-                    <th>Destino</th>
-                    <th>Cantidad</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let movimiento of movimientosAvesLote()" class="ux-row">
-                    <td>{{ formatearFecha(movimiento.fechaTraslado) }}</td>
-                    <td><strong>{{ movimiento.numeroTraslado }}</strong></td>
-                    <td>
-                      <span class="badge badge--info">Aves</span>
-                    </td>
-                    <td>
-                      <span class="badge" [class.badge--primary]="movimiento.tipoOperacion === 'Traslado'"
-                            [class.badge--warning]="movimiento.tipoOperacion === 'Venta'"
-                            [class.badge--error]="movimiento.tipoOperacion === 'Retiro'">
-                        {{ movimiento.tipoOperacion }}
-                      </span>
-                    </td>
-                    <td>{{ movimiento.granjaOrigenNombre || '—' }}</td>
-                    <td>{{ movimiento.granjaDestinoNombre || movimiento.tipoDestino || '—' }}</td>
-                    <td class="number-cell">
-                      <span *ngIf="(movimiento.cantidadHembras ?? 0) > 0">H: {{ formatearNumero(movimiento.cantidadHembras ?? 0) }}</span>
-                      <span *ngIf="(movimiento.cantidadMachos ?? 0) > 0">M: {{ formatearNumero(movimiento.cantidadMachos ?? 0) }}</span>
-                      <span *ngIf="(movimiento.cantidadHembras ?? 0) === 0 && (movimiento.cantidadMachos ?? 0) === 0">—</span>
-                    </td>
-                    <td>
-                      <span class="badge" [class.badge--success]="movimiento.estado === 'Completado'"
-                            [class.badge--warning]="movimiento.estado === 'Pendiente'"
-                            [class.badge--error]="movimiento.estado === 'Cancelado'">
-                        {{ movimiento.estado }}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr *ngIf="!loadingMovimientos() && movimientosAvesLote().length === 0">
-                    <td colspan="8" class="empty-state">
-                      <div class="empty-illustration">🐔</div>
-                      <p>No hay registros de traslado de aves para este lote.</p>
-                      <p class="text-muted text-sm">Total registros: {{ movimientosAvesLote().length }}</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Tab Panel: Lotes -->
-          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'lotes'">
-            <!-- Loading state -->
-            <div class="loading-state" *ngIf="loadingHistorialLotes()">
-              <div class="spinner"></div>
-              <p>Cargando registros de lotes...</p>
-            </div>
-
-            <!-- Table -->
-            <div class="table-container" *ngIf="!loadingHistorialLotes()">
-              <table class="ux-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Lote Origen</th>
-                    <th>Lote Destino</th>
-                    <th>Granja Origen</th>
-                    <th>Granja Destino</th>
-                    <th>Usuario</th>
-                    <th>Observaciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let historial of historialTrasladosLote()" class="ux-row">
-                    <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
-                    <td><strong>#{{ historial.loteOriginalId }}</strong></td>
-                    <td><strong>#{{ historial.loteNuevoId }}</strong></td>
-                    <td>{{ historial.granjaOrigenNombre || '—' }}</td>
-                    <td>{{ historial.granjaDestinoNombre || '—' }}</td>
-                    <td>{{ historial.usuarioNombre || '—' }}</td>
-                    <td class="text-sm">{{ historial.observaciones || '—' }}</td>
-                  </tr>
-                  <tr *ngIf="!loadingHistorialLotes() && historialTrasladosLote().length === 0">
-                    <td colspan="7" class="empty-state">
-                      <div class="empty-illustration">📦</div>
-                      <p>No hay registros de traslado de lotes para este lote.</p>
-                      <p class="text-muted text-sm">Total registros: {{ historialTrasladosLote().length }}</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
-    <!-- ========== DETALLES DEL LOTE SELECCIONADO (ABAJO) ========== -->
-    <section class="lote-details-section" *ngIf="loteSeleccionado()">
-      <div class="ux-card">
-        <header class="ux-card__header">
-          <div class="flex items-center justify-between w-full">
-            <div>
-              <h2>📋 Detalles del Lote #{{ loteSeleccionado()?.loteId }}</h2>
-              <p class="text-sm text-muted mt-1">
-                {{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}
-                <span *ngIf="nucleoMap[loteSeleccionado()?.nucleoId || '']">
-                  • {{ nucleoMap[loteSeleccionado()?.nucleoId || ''] }}
-                </span>
-                <span *ngIf="galponMap[loteSeleccionado()?.galponId || '']">
-                  • {{ galponMap[loteSeleccionado()?.galponId || ''] }}
-                </span>
-              </p>
-            </div>
+      <!-- ========== REGISTROS DE TRASLADOS (solo cuando hay lote seleccionado) ========== -->
+      @if (loteSeleccionado()) {
+        <section class="ux-card">
+          <header class="ux-card__header">
+            <h2>📊 Registros de Traslados - Lote #{{ loteSeleccionado()?.loteId }}</h2>
             <button type="button" class="btn btn--ghost btn--sm" (click)="seleccionarLote(null)">
               ✕ Cerrar
             </button>
-          </div>
-        </header>
-
-        <div class="ux-card__content">
-          <!-- Información del Lote -->
-          <div class="lote-info-grid" *ngIf="loteCompleto()">
-            <div class="info-card">
-              <h4 class="info-card__title">🐔 Cantidad Actual de Aves</h4>
-              <div class="info-card__content">
-                <div class="stat-item">
-                  <span class="stat-label">Hembras:</span>
-                  <span class="stat-value success">{{ formatearNumero(loteSeleccionado()?.cantidadHembras || 0) }}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">Machos:</span>
-                  <span class="stat-value info">{{ formatearNumero(loteSeleccionado()?.cantidadMachos || 0) }}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">Total:</span>
-                  <span class="stat-value primary">
-                    <strong>{{ formatearNumero(calcularTotalAves(loteSeleccionado()!)) }}</strong>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="info-card">
-              <h4 class="info-card__title">📅 Información del Lote</h4>
-              <div class="info-card__content">
-                <div class="info-row">
-                  <span class="info-label">Nombre:</span>
-                  <span class="info-value">{{ loteCompleto()?.loteNombre || '—' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Raza:</span>
-                  <span class="info-value">{{ loteCompleto()?.raza || '—' }}</span>
-                </div>
-                <div class="info-row" *ngIf="loteCompleto()?.fechaEncaset">
-                  <span class="info-label">Fecha Encaset:</span>
-                  <span class="info-value">{{ loteCompleto()?.fechaEncaset ? formatearFecha(loteCompleto()!.fechaEncaset!) : '—' }}</span>
-                </div>
-                <div class="info-row" *ngIf="loteCompleto()?.fechaEncaset">
-                  <span class="info-label">Edad:</span>
-                  <span class="info-value">{{ loteCompleto()?.fechaEncaset ? calcularEdadDias(loteCompleto()!.fechaEncaset) : 0 }} días</span>
-                </div>
-                <div class="info-row" *ngIf="loteCompleto()?.fechaEncaset">
-                  <span class="info-label">Fase:</span>
-                  <span class="info-value">{{ loteCompleto()?.fechaEncaset ? (calcularEdadDias(loteCompleto()!.fechaEncaset) < 175 ? 'Levante' : 'Producción') : '—' }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="info-card">
-              <h4 class="info-card__title">📍 Ubicación</h4>
-              <div class="info-card__content">
-                <div class="info-row">
-                  <span class="info-label">Granja:</span>
-                  <span class="info-value">{{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}</span>
-                </div>
-                <div class="info-row" *ngIf="nucleoMap[loteSeleccionado()?.nucleoId || '']">
-                  <span class="info-label">Núcleo:</span>
-                  <span class="info-value">{{ nucleoMap[loteSeleccionado()?.nucleoId || ''] }}</span>
-                </div>
-                <div class="info-row" *ngIf="galponMap[loteSeleccionado()?.galponId || '']">
-                  <span class="info-label">Galpón:</span>
-                  <span class="info-value">{{ galponMap[loteSeleccionado()?.galponId || ''] }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Último Conteo:</span>
-                  <span class="info-value">{{ loteSeleccionado()?.fechaUltimoConteo ? formatearFecha(loteSeleccionado()!.fechaUltimoConteo!) : '—' }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tabs de Histórico -->
-          <div class="historial-tabs-section">
-            <div class="historial-tabs">
-              <button
-                type="button"
-                class="historial-tab"
-                [class.active]="tabHistorialActivo() === 'lotes'"
-                (click)="tabHistorialActivo.set('lotes')">
-                📦 Lotes
-                <span class="tab-badge" *ngIf="historialTrasladosLote().length > 0">
-                  {{ historialTrasladosLote().length }}
-                </span>
-              </button>
-              <button
-                type="button"
-                class="historial-tab"
-                [class.active]="tabHistorialActivo() === 'aves'"
-                (click)="tabHistorialActivo.set('aves')">
-                🐔 Aves
-                <span class="tab-badge" *ngIf="movimientosAvesLote().length > 0">
-                  {{ movimientosAvesLote().length }}
-                </span>
-              </button>
-              <button
-                type="button"
-                class="historial-tab"
-                [class.active]="tabHistorialActivo() === 'huevos'"
-                (click)="tabHistorialActivo.set('huevos')">
-                🥚 Huevos
-                <span class="tab-badge" *ngIf="trasladosHuevosLote().length > 0">
-                  {{ trasladosHuevosLote().length }}
-                </span>
-              </button>
-            </div>
-
-            <!-- Tab Panel: Lotes -->
-            <div class="historial-tab-panel" *ngIf="tabHistorialActivo() === 'lotes'">
-              <div class="loading-state" *ngIf="loadingHistorialLotes()">
-                <div class="spinner"></div>
-                <p>Cargando historial de traslados de lotes...</p>
-              </div>
-
-              <div class="movimientos-table-container" *ngIf="!loadingHistorialLotes()">
-                <table class="movimientos-table" *ngIf="historialTrasladosLote().length > 0">
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Lote Origen</th>
-                      <th>Lote Destino</th>
-                      <th>Granja Origen</th>
-                      <th>Granja Destino</th>
-                      <th>Usuario</th>
-                      <th>Observaciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let traslado of historialTrasladosLote()">
-                      <td class="date-cell">{{ formatearFecha(traslado.fechaTraslado) }}</td>
-                      <td><strong>#{{ traslado.loteOriginalId }}</strong></td>
-                      <td><strong>#{{ traslado.loteNuevoId }}</strong></td>
-                      <td>{{ traslado.granjaOrigenNombre || 'N/A' }}</td>
-                      <td>{{ traslado.granjaDestinoNombre || 'N/A' }}</td>
-                      <td>{{ traslado.usuarioNombre || 'N/A' }}</td>
-                      <td class="motivo-cell">{{ traslado.observaciones || '—' }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div class="empty-state" *ngIf="historialTrasladosLote().length === 0">
-                  <div class="empty-illustration">📦</div>
-                  <p>No hay traslados de lotes registrados para este lote.</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tab Panel: Aves -->
-            <div class="historial-tab-panel" *ngIf="tabHistorialActivo() === 'aves'">
-              <div class="loading-state" *ngIf="loadingMovimientos()">
-                <div class="spinner"></div>
-                <p>Cargando movimientos de aves...</p>
-              </div>
-
-              <div class="movimientos-table-container" *ngIf="!loadingMovimientos()">
-                <table class="movimientos-table" *ngIf="movimientosAvesLote().length > 0">
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>N° Traslado</th>
-                      <th>Tipo</th>
-                      <th>Operación</th>
-                      <th>Origen</th>
-                      <th>Destino</th>
-                      <th>Cantidad</th>
-                      <th>Estado</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let mov of movimientosAvesLote()">
-                      <td class="date-cell">{{ formatearFecha(mov.fechaTraslado) }}</td>
-                      <td><code class="mov-number">{{ mov.numeroTraslado }}</code></td>
-                      <td>
-                        <span class="badge badge--info">🐔 Aves</span>
-                      </td>
-                      <td>
-                        <span class="badge" [class]="obtenerTipoMovimientoClass(mov.tipoOperacion)">
-                          {{ mov.tipoOperacion }}
-                        </span>
-                      </td>
-                      <td class="ubicacion-cell">
-                        <div>
-                          <strong>Lote {{ mov.loteIdOrigen }}</strong>
-                          <small *ngIf="mov.granjaOrigenNombre"> • {{ mov.granjaOrigenNombre }}</small>
-                        </div>
-                      </td>
-                      <td class="ubicacion-cell">
-                        <div *ngIf="mov.loteIdDestino || mov.granjaDestinoNombre">
-                          <strong *ngIf="mov.loteIdDestino">Lote {{ mov.loteIdDestino }}</strong>
-                          <small *ngIf="mov.granjaDestinoNombre"> • {{ mov.granjaDestinoNombre }}</small>
-                        </div>
-                        <span *ngIf="!mov.loteIdDestino && !mov.granjaDestinoNombre" class="text-muted">—</span>
-                      </td>
-                      <td class="number-cell">
-                        <div *ngIf="mov.cantidadHembras || mov.cantidadMachos">
-                          <span *ngIf="mov.cantidadHembras">H: {{ formatearNumero(mov.cantidadHembras) }}</span>
-                          <span *ngIf="mov.cantidadHembras && mov.cantidadMachos"> / </span>
-                          <span *ngIf="mov.cantidadMachos">M: {{ formatearNumero(mov.cantidadMachos) }}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span class="badge" [class]="obtenerEstadoClass(mov.estado)">
-                          {{ mov.estado }}
-                        </span>
-                      </td>
-                      <td class="actions-cell">
-                        <button
-                          *ngIf="puedeAnularMovimientoAves(mov)"
-                          type="button"
-                          class="btn btn--outline btn--sm"
-                          (click)="anularMovimientoAves(mov)"
-                          title="Anular movimiento y devolver aves al inventario del lote"
-                        >
-                          Anular
-                        </button>
-                        <span *ngIf="!puedeAnularMovimientoAves(mov)" class="text-muted">—</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div class="empty-state" *ngIf="movimientosAvesLote().length === 0">
-                  <div class="empty-illustration">🐔</div>
-                  <p>No hay movimientos de aves registrados para este lote.</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tab Panel: Huevos -->
-            <div class="historial-tab-panel" *ngIf="tabHistorialActivo() === 'huevos'">
-              <div class="loading-state" *ngIf="loadingTrasladosHuevos()">
-                <div class="spinner"></div>
-                <p>Cargando traslados de huevos...</p>
-              </div>
-
-              <div class="movimientos-table-container" *ngIf="!loadingTrasladosHuevos()">
-                <table class="movimientos-table" *ngIf="trasladosHuevosLote().length > 0">
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>N° Traslado</th>
-                      <th>Operación</th>
-                      <th>Origen</th>
-                      <th>Destino</th>
-                      <th>Total Huevos</th>
-                      <th>Detalle</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let traslado of trasladosHuevosLote()">
-                      <td class="date-cell">{{ formatearFecha(traslado.fechaTraslado) }}</td>
-                      <td><code class="mov-number">{{ traslado.numeroTraslado }}</code></td>
-                      <td>
-                        <span class="badge" [class]="obtenerTipoMovimientoClass(traslado.tipoOperacion)">
-                          {{ traslado.tipoOperacion }}
-                        </span>
-                      </td>
-                      <td class="ubicacion-cell">
-                        <div>
-                          <strong>Lote {{ traslado.loteId }}</strong>
-                          <small *ngIf="traslado.granjaOrigenNombre"> • {{ traslado.granjaOrigenNombre }}</small>
-                        </div>
-                      </td>
-                      <td class="ubicacion-cell">
-                        <div *ngIf="traslado.loteDestinoId || traslado.granjaDestinoNombre">
-                          <strong *ngIf="traslado.loteDestinoId">Lote {{ traslado.loteDestinoId }}</strong>
-                          <small *ngIf="traslado.granjaDestinoNombre"> • {{ traslado.granjaDestinoNombre }}</small>
-                        </div>
-                        <span *ngIf="!traslado.loteDestinoId && !traslado.granjaDestinoNombre" class="text-muted">—</span>
-                      </td>
-                      <td class="number-cell">
-                        <strong>{{ formatearNumero(traslado.totalHuevos) }}</strong>
-                      </td>
-                      <td class="text-xs">
-                        <div *ngIf="traslado.cantidadLimpio > 0">Limpio: {{ traslado.cantidadLimpio }}</div>
-                        <div *ngIf="traslado.cantidadTratado > 0">Tratado: {{ traslado.cantidadTratado }}</div>
-                        <div *ngIf="traslado.cantidadSucio > 0">Sucio: {{ traslado.cantidadSucio }}</div>
-                      </td>
-                      <td>
-                        <span class="badge" [class]="obtenerEstadoClass(traslado.estado)">
-                          {{ traslado.estado }}
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div class="empty-state" *ngIf="trasladosHuevosLote().length === 0">
-                  <div class="empty-illustration">🥚</div>
-                  <p>No hay traslados de huevos registrados para este lote.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Movimientos del Lote (mantener por compatibilidad) -->
-          <div class="movimientos-section" style="display: none;">
-            <h3 class="movimientos-title">
-              📊 Registros de Movimiento del Lote
-              <span class="badge badge--default" *ngIf="movimientosLote().length > 0">
-                {{ movimientosLote().length }}
-              </span>
-            </h3>
-
-            <div class="loading-state" *ngIf="loadingMovimientos()">
-              <div class="spinner"></div>
-              <p>Cargando movimientos...</p>
-            </div>
-
-            <div class="movimientos-table-container" *ngIf="!loadingMovimientos()">
-              <table class="movimientos-table" *ngIf="movimientosLote().length > 0">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>N° Traslado</th>
-                    <th>Tipo</th>
-                    <th>Operación</th>
-                    <th>Origen</th>
-                    <th>Destino</th>
-                    <th>Cantidad</th>
-                    <th>Estado</th>
-                    <th>Fase</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let mov of movimientosLote()">
-                    <td class="date-cell">{{ formatearFecha(mov.fechaTraslado) }}</td>
-                    <td><code class="mov-number">{{ mov.numeroTraslado }}</code></td>
-                    <td>
-                      <span class="badge" [class]="mov.tipoTraslado === 'Aves' ? 'badge--info' : 'badge--warning'">
-                        {{ mov.tipoTraslado === 'Aves' ? '🐔 Aves' : '🥚 Huevos' }}
-                      </span>
-                    </td>
-                    <td>
-                      <span class="badge" [class]="obtenerTipoMovimientoClass(mov.tipoOperacion)">
-                        {{ mov.tipoOperacion }}
-                      </span>
-                    </td>
-                    <td class="ubicacion-cell">
-                      <div>
-                        <strong>Lote {{ mov.loteIdOrigen }}</strong>
-                        <small *ngIf="mov.granjaOrigenNombre"> • {{ mov.granjaOrigenNombre }}</small>
-                      </div>
-                    </td>
-                    <td class="ubicacion-cell">
-                      <div *ngIf="mov.loteIdDestino || mov.granjaDestinoNombre">
-                        <strong *ngIf="mov.loteIdDestino">Lote {{ mov.loteIdDestino }}</strong>
-                        <small *ngIf="mov.granjaDestinoNombre"> • {{ mov.granjaDestinoNombre }}</small>
-                        <small *ngIf="mov.tipoDestino"> ({{ mov.tipoDestino }})</small>
-                      </div>
-                      <span *ngIf="!mov.loteIdDestino && !mov.granjaDestinoNombre" class="text-muted">—</span>
-                    </td>
-                    <td class="number-cell">
-                      <div *ngIf="mov.tipoTraslado === 'Aves'">
-                        <div *ngIf="mov.cantidadHembras || mov.cantidadMachos">
-                          <span *ngIf="mov.cantidadHembras">H: {{ formatearNumero(mov.cantidadHembras) }}</span>
-                          <span *ngIf="mov.cantidadHembras && mov.cantidadMachos"> / </span>
-                          <span *ngIf="mov.cantidadMachos">M: {{ formatearNumero(mov.cantidadMachos) }}</span>
-                        </div>
-                        <div *ngIf="mov.totalAves && (!mov.cantidadHembras && !mov.cantidadMachos)">
-                          Total: {{ formatearNumero(mov.totalAves) }}
-                        </div>
-                      </div>
-                      <div *ngIf="mov.tipoTraslado === 'Huevos'">
-                        <div><strong>Total: {{ formatearNumero(mov.totalHuevos || 0) }}</strong></div>
-                        <div class="text-xs text-muted" *ngIf="mov.cantidadLimpio || mov.cantidadTratado">
-                          <span *ngIf="mov.cantidadLimpio">Limpio: {{ mov.cantidadLimpio }}</span>
-                          <span *ngIf="mov.cantidadLimpio && mov.cantidadTratado"> / </span>
-                          <span *ngIf="mov.cantidadTratado">Tratado: {{ mov.cantidadTratado }}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span class="badge" [class]="obtenerEstadoClass(mov.estado)">
-                        {{ mov.estado }}
-                      </span>
-                    </td>
-                    <td>
-                      <span class="badge badge--default" *ngIf="mov.faseLote">
-                        {{ mov.faseLote }}
-                      </span>
-                      <span *ngIf="!mov.faseLote" class="text-muted">—</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div class="empty-state" *ngIf="movimientosLote().length === 0">
-                <div class="empty-illustration">📭</div>
-                <p>No hay movimientos registrados para este lote.</p>
-                <p class="text-muted text-sm mt-2">
-                  Los traslados, retiros, ventas y otros movimientos aparecerán aquí.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ========== MODAL TRASLADO (sin cambios) ========== -->
-    <div class="modal-overlay" *ngIf="modalTrasladoAbierto()"
-         (click)="cerrarModalTraslado()" role="dialog" aria-modal="true" aria-labelledby="traslado-title">
-      <div class="modal-container" (click)="$event.stopPropagation()" tabindex="-1">
-        <div class="modal-header">
-          <h2 id="traslado-title">🚚 Registro de Salida / Traslado</h2>
-          <button type="button" class="modal-close" (click)="cerrarModalTraslado()" aria-label="Cerrar modal">✕</button>
-        </div>
-
-        <div class="modal-body">
-          <!-- Contenido del modal de traslado (mantener igual) -->
-          <!-- Paso 1 -->
-          <div class="step-section">
-            <div class="step-header">
-              <div class="step-number">1</div>
-              <h3 class="step-title">🔍 Selección de Lotes</h3>
-            </div>
-            <p class="step-description">
-              Selecciona el <strong>lote origen</strong> (sale) y el <strong>lote destino</strong> (recibe)
-            </p>
-
-            <div class="lote-selection-grid">
-              <!-- Origen -->
-              <div class="lote-filter-section">
-                <div class="filter-header">
-                  <h4 class="filter-title">📤 Lote Origen</h4>
-                  <div class="filter-status" [class.selected]="loteOrigenSeleccionado()">
-                    {{ loteOrigenSeleccionado() ? '✅ Seleccionado' : '⏳ Pendiente' }}
-                  </div>
-                </div>
-                <app-hierarchical-filter
-                  [showLoteSelection]="true"
-                  [showChips]="true"
-                  [filterLabel]="'Filtros para Lote Origen'"
-                  [placeholder]="'Buscar lote origen...'"
-                  (loteSelected)="onLoteOrigenSeleccionado($event)">
-                </app-hierarchical-filter>
-              </div>
-
-              <!-- Destino -->
-              <div class="lote-filter-section">
-                <div class="filter-header">
-                  <h4 class="filter-title">📥 Lote Destino</h4>
-                  <div class="filter-status" [class.selected]="loteDestinoSeleccionado()">
-                    {{ loteDestinoSeleccionado() ? '✅ Seleccionado' : '⏳ Pendiente' }}
-                  </div>
-                </div>
-                <app-hierarchical-filter
-                  [showLoteSelection]="true"
-                  [showChips]="true"
-                  [filterLabel]="'Filtros para Lote Destino'"
-                  [placeholder]="'Buscar lote destino...'"
-                  (loteSelected)="onLoteDestinoSeleccionado($event)">
-                </app-hierarchical-filter>
-              </div>
-            </div>
-
-            <!-- Resumen inventarios -->
-            <div class="lotes-summary" *ngIf="loteOrigenSeleccionado() && loteDestinoSeleccionado()">
-              <div class="lote-summary-card origen">
-                <div class="card-header">
-                  <h4>📤 Origen</h4>
-                  <span class="lote-id">{{ loteOrigenSeleccionado()?.loteId }}</span>
-                </div>
-                <div class="card-body" *ngIf="inventarioOrigen()">
-                  <div class="inventory-info">
-                    <div class="inventory-item hembras"><span class="count">{{ inventarioOrigen()?.cantidadHembras || 0 }}</span><span class="type">♀ Hembras</span></div>
-                    <div class="inventory-item machos"><span class="count">{{ inventarioOrigen()?.cantidadMachos || 0 }}</span><span class="type">♂ Machos</span></div>
-                    <div class="inventory-item total"><span class="count">{{ (inventarioOrigen()?.cantidadHembras || 0) + (inventarioOrigen()?.cantidadMachos || 0) }}</span><span class="type">Total</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="transfer-arrow">
-                <div class="arrow-icon">→</div>
-                <div class="arrow-label">Traslado</div>
-              </div>
-
-              <div class="lote-summary-card destino">
-                <div class="card-header">
-                  <h4>📥 Destino</h4>
-                  <span class="lote-id">{{ loteDestinoSeleccionado()?.loteId }}</span>
-                </div>
-                <div class="card-body" *ngIf="inventarioDestino()">
-                  <div class="inventory-info">
-                    <div class="inventory-item hembras"><span class="count">{{ inventarioDestino()?.cantidadHembras || 0 }}</span><span class="type">♀ Hembras</span></div>
-                    <div class="inventory-item machos"><span class="count">{{ inventarioDestino()?.cantidadMachos || 0 }}</span><span class="type">♂ Machos</span></div>
-                    <div class="inventory-item total"><span class="count">{{ (inventarioDestino()?.cantidadHembras || 0) + (inventarioDestino()?.cantidadMachos || 0) }}</span><span class="type">Total</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Paso 2 -->
-          <div class="step-section" *ngIf="loteOrigenSeleccionado() && loteDestinoSeleccionado()">
-            <div class="step-header">
-              <div class="step-number">2</div>
-              <h3 class="step-title">🧾 Datos del Movimiento</h3>
-            </div>
-            <p class="step-description">Completa la información obligatoria del registro de salida</p>
-
-            <form [formGroup]="trasladoForm" class="traslado-form" (ngSubmit)="procesarTraslado()">
-              <!-- Usuarios + Fecha -->
-              <div class="grid grid-3">
-                <div class="form-field">
-                  <label class="ux-label" for="user-realiza">👤 Usuario que realiza <span class="required">*</span></label>
-                  <input id="user-realiza" type="number" class="ux-input"
-                         formControlName="usuarioRealizaId" placeholder="ID usuario que realiza" />
-                  <small class="text-danger" *ngIf="trasladoForm.get('usuarioRealizaId')?.touched && trasladoForm.get('usuarioRealizaId')?.invalid">Requerido.</small>
-                </div>
-
-                <div class="form-field">
-                  <label class="ux-label" for="user-recibe">🤝 Usuario que recibe <span class="required">*</span></label>
-                  <input id="user-recibe" type="number" class="ux-input"
-                         formControlName="usuarioRecibeId" placeholder="ID usuario que recibe" />
-                  <small class="text-danger" *ngIf="trasladoForm.get('usuarioRecibeId')?.touched && trasladoForm.get('usuarioRecibeId')?.invalid">Requerido.</small>
-                </div>
-
-                <div class="form-field">
-                  <label class="ux-label" for="fecha-mov">📅 Fecha del movimiento <span class="required">*</span></label>
-                  <input id="fecha-mov" type="date" class="ux-input" formControlName="fechaMovimiento" />
-                  <small class="text-danger" *ngIf="trasladoForm.get('fechaMovimiento')?.touched && trasladoForm.get('fechaMovimiento')?.invalid">Requerido.</small>
-                </div>
-              </div>
-
-              <!-- Tipo + Observaciones -->
-              <div class="grid grid-2">
-                <div class="form-field">
-                  <label class="ux-label" for="tipo-mov">🏷️ Tipo de movimiento</label>
-                  <select id="tipo-mov" class="ux-select" formControlName="tipoMovimiento">
-                    <option value="TRASLADO">TRASLADO</option>
-                    <option value="SALIDA">SALIDA</option>
-                  </select>
-                </div>
-
-                <div class="form-field">
-                  <label class="ux-label" for="obs">📝 Observaciones</label>
-                  <textarea id="obs" class="ux-textarea" rows="2" formControlName="observaciones" placeholder="Notas, motivo, etc."></textarea>
-                </div>
-              </div>
-
-              <!-- Cantidades -->
-              <div class="step-subtitle">🔢 Cantidades a Trasladar</div>
-              <div class="quantities-grid">
-                <div class="quantity-field hembras">
-                  <label class="quantity-label" for="q-hembras"><span class="icon">♀</span><span class="text">Hembras</span></label>
-                  <div class="input-with-max">
-                    <input id="q-hembras" type="number" class="ux-input quantity-input"
-                           formControlName="cantidadHembras" min="0"
-                           [attr.max]="inventarioOrigen()?.cantidadHembras ?? null" placeholder="0" />
-                    <span class="max-indicator">/ {{ inventarioOrigen()?.cantidadHembras ?? '—' }} disp.</span>
-                    <button type="button" class="btn btn--ghost btn--xs" (click)="trasladarTodasLasHembras()">Usar máx</button>
-                  </div>
-                  <small class="text-danger" *ngIf="trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']">
-                    Máximo: {{ trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
-                  </small>
-                </div>
-
-                <div class="quantity-field machos">
-                  <label class="quantity-label" for="q-machos"><span class="icon">♂</span><span class="text">Machos</span></label>
-                  <div class="input-with-max">
-                    <input id="q-machos" type="number" class="ux-input quantity-input"
-                           formControlName="cantidadMachos" min="0"
-                           [attr.max]="inventarioOrigen()?.cantidadMachos ?? null" placeholder="0" />
-                    <span class="max-indicator">/ {{ inventarioOrigen()?.cantidadMachos ?? '—' }} disp.</span>
-                    <button type="button" class="btn btn--ghost btn--xs" (click)="trasladarTodosLosMachos()">Usar máx</button>
-                  </div>
-                  <small class="text-danger" *ngIf="trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']">
-                    Máximo: {{ trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
-                  </small>
-                </div>
-              </div>
-
-              <!-- Resumen -->
-              <div class="transfer-summary" *ngIf="getTotalAves() > 0">
-                <div class="summary-card">
-                  <div class="summary-header"><h4>📊 Resumen</h4></div>
-                  <div class="summary-body">
-                    <div class="summary-item"><span class="label">Total:</span><span class="value total">{{ getTotalAves() }} aves</span></div>
-                    <div class="summary-breakdown">
-                      <span class="breakdown-item hembras" *ngIf="trasladoForm.get('cantidadHembras')?.value > 0">
-                        {{ trasladoForm.get('cantidadHembras')?.value }}♀
-                      </span>
-                      <span class="breakdown-item machos" *ngIf="trasladoForm.get('cantidadMachos')?.value > 0">
-                        {{ trasladoForm.get('cantidadMachos')?.value }}♂
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Estados -->
-              <div class="modal-states">
-                <div class="alert alert--danger" *ngIf="errorTraslado()">
-                  <div class="alert__icon">⚠️</div>
-                  <div class="alert__content"><strong>Error:</strong> {{ errorTraslado() }}</div>
-                </div>
-                <div class="alert alert--success" *ngIf="exitoTraslado()">
-                  <div class="alert__icon">✅</div>
-                  <div class="alert__content"><strong>¡Traslado registrado!</strong></div>
-                </div>
-                <div class="loading-state" *ngIf="procesandoTraslado()">
-                  <div class="spinner"></div><p>Procesando traslado...</p>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="modal-footer">
-          <button type="button" class="btn btn--outline" (click)="cerrarModalTraslado()" [disabled]="procesandoTraslado()">Cancelar</button>
-          <button type="button" class="btn btn--primary"
-                  (click)="procesarTraslado()"
-                  [disabled]="!isSubmitEnabled() || procesandoTraslado() || exitoTraslado()">
-            <span *ngIf="procesandoTraslado()">Procesando...</span>
-            <span *ngIf="!procesandoTraslado()">🚚 Registrar salida</span>
-          </button>
-        </div>
-      </div>
-    </div>
-    <!-- /Modal -->
-
-    <!-- ========== MODAL TRASLADO/RETIRO (XXL) ========== -->
-    <div class="modal-overlay modal-overlay--xxl"
-         *ngIf="modalTrasladoRetiroAbierto()"
-         (click)="cerrarModalTrasladoRetiro()"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="traslado-retiro-title">
-      <div class="modal-container modal-container--xxl"
-           (click)="$event.stopPropagation()"
-           tabindex="-1">
-
-        <div class="modal-header modal-header--xxl">
-          <h2 id="traslado-retiro-title">
-            🚚 Traslado / Retiro
-            <span class="lote-badge" *ngIf="loteCompleto()">
-              Lote #{{ loteCompleto()?.loteId }}
-            </span>
-          </h2>
-          <button type="button"
-                  class="modal-close"
-                  (click)="cerrarModalTrasladoRetiro()"
-                  aria-label="Cerrar modal">✕</button>
-        </div>
-
-        <div class="modal-body modal-body--xxl">
-          <!-- Información del Lote - Mejorada -->
-          <div class="lote-info-section" *ngIf="loteCompleto()">
-            <div class="lote-info-card lote-info-card--enhanced">
-              <div class="lote-info-header">
-                <h3>📍 Información del Lote</h3>
-                <span class="lote-id-badge">#{{ loteCompleto()?.loteId }}</span>
-              </div>
-              <div class="lote-info-grid lote-info-grid--enhanced">
-                <div class="info-item info-item--enhanced">
-                  <span class="info-icon">🏠</span>
-                  <div class="info-content">
-                    <span class="info-label">Granja</span>
-                    <span class="info-value">{{ obtenerNombreGranja(loteCompleto()?.granjaId) }}</span>
-                  </div>
-                </div>
-                <div class="info-item info-item--enhanced">
-                  <span class="info-icon">📋</span>
-                  <div class="info-content">
-                    <span class="info-label">Nombre del Lote</span>
-                    <span class="info-value">{{ loteCompleto()?.loteNombre || 'Sin nombre' }}</span>
-                  </div>
-                </div>
-                <div class="info-item info-item--enhanced" *ngIf="loteCompleto()?.fechaEncaset">
-                  <span class="info-icon">📅</span>
-                  <div class="info-content">
-                    <span class="info-label">Edad</span>
-                    <span class="info-value">
-                      {{ calcularEdadDias(loteCompleto()!.fechaEncaset) }} días
-                      <span class="phase-badge phase-badge--enhanced"
-                            [class.phase-levante]="calcularEdadDias(loteCompleto()!.fechaEncaset) < 175"
-                            [class.phase-produccion]="calcularEdadDias(loteCompleto()!.fechaEncaset) >= 175">
-                        {{ calcularEdadDias(loteCompleto()!.fechaEncaset) < 175 ? 'Levante' : 'Producción' }}
-                      </span>
+          </header>
+          <div class="ux-card__content">
+            <!-- Tabs de Registros (solo cuando hay lote seleccionado) -->
+            <div class="registros-tabs-section">
+              <div class="registros-tabs">
+                <button
+                  type="button"
+                  class="registros-tab"
+                  [class.active]="tabRegistrosActivo() === 'huevos'"
+                  (click)="tabRegistrosActivo.set('huevos')">
+                  🥚 Huevos
+                  @if (trasladosHuevosLote().length > 0) {
+                    <span class="tab-badge">
+                      {{ trasladosHuevosLote().length }}
                     </span>
+                  }
+                </button>
+                <button
+                  type="button"
+                  class="registros-tab"
+                  [class.active]="tabRegistrosActivo() === 'aves'"
+                  (click)="tabRegistrosActivo.set('aves')">
+                  🐔 Aves
+                  @if (movimientosAvesLote().length > 0) {
+                    <span class="tab-badge">
+                      {{ movimientosAvesLote().length }}
+                    </span>
+                  }
+                </button>
+                <button
+                  type="button"
+                  class="registros-tab"
+                  [class.active]="tabRegistrosActivo() === 'lotes'"
+                  (click)="tabRegistrosActivo.set('lotes')">
+                  📦 Lotes
+                  @if (historialTrasladosLote().length > 0) {
+                    <span class="tab-badge">
+                      {{ historialTrasladosLote().length }}
+                    </span>
+                  }
+                </button>
+              </div>
+              <!-- Tab Panel: Huevos -->
+              @if (tabRegistrosActivo() === 'huevos') {
+                <div class="registros-tab-panel">
+                  <!-- Loading state -->
+                  @if (loadingTrasladosHuevos()) {
+                    <div class="loading-state">
+                      <div class="spinner"></div>
+                      <p>Cargando registros de huevos...</p>
+                    </div>
+                  }
+                  <!-- Table -->
+                  @if (!loadingTrasladosHuevos()) {
+                    <div class="table-container">
+                      <table class="ux-table">
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>N° Traslado</th>
+                            <th>Operación</th>
+                            <th>Origen</th>
+                            <th>Destino</th>
+                            <th>Total</th>
+                            <th>Limpio</th>
+                            <th>Tratado</th>
+                            <th>Sucio</th>
+                            <th>Deforme</th>
+                            <th>Blanco</th>
+                            <th>Doble Yema</th>
+                            <th>Piso</th>
+                            <th>Pequeño</th>
+                            <th>Roto</th>
+                            <th>Desecho</th>
+                            <th>Otro</th>
+                            <th>Estado</th>
+                            <th>Observaciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (traslado of trasladosHuevosLote(); track traslado) {
+                            <tr class="ux-row">
+                              <td>{{ formatearFecha(traslado.fechaTraslado) }}</td>
+                              <td><strong>{{ traslado.numeroTraslado }}</strong></td>
+                              <td>
+                                <span class="badge" [class.badge--primary]="traslado.tipoOperacion === 'Traslado'"
+                                  [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
+                                  {{ traslado.tipoOperacion }}
+                                </span>
+                              </td>
+                              <td>{{ traslado.granjaOrigenNombre || '—' }}</td>
+                              <td>{{ traslado.granjaDestinoNombre || traslado.tipoDestino || '—' }}</td>
+                              <td class="number-cell primary"><strong>{{ formatearNumero(traslado.totalHuevos || 0) }}</strong></td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadLimpio || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadTratado || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadSucio || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadDeforme || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadBlanco || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadDobleYema || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadPiso || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadPequeno || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadRoto || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadDesecho || 0) }}</td>
+                              <td class="number-cell">{{ formatearNumero(traslado.cantidadOtro || 0) }}</td>
+                              <td>
+                                <span class="badge" [class.badge--success]="traslado.estado === 'Completado'"
+                                  [class.badge--warning]="traslado.estado === 'Pendiente'"
+                                  [class.badge--error]="traslado.estado === 'Cancelado'">
+                                  {{ traslado.estado }}
+                                </span>
+                              </td>
+                              <td class="text-sm">{{ traslado.observaciones || '—' }}</td>
+                            </tr>
+                          }
+                          @if (!loadingTrasladosHuevos() && trasladosHuevosLote().length === 0) {
+                            <tr>
+                              <td colspan="19" class="empty-state">
+                                <div class="empty-illustration">🥚</div>
+                                <p>No hay registros de traslado de huevos para este lote.</p>
+                                <p class="text-muted text-sm">Total registros: {{ trasladosHuevosLote().length }}</p>
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              }
+              <!-- Tab Panel: Aves -->
+              @if (tabRegistrosActivo() === 'aves') {
+                <div class="registros-tab-panel">
+                  <!-- Loading state -->
+                  @if (loadingMovimientos()) {
+                    <div class="loading-state">
+                      <div class="spinner"></div>
+                      <p>Cargando registros de aves...</p>
+                    </div>
+                  }
+                  <!-- Table -->
+                  @if (!loadingMovimientos()) {
+                    <div class="table-container">
+                      <table class="ux-table">
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>N° Traslado</th>
+                            <th>Tipo</th>
+                            <th>Operación</th>
+                            <th>Origen</th>
+                            <th>Destino</th>
+                            <th>Cantidad</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (movimiento of movimientosAvesLote(); track movimiento) {
+                            <tr class="ux-row">
+                              <td>{{ formatearFecha(movimiento.fechaTraslado) }}</td>
+                              <td><strong>{{ movimiento.numeroTraslado }}</strong></td>
+                              <td>
+                                <span class="badge badge--info">Aves</span>
+                              </td>
+                              <td>
+                                <span class="badge" [class.badge--primary]="movimiento.tipoOperacion === 'Traslado'"
+                                  [class.badge--warning]="movimiento.tipoOperacion === 'Venta'"
+                                  [class.badge--error]="movimiento.tipoOperacion === 'Retiro'">
+                                  {{ movimiento.tipoOperacion }}
+                                </span>
+                              </td>
+                              <td>{{ movimiento.granjaOrigenNombre || '—' }}</td>
+                              <td>{{ movimiento.granjaDestinoNombre || movimiento.tipoDestino || '—' }}</td>
+                              <td class="number-cell">
+                                @if ((movimiento.cantidadHembras ?? 0) > 0) {
+                                  <span>H: {{ formatearNumero(movimiento.cantidadHembras ?? 0) }}</span>
+                                }
+                                @if ((movimiento.cantidadMachos ?? 0) > 0) {
+                                  <span>M: {{ formatearNumero(movimiento.cantidadMachos ?? 0) }}</span>
+                                }
+                                @if ((movimiento.cantidadHembras ?? 0) === 0 && (movimiento.cantidadMachos ?? 0) === 0) {
+                                  <span>—</span>
+                                }
+                              </td>
+                              <td>
+                                <span class="badge" [class.badge--success]="movimiento.estado === 'Completado'"
+                                  [class.badge--warning]="movimiento.estado === 'Pendiente'"
+                                  [class.badge--error]="movimiento.estado === 'Cancelado'">
+                                  {{ movimiento.estado }}
+                                </span>
+                              </td>
+                            </tr>
+                          }
+                          @if (!loadingMovimientos() && movimientosAvesLote().length === 0) {
+                            <tr>
+                              <td colspan="8" class="empty-state">
+                                <div class="empty-illustration">🐔</div>
+                                <p>No hay registros de traslado de aves para este lote.</p>
+                                <p class="text-muted text-sm">Total registros: {{ movimientosAvesLote().length }}</p>
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              }
+              <!-- Tab Panel: Lotes -->
+              @if (tabRegistrosActivo() === 'lotes') {
+                <div class="registros-tab-panel">
+                  <!-- Loading state -->
+                  @if (loadingHistorialLotes()) {
+                    <div class="loading-state">
+                      <div class="spinner"></div>
+                      <p>Cargando registros de lotes...</p>
+                    </div>
+                  }
+                  <!-- Table -->
+                  @if (!loadingHistorialLotes()) {
+                    <div class="table-container">
+                      <table class="ux-table">
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>Lote Origen</th>
+                            <th>Lote Destino</th>
+                            <th>Granja Origen</th>
+                            <th>Granja Destino</th>
+                            <th>Usuario</th>
+                            <th>Observaciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (historial of historialTrasladosLote(); track historial) {
+                            <tr class="ux-row">
+                              <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
+                              <td><strong>#{{ historial.loteOriginalId }}</strong></td>
+                              <td><strong>#{{ historial.loteNuevoId }}</strong></td>
+                              <td>{{ historial.granjaOrigenNombre || '—' }}</td>
+                              <td>{{ historial.granjaDestinoNombre || '—' }}</td>
+                              <td>{{ historial.usuarioNombre || '—' }}</td>
+                              <td class="text-sm">{{ historial.observaciones || '—' }}</td>
+                            </tr>
+                          }
+                          @if (!loadingHistorialLotes() && historialTrasladosLote().length === 0) {
+                            <tr>
+                              <td colspan="7" class="empty-state">
+                                <div class="empty-illustration">📦</div>
+                                <p>No hay registros de traslado de lotes para este lote.</p>
+                                <p class="text-muted text-sm">Total registros: {{ historialTrasladosLote().length }}</p>
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+      }
+
+      <!-- ========== DETALLES DEL LOTE SELECCIONADO (ABAJO) ========== -->
+      @if (loteSeleccionado()) {
+        <section class="lote-details-section">
+          <div class="ux-card">
+            <header class="ux-card__header">
+              <div class="flex items-center justify-between w-full">
+                <div>
+                  <h2>📋 Detalles del Lote #{{ loteSeleccionado()?.loteId }}</h2>
+                  <p class="text-sm text-muted mt-1">
+                    {{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}
+                    @if (nucleoMap[loteSeleccionado()?.nucleoId || '']) {
+                      <span>
+                        • {{ nucleoMap[loteSeleccionado()?.nucleoId || ''] }}
+                      </span>
+                    }
+                    @if (galponMap[loteSeleccionado()?.galponId || '']) {
+                      <span>
+                        • {{ galponMap[loteSeleccionado()?.galponId || ''] }}
+                      </span>
+                    }
+                  </p>
+                </div>
+                <button type="button" class="btn btn--ghost btn--sm" (click)="seleccionarLote(null)">
+                  ✕ Cerrar
+                </button>
+              </div>
+            </header>
+            <div class="ux-card__content">
+              <!-- Información del Lote -->
+              @if (loteCompleto()) {
+                <div class="lote-info-grid">
+                  <div class="info-card">
+                    <h4 class="info-card__title">🐔 Cantidad Actual de Aves</h4>
+                    <div class="info-card__content">
+                      <div class="stat-item">
+                        <span class="stat-label">Hembras:</span>
+                        <span class="stat-value success">{{ formatearNumero(loteSeleccionado()?.cantidadHembras || 0) }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Machos:</span>
+                        <span class="stat-value info">{{ formatearNumero(loteSeleccionado()?.cantidadMachos || 0) }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Total:</span>
+                        <span class="stat-value primary">
+                          <strong>{{ formatearNumero(calcularTotalAves(loteSeleccionado()!)) }}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="info-card">
+                    <h4 class="info-card__title">📅 Información del Lote</h4>
+                    <div class="info-card__content">
+                      <div class="info-row">
+                        <span class="info-label">Nombre:</span>
+                        <span class="info-value">{{ loteCompleto()?.loteNombre || '—' }}</span>
+                      </div>
+                      <div class="info-row">
+                        <span class="info-label">Raza:</span>
+                        <span class="info-value">{{ loteCompleto()?.raza || '—' }}</span>
+                      </div>
+                      @if (loteCompleto()?.fechaEncaset) {
+                        <div class="info-row">
+                          <span class="info-label">Fecha Encaset:</span>
+                          <span class="info-value">{{ loteCompleto()?.fechaEncaset ? formatearFecha(loteCompleto()!.fechaEncaset!) : '—' }}</span>
+                        </div>
+                      }
+                      @if (loteCompleto()?.fechaEncaset) {
+                        <div class="info-row">
+                          <span class="info-label">Edad:</span>
+                          <span class="info-value">{{ loteCompleto()?.fechaEncaset ? calcularEdadDias(loteCompleto()!.fechaEncaset) : 0 }} días</span>
+                        </div>
+                      }
+                      @if (loteCompleto()?.fechaEncaset) {
+                        <div class="info-row">
+                          <span class="info-label">Fase:</span>
+                          <span class="info-value">{{ loteCompleto()?.fechaEncaset ? (calcularEdadDias(loteCompleto()!.fechaEncaset) < 175 ? 'Levante' : 'Producción') : '—' }}</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                  <div class="info-card">
+                    <h4 class="info-card__title">📍 Ubicación</h4>
+                    <div class="info-card__content">
+                      <div class="info-row">
+                        <span class="info-label">Granja:</span>
+                        <span class="info-value">{{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}</span>
+                      </div>
+                      @if (nucleoMap[loteSeleccionado()?.nucleoId || '']) {
+                        <div class="info-row">
+                          <span class="info-label">Núcleo:</span>
+                          <span class="info-value">{{ nucleoMap[loteSeleccionado()?.nucleoId || ''] }}</span>
+                        </div>
+                      }
+                      @if (galponMap[loteSeleccionado()?.galponId || '']) {
+                        <div class="info-row">
+                          <span class="info-label">Galpón:</span>
+                          <span class="info-value">{{ galponMap[loteSeleccionado()?.galponId || ''] }}</span>
+                        </div>
+                      }
+                      <div class="info-row">
+                        <span class="info-label">Último Conteo:</span>
+                        <span class="info-value">{{ loteSeleccionado()?.fechaUltimoConteo ? formatearFecha(loteSeleccionado()!.fechaUltimoConteo!) : '—' }}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div class="info-item info-item--enhanced" *ngIf="loteCompleto()?.nucleoId">
-                  <span class="info-icon">🏗️</span>
-                  <div class="info-content">
-                    <span class="info-label">Núcleo</span>
-                    <span class="info-value">{{ nucleoMap[loteCompleto()!.nucleoId || ''] || '—' }}</span>
-                  </div>
+              }
+              <!-- Tabs de Histórico -->
+              <div class="historial-tabs-section">
+                <div class="historial-tabs">
+                  <button
+                    type="button"
+                    class="historial-tab"
+                    [class.active]="tabHistorialActivo() === 'lotes'"
+                    (click)="tabHistorialActivo.set('lotes')">
+                    📦 Lotes
+                    @if (historialTrasladosLote().length > 0) {
+                      <span class="tab-badge">
+                        {{ historialTrasladosLote().length }}
+                      </span>
+                    }
+                  </button>
+                  <button
+                    type="button"
+                    class="historial-tab"
+                    [class.active]="tabHistorialActivo() === 'aves'"
+                    (click)="tabHistorialActivo.set('aves')">
+                    🐔 Aves
+                    @if (movimientosAvesLote().length > 0) {
+                      <span class="tab-badge">
+                        {{ movimientosAvesLote().length }}
+                      </span>
+                    }
+                  </button>
+                  <button
+                    type="button"
+                    class="historial-tab"
+                    [class.active]="tabHistorialActivo() === 'huevos'"
+                    (click)="tabHistorialActivo.set('huevos')">
+                    🥚 Huevos
+                    @if (trasladosHuevosLote().length > 0) {
+                      <span class="tab-badge">
+                        {{ trasladosHuevosLote().length }}
+                      </span>
+                    }
+                  </button>
                 </div>
-                <div class="info-item info-item--enhanced" *ngIf="loteCompleto()?.galponId">
-                  <span class="info-icon">🐔</span>
-                  <div class="info-content">
-                    <span class="info-label">Galpón</span>
-                    <span class="info-value">{{ galponMap[loteCompleto()!.galponId || ''] || '—' }}</span>
+                <!-- Tab Panel: Lotes -->
+                @if (tabHistorialActivo() === 'lotes') {
+                  <div class="historial-tab-panel">
+                    @if (loadingHistorialLotes()) {
+                      <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Cargando historial de traslados de lotes...</p>
+                      </div>
+                    }
+                    @if (!loadingHistorialLotes()) {
+                      <div class="movimientos-table-container">
+                        @if (historialTrasladosLote().length > 0) {
+                          <table class="movimientos-table">
+                            <thead>
+                              <tr>
+                                <th>Fecha</th>
+                                <th>Lote Origen</th>
+                                <th>Lote Destino</th>
+                                <th>Granja Origen</th>
+                                <th>Granja Destino</th>
+                                <th>Usuario</th>
+                                <th>Observaciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (traslado of historialTrasladosLote(); track traslado) {
+                                <tr>
+                                  <td class="date-cell">{{ formatearFecha(traslado.fechaTraslado) }}</td>
+                                  <td><strong>#{{ traslado.loteOriginalId }}</strong></td>
+                                  <td><strong>#{{ traslado.loteNuevoId }}</strong></td>
+                                  <td>{{ traslado.granjaOrigenNombre || 'N/A' }}</td>
+                                  <td>{{ traslado.granjaDestinoNombre || 'N/A' }}</td>
+                                  <td>{{ traslado.usuarioNombre || 'N/A' }}</td>
+                                  <td class="motivo-cell">{{ traslado.observaciones || '—' }}</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        }
+                        @if (historialTrasladosLote().length === 0) {
+                          <div class="empty-state">
+                            <div class="empty-illustration">📦</div>
+                            <p>No hay traslados de lotes registrados para este lote.</p>
+                          </div>
+                        }
+                      </div>
+                    }
                   </div>
-                </div>
+                }
+                <!-- Tab Panel: Aves -->
+                @if (tabHistorialActivo() === 'aves') {
+                  <div class="historial-tab-panel">
+                    @if (loadingMovimientos()) {
+                      <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Cargando movimientos de aves...</p>
+                      </div>
+                    }
+                    @if (!loadingMovimientos()) {
+                      <div class="movimientos-table-container">
+                        @if (movimientosAvesLote().length > 0) {
+                          <table class="movimientos-table">
+                            <thead>
+                              <tr>
+                                <th>Fecha</th>
+                                <th>N° Traslado</th>
+                                <th>Tipo</th>
+                                <th>Operación</th>
+                                <th>Origen</th>
+                                <th>Destino</th>
+                                <th>Cantidad</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (mov of movimientosAvesLote(); track mov) {
+                                <tr>
+                                  <td class="date-cell">{{ formatearFecha(mov.fechaTraslado) }}</td>
+                                  <td><code class="mov-number">{{ mov.numeroTraslado }}</code></td>
+                                  <td>
+                                    <span class="badge badge--info">🐔 Aves</span>
+                                  </td>
+                                  <td>
+                                    <span class="badge" [class]="obtenerTipoMovimientoClass(mov.tipoOperacion)">
+                                      {{ mov.tipoOperacion }}
+                                    </span>
+                                  </td>
+                                  <td class="ubicacion-cell">
+                                    <div>
+                                      <strong>Lote {{ mov.loteIdOrigen }}</strong>
+                                      @if (mov.granjaOrigenNombre) {
+                                        <small> • {{ mov.granjaOrigenNombre }}</small>
+                                      }
+                                    </div>
+                                  </td>
+                                  <td class="ubicacion-cell">
+                                    @if (mov.loteIdDestino || mov.granjaDestinoNombre) {
+                                      <div>
+                                        @if (mov.loteIdDestino) {
+                                          <strong>Lote {{ mov.loteIdDestino }}</strong>
+                                        }
+                                        @if (mov.granjaDestinoNombre) {
+                                          <small> • {{ mov.granjaDestinoNombre }}</small>
+                                        }
+                                      </div>
+                                    }
+                                    @if (!mov.loteIdDestino && !mov.granjaDestinoNombre) {
+                                      <span class="text-muted">—</span>
+                                    }
+                                  </td>
+                                  <td class="number-cell">
+                                    @if (mov.cantidadHembras || mov.cantidadMachos) {
+                                      <div>
+                                        @if (mov.cantidadHembras) {
+                                          <span>H: {{ formatearNumero(mov.cantidadHembras) }}</span>
+                                        }
+                                        @if (mov.cantidadHembras && mov.cantidadMachos) {
+                                          <span> / </span>
+                                        }
+                                        @if (mov.cantidadMachos) {
+                                          <span>M: {{ formatearNumero(mov.cantidadMachos) }}</span>
+                                        }
+                                      </div>
+                                    }
+                                  </td>
+                                  <td>
+                                    <span class="badge" [class]="obtenerEstadoClass(mov.estado)">
+                                      {{ mov.estado }}
+                                    </span>
+                                  </td>
+                                  <td class="actions-cell">
+                                    @if (puedeAnularMovimientoAves(mov)) {
+                                      <button
+                                        type="button"
+                                        class="btn btn--outline btn--sm"
+                                        (click)="anularMovimientoAves(mov)"
+                                        title="Anular movimiento y devolver aves al inventario del lote"
+                                        >
+                                        Anular
+                                      </button>
+                                    }
+                                    @if (!puedeAnularMovimientoAves(mov)) {
+                                      <span class="text-muted">—</span>
+                                    }
+                                  </td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        }
+                        @if (movimientosAvesLote().length === 0) {
+                          <div class="empty-state">
+                            <div class="empty-illustration">🐔</div>
+                            <p>No hay movimientos de aves registrados para este lote.</p>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+                <!-- Tab Panel: Huevos -->
+                @if (tabHistorialActivo() === 'huevos') {
+                  <div class="historial-tab-panel">
+                    @if (loadingTrasladosHuevos()) {
+                      <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Cargando traslados de huevos...</p>
+                      </div>
+                    }
+                    @if (!loadingTrasladosHuevos()) {
+                      <div class="movimientos-table-container">
+                        @if (trasladosHuevosLote().length > 0) {
+                          <table class="movimientos-table">
+                            <thead>
+                              <tr>
+                                <th>Fecha</th>
+                                <th>N° Traslado</th>
+                                <th>Operación</th>
+                                <th>Origen</th>
+                                <th>Destino</th>
+                                <th>Total Huevos</th>
+                                <th>Detalle</th>
+                                <th>Estado</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (traslado of trasladosHuevosLote(); track traslado) {
+                                <tr>
+                                  <td class="date-cell">{{ formatearFecha(traslado.fechaTraslado) }}</td>
+                                  <td><code class="mov-number">{{ traslado.numeroTraslado }}</code></td>
+                                  <td>
+                                    <span class="badge" [class]="obtenerTipoMovimientoClass(traslado.tipoOperacion)">
+                                      {{ traslado.tipoOperacion }}
+                                    </span>
+                                  </td>
+                                  <td class="ubicacion-cell">
+                                    <div>
+                                      <strong>Lote {{ traslado.loteId }}</strong>
+                                      @if (traslado.granjaOrigenNombre) {
+                                        <small> • {{ traslado.granjaOrigenNombre }}</small>
+                                      }
+                                    </div>
+                                  </td>
+                                  <td class="ubicacion-cell">
+                                    @if (traslado.loteDestinoId || traslado.granjaDestinoNombre) {
+                                      <div>
+                                        @if (traslado.loteDestinoId) {
+                                          <strong>Lote {{ traslado.loteDestinoId }}</strong>
+                                        }
+                                        @if (traslado.granjaDestinoNombre) {
+                                          <small> • {{ traslado.granjaDestinoNombre }}</small>
+                                        }
+                                      </div>
+                                    }
+                                    @if (!traslado.loteDestinoId && !traslado.granjaDestinoNombre) {
+                                      <span class="text-muted">—</span>
+                                    }
+                                  </td>
+                                  <td class="number-cell">
+                                    <strong>{{ formatearNumero(traslado.totalHuevos) }}</strong>
+                                  </td>
+                                  <td class="text-xs">
+                                    @if (traslado.cantidadLimpio > 0) {
+                                      <div>Limpio: {{ traslado.cantidadLimpio }}</div>
+                                    }
+                                    @if (traslado.cantidadTratado > 0) {
+                                      <div>Tratado: {{ traslado.cantidadTratado }}</div>
+                                    }
+                                    @if (traslado.cantidadSucio > 0) {
+                                      <div>Sucio: {{ traslado.cantidadSucio }}</div>
+                                    }
+                                  </td>
+                                  <td>
+                                    <span class="badge" [class]="obtenerEstadoClass(traslado.estado)">
+                                      {{ traslado.estado }}
+                                    </span>
+                                  </td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        }
+                        @if (trasladosHuevosLote().length === 0) {
+                          <div class="empty-state">
+                            <div class="empty-illustration">🥚</div>
+                            <p>No hay traslados de huevos registrados para este lote.</p>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+              <!-- Movimientos del Lote (mantener por compatibilidad) -->
+              <div class="movimientos-section" style="display: none;">
+                <h3 class="movimientos-title">
+                  📊 Registros de Movimiento del Lote
+                  @if (movimientosLote().length > 0) {
+                    <span class="badge badge--default">
+                      {{ movimientosLote().length }}
+                    </span>
+                  }
+                </h3>
+                @if (loadingMovimientos()) {
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando movimientos...</p>
+                  </div>
+                }
+                @if (!loadingMovimientos()) {
+                  <div class="movimientos-table-container">
+                    @if (movimientosLote().length > 0) {
+                      <table class="movimientos-table">
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>N° Traslado</th>
+                            <th>Tipo</th>
+                            <th>Operación</th>
+                            <th>Origen</th>
+                            <th>Destino</th>
+                            <th>Cantidad</th>
+                            <th>Estado</th>
+                            <th>Fase</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (mov of movimientosLote(); track mov) {
+                            <tr>
+                              <td class="date-cell">{{ formatearFecha(mov.fechaTraslado) }}</td>
+                              <td><code class="mov-number">{{ mov.numeroTraslado }}</code></td>
+                              <td>
+                                <span class="badge" [class]="mov.tipoTraslado === 'Aves' ? 'badge--info' : 'badge--warning'">
+                                  {{ mov.tipoTraslado === 'Aves' ? '🐔 Aves' : '🥚 Huevos' }}
+                                </span>
+                              </td>
+                              <td>
+                                <span class="badge" [class]="obtenerTipoMovimientoClass(mov.tipoOperacion)">
+                                  {{ mov.tipoOperacion }}
+                                </span>
+                              </td>
+                              <td class="ubicacion-cell">
+                                <div>
+                                  <strong>Lote {{ mov.loteIdOrigen }}</strong>
+                                  @if (mov.granjaOrigenNombre) {
+                                    <small> • {{ mov.granjaOrigenNombre }}</small>
+                                  }
+                                </div>
+                              </td>
+                              <td class="ubicacion-cell">
+                                @if (mov.loteIdDestino || mov.granjaDestinoNombre) {
+                                  <div>
+                                    @if (mov.loteIdDestino) {
+                                      <strong>Lote {{ mov.loteIdDestino }}</strong>
+                                    }
+                                    @if (mov.granjaDestinoNombre) {
+                                      <small> • {{ mov.granjaDestinoNombre }}</small>
+                                    }
+                                    @if (mov.tipoDestino) {
+                                      <small> ({{ mov.tipoDestino }})</small>
+                                    }
+                                  </div>
+                                }
+                                @if (!mov.loteIdDestino && !mov.granjaDestinoNombre) {
+                                  <span class="text-muted">—</span>
+                                }
+                              </td>
+                              <td class="number-cell">
+                                @if (mov.tipoTraslado === 'Aves') {
+                                  <div>
+                                    @if (mov.cantidadHembras || mov.cantidadMachos) {
+                                      <div>
+                                        @if (mov.cantidadHembras) {
+                                          <span>H: {{ formatearNumero(mov.cantidadHembras) }}</span>
+                                        }
+                                        @if (mov.cantidadHembras && mov.cantidadMachos) {
+                                          <span> / </span>
+                                        }
+                                        @if (mov.cantidadMachos) {
+                                          <span>M: {{ formatearNumero(mov.cantidadMachos) }}</span>
+                                        }
+                                      </div>
+                                    }
+                                    @if (mov.totalAves && (!mov.cantidadHembras && !mov.cantidadMachos)) {
+                                      <div>
+                                        Total: {{ formatearNumero(mov.totalAves) }}
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                                @if (mov.tipoTraslado === 'Huevos') {
+                                  <div>
+                                    <div><strong>Total: {{ formatearNumero(mov.totalHuevos || 0) }}</strong></div>
+                                    @if (mov.cantidadLimpio || mov.cantidadTratado) {
+                                      <div class="text-xs text-muted">
+                                        @if (mov.cantidadLimpio) {
+                                          <span>Limpio: {{ mov.cantidadLimpio }}</span>
+                                        }
+                                        @if (mov.cantidadLimpio && mov.cantidadTratado) {
+                                          <span> / </span>
+                                        }
+                                        @if (mov.cantidadTratado) {
+                                          <span>Tratado: {{ mov.cantidadTratado }}</span>
+                                        }
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                              </td>
+                              <td>
+                                <span class="badge" [class]="obtenerEstadoClass(mov.estado)">
+                                  {{ mov.estado }}
+                                </span>
+                              </td>
+                              <td>
+                                @if (mov.faseLote) {
+                                  <span class="badge badge--default">
+                                    {{ mov.faseLote }}
+                                  </span>
+                                }
+                                @if (!mov.faseLote) {
+                                  <span class="text-muted">—</span>
+                                }
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    }
+                    @if (movimientosLote().length === 0) {
+                      <div class="empty-state">
+                        <div class="empty-illustration">📭</div>
+                        <p>No hay movimientos registrados para este lote.</p>
+                        <p class="text-muted text-sm mt-2">
+                          Los traslados, retiros, ventas y otros movimientos aparecerán aquí.
+                        </p>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             </div>
           </div>
+        </section>
+      }
 
-          <!-- Tabs Mejorados -->
-          <div class="modal-tabs modal-tabs--enhanced">
-            <input type="radio" id="tab-aves" name="modal-tab" [checked]="tabActivo() === 'aves'" (change)="tabActivo.set('aves')">
-            <label for="tab-aves" class="tab-label tab-label--enhanced">
-              <span class="tab-icon">🐔</span>
-              <span class="tab-text">Aves</span>
-              <span class="tab-badge" *ngIf="disponibilidadLote()?.aves">
-                {{ disponibilidadLote()!.aves!.totalAves }}
-              </span>
-            </label>
-
-            <input type="radio" id="tab-huevos" name="modal-tab" [checked]="tabActivo() === 'huevos'" (change)="tabActivo.set('huevos')">
-            <label for="tab-huevos" class="tab-label tab-label--enhanced">
-              <span class="tab-icon">🥚</span>
-              <span class="tab-text">Huevos</span>
-              <span class="tab-badge" *ngIf="disponibilidadLote()?.huevos">
-                {{ disponibilidadLote()!.huevos!.totalHuevos }}
-              </span>
-            </label>
-
-            <div class="tab-panels">
-              <!-- TAB AVES -->
-              <div class="tab-panel tab-panel--enhanced" *ngIf="tabActivo() === 'aves'">
-                <!-- Disponibilidad de Aves - Mejorada -->
-                <div class="disponibilidad-section disponibilidad-section--enhanced" *ngIf="disponibilidadLote() && disponibilidadLote()!.tipoLote === 'Levante'">
-                  <div class="disponibilidad-header">
-                    <h4>📊 Disponibilidad del Lote</h4>
-                    <span class="disponibilidad-subtitle">Cantidades disponibles para traslado o venta</span>
+      <!-- ========== MODAL TRASLADO (sin cambios) ========== -->
+      @if (modalTrasladoAbierto()) {
+        <div class="modal-overlay"
+          (click)="cerrarModalTraslado()" role="dialog" aria-modal="true" aria-labelledby="traslado-title">
+          <div class="modal-container" (click)="$event.stopPropagation()" tabindex="-1">
+            <div class="modal-header">
+              <h2 id="traslado-title">🚚 Registro de Salida / Traslado</h2>
+              <button type="button" class="modal-close" (click)="cerrarModalTraslado()" aria-label="Cerrar modal">✕</button>
+            </div>
+            <div class="modal-body">
+              <!-- Contenido del modal de traslado (mantener igual) -->
+              <!-- Paso 1 -->
+              <div class="step-section">
+                <div class="step-header">
+                  <div class="step-number">1</div>
+                  <h3 class="step-title">🔍 Selección de Lotes</h3>
+                </div>
+                <p class="step-description">
+                  Selecciona el <strong>lote origen</strong> (sale) y el <strong>lote destino</strong> (recibe)
+                </p>
+                <div class="lote-selection-grid">
+                  <!-- Origen -->
+                  <div class="lote-filter-section">
+                    <div class="filter-header">
+                      <h4 class="filter-title">📤 Lote Origen</h4>
+                      <div class="filter-status" [class.selected]="loteOrigenSeleccionado()">
+                        {{ loteOrigenSeleccionado() ? '✅ Seleccionado' : '⏳ Pendiente' }}
+                      </div>
+                    </div>
+                    <app-hierarchical-filter
+                      [showLoteSelection]="true"
+                      [showChips]="true"
+                      [filterLabel]="'Filtros para Lote Origen'"
+                      [placeholder]="'Buscar lote origen...'"
+                      (loteSelected)="onLoteOrigenSeleccionado($event)">
+                    </app-hierarchical-filter>
                   </div>
-                  <div class="disponibilidad-grid disponibilidad-grid--enhanced">
-                    <div class="disponibilidad-card disponibilidad-card--hembras">
-                      <div class="disponibilidad-icon">🐔</div>
-                      <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">♀ Hembras Disponibles</span>
-                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.hembrasVivas || 0) }}</span>
+                  <!-- Destino -->
+                  <div class="lote-filter-section">
+                    <div class="filter-header">
+                      <h4 class="filter-title">📥 Lote Destino</h4>
+                      <div class="filter-status" [class.selected]="loteDestinoSeleccionado()">
+                        {{ loteDestinoSeleccionado() ? '✅ Seleccionado' : '⏳ Pendiente' }}
                       </div>
                     </div>
-                    <div class="disponibilidad-card disponibilidad-card--machos">
-                      <div class="disponibilidad-icon">🐓</div>
-                      <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">♂ Machos Disponibles</span>
-                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.machosVivos || 0) }}</span>
+                    <app-hierarchical-filter
+                      [showLoteSelection]="true"
+                      [showChips]="true"
+                      [filterLabel]="'Filtros para Lote Destino'"
+                      [placeholder]="'Buscar lote destino...'"
+                      (loteSelected)="onLoteDestinoSeleccionado($event)">
+                    </app-hierarchical-filter>
+                  </div>
+                </div>
+                <!-- Resumen inventarios -->
+                @if (loteOrigenSeleccionado() && loteDestinoSeleccionado()) {
+                  <div class="lotes-summary">
+                    <div class="lote-summary-card origen">
+                      <div class="card-header">
+                        <h4>📤 Origen</h4>
+                        <span class="lote-id">{{ loteOrigenSeleccionado()?.loteId }}</span>
                       </div>
+                      @if (inventarioOrigen()) {
+                        <div class="card-body">
+                          <div class="inventory-info">
+                            <div class="inventory-item hembras"><span class="count">{{ inventarioOrigen()?.cantidadHembras || 0 }}</span><span class="type">♀ Hembras</span></div>
+                            <div class="inventory-item machos"><span class="count">{{ inventarioOrigen()?.cantidadMachos || 0 }}</span><span class="type">♂ Machos</span></div>
+                            <div class="inventory-item total"><span class="count">{{ (inventarioOrigen()?.cantidadHembras || 0) + (inventarioOrigen()?.cantidadMachos || 0) }}</span><span class="type">Total</span></div>
+                          </div>
+                        </div>
+                      }
                     </div>
-                    <div class="disponibilidad-card disponibilidad-card--total highlight">
-                      <div class="disponibilidad-icon">🐥</div>
-                      <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">Total Aves Disponibles</span>
-                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.totalAves || 0) }}</span>
+                    <div class="transfer-arrow">
+                      <div class="arrow-icon">→</div>
+                      <div class="arrow-label">Traslado</div>
+                    </div>
+                    <div class="lote-summary-card destino">
+                      <div class="card-header">
+                        <h4>📥 Destino</h4>
+                        <span class="lote-id">{{ loteDestinoSeleccionado()?.loteId }}</span>
                       </div>
+                      @if (inventarioDestino()) {
+                        <div class="card-body">
+                          <div class="inventory-info">
+                            <div class="inventory-item hembras"><span class="count">{{ inventarioDestino()?.cantidadHembras || 0 }}</span><span class="type">♀ Hembras</span></div>
+                            <div class="inventory-item machos"><span class="count">{{ inventarioDestino()?.cantidadMachos || 0 }}</span><span class="type">♂ Machos</span></div>
+                            <div class="inventory-item total"><span class="count">{{ (inventarioDestino()?.cantidadHembras || 0) + (inventarioDestino()?.cantidadMachos || 0) }}</span><span class="type">Total</span></div>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+              <!-- Paso 2 -->
+              @if (loteOrigenSeleccionado() && loteDestinoSeleccionado()) {
+                <div class="step-section">
+                  <div class="step-header">
+                    <div class="step-number">2</div>
+                    <h3 class="step-title">🧾 Datos del Movimiento</h3>
+                  </div>
+                  <p class="step-description">Completa la información obligatoria del registro de salida</p>
+                  <form [formGroup]="trasladoForm" class="traslado-form" (ngSubmit)="procesarTraslado()">
+                    <!-- Usuarios + Fecha -->
+                    <div class="grid grid-3">
+                      <div class="form-field">
+                        <label class="ux-label" for="user-realiza">👤 Usuario que realiza <span class="required">*</span></label>
+                        <input id="user-realiza" type="number" class="ux-input"
+                          formControlName="usuarioRealizaId" placeholder="ID usuario que realiza" />
+                          @if (trasladoForm.get('usuarioRealizaId')?.touched && trasladoForm.get('usuarioRealizaId')?.invalid) {
+                            <small class="text-danger">Requerido.</small>
+                          }
+                        </div>
+                        <div class="form-field">
+                          <label class="ux-label" for="user-recibe">🤝 Usuario que recibe <span class="required">*</span></label>
+                          <input id="user-recibe" type="number" class="ux-input"
+                            formControlName="usuarioRecibeId" placeholder="ID usuario que recibe" />
+                            @if (trasladoForm.get('usuarioRecibeId')?.touched && trasladoForm.get('usuarioRecibeId')?.invalid) {
+                              <small class="text-danger">Requerido.</small>
+                            }
+                          </div>
+                          <div class="form-field">
+                            <label class="ux-label" for="fecha-mov">📅 Fecha del movimiento <span class="required">*</span></label>
+                            <input id="fecha-mov" type="date" class="ux-input" formControlName="fechaMovimiento" />
+                            @if (trasladoForm.get('fechaMovimiento')?.touched && trasladoForm.get('fechaMovimiento')?.invalid) {
+                              <small class="text-danger">Requerido.</small>
+                            }
+                          </div>
+                        </div>
+                        <!-- Tipo + Observaciones -->
+                        <div class="grid grid-2">
+                          <div class="form-field">
+                            <label class="ux-label" for="tipo-mov">🏷️ Tipo de movimiento</label>
+                            <select id="tipo-mov" class="ux-select" formControlName="tipoMovimiento">
+                              <option value="TRASLADO">TRASLADO</option>
+                              <option value="SALIDA">SALIDA</option>
+                            </select>
+                          </div>
+                          <div class="form-field">
+                            <label class="ux-label" for="obs">📝 Observaciones</label>
+                            <textarea id="obs" class="ux-textarea" rows="2" formControlName="observaciones" placeholder="Notas, motivo, etc."></textarea>
+                          </div>
+                        </div>
+                        <!-- Cantidades -->
+                        <div class="step-subtitle">🔢 Cantidades a Trasladar</div>
+                        <div class="quantities-grid">
+                          <div class="quantity-field hembras">
+                            <label class="quantity-label" for="q-hembras"><span class="icon">♀</span><span class="text">Hembras</span></label>
+                            <div class="input-with-max">
+                              <input id="q-hembras" type="number" class="ux-input quantity-input"
+                                formControlName="cantidadHembras" min="0"
+                                [attr.max]="inventarioOrigen()?.cantidadHembras ?? null" placeholder="0" />
+                                <span class="max-indicator">/ {{ inventarioOrigen()?.cantidadHembras ?? '—' }} disp.</span>
+                                <button type="button" class="btn btn--ghost btn--xs" (click)="trasladarTodasLasHembras()">Usar máx</button>
+                              </div>
+                              @if (trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']) {
+                                <small class="text-danger">
+                                  Máximo: {{ trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
+                                </small>
+                              }
+                            </div>
+                            <div class="quantity-field machos">
+                              <label class="quantity-label" for="q-machos"><span class="icon">♂</span><span class="text">Machos</span></label>
+                              <div class="input-with-max">
+                                <input id="q-machos" type="number" class="ux-input quantity-input"
+                                  formControlName="cantidadMachos" min="0"
+                                  [attr.max]="inventarioOrigen()?.cantidadMachos ?? null" placeholder="0" />
+                                  <span class="max-indicator">/ {{ inventarioOrigen()?.cantidadMachos ?? '—' }} disp.</span>
+                                  <button type="button" class="btn btn--ghost btn--xs" (click)="trasladarTodosLosMachos()">Usar máx</button>
+                                </div>
+                                @if (trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']) {
+                                  <small class="text-danger">
+                                    Máximo: {{ trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
+                                  </small>
+                                }
+                              </div>
+                            </div>
+                            <!-- Resumen -->
+                            @if (getTotalAves() > 0) {
+                              <div class="transfer-summary">
+                                <div class="summary-card">
+                                  <div class="summary-header"><h4>📊 Resumen</h4></div>
+                                  <div class="summary-body">
+                                    <div class="summary-item"><span class="label">Total:</span><span class="value total">{{ getTotalAves() }} aves</span></div>
+                                    <div class="summary-breakdown">
+                                      @if (trasladoForm.get('cantidadHembras')?.value > 0) {
+                                        <span class="breakdown-item hembras">
+                                          {{ trasladoForm.get('cantidadHembras')?.value }}♀
+                                        </span>
+                                      }
+                                      @if (trasladoForm.get('cantidadMachos')?.value > 0) {
+                                        <span class="breakdown-item machos">
+                                          {{ trasladoForm.get('cantidadMachos')?.value }}♂
+                                        </span>
+                                      }
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            }
+                            <!-- Estados -->
+                            <div class="modal-states">
+                              @if (errorTraslado()) {
+                                <div class="alert alert--danger">
+                                  <div class="alert__icon">⚠️</div>
+                                  <div class="alert__content"><strong>Error:</strong> {{ errorTraslado() }}</div>
+                                </div>
+                              }
+                              @if (exitoTraslado()) {
+                                <div class="alert alert--success">
+                                  <div class="alert__icon">✅</div>
+                                  <div class="alert__content"><strong>¡Traslado registrado!</strong></div>
+                                </div>
+                              }
+                              @if (procesandoTraslado()) {
+                                <div class="loading-state">
+                                  <div class="spinner"></div><p>Procesando traslado...</p>
+                                </div>
+                              }
+                            </div>
+                          </form>
+                        </div>
+                      }
+                    </div>
+                    <!-- Footer -->
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn--outline" (click)="cerrarModalTraslado()" [disabled]="procesandoTraslado()">Cancelar</button>
+                      <button type="button" class="btn btn--primary"
+                        (click)="procesarTraslado()"
+                        [disabled]="!isSubmitEnabled() || procesandoTraslado() || exitoTraslado()">
+                        @if (procesandoTraslado()) {
+                          <span>Procesando...</span>
+                        }
+                        @if (!procesandoTraslado()) {
+                          <span>🚚 Registrar salida</span>
+                        }
+                      </button>
                     </div>
                   </div>
                 </div>
+              }
+              <!-- /Modal -->
 
-                <!-- Mensaje si no hay disponibilidad cargada -->
-                <div class="alert alert-info" *ngIf="!disponibilidadLote() && !loadingDisponibilidad() && tabActivo() === 'aves'">
-                  <p>⚠️ No se pudo cargar la disponibilidad del lote. Por favor, verifica que el lote sea de tipo "Levante".</p>
-                </div>
-                <div class="loading-state" *ngIf="loadingDisponibilidad() && tabActivo() === 'aves'">
-                  <div class="spinner"></div>
-                  <p>Cargando disponibilidad del lote...</p>
-                </div>
-
-                <form [formGroup]="trasladoRetiroForm" class="traslado-form" (ngSubmit)="procesarRetiroTraslado()">
-                  <!-- Tipo de Operación -->
-                  <div class="form-section">
-                    <h4>📋 Tipo de Operación</h4>
-                    <div class="tipo-operacion-selector">
-                      <label class="operacion-option" [class.selected]="trasladoRetiroForm.get('tipoOperacion')?.value === 'Venta'">
-                        <input type="radio" formControlName="tipoOperacion" value="Venta">
-                        <span class="operacion-icon">💰</span>
-                        <span class="operacion-text">Venta</span>
-                      </label>
-                      <label class="operacion-option" [class.selected]="trasladoRetiroForm.get('tipoOperacion')?.value === 'Traslado'">
-                        <input type="radio" formControlName="tipoOperacion" value="Traslado">
-                        <span class="operacion-icon">🚚</span>
-                        <span class="operacion-text">Traslado</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <!-- Fecha -->
-                  <div class="form-section">
-                    <div class="form-field">
-                      <label class="ux-label" for="aves-fecha">
-                        📅 Fecha de Traslado <span class="required">*</span>
-                      </label>
-                      <input id="aves-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
-                    </div>
-                  </div>
-
-                  <!-- Cantidades -->
-                  <div class="form-section">
-                    <h4>🔢 Cantidades a Trasladar/Vender</h4>
-                    <div class="cantidades-grid">
-                      <div class="cantidad-field">
-                        <label class="ux-label" for="aves-hembras">
-                          ♀ Hembras
-                          <span class="max-disponible" *ngIf="disponibilidadLote()?.aves">
-                            (Disponible: {{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }})
+              <!-- ========== MODAL TRASLADO/RETIRO (XXL) ========== -->
+              @if (modalTrasladoRetiroAbierto()) {
+                <div class="modal-overlay modal-overlay--xxl"
+                  (click)="cerrarModalTrasladoRetiro()"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="traslado-retiro-title">
+                  <div class="modal-container modal-container--xxl"
+                    (click)="$event.stopPropagation()"
+                    tabindex="-1">
+                    <div class="modal-header modal-header--xxl">
+                      <h2 id="traslado-retiro-title">
+                        🚚 Traslado / Retiro
+                        @if (loteCompleto()) {
+                          <span class="lote-badge">
+                            Lote #{{ loteCompleto()?.loteId }}
                           </span>
-                          <span class="max-disponible text-muted" *ngIf="!disponibilidadLote()?.aves">
-                            (Cargando disponibilidad...)
-                          </span>
+                        }
+                      </h2>
+                      <button type="button"
+                        class="modal-close"
+                        (click)="cerrarModalTrasladoRetiro()"
+                      aria-label="Cerrar modal">✕</button>
+                    </div>
+                    <div class="modal-body modal-body--xxl">
+                      <!-- Información del Lote - Mejorada -->
+                      @if (loteCompleto()) {
+                        <div class="lote-info-section">
+                          <div class="lote-info-card lote-info-card--enhanced">
+                            <div class="lote-info-header">
+                              <h3>📍 Información del Lote</h3>
+                              <span class="lote-id-badge">#{{ loteCompleto()?.loteId }}</span>
+                            </div>
+                            <div class="lote-info-grid lote-info-grid--enhanced">
+                              <div class="info-item info-item--enhanced">
+                                <span class="info-icon">🏠</span>
+                                <div class="info-content">
+                                  <span class="info-label">Granja</span>
+                                  <span class="info-value">{{ obtenerNombreGranja(loteCompleto()?.granjaId) }}</span>
+                                </div>
+                              </div>
+                              <div class="info-item info-item--enhanced">
+                                <span class="info-icon">📋</span>
+                                <div class="info-content">
+                                  <span class="info-label">Nombre del Lote</span>
+                                  <span class="info-value">{{ loteCompleto()?.loteNombre || 'Sin nombre' }}</span>
+                                </div>
+                              </div>
+                              @if (loteCompleto()?.fechaEncaset) {
+                                <div class="info-item info-item--enhanced">
+                                  <span class="info-icon">📅</span>
+                                  <div class="info-content">
+                                    <span class="info-label">Edad</span>
+                                    <span class="info-value">
+                                      {{ calcularEdadDias(loteCompleto()!.fechaEncaset) }} días
+                                      <span class="phase-badge phase-badge--enhanced"
+                                        [class.phase-levante]="calcularEdadDias(loteCompleto()!.fechaEncaset) < 175"
+                                        [class.phase-produccion]="calcularEdadDias(loteCompleto()!.fechaEncaset) >= 175">
+                                        {{ calcularEdadDias(loteCompleto()!.fechaEncaset) < 175 ? 'Levante' : 'Producción' }}
+                                      </span>
+                                    </span>
+                                  </div>
+                                </div>
+                              }
+                              @if (loteCompleto()?.nucleoId) {
+                                <div class="info-item info-item--enhanced">
+                                  <span class="info-icon">🏗️</span>
+                                  <div class="info-content">
+                                    <span class="info-label">Núcleo</span>
+                                    <span class="info-value">{{ nucleoMap[loteCompleto()!.nucleoId || ''] || '—' }}</span>
+                                  </div>
+                                </div>
+                              }
+                              @if (loteCompleto()?.galponId) {
+                                <div class="info-item info-item--enhanced">
+                                  <span class="info-icon">🐔</span>
+                                  <div class="info-content">
+                                    <span class="info-label">Galpón</span>
+                                    <span class="info-value">{{ galponMap[loteCompleto()!.galponId || ''] || '—' }}</span>
+                                  </div>
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        </div>
+                      }
+                      <!-- Tabs Mejorados -->
+                      <div class="modal-tabs modal-tabs--enhanced">
+                        <input type="radio" id="tab-aves" name="modal-tab" [checked]="tabActivo() === 'aves'" (change)="tabActivo.set('aves')">
+                        <label for="tab-aves" class="tab-label tab-label--enhanced">
+                          <span class="tab-icon">🐔</span>
+                          <span class="tab-text">Aves</span>
+                          @if (disponibilidadLote()?.aves) {
+                            <span class="tab-badge">
+                              {{ disponibilidadLote()!.aves!.totalAves }}
+                            </span>
+                          }
                         </label>
-                        <input id="aves-hembras" type="number" class="ux-input"
-                               formControlName="cantidadHembras" min="0" step="1" inputmode="numeric"
-                               [attr.max]="disponibilidadLote()?.aves?.hembrasVivas"
-                               [class.error]="trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)" />
-                        <div class="field-error" *ngIf="trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)">
-                          ⚠️ La cantidad excede las hembras disponibles ({{ formatearNumero(disponibilidadLote()?.aves?.hembrasVivas || 0) }})
-                        </div>
-                      </div>
-                      <div class="cantidad-field">
-                        <label class="ux-label" for="aves-machos">
-                          ♂ Machos
-                          <span class="max-disponible" *ngIf="disponibilidadLote()?.aves">
-                            (Disponible: {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }})
-                          </span>
-                          <span class="max-disponible text-muted" *ngIf="!disponibilidadLote()?.aves">
-                            (Cargando disponibilidad...)
-                          </span>
+                        <input type="radio" id="tab-huevos" name="modal-tab" [checked]="tabActivo() === 'huevos'" (change)="tabActivo.set('huevos')">
+                        <label for="tab-huevos" class="tab-label tab-label--enhanced">
+                          <span class="tab-icon">🥚</span>
+                          <span class="tab-text">Huevos</span>
+                          @if (disponibilidadLote()?.huevos) {
+                            <span class="tab-badge">
+                              {{ disponibilidadLote()!.huevos!.totalHuevos }}
+                            </span>
+                          }
                         </label>
-                        <input id="aves-machos" type="number" class="ux-input"
-                               formControlName="cantidadMachos" min="0" step="1" inputmode="numeric"
-                               [attr.max]="disponibilidadLote()?.aves?.machosVivos"
-                               [class.error]="trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)" />
-                        <div class="field-error" *ngIf="trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)">
-                          ⚠️ La cantidad excede los machos disponibles ({{ formatearNumero(disponibilidadLote()?.aves?.machosVivos || 0) }})
-                        </div>
-                      </div>
-                    </div>
-                    <div class="form-hint" *ngIf="disponibilidadLote()?.aves">
-                      <p>💡 Total disponible: <strong>{{ formatearNumero(disponibilidadLote()!.aves!.totalAves) }} aves</strong> 
-                        ({{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }} hembras + {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }} machos)</p>
-                    </div>
-                  </div>
+                        <div class="tab-panels">
+                          <!-- TAB AVES -->
+                          @if (tabActivo() === 'aves') {
+                            <div class="tab-panel tab-panel--enhanced">
+                              <!-- Disponibilidad de Aves - Mejorada -->
+                              @if (disponibilidadLote() && disponibilidadLote()!.tipoLote === 'Levante') {
+                                <div class="disponibilidad-section disponibilidad-section--enhanced">
+                                  <div class="disponibilidad-header">
+                                    <h4>📊 Disponibilidad del Lote</h4>
+                                    <span class="disponibilidad-subtitle">Cantidades disponibles para traslado o venta</span>
+                                  </div>
+                                  <div class="disponibilidad-grid disponibilidad-grid--enhanced">
+                                    <div class="disponibilidad-card disponibilidad-card--hembras">
+                                      <div class="disponibilidad-icon">🐔</div>
+                                      <div class="disponibilidad-content">
+                                        <span class="disponibilidad-label">♀ Hembras Disponibles</span>
+                                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.hembrasVivas || 0) }}</span>
+                                      </div>
+                                    </div>
+                                    <div class="disponibilidad-card disponibilidad-card--machos">
+                                      <div class="disponibilidad-icon">🐓</div>
+                                      <div class="disponibilidad-content">
+                                        <span class="disponibilidad-label">♂ Machos Disponibles</span>
+                                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.machosVivos || 0) }}</span>
+                                      </div>
+                                    </div>
+                                    <div class="disponibilidad-card disponibilidad-card--total highlight">
+                                      <div class="disponibilidad-icon">🐥</div>
+                                      <div class="disponibilidad-content">
+                                        <span class="disponibilidad-label">Total Aves Disponibles</span>
+                                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.totalAves || 0) }}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              }
+                              <!-- Mensaje si no hay disponibilidad cargada -->
+                              @if (!disponibilidadLote() && !loadingDisponibilidad() && tabActivo() === 'aves') {
+                                <div class="alert alert-info">
+                                  <p>⚠️ No se pudo cargar la disponibilidad del lote. Por favor, verifica que el lote sea de tipo "Levante".</p>
+                                </div>
+                              }
+                              @if (loadingDisponibilidad() && tabActivo() === 'aves') {
+                                <div class="loading-state">
+                                  <div class="spinner"></div>
+                                  <p>Cargando disponibilidad del lote...</p>
+                                </div>
+                              }
+                              <form [formGroup]="trasladoRetiroForm" class="traslado-form" (ngSubmit)="procesarRetiroTraslado()">
+                                <!-- Tipo de Operación -->
+                                <div class="form-section">
+                                  <h4>📋 Tipo de Operación</h4>
+                                  <div class="tipo-operacion-selector">
+                                    <label class="operacion-option" [class.selected]="trasladoRetiroForm.get('tipoOperacion')?.value === 'Venta'">
+                                      <input type="radio" formControlName="tipoOperacion" value="Venta">
+                                      <span class="operacion-icon">💰</span>
+                                      <span class="operacion-text">Venta</span>
+                                    </label>
+                                    <label class="operacion-option" [class.selected]="trasladoRetiroForm.get('tipoOperacion')?.value === 'Traslado'">
+                                      <input type="radio" formControlName="tipoOperacion" value="Traslado">
+                                      <span class="operacion-icon">🚚</span>
+                                      <span class="operacion-text">Traslado</span>
+                                    </label>
+                                  </div>
+                                </div>
+                                <!-- Fecha -->
+                                <div class="form-section">
+                                  <div class="form-field">
+                                    <label class="ux-label" for="aves-fecha">
+                                      📅 Fecha de Traslado <span class="required">*</span>
+                                    </label>
+                                    <input id="aves-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
+                                  </div>
+                                </div>
+                                <!-- Cantidades -->
+                                <div class="form-section">
+                                  <h4>🔢 Cantidades a Trasladar/Vender</h4>
+                                  <div class="cantidades-grid">
+                                    <div class="cantidad-field">
+                                      <label class="ux-label" for="aves-hembras">
+                                        ♀ Hembras
+                                        @if (disponibilidadLote()?.aves) {
+                                          <span class="max-disponible">
+                                            (Disponible: {{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }})
+                                          </span>
+                                        }
+                                        @if (!disponibilidadLote()?.aves) {
+                                          <span class="max-disponible text-muted">
+                                            (Cargando disponibilidad...)
+                                          </span>
+                                        }
+                                      </label>
+                                      <input id="aves-hembras" type="number" class="ux-input"
+                                        formControlName="cantidadHembras" min="0" step="1" inputmode="numeric"
+                                        [attr.max]="disponibilidadLote()?.aves?.hembrasVivas"
+                                        [class.error]="trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)" />
+                                        @if (trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)) {
+                                          <div class="field-error">
+                                            ⚠️ La cantidad excede las hembras disponibles ({{ formatearNumero(disponibilidadLote()?.aves?.hembrasVivas || 0) }})
+                                          </div>
+                                        }
+                                      </div>
+                                      <div class="cantidad-field">
+                                        <label class="ux-label" for="aves-machos">
+                                          ♂ Machos
+                                          @if (disponibilidadLote()?.aves) {
+                                            <span class="max-disponible">
+                                              (Disponible: {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }})
+                                            </span>
+                                          }
+                                          @if (!disponibilidadLote()?.aves) {
+                                            <span class="max-disponible text-muted">
+                                              (Cargando disponibilidad...)
+                                            </span>
+                                          }
+                                        </label>
+                                        <input id="aves-machos" type="number" class="ux-input"
+                                          formControlName="cantidadMachos" min="0" step="1" inputmode="numeric"
+                                          [attr.max]="disponibilidadLote()?.aves?.machosVivos"
+                                          [class.error]="trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)" />
+                                          @if (trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)) {
+                                            <div class="field-error">
+                                              ⚠️ La cantidad excede los machos disponibles ({{ formatearNumero(disponibilidadLote()?.aves?.machosVivos || 0) }})
+                                            </div>
+                                          }
+                                        </div>
+                                      </div>
+                                      @if (disponibilidadLote()?.aves) {
+                                        <div class="form-hint">
+                                          <p>💡 Total disponible: <strong>{{ formatearNumero(disponibilidadLote()!.aves!.totalAves) }} aves</strong>
+                                        ({{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }} hembras + {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }} machos)</p>
+                                      </div>
+                                    }
+                                  </div>
+                                  <!-- Campos según tipo de operación -->
+                                  @if (trasladoRetiroForm.get('tipoOperacion')?.value === 'Venta') {
+                                    <div>
+                                      <div class="form-section">
+                                        <div class="form-grid-2">
+                                          <div class="form-field">
+                                            <label class="ux-label" for="aves-motivo">
+                                              📝 Motivo <span class="required">*</span>
+                                            </label>
+                                            <input id="aves-motivo" type="text" class="ux-input"
+                                              formControlName="motivo" placeholder="Ej: Venta directa, etc." />
+                                            </div>
+                                            <div class="form-field">
+                                              <label class="ux-label" for="aves-descripcion">
+                                                📄 Descripción <span class="required">*</span>
+                                              </label>
+                                              <input id="aves-descripcion" type="text" class="ux-input"
+                                                formControlName="descripcion" placeholder="Descripción de la venta" />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      }
+                                      @if (trasladoRetiroForm.get('tipoOperacion')?.value === 'Traslado') {
+                                        <div>
+                                          <div class="form-section">
+                                            <div class="form-grid-3">
+                                              <div class="form-field">
+                                                <label class="ux-label" for="aves-granja-destino">
+                                                  🏠 Granja Destino <span class="required">*</span>
+                                                </label>
+                                                <select id="aves-granja-destino" class="ux-select" formControlName="granjaDestinoId">
+                                                  <option value="">Selecciona una granja</option>
+                                                  @for (granja of farmsFiltered; track granja) {
+                                                    <option [value]="granja.id">
+                                                      {{ granja.name }}
+                                                    </option>
+                                                  }
+                                                </select>
+                                              </div>
+                                              <div class="form-field">
+                                                <label class="ux-label" for="aves-tipo-destino">
+                                                  📍 Tipo de Destino <span class="required">*</span>
+                                                </label>
+                                                <select id="aves-tipo-destino" class="ux-select" formControlName="tipoDestino">
+                                                  <option value="">Selecciona tipo</option>
+                                                  <option value="Granja">Granja</option>
+                                                  <option value="Planta">Planta</option>
+                                                </select>
+                                              </div>
+                                              <div class="form-field">
+                                                <label class="ux-label" for="aves-lote-destino">
+                                                  📋 Lote Destino (Opcional)
+                                                </label>
+                                                <input id="aves-lote-destino" type="text" class="ux-input"
+                                                  formControlName="loteDestinoId" placeholder="ID del lote destino" />
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        }
+                                        <!-- Observaciones -->
+                                        <div class="form-section">
+                                          <div class="form-field">
+                                            <label class="ux-label" for="aves-observaciones">📝 Observaciones</label>
+                                            <textarea id="aves-observaciones" class="ux-textarea" rows="3"
+                                            formControlName="observaciones" placeholder="Notas adicionales..."></textarea>
+                                          </div>
+                                        </div>
+                                      </form>
+                                    </div>
+                                  }
+                                  <!-- TAB HUEVOS -->
+                                  @if (tabActivo() === 'huevos') {
+                                    <div class="tab-panel tab-panel--enhanced">
+                                      <!-- Disponibilidad de Huevos - Mejorada -->
+                                      @if (disponibilidadLote() && disponibilidadLote()!.tipoLote === 'Produccion') {
+                                        <div class="disponibilidad-section disponibilidad-section--enhanced">
+                                          <div class="disponibilidad-header">
+                                            <h4>📊 Disponibilidad de Huevos</h4>
+                                            <span class="disponibilidad-subtitle">Cantidades disponibles para traslado o venta</span>
+                                          </div>
+                                          <div class="disponibilidad-grid disponibilidad-grid--enhanced">
+                                            <div class="disponibilidad-card disponibilidad-card--total highlight">
+                                              <div class="disponibilidad-icon">🥚</div>
+                                              <div class="disponibilidad-content">
+                                                <span class="disponibilidad-label">Total Huevos</span>
+                                                <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.huevos?.totalHuevos || 0) }}</span>
+                                              </div>
+                                            </div>
+                                            <div class="disponibilidad-card disponibilidad-card--incubables">
+                                              <div class="disponibilidad-icon">✨</div>
+                                              <div class="disponibilidad-content">
+                                                <span class="disponibilidad-label">Huevos Incubables</span>
+                                                <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.huevos?.totalHuevosIncubables || 0) }}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div class="huevos-tipos-disponibles huevos-tipos-disponibles--enhanced">
+                                            <h5>📋 Disponibilidad por Tipo de Huevo</h5>
+                                            <div class="huevos-tipos-grid huevos-tipos-grid--enhanced">
+                                              @for (tipo of tiposHuevo; track tipo) {
+                                                <div class="huevo-tipo-item huevo-tipo-item--enhanced">
+                                                  <span class="tipo-icon">{{ tipo.key === 'limpio' ? '✨' : tipo.key === 'tratado' ? '🔬' : '🥚' }}</span>
+                                                  <div class="tipo-content">
+                                                    <span class="tipo-label">{{ tipo.label }}</span>
+                                                    <span class="tipo-value">{{ formatearNumero(getCantidadHuevoDisponible(tipo.key)) }}</span>
+                                                  </div>
+                                                </div>
+                                              }
+                                            </div>
+                                          </div>
+                                        </div>
+                                      }
+                                      <form [formGroup]="trasladoHuevosForm" class="traslado-form" (ngSubmit)="procesarTrasladoHuevos()">
+                                        <!-- Tipo de Operación -->
+                                        <div class="form-section">
+                                          <h4>📋 Tipo de Operación</h4>
+                                          <div class="tipo-operacion-selector">
+                                            <label class="operacion-option" [class.selected]="trasladoHuevosForm.get('tipoOperacion')?.value === 'Venta'">
+                                              <input type="radio" formControlName="tipoOperacion" value="Venta">
+                                              <span class="operacion-icon">💰</span>
+                                              <span class="operacion-text">Venta</span>
+                                            </label>
+                                            <label class="operacion-option" [class.selected]="trasladoHuevosForm.get('tipoOperacion')?.value === 'Traslado'">
+                                              <input type="radio" formControlName="tipoOperacion" value="Traslado">
+                                              <span class="operacion-icon">🚚</span>
+                                              <span class="operacion-text">Traslado</span>
+                                            </label>
+                                          </div>
+                                        </div>
+                                        <!-- Fecha -->
+                                        <div class="form-section">
+                                          <div class="form-field">
+                                            <label class="ux-label" for="huevos-fecha">
+                                              📅 Fecha de Traslado <span class="required">*</span>
+                                            </label>
+                                            <input id="huevos-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
+                                          </div>
+                                        </div>
+                                        <!-- Cantidades por Tipo de Huevo -->
+                                        <div class="form-section">
+                                          <h4>🥚 Cantidades por Tipo de Huevo</h4>
+                                          <div class="huevos-cantidades-grid">
+                                            @for (tipo of tiposHuevo; track tipo) {
+                                              <div class="huevo-cantidad-field">
+                                                <label class="ux-label" [for]="'huevo-' + tipo.key">
+                                                  {{ tipo.label }}
+                                                  <span class="max-disponible">
+                                                    (Máx: {{ getCantidadHuevoDisponible(tipo.key) }})
+                                                  </span>
+                                                </label>
+                                                <input [id]="'huevo-' + tipo.key" type="number" class="ux-input"
+                                                  [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
+                                                  min="0" [attr.max]="getCantidadHuevoDisponible(tipo.key)" />
+                                                </div>
+                                              }
+                                            </div>
+                                          </div>
+                                          <!-- Campos según tipo de operación -->
+                                          @if (trasladoHuevosForm.get('tipoOperacion')?.value === 'Venta') {
+                                            <div>
+                                              <div class="form-section">
+                                                <div class="form-grid-2">
+                                                  <div class="form-field">
+                                                    <label class="ux-label" for="huevos-motivo">
+                                                      📝 Motivo <span class="required">*</span>
+                                                    </label>
+                                                    <input id="huevos-motivo" type="text" class="ux-input"
+                                                      formControlName="motivo" placeholder="Ej: Venta directa, etc." />
+                                                    </div>
+                                                    <div class="form-field">
+                                                      <label class="ux-label" for="huevos-descripcion">
+                                                        📄 Descripción <span class="required">*</span>
+                                                      </label>
+                                                      <input id="huevos-descripcion" type="text" class="ux-input"
+                                                        formControlName="descripcion" placeholder="Descripción de la venta" />
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              }
+                                              @if (trasladoHuevosForm.get('tipoOperacion')?.value === 'Traslado') {
+                                                <div>
+                                                  <div class="form-section">
+                                                    <div class="form-grid-3">
+                                                      <div class="form-field">
+                                                        <label class="ux-label" for="huevos-granja-destino">
+                                                          🏠 Granja Destino <span class="required">*</span>
+                                                        </label>
+                                                        <select id="huevos-granja-destino" class="ux-select" formControlName="granjaDestinoId">
+                                                          <option value="">Selecciona una granja</option>
+                                                          @for (granja of farmsFiltered; track granja) {
+                                                            <option [value]="granja.id">
+                                                              {{ granja.name }}
+                                                            </option>
+                                                          }
+                                                        </select>
+                                                      </div>
+                                                      <div class="form-field">
+                                                        <label class="ux-label" for="huevos-tipo-destino">
+                                                          📍 Tipo de Destino <span class="required">*</span>
+                                                        </label>
+                                                        <select id="huevos-tipo-destino" class="ux-select" formControlName="tipoDestino">
+                                                          <option value="">Selecciona tipo</option>
+                                                          <option value="Granja">Granja</option>
+                                                          <option value="Planta">Planta</option>
+                                                        </select>
+                                                      </div>
+                                                      <div class="form-field">
+                                                        <label class="ux-label" for="huevos-lote-destino">
+                                                          📋 Lote Destino (Opcional)
+                                                        </label>
+                                                        <input id="huevos-lote-destino" type="text" class="ux-input"
+                                                          formControlName="loteDestinoId" placeholder="ID del lote destino" />
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                }
+                                                <!-- Observaciones -->
+                                                <div class="form-section">
+                                                  <div class="form-field">
+                                                    <label class="ux-label" for="huevos-observaciones">📝 Observaciones</label>
+                                                    <textarea id="huevos-observaciones" class="ux-textarea" rows="3"
+                                                    formControlName="observaciones" placeholder="Notas adicionales..."></textarea>
+                                                  </div>
+                                                </div>
+                                              </form>
+                                            </div>
+                                          }
+                                        </div>
+                                      </div>
+                                      <!-- Estados (error/éxito) -->
+                                      <div class="modal-states">
+                                        @if (errorRetiro()) {
+                                          <div class="alert alert--danger alert-animated">
+                                            <div class="alert__icon">⚠️</div>
+                                            <div class="alert__content">
+                                              <strong>Error al procesar:</strong>
+                                              <p>{{ errorRetiro() }}</p>
+                                            </div>
+                                          </div>
+                                        }
+                                        @if (exitoRetiro()) {
+                                          <div class="success-modal success-modal--large">
+                                            <div class="success-modal__content">
+                                              <div class="success-icon-animated">✅</div>
+                                              <h3 class="success-title">¡Operación Exitosa!</h3>
+                                              <p class="success-message">El traslado ha sido registrado correctamente.</p>
+                                            </div>
+                                          </div>
+                                        }
+                                        @if (procesandoRetiro()) {
+                                          <div class="loading-state loading-state--large">
+                                            <div class="spinner spinner--large"></div>
+                                            <p class="loading-text">Procesando...</p>
+                                          </div>
+                                        }
+                                      </div>
+                                    </div>
+                                    <div class="modal-footer modal-footer--xxl">
+                                      <button type="button" class="btn btn--outline" (click)="cerrarModalTrasladoRetiro()"
+                                      [disabled]="procesandoRetiro()">Cancelar</button>
+                                      <button type="button" class="btn btn--primary"
+                                        (click)="tabActivo() === 'aves' ? procesarRetiroTraslado() : procesarTrasladoHuevos()"
+                                        [disabled]="(tabActivo() === 'aves' ? !trasladoRetiroForm.valid : !trasladoHuevosForm.valid) || procesandoRetiro() || exitoRetiro()">
+                                        @if (procesandoRetiro()) {
+                                          <span>Procesando...</span>
+                                        }
+                                        @if (!procesandoRetiro()) {
+                                          <span>
+                                            🚚 {{ tabActivo() === 'aves' ? 'Registrar Traslado de Aves' : 'Registrar Traslado de Huevos' }}
+                                          </span>
+                                        }
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              }
+                              <!-- /Modal Traslado/Retiro -->
 
-                  <!-- Campos según tipo de operación -->
-                  <div *ngIf="trasladoRetiroForm.get('tipoOperacion')?.value === 'Venta'">
-                    <div class="form-section">
-                      <div class="form-grid-2">
-                        <div class="form-field">
-                          <label class="ux-label" for="aves-motivo">
-                            📝 Motivo <span class="required">*</span>
-                          </label>
-                          <input id="aves-motivo" type="text" class="ux-input"
-                                 formControlName="motivo" placeholder="Ej: Venta directa, etc." />
-                        </div>
-                        <div class="form-field">
-                          <label class="ux-label" for="aves-descripcion">
-                            📄 Descripción <span class="required">*</span>
-                          </label>
-                          <input id="aves-descripcion" type="text" class="ux-input"
-                                 formControlName="descripcion" placeholder="Descripción de la venta" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div *ngIf="trasladoRetiroForm.get('tipoOperacion')?.value === 'Traslado'">
-                    <div class="form-section">
-                      <div class="form-grid-3">
-                        <div class="form-field">
-                          <label class="ux-label" for="aves-granja-destino">
-                            🏠 Granja Destino <span class="required">*</span>
-                          </label>
-                          <select id="aves-granja-destino" class="ux-select" formControlName="granjaDestinoId">
-                            <option value="">Selecciona una granja</option>
-                            <option *ngFor="let granja of farmsFiltered" [value]="granja.id">
-                              {{ granja.name }}
-                            </option>
-                          </select>
-                        </div>
-                        <div class="form-field">
-                          <label class="ux-label" for="aves-tipo-destino">
-                            📍 Tipo de Destino <span class="required">*</span>
-                          </label>
-                          <select id="aves-tipo-destino" class="ux-select" formControlName="tipoDestino">
-                            <option value="">Selecciona tipo</option>
-                            <option value="Granja">Granja</option>
-                            <option value="Planta">Planta</option>
-                          </select>
-                        </div>
-                        <div class="form-field">
-                          <label class="ux-label" for="aves-lote-destino">
-                            📋 Lote Destino (Opcional)
-                          </label>
-                          <input id="aves-lote-destino" type="text" class="ux-input"
-                                 formControlName="loteDestinoId" placeholder="ID del lote destino" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Observaciones -->
-                  <div class="form-section">
-                    <div class="form-field">
-                      <label class="ux-label" for="aves-observaciones">📝 Observaciones</label>
-                      <textarea id="aves-observaciones" class="ux-textarea" rows="3"
-                                formControlName="observaciones" placeholder="Notas adicionales..."></textarea>
-                    </div>
-                  </div>
-                </form>
-              </div>
-
-              <!-- TAB HUEVOS -->
-              <div class="tab-panel tab-panel--enhanced" *ngIf="tabActivo() === 'huevos'">
-                <!-- Disponibilidad de Huevos - Mejorada -->
-                <div class="disponibilidad-section disponibilidad-section--enhanced" *ngIf="disponibilidadLote() && disponibilidadLote()!.tipoLote === 'Produccion'">
-                  <div class="disponibilidad-header">
-                    <h4>📊 Disponibilidad de Huevos</h4>
-                    <span class="disponibilidad-subtitle">Cantidades disponibles para traslado o venta</span>
-                  </div>
-                  <div class="disponibilidad-grid disponibilidad-grid--enhanced">
-                    <div class="disponibilidad-card disponibilidad-card--total highlight">
-                      <div class="disponibilidad-icon">🥚</div>
-                      <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">Total Huevos</span>
-                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.huevos?.totalHuevos || 0) }}</span>
-                      </div>
-                    </div>
-                    <div class="disponibilidad-card disponibilidad-card--incubables">
-                      <div class="disponibilidad-icon">✨</div>
-                      <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">Huevos Incubables</span>
-                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.huevos?.totalHuevosIncubables || 0) }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="huevos-tipos-disponibles huevos-tipos-disponibles--enhanced">
-                    <h5>📋 Disponibilidad por Tipo de Huevo</h5>
-                    <div class="huevos-tipos-grid huevos-tipos-grid--enhanced">
-                      <div class="huevo-tipo-item huevo-tipo-item--enhanced" *ngFor="let tipo of tiposHuevo">
-                        <span class="tipo-icon">{{ tipo.key === 'limpio' ? '✨' : tipo.key === 'tratado' ? '🔬' : '🥚' }}</span>
-                        <div class="tipo-content">
-                          <span class="tipo-label">{{ tipo.label }}</span>
-                          <span class="tipo-value">{{ formatearNumero(getCantidadHuevoDisponible(tipo.key)) }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <form [formGroup]="trasladoHuevosForm" class="traslado-form" (ngSubmit)="procesarTrasladoHuevos()">
-                  <!-- Tipo de Operación -->
-                  <div class="form-section">
-                    <h4>📋 Tipo de Operación</h4>
-                    <div class="tipo-operacion-selector">
-                      <label class="operacion-option" [class.selected]="trasladoHuevosForm.get('tipoOperacion')?.value === 'Venta'">
-                        <input type="radio" formControlName="tipoOperacion" value="Venta">
-                        <span class="operacion-icon">💰</span>
-                        <span class="operacion-text">Venta</span>
-                      </label>
-                      <label class="operacion-option" [class.selected]="trasladoHuevosForm.get('tipoOperacion')?.value === 'Traslado'">
-                        <input type="radio" formControlName="tipoOperacion" value="Traslado">
-                        <span class="operacion-icon">🚚</span>
-                        <span class="operacion-text">Traslado</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <!-- Fecha -->
-                  <div class="form-section">
-                    <div class="form-field">
-                      <label class="ux-label" for="huevos-fecha">
-                        📅 Fecha de Traslado <span class="required">*</span>
-                      </label>
-                      <input id="huevos-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
-                    </div>
-                  </div>
-
-                  <!-- Cantidades por Tipo de Huevo -->
-                  <div class="form-section">
-                    <h4>🥚 Cantidades por Tipo de Huevo</h4>
-                    <div class="huevos-cantidades-grid">
-                      <div class="huevo-cantidad-field" *ngFor="let tipo of tiposHuevo">
-                        <label class="ux-label" [for]="'huevo-' + tipo.key">
-                          {{ tipo.label }}
-                          <span class="max-disponible">
-                            (Máx: {{ getCantidadHuevoDisponible(tipo.key) }})
-                          </span>
-                        </label>
-                        <input [id]="'huevo-' + tipo.key" type="number" class="ux-input"
-                               [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
-                               min="0" [attr.max]="getCantidadHuevoDisponible(tipo.key)" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Campos según tipo de operación -->
-                  <div *ngIf="trasladoHuevosForm.get('tipoOperacion')?.value === 'Venta'">
-                    <div class="form-section">
-                      <div class="form-grid-2">
-                        <div class="form-field">
-                          <label class="ux-label" for="huevos-motivo">
-                            📝 Motivo <span class="required">*</span>
-                          </label>
-                          <input id="huevos-motivo" type="text" class="ux-input"
-                                 formControlName="motivo" placeholder="Ej: Venta directa, etc." />
-                        </div>
-                        <div class="form-field">
-                          <label class="ux-label" for="huevos-descripcion">
-                            📄 Descripción <span class="required">*</span>
-                          </label>
-                          <input id="huevos-descripcion" type="text" class="ux-input"
-                                 formControlName="descripcion" placeholder="Descripción de la venta" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div *ngIf="trasladoHuevosForm.get('tipoOperacion')?.value === 'Traslado'">
-                    <div class="form-section">
-                      <div class="form-grid-3">
-                        <div class="form-field">
-                          <label class="ux-label" for="huevos-granja-destino">
-                            🏠 Granja Destino <span class="required">*</span>
-                          </label>
-                          <select id="huevos-granja-destino" class="ux-select" formControlName="granjaDestinoId">
-                            <option value="">Selecciona una granja</option>
-                            <option *ngFor="let granja of farmsFiltered" [value]="granja.id">
-                              {{ granja.name }}
-                            </option>
-                          </select>
-                        </div>
-                        <div class="form-field">
-                          <label class="ux-label" for="huevos-tipo-destino">
-                            📍 Tipo de Destino <span class="required">*</span>
-                          </label>
-                          <select id="huevos-tipo-destino" class="ux-select" formControlName="tipoDestino">
-                            <option value="">Selecciona tipo</option>
-                            <option value="Granja">Granja</option>
-                            <option value="Planta">Planta</option>
-                          </select>
-                        </div>
-                        <div class="form-field">
-                          <label class="ux-label" for="huevos-lote-destino">
-                            📋 Lote Destino (Opcional)
-                          </label>
-                          <input id="huevos-lote-destino" type="text" class="ux-input"
-                                 formControlName="loteDestinoId" placeholder="ID del lote destino" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Observaciones -->
-                  <div class="form-section">
-                    <div class="form-field">
-                      <label class="ux-label" for="huevos-observaciones">📝 Observaciones</label>
-                      <textarea id="huevos-observaciones" class="ux-textarea" rows="3"
-                                formControlName="observaciones" placeholder="Notas adicionales..."></textarea>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-
-          <!-- Estados (error/éxito) -->
-          <div class="modal-states">
-            <div class="alert alert--danger alert-animated" *ngIf="errorRetiro()">
-              <div class="alert__icon">⚠️</div>
-              <div class="alert__content">
-                <strong>Error al procesar:</strong>
-                <p>{{ errorRetiro() }}</p>
-              </div>
-            </div>
-
-            <div class="success-modal success-modal--large" *ngIf="exitoRetiro()">
-              <div class="success-modal__content">
-                <div class="success-icon-animated">✅</div>
-                <h3 class="success-title">¡Operación Exitosa!</h3>
-                <p class="success-message">El traslado ha sido registrado correctamente.</p>
-              </div>
-            </div>
-
-            <div class="loading-state loading-state--large" *ngIf="procesandoRetiro()">
-              <div class="spinner spinner--large"></div>
-              <p class="loading-text">Procesando...</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer modal-footer--xxl">
-          <button type="button" class="btn btn--outline" (click)="cerrarModalTrasladoRetiro()"
-                  [disabled]="procesandoRetiro()">Cancelar</button>
-          <button type="button" class="btn btn--primary"
-                  (click)="tabActivo() === 'aves' ? procesarRetiroTraslado() : procesarTrasladoHuevos()"
-                  [disabled]="(tabActivo() === 'aves' ? !trasladoRetiroForm.valid : !trasladoHuevosForm.valid) || procesandoRetiro() || exitoRetiro()">
-            <span *ngIf="procesandoRetiro()">Procesando...</span>
-            <span *ngIf="!procesandoRetiro()">
-              🚚 {{ tabActivo() === 'aves' ? 'Registrar Traslado de Aves' : 'Registrar Traslado de Huevos' }}
-            </span>
-          </button>
-        </div>
-      </div>
-    </div>
-    <!-- /Modal Traslado/Retiro -->
-
-    <!-- ========== MODAL TRASLADO DE LOTE ========== -->
-    <app-modal-traslado-lote
-      [isOpen]="modalTrasladoLoteAbierto()"
-      [lote]="loteCompleto()"
-      [farms]="farmsFiltered"
-      [nucleos]="nucleos"
-      [loading]="procesandoTrasladoLote()"
-      (closed)="cerrarModalTrasladoLote()"
-      (confirm)="procesarTrasladoLote($event)">
-    </app-modal-traslado-lote>
-    <!-- /Modal Traslado de Lote -->
-  </div>
-</div>
+                              <!-- ========== MODAL TRASLADO DE LOTE ========== -->
+                              <app-modal-traslado-lote
+                                [isOpen]="modalTrasladoLoteAbierto()"
+                                [lote]="loteCompleto()"
+                                [farms]="farmsFiltered"
+                                [nucleos]="nucleos"
+                                [loading]="procesandoTrasladoLote()"
+                                (closed)="cerrarModalTrasladoLote()"
+                                (confirm)="procesarTrasladoLote($event)">
+                              </app-modal-traslado-lote>
+                              <!-- /Modal Traslado de Lote -->
+                            </div>
+                          </div>

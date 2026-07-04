@@ -1,11 +1,11 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { AuditoriaVentasEngordeResponse, AuditoriaVentasLoteDetalle } from '../../services/movimiento-pollo-engorde.service';
 
 @Component({
   selector: 'app-auditoria-ventas-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './auditoria-ventas-modal.component.html',
   styleUrls: ['./auditoria-ventas-modal.component.scss']
 })

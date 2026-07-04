@@ -1,6 +1,6 @@
 // src/app/features/config/geography/department-detail/department-detail.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule }                                from '@angular/common';
+
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -15,7 +15,7 @@ import { DepartmentService } from '../services/department/department.service';
 @Component({
   selector: 'app-department-detail',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [ReactiveFormsModule, RouterModule],
   templateUrl: './department-detail.component.html',
   styleUrls: ['./department-detail.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

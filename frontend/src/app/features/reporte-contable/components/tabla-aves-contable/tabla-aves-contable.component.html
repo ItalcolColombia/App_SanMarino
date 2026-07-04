@@ -1,7 +1,7 @@
 <!-- src/app/features/reporte-contable/components/tabla-aves-contable/tabla-aves-contable.component.html -->
 <div class="tabla-container">
   <h3 class="section-title">AVES (Hembras y Machos)</h3>
-  
+
   <div class="table-wrapper">
     <table class="reporte-table">
       <thead>
@@ -35,58 +35,66 @@
       </thead>
       <tbody>
         <!-- Fila de Saldo Semana Anterior (solo primera fila) -->
-        <tr class="info-row saldo-anterior-row" *ngIf="reporteSemanal">
-          <td colspan="2" class="info-label"><strong>Saldo Semana Anterior</strong></td>
-          <td class="text-right col-hembra highlight-yellow">{{ reporteSemanal.saldoAnteriorHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho highlight-yellow">{{ reporteSemanal.saldoAnteriorMachos | number:'1.0-0' }}</td>
-          <td colspan="12" class="empty-cells"></td>
-        </tr>
+        @if (reporteSemanal) {
+          <tr class="info-row saldo-anterior-row">
+            <td colspan="2" class="info-label"><strong>Saldo Semana Anterior</strong></td>
+            <td class="text-right col-hembra highlight-yellow">{{ reporteSemanal.saldoAnteriorHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho highlight-yellow">{{ reporteSemanal.saldoAnteriorMachos | number:'1.0-0' }}</td>
+            <td colspan="12" class="empty-cells"></td>
+          </tr>
+        }
 
         <!-- Fila de Entradas (solo si hay entradas) -->
-        <tr class="info-row entradas-row" *ngIf="reporteSemanal && (reporteSemanal.entradasHembras > 0 || reporteSemanal.entradasMachos > 0)">
-          <td colspan="2" class="info-label"><strong>Entradas</strong></td>
-          <td colspan="2" class="empty-cells"></td>
-          <td class="text-right col-hembra">{{ reporteSemanal.entradasHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho">{{ reporteSemanal.entradasMachos | number:'1.0-0' }}</td>
-          <td colspan="10" class="empty-cells"></td>
-        </tr>
+        @if (reporteSemanal && (reporteSemanal.entradasHembras > 0 || reporteSemanal.entradasMachos > 0)) {
+          <tr class="info-row entradas-row">
+            <td colspan="2" class="info-label"><strong>Entradas</strong></td>
+            <td colspan="2" class="empty-cells"></td>
+            <td class="text-right col-hembra">{{ reporteSemanal.entradasHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho">{{ reporteSemanal.entradasMachos | number:'1.0-0' }}</td>
+            <td colspan="10" class="empty-cells"></td>
+          </tr>
+        }
 
         <!-- Detalle diario -->
-        <tr *ngFor="let dato of datosDiarios" class="data-row">
-          <td class="col-fecha">{{ getDiaSemana(dato.fecha) }}</td>
-          <td class="col-fecha">{{ getNumeroDia(dato.fecha) }}</td>
-          <td colspan="2" class="empty-cells"></td>
-          <td class="text-right col-hembra">{{ dato.entradasHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho">{{ dato.entradasMachos | number:'1.0-0' }}</td>
-          <td class="text-right col-hembra">{{ dato.mortalidadHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho">{{ dato.mortalidadMachos | number:'1.0-0' }}</td>
-          <td class="text-right col-hembra">{{ dato.seleccionHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho">{{ dato.seleccionMachos | number:'1.0-0' }}</td>
-          <td class="text-right col-hembra">{{ dato.ventasHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho">{{ dato.ventasMachos | number:'1.0-0' }}</td>
-          <td class="text-right col-hembra">{{ dato.trasladosHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho">{{ dato.trasladosMachos | number:'1.0-0' }}</td>
-          <td class="text-right col-hembra">{{ dato.saldoHembras | number:'1.0-0' }}</td>
-          <td class="text-right col-macho">{{ dato.saldoMachos | number:'1.0-0' }}</td>
-        </tr>
+        @for (dato of datosDiarios; track dato) {
+          <tr class="data-row">
+            <td class="col-fecha">{{ getDiaSemana(dato.fecha) }}</td>
+            <td class="col-fecha">{{ getNumeroDia(dato.fecha) }}</td>
+            <td colspan="2" class="empty-cells"></td>
+            <td class="text-right col-hembra">{{ dato.entradasHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho">{{ dato.entradasMachos | number:'1.0-0' }}</td>
+            <td class="text-right col-hembra">{{ dato.mortalidadHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho">{{ dato.mortalidadMachos | number:'1.0-0' }}</td>
+            <td class="text-right col-hembra">{{ dato.seleccionHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho">{{ dato.seleccionMachos | number:'1.0-0' }}</td>
+            <td class="text-right col-hembra">{{ dato.ventasHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho">{{ dato.ventasMachos | number:'1.0-0' }}</td>
+            <td class="text-right col-hembra">{{ dato.trasladosHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho">{{ dato.trasladosMachos | number:'1.0-0' }}</td>
+            <td class="text-right col-hembra">{{ dato.saldoHembras | number:'1.0-0' }}</td>
+            <td class="text-right col-macho">{{ dato.saldoMachos | number:'1.0-0' }}</td>
+          </tr>
+        }
 
         <!-- Totales Semana Acumulado -->
-        <tr class="total-row" *ngIf="reporteSemanal">
-          <td colspan="2" class="info-label"><strong>Semana Acumulado</strong></td>
-          <td colspan="2" class="empty-cells"></td>
-          <td class="text-right col-hembra"><strong>{{ reporteSemanal.entradasHembras | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-macho"><strong>{{ reporteSemanal.entradasMachos | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-hembra"><strong>{{ reporteSemanal.mortalidadHembrasSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-macho"><strong>{{ reporteSemanal.mortalidadMachosSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-hembra"><strong>{{ reporteSemanal.seleccionHembrasSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-macho"><strong>{{ reporteSemanal.seleccionMachosSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-hembra"><strong>{{ reporteSemanal.ventasHembrasSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-macho"><strong>{{ reporteSemanal.ventasMachosSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-hembra"><strong>{{ reporteSemanal.trasladosHembrasSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-macho"><strong>{{ reporteSemanal.trasladosMachosSemanal | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-hembra highlight-green"><strong>{{ reporteSemanal.saldoFinHembras | number:'1.0-0' }}</strong></td>
-          <td class="text-right col-macho highlight-green"><strong>{{ reporteSemanal.saldoFinMachos | number:'1.0-0' }}</strong></td>
-        </tr>
+        @if (reporteSemanal) {
+          <tr class="total-row">
+            <td colspan="2" class="info-label"><strong>Semana Acumulado</strong></td>
+            <td colspan="2" class="empty-cells"></td>
+            <td class="text-right col-hembra"><strong>{{ reporteSemanal.entradasHembras | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-macho"><strong>{{ reporteSemanal.entradasMachos | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-hembra"><strong>{{ reporteSemanal.mortalidadHembrasSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-macho"><strong>{{ reporteSemanal.mortalidadMachosSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-hembra"><strong>{{ reporteSemanal.seleccionHembrasSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-macho"><strong>{{ reporteSemanal.seleccionMachosSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-hembra"><strong>{{ reporteSemanal.ventasHembrasSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-macho"><strong>{{ reporteSemanal.ventasMachosSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-hembra"><strong>{{ reporteSemanal.trasladosHembrasSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-macho"><strong>{{ reporteSemanal.trasladosMachosSemanal | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-hembra highlight-green"><strong>{{ reporteSemanal.saldoFinHembras | number:'1.0-0' }}</strong></td>
+            <td class="text-right col-macho highlight-green"><strong>{{ reporteSemanal.saldoFinMachos | number:'1.0-0' }}</strong></td>
+          </tr>
+        }
       </tbody>
     </table>
   </div>

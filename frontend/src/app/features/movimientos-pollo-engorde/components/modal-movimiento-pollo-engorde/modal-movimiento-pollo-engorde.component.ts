@@ -9,7 +9,7 @@ import {
   ChangeDetectorRef
 } from '@angular/core';
 import { Subscription, firstValueFrom } from 'rxjs';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
   MovimientoPolloEngordeService,
@@ -48,7 +48,7 @@ export type { LoteDestinoOption, AvailableBirds, VentaLineaGranja, MovimientoPol
 @Component({
   selector: 'app-modal-movimiento-pollo-engorde',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
+  imports: [ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-pollo-engorde.component.html',
   styleUrls: ['./modal-movimiento-pollo-engorde.component.scss']
 })

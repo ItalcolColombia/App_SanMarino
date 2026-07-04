@@ -1,6 +1,6 @@
 // src/app/features/lote/components/modal-create-edit-lote/modal-create-edit-lote.component.ts
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -38,7 +38,7 @@ const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
 @Component({
   selector: 'app-modal-create-edit-lote',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule, FiltroSelectComponent],
+  imports: [FormsModule, ReactiveFormsModule, FontAwesomeModule, FiltroSelectComponent],
   templateUrl: './modal-create-edit-lote.component.html',
   styleUrls: ['./modal-create-edit-lote.component.scss']
 })

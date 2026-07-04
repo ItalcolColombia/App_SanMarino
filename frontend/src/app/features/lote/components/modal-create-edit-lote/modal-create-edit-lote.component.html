@@ -1,368 +1,394 @@
 <!-- src/app/features/lote/components/modal-create-edit-lote/modal-create-edit-lote.component.html -->
 <!-- ✅ ESTE ES EL MODAL QUE ESTAMOS MODIFICANDO - MODAL-CREATE-EDIT-LOTE-V2 -->
-<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="lote-modal-title" style="z-index: 9999;">
-  <div class="ux-modal__panel ux-modal__panel--wide">
-    <div class="ux-modal__header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-bottom: 3px solid #1e40af;">
-      <h2 id="lote-modal-title" class="ux-title" style="color: white; font-size: 24px; font-weight: 900;">
-        {{ modalTitle }} - ✅ MODAL V2 ACTIVO
-      </h2>
-      <button (click)="closeModal()" type="button" class="btn-muted" style="background: white; color: #2563eb; font-weight: bold;">Cerrar</button>
-    </div>
-
-    <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body space-y-6" novalidate>
-      
-      <!-- Fase según semanas desde encaset: >= 26 Producción, < 26 Levante -->
-      <div *ngIf="!isEditing" class="info-flow" style="padding: 12px 16px; border-radius: 8px; background: #eff6ff; border: 1px solid #93c5fd; margin-bottom: 16px; font-size: 14px; color: #1e40af;">
-        <strong>Fase del lote:</strong> Según la fecha de encaset, si el lote tiene <strong>26 o más semanas</strong> de edad se creará en fase <strong>Producción</strong>; si tiene menos (p. ej. semana 25 o menos), en fase <strong>Levante</strong>.
-        <span *ngIf="semanasDesdeEncaset !== null" style="display: block; margin-top: 8px;">
-          Con la fecha seleccionada: <strong>{{ semanasDesdeEncaset }} semana(s)</strong> → se creará como <strong>{{ faseResultante }}</strong>.
-        </span>
+@if (isOpen) {
+  <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="lote-modal-title" style="z-index: 9999;">
+    <div class="ux-modal__panel ux-modal__panel--wide">
+      <div class="ux-modal__header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-bottom: 3px solid #1e40af;">
+        <h2 id="lote-modal-title" class="ux-title" style="color: white; font-size: 24px; font-weight: 900;">
+          {{ modalTitle }} - ✅ MODAL V2 ACTIVO
+        </h2>
+        <button (click)="closeModal()" type="button" class="btn-muted" style="background: white; color: #2563eb; font-weight: bold;">Cerrar</button>
       </div>
-      
-      <!-- CAMPO DE PRUEBA - PARA VERIFICAR QUE LOS CAMBIOS SE APLICAN -->
-      <div style="padding: 25px; border: 5px solid #ef4444; border-radius: 15px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); margin-bottom: 30px; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);">
-        <label style="display: block; font-size: 24px; font-weight: 900; color: #991b1b; margin-bottom: 15px; text-transform: uppercase;">
-          🧪 CAMPO DE PRUEBA - TEST FIELD
-        </label>
-        <input formControlName="campoPrueba" 
-               type="text" 
-               placeholder="Escribe algo aquí para verificar que los cambios se aplican..."
-               style="width: 100%; padding: 15px; font-size: 18px; border: 3px solid #dc2626; border-radius: 8px; background: white; color: #991b1b; font-weight: bold;">
-        <div style="margin-top: 10px; font-size: 16px; color: #991b1b; font-weight: 600;">
-          Si ves este campo, significa que los cambios se están aplicando correctamente ✅
-        </div>
-      </div>
-
-      <!-- Es Lote Padre - CHECKBOX PRIMERO Y FUERA DEL GRID PARA VISIBILIDAD -->
-      <div style="padding: 25px; border: 5px solid #2563eb; border-radius: 15px; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); margin-bottom: 30px; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.4);">
-        <label style="display: flex; align-items: center; gap: 20px; cursor: pointer; user-select: none;">
-          <input formControlName="esLotePadre" 
-                 type="checkbox" 
-                 id="esLotePadreCheckbox"
-                 style="width: 35px; height: 35px; cursor: pointer; flex-shrink: 0; accent-color: #2563eb; border: 3px solid #1e40af;"
-                 [checked]="form.get('esLotePadre')?.value || false"
-                 (change)="onEsLotePadreChange($event)">
-          <span style="font-size: 26px; font-weight: 900; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; flex: 1;">
-            📦 ESTE ES UN LOTE PADRE
-          </span>
-        </label>
-        <div style="margin-top: 15px; margin-left: 55px; font-size: 18px; color: #1e3a8a; line-height: 1.8; font-weight: 600;">
-          Si marca esta opción, este lote será un lote padre y no podrá tener un lote padre asignado
-        </div>
-        <div style="margin-top: 10px; margin-left: 55px; font-size: 14px; color: #3b82f6; font-weight: 500;">
-          Valor actual del checkbox: {{ form.get('esLotePadre')?.value ? '✅ MARCADO' : '❌ DESMARCADO' }}
-        </div>
-      </div>
-
-      <!-- Filtros y Selección de Lote Padre (solo si NO es lote padre) -->
-      <div *ngIf="!esLotePadre" style="padding: 20px; border: 4px solid #10b981; border-radius: 12px; background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); margin-bottom: 24px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-        <h4 style="font-size: 20px; font-weight: bold; margin-bottom: 16px; color: #065f46;">
-          👨‍👩‍👧‍👦 Seleccionar Lote Padre (Opcional)
-        </h4>
-        
-        <!-- Componente de filtro en cascada -->
-        <app-filtro-select
-          [selectedGranjaId]="selectedGranjaPadreId"
-          [selectedNucleoId]="selectedNucleoPadreId"
-          [selectedGalponId]="selectedGalponPadreId"
-          [selectedLoteId]="form.get('lotePadreId')?.value"
-          [soloLotesPadres]="true"
-          [excluirLoteId]="editingLote?.loteId || null"
-          (granjaChange)="onGranjaPadreChange($event)"
-          (nucleoChange)="onNucleoPadreChange($event)"
-          (galponChange)="onGalponPadreChange($event)"
-          (loteChange)="onLotePadreSelected($event)">
-        </app-filtro-select>
-        
-        <div *ngIf="loadingLotesPadres" style="margin-top: 12px; color: #065f46; font-weight: 500;">
-          <span>⏳</span> Cargando lotes padres disponibles...
-        </div>
-        <div style="margin-top: 12px; font-size: 15px; color: #065f46; line-height: 1.6;">
-          Use los filtros en cascada (Granja → Núcleo → Galpón → Lote) para seleccionar un lote padre. 
-          Los reportes consolidados incluirán todos los lotes con el mismo padre.
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- Granja -->
-        <div>
-          <label class="ux-label">🏠 Granja <span class="req">*</span></label>
-          <select formControlName="granjaId" class="ux-input"
+      <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body space-y-6" novalidate>
+        <!-- Fase según semanas desde encaset: >= 26 Producción, < 26 Levante -->
+        @if (!isEditing) {
+          <div class="info-flow" style="padding: 12px 16px; border-radius: 8px; background: #eff6ff; border: 1px solid #93c5fd; margin-bottom: 16px; font-size: 14px; color: #1e40af;">
+            <strong>Fase del lote:</strong> Según la fecha de encaset, si el lote tiene <strong>26 o más semanas</strong> de edad se creará en fase <strong>Producción</strong>; si tiene menos (p. ej. semana 25 o menos), en fase <strong>Levante</strong>.
+            @if (semanasDesdeEncaset !== null) {
+              <span style="display: block; margin-top: 8px;">
+                Con la fecha seleccionada: <strong>{{ semanasDesdeEncaset }} semana(s)</strong> → se creará como <strong>{{ faseResultante }}</strong>.
+              </span>
+            }
+          </div>
+        }
+        <!-- CAMPO DE PRUEBA - PARA VERIFICAR QUE LOS CAMBIOS SE APLICAN -->
+        <div style="padding: 25px; border: 5px solid #ef4444; border-radius: 15px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); margin-bottom: 30px; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);">
+          <label style="display: block; font-size: 24px; font-weight: 900; color: #991b1b; margin-bottom: 15px; text-transform: uppercase;">
+            🧪 CAMPO DE PRUEBA - TEST FIELD
+          </label>
+          <input formControlName="campoPrueba"
+            type="text"
+            placeholder="Escribe algo aquí para verificar que los cambios se aplican..."
+            style="width: 100%; padding: 15px; font-size: 18px; border: 3px solid #dc2626; border-radius: 8px; background: white; color: #991b1b; font-weight: bold;">
+            <div style="margin-top: 10px; font-size: 16px; color: #991b1b; font-weight: 600;">
+              Si ves este campo, significa que los cambios se están aplicando correctamente ✅
+            </div>
+          </div>
+          <!-- Es Lote Padre - CHECKBOX PRIMERO Y FUERA DEL GRID PARA VISIBILIDAD -->
+          <div style="padding: 25px; border: 5px solid #2563eb; border-radius: 15px; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); margin-bottom: 30px; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.4);">
+            <label style="display: flex; align-items: center; gap: 20px; cursor: pointer; user-select: none;">
+              <input formControlName="esLotePadre"
+                type="checkbox"
+                id="esLotePadreCheckbox"
+                style="width: 35px; height: 35px; cursor: pointer; flex-shrink: 0; accent-color: #2563eb; border: 3px solid #1e40af;"
+                [checked]="form.get('esLotePadre')?.value || false"
+                (change)="onEsLotePadreChange($event)">
+                <span style="font-size: 26px; font-weight: 900; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; flex: 1;">
+                  📦 ESTE ES UN LOTE PADRE
+                </span>
+              </label>
+              <div style="margin-top: 15px; margin-left: 55px; font-size: 18px; color: #1e3a8a; line-height: 1.8; font-weight: 600;">
+                Si marca esta opción, este lote será un lote padre y no podrá tener un lote padre asignado
+              </div>
+              <div style="margin-top: 10px; margin-left: 55px; font-size: 14px; color: #3b82f6; font-weight: 500;">
+                Valor actual del checkbox: {{ form.get('esLotePadre')?.value ? '✅ MARCADO' : '❌ DESMARCADO' }}
+              </div>
+            </div>
+            <!-- Filtros y Selección de Lote Padre (solo si NO es lote padre) -->
+            @if (!esLotePadre) {
+              <div style="padding: 20px; border: 4px solid #10b981; border-radius: 12px; background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); margin-bottom: 24px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                <h4 style="font-size: 20px; font-weight: bold; margin-bottom: 16px; color: #065f46;">
+                  👨‍👩‍👧‍👦 Seleccionar Lote Padre (Opcional)
+                </h4>
+                <!-- Componente de filtro en cascada -->
+                <app-filtro-select
+                  [selectedGranjaId]="selectedGranjaPadreId"
+                  [selectedNucleoId]="selectedNucleoPadreId"
+                  [selectedGalponId]="selectedGalponPadreId"
+                  [selectedLoteId]="form.get('lotePadreId')?.value"
+                  [soloLotesPadres]="true"
+                  [excluirLoteId]="editingLote?.loteId || null"
+                  (granjaChange)="onGranjaPadreChange($event)"
+                  (nucleoChange)="onNucleoPadreChange($event)"
+                  (galponChange)="onGalponPadreChange($event)"
+                  (loteChange)="onLotePadreSelected($event)">
+                </app-filtro-select>
+                @if (loadingLotesPadres) {
+                  <div style="margin-top: 12px; color: #065f46; font-weight: 500;">
+                    <span>⏳</span> Cargando lotes padres disponibles...
+                  </div>
+                }
+                <div style="margin-top: 12px; font-size: 15px; color: #065f46; line-height: 1.6;">
+                  Use los filtros en cascada (Granja → Núcleo → Galpón → Lote) para seleccionar un lote padre.
+                  Los reportes consolidados incluirán todos los lotes con el mismo padre.
+                </div>
+              </div>
+            }
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <!-- Granja -->
+              <div>
+                <label class="ux-label">🏠 Granja <span class="req">*</span></label>
+                <select formControlName="granjaId" class="ux-input"
                   [class.is-invalid]="form.get('granjaId')?.invalid && form.get('granjaId')?.touched">
-            <option value="" disabled selected>Seleccione…</option>
-            <option *ngFor="let g of farms" [value]="g.id">{{ g.name }}</option>
-          </select>
-          <div *ngIf="form.get('granjaId')?.invalid && form.get('granjaId')?.touched" class="ux-error">
-            Granja es requerida
-          </div>
-          <!-- Debug info -->
-          <div class="text-xs text-gray-500 mt-1">
-            Debug: {{ farms.length }} granjas cargadas
-            <span *ngIf="farms.length > 0"> - {{ farms[0].name }}</span>
-          </div>
-        </div>
-
-        <!-- Núcleo -->
-        <div>
-          <label class="ux-label">🏗️ Núcleo <span class="req">*</span></label>
-          <select formControlName="nucleoId" class="ux-input"
+                  <option value="" disabled selected>Seleccione…</option>
+                  @for (g of farms; track g) {
+                    <option [value]="g.id">{{ g.name }}</option>
+                  }
+                </select>
+                @if (form.get('granjaId')?.invalid && form.get('granjaId')?.touched) {
+                  <div class="ux-error">
+                    Granja es requerida
+                  </div>
+                }
+                <!-- Debug info -->
+                <div class="text-xs text-gray-500 mt-1">
+                  Debug: {{ farms.length }} granjas cargadas
+                  @if (farms.length > 0) {
+                    <span> - {{ farms[0].name }}</span>
+                  }
+                </div>
+              </div>
+              <!-- Núcleo -->
+              <div>
+                <label class="ux-label">🏗️ Núcleo <span class="req">*</span></label>
+                <select formControlName="nucleoId" class="ux-input"
                   [class.is-invalid]="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched">
-            <option value="" disabled selected>Seleccione…</option>
-            <option *ngFor="let n of filteredNucleos" [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
-          </select>
-          <div *ngIf="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched" class="ux-error">
-            Núcleo es requerido
-          </div>
-        </div>
-
-        <!-- Galpón -->
-        <div>
-          <label class="ux-label">🏠 Galpón</label>
-          <select formControlName="galponId" class="ux-input">
-            <option value="" selected>Seleccione…</option>
-            <option *ngFor="let g of filteredGalpones" [value]="g.galponId">{{ g.galponNombre }}</option>
-          </select>
-        </div>
-
-        <!-- Nombre del Lote -->
-        <div>
-          <label class="ux-label">📝 Nombre del Lote <span class="req">*</span></label>
-
-          <!-- R1: Selector de letra A-F cuando hay lote padre seleccionado -->
-          <ng-container *ngIf="usarSelectorLetra; else loteNombreLibre">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <input [value]="lotePadreNombrePrefix" readonly
-                     class="ux-input" style="flex:1; background:#f3f4f6; cursor:not-allowed;"
-                     placeholder="Prefijo (lote base)">
-              <select [(ngModel)]="letraSeleccionada"
-                      [ngModelOptions]="{standalone: true}"
-                      (change)="onLetraChange()"
-                      class="ux-input" style="width:80px;"
-                      [disabled]="cargandoLetras">
-                <option value="">--</option>
-                <option *ngFor="let letra of LETRAS_POSIBLES"
-                        [value]="letra"
-                        [disabled]="letrasOcupadas.includes(letra)">
-                  {{ letra }}{{ letrasOcupadas.includes(letra) ? ' ✗' : '' }}
-                </option>
-              </select>
-            </div>
-            <div *ngIf="cargandoLetras" class="ux-hint" style="color:#6b7280; font-size:12px; margin-top:4px;">
-              Verificando letras disponibles…
-            </div>
-            <div *ngIf="!letraSeleccionada && form.get('loteNombre')?.touched" class="ux-error">
-              Selecciona una letra para el lote
-            </div>
-          </ng-container>
-
-          <ng-template #loteNombreLibre>
-            <input formControlName="loteNombre" type="text" class="ux-input"
-                   [class.is-invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"
-                   placeholder="Ej: Lote-001-2024">
-            <div *ngIf="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched" class="ux-error">
-              Nombre del lote es requerido (mínimo 2 caracteres)
-            </div>
-          </ng-template>
-        </div>
-
-        <!-- Fecha de Encaset -->
-        <div>
-          <label class="ux-label">📅 Fecha de Encaset <span class="req">*</span></label>
-          <input formControlName="fechaEncaset" type="date" class="ux-input"
-                 [class.is-invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched">
-          <div *ngIf="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched" class="ux-error">
-            Fecha de encaset es requerida
-          </div>
-        </div>
-
-        <!-- Hembras -->
-        <div>
-          <label class="ux-label">🐔 Hembras</label>
-          <input formControlName="hembrasL" type="number" min="0" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Machos -->
-        <div>
-          <label class="ux-label">🐓 Machos</label>
-          <input formControlName="machosL" type="number" min="0" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Peso Inicial Hembras -->
-        <div>
-          <label class="ux-label">⚖️ Peso Inicial H (g)</label>
-          <input formControlName="pesoInicialH" type="number" min="0" step="0.1" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Peso Inicial Machos -->
-        <div>
-          <label class="ux-label">⚖️ Peso Inicial M (g)</label>
-          <input formControlName="pesoInicialM" type="number" min="0" step="0.1" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Uniformidad Hembras -->
-        <div>
-          <label class="ux-label">📊 Uniformidad H (%)</label>
-          <input formControlName="unifH" type="number" min="0" max="100" step="0.1" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Uniformidad Machos -->
-        <div>
-          <label class="ux-label">📊 Uniformidad M (%)</label>
-          <input formControlName="unifM" type="number" min="0" max="100" step="0.1" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Mortalidad Caja Hembras -->
-        <div>
-          <label class="ux-label">💀 Mortalidad Caja H</label>
-          <input formControlName="mortCajaH" type="number" min="0" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Mortalidad Caja Machos -->
-        <div>
-          <label class="ux-label">💀 Mortalidad Caja M</label>
-          <input formControlName="mortCajaM" type="number" min="0" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Raza -->
-        <div>
-          <label class="ux-label">🧬 Raza <span class="req">*</span></label>
-          <select formControlName="raza" class="ux-input"
-                  [class.is-invalid]="form.get('raza')?.invalid && form.get('raza')?.touched"
-                  [disabled]="loadingRazas">
-            <option value="" disabled selected>
-              {{ loadingRazas ? 'Cargando razas...' : 'Seleccione una raza...' }}
-            </option>
-            <option *ngFor="let raza of razasDisponibles" [value]="raza">{{ raza }}</option>
-          </select>
-          <div *ngIf="form.get('raza')?.invalid && form.get('raza')?.touched" class="ux-error">
-            Raza es requerida
-          </div>
-          <div *ngIf="loadingRazas" class="ux-hint">
-            <span class="loading-spinner">⏳</span> Cargando razas disponibles...
-          </div>
-          <div *ngIf="!loadingRazas && razasDisponibles.length === 0" class="ux-error">
-            No se encontraron razas disponibles en la guía genética
-          </div>
-          <!-- Debug info -->
-          <div class="text-xs text-gray-500 mt-1">
-            Debug: {{ razasDisponibles.length }} razas cargadas
-            <span *ngIf="razasDisponibles.length > 0"> - {{ razasDisponibles[0] }}</span>
-          </div>
-        </div>
-
-        <!-- Año Tabla Genética -->
-        <div>
-          <label class="ux-label">📅 Año Tabla Genética <span class="req">*</span></label>
-          <select formControlName="anoTablaGenetica" class="ux-input"
-                  [class.is-invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
-                  [disabled]="!selectedRaza || loadingAnos">
-            <option value="" disabled selected>
-              {{ loadingAnos ? 'Cargando años...' : 
-                 !selectedRaza ? 'Primero seleccione una raza' : 
-                 'Seleccione un año...' }}
-            </option>
-            <option *ngFor="let ano of anosDisponibles" [value]="ano">{{ ano }}</option>
-          </select>
-          <div *ngIf="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched" class="ux-error">
-            Año de tabla genética es requerido
-          </div>
-          <div *ngIf="loadingAnos" class="ux-hint">
-            <span class="loading-spinner">⏳</span> Cargando años disponibles...
-          </div>
-          <div *ngIf="!selectedRaza" class="ux-hint">
-            Seleccione primero una raza para ver los años disponibles
-          </div>
-          <div *ngIf="selectedRaza && !loadingAnos && !razaValida" class="ux-error">
-            No se encontraron años disponibles para la raza "{{ selectedRaza }}"
-          </div>
-          <div *ngIf="selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0" class="ux-warning">
-            La raza "{{ selectedRaza }}" no tiene años de tabla genética disponibles
-          </div>
-        </div>
-
-        <!-- Línea -->
-        <div>
-          <label class="ux-label">🔬 Línea</label>
-          <input formControlName="linea" type="text" class="ux-input"
-                 placeholder="Ej: Ross 308">
-        </div>
-
-        <!-- Tipo de Línea -->
-        <div>
-          <label class="ux-label">🏷️ Tipo de Línea</label>
-          <input formControlName="tipoLinea" type="text" class="ux-input"
-                 placeholder="Ej: Broiler">
-        </div>
-
-        <!-- Código Guía Genética -->
-        <div>
-          <label class="ux-label">📋 Código Guía Genética</label>
-          <input formControlName="codigoGuiaGenetica" type="text" class="ux-input"
-                 placeholder="Se genera automáticamente"
-                 [readonly]="selectedRaza && selectedAnoTabla">
-          <div class="ux-hint">
-            Se genera automáticamente como: {{ selectedRaza }}-{{ selectedAnoTabla }}
-          </div>
-        </div>
-
-        <!-- ID Línea Genética -->
-        <div>
-          <label class="ux-label">🔬 ID Línea Genética</label>
-          <input formControlName="lineaGeneticaId" type="number" class="ux-input"
-                 placeholder="1">
-        </div>
-
-        <!-- Técnico -->
-        <div>
-          <label class="ux-label">👨‍💼 Técnico</label>
-          <select formControlName="tecnico" class="ux-input">
-            <option value="" selected>Seleccione…</option>
-            <option *ngFor="let t of tecnicos" [value]="t.id">{{ t.surName }} {{ t.firstName }}</option>
-          </select>
-        </div>
-
-        <!-- Aves Encasetadas -->
-        <div>
-          <label class="ux-label">🐣 Aves Encasetadas</label>
-          <input formControlName="avesEncasetadas" type="number" min="0" class="ux-input"
-                 placeholder="0">
-        </div>
-
-        <!-- Lote ERP -->
-        <div>
-          <label class="ux-label">💻 Lote ERP</label>
-          <input formControlName="loteErp" type="text" class="ux-input"
-                 placeholder="ERP-001">
-        </div>
-
-        <!-- Línea Genética -->
-        <div>
-          <label class="ux-label">🧬 Línea Genética</label>
-          <input formControlName="lineaGenetica" type="text" class="ux-input"
-                 placeholder="Ross 308">
-        </div>
-      </div>
-
-      <!-- Botones de acción -->
-      <div class="ux-actions">
-        <button type="button" (click)="closeModal()" class="btn-ghost">
-          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
-          Cancelar
-        </button>
-        <button type="submit" class="btn-primary" [disabled]="!isFormValid || saving">
-          <fa-icon [icon]="faSave" aria-hidden="true"></fa-icon>
-          <span *ngIf="saving">Guardando...</span>
-          <span *ngIf="!saving">{{ isEditing ? 'Actualizar' : 'Guardar' }}</span>
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
+                  <option value="" disabled selected>Seleccione…</option>
+                  @for (n of filteredNucleos; track n) {
+                    <option [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                  }
+                </select>
+                @if (form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched) {
+                  <div class="ux-error">
+                    Núcleo es requerido
+                  </div>
+                }
+              </div>
+              <!-- Galpón -->
+              <div>
+                <label class="ux-label">🏠 Galpón</label>
+                <select formControlName="galponId" class="ux-input">
+                  <option value="" selected>Seleccione…</option>
+                  @for (g of filteredGalpones; track g) {
+                    <option [value]="g.galponId">{{ g.galponNombre }}</option>
+                  }
+                </select>
+              </div>
+              <!-- Nombre del Lote -->
+              <div>
+                <label class="ux-label">📝 Nombre del Lote <span class="req">*</span></label>
+                <!-- R1: Selector de letra A-F cuando hay lote padre seleccionado -->
+                @if (usarSelectorLetra) {
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <input [value]="lotePadreNombrePrefix" readonly
+                      class="ux-input" style="flex:1; background:#f3f4f6; cursor:not-allowed;"
+                      placeholder="Prefijo (lote base)">
+                      <select [(ngModel)]="letraSeleccionada"
+                        [ngModelOptions]="{standalone: true}"
+                        (change)="onLetraChange()"
+                        class="ux-input" style="width:80px;"
+                        [disabled]="cargandoLetras">
+                        <option value="">--</option>
+                        @for (letra of LETRAS_POSIBLES; track letra) {
+                          <option
+                            [value]="letra"
+                            [disabled]="letrasOcupadas.includes(letra)">
+                            {{ letra }}{{ letrasOcupadas.includes(letra) ? ' ✗' : '' }}
+                          </option>
+                        }
+                      </select>
+                    </div>
+                    @if (cargandoLetras) {
+                      <div class="ux-hint" style="color:#6b7280; font-size:12px; margin-top:4px;">
+                        Verificando letras disponibles…
+                      </div>
+                    }
+                    @if (!letraSeleccionada && form.get('loteNombre')?.touched) {
+                      <div class="ux-error">
+                        Selecciona una letra para el lote
+                      </div>
+                    }
+                  } @else {
+                    <input formControlName="loteNombre" type="text" class="ux-input"
+                      [class.is-invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"
+                      placeholder="Ej: Lote-001-2024">
+                      @if (form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched) {
+                        <div class="ux-error">
+                          Nombre del lote es requerido (mínimo 2 caracteres)
+                        </div>
+                      }
+                    }
+                  </div>
+                  <!-- Fecha de Encaset -->
+                  <div>
+                    <label class="ux-label">📅 Fecha de Encaset <span class="req">*</span></label>
+                    <input formControlName="fechaEncaset" type="date" class="ux-input"
+                      [class.is-invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched">
+                      @if (form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched) {
+                        <div class="ux-error">
+                          Fecha de encaset es requerida
+                        </div>
+                      }
+                    </div>
+                    <!-- Hembras -->
+                    <div>
+                      <label class="ux-label">🐔 Hembras</label>
+                      <input formControlName="hembrasL" type="number" min="0" class="ux-input"
+                        placeholder="0">
+                      </div>
+                      <!-- Machos -->
+                      <div>
+                        <label class="ux-label">🐓 Machos</label>
+                        <input formControlName="machosL" type="number" min="0" class="ux-input"
+                          placeholder="0">
+                        </div>
+                        <!-- Peso Inicial Hembras -->
+                        <div>
+                          <label class="ux-label">⚖️ Peso Inicial H (g)</label>
+                          <input formControlName="pesoInicialH" type="number" min="0" step="0.1" class="ux-input"
+                            placeholder="0">
+                          </div>
+                          <!-- Peso Inicial Machos -->
+                          <div>
+                            <label class="ux-label">⚖️ Peso Inicial M (g)</label>
+                            <input formControlName="pesoInicialM" type="number" min="0" step="0.1" class="ux-input"
+                              placeholder="0">
+                            </div>
+                            <!-- Uniformidad Hembras -->
+                            <div>
+                              <label class="ux-label">📊 Uniformidad H (%)</label>
+                              <input formControlName="unifH" type="number" min="0" max="100" step="0.1" class="ux-input"
+                                placeholder="0">
+                              </div>
+                              <!-- Uniformidad Machos -->
+                              <div>
+                                <label class="ux-label">📊 Uniformidad M (%)</label>
+                                <input formControlName="unifM" type="number" min="0" max="100" step="0.1" class="ux-input"
+                                  placeholder="0">
+                                </div>
+                                <!-- Mortalidad Caja Hembras -->
+                                <div>
+                                  <label class="ux-label">💀 Mortalidad Caja H</label>
+                                  <input formControlName="mortCajaH" type="number" min="0" class="ux-input"
+                                    placeholder="0">
+                                  </div>
+                                  <!-- Mortalidad Caja Machos -->
+                                  <div>
+                                    <label class="ux-label">💀 Mortalidad Caja M</label>
+                                    <input formControlName="mortCajaM" type="number" min="0" class="ux-input"
+                                      placeholder="0">
+                                    </div>
+                                    <!-- Raza -->
+                                    <div>
+                                      <label class="ux-label">🧬 Raza <span class="req">*</span></label>
+                                      <select formControlName="raza" class="ux-input"
+                                        [class.is-invalid]="form.get('raza')?.invalid && form.get('raza')?.touched"
+                                        [disabled]="loadingRazas">
+                                        <option value="" disabled selected>
+                                          {{ loadingRazas ? 'Cargando razas...' : 'Seleccione una raza...' }}
+                                        </option>
+                                        @for (raza of razasDisponibles; track raza) {
+                                          <option [value]="raza">{{ raza }}</option>
+                                        }
+                                      </select>
+                                      @if (form.get('raza')?.invalid && form.get('raza')?.touched) {
+                                        <div class="ux-error">
+                                          Raza es requerida
+                                        </div>
+                                      }
+                                      @if (loadingRazas) {
+                                        <div class="ux-hint">
+                                          <span class="loading-spinner">⏳</span> Cargando razas disponibles...
+                                        </div>
+                                      }
+                                      @if (!loadingRazas && razasDisponibles.length === 0) {
+                                        <div class="ux-error">
+                                          No se encontraron razas disponibles en la guía genética
+                                        </div>
+                                      }
+                                      <!-- Debug info -->
+                                      <div class="text-xs text-gray-500 mt-1">
+                                        Debug: {{ razasDisponibles.length }} razas cargadas
+                                        @if (razasDisponibles.length > 0) {
+                                          <span> - {{ razasDisponibles[0] }}</span>
+                                        }
+                                      </div>
+                                    </div>
+                                    <!-- Año Tabla Genética -->
+                                    <div>
+                                      <label class="ux-label">📅 Año Tabla Genética <span class="req">*</span></label>
+                                      <select formControlName="anoTablaGenetica" class="ux-input"
+                                        [class.is-invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
+                                        [disabled]="!selectedRaza || loadingAnos">
+                                        <option value="" disabled selected>
+                                          {{ loadingAnos ? 'Cargando años...' :
+                                          !selectedRaza ? 'Primero seleccione una raza' :
+                                          'Seleccione un año...' }}
+                                        </option>
+                                        @for (ano of anosDisponibles; track ano) {
+                                          <option [value]="ano">{{ ano }}</option>
+                                        }
+                                      </select>
+                                      @if (form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched) {
+                                        <div class="ux-error">
+                                          Año de tabla genética es requerido
+                                        </div>
+                                      }
+                                      @if (loadingAnos) {
+                                        <div class="ux-hint">
+                                          <span class="loading-spinner">⏳</span> Cargando años disponibles...
+                                        </div>
+                                      }
+                                      @if (!selectedRaza) {
+                                        <div class="ux-hint">
+                                          Seleccione primero una raza para ver los años disponibles
+                                        </div>
+                                      }
+                                      @if (selectedRaza && !loadingAnos && !razaValida) {
+                                        <div class="ux-error">
+                                          No se encontraron años disponibles para la raza "{{ selectedRaza }}"
+                                        </div>
+                                      }
+                                      @if (selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0) {
+                                        <div class="ux-warning">
+                                          La raza "{{ selectedRaza }}" no tiene años de tabla genética disponibles
+                                        </div>
+                                      }
+                                    </div>
+                                    <!-- Línea -->
+                                    <div>
+                                      <label class="ux-label">🔬 Línea</label>
+                                      <input formControlName="linea" type="text" class="ux-input"
+                                        placeholder="Ej: Ross 308">
+                                      </div>
+                                      <!-- Tipo de Línea -->
+                                      <div>
+                                        <label class="ux-label">🏷️ Tipo de Línea</label>
+                                        <input formControlName="tipoLinea" type="text" class="ux-input"
+                                          placeholder="Ej: Broiler">
+                                        </div>
+                                        <!-- Código Guía Genética -->
+                                        <div>
+                                          <label class="ux-label">📋 Código Guía Genética</label>
+                                          <input formControlName="codigoGuiaGenetica" type="text" class="ux-input"
+                                            placeholder="Se genera automáticamente"
+                                            [readonly]="selectedRaza && selectedAnoTabla">
+                                            <div class="ux-hint">
+                                              Se genera automáticamente como: {{ selectedRaza }}-{{ selectedAnoTabla }}
+                                            </div>
+                                          </div>
+                                          <!-- ID Línea Genética -->
+                                          <div>
+                                            <label class="ux-label">🔬 ID Línea Genética</label>
+                                            <input formControlName="lineaGeneticaId" type="number" class="ux-input"
+                                              placeholder="1">
+                                            </div>
+                                            <!-- Técnico -->
+                                            <div>
+                                              <label class="ux-label">👨‍💼 Técnico</label>
+                                              <select formControlName="tecnico" class="ux-input">
+                                                <option value="" selected>Seleccione…</option>
+                                                @for (t of tecnicos; track t) {
+                                                  <option [value]="t.id">{{ t.surName }} {{ t.firstName }}</option>
+                                                }
+                                              </select>
+                                            </div>
+                                            <!-- Aves Encasetadas -->
+                                            <div>
+                                              <label class="ux-label">🐣 Aves Encasetadas</label>
+                                              <input formControlName="avesEncasetadas" type="number" min="0" class="ux-input"
+                                                placeholder="0">
+                                              </div>
+                                              <!-- Lote ERP -->
+                                              <div>
+                                                <label class="ux-label">💻 Lote ERP</label>
+                                                <input formControlName="loteErp" type="text" class="ux-input"
+                                                  placeholder="ERP-001">
+                                                </div>
+                                                <!-- Línea Genética -->
+                                                <div>
+                                                  <label class="ux-label">🧬 Línea Genética</label>
+                                                  <input formControlName="lineaGenetica" type="text" class="ux-input"
+                                                    placeholder="Ross 308">
+                                                  </div>
+                                                </div>
+                                                <!-- Botones de acción -->
+                                                <div class="ux-actions">
+                                                  <button type="button" (click)="closeModal()" class="btn-ghost">
+                                                    <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+                                                    Cancelar
+                                                  </button>
+                                                  <button type="submit" class="btn-primary" [disabled]="!isFormValid || saving">
+                                                    <fa-icon [icon]="faSave" aria-hidden="true"></fa-icon>
+                                                    @if (saving) {
+                                                      <span>Guardando...</span>
+                                                    }
+                                                    @if (!saving) {
+                                                      <span>{{ isEditing ? 'Actualizar' : 'Guardar' }}</span>
+                                                    }
+                                                  </button>
+                                                </div>
+                                              </form>
+                                            </div>
+                                          </div>
+                                        }

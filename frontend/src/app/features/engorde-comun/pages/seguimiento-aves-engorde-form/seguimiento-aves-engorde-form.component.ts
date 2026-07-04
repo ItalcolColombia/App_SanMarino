@@ -1,5 +1,5 @@
 import { Component, Inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
@@ -19,7 +19,7 @@ import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 @Component({
   selector: 'app-seguimiento-engorde-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [FormsModule, ReactiveFormsModule],
   templateUrl: './seguimiento-aves-engorde-form.component.html',
   styleUrls: ['./seguimiento-aves-engorde-form.component.scss']
 })

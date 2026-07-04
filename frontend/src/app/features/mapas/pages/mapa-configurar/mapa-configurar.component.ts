@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MapasService, MapaDetailDto, MapaPasoDto } from '../../services/mapas.service';
@@ -17,7 +17,7 @@ const TIPOS = [
 @Component({
   selector: 'app-mapa-configurar',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink],
   templateUrl: './mapa-configurar.component.html',
   styleUrls: ['./mapa-configurar.component.scss']
 })

@@ -1,365 +1,373 @@
 <!-- ================= TABS PRINCIPAL ================= -->
-<section class="ux-card" *ngIf="selectedLote">
-  <div class="tabs-container">
-    <!-- Tab Navigation -->
-    <nav class="tabs-nav" role="tablist">
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'general'"
-        (click)="onTabChange('general')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'general'"
-        aria-controls="general-panel">
-        📋 Seguimiento
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'indicadores'"
-        (click)="onTabChange('indicadores')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'indicadores'"
-        aria-controls="indicadores-panel">
-        📈 Indicadores
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'grafica'"
-        (click)="onTabChange('grafica')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'grafica'"
-        aria-controls="grafica-panel">
-        📊 Gráfica
-      </button>
-    </nav>
-
-    <!-- Tab Content -->
-    <div class="tabs-content">
-      <!-- TAB GENERAL -->
-      <div
-        *ngIf="activeTab === 'general'"
-        id="general-panel"
-        class="tab-panel"
-        role="tabpanel"
-        aria-labelledby="general-tab">
-
-        <h3>Información General del Lote</h3>
-
-        <!-- Resumen General -->
-        <div class="resumen-grid" *ngIf="selectedLote">
-          <div class="resumen-card">
-            <div class="resumen-icon">🐔</div>
-            <div class="resumen-content">
-              <h4>Aves Iniciales</h4>
-              <p class="resumen-number" *ngIf="informacionLote">
-                {{ (informacionLote.avesInicialesH + informacionLote.avesInicialesM) | number:'1.0-0' }}
-              </p>
-              <small class="resumen-detail" *ngIf="informacionLote">H: {{ informacionLote.avesInicialesH | number:'1.0-0' }} | M: {{ informacionLote.avesInicialesM | number:'1.0-0' }}</small>
-
-              <p class="resumen-number" *ngIf="!selectedLoteLPP && produccionLote">
-                {{ produccionLote.avesInicialesH + produccionLote.avesInicialesM | number:'1.0-0' }}
-              </p>
-              <p class="resumen-number" *ngIf="!selectedLoteLPP && !produccionLote">
-                {{ (selectedLote.hembrasL || 0) + (selectedLote.machosL || 0) | number:'1.0-0' }}
-              </p>
-              <small class="resumen-detail" *ngIf="!selectedLoteLPP && produccionLote">H: {{ produccionLote.avesInicialesH | number:'1.0-0' }} | M: {{ produccionLote.avesInicialesM | number:'1.0-0' }}</small>
-            </div>
-          </div>
-
-          <div class="resumen-card" *ngIf="informacionLote">
-            <div class="resumen-icon">📊</div>
-            <div class="resumen-content">
-              <h4>Aves Actuales</h4>
-              <p class="resumen-number">{{ (informacionLote.avesActualesH + informacionLote.avesActualesM) | number:'1.0-0' }}</p>
-              <small class="resumen-detail">H: {{ informacionLote.avesActualesH | number:'1.0-0' }} | M: {{ informacionLote.avesActualesM | number:'1.0-0' }}</small>
-            </div>
-          </div>
-
-          <div class="resumen-card">
-            <div class="resumen-icon">📋</div>
-            <div class="resumen-content">
-              <h4>Estado</h4>
-              <p class="resumen-number">
-                {{ informacionLote ? informacionLote.estado : (selectedLoteLPP ? (selectedLoteLPP.estadoCierre || 'Abierta') : '—') }}
-              </p>
-            </div>
-          </div>
-
-          <div class="resumen-card" *ngIf="informacionLote">
-            <div class="resumen-icon">📅</div>
-            <div class="resumen-content">
-              <h4>Fecha de Producción</h4>
-              <p class="resumen-number">{{ informacionLote.fechaInicioProduccion ? (informacionLote.fechaInicioProduccion | date:'dd/MM/yyyy') : '—' }}</p>
-            </div>
-          </div>
-
-          <div class="resumen-card">
-            <div class="resumen-icon">📆</div>
-            <div class="resumen-content">
-              <h4>Edad (semanas de vida)</h4>
-              <p class="resumen-number">{{ getEdadSemanas() }}</p>
-              <small class="resumen-detail" *ngIf="getFechaBaseEdad()">Desde encaset: {{ getFechaBaseEdad() | date:'dd/MM/yyyy' }}</small>
-            </div>
-          </div>
-
-          <div class="resumen-card">
-            <div class="resumen-icon">📊</div>
-            <div class="resumen-content">
-              <h4>Registros</h4>
-              <p class="resumen-number">{{ (informacionLote?.registros ?? seguimientos.length) | number:'1.0-0' }}</p>
-            </div>
-          </div>
-
-          <div class="resumen-card" *ngIf="informacionLote">
-            <div class="resumen-icon">☠️</div>
-            <div class="resumen-content">
-              <h4>Mortalidad + Selección</h4>
-              <p class="resumen-number">{{ (informacionLote.mortalidadSeleccionH + informacionLote.mortalidadSeleccionM) | number:'1.0-0' }}</p>
-              <small class="resumen-detail">H: {{ informacionLote.mortalidadSeleccionH | number:'1.0-0' }} | M: {{ informacionLote.mortalidadSeleccionM | number:'1.0-0' }}</small>
-            </div>
-          </div>
-
-          <div class="resumen-card" *ngIf="informacionLote">
-            <div class="resumen-icon">🌾</div>
-            <div class="resumen-content">
-              <h4>Consumo alimento (kg)</h4>
-              <p class="resumen-number">{{ (informacionLote.consumoAlimentoKgH + informacionLote.consumoAlimentoKgM) | number:'1.0-2' }}</p>
-              <small class="resumen-detail">H: {{ informacionLote.consumoAlimentoKgH | number:'1.0-2' }} | M: {{ informacionLote.consumoAlimentoKgM | number:'1.0-2' }}</small>
-            </div>
-          </div>
-
-          <!-- 🔀 Feature 14 — acumulados de traslado por FASE -->
-          <!-- Fase Levante (traslados que ocurrieron antes de pasar a producción) -->
-          <div class="resumen-card resumen-card--traslado-in"
-               *ngIf="informacionLote && ((informacionLote.levanteTrasladoIngresoHembras ?? 0) > 0 || (informacionLote.levanteTrasladoIngresoMachos ?? 0) > 0)">
-            <div class="resumen-icon">🐣↘</div>
-            <div class="resumen-content">
-              <h4>Ingreso Levante</h4>
-              <p class="resumen-number">{{ ((informacionLote.levanteTrasladoIngresoHembras ?? 0) + (informacionLote.levanteTrasladoIngresoMachos ?? 0)) | number:'1.0-0' }}</p>
-              <small class="resumen-detail">H: {{ informacionLote.levanteTrasladoIngresoHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.levanteTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</small>
-            </div>
-          </div>
-
-          <div class="resumen-card resumen-card--traslado-out"
-               *ngIf="informacionLote && ((informacionLote.levanteTrasladoSalidaHembras ?? 0) > 0 || (informacionLote.levanteTrasladoSalidaMachos ?? 0) > 0)">
-            <div class="resumen-icon">🐣↗</div>
-            <div class="resumen-content">
-              <h4>Salida Levante</h4>
-              <p class="resumen-number">{{ ((informacionLote.levanteTrasladoSalidaHembras ?? 0) + (informacionLote.levanteTrasladoSalidaMachos ?? 0)) | number:'1.0-0' }}</p>
-              <small class="resumen-detail">H: {{ informacionLote.levanteTrasladoSalidaHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.levanteTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</small>
-            </div>
-          </div>
-
-          <!-- Fase Producción (traslados que ocurren mientras está en producción) -->
-          <div class="resumen-card resumen-card--traslado-in"
-               *ngIf="informacionLote && ((informacionLote.produccionTrasladoIngresoHembras ?? 0) > 0 || (informacionLote.produccionTrasladoIngresoMachos ?? 0) > 0)">
-            <div class="resumen-icon">🥚↘</div>
-            <div class="resumen-content">
-              <h4>Ingreso Producción</h4>
-              <p class="resumen-number">{{ ((informacionLote.produccionTrasladoIngresoHembras ?? 0) + (informacionLote.produccionTrasladoIngresoMachos ?? 0)) | number:'1.0-0' }}</p>
-              <small class="resumen-detail">H: {{ informacionLote.produccionTrasladoIngresoHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.produccionTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</small>
-            </div>
-          </div>
-
-          <div class="resumen-card resumen-card--traslado-out"
-               *ngIf="informacionLote && ((informacionLote.produccionTrasladoSalidaHembras ?? 0) > 0 || (informacionLote.produccionTrasladoSalidaMachos ?? 0) > 0)">
-            <div class="resumen-icon">🥚↗</div>
-            <div class="resumen-content">
-              <h4>Salida Producción</h4>
-              <p class="resumen-number">{{ ((informacionLote.produccionTrasladoSalidaHembras ?? 0) + (informacionLote.produccionTrasladoSalidaMachos ?? 0)) | number:'1.0-0' }}</p>
-              <small class="resumen-detail">H: {{ informacionLote.produccionTrasladoSalidaHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.produccionTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</small>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tabla de Registros (simplificada) -->
-        <div class="table-container">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px;">
-            <h4 style="margin:0;">Registros Diarios</h4>
-            <button type="button" class="btn btn--outline" (click)="descargarSeguimientoExcel()" [disabled]="!seguimientos || seguimientos.length === 0">
-              Descargar seguimiento (Excel)
-            </button>
-          </div>
-          <div class="ux-scroll">
-            <table class="ux-table ux-table--seguimiento">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Fecha</th>
-                  <th>Edad (días)</th>
-                  <th>Edad (semanas)</th>
-                  <th>Etapa</th>
-
-                  <th>Mort. H</th>
-                  <th>Mort. M</th>
-                  <th>Sel. H</th>
-                  <th>Sel. M</th>
-
-                  <!-- 🔀 Feature 14 — traslados por género dedicados -->
-                  <th class="th-prod-trasl-in" title="Hembras recibidas por traslado">↘ Ing. H</th>
-                  <th class="th-prod-trasl-in" title="Machos recibidos por traslado">↘ Ing. M</th>
-                  <th class="th-prod-trasl-out" title="Hembras enviadas por traslado">↗ Sal. H</th>
-                  <th class="th-prod-trasl-out" title="Machos enviados por traslado">↗ Sal. M</th>
-
-                  <th>Cons. H (kg)</th>
-                  <th>Cons. M (kg)</th>
-                  <th>Tipo item H</th>
-                  <th>Tipo item M</th>
-                  <th>Alimento H</th>
-                  <th>Alimento M</th>
-                  <th>Cons. orig H</th>
-                  <th>U</th>
-                  <th>Cons. orig M</th>
-                  <th>U</th>
-
-                  <th>Huevos Tot.</th>
-                  <th>Huevos Inc.</th>
-                  <th>H. Limpio</th>
-                  <th>H. Tratado</th>
-                  <th>H. Sucio</th>
-                  <th>H. Deforme</th>
-                  <th>H. Blanco</th>
-                  <th>H. DobleY</th>
-                  <th>H. Piso</th>
-                  <th>H. Peq.</th>
-                  <th>H. Roto</th>
-                  <th>H. Desecho</th>
-                  <th>H. Otro</th>
-
-                  <th>Peso huevo (g)</th>
-                  <th>Peso H (kg)</th>
-                  <th>Peso M (kg)</th>
-                  <th>Uniformidad (%)</th>
-                  <th>Coef. Var (%)</th>
-                  <th>Obs. pesaje</th>
-
-                  <th class="sticky-actions text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)">
-                  <td colspan="999" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">📄</div>
-                    <p>Sin registros para este lote.</p>
-                    <button type="button" class="btn btn--outline" (click)="onCreate()">
-                      Crear el primero
-                    </button>
-                  </td>
-                </tr>
-
-                <tr *ngFor="let s of seguimientos" class="ux-row"
-                    [class.fila--traslado]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)+(s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
-                    [class.fila--traslado-salida]="((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
-                    [class.fila--traslado-ingreso]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0">
-                  <td class="mono">
-                    <span *ngIf="((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0" class="prod-traslado-tag" title="Salida de aves por traslado">🔀 SALIDA</span>
-                    <span *ngIf="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0" class="prod-traslado-tag prod-traslado-tag--in" title="Ingreso de aves por traslado">🔀 INGRESO</span>
-                    {{ s.id }}
-                  </td>
-                  <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
-                  <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
-                  <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>
-                  <td>{{ s.etapa }}</td>
-
-                  <td>{{ s.mortalidadH }}</td>
-                  <td>{{ s.mortalidadM }}</td>
-                  <td>{{ s.selH }}</td>
-                  <td>{{ s.selM }}</td>
-
-                  <!-- 🔀 Feature 14 — celdas dedicadas de traslado -->
-                  <td [class.prod-cell--in]="(s.trasladoIngresoHembras||0) > 0">{{ s.trasladoIngresoHembras ?? 0 }}</td>
-                  <td [class.prod-cell--in]="(s.trasladoIngresoMachos ||0) > 0">{{ s.trasladoIngresoMachos  ?? 0 }}</td>
-                  <td [class.prod-cell--out]="(s.trasladoSalidaHembras||0) > 0">{{ s.trasladoSalidaHembras ?? 0 }}</td>
-                  <td [class.prod-cell--out]="(s.trasladoSalidaMachos ||0) > 0">{{ s.trasladoSalidaMachos  ?? 0 }}</td>
-
-                  <td>{{ s.consKgH | number:'1.0-2' }}</td>
-                  <td>{{ s.consKgM | number:'1.0-2' }}</td>
-                  <td>{{ getTipoItemH(s) }}</td>
-                  <td>{{ getTipoItemM(s) }}</td>
-                  <td class="truncate" [title]="getTipoAlimentoH(s)">{{ getTipoAlimentoH(s) }}</td>
-                  <td class="truncate" [title]="getTipoAlimentoM(s)">{{ getTipoAlimentoM(s) }}</td>
-                  <td>{{ getConsumoOriginalH(s) | number:'1.0-2' }}</td>
-                  <td class="mono">{{ getUnidadConsumoOriginalH(s) }}</td>
-                  <td>{{ getConsumoOriginalM(s) | number:'1.0-2' }}</td>
-                  <td class="mono">{{ getUnidadConsumoOriginalM(s) }}</td>
-
-                  <td>{{ s.huevosTotales }}</td>
-                  <td>{{ s.huevosIncubables }}</td>
-                  <td>{{ s.huevoLimpio ?? 0 }}</td>
-                  <td>{{ s.huevoTratado ?? 0 }}</td>
-                  <td>{{ s.huevoSucio ?? 0 }}</td>
-                  <td>{{ s.huevoDeforme ?? 0 }}</td>
-                  <td>{{ s.huevoBlanco ?? 0 }}</td>
-                  <td>{{ s.huevoDobleYema ?? 0 }}</td>
-                  <td>{{ s.huevoPiso ?? 0 }}</td>
-                  <td>{{ s.huevoPequeno ?? 0 }}</td>
-                  <td>{{ s.huevoRoto ?? 0 }}</td>
-                  <td>{{ s.huevoDesecho ?? 0 }}</td>
-                  <td>{{ s.huevoOtro ?? 0 }}</td>
-
-                  <td>{{ s.pesoHuevo | number:'1.0-2' }}</td>
-                  <td>{{ s.pesoH ?? '—' }}</td>
-                  <td>{{ s.pesoM ?? '—' }}</td>
-                  <td>{{ s.uniformidad ?? '—' }}</td>
-                  <td>{{ s.coeficienteVariacion ?? '—' }}</td>
-                  <td class="truncate" [title]="s.observacionesPesaje || ''">{{ s.observacionesPesaje || '—' }}</td>
-
-                  <td class="sticky-actions text-right">
-                    <!-- Acciones visibles y habilitadas para todos los usuarios -->
-                    <div class="btn-group">
-                      <button type="button" (click)="onViewDetail(s)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle del registro">👁️</button>
-                      <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
-                      <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+@if (selectedLote) {
+  <section class="ux-card">
+    <div class="tabs-container">
+      <!-- Tab Navigation -->
+      <nav class="tabs-nav" role="tablist">
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'general'"
+          (click)="onTabChange('general')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'general'"
+          aria-controls="general-panel">
+          📋 Seguimiento
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'indicadores'"
+          (click)="onTabChange('indicadores')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'indicadores'"
+          aria-controls="indicadores-panel">
+          📈 Indicadores
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'grafica'"
+          (click)="onTabChange('grafica')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'grafica'"
+          aria-controls="grafica-panel">
+          📊 Gráfica
+        </button>
+      </nav>
+      <!-- Tab Content -->
+      <div class="tabs-content">
+        <!-- TAB GENERAL -->
+        @if (activeTab === 'general') {
+          <div
+            id="general-panel"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="general-tab">
+            <h3>Información General del Lote</h3>
+            <!-- Resumen General -->
+            @if (selectedLote) {
+              <div class="resumen-grid">
+                <div class="resumen-card">
+                  <div class="resumen-icon">🐔</div>
+                  <div class="resumen-content">
+                    <h4>Aves Iniciales</h4>
+                    @if (informacionLote) {
+                      <p class="resumen-number">
+                        {{ (informacionLote.avesInicialesH + informacionLote.avesInicialesM) | number:'1.0-0' }}
+                      </p>
+                    }
+                    @if (informacionLote) {
+                      <small class="resumen-detail">H: {{ informacionLote.avesInicialesH | number:'1.0-0' }} | M: {{ informacionLote.avesInicialesM | number:'1.0-0' }}</small>
+                    }
+                    @if (!selectedLoteLPP && produccionLote) {
+                      <p class="resumen-number">
+                        {{ produccionLote.avesInicialesH + produccionLote.avesInicialesM | number:'1.0-0' }}
+                      </p>
+                    }
+                    @if (!selectedLoteLPP && !produccionLote) {
+                      <p class="resumen-number">
+                        {{ (selectedLote.hembrasL || 0) + (selectedLote.machosL || 0) | number:'1.0-0' }}
+                      </p>
+                    }
+                    @if (!selectedLoteLPP && produccionLote) {
+                      <small class="resumen-detail">H: {{ produccionLote.avesInicialesH | number:'1.0-0' }} | M: {{ produccionLote.avesInicialesM | number:'1.0-0' }}</small>
+                    }
+                  </div>
+                </div>
+                @if (informacionLote) {
+                  <div class="resumen-card">
+                    <div class="resumen-icon">📊</div>
+                    <div class="resumen-content">
+                      <h4>Aves Actuales</h4>
+                      <p class="resumen-number">{{ (informacionLote.avesActualesH + informacionLote.avesActualesM) | number:'1.0-0' }}</p>
+                      <small class="resumen-detail">H: {{ informacionLote.avesActualesH | number:'1.0-0' }} | M: {{ informacionLote.avesActualesM | number:'1.0-0' }}</small>
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </div>
+                }
+                <div class="resumen-card">
+                  <div class="resumen-icon">📋</div>
+                  <div class="resumen-content">
+                    <h4>Estado</h4>
+                    <p class="resumen-number">
+                      {{ informacionLote ? informacionLote.estado : (selectedLoteLPP ? (selectedLoteLPP.estadoCierre || 'Abierta') : '—') }}
+                    </p>
+                  </div>
+                </div>
+                @if (informacionLote) {
+                  <div class="resumen-card">
+                    <div class="resumen-icon">📅</div>
+                    <div class="resumen-content">
+                      <h4>Fecha de Producción</h4>
+                      <p class="resumen-number">{{ informacionLote.fechaInicioProduccion ? (informacionLote.fechaInicioProduccion | date:'dd/MM/yyyy') : '—' }}</p>
+                    </div>
+                  </div>
+                }
+                <div class="resumen-card">
+                  <div class="resumen-icon">📆</div>
+                  <div class="resumen-content">
+                    <h4>Edad (semanas de vida)</h4>
+                    <p class="resumen-number">{{ getEdadSemanas() }}</p>
+                    @if (getFechaBaseEdad()) {
+                      <small class="resumen-detail">Desde encaset: {{ getFechaBaseEdad() | date:'dd/MM/yyyy' }}</small>
+                    }
+                  </div>
+                </div>
+                <div class="resumen-card">
+                  <div class="resumen-icon">📊</div>
+                  <div class="resumen-content">
+                    <h4>Registros</h4>
+                    <p class="resumen-number">{{ (informacionLote?.registros ?? seguimientos.length) | number:'1.0-0' }}</p>
+                  </div>
+                </div>
+                @if (informacionLote) {
+                  <div class="resumen-card">
+                    <div class="resumen-icon">☠️</div>
+                    <div class="resumen-content">
+                      <h4>Mortalidad + Selección</h4>
+                      <p class="resumen-number">{{ (informacionLote.mortalidadSeleccionH + informacionLote.mortalidadSeleccionM) | number:'1.0-0' }}</p>
+                      <small class="resumen-detail">H: {{ informacionLote.mortalidadSeleccionH | number:'1.0-0' }} | M: {{ informacionLote.mortalidadSeleccionM | number:'1.0-0' }}</small>
+                    </div>
+                  </div>
+                }
+                @if (informacionLote) {
+                  <div class="resumen-card">
+                    <div class="resumen-icon">🌾</div>
+                    <div class="resumen-content">
+                      <h4>Consumo alimento (kg)</h4>
+                      <p class="resumen-number">{{ (informacionLote.consumoAlimentoKgH + informacionLote.consumoAlimentoKgM) | number:'1.0-2' }}</p>
+                      <small class="resumen-detail">H: {{ informacionLote.consumoAlimentoKgH | number:'1.0-2' }} | M: {{ informacionLote.consumoAlimentoKgM | number:'1.0-2' }}</small>
+                    </div>
+                  </div>
+                }
+                <!-- 🔀 Feature 14 — acumulados de traslado por FASE -->
+                <!-- Fase Levante (traslados que ocurrieron antes de pasar a producción) -->
+                @if (informacionLote && ((informacionLote.levanteTrasladoIngresoHembras ?? 0) > 0 || (informacionLote.levanteTrasladoIngresoMachos ?? 0) > 0)) {
+                  <div class="resumen-card resumen-card--traslado-in"
+                    >
+                    <div class="resumen-icon">🐣↘</div>
+                    <div class="resumen-content">
+                      <h4>Ingreso Levante</h4>
+                      <p class="resumen-number">{{ ((informacionLote.levanteTrasladoIngresoHembras ?? 0) + (informacionLote.levanteTrasladoIngresoMachos ?? 0)) | number:'1.0-0' }}</p>
+                      <small class="resumen-detail">H: {{ informacionLote.levanteTrasladoIngresoHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.levanteTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</small>
+                    </div>
+                  </div>
+                }
+                @if (informacionLote && ((informacionLote.levanteTrasladoSalidaHembras ?? 0) > 0 || (informacionLote.levanteTrasladoSalidaMachos ?? 0) > 0)) {
+                  <div class="resumen-card resumen-card--traslado-out"
+                    >
+                    <div class="resumen-icon">🐣↗</div>
+                    <div class="resumen-content">
+                      <h4>Salida Levante</h4>
+                      <p class="resumen-number">{{ ((informacionLote.levanteTrasladoSalidaHembras ?? 0) + (informacionLote.levanteTrasladoSalidaMachos ?? 0)) | number:'1.0-0' }}</p>
+                      <small class="resumen-detail">H: {{ informacionLote.levanteTrasladoSalidaHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.levanteTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</small>
+                    </div>
+                  </div>
+                }
+                <!-- Fase Producción (traslados que ocurren mientras está en producción) -->
+                @if (informacionLote && ((informacionLote.produccionTrasladoIngresoHembras ?? 0) > 0 || (informacionLote.produccionTrasladoIngresoMachos ?? 0) > 0)) {
+                  <div class="resumen-card resumen-card--traslado-in"
+                    >
+                    <div class="resumen-icon">🥚↘</div>
+                    <div class="resumen-content">
+                      <h4>Ingreso Producción</h4>
+                      <p class="resumen-number">{{ ((informacionLote.produccionTrasladoIngresoHembras ?? 0) + (informacionLote.produccionTrasladoIngresoMachos ?? 0)) | number:'1.0-0' }}</p>
+                      <small class="resumen-detail">H: {{ informacionLote.produccionTrasladoIngresoHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.produccionTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</small>
+                    </div>
+                  </div>
+                }
+                @if (informacionLote && ((informacionLote.produccionTrasladoSalidaHembras ?? 0) > 0 || (informacionLote.produccionTrasladoSalidaMachos ?? 0) > 0)) {
+                  <div class="resumen-card resumen-card--traslado-out"
+                    >
+                    <div class="resumen-icon">🥚↗</div>
+                    <div class="resumen-content">
+                      <h4>Salida Producción</h4>
+                      <p class="resumen-number">{{ ((informacionLote.produccionTrasladoSalidaHembras ?? 0) + (informacionLote.produccionTrasladoSalidaMachos ?? 0)) | number:'1.0-0' }}</p>
+                      <small class="resumen-detail">H: {{ informacionLote.produccionTrasladoSalidaHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.produccionTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</small>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+            <!-- Tabla de Registros (simplificada) -->
+            <div class="table-container">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px;">
+                <h4 style="margin:0;">Registros Diarios</h4>
+                <button type="button" class="btn btn--outline" (click)="descargarSeguimientoExcel()" [disabled]="!seguimientos || seguimientos.length === 0">
+                  Descargar seguimiento (Excel)
+                </button>
+              </div>
+              <div class="ux-scroll">
+                <table class="ux-table ux-table--seguimiento">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Fecha</th>
+                      <th>Edad (días)</th>
+                      <th>Edad (semanas)</th>
+                      <th>Etapa</th>
+                      <th>Mort. H</th>
+                      <th>Mort. M</th>
+                      <th>Sel. H</th>
+                      <th>Sel. M</th>
+                      <!-- 🔀 Feature 14 — traslados por género dedicados -->
+                      <th class="th-prod-trasl-in" title="Hembras recibidas por traslado">↘ Ing. H</th>
+                      <th class="th-prod-trasl-in" title="Machos recibidos por traslado">↘ Ing. M</th>
+                      <th class="th-prod-trasl-out" title="Hembras enviadas por traslado">↗ Sal. H</th>
+                      <th class="th-prod-trasl-out" title="Machos enviados por traslado">↗ Sal. M</th>
+                      <th>Cons. H (kg)</th>
+                      <th>Cons. M (kg)</th>
+                      <th>Tipo item H</th>
+                      <th>Tipo item M</th>
+                      <th>Alimento H</th>
+                      <th>Alimento M</th>
+                      <th>Cons. orig H</th>
+                      <th>U</th>
+                      <th>Cons. orig M</th>
+                      <th>U</th>
+                      <th>Huevos Tot.</th>
+                      <th>Huevos Inc.</th>
+                      <th>H. Limpio</th>
+                      <th>H. Tratado</th>
+                      <th>H. Sucio</th>
+                      <th>H. Deforme</th>
+                      <th>H. Blanco</th>
+                      <th>H. DobleY</th>
+                      <th>H. Piso</th>
+                      <th>H. Peq.</th>
+                      <th>H. Roto</th>
+                      <th>H. Desecho</th>
+                      <th>H. Otro</th>
+                      <th>Peso huevo (g)</th>
+                      <th>Peso H (kg)</th>
+                      <th>Peso M (kg)</th>
+                      <th>Uniformidad (%)</th>
+                      <th>Coef. Var (%)</th>
+                      <th>Obs. pesaje</th>
+                      <th class="sticky-actions text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @if (!loading && (!seguimientos || seguimientos.length === 0)) {
+                      <tr>
+                        <td colspan="999" class="empty-state">
+                          <div class="empty-illustration" aria-hidden="true">📄</div>
+                          <p>Sin registros para este lote.</p>
+                          <button type="button" class="btn btn--outline" (click)="onCreate()">
+                            Crear el primero
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                    @for (s of seguimientos; track s) {
+                      <tr class="ux-row"
+                        [class.fila--traslado]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)+(s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
+                        [class.fila--traslado-salida]="((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
+                        [class.fila--traslado-ingreso]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0">
+                        <td class="mono">
+                          @if (((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0) {
+                            <span class="prod-traslado-tag" title="Salida de aves por traslado">🔀 SALIDA</span>
+                          }
+                          @if (((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0) {
+                            <span class="prod-traslado-tag prod-traslado-tag--in" title="Ingreso de aves por traslado">🔀 INGRESO</span>
+                          }
+                          {{ s.id }}
+                        </td>
+                        <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
+                        <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
+                        <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>
+                        <td>{{ s.etapa }}</td>
+                        <td>{{ s.mortalidadH }}</td>
+                        <td>{{ s.mortalidadM }}</td>
+                        <td>{{ s.selH }}</td>
+                        <td>{{ s.selM }}</td>
+                        <!-- 🔀 Feature 14 — celdas dedicadas de traslado -->
+                        <td [class.prod-cell--in]="(s.trasladoIngresoHembras||0) > 0">{{ s.trasladoIngresoHembras ?? 0 }}</td>
+                        <td [class.prod-cell--in]="(s.trasladoIngresoMachos ||0) > 0">{{ s.trasladoIngresoMachos  ?? 0 }}</td>
+                        <td [class.prod-cell--out]="(s.trasladoSalidaHembras||0) > 0">{{ s.trasladoSalidaHembras ?? 0 }}</td>
+                        <td [class.prod-cell--out]="(s.trasladoSalidaMachos ||0) > 0">{{ s.trasladoSalidaMachos  ?? 0 }}</td>
+                        <td>{{ s.consKgH | number:'1.0-2' }}</td>
+                        <td>{{ s.consKgM | number:'1.0-2' }}</td>
+                        <td>{{ getTipoItemH(s) }}</td>
+                        <td>{{ getTipoItemM(s) }}</td>
+                        <td class="truncate" [title]="getTipoAlimentoH(s)">{{ getTipoAlimentoH(s) }}</td>
+                        <td class="truncate" [title]="getTipoAlimentoM(s)">{{ getTipoAlimentoM(s) }}</td>
+                        <td>{{ getConsumoOriginalH(s) | number:'1.0-2' }}</td>
+                        <td class="mono">{{ getUnidadConsumoOriginalH(s) }}</td>
+                        <td>{{ getConsumoOriginalM(s) | number:'1.0-2' }}</td>
+                        <td class="mono">{{ getUnidadConsumoOriginalM(s) }}</td>
+                        <td>{{ s.huevosTotales }}</td>
+                        <td>{{ s.huevosIncubables }}</td>
+                        <td>{{ s.huevoLimpio ?? 0 }}</td>
+                        <td>{{ s.huevoTratado ?? 0 }}</td>
+                        <td>{{ s.huevoSucio ?? 0 }}</td>
+                        <td>{{ s.huevoDeforme ?? 0 }}</td>
+                        <td>{{ s.huevoBlanco ?? 0 }}</td>
+                        <td>{{ s.huevoDobleYema ?? 0 }}</td>
+                        <td>{{ s.huevoPiso ?? 0 }}</td>
+                        <td>{{ s.huevoPequeno ?? 0 }}</td>
+                        <td>{{ s.huevoRoto ?? 0 }}</td>
+                        <td>{{ s.huevoDesecho ?? 0 }}</td>
+                        <td>{{ s.huevoOtro ?? 0 }}</td>
+                        <td>{{ s.pesoHuevo | number:'1.0-2' }}</td>
+                        <td>{{ s.pesoH ?? '—' }}</td>
+                        <td>{{ s.pesoM ?? '—' }}</td>
+                        <td>{{ s.uniformidad ?? '—' }}</td>
+                        <td>{{ s.coeficienteVariacion ?? '—' }}</td>
+                        <td class="truncate" [title]="s.observacionesPesaje || ''">{{ s.observacionesPesaje || '—' }}</td>
+                        <td class="sticky-actions text-right">
+                          <!-- Acciones visibles y habilitadas para todos los usuarios -->
+                          <div class="btn-group">
+                            <button type="button" (click)="onViewDetail(s)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle del registro">👁️</button>
+                            <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
+                            <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <!-- TAB INDICADORES -->
-      <div
-        *ngIf="activeTab === 'indicadores'"
-        id="indicadores-panel"
-        class="tab-panel"
-        role="tabpanel"
-        aria-labelledby="indicadores-tab">
-
-        <app-tabla-lista-indicadores
-          [seguimientos]="seguimientos"
-          [selectedLote]="selectedLote"
-          [produccionLoteId]="produccionLoteId"
-          [lotePosturaProduccionId]="lotePosturaProduccionId"
-          [loading]="loading">
-        </app-tabla-lista-indicadores>
-      </div>
-
-      <!-- TAB GRÁFICA -->
-      <div
-        *ngIf="activeTab === 'grafica'"
-        id="grafica-panel"
-        class="tab-panel"
-        role="tabpanel"
-        aria-labelledby="grafica-tab">
-
-        <app-graficas-principal
-          [seguimientos]="seguimientos"
-          [selectedLote]="selectedLote"
-          [fechaEncaset]="selectedLoteLPP?.fechaEncaset || selectedLote.fechaEncaset || null"
-          [lotePosturaProduccionId]="lotePosturaProduccionId"
-          [produccionLoteId]="produccionLoteId"
-          [loading]="loading">
-        </app-graficas-principal>
+        }
+        <!-- TAB INDICADORES -->
+        @if (activeTab === 'indicadores') {
+          <div
+            id="indicadores-panel"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="indicadores-tab">
+            <app-tabla-lista-indicadores
+              [seguimientos]="seguimientos"
+              [selectedLote]="selectedLote"
+              [produccionLoteId]="produccionLoteId"
+              [lotePosturaProduccionId]="lotePosturaProduccionId"
+              [loading]="loading">
+            </app-tabla-lista-indicadores>
+          </div>
+        }
+        <!-- TAB GRÁFICA -->
+        @if (activeTab === 'grafica') {
+          <div
+            id="grafica-panel"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="grafica-tab">
+            <app-graficas-principal
+              [seguimientos]="seguimientos"
+              [selectedLote]="selectedLote"
+              [fechaEncaset]="selectedLoteLPP?.fechaEncaset || selectedLote.fechaEncaset || null"
+              [lotePosturaProduccionId]="lotePosturaProduccionId"
+              [produccionLoteId]="produccionLoteId"
+              [loading]="loading">
+            </app-graficas-principal>
+          </div>
+        }
       </div>
     </div>
-  </div>
-</section>
+  </section>
+}
 
 
 

@@ -7,7 +7,7 @@ import {
   SimpleChanges,
   ChangeDetectorRef
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { MovimientoPolloEngordeService } from '../../services/movimiento-pollo-engorde.service';
@@ -28,7 +28,7 @@ const SIN_GALPON = '__SIN_GALPON__';
 @Component({
   selector: 'app-modal-venta-panama',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [ReactiveFormsModule, FormsModule],
   templateUrl: './modal-venta-panama.component.html',
   styleUrls: ['./modal-venta-panama.component.scss']
 })

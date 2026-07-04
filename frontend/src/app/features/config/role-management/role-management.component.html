@@ -2,8 +2,8 @@
 <div class="rm-page" [attr.aria-busy]="loading ? 'true' : null">
 
   <!-- ═══════════════════════════════════════
-       HEADER DE PÁGINA
-       ═══════════════════════════════════════ -->
+  HEADER DE PÁGINA
+  ═══════════════════════════════════════ -->
   <header class="rm-page-header">
     <div class="rm-page-header__left">
       <div class="rm-page-header__icon">
@@ -29,440 +29,511 @@
   </header>
 
   <!-- ═══════════════════════════════════════
-       TOOLBAR: Tabs + Botón de acción
-       ═══════════════════════════════════════ -->
+  TOOLBAR: Tabs + Botón de acción
+  ═══════════════════════════════════════ -->
   <div class="rm-toolbar">
     <nav class="rm-tabs" aria-label="Secciones del módulo">
       <button type="button"
-              class="rm-tab"
-              [class.rm-tab--active]="activeTab==='roles'"
-              (click)="activeTab='roles'">
+        class="rm-tab"
+        [class.rm-tab--active]="activeTab==='roles'"
+        (click)="activeTab='roles'">
         <fa-icon [icon]="faUsers" aria-hidden="true"></fa-icon>
         <span>Roles</span>
         <span class="rm-badge" [class.rm-badge--active]="activeTab==='roles'">{{ roles.length || 0 }}</span>
       </button>
 
       <button type="button"
-              class="rm-tab"
-              [class.rm-tab--active]="activeTab==='perms'"
-              (click)="activeTab='perms'">
+        class="rm-tab"
+        [class.rm-tab--active]="activeTab==='perms'"
+        (click)="activeTab='perms'">
         <fa-icon [icon]="faKey" aria-hidden="true"></fa-icon>
         <span>Permisos</span>
         <span class="rm-badge" [class.rm-badge--active]="activeTab==='perms'">{{ permissions.length || 0 }}</span>
       </button>
 
       <button type="button"
-              class="rm-tab"
-              [class.rm-tab--active]="activeTab==='menus'"
-              (click)="activeTab='menus'; loadMenusForTab()">
+        class="rm-tab"
+        [class.rm-tab--active]="activeTab==='menus'"
+        (click)="activeTab='menus'; loadMenusForTab()">
         <fa-icon [icon]="faFolder" aria-hidden="true"></fa-icon>
         <span>Menús</span>
       </button>
     </nav>
 
     <!-- Botón de acción contextual -->
-    <button *ngIf="activeTab==='roles'"
-            type="button"
-            class="rm-new-btn"
-            (click)="openModal()">
-      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-      <span>Nuevo Rol</span>
-    </button>
+    @if (activeTab==='roles') {
+      <button
+        type="button"
+        class="rm-new-btn"
+        (click)="openModal()">
+        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        <span>Nuevo Rol</span>
+      </button>
+    }
 
-    <button *ngIf="activeTab==='perms'"
-            type="button"
-            class="rm-new-btn"
-            (click)="abrirModalPermisos()">
-      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-      <span>Nuevo Permiso</span>
-    </button>
+    @if (activeTab==='perms') {
+      <button
+        type="button"
+        class="rm-new-btn"
+        (click)="abrirModalPermisos()">
+        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        <span>Nuevo Permiso</span>
+      </button>
+    }
 
-    <button *ngIf="activeTab==='menus' && isAdminUser"
-            type="button"
-            class="rm-new-btn"
-            (click)="abrirModalMenu()">
-      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-      <span>Nuevo Menú</span>
-    </button>
+    @if (activeTab==='menus' && isAdminUser) {
+      <button
+        type="button"
+        class="rm-new-btn"
+        (click)="abrirModalMenu()">
+        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        <span>Nuevo Menú</span>
+      </button>
+    }
   </div>
 
   <!-- ═══════════════════════════════════════
-       BÚSQUEDA CONTEXTUAL
-       ═══════════════════════════════════════ -->
+  BÚSQUEDA CONTEXTUAL
+  ═══════════════════════════════════════ -->
   <div class="rm-search-wrap">
     <div class="rm-search">
       <fa-icon [icon]="faMagnifyingGlass" class="rm-search__icon" aria-hidden="true"></fa-icon>
 
-      <input *ngIf="activeTab==='roles'"
-             [(ngModel)]="filterRoles"
-             type="search"
-             placeholder="Buscar por nombre de rol, permiso o empresa…"
-             aria-label="Buscar roles"
-             class="rm-search__input" />
+      @if (activeTab==='roles') {
+        <input
+          [(ngModel)]="filterRoles"
+          type="search"
+          placeholder="Buscar por nombre de rol, permiso o empresa…"
+          aria-label="Buscar roles"
+          class="rm-search__input" />
+      }
 
-      <input *ngIf="activeTab==='perms'"
-             [(ngModel)]="filterPerms"
-             type="search"
-             placeholder="Buscar permiso por key o descripción…"
-             aria-label="Buscar permisos"
-             class="rm-search__input" />
+      @if (activeTab==='perms') {
+        <input
+          [(ngModel)]="filterPerms"
+          type="search"
+          placeholder="Buscar permiso por key o descripción…"
+          aria-label="Buscar permisos"
+          class="rm-search__input" />
+      }
 
-      <input *ngIf="activeTab==='menus'"
-             [(ngModel)]="filterMenus"
-             type="search"
-             placeholder="Buscar menú por label, key o ruta…"
-             aria-label="Buscar menús"
-             class="rm-search__input" />
+      @if (activeTab==='menus') {
+        <input
+          [(ngModel)]="filterMenus"
+          type="search"
+          placeholder="Buscar menú por label, key o ruta…"
+          aria-label="Buscar menús"
+          class="rm-search__input" />
+      }
     </div>
   </div>
 
   <!-- ═══════════════════════════════════════
-       CONTENIDO PRINCIPAL
-       ═══════════════════════════════════════ -->
+  CONTENIDO PRINCIPAL
+  ═══════════════════════════════════════ -->
   <section class="ux-card" aria-live="polite">
     <div class="ux-scroll">
       <table class="ux-table">
         <caption class="sr-only">Gestión de roles, permisos y menús</caption>
 
         <!-- ── Roles: anchos de columna ── -->
-        <colgroup *ngIf="activeTab==='roles'">
+        @if (activeTab==='roles') {
+          <colgroup>
           <col style="width:20%" />
           <col style="width:28%" />
           <col style="width:20%" />
           <col style="width:24%" />
           <col style="width:8%" />
         </colgroup>
+      }
 
-        <!-- ── Permisos: anchos de columna ── -->
-        <colgroup *ngIf="activeTab==='perms'">
-          <col style="width:32%" />
-          <col style="width:58%" />
-          <col style="width:10%" />
-        </colgroup>
+      <!-- ── Permisos: anchos de columna ── -->
+      @if (activeTab==='perms') {
+        <colgroup>
+        <col style="width:32%" />
+        <col style="width:58%" />
+        <col style="width:10%" />
+      </colgroup>
+    }
 
-        <!-- ── Menús: ancho completo ── -->
-        <colgroup *ngIf="activeTab==='menus'">
-          <col style="width:100%" />
-        </colgroup>
+    <!-- ── Menús: ancho completo ── -->
+    @if (activeTab==='menus') {
+      <colgroup>
+      <col style="width:100%" />
+    </colgroup>
+  }
 
-        <!-- HEADERS: Roles -->
-        <thead *ngIf="activeTab==='roles'">
-          <tr>
-            <th scope="col">Nombre del rol</th>
-            <th scope="col">Permisos asignados</th>
-            <th scope="col">Empresas</th>
-            <th scope="col">Menús</th>
-            <th scope="col" class="text-right">Acciones</th>
-          </tr>
-        </thead>
+  <!-- HEADERS: Roles -->
+  @if (activeTab==='roles') {
+    <thead>
+      <tr>
+        <th scope="col">Nombre del rol</th>
+        <th scope="col">Permisos asignados</th>
+        <th scope="col">Empresas</th>
+        <th scope="col">Menús</th>
+        <th scope="col" class="text-right">Acciones</th>
+      </tr>
+    </thead>
+  }
 
-        <!-- HEADERS: Permisos -->
-        <thead *ngIf="activeTab==='perms'">
-          <tr>
-            <th scope="col">Key de permiso</th>
-            <th scope="col">Descripción</th>
-            <th scope="col" class="text-right">Acciones</th>
-          </tr>
-        </thead>
+  <!-- HEADERS: Permisos -->
+  @if (activeTab==='perms') {
+    <thead>
+      <tr>
+        <th scope="col">Key de permiso</th>
+        <th scope="col">Descripción</th>
+        <th scope="col" class="text-right">Acciones</th>
+      </tr>
+    </thead>
+  }
 
-        <!-- HEADERS: Menús -->
-        <thead *ngIf="activeTab==='menus'">
-          <tr>
-            <th scope="col">
-              <span *ngIf="isAdminUser">Menús globales del sistema</span>
-              <span *ngIf="!isAdminUser">Menús — {{ companiesMap[activeCompanyId ?? 0] || '—' }}</span>
-            </th>
-          </tr>
-        </thead>
+  <!-- HEADERS: Menús -->
+  @if (activeTab==='menus') {
+    <thead>
+      <tr>
+        <th scope="col">
+          @if (isAdminUser) {
+            <span>Menús globales del sistema</span>
+          }
+          @if (!isAdminUser) {
+            <span>Menús — {{ companiesMap[activeCompanyId ?? 0] || '—' }}</span>
+          }
+        </th>
+      </tr>
+    </thead>
+  }
 
-        <!-- ════════════════════════════════
-             BODY: ROLES
-             ════════════════════════════════ -->
-        <tbody *ngIf="activeTab==='roles'">
-
-          <!-- Cargando -->
-          <tr *ngIf="loading">
-            <td colspan="5" class="empty-state">
-              <div class="rm-loading-row">
-                <div class="spinner" aria-hidden="true"></div>
-                <span>Cargando roles…</span>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Sin resultados -->
-          <tr *ngIf="!loading && !filteredRoles?.length">
-            <td colspan="5" class="empty-state">
-              <div class="rm-empty">
-                <div class="rm-empty__icon">🗂️</div>
-                <p class="rm-empty__title">Sin roles</p>
-                <p class="rm-empty__sub">Crea el primer rol para empezar a gestionar accesos.</p>
-                <button type="button" class="btn-primary mt-3" (click)="openModal()">
-                  <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-                  Crear primer rol
-                </button>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Filas de roles -->
-          <tr *ngFor="let role of filteredRoles; trackBy: trackByRoleId" class="ux-row">
-
-            <!-- Nombre -->
-            <td>
-              <div class="rm-cell-name">
-                <span class="rm-cell-name__icon" aria-hidden="true">
-                  <fa-icon [icon]="faUserShield"></fa-icon>
-                </span>
-                <span class="rm-cell-name__text">{{ role.name }}</span>
-              </div>
-            </td>
-
-            <!-- Permisos -->
-            <td>
-              <ng-container *ngIf="role.permissions?.length; else noPerms">
-                <div class="rm-chips">
-                  <span *ngFor="let p of (role.permissions | slice:0:4)" class="chip">{{ p }}</span>
-                  <span *ngIf="role.permissions.length > 4"
-                        class="chip chip--more"
-                        [title]="role.permissions.slice(4).join(', ')">
+  <!-- ════════════════════════════════
+  BODY: ROLES
+  ════════════════════════════════ -->
+  @if (activeTab==='roles') {
+    <tbody>
+      <!-- Cargando -->
+      @if (loading) {
+        <tr>
+          <td colspan="5" class="empty-state">
+            <div class="rm-loading-row">
+              <div class="spinner" aria-hidden="true"></div>
+              <span>Cargando roles…</span>
+            </div>
+          </td>
+        </tr>
+      }
+      <!-- Sin resultados -->
+      @if (!loading && !filteredRoles?.length) {
+        <tr>
+          <td colspan="5" class="empty-state">
+            <div class="rm-empty">
+              <div class="rm-empty__icon">🗂️</div>
+              <p class="rm-empty__title">Sin roles</p>
+              <p class="rm-empty__sub">Crea el primer rol para empezar a gestionar accesos.</p>
+              <button type="button" class="btn-primary mt-3" (click)="openModal()">
+                <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                Crear primer rol
+              </button>
+            </div>
+          </td>
+        </tr>
+      }
+      <!-- Filas de roles -->
+      @for (role of filteredRoles; track trackByRoleId($index, role)) {
+        <tr class="ux-row">
+          <!-- Nombre -->
+          <td>
+            <div class="rm-cell-name">
+              <span class="rm-cell-name__icon" aria-hidden="true">
+                <fa-icon [icon]="faUserShield"></fa-icon>
+              </span>
+              <span class="rm-cell-name__text">{{ role.name }}</span>
+            </div>
+          </td>
+          <!-- Permisos -->
+          <td>
+            @if (role.permissions?.length) {
+              <div class="rm-chips">
+                @for (p of (role.permissions | slice:0:4); track p) {
+                  <span class="chip">{{ p }}</span>
+                }
+                @if (role.permissions.length > 4) {
+                  <span
+                    class="chip chip--more"
+                    [title]="role.permissions.slice(4).join(', ')">
                     +{{ role.permissions.length - 4 }} más
                   </span>
-                </div>
-              </ng-container>
-              <ng-template #noPerms><span class="muted">Sin permisos</span></ng-template>
-            </td>
-
-            <!-- Empresas -->
-            <td>
-              <ng-container *ngIf="role.companyIds?.length; else noCompanies">
-                <div class="rm-chips">
-                  <span *ngFor="let cid of (role.companyIds | slice:0:3)"
-                        class="chip chip--soft"
-                        [title]="companyName(cid)">
+                }
+              </div>
+            } @else {
+              <span class="muted">Sin permisos</span>
+            }
+          </td>
+          <!-- Empresas -->
+          <td>
+            @if (role.companyIds?.length) {
+              <div class="rm-chips">
+                @for (cid of (role.companyIds | slice:0:3); track cid) {
+                  <span
+                    class="chip chip--soft"
+                    [title]="companyName(cid)">
                     {{ companyName(cid) }}
                   </span>
-                  <span *ngIf="role.companyIds.length > 3"
-                        class="chip chip--more"
-                        [title]="role.companyIds.slice(3).map(companyName).join(', ')">
+                }
+                @if (role.companyIds.length > 3) {
+                  <span
+                    class="chip chip--more"
+                    [title]="role.companyIds.slice(3).map(companyName).join(', ')">
                     +{{ role.companyIds.length - 3 }}
                   </span>
-                </div>
-              </ng-container>
-              <ng-template #noCompanies><span class="muted">—</span></ng-template>
-            </td>
-
-            <!-- Menús -->
-            <td>
-              <ng-container *ngIf="(role.menuIds?.length || 0) > 0; else noMenus">
-                <div class="rm-chips">
-                  <span *ngFor="let mid of (role.menuIds | slice:0:3)"
-                        class="chip chip--soft"
-                        [title]="menuLabel(mid)">
+                }
+              </div>
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+          <!-- Menús -->
+          <td>
+            @if ((role.menuIds?.length || 0) > 0) {
+              <div class="rm-chips">
+                @for (mid of (role.menuIds | slice:0:3); track mid) {
+                  <span
+                    class="chip chip--soft"
+                    [title]="menuLabel(mid)">
                     {{ menuLabel(mid) }}
                   </span>
-                  <span *ngIf="(role.menuIds?.length || 0) > 3"
-                        class="chip chip--more"
-                        [title]="menusTooltip(role.menuIds)">
+                }
+                @if ((role.menuIds?.length || 0) > 3) {
+                  <span
+                    class="chip chip--more"
+                    [title]="menusTooltip(role.menuIds)">
                     +{{ (role.menuIds?.length || 0) - 3 }}
                   </span>
+                }
+              </div>
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+          <!-- Acciones -->
+          <td class="text-right">
+            <div class="rm-actions">
+              <button type="button"
+                class="icon-btn"
+                [attr.aria-label]="'Editar ' + role.name"
+                title="Editar rol"
+                (click)="openModal(role)">
+                <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+              </button>
+              <button type="button"
+                class="icon-btn danger"
+                [attr.aria-label]="'Eliminar ' + role.name"
+                title="Eliminar rol"
+                (click)="deleteRole(role.id)">
+                <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+              </button>
+            </div>
+          </td>
+        </tr>
+      }
+    </tbody>
+  }
+
+  <!-- ════════════════════════════════
+  BODY: PERMISOS
+  ════════════════════════════════ -->
+  @if (activeTab==='perms') {
+    <tbody>
+      @if (loading) {
+        <tr>
+          <td colspan="3" class="empty-state">
+            <div class="rm-loading-row">
+              <div class="spinner" aria-hidden="true"></div>
+              <span>Cargando permisos…</span>
+            </div>
+          </td>
+        </tr>
+      }
+      @if (!loading && !filteredPerms?.length) {
+        <tr>
+          <td colspan="3" class="empty-state">
+            <div class="rm-empty">
+              <div class="rm-empty__icon">🔑</div>
+              <p class="rm-empty__title">Sin permisos</p>
+              <p class="rm-empty__sub">Los permisos controlan qué acciones puede ejecutar cada rol.</p>
+            </div>
+          </td>
+        </tr>
+      }
+      @for (p of filteredPerms; track trackByPermId($index, p)) {
+        <tr class="ux-row">
+          <td>
+            <code class="rm-key-badge">{{ p.key }}</code>
+          </td>
+          <td class="rm-desc">{{ p.description || '—' }}</td>
+          <td class="text-right">
+            <div class="rm-actions">
+              <button type="button"
+                class="icon-btn"
+                [attr.aria-label]="'Editar ' + p.key"
+                title="Editar permiso"
+                (click)="editarPermiso(p)">
+                <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+              </button>
+              <button type="button"
+                class="icon-btn danger"
+                [attr.aria-label]="'Eliminar ' + p.key"
+                title="Eliminar permiso"
+                (click)="eliminarPermiso(p)">
+                <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+              </button>
+            </div>
+          </td>
+        </tr>
+      }
+    </tbody>
+  }
+
+  <!-- ════════════════════════════════
+  BODY: MENÚS (árbol / drag-drop)
+  ════════════════════════════════ -->
+  @if (activeTab==='menus') {
+    <tbody>
+      <tr>
+        <td class="p-0">
+          <div class="rm-menus-body">
+            <!-- Cargando -->
+            @if (tabMenusLoading) {
+              <div class="empty-state py-10">
+                <div class="rm-loading-row">
+                  <div class="spinner" aria-hidden="true"></div>
+                  <span>Cargando menús…</span>
                 </div>
-              </ng-container>
-              <ng-template #noMenus><span class="muted">—</span></ng-template>
-            </td>
-
-            <!-- Acciones -->
-            <td class="text-right">
-              <div class="rm-actions">
-                <button type="button"
-                        class="icon-btn"
-                        [attr.aria-label]="'Editar ' + role.name"
-                        title="Editar rol"
-                        (click)="openModal(role)">
-                  <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                </button>
-                <button type="button"
-                        class="icon-btn danger"
-                        [attr.aria-label]="'Eliminar ' + role.name"
-                        title="Eliminar rol"
-                        (click)="deleteRole(role.id)">
-                  <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                </button>
               </div>
-            </td>
-          </tr>
-        </tbody>
-
-        <!-- ════════════════════════════════
-             BODY: PERMISOS
-             ════════════════════════════════ -->
-        <tbody *ngIf="activeTab==='perms'">
-
-          <tr *ngIf="loading">
-            <td colspan="3" class="empty-state">
-              <div class="rm-loading-row">
-                <div class="spinner" aria-hidden="true"></div>
-                <span>Cargando permisos…</span>
-              </div>
-            </td>
-          </tr>
-
-          <tr *ngIf="!loading && !filteredPerms?.length">
-            <td colspan="3" class="empty-state">
-              <div class="rm-empty">
-                <div class="rm-empty__icon">🔑</div>
-                <p class="rm-empty__title">Sin permisos</p>
-                <p class="rm-empty__sub">Los permisos controlan qué acciones puede ejecutar cada rol.</p>
-              </div>
-            </td>
-          </tr>
-
-          <tr *ngFor="let p of filteredPerms; trackBy: trackByPermId" class="ux-row">
-            <td>
-              <code class="rm-key-badge">{{ p.key }}</code>
-            </td>
-            <td class="rm-desc">{{ p.description || '—' }}</td>
-            <td class="text-right">
-              <div class="rm-actions">
-                <button type="button"
-                        class="icon-btn"
-                        [attr.aria-label]="'Editar ' + p.key"
-                        title="Editar permiso"
-                        (click)="editarPermiso(p)">
-                  <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                </button>
-                <button type="button"
-                        class="icon-btn danger"
-                        [attr.aria-label]="'Eliminar ' + p.key"
-                        title="Eliminar permiso"
-                        (click)="eliminarPermiso(p)">
-                  <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-
-        <!-- ════════════════════════════════
-             BODY: MENÚS (árbol / drag-drop)
-             ════════════════════════════════ -->
-        <tbody *ngIf="activeTab==='menus'">
-          <tr>
-            <td class="p-0">
-              <div class="rm-menus-body">
-
-                <!-- Cargando -->
-                <div *ngIf="tabMenusLoading" class="empty-state py-10">
-                  <div class="rm-loading-row">
-                    <div class="spinner" aria-hidden="true"></div>
-                    <span>Cargando menús…</span>
-                  </div>
+            }
+            <!-- Sin empresa activa -->
+            @if (!tabMenusLoading && !isAdminUser && (activeCompanyId == null)) {
+              <div
+                class="empty-state py-10">
+                <div class="rm-empty">
+                  <div class="rm-empty__icon">🏢</div>
+                  <p class="rm-empty__title">Sin empresa activa</p>
+                  <p class="rm-empty__sub">Seleccione una empresa activa para ver sus menús asignados.</p>
                 </div>
-
-                <!-- Sin empresa activa -->
-                <div *ngIf="!tabMenusLoading && !isAdminUser && (activeCompanyId == null)"
-                     class="empty-state py-10">
-                  <div class="rm-empty">
-                    <div class="rm-empty__icon">🏢</div>
-                    <p class="rm-empty__title">Sin empresa activa</p>
-                    <p class="rm-empty__sub">Seleccione una empresa activa para ver sus menús asignados.</p>
-                  </div>
-                </div>
-
-                <!-- Vacío -->
-                <div *ngIf="!tabMenusLoading && (isAdminUser || activeCompanyId != null) && !filteredMenus?.length"
-                     class="empty-state py-10">
-                  <div class="rm-empty">
-                    <div class="rm-empty__icon">📂</div>
-                    <p class="rm-empty__title">Sin menús configurados</p>
-                    <p *ngIf="isAdminUser" class="rm-empty__sub">Crea el primer ítem de menú para comenzar.</p>
-                    <p *ngIf="!isAdminUser" class="rm-empty__sub">Asigne menús a la empresa desde <strong>Gestión de Empresas</strong>.</p>
-                    <button *ngIf="isAdminUser" type="button" class="btn-primary mt-3" (click)="abrirModalMenu()">
+              </div>
+            }
+            <!-- Vacío -->
+            @if (!tabMenusLoading && (isAdminUser || activeCompanyId != null) && !filteredMenus?.length) {
+              <div
+                class="empty-state py-10">
+                <div class="rm-empty">
+                  <div class="rm-empty__icon">📂</div>
+                  <p class="rm-empty__title">Sin menús configurados</p>
+                  @if (isAdminUser) {
+                    <p class="rm-empty__sub">Crea el primer ítem de menú para comenzar.</p>
+                  }
+                  @if (!isAdminUser) {
+                    <p class="rm-empty__sub">Asigne menús a la empresa desde <strong>Gestión de Empresas</strong>.</p>
+                  }
+                  @if (isAdminUser) {
+                    <button type="button" class="btn-primary mt-3" (click)="abrirModalMenu()">
                       <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon> Crear menú
                     </button>
-                  </div>
+                  }
                 </div>
-
-                <!-- Lista drag-and-drop (sin filtro activo) -->
-                <div *ngIf="!tabMenusLoading && !filterMenus?.trim() && menuFlatList.length && (isAdminUser || activeCompanyId != null)">
-                  <div class="rm-tree-hint">
-                    <fa-icon [icon]="faGripVertical" aria-hidden="true"></fa-icon>
-                    Arrastra los ítems para reordenar o cambiar jerarquía — los cambios se guardan al soltar.
-                  </div>
-
-                  <ul cdkDropList
-                      (cdkDropListDropped)="onMenuDrop($event)"
-                      [cdkDropListData]="menuFlatList"
-                      class="rm-tree-list">
-                    <li *ngFor="let item of menuFlatList; trackBy: trackByMenuFlatId"
-                        cdkDrag
-                        class="rm-tree-item"
-                        [attr.data-depth]="item.depth"
-                        [style.padding-left.rem]="item.depth * 1.25 + 0.75">
-
+              </div>
+            }
+            <!-- Lista drag-and-drop (sin filtro activo) -->
+            @if (!tabMenusLoading && !filterMenus?.trim() && menuFlatList.length && (isAdminUser || activeCompanyId != null)) {
+              <div>
+                <div class="rm-tree-hint">
+                  <fa-icon [icon]="faGripVertical" aria-hidden="true"></fa-icon>
+                  Arrastra los ítems para reordenar o cambiar jerarquía — los cambios se guardan al soltar.
+                </div>
+                <ul cdkDropList
+                  (cdkDropListDropped)="onMenuDrop($event)"
+                  [cdkDropListData]="menuFlatList"
+                  class="rm-tree-list">
+                  @for (item of menuFlatList; track trackByMenuFlatId($index, item)) {
+                    <li
+                      cdkDrag
+                      class="rm-tree-item"
+                      [attr.data-depth]="item.depth"
+                      [style.padding-left.rem]="item.depth * 1.25 + 0.75">
                       <!-- Drag placeholder -->
                       <div *cdkDragPlaceholder class="rm-tree-placeholder"></div>
-
                       <div class="rm-tree-item__row">
                         <div class="rm-tree-item__left">
                           <fa-icon [icon]="faGripVertical"
-                                   class="rm-tree-item__grip"
-                                   cdkDragHandle
-                                   aria-hidden="true"></fa-icon>
+                            class="rm-tree-item__grip"
+                            cdkDragHandle
+                          aria-hidden="true"></fa-icon>
                           <fa-icon [icon]="item.node.isGroup ? faFolder : faFile"
-                                   class="rm-tree-item__type-icon"
-                                   [class.rm-tree-item__type-icon--group]="item.node.isGroup"
-                                   aria-hidden="true"></fa-icon>
+                            class="rm-tree-item__type-icon"
+                            [class.rm-tree-item__type-icon--group]="item.node.isGroup"
+                          aria-hidden="true"></fa-icon>
                           <div class="rm-tree-item__info">
                             <span class="rm-tree-item__label">{{ item.node.label || item.node.key }}</span>
                             <span class="rm-tree-item__meta">
                               <code class="rm-key-badge rm-key-badge--sm">{{ item.node.key }}</code>
-                              <span *ngIf="item.node.route" class="rm-tree-item__route">{{ item.node.route }}</span>
-                              <span *ngIf="item.node.icon" class="rm-tree-item__icon-val">icono: {{ item.node.icon }}</span>
+                              @if (item.node.route) {
+                                <span class="rm-tree-item__route">{{ item.node.route }}</span>
+                              }
+                              @if (item.node.icon) {
+                                <span class="rm-tree-item__icon-val">icono: {{ item.node.icon }}</span>
+                              }
                             </span>
                           </div>
                         </div>
-
-                        <div *ngIf="isAdminUser" class="rm-actions">
-                          <button type="button" class="icon-btn" title="Editar menú" (click)="abrirModalMenu(item.node)">
-                            <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                          </button>
-                          <button type="button" class="icon-btn danger" title="Eliminar menú" (click)="eliminarMenu(item.node)">
-                            <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                          </button>
-                        </div>
+                        @if (isAdminUser) {
+                          <div class="rm-actions">
+                            <button type="button" class="icon-btn" title="Editar menú" (click)="abrirModalMenu(item.node)">
+                              <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                            </button>
+                            <button type="button" class="icon-btn danger" title="Eliminar menú" (click)="eliminarMenu(item.node)">
+                              <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                            </button>
+                          </div>
+                        }
                       </div>
                     </li>
-                  </ul>
-
-                  <p *ngIf="menuStructureSaving" class="rm-saving-hint">
+                  }
+                </ul>
+                @if (menuStructureSaving) {
+                  <p class="rm-saving-hint">
                     <span class="spinner" style="width:12px;height:12px" aria-hidden="true"></span>
                     Guardando estructura del menú…
                   </p>
-                </div>
-
-                <!-- Árbol filtrado -->
-                <ul *ngIf="!tabMenusLoading && (filterMenus?.trim() || !menuFlatList.length) && filteredMenus?.length"
-                    class="rm-tree-list">
-                  <ng-container *ngFor="let node of filteredMenus; trackBy: trackByMenuId">
-                    <li class="rm-tree-item" data-depth="0">
-                      <div class="rm-tree-item__row">
-                        <div class="rm-tree-item__left">
-                          <fa-icon [icon]="node.isGroup ? faFolder : faFile"
-                                   class="rm-tree-item__type-icon"
-                                   [class.rm-tree-item__type-icon--group]="node.isGroup"
-                                   aria-hidden="true"></fa-icon>
-                          <div class="rm-tree-item__info">
-                            <span class="rm-tree-item__label">{{ node.label || node.key }}</span>
-                            <span class="rm-tree-item__meta">
-                              <code class="rm-key-badge rm-key-badge--sm">{{ node.key }}</code>
-                              <span *ngIf="node.route" class="rm-tree-item__route">{{ node.route }}</span>
-                              <span *ngIf="node.icon" class="rm-tree-item__icon-val">{{ node.icon }}</span>
-                              <span *ngIf="node.sortOrder != null" class="rm-tree-item__order">orden: {{ node.sortOrder }}</span>
-                            </span>
-                          </div>
+                }
+              </div>
+            }
+            <!-- Árbol filtrado -->
+            @if (!tabMenusLoading && (filterMenus?.trim() || !menuFlatList.length) && filteredMenus?.length) {
+              <ul
+                class="rm-tree-list">
+                @for (node of filteredMenus; track trackByMenuId($index, node)) {
+                  <li class="rm-tree-item" data-depth="0">
+                    <div class="rm-tree-item__row">
+                      <div class="rm-tree-item__left">
+                        <fa-icon [icon]="node.isGroup ? faFolder : faFile"
+                          class="rm-tree-item__type-icon"
+                          [class.rm-tree-item__type-icon--group]="node.isGroup"
+                        aria-hidden="true"></fa-icon>
+                        <div class="rm-tree-item__info">
+                          <span class="rm-tree-item__label">{{ node.label || node.key }}</span>
+                          <span class="rm-tree-item__meta">
+                            <code class="rm-key-badge rm-key-badge--sm">{{ node.key }}</code>
+                            @if (node.route) {
+                              <span class="rm-tree-item__route">{{ node.route }}</span>
+                            }
+                            @if (node.icon) {
+                              <span class="rm-tree-item__icon-val">{{ node.icon }}</span>
+                            }
+                            @if (node.sortOrder != null) {
+                              <span class="rm-tree-item__order">orden: {{ node.sortOrder }}</span>
+                            }
+                          </span>
                         </div>
-                        <div *ngIf="isAdminUser" class="rm-actions">
+                      </div>
+                      @if (isAdminUser) {
+                        <div class="rm-actions">
                           <button type="button" class="icon-btn" title="Editar" (click)="abrirModalMenu(node)">
                             <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                           </button>
@@ -470,28 +541,31 @@
                             <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                           </button>
                         </div>
-                      </div>
-
-                      <!-- Hijos nivel 1 -->
-                      <ng-container *ngIf="node.children?.length">
-                        <ul class="rm-tree-children">
-                          <ng-container *ngFor="let ch of node.children; trackBy: trackByMenuId">
-                            <li class="rm-tree-item rm-tree-item--child" data-depth="1">
-                              <div class="rm-tree-item__row">
-                                <div class="rm-tree-item__left">
-                                  <fa-icon [icon]="ch.isGroup ? faFolder : faFile"
-                                           class="rm-tree-item__type-icon"
-                                           [class.rm-tree-item__type-icon--group]="ch.isGroup"
-                                           aria-hidden="true"></fa-icon>
-                                  <div class="rm-tree-item__info">
-                                    <span class="rm-tree-item__label">{{ ch.label || ch.key }}</span>
-                                    <span class="rm-tree-item__meta">
-                                      <code class="rm-key-badge rm-key-badge--sm">{{ ch.key }}</code>
-                                      <span *ngIf="ch.route" class="rm-tree-item__route">{{ ch.route }}</span>
-                                    </span>
-                                  </div>
+                      }
+                    </div>
+                    <!-- Hijos nivel 1 -->
+                    @if (node.children?.length) {
+                      <ul class="rm-tree-children">
+                        @for (ch of node.children; track trackByMenuId($index, ch)) {
+                          <li class="rm-tree-item rm-tree-item--child" data-depth="1">
+                            <div class="rm-tree-item__row">
+                              <div class="rm-tree-item__left">
+                                <fa-icon [icon]="ch.isGroup ? faFolder : faFile"
+                                  class="rm-tree-item__type-icon"
+                                  [class.rm-tree-item__type-icon--group]="ch.isGroup"
+                                aria-hidden="true"></fa-icon>
+                                <div class="rm-tree-item__info">
+                                  <span class="rm-tree-item__label">{{ ch.label || ch.key }}</span>
+                                  <span class="rm-tree-item__meta">
+                                    <code class="rm-key-badge rm-key-badge--sm">{{ ch.key }}</code>
+                                    @if (ch.route) {
+                                      <span class="rm-tree-item__route">{{ ch.route }}</span>
+                                    }
+                                  </span>
                                 </div>
-                                <div *ngIf="isAdminUser" class="rm-actions">
+                              </div>
+                              @if (isAdminUser) {
+                                <div class="rm-actions">
                                   <button type="button" class="icon-btn" title="Editar" (click)="abrirModalMenu(ch)">
                                     <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                                   </button>
@@ -499,503 +573,513 @@
                                     <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                                   </button>
                                 </div>
-                              </div>
-
-                              <!-- Hijos nivel 2 -->
-                              <ng-container *ngIf="ch.children?.length">
-                                <ul class="rm-tree-children">
-                                  <li *ngFor="let g of ch.children; trackBy: trackByMenuId"
-                                      class="rm-tree-item rm-tree-item--grandchild" data-depth="2">
+                              }
+                            </div>
+                            <!-- Hijos nivel 2 -->
+                            @if (ch.children?.length) {
+                              <ul class="rm-tree-children">
+                                @for (g of ch.children; track trackByMenuId($index, g)) {
+                                  <li
+                                    class="rm-tree-item rm-tree-item--grandchild" data-depth="2">
                                     <div class="rm-tree-item__row">
                                       <div class="rm-tree-item__left">
                                         <fa-icon [icon]="g.isGroup ? faFolder : faFile"
-                                                 class="rm-tree-item__type-icon"
-                                                 [class.rm-tree-item__type-icon--group]="g.isGroup"
-                                                 aria-hidden="true"></fa-icon>
+                                          class="rm-tree-item__type-icon"
+                                          [class.rm-tree-item__type-icon--group]="g.isGroup"
+                                        aria-hidden="true"></fa-icon>
                                         <div class="rm-tree-item__info">
                                           <span class="rm-tree-item__label">{{ g.label || g.key }}</span>
                                           <span class="rm-tree-item__meta">
                                             <code class="rm-key-badge rm-key-badge--sm">{{ g.key }}</code>
-                                            <span *ngIf="g.route" class="rm-tree-item__route">{{ g.route }}</span>
+                                            @if (g.route) {
+                                              <span class="rm-tree-item__route">{{ g.route }}</span>
+                                            }
                                           </span>
                                         </div>
                                       </div>
-                                      <div *ngIf="isAdminUser" class="rm-actions">
-                                        <button type="button" class="icon-btn" title="Editar" (click)="abrirModalMenu(g)">
-                                          <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                                        </button>
-                                        <button type="button" class="icon-btn danger" title="Eliminar" (click)="eliminarMenu(g)">
-                                          <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                                        </button>
-                                      </div>
+                                      @if (isAdminUser) {
+                                        <div class="rm-actions">
+                                          <button type="button" class="icon-btn" title="Editar" (click)="abrirModalMenu(g)">
+                                            <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                                          </button>
+                                          <button type="button" class="icon-btn danger" title="Eliminar" (click)="eliminarMenu(g)">
+                                            <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                                          </button>
+                                        </div>
+                                      }
                                     </div>
                                   </li>
-                                </ul>
-                              </ng-container>
-                            </li>
-                          </ng-container>
-                        </ul>
-                      </ng-container>
-                    </li>
-                  </ng-container>
-                </ul>
+                                }
+                              </ul>
+                            }
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  }
+</table>
+</div>
+</section>
 
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Toast de carga -->
-  <div *ngIf="loading" class="rm-toast" role="status" aria-live="polite">
+<!-- Toast de carga -->
+@if (loading) {
+  <div class="rm-toast" role="status" aria-live="polite">
     <span class="rm-toast__dot" aria-hidden="true"></span>
     Cargando datos…
   </div>
+}
 
 </div>
 
 <!-- ══════════════════════════════════════════════════════
-     MODAL: ROL (crear / editar)
-     ══════════════════════════════════════════════════════ -->
-<div *ngIf="modalOpen"
-     class="rm-modal-overlay"
-     role="dialog"
-     aria-modal="true"
-     aria-labelledby="role-modal-title">
-  <div class="rm-modal rm-modal--xl">
-
-    <!-- Header del modal -->
-    <div class="rm-modal__header">
-      <div class="rm-modal__header-left">
-        <div class="rm-modal__header-icon">
-          <fa-icon [icon]="faUserShield" aria-hidden="true"></fa-icon>
+MODAL: ROL (crear / editar)
+══════════════════════════════════════════════════════ -->
+@if (modalOpen) {
+  <div
+    class="rm-modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="role-modal-title">
+    <div class="rm-modal rm-modal--xl">
+      <!-- Header del modal -->
+      <div class="rm-modal__header">
+        <div class="rm-modal__header-left">
+          <div class="rm-modal__header-icon">
+            <fa-icon [icon]="faUserShield" aria-hidden="true"></fa-icon>
+          </div>
+          <h2 id="role-modal-title" class="rm-modal__title">
+            {{ form.value.id ? 'Editar Rol' : 'Nuevo Rol' }}
+          </h2>
         </div>
-        <h2 id="role-modal-title" class="rm-modal__title">
-          {{ form.value.id ? 'Editar Rol' : 'Nuevo Rol' }}
-        </h2>
+        <button type="button" class="rm-modal__close" (click)="closeModal()" aria-label="Cerrar">✕</button>
       </div>
-      <button type="button" class="rm-modal__close" (click)="closeModal()" aria-label="Cerrar">✕</button>
-    </div>
-
-    <!-- Cuerpo scrollable -->
-    <div class="rm-modal__body">
-      <form [formGroup]="form" (ngSubmit)="save()" class="rm-modal__form" novalidate>
-
-        <!-- ── Navegador de pasos ──────────────────────────────────────────── -->
-        <div class="flex items-stretch gap-0 mb-6 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-
-          <!-- Paso 1: General -->
-          <button type="button"
-                  class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
-                  [class.bg-white]="roleModalTab === 'general'"
-                  [class.text-ital-green-dark]="roleModalTab === 'general'"
-                  [class.shadow-sm]="roleModalTab === 'general'"
-                  [class.text-slate-500]="roleModalTab !== 'general'"
-                  (click)="setRoleTab('general')">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
-                  [class.bg-ital-green]="roleModalTab === 'general'"
-                  [class.text-white]="roleModalTab === 'general'"
-                  [class.bg-slate-200]="roleModalTab !== 'general'"
-                  [class.text-slate-600]="roleModalTab !== 'general'">1</span>
-            General
-          </button>
-
-          <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
-
-          <!-- Paso 2: Permisos -->
-          <button type="button"
-                  class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
-                  [class.bg-white]="roleModalTab === 'permisos'"
-                  [class.text-ital-green-dark]="roleModalTab === 'permisos'"
-                  [class.shadow-sm]="roleModalTab === 'permisos'"
-                  [class.text-slate-500]="roleModalTab !== 'permisos'"
-                  (click)="setRoleTab('permisos')">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
-                  [class.bg-ital-green]="roleModalTab === 'permisos'"
-                  [class.text-white]="roleModalTab === 'permisos'"
-                  [class.bg-slate-200]="roleModalTab !== 'permisos'"
-                  [class.text-slate-600]="roleModalTab !== 'permisos'">2</span>
-            Permisos
-          </button>
-
-          <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
-
-          <!-- Paso 3: Empresas & Menús -->
-          <button type="button"
-                  class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
-                  [class.bg-white]="roleModalTab === 'empresas'"
-                  [class.text-ital-green-dark]="roleModalTab === 'empresas'"
-                  [class.shadow-sm]="roleModalTab === 'empresas'"
-                  [class.text-slate-500]="roleModalTab !== 'empresas'"
-                  (click)="setRoleTab('empresas')">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
-                  [class.bg-ital-green]="roleModalTab === 'empresas'"
-                  [class.text-white]="roleModalTab === 'empresas'"
-                  [class.bg-slate-200]="roleModalTab !== 'empresas'"
-                  [class.text-slate-600]="roleModalTab !== 'empresas'">3</span>
-            Empresas &amp; Menús
-          </button>
-
-          <!-- Paso 4: Tickets (solo al editar un rol existente) -->
-          <ng-container *ngIf="form.value.id">
-            <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
+      <!-- Cuerpo scrollable -->
+      <div class="rm-modal__body">
+        <form [formGroup]="form" (ngSubmit)="save()" class="rm-modal__form" novalidate>
+          <!-- ── Navegador de pasos ──────────────────────────────────────────── -->
+          <div class="flex items-stretch gap-0 mb-6 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+            <!-- Paso 1: General -->
             <button type="button"
-                    class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
-                    [class.bg-white]="roleModalTab === 'tickets'"
-                    [class.text-ital-green-dark]="roleModalTab === 'tickets'"
-                    [class.shadow-sm]="roleModalTab === 'tickets'"
-                    [class.text-slate-500]="roleModalTab !== 'tickets'"
-                    (click)="setRoleTab('tickets')">
+              class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+              [class.bg-white]="roleModalTab === 'general'"
+              [class.text-ital-green-dark]="roleModalTab === 'general'"
+              [class.shadow-sm]="roleModalTab === 'general'"
+              [class.text-slate-500]="roleModalTab !== 'general'"
+              (click)="setRoleTab('general')">
               <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
-                    [class.bg-ital-green]="roleModalTab === 'tickets'"
-                    [class.text-white]="roleModalTab === 'tickets'"
-                    [class.bg-slate-200]="roleModalTab !== 'tickets'"
-                    [class.text-slate-600]="roleModalTab !== 'tickets'">4</span>
-              <span class="flex items-center gap-1">🎫 Tickets
-                <span class="rounded bg-orange-100 px-1 text-[10px] font-semibold text-orange-600">Opcional</span>
-              </span>
+                [class.bg-ital-green]="roleModalTab === 'general'"
+                [class.text-white]="roleModalTab === 'general'"
+                [class.bg-slate-200]="roleModalTab !== 'general'"
+              [class.text-slate-600]="roleModalTab !== 'general'">1</span>
+              General
             </button>
-          </ng-container>
-        </div>
-
-        <!-- ── Paso 1: General ──────────────────────────────────────────────── -->
-        <ng-container *ngIf="roleModalTab === 'general'">
-          <div class="rm-form-section">
-            <label class="rm-form-label">Nombre del rol <span class="rm-form-required">*</span></label>
-            <input formControlName="name"
-                   placeholder="p.ej. Supervisor de Planta"
-                   class="rm-form-input" />
-            <p class="rm-form-hint">Usa nombres claros y específicos que describan el alcance del rol.</p>
-          </div>
-        </ng-container>
-
-        <!-- ── Paso 2: Permisos ─────────────────────────────────────────────── -->
-        <ng-container *ngIf="roleModalTab === 'permisos'">
-          <fieldset class="rm-fieldset">
-            <legend class="rm-fieldset__legend">
-              Permisos <span class="rm-form-required">*</span>
-            </legend>
-            <div class="rm-fieldset__body rm-fieldset__body--grid3">
-              <label *ngFor="let perm of permissions" class="rm-check-item">
-                <input type="checkbox"
-                       [checked]="form.controls['permissions'].value.includes((perm.key || '').toLowerCase())"
-                       (change)="togglePermission(perm.key)"
-                       class="rm-check" />
-                <span class="rm-check-item__text">
-                  <span class="rm-check-item__key">{{ perm.key }}</span>
-                  <small *ngIf="perm.description" class="rm-check-item__desc">{{ perm.description }}</small>
+            <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
+            <!-- Paso 2: Permisos -->
+            <button type="button"
+              class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+              [class.bg-white]="roleModalTab === 'permisos'"
+              [class.text-ital-green-dark]="roleModalTab === 'permisos'"
+              [class.shadow-sm]="roleModalTab === 'permisos'"
+              [class.text-slate-500]="roleModalTab !== 'permisos'"
+              (click)="setRoleTab('permisos')">
+              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
+                [class.bg-ital-green]="roleModalTab === 'permisos'"
+                [class.text-white]="roleModalTab === 'permisos'"
+                [class.bg-slate-200]="roleModalTab !== 'permisos'"
+              [class.text-slate-600]="roleModalTab !== 'permisos'">2</span>
+              Permisos
+            </button>
+            <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
+            <!-- Paso 3: Empresas & Menús -->
+            <button type="button"
+              class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+              [class.bg-white]="roleModalTab === 'empresas'"
+              [class.text-ital-green-dark]="roleModalTab === 'empresas'"
+              [class.shadow-sm]="roleModalTab === 'empresas'"
+              [class.text-slate-500]="roleModalTab !== 'empresas'"
+              (click)="setRoleTab('empresas')">
+              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
+                [class.bg-ital-green]="roleModalTab === 'empresas'"
+                [class.text-white]="roleModalTab === 'empresas'"
+                [class.bg-slate-200]="roleModalTab !== 'empresas'"
+              [class.text-slate-600]="roleModalTab !== 'empresas'">3</span>
+              Empresas &amp; Menús
+            </button>
+            <!-- Paso 4: Tickets (solo al editar un rol existente) -->
+            @if (form.value.id) {
+              <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
+              <button type="button"
+                class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+                [class.bg-white]="roleModalTab === 'tickets'"
+                [class.text-ital-green-dark]="roleModalTab === 'tickets'"
+                [class.shadow-sm]="roleModalTab === 'tickets'"
+                [class.text-slate-500]="roleModalTab !== 'tickets'"
+                (click)="setRoleTab('tickets')">
+                <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
+                  [class.bg-ital-green]="roleModalTab === 'tickets'"
+                  [class.text-white]="roleModalTab === 'tickets'"
+                  [class.bg-slate-200]="roleModalTab !== 'tickets'"
+                [class.text-slate-600]="roleModalTab !== 'tickets'">4</span>
+                <span class="flex items-center gap-1">🎫 Tickets
+                  <span class="rounded bg-orange-100 px-1 text-[10px] font-semibold text-orange-600">Opcional</span>
                 </span>
-              </label>
-            </div>
-            <p class="rm-fieldset__hint">Selecciona uno o más permisos para este rol.</p>
-          </fieldset>
-        </ng-container>
-
-        <!-- ── Paso 3: Empresas & Menús ────────────────────────────────────── -->
-        <ng-container *ngIf="roleModalTab === 'empresas'">
-
-          <!-- Empresas -->
-          <fieldset class="rm-fieldset">
-            <legend class="rm-fieldset__legend">
-              Empresas <span class="rm-form-required">*</span>
-            </legend>
-            <div *ngIf="isAdminUser" class="rm-fieldset__body rm-fieldset__body--grid">
-              <label *ngFor="let c of companies" class="rm-check-item">
-                <input type="checkbox"
-                       [checked]="form.controls['companyIds'].value.includes(c.id)"
-                       (change)="c.id && toggleCompany(c.id)"
-                       class="rm-check" />
-                <span class="rm-check-item__text">
-                  <span class="rm-check-item__key">{{ c.name }}</span>
-                </span>
-              </label>
-            </div>
-            <div *ngIf="!isAdminUser" class="rm-fieldset__body">
-              <div class="rm-info-box">
-                <p>Este rol se asignará a la empresa activa en sesión:</p>
-                <strong class="rm-info-box__highlight">{{ companiesMap[activeCompanyId ?? 0] || '—' }}</strong>
-                <p class="rm-info-box__note">Solo un administrador puede asignar el rol a otras empresas.</p>
-              </div>
-            </div>
-            <p class="rm-fieldset__hint">Los menús se cargan según la primera empresa seleccionada.</p>
-          </fieldset>
-
-          <!-- Menús -->
-          <fieldset class="rm-fieldset rm-fieldset--menus">
-            <legend class="rm-fieldset__legend">Menús</legend>
-
-            <div *ngIf="!form.controls['companyIds'].value?.length" class="rm-fieldset__body">
-              <div class="rm-info-box rm-info-box--neutral">
-                Selecciona al menos una empresa para cargar los menús disponibles.
-              </div>
-            </div>
-
-            <div *ngIf="roleModalMenusLoading && form.controls['companyIds'].value?.length"
-                 class="rm-fieldset__body rm-fieldset__loading">
-              <div class="spinner" aria-hidden="true"></div>
-              Cargando menús de la empresa…
-            </div>
-
-            <div *ngIf="!roleModalMenusLoading && form.controls['companyIds'].value?.length && roleModalFlatMenus.length === 0"
-                 class="rm-fieldset__body">
-              <div class="rm-info-box rm-info-box--warning">
-                La empresa seleccionada no tiene menús asignados. Asígnelos desde
-                <strong>Gestión de Empresas → Menú</strong>.
-              </div>
-            </div>
-
-            <div *ngIf="!roleModalMenusLoading && roleModalFlatMenus.length > 0"
-                 class="rm-fieldset__body rm-fieldset__body--grid3">
-              <label *ngFor="let m of roleModalFlatMenus" class="rm-check-item">
-                <input type="checkbox"
-                       [checked]="form.controls['menuIds'].value.includes(m.id)"
-                       (change)="toggleMenu(m.id)"
-                       class="rm-check" />
-                <span class="rm-check-item__text">
-                  <span class="rm-check-item__key">{{ m.label || m.key }}</span>
-                  <small *ngIf="m.route" class="rm-check-item__desc">{{ m.route }}</small>
-                </span>
-              </label>
-            </div>
-
-            <p *ngIf="roleModalFlatMenus.length > 0" class="rm-fieldset__hint">
-              Menús de la empresa seleccionada. Marca los que serán visibles para este rol.
-            </p>
-          </fieldset>
-        </ng-container>
-
-        <!-- ── Paso 4: Tickets (montado con [hidden] para que ViewChild quede disponible) ── -->
-        <div [hidden]="roleModalTab !== 'tickets'">
-          <app-ticket-perfil-editor
-            *ngIf="form.value.id"
-            modo="rol"
-            [entityId]="form.value.id.toString()"
-            [hideSaveButton]="true">
-          </app-ticket-perfil-editor>
-        </div>
-
-        <!-- ── Footer unificado ─────────────────────────────────────────────── -->
-        <div class="rm-modal__footer">
-          <button type="button" class="rm-btn rm-btn--ghost"
-                  *ngIf="!isFirstRoleTab"
-                  (click)="prevRoleTab()">
-            ← Anterior
-          </button>
-          <div style="flex: 1"></div>
-          <button type="button" class="rm-btn rm-btn--ghost" (click)="closeModal()">Cancelar</button>
-          <button type="button" class="rm-btn rm-btn--primary"
-                  *ngIf="!isLastRoleTab"
-                  (click)="nextRoleTab()">
-            Siguiente →
-          </button>
-          <button type="submit" class="rm-btn rm-btn--primary" [disabled]="form.invalid || loading">
-            <div *ngIf="loading" class="spinner rm-btn__spinner" aria-hidden="true"></div>
-            {{ form.value.id ? 'Actualizar Rol' : 'Crear Rol' }}
-          </button>
-        </div>
-
-      </form>
-    </div>
-
-    <!-- Overlay guardando -->
-    <div *ngIf="loading" class="rm-modal__saving" aria-live="polite">
-      <div class="rm-loading-row">
-        <div class="spinner" aria-hidden="true"></div>
-        Guardando…
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     MODAL: PERMISOS (CRUD)
-     ══════════════════════════════════════════════════════ -->
-<div *ngIf="permModalOpen"
-     class="rm-modal-overlay"
-     role="dialog"
-     aria-modal="true"
-     aria-labelledby="perm-modal-title">
-  <div class="rm-modal rm-modal--xl">
-
-    <div class="rm-modal__header">
-      <div class="rm-modal__header-left">
-        <div class="rm-modal__header-icon rm-modal__header-icon--key">
-          <fa-icon [icon]="faKey" aria-hidden="true"></fa-icon>
-        </div>
-        <h2 id="perm-modal-title" class="rm-modal__title">Gestión de Permisos</h2>
-      </div>
-      <button type="button" class="rm-modal__close" (click)="cerrarModalPermisos()" aria-label="Cerrar">✕</button>
-    </div>
-
-    <div class="rm-modal__body">
-
-      <!-- Formulario crear/editar permiso -->
-      <div class="rm-modal__section-title">
-        {{ permEditing ? 'Editar permiso' : 'Agregar nuevo permiso' }}
-      </div>
-
-      <form [formGroup]="permForm" (ngSubmit)="guardarPermiso()" class="rm-perm-form" novalidate>
-        <div class="rm-perm-form__fields">
-          <div class="rm-form-section rm-form-section--inline">
-            <label class="rm-form-label">Key <span class="rm-form-required">*</span></label>
-            <input formControlName="key"
-                   placeholder="p.ej. roles:manage"
-                   class="rm-form-input" />
+              </button>
+            }
           </div>
-          <div class="rm-form-section rm-form-section--inline rm-form-section--grow">
-            <label class="rm-form-label">Descripción</label>
-            <input formControlName="description"
-                   placeholder="Descripción del permiso"
-                   class="rm-form-input" />
-          </div>
-        </div>
-        <div class="rm-perm-form__actions">
-          <button type="button"
-                  class="rm-btn rm-btn--ghost"
-                  (click)="permEditing = false; permForm.reset({ id:null, key:'', description:'' });">
-            Limpiar
-          </button>
-          <button type="submit"
-                  class="rm-btn rm-btn--primary"
-                  [disabled]="permForm.invalid">
-            {{ permEditing ? 'Actualizar' : 'Crear permiso' }}
-          </button>
-        </div>
-      </form>
-
-      <div class="rm-modal__divider" aria-hidden="true"></div>
-      <div class="rm-modal__section-title">Permisos existentes</div>
-
-      <!-- Tabla de permisos -->
-      <div class="rm-inner-table-wrap">
-        <table class="rm-inner-table">
-          <thead>
-            <tr>
-              <th>Key de permiso</th>
-              <th>Descripción</th>
-              <th class="text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let p of permissions; trackBy: trackByPermId" class="rm-inner-tr">
-              <td><code class="rm-key-badge">{{ p.key }}</code></td>
-              <td class="rm-desc">{{ p.description || '—' }}</td>
-              <td class="text-right">
-                <div class="rm-actions">
-                  <button type="button"
-                          class="icon-btn"
-                          [attr.aria-label]="'Editar ' + p.key"
-                          title="Editar permiso"
-                          (click)="editarPermiso(p)">
-                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button type="button"
-                          class="icon-btn danger"
-                          [attr.aria-label]="'Eliminar ' + p.key"
-                          title="Eliminar permiso"
-                          (click)="eliminarPermiso(p)">
-                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                  </button>
+          <!-- ── Paso 1: General ──────────────────────────────────────────────── -->
+          @if (roleModalTab === 'general') {
+            <div class="rm-form-section">
+              <label class="rm-form-label">Nombre del rol <span class="rm-form-required">*</span></label>
+              <input formControlName="name"
+                placeholder="p.ej. Supervisor de Planta"
+                class="rm-form-input" />
+                <p class="rm-form-hint">Usa nombres claros y específicos que describan el alcance del rol.</p>
+              </div>
+            }
+            <!-- ── Paso 2: Permisos ─────────────────────────────────────────────── -->
+            @if (roleModalTab === 'permisos') {
+              <fieldset class="rm-fieldset">
+                <legend class="rm-fieldset__legend">
+                  Permisos <span class="rm-form-required">*</span>
+                </legend>
+                <div class="rm-fieldset__body rm-fieldset__body--grid3">
+                  @for (perm of permissions; track perm) {
+                    <label class="rm-check-item">
+                      <input type="checkbox"
+                        [checked]="form.controls['permissions'].value.includes((perm.key || '').toLowerCase())"
+                        (change)="togglePermission(perm.key)"
+                        class="rm-check" />
+                        <span class="rm-check-item__text">
+                          <span class="rm-check-item__key">{{ perm.key }}</span>
+                          @if (perm.description) {
+                            <small class="rm-check-item__desc">{{ perm.description }}</small>
+                          }
+                        </span>
+                      </label>
+                    }
+                  </div>
+                  <p class="rm-fieldset__hint">Selecciona uno o más permisos para este rol.</p>
+                </fieldset>
+              }
+              <!-- ── Paso 3: Empresas & Menús ────────────────────────────────────── -->
+              @if (roleModalTab === 'empresas') {
+                <!-- Empresas -->
+                <fieldset class="rm-fieldset">
+                  <legend class="rm-fieldset__legend">
+                    Empresas <span class="rm-form-required">*</span>
+                  </legend>
+                  @if (isAdminUser) {
+                    <div class="rm-fieldset__body rm-fieldset__body--grid">
+                      @for (c of companies; track c) {
+                        <label class="rm-check-item">
+                          <input type="checkbox"
+                            [checked]="form.controls['companyIds'].value.includes(c.id)"
+                            (change)="c.id && toggleCompany(c.id)"
+                            class="rm-check" />
+                            <span class="rm-check-item__text">
+                              <span class="rm-check-item__key">{{ c.name }}</span>
+                            </span>
+                          </label>
+                        }
+                      </div>
+                    }
+                    @if (!isAdminUser) {
+                      <div class="rm-fieldset__body">
+                        <div class="rm-info-box">
+                          <p>Este rol se asignará a la empresa activa en sesión:</p>
+                          <strong class="rm-info-box__highlight">{{ companiesMap[activeCompanyId ?? 0] || '—' }}</strong>
+                          <p class="rm-info-box__note">Solo un administrador puede asignar el rol a otras empresas.</p>
+                        </div>
+                      </div>
+                    }
+                    <p class="rm-fieldset__hint">Los menús se cargan según la primera empresa seleccionada.</p>
+                  </fieldset>
+                  <!-- Menús -->
+                  <fieldset class="rm-fieldset rm-fieldset--menus">
+                    <legend class="rm-fieldset__legend">Menús</legend>
+                    @if (!form.controls['companyIds'].value?.length) {
+                      <div class="rm-fieldset__body">
+                        <div class="rm-info-box rm-info-box--neutral">
+                          Selecciona al menos una empresa para cargar los menús disponibles.
+                        </div>
+                      </div>
+                    }
+                    @if (roleModalMenusLoading && form.controls['companyIds'].value?.length) {
+                      <div
+                        class="rm-fieldset__body rm-fieldset__loading">
+                        <div class="spinner" aria-hidden="true"></div>
+                        Cargando menús de la empresa…
+                      </div>
+                    }
+                    @if (!roleModalMenusLoading && form.controls['companyIds'].value?.length && roleModalFlatMenus.length === 0) {
+                      <div
+                        class="rm-fieldset__body">
+                        <div class="rm-info-box rm-info-box--warning">
+                          La empresa seleccionada no tiene menús asignados. Asígnelos desde
+                          <strong>Gestión de Empresas → Menú</strong>.
+                        </div>
+                      </div>
+                    }
+                    @if (!roleModalMenusLoading && roleModalFlatMenus.length > 0) {
+                      <div
+                        class="rm-fieldset__body rm-fieldset__body--grid3">
+                        @for (m of roleModalFlatMenus; track m) {
+                          <label class="rm-check-item">
+                            <input type="checkbox"
+                              [checked]="form.controls['menuIds'].value.includes(m.id)"
+                              (change)="toggleMenu(m.id)"
+                              class="rm-check" />
+                              <span class="rm-check-item__text">
+                                <span class="rm-check-item__key">{{ m.label || m.key }}</span>
+                                @if (m.route) {
+                                  <small class="rm-check-item__desc">{{ m.route }}</small>
+                                }
+                              </span>
+                            </label>
+                          }
+                        </div>
+                      }
+                      @if (roleModalFlatMenus.length > 0) {
+                        <p class="rm-fieldset__hint">
+                          Menús de la empresa seleccionada. Marca los que serán visibles para este rol.
+                        </p>
+                      }
+                    </fieldset>
+                  }
+                  <!-- ── Paso 4: Tickets (montado con [hidden] para que ViewChild quede disponible) ── -->
+                  <div [hidden]="roleModalTab !== 'tickets'">
+                    @if (form.value.id) {
+                      <app-ticket-perfil-editor
+                        modo="rol"
+                        [entityId]="form.value.id.toString()"
+                        [hideSaveButton]="true">
+                      </app-ticket-perfil-editor>
+                    }
+                  </div>
+                  <!-- ── Footer unificado ─────────────────────────────────────────────── -->
+                  <div class="rm-modal__footer">
+                    @if (!isFirstRoleTab) {
+                      <button type="button" class="rm-btn rm-btn--ghost"
+                        (click)="prevRoleTab()">
+                        ← Anterior
+                      </button>
+                    }
+                    <div style="flex: 1"></div>
+                    <button type="button" class="rm-btn rm-btn--ghost" (click)="closeModal()">Cancelar</button>
+                    @if (!isLastRoleTab) {
+                      <button type="button" class="rm-btn rm-btn--primary"
+                        (click)="nextRoleTab()">
+                        Siguiente →
+                      </button>
+                    }
+                    <button type="submit" class="rm-btn rm-btn--primary" [disabled]="form.invalid || loading">
+                      @if (loading) {
+                        <div class="spinner rm-btn__spinner" aria-hidden="true"></div>
+                      }
+                      {{ form.value.id ? 'Actualizar Rol' : 'Crear Rol' }}
+                    </button>
+                  </div>
+                </form>
+              </div>
+              <!-- Overlay guardando -->
+              @if (loading) {
+                <div class="rm-modal__saving" aria-live="polite">
+                  <div class="rm-loading-row">
+                    <div class="spinner" aria-hidden="true"></div>
+                    Guardando…
+                  </div>
                 </div>
-              </td>
-            </tr>
-            <tr *ngIf="!permissions?.length">
-              <td colspan="3" class="empty-state">Sin permisos registrados</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p class="rm-modal__footnote">
-        Las <em>keys</em> se guardan en minúsculas y deben coincidir exactamente con el backend.
-      </p>
-    </div>
-
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     MODAL: MENÚ (CRUD)
-     ══════════════════════════════════════════════════════ -->
-<div *ngIf="menuModalOpen"
-     class="rm-modal-overlay"
-     role="dialog"
-     aria-modal="true"
-     aria-labelledby="menu-modal-title">
-  <div class="rm-modal rm-modal--md">
-
-    <div class="rm-modal__header">
-      <div class="rm-modal__header-left">
-        <div class="rm-modal__header-icon rm-modal__header-icon--folder">
-          <fa-icon [icon]="faFolder" aria-hidden="true"></fa-icon>
-        </div>
-        <h2 id="menu-modal-title" class="rm-modal__title">
-          {{ menuForm.value.id ? 'Editar ítem de menú' : 'Nuevo ítem de menú' }}
-        </h2>
-      </div>
-      <button type="button" class="rm-modal__close" (click)="cerrarModalMenu()" aria-label="Cerrar">✕</button>
-    </div>
-
-    <div class="rm-modal__body">
-      <form [formGroup]="menuForm" (ngSubmit)="guardarMenu()" class="rm-modal__form" novalidate>
-
-        <div class="rm-modal-grid">
-          <div class="rm-form-section">
-            <label class="rm-form-label">Label visible <span class="rm-form-required">*</span></label>
-            <input formControlName="label" placeholder="Texto que verá el usuario" class="rm-form-input" />
+              }
+            </div>
           </div>
-          <div class="rm-form-section">
-            <label class="rm-form-label">Key único <span class="rm-form-required">*</span></label>
-            <input formControlName="key" placeholder="identificador_unico" class="rm-form-input" />
-          </div>
-        </div>
+        }
 
-        <div class="rm-form-section">
-          <label class="rm-form-label">Ruta de navegación</label>
-          <input formControlName="route" placeholder="/app/modulo/seccion" class="rm-form-input" />
-        </div>
+        <!-- ══════════════════════════════════════════════════════
+        MODAL: PERMISOS (CRUD)
+        ══════════════════════════════════════════════════════ -->
+        @if (permModalOpen) {
+          <div
+            class="rm-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="perm-modal-title">
+            <div class="rm-modal rm-modal--xl">
+              <div class="rm-modal__header">
+                <div class="rm-modal__header-left">
+                  <div class="rm-modal__header-icon rm-modal__header-icon--key">
+                    <fa-icon [icon]="faKey" aria-hidden="true"></fa-icon>
+                  </div>
+                  <h2 id="perm-modal-title" class="rm-modal__title">Gestión de Permisos</h2>
+                </div>
+                <button type="button" class="rm-modal__close" (click)="cerrarModalPermisos()" aria-label="Cerrar">✕</button>
+              </div>
+              <div class="rm-modal__body">
+                <!-- Formulario crear/editar permiso -->
+                <div class="rm-modal__section-title">
+                  {{ permEditing ? 'Editar permiso' : 'Agregar nuevo permiso' }}
+                </div>
+                <form [formGroup]="permForm" (ngSubmit)="guardarPermiso()" class="rm-perm-form" novalidate>
+                  <div class="rm-perm-form__fields">
+                    <div class="rm-form-section rm-form-section--inline">
+                      <label class="rm-form-label">Key <span class="rm-form-required">*</span></label>
+                      <input formControlName="key"
+                        placeholder="p.ej. roles:manage"
+                        class="rm-form-input" />
+                      </div>
+                      <div class="rm-form-section rm-form-section--inline rm-form-section--grow">
+                        <label class="rm-form-label">Descripción</label>
+                        <input formControlName="description"
+                          placeholder="Descripción del permiso"
+                          class="rm-form-input" />
+                        </div>
+                      </div>
+                      <div class="rm-perm-form__actions">
+                        <button type="button"
+                          class="rm-btn rm-btn--ghost"
+                          (click)="permEditing = false; permForm.reset({ id:null, key:'', description:'' });">
+                          Limpiar
+                        </button>
+                        <button type="submit"
+                          class="rm-btn rm-btn--primary"
+                          [disabled]="permForm.invalid">
+                          {{ permEditing ? 'Actualizar' : 'Crear permiso' }}
+                        </button>
+                      </div>
+                    </form>
+                    <div class="rm-modal__divider" aria-hidden="true"></div>
+                    <div class="rm-modal__section-title">Permisos existentes</div>
+                    <!-- Tabla de permisos -->
+                    <div class="rm-inner-table-wrap">
+                      <table class="rm-inner-table">
+                        <thead>
+                          <tr>
+                            <th>Key de permiso</th>
+                            <th>Descripción</th>
+                            <th class="text-right">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (p of permissions; track trackByPermId($index, p)) {
+                            <tr class="rm-inner-tr">
+                              <td><code class="rm-key-badge">{{ p.key }}</code></td>
+                              <td class="rm-desc">{{ p.description || '—' }}</td>
+                              <td class="text-right">
+                                <div class="rm-actions">
+                                  <button type="button"
+                                    class="icon-btn"
+                                    [attr.aria-label]="'Editar ' + p.key"
+                                    title="Editar permiso"
+                                    (click)="editarPermiso(p)">
+                                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                                  </button>
+                                  <button type="button"
+                                    class="icon-btn danger"
+                                    [attr.aria-label]="'Eliminar ' + p.key"
+                                    title="Eliminar permiso"
+                                    (click)="eliminarPermiso(p)">
+                                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          }
+                          @if (!permissions?.length) {
+                            <tr>
+                              <td colspan="3" class="empty-state">Sin permisos registrados</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                    <p class="rm-modal__footnote">
+                      Las <em>keys</em> se guardan en minúsculas y deben coincidir exactamente con el backend.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            }
 
-        <div class="rm-modal-grid">
-          <div class="rm-form-section">
-            <label class="rm-form-label">Icono</label>
-            <input formControlName="icon" placeholder="tachometer-alt, users, key…" class="rm-form-input" />
-          </div>
-          <div class="rm-form-section">
-            <label class="rm-form-label">Orden</label>
-            <input type="number" formControlName="sortOrder" placeholder="0" class="rm-form-input" />
-          </div>
-        </div>
-
-        <div class="rm-form-section">
-          <label class="rm-form-label">Menú padre</label>
-          <select formControlName="parentId" class="rm-form-select">
-            <option [ngValue]="null">— Sin padre (raíz)</option>
-            <option *ngFor="let m of flatMenus" [ngValue]="m.id">{{ m.label || m.key }}</option>
-          </select>
-        </div>
-
-        <div class="rm-form-section">
-          <label class="rm-check-item rm-check-item--standalone">
-            <input type="checkbox" formControlName="isGroup" class="rm-check" />
-            <span class="rm-check-item__text">
-              <span class="rm-check-item__key">Es grupo (contenedor sin navegación)</span>
-              <small class="rm-check-item__desc">Úsalo para agrupar secciones sin que sea un enlace navegable.</small>
-            </span>
-          </label>
-        </div>
-
-        <div class="rm-modal__footer">
-          <button type="button" class="rm-btn rm-btn--ghost" (click)="cerrarModalMenu()">Cancelar</button>
-          <button type="submit" class="rm-btn rm-btn--primary" [disabled]="menuForm.invalid">
-            {{ menuEditing ? 'Actualizar' : 'Crear' }}
-          </button>
-        </div>
-
-      </form>
-    </div>
-
-  </div>
-</div>
+            <!-- ══════════════════════════════════════════════════════
+            MODAL: MENÚ (CRUD)
+            ══════════════════════════════════════════════════════ -->
+            @if (menuModalOpen) {
+              <div
+                class="rm-modal-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="menu-modal-title">
+                <div class="rm-modal rm-modal--md">
+                  <div class="rm-modal__header">
+                    <div class="rm-modal__header-left">
+                      <div class="rm-modal__header-icon rm-modal__header-icon--folder">
+                        <fa-icon [icon]="faFolder" aria-hidden="true"></fa-icon>
+                      </div>
+                      <h2 id="menu-modal-title" class="rm-modal__title">
+                        {{ menuForm.value.id ? 'Editar ítem de menú' : 'Nuevo ítem de menú' }}
+                      </h2>
+                    </div>
+                    <button type="button" class="rm-modal__close" (click)="cerrarModalMenu()" aria-label="Cerrar">✕</button>
+                  </div>
+                  <div class="rm-modal__body">
+                    <form [formGroup]="menuForm" (ngSubmit)="guardarMenu()" class="rm-modal__form" novalidate>
+                      <div class="rm-modal-grid">
+                        <div class="rm-form-section">
+                          <label class="rm-form-label">Label visible <span class="rm-form-required">*</span></label>
+                          <input formControlName="label" placeholder="Texto que verá el usuario" class="rm-form-input" />
+                        </div>
+                        <div class="rm-form-section">
+                          <label class="rm-form-label">Key único <span class="rm-form-required">*</span></label>
+                          <input formControlName="key" placeholder="identificador_unico" class="rm-form-input" />
+                        </div>
+                      </div>
+                      <div class="rm-form-section">
+                        <label class="rm-form-label">Ruta de navegación</label>
+                        <input formControlName="route" placeholder="/app/modulo/seccion" class="rm-form-input" />
+                      </div>
+                      <div class="rm-modal-grid">
+                        <div class="rm-form-section">
+                          <label class="rm-form-label">Icono</label>
+                          <input formControlName="icon" placeholder="tachometer-alt, users, key…" class="rm-form-input" />
+                        </div>
+                        <div class="rm-form-section">
+                          <label class="rm-form-label">Orden</label>
+                          <input type="number" formControlName="sortOrder" placeholder="0" class="rm-form-input" />
+                        </div>
+                      </div>
+                      <div class="rm-form-section">
+                        <label class="rm-form-label">Menú padre</label>
+                        <select formControlName="parentId" class="rm-form-select">
+                          <option [ngValue]="null">— Sin padre (raíz)</option>
+                          @for (m of flatMenus; track m) {
+                            <option [ngValue]="m.id">{{ m.label || m.key }}</option>
+                          }
+                        </select>
+                      </div>
+                      <div class="rm-form-section">
+                        <label class="rm-check-item rm-check-item--standalone">
+                          <input type="checkbox" formControlName="isGroup" class="rm-check" />
+                          <span class="rm-check-item__text">
+                            <span class="rm-check-item__key">Es grupo (contenedor sin navegación)</span>
+                            <small class="rm-check-item__desc">Úsalo para agrupar secciones sin que sea un enlace navegable.</small>
+                          </span>
+                        </label>
+                      </div>
+                      <div class="rm-modal__footer">
+                        <button type="button" class="rm-btn rm-btn--ghost" (click)="cerrarModalMenu()">Cancelar</button>
+                        <button type="submit" class="rm-btn rm-btn--primary" [disabled]="menuForm.invalid">
+                          {{ menuEditing ? 'Actualizar' : 'Crear' }}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            }

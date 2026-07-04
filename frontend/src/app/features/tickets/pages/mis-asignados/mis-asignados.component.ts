@@ -1,6 +1,6 @@
 // src/app/features/tickets/pages/mis-asignados/mis-asignados.component.ts
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
@@ -16,7 +16,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 @Component({
   selector: 'app-mis-asignados',
   standalone: true,
-  imports: [CommonModule, FormsModule, TicketListComponent],
+  imports: [FormsModule, TicketListComponent],
   template: `
     <div class="min-h-full bg-gradient-to-b from-ital-cream/60 to-transparent">
       <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">

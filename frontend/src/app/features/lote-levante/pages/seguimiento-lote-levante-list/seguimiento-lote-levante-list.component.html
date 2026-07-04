@@ -7,126 +7,142 @@
         <h1>Seguimiento Diario de Levante</h1>
 
         <div class="ux-header__meta">
-          <ng-template #noGranjaChip>
+
+          @if (selectedGranjaId) {
+            <span class="chip chip--info">
+              <span class="chip chip--dot" aria-hidden="true"></span>
+              Granja: {{ selectedGranjaName || selectedGranjaId }}
+            </span>
+          } @else {
             <span class="chip chip--warning">
               <span class="chip__dot" aria-hidden="true"></span>
               Selecciona una granja
             </span>
-          </ng-template>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip chip--dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
-          </span>
+          @if (selectedNucleoId) {
+            <span class="chip chip--muted">
+              Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
+          @if (selectedGalponId) {
+            <span class="chip chip--muted">
+              Galpón: {{ selectedGalponNombre }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Lote: {{ selectedLoteNombre }}
+            </span>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedLoteId">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote: {{ selectedLoteNombre }}
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--muted">
+              {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedLoteId">
-            {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--muted">
+              {{ seguimientos.length || 0 }} registro(s)
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedLoteId">
-            {{ seguimientos.length || 0 }} registro(s)
-          </span>
-
-          <span class="chip chip--info" *ngIf="loadingRecord" role="status">
-            Cargando registro…
-          </span>
+          @if (loadingRecord) {
+            <span class="chip chip--info" role="status">
+              Cargando registro…
+            </span>
+          }
         </div>
       </div>
 
       <div class="ux-header__actions">
         <!-- Botón "Ver cálculos" oculto -->
         <!-- <button
-          type="button"
-          class="btn btn--outline"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver cálculos del lote'"
-          (click)="openCalculos()">
-          Ver cálculos
-        </button> -->
+        type="button"
+        class="btn btn--outline"
+        [disabled]="!selectedLoteId"
+        [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver cálculos del lote'"
+        (click)="openCalculos()">
+        Ver cálculos
+      </button> -->
 
+      @if (selectedLoteId && !isLoteCerrado && lotePosturaLevanteIdActual != null) {
         <button
           type="button"
           class="btn btn--outline"
-          *ngIf="selectedLoteId && !isLoteCerrado && lotePosturaLevanteIdActual != null"
           [disabled]="loadingCierreLote"
           (click)="openCerrarLoteModal()"
           title="Cerrar el lote de levante y crear el lote de producción">
           Cerrar lote
         </button>
+      }
 
+      @if (selectedLoteId && isLoteCerrado && lotePosturaLevanteIdActual != null) {
         <button
           type="button"
           class="btn btn--outline"
-          *ngIf="selectedLoteId && isLoteCerrado && lotePosturaLevanteIdActual != null"
           [disabled]="loadingCierreLote"
           (click)="openAbrirLoteModal()"
           title="Reabrir el lote de levante (si el lote de producción aún no tiene seguimiento)">
           Abrir lote Seguimiento Diario de Levante
         </button>
+      }
 
+      @if (selectedLoteId && lotePosturaLevanteIdActual != null) {
         <button
           type="button"
           class="btn btn--outline"
-          *ngIf="selectedLoteId && lotePosturaLevanteIdActual != null"
           (click)="openTrasladoAvesModal()"
           title="Registrar traslado de aves desde este seguimiento diario">
           Traslado de Aves
         </button>
+      }
 
-        <button
-          type="button"
-          (click)="create()"
-          class="btn btn--primary"
-          [disabled]="!selectedLoteId || isLoteCerrado"
-          [title]="isLoteCerrado ? 'El lote está cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
-          Nuevo registro
-        </button>
-      </div>
-    </header>
+      <button
+        type="button"
+        (click)="create()"
+        class="btn btn--primary"
+        [disabled]="!selectedLoteId || isLoteCerrado"
+        [title]="isLoteCerrado ? 'El lote está cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
+        Nuevo registro
+      </button>
+    </div>
+  </header>
 
-    <!-- Filtros de selección -->
-    <app-filtro-select
-      [selectedGranjaId]="selectedGranjaId"
-      [selectedNucleoId]="selectedNucleoId"
-      [selectedGalponId]="selectedGalponId"
-      [selectedLoteId]="selectedLoteId"
-      [filterDataUrl]="filterDataUrl"
-      (filterDataLoaded)="onFilterDataLoaded($event)"
-      (granjaChange)="onGranjaChange($event)"
-      (nucleoChange)="onNucleoChange($event)"
-      (galponChange)="onGalponChange($event)"
-      (loteChange)="onLoteChange($event)">
-    </app-filtro-select>
-    
-    <!-- Tabs Principal: General, Indicadores y Gráfica (resumen de descuentos para visualizar mortalidad/descarte) -->
-    <app-tabs-principal
-      [seguimientos]="seguimientos"
-      [selectedLote]="selectedLote"
-      [resumenLevante]="resumenSelected"
-      [loading]="loading"
-      [disableCreateEditDelete]="isLoteCerrado"
-      [isLoteCerrado]="isLoteCerrado"
-      [showExportSeguimientoExcel]="true"
-      [exportSeguimientoLoteNombre]="selectedLoteNombre"
-      (create)="create()"
-      (edit)="edit($event)"
-      (delete)="delete($event)"
-      (viewDetail)="viewDetail($event)">
-    </app-tabs-principal>
-  </div>
+  <!-- Filtros de selección -->
+  <app-filtro-select
+    [selectedGranjaId]="selectedGranjaId"
+    [selectedNucleoId]="selectedNucleoId"
+    [selectedGalponId]="selectedGalponId"
+    [selectedLoteId]="selectedLoteId"
+    [filterDataUrl]="filterDataUrl"
+    (filterDataLoaded)="onFilterDataLoaded($event)"
+    (granjaChange)="onGranjaChange($event)"
+    (nucleoChange)="onNucleoChange($event)"
+    (galponChange)="onGalponChange($event)"
+    (loteChange)="onLoteChange($event)">
+  </app-filtro-select>
+
+  <!-- Tabs Principal: General, Indicadores y Gráfica (resumen de descuentos para visualizar mortalidad/descarte) -->
+  <app-tabs-principal
+    [seguimientos]="seguimientos"
+    [selectedLote]="selectedLote"
+    [resumenLevante]="resumenSelected"
+    [loading]="loading"
+    [disableCreateEditDelete]="isLoteCerrado"
+    [isLoteCerrado]="isLoteCerrado"
+    [showExportSeguimientoExcel]="true"
+    [exportSeguimientoLoteNombre]="selectedLoteNombre"
+    (create)="create()"
+    (edit)="edit($event)"
+    (delete)="delete($event)"
+    (viewDetail)="viewDetail($event)">
+  </app-tabs-principal>
+</div>
 </div>
 
 <!-- Modal de creación/edición -->
@@ -159,274 +175,312 @@
 </app-modal-calculos>
 
 <!-- ================= MODAL: CERRAR LOTE → PRODUCCIÓN ================= -->
-<div *ngIf="cerrarLoteModalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cerrar-lote-lev-title">
-  <div class="ux-modal__dialog ux-modal__dialog--lg ux-modal__dialog--cerrar-levante">
-    <header class="ux-modal__header">
-      <h2 id="cerrar-lote-lev-title">Cerrar lote de levante</h2>
-      <button type="button" class="icon-btn" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
-    </header>
-
-    <div class="ux-form">
-      <p *ngIf="loadingCierreLote && !resumenCierre" class="text-muted">Cargando resumen…</p>
-
-      <ng-container *ngIf="resumenCierre as r">
-        <p><strong>Lote:</strong> {{ r.loteNombre }}</p>
-        <div class="grid grid-2">
-          <p><strong>Hembras disponibles:</strong> {{ r.avesHembrasDisponibles }}</p>
-          <p><strong>Machos disponibles:</strong> {{ r.avesMachosDisponibles }}</p>
-        </div>
-        <div class="grid grid-2" *ngIf="selectedLote?.fechaEncaset">
-          <p><strong>Edad al cierre:</strong> {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días</p>
-          <p><strong>Fecha encasetamiento:</strong> {{ selectedLote?.fechaEncaset | date:'dd/MM/yyyy' }}</p>
-        </div>
-
-        <div class="ux-card" style="margin: 0.75rem 0; padding: 0.75rem;" *ngIf="resumenSelected as rs">
-          <p style="margin: 0 0 0.5rem 0;"><strong>Cortes (acumulado) — Levante</strong></p>
+@if (cerrarLoteModalOpen) {
+  <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cerrar-lote-lev-title">
+    <div class="ux-modal__dialog ux-modal__dialog--lg ux-modal__dialog--cerrar-levante">
+      <header class="ux-modal__header">
+        <h2 id="cerrar-lote-lev-title">Cerrar lote de levante</h2>
+        <button type="button" class="icon-btn" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="ux-form">
+        @if (loadingCierreLote && !resumenCierre) {
+          <p class="text-muted">Cargando resumen…</p>
+        }
+        @if (resumenCierre; as r) {
+          <p><strong>Lote:</strong> {{ r.loteNombre }}</p>
           <div class="grid grid-2">
-            <div>
-              <div><strong>Hembras</strong></div>
-              <div>Mort. caja: {{ rs.mortCajaHembras | number:'1.0-0' }}</div>
-              <div>Mortalidad: {{ rs.mortalidadAcumHembras | number:'1.0-0' }}</div>
-              <div>Selección: {{ rs.selAcumHembras | number:'1.0-0' }}</div>
-              <div>Error sexaje: {{ rs.errorSexajeAcumHembras | number:'1.0-0' }}</div>
-            </div>
-            <div>
-              <div><strong>Machos</strong></div>
-              <div>Mort. caja: {{ rs.mortCajaMachos | number:'1.0-0' }}</div>
-              <div>Mortalidad: {{ rs.mortalidadAcumMachos | number:'1.0-0' }}</div>
-              <div>Selección: {{ rs.selAcumMachos | number:'1.0-0' }}</div>
-              <div>Error sexaje: {{ rs.errorSexajeAcumMachos | number:'1.0-0' }}</div>
-            </div>
+            <p><strong>Hembras disponibles:</strong> {{ r.avesHembrasDisponibles }}</p>
+            <p><strong>Machos disponibles:</strong> {{ r.avesMachosDisponibles }}</p>
           </div>
-        </div>
-
-        <!-- ===== LIQUIDACIÓN TÉCNICA — semana 25 vs guía genética ===== -->
-        <div class="liquidacion-cierre-section">
-          <p class="liquidacion-cierre-title">
-            <strong>Liquidación técnica — Semana 25</strong>
-            <span *ngIf="loadingLiquidacion" class="chip chip--muted" style="margin-left:0.5rem;">Calculando…</span>
-            <span *ngIf="!loadingLiquidacion && liquidacionCierre?.tieneGuiaGenetica" class="chip chip--info" style="margin-left:0.5rem;">
-              Guía: {{ liquidacionCierre?.raza }} {{ liquidacionCierre?.anoTablaGenetica }}
-            </span>
-            <span *ngIf="!loadingLiquidacion && liquidacionCierre && !liquidacionCierre.tieneGuiaGenetica" class="chip chip--warning" style="margin-left:0.5rem;">
-              Sin guía genética
-            </span>
-          </p>
-
-          <div *ngIf="loadingLiquidacion" class="liquidacion-loading">
-            <span class="spinner" aria-hidden="true"></span>
-          </div>
-
-          <ng-container *ngIf="!loadingLiquidacion && liquidacionCierre as liq">
-            <div class="liq-info-row">
-              <span>Hembras encasetadas: <strong>{{ liq.hembrasEncasetadas ?? '—' }}</strong></span>
-              <span>Machos encasetados: <strong>{{ liq.machosEncasetados ?? '—' }}</strong></span>
-              <span *ngIf="liq.semanaUltimoRegistro">Último registro: <strong>Semana {{ liq.semanaUltimoRegistro }}</strong></span>
-              <span>Registros: <strong>{{ liq.totalRegistrosSeguimiento }}</strong></span>
+          @if (selectedLote?.fechaEncaset) {
+            <div class="grid grid-2">
+              <p><strong>Edad al cierre:</strong> {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días</p>
+              <p><strong>Fecha encasetamiento:</strong> {{ selectedLote?.fechaEncaset | date:'dd/MM/yyyy' }}</p>
             </div>
-
-            <table class="liq-table">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th class="col-real">Real</th>
-                  <th class="col-guia">Guía</th>
-                  <th class="col-dif">% Diferencia</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>% Mortalidad acumulado hembras</td>
-                  <td class="col-real">{{ liq.porcentajeMortalidadHembras | number:'1.2-2' }}%</td>
-                  <td class="col-guia">—</td>
-                  <td class="col-dif">—</td>
-                </tr>
-                <tr>
-                  <td>% Selección hembras acumulado</td>
-                  <td class="col-real">{{ liq.porcentajeSeleccionHembras | number:'1.2-2' }}%</td>
-                  <td class="col-guia">—</td>
-                  <td class="col-dif">—</td>
-                </tr>
-                <tr>
-                  <td>% Error de sexaje hembras acumulado</td>
-                  <td class="col-real">{{ liq.porcentajeErrorSexajeHembras | number:'1.2-2' }}%</td>
-                  <td class="col-guia">—</td>
-                  <td class="col-dif">—</td>
-                </tr>
-                <tr class="liq-row--highlight">
-                  <td>% Retiro acumulado (Mort + Sel + Error)</td>
-                  <td class="col-real">{{ liq.porcentajeRetiroAcumulado | number:'1.2-2' }}%</td>
-                  <td class="col-guia">
-                    <ng-container *ngIf="liq.porcentajeRetiroGuia != null; else noGuia">
-                      {{ liq.porcentajeRetiroGuia | number:'1.2-2' }}%
-                    </ng-container>
-                  </td>
-                  <td class="col-dif">
-                    <ng-container *ngIf="liq.porcentajeRetiroGuia != null">
-                      <span [class]="(liq.porcentajeRetiroAcumulado - liq.porcentajeRetiroGuia) > 0 ? 'dif-neg' : 'dif-pos'">
-                        {{ (liq.porcentajeRetiroAcumulado - liq.porcentajeRetiroGuia) | number:'1.2-2' }}pp
-                      </span>
-                    </ng-container>
-                    <ng-container *ngIf="liq.porcentajeRetiroGuia == null">—</ng-container>
-                  </td>
-                </tr>
-                <tr class="liq-row--highlight">
-                  <td>Consumo alimento acumulado (g)</td>
-                  <td class="col-real">{{ liq.consumoAlimentoRealGramos | number:'1.0-0' }} g</td>
-                  <td class="col-guia">
-                    <ng-container *ngIf="liq.consumoAlimentoGuiaGramos != null; else noGuia">
-                      {{ liq.consumoAlimentoGuiaGramos | number:'1.0-0' }} g
-                    </ng-container>
-                  </td>
-                  <td class="col-dif">
-                    <ng-container *ngIf="liq.porcentajeDiferenciaConsumo != null">
-                      <span [class]="liq.porcentajeDiferenciaConsumo < 0 ? 'dif-neg' : 'dif-pos'">
-                        {{ liq.porcentajeDiferenciaConsumo > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaConsumo | number:'1.2-2' }}%
-                      </span>
-                    </ng-container>
-                    <ng-container *ngIf="liq.porcentajeDiferenciaConsumo == null">—</ng-container>
-                  </td>
-                </tr>
-                <tr class="liq-row--highlight">
-                  <td>Peso semana 25 (g)</td>
-                  <td class="col-real">
-                    <ng-container *ngIf="liq.pesoSemana25Real != null; else noGuia">
-                      {{ liq.pesoSemana25Real | number:'1.1-1' }} g
-                    </ng-container>
-                  </td>
-                  <td class="col-guia">
-                    <ng-container *ngIf="liq.pesoSemana25Guia != null; else noGuia">
-                      {{ liq.pesoSemana25Guia | number:'1.1-1' }} g
-                    </ng-container>
-                  </td>
-                  <td class="col-dif">
-                    <ng-container *ngIf="liq.porcentajeDiferenciaPeso != null">
-                      <span [class]="liq.porcentajeDiferenciaPeso < 0 ? 'dif-neg' : 'dif-pos'">
-                        {{ liq.porcentajeDiferenciaPeso > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaPeso | number:'1.2-2' }}%
-                      </span>
-                    </ng-container>
-                    <ng-container *ngIf="liq.porcentajeDiferenciaPeso == null">—</ng-container>
-                  </td>
-                </tr>
-                <tr class="liq-row--highlight">
-                  <td>Uniformidad (%)</td>
-                  <td class="col-real">
-                    <ng-container *ngIf="liq.uniformidadReal != null; else noGuia">
-                      {{ liq.uniformidadReal | number:'1.1-1' }}%
-                    </ng-container>
-                  </td>
-                  <td class="col-guia">
-                    <ng-container *ngIf="liq.uniformidadGuia != null; else noGuia">
-                      {{ liq.uniformidadGuia | number:'1.1-1' }}%
-                    </ng-container>
-                  </td>
-                  <td class="col-dif">
-                    <ng-container *ngIf="liq.porcentajeDiferenciaUniformidad != null">
-                      <span [class]="liq.porcentajeDiferenciaUniformidad < 0 ? 'dif-neg' : 'dif-pos'">
-                        {{ liq.porcentajeDiferenciaUniformidad > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaUniformidad | number:'1.2-2' }}%
-                      </span>
-                    </ng-container>
-                    <ng-container *ngIf="liq.porcentajeDiferenciaUniformidad == null">—</ng-container>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <ng-template #noGuia><span class="text-muted">—</span></ng-template>
-          </ng-container>
-        </div>
-        <!-- ===== FIN LIQUIDACIÓN ===== -->
-
-        <p *ngIf="r.yaExisteLoteProduccion" class="chip chip--warning" role="alert">
-          Ya existe un lote de producción vinculado; no se puede cerrar de nuevo desde aquí.
-        </p>
-
-        <div class="form-field" *ngIf="!r.yaExisteLoteProduccion">
-          <label for="fecha-inicio-prod">Fecha inicio producción</label>
-          <input id="fecha-inicio-prod" type="date" [(ngModel)]="fechaInicioProduccionYmd" name="fechaInicioProduccionYmd" />
-        </div>
-
-        <div class="form-field" *ngIf="!r.yaExisteLoteProduccion">
-          <button type="button" class="btn btn--outline" (click)="editAvesProduccion = !editAvesProduccion">
-            {{ editAvesProduccion ? 'Ocultar' : 'Editar' }} aves para producción
-          </button>
-          <p class="ux-hint" style="margin: 0.5rem 0 0 0;">
-            Por defecto, se pasan a producción las aves disponibles actuales del levante.
-          </p>
-        </div>
-
-        <div class="ux-card" *ngIf="!r.yaExisteLoteProduccion && editAvesProduccion" style="padding: 0.75rem; margin-bottom: 0.75rem;">
-          <div class="grid grid-2">
+          }
+          @if (resumenSelected; as rs) {
+            <div class="ux-card" style="margin: 0.75rem 0; padding: 0.75rem;">
+              <p style="margin: 0 0 0.5rem 0;"><strong>Cortes (acumulado) — Levante</strong></p>
+              <div class="grid grid-2">
+                <div>
+                  <div><strong>Hembras</strong></div>
+                  <div>Mort. caja: {{ rs.mortCajaHembras | number:'1.0-0' }}</div>
+                  <div>Mortalidad: {{ rs.mortalidadAcumHembras | number:'1.0-0' }}</div>
+                  <div>Selección: {{ rs.selAcumHembras | number:'1.0-0' }}</div>
+                  <div>Error sexaje: {{ rs.errorSexajeAcumHembras | number:'1.0-0' }}</div>
+                </div>
+                <div>
+                  <div><strong>Machos</strong></div>
+                  <div>Mort. caja: {{ rs.mortCajaMachos | number:'1.0-0' }}</div>
+                  <div>Mortalidad: {{ rs.mortalidadAcumMachos | number:'1.0-0' }}</div>
+                  <div>Selección: {{ rs.selAcumMachos | number:'1.0-0' }}</div>
+                  <div>Error sexaje: {{ rs.errorSexajeAcumMachos | number:'1.0-0' }}</div>
+                </div>
+              </div>
+            </div>
+          }
+          <!-- ===== LIQUIDACIÓN TÉCNICA — semana 25 vs guía genética ===== -->
+          <div class="liquidacion-cierre-section">
+            <p class="liquidacion-cierre-title">
+              <strong>Liquidación técnica — Semana 25</strong>
+              @if (loadingLiquidacion) {
+                <span class="chip chip--muted" style="margin-left:0.5rem;">Calculando…</span>
+              }
+              @if (!loadingLiquidacion && liquidacionCierre?.tieneGuiaGenetica) {
+                <span class="chip chip--info" style="margin-left:0.5rem;">
+                  Guía: {{ liquidacionCierre?.raza }} {{ liquidacionCierre?.anoTablaGenetica }}
+                </span>
+              }
+              @if (!loadingLiquidacion && liquidacionCierre && !liquidacionCierre.tieneGuiaGenetica) {
+                <span class="chip chip--warning" style="margin-left:0.5rem;">
+                  Sin guía genética
+                </span>
+              }
+            </p>
+            @if (loadingLiquidacion) {
+              <div class="liquidacion-loading">
+                <span class="spinner" aria-hidden="true"></span>
+              </div>
+            }
+            @if (!loadingLiquidacion && liquidacionCierre; as liq) {
+              <div class="liq-info-row">
+                <span>Hembras encasetadas: <strong>{{ liq.hembrasEncasetadas ?? '—' }}</strong></span>
+                <span>Machos encasetados: <strong>{{ liq.machosEncasetados ?? '—' }}</strong></span>
+                @if (liq.semanaUltimoRegistro) {
+                  <span>Último registro: <strong>Semana {{ liq.semanaUltimoRegistro }}</strong></span>
+                }
+                <span>Registros: <strong>{{ liq.totalRegistrosSeguimiento }}</strong></span>
+              </div>
+              <table class="liq-table">
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th class="col-real">Real</th>
+                    <th class="col-guia">Guía</th>
+                    <th class="col-dif">% Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>% Mortalidad acumulado hembras</td>
+                    <td class="col-real">{{ liq.porcentajeMortalidadHembras | number:'1.2-2' }}%</td>
+                    <td class="col-guia">—</td>
+                    <td class="col-dif">—</td>
+                  </tr>
+                  <tr>
+                    <td>% Selección hembras acumulado</td>
+                    <td class="col-real">{{ liq.porcentajeSeleccionHembras | number:'1.2-2' }}%</td>
+                    <td class="col-guia">—</td>
+                    <td class="col-dif">—</td>
+                  </tr>
+                  <tr>
+                    <td>% Error de sexaje hembras acumulado</td>
+                    <td class="col-real">{{ liq.porcentajeErrorSexajeHembras | number:'1.2-2' }}%</td>
+                    <td class="col-guia">—</td>
+                    <td class="col-dif">—</td>
+                  </tr>
+                  <tr class="liq-row--highlight">
+                    <td>% Retiro acumulado (Mort + Sel + Error)</td>
+                    <td class="col-real">{{ liq.porcentajeRetiroAcumulado | number:'1.2-2' }}%</td>
+                    <td class="col-guia">
+                      @if (liq.porcentajeRetiroGuia != null) {
+                        {{ liq.porcentajeRetiroGuia | number:'1.2-2' }}%
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-dif">
+                      @if (liq.porcentajeRetiroGuia != null) {
+                        <span [class]="(liq.porcentajeRetiroAcumulado - liq.porcentajeRetiroGuia) > 0 ? 'dif-neg' : 'dif-pos'">
+                          {{ (liq.porcentajeRetiroAcumulado - liq.porcentajeRetiroGuia) | number:'1.2-2' }}pp
+                        </span>
+                      }
+                      @if (liq.porcentajeRetiroGuia == null) {
+                        —
+                      }
+                    </td>
+                  </tr>
+                  <tr class="liq-row--highlight">
+                    <td>Consumo alimento acumulado (g)</td>
+                    <td class="col-real">{{ liq.consumoAlimentoRealGramos | number:'1.0-0' }} g</td>
+                    <td class="col-guia">
+                      @if (liq.consumoAlimentoGuiaGramos != null) {
+                        {{ liq.consumoAlimentoGuiaGramos | number:'1.0-0' }} g
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-dif">
+                      @if (liq.porcentajeDiferenciaConsumo != null) {
+                        <span [class]="liq.porcentajeDiferenciaConsumo < 0 ? 'dif-neg' : 'dif-pos'">
+                          {{ liq.porcentajeDiferenciaConsumo > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaConsumo | number:'1.2-2' }}%
+                        </span>
+                      }
+                      @if (liq.porcentajeDiferenciaConsumo == null) {
+                        —
+                      }
+                    </td>
+                  </tr>
+                  <tr class="liq-row--highlight">
+                    <td>Peso semana 25 (g)</td>
+                    <td class="col-real">
+                      @if (liq.pesoSemana25Real != null) {
+                        {{ liq.pesoSemana25Real | number:'1.1-1' }} g
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-guia">
+                      @if (liq.pesoSemana25Guia != null) {
+                        {{ liq.pesoSemana25Guia | number:'1.1-1' }} g
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-dif">
+                      @if (liq.porcentajeDiferenciaPeso != null) {
+                        <span [class]="liq.porcentajeDiferenciaPeso < 0 ? 'dif-neg' : 'dif-pos'">
+                          {{ liq.porcentajeDiferenciaPeso > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaPeso | number:'1.2-2' }}%
+                        </span>
+                      }
+                      @if (liq.porcentajeDiferenciaPeso == null) {
+                        —
+                      }
+                    </td>
+                  </tr>
+                  <tr class="liq-row--highlight">
+                    <td>Uniformidad (%)</td>
+                    <td class="col-real">
+                      @if (liq.uniformidadReal != null) {
+                        {{ liq.uniformidadReal | number:'1.1-1' }}%
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-guia">
+                      @if (liq.uniformidadGuia != null) {
+                        {{ liq.uniformidadGuia | number:'1.1-1' }}%
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-dif">
+                      @if (liq.porcentajeDiferenciaUniformidad != null) {
+                        <span [class]="liq.porcentajeDiferenciaUniformidad < 0 ? 'dif-neg' : 'dif-pos'">
+                          {{ liq.porcentajeDiferenciaUniformidad > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaUniformidad | number:'1.2-2' }}%
+                        </span>
+                      }
+                      @if (liq.porcentajeDiferenciaUniformidad == null) {
+                        —
+                      }
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            }
+          </div>
+          <!-- ===== FIN LIQUIDACIÓN ===== -->
+          @if (r.yaExisteLoteProduccion) {
+            <p class="chip chip--warning" role="alert">
+              Ya existe un lote de producción vinculado; no se puede cerrar de nuevo desde aquí.
+            </p>
+          }
+          @if (!r.yaExisteLoteProduccion) {
             <div class="form-field">
-              <label for="aves-h-prod">Aves hembras para producción</label>
-              <input id="aves-h-prod" type="number" min="0" step="1" [(ngModel)]="avesHProd" name="avesHProd" />
-              <small class="ux-hint">Máx: {{ r.avesHembrasDisponibles }}</small>
+              <label for="fecha-inicio-prod">Fecha inicio producción</label>
+              <input id="fecha-inicio-prod" type="date" [(ngModel)]="fechaInicioProduccionYmd" name="fechaInicioProduccionYmd" />
             </div>
+          }
+          @if (!r.yaExisteLoteProduccion) {
             <div class="form-field">
-              <label for="aves-m-prod">Aves machos para producción</label>
-              <input id="aves-m-prod" type="number" min="0" step="1" [(ngModel)]="avesMProd" name="avesMProd" />
-              <small class="ux-hint">Máx: {{ r.avesMachosDisponibles }}</small>
+              <button type="button" class="btn btn--outline" (click)="editAvesProduccion = !editAvesProduccion">
+                {{ editAvesProduccion ? 'Ocultar' : 'Editar' }} aves para producción
+              </button>
+              <p class="ux-hint" style="margin: 0.5rem 0 0 0;">
+                Por defecto, se pasan a producción las aves disponibles actuales del levante.
+              </p>
             </div>
-          </div>
-          <div class="form-field">
-            <label for="motivo-ajuste-aves">Motivo del ajuste</label>
-            <textarea id="motivo-ajuste-aves" rows="2" [(ngModel)]="motivoAjusteAves" name="motivoAjusteAves"
-              placeholder="Ej: Se descontó por traslado / se agregó por ajuste físico"></textarea>
-          </div>
+          }
+          @if (!r.yaExisteLoteProduccion && editAvesProduccion) {
+            <div class="ux-card" style="padding: 0.75rem; margin-bottom: 0.75rem;">
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="aves-h-prod">Aves hembras para producción</label>
+                  <input id="aves-h-prod" type="number" min="0" step="1" [(ngModel)]="avesHProd" name="avesHProd" />
+                  <small class="ux-hint">Máx: {{ r.avesHembrasDisponibles }}</small>
+                </div>
+                <div class="form-field">
+                  <label for="aves-m-prod">Aves machos para producción</label>
+                  <input id="aves-m-prod" type="number" min="0" step="1" [(ngModel)]="avesMProd" name="avesMProd" />
+                  <small class="ux-hint">Máx: {{ r.avesMachosDisponibles }}</small>
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="motivo-ajuste-aves">Motivo del ajuste</label>
+                <textarea id="motivo-ajuste-aves" rows="2" [(ngModel)]="motivoAjusteAves" name="motivoAjusteAves"
+                placeholder="Ej: Se descontó por traslado / se agregó por ajuste físico"></textarea>
+              </div>
+            </div>
+          }
+          @if (!r.yaExisteLoteProduccion) {
+            <div class="form-field">
+              <label for="huevos-cierre">Huevos iniciales (al cerrar)</label>
+              <input id="huevos-cierre" type="number" min="0" step="1" [(ngModel)]="huevosCierre" name="huevosCierre" />
+            </div>
+          }
+        }
+        @if (errorCierreLote) {
+          <p class="chip chip--warning" role="alert">{{ errorCierreLote }}</p>
+        }
+      </div>
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--outline" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="confirmarCerrarLote()"
+          [disabled]="loadingCierreLote || !resumenCierre || resumenCierre.yaExisteLoteProduccion">
+          Confirmar cierre
+        </button>
+      </footer>
+      @if (loadingCierreLote && resumenCierre) {
+        <div class="modal-loading" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span> Procesando…
         </div>
-
-        <div class="form-field" *ngIf="!r.yaExisteLoteProduccion">
-          <label for="huevos-cierre">Huevos iniciales (al cerrar)</label>
-          <input id="huevos-cierre" type="number" min="0" step="1" [(ngModel)]="huevosCierre" name="huevosCierre" />
-        </div>
-      </ng-container>
-
-      <p *ngIf="errorCierreLote" class="chip chip--warning" role="alert">{{ errorCierreLote }}</p>
-    </div>
-
-    <footer class="ux-modal__footer">
-      <button type="button" class="btn btn--outline" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
-      <button
-        type="button"
-        class="btn btn--primary"
-        (click)="confirmarCerrarLote()"
-        [disabled]="loadingCierreLote || !resumenCierre || resumenCierre.yaExisteLoteProduccion">
-        Confirmar cierre
-      </button>
-    </footer>
-
-    <div *ngIf="loadingCierreLote && resumenCierre" class="modal-loading" aria-live="polite">
-      <span class="spinner" aria-hidden="true"></span> Procesando…
+      }
     </div>
   </div>
-</div>
+}
 
 <!-- ================= MODAL: ABRIR LOTE LEVANTE ================= -->
-<div *ngIf="abrirLoteModalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="abrir-lote-lev-title">
-  <div class="ux-modal__dialog ux-modal__dialog--sm">
-    <header class="ux-modal__header">
-      <h2 id="abrir-lote-lev-title">Abrir lote — Seguimiento Diario de Levante</h2>
-      <button type="button" class="icon-btn" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
-    </header>
-
-    <div class="ux-form">
-      <div class="form-field">
-        <label for="motivo-abrir-lote">Motivo</label>
-        <textarea id="motivo-abrir-lote" rows="3" [(ngModel)]="motivoAbrirLote" name="motivoAbrirLote" placeholder="Indique el motivo (mínimo 3 caracteres)"></textarea>
+@if (abrirLoteModalOpen) {
+  <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="abrir-lote-lev-title">
+    <div class="ux-modal__dialog ux-modal__dialog--sm">
+      <header class="ux-modal__header">
+        <h2 id="abrir-lote-lev-title">Abrir lote — Seguimiento Diario de Levante</h2>
+        <button type="button" class="icon-btn" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="ux-form">
+        <div class="form-field">
+          <label for="motivo-abrir-lote">Motivo</label>
+          <textarea id="motivo-abrir-lote" rows="3" [(ngModel)]="motivoAbrirLote" name="motivoAbrirLote" placeholder="Indique el motivo (mínimo 3 caracteres)"></textarea>
+        </div>
+        @if (errorCierreLote) {
+          <p class="chip chip--warning" role="alert">{{ errorCierreLote }}</p>
+        }
       </div>
-      <p *ngIf="errorCierreLote" class="chip chip--warning" role="alert">{{ errorCierreLote }}</p>
-    </div>
-
-    <footer class="ux-modal__footer">
-      <button type="button" class="btn btn--outline" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
-      <button type="button" class="btn btn--primary" (click)="confirmarAbrirLote()" [disabled]="loadingCierreLote">Abrir lote</button>
-    </footer>
-
-    <div *ngIf="loadingCierreLote" class="modal-loading" aria-live="polite">
-      <span class="spinner" aria-hidden="true"></span> Procesando…
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--outline" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
+        <button type="button" class="btn btn--primary" (click)="confirmarAbrirLote()" [disabled]="loadingCierreLote">Abrir lote</button>
+      </footer>
+      @if (loadingCierreLote) {
+        <div class="modal-loading" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span> Procesando…
+        </div>
+      }
     </div>
   </div>
-</div>
+}
 
 <!-- Modal de liquidación técnica eliminado en Levante -->
 

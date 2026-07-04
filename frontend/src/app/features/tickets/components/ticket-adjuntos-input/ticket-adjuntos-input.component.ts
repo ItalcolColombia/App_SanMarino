@@ -2,7 +2,7 @@
 import {
   Component, EventEmitter, Input, OnDestroy, Output, inject, signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/services/toast.service';
 
@@ -45,7 +45,7 @@ const ACCEPT_ATTR =
 @Component({
   selector: 'app-ticket-adjuntos-input',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   template: `
 <div class="space-y-4">
 

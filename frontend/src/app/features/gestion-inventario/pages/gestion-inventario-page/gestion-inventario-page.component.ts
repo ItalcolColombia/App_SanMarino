@@ -1,7 +1,7 @@
 // src/app/features/gestion-inventario/pages/gestion-inventario-page/gestion-inventario-page.component.ts
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -39,7 +39,7 @@ type TrasladoModo = 'mismaGranja' | 'interGranja';
 @Component({
   selector: 'app-gestion-inventario-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, FontAwesomeModule, HasPermissionDirective],
+  imports: [FormsModule, FontAwesomeModule, HasPermissionDirective],
   templateUrl: './gestion-inventario-page.component.html',
   styleUrls: ['./gestion-inventario-page.component.scss']
 })

@@ -38,227 +38,272 @@
     </section>
 
     <!-- Tabs de Registros (solo cuando hay lote seleccionado) -->
-    <section class="ux-card" *ngIf="loteSeleccionado()">
-      <header class="ux-card__header">
-        <h2>📊 Registros del Lote</h2>
-      </header>
-
-      <div class="ux-card__content">
-        <!-- Tabs -->
-        <div class="registros-tabs-section">
-          <div class="registros-tabs">
-            <button
-              type="button"
-              class="registros-tab"
-              [class.active]="tabRegistrosActivo() === 'huevos'"
-              (click)="tabRegistrosActivo.set('huevos')">
-              🥚 Huevos
-              <span class="tab-badge" *ngIf="trasladosHuevosLote().length > 0">
-                {{ trasladosHuevosLote().length }}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="registros-tab"
-              [class.active]="tabRegistrosActivo() === 'aves'"
-              (click)="tabRegistrosActivo.set('aves')">
-              🐔 Aves
-              <span class="tab-badge" *ngIf="movimientosAvesLote().length > 0">
-                {{ movimientosAvesLote().length }}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="registros-tab"
-              [class.active]="tabRegistrosActivo() === 'lotes'"
-              (click)="tabRegistrosActivo.set('lotes')">
-              📦 Lotes
-              <span class="tab-badge" *ngIf="historialTrasladosLote().length > 0">
-                {{ historialTrasladosLote().length }}
-              </span>
-            </button>
-          </div>
-
-          <!-- Tab Panel: Huevos -->
-          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'huevos'">
-            <!-- Loading state -->
-            <div class="loading-state" *ngIf="loadingTrasladosHuevos()">
-              <div class="spinner"></div>
-              <p>Cargando registros de huevos...</p>
+    @if (loteSeleccionado()) {
+      <section class="ux-card">
+        <header class="ux-card__header">
+          <h2>📊 Registros del Lote</h2>
+        </header>
+        <div class="ux-card__content">
+          <!-- Tabs -->
+          <div class="registros-tabs-section">
+            <div class="registros-tabs">
+              <button
+                type="button"
+                class="registros-tab"
+                [class.active]="tabRegistrosActivo() === 'huevos'"
+                (click)="tabRegistrosActivo.set('huevos')">
+                🥚 Huevos
+                @if (trasladosHuevosLote().length > 0) {
+                  <span class="tab-badge">
+                    {{ trasladosHuevosLote().length }}
+                  </span>
+                }
+              </button>
+              <button
+                type="button"
+                class="registros-tab"
+                [class.active]="tabRegistrosActivo() === 'aves'"
+                (click)="tabRegistrosActivo.set('aves')">
+                🐔 Aves
+                @if (movimientosAvesLote().length > 0) {
+                  <span class="tab-badge">
+                    {{ movimientosAvesLote().length }}
+                  </span>
+                }
+              </button>
+              <button
+                type="button"
+                class="registros-tab"
+                [class.active]="tabRegistrosActivo() === 'lotes'"
+                (click)="tabRegistrosActivo.set('lotes')">
+                📦 Lotes
+                @if (historialTrasladosLote().length > 0) {
+                  <span class="tab-badge">
+                    {{ historialTrasladosLote().length }}
+                  </span>
+                }
+              </button>
             </div>
-
-            <!-- Table -->
-            <div class="table-container" *ngIf="!loadingTrasladosHuevos()">
-              <table class="ux-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>N° Traslado</th>
-                    <th>Operación</th>
-                    <th>Origen</th>
-                    <th>Destino</th>
-                    <th>Total Huevos</th>
-                    <th>Detalle</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let traslado of trasladosHuevosLote()" class="ux-row">
-                    <td>{{ formatearFecha(traslado.fechaTraslado) }}</td>
-                    <td><strong>{{ traslado.numeroTraslado }}</strong></td>
-                    <td>
-                      <span class="badge" [class.badge--primary]="traslado.tipoOperacion === 'Traslado'"
-                            [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
-                        {{ traslado.tipoOperacion }}
-                      </span>
-                    </td>
-                    <td>{{ traslado.granjaOrigenNombre || '—' }}</td>
-                    <td>{{ traslado.granjaDestinoNombre || traslado.tipoDestino || '—' }}</td>
-                    <td class="number-cell primary">{{ formatearNumero(traslado.totalHuevos) }}</td>
-                    <td class="text-sm">
-                      <span *ngIf="traslado.cantidadLimpio > 0">L: {{ traslado.cantidadLimpio }}</span>
-                      <span *ngIf="traslado.cantidadTratado > 0">T: {{ traslado.cantidadTratado }}</span>
-                      <span *ngIf="traslado.cantidadSucio > 0">S: {{ traslado.cantidadSucio }}</span>
-                    </td>
-                    <td>
-                      <span class="badge" [class.badge--success]="traslado.estado === 'Completado'"
-                            [class.badge--warning]="traslado.estado === 'Pendiente'"
-                            [class.badge--error]="traslado.estado === 'Cancelado'">
-                        {{ traslado.estado }}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr *ngIf="!loadingTrasladosHuevos() && trasladosHuevosLote().length === 0">
-                    <td colspan="8" class="empty-state">
-                      <div class="empty-illustration">🥚</div>
-                      <p>No hay registros de traslado de huevos para este lote.</p>
-                      <p class="text-muted text-sm">Total registros: {{ trasladosHuevosLote().length }}</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Tab Panel: Aves -->
-          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'aves'">
-            <!-- Loading state -->
-            <div class="loading-state" *ngIf="loadingMovimientos()">
-              <div class="spinner"></div>
-              <p>Cargando registros de aves...</p>
-            </div>
-
-            <!-- Table -->
-            <div class="table-container" *ngIf="!loadingMovimientos()">
-              <table class="ux-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>N° Traslado</th>
-                    <th>Tipo</th>
-                    <th>Operación</th>
-                    <th>Origen</th>
-                    <th>Destino</th>
-                    <th>Cantidad</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let movimiento of movimientosAvesLote()" class="ux-row">
-                    <td>{{ formatearFecha(movimiento.fechaTraslado) }}</td>
-                    <td><strong>{{ movimiento.numeroTraslado }}</strong></td>
-                    <td>
-                      <span class="badge badge--info">Aves</span>
-                    </td>
-                    <td>
-                      <span class="badge" [class.badge--primary]="movimiento.tipoOperacion === 'Traslado'"
-                            [class.badge--warning]="movimiento.tipoOperacion === 'Venta'"
-                            [class.badge--error]="movimiento.tipoOperacion === 'Retiro'">
-                        {{ movimiento.tipoOperacion }}
-                      </span>
-                    </td>
-                    <td>{{ movimiento.granjaOrigenNombre || '—' }}</td>
-                    <td>{{ movimiento.granjaDestinoNombre || movimiento.tipoDestino || '—' }}</td>
-                    <td class="number-cell">
-                      <span *ngIf="(movimiento.cantidadHembras ?? 0) > 0">H: {{ formatearNumero(movimiento.cantidadHembras ?? 0) }}</span>
-                      <span *ngIf="(movimiento.cantidadMachos ?? 0) > 0">M: {{ formatearNumero(movimiento.cantidadMachos ?? 0) }}</span>
-                      <span *ngIf="(movimiento.cantidadHembras ?? 0) === 0 && (movimiento.cantidadMachos ?? 0) === 0">—</span>
-                    </td>
-                    <td>
-                      <span class="badge" [class.badge--success]="movimiento.estado === 'Completado'"
-                            [class.badge--warning]="movimiento.estado === 'Pendiente'"
-                            [class.badge--error]="movimiento.estado === 'Cancelado'">
-                        {{ movimiento.estado }}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr *ngIf="!loadingMovimientos() && movimientosAvesLote().length === 0">
-                    <td colspan="8" class="empty-state">
-                      <div class="empty-illustration">🐔</div>
-                      <p>No hay registros de traslado de aves para este lote.</p>
-                      <p class="text-muted text-sm">Total registros: {{ movimientosAvesLote().length }}</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Tab Panel: Lotes -->
-          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'lotes'">
-            <!-- Loading state -->
-            <div class="loading-state" *ngIf="loadingHistorialLotes()">
-              <div class="spinner"></div>
-              <p>Cargando registros de lotes...</p>
-            </div>
-
-            <!-- Table -->
-            <div class="table-container" *ngIf="!loadingHistorialLotes()">
-              <table class="ux-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Lote Origen</th>
-                    <th>Lote Destino</th>
-                    <th>Granja Origen</th>
-                    <th>Granja Destino</th>
-                    <th>Usuario</th>
-                    <th>Observaciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let historial of historialTrasladosLote()" class="ux-row">
-                    <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
-                    <td><strong>#{{ historial.loteOriginalId }}</strong></td>
-                    <td><strong>#{{ historial.loteNuevoId }}</strong></td>
-                    <td>{{ historial.granjaOrigenNombre || '—' }}</td>
-                    <td>{{ historial.granjaDestinoNombre || '—' }}</td>
-                    <td>{{ historial.usuarioNombre || '—' }}</td>
-                    <td class="text-sm">{{ historial.observaciones || '—' }}</td>
-                  </tr>
-                  <tr *ngIf="!loadingHistorialLotes() && historialTrasladosLote().length === 0">
-                    <td colspan="7" class="empty-state">
-                      <div class="empty-illustration">📦</div>
-                      <p>No hay registros de traslado de lotes para este lote.</p>
-                      <p class="text-muted text-sm">Total registros: {{ historialTrasladosLote().length }}</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <!-- Tab Panel: Huevos -->
+            @if (tabRegistrosActivo() === 'huevos') {
+              <div class="registros-tab-panel">
+                <!-- Loading state -->
+                @if (loadingTrasladosHuevos()) {
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando registros de huevos...</p>
+                  </div>
+                }
+                <!-- Table -->
+                @if (!loadingTrasladosHuevos()) {
+                  <div class="table-container">
+                    <table class="ux-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>N° Traslado</th>
+                          <th>Operación</th>
+                          <th>Origen</th>
+                          <th>Destino</th>
+                          <th>Total Huevos</th>
+                          <th>Detalle</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (traslado of trasladosHuevosLote(); track traslado) {
+                          <tr class="ux-row">
+                            <td>{{ formatearFecha(traslado.fechaTraslado) }}</td>
+                            <td><strong>{{ traslado.numeroTraslado }}</strong></td>
+                            <td>
+                              <span class="badge" [class.badge--primary]="traslado.tipoOperacion === 'Traslado'"
+                                [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
+                                {{ traslado.tipoOperacion }}
+                              </span>
+                            </td>
+                            <td>{{ traslado.granjaOrigenNombre || '—' }}</td>
+                            <td>{{ traslado.granjaDestinoNombre || traslado.tipoDestino || '—' }}</td>
+                            <td class="number-cell primary">{{ formatearNumero(traslado.totalHuevos) }}</td>
+                            <td class="text-sm">
+                              @if (traslado.cantidadLimpio > 0) {
+                                <span>L: {{ traslado.cantidadLimpio }}</span>
+                              }
+                              @if (traslado.cantidadTratado > 0) {
+                                <span>T: {{ traslado.cantidadTratado }}</span>
+                              }
+                              @if (traslado.cantidadSucio > 0) {
+                                <span>S: {{ traslado.cantidadSucio }}</span>
+                              }
+                            </td>
+                            <td>
+                              <span class="badge" [class.badge--success]="traslado.estado === 'Completado'"
+                                [class.badge--warning]="traslado.estado === 'Pendiente'"
+                                [class.badge--error]="traslado.estado === 'Cancelado'">
+                                {{ traslado.estado }}
+                              </span>
+                            </td>
+                          </tr>
+                        }
+                        @if (!loadingTrasladosHuevos() && trasladosHuevosLote().length === 0) {
+                          <tr>
+                            <td colspan="8" class="empty-state">
+                              <div class="empty-illustration">🥚</div>
+                              <p>No hay registros de traslado de huevos para este lote.</p>
+                              <p class="text-muted text-sm">Total registros: {{ trasladosHuevosLote().length }}</p>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            }
+            <!-- Tab Panel: Aves -->
+            @if (tabRegistrosActivo() === 'aves') {
+              <div class="registros-tab-panel">
+                <!-- Loading state -->
+                @if (loadingMovimientos()) {
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando registros de aves...</p>
+                  </div>
+                }
+                <!-- Table -->
+                @if (!loadingMovimientos()) {
+                  <div class="table-container">
+                    <table class="ux-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>N° Traslado</th>
+                          <th>Tipo</th>
+                          <th>Operación</th>
+                          <th>Origen</th>
+                          <th>Destino</th>
+                          <th>Cantidad</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (movimiento of movimientosAvesLote(); track movimiento) {
+                          <tr class="ux-row">
+                            <td>{{ formatearFecha(movimiento.fechaTraslado) }}</td>
+                            <td><strong>{{ movimiento.numeroTraslado }}</strong></td>
+                            <td>
+                              <span class="badge badge--info">Aves</span>
+                            </td>
+                            <td>
+                              <span class="badge" [class.badge--primary]="movimiento.tipoOperacion === 'Traslado'"
+                                [class.badge--warning]="movimiento.tipoOperacion === 'Venta'"
+                                [class.badge--error]="movimiento.tipoOperacion === 'Retiro'">
+                                {{ movimiento.tipoOperacion }}
+                              </span>
+                            </td>
+                            <td>{{ movimiento.granjaOrigenNombre || '—' }}</td>
+                            <td>{{ movimiento.granjaDestinoNombre || movimiento.tipoDestino || '—' }}</td>
+                            <td class="number-cell">
+                              @if ((movimiento.cantidadHembras ?? 0) > 0) {
+                                <span>H: {{ formatearNumero(movimiento.cantidadHembras ?? 0) }}</span>
+                              }
+                              @if ((movimiento.cantidadMachos ?? 0) > 0) {
+                                <span>M: {{ formatearNumero(movimiento.cantidadMachos ?? 0) }}</span>
+                              }
+                              @if ((movimiento.cantidadHembras ?? 0) === 0 && (movimiento.cantidadMachos ?? 0) === 0) {
+                                <span>—</span>
+                              }
+                            </td>
+                            <td>
+                              <span class="badge" [class.badge--success]="movimiento.estado === 'Completado'"
+                                [class.badge--warning]="movimiento.estado === 'Pendiente'"
+                                [class.badge--error]="movimiento.estado === 'Cancelado'">
+                                {{ movimiento.estado }}
+                              </span>
+                            </td>
+                          </tr>
+                        }
+                        @if (!loadingMovimientos() && movimientosAvesLote().length === 0) {
+                          <tr>
+                            <td colspan="8" class="empty-state">
+                              <div class="empty-illustration">🐔</div>
+                              <p>No hay registros de traslado de aves para este lote.</p>
+                              <p class="text-muted text-sm">Total registros: {{ movimientosAvesLote().length }}</p>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            }
+            <!-- Tab Panel: Lotes -->
+            @if (tabRegistrosActivo() === 'lotes') {
+              <div class="registros-tab-panel">
+                <!-- Loading state -->
+                @if (loadingHistorialLotes()) {
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando registros de lotes...</p>
+                  </div>
+                }
+                <!-- Table -->
+                @if (!loadingHistorialLotes()) {
+                  <div class="table-container">
+                    <table class="ux-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Lote Origen</th>
+                          <th>Lote Destino</th>
+                          <th>Granja Origen</th>
+                          <th>Granja Destino</th>
+                          <th>Usuario</th>
+                          <th>Observaciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (historial of historialTrasladosLote(); track historial) {
+                          <tr class="ux-row">
+                            <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
+                            <td><strong>#{{ historial.loteOriginalId }}</strong></td>
+                            <td><strong>#{{ historial.loteNuevoId }}</strong></td>
+                            <td>{{ historial.granjaOrigenNombre || '—' }}</td>
+                            <td>{{ historial.granjaDestinoNombre || '—' }}</td>
+                            <td>{{ historial.usuarioNombre || '—' }}</td>
+                            <td class="text-sm">{{ historial.observaciones || '—' }}</td>
+                          </tr>
+                        }
+                        @if (!loadingHistorialLotes() && historialTrasladosLote().length === 0) {
+                          <tr>
+                            <td colspan="7" class="empty-state">
+                              <div class="empty-illustration">📦</div>
+                              <p>No hay registros de traslado de lotes para este lote.</p>
+                              <p class="text-muted text-sm">Total registros: {{ historialTrasladosLote().length }}</p>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            }
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    }
 
     <!-- Mensaje cuando no hay lote seleccionado -->
-    <section class="ux-card" *ngIf="!loteSeleccionado()">
-      <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <h3>Selecciona un Lote</h3>
-        <p>Usa los filtros de arriba para seleccionar un lote y ver sus registros de traslados.</p>
-        <p class="text-muted">Los registros se mostrarán organizados por tipo: Huevos, Aves y Lotes.</p>
-      </div>
-    </section>
+    @if (!loteSeleccionado()) {
+      <section class="ux-card">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3>Selecciona un Lote</h3>
+          <p>Usa los filtros de arriba para seleccionar un lote y ver sus registros de traslados.</p>
+          <p class="text-muted">Los registros se mostrarán organizados por tipo: Huevos, Aves y Lotes.</p>
+        </div>
+      </section>
+    }
   </div>
 </div>

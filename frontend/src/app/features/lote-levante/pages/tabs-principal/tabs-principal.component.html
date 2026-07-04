@@ -1,421 +1,442 @@
 <!-- ================= TABS PRINCIPAL ================= -->
-<section class="ux-card" *ngIf="selectedLote">
-  <div class="tabs-container">
-    <!-- Tab Navigation -->
-    <nav class="tabs-nav" role="tablist">
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'general'"
-        (click)="onTabChangeExtended('general')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'general'"
-        aria-controls="general-panel">
-        📊 Seguimiento
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'indicadores'"
-        (click)="onTabChangeExtended('indicadores')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'indicadores'"
-        aria-controls="indicadores-panel">
-        📈 Indicadores
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'reporteSemana'"
-        (click)="onTabChangeExtended('reporteSemana')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'reporteSemana'"
-        aria-controls="reporte-semana-panel">
-        🗓️ Reporte semana
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'grafica'"
-        (click)="onTabChangeExtended('grafica')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'grafica'"
-        aria-controls="grafica-panel">
-        📊 Gráfica
-      </button>
-    </nav>
-
-    <!-- Tab Content -->
-    <div class="tabs-content">
-      <!-- TAB GENERAL -->
-      <div
-        *ngIf="activeTab === 'general'"
-        id="general-panel"
-        class="tab-panel"
-        role="tabpanel"
-        aria-labelledby="general-tab">
-
-        <h3>Información del lote</h3>
-
-        <!-- Aviso cuando el lote está cerrado -->
-        <div class="info-lote-alerta info-lote-alerta--cerrado" *ngIf="isLoteCerrado" role="status">
-          <strong>Lote cerrado.</strong> Solo consulta. No se pueden agregar ni editar registros de seguimiento.
-        </div>
-
-        <!-- Resumen compacto en cuadros (KPI) -->
-        <div class="info-lote-kpis" *ngIf="resumenLevante" aria-label="Resumen del lote">
-          <div class="info-kpi">
-            <span class="info-kpi__label">Registros diarios</span>
-            <span class="info-kpi__value">{{ cantidadRegistrosSeguimiento | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi">
-            <span class="info-kpi__label">Fecha encasetamiento</span>
-            <span class="info-kpi__value">{{ fechaEncasetLote ? (fechaEncasetLote | date:'dd/MM/yyyy') : '—' }}</span>
-          </div>
-          <div class="info-kpi info-kpi--hembras">
-            <span class="info-kpi__label">Hembras inicio</span>
-            <span class="info-kpi__value">{{ resumenLevante.hembrasIniciales | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi info-kpi--machos">
-            <span class="info-kpi__label">Machos inicio</span>
-            <span class="info-kpi__value">{{ resumenLevante.machosIniciales | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi info-kpi--hembras">
-            <span class="info-kpi__label">Aves vivas (hembras)</span>
-            <span class="info-kpi__value">{{ resumenLevante.saldoHembras | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi info-kpi--machos">
-            <span class="info-kpi__label">Aves vivas (machos)</span>
-            <span class="info-kpi__value">{{ resumenLevante.saldoMachos | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi">
-            <span class="info-kpi__label">Mortalidad acum.</span>
-            <span class="info-kpi__value">{{ totalMortalidadAcumulada | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi">
-            <span class="info-kpi__label">Selección (descarte) acum.</span>
-            <span class="info-kpi__value">{{ totalSeleccionAcumulada | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi">
-            <span class="info-kpi__label">Error sexaje acum.</span>
-            <span class="info-kpi__value">{{ totalErrorSexajeAcumulado | number:'1.0-0' }}</span>
-          </div>
-
-          <!-- 🔀 Feature 14 — Traslados acumulados en fase LEVANTE -->
-          <div class="info-kpi info-kpi--traslado-in" *ngIf="(resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0">
-            <span class="info-kpi__label">↘ Ingreso Levante (H)</span>
-            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoHembras ?? 0 | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi info-kpi--traslado-in" *ngIf="(resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0">
-            <span class="info-kpi__label">↘ Ingreso Levante (M)</span>
-            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi info-kpi--traslado-out" *ngIf="(resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0">
-            <span class="info-kpi__label">↗ Salida Levante (H)</span>
-            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaHembras ?? 0 | number:'1.0-0' }}</span>
-          </div>
-          <div class="info-kpi info-kpi--traslado-out" *ngIf="(resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0">
-            <span class="info-kpi__label">↗ Salida Levante (M)</span>
-            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</span>
-          </div>
-        </div>
-
-        <!-- Descuentos sobre el lote en Levante: hembras y machos separados -->
-        <div class="info-lote-card" *ngIf="resumenLevante">
-          <div class="info-lote__header">
-            <h4 class="info-lote__title">Descuentos sobre el lote en Levante</h4>
-            <p class="info-lote__intro">Las reducciones por mortalidad, descarte (selección) y error de sexaje se descontan del inicio del lote. El saldo es el que se usa en cálculos.</p>
-          </div>
-
-          <details class="info-lote-detalle">
-            <summary class="info-lote-detalle__summary">Ver detalle por concepto (hembras / machos)</summary>
-
-          <div class="info-lote__grid">
-            <div class="info-lote__header-row">
-              <span class="info-lote__col-label">Concepto</span>
-              <span class="info-lote__col-label">🐔 Hembras</span>
-              <span class="info-lote__col-label">🐓 Machos</span>
-            </div>
-            <div class="info-lote__row info-lote__row--inicio">
-              <label class="info-lote__label">Inicio (historial)</label>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.hembrasIniciales | number:'1.0-0'" readonly disabled>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.machosIniciales | number:'1.0-0'" readonly disabled>
-            </div>
-            <div class="info-lote__row info-lote__row--resta">
-              <label class="info-lote__label">Mort. caja</label>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaHembras | number:'1.0-0'" readonly disabled>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaMachos | number:'1.0-0'" readonly disabled>
-            </div>
-            <div class="info-lote__row info-lote__row--resta">
-              <label class="info-lote__label">Mortalidad acum.</label>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumHembras | number:'1.0-0'" readonly disabled>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumMachos | number:'1.0-0'" readonly disabled>
-            </div>
-            <div class="info-lote__row info-lote__row--resta">
-              <label class="info-lote__label">Descarte (sel) acum.</label>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumHembras | number:'1.0-0'" readonly disabled>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumMachos | number:'1.0-0'" readonly disabled>
-            </div>
-            <div class="info-lote__row info-lote__row--resta">
-              <label class="info-lote__label">Error sexaje acum.</label>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumHembras | number:'1.0-0'" readonly disabled>
-              <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumMachos | number:'1.0-0'" readonly disabled>
-            </div>
-            <div class="info-lote__row info-lote__row--saldo">
-              <label class="info-lote__label">Saldo actual (aves vivas)</label>
-              <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoHembras | number:'1.0-0'" readonly disabled>
-              <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoMachos | number:'1.0-0'" readonly disabled>
-            </div>
-          </div>
-          </details>
-
-        </div>
-
-        <!-- Registros diarios (fechas, pérdidas, consumos, saldos) -->
-        <div class="table-container table-container--diario">
-          <div class="registro-diario__toolbar">
-            <h4>Registros Diarios</h4>
-            <button
-              *ngIf="showExportSeguimientoExcel"
-              type="button"
-              class="btn btn--outline registro-diario__export"
-              [disabled]="loading || !diarioFilas.length"
-              (click)="exportSeguimientoDiarioExcel()"
-              [title]="(!diarioFilas.length ? 'Sin registros para exportar' : 'Descargar Excel con todas las columnas de la tabla')">
-              Descargar Excel
-            </button>
-          </div>
-          <p class="registro-diario__hint" *ngIf="!enriquecerTablaConHistoricoInventario">
-            Orden cronológico. <strong>Saldo aves</strong> = aves iniciales − bajas acumuladas (mortalidad, selección y, si aplica, error de sexaje registrado en cada día).
-          </p>
-          <p class="registro-diario__hint" *ngIf="enriquecerTablaConHistoricoInventario">
-            Orden cronológico por fecha de registro. <strong>Saldo alimento</strong> (kg al cierre del día) se guarda en el registro diario y se recalcula desde inventario: ingresos + traslados entrada − traslados salida − consumos de bodega.
-            El <strong>consumo real</strong> (kg hembras/machos) sigue siendo el del seguimiento diario.
-          </p>
-          <div class="ux-scroll ux-scroll--diario">
-            <table class="ux-table ux-table--registro-diario">
-              <thead>
-                <tr>
-                  <th scope="col" class="th-diario">Fecha</th>
-                  <th scope="col" class="th-diario">Semana</th>
-                  <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
-                  <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
-                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixtas</span></th>
-                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">bodega (kg)</span></th>
-                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
-                  <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">% Retiro <span class="th-diario__sub">(Mort+Sel)/aves</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
-
-                  <!-- 🔀 Feature 13 — traslados por género (4 columnas dedicadas) -->
-                  <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Hembras recibidas por traslado">↘ Ing. <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Machos recibidos por traslado">↘ Ing. <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Hembras enviadas por traslado">↗ Sal. <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">↗ Sal. <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">Venta <span class="th-diario__sub">aves</span></th>
-                  <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
-                  <th scope="col" class="th-diario th-diario--actions">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngIf="!loading && (!diarioFilas || diarioFilas.length === 0)">
-                  <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">📄</div>
-                    <p>Sin registros para este lote.</p>
-                    <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'El lote está cerrado o no hay aves disponibles' : 'Crear el primero'">
-                      Crear el primero
-                    </button>
-                  </td>
-                </tr>
-
-                <tr *ngFor="let f of diarioFilas; trackBy: trackByDiarioFila" class="ux-row">
-                  <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
-                  <td>{{ f.semana }}</td>
-                  <td>{{ f.edadDia }}</td>
-                  <td>{{ f.seg.mortalidadHembras }}</td>
-                  <td>{{ f.seg.mortalidadMachos }}</td>
-                  <td>{{ f.seg.selH }}</td>
-                  <td>{{ f.seg.selM }}</td>
-                  <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.consumoBodegaKg != null ? (f.consumoBodegaKg | number:'1.0-3') : '—' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.0-3') : '—' }}</td>
-                  <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
-                  <td>{{ f.tipoAlimentoCorto }}</td>
-                  <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
-                  <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
-                  <td class="num">{{ f.consumoDiaKg | number:'1.0-2' }}</td>
-                  <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
-                  <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.0-2') + '%' : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
-                  <!-- 🔀 Feature 13 — traslados por género -->
-                  <td class="num cell-mov cell-mov--entrada"
-                      [class.cell-mov--valor]="(f.seg.trasladoIngresoHembras || 0) > 0"
-                      [title]="(f.seg.trasladoIngresoHembras || 0) > 0 ? 'Ingreso hembras: ' + f.seg.trasladoIngresoHembras : ''">
-                    {{ (f.seg.trasladoIngresoHembras || 0) > 0 ? ('+' + (f.seg.trasladoIngresoHembras | number:'1.0-0')) : '—' }}
-                  </td>
-                  <td class="num cell-mov cell-mov--entrada"
-                      [class.cell-mov--valor]="(f.seg.trasladoIngresoMachos || 0) > 0"
-                      [title]="(f.seg.trasladoIngresoMachos || 0) > 0 ? 'Ingreso machos: ' + f.seg.trasladoIngresoMachos : ''">
-                    {{ (f.seg.trasladoIngresoMachos || 0) > 0 ? ('+' + (f.seg.trasladoIngresoMachos | number:'1.0-0')) : '—' }}
-                  </td>
-                  <td class="num cell-mov cell-mov--salida"
-                      [class.cell-mov--valor]="(f.seg.trasladoSalidaHembras || 0) > 0"
-                      [title]="(f.seg.trasladoSalidaHembras || 0) > 0 ? 'Salida hembras: ' + f.seg.trasladoSalidaHembras : ''">
-                    {{ (f.seg.trasladoSalidaHembras || 0) > 0 ? ('-' + (f.seg.trasladoSalidaHembras | number:'1.0-0')) : '—' }}
-                  </td>
-                  <td class="num cell-mov cell-mov--salida"
-                      [class.cell-mov--valor]="(f.seg.trasladoSalidaMachos || 0) > 0"
-                      [title]="(f.seg.trasladoSalidaMachos || 0) > 0 ? 'Salida machos: ' + f.seg.trasladoSalidaMachos : ''">
-                    {{ (f.seg.trasladoSalidaMachos || 0) > 0 ? ('-' + (f.seg.trasladoSalidaMachos | number:'1.0-0')) : '—' }}
-                  </td>
-                  <td class="num cell-mov cell-mov--venta"
-                      [class.cell-mov--valor]="f.seg.ventaAvesCantidad"
-                      [title]="f.seg.ventaAvesCantidad ? 'Venta: ' + f.seg.ventaAvesCantidad + ' aves' + (f.seg.ventaAvesMotivo ? ' — ' + f.seg.ventaAvesMotivo : '') : ''">
-                    {{ f.seg.ventaAvesCantidad != null && f.seg.ventaAvesCantidad > 0 ? (f.seg.ventaAvesCantidad | number:'1.0-0') : '—' }}
-                  </td>
-                  <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
-                  <td class="text-right">
-                    <div class="btn-group">
-                      <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>
-                      <button type="button" (click)="onEdit(f.seg)" class="icon-btn" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede editar' : 'Editar'">✎</button>
-                      <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar'">🗑️</button>
+@if (selectedLote) {
+  <section class="ux-card">
+    <div class="tabs-container">
+      <!-- Tab Navigation -->
+      <nav class="tabs-nav" role="tablist">
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'general'"
+          (click)="onTabChangeExtended('general')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'general'"
+          aria-controls="general-panel">
+          📊 Seguimiento
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'indicadores'"
+          (click)="onTabChangeExtended('indicadores')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'indicadores'"
+          aria-controls="indicadores-panel">
+          📈 Indicadores
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'reporteSemana'"
+          (click)="onTabChangeExtended('reporteSemana')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'reporteSemana'"
+          aria-controls="reporte-semana-panel">
+          🗓️ Reporte semana
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'grafica'"
+          (click)="onTabChangeExtended('grafica')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'grafica'"
+          aria-controls="grafica-panel">
+          📊 Gráfica
+        </button>
+      </nav>
+      <!-- Tab Content -->
+      <div class="tabs-content">
+        <!-- TAB GENERAL -->
+        @if (activeTab === 'general') {
+          <div
+            id="general-panel"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="general-tab">
+            <h3>Información del lote</h3>
+            <!-- Aviso cuando el lote está cerrado -->
+            @if (isLoteCerrado) {
+              <div class="info-lote-alerta info-lote-alerta--cerrado" role="status">
+                <strong>Lote cerrado.</strong> Solo consulta. No se pueden agregar ni editar registros de seguimiento.
+              </div>
+            }
+            <!-- Resumen compacto en cuadros (KPI) -->
+            @if (resumenLevante) {
+              <div class="info-lote-kpis" aria-label="Resumen del lote">
+                <div class="info-kpi">
+                  <span class="info-kpi__label">Registros diarios</span>
+                  <span class="info-kpi__value">{{ cantidadRegistrosSeguimiento | number:'1.0-0' }}</span>
+                </div>
+                <div class="info-kpi">
+                  <span class="info-kpi__label">Fecha encasetamiento</span>
+                  <span class="info-kpi__value">{{ fechaEncasetLote ? (fechaEncasetLote | date:'dd/MM/yyyy') : '—' }}</span>
+                </div>
+                <div class="info-kpi info-kpi--hembras">
+                  <span class="info-kpi__label">Hembras inicio</span>
+                  <span class="info-kpi__value">{{ resumenLevante.hembrasIniciales | number:'1.0-0' }}</span>
+                </div>
+                <div class="info-kpi info-kpi--machos">
+                  <span class="info-kpi__label">Machos inicio</span>
+                  <span class="info-kpi__value">{{ resumenLevante.machosIniciales | number:'1.0-0' }}</span>
+                </div>
+                <div class="info-kpi info-kpi--hembras">
+                  <span class="info-kpi__label">Aves vivas (hembras)</span>
+                  <span class="info-kpi__value">{{ resumenLevante.saldoHembras | number:'1.0-0' }}</span>
+                </div>
+                <div class="info-kpi info-kpi--machos">
+                  <span class="info-kpi__label">Aves vivas (machos)</span>
+                  <span class="info-kpi__value">{{ resumenLevante.saldoMachos | number:'1.0-0' }}</span>
+                </div>
+                <div class="info-kpi">
+                  <span class="info-kpi__label">Mortalidad acum.</span>
+                  <span class="info-kpi__value">{{ totalMortalidadAcumulada | number:'1.0-0' }}</span>
+                </div>
+                <div class="info-kpi">
+                  <span class="info-kpi__label">Selección (descarte) acum.</span>
+                  <span class="info-kpi__value">{{ totalSeleccionAcumulada | number:'1.0-0' }}</span>
+                </div>
+                <div class="info-kpi">
+                  <span class="info-kpi__label">Error sexaje acum.</span>
+                  <span class="info-kpi__value">{{ totalErrorSexajeAcumulado | number:'1.0-0' }}</span>
+                </div>
+                <!-- 🔀 Feature 14 — Traslados acumulados en fase LEVANTE -->
+                @if ((resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0) {
+                  <div class="info-kpi info-kpi--traslado-in">
+                    <span class="info-kpi__label">↘ Ingreso Levante (H)</span>
+                    <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoHembras ?? 0 | number:'1.0-0' }}</span>
+                  </div>
+                }
+                @if ((resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0) {
+                  <div class="info-kpi info-kpi--traslado-in">
+                    <span class="info-kpi__label">↘ Ingreso Levante (M)</span>
+                    <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</span>
+                  </div>
+                }
+                @if ((resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0) {
+                  <div class="info-kpi info-kpi--traslado-out">
+                    <span class="info-kpi__label">↗ Salida Levante (H)</span>
+                    <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaHembras ?? 0 | number:'1.0-0' }}</span>
+                  </div>
+                }
+                @if ((resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0) {
+                  <div class="info-kpi info-kpi--traslado-out">
+                    <span class="info-kpi__label">↗ Salida Levante (M)</span>
+                    <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</span>
+                  </div>
+                }
+              </div>
+            }
+            <!-- Descuentos sobre el lote en Levante: hembras y machos separados -->
+            @if (resumenLevante) {
+              <div class="info-lote-card">
+                <div class="info-lote__header">
+                  <h4 class="info-lote__title">Descuentos sobre el lote en Levante</h4>
+                  <p class="info-lote__intro">Las reducciones por mortalidad, descarte (selección) y error de sexaje se descontan del inicio del lote. El saldo es el que se usa en cálculos.</p>
+                </div>
+                <details class="info-lote-detalle">
+                  <summary class="info-lote-detalle__summary">Ver detalle por concepto (hembras / machos)</summary>
+                  <div class="info-lote__grid">
+                    <div class="info-lote__header-row">
+                      <span class="info-lote__col-label">Concepto</span>
+                      <span class="info-lote__col-label">🐔 Hembras</span>
+                      <span class="info-lote__col-label">🐓 Machos</span>
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <div class="info-lote__row info-lote__row--inicio">
+                      <label class="info-lote__label">Inicio (historial)</label>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.hembrasIniciales | number:'1.0-0'" readonly disabled>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.machosIniciales | number:'1.0-0'" readonly disabled>
+                    </div>
+                    <div class="info-lote__row info-lote__row--resta">
+                      <label class="info-lote__label">Mort. caja</label>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaHembras | number:'1.0-0'" readonly disabled>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaMachos | number:'1.0-0'" readonly disabled>
+                    </div>
+                    <div class="info-lote__row info-lote__row--resta">
+                      <label class="info-lote__label">Mortalidad acum.</label>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumHembras | number:'1.0-0'" readonly disabled>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumMachos | number:'1.0-0'" readonly disabled>
+                    </div>
+                    <div class="info-lote__row info-lote__row--resta">
+                      <label class="info-lote__label">Descarte (sel) acum.</label>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumHembras | number:'1.0-0'" readonly disabled>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumMachos | number:'1.0-0'" readonly disabled>
+                    </div>
+                    <div class="info-lote__row info-lote__row--resta">
+                      <label class="info-lote__label">Error sexaje acum.</label>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumHembras | number:'1.0-0'" readonly disabled>
+                      <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumMachos | number:'1.0-0'" readonly disabled>
+                    </div>
+                    <div class="info-lote__row info-lote__row--saldo">
+                      <label class="info-lote__label">Saldo actual (aves vivas)</label>
+                      <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoHembras | number:'1.0-0'" readonly disabled>
+                      <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoMachos | number:'1.0-0'" readonly disabled>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            }
+            <!-- Registros diarios (fechas, pérdidas, consumos, saldos) -->
+            <div class="table-container table-container--diario">
+              <div class="registro-diario__toolbar">
+                <h4>Registros Diarios</h4>
+                @if (showExportSeguimientoExcel) {
+                  <button
+                    type="button"
+                    class="btn btn--outline registro-diario__export"
+                    [disabled]="loading || !diarioFilas.length"
+                    (click)="exportSeguimientoDiarioExcel()"
+                    [title]="(!diarioFilas.length ? 'Sin registros para exportar' : 'Descargar Excel con todas las columnas de la tabla')">
+                    Descargar Excel
+                  </button>
+                }
+              </div>
+              @if (!enriquecerTablaConHistoricoInventario) {
+                <p class="registro-diario__hint">
+                  Orden cronológico. <strong>Saldo aves</strong> = aves iniciales − bajas acumuladas (mortalidad, selección y, si aplica, error de sexaje registrado en cada día).
+                </p>
+              }
+              @if (enriquecerTablaConHistoricoInventario) {
+                <p class="registro-diario__hint">
+                  Orden cronológico por fecha de registro. <strong>Saldo alimento</strong> (kg al cierre del día) se guarda en el registro diario y se recalcula desde inventario: ingresos + traslados entrada − traslados salida − consumos de bodega.
+                  El <strong>consumo real</strong> (kg hembras/machos) sigue siendo el del seguimiento diario.
+                </p>
+              }
+              <div class="ux-scroll ux-scroll--diario">
+                <table class="ux-table ux-table--registro-diario">
+                  <thead>
+                    <tr>
+                      <th scope="col" class="th-diario">Fecha</th>
+                      <th scope="col" class="th-diario">Semana</th>
+                      <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
+                      <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
+                      <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
+                      <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
+                      <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
+                      <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
+                      @if (enriquecerTablaConHistoricoInventario) {
+                        <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixtas</span></th>
+                      }
+                      @if (enriquecerTablaConHistoricoInventario) {
+                        <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">bodega (kg)</span></th>
+                      }
+                      @if (enriquecerTablaConHistoricoInventario) {
+                        <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
+                      }
+                      <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
+                      <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
+                      <th scope="col" class="th-diario th-diario--num">% Retiro <span class="th-diario__sub">(Mort+Sel)/aves</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+                      <!-- 🔀 Feature 13 — traslados por género (4 columnas dedicadas) -->
+                      <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Hembras recibidas por traslado">↘ Ing. <span class="th-diario__sub">hembras</span></th>
+                      <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Machos recibidos por traslado">↘ Ing. <span class="th-diario__sub">machos</span></th>
+                      <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Hembras enviadas por traslado">↗ Sal. <span class="th-diario__sub">hembras</span></th>
+                      <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">↗ Sal. <span class="th-diario__sub">machos</span></th>
+                      <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">Venta <span class="th-diario__sub">aves</span></th>
+                      <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
+                      <th scope="col" class="th-diario th-diario--actions">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @if (!loading && (!diarioFilas || diarioFilas.length === 0)) {
+                      <tr>
+                        <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
+                          <div class="empty-illustration" aria-hidden="true">📄</div>
+                          <p>Sin registros para este lote.</p>
+                          <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'El lote está cerrado o no hay aves disponibles' : 'Crear el primero'">
+                            Crear el primero
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                    @for (f of diarioFilas; track trackByDiarioFila($index, f)) {
+                      <tr class="ux-row">
+                        <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
+                        <td>{{ f.semana }}</td>
+                        <td>{{ f.edadDia }}</td>
+                        <td>{{ f.seg.mortalidadHembras }}</td>
+                        <td>{{ f.seg.mortalidadMachos }}</td>
+                        <td>{{ f.seg.selH }}</td>
+                        <td>{{ f.seg.selM }}</td>
+                        <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
+                        @if (enriquecerTablaConHistoricoInventario) {
+                          <td class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
+                        }
+                        @if (enriquecerTablaConHistoricoInventario) {
+                          <td class="num">{{ f.consumoBodegaKg != null ? (f.consumoBodegaKg | number:'1.0-3') : '—' }}</td>
+                        }
+                        @if (enriquecerTablaConHistoricoInventario) {
+                          <td class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.0-3') : '—' }}</td>
+                        }
+                        <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
+                        <td>{{ f.tipoAlimentoCorto }}</td>
+                        <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
+                        <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
+                        <td class="num">{{ f.consumoDiaKg | number:'1.0-2' }}</td>
+                        <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
+                        <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.0-2') + '%' : '—' }}</td>
+                        <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
+                        <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
+                        <!-- 🔀 Feature 13 — traslados por género -->
+                        <td class="num cell-mov cell-mov--entrada"
+                          [class.cell-mov--valor]="(f.seg.trasladoIngresoHembras || 0) > 0"
+                          [title]="(f.seg.trasladoIngresoHembras || 0) > 0 ? 'Ingreso hembras: ' + f.seg.trasladoIngresoHembras : ''">
+                          {{ (f.seg.trasladoIngresoHembras || 0) > 0 ? ('+' + (f.seg.trasladoIngresoHembras | number:'1.0-0')) : '—' }}
+                        </td>
+                        <td class="num cell-mov cell-mov--entrada"
+                          [class.cell-mov--valor]="(f.seg.trasladoIngresoMachos || 0) > 0"
+                          [title]="(f.seg.trasladoIngresoMachos || 0) > 0 ? 'Ingreso machos: ' + f.seg.trasladoIngresoMachos : ''">
+                          {{ (f.seg.trasladoIngresoMachos || 0) > 0 ? ('+' + (f.seg.trasladoIngresoMachos | number:'1.0-0')) : '—' }}
+                        </td>
+                        <td class="num cell-mov cell-mov--salida"
+                          [class.cell-mov--valor]="(f.seg.trasladoSalidaHembras || 0) > 0"
+                          [title]="(f.seg.trasladoSalidaHembras || 0) > 0 ? 'Salida hembras: ' + f.seg.trasladoSalidaHembras : ''">
+                          {{ (f.seg.trasladoSalidaHembras || 0) > 0 ? ('-' + (f.seg.trasladoSalidaHembras | number:'1.0-0')) : '—' }}
+                        </td>
+                        <td class="num cell-mov cell-mov--salida"
+                          [class.cell-mov--valor]="(f.seg.trasladoSalidaMachos || 0) > 0"
+                          [title]="(f.seg.trasladoSalidaMachos || 0) > 0 ? 'Salida machos: ' + f.seg.trasladoSalidaMachos : ''">
+                          {{ (f.seg.trasladoSalidaMachos || 0) > 0 ? ('-' + (f.seg.trasladoSalidaMachos | number:'1.0-0')) : '—' }}
+                        </td>
+                        <td class="num cell-mov cell-mov--venta"
+                          [class.cell-mov--valor]="f.seg.ventaAvesCantidad"
+                          [title]="f.seg.ventaAvesCantidad ? 'Venta: ' + f.seg.ventaAvesCantidad + ' aves' + (f.seg.ventaAvesMotivo ? ' — ' + f.seg.ventaAvesMotivo : '') : ''">
+                          {{ f.seg.ventaAvesCantidad != null && f.seg.ventaAvesCantidad > 0 ? (f.seg.ventaAvesCantidad | number:'1.0-0') : '—' }}
+                        </td>
+                        <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
+                        <td class="text-right">
+                          <div class="btn-group">
+                            <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>
+                            <button type="button" (click)="onEdit(f.seg)" class="icon-btn" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede editar' : 'Editar'">✎</button>
+                            <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar'">🗑️</button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <!-- TAB INDICADORES -->
-      <div
-        *ngIf="activeTab === 'indicadores'"
-        id="indicadores-panel"
-        class="tab-panel tab-panel--indicadores"
-        role="tabpanel"
-        aria-labelledby="indicadores-tab">
-
-        <app-tabla-lista-indicadores
-          [seguimientos]="seguimientos"
-          [selectedLote]="selectedLote"
-          [loading]="loading">
-        </app-tabla-lista-indicadores>
-      </div>
-
-      <!-- TAB REPORTE SEMANA -->
-      <div
-        *ngIf="activeTab === 'reporteSemana'"
-        id="reporte-semana-panel"
-        class="tab-panel tab-panel--reporte-semana"
-        role="tabpanel"
-        aria-labelledby="reporte-semana-tab">
-
-        <div class="registro-diario__toolbar">
-          <h3 style="margin: 0;">Reporte semana</h3>
-          <button
-            type="button"
-            class="btn btn--outline registro-diario__export"
-            [disabled]="loading || reporteSemanaFilas.length === 0"
-            (click)="exportReporteSemanaExcel()"
-            [title]="(reporteSemanaFilas.length === 0 ? 'Sin datos para exportar' : 'Descargar Excel con el reporte semanal')">
-            Descargar Excel
-          </button>
-        </div>
-        <p class="registro-diario__hint">
-          Totales por semana (sumas de registros diarios). <strong>Saldo inicio</strong> se estima como saldo fin + bajas de la semana.
-        </p>
-
-        <div class="ux-scroll ux-scroll--reporte" *ngIf="reporteSemanaFilas.length > 0; else noReporteSemana">
-          <table class="ux-table ux-table--reporte-semana">
-            <thead>
-              <tr>
-                <th>Semana</th>
-                <th class="text-right">Días</th>
-                <th class="text-right">Mort. H</th>
-                <th class="text-right">Mort. M</th>
-                <th class="text-right">Mort. Total</th>
-                <th class="text-right">Sel. H</th>
-                <th class="text-right">Sel. M</th>
-                <th class="text-right">Sel. Total</th>
-                <th class="text-right">Err. H</th>
-                <th class="text-right">Err. M</th>
-                <th class="text-right">Err. Total</th>
-                <th class="text-right">Bajas total</th>
-                <th class="text-right">Consumo H (kg)</th>
-                <th class="text-right">Consumo M (kg)</th>
-                <th class="text-right">Consumo total (kg)</th>
-                <th class="text-right">% consumo H</th>
-                <th class="text-right">% consumo M</th>
-                <th class="text-right">Saldo inicio</th>
-                <th class="text-right">Saldo fin</th>
-                <th class="text-right">% bajas/ini</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let r of reporteSemanaFilas">
-                <td><strong>{{ r.semana }}</strong></td>
-                <td class="text-right">{{ r.dias }}</td>
-                <td class="text-right">{{ r.mortH | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.mortM | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.mortTotal | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.selH | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.selM | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.selTotal | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.errH | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.errM | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.errTotal | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.bajasTotal | number:'1.0-0' }}</td>
-                <td class="text-right">{{ r.consumoHkg | number:'1.0-2' }}</td>
-                <td class="text-right">{{ r.consumoMkg | number:'1.0-2' }}</td>
-                <td class="text-right">{{ r.consumoTotalkg | number:'1.0-2' }}</td>
-                <td class="text-right">{{ r.pctConsumoH != null ? (r.pctConsumoH | number:'1.0-2') + '%' : '—' }}</td>
-                <td class="text-right">{{ r.pctConsumoM != null ? (r.pctConsumoM | number:'1.0-2') + '%' : '—' }}</td>
-                <td class="text-right">{{ r.saldoInicio != null ? (r.saldoInicio | number:'1.0-0') : '—' }}</td>
-                <td class="text-right">{{ r.saldoFin != null ? (r.saldoFin | number:'1.0-0') : '—' }}</td>
-                <td class="text-right">{{ r.pctBajasSobreInicio != null ? (r.pctBajasSobreInicio | number:'1.0-2') + '%' : '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <ng-template #noReporteSemana>
-          <div class="empty-state">
-            <div class="empty-illustration" aria-hidden="true">🗓️</div>
-            <p>Sin datos para reporte semanal.</p>
+        }
+        <!-- TAB INDICADORES -->
+        @if (activeTab === 'indicadores') {
+          <div
+            id="indicadores-panel"
+            class="tab-panel tab-panel--indicadores"
+            role="tabpanel"
+            aria-labelledby="indicadores-tab">
+            <app-tabla-lista-indicadores
+              [seguimientos]="seguimientos"
+              [selectedLote]="selectedLote"
+              [loading]="loading">
+            </app-tabla-lista-indicadores>
           </div>
-        </ng-template>
-      </div>
-
-      <!-- TAB GRÁFICA -->
-      <div
-        *ngIf="activeTab === 'grafica'"
-        id="grafica-panel"
-        class="tab-panel"
-        role="tabpanel"
-        aria-labelledby="grafica-tab">
-
-        <app-graficas-principal
-          [seguimientos]="seguimientos"
-          [selectedLote]="selectedLote"
-          [loading]="loading">
-        </app-graficas-principal>
+        }
+        <!-- TAB REPORTE SEMANA -->
+        @if (activeTab === 'reporteSemana') {
+          <div
+            id="reporte-semana-panel"
+            class="tab-panel tab-panel--reporte-semana"
+            role="tabpanel"
+            aria-labelledby="reporte-semana-tab">
+            <div class="registro-diario__toolbar">
+              <h3 style="margin: 0;">Reporte semana</h3>
+              <button
+                type="button"
+                class="btn btn--outline registro-diario__export"
+                [disabled]="loading || reporteSemanaFilas.length === 0"
+                (click)="exportReporteSemanaExcel()"
+                [title]="(reporteSemanaFilas.length === 0 ? 'Sin datos para exportar' : 'Descargar Excel con el reporte semanal')">
+                Descargar Excel
+              </button>
+            </div>
+            <p class="registro-diario__hint">
+              Totales por semana (sumas de registros diarios). <strong>Saldo inicio</strong> se estima como saldo fin + bajas de la semana.
+            </p>
+            @if (reporteSemanaFilas.length > 0) {
+              <div class="ux-scroll ux-scroll--reporte">
+                <table class="ux-table ux-table--reporte-semana">
+                  <thead>
+                    <tr>
+                      <th>Semana</th>
+                      <th class="text-right">Días</th>
+                      <th class="text-right">Mort. H</th>
+                      <th class="text-right">Mort. M</th>
+                      <th class="text-right">Mort. Total</th>
+                      <th class="text-right">Sel. H</th>
+                      <th class="text-right">Sel. M</th>
+                      <th class="text-right">Sel. Total</th>
+                      <th class="text-right">Err. H</th>
+                      <th class="text-right">Err. M</th>
+                      <th class="text-right">Err. Total</th>
+                      <th class="text-right">Bajas total</th>
+                      <th class="text-right">Consumo H (kg)</th>
+                      <th class="text-right">Consumo M (kg)</th>
+                      <th class="text-right">Consumo total (kg)</th>
+                      <th class="text-right">% consumo H</th>
+                      <th class="text-right">% consumo M</th>
+                      <th class="text-right">Saldo inicio</th>
+                      <th class="text-right">Saldo fin</th>
+                      <th class="text-right">% bajas/ini</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of reporteSemanaFilas; track r) {
+                      <tr>
+                        <td><strong>{{ r.semana }}</strong></td>
+                        <td class="text-right">{{ r.dias }}</td>
+                        <td class="text-right">{{ r.mortH | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.mortM | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.mortTotal | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.selH | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.selM | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.selTotal | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.errH | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.errM | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.errTotal | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.bajasTotal | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ r.consumoHkg | number:'1.0-2' }}</td>
+                        <td class="text-right">{{ r.consumoMkg | number:'1.0-2' }}</td>
+                        <td class="text-right">{{ r.consumoTotalkg | number:'1.0-2' }}</td>
+                        <td class="text-right">{{ r.pctConsumoH != null ? (r.pctConsumoH | number:'1.0-2') + '%' : '—' }}</td>
+                        <td class="text-right">{{ r.pctConsumoM != null ? (r.pctConsumoM | number:'1.0-2') + '%' : '—' }}</td>
+                        <td class="text-right">{{ r.saldoInicio != null ? (r.saldoInicio | number:'1.0-0') : '—' }}</td>
+                        <td class="text-right">{{ r.saldoFin != null ? (r.saldoFin | number:'1.0-0') : '—' }}</td>
+                        <td class="text-right">{{ r.pctBajasSobreInicio != null ? (r.pctBajasSobreInicio | number:'1.0-2') + '%' : '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <div class="empty-state">
+                <div class="empty-illustration" aria-hidden="true">🗓️</div>
+                <p>Sin datos para reporte semanal.</p>
+              </div>
+            }
+          </div>
+        }
+        <!-- TAB GRÁFICA -->
+        @if (activeTab === 'grafica') {
+          <div
+            id="grafica-panel"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="grafica-tab">
+            <app-graficas-principal
+              [seguimientos]="seguimientos"
+              [selectedLote]="selectedLote"
+              [loading]="loading">
+            </app-graficas-principal>
+          </div>
+        }
       </div>
     </div>
-  </div>
-</section>
+  </section>
+}

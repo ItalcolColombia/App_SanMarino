@@ -12,7 +12,9 @@
 
   <!-- Panel de filtros -->
   <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
-    <div *ngIf="loadingFilterData" class="text-sm text-gray-500">Cargando filtros…</div>
+    @if (loadingFilterData) {
+      <div class="text-sm text-gray-500">Cargando filtros…</div>
+    }
 
     <!-- Granjas (multi) -->
     <div>
@@ -24,14 +26,16 @@
         </label>
       </div>
       <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"
-           [class.opacity-50]="todasLasGranjas">
-        <label *ngFor="let f of farms"
-               class="inline-flex items-center gap-2 text-sm border rounded px-2 py-1 cursor-pointer"
-               [class.border-ital-green]="granjaChecked(f.id)">
-          <input type="checkbox" [checked]="granjaChecked(f.id)" [disabled]="todasLasGranjas"
-                 (change)="toggleGranja(f.id)" />
-          <span class="truncate">{{ f.name }}</span>
-        </label>
+        [class.opacity-50]="todasLasGranjas">
+        @for (f of farms; track f) {
+          <label
+            class="inline-flex items-center gap-2 text-sm border rounded px-2 py-1 cursor-pointer"
+            [class.border-ital-green]="granjaChecked(f.id)">
+            <input type="checkbox" [checked]="granjaChecked(f.id)" [disabled]="todasLasGranjas"
+              (change)="toggleGranja(f.id)" />
+            <span class="truncate">{{ f.name }}</span>
+          </label>
+        }
       </div>
     </div>
 
@@ -40,32 +44,40 @@
       <div>
         <label class="block text-sm font-medium text-gray-700">Núcleo</label>
         <select class="mt-1 w-full border rounded px-2 py-1.5 text-sm"
-                [(ngModel)]="selectedNucleoId" (change)="onNucleoChange()"
-                [disabled]="granjaUnica == null">
+          [(ngModel)]="selectedNucleoId" (change)="onNucleoChange()"
+          [disabled]="granjaUnica == null">
           <option [ngValue]="null">Todos</option>
-          <option *ngFor="let n of nucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+          @for (n of nucleos; track n) {
+            <option [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+          }
         </select>
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700">Galpón</label>
         <select class="mt-1 w-full border rounded px-2 py-1.5 text-sm"
-                [(ngModel)]="selectedGalponId" (change)="onGalponChange()"
-                [disabled]="granjaUnica == null">
+          [(ngModel)]="selectedGalponId" (change)="onGalponChange()"
+          [disabled]="granjaUnica == null">
           <option [ngValue]="null">Todos</option>
-          <option *ngFor="let g of galpones" [ngValue]="g.galponId">{{ g.galponNombre || g.galponId }}</option>
+          @for (g of galpones; track g) {
+            <option [ngValue]="g.galponId">{{ g.galponNombre || g.galponId }}</option>
+          }
         </select>
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700">Lote</label>
         <select class="mt-1 w-full border rounded px-2 py-1.5 text-sm"
-                [(ngModel)]="selectedLoteId" [disabled]="granjaUnica == null">
+          [(ngModel)]="selectedLoteId" [disabled]="granjaUnica == null">
           <option [ngValue]="null">Todos</option>
-          <option *ngFor="let l of lotes" [ngValue]="l.loteAveEngordeId">{{ l.loteNombre }}</option>
+          @for (l of lotes; track l) {
+            <option [ngValue]="l.loteAveEngordeId">{{ l.loteNombre }}</option>
+          }
         </select>
       </div>
-      <div class="text-xs text-gray-400 flex items-end pb-1" *ngIf="granjaUnica == null">
-        Seleccioná una sola granja para filtrar por núcleo / galpón / lote.
-      </div>
+      @if (granjaUnica == null) {
+        <div class="text-xs text-gray-400 flex items-end pb-1">
+          Seleccioná una sola granja para filtrar por núcleo / galpón / lote.
+        </div>
+      }
     </div>
 
     <!-- Fechas -->
@@ -80,13 +92,13 @@
       </div>
       <div class="md:col-span-2 flex items-end gap-2">
         <button (click)="generar()" [disabled]="loading"
-                class="px-4 py-2 rounded bg-ital-green text-white text-sm font-medium disabled:opacity-50">
+          class="px-4 py-2 rounded bg-ital-green text-white text-sm font-medium disabled:opacity-50">
           {{ loading ? 'Generando…' : 'Generar informe' }}
         </button>
         <button (click)="limpiar()"
-                class="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm">Limpiar</button>
+        class="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm">Limpiar</button>
         <button (click)="exportarExcel()" [disabled]="!reporte || reporte.totalFilas === 0"
-                class="px-4 py-2 rounded border border-ital-orange text-ital-orange text-sm disabled:opacity-50">
+          class="px-4 py-2 rounded border border-ital-orange text-ital-orange text-sm disabled:opacity-50">
           Exportar Excel
         </button>
       </div>
@@ -94,83 +106,91 @@
   </div>
 
   <!-- Error / vacío -->
-  <div *ngIf="error" class="bg-red-50 border border-red-200 text-red-700 text-sm rounded p-3">{{ error }}</div>
-  <div *ngIf="reporte && reporte.totalFilas === 0" class="text-sm text-gray-500">
-    No hay datos para los filtros seleccionados.
-  </div>
+  @if (error) {
+    <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded p-3">{{ error }}</div>
+  }
+  @if (reporte && reporte.totalFilas === 0) {
+    <div class="text-sm text-gray-500">
+      No hay datos para los filtros seleccionados.
+    </div>
+  }
 
   <!-- Resultados: un bloque por semana de vida -->
-  <div *ngFor="let g of reporte?.semanas; trackBy: trackSemana"
-       class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-    <div class="px-4 py-2 bg-gray-50 border-b font-semibold text-gray-700">SEMANA N. {{ g.semana }}</div>
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-xs">
-        <thead class="bg-gray-100 text-gray-600">
-          <tr>
-            <th class="px-2 py-1 text-left">Granja / Lote</th>
-            <th class="px-2 py-1 text-left">Galpón</th>
-            <th class="px-2 py-1 text-right">Aves</th>
-            <th class="px-2 py-1 text-right">Cons. Tabla</th>
-            <th class="px-2 py-1 text-right">Cons. Real (g)</th>
-            <th class="px-2 py-1 text-right">Peso Tabla</th>
-            <th class="px-2 py-1 text-right">Peso Real (g)</th>
-            <th class="px-2 py-1 text-right">Gan. Tabla</th>
-            <th class="px-2 py-1 text-right">Gan. Real (g)</th>
-            <th class="px-2 py-1 text-right">Conv. Tabla</th>
-            <th class="px-2 py-1 text-right">Conv. Real</th>
-            <th class="px-2 py-1 text-right">Mort. Tabla</th>
-            <th class="px-2 py-1 text-right">Mort. Nat.</th>
-            <th class="px-2 py-1 text-right">Selección</th>
-            <th class="px-2 py-1 text-right">Mort. Total</th>
-            <th class="px-2 py-1 text-right">Ventas (un)</th>
-            <th class="px-2 py-1 text-right">Ventas (kg)</th>
-            <th class="px-2 py-1 text-right">Agua (ml)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let f of g.filas; trackBy: trackFila" class="border-b hover:bg-gray-50">
-            <td class="px-2 py-1 whitespace-nowrap font-medium text-gray-800">{{ f.loteNombre }}</td>
-            <td class="px-2 py-1 whitespace-nowrap text-gray-500">{{ f.galponNombre || f.galponId || '—' }}</td>
-            <td class="px-2 py-1 text-right">{{ ent(f.avesEncasetadas) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(f.consumoTablaG, 0) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(f.consumoRealGAve, 1) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(f.pesoTablaG, 0) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(f.pesoRealG, 1) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(f.gananciaTablaG, 0) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(f.gananciaRealG, 1) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(f.conversionTabla, 3) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(f.conversionReal, 3) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ pct(f.mortalidadTablaPct) }}</td>
-            <td class="px-2 py-1 text-right">{{ pct(f.mortNaturalPct) }}</td>
-            <td class="px-2 py-1 text-right">{{ pct(f.seleccionPct) }}</td>
-            <td class="px-2 py-1 text-right">{{ pct(f.mortalidadTotalPct) }}</td>
-            <td class="px-2 py-1 text-right">{{ ent(f.ventasUnid) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(f.ventasKg, 1) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(f.aguaMl, 1) }}</td>
-          </tr>
-          <!-- CONSOLIDADO -->
-          <tr class="bg-ital-cream font-semibold border-t-2 border-ital-green">
-            <td class="px-2 py-1">CONSOLIDADO</td>
-            <td class="px-2 py-1 text-gray-400">{{ g.consolidado.cantidadLotes }} lote(s)</td>
-            <td class="px-2 py-1 text-right">{{ ent(g.consolidado.avesTotales) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.consumoTablaGProm, 0) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(g.consolidado.consumoRealGAveProm, 1) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.pesoTablaGProm, 0) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(g.consolidado.pesoRealGProm, 1) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.gananciaTablaGProm, 0) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(g.consolidado.gananciaRealGProm, 1) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.conversionTablaProm, 3) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(g.consolidado.conversionRealProm, 3) }}</td>
-            <td class="px-2 py-1 text-right text-blue-700">{{ pct(g.consolidado.mortalidadTablaPctProm) }}</td>
-            <td class="px-2 py-1 text-right">{{ pct(g.consolidado.mortNaturalPctProm) }}</td>
-            <td class="px-2 py-1 text-right">{{ pct(g.consolidado.seleccionPctProm) }}</td>
-            <td class="px-2 py-1 text-right">{{ pct(g.consolidado.mortalidadTotalPctProm) }}</td>
-            <td class="px-2 py-1 text-right">{{ ent(g.consolidado.ventasUnidTotal) }}</td>
-            <td class="px-2 py-1 text-right">{{ num(g.consolidado.ventasKgTotal, 1) }}</td>
-            <td class="px-2 py-1 text-right">—</td>
-          </tr>
-        </tbody>
-      </table>
+  @for (g of reporte?.semanas; track trackSemana($index, g)) {
+    <div
+      class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="px-4 py-2 bg-gray-50 border-b font-semibold text-gray-700">SEMANA N. {{ g.semana }}</div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-gray-100 text-gray-600">
+            <tr>
+              <th class="px-2 py-1 text-left">Granja / Lote</th>
+              <th class="px-2 py-1 text-left">Galpón</th>
+              <th class="px-2 py-1 text-right">Aves</th>
+              <th class="px-2 py-1 text-right">Cons. Tabla</th>
+              <th class="px-2 py-1 text-right">Cons. Real (g)</th>
+              <th class="px-2 py-1 text-right">Peso Tabla</th>
+              <th class="px-2 py-1 text-right">Peso Real (g)</th>
+              <th class="px-2 py-1 text-right">Gan. Tabla</th>
+              <th class="px-2 py-1 text-right">Gan. Real (g)</th>
+              <th class="px-2 py-1 text-right">Conv. Tabla</th>
+              <th class="px-2 py-1 text-right">Conv. Real</th>
+              <th class="px-2 py-1 text-right">Mort. Tabla</th>
+              <th class="px-2 py-1 text-right">Mort. Nat.</th>
+              <th class="px-2 py-1 text-right">Selección</th>
+              <th class="px-2 py-1 text-right">Mort. Total</th>
+              <th class="px-2 py-1 text-right">Ventas (un)</th>
+              <th class="px-2 py-1 text-right">Ventas (kg)</th>
+              <th class="px-2 py-1 text-right">Agua (ml)</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of g.filas; track trackFila($index, f)) {
+              <tr class="border-b hover:bg-gray-50">
+                <td class="px-2 py-1 whitespace-nowrap font-medium text-gray-800">{{ f.loteNombre }}</td>
+                <td class="px-2 py-1 whitespace-nowrap text-gray-500">{{ f.galponNombre || f.galponId || '—' }}</td>
+                <td class="px-2 py-1 text-right">{{ ent(f.avesEncasetadas) }}</td>
+                <td class="px-2 py-1 text-right text-blue-700">{{ num(f.consumoTablaG, 0) }}</td>
+                <td class="px-2 py-1 text-right">{{ num(f.consumoRealGAve, 1) }}</td>
+                <td class="px-2 py-1 text-right text-blue-700">{{ num(f.pesoTablaG, 0) }}</td>
+                <td class="px-2 py-1 text-right">{{ num(f.pesoRealG, 1) }}</td>
+                <td class="px-2 py-1 text-right text-blue-700">{{ num(f.gananciaTablaG, 0) }}</td>
+                <td class="px-2 py-1 text-right">{{ num(f.gananciaRealG, 1) }}</td>
+                <td class="px-2 py-1 text-right text-blue-700">{{ num(f.conversionTabla, 3) }}</td>
+                <td class="px-2 py-1 text-right">{{ num(f.conversionReal, 3) }}</td>
+                <td class="px-2 py-1 text-right text-blue-700">{{ pct(f.mortalidadTablaPct) }}</td>
+                <td class="px-2 py-1 text-right">{{ pct(f.mortNaturalPct) }}</td>
+                <td class="px-2 py-1 text-right">{{ pct(f.seleccionPct) }}</td>
+                <td class="px-2 py-1 text-right">{{ pct(f.mortalidadTotalPct) }}</td>
+                <td class="px-2 py-1 text-right">{{ ent(f.ventasUnid) }}</td>
+                <td class="px-2 py-1 text-right">{{ num(f.ventasKg, 1) }}</td>
+                <td class="px-2 py-1 text-right">{{ num(f.aguaMl, 1) }}</td>
+              </tr>
+            }
+            <!-- CONSOLIDADO -->
+            <tr class="bg-ital-cream font-semibold border-t-2 border-ital-green">
+              <td class="px-2 py-1">CONSOLIDADO</td>
+              <td class="px-2 py-1 text-gray-400">{{ g.consolidado.cantidadLotes }} lote(s)</td>
+              <td class="px-2 py-1 text-right">{{ ent(g.consolidado.avesTotales) }}</td>
+              <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.consumoTablaGProm, 0) }}</td>
+              <td class="px-2 py-1 text-right">{{ num(g.consolidado.consumoRealGAveProm, 1) }}</td>
+              <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.pesoTablaGProm, 0) }}</td>
+              <td class="px-2 py-1 text-right">{{ num(g.consolidado.pesoRealGProm, 1) }}</td>
+              <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.gananciaTablaGProm, 0) }}</td>
+              <td class="px-2 py-1 text-right">{{ num(g.consolidado.gananciaRealGProm, 1) }}</td>
+              <td class="px-2 py-1 text-right text-blue-700">{{ num(g.consolidado.conversionTablaProm, 3) }}</td>
+              <td class="px-2 py-1 text-right">{{ num(g.consolidado.conversionRealProm, 3) }}</td>
+              <td class="px-2 py-1 text-right text-blue-700">{{ pct(g.consolidado.mortalidadTablaPctProm) }}</td>
+              <td class="px-2 py-1 text-right">{{ pct(g.consolidado.mortNaturalPctProm) }}</td>
+              <td class="px-2 py-1 text-right">{{ pct(g.consolidado.seleccionPctProm) }}</td>
+              <td class="px-2 py-1 text-right">{{ pct(g.consolidado.mortalidadTotalPctProm) }}</td>
+              <td class="px-2 py-1 text-right">{{ ent(g.consolidado.ventasUnidTotal) }}</td>
+              <td class="px-2 py-1 text-right">{{ num(g.consolidado.ventasKgTotal, 1) }}</td>
+              <td class="px-2 py-1 text-right">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
+  }
 </div>

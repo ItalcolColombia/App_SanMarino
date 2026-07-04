@@ -1,6 +1,6 @@
 // src/app/features/reporte-tecnico-produccion/components/tabla-reporte-cuadro-produccion/tabla-reporte-cuadro-produccion.component.ts
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { 
   ReporteTecnicoProduccionCuadroDto, 
   ReporteTecnicoProduccionLoteInfoDto 
@@ -9,7 +9,7 @@ import {
 @Component({
   selector: 'app-tabla-reporte-cuadro-produccion',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './tabla-reporte-cuadro-produccion.component.html',
   styleUrls: ['./tabla-reporte-cuadro-produccion.component.scss']
 })

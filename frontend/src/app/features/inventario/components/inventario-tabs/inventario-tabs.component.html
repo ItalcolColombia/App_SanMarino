@@ -15,10 +15,10 @@
     <section class="tab-navigation">
       <div class="tab-buttons">
         <button type="button"
-                class="tab-btn"
-                [class.active]="activeTab==='movimientos'"
-                (click)="setTab('movimientos')"
-                [attr.aria-pressed]="activeTab==='movimientos'">
+          class="tab-btn"
+          [class.active]="activeTab==='movimientos'"
+          (click)="setTab('movimientos')"
+          [attr.aria-pressed]="activeTab==='movimientos'">
           <fa-icon [icon]="faInOut" aria-hidden="true"></fa-icon>
           <span>Movimientos</span>
         </button>
@@ -26,29 +26,29 @@
         <!-- Tab de Movimiento Alimento oculto temporalmente -->
         <!--
         <button type="button"
-                class="tab-btn"
-                [class.active]="activeTab==='movimiento-alimento'"
-                (click)="setTab('movimiento-alimento')"
-                [attr.aria-pressed]="activeTab==='movimiento-alimento'">
+          class="tab-btn"
+          [class.active]="activeTab==='movimiento-alimento'"
+          (click)="setTab('movimiento-alimento')"
+          [attr.aria-pressed]="activeTab==='movimiento-alimento'">
           <fa-icon [icon]="faAlimento" aria-hidden="true"></fa-icon>
           <span>Movimiento Alimento</span>
         </button>
         -->
 
         <button type="button"
-                class="tab-btn"
-                [class.active]="activeTab==='ajuste'"
-                (click)="setTab('ajuste')"
-                [attr.aria-pressed]="activeTab==='ajuste'">
+          class="tab-btn"
+          [class.active]="activeTab==='ajuste'"
+          (click)="setTab('ajuste')"
+          [attr.aria-pressed]="activeTab==='ajuste'">
           <fa-icon [icon]="faWrench" aria-hidden="true"></fa-icon>
           <span>Ajuste</span>
         </button>
 
         <button type="button"
-                class="tab-btn"
-                [class.active]="activeTab==='kardex'"
-                (click)="setTab('kardex')"
-                [attr.aria-pressed]="activeTab==='kardex'">
+          class="tab-btn"
+          [class.active]="activeTab==='kardex'"
+          (click)="setTab('kardex')"
+          [attr.aria-pressed]="activeTab==='kardex'">
           <fa-icon [icon]="faList" aria-hidden="true"></fa-icon>
           <span>Kardex</span>
         </button>
@@ -56,29 +56,29 @@
         <!-- Tab de Conteo Físico oculto temporalmente -->
         <!--
         <button type="button"
-                class="tab-btn"
-                [class.active]="activeTab==='conteo'"
-                (click)="setTab('conteo')"
-                [attr.aria-pressed]="activeTab==='conteo'">
+          class="tab-btn"
+          [class.active]="activeTab==='conteo'"
+          (click)="setTab('conteo')"
+          [attr.aria-pressed]="activeTab==='conteo'">
           <fa-icon [icon]="faClipboard" aria-hidden="true"></fa-icon>
           <span>Conteo físico</span>
         </button>
         -->
 
         <button type="button"
-                class="tab-btn"
-                [class.active]="activeTab==='stock'"
-                (click)="setTab('stock')"
-                [attr.aria-pressed]="activeTab==='stock'">
+          class="tab-btn"
+          [class.active]="activeTab==='stock'"
+          (click)="setTab('stock')"
+          [attr.aria-pressed]="activeTab==='stock'">
           <fa-icon [icon]="faWare" aria-hidden="true"></fa-icon>
           <span>Stock</span>
         </button>
 
         <button type="button"
-                class="tab-btn"
-                [class.active]="activeTab==='catalogo'"
-                (click)="setTab('catalogo')"
-                [attr.aria-pressed]="activeTab==='catalogo'">
+          class="tab-btn"
+          [class.active]="activeTab==='catalogo'"
+          (click)="setTab('catalogo')"
+          [attr.aria-pressed]="activeTab==='catalogo'">
           <fa-icon [icon]="faCatalog" aria-hidden="true"></fa-icon>
           <span>Catálogo</span>
         </button>
@@ -87,9 +87,9 @@
 
     <!-- Contenido -->
     <section class="tab-content">
-      <ng-container *ngIf="activeTab==='movimientos'">
+      @if (activeTab==='movimientos') {
         <app-movimientos-unificado-form></app-movimientos-unificado-form>
-      </ng-container>
+      }
 
       <!-- Tab de Movimiento Alimento oculto temporalmente -->
       <!--
@@ -98,13 +98,13 @@
       </ng-container>
       -->
 
-      <ng-container *ngIf="activeTab==='ajuste'">
+      @if (activeTab==='ajuste') {
         <app-ajuste-form></app-ajuste-form>
-      </ng-container>
+      }
 
-      <ng-container *ngIf="activeTab==='kardex'">
+      @if (activeTab==='kardex') {
         <app-kardex-list></app-kardex-list>
-      </ng-container>
+      }
 
       <!-- Tab de Conteo Físico oculto temporalmente -->
       <!--
@@ -113,13 +113,13 @@
       </ng-container>
       -->
 
-      <ng-container *ngIf="activeTab==='stock'">
+      @if (activeTab==='stock') {
         <app-inventario-list></app-inventario-list>
-      </ng-container>
+      }
 
-      <ng-container *ngIf="activeTab==='catalogo'">
+      @if (activeTab==='catalogo') {
         <app-catalogo-alimentos-tab></app-catalogo-alimentos-tab>
-      </ng-container>
+      }
     </section>
   </div>
 </div>

@@ -16,38 +16,50 @@
     </header>
 
     <!-- MODAL: Carga masiva -->
-    <div class="modal-backdrop" *ngIf="showCargaMasiva" (click)="showCargaMasiva = false" aria-hidden="true"></div>
-    <div class="modal-shell" *ngIf="showCargaMasiva" role="dialog" aria-modal="true" aria-label="Carga masiva de ítems">
-      <div class="modal-italfoods">
-        <div class="modal-italfoods__header">
-          <div>Carga masiva de ítems</div>
-          <button type="button" class="icon-btn" (click)="showCargaMasiva = false" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="modal-italfoods__body">
-          <p class="hint">
-            Archivo Excel (.xlsx) con encabezados: GRUPO, TIPO DE INVENTARIO, Desc. tipo inventario, Tipo inventario, Referencia, Desc. item, Concepto, Unidad de medida.
-          </p>
-          <div class="upload-row">
-            <input class="input-italfoods" type="file" accept=".xlsx" (change)="onCargaMasivaFileChange($event)" />
-            <button type="button" class="btn-italfoods-primary" (click)="procesarCargaMasiva()" [disabled]="cargaMasivaLoading || !cargaMasivaFile">
-              <fa-icon [icon]="faUpload"></fa-icon> {{ cargaMasivaLoading ? 'Procesando…' : 'Procesar archivo' }}
-            </button>
+    @if (showCargaMasiva) {
+      <div class="modal-backdrop" (click)="showCargaMasiva = false" aria-hidden="true"></div>
+    }
+    @if (showCargaMasiva) {
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Carga masiva de ítems">
+        <div class="modal-italfoods">
+          <div class="modal-italfoods__header">
+            <div>Carga masiva de ítems</div>
+            <button type="button" class="icon-btn" (click)="showCargaMasiva = false" aria-label="Cerrar">✕</button>
           </div>
-          <p class="error" *ngIf="cargaMasivaError">{{ cargaMasivaError }}</p>
-          <div class="result" *ngIf="cargaMasivaResult">
-            <p>
-              Total filas: {{ cargaMasivaResult.totalFilas }} — Creados: {{ cargaMasivaResult.creados }} — Actualizados: {{ cargaMasivaResult.actualizados }} — Errores: {{ cargaMasivaResult.errores }}
+          <div class="modal-italfoods__body">
+            <p class="hint">
+              Archivo Excel (.xlsx) con encabezados: GRUPO, TIPO DE INVENTARIO, Desc. tipo inventario, Tipo inventario, Referencia, Desc. item, Concepto, Unidad de medida.
             </p>
-            <ul *ngIf="cargaMasivaResult.mensajesError?.length">
-              <li *ngFor="let msg of cargaMasivaResult.mensajesError">{{ msg }}</li>
-            </ul>
+            <div class="upload-row">
+              <input class="input-italfoods" type="file" accept=".xlsx" (change)="onCargaMasivaFileChange($event)" />
+              <button type="button" class="btn-italfoods-primary" (click)="procesarCargaMasiva()" [disabled]="cargaMasivaLoading || !cargaMasivaFile">
+                <fa-icon [icon]="faUpload"></fa-icon> {{ cargaMasivaLoading ? 'Procesando…' : 'Procesar archivo' }}
+              </button>
+            </div>
+            @if (cargaMasivaError) {
+              <p class="error">{{ cargaMasivaError }}</p>
+            }
+            @if (cargaMasivaResult) {
+              <div class="result">
+                <p>
+                  Total filas: {{ cargaMasivaResult.totalFilas }} — Creados: {{ cargaMasivaResult.creados }} — Actualizados: {{ cargaMasivaResult.actualizados }} — Errores: {{ cargaMasivaResult.errores }}
+                </p>
+                @if (cargaMasivaResult.mensajesError?.length) {
+                  <ul>
+                    @for (msg of cargaMasivaResult.mensajesError; track msg) {
+                      <li>{{ msg }}</li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
           </div>
-        </div>
-        <div class="modal-italfoods__footer">
-          <button type="button" class="btn-italfoods-secondary" (click)="showCargaMasiva = false">Cerrar</button>
+          <div class="modal-italfoods__footer">
+            <button type="button" class="btn-italfoods-secondary" (click)="showCargaMasiva = false">Cerrar</button>
+          </div>
         </div>
       </div>
-    </div>
+    }
 
     <section class="card-italfoods filters">
       <div class="filters-grid">
@@ -59,7 +71,9 @@
           <label class="form-label">Tipo</label>
           <select class="form-input" [(ngModel)]="tipoFilter" (ngModelChange)="load()">
             <option value="">Todos los tipos</option>
-            <option *ngFor="let t of tipos" [value]="t">{{ t }}</option>
+            @for (t of tipos; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
           </select>
         </div>
         <div class="field">
@@ -81,240 +95,252 @@
     <section class="card-italfoods table-card">
       <div class="table-head">
         <div class="card-italfoods__title">Listado</div>
-        <div class="table-meta" *ngIf="!loading">
-          Total: {{ totalItems }} — Página {{ page }} / {{ totalPages }}
-        </div>
+        @if (!loading) {
+          <div class="table-meta">
+            Total: {{ totalItems }} — Página {{ page }} / {{ totalPages }}
+          </div>
+        }
       </div>
 
       <div class="card-italfoods__body">
-        <p *ngIf="loading">Cargando…</p>
-        <div class="table-wrap" *ngIf="!loading && totalItems">
-          <table class="table-italfoods">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Tipo</th>
-                <th>Unidad</th>
-                <th>Descripción</th>
-                <th>Activo</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let item of pagedItems">
-                <td>{{ item.codigo }}</td>
-                <td>{{ item.nombre }}</td>
-                <td>{{ item.tipoItem }}</td>
-                <td>{{ item.unidad }}</td>
-                <td>{{ item.descripcion || '—' }}</td>
-                <td>{{ item.activo ? 'Sí' : 'No' }}</td>
-                <td class="actions-cell">
-                  <button type="button" class="icon-btn" title="Editar" aria-label="Editar" (click)="openEditarModal(item)">
-                    <fa-icon [icon]="faPen"></fa-icon>
-                  </button>
-                  <button type="button" class="icon-btn danger" (click)="delete(item)" title="Eliminar" aria-label="Eliminar">
-                    <fa-icon [icon]="faTrash"></fa-icon>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="pager" *ngIf="!loading && totalItems">
-          <div class="pager-left">
-            <button type="button" class="btn-italfoods-secondary" (click)="prevPage()" [disabled]="page <= 1">Anterior</button>
-            <button type="button" class="btn-italfoods-secondary" (click)="nextPage()" [disabled]="page >= totalPages">Siguiente</button>
+        @if (loading) {
+          <p>Cargando…</p>
+        }
+        @if (!loading && totalItems) {
+          <div class="table-wrap">
+            <table class="table-italfoods">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>Unidad</th>
+                  <th>Descripción</th>
+                  <th>Activo</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of pagedItems; track item) {
+                  <tr>
+                    <td>{{ item.codigo }}</td>
+                    <td>{{ item.nombre }}</td>
+                    <td>{{ item.tipoItem }}</td>
+                    <td>{{ item.unidad }}</td>
+                    <td>{{ item.descripcion || '—' }}</td>
+                    <td>{{ item.activo ? 'Sí' : 'No' }}</td>
+                    <td class="actions-cell">
+                      <button type="button" class="icon-btn" title="Editar" aria-label="Editar" (click)="openEditarModal(item)">
+                        <fa-icon [icon]="faPen"></fa-icon>
+                      </button>
+                      <button type="button" class="icon-btn danger" (click)="delete(item)" title="Eliminar" aria-label="Eliminar">
+                        <fa-icon [icon]="faTrash"></fa-icon>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
           </div>
-          <div class="pager-right">
-            <label class="form-label">Página</label>
-            <input class="form-input pager-input" type="number" [ngModel]="page" (ngModelChange)="goToPage($event)" min="1" [max]="totalPages" />
-            <label class="form-label">Tamaño</label>
-            <select class="form-input pager-select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange()">
-              <option *ngFor="let s of pageSizes" [ngValue]="s">{{ s === 0 ? 'Todos' : s }}</option>
-            </select>
+        }
+        @if (!loading && totalItems) {
+          <div class="pager">
+            <div class="pager-left">
+              <button type="button" class="btn-italfoods-secondary" (click)="prevPage()" [disabled]="page <= 1">Anterior</button>
+              <button type="button" class="btn-italfoods-secondary" (click)="nextPage()" [disabled]="page >= totalPages">Siguiente</button>
+            </div>
+            <div class="pager-right">
+              <label class="form-label">Página</label>
+              <input class="form-input pager-input" type="number" [ngModel]="page" (ngModelChange)="goToPage($event)" min="1" [max]="totalPages" />
+              <label class="form-label">Tamaño</label>
+              <select class="form-input pager-select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange()">
+                @for (s of pageSizes; track s) {
+                  <option [ngValue]="s">{{ s === 0 ? 'Todos' : s }}</option>
+                }
+              </select>
+            </div>
           </div>
-        </div>
+        }
 
-        <div *ngIf="!loading && !totalItems" class="empty-state">
-          <div class="empty-illustration">—</div>
-          <div>No hay ítems. Cree uno desde «Nuevo ítem».</div>
-        </div>
+        @if (!loading && !totalItems) {
+          <div class="empty-state">
+            <div class="empty-illustration">—</div>
+            <div>No hay ítems. Cree uno desde «Nuevo ítem».</div>
+          </div>
+        }
       </div>
     </section>
   </div>
 </div>
 
 <!-- MODAL: Nuevo ítem -->
-<div class="modal-backdrop" *ngIf="showNuevoModal" (click)="closeNuevoModal()" aria-hidden="true"></div>
-<div class="modal-shell" *ngIf="showNuevoModal" role="dialog" aria-modal="true" aria-label="Nuevo ítem">
-  <div class="modal-italfoods">
-    <div class="modal-italfoods__header">
-      <div>Nuevo ítem de inventario</div>
-      <button type="button" class="icon-btn" (click)="closeNuevoModal()" aria-label="Cerrar">✕</button>
-    </div>
-
-    <div class="modal-italfoods__body">
-      <p class="error" *ngIf="nuevoError">{{ nuevoError }}</p>
-
-      <div class="form-grid">
-        <div class="field">
-          <label class="form-label">Código *</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.codigo" maxlength="50" placeholder="Ej: SM0177" />
-        </div>
-        <div class="field">
-          <label class="form-label">Nombre *</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.nombre" maxlength="200" placeholder="Nombre del ítem" />
-        </div>
-
-        <div class="field">
-          <label class="form-label">Grupo</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.grupo" maxlength="100" placeholder="Grupo" />
-        </div>
-        <div class="field">
-          <label class="form-label">Tipo inventario (código)</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.tipoInventarioCodigo" maxlength="50" placeholder="Código" />
-        </div>
-        <div class="field">
-          <label class="form-label">Desc. tipo inventario</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.descripcionTipoInventario" maxlength="200" placeholder="Descripción" />
-        </div>
-
-        <div class="field">
-          <label class="form-label">Tipo ítem</label>
-          <select class="form-input" [(ngModel)]="nuevo.tipoItem">
-            <option *ngFor="let t of tipos" [value]="t">{{ t }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="form-label">Unidad</label>
-          <select class="form-input" [(ngModel)]="nuevo.unidad">
-            <option *ngFor="let u of unidades" [value]="u">{{ u }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="form-label">Referencia</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.referencia" maxlength="100" placeholder="Referencia / SKU" />
-        </div>
-
-        <div class="field field-full">
-          <label class="form-label">Desc. ítem</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.descripcionItem" maxlength="500" placeholder="Descripción del ítem" />
-        </div>
-
-        <div class="field">
-          <label class="form-label">Concepto</label>
-          <input class="form-input" type="text" [(ngModel)]="nuevo.concepto" maxlength="200" placeholder="Concepto (ej: Alimento)" />
-        </div>
-
-        <div class="field field-full">
-          <label class="form-label">Descripción (general)</label>
-          <textarea class="form-input" rows="3" [(ngModel)]="nuevo.descripcion" maxlength="500" placeholder="Opcional"></textarea>
-        </div>
-
-        <div class="field field-full">
-          <label class="form-label">
-            <input type="checkbox" [(ngModel)]="nuevo.activo" />
-            Activo
-          </label>
+@if (showNuevoModal) {
+  <div class="modal-backdrop" (click)="closeNuevoModal()" aria-hidden="true"></div>
+}
+@if (showNuevoModal) {
+  <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Nuevo ítem">
+    <div class="modal-italfoods">
+      <div class="modal-italfoods__header">
+        <div>Nuevo ítem de inventario</div>
+        <button type="button" class="icon-btn" (click)="closeNuevoModal()" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-italfoods__body">
+        @if (nuevoError) {
+          <p class="error">{{ nuevoError }}</p>
+        }
+        <div class="form-grid">
+          <div class="field">
+            <label class="form-label">Código *</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.codigo" maxlength="50" placeholder="Ej: SM0177" />
+          </div>
+          <div class="field">
+            <label class="form-label">Nombre *</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.nombre" maxlength="200" placeholder="Nombre del ítem" />
+          </div>
+          <div class="field">
+            <label class="form-label">Grupo</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.grupo" maxlength="100" placeholder="Grupo" />
+          </div>
+          <div class="field">
+            <label class="form-label">Tipo inventario (código)</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.tipoInventarioCodigo" maxlength="50" placeholder="Código" />
+          </div>
+          <div class="field">
+            <label class="form-label">Desc. tipo inventario</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.descripcionTipoInventario" maxlength="200" placeholder="Descripción" />
+          </div>
+          <div class="field">
+            <label class="form-label">Tipo ítem</label>
+            <select class="form-input" [(ngModel)]="nuevo.tipoItem">
+              @for (t of tipos; track t) {
+                <option [value]="t">{{ t }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Unidad</label>
+            <select class="form-input" [(ngModel)]="nuevo.unidad">
+              @for (u of unidades; track u) {
+                <option [value]="u">{{ u }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Referencia</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.referencia" maxlength="100" placeholder="Referencia / SKU" />
+          </div>
+          <div class="field field-full">
+            <label class="form-label">Desc. ítem</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.descripcionItem" maxlength="500" placeholder="Descripción del ítem" />
+          </div>
+          <div class="field">
+            <label class="form-label">Concepto</label>
+            <input class="form-input" type="text" [(ngModel)]="nuevo.concepto" maxlength="200" placeholder="Concepto (ej: Alimento)" />
+          </div>
+          <div class="field field-full">
+            <label class="form-label">Descripción (general)</label>
+            <textarea class="form-input" rows="3" [(ngModel)]="nuevo.descripcion" maxlength="500" placeholder="Opcional"></textarea>
+          </div>
+          <div class="field field-full">
+            <label class="form-label">
+              <input type="checkbox" [(ngModel)]="nuevo.activo" />
+              Activo
+            </label>
+          </div>
         </div>
       </div>
-    </div>
-
-    <div class="modal-italfoods__footer">
-      <button type="button" class="btn-italfoods-secondary" (click)="closeNuevoModal()" [disabled]="nuevoLoading">Cancelar</button>
-      <button type="button" class="btn-italfoods-primary" (click)="saveNuevo()" [disabled]="nuevoLoading">
-        {{ nuevoLoading ? 'Guardando…' : 'Crear ítem' }}
-      </button>
+      <div class="modal-italfoods__footer">
+        <button type="button" class="btn-italfoods-secondary" (click)="closeNuevoModal()" [disabled]="nuevoLoading">Cancelar</button>
+        <button type="button" class="btn-italfoods-primary" (click)="saveNuevo()" [disabled]="nuevoLoading">
+          {{ nuevoLoading ? 'Guardando…' : 'Crear ítem' }}
+        </button>
+      </div>
     </div>
   </div>
-</div>
+}
 
 <!-- MODAL: Editar ítem -->
-<div class="modal-backdrop" *ngIf="showEditarModal" (click)="closeEditarModal()" aria-hidden="true"></div>
-<div class="modal-shell" *ngIf="showEditarModal" role="dialog" aria-modal="true" aria-label="Editar ítem">
-  <div class="modal-italfoods">
-    <div class="modal-italfoods__header">
-      <div>Editar ítem</div>
-      <button type="button" class="icon-btn" (click)="closeEditarModal()" aria-label="Cerrar">✕</button>
-    </div>
-
-    <div class="modal-italfoods__body">
-      <p class="error" *ngIf="editarError">{{ editarError }}</p>
-
-      <div class="form-grid">
-        <div class="field">
-          <label class="form-label">Código</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.codigo" readonly />
-        </div>
-        <div class="field">
-          <label class="form-label">Nombre *</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.nombre" maxlength="200" />
-        </div>
-
-        <div class="field">
-          <label class="form-label">Grupo</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.grupo" maxlength="100" />
-        </div>
-        <div class="field">
-          <label class="form-label">Tipo inventario (código)</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.tipoInventarioCodigo" maxlength="50" />
-        </div>
-        <div class="field">
-          <label class="form-label">Desc. tipo inventario</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.descripcionTipoInventario" maxlength="200" />
-        </div>
-
-        <div class="field">
-          <label class="form-label">Tipo ítem</label>
-          <select class="form-input" [(ngModel)]="editar.tipoItem">
-            <option *ngFor="let t of tipos" [value]="t">{{ t }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="form-label">Unidad</label>
-          <select class="form-input" [(ngModel)]="editar.unidad">
-            <option *ngFor="let u of unidades" [value]="u">{{ u }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="form-label">Referencia</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.referencia" maxlength="100" />
-        </div>
-
-        <div class="field field-full">
-          <label class="form-label">Desc. ítem</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.descripcionItem" maxlength="500" />
-        </div>
-
-        <div class="field">
-          <label class="form-label">Concepto</label>
-          <input class="form-input" type="text" [(ngModel)]="editar.concepto" maxlength="200" />
-        </div>
-
-        <div class="field field-full">
-          <label class="form-label">Descripción (general)</label>
-          <textarea class="form-input" rows="3" [(ngModel)]="editar.descripcion" maxlength="500"></textarea>
-        </div>
-
-        <div class="field field-full">
-          <label class="form-label">
-            <input type="checkbox" [(ngModel)]="editar.activo" />
-            Activo
-          </label>
+@if (showEditarModal) {
+  <div class="modal-backdrop" (click)="closeEditarModal()" aria-hidden="true"></div>
+}
+@if (showEditarModal) {
+  <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Editar ítem">
+    <div class="modal-italfoods">
+      <div class="modal-italfoods__header">
+        <div>Editar ítem</div>
+        <button type="button" class="icon-btn" (click)="closeEditarModal()" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-italfoods__body">
+        @if (editarError) {
+          <p class="error">{{ editarError }}</p>
+        }
+        <div class="form-grid">
+          <div class="field">
+            <label class="form-label">Código</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.codigo" readonly />
+          </div>
+          <div class="field">
+            <label class="form-label">Nombre *</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.nombre" maxlength="200" />
+          </div>
+          <div class="field">
+            <label class="form-label">Grupo</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.grupo" maxlength="100" />
+          </div>
+          <div class="field">
+            <label class="form-label">Tipo inventario (código)</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.tipoInventarioCodigo" maxlength="50" />
+          </div>
+          <div class="field">
+            <label class="form-label">Desc. tipo inventario</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.descripcionTipoInventario" maxlength="200" />
+          </div>
+          <div class="field">
+            <label class="form-label">Tipo ítem</label>
+            <select class="form-input" [(ngModel)]="editar.tipoItem">
+              @for (t of tipos; track t) {
+                <option [value]="t">{{ t }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Unidad</label>
+            <select class="form-input" [(ngModel)]="editar.unidad">
+              @for (u of unidades; track u) {
+                <option [value]="u">{{ u }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Referencia</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.referencia" maxlength="100" />
+          </div>
+          <div class="field field-full">
+            <label class="form-label">Desc. ítem</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.descripcionItem" maxlength="500" />
+          </div>
+          <div class="field">
+            <label class="form-label">Concepto</label>
+            <input class="form-input" type="text" [(ngModel)]="editar.concepto" maxlength="200" />
+          </div>
+          <div class="field field-full">
+            <label class="form-label">Descripción (general)</label>
+            <textarea class="form-input" rows="3" [(ngModel)]="editar.descripcion" maxlength="500"></textarea>
+          </div>
+          <div class="field field-full">
+            <label class="form-label">
+              <input type="checkbox" [(ngModel)]="editar.activo" />
+              Activo
+            </label>
+          </div>
         </div>
       </div>
-    </div>
-
-    <div class="modal-italfoods__footer">
-      <button type="button" class="btn-italfoods-secondary" (click)="closeEditarModal()" [disabled]="editarLoading">Cancelar</button>
-      <button type="button" class="btn-italfoods-primary" (click)="saveEditar()" [disabled]="editarLoading">
-        {{ editarLoading ? 'Guardando…' : 'Guardar cambios' }}
-      </button>
+      <div class="modal-italfoods__footer">
+        <button type="button" class="btn-italfoods-secondary" (click)="closeEditarModal()" [disabled]="editarLoading">Cancelar</button>
+        <button type="button" class="btn-italfoods-primary" (click)="saveEditar()" [disabled]="editarLoading">
+          {{ editarLoading ? 'Guardando…' : 'Guardar cambios' }}
+        </button>
+      </div>
     </div>
   </div>
-</div>
+}

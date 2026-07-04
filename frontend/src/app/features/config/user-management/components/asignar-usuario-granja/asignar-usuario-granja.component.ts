@@ -1,6 +1,6 @@
 // src/app/features/config/user-management/components/asignar-usuario-granja/asignar-usuario-granja.component.ts
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -15,7 +15,7 @@ import { FarmService, FarmDto } from '../../../../../core/services/farm/farm.ser
 @Component({
   selector: 'app-asignar-usuario-granja',
   standalone: true,
-  imports: [CommonModule, FormsModule, FontAwesomeModule],
+  imports: [FormsModule, FontAwesomeModule],
   templateUrl: './asignar-usuario-granja.component.html',
   styleUrls: ['./asignar-usuario-granja.component.scss']
 })

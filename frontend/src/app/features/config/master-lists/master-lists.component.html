@@ -7,16 +7,18 @@
       <div class="flex items-center gap-2">
         <fa-icon [icon]="faList" class="title-icon" aria-hidden="true"></fa-icon>
         <h2 class="title">Listas maestras</h2>
-        <span class="counter-pill" *ngIf="lists?.length !== undefined">
-          {{ lists.length }} lista(s)
-        </span>
+        @if (lists?.length !== undefined) {
+          <span class="counter-pill">
+            {{ lists.length }} lista(s)
+          </span>
+        }
       </div>
 
       <button
         (click)="newList()"
         class="btn-primary"
         type="button"
-      >
+        >
         <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
         Nueva lista
       </button>
@@ -38,31 +40,31 @@
 
           <tbody>
             <!-- Estado vacío -->
-            <tr *ngIf="!lists?.length">
-              <td colspan="5" class="empty-state">
-                <div class="empty-illustration">🗂️</div>
-                <p>No hay listas todavía.</p>
-                <button class="btn-subtle" type="button" (click)="newList()">
-                  <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
-                  Crear la primera
-                </button>
-              </td>
-            </tr>
+            @if (!lists?.length) {
+              <tr>
+                <td colspan="5" class="empty-state">
+                  <div class="empty-illustration">🗂️</div>
+                  <p>No hay listas todavía.</p>
+                  <button class="btn-subtle" type="button" (click)="newList()">
+                    <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
+                    Crear la primera
+                  </button>
+                </td>
+              </tr>
+            }
 
             <!-- Filas -->
-            <ng-container *ngFor="let list of lists; trackBy: trackByIndex">
+            @for (list of lists; track $index) {
               <tr class="mls-row">
                 <td>
                   <span class="key-badge" title="Identificador interno">{{ list.key }}</span>
                 </td>
                 <td class="truncate-cell" [title]="list.name">{{ list.name }}</td>
-
                 <td>
                   <span class="count-pill">
                     {{ list.options.length }} opción(es)
                   </span>
                 </td>
-
                 <td class="text-center">
                   <button
                     type="button"
@@ -70,11 +72,10 @@
                     (click)="openViewModal(list)"
                     [attr.aria-label]="'Ver opciones de ' + list.name"
                     title="Ver opciones"
-                  >
+                    >
                     <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
                   </button>
                 </td>
-
                 <td class="text-right">
                   <div class="actions">
                     <button
@@ -83,7 +84,7 @@
                       (click)="edit(list)"
                       [attr.aria-label]="'Editar ' + list.name"
                       title="Editar"
-                    >
+                      >
                       <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                     </button>
                     <button
@@ -92,22 +93,24 @@
                       (click)="delete(list)"
                       [attr.aria-label]="'Eliminar ' + list.name"
                       title="Eliminar"
-                    >
+                      >
                       <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                     </button>
                   </div>
                 </td>
               </tr>
-            </ng-container>
+            }
           </tbody>
         </table>
       </div>
 
       <!-- Overlay de carga -->
-      <div class="loading-overlay" *ngIf="loading" aria-live="polite">
-        <div class="spinner"></div>
-        <span>Cargando…</span>
-      </div>
+      @if (loading) {
+        <div class="loading-overlay" aria-live="polite">
+          <div class="spinner"></div>
+          <span>Cargando…</span>
+        </div>
+      }
     </div>
   </div>
 
@@ -116,44 +119,46 @@
     [listId]="editListId"
     (closed)="closeEditModal()"
     (saved)="onEditSaved()"
-  />
+    />
 
-  <!-- Modal ver opciones -->
-  <div
-    *ngIf="viewList"
-    class="view-modal-overlay"
-    (click)="closeViewModal()"
-    role="dialog"
-    aria-modal="true"
-    [attr.aria-labelledby]="'view-modal-title-' + viewList.id"
-  >
-    <div class="view-modal-content" (click)="$event.stopPropagation()">
-      <div class="view-modal-header">
-        <fa-icon [icon]="faEye" class="view-modal-icon" aria-hidden="true"></fa-icon>
-        <h2 [id]="'view-modal-title-' + viewList.id" class="view-modal-title">
-          Opciones de {{ viewList.name }}
-        </h2>
-        <button type="button" class="view-modal-close" (click)="closeViewModal()" aria-label="Cerrar">
-          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
-        </button>
-      </div>
-      <div class="view-modal-body">
-        <p class="view-modal-key">
-          <span class="key-badge">{{ viewList.key }}</span>
-        </p>
-        <div class="options-grid">
-          <span
-            class="tag"
-            *ngFor="let opt of viewList.options; trackBy: trackByOptionId"
-            [title]="opt.value"
-          >
-            {{ opt.value }}
-          </span>
+    <!-- Modal ver opciones -->
+    @if (viewList) {
+      <div
+        class="view-modal-overlay"
+        (click)="closeViewModal()"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-labelledby]="'view-modal-title-' + viewList.id"
+        >
+        <div class="view-modal-content" (click)="$event.stopPropagation()">
+          <div class="view-modal-header">
+            <fa-icon [icon]="faEye" class="view-modal-icon" aria-hidden="true"></fa-icon>
+            <h2 [id]="'view-modal-title-' + viewList.id" class="view-modal-title">
+              Opciones de {{ viewList.name }}
+            </h2>
+            <button type="button" class="view-modal-close" (click)="closeViewModal()" aria-label="Cerrar">
+              <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+            </button>
+          </div>
+          <div class="view-modal-body">
+            <p class="view-modal-key">
+              <span class="key-badge">{{ viewList.key }}</span>
+            </p>
+            <div class="options-grid">
+              @for (opt of viewList.options; track trackByOptionId($index, opt)) {
+                <span
+                  class="tag"
+                  [title]="opt.value"
+                  >
+                  {{ opt.value }}
+                </span>
+              }
+            </div>
+          </div>
+          <div class="view-modal-footer">
+            <button type="button" class="btn-subtle" (click)="closeViewModal()">Cerrar</button>
+          </div>
         </div>
       </div>
-      <div class="view-modal-footer">
-        <button type="button" class="btn-subtle" (click)="closeViewModal()">Cerrar</button>
-      </div>
-    </div>
+    }
   </div>
-</div>

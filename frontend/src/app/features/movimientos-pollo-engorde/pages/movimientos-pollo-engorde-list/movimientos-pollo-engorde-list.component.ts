@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { finalize } from 'rxjs/operators';
@@ -42,14 +42,13 @@ export type { LoteOption, FilaDespachoGrupo, FilaMovimientoSimple, FilaTablaMovi
   selector: 'app-movimientos-pollo-engorde-list',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     ConfirmationModalComponent,
     AuditoriaVentasModalComponent,
     ModalMovimientoPolloEngordeComponent,
     ModalVentaPanamaComponent,
     HasPermissionDirective
-  ],
+],
   templateUrl: './movimientos-pollo-engorde-list.component.html',
   styleUrls: ['./movimientos-pollo-engorde-list.component.scss']
 })

@@ -1,6 +1,6 @@
 // src/app/shared/components/toast-notification/toast-notification.component.ts
 import { Component, Input, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
   faCheckCircle, faExclamationTriangle, faTimesCircle, 
@@ -19,7 +19,7 @@ export interface ToastConfig {
 @Component({
   selector: 'app-toast-notification',
   standalone: true,
-  imports: [CommonModule, FontAwesomeModule],
+  imports: [FontAwesomeModule],
   templateUrl: './toast-notification.component.html',
   styleUrls: ['./toast-notification.component.scss']
 })

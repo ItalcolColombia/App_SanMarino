@@ -2,7 +2,7 @@
 import {
   Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject, signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { finalize } from 'rxjs';
 import { TicketService } from '../../services/ticket.service';
 import { TicketImagenMeta } from '../../models/ticket.models';
@@ -14,7 +14,7 @@ import { TicketImagenMeta } from '../../models/ticket.models';
 @Component({
   selector: 'app-image-lightbox',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     @if (cur() !== null && imagenes[cur()!]) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" (click)="close()">

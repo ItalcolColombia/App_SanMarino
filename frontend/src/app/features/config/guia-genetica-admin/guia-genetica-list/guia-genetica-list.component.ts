@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { finalize, Subject, takeUntil } from 'rxjs';
@@ -13,7 +13,7 @@ import { ExcelImportResultDto, GuiaGeneticaAdminService, ProduccionAvicolaRawDto
 @Component({
   selector: 'app-guia-genetica-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, FontAwesomeModule],
+  imports: [RouterModule, FormsModule, FontAwesomeModule],
   templateUrl: './guia-genetica-list.component.html',
   styleUrls: ['./guia-genetica-list.component.scss']
 })

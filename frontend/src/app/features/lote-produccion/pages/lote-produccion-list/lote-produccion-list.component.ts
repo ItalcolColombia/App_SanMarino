@@ -1,5 +1,5 @@
 import { Component, OnInit, ViewChild, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize, map } from 'rxjs/operators';
@@ -39,7 +39,6 @@ import { LotePosturaProduccionService } from '../../../lote/services/lote-postur
   selector: 'app-lote-produccion-list',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     FiltroSelectComponent,
@@ -50,7 +49,7 @@ import { LotePosturaProduccionService } from '../../../lote/services/lote-postur
     ModalDetalleSeguimientoComponent,
     ConfirmationModalComponent,
     ModalTrasladoAvesSeguimientoComponent
-  ],
+],
   templateUrl: './lote-produccion-list.component.html',
   styleUrls: ['./lote-produccion-list.component.scss']
 })

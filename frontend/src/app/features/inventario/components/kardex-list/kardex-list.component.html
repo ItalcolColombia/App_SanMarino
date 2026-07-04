@@ -6,7 +6,9 @@
       <label class="ux-label" for="farm">Granja *</label>
       <select id="farm" class="ux-select" [(ngModel)]="farmId" (change)="load()">
         <option [ngValue]="null" disabled>Seleccione…</option>
-        <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+        @for (f of farms; track f) {
+          <option [ngValue]="f.id">{{ f.name }}</option>
+        }
       </select>
     </div>
 
@@ -14,7 +16,9 @@
       <label class="ux-label" for="item">Producto *</label>
       <select id="item" class="ux-select" [(ngModel)]="itemId" (change)="load()">
         <option [ngValue]="null" disabled>Seleccione…</option>
-        <option *ngFor="let it of items" [ngValue]="it.id">{{ it.codigo }} — {{ it.nombre }}</option>
+        @for (it of items; track it) {
+          <option [ngValue]="it.id">{{ it.codigo }} — {{ it.nombre }}</option>
+        }
       </select>
     </div>
 
@@ -31,10 +35,12 @@
 
   <!-- Tabla de Kardex -->
   <div class="kardex-card" [class.is-loading]="loading">
-    <div class="kardex-header" *ngIf="kardex.length > 0">
-      <h3 class="kardex-title">Historial de Movimientos</h3>
-      <span class="kardex-count">{{ kardex.length }} movimiento(s)</span>
-    </div>
+    @if (kardex.length > 0) {
+      <div class="kardex-header">
+        <h3 class="kardex-title">Historial de Movimientos</h3>
+        <span class="kardex-count">{{ kardex.length }} movimiento(s)</span>
+      </div>
+    }
     <div class="ux-scroll">
       <table class="ux-table">
         <thead>
@@ -48,43 +54,51 @@
             <th>Motivo</th>
           </tr>
         </thead>
-        <tbody *ngIf="!loading && kardex.length === 0">
-          <tr>
-            <td colspan="7" class="empty-state">
-              <div class="empty-content">
-                <span class="empty-icon">📋</span>
-                <p>No hay movimientos para mostrar</p>
-                <p class="empty-hint">Seleccione una granja y un producto para consultar el historial</p>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-        <tbody *ngIf="!loading && kardex.length > 0">
-          <tr *ngFor="let k of kardex; trackBy: trackByDate">
-            <td class="kardex-date">{{ k.fecha | date:'short' }}</td>
-            <td>
-              <span class="kardex-type-badge" [class]="getTypeClass(k.tipo)">
-                {{ translateMovementType(k.tipo) }}
-              </span>
-            </td>
-            <td>{{ k.referencia || '–' }}</td>
-            <td class="text-right" [class]="signClass(k.cantidad)">
-              <span class="quantity-display">
-                {{ k.cantidad > 0 ? '+' : '' }}{{ k.cantidad | number:'1.0-3' }}
-              </span>
-            </td>
-            <td>{{ k.unidad }}</td>
-            <td class="text-right">
-              <strong class="balance-display">{{ k.saldo | number:'1.0-3' }}</strong>
-            </td>
-            <td>{{ k.motivo || '–' }}</td>
-          </tr>
-        </tbody>
+        @if (!loading && kardex.length === 0) {
+          <tbody>
+            <tr>
+              <td colspan="7" class="empty-state">
+                <div class="empty-content">
+                  <span class="empty-icon">📋</span>
+                  <p>No hay movimientos para mostrar</p>
+                  <p class="empty-hint">Seleccione una granja y un producto para consultar el historial</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        }
+        @if (!loading && kardex.length > 0) {
+          <tbody>
+            @for (k of kardex; track trackByDate($index, k)) {
+              <tr>
+                <td class="kardex-date">{{ k.fecha | date:'short' }}</td>
+                <td>
+                  <span class="kardex-type-badge" [class]="getTypeClass(k.tipo)">
+                    {{ translateMovementType(k.tipo) }}
+                  </span>
+                </td>
+                <td>{{ k.referencia || '–' }}</td>
+                <td class="text-right" [class]="signClass(k.cantidad)">
+                  <span class="quantity-display">
+                    {{ k.cantidad > 0 ? '+' : '' }}{{ k.cantidad | number:'1.0-3' }}
+                  </span>
+                </td>
+                <td>{{ k.unidad }}</td>
+                <td class="text-right">
+                  <strong class="balance-display">{{ k.saldo | number:'1.0-3' }}</strong>
+                </td>
+                <td>{{ k.motivo || '–' }}</td>
+              </tr>
+            }
+          </tbody>
+        }
       </table>
     </div>
-    <div *ngIf="loading" class="loading-overlay">
-      <div class="spinner"></div>
-      <span>Cargando historial…</span>
-    </div>
+    @if (loading) {
+      <div class="loading-overlay">
+        <div class="spinner"></div>
+        <span>Cargando historial…</span>
+      </div>
+    }
   </div>
 </div>

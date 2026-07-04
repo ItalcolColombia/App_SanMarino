@@ -1,6 +1,6 @@
 // src/app/features/traslados-aves/components/traslado-navigation-list/traslado-navigation-list.component.ts
 import { Component, OnInit, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { TrasladoNavigationService, MovimientoAvesCompleto, MovimientoAvesCompletoSearchRequest } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
 import { TrasladoNavigationCardComponent } from '../traslado-navigation-card/traslado-navigation-card.component';
@@ -8,7 +8,7 @@ import { TrasladoNavigationCardComponent } from '../traslado-navigation-card/tra
 @Component({
   selector: 'app-traslado-navigation-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, TrasladoNavigationCardComponent],
+  imports: [FormsModule, TrasladoNavigationCardComponent],
   templateUrl: './traslado-navigation-list.component.html',
   styleUrls: ['./traslado-navigation-list.component.scss']
 })

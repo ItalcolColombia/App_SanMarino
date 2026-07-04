@@ -5,38 +5,49 @@
         <h1>Traslados de Huevos</h1>
 
         <div class="ux-header__meta">
-          <ng-template #noGranjaChip>
+
+          @if (selectedGranjaId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Granja: {{ selectedGranjaName || selectedGranjaId }}
+            </span>
+          } @else {
             <span class="chip chip--warning">
               <span class="chip__dot" aria-hidden="true"></span>
               Selecciona una granja
             </span>
-          </ng-template>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
-          </span>
+          @if (selectedNucleoId) {
+            <span class="chip chip--muted">
+              Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
+          @if (selectedGalponId) {
+            <span class="chip chip--muted">
+              Galpón: {{ selectedGalponNombre }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Lote: {{ selectedLoteNombre }}
+            </span>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedLoteId">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote: {{ selectedLoteNombre }}
-          </span>
+          @if (selectedLoteId && selectedLoteInfo?.fechaEncaset) {
+            <span class="chip chip--muted">
+              {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLoteInfo?.fechaEncaset">
-            {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedLoteId">
-            {{ filteredTraslados.length || 0 }} de {{ traslados.length || 0 }} registro(s)
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--muted">
+              {{ filteredTraslados.length || 0 }} de {{ traslados.length || 0 }} registro(s)
+            </span>
+          }
         </div>
       </div>
 
@@ -67,78 +78,89 @@
     </app-filtro-select>
 
     <!-- Mensaje de error -->
-    <div *ngIf="error" class="alert alert-error">
-      {{ error }}
-    </div>
+    @if (error) {
+      <div class="alert alert-error">
+        {{ error }}
+      </div>
+    }
 
     <!-- Tabla de traslados -->
-    <section class="ux-card ux-card--stretch" *ngIf="selectedLoteId">
-      <div class="ux-card__header">
-        <h2>Registros de Traslados de Huevos</h2>
-      </div>
-
-      <!-- Resumen espejo + ventas + Excel -->
-      <div class="traslados-resumen" *ngIf="!loading && disponibilidad">
-        <div class="traslados-resumen__block traslados-resumen__block--lote">
-          <h3 class="traslados-resumen__title">Lote y ubicación</h3>
-          <p class="traslados-resumen__line"><strong>{{ disponibilidad.loteNombre }}</strong> · LPP {{ selectedLoteId }}</p>
-          <p class="traslados-resumen__line">Lote sistema: {{ disponibilidad.loteId }}</p>
-          <p class="traslados-resumen__line">Granja: {{ disponibilidad.granjaNombre }}</p>
-          <p class="traslados-resumen__line" *ngIf="disponibilidad.nucleoNombre">Núcleo: {{ disponibilidad.nucleoNombre }}</p>
-          <p class="traslados-resumen__line" *ngIf="disponibilidad.galponNombre">Galpón: {{ disponibilidad.galponNombre }}</p>
-          <p class="traslados-resumen__line" *ngIf="selectedLoteInfo?.fechaEncaset">
-            Encaset: {{ selectedLoteInfo?.fechaEncaset | date:'dd/MM/yyyy' }} · {{ calcularEdadDiasDesdeEncasetamiento() }} días
-          </p>
+    @if (selectedLoteId) {
+      <section class="ux-card ux-card--stretch">
+        <div class="ux-card__header">
+          <h2>Registros de Traslados de Huevos</h2>
         </div>
-
-        <div class="traslados-resumen__block" *ngIf="disponibilidad.huevos">
-          <h3 class="traslados-resumen__title">Inventario disponible (espejo · dinámico)</h3>
-          <p class="traslados-resumen__highlight">Total <strong>{{ formatearNumero(disponibilidad.huevos.totalHuevos) }}</strong>
-            · Incubables <strong>{{ formatearNumero(disponibilidad.huevos.totalHuevosIncubables) }}</strong>
-            <span *ngIf="disponibilidad.huevos.diasEnProduccion != null"> · {{ disponibilidad.huevos.diasEnProduccion }} días en producción</span>
-          </p>
-          <div class="traslados-resumen__grid-eggs">
-            <span>Limpio {{ formatearNumero(disponibilidad.huevos.limpio) }}</span>
-            <span>Tratado {{ formatearNumero(disponibilidad.huevos.tratado) }}</span>
-            <span>Sucio {{ formatearNumero(disponibilidad.huevos.sucio) }}</span>
-            <span>Deforme {{ formatearNumero(disponibilidad.huevos.deforme) }}</span>
-            <span>Blanco {{ formatearNumero(disponibilidad.huevos.blanco) }}</span>
-            <span>D. yema {{ formatearNumero(disponibilidad.huevos.dobleYema) }}</span>
-            <span>Piso {{ formatearNumero(disponibilidad.huevos.piso) }}</span>
-            <span>Peq. {{ formatearNumero(disponibilidad.huevos.pequeno) }}</span>
-            <span>Roto {{ formatearNumero(disponibilidad.huevos.roto) }}</span>
-            <span>Desecho {{ formatearNumero(disponibilidad.huevos.desecho) }}</span>
-            <span>Otro {{ formatearNumero(disponibilidad.huevos.otro) }}</span>
+        <!-- Resumen espejo + ventas + Excel -->
+        @if (!loading && disponibilidad) {
+          <div class="traslados-resumen">
+            <div class="traslados-resumen__block traslados-resumen__block--lote">
+              <h3 class="traslados-resumen__title">Lote y ubicación</h3>
+              <p class="traslados-resumen__line"><strong>{{ disponibilidad.loteNombre }}</strong> · LPP {{ selectedLoteId }}</p>
+              <p class="traslados-resumen__line">Lote sistema: {{ disponibilidad.loteId }}</p>
+              <p class="traslados-resumen__line">Granja: {{ disponibilidad.granjaNombre }}</p>
+              @if (disponibilidad.nucleoNombre) {
+                <p class="traslados-resumen__line">Núcleo: {{ disponibilidad.nucleoNombre }}</p>
+              }
+              @if (disponibilidad.galponNombre) {
+                <p class="traslados-resumen__line">Galpón: {{ disponibilidad.galponNombre }}</p>
+              }
+              @if (selectedLoteInfo?.fechaEncaset) {
+                <p class="traslados-resumen__line">
+                  Encaset: {{ selectedLoteInfo?.fechaEncaset | date:'dd/MM/yyyy' }} · {{ calcularEdadDiasDesdeEncasetamiento() }} días
+                </p>
+              }
+            </div>
+            @if (disponibilidad.huevos) {
+              <div class="traslados-resumen__block">
+                <h3 class="traslados-resumen__title">Inventario disponible (espejo · dinámico)</h3>
+                <p class="traslados-resumen__highlight">Total <strong>{{ formatearNumero(disponibilidad.huevos.totalHuevos) }}</strong>
+                · Incubables <strong>{{ formatearNumero(disponibilidad.huevos.totalHuevosIncubables) }}</strong>
+                @if (disponibilidad.huevos.diasEnProduccion != null) {
+                  <span> · {{ disponibilidad.huevos.diasEnProduccion }} días en producción</span>
+                }
+              </p>
+              <div class="traslados-resumen__grid-eggs">
+                <span>Limpio {{ formatearNumero(disponibilidad.huevos.limpio) }}</span>
+                <span>Tratado {{ formatearNumero(disponibilidad.huevos.tratado) }}</span>
+                <span>Sucio {{ formatearNumero(disponibilidad.huevos.sucio) }}</span>
+                <span>Deforme {{ formatearNumero(disponibilidad.huevos.deforme) }}</span>
+                <span>Blanco {{ formatearNumero(disponibilidad.huevos.blanco) }}</span>
+                <span>D. yema {{ formatearNumero(disponibilidad.huevos.dobleYema) }}</span>
+                <span>Piso {{ formatearNumero(disponibilidad.huevos.piso) }}</span>
+                <span>Peq. {{ formatearNumero(disponibilidad.huevos.pequeno) }}</span>
+                <span>Roto {{ formatearNumero(disponibilidad.huevos.roto) }}</span>
+                <span>Desecho {{ formatearNumero(disponibilidad.huevos.desecho) }}</span>
+                <span>Otro {{ formatearNumero(disponibilidad.huevos.otro) }}</span>
+              </div>
+            </div>
+          }
+          @if (disponibilidad.huevosHistoricoEspejo) {
+            <div class="traslados-resumen__block">
+              <h3 class="traslados-resumen__title">Producción acumulada (espejo · histórico)</h3>
+              <p class="traslados-resumen__highlight">Total <strong>{{ formatearNumero(disponibilidad.huevosHistoricoEspejo.totalHuevos) }}</strong>
+              · Incubables <strong>{{ formatearNumero(disponibilidad.huevosHistoricoEspejo.totalHuevosIncubables) }}</strong>
+            </p>
+            <div class="traslados-resumen__grid-eggs traslados-resumen__grid-eggs--compact">
+              <span>L {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.limpio) }}</span>
+              <span>T {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.tratado) }}</span>
+              <span>S {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.sucio) }}</span>
+              <span>Def {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.deforme) }}</span>
+              <span>B {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.blanco) }}</span>
+              <span>DY {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.dobleYema) }}</span>
+              <span>Pi {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.piso) }}</span>
+              <span>Pq {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.pequeno) }}</span>
+              <span>R {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.roto) }}</span>
+              <span>Des {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.desecho) }}</span>
+              <span>O {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.otro) }}</span>
+            </div>
           </div>
-        </div>
-
-        <div class="traslados-resumen__block" *ngIf="disponibilidad.huevosHistoricoEspejo">
-          <h3 class="traslados-resumen__title">Producción acumulada (espejo · histórico)</h3>
-          <p class="traslados-resumen__highlight">Total <strong>{{ formatearNumero(disponibilidad.huevosHistoricoEspejo.totalHuevos) }}</strong>
-            · Incubables <strong>{{ formatearNumero(disponibilidad.huevosHistoricoEspejo.totalHuevosIncubables) }}</strong>
-          </p>
-          <div class="traslados-resumen__grid-eggs traslados-resumen__grid-eggs--compact">
-            <span>L {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.limpio) }}</span>
-            <span>T {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.tratado) }}</span>
-            <span>S {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.sucio) }}</span>
-            <span>Def {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.deforme) }}</span>
-            <span>B {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.blanco) }}</span>
-            <span>DY {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.dobleYema) }}</span>
-            <span>Pi {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.piso) }}</span>
-            <span>Pq {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.pequeno) }}</span>
-            <span>R {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.roto) }}</span>
-            <span>Des {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.desecho) }}</span>
-            <span>O {{ formatearNumero(disponibilidad.huevosHistoricoEspejo.otro) }}</span>
-          </div>
-        </div>
-
+        }
         <div class="traslados-resumen__block">
           <h3 class="traslados-resumen__title">Movimientos registrados</h3>
           <p class="traslados-resumen__line">Registros en tabla: <strong>{{ filteredTraslados.length }}</strong> visibles / <strong>{{ traslados.length }}</strong> total</p>
           <p class="traslados-resumen__line">Ventas completadas: <strong>{{ formatearNumero(totalHuevosVentasCompletadas()) }}</strong> huevos en <strong>{{ totalRegistrosVentasCompletadas() }}</strong> registro(s)</p>
           <p class="traslados-resumen__line">Traslados completados: <strong>{{ formatearNumero(totalHuevosTrasladosCompletados()) }}</strong> huevos</p>
         </div>
-
         <div class="traslados-resumen__actions">
           <button
             type="button"
@@ -146,33 +168,37 @@
             (click)="descargarSeguimientoExcel()"
             [disabled]="exportandoSeguimientoExcel"
             title="Exportar todos los registros de seguimiento de producción (producción diaria) del lote">
-            <span *ngIf="exportandoSeguimientoExcel">Generando…</span>
-            <span *ngIf="!exportandoSeguimientoExcel">Descargar Excel — seguimiento producción</span>
+            @if (exportandoSeguimientoExcel) {
+              <span>Generando…</span>
+            }
+            @if (!exportandoSeguimientoExcel) {
+              <span>Descargar Excel — seguimiento producción</span>
+            }
           </button>
         </div>
       </div>
-
-      <div class="traslados-resumen traslados-resumen--muted" *ngIf="!loading && selectedLoteId && !disponibilidad">
+    }
+    @if (!loading && selectedLoteId && !disponibilidad) {
+      <div class="traslados-resumen traslados-resumen--muted">
         <p>No se pudo cargar el resumen del espejo para este lote. Los movimientos se muestran igualmente abajo.</p>
       </div>
-
-      <!-- Filtros de tabla -->
-      <div class="ux-card__filters">
-        <div class="filters-row">
-          <div class="filter-group">
-            <label for="filtroBusqueda">Buscar</label>
-            <input 
-              type="text" 
-              id="filtroBusqueda"
-              [(ngModel)]="filtroBusqueda"
-              (ngModelChange)="onFiltroChange()"
-              placeholder="Buscar por número, tipo, destino..."
-              class="filter-input">
+    }
+    <!-- Filtros de tabla -->
+    <div class="ux-card__filters">
+      <div class="filters-row">
+        <div class="filter-group">
+          <label for="filtroBusqueda">Buscar</label>
+          <input
+            type="text"
+            id="filtroBusqueda"
+            [(ngModel)]="filtroBusqueda"
+            (ngModelChange)="onFiltroChange()"
+            placeholder="Buscar por número, tipo, destino..."
+            class="filter-input">
           </div>
-
           <div class="filter-group">
             <label for="filtroTipoOperacion">Tipo</label>
-            <select 
+            <select
               id="filtroTipoOperacion"
               [(ngModel)]="filtroTipoOperacion"
               (ngModelChange)="onFiltroChange()"
@@ -182,10 +208,9 @@
               <option value="Venta">Venta</option>
             </select>
           </div>
-
           <div class="filter-group">
             <label for="filtroEstado">Estado</label>
-            <select 
+            <select
               id="filtroEstado"
               [(ngModel)]="filtroEstado"
               (ngModelChange)="onFiltroChange()"
@@ -196,10 +221,9 @@
               <option value="Cancelado">Cancelado</option>
             </select>
           </div>
-
           <div class="filter-group">
-            <button 
-              type="button" 
+            <button
+              type="button"
               class="btn btn--outline"
               (click)="limpiarFiltros()"
               [disabled]="!filtroBusqueda && !filtroTipoOperacion && !filtroEstado">
@@ -208,172 +232,181 @@
           </div>
         </div>
       </div>
-
       <div class="ux-card__body">
         <!-- Estado de carga -->
-        <div *ngIf="loading" class="loading-state">
-          <p>Cargando traslados...</p>
-        </div>
-
+        @if (loading) {
+          <div class="loading-state">
+            <p>Cargando traslados...</p>
+          </div>
+        }
         <!-- Tabla -->
-        <div *ngIf="!loading" class="table-container traslados-table-scroll">
-          <div class="ux-scroll">
-            <table class="ux-table ux-table--traslados-full">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Número</th>
-                  <th>Fecha traslado</th>
-                  <th>Tipo operación</th>
-                  <th>Lote ID</th>
-                  <th>LPP ID</th>
-                  <th>Lote nombre</th>
-                  <th>Granj. origen ID</th>
-                  <th>Granj. origen</th>
-                  <th>Granj. destino ID</th>
-                  <th>Granj. destino</th>
-                  <th>Lote destino</th>
-                  <th>Tipo destino</th>
-                  <th>Motivo</th>
-                  <th>Descripción</th>
-                  <th>Limpio</th>
-                  <th>Tratado</th>
-                  <th>Sucio</th>
-                  <th>Deforme</th>
-                  <th>Blanco</th>
-                  <th>Doble yema</th>
-                  <th>Piso</th>
-                  <th>Pequeño</th>
-                  <th>Roto</th>
-                  <th>Desecho</th>
-                  <th>Otro</th>
-                  <th>Total huevos</th>
-                  <th>Estado</th>
-                  <th>Usuario ID</th>
-                  <th>Usuario nombre</th>
-                  <th>Fecha procesamiento</th>
-                  <th>Fecha cancelación</th>
-                  <th>Observaciones</th>
-                  <th>Creado</th>
-                  <th>Actualizado</th>
-                  <th class="sticky-col-end">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngIf="traslados.length === 0">
-                  <td [attr.colspan]="tablaColumnasCount" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">🥚</div>
-                    <p>No hay registros de traslados para este lote.</p>
-                    <button type="button" class="btn btn--outline" (click)="create()">
-                      Crear el primero
-                    </button>
-                  </td>
-                </tr>
-
-                <tr *ngIf="traslados.length > 0 && filteredTraslados.length === 0">
-                  <td [attr.colspan]="tablaColumnasCount" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">🔍</div>
-                    <p>No se encontraron registros con los filtros aplicados.</p>
-                    <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
-                      Limpiar filtros
-                    </button>
-                  </td>
-                </tr>
-
-                <tr *ngFor="let traslado of filteredTraslados" class="ux-row">
-                  <td>{{ traslado.id }}</td>
-                  <td><strong>{{ traslado.numeroTraslado }}</strong></td>
-                  <td>{{ traslado.fechaTraslado | date:'dd/MM/yyyy' }}</td>
-                  <td>
-                    <span class="badge" [class.badge--info]="traslado.tipoOperacion === 'Traslado'"
+        @if (!loading) {
+          <div class="table-container traslados-table-scroll">
+            <div class="ux-scroll">
+              <table class="ux-table ux-table--traslados-full">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Número</th>
+                    <th>Fecha traslado</th>
+                    <th>Tipo operación</th>
+                    <th>Lote ID</th>
+                    <th>LPP ID</th>
+                    <th>Lote nombre</th>
+                    <th>Granj. origen ID</th>
+                    <th>Granj. origen</th>
+                    <th>Granj. destino ID</th>
+                    <th>Granj. destino</th>
+                    <th>Lote destino</th>
+                    <th>Tipo destino</th>
+                    <th>Motivo</th>
+                    <th>Descripción</th>
+                    <th>Limpio</th>
+                    <th>Tratado</th>
+                    <th>Sucio</th>
+                    <th>Deforme</th>
+                    <th>Blanco</th>
+                    <th>Doble yema</th>
+                    <th>Piso</th>
+                    <th>Pequeño</th>
+                    <th>Roto</th>
+                    <th>Desecho</th>
+                    <th>Otro</th>
+                    <th>Total huevos</th>
+                    <th>Estado</th>
+                    <th>Usuario ID</th>
+                    <th>Usuario nombre</th>
+                    <th>Fecha procesamiento</th>
+                    <th>Fecha cancelación</th>
+                    <th>Observaciones</th>
+                    <th>Creado</th>
+                    <th>Actualizado</th>
+                    <th class="sticky-col-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @if (traslados.length === 0) {
+                    <tr>
+                      <td [attr.colspan]="tablaColumnasCount" class="empty-state">
+                        <div class="empty-illustration" aria-hidden="true">🥚</div>
+                        <p>No hay registros de traslados para este lote.</p>
+                        <button type="button" class="btn btn--outline" (click)="create()">
+                          Crear el primero
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                  @if (traslados.length > 0 && filteredTraslados.length === 0) {
+                    <tr>
+                      <td [attr.colspan]="tablaColumnasCount" class="empty-state">
+                        <div class="empty-illustration" aria-hidden="true">🔍</div>
+                        <p>No se encontraron registros con los filtros aplicados.</p>
+                        <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
+                          Limpiar filtros
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                  @for (traslado of filteredTraslados; track traslado) {
+                    <tr class="ux-row">
+                      <td>{{ traslado.id }}</td>
+                      <td><strong>{{ traslado.numeroTraslado }}</strong></td>
+                      <td>{{ traslado.fechaTraslado | date:'dd/MM/yyyy' }}</td>
+                      <td>
+                        <span class="badge" [class.badge--info]="traslado.tipoOperacion === 'Traslado'"
                           [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
-                      {{ traslado.tipoOperacion }}
-                    </span>
-                  </td>
-                  <td>{{ traslado.loteId }}</td>
-                  <td>{{ traslado.lotePosturaProduccionId ?? '—' }}</td>
-                  <td>{{ traslado.loteNombre }}</td>
-                  <td>{{ traslado.granjaOrigenId }}</td>
-                  <td>{{ traslado.granjaOrigenNombre }}</td>
-                  <td>{{ traslado.granjaDestinoId ?? '—' }}</td>
-                  <td>{{ traslado.granjaDestinoNombre ?? '—' }}</td>
-                  <td>{{ traslado.loteDestinoId ?? '—' }}</td>
-                  <td>{{ traslado.tipoDestino ?? '—' }}</td>
-                  <td>{{ traslado.motivo ?? '—' }}</td>
-                  <td class="cell-wrap">{{ traslado.descripcion ?? '—' }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadLimpio) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadTratado) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadSucio) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadDeforme) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadBlanco) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadDobleYema) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadPiso) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadPequeno) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadRoto) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadDesecho) }}</td>
-                  <td class="number-cell">{{ formatearNumero(traslado.cantidadOtro) }}</td>
-                  <td class="number-cell"><strong>{{ formatearNumero(getTotalHuevos(traslado)) }}</strong></td>
-                  <td>
-                    <span class="badge"
+                          {{ traslado.tipoOperacion }}
+                        </span>
+                      </td>
+                      <td>{{ traslado.loteId }}</td>
+                      <td>{{ traslado.lotePosturaProduccionId ?? '—' }}</td>
+                      <td>{{ traslado.loteNombre }}</td>
+                      <td>{{ traslado.granjaOrigenId }}</td>
+                      <td>{{ traslado.granjaOrigenNombre }}</td>
+                      <td>{{ traslado.granjaDestinoId ?? '—' }}</td>
+                      <td>{{ traslado.granjaDestinoNombre ?? '—' }}</td>
+                      <td>{{ traslado.loteDestinoId ?? '—' }}</td>
+                      <td>{{ traslado.tipoDestino ?? '—' }}</td>
+                      <td>{{ traslado.motivo ?? '—' }}</td>
+                      <td class="cell-wrap">{{ traslado.descripcion ?? '—' }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadLimpio) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadTratado) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadSucio) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadDeforme) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadBlanco) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadDobleYema) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadPiso) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadPequeno) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadRoto) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadDesecho) }}</td>
+                      <td class="number-cell">{{ formatearNumero(traslado.cantidadOtro) }}</td>
+                      <td class="number-cell"><strong>{{ formatearNumero(getTotalHuevos(traslado)) }}</strong></td>
+                      <td>
+                        <span class="badge"
                           [class.badge--success]="traslado.estado === 'Completado'"
                           [class.badge--warning]="traslado.estado === 'Pendiente'"
                           [class.badge--danger]="traslado.estado === 'Cancelado'">
-                      {{ traslado.estado }}
-                    </span>
-                  </td>
-                  <td>{{ traslado.usuarioTrasladoId }}</td>
-                  <td>{{ traslado.usuarioNombre ?? '—' }}</td>
-                  <td>{{ traslado.fechaProcesamiento ? (traslado.fechaProcesamiento | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
-                  <td>{{ traslado.fechaCancelacion ? (traslado.fechaCancelacion | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
-                  <td class="cell-wrap">{{ traslado.observaciones ?? '—' }}</td>
-                  <td>{{ traslado.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
-                  <td>{{ traslado.updatedAt ? (traslado.updatedAt | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
-                  <td class="text-right sticky-col-end">
-                    <div class="btn-group">
-                      <button
-                        type="button"
-                        (click)="viewDetail(traslado)"
-                        class="action-btn action-btn--view"
-                        title="Ver detalle">
-                        <span class="action-icon">👁</span>
-                        <span class="action-label">Ver</span>
-                      </button>
-                      <button
-                        type="button"
-                        (click)="editTraslado(traslado)"
-                        class="action-btn action-btn--edit"
-                        title="Editar"
-                        [disabled]="traslado.estado === 'Completado' || traslado.estado === 'Cancelado'">
-                        <span class="action-icon">✎</span>
-                        <span class="action-label">Editar</span>
-                      </button>
-                      <button
-                        type="button"
-                        (click)="deleteTraslado(traslado)"
-                        class="action-btn action-btn--delete"
-                        [title]="traslado.estado === 'Completado' ? 'Anular registro y devolver huevos al inventario' : (traslado.estado === 'Cancelado' ? 'No disponible' : 'Cancelar traslado')"
-                        [disabled]="traslado.estado === 'Cancelado'">
-                        <span class="action-icon">🗑</span>
-                        <span class="action-label">Eliminar</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                          {{ traslado.estado }}
+                        </span>
+                      </td>
+                      <td>{{ traslado.usuarioTrasladoId }}</td>
+                      <td>{{ traslado.usuarioNombre ?? '—' }}</td>
+                      <td>{{ traslado.fechaProcesamiento ? (traslado.fechaProcesamiento | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
+                      <td>{{ traslado.fechaCancelacion ? (traslado.fechaCancelacion | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
+                      <td class="cell-wrap">{{ traslado.observaciones ?? '—' }}</td>
+                      <td>{{ traslado.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                      <td>{{ traslado.updatedAt ? (traslado.updatedAt | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
+                      <td class="text-right sticky-col-end">
+                        <div class="btn-group">
+                          <button
+                            type="button"
+                            (click)="viewDetail(traslado)"
+                            class="action-btn action-btn--view"
+                            title="Ver detalle">
+                            <span class="action-icon">👁</span>
+                            <span class="action-label">Ver</span>
+                          </button>
+                          <button
+                            type="button"
+                            (click)="editTraslado(traslado)"
+                            class="action-btn action-btn--edit"
+                            title="Editar"
+                            [disabled]="traslado.estado === 'Completado' || traslado.estado === 'Cancelado'">
+                            <span class="action-icon">✎</span>
+                            <span class="action-label">Editar</span>
+                          </button>
+                          <button
+                            type="button"
+                            (click)="deleteTraslado(traslado)"
+                            class="action-btn action-btn--delete"
+                            [title]="traslado.estado === 'Completado' ? 'Anular registro y devolver huevos al inventario' : (traslado.estado === 'Cancelado' ? 'No disponible' : 'Cancelar traslado')"
+                            [disabled]="traslado.estado === 'Cancelado'">
+                            <span class="action-icon">🗑</span>
+                            <span class="action-label">Eliminar</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        }
       </div>
     </section>
+  }
 
-    <!-- Mensaje cuando no hay lote seleccionado -->
-    <section class="ux-card" *ngIf="!selectedLoteId">
+  <!-- Mensaje cuando no hay lote seleccionado -->
+  @if (!selectedLoteId) {
+    <section class="ux-card">
       <div class="empty-state">
         <div class="empty-illustration" aria-hidden="true">🔍</div>
         <p>Selecciona un lote para ver sus traslados de huevos</p>
       </div>
     </section>
-  </div>
+  }
+</div>
 </div>
 
 <!-- Modal para crear/editar traslado -->

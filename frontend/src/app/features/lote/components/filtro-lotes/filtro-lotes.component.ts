@@ -1,6 +1,6 @@
 // src/app/features/lote/components/filtro-lotes/filtro-lotes.component.ts
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
@@ -25,7 +25,7 @@ export interface FiltroLotesEvent {
 @Component({
   selector: 'app-filtro-lotes',
   standalone: true,
-  imports: [CommonModule, FormsModule, FontAwesomeModule],
+  imports: [FormsModule, FontAwesomeModule],
   templateUrl: './filtro-lotes.component.html',
   styleUrls: ['./filtro-lotes.component.scss']
 })

@@ -1,12 +1,12 @@
 // src/app/features/reportes-tecnicos/components/tabla-levante-semanal-machos/tabla-levante-semanal-machos.component.ts
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReporteTecnicoLevanteSemanalDto, ReporteTecnicoLoteInfoDto } from '../../services/reporte-tecnico.service';
 
 @Component({
   selector: 'app-tabla-levante-semanal-machos',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './tabla-levante-semanal-machos.component.html',
   styleUrls: ['./tabla-levante-semanal-machos.component.scss']
 })

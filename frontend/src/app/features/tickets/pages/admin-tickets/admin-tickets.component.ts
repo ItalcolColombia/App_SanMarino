@@ -1,6 +1,6 @@
 // src/app/features/tickets/pages/admin-tickets/admin-tickets.component.ts
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -20,7 +20,7 @@ interface PaisOpcion { paisId: number; paisNombre: string; }
 @Component({
   selector: 'app-admin-tickets',
   standalone: true,
-  imports: [CommonModule, FormsModule, TicketListComponent],
+  imports: [FormsModule, TicketListComponent],
   templateUrl: './admin-tickets.component.html',
 })
 export class AdminTicketsComponent implements OnInit {

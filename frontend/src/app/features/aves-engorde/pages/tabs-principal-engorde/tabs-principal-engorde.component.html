@@ -1,342 +1,414 @@
 <!-- ================= TABS PRINCIPAL (POLLO ENGORDE) ================= -->
-<section class="ux-card" *ngIf="selectedLote">
-  <div class="tabs-container">
-    <nav class="tabs-nav" role="tablist">
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'general'"
-        (click)="onTabChange('general')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'general'"
-        aria-controls="general-panel">
-        📊 Seguimiento
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'reproductora'"
-        (click)="onTabChange('reproductora')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'reproductora'"
-        aria-controls="reproductora-panel">
-        🐣 R. Reproductora
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'indicadores'"
-        (click)="onTabChange('indicadores')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'indicadores'"
-        aria-controls="indicadores-panel">
-        📈 Indicadores
-      </button>
-
-      <button
-        type="button"
-        class="tab-button"
-        [class.active]="activeTab === 'grafica'"
-        (click)="onTabChange('grafica')"
-        role="tab"
-        [attr.aria-selected]="activeTab === 'grafica'"
-        aria-controls="grafica-panel">
-        📊 Gráficas
-      </button>
-    </nav>
-
-    <div class="tabs-content">
-      <!-- TAB GENERAL -->
-      <div *ngIf="activeTab === 'general'" id="general-panel" class="tab-panel" role="tabpanel">
-        <div class="table-container table-container--diario">
-          <div class="registro-diario__toolbar registro-diario__toolbar--engorde">
-            <div class="registro-diario__toolbar-head">
-              <h4>Registros Diarios</h4>
-              <div class="registro-diario__toolbar-actions">
-                <button
-                  type="button"
-                  class="icon-btn registro-diario__info-btn"
-                  (click)="modalAyudaSeguimientoAbierto = true"
-                  [attr.aria-expanded]="modalAyudaSeguimientoAbierto"
-                  aria-controls="modal-ayuda-seguimiento-engorde"
-                  title="Ayuda: saldo de alimento y seguimiento diario">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span class="sr-only">Ayuda sobre el seguimiento diario</span>
-                </button>
-                <ng-container *appHasPermission="'cuadrar_ingresos_traslados_seguimiento'">
-                  <button
-                    *ngIf="enriquecerTablaConHistoricoInventario"
-                    type="button"
-                    class="btn btn--secondary registro-diario__cuadrar"
-                    [disabled]="loading || !seguimientos.length"
-                    (click)="modalCuadrarSaldosAbierto = true"
-                    title="Cargar un Excel para validar y corregir ingresos, traslados y saldos de alimento">
-                    ⚖️ Cuadrar Saldos
-                  </button>
-                </ng-container>
-                <button
-                  *ngIf="showExportSeguimientoExcel"
-                  type="button"
-                  class="btn btn--outline registro-diario__export"
-                  [disabled]="loading || !diarioFilasFiltradas.length"
-                  (click)="exportSeguimientoDiarioExcel()"
-                  [title]="(!diarioFilasFiltradas.length ? 'Sin registros para exportar' : 'Descargar Excel (respeta filtros si hay)')">
-                  Descargar Excel
-                </button>
-              </div>
-            </div>
-
-            <div class="registro-diario__filters" role="group" aria-label="Filtros de seguimiento diario">
-              <div class="registro-diario__filter-field">
-                <label for="filtro-fecha-desde">Desde</label>
-                <input
-                  id="filtro-fecha-desde"
-                  type="date"
-                  [(ngModel)]="filtroFechaDesde"
-                  class="registro-diario__filter-input" />
-              </div>
-              <div class="registro-diario__filter-field">
-                <label for="filtro-fecha-hasta">Hasta</label>
-                <input
-                  id="filtro-fecha-hasta"
-                  type="date"
-                  [(ngModel)]="filtroFechaHasta"
-                  class="registro-diario__filter-input" />
-              </div>
-              <div class="registro-diario__filter-field">
-                <label for="filtro-semana">Semana</label>
-                <select id="filtro-semana" [(ngModel)]="filtroSemana" class="registro-diario__filter-input">
-                  <option [ngValue]="null">Todas</option>
-                  <option *ngFor="let n of semanasFiltroOpciones" [ngValue]="n">{{ n }}</option>
-                </select>
-              </div>
-              <div class="registro-diario__filter-field registro-diario__filter-field--grow">
-                <label for="filtro-tipo-alimento">Tipo alimento</label>
-                <select id="filtro-tipo-alimento" [(ngModel)]="filtroTipoAlimento" class="registro-diario__filter-input">
-                  <option value="">Todos</option>
-                  <option *ngFor="let t of opcionesTipoAlimento" [value]="t">{{ t }}</option>
-                </select>
-              </div>
-              <button
-                *ngIf="hayFiltrosDiarioActivos"
-                type="button"
-                class="btn btn--ghost registro-diario__filter-clear"
-                (click)="limpiarFiltrosDiario()">
-                Limpiar filtros
-              </button>
-            </div>
-          </div>
-
-          <div class="ux-scroll ux-scroll--diario">
-            <table class="ux-table ux-table--registro-diario">
-              <thead>
-                <tr>
-                  <th scope="col" class="th-diario">Fecha</th>
-                  <th scope="col" class="th-diario">Semana</th>
-                  <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
-                  <th scope="col" class="th-diario">Día <span class="th-diario__sub">(calendario)</span></th>
-                  <!-- Panamá: columnas Mixto únicas -->
-                  <th *ngIf="isPanama" scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">mixto</span></th>
-                  <th *ngIf="isPanama" scope="col" class="th-diario">Selección <span class="th-diario__sub">mixto</span></th>
-                  <!-- No-Panamá: columnas H/M separadas -->
-                  <th *ngIf="!isPanama" scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
-                  <th *ngIf="!isPanama" scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
-                  <th *ngIf="!isPanama" scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
-                  <th *ngIf="!isPanama" scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
-                  <!-- Panamá: despacho como mixto -->
-                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixto</span></th>
-                  <!-- No-Panamá: despacho H/M separado -->
-                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
-                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Peso despacho <span class="th-diario__sub">neto (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Peso prom <span class="th-diario__sub">(kg/ave)</span></th>
-                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
-                  <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
-                  <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
-                  <th scope="col" class="th-diario th-diario--wide">Traslado</th>
-                  <th scope="col" class="th-diario th-diario--wide">Documento</th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">día (kg)</span></th>
-                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">hembras (kg)</span></th>
-                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">machos (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
-                  <!-- Panamá: peso mixto -->
-                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">mixto (kg)</span></th>
-                  <!-- No-Panamá: peso H/M -->
-                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
-                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
-                  <th scope="col" class="th-diario th-diario--actions">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngIf="!loading && (!tablaFilas || tablaFilas.length === 0)">
-                  <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">📄</div>
-                    <p>Sin registros para este lote.</p>
-                    <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete">Crear el primero</button>
-                  </td>
-                </tr>
-
-                <tr *ngIf="!loading && diarioFilasVaciasPorFiltro">
-                  <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">🔍</div>
-                    <p>Ningún registro coincide con los filtros.</p>
-                    <button type="button" class="btn btn--outline" (click)="limpiarFiltrosDiario()">Quitar filtros</button>
-                  </td>
-                </tr>
-
-                <tr *ngFor="let f of diarioFilasFiltradas; trackBy: trackByDiarioFila" class="ux-row">
-                  <td>{{ formatDMY(f.fecha) }}</td>
-                  <td>{{ f.semana }}</td>
-                  <td>{{ f.edadDia }}</td>
-                  <td>{{ formatDiaSemanaCorto(f.fecha) }}</td>
-                  <!-- Panamá: Mortalidad mixto + Selección mixto (H+M combinados) -->
-                  <td *ngIf="isPanama">{{ f.mortalidadHembras + f.mortalidadMachos }}</td>
-                  <td *ngIf="isPanama">{{ f.selH + f.selM }}</td>
-                  <!-- No-Panamá: H y M separados -->
-                  <td *ngIf="!isPanama">{{ f.mortalidadHembras }}</td>
-                  <td *ngIf="!isPanama">{{ f.mortalidadMachos }}</td>
-                  <td *ngIf="!isPanama">{{ f.selH }}</td>
-                  <td *ngIf="!isPanama">{{ f.selM }}</td>
-                  <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
-                  <!-- Panamá: despacho mixto (H+M combinados) -->
-                  <td *ngIf="isPanama" class="num">{{ (f.despachoHembras + f.despachoMachos + f.despachoMixtas) | number:'1.0-0' }}</td>
-                  <!-- No-Panamá: despacho H/M separado -->
-                  <td *ngIf="!isPanama" class="num">{{ f.despachoHembras != null ? (f.despachoHembras | number:'1.0-0') : '—' }}</td>
-                  <td *ngIf="!isPanama" class="num">{{ f.despachoMachos != null ? (f.despachoMachos | number:'1.0-0') : '—' }}</td>
-                  <td class="num">{{ (f.despachoPesoNeto ?? 0) > 0 ? (f.despachoPesoNeto | number:'1.0-2') : '—' }}</td>
-                  <td class="num">{{ (f.despachoPromedioPesoAve ?? 0) > 0 ? (f.despachoPromedioPesoAve | number:'1.0-3') : '—' }}</td>
-
-                  <td
-                    *ngIf="enriquecerTablaConHistoricoInventario"
-                    class="num"
-                    [attr.title]="titleSaldoAlimentoCelda(f)">
-                    {{ f.saldoAlimentoKg != null ? (f.saldoAlimentoKg | number:'1.0-2') : '—' }}
-                  </td>
-                  <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
-                  <td>{{ tipoAlimentoCorto(f.tipoAlimento) }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : ''">{{ f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : '—' }}</td>
-                  <td class="cell-text cell-text--wide" [title]="buildTrasladoTexto(f)">{{ buildTrasladoTexto(f) || '—' }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.documento || ''">{{ f.documento || '—' }}</td>
-                  <td class="num">{{ f.consumoDiaKg != null ? (f.consumoDiaKg | number:'1.0-2') : '—' }}</td>
-                  <td *ngIf="isPanama" class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
-                  <td *ngIf="isPanama" class="num">{{ f.consumoKgMachos != null ? (f.consumoKgMachos | number:'1.0-2') : '—' }}</td>
-                  <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
-                  <td class="num">{{ f.consumoAguaDiario != null ? (f.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
-                  <!-- Panamá: peso prom. mixto (se guarda en pesoPromHembras) -->
-                  <td *ngIf="isPanama" class="num">{{ (f.pesoPromHembras ?? f.pesoPromMachos) != null ? ((f.pesoPromHembras ?? f.pesoPromMachos) | number:'1.0-2') : '—' }}</td>
-                  <!-- No-Panamá: peso H/M separado -->
-                  <td *ngIf="!isPanama" class="num">{{ f.pesoPromHembras != null ? (f.pesoPromHembras | number:'1.0-2') : '—' }}</td>
-                  <td *ngIf="!isPanama" class="num">{{ f.pesoPromMachos != null ? (f.pesoPromMachos | number:'1.0-2') : '—' }}</td>
-                  <td class="cell-text cell-text--obs" [title]="f.observaciones || ''">{{ (f.observaciones || '').trim() || '—' }}</td>
-                  <td class="text-right">
-                    <!-- Fix #14: si segId es null, la fila representa un movimiento de inventario/venta
-                         sin seguimiento diario asociado → ocultar acciones (no hay nada que editar). -->
-                    <div class="btn-group" *ngIf="f.segId != null; else movSinSeg">
-                      <button type="button" (click)="onViewDetailById(f.segId)" class="icon-btn" title="Ver detalle">👁️</button>
-                      <!-- Registro generado por cruce de lotes reproductora (primeros 7 días): solo lectura -->
-                      <ng-container *ngIf="f.createdByUserId === 'SYSTEM_CRUCE'; else accionesManuales">
-                        <span class="badge-cruce" title="Generado automáticamente desde los lotes reproductora. Para corregir, edite el lote reproductora.">🔄 Auto</span>
-                      </ng-container>
-                      <ng-template #accionesManuales>
-                        <ng-container *appHasPermission="'editar_registro'">
-                          <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
-                        </ng-container>
-                        <ng-container *appHasPermission="'eliminar_registro'">
-                          <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
-                        </ng-container>
-                      </ng-template>
+@if (selectedLote) {
+  <section class="ux-card">
+    <div class="tabs-container">
+      <nav class="tabs-nav" role="tablist">
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'general'"
+          (click)="onTabChange('general')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'general'"
+          aria-controls="general-panel">
+          📊 Seguimiento
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'reproductora'"
+          (click)="onTabChange('reproductora')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'reproductora'"
+          aria-controls="reproductora-panel">
+          🐣 R. Reproductora
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'indicadores'"
+          (click)="onTabChange('indicadores')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'indicadores'"
+          aria-controls="indicadores-panel">
+          📈 Indicadores
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab === 'grafica'"
+          (click)="onTabChange('grafica')"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'grafica'"
+          aria-controls="grafica-panel">
+          📊 Gráficas
+        </button>
+      </nav>
+      <div class="tabs-content">
+        <!-- TAB GENERAL -->
+        @if (activeTab === 'general') {
+          <div id="general-panel" class="tab-panel" role="tabpanel">
+            <div class="table-container table-container--diario">
+              <div class="registro-diario__toolbar registro-diario__toolbar--engorde">
+                <div class="registro-diario__toolbar-head">
+                  <h4>Registros Diarios</h4>
+                  <div class="registro-diario__toolbar-actions">
+                    <button
+                      type="button"
+                      class="icon-btn registro-diario__info-btn"
+                      (click)="modalAyudaSeguimientoAbierto = true"
+                      [attr.aria-expanded]="modalAyudaSeguimientoAbierto"
+                      aria-controls="modal-ayuda-seguimiento-engorde"
+                      title="Ayuda: saldo de alimento y seguimiento diario">
+                      <span aria-hidden="true">ⓘ</span>
+                      <span class="sr-only">Ayuda sobre el seguimiento diario</span>
+                    </button>
+                    <ng-container *appHasPermission="'cuadrar_ingresos_traslados_seguimiento'">
+                      @if (enriquecerTablaConHistoricoInventario) {
+                        <button
+                          type="button"
+                          class="btn btn--secondary registro-diario__cuadrar"
+                          [disabled]="loading || !seguimientos.length"
+                          (click)="modalCuadrarSaldosAbierto = true"
+                          title="Cargar un Excel para validar y corregir ingresos, traslados y saldos de alimento">
+                          ⚖️ Cuadrar Saldos
+                        </button>
+                      }
+                    </ng-container>
+                    @if (showExportSeguimientoExcel) {
+                      <button
+                        type="button"
+                        class="btn btn--outline registro-diario__export"
+                        [disabled]="loading || !diarioFilasFiltradas.length"
+                        (click)="exportSeguimientoDiarioExcel()"
+                        [title]="(!diarioFilasFiltradas.length ? 'Sin registros para exportar' : 'Descargar Excel (respeta filtros si hay)')">
+                        Descargar Excel
+                      </button>
+                    }
+                  </div>
+                </div>
+                <div class="registro-diario__filters" role="group" aria-label="Filtros de seguimiento diario">
+                  <div class="registro-diario__filter-field">
+                    <label for="filtro-fecha-desde">Desde</label>
+                    <input
+                      id="filtro-fecha-desde"
+                      type="date"
+                      [(ngModel)]="filtroFechaDesde"
+                      class="registro-diario__filter-input" />
                     </div>
-                    <ng-template #movSinSeg>
-                      <span class="badge-mov" title="Movimiento de inventario/venta sin seguimiento diario">📦 mov.</span>
-                    </ng-template>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div
-            *ngIf="modalAyudaSeguimientoAbierto"
-            class="modal-ayuda-seguimiento"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-ayuda-seguimiento-title"
-            id="modal-ayuda-seguimiento-engorde"
-            (click)="modalAyudaSeguimientoAbierto = false">
-            <div class="modal-ayuda-seguimiento__dialog" (click)="$event.stopPropagation()">
-              <header class="modal-ayuda-seguimiento__header">
-                <h3 id="modal-ayuda-seguimiento-title">Información del seguimiento diario</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  (click)="modalAyudaSeguimientoAbierto = false"
-                  aria-label="Cerrar ayuda">✕</button>
-              </header>
-              <section class="modal-ayuda-seguimiento__body">
-                <p>{{ textoAyudaSeguimientoDiario }}</p>
-              </section>
-              <footer class="modal-ayuda-seguimiento__footer">
-                <button type="button" class="btn btn--primary" (click)="modalAyudaSeguimientoAbierto = false">Cerrar</button>
-              </footer>
-            </div>
+                    <div class="registro-diario__filter-field">
+                      <label for="filtro-fecha-hasta">Hasta</label>
+                      <input
+                        id="filtro-fecha-hasta"
+                        type="date"
+                        [(ngModel)]="filtroFechaHasta"
+                        class="registro-diario__filter-input" />
+                      </div>
+                      <div class="registro-diario__filter-field">
+                        <label for="filtro-semana">Semana</label>
+                        <select id="filtro-semana" [(ngModel)]="filtroSemana" class="registro-diario__filter-input">
+                          <option [ngValue]="null">Todas</option>
+                          @for (n of semanasFiltroOpciones; track n) {
+                            <option [ngValue]="n">{{ n }}</option>
+                          }
+                        </select>
+                      </div>
+                      <div class="registro-diario__filter-field registro-diario__filter-field--grow">
+                        <label for="filtro-tipo-alimento">Tipo alimento</label>
+                        <select id="filtro-tipo-alimento" [(ngModel)]="filtroTipoAlimento" class="registro-diario__filter-input">
+                          <option value="">Todos</option>
+                          @for (t of opcionesTipoAlimento; track t) {
+                            <option [value]="t">{{ t }}</option>
+                          }
+                        </select>
+                      </div>
+                      @if (hayFiltrosDiarioActivos) {
+                        <button
+                          type="button"
+                          class="btn btn--ghost registro-diario__filter-clear"
+                          (click)="limpiarFiltrosDiario()">
+                          Limpiar filtros
+                        </button>
+                      }
+                    </div>
+                  </div>
+                  <div class="ux-scroll ux-scroll--diario">
+                    <table class="ux-table ux-table--registro-diario">
+                      <thead>
+                        <tr>
+                          <th scope="col" class="th-diario">Fecha</th>
+                          <th scope="col" class="th-diario">Semana</th>
+                          <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
+                          <th scope="col" class="th-diario">Día <span class="th-diario__sub">(calendario)</span></th>
+                          <!-- Panamá: columnas Mixto únicas -->
+                          @if (isPanama) {
+                            <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">mixto</span></th>
+                          }
+                          @if (isPanama) {
+                            <th scope="col" class="th-diario">Selección <span class="th-diario__sub">mixto</span></th>
+                          }
+                          <!-- No-Panamá: columnas H/M separadas -->
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
+                          }
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
+                          }
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
+                          }
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
+                          }
+                          <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
+                          <!-- Panamá: despacho como mixto -->
+                          @if (isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixto</span></th>
+                          }
+                          <!-- No-Panamá: despacho H/M separado -->
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
+                          }
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
+                          }
+                          <th scope="col" class="th-diario th-diario--num">Peso despacho <span class="th-diario__sub">neto (kg)</span></th>
+                          <th scope="col" class="th-diario th-diario--num">Peso prom <span class="th-diario__sub">(kg/ave)</span></th>
+                          @if (enriquecerTablaConHistoricoInventario) {
+                            <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
+                          }
+                          <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
+                          <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
+                          <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
+                          <th scope="col" class="th-diario th-diario--wide">Traslado</th>
+                          <th scope="col" class="th-diario th-diario--wide">Documento</th>
+                          <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">día (kg)</span></th>
+                          @if (isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">hembras (kg)</span></th>
+                          }
+                          @if (isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">machos (kg)</span></th>
+                          }
+                          <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
+                          <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
+                          <!-- Panamá: peso mixto -->
+                          @if (isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">mixto (kg)</span></th>
+                          }
+                          <!-- No-Panamá: peso H/M -->
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
+                          }
+                          @if (!isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+                          }
+                          <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
+                          <th scope="col" class="th-diario th-diario--actions">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @if (!loading && (!tablaFilas || tablaFilas.length === 0)) {
+                          <tr>
+                            <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
+                              <div class="empty-illustration" aria-hidden="true">📄</div>
+                              <p>Sin registros para este lote.</p>
+                              <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete">Crear el primero</button>
+                            </td>
+                          </tr>
+                        }
+                        @if (!loading && diarioFilasVaciasPorFiltro) {
+                          <tr>
+                            <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
+                              <div class="empty-illustration" aria-hidden="true">🔍</div>
+                              <p>Ningún registro coincide con los filtros.</p>
+                              <button type="button" class="btn btn--outline" (click)="limpiarFiltrosDiario()">Quitar filtros</button>
+                            </td>
+                          </tr>
+                        }
+                        @for (f of diarioFilasFiltradas; track trackByDiarioFila($index, f)) {
+                          <tr class="ux-row">
+                            <td>{{ formatDMY(f.fecha) }}</td>
+                            <td>{{ f.semana }}</td>
+                            <td>{{ f.edadDia }}</td>
+                            <td>{{ formatDiaSemanaCorto(f.fecha) }}</td>
+                            <!-- Panamá: Mortalidad mixto + Selección mixto (H+M combinados) -->
+                            @if (isPanama) {
+                              <td>{{ f.mortalidadHembras + f.mortalidadMachos }}</td>
+                            }
+                            @if (isPanama) {
+                              <td>{{ f.selH + f.selM }}</td>
+                            }
+                            <!-- No-Panamá: H y M separados -->
+                            @if (!isPanama) {
+                              <td>{{ f.mortalidadHembras }}</td>
+                            }
+                            @if (!isPanama) {
+                              <td>{{ f.mortalidadMachos }}</td>
+                            }
+                            @if (!isPanama) {
+                              <td>{{ f.selH }}</td>
+                            }
+                            @if (!isPanama) {
+                              <td>{{ f.selM }}</td>
+                            }
+                            <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
+                            <!-- Panamá: despacho mixto (H+M combinados) -->
+                            @if (isPanama) {
+                              <td class="num">{{ (f.despachoHembras + f.despachoMachos + f.despachoMixtas) | number:'1.0-0' }}</td>
+                            }
+                            <!-- No-Panamá: despacho H/M separado -->
+                            @if (!isPanama) {
+                              <td class="num">{{ f.despachoHembras != null ? (f.despachoHembras | number:'1.0-0') : '—' }}</td>
+                            }
+                            @if (!isPanama) {
+                              <td class="num">{{ f.despachoMachos != null ? (f.despachoMachos | number:'1.0-0') : '—' }}</td>
+                            }
+                            <td class="num">{{ (f.despachoPesoNeto ?? 0) > 0 ? (f.despachoPesoNeto | number:'1.0-2') : '—' }}</td>
+                            <td class="num">{{ (f.despachoPromedioPesoAve ?? 0) > 0 ? (f.despachoPromedioPesoAve | number:'1.0-3') : '—' }}</td>
+                            @if (enriquecerTablaConHistoricoInventario) {
+                              <td
+                                class="num"
+                                [attr.title]="titleSaldoAlimentoCelda(f)">
+                                {{ f.saldoAlimentoKg != null ? (f.saldoAlimentoKg | number:'1.0-2') : '—' }}
+                              </td>
+                            }
+                            <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
+                            <td>{{ tipoAlimentoCorto(f.tipoAlimento) }}</td>
+                            <td class="cell-text cell-text--wide" [title]="f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : ''">{{ f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : '—' }}</td>
+                            <td class="cell-text cell-text--wide" [title]="buildTrasladoTexto(f)">{{ buildTrasladoTexto(f) || '—' }}</td>
+                            <td class="cell-text cell-text--wide" [title]="f.documento || ''">{{ f.documento || '—' }}</td>
+                            <td class="num">{{ f.consumoDiaKg != null ? (f.consumoDiaKg | number:'1.0-2') : '—' }}</td>
+                            @if (isPanama) {
+                              <td class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
+                            }
+                            @if (isPanama) {
+                              <td class="num">{{ f.consumoKgMachos != null ? (f.consumoKgMachos | number:'1.0-2') : '—' }}</td>
+                            }
+                            <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
+                            <td class="num">{{ f.consumoAguaDiario != null ? (f.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
+                            <!-- Panamá: peso prom. mixto (se guarda en pesoPromHembras) -->
+                            @if (isPanama) {
+                              <td class="num">{{ (f.pesoPromHembras ?? f.pesoPromMachos) != null ? ((f.pesoPromHembras ?? f.pesoPromMachos) | number:'1.0-2') : '—' }}</td>
+                            }
+                            <!-- No-Panamá: peso H/M separado -->
+                            @if (!isPanama) {
+                              <td class="num">{{ f.pesoPromHembras != null ? (f.pesoPromHembras | number:'1.0-2') : '—' }}</td>
+                            }
+                            @if (!isPanama) {
+                              <td class="num">{{ f.pesoPromMachos != null ? (f.pesoPromMachos | number:'1.0-2') : '—' }}</td>
+                            }
+                            <td class="cell-text cell-text--obs" [title]="f.observaciones || ''">{{ (f.observaciones || '').trim() || '—' }}</td>
+                            <td class="text-right">
+                              <!-- Fix #14: si segId es null, la fila representa un movimiento de inventario/venta
+                              sin seguimiento diario asociado → ocultar acciones (no hay nada que editar). -->
+                              @if (f.segId != null) {
+                                <div class="btn-group">
+                                  <button type="button" (click)="onViewDetailById(f.segId)" class="icon-btn" title="Ver detalle">👁️</button>
+                                  <!-- Registro generado por cruce de lotes reproductora (primeros 7 días): solo lectura -->
+                                  @if (f.createdByUserId === 'SYSTEM_CRUCE') {
+                                    <span class="badge-cruce" title="Generado automáticamente desde los lotes reproductora. Para corregir, edite el lote reproductora.">🔄 Auto</span>
+                                  } @else {
+                                    <ng-container *appHasPermission="'editar_registro'">
+                                      <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
+                                    </ng-container>
+                                    <ng-container *appHasPermission="'eliminar_registro'">
+                                      <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
+                                    </ng-container>
+                                  }
+                                </div>
+                              } @else {
+                                <span class="badge-mov" title="Movimiento de inventario/venta sin seguimiento diario">📦 mov.</span>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  @if (modalAyudaSeguimientoAbierto) {
+                    <div
+                      class="modal-ayuda-seguimiento"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="modal-ayuda-seguimiento-title"
+                      id="modal-ayuda-seguimiento-engorde"
+                      (click)="modalAyudaSeguimientoAbierto = false">
+                      <div class="modal-ayuda-seguimiento__dialog" (click)="$event.stopPropagation()">
+                        <header class="modal-ayuda-seguimiento__header">
+                          <h3 id="modal-ayuda-seguimiento-title">Información del seguimiento diario</h3>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            (click)="modalAyudaSeguimientoAbierto = false"
+                          aria-label="Cerrar ayuda">✕</button>
+                        </header>
+                        <section class="modal-ayuda-seguimiento__body">
+                          <p>{{ textoAyudaSeguimientoDiario }}</p>
+                        </section>
+                        <footer class="modal-ayuda-seguimiento__footer">
+                          <button type="button" class="btn btn--primary" (click)="modalAyudaSeguimientoAbierto = false">Cerrar</button>
+                        </footer>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+            <!-- TAB R. REPRODUCTORA: lotes de pollitos primera semana (solo lectura) -->
+            @if (activeTab === 'reproductora') {
+              <div id="reproductora-panel" class="tab-panel" role="tabpanel">
+                <app-tab-reproductora-engorde
+                  [loteAveEngordeId]="selectedLote.loteId">
+                </app-tab-reproductora-engorde>
+              </div>
+            }
+            <!-- TAB INDICADORES: SOLO DIARIO -->
+            @if (activeTab === 'indicadores') {
+              <div id="indicadores-panel" class="tab-panel tab-panel--indicadores" role="tabpanel">
+                <app-tabla-indicadores-diarios-engorde
+                  [seguimientos]="seguimientos"
+                  [selectedLote]="selectedLote"
+                  [loading]="loading">
+                </app-tabla-indicadores-diarios-engorde>
+              </div>
+            }
+            <!-- TAB GRÁFICAS -->
+            @if (activeTab === 'grafica') {
+              <div id="grafica-panel" class="tab-panel" role="tabpanel">
+                <!-- Ecuador: 4 gráficas vs guía genética -->
+                @if (isEcuador) {
+                  <app-graficas-indicadores-diarios-engorde
+                    [seguimientos]="seguimientos"
+                    [selectedLote]="selectedLote"
+                    [loading]="loading">
+                  </app-graficas-indicadores-diarios-engorde>
+                }
+                <!-- Panamá: gráficas de productividad (diaria / semanal) con datos del seguimiento -->
+                @if (isPanama) {
+                  <app-graficas-productividad-engorde
+                    [tablaFilas]="tablaFilas"
+                    [selectedLote]="selectedLote"
+                    [loading]="loading">
+                  </app-graficas-productividad-engorde>
+                }
+                <!-- Otros países: sin gráficas configuradas -->
+                @if (!isEcuador && !isPanama) {
+                  <div class="tab-panel__empty-graficas">
+                    No hay gráficas configuradas para este país.
+                  </div>
+                }
+              </div>
+            }
           </div>
         </div>
-      </div>
+      </section>
+    }
 
-      <!-- TAB R. REPRODUCTORA: lotes de pollitos primera semana (solo lectura) -->
-      <div *ngIf="activeTab === 'reproductora'" id="reproductora-panel" class="tab-panel" role="tabpanel">
-        <app-tab-reproductora-engorde
-          [loteAveEngordeId]="selectedLote.loteId">
-        </app-tab-reproductora-engorde>
-      </div>
-
-      <!-- TAB INDICADORES: SOLO DIARIO -->
-      <div *ngIf="activeTab === 'indicadores'" id="indicadores-panel" class="tab-panel tab-panel--indicadores" role="tabpanel">
-        <app-tabla-indicadores-diarios-engorde
-          [seguimientos]="seguimientos"
-          [selectedLote]="selectedLote"
-          [loading]="loading">
-        </app-tabla-indicadores-diarios-engorde>
-      </div>
-
-      <!-- TAB GRÁFICAS -->
-      <div *ngIf="activeTab === 'grafica'" id="grafica-panel" class="tab-panel" role="tabpanel">
-        <!-- Ecuador: 4 gráficas vs guía genética -->
-        <app-graficas-indicadores-diarios-engorde
-          *ngIf="isEcuador"
-          [seguimientos]="seguimientos"
-          [selectedLote]="selectedLote"
-          [loading]="loading">
-        </app-graficas-indicadores-diarios-engorde>
-
-        <!-- Panamá: gráficas de productividad (diaria / semanal) con datos del seguimiento -->
-        <app-graficas-productividad-engorde
-          *ngIf="isPanama"
-          [tablaFilas]="tablaFilas"
-          [selectedLote]="selectedLote"
-          [loading]="loading">
-        </app-graficas-productividad-engorde>
-
-        <!-- Otros países: sin gráficas configuradas -->
-        <div *ngIf="!isEcuador && !isPanama" class="tab-panel__empty-graficas">
-          No hay gráficas configuradas para este país.
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Modal Cuadrar Saldos -->
-<app-modal-cuadrar-saldos-engorde
-  [isOpen]="modalCuadrarSaldosAbierto"
-  [selectedLote]="selectedLote"
-  (cerrar)="modalCuadrarSaldosAbierto = false"
-  (saldosAplicados)="modalCuadrarSaldosAbierto = false; saldosCuadrados.emit()">
-</app-modal-cuadrar-saldos-engorde>
+    <!-- Modal Cuadrar Saldos -->
+    <app-modal-cuadrar-saldos-engorde
+      [isOpen]="modalCuadrarSaldosAbierto"
+      [selectedLote]="selectedLote"
+      (cerrar)="modalCuadrarSaldosAbierto = false"
+      (saldosAplicados)="modalCuadrarSaldosAbierto = false; saldosCuadrados.emit()">
+    </app-modal-cuadrar-saldos-engorde>
 

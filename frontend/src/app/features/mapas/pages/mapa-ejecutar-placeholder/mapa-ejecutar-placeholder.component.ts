@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
@@ -15,7 +15,7 @@ import {
 @Component({
   selector: 'app-mapa-ejecutar-placeholder',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink],
   templateUrl: './mapa-ejecutar-placeholder.component.html',
   styleUrls: ['./mapa-ejecutar-placeholder.component.scss']
 })

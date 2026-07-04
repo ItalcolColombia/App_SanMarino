@@ -1,6 +1,6 @@
 // src/app/features/config/geography/city-detail/city-detail.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule }                                from '@angular/common';
+
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -14,7 +14,7 @@ import { CityService }                                 from '../services/city/ci
 @Component({
   selector: 'app-city-detail',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [ReactiveFormsModule, RouterModule],
   templateUrl: './city-detail.component.html',
   styleUrls: ['./city-detail.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

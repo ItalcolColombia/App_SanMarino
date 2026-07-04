@@ -1,6 +1,6 @@
 // src/app/features/tickets/pages/gestion-tickets/gestion-tickets.component.ts
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
@@ -16,7 +16,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 @Component({
   selector: 'app-gestion-tickets',
   standalone: true,
-  imports: [CommonModule, FormsModule, TicketListComponent],
+  imports: [FormsModule, TicketListComponent],
   templateUrl: './gestion-tickets.component.html',
 })
 export class GestionTicketsComponent implements OnInit {

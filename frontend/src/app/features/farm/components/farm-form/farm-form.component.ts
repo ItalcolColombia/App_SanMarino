@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -26,12 +26,11 @@ import { ShowIfCountryDirective } from '../../../../core/directives/show-if-coun
   selector: 'app-farm-form',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     RouterModule,
     FontAwesomeModule,
     ShowIfCountryDirective
-  ],
+],
   templateUrl: './farm-form.component.html',
   styleUrls: ['./farm-form.component.scss']
 })

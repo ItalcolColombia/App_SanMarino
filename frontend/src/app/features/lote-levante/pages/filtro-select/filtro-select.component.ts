@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -28,7 +28,7 @@ export interface FilterDataResponse {
 @Component({
   selector: 'app-filtro-select',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './filtro-select.component.html',
   styleUrls: ['./filtro-select.component.scss']
 })

@@ -1,6 +1,6 @@
 // src/app/features/lote/components/modal-traslado-lote/modal-traslado-lote.component.ts
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -25,7 +25,7 @@ export interface TrasladoLoteData {
 @Component({
   selector: 'app-modal-traslado-lote',
   standalone: true,
-  imports: [CommonModule, FormsModule, FontAwesomeModule],
+  imports: [FormsModule, FontAwesomeModule],
   templateUrl: './modal-traslado-lote.component.html',
   styleUrls: ['./modal-traslado-lote.component.scss']
 })

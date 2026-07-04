@@ -1,5 +1,5 @@
 import { Component, OnInit }                      from '@angular/core';
-import { CommonModule }                           from '@angular/common';
+
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule }   from '@angular/router';
 import { Country }                                from '../models/country.model.model';
@@ -8,7 +8,7 @@ import { CountryService }                         from '../services/country/coun
 @Component({
   selector: 'app-country-detail',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [ReactiveFormsModule, RouterModule],
   templateUrl: './country-detail.component.html',
   styleUrls: ['./country-detail.component.scss']
 })

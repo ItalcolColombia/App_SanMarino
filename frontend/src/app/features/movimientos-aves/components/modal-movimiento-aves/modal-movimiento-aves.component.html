@@ -1,352 +1,401 @@
 <!-- Modal de Movimiento de Aves — Phase 4 refactor -->
-<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true"
-     aria-labelledby="mov-aves-title" (click)="onOverlayClick($event)">
-  <div class="ux-modal__dialog ux-modal__dialog--xl" (click)="$event.stopPropagation()">
-
-    <!-- ═══ HEADER ═══ -->
-    <header class="ux-modal__header">
-      <h2 id="mov-aves-title">
-        {{ modalTitle() }}
-        <span *ngIf="editingMovimiento" class="modal-subtitle">— {{ editingMovimiento.numeroMovimiento }}</span>
-      </h2>
-      <button type="button" class="icon-btn" (click)="closeModal()" aria-label="Cerrar">✕</button>
-    </header>
-
-    <!-- ═══ BODY ═══ -->
-    <div class="ux-modal__body">
-
-      <!-- Tarjeta de información del lote -->
-      <div class="lote-info-banner" *ngIf="!loadingInfo() && informacionLote()">
-        <div class="lote-info-banner__row">
-          <span class="lote-info-banner__chip"
+@if (isOpen) {
+  <div class="ux-modal" role="dialog" aria-modal="true"
+    aria-labelledby="mov-aves-title" (click)="onOverlayClick($event)">
+    <div class="ux-modal__dialog ux-modal__dialog--xl" (click)="$event.stopPropagation()">
+      <!-- ═══ HEADER ═══ -->
+      <header class="ux-modal__header">
+        <h2 id="mov-aves-title">
+          {{ modalTitle() }}
+          @if (editingMovimiento) {
+            <span class="modal-subtitle">— {{ editingMovimiento.numeroMovimiento }}</span>
+          }
+        </h2>
+        <button type="button" class="icon-btn" (click)="closeModal()" aria-label="Cerrar">✕</button>
+      </header>
+      <!-- ═══ BODY ═══ -->
+      <div class="ux-modal__body">
+        <!-- Tarjeta de información del lote -->
+        @if (!loadingInfo() && informacionLote()) {
+          <div class="lote-info-banner">
+            <div class="lote-info-banner__row">
+              <span class="lote-info-banner__chip"
                 [class.chip--levante]="informacionLote()!.tipoLote === 'Levante'"
                 [class.chip--produccion]="informacionLote()!.tipoLote === 'Produccion'">
-            {{ informacionLote()!.tipoLote }}
-          </span>
-          <strong>{{ informacionLote()!.loteNombre }}</strong>
-          <span class="sep">·</span>
-          <span>{{ informacionLote()!.granjaNombre }}</span>
-          <span *ngIf="informacionLote()?.nucleoNombre" class="sep">·</span>
-          <span *ngIf="informacionLote()?.nucleoNombre">{{ informacionLote()!.nucleoNombre }}</span>
-          <span *ngIf="informacionLote()?.galponNombre" class="sep">·</span>
-          <span *ngIf="informacionLote()?.galponNombre">{{ informacionLote()!.galponNombre }}</span>
-        </div>
-        <div class="lote-info-banner__aves">
-          <div class="aves-stat">
-            <span class="aves-stat__label">Hembras disp.</span>
-            <span class="aves-stat__value">{{ informacionLote()!.cantidadHembras | number }}</span>
-          </div>
-          <div class="aves-stat">
-            <span class="aves-stat__label">Machos disp.</span>
-            <span class="aves-stat__value">{{ informacionLote()!.cantidadMachos | number }}</span>
-          </div>
-          <div class="aves-stat aves-stat--total">
-            <span class="aves-stat__label">Total disp.</span>
-            <span class="aves-stat__value">{{ informacionLote()!.totalAves | number }}</span>
-          </div>
-          <div class="aves-stat aves-stat--edad" *ngIf="informacionLote()?.etapa">
-            <span class="aves-stat__label">Sem.</span>
-            <span class="aves-stat__value">{{ informacionLote()!.etapa }}</span>
-          </div>
-        </div>
-      </div>
-      <div *ngIf="loadingInfo()" class="loading-placeholder">Cargando información del lote…</div>
-
-      <!-- ═══ FORMULARIO ═══ -->
-      <form [formGroup]="formMovimiento" (ngSubmit)="onSubmitMovimiento()" class="movimiento-form">
-
-        <!-- ── Paso 1: Tipo de movimiento + Fecha ── -->
-        <div class="form-row form-row--2col">
-          <div class="form-group">
-            <label class="form-label" for="tipoMovimiento">Tipo de Movimiento <span class="req">*</span></label>
-            <div class="tipo-mov-buttons" role="group" aria-label="Tipo de movimiento">
-              <button type="button"
-                      *ngFor="let tipo of tiposMovimiento()"
-                      class="tipo-btn"
-                      [class.tipo-btn--venta]="esTipoVenta(tipo)"
-                      [class.tipo-btn--traslado]="esTipoTraslado(tipo)"
-                      [class.tipo-btn--active]="formMovimiento.get('tipoMovimiento')?.value === tipo"
-                      [disabled]="isReadOnly()"
-                      (click)="formMovimiento.patchValue({ tipoMovimiento: tipo })">
-                <span *ngIf="esTipoVenta(tipo)">💰</span>
-                <span *ngIf="esTipoTraslado(tipo)">🔄</span>
-                {{ tipo }}
-              </button>
+                {{ informacionLote()!.tipoLote }}
+              </span>
+              <strong>{{ informacionLote()!.loteNombre }}</strong>
+              <span class="sep">·</span>
+              <span>{{ informacionLote()!.granjaNombre }}</span>
+              @if (informacionLote()?.nucleoNombre) {
+                <span class="sep">·</span>
+              }
+              @if (informacionLote()?.nucleoNombre) {
+                <span>{{ informacionLote()!.nucleoNombre }}</span>
+              }
+              @if (informacionLote()?.galponNombre) {
+                <span class="sep">·</span>
+              }
+              @if (informacionLote()?.galponNombre) {
+                <span>{{ informacionLote()!.galponNombre }}</span>
+              }
             </div>
-            <div *ngIf="formMovimiento.get('tipoMovimiento')?.invalid && formMovimiento.get('tipoMovimiento')?.touched"
-                 class="field-error">Selecciona un tipo de movimiento</div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="fechaMovimiento">Fecha <span class="req">*</span></label>
-            <input type="date" id="fechaMovimiento" formControlName="fechaMovimiento"
-                   class="form-control" [readonly]="isReadOnly()">
-          </div>
-        </div>
-
-        <!-- ── Paso 2: Cantidades ── -->
-        <div class="form-section-card" *ngIf="formMovimiento.get('tipoMovimiento')?.value">
-          <h3 class="section-title">
-            <span class="section-icon">🐔</span>
-            Cantidades a {{ esTipoVenta(formMovimiento.get('tipoMovimiento')?.value) ? 'vender' : 'trasladar' }}
-          </h3>
-
-          <p *ngIf="informacionLote()?.tipoLote === 'Produccion'" class="info-note info-note--warning">
-            En Producción solo se puede mover hembras <strong>o</strong> machos, no ambos.
-          </p>
-
-          <div class="cantidades-grid"
-               [class.cantidades-grid--2col]="informacionLote()?.tipoLote === 'Produccion'">
-
-            <!-- Hembras -->
-            <div class="form-group form-group--ave">
-              <label class="form-label" for="cantH">
-                Hembras
-                <span class="disponible-badge" *ngIf="informacionLote()">
-                  / {{ informacionLote()!.cantidadHembras | number }} disp.
-                </span>
-              </label>
-              <input type="number" id="cantH" formControlName="cantidadHembras"
-                     class="form-control" min="0"
-                     [max]="informacionLote()?.cantidadHembras ?? 9999"
-                     [readonly]="isReadOnly()"
-                     (input)="onCantidadProduccionChange('hembras')">
-            </div>
-
-            <!-- Machos -->
-            <div class="form-group form-group--ave">
-              <label class="form-label" for="cantM">
-                Machos
-                <span class="disponible-badge" *ngIf="informacionLote()">
-                  / {{ informacionLote()!.cantidadMachos | number }} disp.
-                </span>
-              </label>
-              <input type="number" id="cantM" formControlName="cantidadMachos"
-                     class="form-control" min="0"
-                     [max]="informacionLote()?.cantidadMachos ?? 9999"
-                     [readonly]="isReadOnly()"
-                     (input)="onCantidadProduccionChange('machos')">
-            </div>
-
-            <!-- Mixtas (solo levante) -->
-            <div class="form-group form-group--ave"
-                 *ngIf="informacionLote()?.tipoLote !== 'Produccion'">
-              <label class="form-label" for="cantX">
-                Mixtas
-                <span class="disponible-badge" *ngIf="informacionLote()">
-                  / {{ informacionLote()!.cantidadMixtas | number }} disp.
-                </span>
-              </label>
-              <input type="number" id="cantX" formControlName="cantidadMixtas"
-                     class="form-control" min="0"
-                     [max]="informacionLote()?.cantidadMixtas ?? 9999"
-                     [readonly]="isReadOnly()">
+            <div class="lote-info-banner__aves">
+              <div class="aves-stat">
+                <span class="aves-stat__label">Hembras disp.</span>
+                <span class="aves-stat__value">{{ informacionLote()!.cantidadHembras | number }}</span>
+              </div>
+              <div class="aves-stat">
+                <span class="aves-stat__label">Machos disp.</span>
+                <span class="aves-stat__value">{{ informacionLote()!.cantidadMachos | number }}</span>
+              </div>
+              <div class="aves-stat aves-stat--total">
+                <span class="aves-stat__label">Total disp.</span>
+                <span class="aves-stat__value">{{ informacionLote()!.totalAves | number }}</span>
+              </div>
+              @if (informacionLote()?.etapa) {
+                <div class="aves-stat aves-stat--edad">
+                  <span class="aves-stat__label">Sem.</span>
+                  <span class="aves-stat__value">{{ informacionLote()!.etapa }}</span>
+                </div>
+              }
             </div>
           </div>
-
-          <!-- Errores de validación de cantidades -->
-          <div class="field-error" *ngIf="formMovimiento.hasError('sinCantidad') && formMovimiento.touched">
-            Indica al menos una cantidad de aves.
-          </div>
-          <div class="field-error" *ngIf="formMovimiento.hasError('excedeHembras') && formMovimiento.touched">
-            Las hembras indicadas superan la disponibilidad.
-          </div>
-          <div class="field-error" *ngIf="formMovimiento.hasError('excedeMachos') && formMovimiento.touched">
-            Los machos indicados superan la disponibilidad.
-          </div>
-          <div class="field-error" *ngIf="formMovimiento.hasError('excedeMixtas') && formMovimiento.touched">
-            Las mixtas indicadas superan la disponibilidad.
-          </div>
-          <div class="field-error" *ngIf="formMovimiento.hasError('produccionNoMixto') && formMovimiento.touched">
-            En Producción solo se puede mover hembras o machos, no ambos.
-          </div>
-        </div>
-
-        <!-- ── Paso 3A: Datos de VENTA ── -->
-        <div class="form-section-card"
-             *ngIf="esTipoVenta(formMovimiento.get('tipoMovimiento')?.value)">
-          <h3 class="section-title"><span class="section-icon">💰</span> Datos de la Venta</h3>
-
+        }
+        @if (loadingInfo()) {
+          <div class="loading-placeholder">Cargando información del lote…</div>
+        }
+        <!-- ═══ FORMULARIO ═══ -->
+        <form [formGroup]="formMovimiento" (ngSubmit)="onSubmitMovimiento()" class="movimiento-form">
+          <!-- ── Paso 1: Tipo de movimiento + Fecha ── -->
           <div class="form-row form-row--2col">
             <div class="form-group">
-              <label class="form-label" for="motivoVenta">Motivo <span class="req">*</span></label>
-              <select id="motivoVenta" formControlName="motivoMovimiento"
-                      class="form-control" [disabled]="isReadOnly()">
-                <option value="">Selecciona un motivo</option>
-                <option *ngFor="let m of motivosMovimiento()" [value]="m">{{ m }}</option>
-              </select>
-              <div *ngIf="formMovimiento.get('motivoMovimiento')?.invalid && formMovimiento.get('motivoMovimiento')?.touched"
-                   class="field-error">El motivo es requerido</div>
+              <label class="form-label" for="tipoMovimiento">Tipo de Movimiento <span class="req">*</span></label>
+              <div class="tipo-mov-buttons" role="group" aria-label="Tipo de movimiento">
+                @for (tipo of tiposMovimiento(); track tipo) {
+                  <button type="button"
+                    class="tipo-btn"
+                    [class.tipo-btn--venta]="esTipoVenta(tipo)"
+                    [class.tipo-btn--traslado]="esTipoTraslado(tipo)"
+                    [class.tipo-btn--active]="formMovimiento.get('tipoMovimiento')?.value === tipo"
+                    [disabled]="isReadOnly()"
+                    (click)="formMovimiento.patchValue({ tipoMovimiento: tipo })">
+                    @if (esTipoVenta(tipo)) {
+                      <span>💰</span>
+                    }
+                    @if (esTipoTraslado(tipo)) {
+                      <span>🔄</span>
+                    }
+                    {{ tipo }}
+                  </button>
+                }
+              </div>
+              @if (formMovimiento.get('tipoMovimiento')?.invalid && formMovimiento.get('tipoMovimiento')?.touched) {
+                <div
+                class="field-error">Selecciona un tipo de movimiento</div>
+              }
             </div>
-
             <div class="form-group">
-              <label class="form-label" for="descripcionVenta">Descripción <span class="req">*</span></label>
-              <textarea id="descripcionVenta" formControlName="descripcion"
-                        class="form-control" rows="2"
-                        placeholder="Detalles de la venta"
+              <label class="form-label" for="fechaMovimiento">Fecha <span class="req">*</span></label>
+              <input type="date" id="fechaMovimiento" formControlName="fechaMovimiento"
+                class="form-control" [readonly]="isReadOnly()">
+              </div>
+            </div>
+            <!-- ── Paso 2: Cantidades ── -->
+            @if (formMovimiento.get('tipoMovimiento')?.value) {
+              <div class="form-section-card">
+                <h3 class="section-title">
+                  <span class="section-icon">🐔</span>
+                  Cantidades a {{ esTipoVenta(formMovimiento.get('tipoMovimiento')?.value) ? 'vender' : 'trasladar' }}
+                </h3>
+                @if (informacionLote()?.tipoLote === 'Produccion') {
+                  <p class="info-note info-note--warning">
+                    En Producción solo se puede mover hembras <strong>o</strong> machos, no ambos.
+                  </p>
+                }
+                <div class="cantidades-grid"
+                  [class.cantidades-grid--2col]="informacionLote()?.tipoLote === 'Produccion'">
+                  <!-- Hembras -->
+                  <div class="form-group form-group--ave">
+                    <label class="form-label" for="cantH">
+                      Hembras
+                      @if (informacionLote()) {
+                        <span class="disponible-badge">
+                          / {{ informacionLote()!.cantidadHembras | number }} disp.
+                        </span>
+                      }
+                    </label>
+                    <input type="number" id="cantH" formControlName="cantidadHembras"
+                      class="form-control" min="0"
+                      [max]="informacionLote()?.cantidadHembras ?? 9999"
+                      [readonly]="isReadOnly()"
+                      (input)="onCantidadProduccionChange('hembras')">
+                    </div>
+                    <!-- Machos -->
+                    <div class="form-group form-group--ave">
+                      <label class="form-label" for="cantM">
+                        Machos
+                        @if (informacionLote()) {
+                          <span class="disponible-badge">
+                            / {{ informacionLote()!.cantidadMachos | number }} disp.
+                          </span>
+                        }
+                      </label>
+                      <input type="number" id="cantM" formControlName="cantidadMachos"
+                        class="form-control" min="0"
+                        [max]="informacionLote()?.cantidadMachos ?? 9999"
+                        [readonly]="isReadOnly()"
+                        (input)="onCantidadProduccionChange('machos')">
+                      </div>
+                      <!-- Mixtas (solo levante) -->
+                      @if (informacionLote()?.tipoLote !== 'Produccion') {
+                        <div class="form-group form-group--ave"
+                          >
+                          <label class="form-label" for="cantX">
+                            Mixtas
+                            @if (informacionLote()) {
+                              <span class="disponible-badge">
+                                / {{ informacionLote()!.cantidadMixtas | number }} disp.
+                              </span>
+                            }
+                          </label>
+                          <input type="number" id="cantX" formControlName="cantidadMixtas"
+                            class="form-control" min="0"
+                            [max]="informacionLote()?.cantidadMixtas ?? 9999"
+                            [readonly]="isReadOnly()">
+                          </div>
+                        }
+                      </div>
+                      <!-- Errores de validación de cantidades -->
+                      @if (formMovimiento.hasError('sinCantidad') && formMovimiento.touched) {
+                        <div class="field-error">
+                          Indica al menos una cantidad de aves.
+                        </div>
+                      }
+                      @if (formMovimiento.hasError('excedeHembras') && formMovimiento.touched) {
+                        <div class="field-error">
+                          Las hembras indicadas superan la disponibilidad.
+                        </div>
+                      }
+                      @if (formMovimiento.hasError('excedeMachos') && formMovimiento.touched) {
+                        <div class="field-error">
+                          Los machos indicados superan la disponibilidad.
+                        </div>
+                      }
+                      @if (formMovimiento.hasError('excedeMixtas') && formMovimiento.touched) {
+                        <div class="field-error">
+                          Las mixtas indicadas superan la disponibilidad.
+                        </div>
+                      }
+                      @if (formMovimiento.hasError('produccionNoMixto') && formMovimiento.touched) {
+                        <div class="field-error">
+                          En Producción solo se puede mover hembras o machos, no ambos.
+                        </div>
+                      }
+                    </div>
+                  }
+                  <!-- ── Paso 3A: Datos de VENTA ── -->
+                  @if (esTipoVenta(formMovimiento.get('tipoMovimiento')?.value)) {
+                    <div class="form-section-card"
+                      >
+                      <h3 class="section-title"><span class="section-icon">💰</span> Datos de la Venta</h3>
+                      <div class="form-row form-row--2col">
+                        <div class="form-group">
+                          <label class="form-label" for="motivoVenta">Motivo <span class="req">*</span></label>
+                          <select id="motivoVenta" formControlName="motivoMovimiento"
+                            class="form-control" [disabled]="isReadOnly()">
+                            <option value="">Selecciona un motivo</option>
+                            @for (m of motivosMovimiento(); track m) {
+                              <option [value]="m">{{ m }}</option>
+                            }
+                          </select>
+                          @if (formMovimiento.get('motivoMovimiento')?.invalid && formMovimiento.get('motivoMovimiento')?.touched) {
+                            <div
+                            class="field-error">El motivo es requerido</div>
+                          }
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label" for="descripcionVenta">Descripción <span class="req">*</span></label>
+                          <textarea id="descripcionVenta" formControlName="descripcion"
+                            class="form-control" rows="2"
+                            placeholder="Detalles de la venta"
+                          [readonly]="isReadOnly()"></textarea>
+                          @if (formMovimiento.get('descripcion')?.invalid && formMovimiento.get('descripcion')?.touched) {
+                            <div
+                            class="field-error">La descripción es requerida</div>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  }
+                  <!-- ── Paso 3B: Destino del TRASLADO ── -->
+                  @if (esTipoTraslado(formMovimiento.get('tipoMovimiento')?.value)) {
+                    <div class="form-section-card"
+                      >
+                      <h3 class="section-title"><span class="section-icon">📍</span> Destino del Traslado</h3>
+                      <p class="section-hint">Selecciona la jerarquía del destino: Granja → Núcleo → Galpón → Lote</p>
+                      <app-filtro-select
+                        [selectedGranjaId]="selectedGranjaDestinoId"
+                        [selectedNucleoId]="selectedNucleoDestinoId"
+                        [selectedGalponId]="selectedGalponDestinoId"
+                        [selectedLoteId]="selectedLoteDestinoId"
+                        (granjaChange)="onGranjaDestinoChange($event)"
+                        (nucleoChange)="onNucleoDestinoChange($event)"
+                        (galponChange)="onGalponDestinoChange($event)"
+                        (loteChange)="onLoteDestinoChange($event)">
+                      </app-filtro-select>
+                      <!-- Opción planta (toggle) -->
+                      @if (!isReadOnly()) {
+                        <div class="planta-toggle">
+                          <label class="toggle-label">
+                            <input type="checkbox" [checked]="usarPlantaDestino"
+                              (change)="togglePlantaDestino()">
+                              Destino es una Planta de Proceso
+                            </label>
+                          </div>
+                        }
+                        @if (usarPlantaDestino) {
+                          <div class="form-group">
+                            <label class="form-label" for="plantaDestino">Planta Destino <span class="req">*</span></label>
+                            <select id="plantaDestino" formControlName="plantaDestino"
+                              class="form-control" [disabled]="isReadOnly()">
+                              <option value="">Selecciona una planta</option>
+                              @for (p of plantasDestino(); track p) {
+                                <option [value]="p">{{ p }}</option>
+                              }
+                            </select>
+                            @if (formMovimiento.get('plantaDestino')?.invalid && formMovimiento.get('plantaDestino')?.touched) {
+                              <div
+                              class="field-error">Selecciona la planta destino</div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                    <!-- ── Observaciones (siempre) ── -->
+                    @if (formMovimiento.get('tipoMovimiento')?.value) {
+                      <div class="form-group">
+                        <label class="form-label" for="observaciones">Observaciones</label>
+                        <textarea id="observaciones" formControlName="observaciones"
+                          class="form-control" rows="2"
+                          placeholder="Notas adicionales sobre el movimiento"
                         [readonly]="isReadOnly()"></textarea>
-              <div *ngIf="formMovimiento.get('descripcion')?.invalid && formMovimiento.get('descripcion')?.touched"
-                   class="field-error">La descripción es requerida</div>
-            </div>
-          </div>
-        </div>
+                      </div>
+                    }
+                    <!-- ── Despacho Ecuador ── -->
+                    @if (isEcuador()) {
+                      <div class="form-section-card form-section-card--despacho">
+                        <h3 class="section-title"><span class="section-icon">🚚</span> Información de Despacho</h3>
+                        <div class="form-row form-row--2col">
+                          <div class="form-group">
+                            <label class="form-label">N° Despacho</label>
+                            <input type="text" formControlName="numeroDespacho" class="form-control" readonly>
+                            <small class="field-hint">Generado automáticamente</small>
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label" for="edadAves">Edad (días)</label>
+                            <input type="number" id="edadAves" formControlName="edadAves"
+                              class="form-control" min="0" [readonly]="isReadOnly()"
+                              (blur)="autoCompletarEdad()">
+                            </div>
+                            <div class="form-group">
+                              <label class="form-label">Raza</label>
+                              <input type="text" formControlName="raza" class="form-control" readonly>
+                            </div>
+                            <div class="form-group">
+                              <label class="form-label" for="placa">Placa Vehículo</label>
+                              <input type="text" id="placa" formControlName="placa"
+                                class="form-control" placeholder="ABC-1234" maxlength="20" [readonly]="isReadOnly()">
+                              </div>
+                              <div class="form-group">
+                                <label class="form-label" for="horaSalida">Hora Salida</label>
+                                <input type="time" id="horaSalida" formControlName="horaSalida"
+                                  class="form-control" [readonly]="isReadOnly()">
+                                </div>
+                                <div class="form-group">
+                                  <label class="form-label" for="conductor">Conductor</label>
+                                  <input type="text" id="conductor" formControlName="conductor"
+                                    class="form-control" placeholder="Nombre del conductor" [readonly]="isReadOnly()">
+                                  </div>
+                                  <div class="form-group">
+                                    <label class="form-label" for="guiaAgrocalidad">Guía Agrocalidad</label>
+                                    <input type="text" id="guiaAgrocalidad" formControlName="guiaAgrocalidad"
+                                      class="form-control" placeholder="GA-2024-001234" [readonly]="isReadOnly()">
+                                    </div>
+                                    <div class="form-group">
+                                      <label class="form-label" for="ayuno">Ayuno</label>
+                                      <input type="text" id="ayuno" formControlName="ayuno"
+                                        class="form-control" placeholder="Ej: 8 horas" maxlength="50" [readonly]="isReadOnly()">
+                                      </div>
+                                      <div class="form-group">
+                                        <label class="form-label" for="pesoBruto">Peso Bruto (kg)</label>
+                                        <input type="number" id="pesoBruto" formControlName="pesoBruto"
+                                          class="form-control" step="0.01" min="0" [readonly]="isReadOnly()"
+                                          (input)="formMovimiento.updateValueAndValidity()">
+                                        </div>
+                                        <div class="form-group">
+                                          <label class="form-label" for="pesoTara">Peso Tara (kg)</label>
+                                          <input type="number" id="pesoTara" formControlName="pesoTara"
+                                            class="form-control" step="0.01" min="0" [readonly]="isReadOnly()"
+                                            (input)="formMovimiento.updateValueAndValidity()">
+                                          </div>
+                                          <div class="form-group">
+                                            <label class="form-label">Peso Neto (kg)</label>
+                                            <input type="text" class="form-control form-control--calculated"
+                                              [value]="formatearNumero(calcularPesoNeto())" readonly disabled>
+                                              <small class="field-hint">Bruto − Tara</small>
+                                            </div>
+                                            <div class="form-group">
+                                              <label class="form-label">Prom. Peso/Ave (kg)</label>
+                                              <input type="text" class="form-control form-control--calculated"
+                                                [value]="formatearNumero(calcularPromedioPesoAve())" readonly disabled>
+                                                <small class="field-hint">Neto / Total aves</small>
+                                              </div>
+                                            </div>
+                                            <div class="form-group">
+                                              <label class="form-label" for="sellos">Sellos</label>
+                                              <textarea id="sellos" formControlName="sellos" class="form-control" rows="2"
+                                                placeholder="Información de sellos aplicados" maxlength="500"
+                                              [readonly]="isReadOnly()"></textarea>
+                                            </div>
+                                          </div>
+                                        }
+                                      </form>
+                                    </div>
+                                    <!-- ═══ FOOTER ═══ -->
+                                    <footer class="ux-modal__footer">
+                                      <div class="ux-modal__footer-actions">
+                                        <button type="button" class="btn btn--secondary" (click)="closeModal()">Cancelar</button>
+                                        @if (!isReadOnly()) {
+                                          <button type="button" class="btn btn--primary"
+                                            (click)="onSubmitMovimiento()"
+                                            [disabled]="formMovimiento.invalid || loading()">
+                                            @if (loading()) {
+                                              <span>Guardando…</span>
+                                            }
+                                            @if (!loading()) {
+                                              <span>{{ saveButtonText() }}</span>
+                                            }
+                                          </button>
+                                        }
+                                        @if (isReadOnly() && editingMovimiento?.estado === 'Pendiente') {
+                                          <button
+                                            type="button" class="btn btn--primary"
+                                            (click)="isEditMode.set(true); formMovimiento.enable()">
+                                            Editar
+                                          </button>
+                                        }
+                                      </div>
+                                    </footer>
+                                  </div>
+                                </div>
+                              }
 
-        <!-- ── Paso 3B: Destino del TRASLADO ── -->
-        <div class="form-section-card"
-             *ngIf="esTipoTraslado(formMovimiento.get('tipoMovimiento')?.value)">
-          <h3 class="section-title"><span class="section-icon">📍</span> Destino del Traslado</h3>
-          <p class="section-hint">Selecciona la jerarquía del destino: Granja → Núcleo → Galpón → Lote</p>
-
-          <app-filtro-select
-            [selectedGranjaId]="selectedGranjaDestinoId"
-            [selectedNucleoId]="selectedNucleoDestinoId"
-            [selectedGalponId]="selectedGalponDestinoId"
-            [selectedLoteId]="selectedLoteDestinoId"
-            (granjaChange)="onGranjaDestinoChange($event)"
-            (nucleoChange)="onNucleoDestinoChange($event)"
-            (galponChange)="onGalponDestinoChange($event)"
-            (loteChange)="onLoteDestinoChange($event)">
-          </app-filtro-select>
-
-          <!-- Opción planta (toggle) -->
-          <div class="planta-toggle" *ngIf="!isReadOnly()">
-            <label class="toggle-label">
-              <input type="checkbox" [checked]="usarPlantaDestino"
-                     (change)="togglePlantaDestino()">
-              Destino es una Planta de Proceso
-            </label>
-          </div>
-
-          <div class="form-group" *ngIf="usarPlantaDestino">
-            <label class="form-label" for="plantaDestino">Planta Destino <span class="req">*</span></label>
-            <select id="plantaDestino" formControlName="plantaDestino"
-                    class="form-control" [disabled]="isReadOnly()">
-              <option value="">Selecciona una planta</option>
-              <option *ngFor="let p of plantasDestino()" [value]="p">{{ p }}</option>
-            </select>
-            <div *ngIf="formMovimiento.get('plantaDestino')?.invalid && formMovimiento.get('plantaDestino')?.touched"
-                 class="field-error">Selecciona la planta destino</div>
-          </div>
-        </div>
-
-        <!-- ── Observaciones (siempre) ── -->
-        <div class="form-group" *ngIf="formMovimiento.get('tipoMovimiento')?.value">
-          <label class="form-label" for="observaciones">Observaciones</label>
-          <textarea id="observaciones" formControlName="observaciones"
-                    class="form-control" rows="2"
-                    placeholder="Notas adicionales sobre el movimiento"
-                    [readonly]="isReadOnly()"></textarea>
-        </div>
-
-        <!-- ── Despacho Ecuador ── -->
-        <div class="form-section-card form-section-card--despacho" *ngIf="isEcuador()">
-          <h3 class="section-title"><span class="section-icon">🚚</span> Información de Despacho</h3>
-
-          <div class="form-row form-row--2col">
-            <div class="form-group">
-              <label class="form-label">N° Despacho</label>
-              <input type="text" formControlName="numeroDespacho" class="form-control" readonly>
-              <small class="field-hint">Generado automáticamente</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="edadAves">Edad (días)</label>
-              <input type="number" id="edadAves" formControlName="edadAves"
-                     class="form-control" min="0" [readonly]="isReadOnly()"
-                     (blur)="autoCompletarEdad()">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Raza</label>
-              <input type="text" formControlName="raza" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="placa">Placa Vehículo</label>
-              <input type="text" id="placa" formControlName="placa"
-                     class="form-control" placeholder="ABC-1234" maxlength="20" [readonly]="isReadOnly()">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="horaSalida">Hora Salida</label>
-              <input type="time" id="horaSalida" formControlName="horaSalida"
-                     class="form-control" [readonly]="isReadOnly()">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="conductor">Conductor</label>
-              <input type="text" id="conductor" formControlName="conductor"
-                     class="form-control" placeholder="Nombre del conductor" [readonly]="isReadOnly()">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="guiaAgrocalidad">Guía Agrocalidad</label>
-              <input type="text" id="guiaAgrocalidad" formControlName="guiaAgrocalidad"
-                     class="form-control" placeholder="GA-2024-001234" [readonly]="isReadOnly()">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="ayuno">Ayuno</label>
-              <input type="text" id="ayuno" formControlName="ayuno"
-                     class="form-control" placeholder="Ej: 8 horas" maxlength="50" [readonly]="isReadOnly()">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="pesoBruto">Peso Bruto (kg)</label>
-              <input type="number" id="pesoBruto" formControlName="pesoBruto"
-                     class="form-control" step="0.01" min="0" [readonly]="isReadOnly()"
-                     (input)="formMovimiento.updateValueAndValidity()">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="pesoTara">Peso Tara (kg)</label>
-              <input type="number" id="pesoTara" formControlName="pesoTara"
-                     class="form-control" step="0.01" min="0" [readonly]="isReadOnly()"
-                     (input)="formMovimiento.updateValueAndValidity()">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Peso Neto (kg)</label>
-              <input type="text" class="form-control form-control--calculated"
-                     [value]="formatearNumero(calcularPesoNeto())" readonly disabled>
-              <small class="field-hint">Bruto − Tara</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Prom. Peso/Ave (kg)</label>
-              <input type="text" class="form-control form-control--calculated"
-                     [value]="formatearNumero(calcularPromedioPesoAve())" readonly disabled>
-              <small class="field-hint">Neto / Total aves</small>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="sellos">Sellos</label>
-            <textarea id="sellos" formControlName="sellos" class="form-control" rows="2"
-                      placeholder="Información de sellos aplicados" maxlength="500"
-                      [readonly]="isReadOnly()"></textarea>
-          </div>
-        </div>
-
-      </form>
-    </div>
-
-    <!-- ═══ FOOTER ═══ -->
-    <footer class="ux-modal__footer">
-      <div class="ux-modal__footer-actions">
-        <button type="button" class="btn btn--secondary" (click)="closeModal()">Cancelar</button>
-
-        <button *ngIf="!isReadOnly()" type="button" class="btn btn--primary"
-                (click)="onSubmitMovimiento()"
-                [disabled]="formMovimiento.invalid || loading()">
-          <span *ngIf="loading()">Guardando…</span>
-          <span *ngIf="!loading()">{{ saveButtonText() }}</span>
-        </button>
-
-        <button *ngIf="isReadOnly() && editingMovimiento?.estado === 'Pendiente'"
-                type="button" class="btn btn--primary"
-                (click)="isEditMode.set(true); formMovimiento.enable()">
-          Editar
-        </button>
-      </div>
-    </footer>
-  </div>
-</div>
-
-<!-- Modal de confirmación / éxito / error -->
-<app-confirmation-modal
-  [isOpen]="showConfirmationModal()"
-  [data]="confirmationModalData()"
-  (confirmed)="onConfirmSave(); $event"
-  (cancelled)="onCancelSave(); $event"
-  (closed)="onConfirmationModalClose(); $event">
-</app-confirmation-modal>
+                              <!-- Modal de confirmación / éxito / error -->
+                              <app-confirmation-modal
+                                [isOpen]="showConfirmationModal()"
+                                [data]="confirmationModalData()"
+                                (confirmed)="onConfirmSave(); $event"
+                                (cancelled)="onCancelSave(); $event"
+                                (closed)="onConfirmationModalClose(); $event">
+                              </app-confirmation-modal>

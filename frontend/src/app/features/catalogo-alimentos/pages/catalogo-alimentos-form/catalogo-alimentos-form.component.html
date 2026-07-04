@@ -47,135 +47,142 @@
           </div>
 
           <!-- Sección específica para ALIMENTO -->
-          <div class="form-field form-field--full" *ngIf="isAlimento()">
-            <div class="ux-card ux-card--sub">
-              <div class="ux-card__header">
-                <strong>📦 Alimento — Configuración</strong>
-              </div>
-
-              <div class="grid grid-3">
-                <div class="form-field">
-                  <label for="f-pollo">¿Es para pollos?</label>
-                  <select id="f-pollo" formControlName="es_para_pollos">
-                    <option [ngValue]="true">Sí</option>
-                    <option [ngValue]="false">No</option>
-                  </select>
-                  <small class="help">Si es para pollos, se guardará <code>especie: "pollo"</code> en metadata.</small>
+          @if (isAlimento()) {
+            <div class="form-field form-field--full">
+              <div class="ux-card ux-card--sub">
+                <div class="ux-card__header">
+                  <strong>📦 Alimento — Configuración</strong>
                 </div>
-
-                <div class="form-field" *ngIf="requiereEstructuraPollos()">
-                  <label for="f-raza">Raza <span class="required">*</span></label>
-                  <select id="f-raza" formControlName="raza">
-                    <option *ngFor="let r of razas" [ngValue]="r">{{ r }}</option>
-                  </select>
+                <div class="grid grid-3">
+                  <div class="form-field">
+                    <label for="f-pollo">¿Es para pollos?</label>
+                    <select id="f-pollo" formControlName="es_para_pollos">
+                      <option [ngValue]="true">Sí</option>
+                      <option [ngValue]="false">No</option>
+                    </select>
+                    <small class="help">Si es para pollos, se guardará <code>especie: "pollo"</code> en metadata.</small>
+                  </div>
+                  @if (requiereEstructuraPollos()) {
+                    <div class="form-field">
+                      <label for="f-raza">Raza <span class="required">*</span></label>
+                      <select id="f-raza" formControlName="raza">
+                        @for (r of razas; track r) {
+                          <option [ngValue]="r">{{ r }}</option>
+                        }
+                      </select>
+                    </div>
+                  }
+                  @if (requiereEstructuraPollos()) {
+                    <div class="form-field">
+                      <label for="f-genero">Género <span class="required">*</span></label>
+                      <select id="f-genero" formControlName="genero">
+                        @for (g of generos; track g) {
+                          <option [ngValue]="g">{{ g }}</option>
+                        }
+                      </select>
+                    </div>
+                  }
                 </div>
-
-                <div class="form-field" *ngIf="requiereEstructuraPollos()">
-                  <label for="f-genero">Género <span class="required">*</span></label>
-                  <select id="f-genero" formControlName="genero">
-                    <option *ngFor="let g of generos" [ngValue]="g">{{ g }}</option>
-                  </select>
-                </div>
-              </div>
-
-              <div *ngIf="requiereEstructuraPollos()" class="note note--info">
-                Se guardarán <code>raza</code> y <code>genero</code> en la metadata.
+                @if (requiereEstructuraPollos()) {
+                  <div class="note note--info">
+                    Se guardarán <code>raza</code> y <code>genero</code> en la metadata.
+                  </div>
+                }
               </div>
             </div>
-          </div>
+          }
 
           <!-- Sección específica para VACUNA -->
-          <div class="form-field form-field--full" *ngIf="isVacuna()">
-            <div class="ux-card ux-card--sub">
-              <div class="ux-card__header">
-                <strong>💉 Vacuna — Configuración</strong>
+          @if (isVacuna()) {
+            <div class="form-field form-field--full">
+              <div class="ux-card ux-card--sub">
+                <div class="ux-card__header">
+                  <strong>💉 Vacuna — Configuración</strong>
+                </div>
+                <div class="grid grid-2">
+                  <div class="form-field">
+                    <label for="f-temperatura">Temperatura de almacenamiento (°C)</label>
+                    <input id="f-temperatura" type="number" formControlName="temperatura"
+                      placeholder="Ej: 2-8" step="0.1"/>
+                      <small class="help">Temperatura recomendada para almacenamiento.</small>
+                    </div>
+                    <div class="form-field">
+                      <label for="f-fecha-vencimiento">Fecha de vencimiento</label>
+                      <input id="f-fecha-vencimiento" type="date" formControlName="fecha_vencimiento"/>
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lote">Número de lote</label>
+                      <input id="f-lote" type="text" formControlName="lote" placeholder="Ej: LOTE-2024-001"/>
+                    </div>
+                    <div class="form-field">
+                      <label for="f-fabricante">Fabricante</label>
+                      <input id="f-fabricante" type="text" formControlName="fabricante" placeholder="Nombre del fabricante"/>
+                    </div>
+                    <div class="form-field">
+                      <label for="f-dosis">Dosis recomendada</label>
+                      <input id="f-dosis" type="text" formControlName="dosis" placeholder="Ej: 0.5 ml por ave"/>
+                    </div>
+                    <div class="form-field">
+                      <label for="f-via-administracion">Vía de administración</label>
+                      <select id="f-via-administracion" formControlName="via_administracion">
+                        <option value="">Seleccione...</option>
+                        <option value="Subcutánea">Subcutánea</option>
+                        <option value="Intramuscular">Intramuscular</option>
+                        <option value="Oral">Oral</option>
+                        <option value="Ocular">Ocular</option>
+                        <option value="Nasal">Nasal</option>
+                        <option value="Otra">Otra</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="note note--info">
+                    Todos estos campos se guardarán en la metadata del producto.
+                  </div>
+                </div>
               </div>
+            }
 
-              <div class="grid grid-2">
-                <div class="form-field">
-                  <label for="f-temperatura">Temperatura de almacenamiento (°C)</label>
-                  <input id="f-temperatura" type="number" formControlName="temperatura" 
-                         placeholder="Ej: 2-8" step="0.1"/>
-                  <small class="help">Temperatura recomendada para almacenamiento.</small>
+            <!-- Metadata libre (key/value) -->
+            <div class="form-field form-field--full">
+              <div class="meta-editor">
+                <div class="meta-header">
+                  <strong>Metadata libre</strong>
+                  <button type="button" class="btn btn--ghost" (click)="addMetaRow()">+ Agregar</button>
                 </div>
 
-                <div class="form-field">
-                  <label for="f-fecha-vencimiento">Fecha de vencimiento</label>
-                  <input id="f-fecha-vencimiento" type="date" formControlName="fecha_vencimiento"/>
+                <div class="meta-rows" formArrayName="metadata">
+                  @for (row of metadataArray.controls; track row; let i = $index) {
+                    <div class="meta-row" [formGroupName]="i">
+                      <input type="text" placeholder="clave" formControlName="key" />
+                      <input type="text" placeholder="valor" formControlName="value" />
+                      <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" title="Quitar">🗑</button>
+                    </div>
+                  }
                 </div>
-
-                <div class="form-field">
-                  <label for="f-lote">Número de lote</label>
-                  <input id="f-lote" type="text" formControlName="lote" placeholder="Ej: LOTE-2024-001"/>
-                </div>
-
-                <div class="form-field">
-                  <label for="f-fabricante">Fabricante</label>
-                  <input id="f-fabricante" type="text" formControlName="fabricante" placeholder="Nombre del fabricante"/>
-                </div>
-
-                <div class="form-field">
-                  <label for="f-dosis">Dosis recomendada</label>
-                  <input id="f-dosis" type="text" formControlName="dosis" placeholder="Ej: 0.5 ml por ave"/>
-                </div>
-
-                <div class="form-field">
-                  <label for="f-via-administracion">Vía de administración</label>
-                  <select id="f-via-administracion" formControlName="via_administracion">
-                    <option value="">Seleccione...</option>
-                    <option value="Subcutánea">Subcutánea</option>
-                    <option value="Intramuscular">Intramuscular</option>
-                    <option value="Oral">Oral</option>
-                    <option value="Ocular">Ocular</option>
-                    <option value="Nasal">Nasal</option>
-                    <option value="Otra">Otra</option>
-                  </select>
-                </div>
+                <small class="help">
+                  Las claves reservadas <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code> se gestionan arriba y no se aceptan aquí.
+                </small>
               </div>
+            </div>
 
-              <div class="note note--info">
-                Todos estos campos se guardarán en la metadata del producto.
-              </div>
+            <!-- Vista previa JSON -->
+            <div class="form-field form-field--full">
+              <label>Vista previa de metadata (JSON)</label>
+              <pre class="json-preview">{{ jsonPreview() }}</pre>
             </div>
           </div>
 
-          <!-- Metadata libre (key/value) -->
-          <div class="form-field form-field--full">
-            <div class="meta-editor">
-              <div class="meta-header">
-                <strong>Metadata libre</strong>
-                <button type="button" class="btn btn--ghost" (click)="addMetaRow()">+ Agregar</button>
-              </div>
+          <footer class="form-footer">
+            <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
+            <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">Guardar</button>
+          </footer>
+        </form>
 
-              <div class="meta-rows" formArrayName="metadata">
-                <div class="meta-row" *ngFor="let row of metadataArray.controls; index as i" [formGroupName]="i">
-                  <input type="text" placeholder="clave" formControlName="key" />
-                  <input type="text" placeholder="valor" formControlName="value" />
-                  <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" title="Quitar">🗑</button>
-                </div>
-              </div>
-              <small class="help">
-                Las claves reservadas <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code> se gestionan arriba y no se aceptan aquí.
-              </small>
-            </div>
+        @if (loading) {
+          <div class="loading-overlay" aria-live="polite" role="status">
+            <div class="spinner"></div> Guardando…
           </div>
-
-          <!-- Vista previa JSON -->
-          <div class="form-field form-field--full">
-            <label>Vista previa de metadata (JSON)</label>
-            <pre class="json-preview">{{ jsonPreview() }}</pre>
-          </div>
-        </div>
-
-        <footer class="form-footer">
-          <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
-          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">Guardar</button>
-        </footer>
-      </form>
-
-      <div *ngIf="loading" class="loading-overlay" aria-live="polite" role="status">
-        <div class="spinner"></div> Guardando…
-      </div>
-    </section>
+        }
+      </section>
+    </div>
   </div>
-</div>

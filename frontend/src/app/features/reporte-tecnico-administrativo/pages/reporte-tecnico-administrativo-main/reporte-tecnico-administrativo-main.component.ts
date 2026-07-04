@@ -1,6 +1,6 @@
 // src/app/features/reporte-tecnico-administrativo/pages/reporte-tecnico-administrativo-main/reporte-tecnico-administrativo-main.component.ts
 import { Component, OnInit, OnDestroy, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -26,12 +26,11 @@ import { GalponService } from '../../../galpon/services/galpon.service';
   selector: 'app-reporte-tecnico-administrativo-main',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     FontAwesomeModule,
     FiltroSelectComponent,
     TablaLevanteCompletaComponent
-  ],
+],
   templateUrl: './reporte-tecnico-administrativo-main.component.html',
   styleUrls: ['./reporte-tecnico-administrativo-main.component.scss']
 })

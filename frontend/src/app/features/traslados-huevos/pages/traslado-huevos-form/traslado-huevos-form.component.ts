@@ -1,6 +1,6 @@
 // frontend/src/app/features/traslados-huevos/pages/traslado-huevos-form/traslado-huevos-form.component.ts
 import { Component, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
@@ -11,7 +11,7 @@ import { environment } from '../../../../../environments/environment';
 @Component({
   selector: 'app-traslado-huevos-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FiltroSelectComponent],
+  imports: [ReactiveFormsModule, FiltroSelectComponent],
   templateUrl: './traslado-huevos-form.component.html',
   styleUrls: ['./traslado-huevos-form.component.scss']
 })
