@@ -263,7 +263,6 @@ builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 
 // Liquidación Técnica Service
 builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService>();
-builder.Services.AddScoped<ILiquidacionTecnicaProduccionService, LiquidacionTecnicaProduccionService>();
 builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();
 
 // Indicador Ecuador Service
@@ -336,6 +335,9 @@ builder.Services.AddScoped<ILesionService, LesionService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<ITicketPerfilService, TicketPerfilService>();
 
+// PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
+builder.Services.AddScoped<IServiceTokenService, ServiceTokenService>();
+
 
 // ─────────────────────────────────────
 // 9) FluentValidation + HealthChecks
@@ -345,10 +347,28 @@ builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddHealthChecks();
 
 // ─────────────────────────────────────
-// 10) Auth (JWT) — ignora preflight OPTIONS
+// 10) Auth (JWT + Service Token) — ignora preflight OPTIONS
 // ─────────────────────────────────────
+// Policy scheme "Smart": reenvía por prefijo del header Authorization.
+//   - "Bearer sk_..."  → esquema "ServiceToken" (PAT de larga duración, solo /api/tickets).
+//   - cualquier otro   → JwtBearer (config existente TAL CUAL).
+// La config del JWT NO cambia; solo se movió dentro de esta cadena.
 var keyBytes = Encoding.UTF8.GetBytes(jwt.Key ?? "");
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(o =>
+    {
+        o.DefaultScheme = "Smart";
+        o.DefaultChallengeScheme = "Smart";
+    })
+    .AddPolicyScheme("Smart", "JWT or ServiceToken", o =>
+    {
+        o.ForwardDefaultSelector = ctx =>
+        {
+            var auth = ctx.Request.Headers.Authorization.ToString();
+            return auth.StartsWith("Bearer sk_", StringComparison.OrdinalIgnoreCase)
+                ? ZooSanMarino.Infrastructure.Auth.ServiceTokenAuthHandler.SchemeName
+                : JwtBearerDefaults.AuthenticationScheme;
+        };
+    })
     .AddJwtBearer(opts =>
     {
         opts.TokenValidationParameters = new TokenValidationParameters
@@ -374,7 +394,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 return Task.CompletedTask;
             }
         };
-    });
+    })
+    // Esquema de PAT (Service Token): activado por el policy scheme "Smart" cuando el header
+    // empieza con "Bearer sk_". El handler valida el token y limita el alcance a /api/tickets.
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
+        ZooSanMarino.Infrastructure.Auth.ServiceTokenAuthHandler>(
+            ZooSanMarino.Infrastructure.Auth.ServiceTokenAuthHandler.SchemeName, null);
 
 // ─────────────────────────────────────
 // 11) Authorization (deny-by-default)

@@ -68,43 +68,13 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
 
     // ─── Helpers de inventario ────────────────────────────────────────────────
 
-    private static decimal ToKg(double cantidad, string? unidad)
-    {
-        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
-        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
-        return (decimal)cantidad;
-    }
-
     /// <summary>
-    /// Parsea itemsHembras e itemsMachos de la metadata y devuelve un mapa itemId → kg total.
-    /// Acepta catalogItemId o itemInventarioEcuadorId, igual que SeguimientoAvesEngordeService.
+    /// Parsea itemsHembras/Machos/Generales de la metadata → mapa itemId → kg total.
+    /// Delega en el cálculo puro central compartido (un solo lugar → un solo test).
+    /// Antes había una copia idéntica acá + su propio ToKg.
     /// </summary>
     private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
-    {
-        var byItemId = new Dictionary<int, decimal>();
-
-        void ParseArray(JsonElement arr)
-        {
-            foreach (var e in arr.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        }
-
-        if (root.TryGetProperty("itemsHembras", out var arrH)) ParseArray(arrH);
-        if (root.TryGetProperty("itemsMachos", out var arrM)) ParseArray(arrM);
-        if (root.TryGetProperty("itemsGenerales", out var arrG)) ParseArray(arrG);
-
-        return byItemId;
-    }
+        => ZooSanMarino.Application.Calculos.MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
 
     /// <summary>
     /// Obtiene farmId, nucleoId y galponId trazando LoteReproductora → LoteAveEngorde.

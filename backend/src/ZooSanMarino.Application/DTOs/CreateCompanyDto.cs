@@ -13,5 +13,7 @@ public record CreateCompanyDto(
     string?  City,
     string?  LogoDataUrl,
     string[] VisualPermissions,
-    bool     MobileAccess
+    bool     MobileAccess,
+    // Default GLOBAL de la empresa: ¿el alimento se maneja a nivel GALPÓN? (cada granja puede overridear)
+    bool     ManejaAlimentoPorGalpon = false
 );

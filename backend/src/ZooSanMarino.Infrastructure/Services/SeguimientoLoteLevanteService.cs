@@ -817,59 +817,12 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
     }
 
     /// <summary>
-    /// Misma lógica que SeguimientoAvesEngordeService: metadata.itemsHembras/Machos con catalogItemId o itemInventarioEcuadorId, cantidades en kg.
+    /// Parseo de items de metadata (itemsHembras/Machos/Generales) → kg por ítem.
+    /// Delega en el cálculo puro central compartido (misma lógica que engorde/producción;
+    /// un solo lugar → un solo test). Antes había una copia idéntica acá + su propio ToKg.
     /// </summary>
-    private static decimal ToKg(double cantidad, string? unidad)
-    {
-        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
-        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
-        return (decimal)cantidad;
-    }
-
     private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
-    {
-        var byItemId = new Dictionary<int, decimal>();
-        if (root.TryGetProperty("itemsHembras", out var arrH))
-            foreach (var e in arrH.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        if (root.TryGetProperty("itemsMachos", out var arrM))
-            foreach (var e in arrM.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        if (root.TryGetProperty("itemsGenerales", out var arrG))
-            foreach (var e in arrG.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        return byItemId;
-    }
+        => ZooSanMarino.Application.Calculos.MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
 }
 
 public interface IGramajeProviderV2

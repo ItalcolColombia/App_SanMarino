@@ -110,6 +110,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // Lesiones (Panamá — tab dentro de Seguimiento Diario Reproductora/Apoyo/Engorde)
         public DbSet<Lesion> Lesiones => Set<Lesion>();
 
+        // PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
+        public DbSet<ServiceToken> ServiceTokens => Set<ServiceToken>();
+
         // Módulo de tickets de soporte / requerimientos
         public DbSet<Ticket> Tickets => Set<Ticket>();
         public DbSet<TicketImagen> TicketImagenes => Set<TicketImagen>();

@@ -18,6 +18,13 @@ public class Farm : AuditableEntity
     public decimal? Latitud { get; set; }
     public decimal? Longitud { get; set; }
 
+    /// <summary>
+    /// Override de la granja para el manejo de alimento: <c>null</c> = hereda el default de la
+    /// empresa (<see cref="Company.ManejaAlimentoPorGalpon"/>); <c>true</c> = fuerza nivel GALPÓN;
+    /// <c>false</c> = fuerza nivel GRANJA. Resolución efectiva: <c>farm ?? company</c>.
+    /// </summary>
+    public bool? ManejaAlimentoPorGalpon { get; set; }
+
     public ICollection<Nucleo> Nucleos { get; set; } = new List<Nucleo>();
     public ICollection<Lote> Lotes { get; set; } = new List<Lote>();
     public ICollection<Galpon> Galpones { get; set; } = new List<Galpon>();

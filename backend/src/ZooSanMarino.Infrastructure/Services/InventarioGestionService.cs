@@ -137,6 +137,10 @@ public class InventarioGestionService : IInventarioGestionService
 
         var cid = companyId.Value;
 
+        // Default GLOBAL de manejo de alimento de la empresa (el front resuelve el efectivo por granja).
+        var companyManejaPorGalpon = await _db.Set<Company>().AsNoTracking()
+            .Where(c => c.Id == cid).Select(c => c.ManejaAlimentoPorGalpon).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+
         // Todas las granjas de la empresa (destino: traslado inter-granja, procedencia en ingreso "otra granja"/bodega, etc.)
         var farmsDestino = (await _farmService.GetAllAsync(userId: null, companyId: cid).ConfigureAwait(false)).ToList();
         var allowedDestinoIds = farmsDestino.Select(f => f.Id).ToHashSet();
@@ -162,7 +166,8 @@ public class InventarioGestionService : IInventarioGestionService
             NucleosOrigen: nucleosOrigen,
             NucleosDestino: nucleosDestino,
             GalponesOrigen: galponesOrigen,
-            GalponesDestino: galponesDestino);
+            GalponesDestino: galponesDestino,
+            CompanyManejaAlimentoPorGalpon: companyManejaPorGalpon);
     }
 
     public async Task<InventarioGestionHistoricoFiltrosDto> GetHistoricoFiltrosAsync(CancellationToken ct = default)
@@ -355,13 +360,23 @@ public class InventarioGestionService : IInventarioGestionService
     }
 
     /// <summary>
-    /// Fase 3 (paso 3) — Colombia (pais 1) opera el modelo B unificado a NIVEL GRANJA: el stock y los
-    /// movimientos de alimento NO usan núcleo/galpón (stock migrado A→B con nucleo/galpon NULL). Para
-    /// estos países, ingreso y traslado NO exigen ni admiten núcleo/galpón aunque el ítem sea alimento.
-    /// Ecuador/Panamá (pais 2/3) siguen con la ubicación estructurada núcleo/galpón (sin cambios).
+    /// ¿El alimento de esta granja se maneja a NIVEL GRANJA (sin núcleo/galpón)? Negación del flag
+    /// CONFIGURABLE por empresa/granja: <c>manejaPorGalpon = farm.ManejaAlimentoPorGalpon ??
+    /// company.ManejaAlimentoPorGalpon</c> (ver <see cref="AlimentoNivelResolver"/>). Reemplaza la
+    /// decisión previa por país (Colombia=granja); el seed de la migración preserva ese comportamiento.
+    /// Solo aplica a alimento; otros conceptos van siempre a nivel granja.
     /// </summary>
-    private static bool EsInventarioNivelGranja(int paisId)
-        => paisId == ZooSanMarino.Application.Calculos.InventarioConsumoGate.PaisColombia;
+    private async Task<bool> EsInventarioNivelGranjaAsync(int farmId, CancellationToken ct)
+    {
+        var flags = await _db.Farms.AsNoTracking()
+            .Where(f => f.Id == farmId)
+            .Join(_db.Set<Company>().AsNoTracking(), f => f.CompanyId, c => c.Id,
+                (f, c) => new { Farm = f.ManejaAlimentoPorGalpon, Company = c.ManejaAlimentoPorGalpon })
+            .FirstOrDefaultAsync(ct);
+        // Sin datos → nivel granja (comportamiento seguro: no exige galpón).
+        if (flags == null) return true;
+        return !ZooSanMarino.Application.Calculos.AlimentoNivelResolver.ManejaPorGalpon(flags.Farm, flags.Company);
+    }
 
     private async Task<(int CompanyId, int PaisId)> GetFarmCompanyAndPaisAsync(int farmId, CancellationToken ct)
     {
@@ -385,15 +400,15 @@ public class InventarioGestionService : IInventarioGestionService
         if (effectivePais > 0 && paisId != effectivePais)
             throw new InvalidOperationException("La granja no pertenece al país activo.");
 
-        // Colombia (nivel granja): alimento sin núcleo/galpón. EC/PA: alimento con núcleo+galpón.
-        var nivelGranja = EsInventarioNivelGranja(paisId);
+        // Alimento por galpón vs nivel granja: CONFIGURABLE por empresa/granja (antes era por país).
+        var nivelGranja = await EsInventarioNivelGranjaAsync(req.FarmId, ct);
         var isAlimento = IsAlimento(item);
         var usaUbicacion = isAlimento && !nivelGranja;
         if (usaUbicacion && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
             throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
         if (!usaUbicacion && (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
             throw new InvalidOperationException(nivelGranja
-                ? "En Colombia el inventario es solo a nivel granja (no use Núcleo/Galpón)."
+                ? "Esta granja maneja el alimento a nivel granja (no use Núcleo/Galpón)."
                 : "Para ítems que no son alimento el inventario es solo a nivel granja (no use Núcleo/Galpón).");
 
         var origenTipoNorm = req.OrigenTipo?.Trim() ?? "";
@@ -486,7 +501,7 @@ public class InventarioGestionService : IInventarioGestionService
         // Colombia (nivel granja): alimento sin núcleo/galpón → mismo camino que un ítem no-alimento
         // (traslado a nivel granja). EC/PA conservan el galpón-a-galpón para alimento.
         var (_, paisIdOrigen) = await GetFarmCompanyAndPaisAsync(req.FromFarmId, ct);
-        var nivelGranja = EsInventarioNivelGranja(paisIdOrigen);
+        var nivelGranja = await EsInventarioNivelGranjaAsync(req.FromFarmId, ct);
         var isAlimento = IsAlimento(item);
         var usaUbicacion = isAlimento && !nivelGranja;
 
@@ -783,7 +798,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         // Colombia (nivel granja): recepción de alimento sin núcleo/galpón. EC/PA sin cambios.
         var isAlimento = IsAlimento(item);
-        var usaUbicacion = isAlimento && !EsInventarioNivelGranja(paisIdTo);
+        var usaUbicacion = isAlimento && !await EsInventarioNivelGranjaAsync(req.ToFarmId, ct);
         if (usaUbicacion && (string.IsNullOrWhiteSpace(req.ToNucleoId) || string.IsNullOrWhiteSpace(req.ToGalponId)))
             throw new InvalidOperationException("Para alimento debe indicar Núcleo y Galpón de recepción en la granja destino.");
         if (!usaUbicacion && (!string.IsNullOrWhiteSpace(req.ToNucleoId) || !string.IsNullOrWhiteSpace(req.ToGalponId)))

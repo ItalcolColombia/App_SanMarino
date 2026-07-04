@@ -13,20 +13,17 @@ namespace ZooSanMarino.API.Controllers;
 public class ProduccionController : ControllerBase
 {
     private readonly IProduccionService _produccionService;
-    private readonly ILiquidacionTecnicaProduccionService _liquidacionProduccionService;
     private readonly IIndicadoresProduccionService _indicadoresProduccionService;
     private readonly ILogger<ProduccionController> _logger;
     private readonly IWebHostEnvironment _env;
 
     public ProduccionController(
         IProduccionService produccionService,
-        ILiquidacionTecnicaProduccionService liquidacionProduccionService,
         IIndicadoresProduccionService indicadoresProduccionService,
         ILogger<ProduccionController> logger,
         IWebHostEnvironment env)
     {
         _produccionService = produccionService;
-        _liquidacionProduccionService = liquidacionProduccionService;
         _indicadoresProduccionService = indicadoresProduccionService;
         _logger = logger;
         _env = env;
@@ -297,80 +294,6 @@ public class ProduccionController : ControllerBase
         {
             var lotes = await _produccionService.ObtenerLotesProduccionAsync();
             return Ok(lotes);
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, new { message = "Error interno del servidor" });
-        }
-    }
-
-    /// <summary>
-    /// Calcula la liquidación técnica de producción para un lote
-    /// Organizado por etapas: 1 (25-33), 2 (34-50), 3 (>50)
-    /// </summary>
-    /// <param name="request">Request con loteId y fecha opcional</param>
-    /// <returns>Liquidación técnica de producción</returns>
-    [HttpPost("liquidacion-tecnica")]
-    public async Task<ActionResult<LiquidacionTecnicaProduccionDto>> CalcularLiquidacionProduccion(
-        [FromBody] LiquidacionTecnicaProduccionRequest request)
-    {
-        try
-        {
-            var liquidacion = await _liquidacionProduccionService.CalcularLiquidacionProduccionAsync(request);
-            return Ok(liquidacion);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, new { message = "Error interno del servidor" });
-        }
-    }
-
-    /// <summary>
-    /// Verifica si un lote tiene datos de producción diaria válidos para liquidación (semana >= 26)
-    /// </summary>
-    /// <param name="loteId">ID del lote</param>
-    /// <returns>True si el lote es válido para liquidación</returns>
-    [HttpGet("liquidacion-tecnica/validar/{loteId}")]
-    public async Task<ActionResult<bool>> ValidarLoteParaLiquidacionProduccion(int loteId)
-    {
-        try
-        {
-            var esValido = await _liquidacionProduccionService.ValidarLoteParaLiquidacionProduccionAsync(loteId);
-            return Ok(esValido);
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, new { message = "Error interno del servidor" });
-        }
-    }
-
-    /// <summary>
-    /// Obtiene el resumen de una etapa específica para un lote
-    /// </summary>
-    /// <param name="loteId">ID del lote</param>
-    /// <param name="etapa">Etapa (1, 2 o 3)</param>
-    /// <returns>Resumen de la etapa</returns>
-    [HttpGet("liquidacion-tecnica/etapa/{loteId}/{etapa}")]
-    public async Task<ActionResult<EtapaLiquidacionDto>> ObtenerResumenEtapa(int loteId, int etapa)
-    {
-        try
-        {
-            if (etapa < 1 || etapa > 3)
-                return BadRequest(new { message = "La etapa debe ser 1, 2 o 3" });
-
-            var resumen = await _liquidacionProduccionService.ObtenerResumenEtapaAsync(loteId, etapa);
-            if (resumen == null)
-                return NotFound(new { message = $"No se encontró resumen para la etapa {etapa}" });
-
-            return Ok(resumen);
         }
         catch (Exception)
         {

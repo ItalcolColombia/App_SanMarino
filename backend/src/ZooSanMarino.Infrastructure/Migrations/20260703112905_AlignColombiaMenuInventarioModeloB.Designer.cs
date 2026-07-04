@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260703112905_AlignColombiaMenuInventarioModeloB")]
+    partial class AlignColombiaMenuInventarioModeloB
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -274,10 +277,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
                         .HasColumnName("identifier");
-
-                    b.Property<bool>("ManejaAlimentoPorGalpon")
-                        .HasColumnType("boolean")
-                        .HasColumnName("maneja_alimento_por_galpon");
 
                     b.Property<bool>("MobileAccess")
                         .ValueGeneratedOnAdd()
@@ -906,10 +905,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasPrecision(10, 7)
                         .HasColumnType("numeric(10,7)")
                         .HasColumnName("longitud");
-
-                    b.Property<bool?>("ManejaAlimentoPorGalpon")
-                        .HasColumnType("boolean")
-                        .HasColumnName("maneja_alimento_por_galpon");
 
                     b.Property<int>("MunicipioId")
                         .HasColumnType("integer")

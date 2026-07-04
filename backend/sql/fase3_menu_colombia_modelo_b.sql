@@ -36,6 +36,23 @@ WHERE NOT EXISTS (
     SELECT 1 FROM company_menus WHERE company_id = 1 AND menu_id = 49
 );
 
+-- role_menus: el menú EFECTIVO requiere company_menus (por empresa) Y role_menus (por rol).
+-- Sin esto, los usuarios Colombia (aunque la empresa tenga el menú habilitado) NO lo ven.
+-- Roles Colombia que deben operar el inventario modelo B: 1 (Admin), 5 (Director tecnico),
+-- 12 (Colombia Administrativa). role_menus es global por rol → queda gateado por company_menus
+-- (solo las empresas con 49/50 habilitado lo muestran: EC 3, PA 5 y ahora CO 1). Idempotente.
+INSERT INTO role_menus (role_id, menu_id)
+SELECT r.role_id, m.menu_id
+FROM (VALUES (1),(5),(12)) AS r(role_id)
+CROSS JOIN (VALUES (49),(50)) AS m(menu_id)
+WHERE NOT EXISTS (
+    SELECT 1 FROM role_menus rm WHERE rm.role_id = r.role_id AND rm.menu_id = m.menu_id
+);
+
+-- El módulo /gestion-inventario ya es MULTIPAÍS (EC/PA/CO): etiqueta genérica del menú
+-- (antes "Gestión de Inventario (EC/PA)", que era engañosa para Colombia). Idempotente.
+UPDATE menus SET label = 'Gestión de Inventario' WHERE id = 50 AND label LIKE '%(EC/PA)%';
+
 COMMIT;
 
 -- Verificación (no modifica nada):

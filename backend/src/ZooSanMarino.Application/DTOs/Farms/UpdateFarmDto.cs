@@ -17,5 +17,7 @@ public record UpdateFarmDto(
     string?  Zona           = null,   // 'Zona 1' | 'Zona 2'
     bool     CertificadoGab = false,
     decimal? Latitud        = null,
-    decimal? Longitud       = null
+    decimal? Longitud       = null,
+    // Override de la granja: null = hereda empresa; true = alimento sobre GALPÓN; false = sobre GRANJA
+    bool?    ManejaAlimentoPorGalpon = null
 );

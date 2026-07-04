@@ -17,5 +17,6 @@ public record CompanyDto(
     string? City,
     string? LogoDataUrl,
     bool MobileAccess,
-    string[] VisualPermissions
+    string[] VisualPermissions,
+    bool ManejaAlimentoPorGalpon = false
 );
