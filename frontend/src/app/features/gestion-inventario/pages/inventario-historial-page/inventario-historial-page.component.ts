@@ -1,5 +1,5 @@
 // src/app/features/gestion-inventario/pages/inventario-historial-page/inventario-historial-page.component.ts
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -45,6 +45,7 @@ const emptyIngresoFilter = (): IngresoFilter => ({
   standalone: true,
   imports: [CommonModule, FormsModule, DatePipe, RouterModule],
   templateUrl: './inventario-historial-page.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./inventario-historial-page.component.scss'],
 })
 export class InventarioHistorialPageComponent implements OnInit {

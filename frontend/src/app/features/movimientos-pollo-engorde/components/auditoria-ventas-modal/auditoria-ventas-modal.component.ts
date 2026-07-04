@@ -1,12 +1,13 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
+
 import { AuditoriaVentasEngordeResponse, AuditoriaVentasLoteDetalle } from '../../services/movimiento-pollo-engorde.service';
 
 @Component({
   selector: 'app-auditoria-ventas-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './auditoria-ventas-modal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./auditoria-ventas-modal.component.scss']
 })
 export class AuditoriaVentasModalComponent {

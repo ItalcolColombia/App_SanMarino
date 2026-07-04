@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SeguimientoLoteLevanteService } from '../../services/seguimiento-lote-levante.service';
@@ -9,6 +9,7 @@ import { finalize } from 'rxjs/operators';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './modal-calculos.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-calculos.component.scss']
 })
 export class ModalCalculosComponent implements OnInit {

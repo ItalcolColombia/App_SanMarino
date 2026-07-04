@@ -1,6 +1,6 @@
 // src/app/features/inventario/components/traslado-form/traslado-form.component.ts
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -15,8 +15,9 @@ import {
 @Component({
   selector: 'app-traslado-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FontAwesomeModule],
+  imports: [ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './traslado-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./traslado-form.component.scss']
 })
 export class TrasladoFormComponent implements OnInit {

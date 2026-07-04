@@ -6,10 +6,11 @@ import {
   OnChanges,
   SimpleChanges,
   OnDestroy,
-  ChangeDetectorRef
+  ChangeDetectorRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { Subscription, firstValueFrom } from 'rxjs';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
   MovimientoPolloEngordeService,
@@ -48,8 +49,9 @@ export type { LoteDestinoOption, AvailableBirds, VentaLineaGranja, MovimientoPol
 @Component({
   selector: 'app-modal-movimiento-pollo-engorde',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
+  imports: [ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-pollo-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-movimiento-pollo-engorde.component.scss']
 })
 export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestroy {
@@ -220,6 +222,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
           this.configureTotalPollosGalponControl();
         }
       }
+      this.syncPesoValidators();
     }
   }
 
@@ -295,6 +298,29 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       pesoBruto: [null as number | null],
       pesoTara: [null as number | null]
     });
+    // Peso báscula obligatorio en ventas: al cambiar el tipo se ajustan los validadores.
+    this.form.get('tipoMovimiento')?.valueChanges.subscribe(() => this.syncPesoValidators());
+    this.syncPesoValidators();
+  }
+
+  /**
+   * Peso báscula (bruto y tara) OBLIGATORIO cuando el movimiento es una venta.
+   * Regla de negocio tras el incidente de una venta guardada sin pesos que
+   * descuadró los reportes de liquidación (todo quedaba en 0 kg).
+   */
+  private syncPesoValidators(): void {
+    const bruto = this.form?.get('pesoBruto');
+    const tara = this.form?.get('pesoTara');
+    if (!bruto || !tara) return;
+    if (this.isDespacho) {
+      bruto.setValidators([Validators.required, Validators.min(0.01)]);
+      tara.setValidators([Validators.required, Validators.min(0)]);
+    } else {
+      bruto.clearValidators();
+      tara.clearValidators();
+    }
+    bruto.updateValueAndValidity({ emitEvent: false });
+    tara.updateValueAndValidity({ emitEvent: false });
   }
 
   private resetForm(): void {
@@ -389,6 +415,24 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
 
   onSubmit(): void {
     if (this.loading) return;
+
+    // Venta sin peso báscula: bloquear con mensaje claro (antes el form quedaba
+    // inválido en silencio y en el peor caso se guardaban ventas con pesos NULL).
+    if (this.isDespacho) {
+      const brutoCtrl = this.form.get('pesoBruto');
+      const taraCtrl = this.form.get('pesoTara');
+      if (brutoCtrl?.invalid || taraCtrl?.invalid) {
+        brutoCtrl?.markAsTouched();
+        taraCtrl?.markAsTouched();
+        this.error = 'El peso báscula es obligatorio para registrar la venta: digite peso bruto (> 0) y peso tara.';
+        return;
+      }
+      const neto = this.pesoNeto;
+      if (neto != null && neto < 0) {
+        this.error = 'El peso bruto no puede ser menor que el peso tara.';
+        return;
+      }
+    }
 
     if (this.ventaPorGranjaMode && !this.editingMovimiento) {
       if (this.form.invalid || this.loadingVentaLineas) return;

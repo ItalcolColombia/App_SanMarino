@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto } from '../../services/produccion.service';
 
@@ -7,6 +7,7 @@ import { SeguimientoItemDto } from '../../services/produccion.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './tabla-lista-registro.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-lista-registro.component.scss']
 })
 export class TablaListaRegistroComponent implements OnInit {

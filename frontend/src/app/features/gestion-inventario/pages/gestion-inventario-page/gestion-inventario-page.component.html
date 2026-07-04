@@ -4,11 +4,11 @@
       <div class="page-header__title-row">
         <h1 class="title text-ital-orange-dark">Gestión de Inventario</h1>
         <span class="module-type-badge" title="Este módulo es distinto al inventario clásico por lote / otro flujo">
-          Inventario por granja y ubicación (EC / PA)
+          Inventario por granja y ubicación
         </span>
       </div>
       <p class="subtitle">
-        <strong>Panamá / Ecuador</strong> — Stock por granja (y galpón si el concepto es alimento), ingresos, traslados y <strong>tránsito entre granjas</strong>.
+        Stock por granja (y galpón si el concepto es alimento), ingresos, traslados y <strong>tránsito entre granjas</strong>.
         No reemplaza otros inventarios del sistema; solo centraliza este flujo regional.
       </p>
       <p class="subtitle hint module-hint">
@@ -37,1003 +37,1200 @@
       </button>
     </nav>
 
-  <!-- TAB STOCK -->
-  <section *ngIf="activeTab === 'stock'" class="tab-content">
-    <div class="card-italfoods filters">
-      <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
-        <p class="hint field-full" style="margin: 0 0 0.5rem 0">
-        El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
-        <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
-        Puede <strong>editar cantidad, unidad y fecha de registro</strong> desde Editar (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
-      </p>
-      <div class="card-italfoods__body filters-grid">
-        <div class="field">
-          <label class="form-label">Concepto</label>
-          <select class="form-input" [(ngModel)]="stockConceptFilter" (ngModelChange)="onStockConceptFilterChange()">
-            <option [ngValue]="''">Todos los conceptos</option>
-            <option *ngFor="let c of conceptos" [ngValue]="c">{{ c }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Granja</label>
-          <select class="form-input" [(ngModel)]="selectedFarmId" (ngModelChange)="onFarmChange()">
-          <option [ngValue]="null">Todas (asignadas)</option>
-          <option *ngFor="let f of farmsOrigen" [ngValue]="f.id">{{ f.name }}</option>
-          </select>
-        </div>
-      <ng-container *ngIf="stockShowNucleoGalpon">
-        <div class="field">
-          <label class="form-label">Núcleo</label>
-          <select class="form-input" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChange()">
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let n of nucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Galpón</label>
-          <select class="form-input" [(ngModel)]="selectedGalponId">
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let g of galponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-          </select>
-        </div>
-      </ng-container>
-        <div class="field field-full">
-          <label class="form-label">Buscar ítem</label>
-          <input class="form-input" type="text" [(ngModel)]="searchTerm" placeholder="Código o nombre del producto (según catálogo)" />
-        </div>
-        <div class="field actions">
-          <button type="button" class="btn-italfoods-secondary" (click)="loadStock()" [disabled]="loading">Consultar</button>
-        </div>
-      </div>
-    </div>
-    <div class="card-italfoods">
-      <div class="card-italfoods__title">Stock</div>
-      <div class="card-italfoods__body">
-        <p *ngIf="loading">Cargando…</p>
-        <div class="table-wrap" *ngIf="!loading && stockList.length">
-          <table class="table-italfoods">
-        <thead>
-          <tr>
-            <th>Granja</th>
-            <th *ngIf="stockShowNucleoGalpon">Núcleo</th>
-            <th *ngIf="stockShowNucleoGalpon">Galpón</th>
-            <th>Código</th>
-            <th>Producto</th>
-            <th>Tipo</th>
-            <th>Fecha de ingreso</th>
-            <th>Cantidad</th>
-            <th>Unidad</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let s of stockList">
-            <td>{{ s.granjaNombre ?? s.farmId }}</td>
-            <td *ngIf="stockShowNucleoGalpon">{{ s.nucleoNombre ?? s.nucleoId ?? '—' }}</td>
-            <td *ngIf="stockShowNucleoGalpon">{{ s.galponNombre ?? s.galponId ?? '—' }}</td>
-            <td>{{ s.itemCodigo }}</td>
-            <td>{{ s.itemNombre }}</td>
-            <td>{{ s.itemType }}</td>
-            <td>{{ formatFechaIngresoStock(s.fechaIngreso) }}</td>
-            <td>{{ s.quantity }}</td>
-            <td>{{ s.unit }}</td>
-            <td class="actions-cell">
-              <ng-container *appHasPermission="'editar_registro'">
-                <button
-                  type="button"
-                  class="btn-italfoods-secondary btn-sm"
-                  (click)="openStockEdit(s)"
-                  title="Editar cantidad o unidad"
-                >
-                  <fa-icon [icon]="faPen"></fa-icon>
-                </button>
-              </ng-container>
-              <ng-container *appHasPermission="'eliminar_registro'">
-                <button
-                  type="button"
-                  class="btn-italfoods-secondary btn-sm btn-danger-outline"
-                  (click)="beginDeleteStock(s)"
-                  title="Eliminar registro de stock"
-                >
-                  <fa-icon [icon]="faTrash"></fa-icon>
-                </button>
-              </ng-container>
-            </td>
-          </tr>
-        </tbody>
-          </table>
-        </div>
-        <p *ngIf="!loading && !stockList.length" class="empty-state">No hay stock con los filtros seleccionados.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- TAB INGRESOS -->
-  <section *ngIf="activeTab === 'ingresos'" class="tab-content">
-    <p class="hint field-full" style="margin: 0 0 0.75rem 0">
-      Para <strong>completar el ingreso</strong> de un traslado que vino de otra granja en tránsito, use la pestaña <button type="button" class="link-like" (click)="setTab('transito')">Tránsito</button> (recepción en destino).
-    </p>
-    <div class="card-italfoods form-card">
-      <div class="card-italfoods__title">Registrar ingreso</div>
-      <div class="card-italfoods__body form-grid">
-        <div class="field">
-          <label class="form-label">Concepto (Tipo ítem) *</label>
-          <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
-            <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
-          </select>
-        </div>
-        <div class="field field-full">
-          <label class="form-label">Fecha del movimiento *</label>
-          <div class="ingreso-fecha-row">
-            <button
-              type="button"
-              class="form-input form-input--readonly ingreso-fecha-display ingreso-fecha-trigger"
-              (click)="openIngresoFechaModal()"
-            >
-              {{ formatIngresoFechaDisplay() }}
-            </button>
-            <button type="button" class="btn-italfoods-secondary" (click)="openIngresoFechaModal()">Elegir fecha</button>
-          </div>
-          <small class="hint" style="display: block; margin-top: 0.35rem">Se usa como fecha del registro en el histórico de movimientos.</small>
-        </div>
-        <p *ngIf="showNucleoGalpon" class="hint field-full" style="margin: 0">
-          <strong>Alimento:</strong> indique de dónde proviene el material y luego el destino (granja → núcleo → galpón). Los ingresos de alimento quedan a nivel galpón.
-        </p>
-        <p *ngIf="!showNucleoGalpon" class="hint field-full" style="margin: 0">
-          <strong>No alimento:</strong> el stock es solo a nivel <strong>granja</strong> (sin núcleo/galpón).
-        </p>
-        <!-- Origen: solo para concepto Alimento -->
-        <ng-container *ngIf="showNucleoGalpon">
-          <div class="field field-full">
-            <label class="form-label">¿De dónde viene el material? *</label>
-            <select
-              class="form-input"
-              [(ngModel)]="ingresoOrigenTipo"
-              (ngModelChange)="onIngresoOrigenTipoChange()"
-            >
-              <option value="planta">Planta (solo destino, sin origen granja/bodega)</option>
-              <option value="granja">Otra granja</option>
-              <option value="bodega">Bodega (indique granja de la bodega de procedencia)</option>
-            </select>
-          </div>
-          <ng-container *ngIf="ingresoOrigenTipo === 'granja'">
+    <!-- TAB STOCK -->
+    @if (activeTab === 'stock') {
+      <section class="tab-content">
+        <div class="card-italfoods filters">
+          <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
+          <p class="hint field-full" style="margin: 0 0 0.5rem 0">
+            El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
+            <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
+            Puede <strong>editar cantidad, unidad y fecha de registro</strong> desde Editar (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
+          </p>
+          <div class="card-italfoods__body filters-grid">
             <div class="field">
-              <label class="form-label">Granja de origen *</label>
-              <select class="form-input" [(ngModel)]="ingresoOrigenFarmId">
-                <option [ngValue]="null">Seleccione…</option>
-                <option *ngFor="let f of farmsDestino" [ngValue]="f.id">{{ f.name }}</option>
-              </select>
-            </div>
-          </ng-container>
-          <ng-container *ngIf="ingresoOrigenTipo === 'bodega'">
-            <div class="field">
-              <label class="form-label">Granja de la bodega (procedencia) *</label>
-              <select class="form-input" [(ngModel)]="ingresoOrigenFarmId">
-                <option [ngValue]="null">Seleccione…</option>
-                <option *ngFor="let f of farmsDestino" [ngValue]="f.id">{{ f.name }}</option>
+              <label class="form-label">Concepto</label>
+              <select class="form-input" [(ngModel)]="stockConceptFilter" (ngModelChange)="onStockConceptFilterChange()">
+                <option [ngValue]="''">Todos los conceptos</option>
+                @for (c of conceptos; track c) {
+                  <option [ngValue]="c">{{ c }}</option>
+                }
               </select>
             </div>
             <div class="field">
-              <label class="form-label">Bodega / referencia</label>
-              <input
-                class="form-input"
-                type="text"
-                [(ngModel)]="ingresoOrigenBodegaTexto"
-                placeholder="Ej. Bodega central, código de referencia"
-              />
+              <label class="form-label">Granja</label>
+              <select class="form-input" [(ngModel)]="selectedFarmId" (ngModelChange)="onFarmChange()">
+                <option [ngValue]="null">Todas (asignadas)</option>
+                @for (f of farmsOrigen; track f) {
+                  <option [ngValue]="f.id">{{ f.name }}</option>
+                }
+              </select>
             </div>
-          </ng-container>
-        </ng-container>
-        <div class="field field-full" style="margin-top: 0.25rem">
-          <span class="form-label" style="display: block; margin-bottom: 0.35rem">Destino del ingreso</span>
-        </div>
-        <div class="field">
-          <label class="form-label">Granja (destino) *</label>
-          <select class="form-input" [(ngModel)]="ingresoFarmId" (ngModelChange)="onIngresoDestinoFarmChange()">
-            <option [ngValue]="null">Seleccione…</option>
-            <option *ngFor="let f of farmsDestino" [ngValue]="f.id">{{ f.name }}</option>
-          </select>
-        </div>
-        <ng-container *ngIf="showNucleoGalpon">
-          <div class="field">
-            <label class="form-label">Núcleo *</label>
-            <select class="form-input" [(ngModel)]="ingresoNucleoId" (ngModelChange)="onIngresoDestinoNucleoChange()">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let n of ingresoNucleosFiltered()" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Galpón *</label>
-            <select class="form-input" [(ngModel)]="ingresoGalponId">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let g of ingresoGalponesFiltered()" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-            </select>
-          </div>
-        </ng-container>
-        <div class="field field-full">
-          <label class="form-label">Ítem *</label>
-          <select class="form-input" [(ngModel)]="ingresoItemInventarioEcuadorId">
-            <option [ngValue]="null">Seleccione…</option>
-            <option *ngFor="let i of ingresoItems" [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Cantidad *</label>
-          <input class="form-input" type="number" [(ngModel)]="ingresoQuantity" min="0.01" step="0.01" />
-        </div>
-        <div class="field">
-          <label class="form-label">Unidad de medida</label>
-          <div class="form-input form-input--readonly" aria-readonly="true">{{ ingresoSelectedUnit }}</div>
-        </div>
-        <div class="field">
-          <label class="form-label">Código Guía</label>
-          <input class="form-input" type="text" [(ngModel)]="ingresoReference" placeholder="Referencia" />
-        </div>
-        <div class="field" *ngIf="showNucleoGalpon && ingresoOrigenTipo === 'planta'">
-          <label class="form-label">Motivo</label>
-          <div class="form-input form-input--readonly">{{ ingresoReasonPlanta }}</div>
-        </div>
-        <div class="field" *ngIf="showNucleoGalpon && ingresoOrigenTipo === 'granja'">
-          <label class="form-label">Motivo</label>
-          <input class="form-input" type="text" [(ngModel)]="ingresoReason" placeholder="Ej. Ingreso desde otra granja" />
-        </div>
-        <div class="field" *ngIf="showNucleoGalpon && ingresoOrigenTipo === 'bodega'">
-          <label class="form-label">Observación / motivo adicional</label>
-          <input class="form-input" type="text" [(ngModel)]="ingresoReason" placeholder="Opcional" />
-        </div>
-        <div class="field" *ngIf="!showNucleoGalpon">
-          <label class="form-label">Motivo</label>
-          <div class="form-input form-input--readonly">{{ ingresoReasonPlanta }}</div>
-        </div>
-        <div class="field actions">
-          <button type="button" class="btn-italfoods-primary" (click)="submitIngreso()" [disabled]="submittingIngreso">
-            {{ submittingIngreso ? 'Guardando…' : 'Registrar ingreso' }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TAB TRASLADOS -->
-  <section *ngIf="activeTab === 'traslados'" class="tab-content">
-    <div class="card-italfoods form-card">
-      <div class="card-italfoods__title">Registrar traslado</div>
-      <div class="card-italfoods__body form-grid">
-        <div class="field">
-          <label class="form-label">Concepto (Tipo ítem) *</label>
-          <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
-            <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label" for="traslado-fecha-movimiento">Fecha del traslado *</label>
-          <input
-            id="traslado-fecha-movimiento"
-            class="form-input"
-            type="date"
-            [(ngModel)]="trasladoFechaMovimiento" />
-        </div>
-
-        <div class="field field-full traslado-modos">
-          <span class="form-label">Tipo de traslado *</span>
-          <div class="radio-row">
-            <label class="radio-pill">
-              <input type="radio" name="trasladoModo" [value]="'mismaGranja'" [(ngModel)]="trasladoModo" (ngModelChange)="onTrasladoModoChange()" />
-              Misma granja (entre galpones)
-            </label>
-            <label class="radio-pill">
-              <input type="radio" name="trasladoModo" [value]="'interGranja'" [(ngModel)]="trasladoModo" (ngModelChange)="onTrasladoModoChange()" />
-              Otra granja (sale a tránsito)
-            </label>
-          </div>
-          <p class="hint" *ngIf="trasladoModo === 'mismaGranja'">Solo aplica a <strong>Alimento</strong>: misma granja, galpón destino distinto al de origen.</p>
-          <p class="hint" *ngIf="trasladoModo === 'interGranja'">Granja destino distinta a la de origen. El stock se <strong>descuenta en origen</strong> al guardar; en <strong>Tránsito</strong> la granja destino confirma la recepción para sumar el ítem allí (mismo ID de catálogo).</p>
-        </div>
-
-        <div class="section-label field-full">Origen</div>
-        <div class="field">
-          <label class="form-label">Granja origen *</label>
-          <select class="form-input" [(ngModel)]="fromFarmId" (ngModelChange)="onTrasladoFromFarmChange()">
-            <option [ngValue]="null">Seleccione…</option>
-            <option *ngFor="let f of farmsOrigen" [ngValue]="f.id">{{ f.name }}</option>
-          </select>
-        </div>
-        <ng-container *ngIf="showNucleoGalpon">
-          <div class="field">
-            <label class="form-label">Núcleo origen *</label>
-            <select class="form-input" [(ngModel)]="fromNucleoId" (ngModelChange)="loadOriginStock()">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let n of fromNucleosFiltered()" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Galpón origen *</label>
-            <select class="form-input" [(ngModel)]="fromGalponId" (ngModelChange)="loadOriginStock()">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let g of fromGalponesFiltered()" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-            </select>
-          </div>
-        </ng-container>
-
-        <div class="section-label field-full">Destino</div>
-        <div class="field">
-          <label class="form-label">Tipo destino (para histórico)</label>
-          <select class="form-input" [(ngModel)]="trasladoDestinoTipo">
-            <option value="granja">Transferencia a granja</option>
-            <option value="planta">Transferencia a planta</option>
-          </select>
-        </div>
-        <div class="field" *ngIf="trasladoModo === 'mismaGranja'">
-          <label class="form-label">Granja destino</label>
-          <div class="form-input form-input--readonly">{{ getFarmName(fromFarmId) }}</div>
-          <span class="hint">Misma que origen</span>
-        </div>
-        <div class="field" *ngIf="trasladoModo === 'interGranja'">
-          <label class="form-label">Granja destino *</label>
-          <select class="form-input" [(ngModel)]="toFarmId">
-            <option [ngValue]="null">Seleccione…</option>
-            <option *ngFor="let f of farmsDestino" [ngValue]="f.id">{{ f.name }}</option>
-          </select>
-        </div>
-        <ng-container *ngIf="showNucleoGalpon">
-          <div class="field">
-            <label class="form-label">Núcleo destino {{ trasladoModo === 'interGranja' ? '(opcional)' : '*' }}</label>
-            <select class="form-input" [(ngModel)]="toNucleoId" (ngModelChange)="onToDestinoNucleoChange(); loadOriginStock()">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let n of toNucleosFiltered()" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Galpón destino {{ trasladoModo === 'interGranja' ? '(opcional)' : '*' }}</label>
-            <select class="form-input" [(ngModel)]="toGalponId" (ngModelChange)="loadOriginStock()">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let g of toGalponesFiltered()" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-            </select>
-          </div>
-          <p class="hint field-full" *ngIf="trasladoModo === 'interGranja'">Si indica núcleo/galpón en destino, queda como referencia para la recepción (la ubicación final la confirma la granja destino en la pestaña Tránsito).</p>
-        </ng-container>
-
-        <div class="field field-full">
-          <label class="form-label">Ítem (catálogo inventario) *</label>
-          <select class="form-input" [(ngModel)]="trasladoItemInventarioEcuadorId" (ngModelChange)="loadOriginStock()">
-            <option [ngValue]="null">Seleccione…</option>
-            <option *ngFor="let i of trasladoItems" [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Cantidad *</label>
-          <input class="form-input" type="number" [(ngModel)]="trasladoQuantity" min="0.01" step="0.01" />
-        </div>
-        <div class="field">
-          <label class="form-label">Unidad de medida</label>
-          <div class="form-input form-input--readonly" aria-readonly="true">{{ trasladoSelectedUnit }}</div>
-        </div>
-        <div class="field field-full" *ngIf="originStockQuantity !== null && !loadingOriginStock">
-          <span class="hint">Stock disponible en origen: <strong>{{ originStockQuantity }} {{ trasladoSelectedUnit }}</strong></span>
-        </div>
-        <div class="field">
-          <label class="form-label">Código Guía</label>
-          <input class="form-input" type="text" [(ngModel)]="trasladoReference" placeholder="Referencia" />
-        </div>
-        <div class="field">
-          <label class="form-label">Motivo</label>
-          <input class="form-input" type="text" [(ngModel)]="trasladoReason" />
-        </div>
-        <div class="field actions">
-          <button type="button" class="btn-italfoods-primary" (click)="submitTraslado()" [disabled]="submittingTraslado || loadingOriginStock">
-            {{ submittingTraslado ? 'Guardando…' : 'Registrar traslado' }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TAB TRÁNSITO (recepción inter-granja) -->
-  <section *ngIf="activeTab === 'transito'" class="tab-content">
-    <div class="card-italfoods filters">
-      <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtro</div>
-      <div class="card-italfoods__body filters-grid">
-        <div class="field">
-          <label class="form-label">Granja destino (recepción)</label>
-          <select class="form-input" [(ngModel)]="transitoFarmFilter">
-            <option [ngValue]="null">Todas</option>
-            <option *ngFor="let f of farmsOrigen" [ngValue]="f.id">{{ f.name }}</option>
-          </select>
-        </div>
-        <div class="field actions">
-          <button type="button" class="btn-italfoods-secondary" (click)="loadTransitos()" [disabled]="loadingTransito">Consultar</button>
-        </div>
-      </div>
-    </div>
-    <div class="card-italfoods">
-      <div class="card-italfoods__title">Transferencias en tránsito (pendientes de recepción)</div>
-      <div class="card-italfoods__body">
-        <p class="hint field-full">
-          Pulse <strong>Recibir en destino</strong>: el formulario de confirmación abre <strong>en la misma tarjeta</strong> (no al final de la lista). Para <strong>alimento</strong> elija núcleo y galpón en su granja destino; otros ítems solo granja. El origen ya fue descontado al enviar el traslado.
-        </p>
-        <p *ngIf="loadingTransito">Cargando…</p>
-        <div class="transito-card-list" *ngIf="!loadingTransito && transitoList.length">
-          <article
-            class="transito-card"
-            [class.transito-card--recepcion-abierta]="recepcionPendiente?.transferGroupId === t.transferGroupId"
-            *ngFor="let t of transitoList"
-            [id]="'transito-recepcion-' + t.transferGroupId"
-          >
-            <div class="transito-card__head">
-              <span class="transito-card__fecha">{{ formatFechaMovimiento(t.createdAt) }}</span>
-              <span *ngIf="t.pendienteDespachoOrigen" class="badge-transito badge-transito--solicitud">Solicitud antigua</span>
-              <span *ngIf="!t.pendienteDespachoOrigen" class="badge-transito badge-transito--legacy">En tránsito</span>
-            </div>
-            <div class="transito-card__body">
-              <div><strong>Origen:</strong> {{ t.fromGranjaNombre ?? t.fromFarmId }}<span *ngIf="t.fromNucleoId || t.fromGalponId"> · Núc./Galp. {{ t.fromNucleoId ?? '—' }} / {{ t.fromGalponId ?? '—' }}</span></div>
-              <div><strong>Destino:</strong> {{ t.toGranjaNombre ?? t.toFarmId }}</div>
-              <div><strong>Ítem:</strong> {{ t.itemCodigo }} — {{ t.itemNombre }}</div>
-              <div><strong>Cantidad:</strong> {{ t.quantity }} {{ t.unit }}</div>
-              <div *ngIf="t.destinoNucleoIdHint || t.destinoGalponIdHint" class="hint"><strong>Ref. destino sugerida:</strong> {{ t.destinoNucleoIdHint ?? '—' }} / {{ t.destinoGalponIdHint ?? '—' }}</div>
-            </div>
-            <div class="transito-card__actions" *ngIf="recepcionPendiente?.transferGroupId !== t.transferGroupId">
-              <button type="button" class="btn-italfoods-primary transito-card__btn" (click)="beginRecepcion(t)" [disabled]="submittingRecepcion">
-                Recibir en destino
-              </button>
-            </div>
-
-            <!-- Formulario de recepción en la misma tarjeta (evita bajar al final de listas largas) -->
-            <div class="transito-card__recepcion" *ngIf="recepcionPendiente?.transferGroupId === t.transferGroupId">
-              <div class="transito-recepcion-form__title">Confirmar recepción en destino</div>
-              <div class="transito-recepcion-form__summary">
-                <p>
-                  <strong>{{ t.itemCodigo }}</strong> — {{ t.itemNombre }} · {{ t.quantity }} {{ t.unit }} ·
-                  <strong>Granja destino:</strong> {{ getFarmName(t.toFarmId) }}
-                </p>
-                <p class="hint" *ngIf="t.pendienteDespachoOrigen">Solicitud antigua: al confirmar se descontará origen (si aún no se hizo) y se sumará aquí.</p>
-                <p class="hint" *ngIf="!t.pendienteDespachoOrigen">Origen ya descontado al enviar el traslado; al confirmar solo se suma el stock en esta granja.</p>
+            @if (stockShowNucleoGalpon) {
+              <div class="field">
+                <label class="form-label">Núcleo</label>
+                <select class="form-input" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChange()">
+                  <option [ngValue]="null">Todos</option>
+                  @for (n of nucleosFiltered; track n) {
+                    <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                  }
+                </select>
               </div>
-              <ng-container *ngIf="recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)">
-                <div class="transito-recepcion-form__grid">
+              <div class="field">
+                <label class="form-label">Galpón</label>
+                <select class="form-input" [(ngModel)]="selectedGalponId">
+                  <option [ngValue]="null">Todos</option>
+                  @for (g of galponesFiltered; track g) {
+                    <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                  }
+                </select>
+              </div>
+            }
+            <div class="field field-full">
+              <label class="form-label">Buscar ítem</label>
+              <input class="form-input" type="text" [(ngModel)]="searchTerm" placeholder="Código o nombre del producto (según catálogo)" />
+            </div>
+            <div class="field actions">
+              <button type="button" class="btn-italfoods-secondary" (click)="loadStock()" [disabled]="loading">Consultar</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-italfoods">
+          <div class="card-italfoods__title">Stock</div>
+          <div class="card-italfoods__body">
+            @if (loading) {
+              <p>Cargando…</p>
+            }
+            @if (!loading && stockList.length) {
+              <div class="table-wrap">
+                <table class="table-italfoods">
+                  <thead>
+                    <tr>
+                      <th>Granja</th>
+                      @if (stockShowNucleoGalpon) {
+                        <th>Núcleo</th>
+                      }
+                      @if (stockShowNucleoGalpon) {
+                        <th>Galpón</th>
+                      }
+                      <th>Código</th>
+                      <th>Producto</th>
+                      <th>Tipo</th>
+                      <th>Fecha de ingreso</th>
+                      <th>Cantidad</th>
+                      <th>Unidad</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (s of stockList; track s) {
+                      <tr>
+                        <td>{{ s.granjaNombre ?? s.farmId }}</td>
+                        @if (stockShowNucleoGalpon) {
+                          <td>{{ s.nucleoNombre ?? s.nucleoId ?? '—' }}</td>
+                        }
+                        @if (stockShowNucleoGalpon) {
+                          <td>{{ s.galponNombre ?? s.galponId ?? '—' }}</td>
+                        }
+                        <td>{{ s.itemCodigo }}</td>
+                        <td>{{ s.itemNombre }}</td>
+                        <td>{{ s.itemType }}</td>
+                        <td>{{ formatFechaIngresoStock(s.fechaIngreso) }}</td>
+                        <td>{{ s.quantity }}</td>
+                        <td>{{ s.unit }}</td>
+                        <td class="actions-cell">
+                          <ng-container *appHasPermission="'editar_registro'">
+                            <button
+                              type="button"
+                              class="btn-italfoods-secondary btn-sm"
+                              (click)="openStockEdit(s)"
+                              title="Editar cantidad o unidad"
+                              >
+                              <fa-icon [icon]="faPen"></fa-icon>
+                            </button>
+                          </ng-container>
+                          <ng-container *appHasPermission="'eliminar_registro'">
+                            <button
+                              type="button"
+                              class="btn-italfoods-secondary btn-sm btn-danger-outline"
+                              (click)="beginDeleteStock(s)"
+                              title="Eliminar registro de stock"
+                              >
+                              <fa-icon [icon]="faTrash"></fa-icon>
+                            </button>
+                          </ng-container>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+            @if (!loading && !stockList.length) {
+              <p class="empty-state">No hay stock con los filtros seleccionados.</p>
+            }
+          </div>
+        </div>
+      </section>
+    }
+
+    <!-- TAB INGRESOS -->
+    @if (activeTab === 'ingresos') {
+      <section class="tab-content">
+        <p class="hint field-full" style="margin: 0 0 0.75rem 0">
+          Para <strong>completar el ingreso</strong> de un traslado que vino de otra granja en tránsito, use la pestaña <button type="button" class="link-like" (click)="setTab('transito')">Tránsito</button> (recepción en destino).
+        </p>
+        <div class="card-italfoods form-card">
+          <div class="card-italfoods__title">Registrar ingreso</div>
+          <div class="card-italfoods__body form-grid">
+            <div class="field">
+              <label class="form-label">Concepto (Tipo ítem) *</label>
+              <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
+                @for (c of conceptos; track c) {
+                  <option [value]="c">{{ c }}</option>
+                }
+              </select>
+            </div>
+            <div class="field field-full">
+              <label class="form-label">Fecha del movimiento *</label>
+              <div class="ingreso-fecha-row">
+                <button
+                  type="button"
+                  class="form-input form-input--readonly ingreso-fecha-display ingreso-fecha-trigger"
+                  (click)="openIngresoFechaModal()"
+                  >
+                  {{ formatIngresoFechaDisplay() }}
+                </button>
+                <button type="button" class="btn-italfoods-secondary" (click)="openIngresoFechaModal()">Elegir fecha</button>
+              </div>
+              <small class="hint" style="display: block; margin-top: 0.35rem">Se usa como fecha del registro en el histórico de movimientos.</small>
+            </div>
+            @if (ingresoEsPorGalpon) {
+              <p class="hint field-full" style="margin: 0">
+                <strong>Alimento:</strong> indique de dónde proviene el material y luego el destino (granja → núcleo → galpón). Este ingreso se aplica sobre el <strong>galpón</strong>.
+              </p>
+            }
+            @if (!ingresoEsPorGalpon) {
+              <p class="hint field-full" style="margin: 0">
+                Este ingreso se aplica sobre la <strong>granja</strong> (sin núcleo/galpón).
+              </p>
+            }
+            <!-- Origen: solo para concepto Alimento -->
+            @if (ingresoEsPorGalpon) {
+              <div class="field field-full">
+                <label class="form-label">¿De dónde viene el material? *</label>
+                <select
+                  class="form-input"
+                  [(ngModel)]="ingresoOrigenTipo"
+                  (ngModelChange)="onIngresoOrigenTipoChange()"
+                  >
+                  <option value="planta">Planta (solo destino, sin origen granja/bodega)</option>
+                  <option value="granja">Otra granja</option>
+                  <option value="bodega">Bodega (indique granja de la bodega de procedencia)</option>
+                </select>
+              </div>
+              @if (ingresoOrigenTipo === 'granja') {
+                <div class="field">
+                  <label class="form-label">Granja de origen *</label>
+                  <select class="form-input" [(ngModel)]="ingresoOrigenFarmId">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (f of farmsDestino; track f) {
+                      <option [ngValue]="f.id">{{ f.name }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              @if (ingresoOrigenTipo === 'bodega') {
+                <div class="field">
+                  <label class="form-label">Granja de la bodega (procedencia) *</label>
+                  <select class="form-input" [(ngModel)]="ingresoOrigenFarmId">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (f of farmsDestino; track f) {
+                      <option [ngValue]="f.id">{{ f.name }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="form-label">Bodega / referencia</label>
+                  <input
+                    class="form-input"
+                    type="text"
+                    [(ngModel)]="ingresoOrigenBodegaTexto"
+                    placeholder="Ej. Bodega central, código de referencia"
+                    />
+                  </div>
+                }
+              }
+              <div class="field field-full" style="margin-top: 0.25rem">
+                <span class="form-label" style="display: block; margin-bottom: 0.35rem">Destino del ingreso</span>
+              </div>
+              <div class="field">
+                <label class="form-label">Granja (destino) *</label>
+                <select class="form-input" [(ngModel)]="ingresoFarmId" (ngModelChange)="onIngresoDestinoFarmChange()">
+                  <option [ngValue]="null">Seleccione…</option>
+                  @for (f of farmsDestino; track f) {
+                    <option [ngValue]="f.id">{{ f.name }}</option>
+                  }
+                </select>
+              </div>
+              @if (ingresoEsPorGalpon) {
+                <div class="field">
+                  <label class="form-label">Núcleo *</label>
+                  <select class="form-input" [(ngModel)]="ingresoNucleoId" (ngModelChange)="onIngresoDestinoNucleoChange()">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (n of ingresoNucleosFiltered(); track n) {
+                      <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="form-label">Galpón *</label>
+                  <select class="form-input" [(ngModel)]="ingresoGalponId">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (g of ingresoGalponesFiltered(); track g) {
+                      <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              <div class="field field-full">
+                <label class="form-label">Ítem *</label>
+                <select class="form-input" [(ngModel)]="ingresoItemInventarioEcuadorId">
+                  <option [ngValue]="null">Seleccione…</option>
+                  @for (i of ingresoItems; track i) {
+                    <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label class="form-label">Cantidad *</label>
+                <input class="form-input" type="number" [(ngModel)]="ingresoQuantity" min="0.01" step="0.01" />
+              </div>
+              <div class="field">
+                <label class="form-label">Unidad de medida</label>
+                <div class="form-input form-input--readonly" aria-readonly="true">{{ ingresoSelectedUnit }}</div>
+              </div>
+              <div class="field">
+                <label class="form-label">Código Guía</label>
+                <input class="form-input" type="text" [(ngModel)]="ingresoReference" placeholder="Referencia" />
+              </div>
+              @if (ingresoEsPorGalpon && ingresoOrigenTipo === 'planta') {
+                <div class="field">
+                  <label class="form-label">Motivo</label>
+                  <div class="form-input form-input--readonly">{{ ingresoReasonPlanta }}</div>
+                </div>
+              }
+              @if (ingresoEsPorGalpon && ingresoOrigenTipo === 'granja') {
+                <div class="field">
+                  <label class="form-label">Motivo</label>
+                  <input class="form-input" type="text" [(ngModel)]="ingresoReason" placeholder="Ej. Ingreso desde otra granja" />
+                </div>
+              }
+              @if (ingresoEsPorGalpon && ingresoOrigenTipo === 'bodega') {
+                <div class="field">
+                  <label class="form-label">Observación / motivo adicional</label>
+                  <input class="form-input" type="text" [(ngModel)]="ingresoReason" placeholder="Opcional" />
+                </div>
+              }
+              @if (!ingresoEsPorGalpon) {
+                <div class="field">
+                  <label class="form-label">Motivo</label>
+                  <div class="form-input form-input--readonly">{{ ingresoReasonPlanta }}</div>
+                </div>
+              }
+              <div class="field actions">
+                <button type="button" class="btn-italfoods-primary" (click)="submitIngreso()" [disabled]="submittingIngreso">
+                  {{ submittingIngreso ? 'Guardando…' : 'Registrar ingreso' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      }
+
+      <!-- TAB TRASLADOS -->
+      @if (activeTab === 'traslados') {
+        <section class="tab-content">
+          <div class="card-italfoods form-card">
+            <div class="card-italfoods__title">Registrar traslado</div>
+            <div class="card-italfoods__body form-grid">
+              <div class="field">
+                <label class="form-label">Concepto (Tipo ítem) *</label>
+                <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
+                  @for (c of conceptos; track c) {
+                    <option [value]="c">{{ c }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label class="form-label" for="traslado-fecha-movimiento">Fecha del traslado *</label>
+                <input
+                  id="traslado-fecha-movimiento"
+                  class="form-input"
+                  type="date"
+                  [(ngModel)]="trasladoFechaMovimiento" />
+                </div>
+                <div class="field field-full traslado-modos">
+                  <span class="form-label">Tipo de traslado *</span>
+                  @if (!isColombiaInventario) {
+                    <div class="radio-row">
+                      <label class="radio-pill">
+                        <input type="radio" name="trasladoModo" [value]="'mismaGranja'" [(ngModel)]="trasladoModo" (ngModelChange)="onTrasladoModoChange()" />
+                        Misma granja (entre galpones)
+                      </label>
+                      <label class="radio-pill">
+                        <input type="radio" name="trasladoModo" [value]="'interGranja'" [(ngModel)]="trasladoModo" (ngModelChange)="onTrasladoModoChange()" />
+                        Otra granja (sale a tránsito)
+                      </label>
+                    </div>
+                  }
+                  @if (isColombiaInventario) {
+                    <p class="hint"><strong>Colombia:</strong> traslado entre granjas distintas (inventario a nivel granja).</p>
+                  }
+                  @if (!isColombiaInventario && trasladoModo === 'mismaGranja') {
+                    <p class="hint">Solo aplica a <strong>Alimento</strong>: misma granja, galpón destino distinto al de origen.</p>
+                  }
+                  @if (trasladoModo === 'interGranja') {
+                    <p class="hint">Granja destino distinta a la de origen. El stock se <strong>descuenta en origen</strong> al guardar; en <strong>Tránsito</strong> la granja destino confirma la recepción para sumar el ítem allí (mismo ID de catálogo).</p>
+                  }
+                </div>
+                <div class="section-label field-full">Origen</div>
+                <div class="field">
+                  <label class="form-label">Granja origen *</label>
+                  <select class="form-input" [(ngModel)]="fromFarmId" (ngModelChange)="onTrasladoFromFarmChange()">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (f of farmsOrigen; track f) {
+                      <option [ngValue]="f.id">{{ f.name }}</option>
+                    }
+                  </select>
+                </div>
+                @if (showNucleoGalpon) {
                   <div class="field">
-                    <label class="form-label">Núcleo destino *</label>
-                    <select class="form-input" [(ngModel)]="recepcionToNucleoId" (ngModelChange)="onRecepcionNucleoChange()">
+                    <label class="form-label">Núcleo origen *</label>
+                    <select class="form-input" [(ngModel)]="fromNucleoId" (ngModelChange)="loadOriginStock()">
                       <option [ngValue]="null">Seleccione…</option>
-                      <option *ngFor="let n of recepcionNucleosForFarm(t.toFarmId)" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                      @for (n of fromNucleosFiltered(); track n) {
+                        <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                      }
                     </select>
                   </div>
                   <div class="field">
-                    <label class="form-label">Galpón destino *</label>
-                    <select class="form-input" [(ngModel)]="recepcionToGalponId">
+                    <label class="form-label">Galpón origen *</label>
+                    <select class="form-input" [(ngModel)]="fromGalponId" (ngModelChange)="loadOriginStock()">
                       <option [ngValue]="null">Seleccione…</option>
-                      <option *ngFor="let g of recepcionGalponesForFarm(t.toFarmId)" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                      @for (g of fromGalponesFiltered(); track g) {
+                        <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                      }
                     </select>
+                  </div>
+                }
+                <div class="section-label field-full">Destino</div>
+                <div class="field">
+                  <label class="form-label">Tipo destino (para histórico)</label>
+                  <select class="form-input" [(ngModel)]="trasladoDestinoTipo">
+                    <option value="granja">Transferencia a granja</option>
+                    <option value="planta">Transferencia a planta</option>
+                  </select>
+                </div>
+                @if (trasladoModo === 'mismaGranja') {
+                  <div class="field">
+                    <label class="form-label">Granja destino</label>
+                    <div class="form-input form-input--readonly">{{ getFarmName(fromFarmId) }}</div>
+                    <span class="hint">Misma que origen</span>
+                  </div>
+                }
+                @if (trasladoModo === 'interGranja') {
+                  <div class="field">
+                    <label class="form-label">Granja destino *</label>
+                    <select class="form-input" [(ngModel)]="toFarmId">
+                      <option [ngValue]="null">Seleccione…</option>
+                      @for (f of farmsDestino; track f) {
+                        <option [ngValue]="f.id">{{ f.name }}</option>
+                      }
+                    </select>
+                  </div>
+                }
+                @if (showNucleoGalpon) {
+                  <div class="field">
+                    <label class="form-label">Núcleo destino {{ trasladoModo === 'interGranja' ? '(opcional)' : '*' }}</label>
+                    <select class="form-input" [(ngModel)]="toNucleoId" (ngModelChange)="onToDestinoNucleoChange(); loadOriginStock()">
+                      <option [ngValue]="null">Seleccione…</option>
+                      @for (n of toNucleosFiltered(); track n) {
+                        <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="form-label">Galpón destino {{ trasladoModo === 'interGranja' ? '(opcional)' : '*' }}</label>
+                    <select class="form-input" [(ngModel)]="toGalponId" (ngModelChange)="loadOriginStock()">
+                      <option [ngValue]="null">Seleccione…</option>
+                      @for (g of toGalponesFiltered(); track g) {
+                        <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                      }
+                    </select>
+                  </div>
+                  @if (trasladoModo === 'interGranja') {
+                    <p class="hint field-full">Si indica núcleo/galpón en destino, queda como referencia para la recepción (la ubicación final la confirma la granja destino en la pestaña Tránsito).</p>
+                  }
+                }
+                <div class="field field-full">
+                  <label class="form-label">Ítem (catálogo inventario) *</label>
+                  <select class="form-input" [(ngModel)]="trasladoItemInventarioEcuadorId" (ngModelChange)="loadOriginStock()">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (i of trasladoItems; track i) {
+                      <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="form-label">Cantidad *</label>
+                  <input class="form-input" type="number" [(ngModel)]="trasladoQuantity" min="0.01" step="0.01" />
+                </div>
+                <div class="field">
+                  <label class="form-label">Unidad de medida</label>
+                  <div class="form-input form-input--readonly" aria-readonly="true">{{ trasladoSelectedUnit }}</div>
+                </div>
+                @if (originStockQuantity !== null && !loadingOriginStock) {
+                  <div class="field field-full">
+                    <span class="hint">Stock disponible en origen: <strong>{{ originStockQuantity }} {{ trasladoSelectedUnit }}</strong></span>
+                  </div>
+                }
+                <div class="field">
+                  <label class="form-label">Código Guía</label>
+                  <input class="form-input" type="text" [(ngModel)]="trasladoReference" placeholder="Referencia" />
+                </div>
+                <div class="field">
+                  <label class="form-label">Motivo</label>
+                  <input class="form-input" type="text" [(ngModel)]="trasladoReason" />
+                </div>
+                <div class="field actions">
+                  <button type="button" class="btn-italfoods-primary" (click)="submitTraslado()" [disabled]="submittingTraslado || loadingOriginStock">
+                    {{ submittingTraslado ? 'Guardando…' : 'Registrar traslado' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        }
+
+        <!-- TAB TRÁNSITO (recepción inter-granja) -->
+        @if (activeTab === 'transito') {
+          <section class="tab-content">
+            <div class="card-italfoods filters">
+              <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtro</div>
+              <div class="card-italfoods__body filters-grid">
+                <div class="field">
+                  <label class="form-label">Granja destino (recepción)</label>
+                  <select class="form-input" [(ngModel)]="transitoFarmFilter">
+                    <option [ngValue]="null">Todas</option>
+                    @for (f of farmsOrigen; track f) {
+                      <option [ngValue]="f.id">{{ f.name }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field actions">
+                  <button type="button" class="btn-italfoods-secondary" (click)="loadTransitos()" [disabled]="loadingTransito">Consultar</button>
+                </div>
+              </div>
+            </div>
+            <div class="card-italfoods">
+              <div class="card-italfoods__title">Transferencias en tránsito (pendientes de recepción)</div>
+              <div class="card-italfoods__body">
+                <p class="hint field-full">
+                  Pulse <strong>Recibir en destino</strong>: el formulario de confirmación abre <strong>en la misma tarjeta</strong> (no al final de la lista). Para <strong>alimento</strong> elija núcleo y galpón en su granja destino; otros ítems solo granja. El origen ya fue descontado al enviar el traslado.
+                </p>
+                @if (loadingTransito) {
+                  <p>Cargando…</p>
+                }
+                @if (!loadingTransito && transitoList.length) {
+                  <div class="transito-card-list">
+                    @for (t of transitoList; track t) {
+                      <article
+                        class="transito-card"
+                        [class.transito-card--recepcion-abierta]="recepcionPendiente?.transferGroupId === t.transferGroupId"
+                        [id]="'transito-recepcion-' + t.transferGroupId"
+                        >
+                        <div class="transito-card__head">
+                          <span class="transito-card__fecha">{{ formatFechaMovimiento(t.createdAt) }}</span>
+                          @if (t.pendienteDespachoOrigen) {
+                            <span class="badge-transito badge-transito--solicitud">Solicitud antigua</span>
+                          }
+                          @if (!t.pendienteDespachoOrigen) {
+                            <span class="badge-transito badge-transito--legacy">En tránsito</span>
+                          }
+                        </div>
+                        <div class="transito-card__body">
+                          <div><strong>Origen:</strong> {{ t.fromGranjaNombre ?? t.fromFarmId }}@if (t.fromNucleoId || t.fromGalponId) {
+                          <span> · Núc./Galp. {{ t.fromNucleoId ?? '—' }} / {{ t.fromGalponId ?? '—' }}</span>
+                        }</div>
+                        <div><strong>Destino:</strong> {{ t.toGranjaNombre ?? t.toFarmId }}</div>
+                        <div><strong>Ítem:</strong> {{ t.itemCodigo }} — {{ t.itemNombre }}</div>
+                        <div><strong>Cantidad:</strong> {{ t.quantity }} {{ t.unit }}</div>
+                        @if (t.destinoNucleoIdHint || t.destinoGalponIdHint) {
+                          <div class="hint"><strong>Ref. destino sugerida:</strong> {{ t.destinoNucleoIdHint ?? '—' }} / {{ t.destinoGalponIdHint ?? '—' }}</div>
+                        }
+                      </div>
+                      @if (recepcionPendiente?.transferGroupId !== t.transferGroupId) {
+                        <div class="transito-card__actions">
+                          <button type="button" class="btn-italfoods-primary transito-card__btn" (click)="beginRecepcion(t)" [disabled]="submittingRecepcion">
+                            Recibir en destino
+                          </button>
+                        </div>
+                      }
+                      <!-- Formulario de recepción en la misma tarjeta (evita bajar al final de listas largas) -->
+                      @if (recepcionPendiente?.transferGroupId === t.transferGroupId) {
+                        <div class="transito-card__recepcion">
+                          <div class="transito-recepcion-form__title">Confirmar recepción en destino</div>
+                          <div class="transito-recepcion-form__summary">
+                            <p>
+                              <strong>{{ t.itemCodigo }}</strong> — {{ t.itemNombre }} · {{ t.quantity }} {{ t.unit }} ·
+                              <strong>Granja destino:</strong> {{ getFarmName(t.toFarmId) }}
+                            </p>
+                            @if (t.pendienteDespachoOrigen) {
+                              <p class="hint">Solicitud antigua: al confirmar se descontará origen (si aún no se hizo) y se sumará aquí.</p>
+                            }
+                            @if (!t.pendienteDespachoOrigen) {
+                              <p class="hint">Origen ya descontado al enviar el traslado; al confirmar solo se suma el stock en esta granja.</p>
+                            }
+                          </div>
+                          @if (recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
+                            <div class="transito-recepcion-form__grid">
+                              <div class="field">
+                                <label class="form-label">Núcleo destino *</label>
+                                <select class="form-input" [(ngModel)]="recepcionToNucleoId" (ngModelChange)="onRecepcionNucleoChange()">
+                                  <option [ngValue]="null">Seleccione…</option>
+                                  @for (n of recepcionNucleosForFarm(t.toFarmId); track n) {
+                                    <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                                  }
+                                </select>
+                              </div>
+                              <div class="field">
+                                <label class="form-label">Galpón destino *</label>
+                                <select class="form-input" [(ngModel)]="recepcionToGalponId">
+                                  <option [ngValue]="null">Seleccione…</option>
+                                  @for (g of recepcionGalponesForFarm(t.toFarmId); track g) {
+                                    <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                                  }
+                                </select>
+                              </div>
+                            </div>
+                            <p class="hint transito-recepcion-form__hint-alimento">Indique en qué núcleo y galpón de <strong>su granja destino</strong> ingresa el alimento.</p>
+                          }
+                          @if (!recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
+                            <p class="hint">Este ítem se recibe solo a nivel granja (la granja destino ya está indicada arriba).</p>
+                          }
+                          <div class="transito-recepcion-form__actions">
+                            <button type="button" class="btn-italfoods-primary" (click)="submitRecepcionForm()" [disabled]="submittingRecepcion">
+                              {{ submittingRecepcion ? 'Guardando…' : 'Registrar recepción' }}
+                            </button>
+                            <button type="button" class="btn-italfoods-secondary" (click)="cancelRecepcion()" [disabled]="submittingRecepcion">Cancelar</button>
+                          </div>
+                        </div>
+                      }
+                    </article>
+                  }
+                </div>
+              }
+              @if (!loadingTransito && !transitoList.length) {
+                <div class="empty-state transito-empty">
+                  <p><strong>No hay solicitudes en tránsito.</strong></p>
+                  <p>Para ver opciones aquí:</p>
+                  <ol>
+                    <li>Vaya a la pestaña <strong>Traslados</strong>.</li>
+                    <li>Elija <strong>Otra granja (sale a tránsito)</strong>, complete origen/destino e ítem, y guarde.</li>
+                    <li>Vuelva a <strong>Tránsito</strong> y pulse <strong>Consultar</strong> (ajuste el filtro de granja destino si hace falta).</li>
+                  </ol>
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+      }
+
+      <!-- TAB HISTÓRICO (entradas y salidas con estado) -->
+      @if (activeTab === 'historico') {
+        <section class="tab-content">
+          <div class="card-italfoods filters">
+            <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
+            <p class="hint historico-filtros-hint">
+              <strong>Filtros principales:</strong> granja o lote, fechas, tipo de operación, estado y búsqueda por código o nombre de ítem.
+              <strong>Más filtros:</strong> núcleo/galpón de registro, concepto y tipo de ítem del catálogo, ítem por ID, unidad, tipo de movimiento técnico, referencia/motivo, grupo de traslado y origen (traslados).
+              Al abrir esta pestaña se cargan granjas, núcleos, galpones y lotes alineados a su usuario y a la empresa de la granja; con <strong>lote</strong> seleccionado no aplica núcleo/galpón manual.
+            </p>
+            <div class="card-italfoods__body filters-grid historico-filtros-grid">
+              <!-- Prioritarios -->
+              <div class="field">
+                <label class="form-label">Granja</label>
+                <select class="form-input" [(ngModel)]="historicoFarmId" (ngModelChange)="onHistoricoFarmChange()">
+                  <option [ngValue]="null">Todas</option>
+                  @for (f of farmsOrigen; track f) {
+                    <option [ngValue]="f.id">{{ f.name }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label class="form-label">Lote</label>
+                <select class="form-input" [(ngModel)]="historicoLoteId" (ngModelChange)="onHistoricoLoteChange()">
+                  <option [ngValue]="null">Todos</option>
+                  @for (l of historicoLotesFiltered; track l) {
+                    <option [ngValue]="l.loteId">{{ historicoLoteOptionLabel(l) }}</option>
+                  }
+                </select>
+                <small class="hint" style="display: block; margin-top: 0.35rem">
+                  Si en <strong>Más filtros</strong> elige núcleo/galpón, aquí solo verá lotes de esa ubicación.
+                </small>
+              </div>
+              <div class="field">
+                <label class="form-label">Fecha desde</label>
+                <input class="form-input" type="date" [(ngModel)]="historicoFechaDesde" />
+              </div>
+              <div class="field">
+                <label class="form-label">Fecha hasta</label>
+                <input class="form-input" type="date" [(ngModel)]="historicoFechaHasta" />
+              </div>
+              <div class="field">
+                <label class="form-label">Tipo de operación</label>
+                <select class="form-input" [(ngModel)]="historicoTipoOperacion">
+                  <option value="">Todos</option>
+                  @for (x of historicoTiposOperacionOptions; track x) {
+                    <option [value]="x">{{ x }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label class="form-label">Estado</label>
+                <select class="form-input" [(ngModel)]="historicoEstado">
+                  <option value="">Todos</option>
+                  @for (e of historicoEstadosOptions; track e) {
+                    <option [value]="e">{{ e }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field field-full">
+                <label class="form-label">Buscar ítem (código o nombre)</label>
+                <input
+                  class="form-input"
+                  type="text"
+                  [(ngModel)]="historicoItemSearch"
+                  placeholder="Contiene en código o nombre del catálogo"
+                  />
+                </div>
+                <div class="field field-full historico-filtros-actions-row">
+                  <button type="button" class="btn-italfoods-secondary" (click)="loadMovimientos()" [disabled]="loading">Consultar</button>
+                  <button
+                    type="button"
+                    class="btn-italfoods-secondary historico-filtros-mas-btn"
+                    (click)="toggleHistoricoFiltrosAvanzados()"
+                    [attr.aria-expanded]="historicoFiltrosAvanzadosAbiertos"
+                    aria-controls="historico-filtros-avanzados"
+                    >
+                    <fa-icon [icon]="historicoFiltrosAvanzadosAbiertos ? faChevronUp : faChevronDown"></fa-icon>
+                    {{ historicoFiltrosAvanzadosAbiertos ? 'Ocultar filtros avanzados' : 'Más filtros' }}
+                  </button>
+                </div>
+                <!-- Avanzados (sin duplicar tipo de operación; ítem por ID ≠ búsqueda texto) -->
+                @if (historicoFiltrosAvanzadosAbiertos) {
+                  <div
+                    id="historico-filtros-avanzados"
+                    class="historico-filtros-avanzados field-full filters-grid"
+                    >
+                    <div class="section-label field-full">Ubicación de registro (detalle)</div>
+                    <div class="field">
+                      <label class="form-label">Núcleo</label>
+                      <select
+                        class="form-input"
+                        [(ngModel)]="historicoNucleoId"
+                        (ngModelChange)="onHistoricoNucleoChange()"
+                        [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+                        >
+                        <option [ngValue]="null">Todos</option>
+                        @for (n of historicoNucleosFiltered; track n) {
+                          <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="form-label">Galpón</label>
+                      <select
+                        class="form-input"
+                        [(ngModel)]="historicoGalponId"
+                        (ngModelChange)="onHistoricoGalponChange()"
+                        [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+                        >
+                        <option [ngValue]="null">Todos</option>
+                        @for (g of historicoGalponesFiltered; track g) {
+                          <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="section-label field-full">Catálogo e ítem exacto</div>
+                    <div class="field">
+                      <label class="form-label">Concepto (catálogo)</label>
+                      <select class="form-input" [(ngModel)]="historicoConcepto">
+                        <option value="">Todos</option>
+                        @for (c of historicoConceptosOptions; track c) {
+                          <option [value]="c">{{ c }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="form-label">Tipo de ítem (catálogo)</label>
+                      <select class="form-input" [(ngModel)]="historicoTipoItem">
+                        <option value="">Todos</option>
+                        @for (t of historicoTiposItemOptions; track t) {
+                          <option [value]="t">{{ t }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field field-full">
+                      <label class="form-label">Ítem por ID (catálogo)</label>
+                      <select class="form-input" [(ngModel)]="historicoItemInventarioEcuadorId">
+                        <option [ngValue]="null">Todos</option>
+                        @for (i of historicoItemsCatalogSorted; track i) {
+                          <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="form-label">Unidad</label>
+                      <select class="form-input" [(ngModel)]="historicoUnit">
+                        <option value="">Todas</option>
+                        @for (x of historicoUnidadesOptions; track x) {
+                          <option [value]="x">{{ x }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field field-full hint" style="margin: 0">
+                      El <strong>ítem por ID</strong> filtra un producto concreto; <strong>Buscar ítem</strong> arriba busca por texto en código o nombre.
+                    </div>
+                    <div class="section-label field-full">Movimiento (técnico)</div>
+                    <div class="field field-full">
+                      <label class="form-label">Tipo de movimiento (valor en sistema)</label>
+                      <select class="form-input" [(ngModel)]="historicoMovementType">
+                        <option value="">Todos</option>
+                        @for (x of historicoMovementTypesOptions; track x) {
+                          <option [value]="x">{{ x }}</option>
+                        }
+                      </select>
+                      <small class="hint" style="display: block; margin-top: 0.35rem">
+                        Opcional. Para uso habitual prefiera <strong>Tipo de operación</strong> en los filtros principales; si usa ambos, el resultado debe cumplir los dos.
+                      </small>
+                    </div>
+                    <div class="section-label field-full">Texto y traslados</div>
+                    <div class="field field-full">
+                      <label class="form-label">Referencia contiene</label>
+                      <input class="form-input" type="text" [(ngModel)]="historicoReferenceContains" placeholder="Texto en referencia / guía" />
+                    </div>
+                    <div class="field field-full">
+                      <label class="form-label">Motivo contiene</label>
+                      <input class="form-input" type="text" [(ngModel)]="historicoReasonContains" placeholder="Texto en motivo o detalle" />
+                    </div>
+                    <div class="field field-full">
+                      <label class="form-label">Grupo traslado (UUID)</label>
+                      <input class="form-input" type="text" [(ngModel)]="historicoTransferGroupId" placeholder="00000000-0000-0000-0000-000000000000" />
+                    </div>
+                    <div class="section-label field-full">Origen del movimiento (traslados)</div>
+                    <div class="field">
+                      <label class="form-label">Granja origen</label>
+                      <select class="form-input" [(ngModel)]="historicoFromFarmId" (ngModelChange)="onHistoricoFromFarmChange()">
+                        <option [ngValue]="null">Todas</option>
+                        @for (f of farmsOrigen; track f) {
+                          <option [ngValue]="f.id">{{ f.name }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="form-label">Núcleo origen</label>
+                      <select
+                        class="form-input"
+                        [(ngModel)]="historicoFromNucleoId"
+                        (ngModelChange)="onHistoricoFromNucleoChange()"
+                        [disabled]="historicoFromFarmId == null"
+                        >
+                        <option [ngValue]="null">Todos</option>
+                        @for (n of historicoFromNucleosFiltered; track n) {
+                          <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="form-label">Galpón origen</label>
+                      <select class="form-input" [(ngModel)]="historicoFromGalponId" [disabled]="historicoFromFarmId == null">
+                        <option [ngValue]="null">Todos</option>
+                        @for (g of historicoFromGalponesFiltered; track g) {
+                          <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+            <div class="card-italfoods historico-movimientos-card">
+              <header class="historico-movimientos-card__head">
+                <h2 class="historico-movimientos-card__title">Histórico de movimientos</h2>
+                <button
+                  type="button"
+                  class="btn-italfoods-secondary historico-export-btn"
+                  (click)="exportHistoricoCsv()"
+                  [disabled]="loading || !movimientosList.length"
+                  title="Descarga CSV compatible con Excel (UTF-8)"
+                  >
+                  <fa-icon [icon]="faExport"></fa-icon> Descargar Excel (CSV)
+                </button>
+              </header>
+              <div class="card-italfoods__body historico-movimientos-card__body">
+                <p class="hint field-full">
+                  Tabla de movimientos: puede <strong>anular</strong> líneas de <strong>Consumo</strong> o <strong>Ingreso</strong> para revertir el stock (no aplica a traslados ni tránsito).
+                </p>
+                @if (loading) {
+                  <p>Cargando…</p>
+                }
+                @if (!loading && movimientosList.length) {
+                  <div class="table-wrap historico-table-wrap">
+                    <table class="table-italfoods historico-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha / hora</th>
+                          <th>Operación</th>
+                          <th>Estado</th>
+                          <th>Código</th>
+                          <th>Producto</th>
+                          <th>Concepto</th>
+                          <th class="th-num">Cant.</th>
+                          <th>Unid.</th>
+                          <th>Ubicación (registro)</th>
+                          <th>Otro extremo / origen</th>
+                          <th>Referencia</th>
+                          <th>Motivo / detalle</th>
+                          <th>Grupo traslado</th>
+                          <th class="th-actions">Ver</th>
+                          <th class="th-actions">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (m of movimientosPagina; track trackByHistoricoMov($index, m)) {
+                          <tr>
+                            <td class="cell-nowrap">{{ formatFechaMovimiento(m.createdAt) }}</td>
+                            <td>{{ m.tipoOperacion ?? m.movementType }}</td>
+                            <td>{{ m.estado ?? '—' }}</td>
+                            <td class="cell-nowrap">{{ m.itemCodigo }}</td>
+                            <td class="cell-clip" [title]="m.itemNombre">{{ m.itemNombre }}</td>
+                            <td>{{ m.itemType }}</td>
+                            <td class="th-num">{{ m.quantity }}</td>
+                            <td>{{ m.unit }}</td>
+                            <td class="cell-clip" [title]="ubicacionRegistroMovimiento(m)">{{ ubicacionRegistroMovimiento(m) }}</td>
+                            <td class="cell-clip" [title]="otroExtremoMovimiento(m)">{{ otroExtremoMovimiento(m) }}</td>
+                            <td class="cell-clip" [title]="m.reference ?? ''">{{ m.reference ?? '—' }}</td>
+                            <td class="cell-clip" [title]="m.reason ?? ''">{{ m.reason ?? '—' }}</td>
+                            <td class="cell-mono cell-clip">
+                              @if (m.transferGroupId) {
+                                <span [title]="m.transferGroupId">{{ m.transferGroupId }}</span>
+                              }
+                              @if (!m.transferGroupId) {
+                                <span>—</span>
+                              }
+                            </td>
+                            <td class="cell-actions">
+                              <button
+                                type="button"
+                                class="btn-italfoods-secondary btn-sm"
+                                (click)="openHistoricoDetalle(m)"
+                                title="Ver detalle completo del movimiento"
+                                >
+                                <fa-icon [icon]="faEye"></fa-icon>
+                              </button>
+                            </td>
+                            <td class="cell-actions">
+                              @if (puedeAnularMovimientoHistorico(m)) {
+                                <button
+                                  type="button"
+                                  class="btn-italfoods-secondary btn-sm btn-danger-outline"
+                                  (click)="beginAnularMovimientoHistorico(m)"
+                                  [disabled]="loading"
+                                  title="Revertir stock y quitar esta línea del histórico"
+                                  >
+                                  <fa-icon [icon]="faTrash"></fa-icon>
+                                </button>
+                              }
+                              @if (!puedeAnularMovimientoHistorico(m)) {
+                                <span class="text-muted">—</span>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+                @if (!loading && historicoTotalPaginas > 1) {
+                  <div class="historico-paginacion" style="display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:12px;font-size:0.85rem;color:var(--ital-muted);">
+                    <span>{{ movimientosList.length }} movimientos · página {{ historicoPage + 1 }} de {{ historicoTotalPaginas }}</span>
+                    <button type="button" class="btn-italfoods-secondary" style="padding:0.3rem 0.7rem" (click)="historicoPrevPagina()" [disabled]="historicoPage === 0">Anterior</button>
+                    <button type="button" class="btn-italfoods-secondary" style="padding:0.3rem 0.7rem" (click)="historicoNextPagina()" [disabled]="historicoPage >= historicoTotalPaginas - 1">Siguiente</button>
+                  </div>
+                }
+                @if (!loading && !movimientosList.length) {
+                  <p class="empty-state">No hay movimientos con los filtros seleccionados.</p>
+                }
+              </div>
+            </div>
+          </section>
+        }
+
+        <!-- TAB ITEMS (desde Config > Ítems inventario Ecuador) -->
+        @if (activeTab === 'items') {
+          <section class="tab-content">
+            <div class="card-italfoods">
+              <div class="card-italfoods__title">Ítems de inventario (Ecuador)</div>
+              <div class="card-italfoods__body">
+                <p class="hint">Estos ítems se gestionan en <strong>Configuración → Ítems inventario Ecuador</strong>.</p>
+                <div class="items-filters">
+                  <div class="field">
+                    <label class="form-label">Concepto</label>
+                    <select class="form-input" [(ngModel)]="itemsFilterType" (ngModelChange)="loadItemsList()">
+                      <option value="">Todos</option>
+                      @for (c of conceptos; track c) {
+                        <option [value]="c">{{ c }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="form-label">Buscar</label>
+                    <input class="form-input" type="text" [(ngModel)]="itemsSearch" (ngModelChange)="loadItemsList()" placeholder="Buscar…" />
+                  </div>
+                  <div class="field actions">
+                    <button type="button" class="btn-italfoods-secondary" (click)="loadItemsList()">Buscar</button>
                   </div>
                 </div>
-                <p class="hint transito-recepcion-form__hint-alimento">Indique en qué núcleo y galpón de <strong>su granja destino</strong> ingresa el alimento.</p>
-              </ng-container>
-              <ng-container *ngIf="!recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)">
-                <p class="hint">Este ítem se recibe solo a nivel granja (la granja destino ya está indicada arriba).</p>
-              </ng-container>
-              <div class="transito-recepcion-form__actions">
-                <button type="button" class="btn-italfoods-primary" (click)="submitRecepcionForm()" [disabled]="submittingRecepcion">
-                  {{ submittingRecepcion ? 'Guardando…' : 'Registrar recepción' }}
-                </button>
-                <button type="button" class="btn-italfoods-secondary" (click)="cancelRecepcion()" [disabled]="submittingRecepcion">Cancelar</button>
+                @if (itemsList.length) {
+                  <div class="table-wrap">
+                    <table class="table-italfoods">
+                      <thead>
+                        <tr>
+                          <th>Id</th>
+                          <th>Código</th>
+                          <th>Nombre</th>
+                          <th>Tipo</th>
+                          <th>Unidad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (i of itemsList; track i) {
+                          <tr>
+                            <td>{{ i.id }}</td>
+                            <td>{{ i.codigo }}</td>
+                            <td>{{ i.nombre }}</td>
+                            <td>{{ i.tipoItem }}</td>
+                            <td>{{ i.unidad }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+                @if (!itemsList.length) {
+                  <p class="empty-state">No hay ítems o cambie el filtro. Cree ítems en Configuración → Ítems inventario Ecuador.</p>
+                }
               </div>
             </div>
-          </article>
-        </div>
-        <div *ngIf="!loadingTransito && !transitoList.length" class="empty-state transito-empty">
-          <p><strong>No hay solicitudes en tránsito.</strong></p>
-          <p>Para ver opciones aquí:</p>
-          <ol>
-            <li>Vaya a la pestaña <strong>Traslados</strong>.</li>
-            <li>Elija <strong>Otra granja (sale a tránsito)</strong>, complete origen/destino e ítem, y guarde.</li>
-            <li>Vuelva a <strong>Tránsito</strong> y pulse <strong>Consultar</strong> (ajuste el filtro de granja destino si hace falta).</li>
-          </ol>
-        </div>
-
+          </section>
+        }
       </div>
     </div>
-  </section>
 
-  <!-- TAB HISTÓRICO (entradas y salidas con estado) -->
-  <section *ngIf="activeTab === 'historico'" class="tab-content">
-    <div class="card-italfoods filters">
-      <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
-      <p class="hint historico-filtros-hint">
-        <strong>Filtros principales:</strong> granja o lote, fechas, tipo de operación, estado y búsqueda por código o nombre de ítem.
-        <strong>Más filtros:</strong> núcleo/galpón de registro, concepto y tipo de ítem del catálogo, ítem por ID, unidad, tipo de movimiento técnico, referencia/motivo, grupo de traslado y origen (traslados).
-        Al abrir esta pestaña se cargan granjas, núcleos, galpones y lotes alineados a su usuario y a la empresa de la granja; con <strong>lote</strong> seleccionado no aplica núcleo/galpón manual.
-      </p>
-      <div class="card-italfoods__body filters-grid historico-filtros-grid">
-        <!-- Prioritarios -->
-        <div class="field">
-          <label class="form-label">Granja</label>
-          <select class="form-input" [(ngModel)]="historicoFarmId" (ngModelChange)="onHistoricoFarmChange()">
-            <option [ngValue]="null">Todas</option>
-            <option *ngFor="let f of farmsOrigen" [ngValue]="f.id">{{ f.name }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Lote</label>
-          <select class="form-input" [(ngModel)]="historicoLoteId" (ngModelChange)="onHistoricoLoteChange()">
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let l of historicoLotesFiltered" [ngValue]="l.loteId">{{ historicoLoteOptionLabel(l) }}</option>
-          </select>
-          <small class="hint" style="display: block; margin-top: 0.35rem">
-            Si en <strong>Más filtros</strong> elige núcleo/galpón, aquí solo verá lotes de esa ubicación.
-          </small>
-        </div>
-        <div class="field">
-          <label class="form-label">Fecha desde</label>
-          <input class="form-input" type="date" [(ngModel)]="historicoFechaDesde" />
-        </div>
-        <div class="field">
-          <label class="form-label">Fecha hasta</label>
-          <input class="form-input" type="date" [(ngModel)]="historicoFechaHasta" />
-        </div>
-        <div class="field">
-          <label class="form-label">Tipo de operación</label>
-          <select class="form-input" [(ngModel)]="historicoTipoOperacion">
-            <option value="">Todos</option>
-            <option *ngFor="let x of historicoTiposOperacionOptions" [value]="x">{{ x }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Estado</label>
-          <select class="form-input" [(ngModel)]="historicoEstado">
-            <option value="">Todos</option>
-            <option *ngFor="let e of historicoEstadosOptions" [value]="e">{{ e }}</option>
-          </select>
-        </div>
-        <div class="field field-full">
-          <label class="form-label">Buscar ítem (código o nombre)</label>
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="historicoItemSearch"
-            placeholder="Contiene en código o nombre del catálogo"
-          />
-        </div>
-        <div class="field field-full historico-filtros-actions-row">
-          <button type="button" class="btn-italfoods-secondary" (click)="loadMovimientos()" [disabled]="loading">Consultar</button>
-          <button
-            type="button"
-            class="btn-italfoods-secondary historico-filtros-mas-btn"
-            (click)="toggleHistoricoFiltrosAvanzados()"
-            [attr.aria-expanded]="historicoFiltrosAvanzadosAbiertos"
-            aria-controls="historico-filtros-avanzados"
-          >
-            <fa-icon [icon]="historicoFiltrosAvanzadosAbiertos ? faChevronUp : faChevronDown"></fa-icon>
-            {{ historicoFiltrosAvanzadosAbiertos ? 'Ocultar filtros avanzados' : 'Más filtros' }}
-          </button>
-        </div>
-
-        <!-- Avanzados (sin duplicar tipo de operación; ítem por ID ≠ búsqueda texto) -->
-        <div
-          id="historico-filtros-avanzados"
-          class="historico-filtros-avanzados field-full filters-grid"
-          *ngIf="historicoFiltrosAvanzadosAbiertos"
-        >
-          <div class="section-label field-full">Ubicación de registro (detalle)</div>
-          <div class="field">
-            <label class="form-label">Núcleo</label>
-            <select
-              class="form-input"
-              [(ngModel)]="historicoNucleoId"
-              (ngModelChange)="onHistoricoNucleoChange()"
-              [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
-            >
-              <option [ngValue]="null">Todos</option>
-              <option *ngFor="let n of historicoNucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            </select>
+    <!-- MODAL: Editar stock -->
+    @if (showStockEditModal) {
+      <div class="modal-backdrop" (click)="closeStockEditModal()" aria-hidden="true"></div>
+    }
+    @if (showStockEditModal) {
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Editar stock">
+        <div class="modal-italfoods" (click)="$event.stopPropagation()">
+          <div class="modal-italfoods__header">
+            <div>Editar stock</div>
+            <button type="button" class="icon-btn" (click)="closeStockEditModal()" aria-label="Cerrar">✕</button>
           </div>
-          <div class="field">
-            <label class="form-label">Galpón</label>
-            <select
-              class="form-input"
-              [(ngModel)]="historicoGalponId"
-              (ngModelChange)="onHistoricoGalponChange()"
-              [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
-            >
-              <option [ngValue]="null">Todos</option>
-              <option *ngFor="let g of historicoGalponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-            </select>
-          </div>
-
-          <div class="section-label field-full">Catálogo e ítem exacto</div>
-          <div class="field">
-            <label class="form-label">Concepto (catálogo)</label>
-            <select class="form-input" [(ngModel)]="historicoConcepto">
-              <option value="">Todos</option>
-              <option *ngFor="let c of historicoConceptosOptions" [value]="c">{{ c }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Tipo de ítem (catálogo)</label>
-            <select class="form-input" [(ngModel)]="historicoTipoItem">
-              <option value="">Todos</option>
-              <option *ngFor="let t of historicoTiposItemOptions" [value]="t">{{ t }}</option>
-            </select>
-          </div>
-          <div class="field field-full">
-            <label class="form-label">Ítem por ID (catálogo)</label>
-            <select class="form-input" [(ngModel)]="historicoItemInventarioEcuadorId">
-              <option [ngValue]="null">Todos</option>
-              <option *ngFor="let i of historicoItemsCatalogSorted" [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Unidad</label>
-            <select class="form-input" [(ngModel)]="historicoUnit">
-              <option value="">Todas</option>
-              <option *ngFor="let x of historicoUnidadesOptions" [value]="x">{{ x }}</option>
-            </select>
-          </div>
-          <div class="field field-full hint" style="margin: 0">
-            El <strong>ítem por ID</strong> filtra un producto concreto; <strong>Buscar ítem</strong> arriba busca por texto en código o nombre.
-          </div>
-
-          <div class="section-label field-full">Movimiento (técnico)</div>
-          <div class="field field-full">
-            <label class="form-label">Tipo de movimiento (valor en sistema)</label>
-            <select class="form-input" [(ngModel)]="historicoMovementType">
-              <option value="">Todos</option>
-              <option *ngFor="let x of historicoMovementTypesOptions" [value]="x">{{ x }}</option>
-            </select>
-            <small class="hint" style="display: block; margin-top: 0.35rem">
-              Opcional. Para uso habitual prefiera <strong>Tipo de operación</strong> en los filtros principales; si usa ambos, el resultado debe cumplir los dos.
-            </small>
-          </div>
-
-          <div class="section-label field-full">Texto y traslados</div>
-          <div class="field field-full">
-            <label class="form-label">Referencia contiene</label>
-            <input class="form-input" type="text" [(ngModel)]="historicoReferenceContains" placeholder="Texto en referencia / guía" />
-          </div>
-          <div class="field field-full">
-            <label class="form-label">Motivo contiene</label>
-            <input class="form-input" type="text" [(ngModel)]="historicoReasonContains" placeholder="Texto en motivo o detalle" />
-          </div>
-          <div class="field field-full">
-            <label class="form-label">Grupo traslado (UUID)</label>
-            <input class="form-input" type="text" [(ngModel)]="historicoTransferGroupId" placeholder="00000000-0000-0000-0000-000000000000" />
-          </div>
-
-          <div class="section-label field-full">Origen del movimiento (traslados)</div>
-          <div class="field">
-            <label class="form-label">Granja origen</label>
-            <select class="form-input" [(ngModel)]="historicoFromFarmId" (ngModelChange)="onHistoricoFromFarmChange()">
-              <option [ngValue]="null">Todas</option>
-              <option *ngFor="let f of farmsOrigen" [ngValue]="f.id">{{ f.name }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Núcleo origen</label>
-            <select
-              class="form-input"
-              [(ngModel)]="historicoFromNucleoId"
-              (ngModelChange)="onHistoricoFromNucleoChange()"
-              [disabled]="historicoFromFarmId == null"
-            >
-              <option [ngValue]="null">Todos</option>
-              <option *ngFor="let n of historicoFromNucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Galpón origen</label>
-            <select class="form-input" [(ngModel)]="historicoFromGalponId" [disabled]="historicoFromFarmId == null">
-              <option [ngValue]="null">Todos</option>
-              <option *ngFor="let g of historicoFromGalponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-            </select>
+          @if (stockEditRow; as r) {
+            <div class="modal-italfoods__body">
+              <p class="hint" style="margin: 0 0 0.75rem 0">
+                {{ r.itemCodigo }} — {{ r.itemNombre }} · {{ r.granjaNombre ?? r.farmId }}
+                @if (r.nucleoNombre || r.nucleoId) {
+                  <span> · Núc. {{ r.nucleoNombre ?? r.nucleoId }}</span>
+                }
+                @if (r.galponNombre || r.galponId) {
+                  <span> · Galp. {{ r.galponNombre ?? r.galponId }}</span>
+                }
+              </p>
+              <div class="field">
+                <label class="form-label" for="stock-edit-qty">Cantidad *</label>
+                <input id="stock-edit-qty" class="form-input" type="number" step="any" min="0" [(ngModel)]="stockEditQuantity" />
+              </div>
+              <div class="field">
+                <label class="form-label" for="stock-edit-unit">Unidad</label>
+                <input id="stock-edit-unit" class="form-input" type="text" [(ngModel)]="stockEditUnit" maxlength="20" />
+              </div>
+              <div class="field">
+                <label class="form-label" for="stock-edit-fecha">Fecha de registro (ingreso en ubicación) *</label>
+                <input id="stock-edit-fecha" class="form-input" type="date" [(ngModel)]="stockEditFechaIngreso" />
+                <small class="hint" style="display: block; margin-top: 0.35rem">
+                  Es la fecha mostrada en la columna «Fecha ingreso» del stock; el sistema la guarda como fecha del primer registro en esa ubicación.
+                </small>
+              </div>
+              <div class="field">
+                <label class="form-label" for="stock-edit-reason">Motivo (opcional)</label>
+                <input
+                  id="stock-edit-reason"
+                  class="form-input"
+                  type="text"
+                  [(ngModel)]="stockEditReason"
+                  placeholder="Ej. conteo físico, corrección"
+                  />
+                </div>
+              </div>
+            }
+            <div class="modal-italfoods__footer">
+              <button type="button" class="btn-italfoods-secondary" (click)="closeStockEditModal()" [disabled]="submittingStockEdit">
+                Cancelar
+              </button>
+              <button type="button" class="btn-italfoods-primary" (click)="submitStockEdit()" [disabled]="submittingStockEdit">
+                Guardar
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-    <div class="card-italfoods historico-movimientos-card">
-      <header class="historico-movimientos-card__head">
-        <h2 class="historico-movimientos-card__title">Histórico de movimientos</h2>
-        <button
-          type="button"
-          class="btn-italfoods-secondary historico-export-btn"
-          (click)="exportHistoricoCsv()"
-          [disabled]="loading || !movimientosList.length"
-          title="Descarga CSV compatible con Excel (UTF-8)"
-        >
-          <fa-icon [icon]="faExport"></fa-icon> Descargar Excel (CSV)
-        </button>
-      </header>
-      <div class="card-italfoods__body historico-movimientos-card__body">
-        <p class="hint field-full">
-          Tabla de movimientos: puede <strong>anular</strong> líneas de <strong>Consumo</strong> o <strong>Ingreso</strong> para revertir el stock (no aplica a traslados ni tránsito).
-        </p>
-        <p *ngIf="loading">Cargando…</p>
-        <div class="table-wrap historico-table-wrap" *ngIf="!loading && movimientosList.length">
-          <table class="table-italfoods historico-table">
-            <thead>
-              <tr>
-                <th>Fecha / hora</th>
-                <th>Operación</th>
-                <th>Estado</th>
-                <th>Código</th>
-                <th>Producto</th>
-                <th>Concepto</th>
-                <th class="th-num">Cant.</th>
-                <th>Unid.</th>
-                <th>Ubicación (registro)</th>
-                <th>Otro extremo / origen</th>
-                <th>Referencia</th>
-                <th>Motivo / detalle</th>
-                <th>Grupo traslado</th>
-                <th class="th-actions">Ver</th>
-                <th class="th-actions">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let m of movimientosList; trackBy: trackByHistoricoMov">
-                <td class="cell-nowrap">{{ formatFechaMovimiento(m.createdAt) }}</td>
-                <td>{{ m.tipoOperacion ?? m.movementType }}</td>
-                <td>{{ m.estado ?? '—' }}</td>
-                <td class="cell-nowrap">{{ m.itemCodigo }}</td>
-                <td class="cell-clip" [title]="m.itemNombre">{{ m.itemNombre }}</td>
-                <td>{{ m.itemType }}</td>
-                <td class="th-num">{{ m.quantity }}</td>
-                <td>{{ m.unit }}</td>
-                <td class="cell-clip" [title]="ubicacionRegistroMovimiento(m)">{{ ubicacionRegistroMovimiento(m) }}</td>
-                <td class="cell-clip" [title]="otroExtremoMovimiento(m)">{{ otroExtremoMovimiento(m) }}</td>
-                <td class="cell-clip" [title]="m.reference ?? ''">{{ m.reference ?? '—' }}</td>
-                <td class="cell-clip" [title]="m.reason ?? ''">{{ m.reason ?? '—' }}</td>
-                <td class="cell-mono cell-clip">
-                  <span *ngIf="m.transferGroupId" [title]="m.transferGroupId">{{ m.transferGroupId }}</span>
-                  <span *ngIf="!m.transferGroupId">—</span>
-                </td>
-                <td class="cell-actions">
-                  <button
-                    type="button"
-                    class="btn-italfoods-secondary btn-sm"
-                    (click)="openHistoricoDetalle(m)"
-                    title="Ver detalle completo del movimiento"
-                  >
-                    <fa-icon [icon]="faEye"></fa-icon>
-                  </button>
-                </td>
-                <td class="cell-actions">
-                  <button
-                    *ngIf="puedeAnularMovimientoHistorico(m)"
-                    type="button"
-                    class="btn-italfoods-secondary btn-sm btn-danger-outline"
-                    (click)="beginAnularMovimientoHistorico(m)"
-                    [disabled]="loading"
-                    title="Revertir stock y quitar esta línea del histórico"
-                  >
-                    <fa-icon [icon]="faTrash"></fa-icon>
-                  </button>
-                  <span *ngIf="!puedeAnularMovimientoHistorico(m)" class="text-muted">—</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p *ngIf="!loading && !movimientosList.length" class="empty-state">No hay movimientos con los filtros seleccionados.</p>
-      </div>
-    </div>
-  </section>
+      }
 
-  <!-- TAB ITEMS (desde Config > Ítems inventario Ecuador) -->
-  <section *ngIf="activeTab === 'items'" class="tab-content">
-    <div class="card-italfoods">
-      <div class="card-italfoods__title">Ítems de inventario (Ecuador)</div>
-      <div class="card-italfoods__body">
-        <p class="hint">Estos ítems se gestionan en <strong>Configuración → Ítems inventario Ecuador</strong>.</p>
-        <div class="items-filters">
-          <div class="field">
-            <label class="form-label">Concepto</label>
-            <select class="form-input" [(ngModel)]="itemsFilterType" (ngModelChange)="loadItemsList()">
-              <option value="">Todos</option>
-              <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">Buscar</label>
-            <input class="form-input" type="text" [(ngModel)]="itemsSearch" (ngModelChange)="loadItemsList()" placeholder="Buscar…" />
-          </div>
-          <div class="field actions">
-            <button type="button" class="btn-italfoods-secondary" (click)="loadItemsList()">Buscar</button>
+      <!-- MODAL: Confirmación -->
+      @if (showConfirmModal) {
+        <div class="modal-backdrop" (click)="closeConfirmModal()" aria-hidden="true"></div>
+      }
+      @if (showConfirmModal) {
+        <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Confirmación">
+          <div class="modal-italfoods">
+            <div class="modal-italfoods__header">
+              <div>{{ confirmTitle }}</div>
+              <button type="button" class="icon-btn" (click)="closeConfirmModal()" aria-label="Cerrar">✕</button>
+            </div>
+            <div class="modal-italfoods__body">
+              <p>{{ confirmText }}</p>
+            </div>
+            <div class="modal-italfoods__footer">
+              <button type="button" class="btn-italfoods-secondary" (click)="closeConfirmModal()">Cancelar</button>
+              <button type="button" class="btn-italfoods-primary" (click)="confirm()">Confirmar</button>
+            </div>
           </div>
         </div>
+      }
 
-        <div class="table-wrap" *ngIf="itemsList.length">
-          <table class="table-italfoods">
-        <thead>
-          <tr>
-            <th>Id</th>
-            <th>Código</th>
-            <th>Nombre</th>
-            <th>Tipo</th>
-            <th>Unidad</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let i of itemsList">
-            <td>{{ i.id }}</td>
-            <td>{{ i.codigo }}</td>
-            <td>{{ i.nombre }}</td>
-            <td>{{ i.tipoItem }}</td>
-            <td>{{ i.unidad }}</td>
-          </tr>
-        </tbody>
-          </table>
+      <!-- MODAL: Fecha del ingreso -->
+      @if (showIngresoFechaModal) {
+        <div class="modal-backdrop" (click)="closeIngresoFechaModal()" aria-hidden="true"></div>
+      }
+      @if (showIngresoFechaModal) {
+        <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Fecha del movimiento">
+          <div class="modal-italfoods" (click)="$event.stopPropagation()">
+            <div class="modal-italfoods__header">
+              <div>Fecha del movimiento</div>
+              <button type="button" class="icon-btn" (click)="closeIngresoFechaModal()" aria-label="Cerrar">✕</button>
+            </div>
+            <div class="modal-italfoods__body">
+              <label class="form-label" for="ingreso-fecha-input">Fecha</label>
+              <input id="ingreso-fecha-input" class="form-input" type="date" [(ngModel)]="ingresoFechaDraft" />
+            </div>
+            <div class="modal-italfoods__footer">
+              <button type="button" class="btn-italfoods-secondary" (click)="closeIngresoFechaModal()">Cancelar</button>
+              <button type="button" class="btn-italfoods-primary" (click)="confirmIngresoFechaModal()">Aceptar</button>
+            </div>
+          </div>
         </div>
-        <p *ngIf="!itemsList.length" class="empty-state">No hay ítems o cambie el filtro. Cree ítems en Configuración → Ítems inventario Ecuador.</p>
-      </div>
-    </div>
-  </section>
-  </div>
-</div>
+      }
 
-<!-- MODAL: Editar stock -->
-<div class="modal-backdrop" *ngIf="showStockEditModal" (click)="closeStockEditModal()" aria-hidden="true"></div>
-<div class="modal-shell" *ngIf="showStockEditModal" role="dialog" aria-modal="true" aria-label="Editar stock">
-  <div class="modal-italfoods" (click)="$event.stopPropagation()">
-    <div class="modal-italfoods__header">
-      <div>Editar stock</div>
-      <button type="button" class="icon-btn" (click)="closeStockEditModal()" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="modal-italfoods__body" *ngIf="stockEditRow as r">
-      <p class="hint" style="margin: 0 0 0.75rem 0">
-        {{ r.itemCodigo }} — {{ r.itemNombre }} · {{ r.granjaNombre ?? r.farmId }}
-        <span *ngIf="r.nucleoNombre || r.nucleoId"> · Núc. {{ r.nucleoNombre ?? r.nucleoId }}</span>
-        <span *ngIf="r.galponNombre || r.galponId"> · Galp. {{ r.galponNombre ?? r.galponId }}</span>
-      </p>
-      <div class="field">
-        <label class="form-label" for="stock-edit-qty">Cantidad *</label>
-        <input id="stock-edit-qty" class="form-input" type="number" step="any" min="0" [(ngModel)]="stockEditQuantity" />
-      </div>
-      <div class="field">
-        <label class="form-label" for="stock-edit-unit">Unidad</label>
-        <input id="stock-edit-unit" class="form-input" type="text" [(ngModel)]="stockEditUnit" maxlength="20" />
-      </div>
-      <div class="field">
-        <label class="form-label" for="stock-edit-fecha">Fecha de registro (ingreso en ubicación) *</label>
-        <input id="stock-edit-fecha" class="form-input" type="date" [(ngModel)]="stockEditFechaIngreso" />
-        <small class="hint" style="display: block; margin-top: 0.35rem">
-          Es la fecha mostrada en la columna «Fecha ingreso» del stock; el sistema la guarda como fecha del primer registro en esa ubicación.
-        </small>
-      </div>
-      <div class="field">
-        <label class="form-label" for="stock-edit-reason">Motivo (opcional)</label>
-        <input
-          id="stock-edit-reason"
-          class="form-input"
-          type="text"
-          [(ngModel)]="stockEditReason"
-          placeholder="Ej. conteo físico, corrección"
-        />
-      </div>
-    </div>
-    <div class="modal-italfoods__footer">
-      <button type="button" class="btn-italfoods-secondary" (click)="closeStockEditModal()" [disabled]="submittingStockEdit">
-        Cancelar
-      </button>
-      <button type="button" class="btn-italfoods-primary" (click)="submitStockEdit()" [disabled]="submittingStockEdit">
-        Guardar
-      </button>
-    </div>
-  </div>
-</div>
+      <!-- MODAL: Alertas (éxito/error) -->
+      @if (showAlertModal) {
+        <div class="modal-backdrop" (click)="closeAlertModal()" aria-hidden="true"></div>
+      }
+      @if (showAlertModal) {
+        <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Mensaje">
+          <div class="modal-italfoods">
+            <div class="modal-italfoods__header">
+              <div>{{ alertTitle }}</div>
+              <button type="button" class="icon-btn" (click)="closeAlertModal()" aria-label="Cerrar">✕</button>
+            </div>
+            <div class="modal-italfoods__body">
+              <p [class.text-ital-orange-dark]="alertType === 'success'" [style.color]="alertType === 'error' ? '#c62828' : null">
+                {{ alertText }}
+              </p>
+            </div>
+            <div class="modal-italfoods__footer">
+              <button type="button" class="btn-italfoods-primary" (click)="closeAlertModal()">Aceptar</button>
+            </div>
+          </div>
+        </div>
+      }
 
-<!-- MODAL: Confirmación -->
-<div class="modal-backdrop" *ngIf="showConfirmModal" (click)="closeConfirmModal()" aria-hidden="true"></div>
-<div class="modal-shell" *ngIf="showConfirmModal" role="dialog" aria-modal="true" aria-label="Confirmación">
-  <div class="modal-italfoods">
-    <div class="modal-italfoods__header">
-      <div>{{ confirmTitle }}</div>
-      <button type="button" class="icon-btn" (click)="closeConfirmModal()" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="modal-italfoods__body">
-      <p>{{ confirmText }}</p>
-    </div>
-    <div class="modal-italfoods__footer">
-      <button type="button" class="btn-italfoods-secondary" (click)="closeConfirmModal()">Cancelar</button>
-      <button type="button" class="btn-italfoods-primary" (click)="confirm()">Confirmar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Fecha del ingreso -->
-<div class="modal-backdrop" *ngIf="showIngresoFechaModal" (click)="closeIngresoFechaModal()" aria-hidden="true"></div>
-<div class="modal-shell" *ngIf="showIngresoFechaModal" role="dialog" aria-modal="true" aria-label="Fecha del movimiento">
-  <div class="modal-italfoods" (click)="$event.stopPropagation()">
-    <div class="modal-italfoods__header">
-      <div>Fecha del movimiento</div>
-      <button type="button" class="icon-btn" (click)="closeIngresoFechaModal()" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="modal-italfoods__body">
-      <label class="form-label" for="ingreso-fecha-input">Fecha</label>
-      <input id="ingreso-fecha-input" class="form-input" type="date" [(ngModel)]="ingresoFechaDraft" />
-    </div>
-    <div class="modal-italfoods__footer">
-      <button type="button" class="btn-italfoods-secondary" (click)="closeIngresoFechaModal()">Cancelar</button>
-      <button type="button" class="btn-italfoods-primary" (click)="confirmIngresoFechaModal()">Aceptar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Alertas (éxito/error) -->
-<div class="modal-backdrop" *ngIf="showAlertModal" (click)="closeAlertModal()" aria-hidden="true"></div>
-<div class="modal-shell" *ngIf="showAlertModal" role="dialog" aria-modal="true" aria-label="Mensaje">
-  <div class="modal-italfoods">
-    <div class="modal-italfoods__header">
-      <div>{{ alertTitle }}</div>
-      <button type="button" class="icon-btn" (click)="closeAlertModal()" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="modal-italfoods__body">
-      <p [class.text-ital-orange-dark]="alertType === 'success'" [style.color]="alertType === 'error' ? '#c62828' : null">
-        {{ alertText }}
-      </p>
-    </div>
-    <div class="modal-italfoods__footer">
-      <button type="button" class="btn-italfoods-primary" (click)="closeAlertModal()">Aceptar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Detalle movimiento histórico -->
-<div class="modal-backdrop" *ngIf="historicoDetalleMov" (click)="closeHistoricoDetalle()" aria-hidden="true"></div>
-<div class="modal-shell" *ngIf="historicoDetalleMov as d" role="dialog" aria-modal="true" aria-label="Detalle del movimiento">
-  <div class="modal-italfoods modal-italfoods--historico-detalle" (click)="$event.stopPropagation()">
-    <div class="modal-italfoods__header">
-      <div>Detalle del movimiento #{{ d.id }}</div>
-      <button type="button" class="icon-btn" (click)="closeHistoricoDetalle()" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="modal-italfoods__body historico-detalle-body">
-      <dl class="historico-detalle-dl">
-        <dt>Fecha y hora</dt>
-        <dd>{{ formatFechaMovimiento(d.createdAt) }}</dd>
-        <dt>Operación</dt>
-        <dd>{{ d.tipoOperacion ?? d.movementType }}</dd>
-        <dt>Tipo movimiento (sistema)</dt>
-        <dd class="cell-mono">{{ d.movementType }}</dd>
-        <dt>Estado</dt>
-        <dd>{{ d.estado ?? '—' }}</dd>
-        <dt>Ítem (ID catálogo)</dt>
-        <dd>{{ d.itemInventarioEcuadorId }}</dd>
-        <dt>Código</dt>
-        <dd>{{ d.itemCodigo }}</dd>
-        <dt>Nombre producto</dt>
-        <dd>{{ d.itemNombre }}</dd>
-        <dt>Concepto (catálogo)</dt>
-        <dd>{{ d.itemConcepto ?? '—' }}</dd>
-        <dt>Tipo de ítem (catálogo)</dt>
-        <dd>{{ d.itemTipoItem ?? '—' }}</dd>
-        <dt>Concepto mostrado (concepto o tipo)</dt>
-        <dd>{{ d.itemType }}</dd>
-        <dt>Cantidad</dt>
-        <dd>{{ d.quantity }} {{ d.unit }}</dd>
-        <dt>Ubicación del registro</dt>
-        <dd>{{ ubicacionRegistroMovimiento(d) }}</dd>
-        <dt>ID granja registro</dt>
-        <dd>{{ d.farmId }}</dd>
-        <dt>Núcleo / galpón (ids)</dt>
-        <dd>
-          <span class="cell-mono">{{ d.nucleoId ?? '—' }}</span> /
-          <span class="cell-mono">{{ d.galponId ?? '—' }}</span>
-        </dd>
-        <dt>Otro extremo / origen</dt>
-        <dd>{{ otroExtremoMovimiento(d) }}</dd>
-        <dt>IDs origen traslado</dt>
-        <dd>
-          Granja: {{ d.fromFarmId ?? '—' }} · Núc.
-          <span class="cell-mono">{{ d.fromNucleoId ?? '—' }}</span> · Galp.
-          <span class="cell-mono">{{ d.fromGalponId ?? '—' }}</span>
-        </dd>
-        <dt>Referencia</dt>
-        <dd>{{ d.reference ?? '—' }}</dd>
-        <dt>Motivo / detalle</dt>
-        <dd class="historico-detalle-dd-multiline">{{ d.reason ?? '—' }}</dd>
-        <dt>Grupo traslado (UUID)</dt>
-        <dd class="cell-mono">{{ d.transferGroupId ?? '—' }}</dd>
-      </dl>
-    </div>
-    <div class="modal-italfoods__footer">
-      <button type="button" class="btn-italfoods-primary" (click)="closeHistoricoDetalle()">Cerrar</button>
-    </div>
-  </div>
-</div>
+      <!-- MODAL: Detalle movimiento histórico -->
+      @if (historicoDetalleMov) {
+        <div class="modal-backdrop" (click)="closeHistoricoDetalle()" aria-hidden="true"></div>
+      }
+      @if (historicoDetalleMov; as d) {
+        <div class="modal-shell" role="dialog" aria-modal="true" aria-label="Detalle del movimiento">
+          <div class="modal-italfoods modal-italfoods--historico-detalle" (click)="$event.stopPropagation()">
+            <div class="modal-italfoods__header">
+              <div>Detalle del movimiento #{{ d.id }}</div>
+              <button type="button" class="icon-btn" (click)="closeHistoricoDetalle()" aria-label="Cerrar">✕</button>
+            </div>
+            <div class="modal-italfoods__body historico-detalle-body">
+              <dl class="historico-detalle-dl">
+                <dt>Fecha y hora</dt>
+                <dd>{{ formatFechaMovimiento(d.createdAt) }}</dd>
+                <dt>Operación</dt>
+                <dd>{{ d.tipoOperacion ?? d.movementType }}</dd>
+                <dt>Tipo movimiento (sistema)</dt>
+                <dd class="cell-mono">{{ d.movementType }}</dd>
+                <dt>Estado</dt>
+                <dd>{{ d.estado ?? '—' }}</dd>
+                <dt>Ítem (ID catálogo)</dt>
+                <dd>{{ d.itemInventarioEcuadorId }}</dd>
+                <dt>Código</dt>
+                <dd>{{ d.itemCodigo }}</dd>
+                <dt>Nombre producto</dt>
+                <dd>{{ d.itemNombre }}</dd>
+                <dt>Concepto (catálogo)</dt>
+                <dd>{{ d.itemConcepto ?? '—' }}</dd>
+                <dt>Tipo de ítem (catálogo)</dt>
+                <dd>{{ d.itemTipoItem ?? '—' }}</dd>
+                <dt>Concepto mostrado (concepto o tipo)</dt>
+                <dd>{{ d.itemType }}</dd>
+                <dt>Cantidad</dt>
+                <dd>{{ d.quantity }} {{ d.unit }}</dd>
+                <dt>Ubicación del registro</dt>
+                <dd>{{ ubicacionRegistroMovimiento(d) }}</dd>
+                <dt>ID granja registro</dt>
+                <dd>{{ d.farmId }}</dd>
+                <dt>Núcleo / galpón (ids)</dt>
+                <dd>
+                  <span class="cell-mono">{{ d.nucleoId ?? '—' }}</span> /
+                  <span class="cell-mono">{{ d.galponId ?? '—' }}</span>
+                </dd>
+                <dt>Otro extremo / origen</dt>
+                <dd>{{ otroExtremoMovimiento(d) }}</dd>
+                <dt>IDs origen traslado</dt>
+                <dd>
+                  Granja: {{ d.fromFarmId ?? '—' }} · Núc.
+                  <span class="cell-mono">{{ d.fromNucleoId ?? '—' }}</span> · Galp.
+                  <span class="cell-mono">{{ d.fromGalponId ?? '—' }}</span>
+                </dd>
+                <dt>Referencia</dt>
+                <dd>{{ d.reference ?? '—' }}</dd>
+                <dt>Motivo / detalle</dt>
+                <dd class="historico-detalle-dd-multiline">{{ d.reason ?? '—' }}</dd>
+                <dt>Grupo traslado (UUID)</dt>
+                <dd class="cell-mono">{{ d.transferGroupId ?? '—' }}</dd>
+              </dl>
+            </div>
+            <div class="modal-italfoods__footer">
+              <button type="button" class="btn-italfoods-primary" (click)="closeHistoricoDetalle()">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      }

@@ -16,6 +16,13 @@ namespace ZooSanMarino.Domain.Entities
         public string[] VisualPermissions { get; set; } = Array.Empty<string>();
         public bool MobileAccess { get; set; }
 
+        /// <summary>
+        /// Default global de la empresa: <c>true</c> = el alimento se maneja a nivel GALPÓN
+        /// (exige núcleo/galpón, como Ecuador/Panamá); <c>false</c> = a nivel GRANJA (Colombia).
+        /// Cada granja puede overridear vía <see cref="Farm.ManejaAlimentoPorGalpon"/> (nullable).
+        /// </summary>
+        public bool ManejaAlimentoPorGalpon { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

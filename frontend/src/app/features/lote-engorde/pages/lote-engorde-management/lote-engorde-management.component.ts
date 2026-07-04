@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
+
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { LoteEngordeListComponent } from '../../components/lote-engorde-list/lote-engorde-list.component';
 
@@ -7,10 +7,9 @@ import { LoteEngordeListComponent } from '../../components/lote-engorde-list/lot
   selector: 'app-lote-engorde-management',
   standalone: true,
   imports: [
-    CommonModule,
     FontAwesomeModule,
-    LoteEngordeListComponent,
-  ],
+    LoteEngordeListComponent
+],
   template: `
     <div class="layout">
       <main class="layout__main">
@@ -18,6 +17,7 @@ import { LoteEngordeListComponent } from '../../components/lote-engorde-list/lot
       </main>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .layout {
       display: flex;

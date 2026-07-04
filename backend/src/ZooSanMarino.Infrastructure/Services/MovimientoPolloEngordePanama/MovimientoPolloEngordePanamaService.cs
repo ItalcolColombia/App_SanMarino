@@ -61,6 +61,9 @@ public sealed class MovimientoPolloEngordePanamaService : IMovimientoPolloEngord
                     $"Asignado H+M={pedidoMixtas}; Mixtas disponibles={d.MixtasDisponibles}.");
         }
 
+        // Peso báscula obligatorio: la venta Panamá también es una venta.
+        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", dto.PesoBruto, dto.PesoTara);
+
         // Peso prorrateado por línea (mismo cálculo que la venta por granja).
         var pesoBrutoGlobal = dto.PesoBruto ?? 0d;
         var pesoTaraGlobal = dto.PesoTara ?? 0d;

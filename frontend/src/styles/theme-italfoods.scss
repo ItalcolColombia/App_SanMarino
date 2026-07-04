@@ -5,22 +5,30 @@
 
 // Variables globales (toda la app y componentes que usen var())
 :root {
-  --ital-orange: #e85c25;
-  --ital-orange-light: #f0a078;
-  --ital-orange-dark: #d14a18;
-  --ital-orange-50: rgba(232, 92, 37, 0.08);
-  --ital-orange-100: rgba(232, 92, 37, 0.12);
+  // Naranja de marca (afinado al logo)
+  --ital-orange: #F5821F;
+  --ital-orange-light: #FBB040;
+  --ital-orange-dark: #C85A0E;
+  --ital-orange-50: rgba(245, 130, 31, 0.08);
+  --ital-orange-100: rgba(245, 130, 31, 0.12);
 
-  --ital-green: #2d7a3e;
-  --ital-green-light: #3d9b52;
-  --ital-green-dark: #1e5c2a;
-  --ital-green-50: rgba(45, 122, 62, 0.08);
-  --ital-green-100: rgba(45, 122, 62, 0.12);
+  // "green" LEGACY remapeado: el verde salió de la marca (el logo no lo usa).
+  // Estructura/primario que antes era verde ahora es NARANJA; bordes → neutro limpio.
+  // El verde real queda solo como estado de éxito (token --success).
+  --ital-green: #F5821F;
+  --ital-green-light: #F8971F;
+  --ital-green-dark: #C85A0E;
+  --ital-green-50: rgba(28, 25, 23, 0.05);
+  --ital-green-100: rgba(28, 25, 23, 0.10);
 
-  --ital-cream: #faf8f5;
-  --ital-cream-50: #fefdfb;
+  // Éxito (verde) — solo semántico
+  --success: #16A34A;
+  --danger: #DC2626;
 
-  --ital-text: #2b2b2b;
+  --ital-cream: #FAFAF9;
+  --ital-cream-50: #FFFFFF;
+
+  --ital-text: #1C1917;
   --ital-muted: #6b7280;
 }
 
@@ -53,7 +61,7 @@
     }
   }
 
-  // Variante: cabecera verde oscuro, celdas crema, texto naranja
+  // Variante: cabecera naranja oscuro, celdas crema, texto naranja
   .table-italfoods--cream {
     @apply w-full text-left border-collapse rounded-lg overflow-hidden border border-ital-green-100;
     thead {
@@ -292,12 +300,12 @@
     padding: 0.5rem 1rem;
     border-radius: 0.75rem;
     font-weight: 600;
-    background: var(--ital-green);
-    color: var(--ital-cream);
-    border: 1px solid var(--ital-green);
+    background: var(--danger);
+    color: #fff;
+    border: 1px solid var(--danger);
     transition: transform 0.15s ease, background-color 0.15s ease;
   }
-  .btn-danger:hover:not(:disabled) { background: var(--ital-green-dark); }
+  .btn-danger:hover:not(:disabled) { background: #B91C1C; }
   .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .form-label {

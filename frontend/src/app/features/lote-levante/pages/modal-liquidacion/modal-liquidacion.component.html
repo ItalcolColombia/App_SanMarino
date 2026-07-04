@@ -1,32 +1,35 @@
 <!-- ================= MODAL: LIQUIDACIÓN TÉCNICA ================= -->
-<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="liquidacion-modal-title">
-  <div class="ux-modal__dialog ux-modal__dialog--xxl">
-    <header class="ux-modal__header">
-      <h2 id="liquidacion-modal-title">
-        Liquidación Técnica
-        <ng-container *ngIf="loteId">— <strong>{{ loteNombre }}</strong></ng-container>
-      </h2>
-      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
-    </header>
-
-    <section class="liquidacion-modal-content">
-      <app-liquidacion-tecnica
-        [loteId]="loteId?.toString() || ''"
-        [loteNombre]="loteNombre"
-        [esLoteAveEngorde]="esLoteAveEngorde">
-      </app-liquidacion-tecnica>
-      
-      <!-- Comparación con Guía Genética -->
-      <div class="comparacion-guia-section" *ngIf="loteId">
-        <app-liquidacion-comparacion
-          [loteId]="loteId"
+@if (isOpen) {
+  <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="liquidacion-modal-title">
+    <div class="ux-modal__dialog ux-modal__dialog--xxl">
+      <header class="ux-modal__header">
+        <h2 id="liquidacion-modal-title">
+          Liquidación Técnica
+          @if (loteId) {
+            — <strong>{{ loteNombre }}</strong>
+          }
+        </h2>
+        <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+      </header>
+      <section class="liquidacion-modal-content">
+        <app-liquidacion-tecnica
+          [loteId]="loteId?.toString() || ''"
+          [loteNombre]="loteNombre"
           [esLoteAveEngorde]="esLoteAveEngorde">
-        </app-liquidacion-comparacion>
-      </div>
-    </section>
-
-    <footer class="ux-modal__footer">
-      <button type="button" class="btn btn--ghost" (click)="onClose()">Cerrar</button>
-    </footer>
+        </app-liquidacion-tecnica>
+        <!-- Comparación con Guía Genética -->
+        @if (loteId) {
+          <div class="comparacion-guia-section">
+            <app-liquidacion-comparacion
+              [loteId]="loteId"
+              [esLoteAveEngorde]="esLoteAveEngorde">
+            </app-liquidacion-comparacion>
+          </div>
+        }
+      </section>
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--ghost" (click)="onClose()">Cerrar</button>
+      </footer>
+    </div>
   </div>
-</div>
+}

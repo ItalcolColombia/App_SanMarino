@@ -28,548 +28,645 @@
           class="form-input company-filter-select"
           aria-label="Seleccionar país">
           <option value="">Todos los países</option>
-          <option *ngFor="let pais of availablePaises" [value]="pais.paisId">
-            {{ pais.paisNombre }}
-          </option>
+          @for (pais of availablePaises; track pais) {
+            <option [value]="pais.paisId">
+              {{ pais.paisNombre }}
+            </option>
+          }
         </select>
-        <button
-          *ngIf="filterPaisId !== null"
-          type="button"
-          (click)="clearFilters()"
-          class="btn-ghost company-filter-clear">
-          Limpiar filtros
-        </button>
+        @if (filterPaisId !== null) {
+          <button
+            type="button"
+            (click)="clearFilters()"
+            class="btn-ghost company-filter-clear">
+            Limpiar filtros
+          </button>
+        }
       </div>
     </section>
 
     <!-- Tabla -->
     <section class="company-table-section" aria-label="Listado de empresas">
       <div class="ux-card table-card">
-      <div class="table-wrapper">
-        <div class="ux-scroll">
-          <table class="ux-table company-table">
-            <caption class="sr-only">Listado de empresas</caption>
+        <div class="table-wrapper">
+          <div class="ux-scroll">
+            <table class="ux-table company-table">
+              <caption class="sr-only">Listado de empresas</caption>
 
-            <thead>
-              <tr>
-                <th scope="col" class="col-name">Nombre</th>
-                <th scope="col" class="col-logo text-center">Logo</th>
-                <th scope="col" class="col-id-type">Tipo ID</th>
-                <th scope="col" class="col-id-num">Número ID</th>
-                <th scope="col" class="col-contact">Dirección</th>
-                <th scope="col" class="col-contact">Teléfono</th>
-                <th scope="col" class="col-contact">Correo</th>
-                <th scope="col" class="col-location">País</th>
-                <th scope="col" class="col-paises">Países de Operación</th>
-                <th scope="col" class="col-location">Depto.</th>
-                <th scope="col" class="col-location">Ciudad</th>
-                <th scope="col" class="col-icon text-center">Móvil</th>
-                <th scope="col" class="col-icon text-center">Roles</th>
-                <th scope="col" class="col-icon text-center">Módulos</th>
-                <th scope="col" class="col-icon text-center">Menú</th>
-                <th scope="col" class="col-actions text-right">Acciones</th>
-              </tr>
-            </thead>
+              <thead>
+                <tr>
+                  <th scope="col" class="col-name">Nombre</th>
+                  <th scope="col" class="col-logo text-center">Logo</th>
+                  <th scope="col" class="col-id-type">Tipo ID</th>
+                  <th scope="col" class="col-id-num">Número ID</th>
+                  <th scope="col" class="col-contact">Dirección</th>
+                  <th scope="col" class="col-contact">Teléfono</th>
+                  <th scope="col" class="col-contact">Correo</th>
+                  <th scope="col" class="col-location">País</th>
+                  <th scope="col" class="col-paises">Países de Operación</th>
+                  <th scope="col" class="col-location">Depto.</th>
+                  <th scope="col" class="col-location">Ciudad</th>
+                  <th scope="col" class="col-icon text-center">Móvil</th>
+                  <th scope="col" class="col-icon text-center">Roles</th>
+                  <th scope="col" class="col-icon text-center">Módulos</th>
+                  <th scope="col" class="col-icon text-center">Menú</th>
+                  <th scope="col" class="col-actions text-right">Acciones</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              <tr *ngFor="let c of filteredList" class="ux-row">
-                <td class="col-name"><span class="cell-text" [title]="c.name">{{ c.name }}</span></td>
-                <td class="col-logo text-center">
-                  <img *ngIf="c.logoDataUrl" [src]="c.logoDataUrl" [alt]="'Logo ' + c.name" class="company-logo-img" />
-                  <span *ngIf="!c.logoDataUrl" class="cell-muted">—</span>
-                </td>
-                <td class="col-id-type"><span class="cell-text">{{ c.documentType }}</span></td>
-                <td class="col-id-num"><span class="cell-text">{{ c.identifier }}</span></td>
-                <td class="col-contact"><span class="cell-text" [title]="c.address">{{ c.address || '—' }}</span></td>
-                <td class="col-contact"><span class="cell-text">{{ c.phone || '—' }}</span></td>
-                <td class="col-contact">
-                  <a *ngIf="c.email" class="cell-link" [href]="'mailto:' + c.email" [title]="c.email">{{ c.email }}</a>
-                  <span *ngIf="!c.email" class="cell-text">—</span>
-                </td>
-                <td class="col-location"><span class="cell-text">{{ displayCountry(c) }}</span></td>
-                <td class="col-paises">
-                  <div class="cell-chips">
-                    <span
-                      *ngFor="let pais of getCompanyPaises(c.id)"
-                      class="chip-item">
-                      {{ pais.paisNombre }}
-                    </span>
-                    <span *ngIf="getCompanyPaises(c.id).length === 0" class="cell-muted">Sin países</span>
-                  </div>
-                </td>
-                <td class="col-location"><span class="cell-text">{{ displayDept(c) }}</span></td>
-                <td class="col-location"><span class="cell-text">{{ displayCity(c) }}</span></td>
+              <tbody>
+                @for (c of filteredList; track c) {
+                  <tr class="ux-row">
+                    <td class="col-name"><span class="cell-text" [title]="c.name">{{ c.name }}</span></td>
+                    <td class="col-logo text-center">
+                      @if (c.logoDataUrl) {
+                        <img [src]="c.logoDataUrl" [alt]="'Logo ' + c.name" class="company-logo-img" />
+                      }
+                      @if (!c.logoDataUrl) {
+                        <span class="cell-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-id-type"><span class="cell-text">{{ c.documentType }}</span></td>
+                    <td class="col-id-num"><span class="cell-text">{{ c.identifier }}</span></td>
+                    <td class="col-contact"><span class="cell-text" [title]="c.address">{{ c.address || '—' }}</span></td>
+                    <td class="col-contact"><span class="cell-text">{{ c.phone || '—' }}</span></td>
+                    <td class="col-contact">
+                      @if (c.email) {
+                        <a class="cell-link" [href]="'mailto:' + c.email" [title]="c.email">{{ c.email }}</a>
+                      }
+                      @if (!c.email) {
+                        <span class="cell-text">—</span>
+                      }
+                    </td>
+                    <td class="col-location"><span class="cell-text">{{ displayCountry(c) }}</span></td>
+                    <td class="col-paises">
+                      <div class="cell-chips">
+                        @for (pais of getCompanyPaises(c.id); track pais) {
+                          <span
+                            class="chip-item">
+                            {{ pais.paisNombre }}
+                          </span>
+                        }
+                        @if (getCompanyPaises(c.id).length === 0) {
+                          <span class="cell-muted">Sin países</span>
+                        }
+                      </div>
+                    </td>
+                    <td class="col-location"><span class="cell-text">{{ displayDept(c) }}</span></td>
+                    <td class="col-location"><span class="cell-text">{{ displayCity(c) }}</span></td>
+                    <td class="col-icon text-center">
+                      <fa-icon
+                        [icon]="faMobileAlt"
+                        [class.text-brand-red]="c.mobileAccess"
+                        [class.text-warm-gray-400]="!c.mobileAccess"
+                        aria-hidden="true">
+                      </fa-icon>
+                    </td>
+                    <td class="col-icon text-center">{{ c?.roleIds?.length || 0 }}</td>
+                    <td class="col-icon text-center">{{ c.visualPermissions?.length || 0 }}</td>
+                    <td class="col-icon text-center">
+                      <button (click)="openMenuView(c)" class="icon-btn" [attr.aria-label]="'Ver menú de ' + c.name" title="Ver menú">
+                        <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                      </button>
+                    </td>
+                    <td class="col-actions text-right">
+                      <div class="inline-flex items-center gap-2">
+                        <button (click)="openModal(c)" class="icon-btn" [attr.aria-label]="'Editar ' + c.name" title="Editar">
+                          <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                        </button>
+                        <button (click)="openMenuEdit(c)" class="icon-btn" [attr.aria-label]="'Menú de ' + c.name" title="Asignar menú">
+                          <fa-icon [icon]="faListUl" aria-hidden="true"></fa-icon>
+                        </button>
+                        <button (click)="openConfirmDelete(c)" class="icon-btn danger" [attr.aria-label]="'Eliminar ' + c.name" title="Eliminar">
+                          <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                }
 
-                <td class="col-icon text-center">
-                  <fa-icon
-                    [icon]="faMobileAlt"
-                    [class.text-brand-red]="c.mobileAccess"
-                    [class.text-warm-gray-400]="!c.mobileAccess"
-                    aria-hidden="true">
-                  </fa-icon>
-                </td>
-                <td class="col-icon text-center">{{ c?.roleIds?.length || 0 }}</td>
-                <td class="col-icon text-center">{{ c.visualPermissions?.length || 0 }}</td>
-
-                <td class="col-icon text-center">
-                  <button (click)="openMenuView(c)" class="icon-btn" [attr.aria-label]="'Ver menú de ' + c.name" title="Ver menú">
-                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
-                  </button>
-                </td>
-
-                <td class="col-actions text-right">
-                <div class="inline-flex items-center gap-2">
-                  <button (click)="openModal(c)" class="icon-btn" [attr.aria-label]="'Editar ' + c.name" title="Editar">
-                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button (click)="openMenuEdit(c)" class="icon-btn" [attr.aria-label]="'Menú de ' + c.name" title="Asignar menú">
-                    <fa-icon [icon]="faListUl" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button (click)="openConfirmDelete(c)" class="icon-btn danger" [attr.aria-label]="'Eliminar ' + c.name" title="Eliminar">
-                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <tr *ngIf="!filteredList.length">
-              <td colspan="16" class="empty-state">
-                <div class="empty-illustration">🏢</div>
-                <p *ngIf="filterPaisId === null">No hay empresas registradas.</p>
-                <p *ngIf="filterPaisId !== null">No hay empresas asignadas al país seleccionado.</p>
-                <button *ngIf="filterPaisId === null" (click)="openModal()" class="btn-primary mt-2">
-                  <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
-                  Crear la primera
-                </button>
-                <button *ngIf="filterPaisId !== null" (click)="clearFilters()" class="btn-primary mt-2">
-                  Limpiar filtro
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                @if (!filteredList.length) {
+                  <tr>
+                    <td colspan="16" class="empty-state">
+                      <div class="empty-illustration">🏢</div>
+                      @if (filterPaisId === null) {
+                        <p>No hay empresas registradas.</p>
+                      }
+                      @if (filterPaisId !== null) {
+                        <p>No hay empresas asignadas al país seleccionado.</p>
+                      }
+                      @if (filterPaisId === null) {
+                        <button (click)="openModal()" class="btn-primary mt-2">
+                          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+                          Crear la primera
+                        </button>
+                      }
+                      @if (filterPaisId !== null) {
+                        <button (click)="clearFilters()" class="btn-primary mt-2">
+                          Limpiar filtro
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        <!-- Overlay de carga sobre la card -->
+        @if (loading) {
+          <div class="loading-overlay" aria-live="polite">
+            <div class="loading-overlay-content">
+              <div class="spinner spinner-lg"></div>
+              <p class="loading-text">Cargando información…</p>
+            </div>
+          </div>
+        }
       </div>
 
-      <!-- Overlay de carga sobre la card -->
-      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-        <div class="loading-overlay-content">
-          <div class="spinner spinner-lg"></div>
-          <p class="loading-text">Cargando información…</p>
+      <!-- Toast de feedback (éxito / error) -->
+      @if (toastVisible) {
+        <div class="toast-feedback" [class.toast-success]="toastType === 'success'" [class.toast-error]="toastType === 'error'" role="alert">
+          <span class="toast-message">{{ toastMessage }}</span>
+          <button type="button" (click)="closeToast()" class="toast-close" aria-label="Cerrar">×</button>
         </div>
-      </div>
-    </div>
-
-    <!-- Toast de feedback (éxito / error) -->
-    <div *ngIf="toastVisible" class="toast-feedback" [class.toast-success]="toastType === 'success'" [class.toast-error]="toastType === 'error'" role="alert">
-      <span class="toast-message">{{ toastMessage }}</span>
-      <button type="button" (click)="closeToast()" class="toast-close" aria-label="Cerrar">×</button>
-    </div>
+      }
     </section>
   </main>
 </div>
 
 <!-- MODAL: Confirmar eliminar empresa -->
-<div *ngIf="confirmDeleteOpen"
-     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
-     role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">
-  <div class="modal-confirm">
-    <h2 id="confirm-delete-title" class="modal-confirm-title">Confirmar eliminación</h2>
-    <p class="modal-confirm-text">
-      ¿Está seguro de eliminar la empresa <strong>{{ confirmDeleteName }}</strong>? Esta acción no se puede deshacer.
-    </p>
-    <div class="modal-confirm-actions">
-      <button type="button" (click)="cancelConfirmDelete()" class="btn-ghost">Cancelar</button>
-      <button type="button" (click)="confirmDelete()" class="btn-danger" [disabled]="loading">
-        {{ loading ? 'Eliminando…' : 'Sí, eliminar' }}
-      </button>
+@if (confirmDeleteOpen) {
+  <div
+    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">
+    <div class="modal-confirm">
+      <h2 id="confirm-delete-title" class="modal-confirm-title">Confirmar eliminación</h2>
+      <p class="modal-confirm-text">
+        ¿Está seguro de eliminar la empresa <strong>{{ confirmDeleteName }}</strong>? Esta acción no se puede deshacer.
+      </p>
+      <div class="modal-confirm-actions">
+        <button type="button" (click)="cancelConfirmDelete()" class="btn-ghost">Cancelar</button>
+        <button type="button" (click)="confirmDelete()" class="btn-danger" [disabled]="loading">
+          {{ loading ? 'Eliminando…' : 'Sí, eliminar' }}
+        </button>
+      </div>
     </div>
   </div>
-</div>
+}
 
 <!-- MODAL: Ver menú de la empresa (solo lectura) -->
-<div *ngIf="menuViewModalOpen"
-     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
-     role="dialog" aria-modal="true" aria-labelledby="menu-view-title">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-    <div class="flex items-center justify-between p-4 border-b">
-      <h2 id="menu-view-title" class="text-xl font-bold text-brand-red">
-        Menú de la empresa: {{ menuViewCompanyName }}
-      </h2>
-      <button type="button" (click)="closeMenuView()" class="btn-ghost">Cerrar</button>
-    </div>
-    <div class="p-4 overflow-auto flex-1">
-      <p *ngIf="menuViewLoading" class="text-warm-gray-600">Cargando…</p>
-      <div *ngIf="!menuViewLoading && menuViewTree.length === 0" class="text-warm-gray-500 py-4">
-        Esta empresa no tiene menús asignados. Use el botón «Menú» en acciones para asignarlos.
+@if (menuViewModalOpen) {
+  <div
+    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    role="dialog" aria-modal="true" aria-labelledby="menu-view-title">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="menu-view-title" class="text-xl font-bold text-brand-red">
+          Menú de la empresa: {{ menuViewCompanyName }}
+        </h2>
+        <button type="button" (click)="closeMenuView()" class="btn-ghost">Cerrar</button>
       </div>
-      <ul *ngIf="!menuViewLoading && menuViewTree.length > 0" class="space-y-1 list-none pl-0">
-        <ng-container *ngTemplateOutlet="companyMenuTreeView; context: { items: menuViewTree }"></ng-container>
-      </ul>
+      <div class="p-4 overflow-auto flex-1">
+        @if (menuViewLoading) {
+          <p class="text-warm-gray-600">Cargando…</p>
+        }
+        @if (!menuViewLoading && menuViewTree.length === 0) {
+          <div class="text-warm-gray-500 py-4">
+            Esta empresa no tiene menús asignados. Use el botón «Menú» en acciones para asignarlos.
+          </div>
+        }
+        @if (!menuViewLoading && menuViewTree.length > 0) {
+          <ul class="space-y-1 list-none pl-0">
+            <ng-container *ngTemplateOutlet="companyMenuTreeView; context: { items: menuViewTree }"></ng-container>
+          </ul>
+        }
+      </div>
     </div>
   </div>
-</div>
+}
 
 <ng-template #companyMenuTreeView let-items="items">
-  <ng-container *ngFor="let item of items">
+  @for (item of items; track item) {
     <li class="py-1">
       <span class="font-medium">{{ item.label }}</span>
-      <span *ngIf="item.isEnabled === false" class="ml-2 text-xs text-amber-600">(deshabilitado)</span>
-      <ul *ngIf="item.children?.length" class="list-none pl-4 mt-1 space-y-1 border-l border-warm-gray-200">
-        <ng-container *ngTemplateOutlet="companyMenuTreeView; context: { items: item.children }"></ng-container>
-      </ul>
+      @if (item.isEnabled === false) {
+        <span class="ml-2 text-xs text-amber-600">(deshabilitado)</span>
+      }
+      @if (item.children?.length) {
+        <ul class="list-none pl-4 mt-1 space-y-1 border-l border-warm-gray-200">
+          <ng-container *ngTemplateOutlet="companyMenuTreeView; context: { items: item.children }"></ng-container>
+        </ul>
+      }
     </li>
-  </ng-container>
+  }
 </ng-template>
 
 <!-- MODAL: Asignar menú a la empresa (edición) -->
-<div *ngIf="menuEditModalOpen"
-     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
-     role="dialog" aria-modal="true" aria-labelledby="menu-edit-title">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-    <div class="flex items-center justify-between p-4 border-b">
-      <h2 id="menu-edit-title" class="text-xl font-bold text-brand-red">
-        Asignar menú: {{ menuEditCompanyName }}
-      </h2>
-      <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cerrar</button>
-    </div>
-    <div class="p-4 overflow-auto flex-1">
-      <p *ngIf="menuEditLoading" class="text-warm-gray-600">Cargando…</p>
-      <div *ngIf="!menuEditLoading" class="space-y-2">
-        <p class="text-sm text-warm-gray-600">Marque los ítems de menú que tendrá esta empresa.</p>
-        <ul class="list-none pl-0 space-y-1">
-          <ng-container *ngTemplateOutlet="companyMenuTreeEdit; context: { items: menuEditTree }"></ng-container>
-        </ul>
+@if (menuEditModalOpen) {
+  <div
+    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    role="dialog" aria-modal="true" aria-labelledby="menu-edit-title">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="menu-edit-title" class="text-xl font-bold text-brand-red">
+          Asignar menú: {{ menuEditCompanyName }}
+        </h2>
+        <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cerrar</button>
+      </div>
+      <div class="p-4 overflow-auto flex-1">
+        @if (menuEditLoading) {
+          <p class="text-warm-gray-600">Cargando…</p>
+        }
+        @if (!menuEditLoading) {
+          <div class="space-y-2">
+            <p class="text-sm text-warm-gray-600">Marque los ítems de menú que tendrá esta empresa.</p>
+            <ul class="list-none pl-0 space-y-1">
+              <ng-container *ngTemplateOutlet="companyMenuTreeEdit; context: { items: menuEditTree }"></ng-container>
+            </ul>
+          </div>
+        }
+      </div>
+      <div class="p-4 border-t flex justify-end gap-2">
+        <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cancelar</button>
+        <button type="button" (click)="saveCompanyMenus()" class="btn-primary" [disabled]="menuEditSaving">
+          {{ menuEditSaving ? 'Guardando…' : 'Guardar menú' }}
+        </button>
       </div>
     </div>
-    <div class="p-4 border-t flex justify-end gap-2">
-      <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cancelar</button>
-      <button type="button" (click)="saveCompanyMenus()" class="btn-primary" [disabled]="menuEditSaving">
-        {{ menuEditSaving ? 'Guardando…' : 'Guardar menú' }}
-      </button>
-    </div>
   </div>
-</div>
+}
 
 <ng-template #companyMenuTreeEdit let-items="items">
-  <ng-container *ngFor="let node of items">
+  @for (node of items; track node) {
     <li class="py-1">
       <label class="inline-flex items-center gap-2 cursor-pointer">
         <input type="checkbox"
-               [checked]="isMenuIdSelected(node.id)"
-               (change)="toggleMenuSelection(node.id)"
-               class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
-        <span>{{ node.label }}</span>
-      </label>
-      <ul *ngIf="node.children?.length" class="list-none pl-6 mt-1 space-y-1 border-l border-warm-gray-200">
-        <ng-container *ngTemplateOutlet="companyMenuTreeEdit; context: { items: node.children }"></ng-container>
-      </ul>
-    </li>
-  </ng-container>
-</ng-template>
+          [checked]="isMenuIdSelected(node.id)"
+          (change)="toggleMenuSelection(node.id)"
+          class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+          <span>{{ node.label }}</span>
+        </label>
+        @if (node.children?.length) {
+          <ul class="list-none pl-6 mt-1 space-y-1 border-l border-warm-gray-200">
+            <ng-container *ngTemplateOutlet="companyMenuTreeEdit; context: { items: node.children }"></ng-container>
+          </ul>
+        }
+      </li>
+    }
+  </ng-template>
 
-<!-- MODAL: Wizard Empresa -->
-<div *ngIf="modalOpen"
-     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
-     role="dialog" aria-modal="true" aria-labelledby="company-title">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-6 relative">
-    <!-- Header modal -->
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-2">
-        <fa-icon [icon]="faBuilding" class="text-xl text-brand-red" aria-hidden="true"></fa-icon>
-        <h2 id="company-title" class="text-xl font-bold text-brand-red">
-          {{ editing ? 'Editar Empresa' : 'Nueva Empresa' }}
-        </h2>
-      </div>
-      <button type="button" (click)="closeModal()" class="btn-ghost">Cerrar</button>
-    </div>
-
-    <!-- Stepper simple -->
-    <div class="flex flex-col sm:flex-row gap-3 mb-5">
-      <div class="flex-1 rounded-xl border p-3" [class.border-brand-red]="step===1" [class.bg-warm-gray-50]="step===1">
-        <div class="text-xs text-warm-gray-600 mb-1">Paso 1</div>
-        <div class="font-semibold">Datos de la empresa</div>
-      </div>
-      <div class="hidden sm:flex items-center justify-center px-1 text-warm-gray-400">
-        <fa-icon [icon]="faNext" aria-hidden="true"></fa-icon>
-      </div>
-      <div class="flex-1 rounded-xl border p-3" [class.border-brand-red]="step===2" [class.bg-warm-gray-50]="step===2">
-        <div class="text-xs text-warm-gray-600 mb-1">Paso 2</div>
-        <div class="font-semibold">Roles & Permisos</div>
-      </div>
-    </div>
-
-    <!-- Form Wizard -->
-    <form [formGroup]="form" (ngSubmit)="step===2 ? save() : nextStep()" class="space-y-5" novalidate>
-      <!-- PASO 1 -->
-      <div *ngIf="step===1" class="grid grid-cols-12 gap-4">
-        <!-- Columna izquierda -->
-        <div class="col-span-12 lg:col-span-6 space-y-3">
-          <div>
-            <label class="form-label">Nombre <span class="text-red-600">*</span></label>
-            <input formControlName="name" class="form-input"
-                   [class.form-input--invalid]="form.get('name')?.invalid && form.get('name')?.touched"/>
-            <p *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="form-error">Obligatorio</p>
-          </div>
-
-          <div>
-            <label class="form-label">Logo de la empresa</label>
-            <div class="flex items-center gap-3">
-              <div class="logo-preview">
-                <img *ngIf="logoPreviewDataUrl" [src]="logoPreviewDataUrl" alt="Preview logo" />
-                <span *ngIf="!logoPreviewDataUrl" class="logo-preview__placeholder">Sin logo</span>
-              </div>
-              <div class="flex-1 min-w-0">
-                <input
-                  type="file"
-                  accept="image/*"
-                  class="form-input"
-                  (change)="onLogoFileSelected($any($event.target).files?.[0] || null)"
-                />
-                <div class="mt-2 flex items-center gap-2">
-                  <button type="button" class="btn-ghost text-sm" (click)="clearLogo()" [disabled]="!logoPreviewDataUrl && !logoChanged">
-                    Quitar logo
-                  </button>
-                  <span class="text-xs text-warm-gray-500">Máx. 512 KB (PNG/JPG)</span>
-                </div>
-                <p *ngIf="logoError" class="form-error mt-1">{{ logoError }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="form-label">Tipo Identificación <span class="text-red-600">*</span></label>
-              <select formControlName="documentType" class="form-input"
-                      [class.form-input--invalid]="form.get('documentType')?.invalid && form.get('documentType')?.touched">
-                <option value="">Seleccione…</option>
-                <option *ngFor="let opt of identificationOptions" [value]="opt">{{ opt }}</option>
-              </select>
-              <p *ngIf="form.get('documentType')?.invalid && form.get('documentType')?.touched" class="form-error">Obligatorio</p>
-            </div>
-            <div>
-              <label class="form-label">Número ID <span class="text-red-600">*</span></label>
-              <input formControlName="identifier" class="form-input"
-                     [class.form-input--invalid]="form.get('identifier')?.invalid && form.get('identifier')?.touched"/>
-              <p *ngIf="form.get('identifier')?.invalid && form.get('identifier')?.touched" class="form-error">Obligatorio</p>
-            </div>
-          </div>
-
-          <div>
-            <label class="form-label">Correo</label>
-            <input formControlName="email" class="form-input"
-                   [class.form-input--invalid]="form.get('email')?.invalid && form.get('email')?.touched"/>
-            <p *ngIf="form.get('email')?.invalid && form.get('email')?.touched" class="form-error">Formato inválido</p>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="form-label">Teléfono</label>
-              <input formControlName="phone" class="form-input"/>
-            </div>
-            <div>
-              <label class="form-label">Dirección</label>
-              <input formControlName="address" class="form-input"/>
-            </div>
-          </div>
-        </div>
-
-        <!-- Columna derecha -->
-        <div class="col-span-12 lg:col-span-6 space-y-3">
-          <div>
-            <label class="form-label">País</label>
-            <select formControlName="country" (change)="onCountryChange($any($event.target).value)" class="form-input">
-              <option value="">Seleccione…</option>
-              <option *ngFor="let c of countries" [value]="c.code">{{ c.name }}</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="form-label">Departamento</label>
-            <select formControlName="state" (change)="onStateChange($any($event.target).value)" class="form-input">
-              <option value="">Seleccione…</option>
-              <option *ngFor="let s of states" [value]="s.code">{{ s.name }}</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="form-label">Ciudad</label>
-            <select formControlName="city" class="form-input">
-              <option value="">Seleccione…</option>
-              <option *ngFor="let city of cities" [value]="city">{{ city }}</option>
-            </select>
-          </div>
-
-          <!-- Selección múltiple de países -->
-          <div>
-            <label class="form-label">Países de Operación <span class="text-red-600">*</span></label>
-            <p class="text-xs text-warm-gray-600 mb-2">Seleccione los países donde la empresa operará</p>
-            <div class="border rounded-lg p-3 max-h-48 overflow-y-auto bg-white">
-              <div *ngFor="let pais of availablePaises" class="flex items-center gap-2 p-2 hover:bg-warm-gray-50 rounded">
-                <input
-                  type="checkbox"
-                  [id]="'pais-' + pais.paisId"
-                  [checked]="isPaisSelected(pais.paisId)"
-                  (change)="togglePais(pais.paisId)"
-                  class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
-                <label [for]="'pais-' + pais.paisId" class="text-sm cursor-pointer flex-1">
-                  {{ pais.paisNombre }}
-                </label>
-              </div>
-              <p *ngIf="availablePaises.length === 0" class="text-sm text-warm-gray-500 text-center py-4">
-                No hay países disponibles. Cree países primero en la sección de Geografía.
-              </p>
-            </div>
-            <p *ngIf="selectedPaisIds.length === 0" class="text-xs text-red-600 mt-1">
-              Debe seleccionar al menos un país
-            </p>
-            <p *ngIf="selectedPaisIds.length > 0" class="text-xs text-warm-gray-600 mt-1">
-              {{ selectedPaisIds.length }} país(es) seleccionado(s)
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- PASO 2 -->
-      <div *ngIf="step===2" class="grid grid-cols-12 gap-5">
-        <!-- Resumen -->
-        <aside class="col-span-12">
-          <div class="flex flex-col md:flex-row gap-2 md:items-center md:justify-between rounded-xl border p-3 bg-white/60">
-            <div class="text-sm">
-              <strong>Empresa:</strong> {{ form.get('name')?.value || '—' }} ·
-              <strong>ID:</strong> {{ form.get('documentType')?.value || '—' }} {{ form.get('identifier')?.value || '' }} ·
-              <strong>Ubicación:</strong> {{ form.get('country')?.value || '—' }} / {{ form.get('state')?.value || '—' }} / {{ form.get('city')?.value || '—' }}
-            </div>
-            <button type="button" (click)="prevStep()" class="btn-ghost">Editar datos</button>
-          </div>
-        </aside>
-
-        <!-- Roles -->
-        <section class="col-span-12 lg:col-span-6 space-y-3">
+  <!-- MODAL: Wizard Empresa -->
+  @if (modalOpen) {
+    <div
+      class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+      role="dialog" aria-modal="true" aria-labelledby="company-title">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-6 relative">
+        <!-- Header modal -->
+        <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
-            <fa-icon [icon]="faShield" class="text-lg text-warm-gray-700" aria-hidden="true"></fa-icon>
-            <div class="font-semibold">Roles de la empresa</div>
+            <fa-icon [icon]="faBuilding" class="text-xl text-brand-red" aria-hidden="true"></fa-icon>
+            <h2 id="company-title" class="text-xl font-bold text-brand-red">
+              {{ editing ? 'Editar Empresa' : 'Nueva Empresa' }}
+            </h2>
           </div>
-
-          <div class="ux-search">
-            <fa-icon [icon]="faSearch" class="ux-search__icon" aria-hidden="true"></fa-icon>
-            <input type="text" [(ngModel)]="roleFilter" name="roleFilter" placeholder="Buscar rol por nombre o permiso…" class="ux-search__input" />
+          <button type="button" (click)="closeModal()" class="btn-ghost">Cerrar</button>
+        </div>
+        <!-- Stepper simple -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-5">
+          <div class="flex-1 rounded-xl border p-3" [class.border-brand-red]="step===1" [class.bg-warm-gray-50]="step===1">
+            <div class="text-xs text-warm-gray-600 mb-1">Paso 1</div>
+            <div class="font-semibold">Datos de la empresa</div>
           </div>
-
-          <div class="grid grid-cols-1 gap-2 max-h-64 overflow-auto pr-1">
-            <div *ngFor="let r of filteredRoles" class="flex items-start justify-between gap-2 p-2 rounded border bg-white hover:shadow-sm">
-              <label class="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox"
-                       [checked]="roleIds.includes(r.id)"
-                       (change)="toggleRole(r.id)"
-                       class="h-4 w-4 mt-0.5 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+          <div class="hidden sm:flex items-center justify-center px-1 text-warm-gray-400">
+            <fa-icon [icon]="faNext" aria-hidden="true"></fa-icon>
+          </div>
+          <div class="flex-1 rounded-xl border p-3" [class.border-brand-red]="step===2" [class.bg-warm-gray-50]="step===2">
+            <div class="text-xs text-warm-gray-600 mb-1">Paso 2</div>
+            <div class="font-semibold">Roles & Permisos</div>
+          </div>
+        </div>
+        <!-- Form Wizard -->
+        <form [formGroup]="form" (ngSubmit)="step===2 ? save() : nextStep()" class="space-y-5" novalidate>
+          <!-- PASO 1 -->
+          @if (step===1) {
+            <div class="grid grid-cols-12 gap-4">
+              <!-- Columna izquierda -->
+              <div class="col-span-12 lg:col-span-6 space-y-3">
                 <div>
-                  <div class="text-sm font-medium">{{ r.name }}</div>
-                  <div class="text-[11px] text-warm-gray-500">{{ r.permissions.length || 0 }} permiso(s)</div>
+                  <label class="form-label">Nombre <span class="text-red-600">*</span></label>
+                  <input formControlName="name" class="form-input"
+                    [class.form-input--invalid]="form.get('name')?.invalid && form.get('name')?.touched"/>
+                    @if (form.get('name')?.invalid && form.get('name')?.touched) {
+                      <p class="form-error">Obligatorio</p>
+                    }
+                  </div>
+                  <div>
+                    <label class="form-label">Logo de la empresa</label>
+                    <div class="flex items-center gap-3">
+                      <div class="logo-preview">
+                        @if (logoPreviewDataUrl) {
+                          <img [src]="logoPreviewDataUrl" alt="Preview logo" />
+                        }
+                        @if (!logoPreviewDataUrl) {
+                          <span class="logo-preview__placeholder">Sin logo</span>
+                        }
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          class="form-input"
+                          (change)="onLogoFileSelected($any($event.target).files?.[0] || null)"
+                          />
+                          <div class="mt-2 flex items-center gap-2">
+                            <button type="button" class="btn-ghost text-sm" (click)="clearLogo()" [disabled]="!logoPreviewDataUrl && !logoChanged">
+                              Quitar logo
+                            </button>
+                            <span class="text-xs text-warm-gray-500">Máx. 512 KB (PNG/JPG)</span>
+                          </div>
+                          @if (logoError) {
+                            <p class="form-error mt-1">{{ logoError }}</p>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="form-label">Tipo Identificación <span class="text-red-600">*</span></label>
+                        <select formControlName="documentType" class="form-input"
+                          [class.form-input--invalid]="form.get('documentType')?.invalid && form.get('documentType')?.touched">
+                          <option value="">Seleccione…</option>
+                          @for (opt of identificationOptions; track opt) {
+                            <option [value]="opt">{{ opt }}</option>
+                          }
+                        </select>
+                        @if (form.get('documentType')?.invalid && form.get('documentType')?.touched) {
+                          <p class="form-error">Obligatorio</p>
+                        }
+                      </div>
+                      <div>
+                        <label class="form-label">Número ID <span class="text-red-600">*</span></label>
+                        <input formControlName="identifier" class="form-input"
+                          [class.form-input--invalid]="form.get('identifier')?.invalid && form.get('identifier')?.touched"/>
+                          @if (form.get('identifier')?.invalid && form.get('identifier')?.touched) {
+                            <p class="form-error">Obligatorio</p>
+                          }
+                        </div>
+                      </div>
+                      <div>
+                        <label class="form-label">Correo</label>
+                        <input formControlName="email" class="form-input"
+                          [class.form-input--invalid]="form.get('email')?.invalid && form.get('email')?.touched"/>
+                          @if (form.get('email')?.invalid && form.get('email')?.touched) {
+                            <p class="form-error">Formato inválido</p>
+                          }
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                          <div>
+                            <label class="form-label">Teléfono</label>
+                            <input formControlName="phone" class="form-input"/>
+                          </div>
+                          <div>
+                            <label class="form-label">Dirección</label>
+                            <input formControlName="address" class="form-input"/>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- Columna derecha -->
+                      <div class="col-span-12 lg:col-span-6 space-y-3">
+                        <div>
+                          <label class="form-label">País</label>
+                          <select formControlName="country" (change)="onCountryChange($any($event.target).value)" class="form-input">
+                            <option value="">Seleccione…</option>
+                            @for (c of countries; track c) {
+                              <option [value]="c.code">{{ c.name }}</option>
+                            }
+                          </select>
+                        </div>
+                        <div>
+                          <label class="form-label">Departamento</label>
+                          <select formControlName="state" (change)="onStateChange($any($event.target).value)" class="form-input">
+                            <option value="">Seleccione…</option>
+                            @for (s of states; track s) {
+                              <option [value]="s.code">{{ s.name }}</option>
+                            }
+                          </select>
+                        </div>
+                        <div>
+                          <label class="form-label">Ciudad</label>
+                          <select formControlName="city" class="form-input">
+                            <option value="">Seleccione…</option>
+                            @for (city of cities; track city) {
+                              <option [value]="city">{{ city }}</option>
+                            }
+                          </select>
+                        </div>
+                        <!-- Selección múltiple de países -->
+                        <div>
+                          <label class="form-label">Países de Operación <span class="text-red-600">*</span></label>
+                          <p class="text-xs text-warm-gray-600 mb-2">Seleccione los países donde la empresa operará</p>
+                          <div class="border rounded-lg p-3 max-h-48 overflow-y-auto bg-white">
+                            @for (pais of availablePaises; track pais) {
+                              <div class="flex items-center gap-2 p-2 hover:bg-warm-gray-50 rounded">
+                                <input
+                                  type="checkbox"
+                                  [id]="'pais-' + pais.paisId"
+                                  [checked]="isPaisSelected(pais.paisId)"
+                                  (change)="togglePais(pais.paisId)"
+                                  class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
+                                  <label [for]="'pais-' + pais.paisId" class="text-sm cursor-pointer flex-1">
+                                    {{ pais.paisNombre }}
+                                  </label>
+                                </div>
+                              }
+                              @if (availablePaises.length === 0) {
+                                <p class="text-sm text-warm-gray-500 text-center py-4">
+                                  No hay países disponibles. Cree países primero en la sección de Geografía.
+                                </p>
+                              }
+                            </div>
+                            @if (selectedPaisIds.length === 0) {
+                              <p class="text-xs text-red-600 mt-1">
+                                Debe seleccionar al menos un país
+                              </p>
+                            }
+                            @if (selectedPaisIds.length > 0) {
+                              <p class="text-xs text-warm-gray-600 mt-1">
+                                {{ selectedPaisIds.length }} país(es) seleccionado(s)
+                              </p>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    }
+                    <!-- PASO 2 -->
+                    @if (step===2) {
+                      <div class="grid grid-cols-12 gap-5">
+                        <!-- Resumen -->
+                        <aside class="col-span-12">
+                          <div class="flex flex-col md:flex-row gap-2 md:items-center md:justify-between rounded-xl border p-3 bg-white/60">
+                            <div class="text-sm">
+                              <strong>Empresa:</strong> {{ form.get('name')?.value || '—' }} ·
+                              <strong>ID:</strong> {{ form.get('documentType')?.value || '—' }} {{ form.get('identifier')?.value || '' }} ·
+                              <strong>Ubicación:</strong> {{ form.get('country')?.value || '—' }} / {{ form.get('state')?.value || '—' }} / {{ form.get('city')?.value || '—' }}
+                            </div>
+                            <button type="button" (click)="prevStep()" class="btn-ghost">Editar datos</button>
+                          </div>
+                        </aside>
+                        <!-- Roles -->
+                        <section class="col-span-12 lg:col-span-6 space-y-3">
+                          <div class="flex items-center gap-2">
+                            <fa-icon [icon]="faShield" class="text-lg text-warm-gray-700" aria-hidden="true"></fa-icon>
+                            <div class="font-semibold">Roles de la empresa</div>
+                          </div>
+                          <div class="ux-search">
+                            <fa-icon [icon]="faSearch" class="ux-search__icon" aria-hidden="true"></fa-icon>
+                            <input type="text" [(ngModel)]="roleFilter" name="roleFilter" placeholder="Buscar rol por nombre o permiso…" class="ux-search__input" />
+                          </div>
+                          <div class="grid grid-cols-1 gap-2 max-h-64 overflow-auto pr-1">
+                            @for (r of filteredRoles; track r) {
+                              <div class="flex items-start justify-between gap-2 p-2 rounded border bg-white hover:shadow-sm">
+                                <label class="flex items-start gap-2 cursor-pointer">
+                                  <input type="checkbox"
+                                    [checked]="roleIds.includes(r.id)"
+                                    (change)="toggleRole(r.id)"
+                                    class="h-4 w-4 mt-0.5 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+                                    <div>
+                                      <div class="text-sm font-medium">{{ r.name }}</div>
+                                      <div class="text-[11px] text-warm-gray-500">{{ r.permissions.length || 0 }} permiso(s)</div>
+                                    </div>
+                                  </label>
+                                  <button type="button" (click)="openRolePreview(r.id)" class="btn-ghost" title="Ver permisos del rol">Ver</button>
+                                </div>
+                              }
+                              @if (!filteredRoles.length) {
+                                <div class="text-center text-sm text-warm-gray-500 py-4">
+                                  No hay roles que coincidan con el filtro.
+                                </div>
+                              }
+                            </div>
+                            <!-- Chips -->
+                            @if (roleIds.length) {
+                              <div class="flex flex-wrap gap-2 pt-2">
+                                @for (rid of roleIds; track rid) {
+                                  <span class="chip">
+                                    {{ roleName(rid) }}
+                                    <button type="button" (click)="removeRole(rid)" class="icon-btn" [attr.aria-label]="'Quitar ' + roleName(rid)">×</button>
+                                  </span>
+                                }
+                                <button type="button" (click)="clearRoles()" class="text-xs text-warm-gray-600 hover:text-brand-red underline">Limpiar roles</button>
+                              </div>
+                            }
+                          </section>
+                          <!-- Permisos + módulos -->
+                          <section class="col-span-12 lg:col-span-6 space-y-3">
+                            <div class="rounded-xl border bg-gray-50 p-3 shadow-inner">
+                              <div class="flex items-center justify-between">
+                                <div class="text-sm font-semibold text-warm-gray-700 mb-2">Permisos (asignación resultante)</div>
+                                <div class="text-[11px] text-warm-gray-500">{{ selectedRolesPermissions.length }} total</div>
+                              </div>
+                              <div class="min-h-[60px]">
+                                @if (selectedRolesPermissions.length) {
+                                  <div class="flex flex-wrap gap-2">
+                                    @for (p of selectedRolesPermissions; track p) {
+                                      <span class="inline-block text-[11px] px-2 py-1 rounded bg-white border shadow-sm">
+                                        {{ p }}
+                                      </span>
+                                    }
+                                  </div>
+                                } @else {
+                                  <div class="text-xs text-warm-gray-500">Selecciona uno o más roles para ver sus permisos combinados.</div>
+                                }
+                              </div>
+                            </div>
+                            <div class="rounded-xl border bg-gray-50 p-3 shadow-inner">
+                              <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm font-semibold text-warm-gray-700">
+                                  Detalle del rol @if (previewRoleId) {
+                                  <span class="font-bold">“{{ roleName(previewRoleId) }}”</span>
+                                }
+                              </div>
+                              @if (previewRoleId) {
+                                <button type="button" (click)="previewRoleId = null" class="btn-ghost">Cerrar</button>
+                              }
+                            </div>
+                            <div class="min-h-[60px]">
+                              @if (previewRoleId && previewRolePermissions.length) {
+                                <div class="flex flex-wrap gap-2">
+                                  @for (p of previewRolePermissions; track p) {
+                                    <span class="inline-block text-[11px] px-2 py-1 rounded bg-white border shadow-sm">
+                                      {{ p }}
+                                    </span>
+                                  }
+                                </div>
+                              } @else {
+                                <div class="text-xs text-warm-gray-500">Usa “Ver” en la lista de roles para previsualizar aquí.</div>
+                              }
+                            </div>
+                          </div>
+                          <div class="rounded-xl border p-3 bg-white/60" formGroupName="visualPermissions">
+                            <div class="text-sm font-semibold text-warm-gray-700 mb-2">Permisos de módulos</div>
+                            <div class="grid grid-cols-2 gap-2">
+                              @for (mod of allModules; track mod) {
+                                <label class="inline-flex items-center gap-2">
+                                  <input type="checkbox" [formControlName]="mod.key" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+                                  <span class="text-sm">{{ mod.label }}</span>
+                                </label>
+                              }
+                            </div>
+                            <label class="inline-flex items-center gap-2 mt-3">
+                              <input type="checkbox" formControlName="mobileAccess" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+                              <span class="text-sm text-warm-gray-700">Acceso móvil</span>
+                            </label>
+                          </div>
+                          <!-- Default global: manejo de alimento (galpón vs granja). Cada granja puede overridear. -->
+                          <div class="rounded-xl border p-3 bg-white/60">
+                            <div class="text-sm font-semibold text-warm-gray-700 mb-2">Manejo de alimento</div>
+                            <label class="inline-flex items-start gap-2">
+                              <input type="checkbox" formControlName="manejaAlimentoPorGalpon" class="h-4 w-4 mt-0.5 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+                              <span class="text-sm text-warm-gray-700">
+                                Manejar alimento a nivel <b>galpón</b>
+                                <span class="block text-xs text-warm-gray-500">Si se desactiva, el alimento se maneja a nivel <b>granja</b>. Cada granja puede cambiarlo individualmente.</span>
+                              </span>
+                            </label>
+                          </div>
+                        </section>
+                      </div>
+                    }
+                    <!-- Footer acciones -->
+                    <div class="flex justify-between pt-2">
+                      @if (step===2) {
+                        <button type="button" (click)="prevStep()" class="btn-ghost">
+                          <fa-icon [icon]="faPrev" class="mr-2" aria-hidden="true"></fa-icon>
+                          Volver
+                        </button>
+                      }
+                      <span></span>
+                      @if (step===1) {
+                        <button type="button" (click)="nextStep()"
+                          [disabled]="form.get('name')?.invalid || form.get('identifier')?.invalid || form.get('documentType')?.invalid"
+                          class="btn-primary">
+                          Siguiente
+                          <fa-icon [icon]="faNext" class="ml-2" aria-hidden="true"></fa-icon>
+                        </button>
+                      }
+                      @if (step===2) {
+                        <button type="submit" class="btn-primary">
+                          <fa-icon [icon]="faBuilding" aria-hidden="true"></fa-icon>
+                          Guardar Empresa
+                        </button>
+                      }
+                    </div>
+                  </form>
+                  <!-- Overlay de proceso -->
+                  @if (loading) {
+                    <div class="loading-overlay" aria-live="polite">
+                      <div class="spinner"></div>
+                      Procesando…
+                    </div>
+                  }
                 </div>
-              </label>
-
-              <button type="button" (click)="openRolePreview(r.id)" class="btn-ghost" title="Ver permisos del rol">Ver</button>
-            </div>
-
-            <div *ngIf="!filteredRoles.length" class="text-center text-sm text-warm-gray-500 py-4">
-              No hay roles que coincidan con el filtro.
-            </div>
-          </div>
-
-          <!-- Chips -->
-          <div *ngIf="roleIds.length" class="flex flex-wrap gap-2 pt-2">
-            <span *ngFor="let rid of roleIds" class="chip">
-              {{ roleName(rid) }}
-              <button type="button" (click)="removeRole(rid)" class="icon-btn" [attr.aria-label]="'Quitar ' + roleName(rid)">×</button>
-            </span>
-            <button type="button" (click)="clearRoles()" class="text-xs text-warm-gray-600 hover:text-brand-red underline">Limpiar roles</button>
-          </div>
-        </section>
-
-        <!-- Permisos + módulos -->
-        <section class="col-span-12 lg:col-span-6 space-y-3">
-          <div class="rounded-xl border bg-gray-50 p-3 shadow-inner">
-            <div class="flex items-center justify-between">
-              <div class="text-sm font-semibold text-warm-gray-700 mb-2">Permisos (asignación resultante)</div>
-              <div class="text-[11px] text-warm-gray-500">{{ selectedRolesPermissions.length }} total</div>
-            </div>
-            <div class="min-h-[60px]">
-              <ng-container *ngIf="selectedRolesPermissions.length; else noPerms">
-                <div class="flex flex-wrap gap-2">
-                  <span *ngFor="let p of selectedRolesPermissions" class="inline-block text-[11px] px-2 py-1 rounded bg-white border shadow-sm">
-                    {{ p }}
-                  </span>
-                </div>
-              </ng-container>
-              <ng-template #noPerms>
-                <div class="text-xs text-warm-gray-500">Selecciona uno o más roles para ver sus permisos combinados.</div>
-              </ng-template>
-            </div>
-          </div>
-
-          <div class="rounded-xl border bg-gray-50 p-3 shadow-inner">
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-sm font-semibold text-warm-gray-700">
-                Detalle del rol <span *ngIf="previewRoleId" class="font-bold">“{{ roleName(previewRoleId) }}”</span>
               </div>
-              <button *ngIf="previewRoleId" type="button" (click)="previewRoleId = null" class="btn-ghost">Cerrar</button>
-            </div>
-            <div class="min-h-[60px]">
-              <ng-container *ngIf="previewRoleId && previewRolePermissions.length; else noPreview">
-                <div class="flex flex-wrap gap-2">
-                  <span *ngFor="let p of previewRolePermissions" class="inline-block text-[11px] px-2 py-1 rounded bg-white border shadow-sm">
-                    {{ p }}
-                  </span>
-                </div>
-              </ng-container>
-              <ng-template #noPreview>
-                <div class="text-xs text-warm-gray-500">Usa “Ver” en la lista de roles para previsualizar aquí.</div>
-              </ng-template>
-            </div>
-          </div>
-
-          <div class="rounded-xl border p-3 bg-white/60" formGroupName="visualPermissions">
-            <div class="text-sm font-semibold text-warm-gray-700 mb-2">Permisos de módulos</div>
-            <div class="grid grid-cols-2 gap-2">
-              <label *ngFor="let mod of allModules" class="inline-flex items-center gap-2">
-                <input type="checkbox" [formControlName]="mod.key" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
-                <span class="text-sm">{{ mod.label }}</span>
-              </label>
-            </div>
-
-            <label class="inline-flex items-center gap-2 mt-3">
-              <input type="checkbox" formControlName="mobileAccess" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
-              <span class="text-sm text-warm-gray-700">Acceso móvil</span>
-            </label>
-          </div>
-        </section>
-      </div>
-
-      <!-- Footer acciones -->
-      <div class="flex justify-between pt-2">
-        <button *ngIf="step===2" type="button" (click)="prevStep()" class="btn-ghost">
-          <fa-icon [icon]="faPrev" class="mr-2" aria-hidden="true"></fa-icon>
-          Volver
-        </button>
-        <span></span>
-        <button *ngIf="step===1" type="button" (click)="nextStep()"
-                [disabled]="form.get('name')?.invalid || form.get('identifier')?.invalid || form.get('documentType')?.invalid"
-                class="btn-primary">
-          Siguiente
-          <fa-icon [icon]="faNext" class="ml-2" aria-hidden="true"></fa-icon>
-        </button>
-        <button *ngIf="step===2" type="submit" class="btn-primary">
-          <fa-icon [icon]="faBuilding" aria-hidden="true"></fa-icon>
-          Guardar Empresa
-        </button>
-      </div>
-    </form>
-
-    <!-- Overlay de proceso -->
-    <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-      <div class="spinner"></div>
-      Procesando…
-    </div>
-  </div>
-</div>
+            }

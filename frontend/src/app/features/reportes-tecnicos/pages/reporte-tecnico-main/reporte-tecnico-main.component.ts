@@ -1,5 +1,5 @@
 // src/app/features/reportes-tecnicos/pages/reporte-tecnico-main/reporte-tecnico-main.component.ts
-import { Component, OnInit, OnDestroy, signal, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -40,6 +40,7 @@ import { ReportesTabsComponent } from '../../components/reportes-tabs/reportes-t
     ReportesTabsComponent
   ],
   templateUrl: './reporte-tecnico-main.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./reporte-tecnico-main.component.scss']
 })
 export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {

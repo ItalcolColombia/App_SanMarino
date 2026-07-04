@@ -1,5 +1,5 @@
 // src/app/features/tickets/pages/ticket-create/ticket-create.component.ts
-import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,6 +18,7 @@ import { forkJoin, of } from 'rxjs';
   selector: 'app-ticket-create',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, ImageDropzoneComponent, TicketAdjuntosInputComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './ticket-create.component.html',
 })
 export class TicketCreateComponent implements OnInit {

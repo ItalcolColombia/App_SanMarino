@@ -1,5 +1,5 @@
 // src/app/features/traslados/pages/inventario-dashboard/inventario-dashboard.component.ts
-import { Component, OnInit, signal, effect, computed } from '@angular/core';
+import { Component, OnInit, signal, effect, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -40,6 +40,7 @@ import { LoteProduccionService, CreateLoteProduccionDto } from '../../../lote-pr
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, HierarchicalFilterComponent, ModalTrasladoLoteComponent],
   templateUrl: './inventario-dashboard.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./inventario-dashboard.component.scss']
 })
 export class InventarioDashboardComponent implements OnInit {

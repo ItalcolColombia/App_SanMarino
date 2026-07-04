@@ -446,7 +446,7 @@
 
   tfoot tr.prorrateo-totals td {
     background: #bbf7d0;
-    border-top: 2px solid var(--ital-green, #2d7a3e);
+    border-top: 2px solid var(--ital-green, #F5821F);
   }
 }
 
@@ -599,4 +599,27 @@
   &__row-error {
     background: rgba(254, 226, 226, 0.45);
   }
+}
+
+/* Peso bascula obligatorio en ventas */
+.req-mark {
+  color: #c0410f;
+  font-weight: 700;
+}
+.field-error {
+  display: block;
+  margin-top: .25rem;
+  font-size: .78rem;
+  color: #b91c1c;
+}
+.form-input--invalid {
+  border-color: #dc2626 !important;
+  background: #fef2f2;
+}
+.field-error--footer {
+  flex: 1;
+  margin: 0;
+  align-self: center;
+  text-align: left;
+  font-weight: 600;
 }

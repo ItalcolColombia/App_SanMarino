@@ -1,74 +1,93 @@
 <!-- Modal de Traslado de Huevos -->
-<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="traslado-huevos-modal-title" (click)="onOverlayClick($event)">
-  <div class="ux-modal__dialog ux-modal__dialog--traslado-huevos" (click)="$event.stopPropagation()">
-    <header class="ux-modal__header">
-      <h2 id="traslado-huevos-modal-title">
-        {{ modalTitle() }}
-        <span *ngIf="editingTraslado" class="modal-subtitle">
-          - {{ editingTraslado.numeroTraslado }}
-        </span>
-      </h2>
-      <button type="button" class="icon-btn" (click)="closeModal()" aria-label="Cerrar">✕</button>
-    </header>
-
-    <div class="ux-modal__body">
-      <div *ngIf="error()" class="alert alert-error">{{ error() }}</div>
-      <div *ngIf="success()" class="alert alert-success">{{ success() }}</div>
-
-      <!-- Información del lote: franja superior a todo el ancho -->
-      <div class="traslado-meta-bar" *ngIf="loteInfo() || disponibilidad() || loadingDisponibilidad()">
-        <div *ngIf="loadingDisponibilidad()" class="traslado-meta-bar__loading">Cargando disponibilidad…</div>
-
-        <div class="traslado-meta-bar__primary" *ngIf="loteInfo() || disponibilidad()">
-          <span class="traslado-meta-pill" *ngIf="disponibilidad()?.lotePosturaProduccionId != null">
-            <span class="traslado-meta-pill__k">LPP</span>
-            <span class="traslado-meta-pill__v">#{{ disponibilidad()!.lotePosturaProduccionId }}</span>
-          </span>
-          <span class="traslado-meta-pill traslado-meta-pill--wide">
-            <span class="traslado-meta-pill__k">Lote</span>
-            <span class="traslado-meta-pill__v">
-              {{ (disponibilidad()?.loteNombre || loteInfo()?.loteNombre) || '—' }}
-              <ng-container *ngIf="disponibilidad()?.loteId != null || loteInfo()?.loteId != null">
-                <span class="traslado-meta-pill__sub">ID {{ disponibilidad()?.loteId ?? loteInfo()?.loteId }}</span>
-              </ng-container>
+@if (isOpen) {
+  <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="traslado-huevos-modal-title" (click)="onOverlayClick($event)">
+    <div class="ux-modal__dialog ux-modal__dialog--traslado-huevos" (click)="$event.stopPropagation()">
+      <header class="ux-modal__header">
+        <h2 id="traslado-huevos-modal-title">
+          {{ modalTitle() }}
+          @if (editingTraslado) {
+            <span class="modal-subtitle">
+              - {{ editingTraslado.numeroTraslado }}
             </span>
-          </span>
-          <span class="traslado-meta-pill" *ngIf="disponibilidad()">
-            <span class="traslado-meta-pill__k">Granja</span>
-            <span class="traslado-meta-pill__v">{{ disponibilidad()!.granjaNombre }}</span>
-          </span>
-          <span class="traslado-meta-pill" *ngIf="disponibilidad()?.nucleoNombre">
-            <span class="traslado-meta-pill__k">Núcleo</span>
-            <span class="traslado-meta-pill__v">{{ disponibilidad()!.nucleoNombre }}</span>
-          </span>
-          <span class="traslado-meta-pill" *ngIf="disponibilidad()?.galponNombre">
-            <span class="traslado-meta-pill__k">Galpón</span>
-            <span class="traslado-meta-pill__v">{{ disponibilidad()!.galponNombre }}</span>
-          </span>
-        </div>
-
-        <div class="traslado-meta-bar__eggs" *ngIf="disponibilidad() && disponibilidad()!.tipoLote === 'Produccion'">
-          <span class="traslado-meta-total">Total <strong>{{ disponibilidad()!.huevos?.totalHuevos || 0 }}</strong></span>
-          <span class="traslado-meta-total">Incubables <strong>{{ disponibilidad()!.huevos?.totalHuevosIncubables || 0 }}</strong></span>
-          <span class="traslado-meta-bar__chips">
-            <span *ngFor="let tipo of tiposHuevo" class="traslado-disp-chip">{{ tipo.label }} <b>{{ tipo.disponible() }}</b></span>
-          </span>
-        </div>
-      </div>
-
-      <form [formGroup]="formHuevos" (ngSubmit)="onSubmitHuevos()" class="traslado-form traslado-form--fullwidth">
-            <div class="form-section form-section--compact">
-              <h3 class="form-section__title">Datos del movimiento</h3>
-
-              <div class="form-row" [ngClass]="esTipoVenta(formHuevos.get('tipoOperacion')?.value) ? 'form-row--3' : 'form-row--2'">
-                <div class="form-group">
-                  <label for="fechaTrasladoHuevos">Fecha <span class="required">*</span></label>
-                  <input
-                    type="date"
-                    id="fechaTrasladoHuevos"
-                    formControlName="fechaTraslado"
-                    class="form-control"
-                    [readonly]="isReadOnly()">
+          }
+        </h2>
+        <button type="button" class="icon-btn" (click)="closeModal()" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="ux-modal__body">
+        @if (error()) {
+          <div class="alert alert-error">{{ error() }}</div>
+        }
+        @if (success()) {
+          <div class="alert alert-success">{{ success() }}</div>
+        }
+        <!-- Información del lote: franja superior a todo el ancho -->
+        @if (loteInfo() || disponibilidad() || loadingDisponibilidad()) {
+          <div class="traslado-meta-bar">
+            @if (loadingDisponibilidad()) {
+              <div class="traslado-meta-bar__loading">Cargando disponibilidad…</div>
+            }
+            @if (loteInfo() || disponibilidad()) {
+              <div class="traslado-meta-bar__primary">
+                @if (disponibilidad()?.lotePosturaProduccionId != null) {
+                  <span class="traslado-meta-pill">
+                    <span class="traslado-meta-pill__k">LPP</span>
+                    <span class="traslado-meta-pill__v">#{{ disponibilidad()!.lotePosturaProduccionId }}</span>
+                  </span>
+                }
+                <span class="traslado-meta-pill traslado-meta-pill--wide">
+                  <span class="traslado-meta-pill__k">Lote</span>
+                  <span class="traslado-meta-pill__v">
+                    {{ (disponibilidad()?.loteNombre || loteInfo()?.loteNombre) || '—' }}
+                    @if (disponibilidad()?.loteId != null || loteInfo()?.loteId != null) {
+                      <span class="traslado-meta-pill__sub">ID {{ disponibilidad()?.loteId ?? loteInfo()?.loteId }}</span>
+                    }
+                  </span>
+                </span>
+                @if (disponibilidad()) {
+                  <span class="traslado-meta-pill">
+                    <span class="traslado-meta-pill__k">Granja</span>
+                    <span class="traslado-meta-pill__v">{{ disponibilidad()!.granjaNombre }}</span>
+                  </span>
+                }
+                @if (disponibilidad()?.nucleoNombre) {
+                  <span class="traslado-meta-pill">
+                    <span class="traslado-meta-pill__k">Núcleo</span>
+                    <span class="traslado-meta-pill__v">{{ disponibilidad()!.nucleoNombre }}</span>
+                  </span>
+                }
+                @if (disponibilidad()?.galponNombre) {
+                  <span class="traslado-meta-pill">
+                    <span class="traslado-meta-pill__k">Galpón</span>
+                    <span class="traslado-meta-pill__v">{{ disponibilidad()!.galponNombre }}</span>
+                  </span>
+                }
+              </div>
+            }
+            @if (disponibilidad() && disponibilidad()!.tipoLote === 'Produccion') {
+              <div class="traslado-meta-bar__eggs">
+                <span class="traslado-meta-total">Total <strong>{{ disponibilidad()!.huevos?.totalHuevos || 0 }}</strong></span>
+                <span class="traslado-meta-total">Incubables <strong>{{ disponibilidad()!.huevos?.totalHuevosIncubables || 0 }}</strong></span>
+                <span class="traslado-meta-bar__chips">
+                  @for (tipo of tiposHuevo; track tipo) {
+                    <span class="traslado-disp-chip">{{ tipo.label }} <b>{{ tipo.disponible() }}</b></span>
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        }
+        <form [formGroup]="formHuevos" (ngSubmit)="onSubmitHuevos()" class="traslado-form traslado-form--fullwidth">
+          <div class="form-section form-section--compact">
+            <h3 class="form-section__title">Datos del movimiento</h3>
+            <div class="form-row" [ngClass]="esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value)) ? 'form-row--3' : 'form-row--2'">
+              <div class="form-group">
+                <label for="fechaTrasladoHuevos">Fecha <span class="required">*</span></label>
+                <input
+                  type="date"
+                  id="fechaTrasladoHuevos"
+                  formControlName="fechaTraslado"
+                  class="form-control"
+                  [readonly]="isReadOnly()">
                 </div>
                 <div class="form-group">
                   <label for="tipoOperacionHuevos">Tipo de operación <span class="required">*</span></label>
@@ -77,173 +96,209 @@
                     formControlName="tipoOperacion"
                     class="form-control"
                     [disabled]="isReadOnly()">
-                    <option *ngFor="let tipo of tiposOperacionHuevos" [value]="tipo">{{ tipo }}</option>
+                    @for (tipo of tiposOperacionHuevos; track tipo) {
+                      <option [value]="tipo">{{ tipo }}</option>
+                    }
                   </select>
                 </div>
-                <div class="form-group" *ngIf="esTipoVenta(formHuevos.get('tipoOperacion')?.value)">
-                  <label for="tipoDestinoHuevos">Tipo de destino <span class="required">*</span></label>
-                  <select
-                    id="tipoDestinoHuevos"
-                    formControlName="tipoDestino"
-                    class="form-control"
-                    [disabled]="isReadOnly()">
-                    <option value="">Selecciona destino</option>
-                    <option *ngFor="let tipo of getTiposDestinoVenta()" [value]="tipo">{{ tipo }}</option>
-                  </select>
-                  <div *ngIf="formHuevos.get('tipoDestino')?.invalid && formHuevos.get('tipoDestino')?.touched" class="error-message">
-                    El tipo de destino es requerido
+                @if (esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value))) {
+                  <div class="form-group">
+                    <label for="tipoDestinoHuevos">Tipo de destino <span class="required">*</span></label>
+                    <select
+                      id="tipoDestinoHuevos"
+                      formControlName="tipoDestino"
+                      class="form-control"
+                      [disabled]="isReadOnly()">
+                      <option value="">Selecciona destino</option>
+                      @for (tipo of getTiposDestinoVenta(); track tipo) {
+                        <option [value]="tipo">{{ tipo }}</option>
+                      }
+                    </select>
+                    @if (formHuevos.get('tipoDestino')?.invalid && formHuevos.get('tipoDestino')?.touched) {
+                      <div class="error-message">
+                        El tipo de destino es requerido
+                      </div>
+                    }
                   </div>
-                </div>
-                <div class="form-group" *ngIf="esTipoTraslado(formHuevos.get('tipoOperacion')?.value)">
-                  <label>Tipo de destino <span class="required">*</span></label>
-                  <div class="traslado-destino-fijo">Planta (por defecto)</div>
-                  <p class="traslado-destino-hint">Fijo para traslados; indica la otra granja abajo.</p>
-                </div>
+                }
+                @if (esTipoTraslado($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value))) {
+                  <div class="form-group">
+                    <label>Tipo de destino <span class="required">*</span></label>
+                    <div class="traslado-destino-fijo">Planta (por defecto)</div>
+                    <p class="traslado-destino-hint">Fijo para traslados; indica la otra granja abajo.</p>
+                  </div>
+                }
               </div>
-
               <!-- Traslado → otra granja (observaciones) -->
-              <div class="form-group" *ngIf="mostrarOtraGranjaTraslado()">
-                <label for="otraGranjaHuevos">Nombre Planta <span class="required">*</span></label>
-                <input
-                  type="text"
-                  id="otraGranjaHuevos"
-                  formControlName="observaciones"
-                  class="form-control form-control--compact"
-                  maxlength="2000"
-                  placeholder="Nombre o referencia  de destino"
-                  [readonly]="isReadOnly()">
-                <div *ngIf="formHuevos.get('observaciones')?.invalid && formHuevos.get('observaciones')?.touched" class="error-message">
-                  Indica el nombre de la planta de destino
-                </div>
-              </div>
-
-              <!-- Venta → Planta: catálogo -->
-              <div class="form-group" *ngIf="mostrarPlantaCatalogoVenta()">
-                <label for="plantaDestinoHuevos">Planta <span class="required">*</span></label>
-                <select
-                  id="plantaDestinoHuevos"
-                  formControlName="plantaDestino"
-                  class="form-control"
-                  [disabled]="isReadOnly()">
-                  <option value="">Selecciona planta</option>
-                  <option *ngFor="let planta of plantasDestino()" [value]="planta">{{ planta }}</option>
-                </select>
-                <div *ngIf="formHuevos.get('plantaDestino')?.invalid && formHuevos.get('plantaDestino')?.touched" class="error-message">
-                  Selecciona la planta
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section form-section--compact">
-              <h3 class="form-section__title">Cantidades por tipo de huevo</h3>
-              <div class="huevos-cantidades-grid">
-                <div *ngFor="let tipo of tiposHuevo" class="form-group-huevo">
-                  <label [for]="'cantidad' + tipo.key">
-                    {{ tipo.label }}
-                    <span class="disponible">{{ tipo.disponible() }}</span>
-                  </label>
+              @if (mostrarOtraGranjaTraslado()) {
+                <div class="form-group">
+                  <label for="otraGranjaHuevos">Nombre Planta <span class="required">*</span></label>
                   <input
-                    type="number"
-                    [id]="'cantidad' + tipo.key"
-                    [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
-                    class="form-control"
-                    [max]="tipo.disponible()"
-                    min="0"
+                    type="text"
+                    id="otraGranjaHuevos"
+                    formControlName="observaciones"
+                    class="form-control form-control--compact"
+                    maxlength="2000"
+                    placeholder="Nombre o referencia  de destino"
                     [readonly]="isReadOnly()">
+                    @if (formHuevos.get('observaciones')?.invalid && formHuevos.get('observaciones')?.touched) {
+                      <div class="error-message">
+                        Indica el nombre de la planta de destino
+                      </div>
+                    }
+                  </div>
+                }
+                <!-- Venta → Planta: catálogo -->
+                @if (mostrarPlantaCatalogoVenta()) {
+                  <div class="form-group">
+                    <label for="plantaDestinoHuevos">Planta <span class="required">*</span></label>
+                    <select
+                      id="plantaDestinoHuevos"
+                      formControlName="plantaDestino"
+                      class="form-control"
+                      [disabled]="isReadOnly()">
+                      <option value="">Selecciona planta</option>
+                      @for (planta of plantasDestino(); track planta) {
+                        <option [value]="planta">{{ planta }}</option>
+                      }
+                    </select>
+                    @if (formHuevos.get('plantaDestino')?.invalid && formHuevos.get('plantaDestino')?.touched) {
+                      <div class="error-message">
+                        Selecciona la planta
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="form-section form-section--compact">
+                <h3 class="form-section__title">Cantidades por tipo de huevo</h3>
+                <div class="huevos-cantidades-grid">
+                  @for (tipo of tiposHuevo; track tipo) {
+                    <div class="form-group-huevo">
+                      <label [for]="'cantidad' + tipo.key">
+                        {{ tipo.label }}
+                        <span class="disponible">{{ tipo.disponible() }}</span>
+                      </label>
+                      <input
+                        type="number"
+                        [id]="'cantidad' + tipo.key"
+                        [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
+                        class="form-control"
+                        [max]="tipo.disponible()"
+                        min="0"
+                        [readonly]="isReadOnly()">
+                      </div>
+                    }
+                  </div>
+                  @if (formHuevos.hasError('sinCantidad') && formHuevos.touched) {
+                    <div class="error-message">
+                      Ingresa al menos una cantidad
+                    </div>
+                  }
                 </div>
-              </div>
-              <div *ngIf="formHuevos.hasError('sinCantidad') && formHuevos.touched" class="error-message">
-                Ingresa al menos una cantidad
-              </div>
+                @if (esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value))) {
+                  <div class="form-section form-section--compact">
+                    <h3 class="form-section__title">Venta</h3>
+                    <div class="form-group">
+                      <label for="descripcionHuevos">Descripción <span class="required">*</span></label>
+                      <textarea
+                        id="descripcionHuevos"
+                        formControlName="descripcion"
+                        class="form-control"
+                        rows="2"
+                        placeholder="Detalle de la venta"
+                      [readonly]="isReadOnly()"></textarea>
+                      @if (formHuevos.get('descripcion')?.invalid && formHuevos.get('descripcion')?.touched) {
+                        <div class="error-message">
+                          La descripción es requerida
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+                @if (mostrarObservacionesTextarea()) {
+                  <div class="form-group">
+                    <label for="observacionesHuevos">Observaciones</label>
+                    <textarea
+                      id="observacionesHuevos"
+                      formControlName="observaciones"
+                      class="form-control"
+                      rows="2"
+                      [placeholder]="esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value)) ? 'Opcional: notas adicionales' : 'Opcional: notas del traslado'"
+                      [readonly]="isReadOnly()">
+                    </textarea>
+                  </div>
+                }
+              </form>
             </div>
+            <footer class="ux-modal__footer">
+              <button type="button" class="btn btn--ghost" (click)="closeModal()">
+                {{ isReadOnly() ? 'Cerrar' : 'Cancelar' }}
+              </button>
+              @if (!isReadOnly()) {
+                <button
+                  type="button"
+                  class="btn btn--primary"
+                  (click)="onSubmitHuevos()"
+                  [disabled]="formHuevos.invalid || loading()">
+                  @if (loading()) {
+                    <span>Guardando...</span>
+                  }
+                  @if (!loading()) {
+                    <span>{{ saveButtonText() }}</span>
+                  }
+                </button>
+              }
+              @if (isReadOnly() && editingTraslado && editingTraslado.estado === 'Pendiente') {
+                <button
+                  type="button"
+                  class="btn btn--primary"
+                  (click)="isEditMode.set(true)">
+                  Editar
+                </button>
+              }
+              @if (isReadOnly() && editingTraslado && editingTraslado.estado === 'Completado') {
+                <button
+                  type="button"
+                  class="btn btn--outline traslado-btn-anular"
+                  (click)="anular.emit(editingTraslado!)"
+                  [disabled]="loading()">
+                  Anular y devolver inventario
+                </button>
+              }
+            </footer>
+          </div>
+        </div>
+      }
 
-            <div class="form-section form-section--compact" *ngIf="esTipoVenta(formHuevos.get('tipoOperacion')?.value)">
-              <h3 class="form-section__title">Venta</h3>
-              <div class="form-group">
-                <label for="descripcionHuevos">Descripción <span class="required">*</span></label>
-                <textarea
-                  id="descripcionHuevos"
-                  formControlName="descripcion"
-                  class="form-control"
-                  rows="2"
-                  placeholder="Detalle de la venta"
-                  [readonly]="isReadOnly()"></textarea>
-                <div *ngIf="formHuevos.get('descripcion')?.invalid && formHuevos.get('descripcion')?.touched" class="error-message">
-                  La descripción es requerida
-                </div>
-              </div>
+      <!-- Modal de Éxito -->
+      @if (showSuccessModal()) {
+        <div class="success-modal-backdrop" (click)="closeSuccessModal()">
+          <div class="success-modal" (click)="$event.stopPropagation()">
+            <div class="success-modal__icon">
+              <span class="success-icon">✓</span>
             </div>
+            <h3 class="success-modal__title">¡Operación Exitosa!</h3>
+            <p class="success-modal__message">{{ successMessage() }}</p>
+            <button type="button" class="btn btn--primary" (click)="closeSuccessModal()">
+              Aceptar
+            </button>
+          </div>
+        </div>
+      }
 
-            <div class="form-group" *ngIf="mostrarObservacionesTextarea()">
-              <label for="observacionesHuevos">Observaciones</label>
-              <textarea
-                id="observacionesHuevos"
-                formControlName="observaciones"
-                class="form-control"
-                rows="2"
-                [placeholder]="esTipoVenta(formHuevos.get('tipoOperacion')?.value) ? 'Opcional: notas adicionales' : 'Opcional: notas del traslado'"
-                [readonly]="isReadOnly()">
-              </textarea>
+      <!-- Modal de Error -->
+      @if (showErrorModal()) {
+        <div class="error-modal-backdrop" (click)="closeErrorModal()">
+          <div class="error-modal" (click)="$event.stopPropagation()">
+            <div class="error-modal__icon">
+              <span class="error-icon">⚠</span>
             </div>
-      </form>
-    </div>
-
-    <footer class="ux-modal__footer">
-      <button type="button" class="btn btn--ghost" (click)="closeModal()">
-        {{ isReadOnly() ? 'Cerrar' : 'Cancelar' }}
-      </button>
-      <button
-        *ngIf="!isReadOnly()"
-        type="button"
-        class="btn btn--primary"
-        (click)="onSubmitHuevos()"
-        [disabled]="formHuevos.invalid || loading()">
-        <span *ngIf="loading()">Guardando...</span>
-        <span *ngIf="!loading()">{{ saveButtonText() }}</span>
-      </button>
-      <button
-        *ngIf="isReadOnly() && editingTraslado && editingTraslado.estado === 'Pendiente'"
-        type="button"
-        class="btn btn--primary"
-        (click)="isEditMode.set(true)">
-        Editar
-      </button>
-      <button
-        *ngIf="isReadOnly() && editingTraslado && editingTraslado.estado === 'Completado'"
-        type="button"
-        class="btn btn--outline traslado-btn-anular"
-        (click)="anular.emit(editingTraslado!)"
-        [disabled]="loading()">
-        Anular y devolver inventario
-      </button>
-    </footer>
-  </div>
-</div>
-
-<!-- Modal de Éxito -->
-<div *ngIf="showSuccessModal()" class="success-modal-backdrop" (click)="closeSuccessModal()">
-  <div class="success-modal" (click)="$event.stopPropagation()">
-    <div class="success-modal__icon">
-      <span class="success-icon">✓</span>
-    </div>
-    <h3 class="success-modal__title">¡Operación Exitosa!</h3>
-    <p class="success-modal__message">{{ successMessage() }}</p>
-    <button type="button" class="btn btn--primary" (click)="closeSuccessModal()">
-      Aceptar
-    </button>
-  </div>
-</div>
-
-<!-- Modal de Error -->
-<div *ngIf="showErrorModal()" class="error-modal-backdrop" (click)="closeErrorModal()">
-  <div class="error-modal" (click)="$event.stopPropagation()">
-    <div class="error-modal__icon">
-      <span class="error-icon">⚠</span>
-    </div>
-    <h3 class="error-modal__title">Error al Guardar</h3>
-    <p class="error-modal__message">{{ errorMessage() }}</p>
-    <button type="button" class="btn btn--primary" (click)="closeErrorModal()">
-      Entendido
-    </button>
-  </div>
-</div>
+            <h3 class="error-modal__title">Error al Guardar</h3>
+            <p class="error-modal__message">{{ errorMessage() }}</p>
+            <button type="button" class="btn btn--primary" (click)="closeErrorModal()">
+              Entendido
+            </button>
+          </div>
+        </div>
+      }

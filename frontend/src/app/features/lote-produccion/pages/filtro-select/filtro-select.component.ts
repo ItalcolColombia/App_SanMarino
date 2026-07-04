@@ -1,5 +1,5 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -39,8 +39,9 @@ export interface FilterDataResponse {
 @Component({
   selector: 'app-filtro-select',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './filtro-select.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./filtro-select.component.scss']
 })
 export class FiltroSelectComponent implements OnInit {
@@ -244,9 +245,31 @@ export class FiltroSelectComponent implements OnInit {
     if (this.hasSinGalpon) {
       result.unshift({ id: this.SIN_GALPON, label: '— Sin galpón —' });
     }
-    this.galpones = result.sort((a, b) =>
+    this.galpones = this.disambiguateGalponLabels(result).sort((a, b) =>
       a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' })
     );
+  }
+
+  /**
+   * Cuando dos galpones distintos comparten el mismo nombre (p. ej. dos "Galpon 3"
+   * con códigos G0023 y G0024), agrega el código entre paréntesis para distinguirlos.
+   * No toca los nombres únicos ni la opción "— Sin galpón —".
+   */
+  private disambiguateGalponLabels(
+    items: Array<{ id: string; label: string }>
+  ): Array<{ id: string; label: string }> {
+    const nameCount = new Map<string, number>();
+    for (const it of items) {
+      if (it.id === this.SIN_GALPON) continue;
+      nameCount.set(it.label, (nameCount.get(it.label) ?? 0) + 1);
+    }
+    return items.map(it => {
+      if (it.id === this.SIN_GALPON) return it;
+      if ((nameCount.get(it.label) ?? 0) > 1 && !it.label.includes(`(${it.id})`)) {
+        return { ...it, label: `${it.label} (${it.id})` };
+      }
+      return it;
+    });
   }
 
   private buildGalponesFromLotes(): void {
@@ -281,7 +304,7 @@ export class FiltroSelectComponent implements OnInit {
       result.unshift({ id: this.SIN_GALPON, label: '— Sin galpón —' });
     }
 
-    this.galpones = result.sort((a, b) =>
+    this.galpones = this.disambiguateGalponLabels(result).sort((a, b) =>
       a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' })
     );
   }

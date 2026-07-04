@@ -1,23 +1,52 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
 
 namespace ZooSanMarino.API.Infrastructure;
 
 /// <summary>
-/// Filtro de operación para manejar correctamente los archivos IFormFile en Swagger
+/// Filtro de operación para manejar correctamente los archivos IFormFile en Swagger.
+/// (Microsoft.OpenApi v2: Type es JsonSchemaType y Properties es IOpenApiSchema.)
 /// </summary>
 public class FileUploadOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
         var fileParams = context.MethodInfo.GetParameters()
-            .Where(p => p.ParameterType == typeof(IFormFile) || 
+            .Where(p => p.ParameterType == typeof(IFormFile) ||
                        p.ParameterType == typeof(IFormFile[]) ||
                        p.ParameterType == typeof(List<IFormFile>))
             .ToList();
 
         if (!fileParams.Any()) return;
+
+        // Propiedades del multipart/form-data: cada archivo como string/binary + params FromForm
+        var properties = new Dictionary<string, IOpenApiSchema>();
+
+        foreach (var param in fileParams)
+        {
+            properties[param.Name!] = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                Format = "binary"
+            };
+        }
+
+        // Otros parámetros FromForm como propiedades adicionales
+        var formParams = context.MethodInfo.GetParameters()
+            .Where(p => p.GetCustomAttribute<Microsoft.AspNetCore.Mvc.FromFormAttribute>() != null &&
+                       p.ParameterType != typeof(IFormFile) &&
+                       p.ParameterType != typeof(IFormFile[]) &&
+                       p.ParameterType != typeof(List<IFormFile>))
+            .ToList();
+
+        foreach (var param in formParams)
+        {
+            properties[param.Name!] = new OpenApiSchema
+            {
+                Type = GetOpenApiType(param.ParameterType)
+            };
+        }
 
         // Configurar el content type para multipart/form-data
         operation.RequestBody = new OpenApiRequestBody
@@ -28,59 +57,29 @@ public class FileUploadOperationFilter : IOperationFilter
                 {
                     Schema = new OpenApiSchema
                     {
-                        Type = "object",
-                        Properties = new Dictionary<string, OpenApiSchema>()
+                        Type = JsonSchemaType.Object,
+                        Properties = properties
                     }
                 }
             }
         };
-
-        // Agregar propiedades para cada parámetro de archivo
-        foreach (var param in fileParams)
-        {
-            var schema = new OpenApiSchema
-            {
-                Type = "string",
-                Format = "binary"
-            };
-
-            operation.RequestBody.Content["multipart/form-data"].Schema.Properties[param.Name!] = schema;
-        }
-
-        // Agregar otros parámetros FromForm como propiedades adicionales
-        var formParams = context.MethodInfo.GetParameters()
-            .Where(p => p.GetCustomAttribute<Microsoft.AspNetCore.Mvc.FromFormAttribute>() != null &&
-                       p.ParameterType != typeof(IFormFile) &&
-                       p.ParameterType != typeof(IFormFile[]) &&
-                       p.ParameterType != typeof(List<IFormFile>))
-            .ToList();
-
-        foreach (var param in formParams)
-        {
-            var schema = new OpenApiSchema
-            {
-                Type = GetOpenApiType(param.ParameterType)
-            };
-
-            operation.RequestBody.Content["multipart/form-data"].Schema.Properties[param.Name!] = schema;
-        }
     }
 
-    private static string GetOpenApiType(Type type)
+    private static JsonSchemaType GetOpenApiType(Type type)
     {
         return type switch
         {
-            var t when t == typeof(string) => "string",
-            var t when t == typeof(int) || t == typeof(int?) => "integer",
-            var t when t == typeof(long) || t == typeof(long?) => "integer",
-            var t when t == typeof(float) || t == typeof(float?) => "number",
-            var t when t == typeof(double) || t == typeof(double?) => "number",
-            var t when t == typeof(decimal) || t == typeof(decimal?) => "number",
-            var t when t == typeof(bool) || t == typeof(bool?) => "boolean",
-            var t when t == typeof(DateTime) || t == typeof(DateTime?) => "string",
-            var t when t == typeof(DateOnly) || t == typeof(DateOnly?) => "string",
-            var t when t == typeof(TimeOnly) || t == typeof(TimeOnly?) => "string",
-            _ => "string"
+            var t when t == typeof(string) => JsonSchemaType.String,
+            var t when t == typeof(int) || t == typeof(int?) => JsonSchemaType.Integer,
+            var t when t == typeof(long) || t == typeof(long?) => JsonSchemaType.Integer,
+            var t when t == typeof(float) || t == typeof(float?) => JsonSchemaType.Number,
+            var t when t == typeof(double) || t == typeof(double?) => JsonSchemaType.Number,
+            var t when t == typeof(decimal) || t == typeof(decimal?) => JsonSchemaType.Number,
+            var t when t == typeof(bool) || t == typeof(bool?) => JsonSchemaType.Boolean,
+            var t when t == typeof(DateTime) || t == typeof(DateTime?) => JsonSchemaType.String,
+            var t when t == typeof(DateOnly) || t == typeof(DateOnly?) => JsonSchemaType.String,
+            var t when t == typeof(TimeOnly) || t == typeof(TimeOnly?) => JsonSchemaType.String,
+            _ => JsonSchemaType.String
         };
     }
 }

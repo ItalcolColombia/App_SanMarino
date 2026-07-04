@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, finalize, takeUntil } from 'rxjs';
@@ -31,6 +31,7 @@ type SexoTab = 'mixto' | 'hembra' | 'macho';
   standalone: true,
   imports: [CommonModule, FormsModule, FontAwesomeModule, SidebarComponent],
   templateUrl: './guia-genetica-ecuador-page.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./guia-genetica-ecuador-page.component.scss']
 })
 export class GuiaGeneticaEcuadorPageComponent implements OnInit, OnDestroy {

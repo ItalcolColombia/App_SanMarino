@@ -10,59 +10,61 @@
       <input
         formControlName="name"
         class="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500"
-      />
-      <p
-        *ngIf="form.get('name')?.touched && form.get('name')?.invalid"
-        class="mt-1 text-sm text-red-600"
-      >
-        El nombre es obligatorio.
-      </p>
-    </div>
+        />
+        @if (form.get('name')?.touched && form.get('name')?.invalid) {
+          <p
+            class="mt-1 text-sm text-red-600"
+            >
+            El nombre es obligatorio.
+          </p>
+        }
+      </div>
 
-    <!-- Country ID -->
-    <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">
-        País (ID)
-      </label>
-      <input
-        formControlName="countryId"
-        type="number"
-        class="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500"
-      />
-      <p
-        *ngIf="form.get('countryId')?.touched && form.get('countryId')?.invalid"
-        class="mt-1 text-sm text-red-600"
-      >
-        El país es obligatorio.
-      </p>
-    </div>
+      <!-- Country ID -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          País (ID)
+        </label>
+        <input
+          formControlName="countryId"
+          type="number"
+          class="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500"
+          />
+          @if (form.get('countryId')?.touched && form.get('countryId')?.invalid) {
+            <p
+              class="mt-1 text-sm text-red-600"
+              >
+              El país es obligatorio.
+            </p>
+          }
+        </div>
 
-    <!-- Activo -->
-    <div class="flex items-center space-x-2">
-      <input
-        type="checkbox"
-        formControlName="active"
-        class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-      />
-      <label class="text-sm text-gray-700">Activo</label>
-    </div>
+        <!-- Activo -->
+        <div class="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            formControlName="active"
+            class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label class="text-sm text-gray-700">Activo</label>
+          </div>
 
-    <!-- Botones -->
-    <div class="flex space-x-2">
-      <button
-        type="submit"
-        [disabled]="form.invalid"
-        class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-      >
-        {{ id ? 'Guardar Cambios' : 'Crear' }}
-      </button>
-      <button
-        type="button"
-        routerLink="/config/geography/departments"
-        class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded focus:ring-2 focus:ring-gray-500"
-      >
-        Cancelar
-      </button>
-    </div>
-  </form>
-</div>
+          <!-- Botones -->
+          <div class="flex space-x-2">
+            <button
+              type="submit"
+              [disabled]="form.invalid"
+              class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+              {{ id ? 'Guardar Cambios' : 'Crear' }}
+            </button>
+            <button
+              type="button"
+              routerLink="/config/geography/departments"
+              class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded focus:ring-2 focus:ring-gray-500"
+              >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>

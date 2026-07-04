@@ -11,30 +11,40 @@
           Volver
         </button>
         <button type="button" class="btn-primary" (click)="save()" [disabled]="loading">
-          <fa-icon [icon]="faSpinner" class="spin mr-2" *ngIf="loading"></fa-icon>
-          <fa-icon [icon]="faFloppy" class="mr-2" *ngIf="!loading"></fa-icon>
+          @if (loading) {
+            <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+          }
+          @if (!loading) {
+            <fa-icon [icon]="faFloppy" class="mr-2"></fa-icon>
+          }
           Guardar
         </button>
       </div>
     </div>
 
     <div class="card">
-      <div class="alert error" *ngIf="error">{{ error }}</div>
+      @if (error) {
+        <div class="alert error">{{ error }}</div>
+      }
 
       <form [formGroup]="form" class="grid">
-        <div class="field" *ngFor="let f of fields">
-          <label [for]="f.key">{{ f.label }}</label>
-          <input
-            class="input"
-            [id]="f.key"
-            [formControlName]="f.key"
-            [placeholder]="f.placeholder || ''"
-            [disabled]="isAutoField(f.key)"
-          />
-          <small class="hint" *ngIf="isAutoField(f.key)">Calculado automáticamente</small>
-        </div>
-      </form>
+        @for (f of fields; track f) {
+          <div class="field">
+            <label [for]="f.key">{{ f.label }}</label>
+            <input
+              class="input"
+              [id]="f.key"
+              [formControlName]="f.key"
+              [placeholder]="f.placeholder || ''"
+              [disabled]="isAutoField(f.key)"
+              />
+              @if (isAutoField(f.key)) {
+                <small class="hint">Calculado automáticamente</small>
+              }
+            </div>
+          }
+        </form>
+      </div>
     </div>
   </div>
-</div>
 

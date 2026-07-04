@@ -1,6 +1,6 @@
 // src/app/shared/components/company-selector/company-selector.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { ActiveCompanyService } from '../../../core/auth/active-company.service';
@@ -8,8 +8,9 @@ import { ActiveCompanyService } from '../../../core/auth/active-company.service'
 @Component({
   selector: 'app-company-selector',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './company-selector.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./company-selector.component.scss']
 })
 export class CompanySelectorComponent implements OnInit, OnDestroy {

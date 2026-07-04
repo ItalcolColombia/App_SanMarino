@@ -2,653 +2,692 @@
 <div class="graficas-container">
   <div class="graficas-header">
     <h3>📊 Análisis Gráfico del Lote</h3>
-    <p class="graficas-subtitle" *ngIf="selectedLote">
-      {{ selectedLote.loteNombre || ('Lote #' + selectedLote.loteId) }} - {{ indicadoresSemanales.length }} semanas registradas
-    </p>
+    @if (selectedLote) {
+      <p class="graficas-subtitle">
+        {{ selectedLote.loteNombre || ('Lote #' + selectedLote.loteId) }} - {{ indicadoresSemanales.length }} semanas registradas
+      </p>
+    }
   </div>
 
   <!-- ===== Comparativo Real vs Guía Genética (semanas 1-25) ===== -->
-  <div class="grafica-card comparativo-guia-card" *ngIf="indicadoresSemanales.length > 0">
-    <div class="comparativo-controls">
-      <span class="comparativo-titulo">📈 Comparativo con Guía Genética (Real vs Guía)</span>
-      <label class="comparativo-label">Métrica
-        <select [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
-          <option value="consumo">Consumo (g/ave/día)</option>
-          <option value="peso">Peso (g)</option>
-          <option value="mortalidad">% Mortalidad</option>
-          <option value="retiro">% Retiro</option>
-        </select>
-      </label>
+  @if (indicadoresSemanales.length > 0) {
+    <div class="grafica-card comparativo-guia-card">
+      <div class="comparativo-controls">
+        <span class="comparativo-titulo">📈 Comparativo con Guía Genética (Real vs Guía)</span>
+        <label class="comparativo-label">Métrica
+          <select [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
+            <option value="consumo">Consumo (g/ave/día)</option>
+            <option value="peso">Peso (g)</option>
+            <option value="mortalidad">% Mortalidad</option>
+            <option value="retiro">% Retiro</option>
+          </select>
+        </label>
+      </div>
+      <div class="comparativo-chart">
+        <canvas baseChart
+          [type]="lineChartType"
+          [data]="comparativoGuiaChartData"
+          [options]="comparativoGuiaChartOptions">
+        </canvas>
+      </div>
     </div>
-    <div class="comparativo-chart">
-      <canvas baseChart
-              [type]="lineChartType"
-              [data]="comparativoGuiaChartData"
-              [options]="comparativoGuiaChartOptions">
-      </canvas>
-    </div>
-  </div>
+  }
 
   <!-- Estado de carga -->
-  <div class="loading-state" *ngIf="loading">
-    <div class="spinner"></div>
-    <p>Cargando datos para gráficas...</p>
-  </div>
+  @if (loading) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Cargando datos para gráficas...</p>
+    </div>
+  }
 
   <!-- Estado sin datos -->
-  <div class="empty-state" *ngIf="!loading && indicadoresSemanales.length === 0">
-    <div class="empty-icon">📊</div>
-    <h4>No hay datos para mostrar</h4>
-    <p>Se necesitan registros de seguimiento diario para generar las gráficas.</p>
-  </div>
+  @if (!loading && indicadoresSemanales.length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon">📊</div>
+      <h4>No hay datos para mostrar</h4>
+      <p>Se necesitan registros de seguimiento diario para generar las gráficas.</p>
+    </div>
+  }
 
   <!-- Contenido principal de gráficas -->
-  <div *ngIf="!loading && indicadoresSemanales.length > 0" class="graficas-content-wrapper">
-
-    <!-- ========== FILTRO POR RANGO ========== -->
-    <div class="filtro-rango-card">
-      <h4 class="filtro-rango-title">📅 Filtrar por rango del lote</h4>
-      <p class="filtro-rango-hint">Reduce los datos mostrados en las gráficas por fecha o por edad en semanas.</p>
-      <div class="filtro-rango-controls">
-        <div class="filtro-mode-toggle">
-          <button type="button" class="filtro-mode-btn"
-                  [class.active]="modoFiltro === 'todos'"
-                  (click)="modoFiltro = 'todos'; aplicarFiltro()">
-            Todos
-          </button>
-          <button type="button" class="filtro-mode-btn"
-                  [class.active]="modoFiltro === 'fechas'"
-                  (click)="modoFiltro = 'fechas'">
-            Por fechas
-          </button>
-          <button type="button" class="filtro-mode-btn"
-                  [class.active]="modoFiltro === 'edad'"
-                  (click)="modoFiltro = 'edad'">
-            Por edad (semanas)
-          </button>
-        </div>
-
-        <div class="filtro-rango-fields" *ngIf="modoFiltro === 'fechas'">
-          <div class="filtro-field">
-            <label>Desde</label>
-            <input type="date" [(ngModel)]="fechaDesde">
+  @if (!loading && indicadoresSemanales.length > 0) {
+    <div class="graficas-content-wrapper">
+      <!-- ========== FILTRO POR RANGO ========== -->
+      <div class="filtro-rango-card">
+        <h4 class="filtro-rango-title">📅 Filtrar por rango del lote</h4>
+        <p class="filtro-rango-hint">Reduce los datos mostrados en las gráficas por fecha o por edad en semanas.</p>
+        <div class="filtro-rango-controls">
+          <div class="filtro-mode-toggle">
+            <button type="button" class="filtro-mode-btn"
+              [class.active]="modoFiltro === 'todos'"
+              (click)="modoFiltro = 'todos'; aplicarFiltro()">
+              Todos
+            </button>
+            <button type="button" class="filtro-mode-btn"
+              [class.active]="modoFiltro === 'fechas'"
+              (click)="modoFiltro = 'fechas'">
+              Por fechas
+            </button>
+            <button type="button" class="filtro-mode-btn"
+              [class.active]="modoFiltro === 'edad'"
+              (click)="modoFiltro = 'edad'">
+              Por edad (semanas)
+            </button>
           </div>
-          <div class="filtro-field">
-            <label>Hasta</label>
-            <input type="date" [(ngModel)]="fechaHasta">
-          </div>
-          <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
-        </div>
-
-        <div class="filtro-rango-fields" *ngIf="modoFiltro === 'edad'">
-          <div class="filtro-field">
-            <label>Semana desde</label>
-            <input type="number" min="1" [(ngModel)]="semanaDesde" placeholder="1">
-          </div>
-          <div class="filtro-field">
-            <label>Semana hasta</label>
-            <input type="number" min="1" [(ngModel)]="semanaHasta" placeholder="20">
-          </div>
-          <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
-        </div>
-
-        <div class="filtro-badge" *ngIf="modoFiltro !== 'todos'">
-          Mostrando {{ indicadoresFiltrados.length }} de {{ indicadoresSemanales.length }} semanas
-          <button type="button" class="btn-limpiar" (click)="limpiarFiltro()">Limpiar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========== CONTROLES ========== -->
-    <div class="graficas-controls">
-      <!-- Selector de tipo de gráfica (Múltiple) -->
-      <div class="control-group">
-        <label class="control-label">📈 Tipo de Indicador:</label>
-        <div class="tipos-indicador-selector">
-          <p class="tipos-hint">Selecciona uno o más indicadores para comparar en una sola gráfica:</p>
-          <div class="tipos-checkboxes">
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('mortalidad')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('mortalidad')"
-                     (change)="toggleTipoGrafica('mortalidad')">
-              <span class="tipo-icon">💀</span>
-              <span class="tipo-nombre">Mortalidad</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('consumo')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('consumo')"
-                     (change)="toggleTipoGrafica('consumo')">
-              <span class="tipo-icon">🍽️</span>
-              <span class="tipo-nombre">Consumo</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('peso')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('peso')"
-                     (change)="toggleTipoGrafica('peso')">
-              <span class="tipo-icon">⚖️</span>
-              <span class="tipo-nombre">Peso</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('conversion')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('conversion')"
-                     (change)="toggleTipoGrafica('conversion')">
-              <span class="tipo-icon">🔄</span>
-              <span class="tipo-nombre">Conversión</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('seleccion')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('seleccion')"
-                     (change)="toggleTipoGrafica('seleccion')">
-              <span class="tipo-icon">📋</span>
-              <span class="tipo-nombre">Selección</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('aves')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('aves')"
-                     (change)="toggleTipoGrafica('aves')">
-              <span class="tipo-icon">🐔</span>
-              <span class="tipo-nombre">Aves Vivas</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('consumoTabla')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('consumoTabla')"
-                     (change)="toggleTipoGrafica('consumoTabla')">
-              <span class="tipo-icon">📊</span>
-              <span class="tipo-nombre">Consumo Tabla</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('retiro')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('retiro')"
-                     (change)="toggleTipoGrafica('retiro')">
-              <span class="tipo-icon">📉</span>
-              <span class="tipo-nombre">Retiro</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('uniformidad')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('uniformidad')"
-                     (change)="toggleTipoGrafica('uniformidad')">
-              <span class="tipo-icon">📐</span>
-              <span class="tipo-nombre">Uniformidad</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('cv')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('cv')"
-                     (change)="toggleTipoGrafica('cv')">
-              <span class="tipo-icon">📈</span>
-              <span class="tipo-nombre">CV</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('difConsumo')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('difConsumo')"
-                     (change)="toggleTipoGrafica('difConsumo')">
-              <span class="tipo-icon">🔀</span>
-              <span class="tipo-nombre">Dif. Consumo</span>
-            </label>
-            <label class="tipo-checkbox-label"
-                   [class.selected]="isTipoGraficaSeleccionado('incrConsumo')">
-              <input type="checkbox"
-                     [checked]="isTipoGraficaSeleccionado('incrConsumo')"
-                     (change)="toggleTipoGrafica('incrConsumo')">
-              <span class="tipo-icon">📊</span>
-              <span class="tipo-nombre">Incr. Consumo</span>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <!-- Selector de visualización -->
-      <div class="control-group">
-        <label class="control-label">🎨 Visualización:</label>
-        <div class="visualization-toggle">
-          <button type="button"
-                  class="toggle-btn"
-                  [class.active]="tipoVisualizacion === 'barra'"
-                  (click)="tipoVisualizacion = 'barra'; onVisualizacionChange()">
-            📊 Barras
-          </button>
-          <button type="button"
-                  class="toggle-btn"
-                  [class.active]="tipoVisualizacion === 'linea'"
-                  (click)="tipoVisualizacion = 'linea'; onVisualizacionChange()">
-            📈 Líneas
-          </button>
-          <button type="button"
-                  class="toggle-btn"
-                  [class.active]="tipoVisualizacion === 'torta'"
-                  (click)="tipoVisualizacion = 'torta'; onVisualizacionChange()">
-            🥧 Torta
-          </button>
-        </div>
-      </div>
-
-      <!-- Selector comparativo -->
-      <div class="control-group control-group--comparativo comparativo-card">
-        <label class="control-label comparativo-label">
-          <input type="checkbox"
-                 [(ngModel)]="mostrarComparativo"
-                 (change)="toggleComparativo()">
-          📊 Comparar dos semanas
-        </label>
-        <p class="comparativo-hint" *ngIf="mostrarComparativo">Selecciona dos semanas para ver una comparación lado a lado de las métricas principales.</p>
-        <div class="comparativo-selectors" *ngIf="mostrarComparativo">
-          <div class="comparativo-select-group">
-            <label class="comparativo-select-label">Semana A</label>
-            <select class="control-select"
-                    [(ngModel)]="semanaComparacion1"
-                    (ngModelChange)="onSemanaComparacionChange()">
-              <option [ngValue]="null">Seleccione</option>
-              <option *ngFor="let semana of semanasDisponibles" [ngValue]="semana">
-                Semana {{ semana }}
-              </option>
-            </select>
-          </div>
-          <span class="vs-badge">vs</span>
-          <div class="comparativo-select-group">
-            <label class="comparativo-select-label">Semana B</label>
-            <select class="control-select"
-                    [(ngModel)]="semanaComparacion2"
-                    (ngModelChange)="onSemanaComparacionChange()">
-              <option [ngValue]="null">Seleccione</option>
-              <option *ngFor="let semana of semanasDisponibles" [ngValue]="semana">
-                Semana {{ semana }}
-              </option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Comparación Personalizada de Métricas -->
-      <div class="control-group control-group--comparativo">
-        <label class="control-label">
-          <input type="checkbox"
-                 [(ngModel)]="mostrarComparacionPersonalizada"
-                 (change)="toggleComparacionPersonalizada()">
-          🔀 Comparación Personalizada
-        </label>
-        <div class="metricas-selector" *ngIf="mostrarComparacionPersonalizada">
-          <p class="metricas-hint">Selecciona las métricas que deseas comparar:</p>
-          <div class="metricas-checkboxes">
-            <label *ngFor="let metrica of metricasDisponibles"
-                   class="metrica-checkbox-label"
-                   [class.selected]="isMetricaSeleccionada(metrica.id)">
-              <input type="checkbox"
-                     [checked]="isMetricaSeleccionada(metrica.id)"
-                     (change)="toggleMetrica(metrica.id)">
-              <span class="metrica-icon">{{ metrica.icono }}</span>
-              <span class="metrica-nombre">{{ metrica.nombre }}</span>
-              <span class="metrica-indicator"
-                    [style.background-color]="metrica.color"></span>
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========== GRÁFICA PRINCIPAL ========== -->
-    <div class="grafica-principal-section">
-      <div class="grafica-card">
-        <div class="grafica-card-header">
-          <h4>{{ getTituloGrafica() }}</h4>
-          <span class="grafica-badge">{{ indicadoresFiltrados.length }} semanas</span>
-        </div>
-        <div class="grafica-card-body">
-          <!-- Gráfica de Comparación Personalizada -->
-          <div class="chart-container" *ngIf="mostrarComparacionPersonalizada && metricasSeleccionadas.length > 0">
-            <canvas baseChart
-                    [type]="tipoVisualizacion === 'linea' ? lineChartType : (tipoVisualizacion === 'torta' ? barChartType : barChartType)"
-                    [data]="comparacionPersonalizadaChartData"
-                    [options]="comparacionPersonalizadaChartOptions">
-            </canvas>
-            <div class="chart-info">
-              <p class="info-text">
-                Comparando <strong>{{ metricasSeleccionadas.length }}</strong> métrica(s):
-                <strong *ngFor="let metricaId of metricasSeleccionadas; let last = last">
-                  <ng-container *ngIf="getMetricaInfo(metricaId) as metrica">
-                    {{ metrica.icono }} {{ metrica.nombre }}<span *ngIf="!last">, </span>
-                  </ng-container>
-                </strong>
-              </p>
-            </div>
-          </div>
-
-          <!-- Mensaje cuando no hay métricas seleccionadas -->
-          <div class="empty-state" *ngIf="mostrarComparacionPersonalizada && metricasSeleccionadas.length === 0">
-            <div class="empty-icon">📊</div>
-            <h4>Selecciona métricas para comparar</h4>
-            <p>Marca al menos una métrica en el selector de arriba para ver la comparación.</p>
-          </div>
-
-          <!-- Gráfica Comparativa de Semanas -->
-          <div class="chart-container chart-comparativo" *ngIf="mostrarComparativo && !mostrarComparacionPersonalizada && semanaComparacion1 && semanaComparacion2">
-            <div class="chart-comparativo-header">
-              <h5>Comparación de métricas</h5>
-              <div class="chart-comparativo-legend">
-                <span class="legend-item"><span class="legend-dot legend-dot--a"></span> Semana {{ semanaComparacion1 }}</span>
-                <span class="legend-item"><span class="legend-dot legend-dot--b"></span> Semana {{ semanaComparacion2 }}</span>
+          @if (modoFiltro === 'fechas') {
+            <div class="filtro-rango-fields">
+              <div class="filtro-field">
+                <label>Desde</label>
+                <input type="date" [(ngModel)]="fechaDesde">
               </div>
+              <div class="filtro-field">
+                <label>Hasta</label>
+                <input type="date" [(ngModel)]="fechaHasta">
+              </div>
+              <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
             </div>
-            <canvas baseChart
-                    [type]="barChartType"
-                    [data]="comparativoChartData"
-                    [options]="comparativoChartOptions">
-            </canvas>
-            <div class="chart-info chart-info--comparativo">
-              <p class="info-text">
-                Comparando <strong>Semana {{ semanaComparacion1 }}</strong> vs <strong>Semana {{ semanaComparacion2 }}</strong> en mortalidad, selección, consumo, peso, conversión y aves vivas.
-              </p>
+          }
+          @if (modoFiltro === 'edad') {
+            <div class="filtro-rango-fields">
+              <div class="filtro-field">
+                <label>Semana desde</label>
+                <input type="number" min="1" [(ngModel)]="semanaDesde" placeholder="1">
+              </div>
+              <div class="filtro-field">
+                <label>Semana hasta</label>
+                <input type="number" min="1" [(ngModel)]="semanaHasta" placeholder="20">
+              </div>
+              <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
             </div>
-          </div>
-
-          <!-- Gráfica Combinada de Tipos de Indicadores -->
-          <div class="chart-container" *ngIf="mostrarGraficaCombinada && tiposGraficaSeleccionados.length > 1 && !mostrarComparativo && !mostrarComparacionPersonalizada">
-            <canvas baseChart
-                    [type]="tipoVisualizacion === 'linea' ? lineChartType : (tipoVisualizacion === 'torta' ? barChartType : barChartType)"
-                    [data]="tiposCombinadosChartData"
-                    [options]="tiposCombinadosChartOptions">
-            </canvas>
-            <div class="chart-info">
-              <p class="info-text">
-                Comparando <strong>{{ tiposGraficaSeleccionados.length }}</strong> tipo(s) de indicador(es) seleccionado(s)
-              </p>
+          }
+          @if (modoFiltro !== 'todos') {
+            <div class="filtro-badge">
+              Mostrando {{ indicadoresFiltrados.length }} de {{ indicadoresSemanales.length }} semanas
+              <button type="button" class="btn-limpiar" (click)="limpiarFiltro()">Limpiar</button>
             </div>
-          </div>
-
-          <!-- Gráficas Individuales (cuando solo hay un tipo seleccionado) -->
-          <div class="chart-container" *ngIf="!mostrarGraficaCombinada && !mostrarComparativo && !mostrarComparacionPersonalizada">
-            <!-- Gráfica de Mortalidad -->
-            <canvas *ngIf="tipoGraficaSeleccionada === 'mortalidad' && tipoVisualizacion === 'barra'"
-                    baseChart
-                    [type]="barChartType"
-                    [data]="mortalidadChartData"
-                    [options]="mortalidadChartOptions">
-            </canvas>
-            <canvas *ngIf="tipoGraficaSeleccionada === 'mortalidad' && tipoVisualizacion === 'linea'"
-                    baseChart
-                    [type]="lineChartType"
-                    [data]="mortalidadChartData"
-                    [options]="mortalidadChartOptions">
-            </canvas>
-
-            <!-- Gráfica de Consumo -->
-            <canvas *ngIf="tipoGraficaSeleccionada === 'consumo' && tipoVisualizacion === 'barra'"
-                    baseChart
-                    [type]="barChartType"
-                    [data]="consumoChartData"
-                    [options]="consumoChartOptions">
-            </canvas>
-            <canvas *ngIf="tipoGraficaSeleccionada === 'consumo' && tipoVisualizacion === 'linea'"
-                    baseChart
-                    [type]="lineChartType"
-                    [data]="consumoChartData"
-                    [options]="consumoChartOptions">
-            </canvas>
-
-            <!-- Gráfica de Peso -->
-            <canvas *ngIf="tipoGraficaSeleccionada === 'peso' && tipoVisualizacion === 'barra'"
-                    baseChart
-                    [type]="barChartType"
-                    [data]="pesoChartData"
-                    [options]="pesoChartOptions">
-            </canvas>
-            <canvas *ngIf="tipoGraficaSeleccionada === 'peso' && tipoVisualizacion === 'linea'"
-                    baseChart
-                    [type]="lineChartType"
-                    [data]="pesoChartData"
-                    [options]="pesoChartOptions">
-            </canvas>
-
-            <!-- Gráfica de Conversión -->
-            <canvas *ngIf="tipoGraficaSeleccionada === 'conversion' && tipoVisualizacion === 'barra'"
-                    baseChart
-                    [type]="barChartType"
-                    [data]="conversionChartData"
-                    [options]="conversionChartOptions">
-            </canvas>
-            <canvas *ngIf="tipoGraficaSeleccionada === 'conversion' && tipoVisualizacion === 'linea'"
-                    baseChart
-                    [type]="lineChartType"
-                    [data]="conversionChartData"
-                    [options]="conversionChartOptions">
-            </canvas>
-
-            <!-- Gráfica de Selección -->
-            <canvas *ngIf="tipoGraficaSeleccionada === 'seleccion' && tipoVisualizacion === 'barra'"
-                    baseChart
-                    [type]="barChartType"
-                    [data]="seleccionChartData"
-                    [options]="seleccionChartOptions">
-            </canvas>
-            <canvas *ngIf="tipoGraficaSeleccionada === 'seleccion' && tipoVisualizacion === 'linea'"
-                    baseChart
-                    [type]="lineChartType"
-                    [data]="seleccionChartData"
-                    [options]="seleccionChartOptions">
-            </canvas>
-
-            <!-- Gráfica de Aves -->
-            <canvas *ngIf="tipoGraficaSeleccionada === 'aves' && tipoVisualizacion === 'barra'"
-                    baseChart
-                    [type]="barChartType"
-                    [data]="avesChartData"
-                    [options]="avesChartOptions">
-            </canvas>
-            <canvas *ngIf="tipoGraficaSeleccionada === 'aves' && tipoVisualizacion === 'linea'"
-                    baseChart
-                    [type]="lineChartType"
-                    [data]="avesChartData"
-                    [options]="avesChartOptions">
-            </canvas>
-
-            <!-- Gráfica de Torta (solo para mortalidad vs selección) -->
-            <canvas *ngIf="tipoVisualizacion === 'torta'"
-                    baseChart
-                    [type]="pieChartType"
-                    [data]="tortaChartData"
-                    [options]="tortaChartOptions">
-            </canvas>
-          </div>
+          }
         </div>
       </div>
-    </div>
-
-    <!-- ========== GRÁFICAS ADICIONALES (GRID) ========== -->
-    <div class="graficas-grid" *ngIf="indicadoresFiltrados.length > 0">
-      <!-- Gráfica de Mortalidad por Semana -->
-      <div class="grafica-card grafica-card--small">
-        <div class="grafica-card-header">
-          <h5>💀 Mortalidad por Semana</h5>
-        </div>
-        <div class="grafica-card-body">
-          <div class="chart-container chart-container--small">
-            <canvas baseChart
-                    [type]="barChartType"
-                    [data]="mortalidadChartData"
-                    [options]="mortalidadChartOptions">
-            </canvas>
-          </div>
-          <div class="grafica-stats">
-            <div class="stat-item">
-              <span class="stat-label">Promedio:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.0-2' }}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Gráfica de Consumo -->
-      <div class="grafica-card grafica-card--small">
-        <div class="grafica-card-header">
-          <h5>🍽️ Consumo de Alimento</h5>
-        </div>
-        <div class="grafica-card-body">
-          <div class="chart-container chart-container--small">
-            <canvas baseChart
-                    [type]="barChartType"
-                    [data]="consumoChartData"
-                    [options]="consumoChartOptions">
-            </canvas>
-          </div>
-          <div class="grafica-stats">
-            <div class="stat-item">
-              <span class="stat-label">Promedio Real:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('consumoReal') | number:'1.0-0' }}g</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Promedio Tabla:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('consumoTabla') | number:'1.0-0' }}g</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Gráfica de Peso -->
-      <div class="grafica-card grafica-card--small">
-        <div class="grafica-card-header">
-          <h5>⚖️ Evolución de Peso</h5>
-        </div>
-        <div class="grafica-card-body">
-          <div class="chart-container chart-container--small">
-            <canvas baseChart
-                    [type]="lineChartType"
-                    [data]="pesoChartData"
-                    [options]="pesoChartOptions">
-            </canvas>
-          </div>
-          <div class="grafica-stats">
-            <div class="stat-item">
-              <span class="stat-label">Peso Actual:</span>
-              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.0-2' }}g</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Ganancia:</span>
-              <span class="stat-value">{{ calcularGananciaTotal() | number:'1.0-2' }}g</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Gráfica de Conversión -->
-      <div class="grafica-card grafica-card--small">
-        <div class="grafica-card-header">
-          <h5>🔄 Conversión Alimenticia</h5>
-        </div>
-        <div class="grafica-card-body">
-          <div class="chart-container chart-container--small">
-            <canvas baseChart
-                    [type]="lineChartType"
-                    [data]="conversionChartData"
-                    [options]="conversionChartOptions">
-            </canvas>
-          </div>
-          <div class="grafica-stats">
-            <div class="stat-item">
-              <span class="stat-label">Promedio:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Mejor:</span>
-              <span class="stat-value">{{ getMejorSemanaConversion() }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Gráfica de Distribución (Torta) -->
-      <div class="grafica-card grafica-card--small" *ngIf="indicadoresFiltrados.length > 0">
-        <div class="grafica-card-header">
-          <h5>🥧 Distribución Última Semana</h5>
-        </div>
-        <div class="grafica-card-body">
-          <div class="chart-container chart-container--small chart-container--torta">
-            <canvas baseChart
-                    [type]="pieChartType"
-                    [data]="tortaChartData"
-                    [options]="tortaChartOptions">
-            </canvas>
-          </div>
-          <div class="grafica-stats" *ngIf="indicadoresFiltrados.length > 0">
-            <div class="stat-item">
-              <span class="stat-label">Mortalidad:</span>
-              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.mortalidadSem | number:'1.0-2' }}%</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Selección:</span>
-              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.seleccionSem | number:'1.0-2' }}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Gráfica de Aves Vivas -->
-      <div class="grafica-card grafica-card--small">
-        <div class="grafica-card-header">
-          <h5>🐔 Aves Vivas por Semana</h5>
-        </div>
-        <div class="grafica-card-body">
-          <div class="chart-container chart-container--small">
-            <canvas baseChart
-                    [type]="barChartType"
-                    [data]="avesChartData"
-                    [options]="avesChartOptions">
-            </canvas>
-          </div>
-          <div class="grafica-stats">
-            <div class="stat-item">
-              <span class="stat-label">Aves Actuales:</span>
-              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.avesFinSemana | number:'1.0-0' }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========== RESUMEN DE MÉTRICAS ========== -->
-    <div class="metricas-resumen" *ngIf="indicadoresFiltrados.length > 0">
-      <h4>📊 Resumen de Métricas Generales</h4>
-      <div class="metricas-grid">
-        <div class="metrica-card">
-          <div class="metrica-icon">⚖️</div>
-          <div class="metrica-content">
-            <h5>Peso Actual</h5>
-            <p>{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.0-2' }}g</p>
-          </div>
-        </div>
-
-        <div class="metrica-card">
-          <div class="metrica-icon">🍽️</div>
-          <div class="metrica-content">
-            <h5>Conv. Promedio</h5>
-            <p>{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</p>
-          </div>
-        </div>
-
-        <div class="metrica-card">
-          <div class="metrica-icon">💀</div>
-          <div class="metrica-content">
-            <h5>Mort. Promedio</h5>
-            <p>{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.0-2' }}%</p>
-          </div>
-        </div>
-
-        <div class="metrica-card">
-          <div class="metrica-icon">🐔</div>
-          <div class="metrica-content">
-            <h5>Aves Actuales</h5>
-            <p>{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.avesFinSemana | number:'1.0-0' }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+      <!-- ========== CONTROLES ========== -->
+      <div class="graficas-controls">
+        <!-- Selector de tipo de gráfica (Múltiple) -->
+        <div class="control-group">
+          <label class="control-label">📈 Tipo de Indicador:</label>
+          <div class="tipos-indicador-selector">
+            <p class="tipos-hint">Selecciona uno o más indicadores para comparar en una sola gráfica:</p>
+            <div class="tipos-checkboxes">
+              <label class="tipo-checkbox-label"
+                [class.selected]="isTipoGraficaSeleccionado('mortalidad')">
+                <input type="checkbox"
+                  [checked]="isTipoGraficaSeleccionado('mortalidad')"
+                  (change)="toggleTipoGrafica('mortalidad')">
+                  <span class="tipo-icon">💀</span>
+                  <span class="tipo-nombre">Mortalidad</span>
+                </label>
+                <label class="tipo-checkbox-label"
+                  [class.selected]="isTipoGraficaSeleccionado('consumo')">
+                  <input type="checkbox"
+                    [checked]="isTipoGraficaSeleccionado('consumo')"
+                    (change)="toggleTipoGrafica('consumo')">
+                    <span class="tipo-icon">🍽️</span>
+                    <span class="tipo-nombre">Consumo</span>
+                  </label>
+                  <label class="tipo-checkbox-label"
+                    [class.selected]="isTipoGraficaSeleccionado('peso')">
+                    <input type="checkbox"
+                      [checked]="isTipoGraficaSeleccionado('peso')"
+                      (change)="toggleTipoGrafica('peso')">
+                      <span class="tipo-icon">⚖️</span>
+                      <span class="tipo-nombre">Peso</span>
+                    </label>
+                    <label class="tipo-checkbox-label"
+                      [class.selected]="isTipoGraficaSeleccionado('conversion')">
+                      <input type="checkbox"
+                        [checked]="isTipoGraficaSeleccionado('conversion')"
+                        (change)="toggleTipoGrafica('conversion')">
+                        <span class="tipo-icon">🔄</span>
+                        <span class="tipo-nombre">Conversión</span>
+                      </label>
+                      <label class="tipo-checkbox-label"
+                        [class.selected]="isTipoGraficaSeleccionado('seleccion')">
+                        <input type="checkbox"
+                          [checked]="isTipoGraficaSeleccionado('seleccion')"
+                          (change)="toggleTipoGrafica('seleccion')">
+                          <span class="tipo-icon">📋</span>
+                          <span class="tipo-nombre">Selección</span>
+                        </label>
+                        <label class="tipo-checkbox-label"
+                          [class.selected]="isTipoGraficaSeleccionado('aves')">
+                          <input type="checkbox"
+                            [checked]="isTipoGraficaSeleccionado('aves')"
+                            (change)="toggleTipoGrafica('aves')">
+                            <span class="tipo-icon">🐔</span>
+                            <span class="tipo-nombre">Aves Vivas</span>
+                          </label>
+                          <label class="tipo-checkbox-label"
+                            [class.selected]="isTipoGraficaSeleccionado('consumoTabla')">
+                            <input type="checkbox"
+                              [checked]="isTipoGraficaSeleccionado('consumoTabla')"
+                              (change)="toggleTipoGrafica('consumoTabla')">
+                              <span class="tipo-icon">📊</span>
+                              <span class="tipo-nombre">Consumo Tabla</span>
+                            </label>
+                            <label class="tipo-checkbox-label"
+                              [class.selected]="isTipoGraficaSeleccionado('retiro')">
+                              <input type="checkbox"
+                                [checked]="isTipoGraficaSeleccionado('retiro')"
+                                (change)="toggleTipoGrafica('retiro')">
+                                <span class="tipo-icon">📉</span>
+                                <span class="tipo-nombre">Retiro</span>
+                              </label>
+                              <label class="tipo-checkbox-label"
+                                [class.selected]="isTipoGraficaSeleccionado('uniformidad')">
+                                <input type="checkbox"
+                                  [checked]="isTipoGraficaSeleccionado('uniformidad')"
+                                  (change)="toggleTipoGrafica('uniformidad')">
+                                  <span class="tipo-icon">📐</span>
+                                  <span class="tipo-nombre">Uniformidad</span>
+                                </label>
+                                <label class="tipo-checkbox-label"
+                                  [class.selected]="isTipoGraficaSeleccionado('difConsumo')">
+                                  <input type="checkbox"
+                                    [checked]="isTipoGraficaSeleccionado('difConsumo')"
+                                    (change)="toggleTipoGrafica('difConsumo')">
+                                    <span class="tipo-icon">🔀</span>
+                                    <span class="tipo-nombre">Dif. Consumo</span>
+                                  </label>
+                                  <label class="tipo-checkbox-label"
+                                    [class.selected]="isTipoGraficaSeleccionado('incrConsumo')">
+                                    <input type="checkbox"
+                                      [checked]="isTipoGraficaSeleccionado('incrConsumo')"
+                                      (change)="toggleTipoGrafica('incrConsumo')">
+                                      <span class="tipo-icon">📊</span>
+                                      <span class="tipo-nombre">Incr. Consumo</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              </div>
+                              <!-- Selector de visualización -->
+                              <div class="control-group">
+                                <label class="control-label">🎨 Visualización:</label>
+                                <div class="visualization-toggle">
+                                  <button type="button"
+                                    class="toggle-btn"
+                                    [class.active]="tipoVisualizacion === 'barra'"
+                                    (click)="tipoVisualizacion = 'barra'; onVisualizacionChange()">
+                                    📊 Barras
+                                  </button>
+                                  <button type="button"
+                                    class="toggle-btn"
+                                    [class.active]="tipoVisualizacion === 'linea'"
+                                    (click)="tipoVisualizacion = 'linea'; onVisualizacionChange()">
+                                    📈 Líneas
+                                  </button>
+                                  <button type="button"
+                                    class="toggle-btn"
+                                    [class.active]="tipoVisualizacion === 'torta'"
+                                    (click)="tipoVisualizacion = 'torta'; onVisualizacionChange()">
+                                    🥧 Torta
+                                  </button>
+                                </div>
+                              </div>
+                              <!-- Selector comparativo -->
+                              <div class="control-group control-group--comparativo comparativo-card">
+                                <label class="control-label comparativo-label">
+                                  <input type="checkbox"
+                                    [(ngModel)]="mostrarComparativo"
+                                    (change)="toggleComparativo()">
+                                    📊 Comparar dos semanas
+                                  </label>
+                                  @if (mostrarComparativo) {
+                                    <p class="comparativo-hint">Selecciona dos semanas para ver una comparación lado a lado de las métricas principales.</p>
+                                  }
+                                  @if (mostrarComparativo) {
+                                    <div class="comparativo-selectors">
+                                      <div class="comparativo-select-group">
+                                        <label class="comparativo-select-label">Semana A</label>
+                                        <select class="control-select"
+                                          [(ngModel)]="semanaComparacion1"
+                                          (ngModelChange)="onSemanaComparacionChange()">
+                                          <option [ngValue]="null">Seleccione</option>
+                                          @for (semana of semanasDisponibles; track semana) {
+                                            <option [ngValue]="semana">
+                                              Semana {{ semana }}
+                                            </option>
+                                          }
+                                        </select>
+                                      </div>
+                                      <span class="vs-badge">vs</span>
+                                      <div class="comparativo-select-group">
+                                        <label class="comparativo-select-label">Semana B</label>
+                                        <select class="control-select"
+                                          [(ngModel)]="semanaComparacion2"
+                                          (ngModelChange)="onSemanaComparacionChange()">
+                                          <option [ngValue]="null">Seleccione</option>
+                                          @for (semana of semanasDisponibles; track semana) {
+                                            <option [ngValue]="semana">
+                                              Semana {{ semana }}
+                                            </option>
+                                          }
+                                        </select>
+                                      </div>
+                                    </div>
+                                  }
+                                </div>
+                                <!-- Comparación Personalizada de Métricas -->
+                                <div class="control-group control-group--comparativo">
+                                  <label class="control-label">
+                                    <input type="checkbox"
+                                      [(ngModel)]="mostrarComparacionPersonalizada"
+                                      (change)="toggleComparacionPersonalizada()">
+                                      🔀 Comparación Personalizada
+                                    </label>
+                                    @if (mostrarComparacionPersonalizada) {
+                                      <div class="metricas-selector">
+                                        <p class="metricas-hint">Selecciona las métricas que deseas comparar:</p>
+                                        <div class="metricas-checkboxes">
+                                          @for (metrica of metricasDisponibles; track metrica) {
+                                            <label
+                                              class="metrica-checkbox-label"
+                                              [class.selected]="isMetricaSeleccionada(metrica.id)">
+                                              <input type="checkbox"
+                                                [checked]="isMetricaSeleccionada(metrica.id)"
+                                                (change)="toggleMetrica(metrica.id)">
+                                                <span class="metrica-icon">{{ metrica.icono }}</span>
+                                                <span class="metrica-nombre">{{ metrica.nombre }}</span>
+                                                <span class="metrica-indicator"
+                                                [style.background-color]="metrica.color"></span>
+                                              </label>
+                                            }
+                                          </div>
+                                        </div>
+                                      }
+                                    </div>
+                                  </div>
+                                  <!-- ========== GRÁFICA PRINCIPAL ========== -->
+                                  <div class="grafica-principal-section">
+                                    <div class="grafica-card">
+                                      <div class="grafica-card-header">
+                                        <h4>{{ getTituloGrafica() }}</h4>
+                                        <span class="grafica-badge">{{ indicadoresFiltrados.length }} semanas</span>
+                                      </div>
+                                      <div class="grafica-card-body">
+                                        <!-- Gráfica de Comparación Personalizada -->
+                                        @if (mostrarComparacionPersonalizada && metricasSeleccionadas.length > 0) {
+                                          <div class="chart-container">
+                                            <canvas baseChart
+                                              [type]="tipoVisualizacion === 'linea' ? lineChartType : (tipoVisualizacion === 'torta' ? barChartType : barChartType)"
+                                              [data]="comparacionPersonalizadaChartData"
+                                              [options]="comparacionPersonalizadaChartOptions">
+                                            </canvas>
+                                            <div class="chart-info">
+                                              <p class="info-text">
+                                                Comparando <strong>{{ metricasSeleccionadas.length }}</strong> métrica(s):
+                                                @for (metricaId of metricasSeleccionadas; track metricaId; let last = $last) {
+                                                  <strong>
+                                                    @if (getMetricaInfo(metricaId); as metrica) {
+                                                      {{ metrica.icono }} {{ metrica.nombre }}@if (!last) {
+                                                      <span>, </span>
+                                                    }
+                                                  }
+                                                </strong>
+                                              }
+                                            </p>
+                                          </div>
+                                        </div>
+                                      }
+                                      <!-- Mensaje cuando no hay métricas seleccionadas -->
+                                      @if (mostrarComparacionPersonalizada && metricasSeleccionadas.length === 0) {
+                                        <div class="empty-state">
+                                          <div class="empty-icon">📊</div>
+                                          <h4>Selecciona métricas para comparar</h4>
+                                          <p>Marca al menos una métrica en el selector de arriba para ver la comparación.</p>
+                                        </div>
+                                      }
+                                      <!-- Gráfica Comparativa de Semanas -->
+                                      @if (mostrarComparativo && !mostrarComparacionPersonalizada && semanaComparacion1 && semanaComparacion2) {
+                                        <div class="chart-container chart-comparativo">
+                                          <div class="chart-comparativo-header">
+                                            <h5>Comparación de métricas</h5>
+                                            <div class="chart-comparativo-legend">
+                                              <span class="legend-item"><span class="legend-dot legend-dot--a"></span> Semana {{ semanaComparacion1 }}</span>
+                                              <span class="legend-item"><span class="legend-dot legend-dot--b"></span> Semana {{ semanaComparacion2 }}</span>
+                                            </div>
+                                          </div>
+                                          <canvas baseChart
+                                            [type]="barChartType"
+                                            [data]="comparativoChartData"
+                                            [options]="comparativoChartOptions">
+                                          </canvas>
+                                          <div class="chart-info chart-info--comparativo">
+                                            <p class="info-text">
+                                              Comparando <strong>Semana {{ semanaComparacion1 }}</strong> vs <strong>Semana {{ semanaComparacion2 }}</strong> en mortalidad, selección, consumo, peso, conversión y aves vivas.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      }
+                                      <!-- Gráfica Combinada de Tipos de Indicadores -->
+                                      @if (mostrarGraficaCombinada && tiposGraficaSeleccionados.length > 1 && !mostrarComparativo && !mostrarComparacionPersonalizada) {
+                                        <div class="chart-container">
+                                          <canvas baseChart
+                                            [type]="tipoVisualizacion === 'linea' ? lineChartType : (tipoVisualizacion === 'torta' ? barChartType : barChartType)"
+                                            [data]="tiposCombinadosChartData"
+                                            [options]="tiposCombinadosChartOptions">
+                                          </canvas>
+                                          <div class="chart-info">
+                                            <p class="info-text">
+                                              Comparando <strong>{{ tiposGraficaSeleccionados.length }}</strong> tipo(s) de indicador(es) seleccionado(s)
+                                            </p>
+                                          </div>
+                                        </div>
+                                      }
+                                      <!-- Gráficas Individuales (cuando solo hay un tipo seleccionado) -->
+                                      @if (!mostrarGraficaCombinada && !mostrarComparativo && !mostrarComparacionPersonalizada) {
+                                        <div class="chart-container">
+                                          <!-- Gráfica de Mortalidad -->
+                                          @if (tipoGraficaSeleccionada === 'mortalidad' && tipoVisualizacion === 'barra') {
+                                            <canvas
+                                              baseChart
+                                              [type]="barChartType"
+                                              [data]="mortalidadChartData"
+                                              [options]="mortalidadChartOptions">
+                                            </canvas>
+                                          }
+                                          @if (tipoGraficaSeleccionada === 'mortalidad' && tipoVisualizacion === 'linea') {
+                                            <canvas
+                                              baseChart
+                                              [type]="lineChartType"
+                                              [data]="mortalidadChartData"
+                                              [options]="mortalidadChartOptions">
+                                            </canvas>
+                                          }
+                                          <!-- Gráfica de Consumo -->
+                                          @if (tipoGraficaSeleccionada === 'consumo' && tipoVisualizacion === 'barra') {
+                                            <canvas
+                                              baseChart
+                                              [type]="barChartType"
+                                              [data]="consumoChartData"
+                                              [options]="consumoChartOptions">
+                                            </canvas>
+                                          }
+                                          @if (tipoGraficaSeleccionada === 'consumo' && tipoVisualizacion === 'linea') {
+                                            <canvas
+                                              baseChart
+                                              [type]="lineChartType"
+                                              [data]="consumoChartData"
+                                              [options]="consumoChartOptions">
+                                            </canvas>
+                                          }
+                                          <!-- Gráfica de Peso -->
+                                          @if (tipoGraficaSeleccionada === 'peso' && tipoVisualizacion === 'barra') {
+                                            <canvas
+                                              baseChart
+                                              [type]="barChartType"
+                                              [data]="pesoChartData"
+                                              [options]="pesoChartOptions">
+                                            </canvas>
+                                          }
+                                          @if (tipoGraficaSeleccionada === 'peso' && tipoVisualizacion === 'linea') {
+                                            <canvas
+                                              baseChart
+                                              [type]="lineChartType"
+                                              [data]="pesoChartData"
+                                              [options]="pesoChartOptions">
+                                            </canvas>
+                                          }
+                                          <!-- Gráfica de Conversión -->
+                                          @if (tipoGraficaSeleccionada === 'conversion' && tipoVisualizacion === 'barra') {
+                                            <canvas
+                                              baseChart
+                                              [type]="barChartType"
+                                              [data]="conversionChartData"
+                                              [options]="conversionChartOptions">
+                                            </canvas>
+                                          }
+                                          @if (tipoGraficaSeleccionada === 'conversion' && tipoVisualizacion === 'linea') {
+                                            <canvas
+                                              baseChart
+                                              [type]="lineChartType"
+                                              [data]="conversionChartData"
+                                              [options]="conversionChartOptions">
+                                            </canvas>
+                                          }
+                                          <!-- Gráfica de Selección -->
+                                          @if (tipoGraficaSeleccionada === 'seleccion' && tipoVisualizacion === 'barra') {
+                                            <canvas
+                                              baseChart
+                                              [type]="barChartType"
+                                              [data]="seleccionChartData"
+                                              [options]="seleccionChartOptions">
+                                            </canvas>
+                                          }
+                                          @if (tipoGraficaSeleccionada === 'seleccion' && tipoVisualizacion === 'linea') {
+                                            <canvas
+                                              baseChart
+                                              [type]="lineChartType"
+                                              [data]="seleccionChartData"
+                                              [options]="seleccionChartOptions">
+                                            </canvas>
+                                          }
+                                          <!-- Gráfica de Aves -->
+                                          @if (tipoGraficaSeleccionada === 'aves' && tipoVisualizacion === 'barra') {
+                                            <canvas
+                                              baseChart
+                                              [type]="barChartType"
+                                              [data]="avesChartData"
+                                              [options]="avesChartOptions">
+                                            </canvas>
+                                          }
+                                          @if (tipoGraficaSeleccionada === 'aves' && tipoVisualizacion === 'linea') {
+                                            <canvas
+                                              baseChart
+                                              [type]="lineChartType"
+                                              [data]="avesChartData"
+                                              [options]="avesChartOptions">
+                                            </canvas>
+                                          }
+                                          <!-- Gráfica de Torta (solo para mortalidad vs selección) -->
+                                          @if (tipoVisualizacion === 'torta') {
+                                            <canvas
+                                              baseChart
+                                              [type]="pieChartType"
+                                              [data]="tortaChartData"
+                                              [options]="tortaChartOptions">
+                                            </canvas>
+                                          }
+                                        </div>
+                                      }
+                                    </div>
+                                  </div>
+                                </div>
+                                <!-- ========== GRÁFICAS ADICIONALES (GRID) ========== -->
+                                @if (indicadoresFiltrados.length > 0) {
+                                  <div class="graficas-grid">
+                                    <!-- Gráfica de Mortalidad por Semana -->
+                                    <div class="grafica-card grafica-card--small">
+                                      <div class="grafica-card-header">
+                                        <h5>💀 Mortalidad por Semana</h5>
+                                      </div>
+                                      <div class="grafica-card-body">
+                                        <div class="chart-container chart-container--small">
+                                          <canvas baseChart
+                                            [type]="barChartType"
+                                            [data]="mortalidadChartData"
+                                            [options]="mortalidadChartOptions">
+                                          </canvas>
+                                        </div>
+                                        <div class="grafica-stats">
+                                          <div class="stat-item">
+                                            <span class="stat-label">Promedio:</span>
+                                            <span class="stat-value">{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.0-2' }}%</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <!-- Gráfica de Consumo -->
+                                    <div class="grafica-card grafica-card--small">
+                                      <div class="grafica-card-header">
+                                        <h5>🍽️ Consumo de Alimento</h5>
+                                      </div>
+                                      <div class="grafica-card-body">
+                                        <div class="chart-container chart-container--small">
+                                          <canvas baseChart
+                                            [type]="barChartType"
+                                            [data]="consumoChartData"
+                                            [options]="consumoChartOptions">
+                                          </canvas>
+                                        </div>
+                                        <div class="grafica-stats">
+                                          <div class="stat-item">
+                                            <span class="stat-label">Promedio Real:</span>
+                                            <span class="stat-value">{{ calcularPromedioIndicadores('consumoReal') | number:'1.0-0' }}g</span>
+                                          </div>
+                                          <div class="stat-item">
+                                            <span class="stat-label">Promedio Tabla:</span>
+                                            <span class="stat-value">{{ calcularPromedioIndicadores('consumoTabla') | number:'1.0-0' }}g</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <!-- Gráfica de Peso -->
+                                    <div class="grafica-card grafica-card--small">
+                                      <div class="grafica-card-header">
+                                        <h5>⚖️ Evolución de Peso</h5>
+                                      </div>
+                                      <div class="grafica-card-body">
+                                        <div class="chart-container chart-container--small">
+                                          <canvas baseChart
+                                            [type]="lineChartType"
+                                            [data]="pesoChartData"
+                                            [options]="pesoChartOptions">
+                                          </canvas>
+                                        </div>
+                                        <div class="grafica-stats">
+                                          <div class="stat-item">
+                                            <span class="stat-label">Peso Actual:</span>
+                                            <span class="stat-value">{{ $safeNavigationMigration(indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre) | number:'1.0-2' }}g</span>
+                                          </div>
+                                          <div class="stat-item">
+                                            <span class="stat-label">Ganancia:</span>
+                                            <span class="stat-value">{{ calcularGananciaTotal() | number:'1.0-2' }}g</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <!-- Gráfica de Conversión -->
+                                    <div class="grafica-card grafica-card--small">
+                                      <div class="grafica-card-header">
+                                        <h5>🔄 Conversión Alimenticia</h5>
+                                      </div>
+                                      <div class="grafica-card-body">
+                                        <div class="chart-container chart-container--small">
+                                          <canvas baseChart
+                                            [type]="lineChartType"
+                                            [data]="conversionChartData"
+                                            [options]="conversionChartOptions">
+                                          </canvas>
+                                        </div>
+                                        <div class="grafica-stats">
+                                          <div class="stat-item">
+                                            <span class="stat-label">Promedio:</span>
+                                            <span class="stat-value">{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</span>
+                                          </div>
+                                          <div class="stat-item">
+                                            <span class="stat-label">Mejor:</span>
+                                            <span class="stat-value">{{ getMejorSemanaConversion() }}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <!-- Gráfica de Distribución (Torta) -->
+                                    @if (indicadoresFiltrados.length > 0) {
+                                      <div class="grafica-card grafica-card--small">
+                                        <div class="grafica-card-header">
+                                          <h5>🥧 Distribución Última Semana</h5>
+                                        </div>
+                                        <div class="grafica-card-body">
+                                          <div class="chart-container chart-container--small chart-container--torta">
+                                            <canvas baseChart
+                                              [type]="pieChartType"
+                                              [data]="tortaChartData"
+                                              [options]="tortaChartOptions">
+                                            </canvas>
+                                          </div>
+                                          @if (indicadoresFiltrados.length > 0) {
+                                            <div class="grafica-stats">
+                                              <div class="stat-item">
+                                                <span class="stat-label">Mortalidad:</span>
+                                                <span class="stat-value">{{ $safeNavigationMigration(indicadoresFiltrados[indicadoresFiltrados.length - 1]?.mortalidadSem) | number:'1.0-2' }}%</span>
+                                              </div>
+                                              <div class="stat-item">
+                                                <span class="stat-label">Selección:</span>
+                                                <span class="stat-value">{{ $safeNavigationMigration(indicadoresFiltrados[indicadoresFiltrados.length - 1]?.seleccionSem) | number:'1.0-2' }}%</span>
+                                              </div>
+                                            </div>
+                                          }
+                                        </div>
+                                      </div>
+                                    }
+                                    <!-- Gráfica de Aves Vivas -->
+                                    <div class="grafica-card grafica-card--small">
+                                      <div class="grafica-card-header">
+                                        <h5>🐔 Aves Vivas por Semana</h5>
+                                      </div>
+                                      <div class="grafica-card-body">
+                                        <div class="chart-container chart-container--small">
+                                          <canvas baseChart
+                                            [type]="barChartType"
+                                            [data]="avesChartData"
+                                            [options]="avesChartOptions">
+                                          </canvas>
+                                        </div>
+                                        <div class="grafica-stats">
+                                          <div class="stat-item">
+                                            <span class="stat-label">Aves Actuales:</span>
+                                            <span class="stat-value">{{ $safeNavigationMigration(indicadoresFiltrados[indicadoresFiltrados.length - 1]?.avesFinSemana) | number:'1.0-0' }}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                }
+                                <!-- ========== RESUMEN DE MÉTRICAS ========== -->
+                                @if (indicadoresFiltrados.length > 0) {
+                                  <div class="metricas-resumen">
+                                    <h4>📊 Resumen de Métricas Generales</h4>
+                                    <div class="metricas-grid">
+                                      <div class="metrica-card">
+                                        <div class="metrica-icon">⚖️</div>
+                                        <div class="metrica-content">
+                                          <h5>Peso Actual</h5>
+                                          <p>{{ $safeNavigationMigration(indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre) | number:'1.0-2' }}g</p>
+                                        </div>
+                                      </div>
+                                      <div class="metrica-card">
+                                        <div class="metrica-icon">🍽️</div>
+                                        <div class="metrica-content">
+                                          <h5>Conv. Promedio</h5>
+                                          <p>{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</p>
+                                        </div>
+                                      </div>
+                                      <div class="metrica-card">
+                                        <div class="metrica-icon">💀</div>
+                                        <div class="metrica-content">
+                                          <h5>Mort. Promedio</h5>
+                                          <p>{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.0-2' }}%</p>
+                                        </div>
+                                      </div>
+                                      <div class="metrica-card">
+                                        <div class="metrica-icon">🐔</div>
+                                        <div class="metrica-content">
+                                          <h5>Aves Actuales</h5>
+                                          <p>{{ $safeNavigationMigration(indicadoresFiltrados[indicadoresFiltrados.length - 1]?.avesFinSemana) | number:'1.0-0' }}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                }
+                              </div>
+                            }
+                          </div>

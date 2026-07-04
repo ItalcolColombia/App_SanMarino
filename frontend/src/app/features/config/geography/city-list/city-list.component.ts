@@ -5,7 +5,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -42,9 +42,9 @@ import {
   selector: 'app-city-list',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
-    FontAwesomeModule, ],
+    FontAwesomeModule
+],
   templateUrl: './city-list.component.html',
   styleUrls: ['./city-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

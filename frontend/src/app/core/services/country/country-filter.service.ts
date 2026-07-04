@@ -20,6 +20,31 @@ export class CountryFilterService {
   private readonly PANAMA_ID = 3; // Ajustar según el ID real de Panamá en la BD
   private readonly PANAMA_NAME = 'Panamá';
 
+  // ID y nombre de Colombia (configurables si cambian)
+  private readonly COLOMBIA_ID = 1;
+  private readonly COLOMBIA_NAME = 'Colombia';
+
+  /**
+   * Verifica si el usuario actual es de Colombia.
+   * Fase 3: Colombia opera el inventario modelo B unificado a NIVEL GRANJA
+   * (sin núcleo/galpón), a diferencia de Ecuador/Panamá.
+   * @returns true si el usuario es de Colombia
+   */
+  isColombia(): boolean {
+    const session = this.storage.get();
+    if (!session) {
+      return false;
+    }
+    if (session.activePaisId === this.COLOMBIA_ID) {
+      return true;
+    }
+    if (session.activePaisNombre &&
+        session.activePaisNombre.toLowerCase() === this.COLOMBIA_NAME.toLowerCase()) {
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Verifica si el usuario actual es de Ecuador
    * @returns true si el usuario es de Ecuador, false en caso contrario

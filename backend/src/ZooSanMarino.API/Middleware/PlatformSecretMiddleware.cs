@@ -67,6 +67,19 @@ public class PlatformSecretMiddleware
             return;
         }
 
+        // Excluir peticiones autenticadas con un Service Token (PAT: "Bearer sk_...").
+        // Autorizado por el dueño (2026-07-03): el SECRET_UP es un gate de origen-frontend que un
+        // cliente de servidor (cron/bot) no posee. La credencial del bot es el propio PAT —aleatorio,
+        // revocable y scopeado SOLO a /api/tickets, validado en el esquema "ServiceToken"—; sin un PAT
+        // válido igual se responde 401. Trasladamos el gate del SECRET_UP al PAT.
+        var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+        if (authHeader is not null &&
+            authHeader.StartsWith("Bearer sk_", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         // Obtener el SECRET_UP encriptado del header
         var encryptedSecretUp = context.Request.Headers["X-Secret-Up"].FirstOrDefault()
                              ?? context.Request.Headers["X-SECRET-UP"].FirstOrDefault()

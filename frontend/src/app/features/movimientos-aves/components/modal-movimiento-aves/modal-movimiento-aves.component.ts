@@ -1,5 +1,5 @@
 // frontend/src/app/features/movimientos-aves/components/modal-movimiento-aves/modal-movimiento-aves.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, signal, computed } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { MovimientosAvesService, CrearMovimientoAvesDto, ActualizarMovimientoAvesDto, MovimientoAvesDto, InformacionLoteDto } from '../../services/movimientos-aves.service';
@@ -15,6 +15,7 @@ import { CountryFilterService } from '../../../../core/services/country/country-
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FiltroSelectComponent, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-aves.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-movimiento-aves.component.scss']
 })
 export class ModalMovimientoAvesComponent implements OnInit, OnChanges {

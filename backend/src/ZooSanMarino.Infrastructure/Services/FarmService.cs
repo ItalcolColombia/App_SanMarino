@@ -291,7 +291,8 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.Zona,
                     f.CertificadoGab,
                     f.Latitud,
-                    f.Longitud
+                    f.Longitud,
+                    f.ManejaAlimentoPorGalpon
                 ))
                 .ToListAsync();
 
@@ -306,7 +307,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 {
                     if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
                     if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
-                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre, f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud);
+                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre, f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon);
                     return f;
                 }).ToList();
             }
@@ -485,7 +486,8 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.Zona,
                     f.CertificadoGab,
                     f.Latitud,
-                    f.Longitud
+                    f.Longitud,
+                    f.ManejaAlimentoPorGalpon
                 ))
                 .SingleOrDefaultAsync();
 
@@ -494,7 +496,7 @@ namespace ZooSanMarino.Infrastructure.Services
             {
                 var nombreOpcion = await _ctx.MasterListOptions.AsNoTracking().Where(o => o.Id == dto.RegionalId.Value).Select(o => o.Value).FirstOrDefaultAsync();
                 if (!string.IsNullOrWhiteSpace(nombreOpcion))
-                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre, dto.ClienteId, dto.Zona, dto.CertificadoGab, dto.Latitud, dto.Longitud);
+                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre, dto.ClienteId, dto.Zona, dto.CertificadoGab, dto.Latitud, dto.Longitud, dto.ManejaAlimentoPorGalpon);
             }
             return dto;
         }
@@ -596,6 +598,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 CertificadoGab  = dto.CertificadoGab,         // default false si no viene (DTO ya lo trae como false)
                 Latitud         = dto.Latitud,
                 Longitud        = dto.Longitud,
+                ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon,   // null = hereda empresa
                 CreatedByUserId = _current.UserId,
                 CreatedAt       = DateTime.UtcNow
             };
@@ -684,7 +687,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.Zona,
                 entity.CertificadoGab,
                 entity.Latitud,
-                entity.Longitud
+                entity.Longitud,
+                entity.ManejaAlimentoPorGalpon
             );
         }
 
@@ -729,6 +733,7 @@ namespace ZooSanMarino.Infrastructure.Services
             entity.CertificadoGab = dto.CertificadoGab;
             entity.Latitud        = dto.Latitud;
             entity.Longitud       = dto.Longitud;
+            entity.ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon;   // null = hereda empresa
             entity.UpdatedByUserId= _current.UserId;
             entity.UpdatedAt      = DateTime.UtcNow;
 
@@ -777,7 +782,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.Zona,
                 entity.CertificadoGab,
                 entity.Latitud,
-                entity.Longitud
+                entity.Longitud,
+                entity.ManejaAlimentoPorGalpon
             );
         }
 
@@ -859,7 +865,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 .Select(f => new FarmDto(
                     f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.MunicipioId,
                     null, null, null, null,
-                    f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud))
+                    f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon))
                 .ToListAsync(ct);
         }
 
@@ -893,7 +899,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 f.Zona,
                 f.CertificadoGab,
                 f.Latitud,
-                f.Longitud
+                f.Longitud,
+                f.ManejaAlimentoPorGalpon
             ));
         }
 

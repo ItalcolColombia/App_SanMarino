@@ -7,14 +7,14 @@
     (click)="onClose()"
     role="button"
     tabindex="-1"
-    aria-label="Cerrar menú"></div>
+  aria-label="Cerrar menú"></div>
 
   <!-- Panel deslizable -->
   <div class="sidebar-panel" role="dialog" aria-modal="true" aria-label="Menú de navegación">
 
     <!-- ═══════════════════════════════════════════
-         HEADER: Logo + Identidad (fondo oscuro cálido)
-         ═══════════════════════════════════════════ -->
+    HEADER: Logo + Identidad (fondo oscuro cálido)
+    ═══════════════════════════════════════════ -->
     <div class="sb-header">
 
       <!-- Botón cerrar (dentro del header oscuro) -->
@@ -28,167 +28,192 @@
 
       <!-- Logo empresa -->
       <div class="sb-header__logo-wrap">
-        <ng-container *ngIf="(companyLogo$ | async) as logo; else defaultLogo">
+        @if ((companyLogo$ | async); as logo) {
           <img [src]="logo"
-               [alt]="(userBanner$ | async)?.company || 'Empresa'"
-               class="sb-header__logo"
-               loading="eager"
-               decoding="async" />
-        </ng-container>
-        <ng-template #defaultLogo>
-          <img src="assets/brand/italcol-naraanja.png"
-               alt="Italcol"
-               class="sb-header__logo"
-               loading="eager"
-               decoding="async" />
-        </ng-template>
-      </div>
-
-      <!-- Identidad: avatar + nombre + empresa -->
-      <ng-container *ngIf="(userBanner$ | async) as banner">
-        <div class="sb-identity">
-          <!-- Avatar con iniciales + gradiente marca -->
-          <div class="sb-identity__avatar" aria-hidden="true">
-            {{ banner.initials }}
+            [alt]="(userBanner$ | async)?.company || 'Empresa'"
+            class="sb-header__logo"
+            loading="eager"
+            decoding="async" />
+          } @else {
+            <img src="assets/brand/italcol-naraanja.png"
+              alt="Italcol"
+              class="sb-header__logo"
+              loading="eager"
+              decoding="async" />
+            }
           </div>
 
-          <!-- Nombre y empresa -->
-          <div class="sb-identity__info">
-            <p class="sb-identity__name">{{ banner.fullName }}</p>
-            <span class="sb-identity__company">
-              <fa-icon [icon]="faBuilding" class="sb-identity__company-icon"></fa-icon>
-              {{ banner.company }}
-            </span>
-          </div>
-        </div>
-      </ng-container>
-    </div>
-    <!-- /HEADER -->
-
-    <!-- ═══════════════════════════════════════════
-         RAÍZ del sidebar (fondo claro cálido)
-         ═══════════════════════════════════════════ -->
-    <div class="sidebar-root">
-
-      <!-- ÁREA DE SCROLL: Navegación -->
-      <div class="menu-scroll-area">
-        <nav aria-label="Menú principal">
-
-          <!-- Acceso rápido: Mi Perfil -->
-          <div class="sb-quick-section">
-            <a routerLink="/profile"
-               routerLinkActive="is-active"
-               [routerLinkActiveOptions]="{ exact: true }"
-               class="menu-link">
-              <span class="menu-link__icon">
-                <fa-icon [icon]="faUser"></fa-icon>
-              </span>
-              <span class="menu-link__label">Mi Perfil</span>
-            </a>
-          </div>
-
-          <!-- Separador -->
-          <div class="sb-divider" aria-hidden="true"></div>
-
-          <!-- Árbol de menú dinámico -->
-          <ul class="sb-nav-list" *ngIf="(menu$ | async) as menu">
-            <li *ngFor="let item of menu">
-              <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: item, level: 0}"></ng-container>
-            </li>
-          </ul>
-
-          <!-- Plantilla recursiva -->
-          <ng-template #renderNode let-node let-level="level">
-            <div class="menu-group" [attr.data-level]="level">
-
-              <!-- Nodo hoja (sin hijos) -->
-              <a *ngIf="!node.children?.length"
-                 [routerLink]="node.link"
-                 routerLinkActive="is-active"
-                 [routerLinkActiveOptions]="{ exact: true }"
-                 class="menu-link"
-                 [class.menu-link--l1]="level === 1"
-                 [class.menu-link--l2]="level >= 2">
-                <span class="menu-link__icon">
-                  <fa-icon *ngIf="node.icon"  [icon]="node.icon"></fa-icon>
-                  <fa-icon *ngIf="!node.icon" [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
+          <!-- Identidad: avatar + nombre + empresa -->
+          @if ((userBanner$ | async); as banner) {
+            <div class="sb-identity">
+              <!-- Avatar con iniciales + gradiente marca -->
+              <div class="sb-identity__avatar" aria-hidden="true">
+                {{ banner.initials }}
+              </div>
+              <!-- Nombre y empresa -->
+              <div class="sb-identity__info">
+                <p class="sb-identity__name">{{ banner.fullName }}</p>
+                <span class="sb-identity__company">
+                  <fa-icon [icon]="faBuilding" class="sb-identity__company-icon"></fa-icon>
+                  {{ banner.company }}
                 </span>
-                <span class="menu-link__label">{{ node.label }}</span>
-              </a>
+              </div>
+            </div>
+          }
+        </div>
+        <!-- /HEADER -->
 
-              <!-- Nodo padre (con hijos) -->
-              <div *ngIf="node.children?.length"
-                   class="menu-parent"
-                   [class.menu-parent--l1]="level === 1"
-                   [class.menu-parent--l2]="level >= 2">
+        <!-- ═══════════════════════════════════════════
+        RAÍZ del sidebar (fondo claro cálido)
+        ═══════════════════════════════════════════ -->
+        <div class="sidebar-root">
 
-                <div class="menu-parent__row">
-                  <!-- Con enlace propio -->
-                  <a *ngIf="node.link"
-                     [routerLink]="node.link"
-                     routerLinkActive="is-active"
-                     class="menu-link menu-link--parent">
-                    <span class="menu-link__icon">
-                      <fa-icon *ngIf="node.icon"  [icon]="node.icon"></fa-icon>
-                      <fa-icon *ngIf="!node.icon" [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
-                    </span>
-                    <span class="menu-link__label">{{ node.label }}</span>
-                  </a>
+          <!-- ÁREA DE SCROLL: Navegación -->
+          <div class="menu-scroll-area">
+            <nav aria-label="Menú principal">
 
-                  <!-- Sin enlace propio (toggle puro) -->
-                  <button *ngIf="!node.link"
-                          type="button"
-                          (click)="toggle(node)"
-                          class="menu-link menu-link--parent">
-                    <span class="menu-link__icon">
-                      <fa-icon *ngIf="node.icon"  [icon]="node.icon"></fa-icon>
-                      <fa-icon *ngIf="!node.icon" [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
-                    </span>
-                    <span class="menu-link__label">{{ node.label }}</span>
-                  </button>
+              <!-- Acceso rápido: Mi Perfil -->
+              <div class="sb-quick-section">
+                <a routerLink="/profile"
+                  routerLinkActive="is-active"
+                  [routerLinkActiveOptions]="{ exact: true }"
+                  class="menu-link">
+                  <span class="menu-link__icon">
+                    <fa-icon [icon]="faUser"></fa-icon>
+                  </span>
+                  <span class="menu-link__label">Mi Perfil</span>
+                </a>
+              </div>
 
-                  <!-- Caret expand/collapse -->
-                  <button type="button"
+              <!-- Separador -->
+              <div class="sb-divider" aria-hidden="true"></div>
+
+              <!-- Etiqueta de sección -->
+              <p class="sb-section-label" id="sb-nav-label">Navegación</p>
+
+              <!-- Árbol de menú dinámico -->
+              @if ((menu$ | async); as menu) {
+                <ul class="sb-nav-list" aria-labelledby="sb-nav-label">
+                  @for (item of menu; track item) {
+                    <li>
+                      <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: item, level: 0}"></ng-container>
+                    </li>
+                  }
+                </ul>
+              }
+
+              <!-- Plantilla recursiva -->
+              <ng-template #renderNode let-node let-level="level">
+                <div class="menu-group" [attr.data-level]="level">
+
+                  <!-- Nodo hoja (sin hijos) -->
+                  @if (!node.children?.length) {
+                    <a
+                      [routerLink]="node.link"
+                      routerLinkActive="is-active"
+                      [routerLinkActiveOptions]="{ exact: true }"
+                      class="menu-link"
+                      [class.menu-link--l1]="level === 1"
+                      [class.menu-link--l2]="level >= 2">
+                      <span class="menu-link__icon">
+                        @if (node.icon) {
+                          <fa-icon  [icon]="node.icon"></fa-icon>
+                        }
+                        @if (!node.icon) {
+                          <fa-icon [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
+                        }
+                      </span>
+                      <span class="menu-link__label">{{ node.label }}</span>
+                    </a>
+                  }
+
+                  <!-- Nodo padre (con hijos) -->
+                  @if (node.children?.length) {
+                    <div
+                      class="menu-parent"
+                      [class.menu-parent--l1]="level === 1"
+                      [class.menu-parent--l2]="level >= 2">
+                      <div class="menu-parent__row">
+                        <!-- Con enlace propio -->
+                        @if (node.link) {
+                          <a
+                            [routerLink]="node.link"
+                            routerLinkActive="is-active"
+                            class="menu-link menu-link--parent">
+                            <span class="menu-link__icon">
+                              @if (node.icon) {
+                                <fa-icon  [icon]="node.icon"></fa-icon>
+                              }
+                              @if (!node.icon) {
+                                <fa-icon [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
+                              }
+                            </span>
+                            <span class="menu-link__label">{{ node.label }}</span>
+                          </a>
+                        }
+                        <!-- Sin enlace propio (toggle puro) -->
+                        @if (!node.link) {
+                          <button
+                            type="button"
+                            (click)="toggle(node)"
+                            class="menu-link menu-link--parent">
+                            <span class="menu-link__icon">
+                              @if (node.icon) {
+                                <fa-icon  [icon]="node.icon"></fa-icon>
+                              }
+                              @if (!node.icon) {
+                                <fa-icon [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
+                              }
+                            </span>
+                            <span class="menu-link__label">{{ node.label }}</span>
+                          </button>
+                        }
+                        <!-- Caret expand/collapse -->
+                        <button type="button"
                           class="menu-caret"
                           [class.menu-caret--open]="node.expanded"
                           [attr.aria-expanded]="node.expanded"
                           aria-label="Expandir sección"
                           (click)="toggle(node)">
-                    <fa-icon [icon]="faChevronDown"></fa-icon>
-                  </button>
+                          <fa-icon [icon]="faChevronDown"></fa-icon>
+                        </button>
+                      </div>
+                      <!-- Hijos -->
+                      @if (node.expanded) {
+                        <ul class="menu-children">
+                          @for (child of node.children; track child) {
+                            <li>
+                              <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: child, level: level + 1}"></ng-container>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
+                  }
+
                 </div>
+              </ng-template>
+            </nav>
+          </div>
+          <!-- /SCROLL AREA -->
 
-                <!-- Hijos -->
-                <ul *ngIf="node.expanded" class="menu-children">
-                  <li *ngFor="let child of node.children">
-                    <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: child, level: level + 1}"></ng-container>
-                  </li>
-                </ul>
-              </div>
+          <!-- FOOTER: Cerrar sesión -->
+          <div class="sb-footer">
+            <button type="button" class="sb-logout" (click)="logout()">
+              <fa-icon [icon]="faSignOutAlt" class="sb-logout__icon"></fa-icon>
+              <span class="sb-logout__label">Cerrar Sesión</span>
+            </button>
+          </div>
+          <!-- /FOOTER -->
 
-            </div>
-          </ng-template>
-        </nav>
+        </div>
+        <!-- /SIDEBAR-ROOT -->
+
       </div>
-      <!-- /SCROLL AREA -->
-
-      <!-- FOOTER: Cerrar sesión -->
-      <div class="sb-footer">
-        <button type="button" class="sb-logout" (click)="logout()">
-          <fa-icon [icon]="faSignOutAlt" class="sb-logout__icon"></fa-icon>
-          <span class="sb-logout__label">Cerrar Sesión</span>
-        </button>
-      </div>
-      <!-- /FOOTER -->
-
+      <!-- /PANEL -->
     </div>
-    <!-- /SIDEBAR-ROOT -->
 
-  </div>
-  <!-- /PANEL -->
-</div>
-
-<!-- Contenido proyectado (Mapas, etc.) -->
-<div class="sidebar-content flex-1 min-w-0 overflow-auto p-4">
-  <ng-content></ng-content>
-</div>
+    <!-- Contenido proyectado (Mapas, etc.) -->
+    <div class="sidebar-content flex-1 min-w-0 overflow-auto p-4">
+      <ng-content></ng-content>
+    </div>

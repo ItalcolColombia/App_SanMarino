@@ -5,9 +5,10 @@ import {
   Output,
   EventEmitter,
   OnChanges,
-  SimpleChanges
+  SimpleChanges,
+  ChangeDetectionStrategy
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   FormBuilder,
   FormGroup,
@@ -34,8 +35,9 @@ import { finalize } from 'rxjs';
 @Component({
   selector: 'app-modal-edit-master-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FontAwesomeModule],
+  imports: [ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './modal-edit-master-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-edit-master-list.component.scss']
 })
 export class ModalEditMasterListComponent implements OnChanges {

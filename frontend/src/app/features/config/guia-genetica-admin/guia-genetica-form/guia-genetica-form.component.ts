@@ -1,5 +1,5 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { debounceTime, finalize, map, of, Subject, switchMap, takeUntil, tap, catchError } from 'rxjs';
@@ -21,8 +21,9 @@ interface FieldDef {
 @Component({
   selector: 'app-guia-genetica-form',
   standalone: true,
-  imports: [CommonModule, RouterModule, ReactiveFormsModule, FontAwesomeModule],
+  imports: [RouterModule, ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './guia-genetica-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./guia-genetica-form.component.scss']
 })
 export class GuiaGeneticaFormComponent implements OnInit, OnDestroy {

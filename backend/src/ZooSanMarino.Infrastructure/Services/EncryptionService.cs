@@ -178,10 +178,8 @@ public class EncryptionService
     private byte[] DeriveKey(string keyString, int keyLength)
     {
         var salt = Encoding.UTF8.GetBytes("sanmarino-salt"); // Salt fijo para consistencia
-        using (var pbkdf2 = new Rfc2898DeriveBytes(keyString, salt, 10000, HashAlgorithmName.SHA256))
-        {
-            return pbkdf2.GetBytes(keyLength);
-        }
+        // .NET: API no obsoleta (SYSLIB0060); mismo PBKDF2 → hash idéntico al constructor previo.
+        return Rfc2898DeriveBytes.Pbkdf2(keyString, salt, 10000, HashAlgorithmName.SHA256, keyLength);
     }
 }
 

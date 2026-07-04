@@ -1,6 +1,6 @@
 // src/app/features/tickets/pages/mis-tickets/mis-tickets.component.ts
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -20,7 +20,8 @@ import { UserPermissionService } from '../../../../core/auth/user-permission.ser
 @Component({
   selector: 'app-mis-tickets',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TicketListComponent],
+  imports: [FormsModule, RouterLink, TicketListComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './mis-tickets.component.html',
 })
 export class MisTicketsComponent implements OnInit {

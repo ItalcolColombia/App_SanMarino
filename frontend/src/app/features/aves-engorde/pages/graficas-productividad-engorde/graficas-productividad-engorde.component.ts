@@ -1,5 +1,5 @@
-import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { SeguimientoDiarioTablaFilaDto } from '../../services/seguimiento-aves-engorde.service';
@@ -17,8 +17,9 @@ import {
 @Component({
   selector: 'app-graficas-productividad-engorde',
   standalone: true,
-  imports: [CommonModule, NgChartsModule],
+  imports: [NgChartsModule],
   templateUrl: './graficas-productividad-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./graficas-productividad-engorde.component.scss']
 })
 export class GraficasProductividadEngordeComponent implements OnChanges {

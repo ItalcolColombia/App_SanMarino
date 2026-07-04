@@ -1,6 +1,6 @@
 // frontend/src/app/features/traslados-aves/pages/traslado-aves-huevos/traslado-aves-huevos.component.ts
-import { Component, OnInit, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TrasladosAvesService, DisponibilidadLoteDto, CrearTrasladoAvesDto } from '../../services/traslados-aves.service';
@@ -10,8 +10,9 @@ import { FarmService } from '../../../farm/services/farm.service';
 @Component({
   selector: 'app-traslado-aves',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [ReactiveFormsModule],
   templateUrl: './traslado-aves-huevos.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./traslado-aves-huevos.component.scss']
 })
 export class TrasladoAvesComponent implements OnInit {

@@ -1,7 +1,7 @@
 // src/app/app.config.ts
 import { ApplicationConfig, importProvidersFrom } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { ReactiveFormsModule } from '@angular/forms';
 
@@ -52,7 +52,7 @@ import { ClienteListComponent } from './features/clientes/components/cliente-lis
 export const appConfig: ApplicationConfig = {
   providers: [
     importProvidersFrom(ReactiveFormsModule),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
 
     provideRouter([
       { path: '', redirectTo: 'home', pathMatch: 'full' },
@@ -108,12 +108,6 @@ export const appConfig: ApplicationConfig = {
             loadChildren: () =>
               import('./features/aves-engorde/seguimiento-aves-engorde.module')
                 .then(m => m.SeguimientoAvesEngordeModule)
-          },
-          {
-            path: 'aves-engorde-panama',
-            loadChildren: () =>
-              import('./features/aves-engorde-panama/seguimiento-aves-engorde-panama.module')
-                .then(m => m.SeguimientoAvesEngordePanamaModule)
           }
         ]
       },
@@ -283,15 +277,6 @@ export const appConfig: ApplicationConfig = {
         loadComponent: () =>
           import('./features/gastos-inventario/pages/gastos-inventario-page/gastos-inventario-page.component')
             .then(m => m.GastosInventarioPageComponent)
-      },
-      
-      // Ruta alternativa para inventario (también protegida)
-      {
-        path: 'inventario-management',
-        canActivate: [authGuard],
-        loadComponent: () =>
-          import('./features/inventario/components/inventario-tabs/inventario-tabs.component')
-            .then(m => m.InventarioTabsComponent)
       },
 
       // Módulo de Traslados de Aves (lazy)

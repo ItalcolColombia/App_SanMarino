@@ -213,10 +213,10 @@
   user-select: none;
   transition: border-color 0.15s, background 0.15s;
 
-  input[type="radio"] { margin: 0; accent-color: #e85c25; }
+  input[type="radio"] { margin: 0; accent-color: #F5821F; }
 
   &--active {
-    border-color: #e85c25;
+    border-color: #F5821F;
     background: #fff7f4;
     color: #9a2c0a;
     font-weight: 600;
@@ -263,8 +263,8 @@
 
   &:focus {
     outline: none;
-    border-color: #e85c25;
-    box-shadow: 0 0 0 3px rgba(232, 92, 37, 0.12);
+    border-color: #F5821F;
+    box-shadow: 0 0 0 3px rgba(245, 130, 31, 0.12);
   }
 }
 
@@ -321,7 +321,7 @@
   width: 18px;
   height: 18px;
   border: 2px solid #e5e7eb;
-  border-top-color: #e85c25;
+  border-top-color: #F5821F;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -358,7 +358,7 @@
   padding: 8px 20px;
   border: none;
   border-radius: 8px;
-  background: #e85c25;
+  background: #F5821F;
   color: #fff;
   font-size: 0.875rem;
   font-weight: 600;

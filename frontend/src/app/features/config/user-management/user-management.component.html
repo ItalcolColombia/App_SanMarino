@@ -12,7 +12,7 @@
         (click)="navigateToCreate()"
         class="btn-create"
         aria-label="Registrar nuevo usuario"
-      >
+        >
         <fa-icon [icon]="faUserPlus"></fa-icon>
         <span class="btn-text">Nuevo Usuario</span>
       </button>
@@ -21,43 +21,48 @@
     <!-- Content Area -->
     <div class="content-area">
       <!-- Tabla de Lista de Registros -->
-      <app-tabla-lista-registro
-        *ngIf="currentPage === 'list'"
-        class="table-container"
-        (createUser)="navigateToCreate()"
-        (editUser)="navigateToEdit($event)"
-        (assignFarms)="navigateToAssignFarms($event)"
-        (resetPassword)="openResetPasswordModal($event)"
-      ></app-tabla-lista-registro>
+      @if (currentPage === 'list') {
+        <app-tabla-lista-registro
+          class="table-container"
+          (createUser)="navigateToCreate()"
+          (editUser)="navigateToEdit($event)"
+          (assignFarms)="navigateToAssignFarms($event)"
+          (resetPassword)="openResetPasswordModal($event)"
+        ></app-tabla-lista-registro>
+      }
 
       <!-- Formulario de Creación -->
-      <div *ngIf="currentPage === 'create'" class="form-container">
-        <div class="form-header">
-          <h2>Registrar Nuevo Usuario</h2>
-          <button (click)="navigateToList()" class="btn-cancel">
-            <fa-icon [icon]="faTimes"></fa-icon>
-            Cancelar
-          </button>
+      @if (currentPage === 'create') {
+        <div class="form-container">
+          <div class="form-header">
+            <h2>Registrar Nuevo Usuario</h2>
+            <button (click)="navigateToList()" class="btn-cancel">
+              <fa-icon [icon]="faTimes"></fa-icon>
+              Cancelar
+            </button>
+          </div>
+          <div class="form-placeholder">
+            <p>Formulario de registro de usuario (pendiente de implementar)</p>
+          </div>
         </div>
-        <div class="form-placeholder">
-          <p>Formulario de registro de usuario (pendiente de implementar)</p>
-        </div>
-      </div>
+      }
 
       <!-- Formulario de Edición -->
-      <div *ngIf="currentPage === 'edit'" class="form-container">
-        <div class="form-header">
-          <h2>Editar Usuario</h2>
-          <button (click)="navigateToList()" class="btn-cancel">
-            <fa-icon [icon]="faTimes"></fa-icon>
-            Cancelar
-          </button>
+      @if (currentPage === 'edit') {
+        <div class="form-container">
+          <div class="form-header">
+            <h2>Editar Usuario</h2>
+            <button (click)="navigateToList()" class="btn-cancel">
+              <fa-icon [icon]="faTimes"></fa-icon>
+              Cancelar
+            </button>
+          </div>
+          <div class="form-placeholder">
+            <p>Formulario de edición de usuario (pendiente de implementar)</p>
+            <p>Usuario ID: {{ selectedUserId }}</p>
+          </div>
         </div>
-        <div class="form-placeholder">
-          <p>Formulario de edición de usuario (pendiente de implementar)</p>
-          <p>Usuario ID: {{ selectedUserId }}</p>
-        </div>
-      </div>
+      }
     </div>
   </div>
 </div>
@@ -71,15 +76,16 @@
 ></app-modal-create-edit>
 
 <!-- Modal de Asignación de Granjas -->
-<app-asignar-usuario-granja
-  *ngIf="selectedUserForFarms"
-  [isOpen]="farmModalOpen"
-  [userId]="selectedUserForFarms.id"
-  [userName]="selectedUserForFarms.firstName + ' ' + selectedUserForFarms.surName"
-  [companyId]="getUserCompanyId(selectedUserForFarms)"
-  (close)="closeFarmModal()"
-  (granjasUpdated)="onFarmsUpdated()"
-></app-asignar-usuario-granja>
+@if (selectedUserForFarms) {
+  <app-asignar-usuario-granja
+    [isOpen]="farmModalOpen"
+    [userId]="selectedUserForFarms.id"
+    [userName]="selectedUserForFarms.firstName + ' ' + selectedUserForFarms.surName"
+    [companyId]="getUserCompanyId(selectedUserForFarms)"
+    (close)="closeFarmModal()"
+    (granjasUpdated)="onFarmsUpdated()"
+  ></app-asignar-usuario-granja>
+}
 
 <!-- Modal de Restablecer Contraseña -->
 <app-modal-reset-password

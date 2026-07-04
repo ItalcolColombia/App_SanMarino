@@ -1,5 +1,5 @@
 // src/app/features/config/user-management/components/modal-create-edit/modal-create-edit.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -38,6 +38,7 @@ const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule, ShowIfCountryDirective, TicketPerfilEditorComponent],
   templateUrl: './modal-create-edit.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-create-edit.component.scss']
 })
 export class ModalCreateEditComponent implements OnInit, OnDestroy {

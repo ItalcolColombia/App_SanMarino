@@ -1,11 +1,12 @@
 // src/app/features/tickets/components/ticket-estado-badge/ticket-estado-badge.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { EstadoTicket, ESTADO_LABEL, ESTADO_BADGE } from '../../models/ticket.models';
 
 /** Badge de color para el estado de un ticket. */
 @Component({
   selector: 'app-ticket-estado-badge',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <span
       class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset"

@@ -220,7 +220,7 @@
                 <div>
                   <label class="ux-label">Granja seleccionada</label>
                   <input type="text"
-                         [value]="getGranjaNombreById(form.get('granjaId')?.value)"
+                         [value]="getGranjaNombreById($safeNavigationMigration(form.get('granjaId')?.value))"
                          readonly class="ux-input ux-input--readonly" />
                 </div>
 
@@ -350,11 +350,11 @@
               <div class="detail-grid">
                 <div class="detail-item">
                   <span class="detail-label">Creado</span>
-                  <span class="detail-value">{{ selectedDetail?.createdAt | date:'short' }}</span>
+                  <span class="detail-value">{{ $safeNavigationMigration(selectedDetail?.createdAt) | date:'short' }}</span>
                 </div>
                 <div class="detail-item">
                   <span class="detail-label">Actualizado</span>
-                  <span class="detail-value">{{ selectedDetail?.updatedAt | date:'short' }}</span>
+                  <span class="detail-value">{{ $safeNavigationMigration(selectedDetail?.updatedAt) | date:'short' }}</span>
                 </div>
               </div>
             </section>

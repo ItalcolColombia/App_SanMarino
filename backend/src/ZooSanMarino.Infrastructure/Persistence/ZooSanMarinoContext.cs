@@ -87,7 +87,6 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<LoteReproductoraAveEngorde> LoteReproductoraAveEngorde => Set<LoteReproductoraAveEngorde>();
         public DbSet<SeguimientoDiarioAvesEngorde> SeguimientoDiarioAvesEngorde => Set<SeguimientoDiarioAvesEngorde>();
         public DbSet<SeguimientoDiarioAvesEngordeEcuador> SeguimientoDiarioAvesEngordeEcuador => Set<SeguimientoDiarioAvesEngordeEcuador>();
-        public DbSet<SeguimientoDiarioAvesEngordePanama> SeguimientoDiarioAvesEngordePanama => Set<SeguimientoDiarioAvesEngordePanama>();
         public DbSet<SeguimientoDiarioLoteReproductoraAvesEngorde> SeguimientoDiarioLoteReproductoraAvesEngorde => Set<SeguimientoDiarioLoteReproductoraAvesEngorde>();
         public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
         public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();
@@ -110,6 +109,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
 
         // Lesiones (Panamá — tab dentro de Seguimiento Diario Reproductora/Apoyo/Engorde)
         public DbSet<Lesion> Lesiones => Set<Lesion>();
+
+        // PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
+        public DbSet<ServiceToken> ServiceTokens => Set<ServiceToken>();
 
         // Módulo de tickets de soporte / requerimientos
         public DbSet<Ticket> Tickets => Set<Ticket>();

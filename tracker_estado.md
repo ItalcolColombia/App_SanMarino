@@ -1,51 +1,52 @@
-# Tracker — Tickets: notificados + correos (creación/cierre) + transferir + logo "pro"
+# Tracker — Upgrade Angular 20 → 22
 
-**Plan:** [tickets_notificados_flujos_plan.md](./fase_de_desarrollo/tickets_notificados_flujos_plan.md)
-**Módulo:** `tickets` · back `ZooSanMarino.*` · front `frontend/src/app/features/tickets`
-> (El estado del trabajo previo de **postura Colombia** quedó en memoria `postura-colombia-guia-genetica.md` + su plan/matriz en `fase_de_desarrollo/`.)
+> Plan: [`fase_de_desarrollo/upgrade_angular_20_a_22_plan.md`](fase_de_desarrollo/upgrade_angular_20_a_22_plan.md)
+> Sesión previa commiteada (6495db7 back · 52bf914 front · 1b9a1bf docs) → upgrade aislado.
 
-## Fase 0 — Auditoría (COMPLETADA)
-- [x] Mapeado back: `Ticket`/estados/tipos/`TicketNota`(chat), `TicketService` (Create/Transferir/CambiarEstado/ConfirmarCierre), notificación actual solo a solicitante al SOLUCIONAR.
-- [x] Mapeado correo: `IEmailQueueService` (cola async) + plantillas "pro" welcome/password (logo = texto). `BuildSolucionEmailBody` simple sin logo.
-- [x] Mapeado front: `ticket-create` (sin notificados), `ticket-detalle` (transferir), service/models.
-- [x] Validado en app: create form carga OK (tipos por país + resolutores); login re-hecho.
-- [x] Gaps: sin notificados, sin correo creación/cierre, transferir no notifica al nuevo resolutor, correos sin logo.
+## Salto 1 — Angular 20 → 21 ✅ COMPLETO (commit 430e4d0)
+- [x] `ng update` core/cli/cdk@21 (+ TS 5.9) → migración control-flow `*ngIf/*ngFor`→`@if/@for`
+- [x] Fixes: fontawesome `[spin]`→`[animation]`; trackBy 1-arg→`track $index` (13); Uint8Array→BufferSource
+- [x] Peer-deps: fontawesome 0.14→4; ng-recaptcha (abandonado)→ng-recaptcha-2@21
+- [x] `yarn build` 0 err (19 warnings NG8107 cosméticos pendientes)
 
-## Fase 1 — Backend (notificados + correos + transferir) — c-sharp-pro ✅ COMPLETADA
-- [x] Entidad `TicketNotificado` + config EF (`ticket_notificados`, FK cascade, índice) — ApplyConfigurationsFromAssembly, sin registro manual.
-- [x] Navegación `Ticket.Notificados` + `DbSet<TicketNotificado>` en el contexto.
-- [x] Migración idempotente `20260701141132_AddTicketNotificados` (CREATE TABLE/INDEX IF NOT EXISTS).
-- [x] DTOs: `CreateTicketRequest.NotificarUserGuids` (opcional), `TicketNotificadoDto`, `TicketDetailDto.Notificados`, `UsuarioNotificableDto`.
-- [x] `ITicketService.GetNotificablesAsync` + impl (usuarios company vía UserRoles con email, excluye actual).
-- [x] `CreateAsync`: persistir notificados + encolar "ticket_creado" (try/catch).
-- [x] `ConfirmarCierreAsync`: encolar "ticket_cerrado" (solución + notas públicas) a solicitante + notificados.
-- [x] `TransferirAsync`: encolar "ticket_transferido" al nuevo resolutor.
-- [x] `TicketEmailTemplates` branded con **logo imagen** (Wrap + Creado/Asignado/Cerrado con tabla de chat) + `Email:LogoUrl` en appsettings.
-- [x] `GET /api/tickets/notificables` en `TicketsController`.
-- [x] `dotnet build` 0 err (5 warnings preexistentes) + `dotnet test` 26/26 PASS + migración generada (no aplicada por el agente).
+## Salto 2 — Angular 21 → 22 ✅ COMPLETO (commit b704757) — vía Node PORTABLE
+- **Solución al bloqueo de Node (sin admin/IT):** Node 22.23.1 **portable** descomprimido en `C:\Users\SAN MARINO\node-portable\node-v22.23.1-win-x64\` (el Node del sistema 22.15 queda intacto). Cumple Angular 22 (≥22.22.3).
+- `yarn add fontawesome@5.1 + ng-recaptcha-2@22`; `ng update` core/cli/cdk@22 (con node portable) → **TypeScript 6**
+- Migración automática 22: `changeDetection: ChangeDetectionStrategy.Eager` (preserva comportamiento)
+- `yarn build` **0 errores** (node portable)
+- **Para el dev server Angular 22:** config `frontend-node22` en `.claude/launch.json` (usa el node portable). Para builds/serve manuales: `export PATH="/c/Users/SAN MARINO/node-portable/node-v22.23.1-win-x64:$PATH"` antes de `yarn`.
+- ⚠️ Nota: hasta que IT instale Node ≥22.22.3 a nivel sistema, hay que usar el node portable para build/serve. (`OpenJS.NodeJS.22`=22.23.1 vía winget, o instalador oficial.)
 
-## Fase 2 — Frontend (multiselect notificados + detalle + transferir) — frontend-developer ✅ COMPLETADA
-- [x] Models: `notificarUserGuids`, `TicketNotificadoDto`, `UsuarioNotificableDto`, `TicketDetail.notificados`.
-- [x] Service: `getNotificables()` → GET {baseUrl}/notificables.
-- [x] `ticket-create`: multi-select "Notificar a" (buscador role=combobox + chips, máx 8 resultados, sin duplicados, signals) + `notificarUserGuids` en submit. Importó FormsModule para el ngModel del buscador.
-- [x] `ticket-detalle`: sección "Notificados" (chips) en panel Detalles si `t.notificados?.length`.
-- [x] Transferir: copy "El nuevo resolutor será notificado por correo".
-- [x] `yarn build` OK (0 errores; solo warning preexistente de bundle size).
-- [ ] Pendiente: validación visual en el navegador (el agente no tenía tools de browser) — la hago yo vía preview MCP en la integración.
+## Dependencias / librerías (peer-deps al día para Angular 22)
+- [x] `@fortawesome/angular-fontawesome` `0.14`→`4` (21) → luego `5.1` (22)
+- [x] `ng-recaptcha` (abandonado en Angular 17) → **`ng-recaptcha-2`** `@21` → luego `@22` (+ import en login)
+- [ ] Auditar resto de deps desactualizadas/deprecadas (`yarn outdated`) y subir las seguras
+- [ ] `ng-recaptcha-2`/otros → versión Angular 22 en el salto 2
 
-## Fase 3 — Integración + validación en app (arquitecto) ✅ COMPLETADA
-- [x] **Incidente de seguridad detectado y contenido:** relanzar con `--no-launch-profile` SIN `ASPNETCORE_ENVIRONMENT=Development` cargó `appsettings.json` (PROD) → intentó migrar la RDS `sanmarinoappprod` (falló por timeout de red, sin daño). Fix: relanzar con `$env:ASPNETCORE_ENVIRONMENT="Development"` → BD local :5433. **Lección: SIEMPRE fijar el env Development al relanzar el backend.**
-- [x] Rebuild back Debug (kill :5002 + relanzar env Development) 0 err; front ya buildeado + hot-reload.
-- [x] Migración aplicada en LOCAL al arrancar: tabla `ticket_notificados` creada + en `__EFMigrationsHistory`.
-- [x] `GET /tickets/notificables` → **200** (10 usuarios) tras el restart (antes 404). Multiselect carga los 10.
-- [x] Crear ticket TK-2026-000001 con 2 notificados (Alexander Mejia, Alex Londoño) → **persistidos** en `ticket_notificados` + **2 correos "ticket_creado" enviados** (status=sent) con HTML branded + **logo imagen**.
-- [x] Detalle del ticket: **chips de Notificados renderizan** (tras recarga de chunk; era caché viejo, no bug).
-- [x] Correos "ticket_cerrado" y "ticket_transferido" **renderizados en modo controlado (fuera de la app, sin SMTP)** vía mini-proyecto `scratchpad/emailrender` → HTML: logo + marca + solución + **tabla de histórico de chat** (3 filas autor/fecha/nota) / "te asignaron".
-- [x] Consola/red sin errores nuevos (los 404 de /notificables son PRE-restart; el mis-tickets ABORTED es navegación cancelada).
-- [ ] Nota: transferir/cerrar por flujo real end-to-end no ejecutado en UI (requiere 2do usuario resolutor); wiring implementado + build + tests OK + plantillas renderizadas. Opcional a futuro.
-- [ ] PROD: al desplegar, la migración `AddTicketNotificados` se aplica sola; agregar la sección `Email:LogoUrl` en la config de prod si el logo debe apuntar a un dominio público (hoy default = {ApplicationUrl}/assets/brand/...).
+## Node
+- [ ] Verificar Node vs requerimiento de Angular 22 (^20.19 || ^22.12 || ^24). Actual 22.15 ✓; evaluar LTS más nuevo (24) + pin en `package.json engines` / `.nvmrc`
 
-## Fase 4 — Estilo/tema del módulo (pedido usuario) ✅ COMPLETADA
-- [x] **Fondo se veía oscuro** en modo oscuro del navegador (`prefers-color-scheme: dark`): el wrapper usaba `bg-gradient-to-b from-ital-cream/60 to-transparent` (SEMI-TRANSPARENTE) → el canvas oscuro del navegador se filtraba. Fix: fondo **opaco claro con degradado naranja** `min-h-full bg-white bg-gradient-to-b from-ital-orange-50 via-white to-white` en las **5 páginas** (mis-tickets, ticket-create, ticket-detalle, gestion-tickets, admin-tickets). Verificado en vivo: claro incluso en modo oscuro.
-- [x] Chip de filtro activo "Todos"/estados en mis-tickets pasó de `bg-slate-800`/`ring-slate-800` (azul oscuro, fuera de paleta) a **`bg-ital-green`/`ring-ital-green`** para concordar con el botón "Nuevo ticket" y la app. (Botones ya usaban `from-ital-green`; bordes ya slate-100/200 estándar.)
-- [x] ng serve recompiló OK (builds 21:10 y 21:13 "complete"). Verificado visualmente mis-tickets + ticket-create (fondo claro + naranja, filtro verde).
+## NG8107 ✅ RESUELTO (0 warnings)
+- Angular 22 **ya no emite** NG8107 → 0 warnings en build 22 (no requirió fix manual). Verificado.
+
+## Migración build-system ✅ COMPLETO (commit 44edc13)
+- `angular.json`: `@angular-devkit/build-angular:*` → `@angular/build:*` (application/dev-server/extract-i18n/karma)
+- Eliminado target `server` (SSR muerto: sin main.server.ts/@angular/ssr; Docker = SPA nginx) + `tsconfig.server.json`
+- Removida dep huérfana `@angular-devkit/build-angular` (webpack). Dev server ahora sobre **vite**.
+- `yarn build` 0 errores/0 deprecaciones; login validado en runtime (vite), consola limpia.
+
+## Backend .NET 9 → 10 (LTS) ✅ COMPLETO (commit ad26c95)
+- **SDK 10 portable** (sin admin) en `C:\Users\SAN MARINO\dotnet-portable\` (SDK 10.0.301). Sistema sigue con 9.0.301/8.0.408.
+- `net9.0`→`net10.0` (6 proyectos) + paquetes 9.x→10.x (EF Core 10.0.9, Npgsql 10.0.2, NamingConventions 10.0.1)
+- Swashbuckle 8.1.2→10.2.3; fixes breaking **Microsoft.OpenApi v2**: namespace `.Models`→raíz; `Type` string→`JsonSchemaType`; security por `OpenApiSecuritySchemeReference` + `AddSecurityRequirement` con factory; `OpenApiJsonWriter`
+- SYSLIB0060: `Rfc2898DeriveBytes` ctor → `Pbkdf2` (hash idéntico) · removido `Microsoft.Extensions.Configuration.Json`
+- **`dotnet build` 0/0 · `dotnet test` 122 verdes · app arranca (EF 10 migraciones OK) · E2E login Angular22+.NET10 → /home**
+- Build/run con SDK portable: `export PATH="/c/Users/SAN MARINO/dotnet-portable:$PATH"`. IT: instalar .NET 10 SDK a nivel sistema.
+
+## Validación final (flujo completo)
+- [ ] `yarn build` 0 err + `yarn test`
+- [ ] preview: login → home → módulos clave (inventario, lotes, seguimientos, reportes) sin errores de consola · rebrand intacto · funcionalidad preservada
+- [ ] arreglar cualquier error/deprecación que aparezca en el camino
+
+## Evidencia
+- Estado inicial: Angular 20.3.x, TS 5.8, RxJS 7.8, zone.js 0.15, Node 22.15.

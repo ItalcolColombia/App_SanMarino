@@ -3,16 +3,17 @@
   <!-- Área principal -->
   <div class="flex-1 p-6 bg-warm-gray-100 min-h-screen relative">
     <!-- Overlay de carga -->
-    <div
-      *ngIf="loading"
-      class="absolute inset-0 bg-white/60 flex items-center justify-center z-10"
-      aria-live="polite"
-    >
-      <div class="inline-flex items-center gap-2 text-sm text-warm-gray-700">
-        <span class="w-3 h-3 rounded-full bg-brand-red animate-pulse"></span>
-        Cargando…
+    @if (loading) {
+      <div
+        class="absolute inset-0 bg-white/60 flex items-center justify-center z-10"
+        aria-live="polite"
+        >
+        <div class="inline-flex items-center gap-2 text-sm text-warm-gray-700">
+          <span class="w-3 h-3 rounded-full bg-brand-red animate-pulse"></span>
+          Cargando…
+        </div>
       </div>
-    </div>
+    }
 
     <!-- Contenido -->
     <div class="max-w-3xl mx-auto">
@@ -30,7 +31,7 @@
         (ngSubmit)="save()"
         class="space-y-6 bg-white p-6 rounded-2xl shadow"
         novalidate
-      >
+        >
         <!-- Identificador y Nombre -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <!-- Identificador (key) -->
@@ -45,108 +46,115 @@
               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 disabled:opacity-60 transition"
               [class.border-red-400]="listForm.get('key')?.invalid && listForm.get('key')?.touched"
               [attr.aria-invalid]="listForm.get('key')?.invalid && listForm.get('key')?.touched ? 'true' : null"
-            />
-            <div
-              *ngIf="listForm.get('key')?.touched && listForm.get('key')?.invalid"
-              class="mt-1 text-xs text-red-600"
-            >
-              <div *ngIf="listForm.get('key')?.errors?.['required']">
-                Campo obligatorio.
-              </div>
-              <div *ngIf="listForm.get('key')?.errors?.['pattern']">
-                Solo letras, números, guiones y guion bajo.
-              </div>
-            </div>
-            <p class="mt-1 text-[11px] text-warm-gray-500">
-              La <em>key</em> se usa para consultar esta lista desde el frontend/backend.
-            </p>
-          </div>
-
-          <!-- Nombre visible -->
-          <div>
-            <label class="block mb-1 text-xs font-semibold text-warm-gray-700">
-              Nombre de la lista <span class="text-red-600">*</span>
-            </label>
-            <input
-              formControlName="name"
-              placeholder="p.ej. Tipos de identificación"
-              class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 transition"
-              [class.border-red-400]="listForm.get('name')?.invalid && listForm.get('name')?.touched"
-              [attr.aria-invalid]="listForm.get('name')?.invalid && listForm.get('name')?.touched ? 'true' : null"
-            />
-            <div
-              *ngIf="listForm.get('name')?.touched && listForm.get('name')?.invalid"
-              class="mt-1 text-xs text-red-600"
-            >
-              Campo obligatorio.
-            </div>
-          </div>
-        </div>
-
-        <!-- Valores (FormArray) -->
-        <div formArrayName="options">
-          <div class="flex items-center justify-between mb-2">
-            <label class="text-sm font-semibold text-warm-gray-700">
-              Valores de la lista <span class="text-red-600">*</span>
-            </label>
-
-            <button
-              type="button"
-              (click)="addOption()"
-              class="inline-flex items-center px-3 py-1.5 bg-chicken-yellow text-warm-gray-900 rounded-lg hover:-translate-y-0.5 hover:shadow transition"
-            >
-              <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
-              Añadir valor
-            </button>
-          </div>
-
-          <div class="space-y-2">
-            <div
-              *ngFor="let ctrl of options.controls; let i = index; trackBy: trackByIndex"
-              class="flex items-center gap-2"
-            >
-              <input
-                [formControlName]="i"
-                [attr.aria-label]="'Valor ' + (i + 1)"
-                placeholder="Valor {{ i + 1 }}"
-                class="flex-1 px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 transition"
-                [class.border-red-400]="ctrl.touched && ctrl.invalid"
-                [attr.aria-invalid]="ctrl.touched && ctrl.invalid ? 'true' : null"
               />
-              <button
-                type="button"
-                (click)="removeOption(i)"
-                [disabled]="options.length <= 1"
-                class="px-2 py-2 rounded-lg border text-warm-gray-600 hover:text-red-700 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                [attr.aria-label]="'Eliminar valor ' + (i + 1)"
-                title="Eliminar"
-              >
-                <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-              </button>
+              @if (listForm.get('key')?.touched && listForm.get('key')?.invalid) {
+                <div
+                  class="mt-1 text-xs text-red-600"
+                  >
+                  @if (listForm.get('key')?.errors?.['required']) {
+                    <div>
+                      Campo obligatorio.
+                    </div>
+                  }
+                  @if (listForm.get('key')?.errors?.['pattern']) {
+                    <div>
+                      Solo letras, números, guiones y guion bajo.
+                    </div>
+                  }
+                </div>
+              }
+              <p class="mt-1 text-[11px] text-warm-gray-500">
+                La <em>key</em> se usa para consultar esta lista desde el frontend/backend.
+              </p>
             </div>
+
+            <!-- Nombre visible -->
+            <div>
+              <label class="block mb-1 text-xs font-semibold text-warm-gray-700">
+                Nombre de la lista <span class="text-red-600">*</span>
+              </label>
+              <input
+                formControlName="name"
+                placeholder="p.ej. Tipos de identificación"
+                class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 transition"
+                [class.border-red-400]="listForm.get('name')?.invalid && listForm.get('name')?.touched"
+                [attr.aria-invalid]="listForm.get('name')?.invalid && listForm.get('name')?.touched ? 'true' : null"
+                />
+                @if (listForm.get('name')?.touched && listForm.get('name')?.invalid) {
+                  <div
+                    class="mt-1 text-xs text-red-600"
+                    >
+                    Campo obligatorio.
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Valores (FormArray) -->
+            <div formArrayName="options">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-sm font-semibold text-warm-gray-700">
+                  Valores de la lista <span class="text-red-600">*</span>
+                </label>
+
+                <button
+                  type="button"
+                  (click)="addOption()"
+                  class="inline-flex items-center px-3 py-1.5 bg-chicken-yellow text-warm-gray-900 rounded-lg hover:-translate-y-0.5 hover:shadow transition"
+                  >
+                  <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+                  Añadir valor
+                </button>
+              </div>
+
+              <div class="space-y-2">
+                @for (ctrl of options.controls; track $index; let i = $index) {
+                  <div
+                    class="flex items-center gap-2"
+                    >
+                    <input
+                      [formControlName]="i"
+                      [attr.aria-label]="'Valor ' + (i + 1)"
+                      placeholder="Valor {{ i + 1 }}"
+                      class="flex-1 px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 transition"
+                      [class.border-red-400]="ctrl.touched && ctrl.invalid"
+                      [attr.aria-invalid]="ctrl.touched && ctrl.invalid ? 'true' : null"
+                      />
+                      <button
+                        type="button"
+                        (click)="removeOption(i)"
+                        [disabled]="options.length <= 1"
+                        class="px-2 py-2 rounded-lg border text-warm-gray-600 hover:text-red-700 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        [attr.aria-label]="'Eliminar valor ' + (i + 1)"
+                        title="Eliminar"
+                        >
+                        <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <!-- Botones -->
+              <div class="flex justify-end gap-3 pt-4 border-t border-warm-gray-200">
+                <button
+                  type="button"
+                  (click)="cancel()"
+                  class="inline-flex items-center px-4 py-2 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300 transition"
+                  >
+                  <fa-icon [icon]="faTimes" class="mr-2" aria-hidden="true"></fa-icon>
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  [disabled]="listForm.invalid || loading"
+                  class="inline-flex items-center px-5 py-2 rounded-lg bg-brand-red text-white hover:bg-red-600 disabled:opacity-60 transition"
+                  >
+                  <fa-icon [icon]="faSave" class="mr-2" aria-hidden="true"></fa-icon>
+                  Guardar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-
-        <!-- Botones -->
-        <div class="flex justify-end gap-3 pt-4 border-t border-warm-gray-200">
-          <button
-            type="button"
-            (click)="cancel()"
-            class="inline-flex items-center px-4 py-2 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300 transition"
-          >
-            <fa-icon [icon]="faTimes" class="mr-2" aria-hidden="true"></fa-icon>
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            [disabled]="listForm.invalid || loading"
-            class="inline-flex items-center px-5 py-2 rounded-lg bg-brand-red text-white hover:bg-red-600 disabled:opacity-60 transition"
-          >
-            <fa-icon [icon]="faSave" class="mr-2" aria-hidden="true"></fa-icon>
-            Guardar
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+      </div>

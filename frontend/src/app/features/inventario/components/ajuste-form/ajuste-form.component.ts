@@ -1,6 +1,6 @@
 // src/app/features/inventario/components/ajuste-form/ajuste-form.component.ts
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -10,8 +10,9 @@ import { InventarioService, CatalogItemDto, FarmDto } from '../../services/inven
 @Component({
   selector: 'app-ajuste-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FontAwesomeModule],
+  imports: [ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './ajuste-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./ajuste-form.component.scss']
 })
 export class AjusteFormComponent implements OnInit {

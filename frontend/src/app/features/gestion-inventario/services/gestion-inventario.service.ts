@@ -8,6 +8,8 @@ export interface FarmDto {
   id: number;
   name: string;
   companyId: number;
+  /** Override manejo alimento: null/undefined = hereda empresa; true = galpón; false = granja. */
+  manejaAlimentoPorGalpon?: boolean | null;
 }
 export interface NucleoDto {
   nucleoId: string;
@@ -31,6 +33,8 @@ export interface InventarioGestionFilterDataDto {
   nucleosDestino: NucleoDto[];
   galponesOrigen: GalponLiteDto[];
   galponesDestino: GalponLiteDto[];
+  /** Default GLOBAL de la empresa: ¿alimento a nivel galpón? (el front resuelve efectivo por granja). */
+  companyManejaAlimentoPorGalpon?: boolean;
 }
 
 /** Lote para filtrar histórico (granjas asignadas). */

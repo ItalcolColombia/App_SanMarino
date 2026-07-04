@@ -1,5 +1,5 @@
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
@@ -15,8 +15,9 @@ import {
 @Component({
   selector: 'app-mapa-ejecutar-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink],
   templateUrl: './mapa-ejecutar-modal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./mapa-ejecutar-modal.component.scss']
 })
 export class MapaEjecutarModalComponent implements OnInit, OnDestroy {

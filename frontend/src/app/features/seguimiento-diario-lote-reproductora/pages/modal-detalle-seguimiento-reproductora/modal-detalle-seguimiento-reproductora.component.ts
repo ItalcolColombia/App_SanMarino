@@ -1,9 +1,10 @@
 import {
   Component, Input, Output, EventEmitter,
   OnInit, OnChanges, SimpleChanges,
-  ChangeDetectorRef, HostListener
+  ChangeDetectorRef, HostListener,
+  ChangeDetectionStrategy
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -26,8 +27,9 @@ interface ItemSeguimientoLocal {
 @Component({
   selector: 'app-modal-detalle-seguimiento-reproductora',
   standalone: true,
-  imports: [CommonModule, FontAwesomeModule, ShowIfEcuadorPanamaDirective],
+  imports: [FontAwesomeModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-detalle-seguimiento-reproductora.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-detalle-seguimiento-reproductora.component.scss']
 })
 export class ModalDetalleSeguimientoReproductoraComponent implements OnInit, OnChanges {

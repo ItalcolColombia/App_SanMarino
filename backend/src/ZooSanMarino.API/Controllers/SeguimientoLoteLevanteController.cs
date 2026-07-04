@@ -31,6 +31,15 @@ public class SeguimientoLoteLevanteController : ControllerBase
         return Ok(data);
     }
 
+    /// <summary>Indicadores semanales de levante calculados en la BD (el front solo los pinta).</summary>
+    [HttpGet("por-lote/{loteId:int}/indicadores")]
+    [ProducesResponseType(typeof(IEnumerable<IndicadorSemanalLevanteDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<IndicadorSemanalLevanteDto>>> GetIndicadores(int loteId)
+    {
+        var items = await _svc.GetIndicadoresSemanalesAsync(loteId);
+        return Ok(items);
+    }
+
     /// <summary>Obtener todos los registros de un lote (ordenados por fecha asc).</summary>
     [HttpGet("por-lote/{loteId}")]
     [ProducesResponseType(typeof(IEnumerable<SeguimientoLoteLevanteDto>), StatusCodes.Status200OK)]

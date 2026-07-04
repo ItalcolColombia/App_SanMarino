@@ -231,7 +231,7 @@
 
 /* Diferencias */
 .diferencia-ok {
-  color: var(--brand-green);
+  color: var(--success, #16A34A);
   font-weight: 600;
 }
 
@@ -262,8 +262,8 @@
   height: 13px;
   border-radius: 3px;
   display: inline-block;
-  &.diferencia-ok { background: var(--brand-green, #2d7a3e); }
-  &.diferencia-warning { background: var(--brand-orange, #e85c25); }
+  &.diferencia-ok { background: var(--success, #16A34A); }
+  &.diferencia-warning { background: var(--brand-orange, #F5821F); }
   &.diferencia-danger { background: #ef4444; }
 }
 

@@ -1,26 +1,32 @@
 <div class="tabla-container">
   <!-- Encabezado del Reporte -->
-  <div class="reporte-encabezado" *ngIf="informacionLote">
-    <div class="encabezado-info">
-      <div class="info-row">
-        <span class="info-label">REPORTE TÉCNICO PRODUCCIÓN SANMARINO</span>
-        <span class="info-separator">|</span>
-        <span class="info-value">LOTE: {{ informacionLote.loteNombre || 'N/A' }}</span>
-        <span class="info-separator">|</span>
-        <span class="info-value">RAZA: {{ informacionLote.raza || 'N/A' }}</span>
-        <span class="info-separator">|</span>
-        <span class="info-value">GRANJA: {{ informacionLote.granjaNombre || 'N/A' }}</span>
-        <span class="info-separator">|</span>
-        <span class="info-value">HEMBRAS INICIALES: {{ informacionLote.numeroHembrasIniciales || 0 }}</span>
-        <span class="info-separator">|</span>
-        <span class="info-value">MACHOS INICIALES: {{ informacionLote.numeroMachosIniciales || 0 }}</span>
-        <span class="info-separator" *ngIf="informacionLote.fechaInicioProduccion">|</span>
-        <span class="info-value" *ngIf="informacionLote.fechaInicioProduccion">
-          INICIO PRODUCCIÓN: {{ formatDate(informacionLote.fechaInicioProduccion) }}
-        </span>
+  @if (informacionLote) {
+    <div class="reporte-encabezado">
+      <div class="encabezado-info">
+        <div class="info-row">
+          <span class="info-label">REPORTE TÉCNICO PRODUCCIÓN SANMARINO</span>
+          <span class="info-separator">|</span>
+          <span class="info-value">LOTE: {{ informacionLote.loteNombre || 'N/A' }}</span>
+          <span class="info-separator">|</span>
+          <span class="info-value">RAZA: {{ informacionLote.raza || 'N/A' }}</span>
+          <span class="info-separator">|</span>
+          <span class="info-value">GRANJA: {{ informacionLote.granjaNombre || 'N/A' }}</span>
+          <span class="info-separator">|</span>
+          <span class="info-value">HEMBRAS INICIALES: {{ informacionLote.numeroHembrasIniciales || 0 }}</span>
+          <span class="info-separator">|</span>
+          <span class="info-value">MACHOS INICIALES: {{ informacionLote.numeroMachosIniciales || 0 }}</span>
+          @if (informacionLote.fechaInicioProduccion) {
+            <span class="info-separator">|</span>
+          }
+          @if (informacionLote.fechaInicioProduccion) {
+            <span class="info-value">
+              INICIO PRODUCCIÓN: {{ formatDate(informacionLote.fechaInicioProduccion) }}
+            </span>
+          }
+        </div>
       </div>
     </div>
-  </div>
+  }
 
   <div class="table-responsive">
     <table class="tabla-reporte-diario-produccion">
@@ -46,84 +52,76 @@
           <!-- MORTALIDAD -->
           <th>MACHO</th>
           <th>HEMBRA</th>
-          
+
           <!-- SELECCIÓN -->
           <th>MACHO</th>
           <th>HEMBRA</th>
-          
+
           <!-- SALDOS -->
           <th>MACHO</th>
           <th>HEMBRA</th>
-          
+
           <!-- HUEVOS -->
           <th>POSTURA</th>
           <th>%</th>
-          
+
           <!-- KILOS ALIMENTO -->
           <th>MACHO</th>
           <th>HEMBRA</th>
-          
+
           <!-- ENVIADO PLANTA -->
           <th>TOTAL</th>
           <th>%</th>
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let dato of datos; trackBy: trackByFecha">
-          <!-- SEMANA -->
-          <td class="text-center"><strong>{{ dato.semana }}</strong></td>
-          
-          <!-- FECHA -->
-          <td class="text-center">{{ formatDate(dato.fecha) }}</td>
-          
-          <!-- MORTALIDAD -->
-          <td class="text-right">{{ dato.mortalidadMachos }}</td>
-          <td class="text-right">{{ dato.mortalidadHembras }}</td>
-          
-          <!-- SELECCIÓN -->
-          <td class="text-right">{{ dato.seleccionMachos }}</td>
-          <td class="text-right">{{ dato.seleccionHembras }}</td>
-          
-          <!-- SALDOS -->
-          <td class="text-right"><strong>{{ dato.saldoMachos }}</strong></td>
-          <td class="text-right"><strong>{{ dato.saldoHembras }}</strong></td>
-          
-          <!-- HUEVOS -->
-          <td class="text-right">{{ dato.huevosTotales }}</td>
-          <td class="text-right">{{ formatPercentage(dato.porcentajePostura, 2) }}</td>
-          
-          <!-- KILOS ALIMENTO -->
-          <td class="text-right">{{ formatNumber(dato.kilosAlimentoMachos, 1) }}</td>
-          <td class="text-right">{{ formatNumber(dato.kilosAlimentoHembras, 1) }}</td>
-          
-          <!-- ENVIADO PLANTA -->
-          <td class="text-right">{{ dato.huevosEnviadosPlanta }}</td>
-          <td class="text-right">{{ formatPercentage(dato.porcentajeEnviadoPlanta, 2) }}</td>
-          
-          <!-- INCUBABLE -->
-          <td class="text-right">{{ dato.huevosIncubables }}</td>
-          
-          <!-- CARGADO -->
-          <td class="text-right">{{ dato.huevosCargados }}</td>
-          
-          <!-- POLLITOS % Nacimientos -->
-          <td class="text-right">{{ dato.porcentajeNacimientos ? formatPercentage(dato.porcentajeNacimientos, 2) : '-' }}</td>
-          
-          <!-- VENTA HUEVO -->
-          <td class="text-right">{{ dato.ventaHuevo ?? '-' }}</td>
-          
-          <!-- POLLITOS H. VENDIDO -->
-          <td class="text-right">{{ dato.pollitosVendidos ?? '-' }}</td>
-          
-          <!-- PESO -->
-          <td class="text-right">
-            <span *ngIf="dato.pesoHembra">{{ formatNumber(dato.pesoHembra, 2) }}kg</span>
-            <span *ngIf="!dato.pesoHembra">-</span>
-          </td>
-          
-          <!-- % GRASA CORP -->
-          <td class="text-right">{{ dato.porcentajeGrasaCorporal ? formatPercentage(dato.porcentajeGrasaCorporal, 2) : '-' }}</td>
-        </tr>
+        @for (dato of datos; track trackByFecha($index, dato)) {
+          <tr>
+            <!-- SEMANA -->
+            <td class="text-center"><strong>{{ dato.semana }}</strong></td>
+            <!-- FECHA -->
+            <td class="text-center">{{ formatDate(dato.fecha) }}</td>
+            <!-- MORTALIDAD -->
+            <td class="text-right">{{ dato.mortalidadMachos }}</td>
+            <td class="text-right">{{ dato.mortalidadHembras }}</td>
+            <!-- SELECCIÓN -->
+            <td class="text-right">{{ dato.seleccionMachos }}</td>
+            <td class="text-right">{{ dato.seleccionHembras }}</td>
+            <!-- SALDOS -->
+            <td class="text-right"><strong>{{ dato.saldoMachos }}</strong></td>
+            <td class="text-right"><strong>{{ dato.saldoHembras }}</strong></td>
+            <!-- HUEVOS -->
+            <td class="text-right">{{ dato.huevosTotales }}</td>
+            <td class="text-right">{{ formatPercentage(dato.porcentajePostura, 2) }}</td>
+            <!-- KILOS ALIMENTO -->
+            <td class="text-right">{{ formatNumber(dato.kilosAlimentoMachos, 1) }}</td>
+            <td class="text-right">{{ formatNumber(dato.kilosAlimentoHembras, 1) }}</td>
+            <!-- ENVIADO PLANTA -->
+            <td class="text-right">{{ dato.huevosEnviadosPlanta }}</td>
+            <td class="text-right">{{ formatPercentage(dato.porcentajeEnviadoPlanta, 2) }}</td>
+            <!-- INCUBABLE -->
+            <td class="text-right">{{ dato.huevosIncubables }}</td>
+            <!-- CARGADO -->
+            <td class="text-right">{{ dato.huevosCargados }}</td>
+            <!-- POLLITOS % Nacimientos -->
+            <td class="text-right">{{ dato.porcentajeNacimientos ? formatPercentage(dato.porcentajeNacimientos, 2) : '-' }}</td>
+            <!-- VENTA HUEVO -->
+            <td class="text-right">{{ dato.ventaHuevo ?? '-' }}</td>
+            <!-- POLLITOS H. VENDIDO -->
+            <td class="text-right">{{ dato.pollitosVendidos ?? '-' }}</td>
+            <!-- PESO -->
+            <td class="text-right">
+              @if (dato.pesoHembra) {
+                <span>{{ formatNumber(dato.pesoHembra, 2) }}kg</span>
+              }
+              @if (!dato.pesoHembra) {
+                <span>-</span>
+              }
+            </td>
+            <!-- % GRASA CORP -->
+            <td class="text-right">{{ dato.porcentajeGrasaCorporal ? formatPercentage(dato.porcentajeGrasaCorporal, 2) : '-' }}</td>
+          </tr>
+        }
       </tbody>
     </table>
   </div>

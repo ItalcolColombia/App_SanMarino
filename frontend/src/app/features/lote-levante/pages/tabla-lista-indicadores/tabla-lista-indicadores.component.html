@@ -3,12 +3,16 @@
   <div class="indicadores-header">
     <div class="indicadores-header__titles">
       <h3>Indicadores Semanales</h3>
-      <p class="indicadores-guia-hint" *ngIf="fuenteGuiaIndicadores === 'ecuador-mixto'">
-        Comparación con <strong>Guía genética Ecuador (mixto)</strong>, por bloques de 7 días desde encaset.
-      </p>
-      <p class="indicadores-guia-hint indicadores-guia-hint--muted" *ngIf="fuenteGuiaIndicadores === 'clasica'">
-        Comparación con <strong>guía genética clásica</strong> (tabla por semana); no hay datos mixto Ecuador para esta raza/año.
-      </p>
+      @if (fuenteGuiaIndicadores === 'ecuador-mixto') {
+        <p class="indicadores-guia-hint">
+          Comparación con <strong>Guía genética Ecuador (mixto)</strong>, por bloques de 7 días desde encaset.
+        </p>
+      }
+      @if (fuenteGuiaIndicadores === 'clasica') {
+        <p class="indicadores-guia-hint indicadores-guia-hint--muted">
+          Comparación con <strong>guía genética clásica</strong> (tabla por semana); no hay datos mixto Ecuador para esta raza/año.
+        </p>
+      }
     </div>
     <div class="indicadores-header__actions">
       <button
@@ -27,26 +31,32 @@
   </div>
 
   <!-- Modal de Fórmulas -->
-  <div class="formulas-modal" *ngIf="mostrarFormulas" (click)="mostrarFormulas = false">
-    <div class="formulas-content" (click)="$event.stopPropagation()">
-      <div class="formulas-header">
-        <h4>📐 Fórmulas de Indicadores</h4>
-        <button class="btn-close" (click)="mostrarFormulas = false">×</button>
-      </div>
-      <div class="formulas-body">
-        <div class="formula-group" *ngFor="let grupo of gruposFormulas">
-          <h5 class="formula-group-title">{{ grupo.titulo }}</h5>
-          <ul class="formula-list">
-            <li *ngFor="let formula of grupo.formulas" class="formula-item">
-              <strong>{{ formula.nombre }}:</strong>
-              <span class="formula-text">{{ formula.formula }}</span>
-            </li>
-          </ul>
+  @if (mostrarFormulas) {
+    <div class="formulas-modal" (click)="mostrarFormulas = false">
+      <div class="formulas-content" (click)="$event.stopPropagation()">
+        <div class="formulas-header">
+          <h4>📐 Fórmulas de Indicadores</h4>
+          <button class="btn-close" (click)="mostrarFormulas = false">×</button>
+        </div>
+        <div class="formulas-body">
+          @for (grupo of gruposFormulas; track grupo) {
+            <div class="formula-group">
+              <h5 class="formula-group-title">{{ grupo.titulo }}</h5>
+              <ul class="formula-list">
+                @for (formula of grupo.formulas; track formula) {
+                  <li class="formula-item">
+                    <strong>{{ formula.nombre }}:</strong>
+                    <span class="formula-text">{{ formula.formula }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
         </div>
       </div>
     </div>
-  </div>
-  
+  }
+
   <div class="ux-scroll">
     <table class="ux-table indicadores-table">
       <thead>
@@ -90,94 +100,106 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngIf="!indicadoresSemanales || indicadoresSemanales.length === 0">
-          <td colspan="28" class="empty-state">
-            <div class="empty-illustration" aria-hidden="true">📊</div>
-            <p>No hay datos de indicadores disponibles.</p>
-          </td>
-        </tr>
+        @if (!indicadoresSemanales || indicadoresSemanales.length === 0) {
+          <tr>
+            <td colspan="28" class="empty-state">
+              <div class="empty-illustration" aria-hidden="true">📊</div>
+              <p>No hay datos de indicadores disponibles.</p>
+            </td>
+          </tr>
+        }
 
-        <tr *ngFor="let ind of indicadoresSemanales" class="indicador-row">
-          <td class="semana-cell">{{ ind.semana }}</td>
-          <td class="periodo-cell">
-            {{ formatDate(ind.fechaInicio) }} - {{ formatDate(ind.fechaFin) }}
-          </td>
-          <td>{{ ind.region || '-' }}</td>
-          <td>{{ ind.granja || '-' }}</td>
-          <td>{{ ind.nave || '-' }}</td>
-          <td>{{ ind.sublote || '-' }}</td>
-          <td>{{ ind.avesInicioSemana | number:'1.0-0' }}</td>
-          <td>{{ ind.avesFinSemana | number:'1.0-0' }}</td>
-          <td class="consumo-diario" 
+        @for (ind of indicadoresSemanales; track ind) {
+          <tr class="indicador-row">
+            <td class="semana-cell">{{ ind.semana }}</td>
+            <td class="periodo-cell">
+              {{ formatDate(ind.fechaInicio) }} - {{ formatDate(ind.fechaFin) }}
+            </td>
+            <td>{{ ind.region || '-' }}</td>
+            <td>{{ ind.granja || '-' }}</td>
+            <td>{{ ind.nave || '-' }}</td>
+            <td>{{ ind.sublote || '-' }}</td>
+            <td>{{ ind.avesInicioSemana | number:'1.0-0' }}</td>
+            <td>{{ ind.avesFinSemana | number:'1.0-0' }}</td>
+            <td class="consumo-diario"
               [class]="'consumo-' + validarConsumo(ind.consumoDiario, ind.consumoTabla).tipo">
-            {{ formatNumber(ind.consumoDiario, 1) }}
-            <span class="alert-icon" 
+              {{ formatNumber(ind.consumoDiario, 1) }}
+              @if (!validarConsumo(ind.consumoDiario, ind.consumoTabla).esValido) {
+                <span class="alert-icon"
                   [title]="validarConsumo(ind.consumoDiario, ind.consumoTabla).mensaje"
-                  *ngIf="!validarConsumo(ind.consumoDiario, ind.consumoTabla).esValido">
-              ⚠️
-            </span>
-          </td>
-          <td>{{ formatNumber(ind.consumoTabla, 1) }}</td>
-          <td class="consumo-total-semana">
-            {{ ind.consumoTotalSemana | number:'1.0-0' }}
-          </td>
-          <td class="ganancia-semana"
+                  >
+                  ⚠️
+                </span>
+              }
+            </td>
+            <td>{{ formatNumber(ind.consumoTabla, 1) }}</td>
+            <td class="consumo-total-semana">
+              {{ ind.consumoTotalSemana | number:'1.0-0' }}
+            </td>
+            <td class="ganancia-semana"
               [class]="'ganancia-' + validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).tipo">
-            {{ formatNumber(ind.gananciaSemana, 2) }}
-            <span class="alert-icon" 
+              {{ formatNumber(ind.gananciaSemana, 2) }}
+              @if (!validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).esValido) {
+                <span class="alert-icon"
                   [title]="validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).mensaje"
-                  *ngIf="!validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).esValido">
-              ⚠️
-            </span>
-          </td>
-          <td>{{ formatNumber(ind.gananciaDiariaAcumulada, 2) }}</td>
-          <td class="mortalidad-semana" 
+                  >
+                  ⚠️
+                </span>
+              }
+            </td>
+            <td>{{ formatNumber(ind.gananciaDiariaAcumulada, 2) }}</td>
+            <td class="mortalidad-semana"
               [class]="'mortalidad-' + validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).tipo">
-            {{ formatPercentage(ind.mortalidadSem) }}
-            <span class="alert-icon" 
+              {{ formatPercentage(ind.mortalidadSem) }}
+              @if (!validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).esValido) {
+                <span class="alert-icon"
                   [title]="validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).mensaje"
-                  *ngIf="!validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).esValido">
-              ⚠️
-            </span>
-          </td>
-          <td>{{ formatPercentage(ind.mortTabla) }}</td>
-          <td>{{ formatPercentage(ind.seleccionSem) }}</td>
-          <td>{{ formatPercentage(ind.errorSexajeSem) }}</td>
-          <td>{{ formatNumber(ind.pesoCierre, 0) }}</td>
-          <td>{{ formatNumber(ind.pesoTabla, 0) }}</td>
-          <td>{{ formatPercentage(ind.difPesoPct, 1) }}</td>
-          <td>{{ formatPercentage(ind.unifReal, 1) }}</td>
-          <td>{{ formatPercentage(ind.unifTabla, 1) }}</td>
-          <td>{{ formatNumber(ind.eficiencia, 2) }}</td>
-          <td>{{ formatNumber(ind.ip, 2) }}</td>
-          <td>{{ formatNumber(ind.vpi, 2) }}</td>
-          <td class="piso-termico">
-            <span class="badge" [class.visible]="ind.pisoTermicoVisible">
-              {{ ind.pisoTermicoVisible ? 'Sí' : 'No' }}
-            </span>
-          </td>
-          <td class="observaciones-cell">{{ ind.observaciones || '-' }}</td>
-        </tr>
+                  >
+                  ⚠️
+                </span>
+              }
+            </td>
+            <td>{{ formatPercentage(ind.mortTabla) }}</td>
+            <td>{{ formatPercentage(ind.seleccionSem) }}</td>
+            <td>{{ formatPercentage(ind.errorSexajeSem) }}</td>
+            <td>{{ formatNumber(ind.pesoCierre, 0) }}</td>
+            <td>{{ formatNumber(ind.pesoTabla, 0) }}</td>
+            <td>{{ formatPercentage(ind.difPesoPct, 1) }}</td>
+            <td>{{ formatPercentage(ind.unifReal, 1) }}</td>
+            <td>{{ formatPercentage(ind.unifTabla, 1) }}</td>
+            <td>{{ formatNumber(ind.eficiencia, 2) }}</td>
+            <td>{{ formatNumber(ind.ip, 2) }}</td>
+            <td>{{ formatNumber(ind.vpi, 2) }}</td>
+            <td class="piso-termico">
+              <span class="badge" [class.visible]="ind.pisoTermicoVisible">
+                {{ ind.pisoTermicoVisible ? 'Sí' : 'No' }}
+              </span>
+            </td>
+            <td class="observaciones-cell">{{ ind.observaciones || '-' }}</td>
+          </tr>
+        }
       </tbody>
     </table>
   </div>
 
   <!-- Resumen de Acumulados -->
-  <div class="acumulados-section" *ngIf="indicadoresSemanales.length > 0">
-    <h4>Resumen Acumulado</h4>
-    <div class="acumulados-grid">
-      <div class="acumulado-card">
-        <h5>Mortalidad Acumulada</h5>
-        <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadAcum || 0) }}</p>
-      </div>
-      <div class="acumulado-card">
-        <h5>Selección Acumulada</h5>
-        <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].seleccionAcum || 0) }}</p>
-      </div>
-      <div class="acumulado-card">
-        <h5>Total Mort. + Sel.</h5>
-        <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadMasSeleccionAcum || 0) }}</p>
+  @if (indicadoresSemanales.length > 0) {
+    <div class="acumulados-section">
+      <h4>Resumen Acumulado</h4>
+      <div class="acumulados-grid">
+        <div class="acumulado-card">
+          <h5>Mortalidad Acumulada</h5>
+          <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadAcum || 0) }}</p>
+        </div>
+        <div class="acumulado-card">
+          <h5>Selección Acumulada</h5>
+          <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].seleccionAcum || 0) }}</p>
+        </div>
+        <div class="acumulado-card">
+          <h5>Total Mort. + Sel.</h5>
+          <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadMasSeleccionAcum || 0) }}</p>
+        </div>
       </div>
     </div>
-  </div>
+  }
 </div>

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -11,6 +11,7 @@ import { environment } from '../../../../environments/environment';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './password-recovery.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./password-recovery.component.scss']
 })
 export class PasswordRecoveryComponent implements OnInit {

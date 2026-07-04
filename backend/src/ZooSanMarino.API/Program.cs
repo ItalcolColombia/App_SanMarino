@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.Swagger;          // ISwaggerProvider (para /swagger/download)
 using Swashbuckle.AspNetCore.SwaggerUI;       // Opciones UI
@@ -226,7 +226,6 @@ builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevant
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeEcuadorService, SeguimientoAvesEngordeEcuadorService>();
-builder.Services.AddScoped<ISeguimientoAvesEngordePanamaService, SeguimientoAvesEngordePanamaService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraService, SeguimientoDiarioLoteReproductoraService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, SeguimientoDiarioLoteReproductoraFilterDataService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
@@ -241,6 +240,13 @@ builder.Services.AddScoped<IFarmInventoryService, FarmInventoryService>();
 // Configuración segura de credenciales - temporalmente comentada para debug
 // builder.Services.AddSecureConfiguration(builder.Configuration);
 builder.Services.AddScoped<IFarmInventoryMovementService, FarmInventoryMovementService>();
+// Fase 2 (S3): descuento/devolución automáticos del inventario Colombia (modelo A) desde
+// seguimientos. NO abre tx propia; participa de la tx externa del servicio de seguimiento.
+// (Fase 3 paso 2: Colombia migró a modelo B; este servicio queda registrado pero ya no lo llama Colombia.)
+builder.Services.AddScoped<IFarmInventoryConsumoService, FarmInventoryConsumoService>();
+// Fase 3 (paso 2): descuento/devolución del inventario Colombia en el MODELO B unificado
+// (nivel granja, id-mapping A→B). Reemplaza a FarmInventoryConsumoService para lotes Colombia.
+builder.Services.AddScoped<IColombiaInventarioConsumoService, ColombiaInventarioConsumoService>();
 builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
 builder.Services.AddScoped<IInventarioGestionService, InventarioGestionService>();
 builder.Services.AddScoped<IItemInventarioEcuadorService, ItemInventarioEcuadorService>();
@@ -257,7 +263,6 @@ builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 
 // Liquidación Técnica Service
 builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService>();
-builder.Services.AddScoped<ILiquidacionTecnicaProduccionService, LiquidacionTecnicaProduccionService>();
 builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();
 
 // Indicador Ecuador Service
@@ -330,6 +335,9 @@ builder.Services.AddScoped<ILesionService, LesionService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<ITicketPerfilService, TicketPerfilService>();
 
+// PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
+builder.Services.AddScoped<IServiceTokenService, ServiceTokenService>();
+
 
 // ─────────────────────────────────────
 // 9) FluentValidation + HealthChecks
@@ -339,10 +347,28 @@ builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddHealthChecks();
 
 // ─────────────────────────────────────
-// 10) Auth (JWT) — ignora preflight OPTIONS
+// 10) Auth (JWT + Service Token) — ignora preflight OPTIONS
 // ─────────────────────────────────────
+// Policy scheme "Smart": reenvía por prefijo del header Authorization.
+//   - "Bearer sk_..."  → esquema "ServiceToken" (PAT de larga duración, solo /api/tickets).
+//   - cualquier otro   → JwtBearer (config existente TAL CUAL).
+// La config del JWT NO cambia; solo se movió dentro de esta cadena.
 var keyBytes = Encoding.UTF8.GetBytes(jwt.Key ?? "");
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(o =>
+    {
+        o.DefaultScheme = "Smart";
+        o.DefaultChallengeScheme = "Smart";
+    })
+    .AddPolicyScheme("Smart", "JWT or ServiceToken", o =>
+    {
+        o.ForwardDefaultSelector = ctx =>
+        {
+            var auth = ctx.Request.Headers.Authorization.ToString();
+            return auth.StartsWith("Bearer sk_", StringComparison.OrdinalIgnoreCase)
+                ? ZooSanMarino.Infrastructure.Auth.ServiceTokenAuthHandler.SchemeName
+                : JwtBearerDefaults.AuthenticationScheme;
+        };
+    })
     .AddJwtBearer(opts =>
     {
         opts.TokenValidationParameters = new TokenValidationParameters
@@ -368,7 +394,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 return Task.CompletedTask;
             }
         };
-    });
+    })
+    // Esquema de PAT (Service Token): activado por el policy scheme "Smart" cuando el header
+    // empieza con "Bearer sk_". El handler valida el token y limita el alcance a /api/tickets.
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
+        ZooSanMarino.Infrastructure.Auth.ServiceTokenAuthHandler>(
+            ZooSanMarino.Infrastructure.Auth.ServiceTokenAuthHandler.SchemeName, null);
 
 // ─────────────────────────────────────
 // 11) Authorization (deny-by-default)
@@ -413,11 +444,14 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.Http,
         Scheme = JwtBearerDefaults.AuthenticationScheme, // "bearer"
         BearerFormat = "JWT",
-        Description = "Pega SOLO el token (Swagger añadirá 'Bearer ').",
-        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = JwtBearerDefaults.AuthenticationScheme }
+        Description = "Pega SOLO el token (Swagger añadirá 'Bearer ')."
     };
     c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, scheme);
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement { { scheme, Array.Empty<string>() } });
+    // Microsoft.OpenApi v2: la referencia al esquema se hace por ID vía OpenApiSecuritySchemeReference
+    c.AddSecurityRequirement(doc => new OpenApiSecurityRequirement
+    {
+        { new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, doc), new List<string>() }
+    });
 
     // ✅ Evitar colisiones de schemaId (tipos anidados o repetidos)
     c.CustomSchemaIds(type =>
@@ -432,7 +466,7 @@ builder.Services.AddSwaggerGen(c =>
     // ✅ Configuración para manejar archivos IFormFile
     c.MapType<IFormFile>(() => new OpenApiSchema
     {
-        Type = "string",
+        Type = JsonSchemaType.String,
         Format = "binary"
     });
 
@@ -615,7 +649,7 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
     {
         var doc = provider.GetSwagger("v1");
         using var sw = new StringWriter();
-        var w = new Microsoft.OpenApi.Writers.OpenApiJsonWriter(sw);
+        var w = new OpenApiJsonWriter(sw);
         doc.SerializeAsV3(w);
         var bytes = Encoding.UTF8.GetBytes(sw.ToString());
         return Results.File(bytes, "application/json", "swagger-v1.json");

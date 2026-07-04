@@ -6,6 +6,10 @@ namespace ZooSanMarino.Application.Interfaces;
 public interface ISeguimientoLoteLevanteService
 {
     Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId);
+
+    /// <summary>Indicadores semanales de levante calculados en la BD (fn_indicadores_levante_postura). El front solo pinta, no calcula.</summary>
+    Task<IReadOnlyList<IndicadorSemanalLevanteDto>> GetIndicadoresSemanalesAsync(int loteId);
+
     Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id);
     Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta);
     Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto);

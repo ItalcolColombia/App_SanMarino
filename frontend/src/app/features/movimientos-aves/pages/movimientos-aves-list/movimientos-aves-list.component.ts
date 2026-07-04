@@ -1,5 +1,5 @@
 // frontend/src/app/features/movimientos-aves/pages/movimientos-aves-list/movimientos-aves-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -19,6 +19,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
   standalone: true,
   imports: [CommonModule, FormsModule, FiltroSelectComponent, ModalMovimientoAvesComponent, ConfirmationModalComponent],
   templateUrl: './movimientos-aves-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./movimientos-aves-list.component.scss']
 })
 export class MovimientosAvesListComponent implements OnInit {

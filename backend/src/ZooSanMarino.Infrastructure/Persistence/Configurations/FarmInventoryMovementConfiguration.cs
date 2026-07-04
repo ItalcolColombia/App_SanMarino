@@ -29,12 +29,15 @@ public class FarmInventoryMovementConfiguration : IEntityTypeConfiguration<FarmI
 
         e.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18,3).IsRequired();
 
+        // Fase 2: se agregaron ConsumoSeguimiento(18)/DevolucionSeguimiento(21). El segundo NO
+        // cabe en varchar(20) → se amplía a 30 (migración idempotente 20260703140000). Sin CHECK
+        // en BD, agregar valores es seguro; el signo del kardex vive en fn_kardex_signo + el switch C#.
         e.Property(x => x.MovementType)
          .HasColumnName("movement_type")
          .HasConversion(
              v => v.ToString(),
              v => Enum.Parse<InventoryMovementType>(v))
-         .HasMaxLength(20)
+         .HasMaxLength(30)
          .IsRequired();
 
         e.Property(x => x.Unit).HasColumnName("unit").HasMaxLength(20).HasDefaultValue("kg").IsRequired();

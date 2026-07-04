@@ -20,162 +20,187 @@
             placeholder="Ej. Granja Central"
             [class.is-invalid]="form.get('name')?.invalid && form.get('name')?.touched"
             [attr.aria-invalid]="form.get('name')?.invalid && form.get('name')?.touched ? 'true' : null"
-          />
-          <p *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="ux-error">Campo obligatorio.</p>
-        </div>
-
-        <!-- Empresa (ID) -->
-        <div>
-          <label class="ux-label">Empresa (ID) <span class="req">*</span></label>
-          <input
-            formControlName="companyId"
-            type="number"
-            class="ux-input"
-            placeholder="Ej. 1"
-            [class.is-invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched"
-            [attr.aria-invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched ? 'true' : null"
-          />
-          <p class="ux-help">Más adelante puedes reemplazarlo por un <strong>select</strong> conectado a tu servicio de compañías.</p>
-        </div>
-
-        <!-- Regional (ID) -->
-        <div>
-          <label class="ux-label">Regional (ID) <span class="req">*</span></label>
-          <input
-            formControlName="regionalId"
-            type="number"
-            class="ux-input"
-            placeholder="Ej. 101"
-            [class.is-invalid]="form.get('regionalId')?.invalid && form.get('regionalId')?.touched"
-            [attr.aria-invalid]="form.get('regionalId')?.invalid && form.get('regionalId')?.touched ? 'true' : null"
-          />
-          <p class="ux-help">Luego cámbialo por un <strong>select</strong> alimentado por tu servicio de regionales.</p>
-        </div>
-
-        <!-- Zona (ID) -->
-        <div>
-          <label class="ux-label">Zona (ID) <span class="req">*</span></label>
-          <input
-            formControlName="zoneId"
-            type="number"
-            class="ux-input"
-            placeholder="Ej. 9"
-            [class.is-invalid]="form.get('zoneId')?.invalid && form.get('zoneId')?.touched"
-            [attr.aria-invalid]="form.get('zoneId')?.invalid && form.get('zoneId')?.touched ? 'true' : null"
-          />
-          <p class="ux-help">Sustituible por un <strong>select</strong> con tu servicio de zonas.</p>
-        </div>
-
-        <!-- Estado -->
-        <div class="md:col-span-2">
-          <label class="ux-label">Estado <span class="req">*</span></label>
-          <input
-            formControlName="status"
-            class="ux-input"
-            placeholder="Ej. Activo / Inactivo"
-            [class.is-invalid]="form.get('status')?.invalid && form.get('status')?.touched"
-            [attr.aria-invalid]="form.get('status')?.invalid && form.get('status')?.touched ? 'true' : null"
-          />
-          <p *ngIf="form.get('status')?.invalid && form.get('status')?.touched" class="ux-error">Campo obligatorio.</p>
-        </div>
-      </div>
-
-      <!-- ============ Sección Panamá ============ -->
-      <ng-container *appShowIfCountry="'PANAMA'">
-        <div class="ux-section-divider">
-          <h3 class="ux-section-title">Información Panamá</h3>
-          <p class="ux-subtitle">Campos requeridos para operaciones en Panamá.</p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Cliente -->
-          <div>
-            <label class="ux-label">Cliente</label>
-            <select
-              formControlName="clienteId"
-              class="ux-input"
-              (change)="onClienteChange($any($event.target).value)"
-            >
-              <option [ngValue]="null">-- Seleccionar cliente --</option>
-              <option *ngFor="let c of clientes" [ngValue]="c.id">
-                {{ c.nombre }}
-              </option>
-            </select>
-            <p class="ux-help">Al seleccionar un cliente se autopobla la zona.</p>
-          </div>
-
-          <!-- Zona (autopoblada, deshabilitada) -->
-          <div>
-            <label class="ux-label">Zona</label>
-            <input
-              formControlName="zona"
-              type="text"
-              class="ux-input"
-              placeholder="Se autopobla al elegir cliente"
-              readonly
             />
-            <p class="ux-help">Se asigna automáticamente desde el cliente.</p>
+            @if (form.get('name')?.invalid && form.get('name')?.touched) {
+              <p class="ux-error">Campo obligatorio.</p>
+            }
           </div>
 
-          <!-- Certificado GAB -->
+          <!-- Empresa (ID) -->
           <div>
-            <label class="ux-label">Certificado GAB</label>
-            <select formControlName="certificadoGab" class="ux-input">
-              <option [ngValue]="false">No</option>
-              <option [ngValue]="true">Sí</option>
-            </select>
-          </div>
-
-          <!-- Botón Capturar ubicación -->
-          <div class="flex items-end">
-            <button
-              type="button"
-              class="btn-muted"
-              (click)="capturarUbicacion()"
-            >
-              Capturar ubicación actual
-            </button>
-          </div>
-
-          <!-- Latitud -->
-          <div>
-            <label class="ux-label">Latitud</label>
+            <label class="ux-label">Empresa (ID) <span class="req">*</span></label>
             <input
-              formControlName="latitud"
+              formControlName="companyId"
               type="number"
-              step="0.0000001"
               class="ux-input"
-              placeholder="Ej. 8.9824"
-            />
-          </div>
+              placeholder="Ej. 1"
+              [class.is-invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched"
+              [attr.aria-invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched ? 'true' : null"
+              />
+              <p class="ux-help">Más adelante puedes reemplazarlo por un <strong>select</strong> conectado a tu servicio de compañías.</p>
+            </div>
 
-          <!-- Longitud -->
-          <div>
-            <label class="ux-label">Longitud</label>
-            <input
-              formControlName="longitud"
-              type="number"
-              step="0.0000001"
-              class="ux-input"
-              placeholder="Ej. -79.5199"
-            />
-          </div>
-        </div>
-      </ng-container>
+            <!-- Regional (ID) -->
+            <div>
+              <label class="ux-label">Regional (ID) <span class="req">*</span></label>
+              <input
+                formControlName="regionalId"
+                type="number"
+                class="ux-input"
+                placeholder="Ej. 101"
+                [class.is-invalid]="form.get('regionalId')?.invalid && form.get('regionalId')?.touched"
+                [attr.aria-invalid]="form.get('regionalId')?.invalid && form.get('regionalId')?.touched ? 'true' : null"
+                />
+                <p class="ux-help">Luego cámbialo por un <strong>select</strong> alimentado por tu servicio de regionales.</p>
+              </div>
 
-      <!-- Footer -->
-      <div class="ux-actions">
-        <button type="button" class="btn-muted" (click)="cancel()">Cancelar</button>
-        <button type="submit" class="btn-primary" [disabled]="form.invalid || loading">
-          Guardar
-        </button>
-      </div>
-    </form>
+              <!-- Zona (ID) -->
+              <div>
+                <label class="ux-label">Zona (ID) <span class="req">*</span></label>
+                <input
+                  formControlName="zoneId"
+                  type="number"
+                  class="ux-input"
+                  placeholder="Ej. 9"
+                  [class.is-invalid]="form.get('zoneId')?.invalid && form.get('zoneId')?.touched"
+                  [attr.aria-invalid]="form.get('zoneId')?.invalid && form.get('zoneId')?.touched ? 'true' : null"
+                  />
+                  <p class="ux-help">Sustituible por un <strong>select</strong> con tu servicio de zonas.</p>
+                </div>
 
-    <!-- Loading overlay -->
-    <div *ngIf="loading" class="ux-loading" aria-live="polite">
-      <div class="spinner"></div>
-      Guardando…
-    </div>
-  </div>
-</div>
+                <!-- Estado -->
+                <div class="md:col-span-2">
+                  <label class="ux-label">Estado <span class="req">*</span></label>
+                  <input
+                    formControlName="status"
+                    class="ux-input"
+                    placeholder="Ej. Activo / Inactivo"
+                    [class.is-invalid]="form.get('status')?.invalid && form.get('status')?.touched"
+                    [attr.aria-invalid]="form.get('status')?.invalid && form.get('status')?.touched ? 'true' : null"
+                    />
+                    @if (form.get('status')?.invalid && form.get('status')?.touched) {
+                      <p class="ux-error">Campo obligatorio.</p>
+                    }
+                  </div>
+                </div>
+
+                <!-- ============ Manejo de alimento (todos los países) ============ -->
+                <div class="ux-section-divider">
+                  <h3 class="ux-section-title">Manejo de alimento</h3>
+                  <p class="ux-subtitle">Define si el alimento se controla a nivel galpón o granja. Por defecto hereda la empresa.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="md:col-span-2">
+                    <label class="ux-label">Nivel de manejo de alimento</label>
+                    <select formControlName="manejaAlimentoPorGalpon" class="ux-input">
+                      <option [ngValue]="null">Heredar de la empresa</option>
+                      <option [ngValue]="true">Sobre galpón (exige núcleo/galpón)</option>
+                      <option [ngValue]="false">Sobre granja</option>
+                    </select>
+                    <p class="ux-help">“Heredar” usa el valor configurado en la empresa. Los otros dos overridean solo esta granja.</p>
+                  </div>
+                </div>
+
+                <!-- ============ Sección Panamá ============ -->
+                <ng-container *appShowIfCountry="'PANAMA'">
+                  <div class="ux-section-divider">
+                    <h3 class="ux-section-title">Información Panamá</h3>
+                    <p class="ux-subtitle">Campos requeridos para operaciones en Panamá.</p>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Cliente -->
+                    <div>
+                      <label class="ux-label">Cliente</label>
+                      <select
+                        formControlName="clienteId"
+                        class="ux-input"
+                        (change)="onClienteChange($any($event.target).value)"
+                        >
+                        <option [ngValue]="null">-- Seleccionar cliente --</option>
+                        @for (c of clientes; track c) {
+                          <option [ngValue]="c.id">
+                            {{ c.nombre }}
+                          </option>
+                        }
+                      </select>
+                      <p class="ux-help">Al seleccionar un cliente se autopobla la zona.</p>
+                    </div>
+
+                    <!-- Zona (autopoblada, deshabilitada) -->
+                    <div>
+                      <label class="ux-label">Zona</label>
+                      <input
+                        formControlName="zona"
+                        type="text"
+                        class="ux-input"
+                        placeholder="Se autopobla al elegir cliente"
+                        readonly
+                        />
+                        <p class="ux-help">Se asigna automáticamente desde el cliente.</p>
+                      </div>
+
+                      <!-- Certificado GAB -->
+                      <div>
+                        <label class="ux-label">Certificado GAB</label>
+                        <select formControlName="certificadoGab" class="ux-input">
+                          <option [ngValue]="false">No</option>
+                          <option [ngValue]="true">Sí</option>
+                        </select>
+                      </div>
+
+                      <!-- Botón Capturar ubicación -->
+                      <div class="flex items-end">
+                        <button
+                          type="button"
+                          class="btn-muted"
+                          (click)="capturarUbicacion()"
+                          >
+                          Capturar ubicación actual
+                        </button>
+                      </div>
+
+                      <!-- Latitud -->
+                      <div>
+                        <label class="ux-label">Latitud</label>
+                        <input
+                          formControlName="latitud"
+                          type="number"
+                          step="0.0000001"
+                          class="ux-input"
+                          placeholder="Ej. 8.9824"
+                          />
+                        </div>
+
+                        <!-- Longitud -->
+                        <div>
+                          <label class="ux-label">Longitud</label>
+                          <input
+                            formControlName="longitud"
+                            type="number"
+                            step="0.0000001"
+                            class="ux-input"
+                            placeholder="Ej. -79.5199"
+                            />
+                          </div>
+                        </div>
+                      </ng-container>
+
+                      <!-- Footer -->
+                      <div class="ux-actions">
+                        <button type="button" class="btn-muted" (click)="cancel()">Cancelar</button>
+                        <button type="submit" class="btn-primary" [disabled]="form.invalid || loading">
+                          Guardar
+                        </button>
+                      </div>
+                    </form>
+
+                    <!-- Loading overlay -->
+                    @if (loading) {
+                      <div class="ux-loading" aria-live="polite">
+                        <div class="spinner"></div>
+                        Guardando…
+                      </div>
+                    }
+                  </div>
+                </div>

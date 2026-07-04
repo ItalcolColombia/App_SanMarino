@@ -1,6 +1,6 @@
 // src/app/features/config/item-inventario-ecuador/pages/item-inventario-ecuador-list/item-inventario-ecuador-list.component.ts
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -15,8 +15,9 @@ import {
 @Component({
   selector: 'app-item-inventario-ecuador-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, FontAwesomeModule],
+  imports: [FormsModule, RouterModule, FontAwesomeModule],
   templateUrl: './item-inventario-ecuador-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./item-inventario-ecuador-list.component.scss']
 })
 export class ItemInventarioEcuadorListComponent implements OnInit {

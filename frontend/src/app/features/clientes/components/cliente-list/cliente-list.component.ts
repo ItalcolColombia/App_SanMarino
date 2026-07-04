@@ -1,7 +1,8 @@
 import {
-  Component, OnInit, signal, computed, inject, DestroyRef
+  Component, OnInit, signal, computed, inject, DestroyRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule
 } from '@angular/forms';
@@ -31,8 +32,9 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 @Component({
   selector: 'app-cliente-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
+  imports: [ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './cliente-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./cliente-list.component.scss']
 })
 export class ClienteListComponent implements OnInit {

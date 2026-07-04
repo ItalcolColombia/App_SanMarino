@@ -628,64 +628,50 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             { "Otro", traslado.CantidadOtro }
         };
 
-        // Verificar si las cantidades cambiaron
-        bool cantidadesCambiaron = false;
-
         // Actualizar cantidades
         if (dto.CantidadLimpio.HasValue && dto.CantidadLimpio.Value != traslado.CantidadLimpio)
         {
             traslado.CantidadLimpio = dto.CantidadLimpio.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadTratado.HasValue && dto.CantidadTratado.Value != traslado.CantidadTratado)
         {
             traslado.CantidadTratado = dto.CantidadTratado.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadSucio.HasValue && dto.CantidadSucio.Value != traslado.CantidadSucio)
         {
             traslado.CantidadSucio = dto.CantidadSucio.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadDeforme.HasValue && dto.CantidadDeforme.Value != traslado.CantidadDeforme)
         {
             traslado.CantidadDeforme = dto.CantidadDeforme.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadBlanco.HasValue && dto.CantidadBlanco.Value != traslado.CantidadBlanco)
         {
             traslado.CantidadBlanco = dto.CantidadBlanco.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadDobleYema.HasValue && dto.CantidadDobleYema.Value != traslado.CantidadDobleYema)
         {
             traslado.CantidadDobleYema = dto.CantidadDobleYema.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadPiso.HasValue && dto.CantidadPiso.Value != traslado.CantidadPiso)
         {
             traslado.CantidadPiso = dto.CantidadPiso.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadPequeno.HasValue && dto.CantidadPequeno.Value != traslado.CantidadPequeno)
         {
             traslado.CantidadPequeno = dto.CantidadPequeno.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadRoto.HasValue && dto.CantidadRoto.Value != traslado.CantidadRoto)
         {
             traslado.CantidadRoto = dto.CantidadRoto.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadDesecho.HasValue && dto.CantidadDesecho.Value != traslado.CantidadDesecho)
         {
             traslado.CantidadDesecho = dto.CantidadDesecho.Value;
-            cantidadesCambiaron = true;
         }
         if (dto.CantidadOtro.HasValue && dto.CantidadOtro.Value != traslado.CantidadOtro)
         {
             traslado.CantidadOtro = dto.CantidadOtro.Value;
-            cantidadesCambiaron = true;
         }
 
         // Actualizar destino

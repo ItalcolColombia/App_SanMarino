@@ -1,5 +1,5 @@
 // src/app/features/tickets/pages/ticket-detalle/ticket-detalle.component.ts
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -25,6 +25,7 @@ import { UserPermissionService } from '../../../../core/auth/user-permission.ser
     TicketStepperComponent, TicketEstadoBadgeComponent, ImageLightboxComponent,
     // Nota: TicketPerfilEditorComponent NO se importa aquí; el editor va en Usuarios/Roles
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './ticket-detalle.component.html',
 })
 export class TicketDetalleComponent implements OnInit {

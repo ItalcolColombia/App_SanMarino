@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { CrearProduccionLoteRequest } from '../../services/produccion.service';
@@ -9,6 +9,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, ConfirmationModalComponent],
   templateUrl: './modal-registro-inicial.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-registro-inicial.component.scss']
 })
 export class ModalRegistroInicialComponent implements OnInit, OnChanges {

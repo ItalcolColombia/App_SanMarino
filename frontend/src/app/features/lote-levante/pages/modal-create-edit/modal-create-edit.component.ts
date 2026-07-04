@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
@@ -18,6 +18,7 @@ import { CountryFilterService } from '../../../../core/services/country/country-
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-create-edit.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-create-edit.component.scss']
 })
 export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
@@ -516,7 +517,26 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   // Obtener alimentos filtrados para un ítem específico
   // Ecuador/Panamá: filtra por concepto (tipo ítem = conceptos de item_inventario_ecuador); mismo criterio en tabs hembras y machos
+  /**
+   * Caché de referencias estables por tipoItem. Este método se usa dentro de un *ngFor;
+   * devolver un array nuevo en cada ciclo de detección de cambios provoca NG0103
+   * (Infinite change detection). Se recalcula el contenido, pero si es igual (mismos ids
+   * en el mismo orden) se devuelve la MISMA referencia previa para no romper el CD.
+   */
+  private readonly _alimentosFiltradosCache = new Map<string, CatalogItemDto[]>();
+
   getAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemDto[] {
+    const computed = this.computeAlimentosFiltradosPorTipo(tipoItem);
+    const key = `${tipoItem ?? ''}`;
+    const prev = this._alimentosFiltradosCache.get(key);
+    if (prev && prev.length === computed.length && prev.every((a, i) => a.id === computed[i].id)) {
+      return prev;
+    }
+    this._alimentosFiltradosCache.set(key, computed);
+    return computed;
+  }
+
+  private computeAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemDto[] {
     if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
       if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i));

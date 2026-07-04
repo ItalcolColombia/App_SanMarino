@@ -1,35 +1,39 @@
 <!-- src/app/shared/components/toast-notification/toast-notification.component.html -->
-<div 
+<div
   class="toast-container"
   [class.visible]="visible"
   [class.toast-success]="type === 'success'"
   [class.toast-error]="type === 'error'"
   [class.toast-warning]="type === 'warning'"
   [class.toast-info]="type === 'info'">
-  
+
   <div class="toast-content">
     <div class="toast-icon">
       <fa-icon [icon]="icon"></fa-icon>
     </div>
-    
+
     <div class="toast-body">
-      <div class="toast-title" *ngIf="config.title || (title !== getDefaultTitle())">
-        {{ title }}
-      </div>
+      @if (config.title || (title !== getDefaultTitle())) {
+        <div class="toast-title">
+          {{ title }}
+        </div>
+      }
       <div class="toast-message">{{ config.message }}</div>
     </div>
-    
-    <button 
-      type="button" 
-      class="toast-close" 
+
+    <button
+      type="button"
+      class="toast-close"
       (click)="close()"
       aria-label="Cerrar notificación">
       <fa-icon [icon]="faXmark"></fa-icon>
     </button>
   </div>
-  
-  <div class="toast-progress" *ngIf="config.duration && config.duration > 0">
-    <div class="toast-progress-bar" [style.animation-duration.ms]="config.duration"></div>
-  </div>
+
+  @if (config.duration && config.duration > 0) {
+    <div class="toast-progress">
+      <div class="toast-progress-bar" [style.animation-duration.ms]="config.duration"></div>
+    </div>
+  }
 </div>
 

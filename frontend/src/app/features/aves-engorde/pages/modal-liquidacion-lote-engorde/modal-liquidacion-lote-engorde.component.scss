@@ -5,11 +5,13 @@
 
 /* ── Tokens locales ─────────────────────────────────────────────────────── */
 :host {
-  --liq-green:      #2d7a3e;
+  --liq-brand:      #F5821F;
+  --liq-brand-lt:   #fef4ec;
+  --liq-green:      #16A34A;
   --liq-green-lt:   #d1fae5;
   --liq-green-mid:  #86efac;
   --liq-green-text: #14532d;
-  --liq-orange:     #e85c25;
+  --liq-orange:     #F5821F;
   --liq-red:        #dc2626;
   --liq-red-lt:     #fef2f2;
   --liq-red-mid:    #fca5a5;
@@ -71,16 +73,16 @@
 }
 
 :host .btn--primary {
-  background: var(--liq-green);
+  background: var(--liq-brand);
   color: #fff;
-  border-color: var(--liq-green);
+  border-color: var(--liq-brand);
   &:hover:not(:disabled) { filter: brightness(0.93); }
 }
 :host .btn--outline {
   background: var(--liq-surface);
-  color: var(--liq-green);
-  border-color: var(--liq-green);
-  &:hover:not(:disabled) { background: var(--liq-green-lt); }
+  color: var(--liq-brand);
+  border-color: var(--liq-brand);
+  &:hover:not(:disabled) { background: var(--liq-brand-lt); }
 }
 :host .btn--ghost {
   background: var(--liq-surface);
@@ -133,7 +135,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  border-bottom: 3px solid var(--liq-green);
+  border-bottom: 3px solid var(--liq-brand);
   flex-shrink: 0;
   background: var(--liq-surface);
 
@@ -518,7 +520,7 @@
   width: 16px;
   height: 16px;
   border: 2px solid #cbd5e1;
-  border-top-color: var(--liq-green);
+  border-top-color: var(--liq-brand);
   border-radius: 50%;
   animation: liqSpin 0.8s linear infinite;
   vertical-align: middle;
@@ -586,8 +588,8 @@
 
   &:focus {
     outline: none;
-    border-color: var(--liq-green);
-    box-shadow: 0 0 0 3px rgba(45,122,62,.15);
+    border-color: var(--liq-brand);
+    box-shadow: 0 0 0 3px rgba(245, 130, 31,.15);
   }
 }
 

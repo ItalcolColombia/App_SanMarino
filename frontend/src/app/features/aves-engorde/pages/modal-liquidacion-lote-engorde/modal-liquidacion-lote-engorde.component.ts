@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -27,6 +27,7 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './modal-liquidacion-lote-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-liquidacion-lote-engorde.component.scss']
 })
 export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
@@ -92,6 +93,11 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   /** País activo = Panamá: muestra los 6 campos de liquidación y los exige al cerrar. */
   get esPanama(): boolean {
     return this.countryFilter.isPanama();
+  }
+
+  /** País activo = Ecuador: única sección Merma (Costos) — regla de negocio del liquidador Ecuador. */
+  get esEcuador(): boolean {
+    return this.countryFilter.isEcuador();
   }
 
   /** Los 6 insumos Panamá están completos (> 0) — habilita el cierre. */

@@ -1,6 +1,6 @@
 // frontend/src/app/features/indicador-ecuador/components/liquidacion-reporte/liquidacion-reporte.component.ts
-import { Component, Input } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   LiquidacionPolloEngordeItemDto,
   IndicadorEcuadorDto
@@ -9,9 +9,10 @@ import {
 @Component({
   selector: 'app-liquidacion-reporte',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   providers: [DatePipe, DecimalPipe],
   templateUrl: './liquidacion-reporte.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./liquidacion-reporte.component.scss']
 })
 export class LiquidacionReporteComponent {

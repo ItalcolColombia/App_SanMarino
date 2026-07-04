@@ -1,6 +1,6 @@
 // src/app/features/tickets/components/ticket-stepper/ticket-stepper.component.ts
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+
 import {
   EstadoTicket, ESTADO_LABEL, ESTADO_BADGE, STEPPER_STEPS, ESTADOS_ESPECIALES,
 } from '../../models/ticket.models';
@@ -20,7 +20,8 @@ interface Step {
 @Component({
   selector: 'app-ticket-stepper',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div>
       <ol class="flex flex-col gap-4 md:flex-row md:items-center md:gap-0" [class.opacity-60]="esEspecial">

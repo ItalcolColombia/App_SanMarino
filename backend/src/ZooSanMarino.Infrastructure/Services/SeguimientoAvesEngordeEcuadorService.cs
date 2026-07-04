@@ -8,6 +8,8 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -23,6 +25,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
     private readonly IGramajeProvider _gramaje;
     private readonly IMovimientoAvesService _movimientoAvesService;
     private readonly IInventarioGestionService? _inventarioGestionService;
+    private readonly ILogger<SeguimientoAvesEngordeEcuadorService>? _logger;
 
     public SeguimientoAvesEngordeEcuadorService(
         ZooSanMarinoContext ctx,
@@ -30,7 +33,8 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         IAlimentoNutricionProvider alimentos,
         IGramajeProvider gramaje,
         IMovimientoAvesService movimientoAvesService,
-        IInventarioGestionService? inventarioGestionService = null)
+        IInventarioGestionService? inventarioGestionService = null,
+        ILogger<SeguimientoAvesEngordeEcuadorService>? logger = null)
     {
         _ctx = ctx;
         _current = current;
@@ -38,6 +42,23 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         _gramaje = gramaje;
         _movimientoAvesService = movimientoAvesService;
         _inventarioGestionService = inventarioGestionService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// País efectivo del lote (lote_ave_engorde) para gatear el descuento del inventario modelo B.
+    /// Fuente: <c>lote.PaisId</c> si está poblado; si no, derivado desde la granja
+    /// (farm.DepartamentoId → departamentos.PaisId), la misma cadena que usa el inventario.
+    /// </summary>
+    private async Task<int?> ResolverPaisIdLoteAsync(int granjaId, int? paisIdLote)
+    {
+        if (paisIdLote is > 0) return paisIdLote;
+        var paisId = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId)
+            .Join(_ctx.Departamentos.AsNoTracking(),
+                f => f.DepartamentoId, d => d.DepartamentoId, (f, d) => (int?)d.PaisId)
+            .FirstOrDefaultAsync();
+        return paisId;
     }
 
     // ─── Consultas estándar ───────────────────────────────────────────────────
@@ -98,7 +119,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                 l.HembrasL,
                 l.MachosL,
                 l.Mixtas,
-                l.AvesEncasetadas
+                l.AvesEncasetadas,
+                l.MermaUnidades,
+                l.MermaKilos
             })
             .SingleOrDefaultAsync();
         if (lote is null) return null;
@@ -126,21 +149,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
             .OrderBy(h => h.Id)
             .FirstOrDefaultAsync();
 
-        int hInicio, mInicio, xInicio;
-        if (ini != null)
-        {
-            hInicio = ini.AvesHembras;
-            mInicio = ini.AvesMachos;
-            xInicio = ini.AvesMixtas;
-        }
-        else
-        {
-            hInicio = lote.HembrasL ?? 0;
-            mInicio = lote.MachosL ?? 0;
-            xInicio = lote.Mixtas ?? 0;
-            if (hInicio + mInicio + xInicio == 0 && lote.AvesEncasetadas.HasValue && lote.AvesEncasetadas.Value > 0)
-                xInicio = lote.AvesEncasetadas.Value;
-        }
+        var (hInicio, mInicio, xInicio) = LiquidacionEngordeCalculos.CalcularAvesInicio(
+            ini != null, ini?.AvesHembras ?? 0, ini?.AvesMachos ?? 0, ini?.AvesMixtas ?? 0,
+            lote.HembrasL, lote.MachosL, lote.Mixtas, lote.AvesEncasetadas);
 
         var totalInicio = hInicio + mInicio + xInicio;
 
@@ -154,7 +165,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                 (s.ErrorSexajeHembras ?? 0) +
                 (s.ErrorSexajeMachos ?? 0))
             .SumAsync();
-        var avesVivas = Math.Max(0, totalInicio - bajas - (vh + vm + vx));
+        var avesVivas = LiquidacionEngordeCalculos.CalcularAvesVivas(totalInicio, bajas, vh + vm + vx);
 
         return new LiquidacionLoteEngordeResumenDto(
             lote.LoteAveEngordeId ?? loteId,
@@ -169,7 +180,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
             vx,
             avesVivas,
             ventas.Count,
-            saldo);
+            saldo,
+            lote.MermaUnidades,
+            lote.MermaKilos);
     }
 
     // ─── Tabla diaria via función SQL ────────────────────────────────────────
@@ -266,7 +279,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         _ctx.SeguimientoDiarioAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
 
-        if (_inventarioGestionService != null && dto.Metadata != null)
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B.
+        if (_inventarioGestionService != null && dto.Metadata != null &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId)))
         {
             try
             {
@@ -278,7 +293,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                             lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(),
                             kv.Key, kv.Value, "kg", refStr, null));
             }
-            catch (Exception ex) { Console.WriteLine($"Error al registrar consumo inventario (aves engorde Ecuador): {ex.Message}"); }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al registrar consumo inventario (aves engorde Ecuador)"); }
         }
 
         var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos
@@ -399,7 +414,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         _ctx.Entry(ent).Property(e => e.HistoricoConsumoAlimento).IsModified = true;
         await _ctx.SaveChangesAsync();
 
-        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B.
+        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId)))
         {
             try
             {
@@ -426,7 +443,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                             refStr + " (devolución)", "Devolución desde seguimiento aves engorde Ecuador"));
                 }
             }
-            catch (Exception ex) { Console.WriteLine($"Error al actualizar inventario (aves engorde Ecuador): {ex.Message}"); }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al actualizar inventario (aves engorde Ecuador)"); }
         }
 
         var newHRet = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
@@ -472,7 +489,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         var ent = await (from s in _ctx.SeguimientoDiarioAvesEngorde
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on s.LoteAveEngordeId equals l.LoteAveEngordeId
                          where s.Id == id && l.CompanyId == companyId && l.DeletedAt == null
-                         select new { Seguimiento = s, l.GranjaId, l.NucleoId, l.GalponId, l.EstadoOperativoLote }).SingleOrDefaultAsync();
+                         select new { Seguimiento = s, l.GranjaId, l.NucleoId, l.GalponId, l.PaisId, l.EstadoOperativoLote }).SingleOrDefaultAsync();
         if (ent is null) return false;
         if (ent.Seguimiento.OrigenCruce)
             throw new InvalidOperationException(
@@ -480,7 +497,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         if (string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote está cerrado (liquidado). No se puede eliminar el registro.");
 
-        if (_inventarioGestionService != null && ent.Seguimiento.Metadata != null)
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá devuelven al modelo B.
+        if (_inventarioGestionService != null && ent.Seguimiento.Metadata != null &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(ent.GranjaId, ent.PaisId)))
         {
             try
             {
@@ -492,7 +511,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                             ent.GranjaId, ent.NucleoId?.Trim(), ent.GalponId?.Trim(),
                             kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento aves engorde Ecuador"));
             }
-            catch (Exception ex) { Console.WriteLine($"Error al devolver inventario al eliminar seguimiento aves engorde Ecuador: {ex.Message}"); }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento aves engorde Ecuador"); }
         }
 
         // Anular INV_CONSUMO huérfanos: si se borra un seguimiento, su INV_CONSUMO en el
@@ -666,17 +685,10 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
     // ─── Helpers de inventario y saldo (portados de SeguimientoAvesEngordeService) ───
 
     private static int CalcularSemana(DateTime fechaEncaset, DateTime fechaRegistro)
-    {
-        var dias = (fechaRegistro.Date - fechaEncaset.Date).TotalDays;
-        return Math.Max(1, (int)Math.Floor(dias / 7.0) + 1);
-    }
+        => SeguimientoEngordeCalculos.CalcularSemana(fechaEncaset, fechaRegistro);
 
     private static (double? kcalAveH, double? protAveH) CalcularDerivados(double consumoKgHembras, double? kcalAlH, double? protAlH)
-    {
-        double? kcal = kcalAlH is null ? null : Math.Round(consumoKgHembras * kcalAlH.Value, 3);
-        double? prot = protAlH is null ? null : Math.Round(consumoKgHembras * protAlH.Value, 3);
-        return (kcal, prot);
-    }
+        => SeguimientoEngordeCalculos.CalcularDerivados(consumoKgHembras, kcalAlH, protAlH);
 
     private async Task<int> CalcularHembrasVivasAsync(int loteAveEngordeId)
     {
@@ -721,50 +733,13 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
     private static string FormatKg(decimal kg) => kg.ToString("0.###", CultureInfo.InvariantCulture);
 
     private static decimal ToKg(double cantidad, string? unidad)
-    {
-        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
-        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
-        return (decimal)cantidad;
-    }
+        => MetadataEngordeCalculos.ToKg(cantidad, unidad);
 
     private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
-    {
-        var byItemId = new Dictionary<int, decimal>();
-        void Acumular(string propName)
-        {
-            if (!root.TryGetProperty(propName, out var arr) || arr.ValueKind != JsonValueKind.Array)
-                return;
-            foreach (var e in arr.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        }
-        Acumular("itemsHembras");
-        Acumular("itemsMachos");
-        return byItemId;
-    }
+        => MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
 
     private static JsonDocument? MergeMetadataWithPatch(JsonDocument? existing, Dictionary<string, object?> patch)
-    {
-        if ((patch is null || patch.Count == 0) && existing is null) return null;
-        if (patch is null || patch.Count == 0) return existing;
-        Dictionary<string, object?> dict;
-        if (existing != null)
-            dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(existing.RootElement.GetRawText())
-                ?? new Dictionary<string, object?>();
-        else
-            dict = new Dictionary<string, object?>();
-        foreach (var kv in patch) dict[kv.Key] = kv.Value;
-        return JsonDocument.Parse(JsonSerializer.Serialize(dict));
-    }
+        => MetadataEngordeCalculos.MergeMetadataWithPatch(existing, patch);
 
     private static JsonDocument? CloneJsonDocument(JsonDocument? doc)
     {
@@ -925,26 +900,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         => FormatYmd(h.FechaOperacion);
 
     private static bool TryGetHistDeltaAndOrd(LoteRegistroHistoricoUnificado h, out decimal delta, out int ord)
-    {
-        delta = 0;
-        ord = 0;
-        if (h.Anulado) return false;
-        var kg = h.CantidadKg ?? 0;
-        switch (h.TipoEvento)
-        {
-            case "INV_INGRESO":
-                if (kg == 0) return false;
-                delta = kg; ord = 0; return true;
-            case "INV_TRASLADO_ENTRADA":
-                if (kg == 0) return false;
-                delta = kg; ord = 1; return true;
-            case "INV_TRASLADO_SALIDA":
-                if (kg == 0) return false;
-                delta = -Math.Abs(kg); ord = 2; return true;
-            default:
-                return false;
-        }
-    }
+        => SaldoAlimentoEngordeCalculos.TryGetHistDeltaAndOrd(h, out delta, out ord);
 
     /// <summary>
     /// ⚠️ FIX #12 (2026-05-28): si <paramref name="fechaEncaset"/> se proporciona, los movimientos

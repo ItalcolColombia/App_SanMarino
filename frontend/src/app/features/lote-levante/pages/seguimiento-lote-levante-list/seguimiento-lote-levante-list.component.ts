@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -66,6 +66,7 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent, ModalTrasladoAvesSeguimientoComponent, ConfirmationModalComponent],
   templateUrl: './seguimiento-lote-levante-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./seguimiento-lote-levante-list.component.scss']
 })
 export class SeguimientoLoteLevanteListComponent implements OnInit {

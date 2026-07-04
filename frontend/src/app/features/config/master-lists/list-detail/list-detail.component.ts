@@ -1,6 +1,6 @@
 // src/app/features/config/master-lists/list-detail/list-detail.component.ts
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import {
   FormBuilder,
   FormGroup,
@@ -29,11 +29,12 @@ import { finalize } from 'rxjs';
   selector: 'app-list-detail',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     RouterModule,
-    FontAwesomeModule, ],
+    FontAwesomeModule
+],
   templateUrl: './list-detail.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./list-detail.component.scss']
 })
 export class ListDetailComponent implements OnInit {

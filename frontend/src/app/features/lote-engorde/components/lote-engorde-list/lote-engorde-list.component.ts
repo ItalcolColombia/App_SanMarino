@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
@@ -40,6 +40,7 @@ import { GuiaGeneticaEcuadorFiltersDto, GuiaGeneticaEcuadorService } from '../..
     HasPermissionDirective
   ],
   templateUrl: './lote-engorde-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lote-engorde-list.component.scss']
 })
 export class LoteEngordeListComponent implements OnInit {

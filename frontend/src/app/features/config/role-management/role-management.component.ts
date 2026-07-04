@@ -1,5 +1,5 @@
 // src/app/features/config/role-management/role-management.component.ts
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import {
@@ -93,6 +93,7 @@ export interface MenuFlatItem {
     TicketPerfilEditorComponent,
   ],
   templateUrl: './role-management.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./role-management.component.scss']
 })
 export class RoleManagementComponent implements OnInit, OnDestroy {

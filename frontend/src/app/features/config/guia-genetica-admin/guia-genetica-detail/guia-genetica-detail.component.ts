@@ -1,5 +1,5 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize, Subject, takeUntil } from 'rxjs';
 
@@ -12,8 +12,9 @@ import { GuiaGeneticaAdminService, ProduccionAvicolaRawDto } from '../guia-genet
 @Component({
   selector: 'app-guia-genetica-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FontAwesomeModule],
+  imports: [RouterModule, FontAwesomeModule],
   templateUrl: './guia-genetica-detail.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./guia-genetica-detail.component.scss']
 })
 export class GuiaGeneticaDetailComponent implements OnInit, OnDestroy {

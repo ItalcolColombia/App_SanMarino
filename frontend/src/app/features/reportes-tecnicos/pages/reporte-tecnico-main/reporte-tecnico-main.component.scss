@@ -194,7 +194,7 @@
 :host .form-field { display: flex; flex-direction: column; gap: .35rem; }
 :host .form-field--full { grid-column: 1 / -1; }
 :host .ux-hint { font-size: .8rem; color: var(--warm-400); }
-:host .ux-hint--warn { color: #e85c25; }
+:host .ux-hint--warn { color: #F5821F; }
 
 :host .radio-group {
   display: flex; gap: 1.5rem; align-items: center;

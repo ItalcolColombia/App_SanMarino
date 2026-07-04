@@ -11,9 +11,11 @@
         [ngModel]="selectedGranjaId"
         (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
         <option [ngValue]="null" disabled>— Seleccione granja —</option>
-        <option *ngFor="let g of granjas" [ngValue]="g.id">
-          {{ g.name }}
-        </option>
+        @for (g of granjas; track g) {
+          <option [ngValue]="g.id">
+            {{ g.name }}
+          </option>
+        }
       </select>
     </div>
 
@@ -26,9 +28,11 @@
         [ngModel]="selectedNucleoId"
         (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
         <option [ngValue]="null" disabled>— Seleccione núcleo —</option>
-        <option *ngFor="let n of nucleos; trackBy: trackByNucleo" [ngValue]="n.nucleoId">
-          {{ n.nucleoNombre }}
-        </option>
+        @for (n of nucleos; track trackByNucleo($index, n)) {
+          <option [ngValue]="n.nucleoId">
+            {{ n.nucleoNombre }}
+          </option>
+        }
       </select>
     </div>
 
@@ -41,9 +45,11 @@
         [ngModel]="selectedGalponId"
         (ngModelChange)="selectedGalponId = $event; onGalponChange()">
         <option [ngValue]="null" disabled>— Seleccione galpón —</option>
-        <option *ngFor="let g of galpones; trackBy: trackByGalpon" [ngValue]="g.id">
-          {{ g.label }}
-        </option>
+        @for (g of galpones; track trackByGalpon($index, g)) {
+          <option [ngValue]="g.id">
+            {{ g.label }}
+          </option>
+        }
       </select>
     </div>
 
@@ -56,41 +62,48 @@
         [ngModel]="selectedLoteId"
         (ngModelChange)="selectedLoteId = $event; onLoteChange()">
         <option [ngValue]="null" disabled>— Seleccione lote —</option>
-        <option *ngFor="let l of lotes; trackBy: trackByLote" [ngValue]="l.loteId">
-          {{ l.loteNombre || l.loteId }}
-        </option>
+        @for (l of lotes; track trackByLote($index, l)) {
+          <option [ngValue]="l.loteId">
+            {{ l.loteNombre || l.loteId }}
+          </option>
+        }
       </select>
     </div>
   </div>
 
   <!-- Chips de selección actual -->
-  <div class="ux-toolbar" *ngIf="selectedGranjaId">
-    <div class="ux-field">
-      <span class="chip chip--primary">
-        <span class="chip__dot" aria-hidden="true"></span>
-        Granja: {{ selectedGranjaName }}
-      </span>
+  @if (selectedGranjaId) {
+    <div class="ux-toolbar">
+      <div class="ux-field">
+        <span class="chip chip--primary">
+          <span class="chip__dot" aria-hidden="true"></span>
+          Granja: {{ selectedGranjaName }}
+        </span>
+      </div>
+      @if (selectedNucleoId) {
+        <div class="ux-field">
+          <span class="chip chip--info">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Núcleo: {{ selectedNucleoNombre }}
+          </span>
+        </div>
+      }
+      @if (selectedGalponId) {
+        <div class="ux-field">
+          <span class="chip chip--success">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Galpón: {{ selectedGalponNombre }}
+          </span>
+        </div>
+      }
+      @if (selectedLoteId) {
+        <div class="ux-field">
+          <span class="chip chip--info">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Lote: {{ selectedLoteNombre }}
+          </span>
+        </div>
+      }
     </div>
-
-    <div class="ux-field" *ngIf="selectedNucleoId">
-      <span class="chip chip--info">
-        <span class="chip__dot" aria-hidden="true"></span>
-        Núcleo: {{ selectedNucleoNombre }}
-      </span>
-    </div>
-
-    <div class="ux-field" *ngIf="selectedGalponId">
-      <span class="chip chip--success">
-        <span class="chip__dot" aria-hidden="true"></span>
-        Galpón: {{ selectedGalponNombre }}
-      </span>
-    </div>
-
-    <div class="ux-field" *ngIf="selectedLoteId">
-      <span class="chip chip--info">
-        <span class="chip__dot" aria-hidden="true"></span>
-        Lote: {{ selectedLoteNombre }}
-      </span>
-    </div>
-  </div>
+  }
 </section>

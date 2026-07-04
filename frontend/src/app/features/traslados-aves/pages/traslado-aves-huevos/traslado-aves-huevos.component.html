@@ -13,12 +13,16 @@
     </div>
 
     <!-- Mensajes de error y éxito -->
-    <div *ngIf="error()" class="alert alert-error">
-      {{ error() }}
-    </div>
-    <div *ngIf="success()" class="alert alert-success">
-      {{ success() }}
-    </div>
+    @if (error()) {
+      <div class="alert alert-error">
+        {{ error() }}
+      </div>
+    }
+    @if (success()) {
+      <div class="alert alert-success">
+        {{ success() }}
+      </div>
+    }
 
     <!-- Formulario de Traslado de Aves -->
     <form [formGroup]="formAves" (ngSubmit)="onSubmitAves()" class="traslado-form">
@@ -29,45 +33,53 @@
           <label for="loteId">Lote <span class="required">*</span></label>
           <select id="loteId" formControlName="loteId" class="form-control">
             <option value="">Selecciona un lote</option>
-            <option *ngFor="let lote of lotes()" [value]="lote.loteId">
-              {{ lote.loteNombre }} (ID: {{ lote.loteId }})
-            </option>
+            @for (lote of lotes(); track lote) {
+              <option [value]="lote.loteId">
+                {{ lote.loteNombre }} (ID: {{ lote.loteId }})
+              </option>
+            }
           </select>
-          <div *ngIf="formAves.get('loteId')?.invalid && formAves.get('loteId')?.touched" class="error-message">
-            El lote es requerido
-          </div>
+          @if (formAves.get('loteId')?.invalid && formAves.get('loteId')?.touched) {
+            <div class="error-message">
+              El lote es requerido
+            </div>
+          }
         </div>
 
         <!-- Información de Disponibilidad -->
-        <div *ngIf="loadingDisponibilidad()" class="loading-info">
-          Cargando disponibilidad...
-        </div>
+        @if (loadingDisponibilidad()) {
+          <div class="loading-info">
+            Cargando disponibilidad...
+          </div>
+        }
 
-        <div *ngIf="disponibilidad() && disponibilidad()!.tipoLote === 'Levante'" class="disponibilidad-card">
-          <h3>Disponibilidad de Aves</h3>
-          <div class="disponibilidad-grid">
-            <div class="disponibilidad-item">
-              <span class="label">Hembras Vivas:</span>
-              <span class="value">{{ disponibilidad()!.aves?.hembrasVivas || 0 }}</span>
+        @if (disponibilidad() && disponibilidad()!.tipoLote === 'Levante') {
+          <div class="disponibilidad-card">
+            <h3>Disponibilidad de Aves</h3>
+            <div class="disponibilidad-grid">
+              <div class="disponibilidad-item">
+                <span class="label">Hembras Vivas:</span>
+                <span class="value">{{ disponibilidad()!.aves?.hembrasVivas || 0 }}</span>
+              </div>
+              <div class="disponibilidad-item">
+                <span class="label">Machos Vivos:</span>
+                <span class="value">{{ disponibilidad()!.aves?.machosVivos || 0 }}</span>
+              </div>
+              <div class="disponibilidad-item">
+                <span class="label">Total Aves:</span>
+                <span class="value highlight">{{ disponibilidad()!.aves?.totalAves || 0 }}</span>
+              </div>
             </div>
-            <div class="disponibilidad-item">
-              <span class="label">Machos Vivos:</span>
-              <span class="value">{{ disponibilidad()!.aves?.machosVivos || 0 }}</span>
-            </div>
-            <div class="disponibilidad-item">
-              <span class="label">Total Aves:</span>
-              <span class="value highlight">{{ disponibilidad()!.aves?.totalAves || 0 }}</span>
+            <div class="disponibilidad-details">
+              <p><strong>Hembras Iniciales:</strong> {{ disponibilidad()!.aves?.hembrasIniciales || 0 }}</p>
+              <p><strong>Machos Iniciales:</strong> {{ disponibilidad()!.aves?.machosIniciales || 0 }}</p>
+              <p><strong>Mortalidad Acumulada Hembras:</strong> {{ disponibilidad()!.aves?.mortalidadAcumuladaHembras || 0 }}</p>
+              <p><strong>Mortalidad Acumulada Machos:</strong> {{ disponibilidad()!.aves?.mortalidadAcumuladaMachos || 0 }}</p>
+              <p><strong>Retiros Acumulados Hembras:</strong> {{ disponibilidad()!.aves?.retirosAcumuladosHembras || 0 }}</p>
+              <p><strong>Retiros Acumulados Machos:</strong> {{ disponibilidad()!.aves?.retirosAcumuladosMachos || 0 }}</p>
             </div>
           </div>
-          <div class="disponibilidad-details">
-            <p><strong>Hembras Iniciales:</strong> {{ disponibilidad()!.aves?.hembrasIniciales || 0 }}</p>
-            <p><strong>Machos Iniciales:</strong> {{ disponibilidad()!.aves?.machosIniciales || 0 }}</p>
-            <p><strong>Mortalidad Acumulada Hembras:</strong> {{ disponibilidad()!.aves?.mortalidadAcumuladaHembras || 0 }}</p>
-            <p><strong>Mortalidad Acumulada Machos:</strong> {{ disponibilidad()!.aves?.mortalidadAcumuladaMachos || 0 }}</p>
-            <p><strong>Retiros Acumulados Hembras:</strong> {{ disponibilidad()!.aves?.retirosAcumuladosHembras || 0 }}</p>
-            <p><strong>Retiros Acumulados Machos:</strong> {{ disponibilidad()!.aves?.retirosAcumuladosMachos || 0 }}</p>
-          </div>
-        </div>
+        }
       </div>
 
       <div class="form-section">
@@ -95,79 +107,90 @@
             class="form-control"
             [max]="(disponibilidad()?.aves?.hembrasVivas ?? 0)"
             min="0">
-          <div *ngIf="disponibilidad()?.aves" class="hint">
-            Disponible: {{ disponibilidad()!.aves!.hembrasVivas }}
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="cantidadMachos">Cantidad de Machos <span class="required">*</span></label>
-          <input
-            type="number"
-            id="cantidadMachos"
-            formControlName="cantidadMachos"
-            class="form-control"
-            [max]="(disponibilidad()?.aves?.machosVivos ?? 0)"
-            min="0">
-          <div *ngIf="disponibilidad()?.aves" class="hint">
-            Disponible: {{ disponibilidad()!.aves!.machosVivos }}
-          </div>
-        </div>
-
-        <!-- Campos para Traslado -->
-        <div *ngIf="formAves.get('tipoOperacion')?.value === 'Traslado'">
-          <div class="form-group">
-            <label for="granjaDestinoId">Granja Destino <span class="required">*</span></label>
-            <select id="granjaDestinoId" formControlName="granjaDestinoId" class="form-control">
-              <option value="">Selecciona una granja</option>
-              <option *ngFor="let granja of granjas()" [value]="granja.id">
-                {{ granja.name }}
-              </option>
-            </select>
+            @if (disponibilidad()?.aves) {
+              <div class="hint">
+                Disponible: {{ disponibilidad()!.aves!.hembrasVivas }}
+              </div>
+            }
           </div>
 
           <div class="form-group">
-            <label for="tipoDestino">Tipo de Destino <span class="required">*</span></label>
-            <select id="tipoDestino" formControlName="tipoDestino" class="form-control">
-              <option value="">Selecciona tipo</option>
-              <option value="Granja">Granja</option>
-              <option value="Planta">Planta</option>
-            </select>
+            <label for="cantidadMachos">Cantidad de Machos <span class="required">*</span></label>
+            <input
+              type="number"
+              id="cantidadMachos"
+              formControlName="cantidadMachos"
+              class="form-control"
+              [max]="(disponibilidad()?.aves?.machosVivos ?? 0)"
+              min="0">
+              @if (disponibilidad()?.aves) {
+                <div class="hint">
+                  Disponible: {{ disponibilidad()!.aves!.machosVivos }}
+                </div>
+              }
+            </div>
+
+            <!-- Campos para Traslado -->
+            @if (formAves.get('tipoOperacion')?.value === 'Traslado') {
+              <div>
+                <div class="form-group">
+                  <label for="granjaDestinoId">Granja Destino <span class="required">*</span></label>
+                  <select id="granjaDestinoId" formControlName="granjaDestinoId" class="form-control">
+                    <option value="">Selecciona una granja</option>
+                    @for (granja of granjas(); track granja) {
+                      <option [value]="granja.id">
+                        {{ granja.name }}
+                      </option>
+                    }
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="tipoDestino">Tipo de Destino <span class="required">*</span></label>
+                  <select id="tipoDestino" formControlName="tipoDestino" class="form-control">
+                    <option value="">Selecciona tipo</option>
+                    <option value="Granja">Granja</option>
+                    <option value="Planta">Planta</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="loteDestinoId">Lote Destino (Opcional)</label>
+                  <input type="text" id="loteDestinoId" formControlName="loteDestinoId" class="form-control">
+                </div>
+              </div>
+            }
+
+            <!-- Campos para Venta -->
+            @if (formAves.get('tipoOperacion')?.value === 'Venta') {
+              <div>
+                <div class="form-group">
+                  <label for="motivo">Motivo <span class="required">*</span></label>
+                  <input type="text" id="motivo" formControlName="motivo" class="form-control">
+                </div>
+                <div class="form-group">
+                  <label for="descripcion">Descripción <span class="required">*</span></label>
+                  <textarea id="descripcion" formControlName="descripcion" class="form-control" rows="3"></textarea>
+                </div>
+              </div>
+            }
+
+            <div class="form-group">
+              <label for="observaciones">Observaciones</label>
+              <textarea id="observaciones" formControlName="observaciones" class="form-control" rows="3"></textarea>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label for="loteDestinoId">Lote Destino (Opcional)</label>
-            <input type="text" id="loteDestinoId" formControlName="loteDestinoId" class="form-control">
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" [disabled]="formAves.invalid || loading()">
+              @if (loading()) {
+                <span>Procesando...</span>
+              }
+              @if (!loading()) {
+                <span>Crear Traslado</span>
+              }
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="formAves.reset()">Limpiar</button>
           </div>
-        </div>
-
-        <!-- Campos para Venta -->
-        <div *ngIf="formAves.get('tipoOperacion')?.value === 'Venta'">
-          <div class="form-group">
-            <label for="motivo">Motivo <span class="required">*</span></label>
-            <input type="text" id="motivo" formControlName="motivo" class="form-control">
-          </div>
-
-          <div class="form-group">
-            <label for="descripcion">Descripción <span class="required">*</span></label>
-            <textarea id="descripcion" formControlName="descripcion" class="form-control" rows="3"></textarea>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="observaciones">Observaciones</label>
-          <textarea id="observaciones" formControlName="observaciones" class="form-control" rows="3"></textarea>
-        </div>
+        </form>
       </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" [disabled]="formAves.invalid || loading()">
-          <span *ngIf="loading()">Procesando...</span>
-          <span *ngIf="!loading()">Crear Traslado</span>
-        </button>
-        <button type="button" class="btn btn-secondary" (click)="formAves.reset()">Limpiar</button>
-      </div>
-    </form>
-  </div>
-</div>
+    </div>
 

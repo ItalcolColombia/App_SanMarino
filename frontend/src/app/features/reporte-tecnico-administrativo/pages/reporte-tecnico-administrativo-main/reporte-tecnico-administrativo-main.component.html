@@ -7,34 +7,43 @@
         <h1>Reporte Técnico Administrativo ItalGranja</h1>
 
         <div class="ux-header__meta">
-          <ng-template #noGranjaChip>
+
+          @if (selectedGranjaId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Granja: {{ selectedGranjaName || selectedGranjaId }}
+            </span>
+          } @else {
             <span class="chip chip--warning">
               <span class="chip__dot" aria-hidden="true"></span>
               Selecciona una granja
             </span>
-          </ng-template>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
-          </span>
+          @if (selectedNucleoId) {
+            <span class="chip chip--muted">
+              Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
+          @if (selectedGalponId) {
+            <span class="chip chip--muted">
+              Galpón: {{ selectedGalponNombre }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Lote: {{ selectedLoteNombre }}
+            </span>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedLoteId">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote: {{ selectedLoteNombre }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote">
-            {{ calcularEdadDias(selectedLote.fechaEncaset) }} días
-          </span>
+          @if (selectedLoteId && selectedLote) {
+            <span class="chip chip--muted">
+              {{ calcularEdadDias(selectedLote.fechaEncaset) }} días
+            </span>
+          }
         </div>
       </div>
 
@@ -45,8 +54,12 @@
           (click)="generarReporte()"
           [disabled]="loading() || !puedeGenerarReporte()"
           [title]="!puedeGenerarReporte() ? 'Selecciona un lote y completa los filtros' : 'Generar reporte'">
-          <fa-icon *ngIf="loading()" [icon]="faSpinner" class="spinning"></fa-icon>
-          <fa-icon *ngIf="!loading()" [icon]="faSearch"></fa-icon>
+          @if (loading()) {
+            <fa-icon [icon]="faSpinner" class="spinning"></fa-icon>
+          }
+          @if (!loading()) {
+            <fa-icon [icon]="faSearch"></fa-icon>
+          }
           Generar Reporte
         </button>
 
@@ -75,105 +88,128 @@
     </app-filtro-select>
 
     <!-- Filtros de Reporte -->
-    <section class="ux-card" *ngIf="selectedLoteId">
-      <h3 class="sr-only">Configuración del Reporte</h3>
-      
-      <div class="ux-form">
-        <div class="grid grid-2">
-          <!-- Tipo de Consolidación -->
-          <div class="form-field">
-            <label class="ux-label">Tipo de Consolidación</label>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="tipoConsolidacion" 
-                  value="sublote"
-                  [(ngModel)]="tipoConsolidacion"
-                  (change)="limpiarReporte()">
-                Sublote
-              </label>
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="tipoConsolidacion" 
-                  value="consolidado"
-                  [(ngModel)]="tipoConsolidacion"
-                  (change)="limpiarReporte()">
-                Consolidado
-              </label>
+    @if (selectedLoteId) {
+      <section class="ux-card">
+        <h3 class="sr-only">Configuración del Reporte</h3>
+        <div class="ux-form">
+          <div class="grid grid-2">
+            <!-- Tipo de Consolidación -->
+            <div class="form-field">
+              <label class="ux-label">Tipo de Consolidación</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="tipoConsolidacion"
+                    value="sublote"
+                    [(ngModel)]="tipoConsolidacion"
+                    (change)="limpiarReporte()">
+                    Sublote
+                  </label>
+                  <label class="radio-label">
+                    <input
+                      type="radio"
+                      name="tipoConsolidacion"
+                      value="consolidado"
+                      [(ngModel)]="tipoConsolidacion"
+                      (change)="limpiarReporte()">
+                      Consolidado
+                    </label>
+                  </div>
+                </div>
+                <!-- Nombre Base del Lote (Consolidado) -->
+                @if (tipoConsolidacion === 'consolidado') {
+                  <div class="form-field">
+                    <label class="ux-label">Nombre del Lote Base</label>
+                    <input
+                      type="text"
+                      class="ux-input"
+                      [(ngModel)]="loteNombreBase"
+                      placeholder="Ej: K326"
+                      (blur)="cargarSublotes(loteNombreBase)">
+                      <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
+                    </div>
+                  }
+                </div>
+              </div>
+            </section>
+          }
+
+          <!-- Mensaje de Error -->
+          @if (error) {
+            <div class="ux-card" role="alert">
+              <div class="alert alert-danger">
+                <strong>Error:</strong> {{ error }}
+              </div>
             </div>
-          </div>
+          }
 
-          <!-- Nombre Base del Lote (Consolidado) -->
-          <div class="form-field" *ngIf="tipoConsolidacion === 'consolidado'">
-            <label class="ux-label">Nombre del Lote Base</label>
-            <input 
-              type="text"
-              class="ux-input"
-              [(ngModel)]="loteNombreBase"
-              placeholder="Ej: K326"
-              (blur)="cargarSublotes(loteNombreBase)">
-            <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
-          </div>
+          <!-- Reporte Administrativo -->
+          @if (reporte()) {
+            <section class="ux-card">
+              <!-- Encabezado del Reporte -->
+              <div class="reporte-header">
+                <div class="reporte-info">
+                  <h2>
+                    Reporte Técnico Administrativo ItalGranja - {{ reporte()!.informacionLote.loteNombre }}
+                    @if (reporte()!.informacionLote.sublote) {
+                      <span class="chip chip--info">
+                        {{ reporte()!.informacionLote.sublote }}
+                      </span>
+                    }
+                    @if (reporte()!.esConsolidado) {
+                      <span class="chip chip--warning">
+                        Consolidado
+                      </span>
+                    }
+                  </h2>
+                  <div class="reporte-metadata">
+                    <span><strong>Línea:</strong> {{ reporte()!.informacionLote.linea || 'N/A' }}</span>
+                    <span><strong>Raza:</strong> {{ reporte()!.informacionLote.raza || 'N/A' }}</span>
+                    <span><strong>Etapa:</strong> LEVANTE</span>
+                    @if (reporte()!.informacionLote.fechaEncaset) {
+                      <span>
+                        <strong>Encaset:</strong> {{ formatDate(reporte()!.informacionLote.fechaEncaset) }}
+                      </span>
+                    }
+                    @if (reporte()!.informacionLote.granjaNombre) {
+                      <span>
+                        <strong>Granja:</strong> {{ reporte()!.informacionLote.granjaNombre }}
+                      </span>
+                    }
+                    @if (reporte()!.informacionLote.galpon) {
+                      <span>
+                        <strong>Galpón:</strong> {{ reporte()!.informacionLote.galpon }}
+                      </span>
+                    }
+                    @if (reporte()!.informacionLote.numeroHembras) {
+                      <span>
+                        <strong>Número de Hembras:</strong> {{ reporte()!.informacionLote.numeroHembras }}
+                      </span>
+                    }
+                    @if (reporte()!.informacionLote.numeroMachos) {
+                      <span>
+                        <strong>Número de Machos:</strong> {{ reporte()!.informacionLote.numeroMachos }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              </div>
+              <!-- Tabla de Registro Semanal -->
+              @if (reporte()!.datosSemanales.length > 0) {
+                <div class="datos-section">
+                  <h3>REGISTRO SEMANAL - LEVANTE</h3>
+                  <app-tabla-levante-completa
+                    [datos]="reporte()!.datosSemanales">
+                  </app-tabla-levante-completa>
+                </div>
+              }
+              @if (reporte()!.datosSemanales.length === 0) {
+                <div class="empty-state">
+                  <p>No se encontraron datos semanales para el lote seleccionado.</p>
+                </div>
+              }
+            </section>
+          }
         </div>
       </div>
-    </section>
-
-    <!-- Mensaje de Error -->
-    <div class="ux-card" *ngIf="error" role="alert">
-      <div class="alert alert-danger">
-        <strong>Error:</strong> {{ error }}
-      </div>
-    </div>
-
-    <!-- Reporte Administrativo -->
-    <section class="ux-card" *ngIf="reporte()">
-      <!-- Encabezado del Reporte -->
-      <div class="reporte-header">
-        <div class="reporte-info">
-          <h2>
-            Reporte Técnico Administrativo ItalGranja - {{ reporte()!.informacionLote.loteNombre }}
-            <span *ngIf="reporte()!.informacionLote.sublote" class="chip chip--info">
-              {{ reporte()!.informacionLote.sublote }}
-            </span>
-            <span *ngIf="reporte()!.esConsolidado" class="chip chip--warning">
-              Consolidado
-            </span>
-          </h2>
-          <div class="reporte-metadata">
-            <span><strong>Línea:</strong> {{ reporte()!.informacionLote.linea || 'N/A' }}</span>
-            <span><strong>Raza:</strong> {{ reporte()!.informacionLote.raza || 'N/A' }}</span>
-            <span><strong>Etapa:</strong> LEVANTE</span>
-            <span *ngIf="reporte()!.informacionLote.fechaEncaset">
-              <strong>Encaset:</strong> {{ formatDate(reporte()!.informacionLote.fechaEncaset) }}
-            </span>
-            <span *ngIf="reporte()!.informacionLote.granjaNombre">
-              <strong>Granja:</strong> {{ reporte()!.informacionLote.granjaNombre }}
-            </span>
-            <span *ngIf="reporte()!.informacionLote.galpon">
-              <strong>Galpón:</strong> {{ reporte()!.informacionLote.galpon }}
-            </span>
-            <span *ngIf="reporte()!.informacionLote.numeroHembras">
-              <strong>Número de Hembras:</strong> {{ reporte()!.informacionLote.numeroHembras }}
-            </span>
-            <span *ngIf="reporte()!.informacionLote.numeroMachos">
-              <strong>Número de Machos:</strong> {{ reporte()!.informacionLote.numeroMachos }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tabla de Registro Semanal -->
-      <div class="datos-section" *ngIf="reporte()!.datosSemanales.length > 0">
-        <h3>REGISTRO SEMANAL - LEVANTE</h3>
-        <app-tabla-levante-completa 
-          [datos]="reporte()!.datosSemanales">
-        </app-tabla-levante-completa>
-      </div>
-      <div class="empty-state" *ngIf="reporte()!.datosSemanales.length === 0">
-        <p>No se encontraron datos semanales para el lote seleccionado.</p>
-      </div>
-    </section>
-  </div>
-</div>

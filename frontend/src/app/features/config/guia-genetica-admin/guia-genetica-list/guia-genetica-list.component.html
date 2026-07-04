@@ -29,14 +29,18 @@
           <label>Año guía</label>
           <select class="input" [(ngModel)]="filtroAnioGuia">
             <option value="">Todos</option>
-            <option *ngFor="let a of anioGuias" [value]="a">{{ a }}</option>
+            @for (a of anioGuias; track a) {
+              <option [value]="a">{{ a }}</option>
+            }
           </select>
         </div>
         <div class="field">
           <label>Raza</label>
           <select class="input" [(ngModel)]="filtroRaza">
             <option value="">Todas</option>
-            <option *ngFor="let r of razas" [value]="r">{{ r }}</option>
+            @for (r of razas; track r) {
+              <option [value]="r">{{ r }}</option>
+            }
           </select>
         </div>
         <div class="field">
@@ -57,7 +61,9 @@
     </div>
 
     <div class="card">
-      <div class="alert error" *ngIf="error">{{ error }}</div>
+      @if (error) {
+        <div class="alert error">{{ error }}</div>
+      }
 
       <div class="table-scroll">
         <table class="gg-table" role="grid" aria-label="Guía genética">
@@ -80,38 +86,42 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngIf="!loading && !items.length">
-              <td colspan="14" class="empty">
-                No hay datos para los filtros actuales.
-              </td>
-            </tr>
+            @if (!loading && !items.length) {
+              <tr>
+                <td colspan="14" class="empty">
+                  No hay datos para los filtros actuales.
+                </td>
+              </tr>
+            }
 
-            <tr *ngFor="let it of items">
-              <td class="mono">{{ it.id }}</td>
-              <td class="mono">{{ it.codigoGuiaGenetica || '—' }}</td>
-              <td>{{ it.anioGuia || '—' }}</td>
-              <td>{{ it.raza || '—' }}</td>
-              <td>{{ it.edad || '—' }}</td>
-              <td>{{ it.hembras || '—' }}</td>
-              <td>{{ it.machos || '—' }}</td>
-              <td>{{ it.apareo || '—' }}</td>
-              <td>{{ it.mortSemH || '—' }}</td>
-              <td>{{ it.mortSemM || '—' }}</td>
-              <td>{{ it.pesoH || '—' }}</td>
-              <td>{{ it.pesoM || '—' }}</td>
-              <td>{{ it.prodPorcentaje || '—' }}</td>
-              <td class="text-right">
-                <button class="icon-btn" type="button" title="Ver" (click)="goDetalle(it.id)">
-                  <fa-icon [icon]="faEye"></fa-icon>
-                </button>
-                <button class="icon-btn" type="button" title="Editar" (click)="goEditar(it.id)">
-                  <fa-icon [icon]="faPen"></fa-icon>
-                </button>
-                <button class="icon-btn danger" type="button" title="Eliminar" (click)="eliminar(it.id)">
-                  <fa-icon [icon]="faTrash"></fa-icon>
-                </button>
-              </td>
-            </tr>
+            @for (it of items; track it) {
+              <tr>
+                <td class="mono">{{ it.id }}</td>
+                <td class="mono">{{ it.codigoGuiaGenetica || '—' }}</td>
+                <td>{{ it.anioGuia || '—' }}</td>
+                <td>{{ it.raza || '—' }}</td>
+                <td>{{ it.edad || '—' }}</td>
+                <td>{{ it.hembras || '—' }}</td>
+                <td>{{ it.machos || '—' }}</td>
+                <td>{{ it.apareo || '—' }}</td>
+                <td>{{ it.mortSemH || '—' }}</td>
+                <td>{{ it.mortSemM || '—' }}</td>
+                <td>{{ it.pesoH || '—' }}</td>
+                <td>{{ it.pesoM || '—' }}</td>
+                <td>{{ it.prodPorcentaje || '—' }}</td>
+                <td class="text-right">
+                  <button class="icon-btn" type="button" title="Ver" (click)="goDetalle(it.id)">
+                    <fa-icon [icon]="faEye"></fa-icon>
+                  </button>
+                  <button class="icon-btn" type="button" title="Editar" (click)="goEditar(it.id)">
+                    <fa-icon [icon]="faPen"></fa-icon>
+                  </button>
+                  <button class="icon-btn danger" type="button" title="Eliminar" (click)="eliminar(it.id)">
+                    <fa-icon [icon]="faTrash"></fa-icon>
+                  </button>
+                </td>
+              </tr>
+            }
           </tbody>
         </table>
       </div>
@@ -122,63 +132,71 @@
         <button class="btn-subtle" type="button" (click)="nextPage()" [disabled]="page>=totalPages">Siguiente</button>
       </div>
 
-      <div class="loading-overlay" *ngIf="loading" aria-live="polite">
-        <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
-        <span>Cargando…</span>
-      </div>
+      @if (loading) {
+        <div class="loading-overlay" aria-live="polite">
+          <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+          <span>Cargando…</span>
+        </div>
+      }
     </div>
   </div>
 </div>
 
 <!-- Modal Carga Masiva -->
-<div class="modal-backdrop" *ngIf="uploadModalOpen">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>Carga masiva de guía genética</h3>
-      <button type="button" class="icon-btn" (click)="closeUploadModal()">
-        <fa-icon [icon]="faTimes"></fa-icon>
-      </button>
-    </div>
-
-    <div class="modal-body">
-      <div class="field">
-        <label>Archivo Excel (.xlsx / .xls)</label>
-        <input type="file" accept=".xlsx,.xls" (change)="onFileSelected($event)" />
+@if (uploadModalOpen) {
+  <div class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Carga masiva de guía genética</h3>
+        <button type="button" class="icon-btn" (click)="closeUploadModal()">
+          <fa-icon [icon]="faTimes"></fa-icon>
+        </button>
       </div>
-
-      <div class="field mt-3">
-        <label>Modo</label>
-        <select class="input" [(ngModel)]="uploadMode">
-          <option value="import">Importar (guardar en base)</option>
-          <option value="validate">Validar (sin guardar)</option>
-        </select>
-      </div>
-
-      <div class="alert error mt-3" *ngIf="uploadErrors.length">
-        <div *ngFor="let e of uploadErrors">{{ e }}</div>
-      </div>
-
-      <div class="result mt-3" *ngIf="uploadResult">
-        <div class="result-grid">
-          <div><strong>Éxito:</strong> {{ uploadResult.success }}</div>
-          <div><strong>Filas:</strong> {{ uploadResult.totalRows }}</div>
-          <div><strong>Procesadas:</strong> {{ uploadResult.processedRows }}</div>
-          <div><strong>Errores:</strong> {{ uploadResult.errorRows }}</div>
+      <div class="modal-body">
+        <div class="field">
+          <label>Archivo Excel (.xlsx / .xls)</label>
+          <input type="file" accept=".xlsx,.xls" (change)="onFileSelected($event)" />
         </div>
+        <div class="field mt-3">
+          <label>Modo</label>
+          <select class="input" [(ngModel)]="uploadMode">
+            <option value="import">Importar (guardar en base)</option>
+            <option value="validate">Validar (sin guardar)</option>
+          </select>
+        </div>
+        @if (uploadErrors.length) {
+          <div class="alert error mt-3">
+            @for (e of uploadErrors; track e) {
+              <div>{{ e }}</div>
+            }
+          </div>
+        }
+        @if (uploadResult) {
+          <div class="result mt-3">
+            <div class="result-grid">
+              <div><strong>Éxito:</strong> {{ uploadResult.success }}</div>
+              <div><strong>Filas:</strong> {{ uploadResult.totalRows }}</div>
+              <div><strong>Procesadas:</strong> {{ uploadResult.processedRows }}</div>
+              <div><strong>Errores:</strong> {{ uploadResult.errorRows }}</div>
+            </div>
+          </div>
+        }
+        @if (uploadPreview) {
+          <div class="result mt-3">
+            <div><strong>Filas válidas encontradas:</strong> {{ uploadPreview.length }}</div>
+          </div>
+        }
       </div>
-
-      <div class="result mt-3" *ngIf="uploadPreview">
-        <div><strong>Filas válidas encontradas:</strong> {{ uploadPreview.length }}</div>
+      <div class="modal-footer">
+        <button type="button" class="btn-subtle" (click)="closeUploadModal()" [disabled]="uploadLoading">Cerrar</button>
+        <button type="button" class="btn-primary" (click)="runUpload()" [disabled]="uploadLoading">
+          @if (uploadLoading) {
+            <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+          }
+          Ejecutar
+        </button>
       </div>
-    </div>
-
-    <div class="modal-footer">
-      <button type="button" class="btn-subtle" (click)="closeUploadModal()" [disabled]="uploadLoading">Cerrar</button>
-      <button type="button" class="btn-primary" (click)="runUpload()" [disabled]="uploadLoading">
-        <fa-icon [icon]="faSpinner" class="spin mr-2" *ngIf="uploadLoading"></fa-icon>
-        Ejecutar
-      </button>
     </div>
   </div>
-</div>
+}
 

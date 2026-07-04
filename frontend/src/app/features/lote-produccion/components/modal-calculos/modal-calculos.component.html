@@ -1,138 +1,139 @@
-<div *ngIf="isOpen" class="modal-overlay" (click)="onClose()">
-  <div class="modal-container" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h2>📊 Cálculos Avanzados de Producción</h2>
-      <button type="button" class="close-btn" (click)="onClose()" aria-label="Cerrar">
-        ✕
-      </button>
-    </div>
-
-    <div class="modal-body">
-      <!-- Información del lote -->
-      <div class="lote-info">
-        <h3>{{ loteNombre || 'Lote ' + loteId }}</h3>
-        <p>Análisis detallado de métricas de producción</p>
+@if (isOpen) {
+  <div class="modal-overlay" (click)="onClose()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>📊 Cálculos Avanzados de Producción</h2>
+        <button type="button" class="close-btn" (click)="onClose()" aria-label="Cerrar">
+          ✕
+        </button>
       </div>
-
-      <!-- Filtros -->
-      <div class="filtros-section">
-        <h4>🔍 Filtros de Análisis</h4>
-        <div class="filtros-grid">
-          <div class="filtro-item">
-            <label for="desde">Desde:</label>
-            <input 
-              id="desde"
-              type="date" 
-              [(ngModel)]="calcsDesde"
-              (ngModelChange)="reloadCalculos()">
+      <div class="modal-body">
+        <!-- Información del lote -->
+        <div class="lote-info">
+          <h3>{{ loteNombre || 'Lote ' + loteId }}</h3>
+          <p>Análisis detallado de métricas de producción</p>
+        </div>
+        <!-- Filtros -->
+        <div class="filtros-section">
+          <h4>🔍 Filtros de Análisis</h4>
+          <div class="filtros-grid">
+            <div class="filtro-item">
+              <label for="desde">Desde:</label>
+              <input
+                id="desde"
+                type="date"
+                [(ngModel)]="calcsDesde"
+                (ngModelChange)="reloadCalculos()">
+              </div>
+              <div class="filtro-item">
+                <label for="hasta">Hasta:</label>
+                <input
+                  id="hasta"
+                  type="date"
+                  [(ngModel)]="calcsHasta"
+                  (ngModelChange)="reloadCalculos()">
+                </div>
+                <div class="filtro-item">
+                  <button
+                    type="button"
+                    class="btn btn--outline"
+                    (click)="onLimpiarFiltros()">
+                    🗑️ Limpiar Filtros
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Resultados -->
+            @if (calcsResp) {
+              <div class="resultados-section">
+                <h4>📈 Resultados del Análisis</h4>
+                <div class="resumen-metricas">
+                  <div class="metrica-item">
+                    <span class="metrica-label">Período:</span>
+                    <span class="metrica-value">
+                      {{ calcsResp.desde ? formatDMY(calcsResp.desde) : 'Inicio' }} -
+                      {{ calcsResp.hasta ? formatDMY(calcsResp.hasta) : 'Actual' }}
+                    </span>
+                  </div>
+                  <div class="metrica-item">
+                    <span class="metrica-label">Total registros:</span>
+                    <span class="metrica-value">{{ calcsResp.total }}</span>
+                  </div>
+                </div>
+                <!-- Tabla de resultados -->
+                @if (calcsResp.items.length > 0) {
+                  <div class="tabla-resultados">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Edad (días)</th>
+                          <th>Mort. H</th>
+                          <th>Mort. M</th>
+                          <th>Mort. Total</th>
+                          <th>Mort. %</th>
+                          <th>Sel H</th>
+                          <th>ConsKg H</th>
+                          <th>ConsKg M</th>
+                          <th>Huevo Tot</th>
+                          <th>Huevo Inc</th>
+                          <th>Eficiencia</th>
+                          <th>Peso Huevo</th>
+                          <th>Etapa</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (item of calcsResp.items; track item) {
+                          <tr>
+                            <td>{{ formatDMY(item.fecha) }}</td>
+                            <td>{{ item.edadDias || 'N/A' }}</td>
+                            <td>{{ item.mortalidadH }}</td>
+                            <td>{{ item.mortalidadM }}</td>
+                            <td>{{ item.mortalidadTotal }}</td>
+                            <td>
+                              <span class="badge" [class]="'badge--' + getMortalidadColor(item.mortalidadPorcentaje)">
+                                {{ item.mortalidadPorcentaje | number:'1.0-1' }}%
+                              </span>
+                            </td>
+                            <td>{{ item.selH }}</td>
+                            <td>{{ item.consKgH | number:'1.0-2' }}</td>
+                            <td>{{ item.consKgM | number:'1.0-2' }}</td>
+                            <td>{{ item.huevoTot }}</td>
+                            <td>{{ item.huevoInc }}</td>
+                            <td>
+                              <span class="badge" [class]="'badge--' + getEficienciaColor(item.eficiencia)">
+                                {{ item.eficiencia | number:'1.0-1' }}%
+                              </span>
+                            </td>
+                            <td>{{ item.pesoHuevo | number:'1.0-1' }}g</td>
+                            <td>{{ item.etapa }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+                @if (calcsResp.items.length === 0) {
+                  <div class="empty-results">
+                    <div class="empty-icon">📊</div>
+                    <p>No hay datos para el período seleccionado.</p>
+                  </div>
+                }
+              </div>
+            }
+            <!-- Estado de carga -->
+            @if (calcsLoading) {
+              <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Calculando métricas...</p>
+              </div>
+            }
           </div>
-          
-          <div class="filtro-item">
-            <label for="hasta">Hasta:</label>
-            <input 
-              id="hasta"
-              type="date" 
-              [(ngModel)]="calcsHasta"
-              (ngModelChange)="reloadCalculos()">
-          </div>
-          
-          <div class="filtro-item">
-            <button 
-              type="button" 
-              class="btn btn--outline"
-              (click)="onLimpiarFiltros()">
-              🗑️ Limpiar Filtros
+          <div class="modal-footer">
+            <button type="button" class="btn btn--primary" (click)="onClose()">
+              Cerrar
             </button>
           </div>
         </div>
       </div>
-
-      <!-- Resultados -->
-      <div class="resultados-section" *ngIf="calcsResp">
-        <h4>📈 Resultados del Análisis</h4>
-        
-        <div class="resumen-metricas">
-          <div class="metrica-item">
-            <span class="metrica-label">Período:</span>
-            <span class="metrica-value">
-              {{ calcsResp.desde ? formatDMY(calcsResp.desde) : 'Inicio' }} - 
-              {{ calcsResp.hasta ? formatDMY(calcsResp.hasta) : 'Actual' }}
-            </span>
-          </div>
-          
-          <div class="metrica-item">
-            <span class="metrica-label">Total registros:</span>
-            <span class="metrica-value">{{ calcsResp.total }}</span>
-          </div>
-        </div>
-
-        <!-- Tabla de resultados -->
-        <div class="tabla-resultados" *ngIf="calcsResp.items.length > 0">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Edad (días)</th>
-                <th>Mort. H</th>
-                <th>Mort. M</th>
-                <th>Mort. Total</th>
-                <th>Mort. %</th>
-                <th>Sel H</th>
-                <th>ConsKg H</th>
-                <th>ConsKg M</th>
-                <th>Huevo Tot</th>
-                <th>Huevo Inc</th>
-                <th>Eficiencia</th>
-                <th>Peso Huevo</th>
-                <th>Etapa</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let item of calcsResp.items">
-                <td>{{ formatDMY(item.fecha) }}</td>
-                <td>{{ item.edadDias || 'N/A' }}</td>
-                <td>{{ item.mortalidadH }}</td>
-                <td>{{ item.mortalidadM }}</td>
-                <td>{{ item.mortalidadTotal }}</td>
-                <td>
-                  <span class="badge" [class]="'badge--' + getMortalidadColor(item.mortalidadPorcentaje)">
-                    {{ item.mortalidadPorcentaje | number:'1.0-1' }}%
-                  </span>
-                </td>
-                <td>{{ item.selH }}</td>
-                <td>{{ item.consKgH | number:'1.0-2' }}</td>
-                <td>{{ item.consKgM | number:'1.0-2' }}</td>
-                <td>{{ item.huevoTot }}</td>
-                <td>{{ item.huevoInc }}</td>
-                <td>
-                  <span class="badge" [class]="'badge--' + getEficienciaColor(item.eficiencia)">
-                    {{ item.eficiencia | number:'1.0-1' }}%
-                  </span>
-                </td>
-                <td>{{ item.pesoHuevo | number:'1.0-1' }}g</td>
-                <td>{{ item.etapa }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div *ngIf="calcsResp.items.length === 0" class="empty-results">
-          <div class="empty-icon">📊</div>
-          <p>No hay datos para el período seleccionado.</p>
-        </div>
-      </div>
-
-      <!-- Estado de carga -->
-      <div *ngIf="calcsLoading" class="loading-state">
-        <div class="spinner"></div>
-        <p>Calculando métricas...</p>
-      </div>
-    </div>
-
-    <div class="modal-footer">
-      <button type="button" class="btn btn--primary" (click)="onClose()">
-        Cerrar
-      </button>
-    </div>
-  </div>
-</div>
+    }

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -20,6 +20,7 @@ interface SelectedObject { schema: string; name: string; kind: 'table' | 'view' 
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './db-studio-main.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./db-studio-main.component.scss']
 })
 export class DbStudioMainComponent implements OnInit, OnDestroy {

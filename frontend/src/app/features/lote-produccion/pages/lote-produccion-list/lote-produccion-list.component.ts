@@ -1,5 +1,5 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ViewChild, inject, ChangeDetectionStrategy } from '@angular/core';
+
 import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize, map } from 'rxjs/operators';
@@ -26,7 +26,6 @@ import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.compone
 import { ModalRegistroInicialComponent } from '../modal-registro-inicial/modal-registro-inicial.component';
 import { ModalSeguimientoDiarioComponent } from '../modal-seguimiento-diario/modal-seguimiento-diario.component';
 import { ModalAnalisisComponent } from '../modal-analisis/modal-analisis.component';
-import { ModalLiquidacionComponent } from '../../components/modal-liquidacion/modal-liquidacion.component';
 import { ModalDetalleSeguimientoComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import {
@@ -40,7 +39,6 @@ import { LotePosturaProduccionService } from '../../../lote/services/lote-postur
   selector: 'app-lote-produccion-list',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     FiltroSelectComponent,
@@ -48,12 +46,12 @@ import { LotePosturaProduccionService } from '../../../lote/services/lote-postur
     ModalRegistroInicialComponent,
     ModalSeguimientoDiarioComponent,
     ModalAnalisisComponent,
-    ModalLiquidacionComponent,
     ModalDetalleSeguimientoComponent,
     ConfirmationModalComponent,
     ModalTrasladoAvesSeguimientoComponent
-  ],
+],
   templateUrl: './lote-produccion-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lote-produccion-list.component.scss']
 })
 export class LoteProduccionListComponent implements OnInit {
@@ -108,7 +106,6 @@ export class LoteProduccionListComponent implements OnInit {
   modalSeguimientoDiarioOpen = false;
   @ViewChild(ModalSeguimientoDiarioComponent) modalSeguimientoDiario?: ModalSeguimientoDiarioComponent;
   analisisOpen = false;
-  liquidacionOpen = false;
   modalDetalleSeguimientoOpen = false;
   seguimientoIdParaDetalle: number | null = null;
   editingSeguimiento: SeguimientoItemDto | null = null;
@@ -651,16 +648,6 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
 
   closeAnalisis(): void {
     this.analisisOpen = false;
-  }
-
-  // ================== LIQUIDACIÓN TÉCNICA ==================
-  openLiquidacion(): void {
-    if (!this.selectedLoteId) return;
-    this.liquidacionOpen = true;
-  }
-
-  closeLiquidacion(): void {
-    this.liquidacionOpen = false;
   }
 
   // ================== helpers ==================

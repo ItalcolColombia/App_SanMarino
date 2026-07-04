@@ -1,5 +1,5 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -15,8 +15,9 @@ import { TrasladoNavigationService, TrasladoUnificado } from '../../../../core/s
 @Component({
   selector: 'app-movimientos-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, HierarchicalFilterComponent],
+  imports: [FormsModule, ReactiveFormsModule, HierarchicalFilterComponent],
   templateUrl: './movimientos-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./movimientos-list.component.scss']
 })
 export class MovimientosListComponent implements OnInit {

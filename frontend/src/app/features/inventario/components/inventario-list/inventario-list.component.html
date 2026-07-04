@@ -8,18 +8,20 @@
     <div class="filter" style="min-width: 240px;">
       <label class="ux-label" for="farmSelect">Granja</label>
       <select id="farmSelect"
-              class="ux-select"
-              [(ngModel)]="selectedFarmId"
-              (change)="load()">
+        class="ux-select"
+        [(ngModel)]="selectedFarmId"
+        (change)="load()">
         <option [ngValue]="null" disabled>Seleccione…</option>
-        <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+        @for (f of farms; track f) {
+          <option [ngValue]="f.id">{{ f.name }}</option>
+        }
       </select>
     </div>
 
     <button class="btn-secondary"
-            type="button"
-            (click)="load()"
-            [disabled]="loading || !selectedFarmId">
+      type="button"
+      (click)="load()"
+      [disabled]="loading || !selectedFarmId">
       <fa-icon [icon]="faRefresh" class="mr-2" aria-hidden="true"></fa-icon>
       Actualizar
     </button>
@@ -32,80 +34,91 @@
     <label for="filtro" class="ux-label">Buscar</label>
     <div class="actions">
       <input id="filtro"
-             type="text"
-             [(ngModel)]="filtro"
-             placeholder="Código, nombre, ubicación, lote…"
-             class="ux-input"
-             autocomplete="off" />
-      <button *ngIf="filtro"
-              type="button"
-              class="btn-ghost"
-              (click)="filtro = ''"
-              aria-label="Limpiar búsqueda">×</button>
+        type="text"
+        [(ngModel)]="filtro"
+        placeholder="Código, nombre, ubicación, lote…"
+        class="ux-input"
+        autocomplete="off" />
+        @if (filtro) {
+          <button
+            type="button"
+            class="btn-ghost"
+            (click)="filtro = ''"
+          aria-label="Limpiar búsqueda">×</button>
+        }
+      </div>
     </div>
   </div>
-</div>
 
-<div class="ux-card" [class.is-loading]="loading">
-  <div class="ux-scroll">
-    <table class="ux-table">
-      <caption class="sr-only">Inventario actual por granja</caption>
+  <div class="ux-card" [class.is-loading]="loading">
+    <div class="ux-scroll">
+      <table class="ux-table">
+        <caption class="sr-only">Inventario actual por granja</caption>
 
-      <thead>
-        <tr>
-          <th scope="col">Código</th>
-          <th scope="col">Producto</th>
-          <th scope="col">Granja</th>
-          <th scope="col" class="text-center">Cantidad</th>
-          <th scope="col">Unidad</th>
-          <th scope="col">Ubicación</th>
-          <th scope="col">Lote</th>
-          <th scope="col">Actualizado</th>
-        </tr>
-      </thead>
-
-      <!-- Estado: cargando -->
-      <tbody *ngIf="loading">
-        <tr>
-          <td colspan="8" class="empty-state">
-            <div class="spinner" aria-hidden="true"></div>
-            Cargando inventario…
-          </td>
-        </tr>
-      </tbody>
-
-      <!-- Estado: no cargando -->
-      <ng-container *ngIf="!loading">
-        <!-- Vacío -->
-        <tbody *ngIf="filtered.length === 0">
+        <thead>
           <tr>
-            <td colspan="8" class="empty-state">
-              <div class="empty-illustration" aria-hidden="true">📦</div>
-              <p>No hay registros para mostrar.</p>
-            </td>
+            <th scope="col">Código</th>
+            <th scope="col">Producto</th>
+            <th scope="col">Granja</th>
+            <th scope="col" class="text-center">Cantidad</th>
+            <th scope="col">Unidad</th>
+            <th scope="col">Ubicación</th>
+            <th scope="col">Lote</th>
+            <th scope="col">Actualizado</th>
           </tr>
-        </tbody>
+        </thead>
 
-        <!-- Filas -->
-        <tbody *ngIf="filtered.length > 0">
-          <tr *ngFor="let it of filtered; trackBy: trackByItem" class="ux-row">
-            <td>{{ it.codigo }}</td>
-            <td>{{ it.nombre }}</td>
-            <td>{{ getFarmName(it.farmId) }}</td>
-            <td class="text-center">{{ it.quantity | number:'1.0-3' }}</td>
-            <td>{{ it.unit }}</td>
-            <td>{{ it.location || '–' }}</td>
-            <td>{{ it.lotNumber || '–' }}</td>
-            <td>{{ it.updatedAt | date:'short' }}</td>
-          </tr>
-        </tbody>
-      </ng-container>
-    </table>
-  </div>
+        <!-- Estado: cargando -->
+        @if (loading) {
+          <tbody>
+            <tr>
+              <td colspan="8" class="empty-state">
+                <div class="spinner" aria-hidden="true"></div>
+                Cargando inventario…
+              </td>
+            </tr>
+          </tbody>
+        }
 
-  <!-- Overlay de carga -->
-  <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-    <div class="spinner" aria-hidden="true"></div>
-    Cargando…
+        <!-- Estado: no cargando -->
+        @if (!loading) {
+          <!-- Vacío -->
+          @if (filtered.length === 0) {
+            <tbody>
+              <tr>
+                <td colspan="8" class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">📦</div>
+                  <p>No hay registros para mostrar.</p>
+                </td>
+              </tr>
+            </tbody>
+          }
+          <!-- Filas -->
+          @if (filtered.length > 0) {
+            <tbody>
+              @for (it of filtered; track trackByItem($index, it)) {
+                <tr class="ux-row">
+                  <td>{{ it.codigo }}</td>
+                  <td>{{ it.nombre }}</td>
+                  <td>{{ getFarmName(it.farmId) }}</td>
+                  <td class="text-center">{{ it.quantity | number:'1.0-3' }}</td>
+                  <td>{{ it.unit }}</td>
+                  <td>{{ it.location || '–' }}</td>
+                  <td>{{ it.lotNumber || '–' }}</td>
+                  <td>{{ it.updatedAt | date:'short' }}</td>
+                </tr>
+              }
+            </tbody>
+          }
+        }
+      </table>
+    </div>
+
+    <!-- Overlay de carga -->
+    @if (loading) {
+      <div class="loading-overlay" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        Cargando…
+      </div>
+    }
   </div>
-</div>

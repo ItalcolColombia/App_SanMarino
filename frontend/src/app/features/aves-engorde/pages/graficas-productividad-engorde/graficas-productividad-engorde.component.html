@@ -1,10 +1,12 @@
 <div class="graf-prod-eng">
   <div class="graf-prod-eng__head">
     <h3 class="graf-prod-eng__title">Gráficas — productividad pollo engorde</h3>
-    <p class="graf-prod-eng__subtitle" *ngIf="selectedLote">
-      Lote: <strong>{{ selectedLote.loteNombre || ('#' + selectedLote.loteId) }}</strong>
-      — datos del seguimiento diario.
-    </p>
+    @if (selectedLote) {
+      <p class="graf-prod-eng__subtitle">
+        Lote: <strong>{{ selectedLote.loteNombre || ('#' + selectedLote.loteId) }}</strong>
+        — datos del seguimiento diario.
+      </p>
+    }
 
     <div class="graf-prod-eng__toggle" role="tablist" aria-label="Tipo de productividad">
       <button
@@ -28,24 +30,30 @@
     </div>
   </div>
 
-  <div class="graf-prod-eng__loading" *ngIf="loading">Cargando datos…</div>
+  @if (loading) {
+    <div class="graf-prod-eng__loading">Cargando datos…</div>
+  }
 
-  <div class="graf-prod-eng__empty" *ngIf="!loading && !hayDatos">
-    No hay registros de seguimiento para graficar.
-  </div>
+  @if (!loading && !hayDatos) {
+    <div class="graf-prod-eng__empty">
+      No hay registros de seguimiento para graficar.
+    </div>
+  }
 
   <!-- DIARIA -->
-  <div class="graf-prod-eng__grid" *ngIf="!loading && hayDatos && modo === 'diaria'">
-    <div class="graf-prod-eng__chart-wrap">
-      <canvas baseChart [type]="'bar'" [data]="chartDesempenoDiarioData" [options]="chartDesempenoDiarioOptions"></canvas>
+  @if (!loading && hayDatos && modo === 'diaria') {
+    <div class="graf-prod-eng__grid">
+      <div class="graf-prod-eng__chart-wrap">
+        <canvas baseChart [type]="'bar'" [data]="chartDesempenoDiarioData" [options]="chartDesempenoDiarioOptions"></canvas>
+      </div>
+      <div class="graf-prod-eng__chart-wrap">
+        <canvas baseChart [type]="'bar'" [data]="chartMortDiariaData" [options]="chartMortDiariaOptions"></canvas>
+      </div>
     </div>
-    <div class="graf-prod-eng__chart-wrap">
-      <canvas baseChart [type]="'bar'" [data]="chartMortDiariaData" [options]="chartMortDiariaOptions"></canvas>
-    </div>
-  </div>
+  }
 
   <!-- SEMANAL -->
-  <ng-container *ngIf="!loading && hayDatos && modo === 'semanal'">
+  @if (!loading && hayDatos && modo === 'semanal') {
     <div class="graf-prod-eng__grid">
       <div class="graf-prod-eng__chart-wrap">
         <canvas baseChart [type]="'bar'" [data]="chartDesempenoSemanalData" [options]="chartDesempenoSemanalOptions"></canvas>
@@ -54,12 +62,15 @@
         <canvas baseChart [type]="'bar'" [data]="chartMortSemanalData" [options]="chartMortSemanalOptions"></canvas>
       </div>
     </div>
-
     <!-- Reporte por cada semana: DESEMPEÑO ACTUAL VS HISTÓRICOS -->
-    <div class="graf-prod-eng__grid graf-prod-eng__grid--semanas" *ngIf="chartsSemana.length">
-      <div class="graf-prod-eng__chart-wrap" *ngFor="let c of chartsSemana">
-        <canvas baseChart [type]="'bar'" [data]="c.data" [options]="c.options"></canvas>
+    @if (chartsSemana.length) {
+      <div class="graf-prod-eng__grid graf-prod-eng__grid--semanas">
+        @for (c of chartsSemana; track c) {
+          <div class="graf-prod-eng__chart-wrap">
+            <canvas baseChart [type]="'bar'" [data]="c.data" [options]="c.options"></canvas>
+          </div>
+        }
       </div>
-    </div>
-  </ng-container>
+    }
+  }
 </div>

@@ -1,27 +1,30 @@
 <!-- src/app/app.component.html -->
 <div class="app-layout">
   <!-- Barra superior: fija, solo en rutas con menú -->
-  <header *ngIf="showSidebar" class="app-topbar" role="banner">
-    <button
-      type="button"
-      class="app-topbar__menu-btn"
-      (click)="onMenuClick($event)"
-      [attr.aria-label]="sidebarOpen ? 'Cerrar menú' : 'Abrir menú'"
-      [attr.aria-expanded]="sidebarOpen">
-      <fa-icon [icon]="faBars"></fa-icon>
-    </button>
-    <div class="app-topbar__title">
-      <img src="assets/brand/italcol-naraanja.png" alt="Italcol" class="app-topbar__logo" />
-    </div>
-  </header>
+  @if (showSidebar) {
+    <header class="app-topbar" role="banner">
+      <button
+        type="button"
+        class="app-topbar__menu-btn"
+        (click)="onMenuClick($event)"
+        [attr.aria-label]="sidebarOpen ? 'Cerrar menú' : 'Abrir menú'"
+        [attr.aria-expanded]="sidebarOpen">
+        <fa-icon [icon]="faBars"></fa-icon>
+      </button>
+      <div class="app-topbar__title">
+        <img src="assets/brand/italcol-naraanja.png" alt="Italcol" class="app-topbar__logo" />
+      </div>
+    </header>
+  }
 
   <!-- Menú overlay: por encima de la barra superior (z-index mayor) -->
-  <app-sidebar
-    *ngIf="showSidebar"
-    class="app-sidebar"
-    [isOpen]="sidebarOpen"
-    (close)="closeSidebar()">
-  </app-sidebar>
+  @if (showSidebar) {
+    <app-sidebar
+      class="app-sidebar"
+      [isOpen]="sidebarOpen"
+      (close)="closeSidebar()">
+    </app-sidebar>
+  }
 
 
   <!-- Contenido principal: debajo de la barra superior -->

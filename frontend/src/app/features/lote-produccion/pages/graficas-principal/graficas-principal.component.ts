@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgChartsModule } from 'ng2-charts';
@@ -34,6 +34,7 @@ interface IndicadorSemanal {
   standalone: true,
   imports: [CommonModule, FormsModule, NgChartsModule],
   templateUrl: './graficas-principal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./graficas-principal.component.scss']
 })
 export class GraficasPrincipalComponent implements OnInit, OnChanges {
@@ -251,8 +252,8 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     this.comparativoGuiaChartData = {
       labels,
       datasets: [
-        { data: real, label: `${etiqueta} — Real`, borderColor: '#2d7a3e', backgroundColor: 'rgba(45,122,62,0.15)', tension: 0.3, spanGaps: true, pointRadius: 2 },
-        { data: guia, label: `${etiqueta} — Guía`, borderColor: '#e85c25', backgroundColor: 'rgba(232,92,37,0.10)', borderDash: [6, 4], tension: 0.3, spanGaps: true, pointRadius: 2 }
+        { data: real, label: `${etiqueta} — Real`, borderColor: '#F5821F', backgroundColor: 'rgba(245,130,31,0.15)', tension: 0.3, spanGaps: true, pointRadius: 2 },
+        { data: guia, label: `${etiqueta} — Guía`, borderColor: '#FBB040', backgroundColor: 'rgba(251,176,64,0.10)', borderDash: [6, 4], tension: 0.3, spanGaps: true, pointRadius: 2 }
       ]
     };
     this.comparativoGuiaChartOptions = {
@@ -378,13 +379,11 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
   // ================== PREPARACIÓN DE DATOS ==================
   private prepararDatosGraficas(): void {
-    // FUENTE CORRECTA: los indicadores del API (calcs corregidos + guía por semana).
-    // El cálculo client-side legacy (con consumoTabla=157 y conversión alimenticia) queda
-    // solo como fallback si el API aún no cargó o no hay ids de lote.
+    // FUENTE ÚNICA: los indicadores del API (calculados en la BD, con guía por semana).
+    // El front ya NO calcula: sin el fallback client-side legacy (que tenía consumoTabla=157
+    // hardcodeado y conversión alimenticia, que no aplica a reproductoras).
     if (this.indicadoresApi && this.indicadoresApi.length > 0) {
       this.indicadoresSemanales = this.mapApiToIndicadorSemanal(this.indicadoresApi);
-    } else if (this.seguimientos && this.seguimientos.length > 0 && this.selectedLote) {
-      this.indicadoresSemanales = this.calcularIndicadoresSemanales();
     } else {
       this.indicadoresSemanales = [];
       this.semanasDisponibles = [];
@@ -407,124 +406,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
     // Preparar datos de Chart.js
     this.prepararChartData();
-  }
-
-  // ========== CÁLCULO DE INDICADORES SEMANALES ==========
-  private calcularIndicadoresSemanales(): IndicadorSemanal[] {
-    const registrosPorSemana = this.agruparPorSemana(this.seguimientos);
-    const semanas = Array.from(registrosPorSemana.keys()).sort((a, b) => a - b);
-
-    let avesAcumuladas = (this.selectedLote as any)?.avesInicialesH + (this.selectedLote as any)?.avesInicialesM || 0;
-    let mortalidadAcumulada = 0;
-    let huevosTotalesAcumulados = 0;
-    let huevosIncubablesAcumulados = 0;
-
-    return semanas.map(semana => {
-      const registros = registrosPorSemana.get(semana) || [];
-
-      // Solo procesar semanas de producción (25+)
-      if (semana < this.SEMANA_INICIO_PRODUCCION) {
-        return null;
-      }
-
-      const mortalidadHembrasTotal = registros.reduce((sum, r) => sum + (r.mortalidadH || 0), 0);
-      const mortalidadMachosTotal = registros.reduce((sum, r) => sum + (r.mortalidadM || 0), 0);
-      const mortalidadTotal = mortalidadHembrasTotal + mortalidadMachosTotal;
-      const consumoTotal = registros.reduce((sum, r) => sum + (r.consumoKg || 0), 0);
-      const huevosTotales = registros.reduce((sum, r) => sum + (r.huevosTotales || 0), 0);
-      const huevosIncubables = registros.reduce((sum, r) => sum + (r.huevosIncubables || 0), 0);
-      const pesoHuevoPromedio = registros.length > 0
-        ? registros.reduce((sum, r) => sum + (r.pesoHuevo || 0), 0) / registros.length
-        : 0;
-
-      const avesFin = avesAcumuladas - mortalidadTotal;
-      const consumoReal = consumoTotal;
-      const consumoTabla = 157; // kg por semana (puede venir de tabla genética)
-      const conversionAlimenticia = avesFin > 0 ? consumoReal / avesFin : 0;
-
-      const mortalidadHembras = avesAcumuladas > 0 ? (mortalidadHembrasTotal / avesAcumuladas) * 100 : 0;
-      const mortalidadMachos = avesAcumuladas > 0 ? (mortalidadMachosTotal / avesAcumuladas) * 100 : 0;
-      const mortalidadTotalPorcentaje = mortalidadHembras + mortalidadMachos;
-
-      const eficiencia = conversionAlimenticia > 0 ? huevosTotales / conversionAlimenticia : 0;
-      const ip = conversionAlimenticia > 0 ? (huevosTotales / conversionAlimenticia) / 10 : 0;
-      const vpi = huevosTotalesAcumulados > 0 ? huevosTotales / huevosTotalesAcumulados : 0;
-      const porcentajeIncubables = huevosTotales > 0 ? (huevosIncubables / huevosTotales) * 100 : 0;
-
-      mortalidadAcumulada += mortalidadTotalPorcentaje;
-      huevosTotalesAcumulados += huevosTotales;
-      huevosIncubablesAcumulados += huevosIncubables;
-
-      const indicador: IndicadorSemanal = {
-        semana,
-        fechaInicio: this.obtenerFechaInicioSemana(semana),
-        avesInicioSemana: avesAcumuladas,
-        avesFinSemana: avesFin,
-        consumoReal,
-        consumoTabla,
-        conversionAlimenticia,
-        huevosTotales,
-        huevosIncubables,
-        mortalidadHembras,
-        mortalidadMachos,
-        mortalidadTotal: mortalidadTotalPorcentaje,
-        eficiencia,
-        ip,
-        vpi,
-        mortalidadAcum: mortalidadAcumulada,
-        huevosTotalesAcum: huevosTotalesAcumulados,
-        huevosIncubablesAcum: huevosIncubablesAcumulados,
-        porcentajeIncubables,
-        pesoHuevoPromedio
-      };
-
-      avesAcumuladas = avesFin;
-
-      return indicador;
-    }).filter((ind): ind is IndicadorSemanal => ind !== null);
-  }
-
-  private agruparPorSemana(registros: SeguimientoItemDto[]): Map<number, SeguimientoItemDto[]> {
-    const grupos = new Map<number, SeguimientoItemDto[]>();
-
-    registros.forEach(registro => {
-      const semana = this.calcularSemana(registro.fechaRegistro);
-      if (!grupos.has(semana)) {
-        grupos.set(semana, []);
-      }
-      grupos.get(semana)!.push(registro);
-    });
-
-    grupos.forEach((registros, semana) => {
-      registros.sort((a, b) => new Date(a.fechaRegistro).getTime() - new Date(b.fechaRegistro).getTime());
-    });
-
-    return grupos;
-  }
-
-  private calcularSemana(fechaRegistro: string | Date): number {
-    const base = this.fechaEncaset ?? (this.selectedLote as any)?.fechaEncaset ?? null;
-    if (!base) return this.SEMANA_INICIO_PRODUCCION;
-
-    const fechaEncaset = new Date(base as any);
-    const fechaReg = new Date(fechaRegistro);
-    const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    // Semana de EDAD (vida): (días/7)+1. Producción inicia en semana 26.
-    const semanaVida = Math.floor(diffDays / 7) + 1;
-    return Math.max(this.SEMANA_INICIO_PRODUCCION, Math.min(semanaVida, this.SEMANA_MAX_PRODUCCION));
-  }
-
-  private obtenerFechaInicioSemana(semana: number): string {
-    const base = this.fechaEncaset ?? (this.selectedLote as any)?.fechaEncaset ?? null;
-    if (!base) return '';
-
-    const fechaEncaset = new Date(base as any);
-    const diasASumar = (semana - 1) * 7;
-    const fechaInicio = new Date(fechaEncaset.getTime() + (diasASumar * 24 * 60 * 60 * 1000));
-
-    return fechaInicio.toISOString().split('T')[0];
   }
 
   // ========== PREPARACIÓN DE DATOS PARA CHART.JS ==========

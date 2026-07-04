@@ -1,5 +1,5 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { 
@@ -13,8 +13,9 @@ import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 @Component({
   selector: 'app-registros-traslados',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './registros-traslados.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./registros-traslados.component.scss']
 })
 export class RegistrosTrasladosComponent implements OnInit {

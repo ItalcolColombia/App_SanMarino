@@ -1,51 +1,55 @@
 <!-- src/app/shared/components/confirmation-modal/confirmation-modal.component.html -->
-<div class="modal-backdrop" 
-     *ngIf="isOpen" 
-     (click)="onBackdropClick($event)"
-     [attr.aria-hidden]="!isOpen">
-  <div class="modal-container" 
-       [ngClass]="getModalClass()"
-       role="dialog"
-       aria-modal="true"
-       [attr.aria-labelledby]="isOpen ? 'modal-title' : null"
-       (click)="$event.stopPropagation()">
-    
-    <!-- Modal Header -->
-    <div class="modal-header">
-      <div class="modal-icon">
-        <fa-icon [icon]="getIconClass()" aria-hidden="true"></fa-icon>
+@if (isOpen) {
+  <div class="modal-backdrop"
+    (click)="onBackdropClick($event)"
+    [attr.aria-hidden]="!isOpen">
+    <div class="modal-container"
+      [ngClass]="getModalClass()"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-labelledby]="isOpen ? 'modal-title' : null"
+      (click)="$event.stopPropagation()">
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div class="modal-icon">
+          <fa-icon [icon]="getIconClass()" aria-hidden="true"></fa-icon>
+        </div>
+        <h2 id="modal-title" class="modal-title">{{ data.title }}</h2>
+        <button type="button"
+          class="modal-close"
+          (click)="close()"
+          aria-label="Cerrar modal">
+          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+        </button>
       </div>
-      <h2 id="modal-title" class="modal-title">{{ data.title }}</h2>
-      <button type="button" 
-              class="modal-close" 
-              (click)="close()"
-              aria-label="Cerrar modal">
-        <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
-      </button>
-    </div>
-
-    <!-- Modal Body -->
-    <div class="modal-body">
-      <pre *ngIf="data.preformatted" class="modal-message modal-message--pre">{{ data.message }}</pre>
-      <p *ngIf="!data.preformatted" class="modal-message">{{ data.message }}</p>
-    </div>
-
-    <!-- Modal Footer -->
-    <div class="modal-footer">
-      <button *ngIf="data.showCancel !== false" 
-              type="button" 
-              class="btn btn-secondary" 
-              (click)="onCancel(); $event.stopPropagation()">
-        <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
-        {{ data.cancelText || 'Cancelar' }}
-      </button>
-      <button type="button" 
-              class="btn btn-primary" 
-              (click)="onConfirm($event); $event.stopPropagation()">
-        <fa-icon [icon]="faCheck" aria-hidden="true"></fa-icon>
-        {{ data.confirmText || 'Confirmar' }}
-      </button>
+      <!-- Modal Body -->
+      <div class="modal-body">
+        @if (data.preformatted) {
+          <pre class="modal-message modal-message--pre">{{ data.message }}</pre>
+        }
+        @if (!data.preformatted) {
+          <p class="modal-message">{{ data.message }}</p>
+        }
+      </div>
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        @if (data.showCancel !== false) {
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="onCancel(); $event.stopPropagation()">
+            <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+            {{ data.cancelText || 'Cancelar' }}
+          </button>
+        }
+        <button type="button"
+          class="btn btn-primary"
+          (click)="onConfirm($event); $event.stopPropagation()">
+          <fa-icon [icon]="faCheck" aria-hidden="true"></fa-icon>
+          {{ data.confirmText || 'Confirmar' }}
+        </button>
+      </div>
     </div>
   </div>
-</div>
+}
 

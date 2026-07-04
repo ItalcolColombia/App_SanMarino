@@ -1,6 +1,6 @@
 // src/app/features/reporte-tecnico-produccion/pages/reporte-tecnico-produccion-main/reporte-tecnico-produccion-main.component.ts
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, signal, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -29,15 +29,15 @@ import { TablaClasificacionHuevoComercioComponent } from '../../components/tabla
   selector: 'app-reporte-tecnico-produccion-main',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     FontAwesomeModule,
     FiltroSelectComponent,
     TablaReporteDiarioProduccionComponent,
     TablaReporteCuadroProduccionComponent,
     TablaClasificacionHuevoComercioComponent
-  ],
+],
   templateUrl: './reporte-tecnico-produccion-main.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./reporte-tecnico-produccion-main.component.scss']
 })
 export class ReporteTecnicoProduccionMainComponent implements OnInit, OnDestroy {

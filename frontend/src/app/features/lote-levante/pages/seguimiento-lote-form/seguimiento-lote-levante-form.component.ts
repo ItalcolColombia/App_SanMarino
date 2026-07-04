@@ -1,6 +1,6 @@
 // src/app/features/lote-levante/pages/seguimiento-lote-levante-form/seguimiento-lote-levante-form.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl
 } from '@angular/forms';
@@ -19,7 +19,7 @@ import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 @Component({
   selector: 'app-seguimiento-lote-levante-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [FormsModule, ReactiveFormsModule],
   templateUrl: './seguimiento-lote-levante-form.component.html',
   styleUrls: ['./seguimiento-lote-levante-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

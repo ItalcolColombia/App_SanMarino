@@ -1,5 +1,5 @@
 // src/app/features/reporte-contable/components/tabla-detalle-diario-contable/tabla-detalle-diario-contable.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { ConsumoDiarioContableDto } from '../../services/reporte-contable.service';
 
@@ -8,6 +8,7 @@ import { ConsumoDiarioContableDto } from '../../services/reporte-contable.servic
   standalone: true,
   imports: [CommonModule, DatePipe],
   templateUrl: './tabla-detalle-diario-contable.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-detalle-diario-contable.component.scss']
 })
 export class TablaDetalleDiarioContableComponent {

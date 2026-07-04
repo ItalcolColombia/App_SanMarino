@@ -1,6 +1,6 @@
 //app/features/traslados-aves/pages/traslado-form/traslado-form.component.ts
-import { Component, OnInit, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { HierarchicalFilterComponent, HierarchicalFilterCriteria, HierarchicalFilterState } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
@@ -15,8 +15,9 @@ import {
 @Component({
   selector: 'app-traslado-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, HierarchicalFilterComponent],
+  imports: [ReactiveFormsModule, HierarchicalFilterComponent],
   templateUrl: './traslado-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./traslado-form.component.scss']
 })
 export class TrasladoFormComponent implements OnInit {

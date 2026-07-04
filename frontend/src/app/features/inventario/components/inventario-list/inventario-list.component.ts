@@ -1,5 +1,5 @@
 // src/app/features/inventario/components/inventario-list/inventario-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -17,6 +17,7 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule, FontAwesomeModule],
   templateUrl: './inventario-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./inventario-list.component.scss']
 })
 export class InventarioListComponent implements OnInit {

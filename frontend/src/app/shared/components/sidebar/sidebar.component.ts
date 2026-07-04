@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, Input, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
@@ -19,6 +19,7 @@ import { MenuService, UiMenuItem } from '../../services/menu.service';
   standalone: true,
   imports: [CommonModule, RouterModule, FontAwesomeModule],
   templateUrl: './sidebar.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./sidebar.component.scss']
 })
 export class SidebarComponent implements OnInit, OnDestroy {

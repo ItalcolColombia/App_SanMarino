@@ -1,6 +1,6 @@
 // src/app/features/config/user-management/pages/tabla-lista-registro/tabla-lista-registro.component.ts
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, inject, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, inject, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
@@ -21,8 +21,9 @@ import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
 @Component({
   selector: 'app-tabla-lista-registro',
   standalone: true,
-  imports: [CommonModule, FormsModule, FontAwesomeModule, AsignarUsuarioGranjaComponent],
+  imports: [FormsModule, FontAwesomeModule, AsignarUsuarioGranjaComponent],
   templateUrl: './tabla-lista-registro.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-lista-registro.component.scss']
 })
 export class TablaListaRegistroComponent implements OnInit, OnDestroy {

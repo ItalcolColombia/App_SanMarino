@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as XLSX from 'xlsx';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
@@ -75,6 +75,7 @@ interface ReporteSemanaFila {
   standalone: true,
   imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent],
   templateUrl: './tabs-principal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {

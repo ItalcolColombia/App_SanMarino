@@ -55,7 +55,8 @@ public class CompanyResolver : ICompanyResolver
                 c.City,
                 null,
                 c.MobileAccess,
-                c.VisualPermissions
+                c.VisualPermissions,
+                c.ManejaAlimentoPorGalpon
             ))
             .FirstOrDefaultAsync();
 
@@ -93,7 +94,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.City,
                 null,
                 uc.Company.MobileAccess,
-                uc.Company.VisualPermissions
+                uc.Company.VisualPermissions,
+                uc.Company.ManejaAlimentoPorGalpon
             ))
             .ToListAsync();
 

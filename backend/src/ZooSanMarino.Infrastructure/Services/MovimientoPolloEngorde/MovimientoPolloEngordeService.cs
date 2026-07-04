@@ -29,6 +29,10 @@ public partial class MovimientoPolloEngordeService : IMovimientoPolloEngordeServ
     private static bool EsSalidaVenta(string? tipoMovimiento)
         => tipoMovimiento == "Venta" || tipoMovimiento == "Despacho" || tipoMovimiento == "Retiro";
 
+    /// <summary>Peso báscula obligatorio en ventas — delega en el cálculo puro compartido.</summary>
+    private static void ValidarPesoObligatorioEnVenta(string? tipoMovimiento, double? pesoBruto, double? pesoTara)
+        => MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta(tipoMovimiento, pesoBruto, pesoTara);
+
     /// <summary>Appends text without exceeding DB column length (keeps suffix when truncating).</summary>
     private static string AppendObservaciones(string? existing, string suffix)
     {

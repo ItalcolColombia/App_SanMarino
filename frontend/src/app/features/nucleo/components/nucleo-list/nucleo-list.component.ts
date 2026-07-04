@@ -7,7 +7,7 @@ import {
   OnDestroy,
   OnInit
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   FormBuilder,
   FormGroup,
@@ -40,12 +40,11 @@ type NucleoForm = {
   selector: 'app-nucleo-list',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     FontAwesomeModule,
-    ConfirmationModalComponent,
-  ],
+    ConfirmationModalComponent
+],
   templateUrl: './nucleo-list.component.html',
   styleUrls: ['./nucleo-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

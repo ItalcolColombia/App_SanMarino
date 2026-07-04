@@ -37,6 +37,7 @@ public partial class CompanyService : ICompanyService
         c.City,
         CompanyCalculos.BuildLogoDataUrl(c.Logo?.LogoBytes, c.Logo?.LogoContentType),
         c.MobileAccess,
-        c.VisualPermissions ?? Array.Empty<string>()
+        c.VisualPermissions ?? Array.Empty<string>(),
+        c.ManejaAlimentoPorGalpon
     );
 }

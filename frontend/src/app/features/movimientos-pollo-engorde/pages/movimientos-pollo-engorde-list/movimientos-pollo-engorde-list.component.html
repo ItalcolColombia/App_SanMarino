@@ -4,29 +4,38 @@
       <div class="mpp-header__title">
         <h1>Venta de Pollo Engorde</h1>
         <div class="mpp-header__meta">
-          <ng-template #noGranjaChip>
+          @if (selectedGranjaId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Granja: {{ selectedGranjaName || selectedGranjaId }}
+            </span>
+          } @else {
             <span class="chip chip--warning">
               <span class="chip__dot" aria-hidden="true"></span>
               Selecciona una granja
             </span>
-          </ng-template>
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
-          </span>
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
-          <span class="chip chip--info" *ngIf="selectedLoteValue">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote: {{ selectedLoteNombre }}
-          </span>
-          <span class="chip chip--muted" *ngIf="selectedGranjaId">
-            {{ filteredMovimientos.length || 0 }} mov. · {{ filasTabla.length || 0 }} fila(s)
-          </span>
+          }
+          @if (selectedNucleoId) {
+            <span class="chip chip--muted">
+              Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+            </span>
+          }
+          @if (selectedGalponId) {
+            <span class="chip chip--muted">
+              Galpón: {{ selectedGalponNombre }}
+            </span>
+          }
+          @if (selectedLoteValue) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Lote: {{ selectedLoteNombre }}
+            </span>
+          }
+          @if (selectedGranjaId) {
+            <span class="chip chip--muted">
+              {{ filteredMovimientos.length || 0 }} mov. · {{ filasTabla.length || 0 }} fila(s)
+            </span>
+          }
         </div>
       </div>
       <div class="mpp-header__actions">
@@ -70,12 +79,12 @@
             {{ loadingOrganizarPeso ? 'Organizando...' : 'Organizar Peso' }}
           </button>
         </ng-container>
-        <button
-          *ngIf="!isPanama || hasLoteSelected"
-          type="button"
-          (click)="create()"
-          class="btn-italfoods-primary"
-          [disabled]="!canOpenNuevoRegistro"
+        @if (!isPanama || hasLoteSelected) {
+          <button
+            type="button"
+            (click)="create()"
+            class="btn-italfoods-primary"
+            [disabled]="!canOpenNuevoRegistro"
           [title]="
             !selectedGranjaId
               ? 'Selecciona una granja'
@@ -85,398 +94,446 @@
                   ? 'Nuevo movimiento desde el lote seleccionado'
                   : 'Nueva venta por granja (varios galpones/lotes en un despacho)'
           ">
-          {{ hasLoteSelected ? 'Nuevo registro' : 'Nueva venta (granja)' }}
-        </button>
-        <button
-          *ngIf="isPanama && !hasLoteSelected"
-          type="button"
-          (click)="createPanama()"
-          class="btn-italfoods-primary"
-          [disabled]="!canOpenNuevoRegistro"
-          [title]="!selectedGranjaId ? 'Selecciona una granja' : lotesParaVentaGranjaList.length === 0 ? 'No hay lotes en esta granja' : 'Venta Panamá: despacho por galpón (asignación H/M sobre las mixtas)'">
-          Nueva venta Panamá
-        </button>
+            {{ hasLoteSelected ? 'Nuevo registro' : 'Nueva venta (granja)' }}
+          </button>
+        }
+        @if (isPanama && !hasLoteSelected) {
+          <button
+            type="button"
+            (click)="createPanama()"
+            class="btn-italfoods-primary"
+            [disabled]="!canOpenNuevoRegistro"
+            [title]="!selectedGranjaId ? 'Selecciona una granja' : lotesParaVentaGranjaList.length === 0 ? 'No hay lotes en esta granja' : 'Venta Panamá: despacho por galpón (asignación H/M sobre las mixtas)'">
+            Nueva venta Panamá
+          </button>
+        }
       </div>
     </header>
 
     <!-- Filtro principal: solo Granja (la tabla muestra todo lo de la granja) -->
-    <section class="ux-card mpp-card mpp-card--filtros" *ngIf="granjas.length">
-      <div class="ux-card__header">
-        <h2>Filtros</h2>
-      </div>
-      <div class="ux-card__body">
-        <div class="filters-row">
-          <div class="filter-group">
-            <label for="selGranja">Granja</label>
-            <select
-              id="selGranja"
-              class="filter-select input-italfoods"
-              [ngModel]="selectedGranjaId"
-              (ngModelChange)="onGranjaChange($event)">
-              <option [ngValue]="null">— Seleccione granja —</option>
-              <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label for="selGalpon">Galpón</label>
-            <select
-              id="selGalpon"
-              class="filter-select input-italfoods"
-              [ngModel]="selectedGalponId"
-              (ngModelChange)="onGalponChange($event)"
-              [disabled]="!selectedGranjaId || galpones.length === 0">
-              <option [ngValue]="null">— Todos —</option>
-              <option *ngFor="let gp of galpones" [ngValue]="gp.id">{{ gp.label }}</option>
-            </select>
-            <small class="text-muted" *ngIf="selectedGranjaId && galpones.length === 0">
-              No hay galpones asociados a ventas registradas en esta granja.
-            </small>
-          </div>
-
-          <div class="filter-group">
-            <label for="selLote">Lote</label>
-            <select
-              id="selLote"
-              class="filter-select input-italfoods"
-              [ngModel]="selectedLoteValue"
-              (ngModelChange)="onLoteChange($event)"
-              [disabled]="!selectedGranjaId || lotesOpciones.length === 0">
-              <option [ngValue]="null">— Todos —</option>
-              <option *ngFor="let l of lotesOpciones" [ngValue]="l.value">{{ l.label }}</option>
-            </select>
-            <small class="text-muted" *ngIf="selectedGranjaId && lotesOpciones.length === 0">
-              No hay lotes asociados a ventas registradas para los filtros actuales.
-            </small>
+    @if (granjas.length) {
+      <section class="ux-card mpp-card mpp-card--filtros">
+        <div class="ux-card__header">
+          <h2>Filtros</h2>
+        </div>
+        <div class="ux-card__body">
+          <div class="filters-row">
+            <div class="filter-group">
+              <label for="selGranja">Granja</label>
+              <select
+                id="selGranja"
+                class="filter-select input-italfoods"
+                [ngModel]="selectedGranjaId"
+                (ngModelChange)="onGranjaChange($event)">
+                <option [ngValue]="null">— Seleccione granja —</option>
+                @for (g of granjas; track g) {
+                  <option [ngValue]="g.id">{{ g.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="selGalpon">Galpón</label>
+              <select
+                id="selGalpon"
+                class="filter-select input-italfoods"
+                [ngModel]="selectedGalponId"
+                (ngModelChange)="onGalponChange($event)"
+                [disabled]="!selectedGranjaId || galpones.length === 0">
+                <option [ngValue]="null">— Todos —</option>
+                @for (gp of galpones; track gp) {
+                  <option [ngValue]="gp.id">{{ gp.label }}</option>
+                }
+              </select>
+              @if (selectedGranjaId && galpones.length === 0) {
+                <small class="text-muted">
+                  No hay galpones asociados a ventas registradas en esta granja.
+                </small>
+              }
+            </div>
+            <div class="filter-group">
+              <label for="selLote">Lote</label>
+              <select
+                id="selLote"
+                class="filter-select input-italfoods"
+                [ngModel]="selectedLoteValue"
+                (ngModelChange)="onLoteChange($event)"
+                [disabled]="!selectedGranjaId || lotesOpciones.length === 0">
+                <option [ngValue]="null">— Todos —</option>
+                @for (l of lotesOpciones; track l) {
+                  <option [ngValue]="l.value">{{ l.label }}</option>
+                }
+              </select>
+              @if (selectedGranjaId && lotesOpciones.length === 0) {
+                <small class="text-muted">
+                  No hay lotes asociados a ventas registradas para los filtros actuales.
+                </small>
+              }
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    }
 
-    <div *ngIf="error" class="mpp-alert mpp-alert--error">{{ error }}</div>
+    @if (error) {
+      <div class="mpp-alert mpp-alert--error">{{ error }}</div>
+    }
 
-    <section class="ux-card mpp-card mpp-card--registros" *ngIf="selectedGranjaId">
-      <div class="ux-card__header">
-        <h2>Registros de Venta de Pollo Engorde</h2>
-        <p class="mpp-card__subtitle" *ngIf="selectedGranjaId">
-          Vista por granja: incluye movimientos de todos los galpones de la granja. Las ventas con el mismo <strong>número de despacho</strong> y fecha se muestran en una sola fila (varios lotes en un viaje).
-        </p>
-      </div>
-      <div class="ux-card__filters">
-        <div class="filters-row">
-          <div class="filter-group">
-            <label for="filtroBusqueda">Buscar</label>
-            <input
-              type="text"
-              id="filtroBusqueda"
-              [(ngModel)]="filtroBusqueda"
-              (ngModelChange)="onFiltroChange()"
-              placeholder="Número, despacho, tipo, origen, destino..."
-              class="filter-input input-italfoods"
-            />
-          </div>
-          <div class="filter-group">
-            <label for="filtroTipoMovimiento">Tipo</label>
-            <select
-              id="filtroTipoMovimiento"
-              [(ngModel)]="filtroTipoMovimiento"
-              (ngModelChange)="onFiltroChange()"
-              class="filter-select input-italfoods">
-              <option value="">Todos</option>
-              <option value="Traslado">Traslado</option>
-              <option value="Ajuste">Ajuste</option>
-              <option value="Liquidacion">Liquidación</option>
-              <option value="Venta">Venta</option>
-              <option value="Retiro">Retiro</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label for="filtroEstado">Estado</label>
-            <select
-              id="filtroEstado"
-              [(ngModel)]="filtroEstado"
-              (ngModelChange)="onFiltroChange()"
-              class="filter-select input-italfoods">
-              <option value="">Todos</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Completado">Completado</option>
-              <option value="Cancelado">Cancelado</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <button
-              type="button"
-              class="btn-italfoods-secondary"
-              (click)="limpiarFiltros()"
-              [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
-              Limpiar
-            </button>
-          </div>
+    @if (selectedGranjaId) {
+      <section class="ux-card mpp-card mpp-card--registros">
+        <div class="ux-card__header">
+          <h2>Registros de Venta de Pollo Engorde</h2>
+          @if (selectedGranjaId) {
+            <p class="mpp-card__subtitle">
+              Vista por granja: incluye movimientos de todos los galpones de la granja. Las ventas con el mismo <strong>número de despacho</strong> y fecha se muestran en una sola fila (varios lotes en un viaje).
+            </p>
+          }
         </div>
-      </div>
-      <div class="ux-card__body mpp-card__body--table">
-        <div *ngIf="loading" class="loading-state">
-          <p>Cargando movimientos...</p>
-        </div>
-        <div *ngIf="!loading" class="mpp-table-wrap">
-          <div class="mpp-scroll">
-            <table class="ux-table mpp-table">
-              <thead>
-                <tr>
-                  <th class="mpp-th-expand"></th>
-                  <th>Número / Despacho</th>
-                  <th>Fecha</th>
-                  <th>Tipo</th>
-                  <th>Origen</th>
-                  <th>Destino</th>
-                  <th>Total Aves</th>
-                  <th>Hembras</th>
-                  <th>Machos</th>
-                  <th>Mixtas</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngIf="movimientos.length === 0">
-                  <td colspan="12" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">🐔</div>
-                    <p>No hay registros de movimientos para los filtros seleccionados.</p>
-                    <button type="button" class="btn-italfoods-secondary" (click)="create()">Crear el primero</button>
-                  </td>
-                </tr>
-                <tr *ngIf="movimientos.length > 0 && filteredMovimientos.length === 0">
-                  <td colspan="12" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">🔍</div>
-                    <p>No se encontraron registros con los filtros aplicados.</p>
-                    <button type="button" class="btn-italfoods-secondary" (click)="limpiarFiltros()">Limpiar filtros</button>
-                  </td>
-                </tr>
-                <ng-container *ngFor="let fila of filasTabla; trackBy: trackByFila">
-                  <!-- Fila agrupada: mismo número de despacho, varios lotes -->
-                  <ng-container *ngIf="fila.kind === 'despacho-grupo'">
-                    <tr class="ux-row mpp-row--despacho-grupo">
-                      <td class="mpp-td-expand">
-                        <button
-                          type="button"
-                          class="mpp-expand-btn"
-                          (click)="toggleExpandDespacho(fila.clave)"
-                          [attr.aria-expanded]="isDespachoExpanded(fila.clave)"
-                          [title]="isDespachoExpanded(fila.clave) ? 'Ocultar lotes' : 'Ver lotes del despacho'">
-                          {{ isDespachoExpanded(fila.clave) ? '▼' : '▶' }}
-                        </button>
-                      </td>
-                      <td>
-                        <div class="mpp-despacho-title">
-                          <strong>{{ fila.numeroDespacho }}</strong>
-                          <span class="mpp-despacho-badge">{{ fila.movimientos.length }} lotes</span>
-                        </div>
-                        <small class="text-muted">Venta · mismo viaje</small>
-                      </td>
-                      <td>{{ fechaCorta(fila.fechaMovimiento) }}</td>
-                      <td><span class="badge badge--info">Venta</span></td>
-                      <td>
-                        <div>{{ fila.movimientos[0]?.granjaOrigenNombre || '—' }}</div>
-                        <small class="text-muted">Varios lotes / galpones</small>
-                      </td>
-                      <td>—</td>
-                      <td class="number-cell"><strong>{{ formatearNumero(totalAvesGrupo(fila.movimientos)) }}</strong></td>
-                      <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadHembras')) }}</td>
-                      <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadMachos')) }}</td>
-                      <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadMixtas')) }}</td>
-                      <td>
-                        <span
-                          class="badge"
-                          [class.badge--success]="estadoGrupoDespacho(fila.movimientos) === 'Completado'"
-                          [class.badge--warning]="estadoGrupoDespacho(fila.movimientos) === 'Pendiente'"
-                          [class.badge--danger]="estadoGrupoDespacho(fila.movimientos) === 'Cancelado'"
-                          [class.badge--partial]="estadoGrupoDespacho(fila.movimientos) === 'Parcial'">
-                          {{ estadoGrupoDespacho(fila.movimientos) }}
-                        </span>
-                      </td>
-                      <td class="text-right">
-                        <div class="btn-group btn-group--despacho">
-                          <ng-container *appHasPermission="'confirmar_despacho'">
-                            <button
-                              type="button"
-                              class="action-btn action-btn--success"
-                              title="Completar despacho: desconta en cada lote"
-                              (click)="completarGrupoDespacho(fila)"
-                              [disabled]="!puedeCompletarGrupo(fila.movimientos)">
-                              <span class="action-icon">✓</span>
-                              <span class="action-label">Completar despacho</span>
-                            </button>
-                          </ng-container>
-                          <ng-container *appHasPermission="'eliminar_registro'">
-                            <button
-                              type="button"
-                              class="action-btn action-btn--delete"
-                              title="Eliminar todos los movimientos del despacho (si estaban completados, el inventario se revierte en cada lote)"
-                              (click)="cancelarGrupoDespacho(fila)"
-                              [disabled]="!puedeCancelarGrupo(fila.movimientos)">
-                              <span class="action-icon">🗑</span>
-                              <span class="action-label">Eliminar despacho</span>
-                            </button>
-                          </ng-container>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr *ngIf="isDespachoExpanded(fila.clave)" class="mpp-row--despacho-detail">
-                      <td colspan="12">
-                        <div class="mpp-despacho-detail">
-                          <p class="mpp-despacho-detail__hint">Salidas por lote (cada fila es un registro en sistema; al completar se aplica a cada lote).</p>
-                          <table class="mpp-subtable">
-                            <thead>
-                              <tr>
-                                <th>Movimiento</th>
-                                <th>Lote origen</th>
-                                <th class="num">Total</th>
-                                <th class="num">H</th>
-                                <th class="num">M</th>
-                                <th class="num">X</th>
-                                <th>Estado</th>
-                                <th class="text-right">Acciones</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr *ngFor="let m of fila.movimientos; trackBy: trackById">
-                                <td><small>{{ m.numeroMovimiento }}</small></td>
-                                <td>{{ m.loteOrigenNombre || '—' }}</td>
-                                <td class="num">{{ formatearNumero(m.totalAves) }}<span *ngIf="(m.avesSobrante ?? 0) > 0" class="badge badge--warn" title="Aves vendidas por encima del disponible (sobrante)">+{{ m.avesSobrante }} sobrante</span></td>
-                                <td class="num">{{ formatearNumero(m.cantidadHembras) }}</td>
-                                <td class="num">{{ formatearNumero(m.cantidadMachos) }}</td>
-                                <td class="num">{{ formatearNumero(m.cantidadMixtas) }}</td>
-                                <td>
-                                  <span
-                                    class="badge"
-                                    [class.badge--success]="m.estado === 'Completado'"
-                                    [class.badge--warning]="m.estado === 'Pendiente'"
-                                    [class.badge--danger]="m.estado === 'Cancelado'">
-                                    {{ m.estado }}
-                                  </span>
-                                </td>
-                                <td class="text-right">
-                                  <div class="btn-group">
-                                    <button type="button" (click)="viewDetail(m)" class="action-btn action-btn--view" title="Ver">
-                                      <span class="action-icon">👁</span>
-                                    </button>
-                                    <ng-container *appHasPermission="'editar_registro'">
-                                      <button
-                                        type="button"
-                                        (click)="editMovimiento(m)"
-                                        class="action-btn action-btn--edit"
-                                        [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">
-                                        <span class="action-icon">✎</span>
-                                      </button>
-                                    </ng-container>
-                                    <ng-container *appHasPermission="'confirmar_despacho'">
-                                      <button
-                                        type="button"
-                                        (click)="completarMovimiento(m)"
-                                        class="action-btn action-btn--success"
-                                        [disabled]="m.estado !== 'Pendiente'">
-                                        <span class="action-icon">✓</span>
-                                      </button>
-                                    </ng-container>
-                                    <ng-container *appHasPermission="'eliminar_registro'">
-                                      <button
-                                        type="button"
-                                        (click)="deleteMovimiento(m)"
-                                        class="action-btn action-btn--delete"
-                                        [disabled]="m.estado === 'Cancelado'">
-                                        <span class="action-icon">🗑</span>
-                                      </button>
-                                    </ng-container>
-                                  </div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </td>
-                    </tr>
-                  </ng-container>
-                  <!-- Movimiento suelto (no agrupado o un solo lote con despacho) -->
-                  <tr *ngIf="fila.kind === 'simple'" class="ux-row">
-                    <td class="mpp-td-expand"></td>
-                    <td><strong>{{ fila.movimiento.numeroMovimiento }}</strong></td>
-                    <td>{{ fechaCorta(fila.movimiento.fechaMovimiento) }}</td>
-                    <td><span class="badge badge--info">{{ fila.movimiento.tipoMovimiento }}</span></td>
-                    <td>
-                      <div *ngIf="fila.movimiento.granjaOrigenNombre || fila.movimiento.loteOrigenNombre">
-                        <div>{{ fila.movimiento.granjaOrigenNombre || '—' }}</div>
-                        <small class="text-muted" *ngIf="fila.movimiento.loteOrigenNombre">Lote: {{ fila.movimiento.loteOrigenNombre }}</small>
-                      </div>
-                      <div *ngIf="!fila.movimiento.granjaOrigenNombre && !fila.movimiento.loteOrigenNombre">—</div>
-                    </td>
-                    <td>
-                      <div *ngIf="fila.movimiento.granjaDestinoNombre || fila.movimiento.loteDestinoNombre">
-                        <div>{{ fila.movimiento.granjaDestinoNombre || fila.movimiento.loteDestinoNombre || '—' }}</div>
-                        <small class="text-muted" *ngIf="fila.movimiento.loteDestinoNombre && fila.movimiento.granjaDestinoNombre">Lote: {{ fila.movimiento.loteDestinoNombre }}</small>
-                      </div>
-                      <div *ngIf="!fila.movimiento.granjaDestinoNombre && !fila.movimiento.loteDestinoNombre">—</div>
-                    </td>
-                    <td class="number-cell"><strong>{{ formatearNumero(fila.movimiento.totalAves) }}</strong><span *ngIf="(fila.movimiento.avesSobrante ?? 0) > 0" class="badge badge--warn" title="Aves vendidas por encima del disponible (sobrante)">+{{ fila.movimiento.avesSobrante }} sobrante</span></td>
-                    <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadHembras) }}</td>
-                    <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadMachos) }}</td>
-                    <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadMixtas) }}</td>
-                    <td>
-                      <span
-                        class="badge"
-                        [class.badge--success]="fila.movimiento.estado === 'Completado'"
-                        [class.badge--warning]="fila.movimiento.estado === 'Pendiente'"
-                        [class.badge--danger]="fila.movimiento.estado === 'Cancelado'">
-                        {{ fila.movimiento.estado }}
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <div class="btn-group">
-                        <button type="button" (click)="viewDetail(fila.movimiento)" class="action-btn action-btn--view" title="Ver detalle">
-                          <span class="action-icon">👁</span>
-                          <span class="action-label">Ver</span>
-                        </button>
-                        <ng-container *appHasPermission="'editar_registro'">
-                          <button
-                            type="button"
-                            (click)="editMovimiento(fila.movimiento)"
-                            class="action-btn action-btn--edit"
-                            title="Editar"
-                            [disabled]="fila.movimiento.estado === 'Completado' || fila.movimiento.estado === 'Cancelado'">
-                            <span class="action-icon">✎</span>
-                            <span class="action-label">Editar</span>
-                          </button>
-                        </ng-container>
-                        <ng-container *appHasPermission="'confirmar_despacho'">
-                          <button
-                            type="button"
-                            (click)="completarMovimiento(fila.movimiento)"
-                            class="action-btn action-btn--success"
-                            title="Completar (descontar aves del lote)"
-                            [disabled]="fila.movimiento.estado !== 'Pendiente'">
-                            <span class="action-icon">✓</span>
-                            <span class="action-label">Completar</span>
-                          </button>
-                        </ng-container>
-                        <ng-container *appHasPermission="'eliminar_registro'">
-                          <button
-                            type="button"
-                            (click)="deleteMovimiento(fila.movimiento)"
-                            class="action-btn action-btn--delete"
-                            title="Eliminar movimiento (si estaba completado, las aves vuelven al inventario del lote)">
-                            <span class="action-icon">🗑</span>
-                            <span class="action-label">Eliminar</span>
-                          </button>
-                        </ng-container>
-                      </div>
-                    </td>
-                  </tr>
-                </ng-container>
-              </tbody>
-            </table>
+        <div class="ux-card__filters">
+          <div class="filters-row">
+            <div class="filter-group">
+              <label for="filtroBusqueda">Buscar</label>
+              <input
+                type="text"
+                id="filtroBusqueda"
+                [(ngModel)]="filtroBusqueda"
+                (ngModelChange)="onFiltroChange()"
+                placeholder="Número, despacho, tipo, origen, destino..."
+                class="filter-input input-italfoods"
+                />
+              </div>
+              <div class="filter-group">
+                <label for="filtroTipoMovimiento">Tipo</label>
+                <select
+                  id="filtroTipoMovimiento"
+                  [(ngModel)]="filtroTipoMovimiento"
+                  (ngModelChange)="onFiltroChange()"
+                  class="filter-select input-italfoods">
+                  <option value="">Todos</option>
+                  <option value="Traslado">Traslado</option>
+                  <option value="Ajuste">Ajuste</option>
+                  <option value="Liquidacion">Liquidación</option>
+                  <option value="Venta">Venta</option>
+                  <option value="Retiro">Retiro</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label for="filtroEstado">Estado</label>
+                <select
+                  id="filtroEstado"
+                  [(ngModel)]="filtroEstado"
+                  (ngModelChange)="onFiltroChange()"
+                  class="filter-select input-italfoods">
+                  <option value="">Todos</option>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Completado">Completado</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <button
+                  type="button"
+                  class="btn-italfoods-secondary"
+                  (click)="limpiarFiltros()"
+                  [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
+                  Limpiar
+                </button>
+              </div>
+            </div>
           </div>
+          <div class="ux-card__body mpp-card__body--table">
+            @if (loading) {
+              <div class="loading-state">
+                <p>Cargando movimientos...</p>
+              </div>
+            }
+            @if (!loading) {
+              <div class="mpp-table-wrap">
+                <div class="mpp-scroll">
+                  <table class="ux-table mpp-table">
+                    <thead>
+                      <tr>
+                        <th class="mpp-th-expand"></th>
+                        <th>Número / Despacho</th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Origen</th>
+                        <th>Destino</th>
+                        <th>Total Aves</th>
+                        <th>Hembras</th>
+                        <th>Machos</th>
+                        <th>Mixtas</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @if (movimientos.length === 0) {
+                        <tr>
+                          <td colspan="12" class="empty-state">
+                            <div class="empty-illustration" aria-hidden="true">🐔</div>
+                            <p>No hay registros de movimientos para los filtros seleccionados.</p>
+                            <button type="button" class="btn-italfoods-secondary" (click)="create()">Crear el primero</button>
+                          </td>
+                        </tr>
+                      }
+                      @if (movimientos.length > 0 && filteredMovimientos.length === 0) {
+                        <tr>
+                          <td colspan="12" class="empty-state">
+                            <div class="empty-illustration" aria-hidden="true">🔍</div>
+                            <p>No se encontraron registros con los filtros aplicados.</p>
+                            <button type="button" class="btn-italfoods-secondary" (click)="limpiarFiltros()">Limpiar filtros</button>
+                          </td>
+                        </tr>
+                      }
+                      @for (fila of filasTabla; track trackByFila($index, fila)) {
+                        <!-- Fila agrupada: mismo número de despacho, varios lotes -->
+                        @if (fila.kind === 'despacho-grupo') {
+                          <tr class="ux-row mpp-row--despacho-grupo">
+                            <td class="mpp-td-expand">
+                              <button
+                                type="button"
+                                class="mpp-expand-btn"
+                                (click)="toggleExpandDespacho(fila.clave)"
+                                [attr.aria-expanded]="isDespachoExpanded(fila.clave)"
+                                [title]="isDespachoExpanded(fila.clave) ? 'Ocultar lotes' : 'Ver lotes del despacho'">
+                                {{ isDespachoExpanded(fila.clave) ? '▼' : '▶' }}
+                              </button>
+                            </td>
+                            <td>
+                              <div class="mpp-despacho-title">
+                                <strong>{{ fila.numeroDespacho }}</strong>
+                                <span class="mpp-despacho-badge">{{ fila.movimientos.length }} lotes</span>
+                              </div>
+                              <small class="text-muted">Venta · mismo viaje</small>
+                            </td>
+                            <td>{{ fechaCorta(fila.fechaMovimiento) }}</td>
+                            <td><span class="badge badge--info">Venta</span></td>
+                            <td>
+                              <div>{{ fila.movimientos[0]?.granjaOrigenNombre || '—' }}</div>
+                              <small class="text-muted">Varios lotes / galpones</small>
+                            </td>
+                            <td>—</td>
+                            <td class="number-cell"><strong>{{ formatearNumero(totalAvesGrupo(fila.movimientos)) }}</strong></td>
+                            <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadHembras')) }}</td>
+                            <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadMachos')) }}</td>
+                            <td class="number-cell">{{ formatearNumero(sumCantidadGrupo(fila.movimientos, 'cantidadMixtas')) }}</td>
+                            <td>
+                              <span
+                                class="badge"
+                                [class.badge--success]="estadoGrupoDespacho(fila.movimientos) === 'Completado'"
+                                [class.badge--warning]="estadoGrupoDespacho(fila.movimientos) === 'Pendiente'"
+                                [class.badge--danger]="estadoGrupoDespacho(fila.movimientos) === 'Cancelado'"
+                                [class.badge--partial]="estadoGrupoDespacho(fila.movimientos) === 'Parcial'">
+                                {{ estadoGrupoDespacho(fila.movimientos) }}
+                              </span>
+                            </td>
+                            <td class="text-right">
+                              <div class="btn-group btn-group--despacho">
+                                <ng-container *appHasPermission="'confirmar_despacho'">
+                                  <button
+                                    type="button"
+                                    class="action-btn action-btn--success"
+                                    title="Completar despacho: desconta en cada lote"
+                                    (click)="completarGrupoDespacho(fila)"
+                                    [disabled]="!puedeCompletarGrupo(fila.movimientos)">
+                                    <span class="action-icon">✓</span>
+                                    <span class="action-label">Completar despacho</span>
+                                  </button>
+                                </ng-container>
+                                <ng-container *appHasPermission="'eliminar_registro'">
+                                  <button
+                                    type="button"
+                                    class="action-btn action-btn--delete"
+                                    title="Eliminar todos los movimientos del despacho (si estaban completados, el inventario se revierte en cada lote)"
+                                    (click)="cancelarGrupoDespacho(fila)"
+                                    [disabled]="!puedeCancelarGrupo(fila.movimientos)">
+                                    <span class="action-icon">🗑</span>
+                                    <span class="action-label">Eliminar despacho</span>
+                                  </button>
+                                </ng-container>
+                              </div>
+                            </td>
+                          </tr>
+                          @if (isDespachoExpanded(fila.clave)) {
+                            <tr class="mpp-row--despacho-detail">
+                              <td colspan="12">
+                                <div class="mpp-despacho-detail">
+                                  <p class="mpp-despacho-detail__hint">Salidas por lote (cada fila es un registro en sistema; al completar se aplica a cada lote).</p>
+                                  <table class="mpp-subtable">
+                                    <thead>
+                                      <tr>
+                                        <th>Movimiento</th>
+                                        <th>Lote origen</th>
+                                        <th class="num">Total</th>
+                                        <th class="num">H</th>
+                                        <th class="num">M</th>
+                                        <th class="num">X</th>
+                                        <th>Estado</th>
+                                        <th class="text-right">Acciones</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      @for (m of fila.movimientos; track trackById($index, m)) {
+                                        <tr>
+                                          <td><small>{{ m.numeroMovimiento }}</small></td>
+                                          <td>{{ m.loteOrigenNombre || '—' }}</td>
+                                          <td class="num">{{ formatearNumero(m.totalAves) }}@if ((m.avesSobrante ?? 0) > 0) {
+                                            <span class="badge badge--warn" title="Aves vendidas por encima del disponible (sobrante)">+{{ m.avesSobrante }} sobrante</span>
+                                          }</td>
+                                          <td class="num">{{ formatearNumero(m.cantidadHembras) }}</td>
+                                          <td class="num">{{ formatearNumero(m.cantidadMachos) }}</td>
+                                          <td class="num">{{ formatearNumero(m.cantidadMixtas) }}</td>
+                                          <td>
+                                            <span
+                                              class="badge"
+                                              [class.badge--success]="m.estado === 'Completado'"
+                                              [class.badge--warning]="m.estado === 'Pendiente'"
+                                              [class.badge--danger]="m.estado === 'Cancelado'">
+                                              {{ m.estado }}
+                                            </span>
+                                          </td>
+                                          <td class="text-right">
+                                            <div class="btn-group">
+                                              <button type="button" (click)="viewDetail(m)" class="action-btn action-btn--view" title="Ver">
+                                                <span class="action-icon">👁</span>
+                                              </button>
+                                              <ng-container *appHasPermission="'editar_registro'">
+                                                <button
+                                                  type="button"
+                                                  (click)="editMovimiento(m)"
+                                                  class="action-btn action-btn--edit"
+                                                  [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">
+                                                  <span class="action-icon">✎</span>
+                                                </button>
+                                              </ng-container>
+                                              <ng-container *appHasPermission="'confirmar_despacho'">
+                                                <button
+                                                  type="button"
+                                                  (click)="completarMovimiento(m)"
+                                                  class="action-btn action-btn--success"
+                                                  [disabled]="m.estado !== 'Pendiente'">
+                                                  <span class="action-icon">✓</span>
+                                                </button>
+                                              </ng-container>
+                                              <ng-container *appHasPermission="'eliminar_registro'">
+                                                <button
+                                                  type="button"
+                                                  (click)="deleteMovimiento(m)"
+                                                  class="action-btn action-btn--delete"
+                                                  [disabled]="m.estado === 'Cancelado'">
+                                                  <span class="action-icon">🗑</span>
+                                                </button>
+                                              </ng-container>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      }
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          }
+                        }
+                        <!-- Movimiento suelto (no agrupado o un solo lote con despacho) -->
+                        @if (fila.kind === 'simple') {
+                          <tr class="ux-row">
+                            <td class="mpp-td-expand"></td>
+                            <td><strong>{{ fila.movimiento.numeroMovimiento }}</strong></td>
+                            <td>{{ fechaCorta(fila.movimiento.fechaMovimiento) }}</td>
+                            <td><span class="badge badge--info">{{ fila.movimiento.tipoMovimiento }}</span></td>
+                            <td>
+                              @if (fila.movimiento.granjaOrigenNombre || fila.movimiento.loteOrigenNombre) {
+                                <div>
+                                  <div>{{ fila.movimiento.granjaOrigenNombre || '—' }}</div>
+                                  @if (fila.movimiento.loteOrigenNombre) {
+                                    <small class="text-muted">Lote: {{ fila.movimiento.loteOrigenNombre }}</small>
+                                  }
+                                </div>
+                              }
+                              @if (!fila.movimiento.granjaOrigenNombre && !fila.movimiento.loteOrigenNombre) {
+                                <div>—</div>
+                              }
+                            </td>
+                            <td>
+                              @if (fila.movimiento.granjaDestinoNombre || fila.movimiento.loteDestinoNombre) {
+                                <div>
+                                  <div>{{ fila.movimiento.granjaDestinoNombre || fila.movimiento.loteDestinoNombre || '—' }}</div>
+                                  @if (fila.movimiento.loteDestinoNombre && fila.movimiento.granjaDestinoNombre) {
+                                    <small class="text-muted">Lote: {{ fila.movimiento.loteDestinoNombre }}</small>
+                                  }
+                                </div>
+                              }
+                              @if (!fila.movimiento.granjaDestinoNombre && !fila.movimiento.loteDestinoNombre) {
+                                <div>—</div>
+                              }
+                            </td>
+                            <td class="number-cell"><strong>{{ formatearNumero(fila.movimiento.totalAves) }}</strong>@if ((fila.movimiento.avesSobrante ?? 0) > 0) {
+                            <span class="badge badge--warn" title="Aves vendidas por encima del disponible (sobrante)">+{{ fila.movimiento.avesSobrante }} sobrante</span>
+                          }</td>
+                          <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadHembras) }}</td>
+                          <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadMachos) }}</td>
+                          <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadMixtas) }}</td>
+                          <td>
+                            <span
+                              class="badge"
+                              [class.badge--success]="fila.movimiento.estado === 'Completado'"
+                              [class.badge--warning]="fila.movimiento.estado === 'Pendiente'"
+                              [class.badge--danger]="fila.movimiento.estado === 'Cancelado'">
+                              {{ fila.movimiento.estado }}
+                            </span>
+                          </td>
+                          <td class="text-right">
+                            <div class="btn-group">
+                              <button type="button" (click)="viewDetail(fila.movimiento)" class="action-btn action-btn--view" title="Ver detalle">
+                                <span class="action-icon">👁</span>
+                                <span class="action-label">Ver</span>
+                              </button>
+                              <ng-container *appHasPermission="'editar_registro'">
+                                <button
+                                  type="button"
+                                  (click)="editMovimiento(fila.movimiento)"
+                                  class="action-btn action-btn--edit"
+                                  title="Editar"
+                                  [disabled]="fila.movimiento.estado === 'Completado' || fila.movimiento.estado === 'Cancelado'">
+                                  <span class="action-icon">✎</span>
+                                  <span class="action-label">Editar</span>
+                                </button>
+                              </ng-container>
+                              <ng-container *appHasPermission="'confirmar_despacho'">
+                                <button
+                                  type="button"
+                                  (click)="completarMovimiento(fila.movimiento)"
+                                  class="action-btn action-btn--success"
+                                  title="Completar (descontar aves del lote)"
+                                  [disabled]="fila.movimiento.estado !== 'Pendiente'">
+                                  <span class="action-icon">✓</span>
+                                  <span class="action-label">Completar</span>
+                                </button>
+                              </ng-container>
+                              <ng-container *appHasPermission="'eliminar_registro'">
+                                <button
+                                  type="button"
+                                  (click)="deleteMovimiento(fila.movimiento)"
+                                  class="action-btn action-btn--delete"
+                                  title="Eliminar movimiento (si estaba completado, las aves vuelven al inventario del lote)">
+                                  <span class="action-icon">🗑</span>
+                                  <span class="action-label">Eliminar</span>
+                                </button>
+                              </ng-container>
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
         </div>
-      </div>
-    </section>
+      </section>
+    }
   </div>
 </div>
 

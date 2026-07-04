@@ -1,0 +1,246 @@
+@if (isOpen) {
+  <div class="ux-modal detalle-engorde__backdrop" role="dialog" aria-modal="true" aria-labelledby="detalle-engorde-modal-title" (click)="onBackdropClick($event)">
+    <div class="ux-modal__dialog ux-modal__dialog--large detalle-engorde__dialog" (click)="$event.stopPropagation()">
+      <header class="ux-modal__header detalle-engorde__header">
+        <h2 id="detalle-engorde-modal-title">Detalle del seguimiento diario (pollo engorde)</h2>
+        <button type="button" class="detalle-engorde__close" (click)="onClose()" aria-label="Cerrar modal" title="Cerrar">
+          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+        </button>
+      </header>
+      @if (loading) {
+        <div class="ux-modal__content ux-modal__content--detail">
+          <div class="detail-loading">
+            <div class="spinner"></div>
+            <p>Cargando detalles...</p>
+          </div>
+        </div>
+      }
+      @if (!loading && seguimiento) {
+        <div class="ux-modal__content ux-modal__content--detail">
+          <div class="detail-form">
+            <!-- Información general -->
+            <section class="detail-section">
+              <h3 class="detail-section__title">Información general</h3>
+              <div class="detail-fields">
+                <div class="detail-field">
+                  <label class="detail-label">Fecha de registro</label>
+                  <input type="text" class="detail-input" [value]="formatDate(seguimiento.fechaRegistro)" readonly disabled>
+                </div>
+                <div class="detail-field">
+                  <label class="detail-label">Ciclo</label>
+                  <input type="text" class="detail-input" [value]="seguimiento.ciclo || 'Normal'" readonly disabled>
+                </div>
+                @if (seguimiento.observaciones) {
+                  <div class="detail-field detail-field--full">
+                    <label class="detail-label">Observaciones</label>
+                    <input type="text" class="detail-input" [value]="seguimiento.observaciones" readonly disabled>
+                  </div>
+                }
+              </div>
+            </section>
+            <!-- Alimentos registrados -->
+            @if (items.length > 0) {
+              <section class="detail-section">
+                <h3 class="detail-section__title">Alimentos registrados</h3>
+                <div class="detail-table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>Tipo</th>
+                        <th>Alimento / Ítem</th>
+                        <th>Cantidad</th>
+                        <th>Unidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (item of items; track item) {
+                        <tr>
+                          <td><span class="detail-badge">{{ item.tipoItem }}</span></td>
+                          <td>{{ getItemDisplay(item.catalogItemId) }}</td>
+                          <td>{{ formatNum(item.cantidad) }}</td>
+                          <td>{{ item.unidad }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            }
+            <!-- Mortalidad y selección -->
+            @if (!sinMortalidad) {
+              <section class="detail-section">
+                <h3 class="detail-section__title">Mortalidad y selección</h3>
+                <div class="detail-fields">
+                  <!-- Panamá: columna Mixto única (H+M guardados en campos H) -->
+                  @if (isPanama) {
+                    @if (hasValue((seguimiento.mortalidadHembras ?? 0) + (seguimiento.mortalidadMachos ?? 0))) {
+                      <div class="detail-field">
+                        <label class="detail-label">Mortalidad mixto</label>
+                        <input type="text" class="detail-input" [value]="(seguimiento.mortalidadHembras ?? 0) + (seguimiento.mortalidadMachos ?? 0)" readonly disabled>
+                      </div>
+                    }
+                    @if (hasValue((seguimiento.selH ?? 0) + (seguimiento.selM ?? 0))) {
+                      <div class="detail-field">
+                        <label class="detail-label">Selección mixto</label>
+                        <input type="text" class="detail-input" [value]="(seguimiento.selH ?? 0) + (seguimiento.selM ?? 0)" readonly disabled>
+                      </div>
+                    }
+                    @if (hasValue((seguimiento.errorSexajeHembras ?? 0) + (seguimiento.errorSexajeMachos ?? 0))) {
+                      <div class="detail-field">
+                        <label class="detail-label">Error sexaje mixto</label>
+                        <input type="text" class="detail-input" [value]="(seguimiento.errorSexajeHembras ?? 0) + (seguimiento.errorSexajeMachos ?? 0)" readonly disabled>
+                      </div>
+                    }
+                  }
+                  <!-- No-Panamá: Hembras y Machos separados -->
+                  @if (!isPanama) {
+                    @if (hasValue(seguimiento.mortalidadHembras)) {
+                      <div class="detail-field">
+                        <label class="detail-label">Mortalidad hembras</label>
+                        <input type="text" class="detail-input" [value]="seguimiento.mortalidadHembras" readonly disabled>
+                      </div>
+                    }
+                    @if (hasValue(seguimiento.mortalidadMachos)) {
+                      <div class="detail-field">
+                        <label class="detail-label">Mortalidad machos</label>
+                        <input type="text" class="detail-input" [value]="seguimiento.mortalidadMachos" readonly disabled>
+                      </div>
+                    }
+                    @if (hasValue(seguimiento.selH)) {
+                      <div class="detail-field">
+                        <label class="detail-label">Selección hembras</label>
+                        <input type="text" class="detail-input" [value]="seguimiento.selH" readonly disabled>
+                      </div>
+                    }
+                    @if (hasValue(seguimiento.selM)) {
+                      <div class="detail-field">
+                        <label class="detail-label">Selección machos</label>
+                        <input type="text" class="detail-input" [value]="seguimiento.selM" readonly disabled>
+                      </div>
+                    }
+                    @if (hasValue(seguimiento.errorSexajeHembras)) {
+                      <div class="detail-field">
+                        <label class="detail-label">Error sexaje hembras</label>
+                        <input type="text" class="detail-input" [value]="seguimiento.errorSexajeHembras" readonly disabled>
+                      </div>
+                    }
+                    @if (hasValue(seguimiento.errorSexajeMachos)) {
+                      <div class="detail-field">
+                        <label class="detail-label">Error sexaje machos</label>
+                        <input type="text" class="detail-input" [value]="seguimiento.errorSexajeMachos" readonly disabled>
+                      </div>
+                    }
+                  }
+                </div>
+              </section>
+            }
+            <!-- Peso y uniformidad -->
+            @if (!sinPeso) {
+              <section class="detail-section">
+                <h3 class="detail-section__title">Peso y uniformidad</h3>
+                <div class="detail-fields">
+                  <!-- Panamá: columna Mixto única -->
+                  @if (isPanama) {
+                    @if (seguimiento.pesoPromH != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">Peso prom. mixto (kg)</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromH) + ' kg'" readonly disabled>
+                      </div>
+                    }
+                    @if (seguimiento.uniformidadH != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">Uniformidad mixto (%)</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadH) + '%'" readonly disabled>
+                      </div>
+                    }
+                    @if (seguimiento.cvH != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">CV mixto</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvH)" readonly disabled>
+                      </div>
+                    }
+                  }
+                  <!-- No-Panamá: Hembras y Machos separados -->
+                  @if (!isPanama) {
+                    @if (seguimiento.pesoPromH != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">Peso prom. hembras (kg)</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromH) + ' kg'" readonly disabled>
+                      </div>
+                    }
+                    @if (seguimiento.uniformidadH != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">Uniformidad H (%)</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadH) + '%'" readonly disabled>
+                      </div>
+                    }
+                    @if (seguimiento.cvH != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">CV hembras</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvH)" readonly disabled>
+                      </div>
+                    }
+                    @if (seguimiento.pesoPromM != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">Peso prom. machos (kg)</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromM) + ' kg'" readonly disabled>
+                      </div>
+                    }
+                    @if (seguimiento.uniformidadM != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">Uniformidad M (%)</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadM) + '%'" readonly disabled>
+                      </div>
+                    }
+                    @if (seguimiento.cvM != null) {
+                      <div class="detail-field">
+                        <label class="detail-label">CV machos</label>
+                        <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvM)" readonly disabled>
+                      </div>
+                    }
+                  }
+                </div>
+              </section>
+            }
+            <!-- Agua (Ecuador / Panamá) -->
+            <section class="detail-section" *appShowIfEcuadorPanama>
+              <h3 class="detail-section__title">Información de agua</h3>
+              <div class="detail-fields">
+                @if (seguimiento.consumoAguaDiario) {
+                  <div class="detail-field">
+                    <label class="detail-label">Consumo diario (litros)</label>
+                    <input type="text" class="detail-input" [value]="formatNum(seguimiento.consumoAguaDiario) + ' L'" readonly disabled>
+                  </div>
+                }
+                @if (seguimiento.consumoAguaPh) {
+                  <div class="detail-field">
+                    <label class="detail-label">PH del agua</label>
+                    <input type="text" class="detail-input" [value]="formatNum(seguimiento.consumoAguaPh)" readonly disabled>
+                  </div>
+                }
+                @if (seguimiento.consumoAguaOrp) {
+                  <div class="detail-field">
+                    <label class="detail-label">ORP (mV)</label>
+                    <input type="text" class="detail-input" [value]="formatNum(seguimiento.consumoAguaOrp) + ' mV'" readonly disabled>
+                  </div>
+                }
+                @if (seguimiento.consumoAguaTemperatura) {
+                  <div class="detail-field">
+                    <label class="detail-label">Temperatura (°C)</label>
+                    <input type="text" class="detail-input" [value]="formatNum(seguimiento.consumoAguaTemperatura) + ' °C'" readonly disabled>
+                  </div>
+                }
+              </div>
+            </section>
+          </div>
+        </div>
+      }
+      <footer class="ux-modal__footer detalle-engorde__footer">
+        <button type="button" class="detalle-engorde__btn-close" (click)="onClose()">
+          <fa-icon [icon]="faXmark" aria-hidden="true"></fa-icon>
+          <span>Cerrar</span>
+        </button>
+      </footer>
+    </div>
+  </div>
+}

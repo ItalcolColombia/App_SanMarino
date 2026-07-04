@@ -5,55 +5,56 @@
         <h1>Seguimiento Diario de Producción</h1>
 
         <div class="ux-header__meta">
-          <ng-template #noGranjaChip>
+
+          @if (selectedGranjaId) {
+            <span class="chip chip--info">
+              <span class="chip chip--dot" aria-hidden="true"></span>
+              Granja: {{ selectedGranjaName || selectedGranjaId }}
+            </span>
+          } @else {
             <span class="chip chip--warning">
               <span class="chip__dot" aria-hidden="true"></span>
               Selecciona una granja
             </span>
-          </ng-template>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip chip--dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
-          </span>
+          @if (selectedNucleoId) {
+            <span class="chip chip--muted">
+              Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
+          @if (selectedGalponId) {
+            <span class="chip chip--muted">
+              Galpón: {{ selectedGalponNombre }}
+            </span>
+          }
 
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--info">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Lote: {{ selectedLoteNombre }}
+            </span>
+          }
 
-          <span class="chip chip--info" *ngIf="selectedLoteId">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote: {{ selectedLoteNombre }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedLoteId">
-            {{ seguimientos.length || 0 }} registro(s)
-          </span>
+          @if (selectedLoteId) {
+            <span class="chip chip--muted">
+              {{ seguimientos.length || 0 }} registro(s)
+            </span>
+          }
         </div>
       </div>
 
       <div class="ux-header__actions">
-        <button
-          type="button"
-          class="btn btn--outline"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver liquidación técnica'"
-          (click)="openLiquidacion()">
-          Liquidación técnica
-        </button>
-
-        <button
-          type="button"
-          class="btn btn--outline"
-          *ngIf="selectedLoteId && selectedLoteLPP"
-          (click)="openTrasladoAvesModal()"
-          title="Registrar traslado de aves desde este seguimiento diario">
-          Traslado de Aves
-        </button>
+        @if (selectedLoteId && selectedLoteLPP) {
+          <button
+            type="button"
+            class="btn btn--outline"
+            (click)="openTrasladoAvesModal()"
+            title="Registrar traslado de aves desde este seguimiento diario">
+            Traslado de Aves
+          </button>
+        }
 
         <button
           type="button"
@@ -81,132 +82,123 @@
     </app-filtro-select>
 
     <!-- Filtros de fecha -->
-    <section class="ux-card" *ngIf="selectedLoteId">
-      <div class="ux-card__header">
-        <h3>Filtros de Fecha</h3>
-      </div>
-      <div class="ux-card__content">
-        <div class="filter-grid">
-          <div class="form-field">
-            <label class="ux-label" for="filtro-desde">Desde</label>
-            <input
-              id="filtro-desde"
-              type="date"
-              class="ux-input"
-              [(ngModel)]="filtroDesde"
-              (change)="onFiltroFechaChange()"
-              [disabled]="!selectedLoteId">
-          </div>
-
-          <div class="form-field">
-            <label class="ux-label" for="filtro-hasta">Hasta</label>
-            <input
-              id="filtro-hasta"
-              type="date"
-              class="ux-input"
-              [(ngModel)]="filtroHasta"
-              (change)="onFiltroFechaChange()"
-              [disabled]="!selectedLoteId">
-          </div>
-
-          <div class="form-field">
-            <button
-              type="button"
-              class="btn btn--outline"
-              (click)="limpiarFiltrosFecha()"
-              [disabled]="!selectedLoteId || (!filtroDesde && !filtroHasta)">
-              Limpiar filtros
-            </button>
-          </div>
+    @if (selectedLoteId) {
+      <section class="ux-card">
+        <div class="ux-card__header">
+          <h3>Filtros de Fecha</h3>
         </div>
-      </div>
-    </section>
+        <div class="ux-card__content">
+          <div class="filter-grid">
+            <div class="form-field">
+              <label class="ux-label" for="filtro-desde">Desde</label>
+              <input
+                id="filtro-desde"
+                type="date"
+                class="ux-input"
+                [(ngModel)]="filtroDesde"
+                (change)="onFiltroFechaChange()"
+                [disabled]="!selectedLoteId">
+              </div>
+              <div class="form-field">
+                <label class="ux-label" for="filtro-hasta">Hasta</label>
+                <input
+                  id="filtro-hasta"
+                  type="date"
+                  class="ux-input"
+                  [(ngModel)]="filtroHasta"
+                  (change)="onFiltroFechaChange()"
+                  [disabled]="!selectedLoteId">
+                </div>
+                <div class="form-field">
+                  <button
+                    type="button"
+                    class="btn btn--outline"
+                    (click)="limpiarFiltrosFecha()"
+                    [disabled]="!selectedLoteId || (!filtroDesde && !filtroHasta)">
+                    Limpiar filtros
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        }
 
-    <!-- Tabs Principal: General, Indicadores y Gráfica -->
-    <app-tabs-principal
-      [seguimientos]="seguimientos"
-      [selectedLote]="selectedLote"
-      [produccionLote]="produccionLote"
+        <!-- Tabs Principal: General, Indicadores y Gráfica -->
+        <app-tabs-principal
+          [seguimientos]="seguimientos"
+          [selectedLote]="selectedLote"
+          [produccionLote]="produccionLote"
+          [produccionLoteId]="currentProduccionLoteId"
+          [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
+          [selectedLoteLPP]="selectedLoteLPP"
+          [informacionLote]="informacionLote"
+          [loading]="loading"
+          (create)="openDailyTrackingModal()"
+          (edit)="editDailyTracking($event)"
+          (delete)="deleteDailyTracking($event)"
+          (viewDetail)="openDetailModal($event)">
+        </app-tabs-principal>
+      </div>
+    </div>
+
+    <!-- Modal de registro inicial -->
+    <app-modal-registro-inicial
+      [isOpen]="modalRegistroInicialOpen"
+      [loteId]="selectedLoteId"
+      [loteNombre]="modalLoteNombre"
+      [nucleoAsignado]="modalNucleoAsignado"
+      [nucleosDisponibles]="modalNucleosDisponibles"
+      [avesDisponibles]="avesDisponiblesParaRegistro"
+      [loading]="loading"
+      (close)="cancelRegistroInicial()"
+      (save)="onSaveRegistroInicial($event)"
+      (saveSuccess)="onRegistroInicialSuccess($event)"
+      (saveError)="onRegistroInicialError($event)">
+    </app-modal-registro-inicial>
+
+    <!-- Modal de seguimiento diario -->
+    <app-modal-seguimiento-diario
+      [isOpen]="modalSeguimientoDiarioOpen"
       [produccionLoteId]="currentProduccionLoteId"
       [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
-      [selectedLoteLPP]="selectedLoteLPP"
-      [informacionLote]="informacionLote"
+      [editingSeguimiento]="editingSeguimiento"
       [loading]="loading"
-      (create)="openDailyTrackingModal()"
-      (edit)="editDailyTracking($event)"
-      (delete)="deleteDailyTracking($event)"
-      (viewDetail)="openDetailModal($event)">
-    </app-tabs-principal>
-  </div>
-</div>
+      [fechaEncaset]="selectedLote?.fechaEncaset || null"
+      [granjaId]="selectedLote?.granjaId || null"
+      [nucleoId]="selectedLote?.nucleoId || null"
+      [galponId]="selectedLote?.galponId || null"
+      (close)="cancelSeguimientoDiario()"
+      (save)="onSaveSeguimientoDiario($event)">
+    </app-modal-seguimiento-diario>
 
-<!-- Modal de registro inicial -->
-<app-modal-registro-inicial
-  [isOpen]="modalRegistroInicialOpen"
-  [loteId]="selectedLoteId"
-  [loteNombre]="modalLoteNombre"
-  [nucleoAsignado]="modalNucleoAsignado"
-  [nucleosDisponibles]="modalNucleosDisponibles"
-  [avesDisponibles]="avesDisponiblesParaRegistro"
-  [loading]="loading"
-  (close)="cancelRegistroInicial()"
-  (save)="onSaveRegistroInicial($event)"
-  (saveSuccess)="onRegistroInicialSuccess($event)"
-  (saveError)="onRegistroInicialError($event)">
-</app-modal-registro-inicial>
+    <!-- Modal de análisis -->
+    <app-modal-analisis
+      [isOpen]="analisisOpen"
+      [seguimientos]="seguimientos"
+      (close)="closeAnalisis()"
+      (export)="exportarAnalisis()">
+    </app-modal-analisis>
 
-<!-- Modal de seguimiento diario -->
-<app-modal-seguimiento-diario
-  [isOpen]="modalSeguimientoDiarioOpen"
-  [produccionLoteId]="currentProduccionLoteId"
-  [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
-  [editingSeguimiento]="editingSeguimiento"
-  [loading]="loading"
-  [fechaEncaset]="selectedLote?.fechaEncaset || null"
-  [granjaId]="selectedLote?.granjaId || null"
-  [nucleoId]="selectedLote?.nucleoId || null"
-  [galponId]="selectedLote?.galponId || null"
-  (close)="cancelSeguimientoDiario()"
-  (save)="onSaveSeguimientoDiario($event)">
-</app-modal-seguimiento-diario>
+    <!-- Modal de detalle de seguimiento -->
+    <app-modal-detalle-seguimiento
+      [isOpen]="modalDetalleSeguimientoOpen"
+      [seguimientoId]="seguimientoIdParaDetalle"
+      (close)="closeDetailModal()">
+    </app-modal-detalle-seguimiento>
 
-<!-- Modal de análisis -->
-<app-modal-analisis
-  [isOpen]="analisisOpen"
-  [seguimientos]="seguimientos"
-  (close)="closeAnalisis()"
-  (export)="exportarAnalisis()">
-</app-modal-analisis>
+    <!-- Modal de confirmación para eliminar registro de seguimiento diario -->
+    <app-confirmation-modal
+      [isOpen]="showDeleteConfirmModal"
+      [data]="deleteConfirmModalData"
+      (confirmed)="confirmDelete()"
+      (closed)="closeDeleteConfirmModal()"
+      (cancelled)="closeDeleteConfirmModal()">
+    </app-confirmation-modal>
 
-<!-- Modal de liquidación técnica -->
-<app-modal-liquidacion
-  [isOpen]="liquidacionOpen"
-  [loteId]="selectedLoteLPP ? null : selectedLoteId"
-  [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
-  [loteNombre]="selectedLoteNombre"
-  (close)="closeLiquidacion()">
-</app-modal-liquidacion>
-
-<!-- Modal de detalle de seguimiento -->
-<app-modal-detalle-seguimiento
-  [isOpen]="modalDetalleSeguimientoOpen"
-  [seguimientoId]="seguimientoIdParaDetalle"
-  (close)="closeDetailModal()">
-</app-modal-detalle-seguimiento>
-
-<!-- Modal de confirmación para eliminar registro de seguimiento diario -->
-<app-confirmation-modal
-  [isOpen]="showDeleteConfirmModal"
-  [data]="deleteConfirmModalData"
-  (confirmed)="confirmDelete()"
-  (closed)="closeDeleteConfirmModal()"
-  (cancelled)="closeDeleteConfirmModal()">
-</app-confirmation-modal>
-
-<!-- Modal Traslado de Aves desde Seguimiento Diario (R3) -->
-<app-modal-traslado-aves-seguimiento
-  [isOpen]="trasladoAvesModalOpen"
-  [origen]="trasladoAvesOrigen"
-  (closed)="trasladoAvesModalOpen = false"
-  (trasladoCompletado)="onTrasladoAvesCompletado($event)">
-</app-modal-traslado-aves-seguimiento>
+    <!-- Modal Traslado de Aves desde Seguimiento Diario (R3) -->
+    <app-modal-traslado-aves-seguimiento
+      [isOpen]="trasladoAvesModalOpen"
+      [origen]="trasladoAvesOrigen"
+      (closed)="trasladoAvesModalOpen = false"
+      (trasladoCompletado)="onTrasladoAvesCompletado($event)">
+    </app-modal-traslado-aves-seguimiento>

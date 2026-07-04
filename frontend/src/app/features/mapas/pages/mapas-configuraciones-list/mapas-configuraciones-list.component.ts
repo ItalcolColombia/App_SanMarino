@@ -1,5 +1,5 @@
-import { Component, OnInit, HostListener } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MapasService, MapaListDto, CreateMapaDto, UpdateMapaDto, MAPA_PLANTILLAS } from '../../services/mapas.service';
@@ -8,8 +8,9 @@ import { MapaEjecutarModalComponent } from '../../components/mapa-ejecutar-modal
 @Component({
   selector: 'app-mapas-configuraciones-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MapaEjecutarModalComponent],
+  imports: [FormsModule, RouterLink, MapaEjecutarModalComponent],
   templateUrl: './mapas-configuraciones-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./mapas-configuraciones-list.component.scss']
 })
 export class MapasConfiguracionesListComponent implements OnInit {

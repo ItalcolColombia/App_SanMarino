@@ -1,5 +1,5 @@
 // src/app/features/galpon/components/galpon-list/galpon-list.component.ts
-import { Component, OnInit, Input, OnDestroy } from '@angular/core';
+import { Component, OnInit, Input, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule
@@ -33,6 +33,7 @@ interface NucleoOption { id: string; label: string; granjaId: number; }
     ConfirmationModalComponent,
   ],
   templateUrl: './galpon-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./galpon-list.component.scss']
 })
 export class GalponListComponent implements OnInit, OnDestroy {

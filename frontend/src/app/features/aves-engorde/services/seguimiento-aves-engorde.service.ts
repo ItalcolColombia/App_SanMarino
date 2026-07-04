@@ -137,56 +137,15 @@ export interface SeguimientoDiarioTablaFilaDto {
 }
 
 // ── DTOs Cuadrar Saldos ────────────────────────────────────────────────────
+// (fuente unica en engorde-comun; se re-exportan para compatibilidad)
+import {
+  FilaExcelCuadrarSaldosDto,
+  AccionCorreccionCuadrarSaldosDto,
+  CuadrarSaldosValidarResponseDto,
+  CuadrarSaldosAplicarResponseDto
+} from '../../engorde-comun/models/cuadrar-saldos-engorde.models';
+export * from '../../engorde-comun/models/cuadrar-saldos-engorde.models';
 
-export interface FilaExcelCuadrarSaldosDto {
-  fecha: string;
-  saldoAlimentoKg: number | null;
-  ingresoAlimentoKg: number | null;
-  trasladoEntradaKg: number | null;
-  trasladoSalidaKg: number | null;
-  documento: string | null;
-  consumoKg: number | null;
-  consumoAcumuladoKg: number | null;
-}
-
-export interface InconsistenciaCuadrarSaldosDto {
-  fecha: string;
-  tipo: string;
-  descripcion: string;
-  valorExcel: number | null;
-  valorSistema: number | null;
-  historicoId: number | null;
-  documentoExcel: string | null;
-  documentoSistema: string | null;
-}
-
-export interface AccionCorreccionCuadrarSaldosDto {
-  tipoAccion: string;
-  historicoId: number | null;
-  nuevaFecha: string | null;
-  fechaInsertar: string | null;
-  tipoEvento: string | null;
-  cantidadKg: number | null;
-  documento: string | null;
-  descripcion: string | null;
-}
-
-export interface CuadrarSaldosValidarResponseDto {
-  loteId: number;
-  filasExcel: number;
-  inconsistenciasCount: number;
-  inconsistencias: InconsistenciaCuadrarSaldosDto[];
-  accionesSugeridas: AccionCorreccionCuadrarSaldosDto[];
-}
-
-export interface CuadrarSaldosAplicarResponseDto {
-  loteId: number;
-  fechasAjustadas: number;
-  registrosAnulados: number;
-  registrosInsertados: number;
-  metadataSegLimpiados: number;
-  mensaje: string;
-}
 
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -265,12 +224,17 @@ export class SeguimientoAvesEngordeService {
     return dd.toISOString();
   }
 
+  // Cuadrar saldos: las rutas viven SOLO en el controller SeguimientoAvesEngorde
+  // (mismo esquema de datos: tabla compartida seguimiento_diario_aves_engorde).
+  // Con baseUrl (SeguimientoAvesEngordeEcuador) daban 404.
+  private readonly cuadrarUrl = `${environment.apiUrl}/SeguimientoAvesEngorde`;
+
   cuadrarSaldosValidar(
     loteId: number,
     filasExcel: FilaExcelCuadrarSaldosDto[]
   ): Observable<CuadrarSaldosValidarResponseDto> {
     return this.http.post<CuadrarSaldosValidarResponseDto>(
-      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/validar`,
+      `${this.cuadrarUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/validar`,
       { filasExcel }
     );
   }
@@ -281,7 +245,7 @@ export class SeguimientoAvesEngordeService {
     filasExcel?: FilaExcelCuadrarSaldosDto[]
   ): Observable<CuadrarSaldosAplicarResponseDto> {
     return this.http.post<CuadrarSaldosAplicarResponseDto>(
-      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/aplicar`,
+      `${this.cuadrarUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/aplicar`,
       { acciones, filasExcel: filasExcel ?? [] }
     );
   }

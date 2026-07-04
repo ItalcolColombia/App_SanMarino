@@ -13,224 +13,216 @@
 </div>
 
 <!-- Una ficha por lote -->
-<div class="reporte-lote" *ngFor="let item of items; let last = last"
-     [class.page-break]="!last">
-
-  <!-- ═══════════ TÍTULO ═══════════ -->
-  <div class="rep-titulo">LIQUIDACIÓN — ANÁLISIS TÉCNICO</div>
-
-  <!-- ═══════════ ENCABEZADO INFO ═══════════ -->
-  <table class="rep-header-table">
-    <tr>
-      <td class="rep-label-col" colspan="2">{{ empresa }}</td>
-    </tr>
-    <tr>
-      <td class="rep-label-col">GRANJA</td>
-      <td class="rep-value-col">{{ item.indicador.granjaNombre }}</td>
-    </tr>
-    <tr>
-      <td class="rep-label-col">GALPÓN / LOTE</td>
-      <td class="rep-value-col">{{ loteLabel(item) }}</td>
-    </tr>
-  </table>
-
-  <!-- ═══════════ FECHAS CRÍTICAS ═══════════ -->
-  <table class="rep-dates-table">
-    <tr>
-      <td class="date-label">FECHA DE ALISTAMIENTO</td>
-      <td class="date-value">{{ fmtDate(item.indicador.fechaAlistamiento) }}</td>
-      <td class="date-note">DEBE MOSTRAR EN APLICATIVO</td>
-    </tr>
-    <tr>
-      <td class="date-label">FECHA ENCASETAMIENTO</td>
-      <td class="date-value">{{ fmtDate(item.indicador.fechaInicioLote) }}</td>
-      <td class="date-note">DEBE MOSTRAR EN APLICATIVO</td>
-    </tr>
-    <tr>
-      <td class="date-label">FECHA DE LIQUIDACIÓN</td>
-      <td class="date-value">{{ fmtDate(item.indicador.fechaCierreLote) }}</td>
-      <td class="date-note">DEBE MOSTRAR EN APLICATIVO</td>
-    </tr>
-  </table>
-
-  <!-- ═══════════ TABLA DE ANÁLISIS TÉCNICO ═══════════ -->
-  <table class="rep-analysis-table">
-    <thead>
+@for (item of items; track item; let last = $last) {
+  <div class="reporte-lote"
+    [class.page-break]="!last">
+    <!-- ═══════════ TÍTULO ═══════════ -->
+    <div class="rep-titulo">LIQUIDACIÓN — ANÁLISIS TÉCNICO</div>
+    <!-- ═══════════ ENCABEZADO INFO ═══════════ -->
+    <table class="rep-header-table">
       <tr>
-        <th colspan="3">ANÁLISIS TÉCNICO</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- POBLACIÓN -->
-      <tr class="section-row">
-        <td colspan="3">POBLACIÓN</td>
-      </tr>
-      <tr class="alt">
-        <td>Aves Encasetadas</td>
-        <td class="num">{{ fmt(item.indicador.avesEncasetadas, 0) }}</td>
-        <td class="num secondary"></td>
+        <td class="rep-label-col" colspan="2">{{ empresa }}</td>
       </tr>
       <tr>
-        <td>Aves Sacrificadas</td>
-        <td class="num">{{ fmt(item.indicador.avesSacrificadas, 0) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Mortalidad (Unidades)</td>
-        <td class="num">{{ fmt(item.indicador.mortalidad, 0) }}</td>
-        <td class="num secondary"></td>
+        <td class="rep-label-col">GRANJA</td>
+        <td class="rep-value-col">{{ item.indicador.granjaNombre }}</td>
       </tr>
       <tr>
-        <td>Mortalidad (%)</td>
-        <td class="num">{{ fmt(item.indicador.mortalidadPorcentaje) }}</td>
-        <td class="num secondary"></td>
+        <td class="rep-label-col">GALPÓN / LOTE</td>
+        <td class="rep-value-col">{{ loteLabel(item) }}</td>
       </tr>
-      <tr class="alt">
-        <td>Merma (Unidades)</td>
-        <td class="num">{{ fmtONada(item.indicador.mermaUnidades, 0) }}</td>
-        <td class="num secondary"></td>
+    </table>
+    <!-- ═══════════ FECHAS CRÍTICAS ═══════════ -->
+    <table class="rep-dates-table">
+      <tr>
+        <td class="date-label">FECHA DE ALISTAMIENTO</td>
+        <td class="date-value">{{ fmtDate(item.indicador.fechaAlistamiento) }}</td>
+        <td class="date-note">DEBE MOSTRAR EN APLICATIVO</td>
       </tr>
       <tr>
-        <td>Merma (%)</td>
-        <td class="num">{{ fmtONada(item.indicador.mermaPorcentaje) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Ajuste en Aves</td>
-        <td class="num">{{ fmtONada(ajusteAves(item.indicador), 0) }}</td>
-        <td class="num secondary"></td>
+        <td class="date-label">FECHA ENCASETAMIENTO</td>
+        <td class="date-value">{{ fmtDate(item.indicador.fechaInicioLote) }}</td>
+        <td class="date-note">DEBE MOSTRAR EN APLICATIVO</td>
       </tr>
       <tr>
-        <td>Porcentaje de Ajuste (%)</td>
-        <td class="num">{{ fmtONada(porcentajeAjuste(item.indicador)) }}</td>
-        <td class="num secondary"></td>
+        <td class="date-label">FECHA DE LIQUIDACIÓN</td>
+        <td class="date-value">{{ fmtDate(item.indicador.fechaCierreLote) }}</td>
+        <td class="date-note">DEBE MOSTRAR EN APLICATIVO</td>
       </tr>
-      <tr class="alt">
-        <td>Supervivencia (%)</td>
-        <td class="num">{{ fmt(item.indicador.supervivenciaPorcentaje) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-
-      <!-- ALIMENTO -->
-      <tr class="section-row">
-        <td colspan="3">ALIMENTO</td>
-      </tr>
-      <tr class="alt">
-        <td>Consumo Total (Kg)</td>
-        <td class="num">{{ fmt(item.indicador.consumoTotalAlimentoKg) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr>
-        <td>Consumo Ave (Kg/ave)</td>
-        <td class="num">{{ fmt(consumoAveKg(item.indicador)) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-
-      <!-- PRODUCCIÓN -->
-      <tr class="section-row">
-        <td colspan="3">PRODUCCIÓN</td>
-      </tr>
-      <tr class="alt">
-        <td>Producción Kilo en Pie (Kg)</td>
-        <td class="num">{{ fmt(produccionKiloEnPie(item.indicador)) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr>
-        <td>Merma Planta (Kg)</td>
-        <td class="num">{{ fmtONada(item.indicador.mermaKilos) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Merma Proceso (Kg)</td>
-        <td class="num">0.00</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr>
-        <td>Total Kilos Despachados a Cliente (Kg)</td>
-        <td class="num">{{ fmtONada(totalKilosCliente(item.indicador)) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Peso Promedio (Kg/ave)</td>
-        <td class="num">{{ fmt(item.indicador.pesoPromedioKilos) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-
-      <!-- EFICIENCIAS -->
-      <tr class="section-row">
-        <td colspan="3">EFICIENCIAS</td>
-      </tr>
-      <tr class="alt">
-        <td>Conversión Alimenticia</td>
-        <td class="num">{{ fmt(item.indicador.conversion) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr>
-        <td>Conversión Ajustada ({{ item.indicador.pesoAjusteVariable }}/{{ item.indicador.divisorAjusteVariable }})</td>
-        <td class="num">{{ fmt(item.indicador.conversionAjustada2700) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Eficiencia Americana</td>
-        <td class="num">{{ fmt(item.indicador.eficienciaAmericana) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr>
-        <td>Eficiencia Europea (IEEP)</td>
-        <td class="num">{{ fmt(item.indicador.eficienciaEuropea) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Productividad (Índice)</td>
-        <td class="num">{{ fmt(item.indicador.indiceProductividad) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-
-      <!-- TIEMPO -->
-      <tr class="section-row">
-        <td colspan="3">TIEMPO</td>
-      </tr>
-      <tr class="alt">
-        <td>Días de Engorde</td>
-        <td class="num">{{ diasEngorde(item.indicador) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr>
-        <td>Edad Ponderada (días)</td>
-        <td class="num">{{ fmt(item.indicador.edadPromedio) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Ganancia / Día (g)</td>
-        <td class="num">{{ fmt(item.indicador.gananciaDia) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-
-      <!-- DENSIDAD -->
-      <tr class="section-row">
-        <td colspan="3">DENSIDAD</td>
-      </tr>
-      <tr class="alt">
-        <td>Metros Cuadrados</td>
-        <td class="num">{{ fmt(item.indicador.metrosCuadrados, 0) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr>
-        <td>Aves / m²</td>
-        <td class="num">{{ fmt(item.indicador.avesPorMetroCuadrado) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-      <tr class="alt">
-        <td>Kg Carne / m²</td>
-        <td class="num">{{ fmt(item.indicador.kgPorMetroCuadrado) }}</td>
-        <td class="num secondary"></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- pie de página de la ficha -->
-  <div class="rep-footer">
-    Generado: {{ fmtDate(item.indicador.fechaCierreLote) }} &nbsp;|&nbsp;
-    Estado: {{ item.indicador.loteCerrado ? 'CERRADO' : 'CON SALDO RESIDUAL' }}
+    </table>
+    <!-- ═══════════ TABLA DE ANÁLISIS TÉCNICO ═══════════ -->
+    <table class="rep-analysis-table">
+      <thead>
+        <tr>
+          <th colspan="3">ANÁLISIS TÉCNICO</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- POBLACIÓN -->
+        <tr class="section-row">
+          <td colspan="3">POBLACIÓN</td>
+        </tr>
+        <tr class="alt">
+          <td>Aves Encasetadas</td>
+          <td class="num">{{ fmt(item.indicador.avesEncasetadas, 0) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Aves Sacrificadas</td>
+          <td class="num">{{ fmt(item.indicador.avesSacrificadas, 0) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Mortalidad (Unidades)</td>
+          <td class="num">{{ fmt(item.indicador.mortalidad, 0) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Mortalidad (%)</td>
+          <td class="num">{{ fmt(item.indicador.mortalidadPorcentaje) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Merma (Unidades)</td>
+          <td class="num">{{ fmtONada(item.indicador.mermaUnidades, 0) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Merma (%)</td>
+          <td class="num">{{ fmtONada(item.indicador.mermaPorcentaje) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Ajuste en Aves</td>
+          <td class="num">{{ fmtONada(ajusteAves(item.indicador), 0) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Porcentaje de Ajuste (%)</td>
+          <td class="num">{{ fmtONada(porcentajeAjuste(item.indicador)) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Supervivencia (%)</td>
+          <td class="num">{{ fmt(item.indicador.supervivenciaPorcentaje) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <!-- ALIMENTO -->
+        <tr class="section-row">
+          <td colspan="3">ALIMENTO</td>
+        </tr>
+        <tr class="alt">
+          <td>Consumo Total (Kg)</td>
+          <td class="num">{{ fmt(item.indicador.consumoTotalAlimentoKg) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Consumo Ave (Kg/ave)</td>
+          <td class="num">{{ fmt(consumoAveKg(item.indicador)) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <!-- PRODUCCIÓN -->
+        <tr class="section-row">
+          <td colspan="3">PRODUCCIÓN</td>
+        </tr>
+        <tr class="alt">
+          <td>Producción Kilo en Pie (Kg)</td>
+          <td class="num">{{ fmt(produccionKiloEnPie(item.indicador)) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Merma Planta (Kg)</td>
+          <td class="num">{{ fmtONada(item.indicador.mermaKilos) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Merma Proceso (Kg)</td>
+          <td class="num">0.00</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Total Kilos Despachados a Cliente (Kg)</td>
+          <td class="num">{{ fmtONada(totalKilosCliente(item.indicador)) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Peso Promedio (Kg/ave)</td>
+          <td class="num">{{ fmt(item.indicador.pesoPromedioKilos) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <!-- EFICIENCIAS -->
+        <tr class="section-row">
+          <td colspan="3">EFICIENCIAS</td>
+        </tr>
+        <tr class="alt">
+          <td>Conversión Alimenticia</td>
+          <td class="num">{{ fmt(item.indicador.conversion) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Conversión Ajustada ({{ item.indicador.pesoAjusteVariable }}/{{ item.indicador.divisorAjusteVariable }})</td>
+          <td class="num">{{ fmt(item.indicador.conversionAjustada2700) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Eficiencia Americana</td>
+          <td class="num">{{ fmt(item.indicador.eficienciaAmericana) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Eficiencia Europea (IEEP)</td>
+          <td class="num">{{ fmt(item.indicador.eficienciaEuropea) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Productividad (Índice)</td>
+          <td class="num">{{ fmt(item.indicador.indiceProductividad) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <!-- TIEMPO -->
+        <tr class="section-row">
+          <td colspan="3">TIEMPO</td>
+        </tr>
+        <tr class="alt">
+          <td>Días de Engorde</td>
+          <td class="num">{{ diasEngorde(item.indicador) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Edad Ponderada (días)</td>
+          <td class="num">{{ fmt(item.indicador.edadPromedio) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Ganancia / Día (g)</td>
+          <td class="num">{{ fmt(item.indicador.gananciaDia) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <!-- DENSIDAD -->
+        <tr class="section-row">
+          <td colspan="3">DENSIDAD</td>
+        </tr>
+        <tr class="alt">
+          <td>Metros Cuadrados</td>
+          <td class="num">{{ fmt(item.indicador.metrosCuadrados, 0) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr>
+          <td>Aves / m²</td>
+          <td class="num">{{ fmt(item.indicador.avesPorMetroCuadrado) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+        <tr class="alt">
+          <td>Kg Carne / m²</td>
+          <td class="num">{{ fmt(item.indicador.kgPorMetroCuadrado) }}</td>
+          <td class="num secondary"></td>
+        </tr>
+      </tbody>
+    </table>
+    <!-- pie de página de la ficha -->
+    <div class="rep-footer">
+      Generado: {{ fmtDate(item.indicador.fechaCierreLote) }} &nbsp;|&nbsp;
+      Estado: {{ item.indicador.loteCerrado ? 'CERRADO' : 'CON SALDO RESIDUAL' }}
+    </div>
   </div>
-</div>
+}

@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionResponse, IndicadoresProduccionRequest } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './tabla-lista-indicadores.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-lista-indicadores.component.scss']
 })
 export class TablaListaIndicadoresComponent implements OnInit, OnChanges {

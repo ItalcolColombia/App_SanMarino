@@ -1,7 +1,7 @@
 // src/app/features/gestion-inventario/pages/gestion-inventario-page/gestion-inventario-page.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -22,6 +22,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
@@ -38,8 +39,9 @@ type TrasladoModo = 'mismaGranja' | 'interGranja';
 @Component({
   selector: 'app-gestion-inventario-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, FontAwesomeModule, HasPermissionDirective],
+  imports: [FormsModule, FontAwesomeModule, HasPermissionDirective],
   templateUrl: './gestion-inventario-page.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./gestion-inventario-page.component.scss']
 })
 export class GestionInventarioPageComponent implements OnInit {
@@ -62,6 +64,11 @@ export class GestionInventarioPageComponent implements OnInit {
   filterData: InventarioGestionFilterDataDto | null = null;
   stockList: InventarioGestionStockDto[] = [];
   movimientosList: InventarioGestionMovimientoDto[] = [];
+  // Paginación client-side del histórico (perf: no renderizar miles de filas de una).
+  // El export CSV sigue usando movimientosList completo.
+  readonly historicoPageSize = 100;
+  historicoPage = 0;
+  movimientosPagina: InventarioGestionMovimientoDto[] = [];
   itemsList: ItemInventarioEcuadorDto[] = [];
   loading = false;
 
@@ -196,14 +203,29 @@ export class GestionInventarioPageComponent implements OnInit {
 
   private allCatalogItems: ItemInventarioEcuadorDto[] = [];
 
+  /**
+   * Fase 3 (paso 3) — Colombia opera el inventario modelo B unificado a NIVEL GRANJA:
+   * el alimento NO usa núcleo/galpón (stock B con nucleo/galpon NULL). Se calcula una vez
+   * (el país activo no cambia dentro de la vista) para no romper change detection.
+   * Ecuador/Panamá quedan igual (alimento con núcleo/galpón).
+   */
+  readonly isColombiaInventario: boolean;
+
   constructor(
     private svc: GestionInventarioService,
-    private route: ActivatedRoute
-  ) {}
+    private route: ActivatedRoute,
+    private country: CountryFilterService
+  ) {
+    this.isColombiaInventario = this.country.isColombia();
+  }
 
   ngOnInit(): void {
     this.ingresoFechaMovimiento = this.todayYmd();
     this.trasladoFechaMovimiento = this.todayYmd();
+    // Colombia: el inventario es a nivel granja → traslado siempre entre granjas (no galpón-a-galpón).
+    if (this.isColombiaInventario) {
+      this.trasladoModo = 'interGranja';
+    }
     this.loadFilterData();
     this.loadCatalogItems();
   }
@@ -235,8 +257,11 @@ export class GestionInventarioPageComponent implements OnInit {
     'Eliminación registro'
   ];
 
-  /** Lotes en granjas asignadas + valores distintos de concepto/tipo/estado en movimientos. */
+  /** Lotes en granjas asignadas + valores distintos de concepto/tipo/estado en movimientos.
+   *  Meta ESTÁTICA de la sesión (opciones de filtro): se cachea → no se re-pide al revisitar
+   *  el tab Histórico. Los movimientos (datos que cambian) sí refrescan en cada visita. */
   private loadHistoricoMeta(): void {
+    if (this.historicoMeta) return; // ya cargada esta sesión → evita petición redundante
     this.svc.getHistoricoFiltros().subscribe({
       next: (data) => {
         this.historicoMeta = data;
@@ -266,36 +291,38 @@ export class GestionInventarioPageComponent implements OnInit {
   get historicoEstadosOptions(): string[] {
     const api = this.historicoMeta?.estadosEnHistorico ?? [];
     const set = new Set<string>([...api, ...this.estadosHistorial]);
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+    return this.listaEstable('hEstados', Array.from(set).sort((a, b) => a.localeCompare(b, 'es')), x => x);
   }
 
   get historicoConceptosOptions(): string[] {
-    return this.historicoMeta?.conceptosEnHistorico ?? [];
+    return this.listaEstable('hConceptos', this.historicoMeta?.conceptosEnHistorico ?? [], x => x);
   }
 
   get historicoTiposItemOptions(): string[] {
-    return this.historicoMeta?.tiposItemEnHistorico ?? [];
+    return this.listaEstable('hTiposItem', this.historicoMeta?.tiposItemEnHistorico ?? [], x => x);
   }
 
   get historicoMovementTypesOptions(): string[] {
     const raw = this.historicoMeta?.movementTypesEnHistorico ?? [];
-    return [...raw].sort((a, b) => a.localeCompare(b));
+    return this.listaEstable('hMovTypes', [...raw].sort((a, b) => a.localeCompare(b)), x => x);
   }
 
   get historicoUnidadesOptions(): string[] {
     const raw = this.historicoMeta?.unidadesEnHistorico ?? [];
-    return [...raw].sort((a, b) => a.localeCompare(b));
+    return this.listaEstable('hUnidades', [...raw].sort((a, b) => a.localeCompare(b)), x => x);
   }
 
   get historicoTiposOperacionOptions(): string[] {
     const raw = this.historicoMeta?.tiposOperacionEnHistorico ?? [];
-    return [...raw].sort((a, b) => a.localeCompare(b, 'es'));
+    return this.listaEstable('hTiposOp', [...raw].sort((a, b) => a.localeCompare(b, 'es')), x => x);
   }
 
   /** Ítems del catálogo para filtro exacto por ID (además de búsqueda texto). */
   get historicoItemsCatalogSorted(): ItemInventarioEcuadorDto[] {
-    return [...this.allCatalogItems].sort((a, b) =>
-      (a.codigo ?? '').localeCompare(b.codigo ?? '', undefined, { numeric: true })
+    return this.listaEstable(
+      'hItemsCatalog',
+      [...this.allCatalogItems].sort((a, b) => (a.codigo ?? '').localeCompare(b.codigo ?? '', undefined, { numeric: true })),
+      x => String(x.id)
     );
   }
 
@@ -316,7 +343,7 @@ export class GestionInventarioPageComponent implements OnInit {
     if (gid) {
       out = out.filter(l => (l.galponId ?? '').trim() === gid);
     }
-    return out;
+    return this.listaEstable(`hLotes|${this.historicoFarmId ?? ''}|${nid}|${gid}`, out, l => String(l.loteId));
   }
 
   /** Si el lote elegido ya no entra en el subconjunto (p. ej. cambió galpón), lo quitamos. */
@@ -397,6 +424,8 @@ export class GestionInventarioPageComponent implements OnInit {
     this.svc.getMovimientos(params).subscribe({
       next: (list) => {
         this.movimientosList = list ?? [];
+        this.historicoPage = 0;
+        this.recomputeHistoricoPagina();
         this.loading = false;
       },
       error: () => {
@@ -406,18 +435,36 @@ export class GestionInventarioPageComponent implements OnInit {
     });
   }
 
+  // ===== Paginación client-side del histórico (perf) =====
+  /** Recalcula el slice visible; se llama al cargar o al cambiar de página (no en getter → sin alocar por ciclo). */
+  private recomputeHistoricoPagina(): void {
+    const start = this.historicoPage * this.historicoPageSize;
+    this.movimientosPagina = this.movimientosList.slice(start, start + this.historicoPageSize);
+  }
+  get historicoTotalPaginas(): number {
+    return Math.max(1, Math.ceil(this.movimientosList.length / this.historicoPageSize));
+  }
+  historicoPrevPagina(): void {
+    if (this.historicoPage > 0) { this.historicoPage--; this.recomputeHistoricoPagina(); }
+  }
+  historicoNextPagina(): void {
+    if (this.historicoPage < this.historicoTotalPaginas - 1) { this.historicoPage++; this.recomputeHistoricoPagina(); }
+  }
+
   get historicoNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
-    if (!this.filterData || this.historicoFarmId == null) return [];
-    return this.filterData.nucleosOrigen
+    if (!this.filterData || this.historicoFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.nucleosOrigen
       .filter(n => n.granjaId === this.historicoFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+    return this.listaEstable(`hNuc|${this.historicoFarmId}`, computed, x => x.nucleoId);
   }
 
   get historicoGalponesFiltered(): { galponId: string; galponNombre: string }[] {
-    if (!this.filterData || this.historicoFarmId == null) return [];
-    return this.filterData.galponesOrigen
+    if (!this.filterData || this.historicoFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.galponesOrigen
       .filter(g => g.granjaId === this.historicoFarmId && (!this.historicoNucleoId || g.nucleoId === this.historicoNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`hGal|${this.historicoFarmId}|${this.historicoNucleoId ?? ''}`, computed, x => x.galponId);
   }
 
   onHistoricoFarmChange(): void {
@@ -461,21 +508,23 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   get historicoFromNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
-    if (!this.filterData || this.historicoFromFarmId == null) return [];
-    return this.filterData.nucleosOrigen
+    if (!this.filterData || this.historicoFromFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.nucleosOrigen
       .filter(n => n.granjaId === this.historicoFromFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+    return this.listaEstable(`hFromNuc|${this.historicoFromFarmId}`, computed, x => x.nucleoId);
   }
 
   get historicoFromGalponesFiltered(): { galponId: string; galponNombre: string }[] {
-    if (!this.filterData || this.historicoFromFarmId == null) return [];
-    return this.filterData.galponesOrigen
+    if (!this.filterData || this.historicoFromFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.galponesOrigen
       .filter(
         g =>
           g.granjaId === this.historicoFromFarmId &&
           (!this.historicoFromNucleoId || g.nucleoId === this.historicoFromNucleoId)
       )
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`hFromGal|${this.historicoFromFarmId}|${this.historicoFromNucleoId ?? ''}`, computed, x => x.galponId);
   }
 
   /** Con lote seleccionado el API usa la ubicación del lote; se ignoran núcleo/galpón manuales. */
@@ -678,66 +727,116 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   get nucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
-    if (!this.filterData || this.selectedFarmId == null) return [];
-    return this.filterData.nucleosOrigen
+    if (!this.filterData || this.selectedFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.nucleosOrigen
       .filter(n => n.granjaId === this.selectedFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+    return this.listaEstable(`stkNuc|${this.selectedFarmId}`, computed, x => x.nucleoId);
   }
 
   get galponesFiltered(): { galponId: string; galponNombre: string }[] {
-    if (!this.filterData || this.selectedFarmId == null) return [];
-    return this.filterData.galponesOrigen
+    if (!this.filterData || this.selectedFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.galponesOrigen
       .filter(g => g.granjaId === this.selectedFarmId && (!this.selectedNucleoId || g.nucleoId === this.selectedNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`stkGal|${this.selectedFarmId}|${this.selectedNucleoId ?? ''}`, computed, x => x.galponId);
+  }
+
+  /**
+   * Estas listas se usan dentro de *ngFor en el template. Devolver un array nuevo en cada
+   * ciclo de detección de cambios provoca NG0103 (Infinite change detection). El helper cachea
+   * el array YA con su forma final; si el contenido es igual (mismos ids en el mismo orden)
+   * devuelve la MISMA referencia previa para no romper el CD.
+   */
+  private readonly _listaFiltradaCache = new Map<string, unknown[]>();
+  private static readonly _emptyList: readonly never[] = Object.freeze([]);
+  private listaEstable<T>(key: string, computed: T[], idOf: (x: T) => string): T[] {
+    if (computed.length === 0) return GestionInventarioPageComponent._emptyList as unknown as T[];
+    const prev = this._listaFiltradaCache.get(key) as T[] | undefined;
+    if (prev && prev.length === computed.length && prev.every((p, i) => idOf(p) === idOf(computed[i]))) {
+      return prev;
+    }
+    this._listaFiltradaCache.set(key, computed);
+    return computed;
   }
 
   fromNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
-    if (!this.filterData || this.fromFarmId == null) return [];
-    return this.filterData.nucleosOrigen
+    if (!this.filterData || this.fromFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.nucleosOrigen
       .filter(n => n.granjaId === this.fromFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+    return this.listaEstable(`fromN|${this.fromFarmId}`, computed, x => x.nucleoId);
   }
   fromGalponesFiltered(): { galponId: string; galponNombre: string }[] {
-    if (!this.filterData || this.fromFarmId == null) return [];
-    return this.filterData.galponesOrigen
+    if (!this.filterData || this.fromFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.galponesOrigen
       .filter(g => g.granjaId === this.fromFarmId && (!this.fromNucleoId || g.nucleoId === this.fromNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`fromG|${this.fromFarmId}|${this.fromNucleoId ?? ''}`, computed, x => x.galponId);
   }
   /** Núcleos del destino del traslado: misma granja → catálogo origen; inter-granja → catálogo empresa. */
   toNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
-    if (!this.filterData || this.toFarmId == null) return [];
+    if (!this.filterData || this.toFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
     const nucleos = this.trasladoModo === 'interGranja' ? this.filterData.nucleosDestino : this.filterData.nucleosOrigen;
-    return nucleos
+    const computed = nucleos
       .filter(n => n.granjaId === this.toFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+    return this.listaEstable(`toN|${this.trasladoModo}|${this.toFarmId}`, computed, x => x.nucleoId);
   }
   toGalponesFiltered(): { galponId: string; galponNombre: string }[] {
-    if (!this.filterData || this.toFarmId == null) return [];
+    if (!this.filterData || this.toFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
     const galpones = this.trasladoModo === 'interGranja' ? this.filterData.galponesDestino : this.filterData.galponesOrigen;
-    return galpones
+    const computed = galpones
       .filter(g => g.granjaId === this.toFarmId && (!this.toNucleoId || g.nucleoId === this.toNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`toG|${this.trasladoModo}|${this.toFarmId}|${this.toNucleoId ?? ''}`, computed, x => x.galponId);
   }
 
   ingresoNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
-    if (!this.filterData || this.ingresoFarmId == null) return [];
-    return this.filterData.nucleosDestino
+    if (!this.filterData || this.ingresoFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.nucleosDestino
       .filter(n => n.granjaId === this.ingresoFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+    return this.listaEstable(`ingN|${this.ingresoFarmId}`, computed, x => x.nucleoId);
   }
   ingresoGalponesFiltered(): { galponId: string; galponNombre: string }[] {
-    if (!this.filterData || this.ingresoFarmId == null) return [];
-    return this.filterData.galponesDestino
+    if (!this.filterData || this.ingresoFarmId == null) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.galponesDestino
       .filter(g => g.granjaId === this.ingresoFarmId && (!this.ingresoNucleoId || g.nucleoId === this.ingresoNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`ingG|${this.ingresoFarmId}|${this.ingresoNucleoId ?? ''}`, computed, x => x.galponId);
   }
 
   get showNucleoGalpon(): boolean {
+    // Colombia: inventario a nivel granja → nunca núcleo/galpón (aunque sea alimento).
+    if (this.isColombiaInventario) return false;
     return this.isAlimentoConcept(this.selectedConcept);
+  }
+
+  /**
+   * INGRESO: ¿este ingreso se maneja a nivel GALPÓN? Se resuelve por la granja de destino
+   * del ingreso (override) y, si hereda (null), por el default de la empresa; sin dato cae al país.
+   * Reemplaza la decisión por país SOLO en el formulario de ingreso (traslado/stock siguen por país).
+   */
+  get ingresoEsPorGalpon(): boolean {
+    if (!this.isAlimentoConcept(this.selectedConcept)) return false;
+    const farms = this.filterData?.farmsDestino ?? [];
+    const farm = this.ingresoFarmId != null ? farms.find(f => f.id === this.ingresoFarmId) : undefined;
+    const override = farm?.manejaAlimentoPorGalpon;
+    if (override === true) return true;
+    if (override === false) return false;
+    // override null/undefined (hereda empresa o sin granja seleccionada) → default empresa
+    const companyDefault = this.filterData?.companyManejaAlimentoPorGalpon;
+    if (companyDefault === true) return true;
+    if (companyDefault === false) return false;
+    // sin dato del backend → comportamiento por país (compatibilidad)
+    return !this.isColombiaInventario;
   }
 
   /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
   get stockShowNucleoGalpon(): boolean {
+    // Colombia: stock a nivel granja → sin columnas núcleo/galpón.
+    if (this.isColombiaInventario) return false;
     const c = (this.stockConceptFilter ?? '').trim();
     if (!c) return true;
     return this.isAlimentoConcept(c);
@@ -849,7 +948,7 @@ export class GestionInventarioPageComponent implements OnInit {
         return;
       }
     }
-    if (this.showNucleoGalpon && (!this.ingresoNucleoId || !this.ingresoGalponId)) {
+    if (this.ingresoEsPorGalpon && (!this.ingresoNucleoId || !this.ingresoGalponId)) {
       this.openAlertModal('error', 'Validación', 'Para alimento debe seleccionar Núcleo y Galpón.');
       return;
     }
@@ -971,11 +1070,13 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   get farmsOrigen(): { id: number; name: string }[] {
-    return this.filterData?.farmsOrigen?.map(f => ({ id: f.id, name: f.name })) ?? [];
+    const computed = this.filterData?.farmsOrigen?.map(f => ({ id: f.id, name: f.name })) ?? [];
+    return this.listaEstable('farmsOrigen', computed, x => String(x.id));
   }
 
   get farmsDestino(): { id: number; name: string }[] {
-    return this.filterData?.farmsDestino?.map(f => ({ id: f.id, name: f.name })) ?? [];
+    const computed = this.filterData?.farmsDestino?.map(f => ({ id: f.id, name: f.name })) ?? [];
+    return this.listaEstable('farmsDestino', computed, x => String(x.id));
   }
 
   getFarmName(farmId: number | null): string {
@@ -1274,8 +1375,8 @@ export class GestionInventarioPageComponent implements OnInit {
     this.submittingIngreso = true;
     this.svc.registrarIngreso({
       farmId: this.ingresoFarmId!,
-      nucleoId: this.showNucleoGalpon ? this.ingresoNucleoId : null,
-      galponId: this.showNucleoGalpon ? this.ingresoGalponId : null,
+      nucleoId: this.ingresoEsPorGalpon ? this.ingresoNucleoId : null,
+      galponId: this.ingresoEsPorGalpon ? this.ingresoGalponId : null,
       itemInventarioEcuadorId: this.ingresoItemInventarioEcuadorId!,
       quantity: this.ingresoQuantity,
       unit: this.ingresoSelectedUnit === '—' ? 'kg' : this.ingresoSelectedUnit,
@@ -1335,6 +1436,8 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   recepcionNeedsNucleoGalpon(itemId: number): boolean {
+    // Colombia: recepción a nivel granja → sin núcleo/galpón.
+    if (this.isColombiaInventario) return false;
     const item = this.allCatalogItems.find(i => i.id === itemId);
     if (!item) return false;
     return this.isAlimentoConcept(item.concepto ?? item.tipoItem);
@@ -1391,17 +1494,19 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   recepcionNucleosForFarm(farmId: number): { nucleoId: string; nucleoNombre: string }[] {
-    if (!this.filterData) return [];
-    return this.filterData.nucleosDestino
+    if (!this.filterData) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.nucleosDestino
       .filter(n => n.granjaId === farmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+    return this.listaEstable(`recN|${farmId}`, computed, x => x.nucleoId);
   }
 
   recepcionGalponesForFarm(farmId: number): { galponId: string; galponNombre: string }[] {
-    if (!this.filterData) return [];
-    return this.filterData.galponesDestino
+    if (!this.filterData) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.galponesDestino
       .filter(g => g.granjaId === farmId && (!this.recepcionToNucleoId || g.nucleoId === this.recepcionToNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`recG|${farmId}|${this.recepcionToNucleoId ?? ''}`, computed, x => x.galponId);
   }
 
   onRecepcionNucleoChange(): void {

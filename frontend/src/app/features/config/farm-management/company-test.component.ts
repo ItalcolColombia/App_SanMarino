@@ -1,6 +1,6 @@
 // src/app/features/config/farm-management/company-test.component.ts
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectionStrategy } from '@angular/core';
+
 import { Subject, takeUntil } from 'rxjs';
 import { CompanyService } from '../../../core/services/company/company.service';
 import { ActiveCompanyService } from '../../../core/auth/active-company.service';
@@ -8,44 +8,50 @@ import { ActiveCompanyService } from '../../../core/auth/active-company.service'
 @Component({
   selector: 'app-company-test',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <div class="p-4 border rounded-lg bg-gray-50">
       <h3 class="text-lg font-semibold mb-4">🧪 Prueba de Integración API Company</h3>
-      
+    
       <div class="space-y-4">
         <!-- Estado de empresa activa -->
         <div class="p-3 bg-blue-50 rounded">
           <h4 class="font-medium text-blue-800">Empresa Activa:</h4>
           <p class="text-blue-600">{{ activeCompany || 'Ninguna seleccionada' }}</p>
         </div>
-
+    
         <!-- Botón para cargar empresas -->
         <div>
-          <button 
-            (click)="loadCompanies()" 
+          <button
+            (click)="loadCompanies()"
             [disabled]="loading"
             class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
             {{ loading ? 'Cargando...' : 'Cargar Empresas desde API' }}
           </button>
         </div>
-
+    
         <!-- Resultado de la carga -->
-        <div *ngIf="companies.length > 0" class="p-3 bg-green-50 rounded">
-          <h4 class="font-medium text-green-800">Empresas Cargadas ({{ companies.length }}):</h4>
-          <ul class="mt-2 space-y-1">
-            <li *ngFor="let company of companies" class="text-green-600">
-              • {{ company.name }} (ID: {{ company.id }})
-            </li>
-          </ul>
-        </div>
-
+        @if (companies.length > 0) {
+          <div class="p-3 bg-green-50 rounded">
+            <h4 class="font-medium text-green-800">Empresas Cargadas ({{ companies.length }}):</h4>
+            <ul class="mt-2 space-y-1">
+              @for (company of companies; track company) {
+                <li class="text-green-600">
+                  • {{ company.name }} (ID: {{ company.id }})
+                </li>
+              }
+            </ul>
+          </div>
+        }
+    
         <!-- Error -->
-        <div *ngIf="error" class="p-3 bg-red-50 rounded">
-          <h4 class="font-medium text-red-800">Error:</h4>
-          <p class="text-red-600">{{ error }}</p>
-        </div>
-
+        @if (error) {
+          <div class="p-3 bg-red-50 rounded">
+            <h4 class="font-medium text-red-800">Error:</h4>
+            <p class="text-red-600">{{ error }}</p>
+          </div>
+        }
+    
         <!-- Debug info -->
         <div class="p-3 bg-gray-100 rounded text-sm">
           <h4 class="font-medium">Debug Info:</h4>
@@ -55,7 +61,8 @@ import { ActiveCompanyService } from '../../../core/auth/active-company.service'
         </div>
       </div>
     </div>
-  `,
+    `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .space-y-4 > * + * { margin-top: 1rem; }
     .space-y-1 > * + * { margin-top: 0.25rem; }

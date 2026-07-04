@@ -1,5 +1,5 @@
 import { Component, Input, signal, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   ReporteTecnicoProduccionTabsDto,
   ReporteDiarioGalponDto,
@@ -19,12 +19,11 @@ type TabPeriodo   = 'diario'  | 'semanal';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     ReporteDiarioGalponComponent,
     ReporteSemanalGalponComponent,
     ReporteGeneralDiarioComponent,
     ReporteGeneralSemanalComponent
-  ],
+],
   templateUrl: './reportes-tabs.component.html',
   styleUrls: ['./reportes-tabs.component.scss']
 })

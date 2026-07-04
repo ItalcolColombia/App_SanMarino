@@ -1,8 +1,9 @@
 // src/app/features/tickets/components/ticket-perfil-editor/ticket-perfil-editor.component.ts
 import {
   Component, EventEmitter, Input, OnInit, Output, inject, signal, ChangeDetectorRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import {
@@ -28,7 +29,8 @@ export interface PaisOpcion {
 @Component({
   selector: 'app-ticket-perfil-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './ticket-perfil-editor.component.html',
 })
 export class TicketPerfilEditorComponent implements OnInit {

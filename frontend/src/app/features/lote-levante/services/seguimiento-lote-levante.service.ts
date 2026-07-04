@@ -220,6 +220,40 @@ export interface ResultadoLevanteResponse {
   items: ResultadoLevanteItemDto[];
 }
 
+/** Indicador semanal de levante calculado en la BD (fn_indicadores_levante_postura). El front solo pinta. */
+export interface IndicadorSemanalLevanteDto {
+  semana: number;
+  avesInicioSemana: number;
+  avesFinSemana: number;
+  consumoDiario: number;
+  consumoTabla: number;
+  consumoTotalSemana: number;
+  conversionAlimenticia: number;
+  pesoTabla: number;
+  unifReal: number;
+  unifTabla: number;
+  mortTabla: number;
+  difPesoPct: number;
+  gananciaSemana: number;
+  gananciaDiariaAcumulada: number;
+  gananciaTabla: number;
+  mortalidadSem: number;
+  seleccionSem: number;
+  errorSexajeSem: number;
+  mortalidadMasSeleccion: number;
+  eficiencia: number;
+  ip: number;
+  vpi: number;
+  saldoAvesSemanal: number;
+  mortalidadAcum: number;
+  seleccionAcum: number;
+  mortalidadMasSeleccionAcum: number;
+  pisoTermicoVisible: boolean;
+  pesoInicial: number;
+  pesoCierre: number;
+  diasConRegistro: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SeguimientoLoteLevanteService {
   /** Nota: environment.apiUrl debe incluir `/api` (ej: http://localhost:5002/api) */
@@ -243,6 +277,16 @@ export class SeguimientoLoteLevanteService {
   getByLoteId(loteId: number): Observable<SeguimientoLoteLevanteDto[]> {  // Changed from string to number
     return this.http.get<SeguimientoLoteLevanteDto[]>(
       `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}`  // Convert to string for URL
+    );
+  }
+
+  /**
+   * Indicadores semanales de levante calculados en la BD (fn_indicadores_levante_postura).
+   * El front solo pinta; ya NO calcula desde los seguimientos crudos.
+   */
+  getIndicadores(loteId: number): Observable<IndicadorSemanalLevanteDto[]> {
+    return this.http.get<IndicadorSemanalLevanteDto[]>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/indicadores`
     );
   }
 

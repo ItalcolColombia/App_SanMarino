@@ -1,5 +1,5 @@
 // src/app/features/reporte-contable/pages/reporte-contable-main/reporte-contable-main.component.ts
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -45,6 +45,7 @@ import { TablaMovimientosHuevosComponent } from '../../components/tabla-movimien
     TablaMovimientosHuevosComponent
   ],
   templateUrl: './reporte-contable-main.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./reporte-contable-main.component.scss']
 })
 export class ReporteContableMainComponent implements OnInit, OnDestroy {

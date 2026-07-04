@@ -2,7 +2,7 @@
   <div class="ux-main">
 
     <!-- ══════════════════════════════════════════
-         HEADER
+    HEADER
     ══════════════════════════════════════════ -->
     <header class="ux-header">
       <div class="ux-header__left">
@@ -19,35 +19,54 @@
       </div>
 
       <!-- Breadcrumb chips de contexto activo -->
-      <div class="ux-header__breadcrumb" *ngIf="selectedGranjaId">
-        <span class="bc-item bc-item--farm">
-          <svg viewBox="0 0 20 20" fill="currentColor" class="bc-icon"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
-          {{ selectedGranjaName }}
-        </span>
-        <span class="bc-sep" *ngIf="selectedNucleoId" aria-hidden="true">›</span>
-        <span class="bc-item" *ngIf="selectedNucleoId">{{ selectedNucleoNombre }}</span>
-        <span class="bc-sep" *ngIf="selectedGalponId" aria-hidden="true">›</span>
-        <span class="bc-item" *ngIf="selectedGalponId">{{ selectedGalponNombre }}</span>
-        <span class="bc-sep" *ngIf="selectedLoteId" aria-hidden="true">›</span>
-        <span class="bc-item" *ngIf="selectedLoteId">{{ selectedLoteNombre }}</span>
-        <span class="bc-sep" *ngIf="selectedLoteReproductoraId" aria-hidden="true">›</span>
-        <span class="bc-item bc-item--repro" *ngIf="selectedLoteReproductoraId">
-          {{ selectedLoteReproductoraNombre }}
-          <span class="bc-badge">{{ seguimientos.length }}</span>
-        </span>
-      </div>
+      @if (selectedGranjaId) {
+        <div class="ux-header__breadcrumb">
+          <span class="bc-item bc-item--farm">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="bc-icon"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+            {{ selectedGranjaName }}
+          </span>
+          @if (selectedNucleoId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+          }
+          @if (selectedNucleoId) {
+            <span class="bc-item">{{ selectedNucleoNombre }}</span>
+          }
+          @if (selectedGalponId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+          }
+          @if (selectedGalponId) {
+            <span class="bc-item">{{ selectedGalponNombre }}</span>
+          }
+          @if (selectedLoteId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+          }
+          @if (selectedLoteId) {
+            <span class="bc-item">{{ selectedLoteNombre }}</span>
+          }
+          @if (selectedLoteReproductoraId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+          }
+          @if (selectedLoteReproductoraId) {
+            <span class="bc-item bc-item--repro">
+              {{ selectedLoteReproductoraNombre }}
+              <span class="bc-badge">{{ seguimientos.length }}</span>
+            </span>
+          }
+        </div>
+      }
 
       <!-- Acciones -->
       <div class="ux-header__actions">
 
         <!-- Badge de progreso días 0-7 -->
-        <span
-          class="dias-progreso-badge"
-          *ngIf="selectedLoteReproductoraId"
-          [class.dias-progreso-badge--completo]="isSeguimientoCompleto"
-          [title]="isSeguimientoCompleto ? 'Los 7 días de seguimiento están completos' : 'Días registrados de ' + MAX_DIAS_SEGUIMIENTO">
-          {{ seguimientos.length }}/{{ MAX_DIAS_SEGUIMIENTO }} días
-        </span>
+        @if (selectedLoteReproductoraId) {
+          <span
+            class="dias-progreso-badge"
+            [class.dias-progreso-badge--completo]="isSeguimientoCompleto"
+            [title]="isSeguimientoCompleto ? 'Los 7 días de seguimiento están completos' : 'Días registrados de ' + MAX_DIAS_SEGUIMIENTO">
+            {{ seguimientos.length }}/{{ MAX_DIAS_SEGUIMIENTO }} días
+          </span>
+        }
 
         <button
           type="button"
@@ -81,7 +100,7 @@
     </header>
 
     <!-- ══════════════════════════════════════════
-         FILTROS EN CASCADA
+    FILTROS EN CASCADA
     ══════════════════════════════════════════ -->
     <section class="ux-card filter-card" aria-label="Filtros de selección">
       <div class="filter-card__header">
@@ -104,7 +123,9 @@
               [ngModel]="selectedGranjaId"
               (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
               <option [ngValue]="null">— Seleccione —</option>
-              <option *ngFor="let g of granjas; trackBy: trackByIdx" [ngValue]="g.id">{{ g.name }}</option>
+              @for (g of granjas; track $index) {
+                <option [ngValue]="g.id">{{ g.name }}</option>
+              }
             </select>
           </div>
         </div>
@@ -121,7 +142,9 @@
               [ngModel]="selectedNucleoId"
               (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
               <option [ngValue]="null">— Seleccione —</option>
-              <option *ngFor="let n of nucleos; trackBy: trackByIdx" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              @for (n of nucleos; track $index) {
+                <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
             </select>
           </div>
         </div>
@@ -138,7 +161,9 @@
               [ngModel]="selectedGalponId"
               (ngModelChange)="selectedGalponId = $event; onGalponChange()">
               <option [ngValue]="null">— Seleccione —</option>
-              <option *ngFor="let g of galpones; trackBy: trackByIdx" [ngValue]="g.id">{{ g.label }}</option>
+              @for (g of galpones; track $index) {
+                <option [ngValue]="g.id">{{ g.label }}</option>
+              }
             </select>
           </div>
         </div>
@@ -155,7 +180,9 @@
               [ngModel]="selectedLoteId"
               (ngModelChange)="selectedLoteId = $event; onLoteChange()">
               <option [ngValue]="null">— Seleccione —</option>
-              <option *ngFor="let l of lotes; trackBy: trackByIdx" [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>
+              @for (l of lotes; track $index) {
+                <option [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>
+              }
             </select>
           </div>
         </div>
@@ -172,351 +199,376 @@
               [ngModel]="selectedLoteReproductoraId"
               (ngModelChange)="selectedLoteReproductoraId = $event; onLoteReproductoraChange()">
               <option [ngValue]="null">— Seleccione —</option>
-              <option *ngFor="let r of lotesReproductoraFiltered; trackBy: trackByIdx" [ngValue]="r.id">{{ r.nombreLote || r.id }}</option>
+              @for (r of lotesReproductoraFiltered; track $index) {
+                <option [ngValue]="r.id">{{ r.nombreLote || r.id }}</option>
+              }
             </select>
-            <p class="filter-step__warn" *ngIf="selectedLoteId && !loading && lotesReproductoraFiltered.length === 0">
-              <svg viewBox="0 0 20 20" fill="currentColor" class="warn-icon" aria-hidden="true"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-              Sin reproductoras asignadas a este lote. Créalas en «Lote Reproductora Aves de Engorde».
-            </p>
+            @if (selectedLoteId && !loading && lotesReproductoraFiltered.length === 0) {
+              <p class="filter-step__warn">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="warn-icon" aria-hidden="true"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                Sin reproductoras asignadas a este lote. Créalas en «Lote Reproductora Aves de Engorde».
+              </p>
+            }
           </div>
         </div>
       </div>
     </section>
 
     <!-- ══════════════════════════════════════════
-         INFO CARD: LOTE REPRODUCTORA + AVES
+    INFO CARD: LOTE REPRODUCTORA + AVES
     ══════════════════════════════════════════ -->
-    <section
-      *ngIf="selectedLoteReproductoraId && selectedReproductoraDetail"
-      class="ux-card info-card"
-      [class.info-card--closed]="isLoteReproductoraCerrado"
-      aria-label="Información del lote reproductora">
-
-      <!-- Banner de lote cerrado -->
-      <div class="info-card__closed-banner" *ngIf="isLoteReproductoraCerrado" role="alert">
-        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="closed-icon">
-          <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-        </svg>
-        <div style="flex:1">
-          <strong>Lote reproductora cerrado<span *ngIf="isReabierto"> · Reabierto</span></strong>
-          <span *ngIf="!isReabierto">Solo consulta — reábralo con una novedad para poder eliminar registros.</span>
-          <span *ngIf="isReabierto">Reabierto con novedad: «{{ selectedReproductoraDetail.novedadApertura }}». Ya puede eliminar registros.</span>
+    @if (selectedLoteReproductoraId && selectedReproductoraDetail) {
+      <section
+        class="ux-card info-card"
+        [class.info-card--closed]="isLoteReproductoraCerrado"
+        aria-label="Información del lote reproductora">
+        <!-- Banner de lote cerrado -->
+        @if (isLoteReproductoraCerrado) {
+          <div class="info-card__closed-banner" role="alert">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="closed-icon">
+              <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+            </svg>
+            <div style="flex:1">
+              <strong>Lote reproductora cerrado@if (isReabierto) {
+                <span> · Reabierto</span>
+              }</strong>
+              @if (!isReabierto) {
+                <span>Solo consulta — reábralo con una novedad para poder eliminar registros.</span>
+              }
+              @if (isReabierto) {
+                <span>Reabierto con novedad: «{{ selectedReproductoraDetail.novedadApertura }}». Ya puede eliminar registros.</span>
+              }
+            </div>
+            @if (!isReabierto) {
+              <button
+                type="button"
+                class="btn btn--primary"
+                (click)="openReabrir()"
+                title="Reabrir el lote con una novedad para eliminar registros">
+                Reabrir lote
+              </button>
+            }
+          </div>
+        }
+        <div class="info-card__body">
+          <!-- Datos del lote -->
+          <div class="info-block">
+            <h3 class="info-block__title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+              Datos del lote reproductora
+            </h3>
+            <dl class="info-dl">
+              <div class="info-dl__row">
+                <dt>Código</dt>
+                <dd>{{ selectedReproductoraDetail.reproductoraId }}</dd>
+              </div>
+              <div class="info-dl__row">
+                <dt>Nombre</dt>
+                <dd>{{ selectedReproductoraDetail.nombreLote }}</dd>
+              </div>
+              <div class="info-dl__row">
+                <dt>Encasetamiento</dt>
+                <dd>{{ selectedReproductoraDetail.fechaEncasetamiento ? (selectedReproductoraDetail.fechaEncasetamiento | date:'dd/MM/yyyy') : '—' }}</dd>
+              </div>
+              <div class="info-dl__row">
+                <dt>Estado</dt>
+                <dd>
+                  <span class="status-badge"
+                    [class.status-badge--open]="selectedReproductoraDetail.estado === 'Vigente'"
+                    [class.status-badge--closed]="selectedReproductoraDetail.estado === 'Cerrado'">
+                    <span class="status-badge__dot"></span>
+                    {{ selectedReproductoraDetail.estado === 'Vigente' ? 'Disponible' : selectedReproductoraDetail.estado }}
+                  </span>
+                </dd>
+              </div>
+              <div class="info-dl__row">
+                <dt>Saldo apertura</dt>
+                <dd>
+                  {{ (selectedReproductoraDetail.saldoApertura ?? 0) | number:'1.0-0' }}
+                  <span class="dl-sub">(H: {{ (selectedReproductoraDetail.avesInicioHembras ?? 0) | number:'1.0-0' }} · M: {{ (selectedReproductoraDetail.avesInicioMachos ?? 0) | number:'1.0-0' }})</span>
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <!-- Aves disponibles -->
+          <div class="info-block info-block--highlight">
+            <h3 class="info-block__title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+              Aves disponibles (saldo actual)
+            </h3>
+            <p class="aves-count">{{ selectedReproductoraDetail.avesActuales | number:'1.0-0' }}</p>
+            <p class="aves-hint">Saldo real considerando mortalidad, selección, error de sexaje y movimientos de aves registrados.</p>
+          </div>
         </div>
-        <button
-          type="button"
-          class="btn btn--primary"
-          *ngIf="!isReabierto"
-          (click)="openReabrir()"
-          title="Reabrir el lote con una novedad para eliminar registros">
-          Reabrir lote
-        </button>
-      </div>
-
-      <div class="info-card__body">
-        <!-- Datos del lote -->
-        <div class="info-block">
-          <h3 class="info-block__title">
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
-            Datos del lote reproductora
-          </h3>
-          <dl class="info-dl">
-            <div class="info-dl__row">
-              <dt>Código</dt>
-              <dd>{{ selectedReproductoraDetail.reproductoraId }}</dd>
-            </div>
-            <div class="info-dl__row">
-              <dt>Nombre</dt>
-              <dd>{{ selectedReproductoraDetail.nombreLote }}</dd>
-            </div>
-            <div class="info-dl__row">
-              <dt>Encasetamiento</dt>
-              <dd>{{ selectedReproductoraDetail.fechaEncasetamiento ? (selectedReproductoraDetail.fechaEncasetamiento | date:'dd/MM/yyyy') : '—' }}</dd>
-            </div>
-            <div class="info-dl__row">
-              <dt>Estado</dt>
-              <dd>
-                <span class="status-badge"
-                  [class.status-badge--open]="selectedReproductoraDetail.estado === 'Vigente'"
-                  [class.status-badge--closed]="selectedReproductoraDetail.estado === 'Cerrado'">
-                  <span class="status-badge__dot"></span>
-                  {{ selectedReproductoraDetail.estado === 'Vigente' ? 'Disponible' : selectedReproductoraDetail.estado }}
-                </span>
-              </dd>
-            </div>
-            <div class="info-dl__row">
-              <dt>Saldo apertura</dt>
-              <dd>
-                {{ (selectedReproductoraDetail.saldoApertura ?? 0) | number:'1.0-0' }}
-                <span class="dl-sub">(H: {{ (selectedReproductoraDetail.avesInicioHembras ?? 0) | number:'1.0-0' }} · M: {{ (selectedReproductoraDetail.avesInicioMachos ?? 0) | number:'1.0-0' }})</span>
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <!-- Aves disponibles -->
-        <div class="info-block info-block--highlight">
-          <h3 class="info-block__title">
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-            Aves disponibles (saldo actual)
-          </h3>
-          <p class="aves-count">{{ selectedReproductoraDetail.avesActuales | number:'1.0-0' }}</p>
-          <p class="aves-hint">Saldo real considerando mortalidad, selección, error de sexaje y movimientos de aves registrados.</p>
-        </div>
-      </div>
-    </section>
+      </section>
+    }
 
     <!-- ══════════════════════════════════════════
-         TABS: SEGUIMIENTO | LESIONES (solo Panamá)
+    TABS: SEGUIMIENTO | LESIONES (solo Panamá)
     ══════════════════════════════════════════ -->
     <ng-container *appShowIfCountry="'PANAMA'">
-      <nav class="tab-nav" *ngIf="selectedLoteReproductoraId" role="tablist" aria-label="Secciones del módulo">
-        <button
-          type="button"
-          class="tab-pill"
-          [class.tab-pill--active]="activeTab === 'seguimiento'"
-          (click)="activeTab = 'seguimiento'"
-          role="tab"
-          [attr.aria-selected]="activeTab === 'seguimiento'">
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="tab-pill__icon">
-            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-          </svg>
-          Seguimiento
-          <span class="tab-pill__count" *ngIf="activeTab === 'seguimiento' && seguimientos.length">{{ seguimientos.length }}</span>
-        </button>
-        <button
-          type="button"
-          class="tab-pill"
-          [class.tab-pill--active]="activeTab === 'lesiones'"
-          (click)="activeTab = 'lesiones'"
-          role="tab"
-          [attr.aria-selected]="activeTab === 'lesiones'">
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="tab-pill__icon">
-            <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
-          </svg>
-          Lesiones
-        </button>
-      </nav>
+      @if (selectedLoteReproductoraId) {
+        <nav class="tab-nav" role="tablist" aria-label="Secciones del módulo">
+          <button
+            type="button"
+            class="tab-pill"
+            [class.tab-pill--active]="activeTab === 'seguimiento'"
+            (click)="activeTab = 'seguimiento'"
+            role="tab"
+            [attr.aria-selected]="activeTab === 'seguimiento'">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="tab-pill__icon">
+              <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+            </svg>
+            Seguimiento
+            @if (activeTab === 'seguimiento' && seguimientos.length) {
+              <span class="tab-pill__count">{{ seguimientos.length }}</span>
+            }
+          </button>
+          <button
+            type="button"
+            class="tab-pill"
+            [class.tab-pill--active]="activeTab === 'lesiones'"
+            (click)="activeTab = 'lesiones'"
+            role="tab"
+            [attr.aria-selected]="activeTab === 'lesiones'">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="tab-pill__icon">
+              <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+            </svg>
+            Lesiones
+          </button>
+        </nav>
+      }
     </ng-container>
 
     <!-- ══════════════════════════════════════════
-         PANEL: SEGUIMIENTO (tabla principal)
+    PANEL: SEGUIMIENTO (tabla principal)
     ══════════════════════════════════════════ -->
-    <section class="ux-card table-card" *ngIf="activeTab === 'seguimiento'" role="tabpanel" aria-label="Registros de seguimiento diario">
-      <header class="table-card__header">
-        <div class="table-card__title-group">
-          <h2 class="table-card__title">Registros de seguimiento</h2>
-          <span class="table-card__badge" *ngIf="seguimientos.length">{{ seguimientos.length }}</span>
+    @if (activeTab === 'seguimiento') {
+      <section class="ux-card table-card" role="tabpanel" aria-label="Registros de seguimiento diario">
+        <header class="table-card__header">
+          <div class="table-card__title-group">
+            <h2 class="table-card__title">Registros de seguimiento</h2>
+            @if (seguimientos.length) {
+              <span class="table-card__badge">{{ seguimientos.length }}</span>
+            }
+          </div>
+        </header>
+        <div class="table-wrap" [class.table-wrap--loading]="loading">
+          <table class="data-table" aria-label="Seguimiento diario por reproductora aves de engorde">
+            <caption class="sr-only">Registros de seguimiento diario — reproductora aves de engorde</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-date" rowspan="2">Fecha</th>
+                <th scope="col" class="col-edad" rowspan="2" title="Edad del lote desde el encasetamiento al día del registro">Edad</th>
+                <th scope="col" colspan="2" class="col-group">Mortalidad</th>
+                <th scope="col" colspan="2" class="col-group">Selección</th>
+                <th scope="col" colspan="2" class="col-group">Error sexaje</th>
+                <th scope="col" rowspan="2">Tipo alimento</th>
+                <th scope="col" colspan="2" class="col-group">Consumo (kg)</th>
+                <th scope="col" colspan="2" class="col-group">Peso prom. (kg)</th>
+                <th scope="col" rowspan="2" class="col-ciclo">Ciclo</th>
+                <th scope="col" rowspan="2" class="col-obs">Observaciones</th>
+                <th scope="col" rowspan="2" class="col-actions">Acciones</th>
+              </tr>
+              <tr class="data-table__subrow">
+                <th scope="col" class="sub-th">H</th>
+                <th scope="col" class="sub-th">M</th>
+                <th scope="col" class="sub-th">H</th>
+                <th scope="col" class="sub-th">M</th>
+                <th scope="col" class="sub-th">H</th>
+                <th scope="col" class="sub-th">M</th>
+                <th scope="col" class="sub-th">H</th>
+                <th scope="col" class="sub-th">M</th>
+                <th scope="col" class="sub-th">H</th>
+                <th scope="col" class="sub-th">M</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Empty state -->
+              @if (!loading && (!seguimientos || seguimientos.length === 0)) {
+                <tr class="data-table__empty-row">
+                  <td colspan="16">
+                    <div class="empty-state">
+                      <div class="empty-state__visual" aria-hidden="true">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="8" y="8" width="32" height="36" rx="3"/>
+                          <line x1="15" y1="18" x2="33" y2="18"/>
+                          <line x1="15" y1="24" x2="33" y2="24"/>
+                          <line x1="15" y1="30" x2="24" y2="30"/>
+                        </svg>
+                      </div>
+                      @if (!selectedLoteReproductoraId) {
+                        <p class="empty-state__title">Selecciona los filtros para comenzar</p>
+                      }
+                      @if (selectedLoteReproductoraId) {
+                        <p class="empty-state__title">Sin registros para esta reproductora</p>
+                      }
+                      @if (selectedLoteReproductoraId && !isLoteReproductoraCerrado) {
+                        <p class="empty-state__hint">
+                          Crea el primer registro con el botón <strong>Nuevo registro</strong>
+                        </p>
+                      }
+                      @if (selectedLoteReproductoraId && isLoteReproductoraCerrado) {
+                        <p class="empty-state__hint empty-state__hint--muted">
+                          El lote está cerrado. No se pueden crear más registros.
+                        </p>
+                      }
+                      @if (selectedLoteReproductoraId && !isLoteReproductoraCerrado) {
+                        <button
+                          type="button"
+                          class="btn btn--primary empty-state__cta"
+                          (click)="create()"
+                          [disabled]="!selectedLoteReproductoraId || isLoteReproductoraCerrado">
+                          Crear primer registro
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+              <!-- Filas de datos -->
+              @for (s of seguimientos; track trackById($index, s)) {
+                <tr class="data-table__row">
+                  <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
+                  <!-- Edad del lote en el registro (días desde encasetamiento) -->
+                  <td class="cell-edad" data-label="Edad">
+                    @if (calcularEdad(s.fechaRegistro) !== null) {
+                      <span class="edad-valor" [title]="'Días desde el encasetamiento'">
+                        {{ calcularEdad(s.fechaRegistro) }}
+                      </span>
+                      <span class="edad-label">días</span>
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <!-- Mortalidad -->
+                  <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras != null ? s.mortalidadHembras : '—' }}</td>
+                  <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos != null ? s.mortalidadMachos : '—' }}</td>
+                  <!-- Selección -->
+                  <td class="cell-num" data-label="Sel. H">{{ s.selH != null ? s.selH : '—' }}</td>
+                  <td class="cell-num" data-label="Sel. M">{{ s.selM != null ? s.selM : '—' }}</td>
+                  <!-- Error sexaje -->
+                  <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras != null ? s.errorSexajeHembras : '—' }}</td>
+                  <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos != null ? s.errorSexajeMachos : '—' }}</td>
+                  <!-- Tipo alimento -->
+                  <td class="cell-text cell-alimento" data-label="Tipo alimento" [title]="s.tipoAlimento || ''">
+                    {{ s.tipoAlimento || '—' }}
+                  </td>
+                  <!-- Consumo H / M -->
+                  <td class="cell-num" data-label="Consumo H (kg)">
+                    {{ s.consumoKgHembras != null ? (s.consumoKgHembras | number:'1.0-2') : '—' }}
+                  </td>
+                  <td class="cell-num" data-label="Consumo M (kg)">
+                    {{ s.consumoKgMachos != null ? (s.consumoKgMachos | number:'1.0-2') : '—' }}
+                  </td>
+                  <!-- Peso promedio H / M -->
+                  <td class="cell-num" data-label="Peso H (kg)">
+                    {{ s.pesoPromH != null ? (s.pesoPromH | number:'1.0-3') : '—' }}
+                  </td>
+                  <td class="cell-num" data-label="Peso M (kg)">
+                    {{ s.pesoPromM != null ? (s.pesoPromM | number:'1.0-3') : '—' }}
+                  </td>
+                  <!-- Ciclo -->
+                  <td class="cell-ciclo" data-label="Ciclo">
+                    <span class="badge-ciclo" [class.badge-ciclo--reforzado]="s.ciclo === 'Reforzado'">
+                      {{ s.ciclo || 'Normal' }}
+                    </span>
+                  </td>
+                  <!-- Observaciones -->
+                  <td class="cell-obs" data-label="Observaciones" [title]="s.observaciones || ''">
+                    {{ s.observaciones ? (s.observaciones.length > 40 ? (s.observaciones | slice:0:40) + '…' : s.observaciones) : '—' }}
+                  </td>
+                  <!-- Acciones -->
+                  <td class="cell-actions" data-label="Acciones">
+                    <div class="action-group">
+                      <button
+                        type="button"
+                        class="action-btn action-btn--view"
+                        (click)="viewDetail(s)"
+                        title="Ver detalle completo"
+                        aria-label="Ver detalle">
+                        <fa-icon [icon]="faEye"></fa-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="action-btn action-btn--edit"
+                        (click)="edit(s)"
+                        [disabled]="isLoteReproductoraCerrado"
+                        [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede editar' : 'Editar registro'"
+                        aria-label="Editar">
+                        <fa-icon [icon]="faPen"></fa-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="action-btn action-btn--delete"
+                        (click)="delete(s.id)"
+                        [disabled]="!puedeEliminar"
+                        [title]="puedeEliminar ? 'Eliminar registro' : 'Lote cerrado: reábralo con una novedad para eliminar'"
+                        aria-label="Eliminar">
+                        <fa-icon [icon]="faTrash"></fa-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
-      </header>
-
-      <div class="table-wrap" [class.table-wrap--loading]="loading">
-        <table class="data-table" aria-label="Seguimiento diario por reproductora aves de engorde">
-          <caption class="sr-only">Registros de seguimiento diario — reproductora aves de engorde</caption>
-          <thead>
-            <tr>
-              <th scope="col" class="col-date" rowspan="2">Fecha</th>
-              <th scope="col" class="col-edad" rowspan="2" title="Edad del lote desde el encasetamiento al día del registro">Edad</th>
-              <th scope="col" colspan="2" class="col-group">Mortalidad</th>
-              <th scope="col" colspan="2" class="col-group">Selección</th>
-              <th scope="col" colspan="2" class="col-group">Error sexaje</th>
-              <th scope="col" rowspan="2">Tipo alimento</th>
-              <th scope="col" colspan="2" class="col-group">Consumo (kg)</th>
-              <th scope="col" colspan="2" class="col-group">Peso prom. (kg)</th>
-              <th scope="col" rowspan="2" class="col-ciclo">Ciclo</th>
-              <th scope="col" rowspan="2" class="col-obs">Observaciones</th>
-              <th scope="col" rowspan="2" class="col-actions">Acciones</th>
-            </tr>
-            <tr class="data-table__subrow">
-              <th scope="col" class="sub-th">H</th>
-              <th scope="col" class="sub-th">M</th>
-              <th scope="col" class="sub-th">H</th>
-              <th scope="col" class="sub-th">M</th>
-              <th scope="col" class="sub-th">H</th>
-              <th scope="col" class="sub-th">M</th>
-              <th scope="col" class="sub-th">H</th>
-              <th scope="col" class="sub-th">M</th>
-              <th scope="col" class="sub-th">H</th>
-              <th scope="col" class="sub-th">M</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Empty state -->
-            <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)" class="data-table__empty-row">
-              <td colspan="16">
-                <div class="empty-state">
-                  <div class="empty-state__visual" aria-hidden="true">
-                    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="8" y="8" width="32" height="36" rx="3"/>
-                      <line x1="15" y1="18" x2="33" y2="18"/>
-                      <line x1="15" y1="24" x2="33" y2="24"/>
-                      <line x1="15" y1="30" x2="24" y2="30"/>
-                    </svg>
-                  </div>
-                  <p class="empty-state__title" *ngIf="!selectedLoteReproductoraId">Selecciona los filtros para comenzar</p>
-                  <p class="empty-state__title" *ngIf="selectedLoteReproductoraId">Sin registros para esta reproductora</p>
-                  <p class="empty-state__hint" *ngIf="selectedLoteReproductoraId && !isLoteReproductoraCerrado">
-                    Crea el primer registro con el botón <strong>Nuevo registro</strong>
-                  </p>
-                  <p class="empty-state__hint empty-state__hint--muted" *ngIf="selectedLoteReproductoraId && isLoteReproductoraCerrado">
-                    El lote está cerrado. No se pueden crear más registros.
-                  </p>
-                  <button
-                    type="button"
-                    class="btn btn--primary empty-state__cta"
-                    (click)="create()"
-                    *ngIf="selectedLoteReproductoraId && !isLoteReproductoraCerrado"
-                    [disabled]="!selectedLoteReproductoraId || isLoteReproductoraCerrado">
-                    Crear primer registro
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Filas de datos -->
-            <tr *ngFor="let s of seguimientos; trackBy: trackById" class="data-table__row">
-              <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
-
-              <!-- Edad del lote en el registro (días desde encasetamiento) -->
-              <td class="cell-edad" data-label="Edad">
-                <ng-container *ngIf="calcularEdad(s.fechaRegistro) !== null; else sinEdad">
-                  <span class="edad-valor" [title]="'Días desde el encasetamiento'">
-                    {{ calcularEdad(s.fechaRegistro) }}
-                  </span>
-                  <span class="edad-label">días</span>
-                </ng-container>
-                <ng-template #sinEdad>—</ng-template>
-              </td>
-
-              <!-- Mortalidad -->
-              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras != null ? s.mortalidadHembras : '—' }}</td>
-              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos != null ? s.mortalidadMachos : '—' }}</td>
-
-              <!-- Selección -->
-              <td class="cell-num" data-label="Sel. H">{{ s.selH != null ? s.selH : '—' }}</td>
-              <td class="cell-num" data-label="Sel. M">{{ s.selM != null ? s.selM : '—' }}</td>
-
-              <!-- Error sexaje -->
-              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras != null ? s.errorSexajeHembras : '—' }}</td>
-              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos != null ? s.errorSexajeMachos : '—' }}</td>
-
-              <!-- Tipo alimento -->
-              <td class="cell-text cell-alimento" data-label="Tipo alimento" [title]="s.tipoAlimento || ''">
-                {{ s.tipoAlimento || '—' }}
-              </td>
-
-              <!-- Consumo H / M -->
-              <td class="cell-num" data-label="Consumo H (kg)">
-                {{ s.consumoKgHembras != null ? (s.consumoKgHembras | number:'1.0-2') : '—' }}
-              </td>
-              <td class="cell-num" data-label="Consumo M (kg)">
-                {{ s.consumoKgMachos != null ? (s.consumoKgMachos | number:'1.0-2') : '—' }}
-              </td>
-
-              <!-- Peso promedio H / M -->
-              <td class="cell-num" data-label="Peso H (kg)">
-                {{ s.pesoPromH != null ? (s.pesoPromH | number:'1.0-3') : '—' }}
-              </td>
-              <td class="cell-num" data-label="Peso M (kg)">
-                {{ s.pesoPromM != null ? (s.pesoPromM | number:'1.0-3') : '—' }}
-              </td>
-
-              <!-- Ciclo -->
-              <td class="cell-ciclo" data-label="Ciclo">
-                <span class="badge-ciclo" [class.badge-ciclo--reforzado]="s.ciclo === 'Reforzado'">
-                  {{ s.ciclo || 'Normal' }}
-                </span>
-              </td>
-
-              <!-- Observaciones -->
-              <td class="cell-obs" data-label="Observaciones" [title]="s.observaciones || ''">
-                {{ s.observaciones ? (s.observaciones.length > 40 ? (s.observaciones | slice:0:40) + '…' : s.observaciones) : '—' }}
-              </td>
-
-              <!-- Acciones -->
-              <td class="cell-actions" data-label="Acciones">
-                <div class="action-group">
-                  <button
-                    type="button"
-                    class="action-btn action-btn--view"
-                    (click)="viewDetail(s)"
-                    title="Ver detalle completo"
-                    aria-label="Ver detalle">
-                    <fa-icon [icon]="faEye"></fa-icon>
-                  </button>
-                  <button
-                    type="button"
-                    class="action-btn action-btn--edit"
-                    (click)="edit(s)"
-                    [disabled]="isLoteReproductoraCerrado"
-                    [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede editar' : 'Editar registro'"
-                    aria-label="Editar">
-                    <fa-icon [icon]="faPen"></fa-icon>
-                  </button>
-                  <button
-                    type="button"
-                    class="action-btn action-btn--delete"
-                    (click)="delete(s.id)"
-                    [disabled]="!puedeEliminar"
-                    [title]="puedeEliminar ? 'Eliminar registro' : 'Lote cerrado: reábralo con una novedad para eliminar'"
-                    aria-label="Eliminar">
-                    <fa-icon [icon]="faTrash"></fa-icon>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Spinner de carga sobre la tabla -->
-      <div *ngIf="loading" class="table-loading" aria-live="polite" role="status">
-        <div class="spinner" aria-hidden="true"></div>
-        <span>Cargando registros…</span>
-      </div>
-    </section>
+        <!-- Spinner de carga sobre la tabla -->
+        @if (loading) {
+          <div class="table-loading" aria-live="polite" role="status">
+            <div class="spinner" aria-hidden="true"></div>
+            <span>Cargando registros…</span>
+          </div>
+        }
+      </section>
+    }
 
     <!-- ══════════════════════════════════════════
-         PANEL: LESIONES (solo Panamá)
+    PANEL: LESIONES (solo Panamá)
     ══════════════════════════════════════════ -->
     <ng-container *appShowIfCountry="'PANAMA'">
-      <div *ngIf="activeTab === 'lesiones'" role="tabpanel" aria-label="Lesiones">
-        <div *ngIf="selectedLoteReproductoraId; else lesionesNoContext">
-          <app-lesion-tab
-            [moduloOrigen]="'REPRODUCTORA'"
-            [farmId]="selectedGranjaId"
-            [loteId]="selectedLoteId"
-            [galponId]="selectedGalponId"
-            [loteReproductoraId]="selectedLoteReproductoraId"
-            [loteNombre]="selectedLoteReproductoraNombre"
-            [granjaNombre]="selectedGranjaName"
-            [nucleoNombre]="selectedNucleoNombre || null"
-            [galponNombre]="selectedGalponNombre || null"
-            [loteEngorde]="selectedLoteNombre || null"
-            [fechaEncasetamiento]="selectedReproductoraDetail?.fechaEncasetamiento ?? null">
-          </app-lesion-tab>
-        </div>
-        <ng-template #lesionesNoContext>
-          <div class="ux-card">
-            <div class="empty-state empty-state--pad">
-              <div class="empty-state__visual" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M24 4C12.954 4 4 12.954 4 24s8.954 20 20 20 20-8.954 20-20S35.046 4 24 4z"/>
-                  <path d="M24 16v8M24 32h.01"/>
-                </svg>
-              </div>
-              <p class="empty-state__title">Selecciona una reproductora</p>
-              <p class="empty-state__hint">Usa los filtros de arriba para ver y registrar lesiones de un lote reproductora.</p>
+      @if (activeTab === 'lesiones') {
+        <div role="tabpanel" aria-label="Lesiones">
+          @if (selectedLoteReproductoraId) {
+            <div>
+              <app-lesion-tab
+                [moduloOrigen]="'REPRODUCTORA'"
+                [farmId]="selectedGranjaId"
+                [loteId]="selectedLoteId"
+                [galponId]="selectedGalponId"
+                [loteReproductoraId]="selectedLoteReproductoraId"
+                [loteNombre]="selectedLoteReproductoraNombre"
+                [granjaNombre]="selectedGranjaName"
+                [nucleoNombre]="selectedNucleoNombre || null"
+                [galponNombre]="selectedGalponNombre || null"
+                [loteEngorde]="selectedLoteNombre || null"
+                [fechaEncasetamiento]="selectedReproductoraDetail?.fechaEncasetamiento ?? null">
+              </app-lesion-tab>
             </div>
-          </div>
-        </ng-template>
-      </div>
+          } @else {
+            <div class="ux-card">
+              <div class="empty-state empty-state--pad">
+                <div class="empty-state__visual" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M24 4C12.954 4 4 12.954 4 24s8.954 20 20 20 20-8.954 20-20S35.046 4 24 4z"/>
+                    <path d="M24 16v8M24 32h.01"/>
+                  </svg>
+                </div>
+                <p class="empty-state__title">Selecciona una reproductora</p>
+                <p class="empty-state__hint">Usa los filtros de arriba para ver y registrar lesiones de un lote reproductora.</p>
+              </div>
+            </div>
+          }
+        </div>
+      }
     </ng-container>
 
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════
-     MODALES
+MODALES
 ══════════════════════════════════════════ -->
 
 <!-- Modal crear / editar seguimiento (modal propio del módulo) -->
@@ -566,29 +618,31 @@
 </app-confirmation-modal>
 
 <!-- Modal reapertura con novedad -->
-<div class="reabrir-overlay" *ngIf="reabrirModalOpen" (click)="cancelReabrir()">
-  <div class="reabrir-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="reabrir-title">
-    <h3 id="reabrir-title" class="reabrir-modal__title">Reabrir lote reproductora</h3>
-    <p class="reabrir-modal__desc">
-      Indique la <strong>novedad</strong> (motivo) por la que reabre este lote cerrado.
-      Quedará registrada como auditoría. Al eliminar un registro, el lote se cerrará nuevamente.
-    </p>
-    <label for="reabrir-novedad" class="reabrir-modal__label">Novedad</label>
-    <textarea
-      id="reabrir-novedad"
-      class="reabrir-modal__textarea"
-      rows="3"
-      [(ngModel)]="novedadInput"
+@if (reabrirModalOpen) {
+  <div class="reabrir-overlay" (click)="cancelReabrir()">
+    <div class="reabrir-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="reabrir-title">
+      <h3 id="reabrir-title" class="reabrir-modal__title">Reabrir lote reproductora</h3>
+      <p class="reabrir-modal__desc">
+        Indique la <strong>novedad</strong> (motivo) por la que reabre este lote cerrado.
+        Quedará registrada como auditoría. Al eliminar un registro, el lote se cerrará nuevamente.
+      </p>
+      <label for="reabrir-novedad" class="reabrir-modal__label">Novedad</label>
+      <textarea
+        id="reabrir-novedad"
+        class="reabrir-modal__textarea"
+        rows="3"
+        [(ngModel)]="novedadInput"
       placeholder="Ej.: Corrección de un registro cargado con datos errados."></textarea>
-    <div class="reabrir-modal__actions">
-      <button type="button" class="btn" (click)="cancelReabrir()" [disabled]="reabriendo">Cancelar</button>
-      <button
-        type="button"
-        class="btn btn--primary"
-        (click)="confirmReabrir()"
-        [disabled]="!novedadInput.trim() || reabriendo">
-        {{ reabriendo ? 'Reabriendo…' : 'Reabrir lote' }}
-      </button>
+      <div class="reabrir-modal__actions">
+        <button type="button" class="btn" (click)="cancelReabrir()" [disabled]="reabriendo">Cancelar</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="confirmReabrir()"
+          [disabled]="!novedadInput.trim() || reabriendo">
+          {{ reabriendo ? 'Reabriendo…' : 'Reabrir lote' }}
+        </button>
+      </div>
     </div>
   </div>
-</div>
+}

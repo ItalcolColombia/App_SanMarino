@@ -35,53 +35,36 @@ public class FarmInventoryReportService : IFarmInventoryReportService
             }
         }
 
-        var q = _db.FarmInventoryMovements
-            .AsNoTracking()
-            .Where(m => m.FarmId == farmId && m.CatalogItemId == catalogItemId);
-        
-        // Filtrar por empresa y país del usuario actual
-        if (_current != null && _current.CompanyId > 0)
+        // Filtros de empresa/país del usuario actual (la fn los ignora cuando llegan null/<=0).
+        int? companyFilter = (_current != null && _current.CompanyId > 0) ? _current.CompanyId : null;
+        int? paisFilter = (_current != null && _current.CompanyId > 0
+                           && _current.PaisId.HasValue && _current.PaisId.Value > 0)
+                          ? _current.PaisId.Value : null;
+
+        // Delegar el cálculo del saldo a la BD (fn_kardex_farm_inventory, window function).
+        // Reemplaza el foreach en memoria; misma aritmética/orden (saldo por created_at, id,
+        // con el mismo switch de signo por movement_type). Equivalencia golden verificada.
+        var rows = await _db.Database
+            .SqlQueryRaw<KardexBdRow>(
+                "SELECT * FROM fn_kardex_farm_inventory({0}::int, {1}::int, {2}::int, {3}::int, {4}::timestamptz, {5}::timestamptz)",
+                farmId,
+                catalogItemId,
+                (object?)companyFilter ?? DBNull.Value,
+                (object?)paisFilter ?? DBNull.Value,
+                (object?)from ?? DBNull.Value,
+                (object?)to ?? DBNull.Value)
+            .ToListAsync(ct);
+
+        return rows.Select(r => new KardexItemDto
         {
-            q = q.Where(m => m.CompanyId == _current.CompanyId);
-            
-            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
-            {
-                q = q.Where(m => m.PaisId == _current.PaisId.Value);
-            }
-        }
-        
-        if (from.HasValue) q = q.Where(m => m.CreatedAt >= from.Value);
-        if (to.HasValue)   q = q.Where(m => m.CreatedAt <= to.Value);
-
-        var raw = await q.OrderBy(m => m.CreatedAt).ToListAsync(ct);
-
-        var saldo = 0m;
-        var list = new List<KardexItemDto>();
-        foreach (var m in raw)
-        {
-            var sign = m.MovementType switch
-            {
-                InventoryMovementType.Entry       => +1m,
-                InventoryMovementType.TransferIn  => +1m,
-                InventoryMovementType.Exit        => -1m,
-                InventoryMovementType.TransferOut => -1m,
-                InventoryMovementType.Adjust      => (decimal)(m.Quantity >= 0 ? +1 : -1), // según tu modelo
-                _ => 0m
-            };
-            var delta = sign * m.Quantity;
-            saldo += delta;
-
-            list.Add(new KardexItemDto {
-                Fecha = m.CreatedAt.UtcDateTime,
-                Tipo  = m.MovementType.ToString(),
-                Referencia = m.Reference,
-                Cantidad   = delta,
-                Unidad     = m.Unit,
-                Saldo      = saldo,
-                Motivo     = m.Reason
-            });
-        }
-        return list;
+            Fecha      = r.Fecha,
+            Tipo       = r.Tipo,
+            Referencia = r.Referencia,
+            Cantidad   = r.Cantidad,
+            Unidad     = r.Unidad,
+            Saldo      = r.Saldo,
+            Motivo     = r.Motivo
+        }).ToList();
     }
 
     public async Task ApplyStockCountAsync(int farmId, StockCountRequest req, CancellationToken ct = default)

@@ -45,7 +45,7 @@
   padding: 1.25rem 1.5rem;
   background: #ffffff;
   border-radius: 1.25rem;
-  border: 1px solid rgba(45, 122, 62, 0.12);
+  border: 1px solid rgba(245, 130, 31, 0.12);
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
   margin-bottom: 1rem;
 }
@@ -97,7 +97,7 @@
   margin-bottom: 1.25rem;
   background: rgba(255,255,255,0.88);
   border-radius: 1rem;
-  border: 1px solid rgba(45,122,62,0.12);
+  border: 1px solid rgba(245, 130, 31,0.12);
 }
 
 .tabs-nav__tab {
@@ -118,14 +118,14 @@
 .tabs-nav__tab:hover,
 .tabs-nav__tab:focus-visible {
   background: #eef6ed;
-  border-color: rgba(45,122,62,0.16);
+  border-color: rgba(245, 130, 31,0.16);
 }
 
 .tabs-nav__tab--active {
   background: var(--ital-green);
   border-color: var(--ital-green);
   color: #ffffff;
-  box-shadow: 0 10px 25px rgba(45,122,62,0.12);
+  box-shadow: 0 10px 25px rgba(245, 130, 31,0.12);
 }
 
 .tabs-nav__icon {

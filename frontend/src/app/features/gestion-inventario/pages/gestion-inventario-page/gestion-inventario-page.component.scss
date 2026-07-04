@@ -227,7 +227,7 @@
   padding: 1rem 1.25rem;
   background-color: #fff;
   background-image: linear-gradient(180deg, #ffffff 0%, var(--ital-cream-50, #fefdfb) 100%);
-  border-bottom: 1px solid var(--ital-green-100, rgba(45, 122, 62, 0.12));
+  border-bottom: 1px solid var(--ital-green-100, rgba(245, 130, 31, 0.12));
   border-radius: 0.75rem 0.75rem 0 0;
   position: relative;
   z-index: 2;
@@ -238,7 +238,7 @@
   font-size: 1.125rem;
   font-weight: 800;
   line-height: 1.3;
-  color: var(--ital-orange-dark, #d14a18);
+  color: var(--ital-orange-dark, #C85A0E);
   letter-spacing: 0.02em;
 }
 
@@ -274,7 +274,7 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    background-color: var(--ital-green-dark, #1e5c2a) !important;
+    background-color: var(--ital-green-dark, #C85A0E) !important;
     background-image: none;
     color: #ffffff !important;
     font-weight: 700;
@@ -283,7 +283,7 @@
     letter-spacing: 0.04em;
     box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
     white-space: nowrap;
-    border-bottom: 1px solid var(--ital-green, #2d7a3e);
+    border-bottom: 1px solid var(--ital-green, #F5821F);
   }
 
   tbody td {
@@ -296,7 +296,7 @@
   }
 
   tbody tr:hover td {
-    background-color: var(--ital-orange-50, rgba(232, 92, 37, 0.08)) !important;
+    background-color: var(--ital-orange-50, rgba(245, 130, 31, 0.08)) !important;
   }
 
   .th-num {

@@ -331,39 +331,6 @@ export class ProduccionService {
     return this.http.get<any[]>(`${this.baseUrl}/lotes-produccion`);
   }
 
-  /**
-   * Calcula la liquidación técnica de producción.
-   * Usar lotePosturaProduccionId (flujo LPP) o loteId (legacy).
-   * Organizado por etapas: 1 (25-33), 2 (34-50), 3 (>50)
-   */
-  calcularLiquidacionProduccion(
-    options: { loteId?: number; lotePosturaProduccionId?: number; fechaHasta?: string }
-  ): Observable<LiquidacionTecnicaProduccionDto> {
-    const request: LiquidacionTecnicaProduccionRequest = {
-      ...(options.lotePosturaProduccionId != null && options.lotePosturaProduccionId > 0
-        ? { lotePosturaProduccionId: options.lotePosturaProduccionId }
-        : options.loteId != null && options.loteId > 0
-          ? { loteId: options.loteId }
-          : {}),
-      ...(options.fechaHasta ? { fechaHasta: new Date(options.fechaHasta).toISOString() } : {})
-    };
-    return this.http.post<LiquidacionTecnicaProduccionDto>(`${this.baseUrl}/liquidacion-tecnica`, request);
-  }
-
-  /**
-   * Verifica si un lote tiene datos válidos para liquidación técnica de producción
-   */
-  validarLoteParaLiquidacionProduccion(loteId: number): Observable<boolean> {
-    return this.http.get<boolean>(`${this.baseUrl}/liquidacion-tecnica/validar/${loteId}`);
-  }
-
-  /**
-   * Obtiene el resumen de una etapa específica
-   */
-  obtenerResumenEtapa(loteId: number, etapa: number): Observable<EtapaLiquidacionDto> {
-    return this.http.get<EtapaLiquidacionDto>(`${this.baseUrl}/liquidacion-tecnica/etapa/${loteId}/${etapa}`);
-  }
-
   // ================== INDICADORES SEMANALES ==================
 
   /**
@@ -492,67 +459,6 @@ export interface IndicadoresProduccionResponse {
   mensajeGuiaGenetica?: string | null;
 }
 
-// ==================== DTOs para Liquidación Técnica de Producción ====================
-
-export interface LiquidacionTecnicaProduccionDto {
-  loteId: string;
-  loteNombre: string;
-  fechaEncaset: string;
-  raza?: string;
-  anoTablaGenetica?: number;
-  hembrasIniciales: number;
-  machosIniciales: number;
-  huevosIniciales: number;
-  etapa1: EtapaLiquidacionDto;
-  etapa2: EtapaLiquidacionDto;
-  etapa3: EtapaLiquidacionDto;
-  totales: MetricasAcumuladasProduccionDto;
-  comparacionGuia?: ComparacionGuiaProduccionDto;
-  fechaCalculo: string;
-  totalRegistrosSeguimiento: number;
-  fechaUltimoSeguimiento?: string;
-  semanaActual: number;
-}
-
-export interface EtapaLiquidacionDto {
-  etapa: number;
-  nombre: string;
-  semanaDesde: number;
-  semanaHasta?: number;
-  totalRegistros: number;
-  mortalidadHembras: number;
-  mortalidadMachos: number;
-  porcentajeMortalidadHembras: number;
-  porcentajeMortalidadMachos: number;
-  seleccionHembras: number;
-  porcentajeSeleccionHembras: number;
-  consumoKgHembras: number;
-  consumoKgMachos: number;
-  consumoTotalKg: number;
-  huevosTotales: number;
-  huevosIncubables: number;
-  promedioHuevosPorDia: number;
-  eficienciaProduccion: number;
-  pesoHembras?: number;
-  pesoMachos?: number;
-  uniformidad?: number;
-  huevosLimpios: number;
-  huevosTratados: number;
-  huevosSucios: number;
-  huevosDeformes: number;
-  huevosBlancos: number;
-  huevosDobleYema: number;
-  huevosPiso: number;
-  huevosPequenos: number;
-  huevosRotos: number;
-  huevosDesecho: number;
-  huevosOtro: number;
-  pesoPromedioHembras?: number;
-  pesoPromedioMachos?: number;
-  uniformidadPromedio?: number;
-  coeficienteVariacionPromedio?: number;
-}
-
 export interface MetricasAcumuladasProduccionDto {
   totalMortalidadHembras: number;
   totalMortalidadMachos: number;
@@ -625,11 +531,4 @@ export interface ComparacionGuiaProduccionDto {
   // Retiro acumulado de guía
   retiroAcumuladoHembrasGuia?: number;
   retiroAcumuladoMachosGuia?: number;
-}
-
-export interface LiquidacionTecnicaProduccionRequest {
-  loteId?: number;
-  lotePosturaProduccionId?: number;
-  fechaHasta?: string;
-  etapaFiltro?: number;
 }

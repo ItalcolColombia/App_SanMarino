@@ -8,185 +8,188 @@
       <button
         (click)="newCity()"
         class="ml-auto inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-800 rounded hover:bg-yellow-500 transition"
-      >
+        >
         <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
         Nueva Ciudad
       </button>
     </div>
 
     <!-- Modal de creación/edición -->
-    <div
-      *ngIf="showModal"
-      class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-    >
-      <div class="bg-white rounded-lg shadow-lg w-1/3 p-6">
-        <!-- Título dinámico -->
-        <h2 class="text-xl font-bold mb-4">
-          {{ editingCity ? 'Editar Ciudad' : 'Crear Ciudad' }}
-        </h2>
-
-        <form [formGroup]="cityForm" (ngSubmit)="saveCity()">
-          <!-- País -->
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1" for="countryId">
-              País
-            </label>
-            <select
-              id="countryId"
-              formControlName="countryId"
-              class="w-full border rounded px-3 py-2"
-            >
-              <option [ngValue]="null" disabled>— Selecciona un país —</option>
-              <option *ngFor="let c of countries" [ngValue]="c.paisId">
-                {{ c.paisNombre }}
-              </option>
-            </select>
-            <div
-              *ngIf="cityForm.get('countryId')?.touched && cityForm.get('countryId')?.invalid"
-              class="text-red-600 text-xs mt-1"
-            >
-              Debes elegir un país.
+    @if (showModal) {
+      <div
+        class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+        >
+        <div class="bg-white rounded-lg shadow-lg w-1/3 p-6">
+          <!-- Título dinámico -->
+          <h2 class="text-xl font-bold mb-4">
+            {{ editingCity ? 'Editar Ciudad' : 'Crear Ciudad' }}
+          </h2>
+          <form [formGroup]="cityForm" (ngSubmit)="saveCity()">
+            <!-- País -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1" for="countryId">
+                País
+              </label>
+              <select
+                id="countryId"
+                formControlName="countryId"
+                class="w-full border rounded px-3 py-2"
+                >
+                <option [ngValue]="null" disabled>— Selecciona un país —</option>
+                @for (c of countries; track c) {
+                  <option [ngValue]="c.paisId">
+                    {{ c.paisNombre }}
+                  </option>
+                }
+              </select>
+              @if (cityForm.get('countryId')?.touched && cityForm.get('countryId')?.invalid) {
+                <div
+                  class="text-red-600 text-xs mt-1"
+                  >
+                  Debes elegir un país.
+                </div>
+              }
             </div>
-          </div>
-
-          <!-- Departamento (filtrado) -->
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1" for="departmentId">
-              Departamento
-            </label>
-            <select
-              id="departmentId"
-              formControlName="departmentId"
-              class="w-full border rounded px-3 py-2"
-            >
-              <option [ngValue]="null" disabled>— Selecciona un departamento —</option>
-              <option
-                *ngFor="let d of filteredDepartments"
-                [ngValue]="d.departamentoId"
-              >
-                {{ d.departamentoNombre }}
-              </option>
-            </select>
-            <div
-              *ngIf="
+            <!-- Departamento (filtrado) -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1" for="departmentId">
+                Departamento
+              </label>
+              <select
+                id="departmentId"
+                formControlName="departmentId"
+                class="w-full border rounded px-3 py-2"
+                >
+                <option [ngValue]="null" disabled>— Selecciona un departamento —</option>
+                @for (d of filteredDepartments; track d) {
+                  <option
+                    [ngValue]="d.departamentoId"
+                    >
+                    {{ d.departamentoNombre }}
+                  </option>
+                }
+              </select>
+              @if (
                 cityForm.get('departmentId')?.touched &&
                 cityForm.get('departmentId')?.invalid
-              "
-              class="text-red-600 text-xs mt-1"
-            >
-              Debes elegir un departamento.
+                ) {
+                <div
+                  class="text-red-600 text-xs mt-1"
+                  >
+                  Debes elegir un departamento.
+                </div>
+              }
+            </div>
+            <!-- Nombre de la ciudad -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1" for="name">
+                Nombre
+              </label>
+              <input
+                id="name"
+                formControlName="name"
+                type="text"
+                class="w-full border rounded px-3 py-2"
+                placeholder="Ej: Medellín"
+                />
+                @if (cityForm.get('name')?.touched && cityForm.get('name')?.invalid) {
+                  <div
+                    class="text-red-600 text-xs mt-1"
+                    >
+                    El nombre es obligatorio.
+                  </div>
+                }
+              </div>
+              <!-- Estado -->
+              <div class="mb-4 flex items-center">
+                <input
+                  id="active"
+                  formControlName="active"
+                  type="checkbox"
+                  class="mr-2"
+                  />
+                  <label for="active">Activo</label>
+                </div>
+                <!-- Botones -->
+                <div class="flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    (click)="cancel()"
+                    class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 inline-flex items-center"
+                    >
+                    <fa-icon [icon]="faTimes" class="mr-1"></fa-icon>
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    [disabled]="cityForm.invalid"
+                    class="px-4 py-2 bg-brand-red text-white rounded hover:bg-red-600 inline-flex items-center"
+                    >
+                    <fa-icon [icon]="faSave" class="mr-1"></fa-icon>
+                    Guardar
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
+        }
 
-          <!-- Nombre de la ciudad -->
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1" for="name">
-              Nombre
-            </label>
-            <input
-              id="name"
-              formControlName="name"
-              type="text"
-              class="w-full border rounded px-3 py-2"
-              placeholder="Ej: Medellín"
-            />
-            <div
-              *ngIf="cityForm.get('name')?.touched && cityForm.get('name')?.invalid"
-              class="text-red-600 text-xs mt-1"
-            >
-              El nombre es obligatorio.
-            </div>
-          </div>
+        <!-- Tabla de Ciudades -->
+        <div class="bg-white rounded-lg shadow overflow-x-auto mt-4">
+          <table class="min-w-full table-auto">
+            <thead class="bg-warm-gray-100">
+              <tr>
+                <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">
+                  Nombre
+                </th>
+                <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">
+                  Departamento
+                </th>
+                <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">
+                  Estado
+                </th>
+                <th class="px-4 py-3 text-right text-sm font-semibold text-warm-gray-700">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-warm-gray-200">
+              @for (city of cities; track city) {
+                <tr
+                  class="hover:bg-warm-gray-50 transition-colors"
+                  >
+                  <td class="px-4 py-2 text-sm">{{ city.municipioNombre }}</td>
+                  <td class="px-4 py-2 text-sm">
+                    {{ departmentMap[city.departamentoId] || '—' }}
+                  </td>
+                  <td class="px-4 py-2 text-sm">
+                    {{ city.active ? 'Inactivo' : 'Activo' }}
+                  </td>
+                  <td class="px-4 py-2 text-right space-x-2">
+                    <button
+                      (click)="editCity(city.municipioId)"
+                      class="p-1 text-warm-gray-500 hover:text-brand-red transition"
+                      >
+                      <fa-icon [icon]="faPen"></fa-icon>
+                    </button>
+                    <button
+                      (click)="deleteCity(city.municipioId)"
+                      class="p-1 text-warm-gray-500 hover:text-red-600 transition"
+                      >
+                      <fa-icon [icon]="faTrash"></fa-icon>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
 
-          <!-- Estado -->
-          <div class="mb-4 flex items-center">
-            <input
-              id="active"
-              formControlName="active"
-              type="checkbox"
-              class="mr-2"
-            />
-            <label for="active">Activo</label>
-          </div>
-
-          <!-- Botones -->
-          <div class="flex justify-end space-x-2">
-            <button
-              type="button"
-              (click)="cancel()"
-              class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 inline-flex items-center"
-            >
-              <fa-icon [icon]="faTimes" class="mr-1"></fa-icon>
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              [disabled]="cityForm.invalid"
-              class="px-4 py-2 bg-brand-red text-white rounded hover:bg-red-600 inline-flex items-center"
-            >
-              <fa-icon [icon]="faSave" class="mr-1"></fa-icon>
-              Guardar
-            </button>
-          </div>
-        </form>
+        <!-- Total -->
+        <div class="mt-4">
+          <p class="text-sm text-gray-600">
+            Total de ciudades: {{ cities.length }}
+          </p>
+        </div>
       </div>
     </div>
-
-    <!-- Tabla de Ciudades -->
-    <div class="bg-white rounded-lg shadow overflow-x-auto mt-4">
-      <table class="min-w-full table-auto">
-        <thead class="bg-warm-gray-100">
-          <tr>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">
-              Nombre
-            </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">
-              Departamento
-            </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">
-              Estado
-            </th>
-            <th class="px-4 py-3 text-right text-sm font-semibold text-warm-gray-700">
-              Acciones
-            </th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-warm-gray-200">
-          <tr
-            *ngFor="let city of cities"
-            class="hover:bg-warm-gray-50 transition-colors"
-          >
-            <td class="px-4 py-2 text-sm">{{ city.municipioNombre }}</td>
-            <td class="px-4 py-2 text-sm">
-              {{ departmentMap[city.departamentoId] || '—' }}
-            </td>
-            <td class="px-4 py-2 text-sm">
-              {{ city.active ? 'Inactivo' : 'Activo' }}
-            </td>
-            <td class="px-4 py-2 text-right space-x-2">
-              <button
-                (click)="editCity(city.municipioId)"
-                class="p-1 text-warm-gray-500 hover:text-brand-red transition"
-              >
-                <fa-icon [icon]="faPen"></fa-icon>
-              </button>
-              <button
-                (click)="deleteCity(city.municipioId)"
-                class="p-1 text-warm-gray-500 hover:text-red-600 transition"
-              >
-                <fa-icon [icon]="faTrash"></fa-icon>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Total -->
-    <div class="mt-4">
-      <p class="text-sm text-gray-600">
-        Total de ciudades: {{ cities.length }}
-      </p>
-    </div>
-  </div>
-</div>

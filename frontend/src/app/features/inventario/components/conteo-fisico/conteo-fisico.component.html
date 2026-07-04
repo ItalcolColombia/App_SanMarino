@@ -4,7 +4,9 @@
     <label class="ux-label" for="farm">Granja</label>
     <select id="farm" class="ux-select" [(ngModel)]="farmId" (change)="load()">
       <option [ngValue]="null" disabled>Seleccione…</option>
-      <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+      @for (f of farms; track f) {
+        <option [ngValue]="f.id">{{ f.name }}</option>
+      }
     </select>
   </div>
 
@@ -12,7 +14,9 @@
     <label class="ux-label" for="filtro">Buscar</label>
     <div class="actions">
       <input id="filtro" type="text" class="ux-input" [(ngModel)]="filtro" placeholder="Código o nombre…" />
-      <button *ngIf="filtro" class="btn-ghost" type="button" (click)="filtro=''">×</button>
+      @if (filtro) {
+        <button class="btn-ghost" type="button" (click)="filtro=''">×</button>
+      }
     </div>
   </div>
 
@@ -35,24 +39,32 @@
           <th class="text-right">Conteo</th>
         </tr>
       </thead>
-      <tbody *ngIf="!loading && filtered.length === 0">
-        <tr><td colspan="5" class="empty-state">Sin productos</td></tr>
-      </tbody>
-      <tbody *ngIf="!loading && filtered.length > 0">
-        <tr *ngFor="let r of filtered; trackBy: trackByCatalogItemId">
-          <td>{{ r.codigo }}</td>
-          <td>{{ r.nombre }}</td>
-          <td>{{ r.unit }}</td>
-          <td class="text-right">{{ r.sistema | number:'1.0-3' }}</td>
-          <td class="text-right">
-            <input type="number" step="0.0001" class="ux-input" [(ngModel)]="r.conteo" />
-          </td>
-        </tr>
-      </tbody>
+      @if (!loading && filtered.length === 0) {
+        <tbody>
+          <tr><td colspan="5" class="empty-state">Sin productos</td></tr>
+        </tbody>
+      }
+      @if (!loading && filtered.length > 0) {
+        <tbody>
+          @for (r of filtered; track trackByCatalogItemId($index, r)) {
+            <tr>
+              <td>{{ r.codigo }}</td>
+              <td>{{ r.nombre }}</td>
+              <td>{{ r.unit }}</td>
+              <td class="text-right">{{ r.sistema | number:'1.0-3' }}</td>
+              <td class="text-right">
+                <input type="number" step="0.0001" class="ux-input" [(ngModel)]="r.conteo" />
+              </td>
+            </tr>
+          }
+        </tbody>
+      }
     </table>
   </div>
 
-  <div *ngIf="loading" class="loading-overlay">
-    <div class="spinner"></div> Cargando…
-  </div>
+  @if (loading) {
+    <div class="loading-overlay">
+      <div class="spinner"></div> Cargando…
+    </div>
+  }
 </div>

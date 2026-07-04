@@ -1,48 +1,54 @@
 /* ==========================================================================
-   Sidebar San Marino — Overlay colapsable v2
-   Paleta: rojo #d62828 · naranja #e85c25 · amarillo #f4b428
+   Sidebar ItalGranja — Overlay colapsable v3
+   Paleta de marca Italcol (fuente de verdad):
+     primary/CTA naranja #F5821F (hover #E86F12 · pressed #C85A0E · tinte #FFF4E6)
+     accent dorado #FBB040 · canvas #FAFAF9 · surface #FFFFFF
+     ink #1C1917 · secundario #57534E · muted #A8A29E · line #E7E5E4
+     success #16A34A · danger #DC2626
+   Sin verde/rojo de marca (verde solo = éxito; rojo solo = peligro).
    ========================================================================== */
 
 /* ── Tokens de diseño ── */
 :host {
   /* Marca */
-  --sb-red:        #d62828;
-  --sb-orange:     #e85c25;
-  --sb-yellow:     #f4b428;
-  --sb-yellow-lt:  #fef9ec;
+  --sb-primary:      #f5821f;
+  --sb-primary-hov:  #e86f12;
+  --sb-primary-prs:  #c85a0e;
+  --sb-primary-tint: #fff4e6;
+  --sb-accent:       #fbb040;
 
   /* Superficies */
   --sb-bg:         #ffffff;
-  --sb-bg-warm:    #fffcf8;          /* crema muy sutil */
-  --sb-surface:    #f9f7f4;
-  --sb-header-bg:  #fff;             /* base blanca — el gradiente va encima */
+  --sb-bg-warm:    #fafaf9;          /* canvas cálido */
+  --sb-surface:    #ffffff;
+  --sb-header-bg:  #ffffff;
 
   /* Texto */
-  --sb-text:       #1c1108;
+  --sb-text:       #1c1917;
   --sb-text-inv:   #ffffff;
-  --sb-muted:      #7a6a56;
-  --sb-muted-lt:   #b5a898;
+  --sb-muted:      #57534e;
+  --sb-muted-lt:   #a8a29e;
 
   /* Separadores */
-  --sb-line:       #ede8e2;
-  --sb-line-warm:  rgba(232, 92, 37, 0.12);
+  --sb-line:       #e7e5e4;
+  --sb-line-warm:  rgba(245, 130, 31, 0.16);
 
   /* Estados */
-  --sb-active-bg:   rgba(232, 92, 37, 0.08);
-  --sb-active-bar:  var(--sb-orange);
-  --sb-active-text: var(--sb-orange);
-  --sb-hover-bg:    rgba(244, 180, 40, 0.07);
-  --sb-hover-text:  var(--sb-red);
+  --sb-active-bg:   var(--sb-primary-tint);
+  --sb-active-bar:  var(--sb-primary);
+  --sb-active-text: var(--sb-primary);
+  --sb-hover-bg:    #f7f5f3;
+  --sb-hover-text:  var(--sb-primary);
 
   /* Avatar */
-  --sb-avatar-bg:   linear-gradient(135deg, var(--sb-red), var(--sb-orange));
+  --sb-avatar-bg:   linear-gradient(135deg, var(--sb-accent), var(--sb-primary));
   --sb-avatar-fg:   #ffffff;
-  --sb-avatar-ring: rgba(232, 92, 37, 0.25);
+  --sb-avatar-ring: rgba(245, 130, 31, 0.22);
 
   /* Geometría */
   --sb-radius:      10px;
-  --sb-radius-sm:   6px;
-  --sb-transition:  0.18s ease;
+  --sb-radius-sm:   7px;
+  --sb-transition:  0.15s ease;
   --sb-panel-w:     clamp(288px, 88vw, 19rem);
 
   /* El host es un nodo de posición fija sin dimensiones */
@@ -76,7 +82,7 @@
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(20, 10, 3, 0.48);
+  background: rgba(28, 25, 23, 0.44);
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.28s ease, visibility 0.28s ease;
@@ -106,13 +112,14 @@
   z-index: 1001;
   display: flex;
   flex-direction: column;
+  border-right: 1px solid var(--sb-line);
 }
 
 .sidebar-overlay--open .sidebar-panel {
   transform: translateX(0);
   box-shadow:
-    8px 0 40px rgba(0, 0, 0, 0.22),
-    2px 0 8px  rgba(232, 92, 37, 0.06);
+    12px 0 44px rgba(28, 25, 23, 0.16),
+    2px 0 8px  rgba(245, 130, 31, 0.05);
 }
 
 /* ── Botón cerrar ── */
@@ -128,7 +135,7 @@
   height: 2rem;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.07);
+  background: #f2efec;
   color: var(--sb-muted);
   cursor: pointer;
   transition: background var(--sb-transition), color var(--sb-transition), transform var(--sb-transition);
@@ -136,14 +143,14 @@
 }
 
 .sidebar-close-btn:hover {
-  background: rgba(214, 40, 40, 0.10);
-  color: var(--sb-red);
+  background: var(--sb-primary-tint);
+  color: var(--sb-primary);
   transform: rotate(90deg);
 }
 
 .sidebar-close-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--sb-yellow);
+  outline: 2px solid var(--sb-primary);
+  outline-offset: 2px;
 }
 
 /* ── Raíz del sidebar ── */
@@ -167,8 +174,8 @@
     z-index: 0;
     pointer-events: none;
     background:
-      radial-gradient(ellipse 320px 260px at 0% 100%, rgba(232, 92, 37, 0.045), transparent 70%),
-      radial-gradient(ellipse 260px 200px at 100% 30%, rgba(244, 180, 40, 0.035), transparent 65%);
+      radial-gradient(ellipse 320px 260px at 0% 100%, rgba(245, 130, 31, 0.04), transparent 70%),
+      radial-gradient(ellipse 260px 200px at 100% 30%, rgba(251, 176, 64, 0.035), transparent 65%);
   }
 
   > * { position: relative; z-index: 1; }
@@ -184,9 +191,10 @@
   background: var(--sb-header-bg);
   overflow: hidden;
   position: relative;
+  border-bottom: 1px solid var(--sb-line);
   /* El botón cerrar vive aquí — necesita position:relative como contexto */
 
-  /* Degradado suave rojo → naranja → blanco */
+  /* Acento superior cálido muy sutil (naranja → dorado → transparente) */
   &::before {
     content: "";
     position: absolute;
@@ -194,11 +202,19 @@
     pointer-events: none;
     background: linear-gradient(
       135deg,
-      rgba(214, 40, 40,  0.52)  0%,
-      rgba(232, 92, 37,  0.38) 45%,
-      rgba(244, 180, 40, 0.22) 75%,
-      rgba(255, 255, 255, 0)   100%
+      rgba(245, 130, 31, 0.08)  0%,
+      rgba(251, 176, 64, 0.05) 42%,
+      rgba(255, 255, 255, 0)   80%
     );
+  }
+  /* Barra de acento superior */
+  &::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    pointer-events: none;
+    background: linear-gradient(90deg, var(--sb-primary), var(--sb-accent));
   }
   > * { position: relative; z-index: 1; }
 }
@@ -208,8 +224,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem 3.25rem 0.875rem;
-  border-bottom: 1px solid rgba(232, 92, 37, 0.12);
+  padding: 1.125rem 3.25rem 0.9375rem;
+  border-bottom: 1px solid var(--sb-line);
 }
 
 .sb-header__logo {
@@ -217,7 +233,7 @@
   max-width: 100%;
   max-height: clamp(30px, 7vw, 42px);
   object-fit: contain;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.08));
+  filter: drop-shadow(0 1px 2px rgba(28, 25, 23, 0.06));
 }
 
 /* Identidad: avatar + nombre + empresa */
@@ -225,7 +241,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.875rem 1rem 1rem;
+  padding: 0.9375rem 1rem 1rem;
 }
 
 .sb-identity__avatar {
@@ -243,7 +259,7 @@
   letter-spacing: 0.02em;
   box-shadow:
     0 0 0 2.5px var(--sb-avatar-ring),
-    0 3px 10px rgba(0, 0, 0, 0.35);
+    0 3px 10px rgba(245, 130, 31, 0.20);
   user-select: none;
 }
 
@@ -276,12 +292,13 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .sb-identity__company-icon {
   font-size: 0.625rem;
-  opacity: 0.75;
+  color: var(--sb-primary);
+  opacity: 0.9;
 }
 
 /* ==========================================================================
@@ -297,14 +314,31 @@
   padding-bottom: 0.75rem;
 
   scrollbar-width: thin;
-  scrollbar-color: rgba(232, 92, 37, 0.3) transparent;
+  scrollbar-color: rgba(168, 162, 158, 0.5) transparent;
 
-  &::-webkit-scrollbar       { width: 3px; }
+  &::-webkit-scrollbar       { width: 6px; }
   &::-webkit-scrollbar-thumb {
-    background: rgba(232, 92, 37, 0.3);
+    background: rgba(168, 162, 158, 0.45);
     border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(245, 130, 31, 0.5);
+    background-clip: content-box;
   }
   &::-webkit-scrollbar-track { background: transparent; }
+}
+
+/* Etiqueta de sección */
+.sb-section-label {
+  padding: 0.875rem 1.125rem 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-muted-lt);
+  user-select: none;
 }
 
 /* Acceso rápido (Mi Perfil) */
@@ -326,7 +360,7 @@
   padding: 0.25rem 0.875rem;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 /* ==========================================================================
@@ -363,11 +397,11 @@
     content: "";
     position: absolute;
     left: 0;
-    top: 18%;
-    bottom: 18%;
-    width: 3.5px;
+    top: 16%;
+    bottom: 16%;
+    width: 3px;
     border-radius: 0 3px 3px 0;
-    background: linear-gradient(to bottom, var(--sb-red), var(--sb-orange));
+    background: var(--sb-primary);
     opacity: 0;
     transform: scaleY(0.3) translateX(-2px);
     transition: opacity var(--sb-transition), transform var(--sb-transition);
@@ -377,7 +411,7 @@
 /* Hover */
 .menu-link:hover {
   background: var(--sb-hover-bg);
-  color: var(--sb-red);
+  color: var(--sb-hover-text);
 }
 
 /* Estado activo */
@@ -391,13 +425,13 @@
     transform: scaleY(1) translateX(0);
   }
 
-  .menu-link__icon { color: var(--sb-orange); }
+  .menu-link__icon { color: var(--sb-primary); }
 }
 
-/* Focus accesible */
+/* Focus accesible (WCAG 2.2 — 2px mínimo, contraste suficiente) */
 .menu-link:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--sb-yellow), inset 0 0 0 1px rgba(244, 180, 40, 0.3);
+  outline: 2px solid var(--sb-primary);
+  outline-offset: -2px;
 }
 
 /* Icono */
@@ -407,7 +441,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--sb-muted);
+  color: var(--sb-muted-lt);
   font-size: 0.9rem;
   transition: color var(--sb-transition);
 }
@@ -486,13 +520,17 @@
 }
 
 .menu-caret:hover {
-  background: rgba(232, 92, 37, 0.08);
-  color: var(--sb-orange);
+  background: var(--sb-primary-tint);
+  color: var(--sb-primary);
 }
 
 .menu-caret:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--sb-yellow);
+  outline: 2px solid var(--sb-primary);
+  outline-offset: -2px;
+}
+
+.menu-caret--open {
+  color: var(--sb-primary);
 }
 
 .menu-caret--open fa-icon {
@@ -507,7 +545,7 @@
   border-left: 2px solid var(--sb-line-warm);
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 
   .menu-group { min-width: 0; }
 }
@@ -525,7 +563,7 @@
   flex: 0 0 auto;
   padding: 0.625rem 0.875rem;
   border-top: 1px solid var(--sb-line);
-  background: var(--sb-bg-warm);
+  background: var(--sb-bg);
 }
 
 .sb-logout {
@@ -535,12 +573,12 @@
   width: 100%;
   min-height: 2.625rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--sb-line);
   border-radius: var(--sb-radius);
   background: transparent;
   color: var(--sb-muted);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   text-align: left;
   transition:
@@ -551,14 +589,14 @@
 }
 
 .sb-logout:hover {
-  background: rgba(214, 40, 40, 0.06);
-  color: var(--sb-red);
-  border-color: rgba(214, 40, 40, 0.14);
+  background: rgba(220, 38, 38, 0.06);
+  color: var(--sb-danger, #dc2626);
+  border-color: rgba(220, 38, 38, 0.20);
 }
 
 .sb-logout:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--sb-yellow);
+  outline: 2px solid var(--sb-primary);
+  outline-offset: 2px;
 }
 
 .sb-logout__icon {
@@ -659,25 +697,27 @@
    MODO OSCURO
    ========================================================================== */
 :host-context(.dark) {
-  --sb-bg:         #110d07;
-  --sb-bg-warm:    #140f08;
-  --sb-surface:    #1c1510;
-  --sb-header-bg:  #1e1208;
-  --sb-text:       #ede8e2;
-  --sb-muted:      #9e8c78;
-  --sb-muted-lt:   #6e5f4e;
-  --sb-line:       #2a2016;
-  --sb-line-warm:  rgba(232, 92, 37, 0.18);
-  --sb-hover-bg:   rgba(244, 180, 40, 0.06);
-  --sb-active-bg:  rgba(232, 92, 37, 0.10);
-  --sb-avatar-ring: rgba(232, 92, 37, 0.35);
+  --sb-bg:         #1c1917;
+  --sb-bg-warm:    #201d1a;
+  --sb-surface:    #26221f;
+  --sb-header-bg:  #201d1a;
+  --sb-text:       #f5f3f1;
+  --sb-muted:      #b8b2ac;
+  --sb-muted-lt:   #7a736c;
+  --sb-line:       #322d29;
+  --sb-line-warm:  rgba(245, 130, 31, 0.22);
+  --sb-hover-bg:   rgba(255, 255, 255, 0.04);
+  --sb-active-bg:  rgba(245, 130, 31, 0.14);
+  --sb-avatar-ring: rgba(245, 130, 31, 0.30);
 
   .sb-header,
   .sb-footer,
   .sidebar-root { background: var(--sb-bg); }
 
   .sidebar-close-btn {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.7);
   }
+
+  .sb-logout { border-color: var(--sb-line); }
 }

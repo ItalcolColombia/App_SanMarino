@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -23,13 +23,13 @@ import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engo
   standalone: true,
   templateUrl: './lote-reproductora-ave-engorde-list.component.html',
   styleUrls: ['./lote-reproductora-ave-engorde-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [
-    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     FontAwesomeModule,
     ConfirmationModalComponent
-  ]
+]
 })
 export class LoteReproductoraAveEngordeListComponent implements OnInit {
   faPlus = faPlus;

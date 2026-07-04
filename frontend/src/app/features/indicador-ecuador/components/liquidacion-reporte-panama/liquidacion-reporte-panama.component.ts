@@ -1,5 +1,5 @@
 // frontend/src/app/features/indicador-ecuador/components/liquidacion-reporte-panama/liquidacion-reporte-panama.component.ts
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { ReporteIndicadoresPanamaDto } from '../../services/indicador-ecuador.service';
 
@@ -21,6 +21,7 @@ interface FilaResultado {
   imports: [CommonModule],
   providers: [DecimalPipe],
   templateUrl: './liquidacion-reporte-panama.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./liquidacion-reporte-panama.component.scss']
 })
 export class LiquidacionReportePanamaComponent {

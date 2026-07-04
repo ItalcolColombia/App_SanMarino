@@ -1,7 +1,7 @@
 // Seguimiento Diario Lote Reproductora Aves de Engorde.
 // Filtros: Granja → Núcleo → Galpón → Lote Aves Engorde → Lote Reproductora.
 // API: SeguimientoDiarioLoteReproductora (tabla seguimiento_diario_lote_reproductora_aves_engorde).
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -41,6 +41,7 @@ import { faPlus, faPen, faTrash, faFilter, faEye } from '@fortawesome/free-solid
     LesionTabComponent
   ],
   templateUrl: './seguimiento-diario-lote-reproductora-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./seguimiento-diario-lote-reproductora-list.component.scss']
 })
 export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {

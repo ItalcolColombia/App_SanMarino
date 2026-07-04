@@ -69,7 +69,8 @@ public partial class CompanyService
             State             = dto.State,
             City              = dto.City,
             VisualPermissions = dto.VisualPermissions,
-            MobileAccess      = dto.MobileAccess
+            MobileAccess      = dto.MobileAccess,
+            ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon
         };
 
         _ctx.Companies.Add(c);
@@ -102,6 +103,7 @@ public partial class CompanyService
         c.City              = dto.City;
         c.VisualPermissions = dto.VisualPermissions;
         c.MobileAccess      = dto.MobileAccess;
+        c.ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon;
 
         await _ctx.SaveChangesAsync();
 

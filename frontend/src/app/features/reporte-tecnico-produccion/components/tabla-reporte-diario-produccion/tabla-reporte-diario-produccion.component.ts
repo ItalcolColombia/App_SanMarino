@@ -1,13 +1,14 @@
 // src/app/features/reporte-tecnico-produccion/components/tabla-reporte-diario-produccion/tabla-reporte-diario-produccion.component.ts
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+
 import { ReporteTecnicoProduccionDiarioDto, ReporteTecnicoProduccionLoteInfoDto } from '../../services/reporte-tecnico-produccion.service';
 
 @Component({
   selector: 'app-tabla-reporte-diario-produccion',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './tabla-reporte-diario-produccion.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-reporte-diario-produccion.component.scss']
 })
 export class TablaReporteDiarioProduccionComponent {

@@ -13,12 +13,16 @@
     </div>
 
     <!-- Mensajes de error y éxito -->
-    <div *ngIf="error()" class="alert alert-error">
-      {{ error() }}
-    </div>
-    <div *ngIf="success()" class="alert alert-success">
-      {{ success() }}
-    </div>
+    @if (error()) {
+      <div class="alert alert-error">
+        {{ error() }}
+      </div>
+    }
+    @if (success()) {
+      <div class="alert alert-success">
+        {{ success() }}
+      </div>
+    }
 
     <!-- Formulario de Traslado de Huevos -->
     <form [formGroup]="formHuevos" (ngSubmit)="onSubmitHuevos()" class="traslado-form">
@@ -30,37 +34,45 @@
           [selectedLoteId]="selectedLotePosturaProduccionId"
           (loteChange)="onLoteChange($event)">
         </app-filtro-select>
-        <div *ngIf="formHuevos.get('lotePosturaProduccionId')?.invalid && formHuevos.get('lotePosturaProduccionId')?.touched" class="error-message">
-          Seleccione un lote de producción
-        </div>
+        @if (formHuevos.get('lotePosturaProduccionId')?.invalid && formHuevos.get('lotePosturaProduccionId')?.touched) {
+          <div class="error-message">
+            Seleccione un lote de producción
+          </div>
+        }
 
         <!-- Información de Disponibilidad de Huevos -->
-        <div *ngIf="loadingDisponibilidad()" class="loading-info">
-          Cargando disponibilidad...
-        </div>
-
-        <div *ngIf="disponibilidad() && disponibilidad()!.tipoLote === 'Produccion'" class="disponibilidad-card">
-          <h3>Disponibilidad de Huevos</h3>
-          <div class="disponibilidad-grid">
-            <div class="disponibilidad-item">
-              <span class="label">Total Huevos:</span>
-              <span class="value highlight">{{ disponibilidad()!.huevos?.totalHuevos || 0 }}</span>
-            </div>
-            <div class="disponibilidad-item">
-              <span class="label">Huevos Incubables:</span>
-              <span class="value">{{ disponibilidad()!.huevos?.totalHuevosIncubables || 0 }}</span>
-            </div>
+        @if (loadingDisponibilidad()) {
+          <div class="loading-info">
+            Cargando disponibilidad...
           </div>
-          <div class="huevos-tipos">
-            <h4>Disponibilidad por Tipo</h4>
-            <div class="huevos-grid">
-              <div *ngFor="let tipo of tiposHuevo" class="huevo-tipo-item">
-                <span class="tipo-label">{{ tipo.label }}:</span>
-                <span class="tipo-value">{{ tipo.disponible() }}</span>
+        }
+
+        @if (disponibilidad() && disponibilidad()!.tipoLote === 'Produccion') {
+          <div class="disponibilidad-card">
+            <h3>Disponibilidad de Huevos</h3>
+            <div class="disponibilidad-grid">
+              <div class="disponibilidad-item">
+                <span class="label">Total Huevos:</span>
+                <span class="value highlight">{{ disponibilidad()!.huevos?.totalHuevos || 0 }}</span>
+              </div>
+              <div class="disponibilidad-item">
+                <span class="label">Huevos Incubables:</span>
+                <span class="value">{{ disponibilidad()!.huevos?.totalHuevosIncubables || 0 }}</span>
+              </div>
+            </div>
+            <div class="huevos-tipos">
+              <h4>Disponibilidad por Tipo</h4>
+              <div class="huevos-grid">
+                @for (tipo of tiposHuevo; track tipo) {
+                  <div class="huevo-tipo-item">
+                    <span class="tipo-label">{{ tipo.label }}:</span>
+                    <span class="tipo-value">{{ tipo.disponible() }}</span>
+                  </div>
+                }
               </div>
             </div>
           </div>
-        </div>
+        }
       </div>
 
       <div class="form-section">
@@ -82,90 +94,109 @@
         <div class="form-section">
           <h3>Cantidades por Tipo de Huevo</h3>
           <div class="huevos-cantidades-grid">
-            <div *ngFor="let tipo of tiposHuevo" class="form-group-huevo">
-              <label [for]="'cantidad' + tipo.key">
-                {{ tipo.label }}
-                <span class="disponible">(Disponible: {{ tipo.disponible() }})</span>
-              </label>
-              <input
-                type="number"
-                [id]="'cantidad' + tipo.key"
-                [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
-                class="form-control"
-                [max]="tipo.disponible()"
-                min="0">
+            @for (tipo of tiposHuevo; track tipo) {
+              <div class="form-group-huevo">
+                <label [for]="'cantidad' + tipo.key">
+                  {{ tipo.label }}
+                  <span class="disponible">(Disponible: {{ tipo.disponible() }})</span>
+                </label>
+                <input
+                  type="number"
+                  [id]="'cantidad' + tipo.key"
+                  [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
+                  class="form-control"
+                  [max]="tipo.disponible()"
+                  min="0">
+                </div>
+              }
             </div>
+            @if (formHuevos.hasError('sinCantidad') && formHuevos.touched) {
+              <div class="error-message">
+                Debe ingresar al menos una cantidad de huevos
+              </div>
+            }
           </div>
-          <div *ngIf="formHuevos.hasError('sinCantidad') && formHuevos.touched" class="error-message">
-            Debe ingresar al menos una cantidad de huevos
+
+          <!-- Campos para Traslado -->
+          @if (formHuevos.get('tipoOperacion')?.value === 'Traslado') {
+            <div>
+              <div class="form-group">
+                <label for="granjaDestinoIdHuevos">Granja Destino <span class="required">*</span></label>
+                <select id="granjaDestinoIdHuevos" formControlName="granjaDestinoId" class="form-control">
+                  <option value="">Selecciona una granja</option>
+                  @for (granja of granjas(); track granja) {
+                    <option [value]="granja.id">
+                      {{ granja.name }}
+                    </option>
+                  }
+                </select>
+                @if (formHuevos.get('granjaDestinoId')?.invalid && formHuevos.get('granjaDestinoId')?.touched) {
+                  <div class="error-message">
+                    La granja destino es requerida para traslados
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label for="tipoDestinoHuevos">Tipo de Destino <span class="required">*</span></label>
+                <select id="tipoDestinoHuevos" formControlName="tipoDestino" class="form-control">
+                  <option value="">Selecciona tipo</option>
+                  <option value="Granja">Granja</option>
+                  <option value="Planta">Planta</option>
+                </select>
+                @if (formHuevos.get('tipoDestino')?.invalid && formHuevos.get('tipoDestino')?.touched) {
+                  <div class="error-message">
+                    El tipo de destino es requerido para traslados
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label for="loteDestinoIdHuevos">Lote Destino (Opcional)</label>
+                <input type="text" id="loteDestinoIdHuevos" formControlName="loteDestinoId" class="form-control">
+              </div>
+            </div>
+          }
+
+          <!-- Campos para Venta -->
+          @if (formHuevos.get('tipoOperacion')?.value === 'Venta') {
+            <div>
+              <div class="form-group">
+                <label for="motivoHuevos">Motivo <span class="required">*</span></label>
+                <input type="text" id="motivoHuevos" formControlName="motivo" class="form-control">
+                @if (formHuevos.get('motivo')?.invalid && formHuevos.get('motivo')?.touched) {
+                  <div class="error-message">
+                    El motivo es requerido para ventas
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label for="descripcionHuevos">Descripción <span class="required">*</span></label>
+                <textarea id="descripcionHuevos" formControlName="descripcion" class="form-control" rows="3"></textarea>
+                @if (formHuevos.get('descripcion')?.invalid && formHuevos.get('descripcion')?.touched) {
+                  <div class="error-message">
+                    La descripción es requerida para ventas
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
+          <div class="form-group">
+            <label for="observacionesHuevos">Observaciones</label>
+            <textarea id="observacionesHuevos" formControlName="observaciones" class="form-control" rows="3"></textarea>
           </div>
         </div>
 
-        <!-- Campos para Traslado -->
-        <div *ngIf="formHuevos.get('tipoOperacion')?.value === 'Traslado'">
-          <div class="form-group">
-            <label for="granjaDestinoIdHuevos">Granja Destino <span class="required">*</span></label>
-            <select id="granjaDestinoIdHuevos" formControlName="granjaDestinoId" class="form-control">
-              <option value="">Selecciona una granja</option>
-              <option *ngFor="let granja of granjas()" [value]="granja.id">
-                {{ granja.name }}
-              </option>
-            </select>
-            <div *ngIf="formHuevos.get('granjaDestinoId')?.invalid && formHuevos.get('granjaDestinoId')?.touched" class="error-message">
-              La granja destino es requerida para traslados
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="tipoDestinoHuevos">Tipo de Destino <span class="required">*</span></label>
-            <select id="tipoDestinoHuevos" formControlName="tipoDestino" class="form-control">
-              <option value="">Selecciona tipo</option>
-              <option value="Granja">Granja</option>
-              <option value="Planta">Planta</option>
-            </select>
-            <div *ngIf="formHuevos.get('tipoDestino')?.invalid && formHuevos.get('tipoDestino')?.touched" class="error-message">
-              El tipo de destino es requerido para traslados
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="loteDestinoIdHuevos">Lote Destino (Opcional)</label>
-            <input type="text" id="loteDestinoIdHuevos" formControlName="loteDestinoId" class="form-control">
-          </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="formHuevos.invalid || loading()">
+            @if (loading()) {
+              <span>Procesando...</span>
+            }
+            @if (!loading()) {
+              <span>Crear Traslado</span>
+            }
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="formHuevos.reset()">Limpiar</button>
         </div>
-
-        <!-- Campos para Venta -->
-        <div *ngIf="formHuevos.get('tipoOperacion')?.value === 'Venta'">
-          <div class="form-group">
-            <label for="motivoHuevos">Motivo <span class="required">*</span></label>
-            <input type="text" id="motivoHuevos" formControlName="motivo" class="form-control">
-            <div *ngIf="formHuevos.get('motivo')?.invalid && formHuevos.get('motivo')?.touched" class="error-message">
-              El motivo es requerido para ventas
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="descripcionHuevos">Descripción <span class="required">*</span></label>
-            <textarea id="descripcionHuevos" formControlName="descripcion" class="form-control" rows="3"></textarea>
-            <div *ngIf="formHuevos.get('descripcion')?.invalid && formHuevos.get('descripcion')?.touched" class="error-message">
-              La descripción es requerida para ventas
-            </div>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="observacionesHuevos">Observaciones</label>
-          <textarea id="observacionesHuevos" formControlName="observaciones" class="form-control" rows="3"></textarea>
-        </div>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" [disabled]="formHuevos.invalid || loading()">
-          <span *ngIf="loading()">Procesando...</span>
-          <span *ngIf="!loading()">Crear Traslado</span>
-        </button>
-        <button type="button" class="btn btn-secondary" (click)="formHuevos.reset()">Limpiar</button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
-</div>

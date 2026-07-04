@@ -1,58 +1,67 @@
-<section class="rp" *ngIf="data as d">
-
-  <!-- Encabezado -->
-  <header class="rp__head">
-    <div class="rp__brand">
-      <span class="rp__flag">🇵🇦</span>
-      <div class="rp__brand-text">
-        <h2 class="rp__title">Resultados de Liquidación</h2>
-        <p class="rp__subtitle">{{ empresa }} · Lote #{{ d.liquidacion.idLote }}</p>
+@if (data; as d) {
+  <section class="rp">
+    <!-- Encabezado -->
+    <header class="rp__head">
+      <div class="rp__brand">
+        <span class="rp__flag">🇵🇦</span>
+        <div class="rp__brand-text">
+          <h2 class="rp__title">Resultados de Liquidación</h2>
+          <p class="rp__subtitle">{{ empresa }} · Lote #{{ d.liquidacion.idLote }}</p>
+        </div>
       </div>
-    </div>
-    <div class="rp__actions">
-      <button type="button" class="rp__btn rp__btn--print" (click)="print()">🖨️ Imprimir</button>
-      <button type="button" class="rp__btn rp__btn--ghost" (click)="cerrar.emit()">✕ Cerrar</button>
-    </div>
-  </header>
-
-  <!-- Hero KPIs (los 6 insumos de la liquidación) -->
-  <div class="rp__hero">
-    <div class="rp__kpi" *ngFor="let k of heroCards">
-      <span class="rp__kpi-icon">{{ k.icon }}</span>
-      <div class="rp__kpi-body">
-        <span class="rp__kpi-label">{{ k.label }}</span>
-        <span class="rp__kpi-value">{{ k.value | number:'1.0-' + k.dec }}<small *ngIf="k.suffix">{{ k.suffix }}</small></span>
+      <div class="rp__actions">
+        <button type="button" class="rp__btn rp__btn--print" (click)="print()">🖨️ Imprimir</button>
+        <button type="button" class="rp__btn rp__btn--ghost" (click)="cerrar.emit()">✕ Cerrar</button>
       </div>
+    </header>
+    <!-- Hero KPIs (los 6 insumos de la liquidación) -->
+    <div class="rp__hero">
+      @for (k of heroCards; track k) {
+        <div class="rp__kpi">
+          <span class="rp__kpi-icon">{{ k.icon }}</span>
+          <div class="rp__kpi-body">
+            <span class="rp__kpi-label">{{ k.label }}</span>
+            <span class="rp__kpi-value">{{ k.value | number:'1.0-' + k.dec }}@if (k.suffix) {
+              <small>{{ k.suffix }}</small>
+            }</span>
+          </div>
+        </div>
+      }
     </div>
-  </div>
-
-  <!-- Cuadro completo de indicadores -->
-  <div class="rp__panel">
-    <div class="rp__panel-head">📋 Indicadores de Liquidación</div>
-    <table class="rp__table">
-      <tbody>
-        <tr *ngFor="let f of filas" [class.rp__row--hl]="f.highlight">
-          <th scope="row">{{ f.label }}</th>
-          <td>
-            {{ (f.value ?? 0) | number:'1.0-' + (f.dec ?? 2) }}<span class="rp__suffix" *ngIf="f.suffix">{{ f.suffix }}</span>
-          </td>
-        </tr>
+    <!-- Cuadro completo de indicadores -->
+    <div class="rp__panel">
+      <div class="rp__panel-head">📋 Indicadores de Liquidación</div>
+      <table class="rp__table">
+        <tbody>
+          @for (f of filas; track f) {
+            <tr [class.rp__row--hl]="f.highlight">
+              <th scope="row">{{ f.label }}</th>
+              <td>
+                {{ (f.value ?? 0) | number:'1.0-' + (f.dec ?? 2) }}@if (f.suffix) {
+                <span class="rp__suffix">{{ f.suffix }}</span>
+              }
+            </td>
+          </tr>
+        }
       </tbody>
     </table>
   </div>
-
   <!-- Información productiva -->
   <div class="rp__panel rp__panel--info">
     <div class="rp__panel-head">📈 Información Productiva</div>
     <div class="rp__info-grid">
-      <div class="rp__info" *ngFor="let i of infoProductiva">
-        <span class="rp__info-icon">{{ i.icon }}</span>
-        <div>
-          <span class="rp__info-label">{{ i.label }}</span>
-          <span class="rp__info-value">{{ i.value | number:'1.0-' + i.dec }}<small *ngIf="i.suffix">{{ i.suffix }}</small></span>
+      @for (i of infoProductiva; track i) {
+        <div class="rp__info">
+          <span class="rp__info-icon">{{ i.icon }}</span>
+          <div>
+            <span class="rp__info-label">{{ i.label }}</span>
+            <span class="rp__info-value">{{ i.value | number:'1.0-' + i.dec }}@if (i.suffix) {
+              <small>{{ i.suffix }}</small>
+            }</span>
+          </div>
         </div>
-      </div>
+      }
     </div>
   </div>
-
 </section>
+}

@@ -9,11 +9,17 @@
 
         <div class="ux-header__meta">
           <span class="chip chip--muted" aria-live="polite">{{ total }} registro(s)</span>
-          <span class="chip" *ngIf="q">Filtro: “{{ q }}”</span>
-          <span class="chip" *ngIf="typeFilter">Tipo: {{ typeFilter | titlecase }}</span>
-          <span class="chip" *ngIf="statusFilter !== 'all'">
-            Estado: {{ statusFilter === 'active' ? 'Activos' : 'Inactivos' }}
-          </span>
+          @if (q) {
+            <span class="chip">Filtro: “{{ q }}”</span>
+          }
+          @if (typeFilter) {
+            <span class="chip">Tipo: {{ typeFilter | titlecase }}</span>
+          }
+          @if (statusFilter !== 'all') {
+            <span class="chip">
+              Estado: {{ statusFilter === 'active' ? 'Activos' : 'Inactivos' }}
+            </span>
+          }
         </div>
       </div>
 
@@ -35,435 +41,458 @@
           (ngModelChange)="page = 1; load()"
           placeholder="Buscar por código o nombre…"
           aria-label="Buscar en el catálogo"
-        />
-      </div>
-
-      <div class="ux-toolbar__filters">
-        <!-- Tipo -->
-        <label class="sr-only" for="f-type">Tipo</label>
-        <select id="f-type" [(ngModel)]="typeFilter" (ngModelChange)="page=1; load()" title="Filtrar por tipo">
-          <option [ngValue]="''">Todos los tipos</option>
-          <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
-        </select>
-
-        <!-- Estado -->
-        <label class="sr-only" for="f-status">Estado</label>
-        <select id="f-status" [(ngModel)]="statusFilter" (ngModelChange)="page=1; load()" title="Filtrar por estado">
-          <option value="all">Todos</option>
-          <option value="active">Activos</option>
-          <option value="inactive">Inactivos</option>
-        </select>
-
-        <!-- Tamaño página -->
-        <label class="sr-only" for="f-size">Tamaño de página</label>
-        <select id="f-size" [(ngModel)]="pageSize" (ngModelChange)="page=1; load()" title="Tamaño de página">
-          <option *ngFor="let s of pageSizes" [ngValue]="s">{{ s }}/pág.</option>
-        </select>
-      </div>
-
-      <div class="spacer"></div>
-
-      <div class="pager" role="navigation" aria-label="Paginación">
-        <button class="icon-btn" [disabled]="page<=1" (click)="prev()" title="Anterior">
-          <fa-icon [icon]="faChevronLeft" aria-hidden="true"></fa-icon>
-        </button>
-        <span class="pager__info">Página {{ page }} de {{ totalPages }}</span>
-        <button class="icon-btn" [disabled]="page * pageSize >= total" (click)="next()" title="Siguiente">
-          <fa-icon [icon]="faChevronRight" aria-hidden="true"></fa-icon>
-        </button>
-      </div>
-    </section>
-
-    <!-- Tabla -->
-    <section class="ux-card">
-      <div class="ux-scroll">
-        <table class="ux-table">
-          <caption class="sr-only">Tabla de catálogo de ítems</caption>
-          <thead>
-            <tr>
-              <th scope="col">Código</th>
-              <th scope="col">Nombre</th>
-              <th scope="col">Tipo</th>
-              <th scope="col">Metadatos</th>
-              <th scope="col">Activo</th>
-              <th scope="col" class="text-right">Acciones</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr *ngFor="let it of items; trackBy: trackById">
-              <td><code>{{ it.codigo }}</code></td>
-              <td>
-                <div class="cell-title">
-                  <span class="title-text">{{ it.nombre }}</span>
-                  <span class="subtitle-text" *ngIf="it.metadata?.fabricante">de {{ it.metadata.fabricante }}</span>
-                </div>
-              </td>
-
-              <!-- Tipo -->
-              <td>
-                <span class="chip chip--info">
-                  {{ (typeOf(it) | titlecase) || '—' }}
-                </span>
-              </td>
-
-              <!-- Metadatos clave como chips -->
-              <td class="meta-col">
-                <ng-container *ngIf="metaChips(it.metadata)?.length; else noMeta">
-                  <span class="meta-chip" *ngFor="let c of metaChips(it.metadata)">
-                    {{ c.key }}: {{ c.value }}
-                  </span>
-                </ng-container>
-                <ng-template #noMeta>—</ng-template>
-              </td>
-
-              <td>
-                <span class="chip" [class.chip--success]="it.activo" [class.chip--danger]="!it.activo">
-                  {{ it.activo ? 'Sí' : 'No' }}
-                </span>
-              </td>
-
-              <td class="text-right">
-                <div class="btn-group">
-                  <button type="button" class="icon-btn" (click)="showDetail(it)" title="Ver detalle">👁</button>
-                  <button type="button" class="icon-btn" (click)="edit(it)" title="Editar">✎</button>
-                  <button type="button" class="icon-btn icon-btn--danger" (click)="delete(it.id!)" title="Eliminar">🗑</button>
-                </div>
-              </td>
-            </tr>
-
-            <tr *ngIf="!loading && items.length === 0">
-              <td colspan="6" class="empty-state">
-                <div class="empty-illustration" aria-hidden="true">📦</div>
-                <p>No hay ítems que coincidan con los filtros.</p>
-                <div class="empty-actions">
-                  <button type="button" class="btn btn--outline" (click)="clearFilters()">Limpiar filtros</button>
-                  <button type="button" class="btn btn--primary" (click)="create()">Crear el primero</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div *ngIf="loading" class="loading-overlay" aria-live="polite" role="status">
-        <div class="spinner"></div> Cargando…
-      </div>
-    </section>
-  </div>
-</div>
-
-<!-- Modal Crear/Editar -->
-<div *ngIf="modalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cat-item-modal-title">
-  <div class="ux-modal__dialog">
-    <header class="ux-modal__header">
-      <h2 id="cat-item-modal-title">{{ editing ? 'Editar Ítem' : 'Nuevo Ítem' }}</h2>
-      <button type="button" class="icon-btn" (click)="cancel()" aria-label="Cerrar">✕</button>
-    </header>
-
-    <form [formGroup]="form" (ngSubmit)="save()" class="ux-form" novalidate>
-      <!-- Paso 1: Información Básica -->
-      <div class="form-section">
-        <h3 class="form-section__title">1. Información Básica</h3>
-        <div class="grid grid-2">
-          <div class="form-field">
-            <label for="f-cod">Código *</label>
-            <input id="f-cod" type="text" formControlName="codigo" [readonly]="editing" 
-                   placeholder="Ej: ALI001" maxlength="10" />
-            <small class="help" *ngIf="!editing">Código único del ítem (máx. 10 caracteres)</small>
-            <small class="help" *ngIf="editing">El código no se puede modificar</small>
-          </div>
-
-          <div class="form-field">
-            <label for="f-nom">Nombre *</label>
-            <input id="f-nom" type="text" formControlName="nombre" 
-                   placeholder="Ej: Alimento Iniciador Pollos" maxlength="150" />
-            <small class="help">Nombre descriptivo del ítem (máx. 150 caracteres)</small>
-          </div>
-
-          <div class="form-field">
-            <label for="f-type">Tipo de ítem *</label>
-            <select id="f-type" formControlName="itemType">
-              <option [ngValue]="null" disabled>Seleccione un tipo...</option>
-              <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
-            </select>
-            <small class="help">Este campo se guarda en la columna <code>item_type</code> de la base de datos.</small>
-          </div>
-
-          <div class="form-field">
-            <label for="f-act">Estado</label>
-            <select id="f-act" formControlName="activo">
-              <option [ngValue]="true">Activo</option>
-              <option [ngValue]="false">Inactivo</option>
-            </select>
-            <small class="help">Los ítems inactivos no aparecerán en los movimientos</small>
-          </div>
+          />
         </div>
-      </div>
 
-      <!-- Paso 2: Configuración Específica según Tipo de Item -->
-      
-      <!-- Configuración para ALIMENTO -->
-      <div class="form-section" *ngIf="isAlimento">
-        <h3 class="form-section__title">2. Configuración de Alimento</h3>
-        <div class="ux-card ux-card--sub">
-          <div class="grid grid-3">
-            <div class="form-field">
-              <label for="f-especie">Especie *</label>
-              <select id="f-especie" formControlName="especie">
-                <option *ngFor="let e of especies" [ngValue]="e">{{ e | titlecase }}</option>
-              </select>
-              <small class="help">Tipo de animal para este alimento</small>
-            </div>
+        <div class="ux-toolbar__filters">
+          <!-- Tipo -->
+          <label class="sr-only" for="f-type">Tipo</label>
+          <select id="f-type" [(ngModel)]="typeFilter" (ngModelChange)="page=1; load()" title="Filtrar por tipo">
+            <option [ngValue]="''">Todos los tipos</option>
+            @for (t of tiposItem; track t) {
+              <option [ngValue]="t">{{ t | titlecase }}</option>
+            }
+          </select>
 
-            <div class="form-field">
-              <label for="f-raza">Raza *</label>
-              <select id="f-raza" formControlName="raza">
-                <option *ngFor="let r of razas" [ngValue]="r">{{ r }}</option>
-              </select>
-              <small class="help">Raza para este alimento</small>
-            </div>
+          <!-- Estado -->
+          <label class="sr-only" for="f-status">Estado</label>
+          <select id="f-status" [(ngModel)]="statusFilter" (ngModelChange)="page=1; load()" title="Filtrar por estado">
+            <option value="all">Todos</option>
+            <option value="active">Activos</option>
+            <option value="inactive">Inactivos</option>
+          </select>
 
-            <div class="form-field">
-              <label for="f-genero">Género *</label>
-              <select id="f-genero" formControlName="genero">
-                <option *ngFor="let g of generos" [ngValue]="g">{{ g }}</option>
-              </select>
-              <small class="help">Género objetivo del alimento</small>
-            </div>
-          </div>
+          <!-- Tamaño página -->
+          <label class="sr-only" for="f-size">Tamaño de página</label>
+          <select id="f-size" [(ngModel)]="pageSize" (ngModelChange)="page=1; load()" title="Tamaño de página">
+            @for (s of pageSizes; track s) {
+              <option [ngValue]="s">{{ s }}/pág.</option>
+            }
+          </select>
         </div>
-      </div>
 
-      <!-- Configuración para MEDICAMENTO -->
-      <div class="form-section" *ngIf="isMedicamento">
-        <h3 class="form-section__title">2. Configuración de Medicamento</h3>
-        <div class="ux-card ux-card--sub">
-          <div class="grid grid-3">
-            <div class="form-field">
-              <label for="f-tipo-medicamento">Tipo de Medicamento</label>
-              <input id="f-tipo-medicamento" type="text" formControlName="tipo_medicamento" 
-                     placeholder="Ej: Antibiótico, Antiparasitario" maxlength="100" />
-              <small class="help">Clasificación del medicamento</small>
-            </div>
+        <div class="spacer"></div>
 
-            <div class="form-field">
-              <label for="f-via-admin">Vía de Administración</label>
-              <input id="f-via-admin" type="text" formControlName="via_administracion" 
-                     placeholder="Ej: Oral, Intramuscular" maxlength="100" />
-              <small class="help">Forma de aplicación del medicamento</small>
-            </div>
-
-            <div class="form-field">
-              <label for="f-presentacion">Presentación</label>
-              <input id="f-presentacion" type="text" formControlName="presentacion" 
-                     placeholder="Ej: Inyectable, Polvo" maxlength="100" />
-              <small class="help">Forma física del medicamento</small>
-            </div>
-          </div>
+        <div class="pager" role="navigation" aria-label="Paginación">
+          <button class="icon-btn" [disabled]="page<=1" (click)="prev()" title="Anterior">
+            <fa-icon [icon]="faChevronLeft" aria-hidden="true"></fa-icon>
+          </button>
+          <span class="pager__info">Página {{ page }} de {{ totalPages }}</span>
+          <button class="icon-btn" [disabled]="page * pageSize >= total" (click)="next()" title="Siguiente">
+            <fa-icon [icon]="faChevronRight" aria-hidden="true"></fa-icon>
+          </button>
         </div>
-      </div>
+      </section>
 
-      <!-- Configuración para BIOLÓGICO -->
-      <div class="form-section" *ngIf="isBiologico">
-        <h3 class="form-section__title">2. Configuración de Biológico</h3>
-        <div class="ux-card ux-card--sub">
-          <div class="grid grid-3">
-            <div class="form-field">
-              <label for="f-tipo-biologico">Tipo de Biológico</label>
-              <input id="f-tipo-biologico" type="text" formControlName="tipo_biologico" 
-                     placeholder="Ej: Vacuna, Suero" maxlength="100" />
-              <small class="help">Clasificación del biológico</small>
-            </div>
-
-            <div class="form-field">
-              <label for="f-via-aplicacion">Vía de Aplicación</label>
-              <input id="f-via-aplicacion" type="text" formControlName="via_aplicacion" 
-                     placeholder="Ej: Subcutánea, Intramuscular" maxlength="100" />
-              <small class="help">Forma de aplicación del biológico</small>
-            </div>
-
-            <div class="form-field">
-              <label for="f-temp-almacenamiento">Temperatura de Almacenamiento</label>
-              <input id="f-temp-almacenamiento" type="text" formControlName="temperatura_almacenamiento" 
-                     placeholder="Ej: 2-8°C, Congelado" maxlength="50" />
-              <small class="help">Condiciones de almacenamiento requeridas</small>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Configuración para ACCESORIO -->
-      <div class="form-section" *ngIf="isAccesorio">
-        <h3 class="form-section__title">2. Configuración de Accesorio</h3>
-        <div class="ux-card ux-card--sub">
-          <div class="grid grid-3">
-            <div class="form-field">
-              <label for="f-tipo-accesorio">Tipo de Accesorio</label>
-              <input id="f-tipo-accesorio" type="text" formControlName="tipo_accesorio" 
-                     placeholder="Ej: Bebedero, Comedero" maxlength="100" />
-              <small class="help">Categoría del accesorio</small>
-            </div>
-
-            <div class="form-field">
-              <label for="f-material">Material</label>
-              <input id="f-material" type="text" formControlName="material" 
-                     placeholder="Ej: Plástico, Acero" maxlength="100" />
-              <small class="help">Material de fabricación</small>
-            </div>
-
-            <div class="form-field">
-              <label for="f-dimensiones">Dimensiones</label>
-              <input id="f-dimensiones" type="text" formControlName="dimensiones" 
-                     placeholder="Ej: 50x30x20 cm" maxlength="100" />
-              <small class="help">Tamaño o dimensiones del accesorio</small>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Configuración para CONSUMIBLE -->
-      <div class="form-section" *ngIf="isConsumible">
-        <h3 class="form-section__title">2. Configuración de Consumible</h3>
-        <div class="ux-card ux-card--sub">
-          <div class="grid grid-2">
-            <div class="form-field">
-              <label for="f-tipo-consumible">Tipo de Consumible</label>
-              <input id="f-tipo-consumible" type="text" formControlName="tipo_consumible" 
-                     placeholder="Ej: Desinfectante, Limpiador" maxlength="100" />
-              <small class="help">Categoría del consumible</small>
-            </div>
-
-            <div class="form-field">
-              <label for="f-unidad-medida">Unidad de Medida</label>
-              <input id="f-unidad-medida" type="text" formControlName="unidad_medida" 
-                     placeholder="Ej: Litro, Kilogramo" maxlength="50" />
-              <small class="help">Unidad estándar de medida</small>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Paso 3: Metadata Adicional (Opcional) -->
-      <div class="form-section">
-        <h3 class="form-section__title">3. Metadata Adicional (Opcional)</h3>
-        <div class="meta-editor">
-          <div class="meta-header">
-            <span>Información adicional personalizada</span>
-            <button type="button" class="btn btn--ghost btn--sm" (click)="addMetaRow()">
-              <fa-icon [icon]="faPlus" class="mr-1"></fa-icon>
-              Agregar campo
-            </button>
-          </div>
-
-          <div class="meta-rows" formArrayName="metadata">
-            <div class="meta-row" *ngFor="let row of metadataArray.controls; index as i" [formGroupName]="i">
-              <input type="text" placeholder="Clave (ej: fabricante, unidad)" formControlName="key" 
-                     class="meta-key" maxlength="50" />
-              <input type="text" placeholder="Valor (ej: ItalGranja, kg)" formControlName="value" 
-                     class="meta-value" maxlength="500" />
-              <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" 
-                      title="Eliminar campo" aria-label="Eliminar">
-                <fa-icon [icon]="faTrash"></fa-icon>
-              </button>
-            </div>
-            <div class="meta-empty" *ngIf="metadataArray.length === 0">
-              <p class="meta-empty-text">No hay campos adicionales. Haga clic en "Agregar campo" para añadir información personalizada.</p>
-            </div>
-          </div>
-          <small class="help">
-            <strong>Claves reservadas:</strong> <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code>.
-            Estas se gestionan automáticamente según el tipo seleccionado.
-          </small>
-        </div>
-      </div>
-
-      <!-- Vista previa JSON (colapsable) -->
-      <div class="form-section">
-        <details class="json-preview-section">
-          <summary class="json-preview-toggle">Vista previa de metadata (JSON)</summary>
-          <pre class="json-preview">{{ jsonPreview() }}</pre>
-        </details>
-      </div>
-
-      <footer class="ux-modal__footer">
-        <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
-        <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">Guardar</button>
-      </footer>
-    </form>
-
-    <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
-      <div class="spinner"></div> Guardando…
-    </div>
-  </div>
-</div>
-
-<!-- Modal de Detalle -->
-<div class="ux-modal-overlay" *ngIf="detailModalOpen" (click)="closeDetail()">
-  <div class="ux-modal ux-modal--large" (click)="$event.stopPropagation()">
-    <div class="ux-modal__header">
-      <h2 class="ux-modal__title">Detalle del Producto</h2>
-      <button type="button" class="ux-modal__close" (click)="closeDetail()" aria-label="Cerrar">×</button>
-    </div>
-
-    <div class="ux-modal__body" *ngIf="selectedItem">
-      <!-- Información Básica -->
-      <div class="detail-section">
-        <h3 class="detail-section__title">Información Básica</h3>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <span class="detail-label">Código:</span>
-            <span class="detail-value"><code>{{ selectedItem.codigo }}</code></span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Nombre:</span>
-            <span class="detail-value">{{ selectedItem.nombre }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Tipo de Ítem:</span>
-            <span class="detail-value">
-              <span class="chip chip--info">{{ (selectedItem.itemType || 'alimento') | titlecase }}</span>
-            </span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Estado:</span>
-            <span class="detail-value">
-              <span class="chip" [class.chip--success]="selectedItem.activo" [class.chip--danger]="!selectedItem.activo">
-                {{ selectedItem.activo ? 'Activo' : 'Inactivo' }}
-              </span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Metadata como Tabla -->
-      <div class="detail-section" *ngIf="selectedItem.metadata && getMetadataAsArray(selectedItem.metadata).length > 0">
-        <h3 class="detail-section__title">Información Adicional</h3>
+      <!-- Tabla -->
+      <section class="ux-card">
         <div class="ux-scroll">
-          <table class="ux-table ux-table--compact">
+          <table class="ux-table">
+            <caption class="sr-only">Tabla de catálogo de ítems</caption>
             <thead>
               <tr>
-                <th scope="col">Campo</th>
-                <th scope="col">Valor</th>
+                <th scope="col">Código</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Metadatos</th>
+                <th scope="col">Activo</th>
+                <th scope="col" class="text-right">Acciones</th>
               </tr>
             </thead>
+
             <tbody>
-              <tr *ngFor="let item of getMetadataAsArray(selectedItem.metadata)">
-                <td><strong>{{ item.key | titlecase }}</strong></td>
-                <td>{{ formatMetadataValue(item.value) }}</td>
-              </tr>
+              @for (it of items; track trackById($index, it)) {
+                <tr>
+                  <td><code>{{ it.codigo }}</code></td>
+                  <td>
+                    <div class="cell-title">
+                      <span class="title-text">{{ it.nombre }}</span>
+                      @if (it.metadata?.fabricante) {
+                        <span class="subtitle-text">de {{ it.metadata.fabricante }}</span>
+                      }
+                    </div>
+                  </td>
+                  <!-- Tipo -->
+                  <td>
+                    <span class="chip chip--info">
+                      {{ (typeOf(it) | titlecase) || '—' }}
+                    </span>
+                  </td>
+                  <!-- Metadatos clave como chips -->
+                  <td class="meta-col">
+                    @if (metaChips(it.metadata)?.length) {
+                      @for (c of metaChips(it.metadata); track c) {
+                        <span class="meta-chip">
+                          {{ c.key }}: {{ c.value }}
+                        </span>
+                      }
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>
+                    <span class="chip" [class.chip--success]="it.activo" [class.chip--danger]="!it.activo">
+                      {{ it.activo ? 'Sí' : 'No' }}
+                    </span>
+                  </td>
+                  <td class="text-right">
+                    <div class="btn-group">
+                      <button type="button" class="icon-btn" (click)="showDetail(it)" title="Ver detalle">👁</button>
+                      <button type="button" class="icon-btn" (click)="edit(it)" title="Editar">✎</button>
+                      <button type="button" class="icon-btn icon-btn--danger" (click)="delete(it.id!)" title="Eliminar">🗑</button>
+                    </div>
+                  </td>
+                </tr>
+              }
+
+              @if (!loading && items.length === 0) {
+                <tr>
+                  <td colspan="6" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">📦</div>
+                    <p>No hay ítems que coincidan con los filtros.</p>
+                    <div class="empty-actions">
+                      <button type="button" class="btn btn--outline" (click)="clearFilters()">Limpiar filtros</button>
+                      <button type="button" class="btn btn--primary" (click)="create()">Crear el primero</button>
+                    </div>
+                  </td>
+                </tr>
+              }
             </tbody>
           </table>
         </div>
-      </div>
 
-      <div class="detail-section" *ngIf="!selectedItem.metadata || getMetadataAsArray(selectedItem.metadata).length === 0">
-        <p class="detail-empty">No hay información adicional registrada.</p>
-      </div>
-    </div>
-
-    <div class="ux-modal__footer">
-      <button type="button" class="btn btn--primary" (click)="closeDetail()">Cerrar</button>
+        @if (loading) {
+          <div class="loading-overlay" aria-live="polite" role="status">
+            <div class="spinner"></div> Cargando…
+          </div>
+        }
+      </section>
     </div>
   </div>
-</div>
+
+  <!-- Modal Crear/Editar -->
+  @if (modalOpen) {
+    <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cat-item-modal-title">
+      <div class="ux-modal__dialog">
+        <header class="ux-modal__header">
+          <h2 id="cat-item-modal-title">{{ editing ? 'Editar Ítem' : 'Nuevo Ítem' }}</h2>
+          <button type="button" class="icon-btn" (click)="cancel()" aria-label="Cerrar">✕</button>
+        </header>
+        <form [formGroup]="form" (ngSubmit)="save()" class="ux-form" novalidate>
+          <!-- Paso 1: Información Básica -->
+          <div class="form-section">
+            <h3 class="form-section__title">1. Información Básica</h3>
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-cod">Código *</label>
+                <input id="f-cod" type="text" formControlName="codigo" [readonly]="editing"
+                  placeholder="Ej: ALI001" maxlength="10" />
+                  @if (!editing) {
+                    <small class="help">Código único del ítem (máx. 10 caracteres)</small>
+                  }
+                  @if (editing) {
+                    <small class="help">El código no se puede modificar</small>
+                  }
+                </div>
+                <div class="form-field">
+                  <label for="f-nom">Nombre *</label>
+                  <input id="f-nom" type="text" formControlName="nombre"
+                    placeholder="Ej: Alimento Iniciador Pollos" maxlength="150" />
+                    <small class="help">Nombre descriptivo del ítem (máx. 150 caracteres)</small>
+                  </div>
+                  <div class="form-field">
+                    <label for="f-type">Tipo de ítem *</label>
+                    <select id="f-type" formControlName="itemType">
+                      <option [ngValue]="null" disabled>Seleccione un tipo...</option>
+                      @for (t of tiposItem; track t) {
+                        <option [ngValue]="t">{{ t | titlecase }}</option>
+                      }
+                    </select>
+                    <small class="help">Este campo se guarda en la columna <code>item_type</code> de la base de datos.</small>
+                  </div>
+                  <div class="form-field">
+                    <label for="f-act">Estado</label>
+                    <select id="f-act" formControlName="activo">
+                      <option [ngValue]="true">Activo</option>
+                      <option [ngValue]="false">Inactivo</option>
+                    </select>
+                    <small class="help">Los ítems inactivos no aparecerán en los movimientos</small>
+                  </div>
+                </div>
+              </div>
+              <!-- Paso 2: Configuración Específica según Tipo de Item -->
+              <!-- Configuración para ALIMENTO -->
+              @if (isAlimento) {
+                <div class="form-section">
+                  <h3 class="form-section__title">2. Configuración de Alimento</h3>
+                  <div class="ux-card ux-card--sub">
+                    <div class="grid grid-3">
+                      <div class="form-field">
+                        <label for="f-especie">Especie *</label>
+                        <select id="f-especie" formControlName="especie">
+                          @for (e of especies; track e) {
+                            <option [ngValue]="e">{{ e | titlecase }}</option>
+                          }
+                        </select>
+                        <small class="help">Tipo de animal para este alimento</small>
+                      </div>
+                      <div class="form-field">
+                        <label for="f-raza">Raza *</label>
+                        <select id="f-raza" formControlName="raza">
+                          @for (r of razas; track r) {
+                            <option [ngValue]="r">{{ r }}</option>
+                          }
+                        </select>
+                        <small class="help">Raza para este alimento</small>
+                      </div>
+                      <div class="form-field">
+                        <label for="f-genero">Género *</label>
+                        <select id="f-genero" formControlName="genero">
+                          @for (g of generos; track g) {
+                            <option [ngValue]="g">{{ g }}</option>
+                          }
+                        </select>
+                        <small class="help">Género objetivo del alimento</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              }
+              <!-- Configuración para MEDICAMENTO -->
+              @if (isMedicamento) {
+                <div class="form-section">
+                  <h3 class="form-section__title">2. Configuración de Medicamento</h3>
+                  <div class="ux-card ux-card--sub">
+                    <div class="grid grid-3">
+                      <div class="form-field">
+                        <label for="f-tipo-medicamento">Tipo de Medicamento</label>
+                        <input id="f-tipo-medicamento" type="text" formControlName="tipo_medicamento"
+                          placeholder="Ej: Antibiótico, Antiparasitario" maxlength="100" />
+                          <small class="help">Clasificación del medicamento</small>
+                        </div>
+                        <div class="form-field">
+                          <label for="f-via-admin">Vía de Administración</label>
+                          <input id="f-via-admin" type="text" formControlName="via_administracion"
+                            placeholder="Ej: Oral, Intramuscular" maxlength="100" />
+                            <small class="help">Forma de aplicación del medicamento</small>
+                          </div>
+                          <div class="form-field">
+                            <label for="f-presentacion">Presentación</label>
+                            <input id="f-presentacion" type="text" formControlName="presentacion"
+                              placeholder="Ej: Inyectable, Polvo" maxlength="100" />
+                              <small class="help">Forma física del medicamento</small>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    }
+                    <!-- Configuración para BIOLÓGICO -->
+                    @if (isBiologico) {
+                      <div class="form-section">
+                        <h3 class="form-section__title">2. Configuración de Biológico</h3>
+                        <div class="ux-card ux-card--sub">
+                          <div class="grid grid-3">
+                            <div class="form-field">
+                              <label for="f-tipo-biologico">Tipo de Biológico</label>
+                              <input id="f-tipo-biologico" type="text" formControlName="tipo_biologico"
+                                placeholder="Ej: Vacuna, Suero" maxlength="100" />
+                                <small class="help">Clasificación del biológico</small>
+                              </div>
+                              <div class="form-field">
+                                <label for="f-via-aplicacion">Vía de Aplicación</label>
+                                <input id="f-via-aplicacion" type="text" formControlName="via_aplicacion"
+                                  placeholder="Ej: Subcutánea, Intramuscular" maxlength="100" />
+                                  <small class="help">Forma de aplicación del biológico</small>
+                                </div>
+                                <div class="form-field">
+                                  <label for="f-temp-almacenamiento">Temperatura de Almacenamiento</label>
+                                  <input id="f-temp-almacenamiento" type="text" formControlName="temperatura_almacenamiento"
+                                    placeholder="Ej: 2-8°C, Congelado" maxlength="50" />
+                                    <small class="help">Condiciones de almacenamiento requeridas</small>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          }
+                          <!-- Configuración para ACCESORIO -->
+                          @if (isAccesorio) {
+                            <div class="form-section">
+                              <h3 class="form-section__title">2. Configuración de Accesorio</h3>
+                              <div class="ux-card ux-card--sub">
+                                <div class="grid grid-3">
+                                  <div class="form-field">
+                                    <label for="f-tipo-accesorio">Tipo de Accesorio</label>
+                                    <input id="f-tipo-accesorio" type="text" formControlName="tipo_accesorio"
+                                      placeholder="Ej: Bebedero, Comedero" maxlength="100" />
+                                      <small class="help">Categoría del accesorio</small>
+                                    </div>
+                                    <div class="form-field">
+                                      <label for="f-material">Material</label>
+                                      <input id="f-material" type="text" formControlName="material"
+                                        placeholder="Ej: Plástico, Acero" maxlength="100" />
+                                        <small class="help">Material de fabricación</small>
+                                      </div>
+                                      <div class="form-field">
+                                        <label for="f-dimensiones">Dimensiones</label>
+                                        <input id="f-dimensiones" type="text" formControlName="dimensiones"
+                                          placeholder="Ej: 50x30x20 cm" maxlength="100" />
+                                          <small class="help">Tamaño o dimensiones del accesorio</small>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                }
+                                <!-- Configuración para CONSUMIBLE -->
+                                @if (isConsumible) {
+                                  <div class="form-section">
+                                    <h3 class="form-section__title">2. Configuración de Consumible</h3>
+                                    <div class="ux-card ux-card--sub">
+                                      <div class="grid grid-2">
+                                        <div class="form-field">
+                                          <label for="f-tipo-consumible">Tipo de Consumible</label>
+                                          <input id="f-tipo-consumible" type="text" formControlName="tipo_consumible"
+                                            placeholder="Ej: Desinfectante, Limpiador" maxlength="100" />
+                                            <small class="help">Categoría del consumible</small>
+                                          </div>
+                                          <div class="form-field">
+                                            <label for="f-unidad-medida">Unidad de Medida</label>
+                                            <input id="f-unidad-medida" type="text" formControlName="unidad_medida"
+                                              placeholder="Ej: Litro, Kilogramo" maxlength="50" />
+                                              <small class="help">Unidad estándar de medida</small>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    }
+                                    <!-- Paso 3: Metadata Adicional (Opcional) -->
+                                    <div class="form-section">
+                                      <h3 class="form-section__title">3. Metadata Adicional (Opcional)</h3>
+                                      <div class="meta-editor">
+                                        <div class="meta-header">
+                                          <span>Información adicional personalizada</span>
+                                          <button type="button" class="btn btn--ghost btn--sm" (click)="addMetaRow()">
+                                            <fa-icon [icon]="faPlus" class="mr-1"></fa-icon>
+                                            Agregar campo
+                                          </button>
+                                        </div>
+                                        <div class="meta-rows" formArrayName="metadata">
+                                          @for (row of metadataArray.controls; track row; let i = $index) {
+                                            <div class="meta-row" [formGroupName]="i">
+                                              <input type="text" placeholder="Clave (ej: fabricante, unidad)" formControlName="key"
+                                                class="meta-key" maxlength="50" />
+                                                <input type="text" placeholder="Valor (ej: ItalGranja, kg)" formControlName="value"
+                                                  class="meta-value" maxlength="500" />
+                                                  <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)"
+                                                    title="Eliminar campo" aria-label="Eliminar">
+                                                    <fa-icon [icon]="faTrash"></fa-icon>
+                                                  </button>
+                                                </div>
+                                              }
+                                              @if (metadataArray.length === 0) {
+                                                <div class="meta-empty">
+                                                  <p class="meta-empty-text">No hay campos adicionales. Haga clic en "Agregar campo" para añadir información personalizada.</p>
+                                                </div>
+                                              }
+                                            </div>
+                                            <small class="help">
+                                              <strong>Claves reservadas:</strong> <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code>.
+                                              Estas se gestionan automáticamente según el tipo seleccionado.
+                                            </small>
+                                          </div>
+                                        </div>
+                                        <!-- Vista previa JSON (colapsable) -->
+                                        <div class="form-section">
+                                          <details class="json-preview-section">
+                                            <summary class="json-preview-toggle">Vista previa de metadata (JSON)</summary>
+                                            <pre class="json-preview">{{ jsonPreview() }}</pre>
+                                          </details>
+                                        </div>
+                                        <footer class="ux-modal__footer">
+                                          <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
+                                          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">Guardar</button>
+                                        </footer>
+                                      </form>
+                                      @if (loading) {
+                                        <div class="modal-loading" role="status" aria-live="polite">
+                                          <div class="spinner"></div> Guardando…
+                                        </div>
+                                      }
+                                    </div>
+                                  </div>
+                                }
+
+                                <!-- Modal de Detalle -->
+                                @if (detailModalOpen) {
+                                  <div class="ux-modal-overlay" (click)="closeDetail()">
+                                    <div class="ux-modal ux-modal--large" (click)="$event.stopPropagation()">
+                                      <div class="ux-modal__header">
+                                        <h2 class="ux-modal__title">Detalle del Producto</h2>
+                                        <button type="button" class="ux-modal__close" (click)="closeDetail()" aria-label="Cerrar">×</button>
+                                      </div>
+                                      @if (selectedItem) {
+                                        <div class="ux-modal__body">
+                                          <!-- Información Básica -->
+                                          <div class="detail-section">
+                                            <h3 class="detail-section__title">Información Básica</h3>
+                                            <div class="detail-grid">
+                                              <div class="detail-item">
+                                                <span class="detail-label">Código:</span>
+                                                <span class="detail-value"><code>{{ selectedItem.codigo }}</code></span>
+                                              </div>
+                                              <div class="detail-item">
+                                                <span class="detail-label">Nombre:</span>
+                                                <span class="detail-value">{{ selectedItem.nombre }}</span>
+                                              </div>
+                                              <div class="detail-item">
+                                                <span class="detail-label">Tipo de Ítem:</span>
+                                                <span class="detail-value">
+                                                  <span class="chip chip--info">{{ (selectedItem.itemType || 'alimento') | titlecase }}</span>
+                                                </span>
+                                              </div>
+                                              <div class="detail-item">
+                                                <span class="detail-label">Estado:</span>
+                                                <span class="detail-value">
+                                                  <span class="chip" [class.chip--success]="selectedItem.activo" [class.chip--danger]="!selectedItem.activo">
+                                                    {{ selectedItem.activo ? 'Activo' : 'Inactivo' }}
+                                                  </span>
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <!-- Metadata como Tabla -->
+                                          @if (selectedItem.metadata && getMetadataAsArray(selectedItem.metadata).length > 0) {
+                                            <div class="detail-section">
+                                              <h3 class="detail-section__title">Información Adicional</h3>
+                                              <div class="ux-scroll">
+                                                <table class="ux-table ux-table--compact">
+                                                  <thead>
+                                                    <tr>
+                                                      <th scope="col">Campo</th>
+                                                      <th scope="col">Valor</th>
+                                                    </tr>
+                                                  </thead>
+                                                  <tbody>
+                                                    @for (item of getMetadataAsArray(selectedItem.metadata); track item) {
+                                                      <tr>
+                                                        <td><strong>{{ item.key | titlecase }}</strong></td>
+                                                        <td>{{ formatMetadataValue(item.value) }}</td>
+                                                      </tr>
+                                                    }
+                                                  </tbody>
+                                                </table>
+                                              </div>
+                                            </div>
+                                          }
+                                          @if (!selectedItem.metadata || getMetadataAsArray(selectedItem.metadata).length === 0) {
+                                            <div class="detail-section">
+                                              <p class="detail-empty">No hay información adicional registrada.</p>
+                                            </div>
+                                          }
+                                        </div>
+                                      }
+                                      <div class="ux-modal__footer">
+                                        <button type="button" class="btn btn--primary" (click)="closeDetail()">Cerrar</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                }

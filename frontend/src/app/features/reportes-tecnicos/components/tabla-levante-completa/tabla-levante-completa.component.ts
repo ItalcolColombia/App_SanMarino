@@ -1,13 +1,14 @@
 // src/app/features/reportes-tecnicos/components/tabla-levante-completa/tabla-levante-completa.component.ts
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+
 import { ReporteTecnicoLevanteSemanalDto } from '../../services/reporte-tecnico.service';
 
 @Component({
   selector: 'app-tabla-levante-completa',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './tabla-levante-completa.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-levante-completa.component.scss']
 })
 export class TablaLevanteCompletaComponent {

@@ -8,9 +8,10 @@ import {
   computed,
   inject,
   signal,
-  DestroyRef
+  DestroyRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import {
   FormBuilder,
   FormGroup,
@@ -46,8 +47,9 @@ type TabKey = 'listado' | 'resumen';
 @Component({
   selector: 'app-lesion-tab',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [ReactiveFormsModule],
   templateUrl: './lesion-tab.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lesion-tab.component.scss']
 })
 export class LesionTabComponent implements OnInit, OnChanges {

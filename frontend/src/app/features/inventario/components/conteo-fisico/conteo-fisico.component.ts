@@ -1,5 +1,5 @@
 // src/app/features/inventario/components/conteo-fisico/conteo-fisico.component.ts
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventarioService, FarmDto, CatalogItemDto } from '../../services/inventario.service';
@@ -18,6 +18,7 @@ interface ConteoRow {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './conteo-fisico.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./conteo-fisico.component.scss']
 })
 export class ConteoFisicoComponent {

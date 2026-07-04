@@ -1,6 +1,6 @@
 // src/app/features/lote/pages/lote-list/lote-list.component.ts
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, finalize } from 'rxjs';
@@ -17,13 +17,13 @@ import { ModalCreateEditLoteComponent } from '../../components/modal-create-edit
   selector: 'app-lote-list',
   standalone: true,
   imports: [
-    CommonModule,
     FontAwesomeModule,
     FiltroLotesComponent,
     TablaRegistroListComponent,
     ModalCreateEditLoteComponent
-  ],
+],
   templateUrl: './lote-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lote-list.component.scss']
 })
 export class LoteListComponent implements OnInit, OnDestroy {

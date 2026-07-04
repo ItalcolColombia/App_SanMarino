@@ -16,7 +16,10 @@ public sealed record InventarioGestionFilterDataDto(
     IEnumerable<NucleoDto> NucleosOrigen,
     IEnumerable<NucleoDto> NucleosDestino,
     IEnumerable<GalponLiteDto> GalponesOrigen,
-    IEnumerable<GalponLiteDto> GalponesDestino
+    IEnumerable<GalponLiteDto> GalponesDestino,
+    // Default GLOBAL de la empresa activa: ¿alimento a nivel galpón? El front resuelve el
+    // efectivo por granja: farm.ManejaAlimentoPorGalpon ?? CompanyManejaAlimentoPorGalpon.
+    bool CompanyManejaAlimentoPorGalpon = false
 );
 
 /// <summary>Lote para filtrar el histórico por ubicación (tabla lotes, granjas asignadas).</summary>

@@ -1,5 +1,5 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+
 import { Subject, takeUntil } from 'rxjs';
 import { CompanyService, Company } from '../../../core/services/company/company.service';
 import { CompanySelectorComponent } from '../../../shared/components/company-selector/company-selector.component';
@@ -7,40 +7,44 @@ import { CompanySelectorComponent } from '../../../shared/components/company-sel
 @Component({
   selector: 'app-company-admin-test',
   standalone: true,
-  imports: [CommonModule, CompanySelectorComponent],
+  imports: [CompanySelectorComponent],
   template: `
     <div class="container mx-auto p-6 bg-white shadow-lg rounded-lg">
       <h2 class="text-2xl font-bold text-gray-800 mb-6">Prueba de Endpoints de Empresas</h2>
-      
+    
       <!-- Selector de empresa -->
       <div class="mb-6">
-        <app-company-selector 
+        <app-company-selector
           (companyChanged)="onCompanyChanged($event)"
           [showLabel]="true"
           size="md"
           variant="default">
         </app-company-selector>
       </div>
-
+    
       <!-- Botones de prueba -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <button 
+        <button
           (click)="testNormalEndpoint()"
           [disabled]="loading"
           class="btn-primary">
-          <span *ngIf="loading && loadingType === 'normal'" class="spinner spinner--sm mr-2"></span>
+          @if (loading && loadingType === 'normal') {
+            <span class="spinner spinner--sm mr-2"></span>
+          }
           Probar Endpoint Normal (Filtrado)
         </button>
-        
-        <button 
+    
+        <button
           (click)="testAdminEndpoint()"
           [disabled]="loading"
           class="btn-secondary">
-          <span *ngIf="loading && loadingType === 'admin'" class="spinner spinner--sm mr-2"></span>
+          @if (loading && loadingType === 'admin') {
+            <span class="spinner spinner--sm mr-2"></span>
+          }
           Probar Endpoint Admin (Sin Filtro)
         </button>
       </div>
-
+    
       <!-- Resultados -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Endpoint Normal -->
@@ -55,16 +59,20 @@ import { CompanySelectorComponent } from '../../../shared/components/company-sel
             <strong>Empresas Encontradas:</strong> {{ normalCompanies.length }}
           </div>
           <div class="max-h-64 overflow-y-auto">
-            <div *ngIf="normalCompanies.length === 0" class="text-gray-500 italic">
-              Sin empresas
-            </div>
-            <div *ngFor="let company of normalCompanies" class="text-sm p-2 bg-blue-50 rounded mb-1">
-              <strong>{{ company.name }}</strong><br>
-              <span class="text-gray-600">ID: {{ company.id }} | {{ company.identifier }}</span>
-            </div>
+            @if (normalCompanies.length === 0) {
+              <div class="text-gray-500 italic">
+                Sin empresas
+              </div>
+            }
+            @for (company of normalCompanies; track company) {
+              <div class="text-sm p-2 bg-blue-50 rounded mb-1">
+                <strong>{{ company.name }}</strong><br>
+                <span class="text-gray-600">ID: {{ company.id }} | {{ company.identifier }}</span>
+              </div>
+            }
           </div>
         </div>
-
+    
         <!-- Endpoint Admin -->
         <div class="border rounded-lg p-4">
           <h3 class="text-lg font-semibold text-green-800 mb-3">
@@ -77,29 +85,38 @@ import { CompanySelectorComponent } from '../../../shared/components/company-sel
             <strong>Empresas Encontradas:</strong> {{ adminCompanies.length }}
           </div>
           <div class="max-h-64 overflow-y-auto">
-            <div *ngIf="adminCompanies.length === 0" class="text-gray-500 italic">
-              Sin empresas
-            </div>
-            <div *ngFor="let company of adminCompanies" class="text-sm p-2 bg-green-50 rounded mb-1">
-              <strong>{{ company.name }}</strong><br>
-              <span class="text-gray-600">ID: {{ company.id }} | {{ company.identifier }}</span>
-            </div>
+            @if (adminCompanies.length === 0) {
+              <div class="text-gray-500 italic">
+                Sin empresas
+              </div>
+            }
+            @for (company of adminCompanies; track company) {
+              <div class="text-sm p-2 bg-green-50 rounded mb-1">
+                <strong>{{ company.name }}</strong><br>
+                <span class="text-gray-600">ID: {{ company.id }} | {{ company.identifier }}</span>
+              </div>
+            }
           </div>
         </div>
       </div>
-
+    
       <!-- Logs -->
-      <div *ngIf="logs.length > 0" class="mt-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-3">Logs de Prueba</h3>
-        <div class="bg-gray-100 p-4 rounded-lg max-h-48 overflow-y-auto">
-          <div *ngFor="let log of logs" class="text-sm font-mono mb-1">
-            <span class="text-gray-500">[{{ log.timestamp }}]</span>
-            <span [class]="log.type === 'error' ? 'text-red-600' : 'text-gray-800'">{{ log.message }}</span>
+      @if (logs.length > 0) {
+        <div class="mt-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-3">Logs de Prueba</h3>
+          <div class="bg-gray-100 p-4 rounded-lg max-h-48 overflow-y-auto">
+            @for (log of logs; track log) {
+              <div class="text-sm font-mono mb-1">
+                <span class="text-gray-500">[{{ log.timestamp }}]</span>
+                <span [class]="log.type === 'error' ? 'text-red-600' : 'text-gray-800'">{{ log.message }}</span>
+              </div>
+            }
           </div>
         </div>
-      </div>
+      }
     </div>
-  `,
+    `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .btn-primary, .btn-secondary {
       @apply px-4 py-2 rounded-md font-medium transition-colors;

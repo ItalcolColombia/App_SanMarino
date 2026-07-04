@@ -14,37 +14,41 @@
       </tr>
     </thead>
     <tbody>
-      <tr *ngFor="let consumo of consumosDiarios">
-        <td>{{ consumo.fecha | date:'dd/MM/yyyy' }}</td>
-        <td>{{ consumo.loteNombre }}</td>
-        <td class="text-right">{{ consumo.consumoAlimento | number:'1.0-2' }}</td>
-        <td class="text-right">{{ consumo.consumoAgua | number:'1.0-2' }}</td>
-        <td class="text-right">{{ consumo.consumoMedicamento | number:'1.0-2' }}</td>
-        <td class="text-right">{{ consumo.consumoVacuna | number:'1.0-2' }}</td>
-        <td class="text-right">{{ consumo.otrosConsumos | number:'1.0-2' }}</td>
-        <td class="text-right">{{ consumo.totalConsumo | number:'1.0-2' }}</td>
-      </tr>
-      <tr class="subtotal-row" *ngIf="consumosDiarios.length > 0">
-        <td colspan="2"><strong>Subtotal</strong></td>
-        <td class="text-right">
-          <strong>{{ getSubtotalAlimento() | number:'1.0-2' }}</strong>
-        </td>
-        <td class="text-right">
-          <strong>{{ getSubtotalAgua() | number:'1.0-2' }}</strong>
-        </td>
-        <td class="text-right">
-          <strong>{{ getSubtotalMedicamento() | number:'1.0-2' }}</strong>
-        </td>
-        <td class="text-right">
-          <strong>{{ getSubtotalVacuna() | number:'1.0-2' }}</strong>
-        </td>
-        <td class="text-right">
-          <strong>{{ getSubtotalOtros() | number:'1.0-2' }}</strong>
-        </td>
-        <td class="text-right">
-          <strong>{{ getSubtotalGeneral() | number:'1.0-2' }}</strong>
-        </td>
-      </tr>
+      @for (consumo of consumosDiarios; track consumo) {
+        <tr>
+          <td>{{ consumo.fecha | date:'dd/MM/yyyy' }}</td>
+          <td>{{ consumo.loteNombre }}</td>
+          <td class="text-right">{{ consumo.consumoAlimento | number:'1.0-2' }}</td>
+          <td class="text-right">{{ consumo.consumoAgua | number:'1.0-2' }}</td>
+          <td class="text-right">{{ consumo.consumoMedicamento | number:'1.0-2' }}</td>
+          <td class="text-right">{{ consumo.consumoVacuna | number:'1.0-2' }}</td>
+          <td class="text-right">{{ consumo.otrosConsumos | number:'1.0-2' }}</td>
+          <td class="text-right">{{ consumo.totalConsumo | number:'1.0-2' }}</td>
+        </tr>
+      }
+      @if (consumosDiarios.length > 0) {
+        <tr class="subtotal-row">
+          <td colspan="2"><strong>Subtotal</strong></td>
+          <td class="text-right">
+            <strong>{{ getSubtotalAlimento() | number:'1.0-2' }}</strong>
+          </td>
+          <td class="text-right">
+            <strong>{{ getSubtotalAgua() | number:'1.0-2' }}</strong>
+          </td>
+          <td class="text-right">
+            <strong>{{ getSubtotalMedicamento() | number:'1.0-2' }}</strong>
+          </td>
+          <td class="text-right">
+            <strong>{{ getSubtotalVacuna() | number:'1.0-2' }}</strong>
+          </td>
+          <td class="text-right">
+            <strong>{{ getSubtotalOtros() | number:'1.0-2' }}</strong>
+          </td>
+          <td class="text-right">
+            <strong>{{ getSubtotalGeneral() | number:'1.0-2' }}</strong>
+          </td>
+        </tr>
+      }
     </tbody>
   </table>
 </div>

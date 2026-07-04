@@ -1,8 +1,9 @@
 // src/app/features/tickets/components/ticket-adjuntos-input/ticket-adjuntos-input.component.ts
 import {
   Component, EventEmitter, Input, OnDestroy, Output, inject, signal,
+  ChangeDetectionStrategy
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/services/toast.service';
 
@@ -45,7 +46,8 @@ const ACCEPT_ATTR =
 @Component({
   selector: 'app-ticket-adjuntos-input',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
 <div class="space-y-4">
 

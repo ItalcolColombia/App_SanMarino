@@ -3,6 +3,7 @@
 // Inventario: mismo patrón que SeguimientoAvesEngordeService — descuenta al crear, ajusta al editar, restituye al eliminar.
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -67,43 +68,13 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
 
     // ─── Helpers de inventario ────────────────────────────────────────────────
 
-    private static decimal ToKg(double cantidad, string? unidad)
-    {
-        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
-        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
-        return (decimal)cantidad;
-    }
-
     /// <summary>
-    /// Parsea itemsHembras e itemsMachos de la metadata y devuelve un mapa itemId → kg total.
-    /// Acepta catalogItemId o itemInventarioEcuadorId, igual que SeguimientoAvesEngordeService.
+    /// Parsea itemsHembras/Machos/Generales de la metadata → mapa itemId → kg total.
+    /// Delega en el cálculo puro central compartido (un solo lugar → un solo test).
+    /// Antes había una copia idéntica acá + su propio ToKg.
     /// </summary>
     private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
-    {
-        var byItemId = new Dictionary<int, decimal>();
-
-        void ParseArray(JsonElement arr)
-        {
-            foreach (var e in arr.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        }
-
-        if (root.TryGetProperty("itemsHembras", out var arrH)) ParseArray(arrH);
-        if (root.TryGetProperty("itemsMachos", out var arrM)) ParseArray(arrM);
-        if (root.TryGetProperty("itemsGenerales", out var arrG)) ParseArray(arrG);
-
-        return byItemId;
-    }
+        => ZooSanMarino.Application.Calculos.MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
 
     /// <summary>
     /// Obtiene farmId, nucleoId y galponId trazando LoteReproductora → LoteAveEngorde.
@@ -120,6 +91,18 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         if (row is null) return null;
         return (row.GranjaId, row.NucleoId, row.GalponId);
     }
+
+    /// <summary>
+    /// País efectivo para gatear el descuento del inventario modelo B (S1). Aquí el origen es la
+    /// GRANJA del lote reproductora (no hay lote.PaisId): farm.DepartamentoId → departamentos.PaisId,
+    /// la misma cadena que usa el inventario. Devuelve null si no se puede resolver.
+    /// </summary>
+    private async Task<int?> ResolverPaisIdPorGranjaAsync(int granjaId)
+        => await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId)
+            .Join(_ctx.Departamentos.AsNoTracking(),
+                f => f.DepartamentoId, d => d.DepartamentoId, (f, d) => (int?)d.PaisId)
+            .FirstOrDefaultAsync();
 
     // ─── Queries ──────────────────────────────────────────────────────────────
 
@@ -231,7 +214,10 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             try
             {
                 var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
-                if (ubicacion.HasValue)
+                // Gate por PAÍS (S1): solo Ecuador/Panamá descuentan del modelo B; para lotes Colombia
+                // NO se invoca (evita el descuento cross-país silencioso por el fallback catalogItemId).
+                if (ubicacion.HasValue &&
+                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
                 {
                     var (farmId, nucleoId, galponId) = ubicacion.Value;
                     var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
@@ -312,7 +298,9 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             try
             {
                 var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
-                if (ubicacion.HasValue)
+                // Gate por PAÍS (S1): solo Ecuador/Panamá ajustan el modelo B.
+                if (ubicacion.HasValue &&
+                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
                 {
                     var (farmId, nucleoId, galponId) = ubicacion.Value;
                     var newByItemId = dto.Metadata != null
@@ -397,7 +385,9 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             try
             {
                 var ubicacion = await GetLoteUbicacionAsync(ent.LoteReproductoraAveEngordeId);
-                if (ubicacion.HasValue)
+                // Gate por PAÍS (S1): solo Ecuador/Panamá devuelven al modelo B.
+                if (ubicacion.HasValue &&
+                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
                 {
                     var (farmId, nucleoId, galponId) = ubicacion.Value;
                     var byItem = ParseMetadataItemsToKg(ent.Metadata.RootElement);

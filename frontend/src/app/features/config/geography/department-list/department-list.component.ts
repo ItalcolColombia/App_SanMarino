@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -23,11 +23,11 @@ import { Observable } from 'rxjs/internal/Observable';
   selector: 'app-department-list',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     FontAwesomeModule
-  ],
+],
   templateUrl: './department-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./department-list.component.scss']
 })
 export class DepartmentListComponent implements OnInit {
