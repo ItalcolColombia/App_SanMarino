@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import {
   CreateInventarioGastoRequest,
   InventarioGastoExportRowDto,
@@ -68,14 +69,11 @@ export class GastosInventarioPageComponent implements OnInit {
   // Detail modal
   detail: any = null;
 
-  // Confirm modal
-  confirmOpen = false;
-  confirmTitle = '';
-  confirmText = '';
-  confirmAction: 'save' | 'delete' | null = null;
-  confirmRow: InventarioGastoListItemDto | null = null;
-
-  constructor(private api: InventarioGastosService, private toast: ToastService) {}
+  constructor(
+    private api: InventarioGastosService,
+    private toast: ToastService,
+    private confirmDialog: ConfirmDialogService
+  ) {}
 
   get qtyExceedsStock(): boolean {
     if (!this.selectedItem || this.qtyToAdd == null) return false;
@@ -172,30 +170,36 @@ export class GastosInventarioPageComponent implements OnInit {
     this.error = null;
   }
 
-  openConfirm(title: string, text: string, action: 'save' | 'delete', row?: InventarioGastoListItemDto): void {
-    this.confirmTitle = title;
-    this.confirmText = text;
-    this.confirmAction = action;
-    this.confirmRow = row ?? null;
-    this.confirmOpen = true;
+  async confirmarGuardar(): Promise<void> {
+    const ok = await this.confirmDialog.ask({
+      title: 'Confirmar registro',
+      message: '¿Guardar el gasto y descontar el stock de la granja?',
+      type: 'warning',
+      confirmText: 'Guardar'
+    });
+    if (!ok) return;
+    await this.save();
   }
 
-  closeConfirm(): void {
-    this.confirmOpen = false;
-    this.confirmAction = null;
-    this.confirmRow = null;
+  async confirmarEliminar(row: InventarioGastoListItemDto): Promise<void> {
+    const ok = await this.confirmDialog.ask({
+      title: 'Confirmar eliminación',
+      message: '¿Eliminar el gasto y devolver el stock al inventario?',
+      type: 'error',
+      confirmText: 'Eliminar'
+    });
+    if (!ok) return;
+    await this.eliminar(row);
   }
 
-  async confirmYes(): Promise<void> {
-    const action = this.confirmAction;
-    const row = this.confirmRow;
-    this.closeConfirm();
-    if (action === 'save') {
-      await this.save();
-    }
-    if (action === 'delete' && row) {
-      await this.eliminar(row);
-    }
+  /** Limpia los filtros secundarios (fechas/concepto/estado/búsqueda) y recarga. */
+  limpiarFiltros(): void {
+    this.fechaDesde = null;
+    this.fechaHasta = null;
+    this.conceptoFilter = '';
+    this.estadoFilter = '';
+    this.searchTerm = '';
+    this.refresh();
   }
 
   async onConceptoChange(): Promise<void> {

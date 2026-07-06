@@ -65,6 +65,14 @@ export interface CreateInventarioGastoRequest {
   lineas: InventarioGastoLineaRequest[];
 }
 
+/** Resumen de una línea/ítem consumido, para mostrarlo inline en la tabla. */
+export interface InventarioGastoLineaResumenDto {
+  codigo: string;
+  nombre: string;
+  cantidad: number;
+  unidad: string;
+}
+
 export interface InventarioGastoListItemDto {
   id: number;
   fecha: string;
@@ -83,6 +91,7 @@ export interface InventarioGastoListItemDto {
   unidad: string | null;
   createdAt: string;
   createdByUserId: string | null;
+  items: InventarioGastoLineaResumenDto[];
 }
 
 export interface InventarioGastoDetalleDto {
