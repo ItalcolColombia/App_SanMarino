@@ -220,6 +220,18 @@
 }
 
 /* Logo */
+/* Ribbon rojo de marca SanMarino en el tope del sidebar (solo identidad, no acción) */
+.sb-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--sanmarino-red);
+  z-index: 2;
+}
+
 .sb-header__logo-wrap {
   display: flex;
   align-items: center;
@@ -297,8 +309,8 @@
 
 .sb-identity__company-icon {
   font-size: 0.625rem;
-  color: var(--sb-primary);
-  opacity: 0.9;
+  color: var(--sanmarino-red);
+  opacity: 0.95;
 }
 
 /* ==========================================================================

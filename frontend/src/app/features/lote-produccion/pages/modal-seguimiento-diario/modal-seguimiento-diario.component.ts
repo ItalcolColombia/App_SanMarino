@@ -264,41 +264,52 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return this.form.get('itemsMachos') as FormArray;
   }
 
+  /**
+   * Crea un grupo de ítem. `esFijo` = el ítem de ALIMENTO pre-cargado y NO removible.
+   * En el fijo los campos son opcionales (no bloquean el guardado si ese día no hubo consumo;
+   * el save ya filtra ítems sin producto seleccionado). El control `esFijo` no se guarda.
+   */
+  private crearItemGroup(tipoInicial: string | null = null, esFijo = false): FormGroup {
+    const grp = this.fb.group({
+      tipoItem: [tipoInicial, esFijo ? [] : [Validators.required]],
+      catalogItemId: [null, esFijo ? [] : [Validators.required]],
+      cantidad: [0, esFijo ? [Validators.min(0)] : [Validators.required, Validators.min(0)]],
+      unidad: ['kg', Validators.required],
+      esFijo: [esFijo]
+    });
+    grp.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') grp.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      else if (tipo) grp.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      grp.patchValue({ catalogItemId: null }, { emitEvent: false });
+    });
+    return grp;
+  }
+
+  /** Garantiza que el ítem de ALIMENTO esté siempre presente (fijo, no removible) y al inicio de la lista. */
+  private asegurarAlimentoFijo(array: FormArray): void {
+    const idx = array.controls.findIndex(c => c.get('tipoItem')?.value === 'alimento');
+    if (idx === -1) { array.insert(0, this.crearItemGroup('alimento', true)); return; }
+    const grp = array.at(idx) as FormGroup;
+    if (grp.get('esFijo')) grp.get('esFijo')!.setValue(true);
+    else grp.addControl('esFijo', this.fb.control(true));
+    if (idx !== 0) { array.removeAt(idx); array.insert(0, grp); }
+  }
+
   agregarItemHembras(): void {
-    const itemForm = this.fb.group({
-      tipoItem: [null, Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
-      unidad: ['kg', Validators.required]
-    });
-    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
-      if (tipo === 'alimento') itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
-      else if (tipo) itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
-      itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
-    });
-    this.itemsHembrasArray.push(itemForm);
+    this.itemsHembrasArray.push(this.crearItemGroup());
   }
 
   eliminarItemHembras(index: number): void {
+    if (this.itemsHembrasArray.at(index)?.get('esFijo')?.value) return; // el alimento fijo no se elimina
     this.itemsHembrasArray.removeAt(index);
   }
 
   agregarItemMachos(): void {
-    const itemForm = this.fb.group({
-      tipoItem: [null, Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
-      unidad: ['kg', Validators.required]
-    });
-    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
-      if (tipo === 'alimento') itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
-      else if (tipo) itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
-      itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
-    });
-    this.itemsMachosArray.push(itemForm);
+    this.itemsMachosArray.push(this.crearItemGroup());
   }
 
   eliminarItemMachos(index: number): void {
+    if (this.itemsMachosArray.at(index)?.get('esFijo')?.value) return;
     this.itemsMachosArray.removeAt(index);
   }
 
@@ -499,6 +510,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       consumoAguaOrp: null,
       consumoAguaTemperatura: null
     });
+    // Alimento fijo pre-cargado (no removible) en Hembras y Machos — sin tener que "Agregar Ítem".
+    this.asegurarAlimentoFijo(this.itemsHembrasArray);
+    this.asegurarAlimentoFijo(this.itemsMachosArray);
   }
 
   private populateForm(): void {
@@ -552,6 +566,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         }));
       }
     }
+    // Garantiza el alimento fijo (no removible) también al editar.
+    this.asegurarAlimentoFijo(this.itemsHembrasArray);
+    this.asegurarAlimentoFijo(this.itemsMachosArray);
 
     const fechaRegistro = this.toYMD(seg.fechaRegistro);
     const consumoOriginalHembras = metadata.consumoOriginalHembras ?? (seg as any).consKgH ?? 0;

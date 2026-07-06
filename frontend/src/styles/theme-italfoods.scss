@@ -12,6 +12,13 @@
   --ital-orange-50: rgba(245, 130, 31, 0.08);
   --ital-orange-100: rgba(245, 130, 31, 0.12);
 
+  // Rojo de marca SanMarino (extraído del logo: degradado vívido #D80E17 → profundo #991918).
+  // SOLO identidad de marca (logo, header de marca del sidebar, acentos). NUNCA en botones/tabs/
+  // acciones (esos son naranja) ni como peligro (ese es --danger). El contexto separa marca vs peligro.
+  --sanmarino-red: #D2181E;
+  --sanmarino-red-deep: #991918;
+  --sanmarino-red-50: rgba(210, 24, 30, 0.08);
+
   // "green" LEGACY remapeado: el verde salió de la marca (el logo no lo usa).
   // Estructura/primario que antes era verde ahora es NARANJA; bordes → neutro limpio.
   // El verde real queda solo como estado de éxito (token --success).

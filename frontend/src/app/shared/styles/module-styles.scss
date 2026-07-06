@@ -18,7 +18,23 @@
   --ital-cream: #faf8f5;
   --ital-muted: #a8a29e;
   --ital-text: #1f2937;
+  /* Rojo de marca SanMarino (del logo) — SOLO identidad/marca, nunca acciones (esas son naranja) */
+  --sanmarino-red: #D2181E;
+  --sanmarino-red-deep: #991918;
 }
+
+/* Divisor de sub-sección dentro de un tab unificado (p.ej. Aves: Hembras / Machos / Pesaje) */
+.aves-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 1.75rem 0 0.85rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--ital-orange-100);
+}
+.aves-section-title h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--ital-orange-dark); }
+.aves-section-title__icon { font-size: 1.15rem; }
+.aves-section-title__hint { font-size: 0.75rem; color: var(--ital-muted); margin-left: auto; font-weight: 400; }
 
 /* ================================
    HOST VARIABLES (Component Scoped - Include in each component)
