@@ -103,133 +103,47 @@ public class InventarioGastoService : IInventarioGastoService
         var companyId = await GetEffectiveCompanyIdAsync(ct);
         if (companyId is null or <= 0) return new List<InventarioGastoListItemDto>();
 
-        var q = _db.InventarioGastos.AsNoTracking()
-            .Where(g => g.CompanyId == companyId.Value);
-
-        if (req.FarmId.HasValue) q = q.Where(g => g.FarmId == req.FarmId.Value);
-        if (!string.IsNullOrWhiteSpace(req.NucleoId)) q = q.Where(g => g.NucleoId == req.NucleoId!.Trim());
-        if (!string.IsNullOrWhiteSpace(req.GalponId)) q = q.Where(g => g.GalponId == req.GalponId!.Trim());
-        if (req.LoteAveEngordeId.HasValue) q = q.Where(g => g.LoteAveEngordeId == req.LoteAveEngordeId.Value);
-        if (req.FechaDesde.HasValue) q = q.Where(g => g.Fecha >= req.FechaDesde.Value.Date);
-        if (req.FechaHasta.HasValue) q = q.Where(g => g.Fecha <= req.FechaHasta.Value.Date);
-        if (!string.IsNullOrWhiteSpace(req.Estado)) q = q.Where(g => g.Estado == req.Estado!.Trim());
-
-        if (!string.IsNullOrWhiteSpace(req.Search))
-        {
-            var s = req.Search.Trim().ToLower();
-            q = q.Where(g => (g.Observaciones ?? "").ToLower().Contains(s));
-        }
-
-        var list = await q
-            .OrderByDescending(g => g.Fecha)
-            .ThenByDescending(g => g.Id)
-            .Select(g => new
-            {
-                g.Id,
-                g.Fecha,
-                g.FarmId,
-                g.NucleoId,
-                g.GalponId,
-                g.LoteAveEngordeId,
-                g.Observaciones,
-                g.Estado,
-                g.CreatedAt,
-                g.CreatedByUserId,
-                LoteNombre = g.LoteAveEngordeId != null
-                    ? _db.LoteAveEngorde.Where(l => l.LoteAveEngordeId == g.LoteAveEngordeId).Select(l => l.LoteNombre).FirstOrDefault()
-                    : null,
-                Lineas = _db.InventarioGastoDetalles.Count(d => d.InventarioGastoId == g.Id),
-                TotalCantidad = _db.InventarioGastoDetalles.Where(d => d.InventarioGastoId == g.Id).Sum(d => (decimal?)d.Cantidad) ?? 0,
-                Unidad = _db.InventarioGastoDetalles.Where(d => d.InventarioGastoId == g.Id).Select(d => d.Unidad).FirstOrDefault()
-            })
+        // La BD arma la lista (joins granja/núcleo/galpón/lote + agregación de líneas + filtro por
+        // concepto/búsqueda) en fn_inventario_gastos_search. El backend solo pasa filtros y mapea a DTO.
+        var rows = await _db.Database
+            .SqlQueryRaw<InventarioGastoListRow>(
+                "SELECT * FROM fn_inventario_gastos_search({0}::int, {1}::int, {2}::text, {3}::text, {4}::int, {5}::date, {6}::date, {7}::text, {8}::text, {9}::text)",
+                companyId.Value,
+                (object?)req.FarmId ?? DBNull.Value,
+                (object?)Trimmed(req.NucleoId) ?? DBNull.Value,
+                (object?)Trimmed(req.GalponId) ?? DBNull.Value,
+                (object?)req.LoteAveEngordeId ?? DBNull.Value,
+                (object?)req.FechaDesde?.Date ?? DBNull.Value,
+                (object?)req.FechaHasta?.Date ?? DBNull.Value,
+                (object?)Trimmed(req.Concepto) ?? DBNull.Value,
+                (object?)Trimmed(req.Search) ?? DBNull.Value,
+                (object?)Trimmed(req.Estado) ?? DBNull.Value)
             .ToListAsync(ct);
 
-        // Concepto filter (por detalle)
-        if (!string.IsNullOrWhiteSpace(req.Concepto))
+        return rows.Select(r => new InventarioGastoListItemDto(
+            r.Id, r.Fecha, r.FarmId, r.GranjaNombre, r.NucleoId, r.NucleoNombre,
+            r.GalponId, r.GalponNombre, r.LoteAveEngordeId, r.LoteNombre,
+            r.Observaciones, r.Estado, r.Lineas, r.TotalCantidad, r.Unidad,
+            r.CreatedAt, r.CreatedByUserId, ParseItems(r.Items))).ToList();
+    }
+
+    private static string? Trimmed(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static readonly JsonSerializerOptions _itemsJsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    /// <summary>Deserializa el JSON de ítems que arma la función (fn_inventario_gastos_search.items).</summary>
+    private static IReadOnlyList<InventarioGastoLineaResumenDto> ParseItems(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<InventarioGastoLineaResumenDto>();
+        try
         {
-            var concepto = req.Concepto.Trim();
-            var ids = await _db.InventarioGastoDetalles.AsNoTracking()
-                .Where(d => d.Concepto == concepto)
-                .Select(d => d.InventarioGastoId)
-                .Distinct()
-                .ToListAsync(ct);
-            var idSet = ids.ToHashSet();
-            list = list.Where(x => idSet.Contains(x.Id)).ToList();
+            return JsonSerializer.Deserialize<List<InventarioGastoLineaResumenDto>>(json, _itemsJsonOpts)
+                ?? (IReadOnlyList<InventarioGastoLineaResumenDto>)Array.Empty<InventarioGastoLineaResumenDto>();
         }
-
-        var farmIds = list.Select(x => x.FarmId).Distinct().ToList();
-        var farmDict = await _db.Farms.AsNoTracking()
-            .Where(f => farmIds.Contains(f.Id))
-            .ToDictionaryAsync(f => f.Id, f => f.Name, ct);
-
-        var nucleoDict = new Dictionary<(string NucleoId, int FarmId), string>();
-        var nucleoKeys = list
-            .Where(x => !string.IsNullOrEmpty(x.NucleoId))
-            .Select(x => (x.NucleoId!, x.FarmId))
-            .Distinct()
-            .ToList();
-        if (nucleoKeys.Count > 0)
+        catch
         {
-            var nIds = nucleoKeys.Select(k => k.Item1).Distinct().ToList();
-            var farmIdsN = nucleoKeys.Select(k => k.Item2).Distinct().ToList();
-            var nucleos = await _db.Nucleos.AsNoTracking()
-                .Where(n => nIds.Contains(n.NucleoId) && farmIdsN.Contains(n.GranjaId))
-                .Select(n => new { n.NucleoId, n.GranjaId, n.NucleoNombre })
-                .ToListAsync(ct);
-            foreach (var n in nucleos)
-                nucleoDict[(n.NucleoId, n.GranjaId)] = n.NucleoNombre;
+            return Array.Empty<InventarioGastoLineaResumenDto>();
         }
-
-        var galponDict = new Dictionary<(string GalponId, int FarmId), string>();
-        var galponKeys = list
-            .Where(x => !string.IsNullOrEmpty(x.GalponId))
-            .Select(x => (x.GalponId!, x.FarmId))
-            .Distinct()
-            .ToList();
-        if (galponKeys.Count > 0)
-        {
-            var gIds = galponKeys.Select(k => k.Item1).Distinct().ToList();
-            var farmIdsG = galponKeys.Select(k => k.Item2).Distinct().ToList();
-            var galpones = await _db.Galpones.AsNoTracking()
-                .Where(gp => gIds.Contains(gp.GalponId) && farmIdsG.Contains(gp.GranjaId))
-                .Select(gp => new { gp.GalponId, gp.GranjaId, gp.GalponNombre })
-                .ToListAsync(ct);
-            foreach (var gp in galpones)
-                galponDict[(gp.GalponId, gp.GranjaId)] = gp.GalponNombre;
-        }
-
-        return list.Select(x =>
-        {
-            string? nucleoNombre = null;
-            if (!string.IsNullOrEmpty(x.NucleoId))
-                nucleoDict.TryGetValue((x.NucleoId, x.FarmId), out nucleoNombre);
-
-            string? galponNombre = null;
-            if (!string.IsNullOrEmpty(x.GalponId))
-                galponDict.TryGetValue((x.GalponId, x.FarmId), out galponNombre);
-
-            farmDict.TryGetValue(x.FarmId, out var granjaNombre);
-
-            return new InventarioGastoListItemDto(
-                x.Id,
-                x.Fecha,
-                x.FarmId,
-                granjaNombre,
-                x.NucleoId,
-                nucleoNombre,
-                x.GalponId,
-                galponNombre,
-                x.LoteAveEngordeId,
-                x.LoteNombre,
-                x.Observaciones,
-                x.Estado,
-                x.Lineas,
-                x.TotalCantidad,
-                x.Unidad,
-                x.CreatedAt,
-                x.CreatedByUserId
-            );
-        }).ToList();
     }
 
     public async Task<List<InventarioGastoExportRowDto>> ExportAsync(InventarioGastoSearchRequest req, CancellationToken ct = default)

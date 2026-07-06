@@ -32,6 +32,7 @@
           >
           {{ exporting ? 'Exportando…' : 'Exportar Excel' }}
         </button>
+        <button type="button" class="btn-ghost" (click)="limpiarFiltros()" [disabled]="loading">Limpiar</button>
         <button type="button" class="btn-ghost" (click)="refresh()" [disabled]="loading">Actualizar</button>
       </div>
     </div>
@@ -101,11 +102,12 @@
           <thead>
             <tr>
               <th>Fecha</th>
+              <th>Granja</th>
               <th>Núcleo</th>
               <th>Galpón</th>
               <th>Lote</th>
+              <th class="items-col">Ítems (consumo)</th>
               <th>Estado</th>
-              <th class="num">Líneas</th>
               <th class="num">Total</th>
               <th>Obs.</th>
               <th class="actions"></th>
@@ -119,10 +121,24 @@
                 <td>{{ r.nucleoNombre || r.nucleoId || '—' }}</td>
                 <td>{{ r.galponNombre || r.galponId || '—' }}</td>
                 <td>{{ r.loteNombre || r.loteAveEngordeId || '—' }}</td>
+                <td class="items-col">
+                  @if (r.items?.length) {
+                    <ul class="items-list">
+                      @for (it of r.items; track it) {
+                        <li class="items-list__row">
+                          <span class="items-list__code">{{ it.codigo }}</span>
+                          <span class="items-list__name" [title]="it.nombre">{{ it.nombre }}</span>
+                          <span class="items-list__qty">{{ formatNum(it.cantidad, 3) }} {{ it.unidad }}</span>
+                        </li>
+                      }
+                    </ul>
+                  } @else {
+                    <span class="ux-muted">—</span>
+                  }
+                </td>
                 <td>
                   <span class="pill" [class.pill--deleted]="r.estado === 'Eliminado'">{{ r.estado }}</span>
                 </td>
-                <td class="num">{{ r.lineas }}</td>
                 <td class="num">{{ formatNum(r.totalCantidad, 3) }} {{ r.unidad || '' }}</td>
                 <td class="obs" [title]="r.observaciones || ''">{{ r.observaciones || '—' }}</td>
                 <td class="actions">
@@ -130,7 +146,7 @@
                   <button
                     class="btn-danger"
                     type="button"
-                    (click)="openConfirm('Confirmar eliminación', '¿Eliminar el gasto y devolver el stock al inventario?', 'delete', r)"
+                    (click)="confirmarEliminar(r)"
                     [disabled]="r.estado === 'Eliminado' || loading"
                     >
                     Eliminar
@@ -140,7 +156,7 @@
             }
             @if (list.length === 0) {
               <tr>
-                <td colspan="9" class="ux-muted">No hay registros con los filtros actuales.</td>
+                <td colspan="10" class="ux-muted">No hay registros con los filtros actuales.</td>
               </tr>
             }
           </tbody>
@@ -155,7 +171,7 @@
   }
   @if (modalOpen) {
     <div class="modal-shell" (click)="$event.stopPropagation()">
-      <div class="modal-italfoods modal-full">
+      <div class="modal-italfoods modal-medium">
         <div class="modal-italfoods__header modal-header-sticky">
           <div class="modal-title">{{ modalTitle }}</div>
           <button type="button" class="btn-ghost" (click)="closeModal()">Cerrar</button>
@@ -279,8 +295,8 @@
               <button
                 type="button"
                 class="btn-primary"
-                (click)="openConfirm('Confirmar registro', '¿Guardar el gasto y descontar el stock de la granja?', 'save')"
-                [disabled]="loading"
+                (click)="confirmarGuardar()"
+                [disabled]="loading || !lineas.length"
                 >
                 Guardar
               </button>
@@ -293,11 +309,13 @@
               <div class="ux-alert ux-alert--error">{{ detail.error }}</div>
             }
             @if (detail && !detail.error) {
-              <div>
-                <p><strong>Fecha:</strong> {{ detail.fecha | date:'yyyy-MM-dd' }}</p>
-                <p><strong>Lote:</strong> {{ detail.loteNombre || detail.loteAveEngordeId || '—' }}</p>
-                <p><strong>Estado:</strong> {{ detail.estado }}</p>
-                <p><strong>Observaciones:</strong> {{ detail.observaciones || '—' }}</p>
+              <div class="detail">
+                <div class="detail__chips">
+                  <div class="chip"><span class="chip__k">Fecha</span><span class="chip__v">{{ detail.fecha | date:'yyyy-MM-dd' }}</span></div>
+                  <div class="chip"><span class="chip__k">Lote</span><span class="chip__v">{{ detail.loteNombre || detail.loteAveEngordeId || '—' }}</span></div>
+                  <div class="chip"><span class="chip__k">Estado</span><span class="pill" [class.pill--deleted]="detail.estado === 'Eliminado'">{{ detail.estado }}</span></div>
+                </div>
+                <p class="detail__obs"><strong>Observaciones:</strong> {{ detail.observaciones || '—' }}</p>
                 <div class="ux-card mt">
                   <div class="ux-card__header"><h3>Detalle</h3></div>
                   <div class="ux-card__body ux-scroll">
@@ -338,25 +356,3 @@
     </div>
   }
 </div>
-
-<!-- Confirmación -->
-@if (confirmOpen) {
-  <div class="modal-backdrop" (click)="closeConfirm()"></div>
-}
-@if (confirmOpen) {
-  <div class="modal-shell" (click)="$event.stopPropagation()">
-    <div class="modal-italfoods confirm-modal">
-      <div class="modal-italfoods__header">
-        <div class="modal-title">{{ confirmTitle }}</div>
-        <button type="button" class="btn-ghost" (click)="closeConfirm()">Cerrar</button>
-      </div>
-      <div class="modal-italfoods__body">
-        <p>{{ confirmText }}</p>
-      </div>
-      <div class="modal-italfoods__footer">
-        <button type="button" class="btn-ghost" (click)="closeConfirm()">Cancelar</button>
-        <button type="button" class="btn-primary" (click)="confirmYes()" [disabled]="loading">Confirmar</button>
-      </div>
-    </div>
-  </div>
-}

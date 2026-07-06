@@ -49,6 +49,14 @@ public sealed record InventarioGastoDto(
     IReadOnlyList<InventarioGastoDetalleDto> Detalles
 );
 
+/// <summary>Resumen de una línea/ítem consumido, para mostrarlo inline en la tabla (sin abrir el detalle).</summary>
+public sealed record InventarioGastoLineaResumenDto(
+    string Codigo,
+    string Nombre,
+    decimal Cantidad,
+    string Unidad
+);
+
 public sealed record InventarioGastoListItemDto(
     int Id,
     DateTime Fecha,
@@ -66,8 +74,36 @@ public sealed record InventarioGastoListItemDto(
     decimal TotalCantidad,
     string? Unidad,
     DateTimeOffset CreatedAt,
-    string? CreatedByUserId
+    string? CreatedByUserId,
+    IReadOnlyList<InventarioGastoLineaResumenDto> Items
 );
+
+/// <summary>
+/// Fila cruda devuelta por <c>fn_inventario_gastos_search</c> (SqlQueryRaw). Props en PascalCase
+/// que mapean 1:1 a las columnas citadas de la función. Se proyecta a <see cref="InventarioGastoListItemDto"/>.
+/// </summary>
+public sealed class InventarioGastoListRow
+{
+    public int Id { get; set; }
+    public DateTime Fecha { get; set; }
+    public int FarmId { get; set; }
+    public string? GranjaNombre { get; set; }
+    public string? NucleoId { get; set; }
+    public string? NucleoNombre { get; set; }
+    public string? GalponId { get; set; }
+    public string? GalponNombre { get; set; }
+    public int? LoteAveEngordeId { get; set; }
+    public string? LoteNombre { get; set; }
+    public string? Observaciones { get; set; }
+    public string Estado { get; set; } = null!;
+    public int Lineas { get; set; }
+    public decimal TotalCantidad { get; set; }
+    public string? Unidad { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public string? CreatedByUserId { get; set; }
+    /// <summary>JSON (text) con las líneas/ítems del gasto; se deserializa a <see cref="InventarioGastoLineaResumenDto"/>.</summary>
+    public string? Items { get; set; }
+}
 
 public sealed record InventarioGastoSearchRequest(
     int? FarmId = null,
