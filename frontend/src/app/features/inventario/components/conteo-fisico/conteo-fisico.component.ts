@@ -1,5 +1,6 @@
 // src/app/features/inventario/components/conteo-fisico/conteo-fisico.component.ts
 import { Component, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventarioService, FarmDto, CatalogItemDto } from '../../services/inventario.service';
@@ -29,7 +30,7 @@ export class ConteoFisicoComponent {
   farmId: number | null = null;
   filtro = '';
 
-  constructor(private invSvc: InventarioService) {
+  constructor(private toast: ToastService, private invSvc: InventarioService) {
     this.invSvc.getFarms().subscribe(f => this.farms = f);
     this.invSvc.getCatalogo().subscribe(c => this.items = c.filter(x => x.activo));
   }
@@ -72,12 +73,12 @@ export class ConteoFisicoComponent {
         conteo: Number(r.conteo)
       }));
 
-    if (payload.length === 0) { alert('No hay conteos para enviar'); return; }
+    if (payload.length === 0) { this.toast.warning('No hay conteos para enviar'); return; }
 
     this.loading = true;
     this.invSvc.postConteoFisico(this.farmId, { items: payload })
       .subscribe({
-        next: () => { this.loading = false; alert('Conteo guardado'); },
+        next: () => { this.loading = false; this.toast.success('Conteo guardado'); },
         error: () => this.loading = false
       });
   }

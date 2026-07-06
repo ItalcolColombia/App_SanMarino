@@ -1,4 +1,6 @@
 import { Component, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -28,7 +30,7 @@ export class MapasConfiguracionesListComponent implements OnInit {
   saving = false;
   readonly plantillas = MAPA_PLANTILLAS;
 
-  constructor(private mapasService: MapasService) {}
+  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, private mapasService: MapasService) {}
 
   ngOnInit(): void {
     this.load();
@@ -135,13 +137,13 @@ export class MapasConfiguracionesListComponent implements OnInit {
     }
   }
 
-  deleteMapa(m: MapaListDto, event: Event): void {
+  async deleteMapa(m: MapaListDto, event: Event): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
-    if (!confirm(`¿Eliminar el mapa "${m.nombre}"?`)) return;
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar mapa', message: `¿Eliminar el mapa "${m.nombre}"?`, type: 'warning', confirmText: 'Eliminar' }))) return;
     this.mapasService.delete(m.id).subscribe({
       next: () => this.load(),
-      error: (err) => alert(err?.error?.message || err?.message || 'Error al eliminar')
+      error: (err) => this.toast.error(err?.error?.message || err?.message || 'Error al eliminar')
     });
   }
 

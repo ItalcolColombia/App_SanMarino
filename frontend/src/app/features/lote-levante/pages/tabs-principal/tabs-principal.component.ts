@@ -1,7 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import * as XLSX from 'xlsx';
-import { exportarTablaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
+import { exportarTablaExcel, exportarAoaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
@@ -644,18 +643,17 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     });
 
     const aoa: (string | number)[][] = [...cabecera, headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
 
     // Anchos de columnas razonables para que el Excel se vea bien al abrir
-    const colCount = headers.length;
-    (ws as any)['!cols'] = Array.from({ length: colCount }, (_, i) => ({ wch: i === 0 ? 14 : i === headers.length - 4 ? 28 : 18 }));
+    const colWidths = Array.from({ length: headers.length }, (_, i) => (i === 0 ? 14 : i === headers.length - 4 ? 28 : 18));
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
     const safe = (loteNombre || 'lote').replace(/[\\/:*?"<>|]/g, '_');
     const d = new Date();
     const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `Seguimiento_Diario_de_Levante_${safe}_${stamp}.xlsx`);
+    exportarAoaExcel(aoa, 'Seguimiento', {
+      colWidths,
+      filenameFull: `Seguimiento_Diario_de_Levante_${safe}_${stamp}.xlsx`,
+    });
   }
 
   exportReporteSemanaExcel(): void {

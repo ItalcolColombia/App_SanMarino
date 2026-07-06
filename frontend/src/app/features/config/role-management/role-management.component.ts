@@ -1,5 +1,7 @@
 // src/app/features/config/role-management/role-management.component.ts
 import { Component, OnInit, OnDestroy, ViewChild, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../shared/services/toast.service';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import {
@@ -195,7 +197,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   // paginación simple
   private page$ = new BehaviorSubject<{page: number; pageSize: number}>({ page: 1, pageSize: 50 });
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
     private fb: FormBuilder,
     private roleSvc: RoleService,
     private companySvc: CompanyService,
@@ -303,7 +305,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
                   return m;
                 }, {} as Record<number, string>);
               },
-              error: () => alert('No se pudieron cargar las empresas.')
+              error: () => this.toast.error('No se pudieron cargar las empresas.')
             });
         }
       });
@@ -317,7 +319,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
           this.permissions = (list ?? []).map(p => ({ ...p, key: (p.key || '').toLowerCase() }));
           this.syncRoleFormPermissions();
         },
-        error: () => alert('No se pudieron cargar los permisos.')
+        error: () => this.toast.error('No se pudieron cargar los permisos.')
       });
   }
 
@@ -337,7 +339,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
             this.menuFlatList = this.buildMenuFlatList(this.tabMenusTree);
           }
         },
-        error: () => alert('No se pudieron cargar los menús.')
+        error: () => this.toast.error('No se pudieron cargar los menús.')
       });
   }
 
@@ -350,7 +352,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (list) => this.roles = list ?? [],
-        error: () => alert('No se pudieron cargar los roles.')
+        error: () => this.toast.error('No se pudieron cargar los roles.')
       });
   }
 
@@ -587,7 +589,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
             this.flatMenus = this.flattenMenus(this.menusTree);
             this.menusMap = this.flatMenus.reduce((m, it) => { m[it.id] = it.label || it.key; return m; }, {} as Record<number, string>);
           },
-          error: () => alert('Error al guardar el orden del menú.')
+          error: () => this.toast.error('Error al guardar el orden del menú.')
         });
       return;
     }
@@ -600,7 +602,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$), finalize(() => (this.menuStructureSaving = false)))
       .subscribe({
         next: () => {},
-        error: () => alert('Error al guardar el orden de menús de la empresa.')
+        error: () => this.toast.error('Error al guardar el orden de menús de la empresa.')
       });
   }
 
@@ -733,7 +735,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         )
         .subscribe({
           next: () => this.refreshRolesPage(),
-          error: (e) => alert(e?.error?.message || 'No se pudo crear el rol')
+          error: (e) => this.toast.error(e?.error?.message || 'No se pudo crear el rol')
         });
       return;
     }
@@ -757,7 +759,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         }),
         switchMap(() => this.saveTicketPerfilIfLoaded(roleId)),
         catchError(err => {
-          alert(err?.error?.message || 'Error al guardar cambios del rol');
+          this.toast.error(err?.error?.message || 'Error al guardar cambios del rol');
           return of(null);
         }),
         finalize(() => { this.loading = false; this.modalOpen = false; }),
@@ -780,8 +782,8 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       .pipe(catchError(() => of(null)));
   }
 
-  deleteRole(id: number) {
-    if (!confirm('¿Eliminar este rol?')) return;
+  async deleteRole(id: number) {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar rol', message: '¿Eliminar este rol?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.roleSvc.delete(id)
       .pipe(
@@ -790,7 +792,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: () => this.refreshRolesPage(),
-        error: (e) => alert(e?.error?.message || 'No se pudo eliminar el rol')
+        error: (e) => this.toast.error(e?.error?.message || 'No se pudo eliminar el rol')
       });
   }
 
@@ -835,12 +837,12 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
           this.permEditing = false;
           this.permForm.reset({ id: null, key: '', description: '' });
         },
-        error: (e) => alert(e?.error?.message || 'No se pudo guardar el permiso')
+        error: (e) => this.toast.error(e?.error?.message || 'No se pudo guardar el permiso')
       });
   }
 
-  eliminarPermiso(p: Permission) {
-    if (!confirm(`¿Eliminar permiso "${p.key}"?`)) return;
+  async eliminarPermiso(p: Permission) {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar permiso', message: `¿Eliminar permiso "${p.key}"?`, type: 'warning', confirmText: 'Eliminar' }))) return;
     this.permSvc.delete(p.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -851,7 +853,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
             this.permForm.reset({ id: null, key: '', description: '' });
           }
         },
-        error: (e) => alert(e?.error?.message || 'No se pudo eliminar el permiso (¿asignado a roles?)')
+        error: (e) => this.toast.error(e?.error?.message || 'No se pudo eliminar el permiso (¿asignado a roles?)')
       });
   }
 
@@ -898,7 +900,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
 
     // Evita que el padre sea el propio id
     if (this.menuEditing && v.parentId && v.parentId === v.id) {
-      alert('Un menú no puede ser su propio padre.');
+      this.toast.warning('Un menú no puede ser su propio padre.');
       return;
     }
 
@@ -928,17 +930,17 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
           });
           this.menuModalOpen = false;
         },
-        error: (e) => alert(e?.error?.message || 'No se pudo guardar el menú')
+        error: (e) => this.toast.error(e?.error?.message || 'No se pudo guardar el menú')
       });
   }
 
-  eliminarMenu(m: MenuItem) {
-    if (!confirm(`¿Eliminar menú "${m.label || m.key}"?`)) return;
+  async eliminarMenu(m: MenuItem) {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar menú', message: `¿Eliminar menú "${m.label || m.key}"?`, type: 'warning', confirmText: 'Eliminar' }))) return;
     this.menuSvc.delete(m.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => this.loadMenus(),
-        error: (e) => alert(e?.error?.message || 'No se pudo eliminar el menú (¿tiene hijos asignados?)')
+        error: (e) => this.toast.error(e?.error?.message || 'No se pudo eliminar el menú (¿tiene hijos asignados?)')
       });
   }
 

@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import * as XLSX from 'xlsx';
+import { exportarAoaMultiHojaExcel, HojaAoaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import {
   IndicadorEcuadorService,
@@ -992,7 +992,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
     if (!datos?.items?.length) return;
 
     const tot = this.liquidacionTotales();
-    const wb = XLSX.utils.book_new();
+    const hojas: HojaAoaExcel[] = [];
 
     const fn = (v: number | null | undefined, d: number) => this.formatearNumero(v, d);
     const fp = (v: number | null | undefined) => this.formatearPorcentaje(v);
@@ -1050,8 +1050,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
       fila('Conv. tabla según peso (guía)', _ => '—',                          '—'),
     ];
 
-    const wsConsolidado = XLSX.utils.aoa_to_sheet(rowsConsolidado);
-    XLSX.utils.book_append_sheet(wb, wsConsolidado, 'Consolidado');
+    hojas.push({ sheetName: 'Consolidado', aoa: rowsConsolidado });
 
     // ── Hojas individuales por lote ───────────────────────────────
     for (const it of datos.items) {
@@ -1095,15 +1094,14 @@ export class IndicadorEcuadorListComponent implements OnInit {
         ['Conv. tabla según peso (guía)', '—'],
       ];
 
-      const wsLote = XLSX.utils.aoa_to_sheet(rowsLote);
       const sheetName = this.sanitizarNombreHoja(
         `${ind.galponNombre || ind.galponId || 'Gal'} ${it.loteNombre || it.loteAveEngordeId}`
       );
-      XLSX.utils.book_append_sheet(wb, wsLote, sheetName);
+      hojas.push({ sheetName, aoa: rowsLote });
     }
 
     const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    XLSX.writeFile(wb, `Reporte_Tecnico_Ecuador_${yyyymmdd}.xlsx`);
+    exportarAoaMultiHojaExcel(hojas, { filenameFull: `Reporte_Tecnico_Ecuador_${yyyymmdd}.xlsx` });
   }
 
   private sanitizarNombreHoja(nombre: string): string {

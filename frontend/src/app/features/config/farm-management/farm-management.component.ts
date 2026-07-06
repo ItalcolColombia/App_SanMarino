@@ -1,5 +1,7 @@
 // src/app/features/config/farm-management/farm-management.component.ts
 import { Component, OnInit, ChangeDetectionStrategy, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { ConfirmDialogService } from '../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../shared/services/toast.service';
 
 import {
   ReactiveFormsModule,
@@ -130,7 +132,7 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
   private nextId = 1; // se recalcula en ngOnInit
   private destroy$ = new Subject<void>();
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
     private fb: FormBuilder,
     private http: HttpClient,
     private companyService: CompanyService,
@@ -273,7 +275,7 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
   /** Captura la ubicación GPS del dispositivo y rellena latitud/longitud en el formulario. */
   capturarUbicacion(): void {
     if (!navigator.geolocation) {
-      alert('Geolocalización no disponible en este dispositivo.');
+      this.toast.warning('Geolocalización no disponible en este dispositivo.');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -284,7 +286,7 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
         });
         this.cdr.markForCheck();
       },
-      (err) => alert('No se pudo obtener la ubicación: ' + err.message),
+      (err) => this.toast.error('No se pudo obtener la ubicación: ' + err.message),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
@@ -403,8 +405,8 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
   }
 
   // ===== Eliminar =====
-  deleteFarm(id: number) {
-    if (!confirm('¿Eliminar esta granja?')) return;
+  async deleteFarm(id: number) {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar granja', message: '¿Eliminar esta granja?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.farms = this.farms.filter(f => f.id !== id);
     this.loading = false;

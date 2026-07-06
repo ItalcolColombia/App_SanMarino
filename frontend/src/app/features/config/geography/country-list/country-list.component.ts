@@ -5,7 +5,9 @@ import {
   OnInit,
   inject,
 } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { CommonModule } from '@angular/common';
+import { ToastService } from '../../../../shared/services/toast.service';
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -104,12 +106,13 @@ export class CountryListComponent implements OnInit {
 
   private fb = inject(FormBuilder);
   private cdr = inject(ChangeDetectorRef);
+  private toast = inject(ToastService);
   private countrySvc = inject(CountryService);
   private deptSvc = inject(DepartmentService);
   private citySvc = inject(CityService);
   private companyPaisSvc = inject(CompanyPaisService);
 
-  constructor(library: FaIconLibrary) {
+  constructor(private confirmDialog: ConfirmDialogService, library: FaIconLibrary) {
     library.addIcons(
       this.faGlobe, this.faMap, this.faCity,
       this.faPlus, this.faPen, this.faTrash, this.faTimes, this.faSave, this.faSearch, this.faCheck
@@ -274,8 +277,8 @@ export class CountryListComponent implements OnInit {
       },
     });
   }
-  deleteCountry(id: number) {
-    if (!confirm('¿Eliminar este país? Esta acción no se puede deshacer.')) return;
+  async deleteCountry(id: number) {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar país', message: '¿Eliminar este país? Esta acción no se puede deshacer.', type: 'warning', confirmText: 'Eliminar' }))) return;
 
     // Validar que no haya empresas asignadas
     this.loading = true;
@@ -284,7 +287,7 @@ export class CountryListComponent implements OnInit {
     this.companyPaisSvc.getCompaniesByPais(id).subscribe({
       next: (companies: any[]) => {
         if (companies && companies.length > 0) {
-          alert(`No se puede eliminar el país porque tiene ${companies.length} empresa(s) asignada(s).\n\nPor favor, remueva las empresas del país antes de eliminarlo.`);
+          this.toast.warning(`No se puede eliminar el país porque tiene ${companies.length} empresa(s) asignada(s).\n\nPor favor, remueva las empresas del país antes de eliminarlo.`);
           this.loading = false;
           return;
         }
@@ -300,23 +303,23 @@ export class CountryListComponent implements OnInit {
             this.loading = false;
             // El backend puede retornar un error si hay empresas asignadas
             const errorMessage = e?.error?.error || e?.message || 'Error al eliminar el país';
-            alert(errorMessage);
+            this.toast.error(errorMessage);
           },
         });
       },
-      error: (e) => {
+      error: async (e) => {
         console.error('Error verificando empresas del país', e);
         // Si hay error al verificar, preguntar si quiere continuar
-        if (confirm('No se pudo verificar si hay empresas asignadas. ¿Desea continuar con la eliminación?')) {
+        if (await this.confirmDialog.ask({ title: 'Continuar eliminación', message: 'No se pudo verificar si hay empresas asignadas. ¿Desea continuar con la eliminación?', type: 'warning', confirmText: 'Continuar' })) {
           this.countrySvc.delete(id).subscribe({
             next: () => this.loadAll(),
             error: (err) => {
               console.error('Error deleting country', err);
               this.loading = false;
               if (err?.error?.error) {
-                alert(`Error al eliminar el país: ${err.error.error}`);
+                this.toast.error(`Error al eliminar el país: ${err.error.error}`);
               } else {
-                alert('Error al eliminar el país. Ver consola para más detalles.');
+                this.toast.error('Error al eliminar el país. Ver consola para más detalles.');
               }
             },
           });
@@ -378,8 +381,8 @@ export class CountryListComponent implements OnInit {
       },
     });
   }
-  deleteDept(id: number) {
-    if (!confirm('¿Eliminar este departamento?')) return;
+  async deleteDept(id: number) {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar departamento', message: '¿Eliminar este departamento?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.deptSvc.delete(id).subscribe({
       next: () => this.loadAll(),
@@ -471,8 +474,8 @@ export class CountryListComponent implements OnInit {
       },
     });
   }
-  deleteCity(id: number) {
-    if (!confirm('¿Eliminar esta ciudad?')) return;
+  async deleteCity(id: number) {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar ciudad', message: '¿Eliminar esta ciudad?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.citySvc.delete(id).subscribe({
       next: () => this.loadAll(),

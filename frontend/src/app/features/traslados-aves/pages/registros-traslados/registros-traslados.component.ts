@@ -1,4 +1,5 @@
 import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import { formatearNumero as fmtNumero } from '../../../../shared/utils/format';
 
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -154,7 +155,7 @@ export class RegistrosTrasladosComponent implements OnInit {
   }
 
   formatearNumero(numero: number): string {
-    return numero.toLocaleString('es-CO');
+    return fmtNumero(numero);
   }
 
   obtenerNombreGranja(granjaId: number): string {

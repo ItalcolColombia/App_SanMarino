@@ -1,4 +1,5 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
@@ -89,7 +90,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   get isPanama(): boolean { return this.countryFilter.isPanama(); }
   private sessionSubscription?: Subscription;
 
-  constructor(
+  constructor(private toast: ToastService, 
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
     private inventarioSvc: InventarioService,
@@ -1795,7 +1796,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
 
     if (!lote || !lote.granjaId) {
-      alert('No se pudo obtener la granja del lote seleccionado');
+      this.toast.error('No se pudo obtener la granja del lote seleccionado');
       return;
     }
 
@@ -2020,7 +2021,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       Promise.all(restas).then(() => {
         this.save.emit({ data, isEdit });
       }).catch(err => {
-        alert(err.message || 'Error al registrar consumo en inventario');
+        this.toast.error(err.message || 'Error al registrar consumo en inventario');
       });
     } else {
       this.save.emit({ data, isEdit });

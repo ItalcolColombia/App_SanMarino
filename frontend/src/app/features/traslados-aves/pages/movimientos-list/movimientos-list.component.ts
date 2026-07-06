@@ -1,4 +1,5 @@
 import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import { formatearNumero as fmtNumero } from '../../../../shared/utils/format';
 
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -149,7 +150,7 @@ export class MovimientosListComponent implements OnInit {
   }
 
   formatearNumero(numero: number): string {
-    return numero.toLocaleString('es-CO');
+    return fmtNumero(numero);
   }
 
   // ===================== Navegación ====================

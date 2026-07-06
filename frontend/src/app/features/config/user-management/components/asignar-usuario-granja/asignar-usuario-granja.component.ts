@@ -1,5 +1,6 @@
 // src/app/features/config/user-management/components/asignar-usuario-granja/asignar-usuario-granja.component.ts
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../../shared/services/confirm-dialog.service';
 
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -56,7 +57,7 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, 
     private userFarmService: UserFarmService,
     private farmService: FarmService
   ) {}
@@ -163,8 +164,8 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
       });
   }
 
-  removeFarm(userFarm: UserFarmDto): void {
-    if (!confirm(`¿Está seguro de que desea remover la granja "${userFarm.farmName}" del usuario?`)) {
+  async removeFarm(userFarm: UserFarmDto): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Remover granja', message: `¿Está seguro de que desea remover la granja "${userFarm.farmName}" del usuario?`, type: 'warning', confirmText: 'Remover' }))) {
       return;
     }
 

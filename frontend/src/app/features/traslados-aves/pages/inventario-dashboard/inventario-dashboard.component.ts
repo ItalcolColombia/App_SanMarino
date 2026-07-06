@@ -1,5 +1,7 @@
 // src/app/features/traslados/pages/inventario-dashboard/inventario-dashboard.component.ts
 import { Component, OnInit, signal, effect, computed, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -139,7 +141,7 @@ export class InventarioDashboardComponent implements OnInit {
     return !!this.selectedLoteId && !!this.loteCompleto();
   }
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
     private trasladosService: TrasladosAvesService,
     private farmService: FarmService,
     private nucleoService: NucleoService,
@@ -788,7 +790,7 @@ export class InventarioDashboardComponent implements OnInit {
       await this.router.navigate(['../inventario', id, 'editar'], { relativeTo: this.route });
     } catch (err) {
       console.error('Navegación a edición falló:', err);
-      alert('No se pudo abrir la edición del inventario.');
+      this.toast.error('No se pudo abrir la edición del inventario.');
     }
   }
 
@@ -803,7 +805,7 @@ export class InventarioDashboardComponent implements OnInit {
       const cantidadHembras = Number(hStr);
       const cantidadMachos = Number(mStr);
       if (!Number.isFinite(cantidadHembras) || !Number.isFinite(cantidadMachos) || cantidadHembras < 0 || cantidadMachos < 0) {
-        alert('Valores inválidos. Deben ser enteros ≥ 0.');
+        this.toast.warning('Valores inválidos. Deben ser enteros ≥ 0.');
         return;
       }
 
@@ -815,11 +817,12 @@ export class InventarioDashboardComponent implements OnInit {
 
       await this.cargarResumen();
       await this.cargarInventarios();
-      alert('Ajuste aplicado con éxito.');
+      this.toast.success('Ajuste aplicado con éxito.');
     } catch (err: any) {
       console.error('Error al ajustar inventario:', err);
-      this.error.set(err?.message || 'Error al ajustar el inventario');
-      alert(this.error());
+      const msg = err?.message || 'Error al ajustar el inventario';
+      this.error.set(msg);
+      this.toast.error(msg);
     }
   }
 
@@ -828,20 +831,21 @@ export class InventarioDashboardComponent implements OnInit {
       await this.router.navigate(['historial', loteId], { relativeTo: this.route });
     } catch (err) {
       console.error('No se pudo abrir la trazabilidad:', err);
-      alert('No se pudo abrir la trazabilidad del lote.');
+      this.toast.error('No se pudo abrir la trazabilidad del lote.');
     }
   }
 
   async eliminarInventario(id: number): Promise<void> {
-    if (!confirm('¿Está seguro de que desea eliminar este inventario? Esta acción no se puede deshacer.')) return;
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar inventario', message: '¿Está seguro de que desea eliminar este inventario? Esta acción no se puede deshacer.', type: 'warning', confirmText: 'Eliminar' }))) return;
 
     try {
       await firstValueFrom(this.trasladosService.deleteInventario(id));
       await this.cargarInventarios();
     } catch (err: any) {
       console.error('Error al eliminar inventario:', err);
-      this.error.set(err?.message || 'Error al eliminar el inventario');
-      alert(this.error());
+      const msg = err?.message || 'Error al eliminar el inventario';
+      this.error.set(msg);
+      this.toast.error(msg);
     }
   }
 
@@ -1279,7 +1283,7 @@ export class InventarioDashboardComponent implements OnInit {
       }
     } catch (err: any) {
       console.error('Error al procesar traslado de lote:', err);
-      alert(err?.message || 'Error al procesar el traslado de lote');
+      this.toast.error(err?.message || 'Error al procesar el traslado de lote');
     } finally {
       this.procesandoTrasladoLote.set(false);
     }
@@ -1463,7 +1467,7 @@ export class InventarioDashboardComponent implements OnInit {
     try {
       const res = await firstValueFrom(this.trasladosService.cancelarMovimiento(m.id, motivoFinal));
       if (!res?.success) {
-        alert(res?.message || res?.errores?.join?.(', ') || 'No se pudo anular.');
+        this.toast.error(res?.message || res?.errores?.join?.(', ') || 'No se pudo anular.');
         return;
       }
       await this.cargarInventarios();
@@ -1477,7 +1481,7 @@ export class InventarioDashboardComponent implements OnInit {
         }
       }
     } catch (err: any) {
-      alert(err?.error?.message || err?.message || 'No se pudo anular el movimiento.');
+      this.toast.error(err?.error?.message || err?.message || 'No se pudo anular el movimiento.');
     }
   }
 

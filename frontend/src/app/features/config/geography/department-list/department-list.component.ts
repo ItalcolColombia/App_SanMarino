@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 
 import {
   ReactiveFormsModule,
@@ -47,7 +48,7 @@ export class DepartmentListComponent implements OnInit {
   departmentForm: FormGroup;
   loading = false;
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, 
     library: FaIconLibrary,
     private fb: FormBuilder,
     private deptSvc: DepartmentService,
@@ -157,8 +158,8 @@ export class DepartmentListComponent implements OnInit {
     });
   }
 
-  deleteDepartment(id: number): void {
-    if (!confirm('¿Eliminar este departamento?')) return;
+  async deleteDepartment(id: number): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar departamento', message: '¿Eliminar este departamento?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.deptSvc.delete(id).subscribe({
       next: () => {

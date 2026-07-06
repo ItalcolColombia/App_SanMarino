@@ -1,8 +1,9 @@
 // frontend/src/app/features/indicador-ecuador/components/auditoria-liquidacion-modal/auditoria-liquidacion-modal.component.ts
 import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import * as XLSX from 'xlsx';
+import { exportarAoaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { IndicadorEcuadorService } from '../../services/indicador-ecuador.service';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import {
@@ -39,7 +40,7 @@ export class AuditoriaLiquidacionModalComponent {
   aplicando = false;
   mensajeOk: string | null = null;
 
-  constructor(private svc: IndicadorEcuadorService) {}
+  constructor(private confirmDialog: ConfirmDialogService, private svc: IndicadorEcuadorService) {}
 
   /** Hay corrección aplicable: el gap es atribuible a despachos sin peso. */
   get puedeAplicar(): boolean {
@@ -83,12 +84,17 @@ export class AuditoriaLiquidacionModalComponent {
    * Aplica la corrección sugerida (carga kgAplicar en los despachos sin peso). Pide confirmación,
    * llama el endpoint gateado y re-ejecuta la verificación con el mismo archivo para mostrar el cuadre.
    */
-  aplicarCorreccion(): void {
+  async aplicarCorreccion(): Promise<void> {
     const kg = this.kgAplicar ?? 0;
     if (!kg || kg <= 0) { this.error = 'Indique los kg a aplicar (mayor a 0).'; return; }
-    const ok = window.confirm(
-      `Se cargarán ${kg.toLocaleString('es-EC')} kg en los despachos sin peso de la corrida ` +
-      `(se distribuyen por aves). Esto MODIFICA los movimientos. ¿Continuar?`);
+    const ok = await this.confirmDialog.ask({
+      title: 'Aplicar corrección',
+      message:
+        `Se cargarán ${kg.toLocaleString('es-EC')} kg en los despachos sin peso de la corrida ` +
+        `(se distribuyen por aves). Esto MODIFICA los movimientos. ¿Continuar?`,
+      type: 'warning',
+      confirmText: 'Continuar',
+    });
     if (!ok) return;
     this.aplicando = true; this.error = null; this.mensajeOk = null;
     this.svc.aplicarCorreccionLiquidacion(this.scope, kg).subscribe({
@@ -127,11 +133,10 @@ export class AuditoriaLiquidacionModalComponent {
       ['• Use punto (.) como separador decimal. Los miles pueden ir con coma o sin ella.'],
       ['• No cambie los nombres de la columna Indicador.']
     ];
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch: 36 }, { wch: 16 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Liquidacion');
-    XLSX.writeFile(wb, 'plantilla_verificacion_liquidacion.xlsx');
+    exportarAoaExcel(rows, 'Liquidacion', {
+      colWidths: [36, 16],
+      filenameFull: 'plantilla_verificacion_liquidacion.xlsx',
+    });
   }
 
   // ── Helpers de presentación (triviales, específicos del modal) ──

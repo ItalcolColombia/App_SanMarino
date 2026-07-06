@@ -1,5 +1,6 @@
 // src/app/features/inventario/components/ajuste-form/ajuste-form.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -29,7 +30,7 @@ export class AjusteFormComponent implements OnInit {
   showSuccessModal = false;
   lastAdjustmentSign: '1' | '-1' = '-1';
 
-  constructor(private fb: FormBuilder, private invSvc: InventarioService) {}
+  constructor(private toast: ToastService, private fb: FormBuilder, private invSvc: InventarioService) {}
 
   ngOnInit(): void {
     this.initForm();
@@ -68,7 +69,7 @@ export class AjusteFormComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error al registrar ajuste:', err);
-          alert('Error al registrar el ajuste. Por favor, intente nuevamente.');
+          this.toast.error('Error al registrar el ajuste. Por favor, intente nuevamente.');
         }
       });
   }

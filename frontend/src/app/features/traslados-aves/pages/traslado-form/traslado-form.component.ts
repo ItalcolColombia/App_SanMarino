@@ -1,5 +1,6 @@
 //app/features/traslados-aves/pages/traslado-form/traslado-form.component.ts
 import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import { formatearNumero as fmtNumero } from '../../../../shared/utils/format';
 
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -323,7 +324,7 @@ export class TrasladoFormComponent implements OnInit {
 
   // Utilidades de formato
   formatearNumero(numero: number): string {
-    return numero.toLocaleString('es-CO');
+    return fmtNumero(numero);
   }
 
   formatearFecha(fecha: Date | string): string {

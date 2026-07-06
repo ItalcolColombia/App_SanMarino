@@ -1,21 +1,21 @@
-# Tracker — Sistema de diseño compartido (`shared/ui/`) · Fase 0 (retomada)
+# Tracker — Sistema de diseño compartido (`shared/ui/`) · Fase 0
 
 > Plan: [`fase_de_desarrollo/design_system_shared_ui_plan.md`](fase_de_desarrollo/design_system_shared_ui_plan.md)
 > Decisión: **A) abstracción propia sobre `@angular/cdk`** (no 3rd-party). Referencia canónica: `movimientos-pollo-engorde`.
 
 ## Fase 0 — Quick wins de adopción (bajo riesgo)
-- [x] **Fundación `shared/utils/format.ts`** (formatearNumero/fechaCorta/ymdToIsoUtcNoon/dateStampCompact/sanitizeFileName + re-export formatDecimalTrim)
-- [x] **Fundación `shared/utils/excel/exportar-tabla-excel.funcion.ts`** (`exportarTablaExcel` + `exportarMultiHojaExcel` + `construirAoaExcel`) + spec
-- [x] Piloto: export de `movimientos-pollo-engorde` migrado al helper (mismo `.xlsx`) · build 0 err
-- [x] **Helper Excel completo**: `exportarTablaExcel` (aoa) + `exportarMultiHojaExcel` (aoa multi) + `exportarObjetosExcel` (json) + `exportarObjetosMultiHojaExcel` (json multi)
-- [x] **7 exports migrados** al helper (build 0 err): movimientos-pollo-engorde, aves-engorde/tabs-principal-engorde, lote-levante/tabs-principal (reporteSemana), traslados-huevos, lote-produccion/tabs-principal, lote-levante/tabla-lista-indicadores (2 hojas), lote-produccion/tabla-lista-indicadores (2 hojas)
-- [ ] 3 exports Excel COMPLEJOS pendientes (indicador-ecuador ×2 + informe-semanal: multi-hoja dinámico/loop) + el "Seguimiento" de lote-levante/tabs-principal (cabecera compleja) → necesitan variante aoa-pre-armado; menor valor/mayor riesgo
-- [ ] Migrar 21 `confirm()` nativos → `confirmation-modal` (ya existe)
-- [ ] Migrar 17 `alert()` + 23 mensajes inline → `ToastService`
-- [ ] Adoptar `format.ts` en los ~50 archivos con helpers de formato duplicados
+- [x] **Fundación `shared/utils/format.ts`** (formatearNumero/fechaCorta/ymdToIsoUtcNoon/dateStampCompact/sanitizeFileName + re-export formatDecimalTrim) — DESPLEGADO (PR #25)
+- [x] **Fundación `shared/utils/excel/exportar-tabla-excel.funcion.ts`** + spec — DESPLEGADO (PR #25)
+- [x] **7 exports migrados** al helper (aoa + objetos) — DESPLEGADO (PR #25)
+- [x] **Helper Excel: variantes aoa pre-armado** (`exportarAoaExcel` + `exportarAoaMultiHojaExcel` con anchos de columna + filename custom)
+- [x] **4 exports Excel COMPLEJOS migrados** (byte-equivalente): indicador-ecuador (multi-hoja consolidado + N lotes), informe-semanal (multi-hoja por semana), lote-levante "Seguimiento" (cabecera compleja + `!cols`), auditoria plantilla (`!cols` + filename fijo). Único XLSX crudo restante: `modal-cuadrar-saldos-engorde` (IMPORTA/parsea Excel subido, no exporta → fuera de alcance).
+- [x] **17 `alert()` nativos → `ToastService`** (~60 llamadas: 33 error, 12 warning [validaciones], 2 success [confirmaciones]).
+- [x] **`ConfirmDialogService` promise-based nuevo** (monta `ConfirmationModalComponent` dinámico, `await ask(): Promise<boolean>`) + **26 `confirm()` nativos → modal** en 20 archivos (métodos → `async`).
+- [x] **Adopción `format.ts` (subset seguro)**: 6 componentes cuyo `formatearNumero` era idéntico al central (`Intl es-CO` / `toLocaleString('es-CO')` sin decimales/null) → delegan a `fmtNumero`. Patrón canónico.
 
-## Estado
-- Fundación (format.ts + excel + canónico) hecha, **sin commitear** (excluida de los deploys de inventario/menú/paleta/modal a propósito). Se deploya cuando Fase 0 avance más.
+## Pendiente (cola de 1×1, MENOR valor / requiere verificación individual — NO en este deploy)
+- [ ] `formatearNumero`/`fechaCorta` con **firma distinta** (null→'0.00'/'-', decimales por parámetro, 0 decimales): `modal-movimiento-aves`, `indicador-ecuador-list`, `inventario-dashboard`. Adoptar el central **cambiaría la salida** → requiere variantes en `format.ts` o se dejan.
+- [ ] Cola amplia de otros helpers de formato duplicados (`formatDMY`, `formatDate`, `formatearPorcentaje`, sellos de fecha en exports…): ~decenas de archivos, cada uno 1×1 verificando equivalencia numérica (riesgo de regresión silenciosa en reportes/liquidaciones sin test runtime).
 
 ## Nota
-Frentes YA desplegados a prod en sesiones previas: unificación inventario Colombia, normalización de menú, paleta SanMarino, reorganización modal producción.
+Frentes YA desplegados a prod en sesiones previas: unificación inventario Colombia, normalización de menú, paleta SanMarino, reorganización modal producción, Fase 0 fundación (PR #25).

@@ -4,7 +4,7 @@ import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import * as XLSX from 'xlsx';
+import { exportarAoaMultiHojaExcel, HojaAoaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { environment } from '../../../../../environments/environment';
 import {
   InformeSemanalEngordeService,
@@ -226,7 +226,7 @@ export class InformeSemanalEngordeListComponent implements OnInit {
   // ── Exportar Excel (una hoja por semana de vida) ───────────────────────
   exportarExcel(): void {
     if (!this.reporte || this.reporte.semanas.length === 0) return;
-    const wb = XLSX.utils.book_new();
+    const hojas: HojaAoaExcel[] = [];
     for (const g of this.reporte.semanas) {
       const aoa: (string | number)[][] = [];
       aoa.push([`INFORME SEMANAL POLLO DE ENGORDE - PANAMÁ — SEMANA N. ${g.semana}`]);
@@ -258,11 +258,10 @@ export class InformeSemanalEngordeListComponent implements OnInit {
         '—', round(c.mortNaturalPctProm, 2), round(c.seleccionPctProm, 2), round(c.mortalidadTotalPctProm, 2),
         c.ventasUnidTotal, round(c.ventasKgTotal, 1), '', ''
       ]);
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      XLSX.utils.book_append_sheet(wb, ws, `Semana ${g.semana}`);
+      hojas.push({ sheetName: `Semana ${g.semana}`, aoa });
     }
     const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    XLSX.writeFile(wb, `Informe_Semanal_Engorde_${yyyymmdd}.xlsx`);
+    exportarAoaMultiHojaExcel(hojas, { filenameFull: `Informe_Semanal_Engorde_${yyyymmdd}.xlsx` });
   }
 }
 

@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, signal, computed, inject, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -25,6 +26,7 @@ interface SelectedObject { schema: string; name: string; kind: 'table' | 'view' 
 })
 export class DbStudioMainComponent implements OnInit, OnDestroy {
   private db = inject(DbStudioService);
+  private confirmDialog = inject(ConfirmDialogService);
 
   // expuestos al template
   readonly formatCell = formatCell;
@@ -232,9 +234,9 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
     });
   }
 
-  deleteRow(row: Record<string, unknown>): void {
+  async deleteRow(row: Record<string, unknown>): Promise<void> {
     const s = this.selected(); if (!s) return;
-    if (!confirm('¿Eliminar esta fila? Esta acción no se puede deshacer.')) return;
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar fila', message: '¿Eliminar esta fila? Esta acción no se puede deshacer.', type: 'warning', confirmText: 'Eliminar' }))) return;
     const where = construirWherePk(row, this.columns());
     this.db.deleteData(s.schema, s.name, where).subscribe({
       next: () => this.loadData(), error: e => this.fail(e)
@@ -314,8 +316,8 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   cancelBackend(pid: number): void {
     this.db.cancelBackend(pid).subscribe({ next: () => this.refreshActivity(), error: e => this.fail(e) });
   }
-  terminateBackend(pid: number): void {
-    if (!confirm(`¿Terminar la sesión PID ${pid}?`)) return;
+  async terminateBackend(pid: number): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Terminar sesión', message: `¿Terminar la sesión PID ${pid}?`, type: 'warning', confirmText: 'Terminar' }))) return;
     this.db.terminateBackend(pid).subscribe({ next: () => this.refreshActivity(), error: e => this.fail(e) });
   }
 
