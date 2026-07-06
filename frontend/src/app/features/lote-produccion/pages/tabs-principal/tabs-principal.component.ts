@@ -8,7 +8,7 @@ import { TablaListaIndicadoresComponent } from '../../components/tabla-lista-ind
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { CatalogoAlimentosService, CatalogItemDto } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { catchError, of } from 'rxjs';
-import * as XLSX from 'xlsx';
+import { exportarObjetosExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 
 @Component({
   selector: 'app-tabs-principal',
@@ -193,10 +193,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       ObservacionesPesaje: (s as any).observacionesPesaje ?? null
     }));
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
-    XLSX.writeFile(wb, filename);
+    exportarObjetosExcel(rows, { sheetName: 'Seguimiento', filenameFull: filename });
   }
 
   // ================== METADATA (compat legacy + nuevo) ==================

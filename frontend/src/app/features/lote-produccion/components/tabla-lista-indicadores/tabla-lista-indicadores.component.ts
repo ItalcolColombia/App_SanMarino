@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionResponse, IndicadoresProduccionRequest } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { finalize } from 'rxjs/operators';
-import * as XLSX from 'xlsx';
+import { exportarObjetosMultiHojaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 
 @Component({
   selector: 'app-tabla-lista-indicadores',
@@ -118,22 +118,12 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     const stamp = new Date().toISOString().slice(0, 10);
     const filename = `produccion-lote-${loteNombre}-seguimiento-indicadores-semana-${maxSemana || 'NA'}-${stamp}.xlsx`;
 
-    const wb = XLSX.utils.book_new();
-
-    // ── Hoja 1: Seguimiento (registros diarios) ──
-    const segRows = this.buildSeguimientoRows();
-    if (segRows.length) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(segRows), 'Seguimiento');
-    }
-
-    // ── Hoja 2: Indicadores (métricas semanales + comparación con guía) ──
-    const indRows = this.buildIndicadoresRows();
-    if (indRows.length) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(indRows), 'Indicadores');
-    }
-
-    if (!wb.SheetNames.length) return;
-    XLSX.writeFile(wb, filename);
+    const segRows = this.buildSeguimientoRows();   // Hoja 1: Seguimiento (registros diarios)
+    const indRows = this.buildIndicadoresRows();   // Hoja 2: Indicadores (métricas semanales vs guía)
+    exportarObjetosMultiHojaExcel([
+      ...(segRows.length ? [{ sheetName: 'Seguimiento', rows: segRows }] : []),
+      ...(indRows.length ? [{ sheetName: 'Indicadores', rows: indRows }] : []),
+    ], { filenameFull: filename });
   }
 
   /** Filas de la hoja "Seguimiento" (registros diarios de producción). */

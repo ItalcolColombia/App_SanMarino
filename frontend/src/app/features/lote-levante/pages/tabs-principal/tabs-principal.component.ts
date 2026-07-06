@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as XLSX from 'xlsx';
+import { exportarTablaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
@@ -712,15 +713,11 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       ? `Reporte semana — Lote: ${loteNombre}`
       : 'Reporte semana';
 
-    const aoa: (string | number)[][] = [[title], [], headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'ReporteSemana');
-
-    const safe = (loteNombre || 'lote').replace(/[\\/:*?"<>|]/g, '_');
-    const d = new Date();
-    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `Reporte_Semana_${safe}_${stamp}.xlsx`);
+    exportarTablaExcel(headers, rows, {
+      filenameBase: `Reporte_Semana_${loteNombre || 'lote'}`,
+      sheetName: 'ReporteSemana',
+      title,
+    });
   }
 
   // ================== CALCULO DE EDAD ==================
