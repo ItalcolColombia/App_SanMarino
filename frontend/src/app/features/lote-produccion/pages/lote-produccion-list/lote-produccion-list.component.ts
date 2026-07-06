@@ -1,7 +1,9 @@
 import { Component, OnInit, ViewChild, inject, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 
 import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { finalize, map } from 'rxjs/operators';
 
 import { GalponService } from '../../../galpon/services/galpon.service';
@@ -128,8 +130,9 @@ export class LoteProduccionListComponent implements OnInit {
 
   private galponNameById = new Map<string, string>();
   private readonly http = inject(HttpClient);
+  private readonly toast = inject(ToastService);
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, 
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
@@ -552,8 +555,8 @@ export class LoteProduccionListComponent implements OnInit {
     this.modalSeguimientoDiarioOpen = true;
   }
 
-  delete(id: number): void {
-    if (!confirm('¿Eliminar este registro?')) return;
+  async delete(id: number): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar registro', message: '¿Eliminar este registro?', type: 'warning', confirmText: 'Eliminar' }))) return;
     // TODO: Implementar delete en el servicio
     // this.produccionSvc.delete(id).subscribe(() => this.onLoteChange(this.selectedLoteId));
   }
@@ -787,7 +790,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
         error: (err) => {
           console.error('Error al cargar seguimiento para editar:', err);
           const msg = err?.error?.message || err?.message || 'No se pudo cargar el registro. Intente de nuevo.';
-          alert(msg);
+          this.toast.error(msg);
         }
       });
   }
@@ -908,7 +911,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el lote 
         this.loading = false;
         console.error('Error al eliminar registro:', err);
         const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
-        alert(errorMessage);
+        this.toast.error(errorMessage);
         this.onLoteChange(this.selectedLoteId);
       }
     });

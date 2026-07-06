@@ -1,5 +1,6 @@
 // src/app/features/inventario/components/movimiento-alimento-form/movimiento-alimento-form.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -72,7 +73,7 @@ export class MovimientoAlimentoFormComponent implements OnInit {
     tipoEntrada?: string;
   } | null = null;
 
-  constructor(
+  constructor(private toast: ToastService, 
     private fb: FormBuilder,
     private invSvc: InventarioService,
     private galponSvc: GalponService
@@ -278,7 +279,7 @@ export class MovimientoAlimentoFormComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error al registrar movimiento de alimento:', err);
-          alert('Error al registrar el movimiento. Por favor, intente nuevamente.');
+          this.toast.error('Error al registrar el movimiento. Por favor, intente nuevamente.');
         }
       });
   }
@@ -288,7 +289,7 @@ export class MovimientoAlimentoFormComponent implements OnInit {
     const farmIdDestino = formValue.farmId;
     
     if (!farmIdOrigen || farmIdOrigen === farmIdDestino) {
-      alert('La granja origen debe ser diferente a la granja destino.');
+      this.toast.warning('La granja origen debe ser diferente a la granja destino.');
       return;
     }
     
@@ -330,7 +331,7 @@ export class MovimientoAlimentoFormComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error al registrar traslado de alimento:', err);
-          alert('Error al registrar el traslado. Por favor, intente nuevamente.');
+          this.toast.error('Error al registrar el traslado. Por favor, intente nuevamente.');
         }
       });
   }

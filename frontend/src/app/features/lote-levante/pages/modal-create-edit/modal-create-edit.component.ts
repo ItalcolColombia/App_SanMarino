@@ -1,4 +1,5 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
@@ -109,7 +110,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   isEcuadorOrPanama = false;
   private sessionSubscription?: Subscription;
 
-  constructor(
+  constructor(private toast: ToastService, 
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
     private inventarioSvc: InventarioService,
@@ -1961,7 +1962,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
 
     if (!lote || !lote.granjaId) {
-      alert('No se pudo obtener la granja del lote seleccionado');
+      this.toast.error('No se pudo obtener la granja del lote seleccionado');
       return;
     }
 
@@ -2148,7 +2149,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         }
         this.save.emit({ data, isEdit });
       } catch (e: any) {
-        alert(e?.message ?? 'Error al actualizar el inventario de la granja (inventario de productos).');
+        this.toast.error(e?.message ?? 'Error al actualizar el inventario de la granja (inventario de productos).');
       }
     })();
   }

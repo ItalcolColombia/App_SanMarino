@@ -1,5 +1,6 @@
 // src/app/features/config/user-management/pages/tabla-lista-registro/tabla-lista-registro.component.ts
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, inject, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../../shared/services/confirm-dialog.service';
 
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
@@ -72,7 +73,7 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
 
-  constructor(private library: FaIconLibrary) {
+  constructor(private confirmDialog: ConfirmDialogService, private library: FaIconLibrary) {
     library.addIcons(
       faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
       faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock
@@ -163,8 +164,8 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
     this.resetPassword.emit(user);
   }
 
-  deleteUser(user: UserListItem): void {
-    if (!confirm(`¿Está seguro de que desea eliminar al usuario ${user.firstName} ${user.surName}?`)) {
+  async deleteUser(user: UserListItem): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar usuario', message: `¿Está seguro de que desea eliminar al usuario ${user.firstName} ${user.surName}?`, type: 'warning', confirmText: 'Eliminar' }))) {
       return;
     }
 

@@ -1,4 +1,6 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { CommonModule } from '@angular/common';
 import {
   FormsModule,
@@ -77,7 +79,7 @@ export class CatalogoAlimentosListComponent implements OnInit {
   // Form
   form!: FormGroup;
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
     private fb: FormBuilder,
     private svc: CatalogoAlimentosService
   ) {}
@@ -337,7 +339,7 @@ export class CatalogoAlimentosListComponent implements OnInit {
     // Validar que itemType esté seleccionado
     const itemType = this.form.get('itemType')?.value;
     if (!itemType) {
-      alert('Por favor, seleccione un tipo de ítem');
+      this.toast.warning('Por favor, seleccione un tipo de ítem');
       this.form.get('itemType')?.markAsTouched();
       return;
     }
@@ -364,7 +366,7 @@ export class CatalogoAlimentosListComponent implements OnInit {
             },
             error: (err) => {
               console.error('Error al actualizar:', err);
-              alert('Error al actualizar el ítem. Por favor, intente nuevamente.');
+              this.toast.error('Error al actualizar el ítem. Por favor, intente nuevamente.');
             }
           });
       } else {
@@ -384,18 +386,18 @@ export class CatalogoAlimentosListComponent implements OnInit {
             },
             error: (err) => {
               console.error('Error al crear:', err);
-              alert('Error al crear el ítem. Por favor, intente nuevamente.');
+              this.toast.error('Error al crear el ítem. Por favor, intente nuevamente.');
             }
           });
       }
     } catch (error: any) {
       this.loading = false;
-      alert(error.message || 'Error al procesar el formulario');
+      this.toast.error(error.message || 'Error al procesar el formulario');
     }
   }
 
-  delete(id: number): void {
-    if (!confirm('¿Eliminar este ítem del catálogo?')) return;
+  async delete(id: number): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar ítem', message: '¿Eliminar este ítem del catálogo?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.svc.delete(id)
       .pipe(finalize(() => this.loading = false))

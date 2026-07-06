@@ -1,5 +1,7 @@
 // frontend/src/app/features/traslados-huevos/pages/traslados-huevos-list/traslados-huevos-list.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { formatearNumero as fmtNumero } from '../../../../shared/utils/format';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
@@ -86,7 +88,7 @@ export class TrasladosHuevosListComponent implements OnInit {
     return l?.loteNombre ?? this.selectedLoteInfo?.loteNombre ?? (this.selectedLoteId?.toString() || '—');
   }
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, 
     private trasladosService: TrasladosHuevosService,
     private produccionService: ProduccionService
   ) {}
@@ -289,7 +291,7 @@ export class TrasladosHuevosListComponent implements OnInit {
     }
   }
 
-  deleteTraslado(traslado: TrasladoHuevosDto): void {
+  async deleteTraslado(traslado: TrasladoHuevosDto): Promise<void> {
     if (traslado.estado === 'Cancelado') {
       return;
     }
@@ -299,7 +301,7 @@ export class TrasladosHuevosListComponent implements OnInit {
         ? `¿Anular el registro ${traslado.numeroTraslado}? Los huevos volverán a estar disponibles en el inventario.`
         : `¿Cancelar el traslado ${traslado.numeroTraslado}?`;
 
-    if (!confirm(msg)) {
+    if (!(await this.confirmDialog.ask({ title: 'Confirmar acción', message: msg, type: 'warning', confirmText: 'Confirmar' }))) {
       return;
     }
 
@@ -336,7 +338,7 @@ export class TrasladosHuevosListComponent implements OnInit {
   }
 
   formatearNumero(num: number): string {
-    return new Intl.NumberFormat('es-CO').format(num);
+    return fmtNumero(num);
   }
 
   getTotalHuevos(traslado: TrasladoHuevosDto): number {

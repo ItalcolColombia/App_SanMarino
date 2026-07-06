@@ -139,3 +139,60 @@ export function exportarObjetosMultiHojaExcel(
     ?? nombreArchivoXlsx({ filenameBase: opts.filenameBase ?? 'export', stamp: opts.stamp });
   XLSX.writeFile(wb, filename);
 }
+
+/** Opciones de descarga desde un `aoa` YA construido: nombre completo custom O base + sello. */
+export interface ExportarAoaOpts {
+  /** Nombre de archivo tal cual (incl. `.xlsx`). Prioridad sobre `filenameBase`/`stamp`. */
+  filenameFull?: string;
+  filenameBase?: string;
+  stamp?: boolean;
+}
+
+/** Hoja con `aoa` ya construido (para exports con cabecera compleja o anchos custom). */
+export interface HojaAoaExcel {
+  sheetName: string;
+  aoa: ExcelCell[][];
+  /** Anchos por columna (mapea a `ws['!cols'] = [{ wch }]`). Opcional. */
+  colWidths?: number[];
+}
+
+/** Nombre de archivo para los exports desde aoa pre-armado. */
+function nombreArchivoAoa(opts: ExportarAoaOpts): string {
+  return opts.filenameFull ?? nombreArchivoXlsx({ filenameBase: opts.filenameBase ?? 'export', stamp: opts.stamp });
+}
+
+/** Aplica anchos de columna a una hoja (idéntico al `ws['!cols'] = [{ wch }]` manual). */
+function aplicarAnchosColumna(ws: XLSX.WorkSheet, colWidths?: number[]): void {
+  if (colWidths?.length) (ws as unknown as { [k: string]: unknown })['!cols'] = colWidths.map((wch) => ({ wch }));
+}
+
+/**
+ * Descarga un `.xlsx` de UNA hoja desde un `aoa` ya construido por el caller (cabecera compleja,
+ * filas de filtros, etc.). Centraliza `aoa_to_sheet → book_new → append → writeFile` sin imponer
+ * el formato título/headers del helper base. Anchos de columna y nombre de archivo opcionales.
+ */
+export function exportarAoaExcel(
+  aoa: ExcelCell[][],
+  sheetName: string,
+  opts: ExportarAoaOpts & { colWidths?: number[] },
+): void {
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  aplicarAnchosColumna(ws, opts.colWidths);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, nombreArchivoAoa(opts));
+}
+
+/**
+ * Descarga un `.xlsx` con varias hojas desde `aoa` ya construidos por hoja (el caller controla el
+ * contenido y el orden de cada hoja). Para reportes multi-hoja dinámicos (consolidado + N lotes/semanas).
+ */
+export function exportarAoaMultiHojaExcel(hojas: HojaAoaExcel[], opts: ExportarAoaOpts): void {
+  const wb = XLSX.utils.book_new();
+  hojas.forEach((h) => {
+    const ws = XLSX.utils.aoa_to_sheet(h.aoa);
+    aplicarAnchosColumna(ws, h.colWidths);
+    XLSX.utils.book_append_sheet(wb, ws, h.sheetName);
+  });
+  XLSX.writeFile(wb, nombreArchivoAoa(opts));
+}

@@ -11,6 +11,7 @@ import {
   DestroyRef,
   ChangeDetectionStrategy
 } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 
 import {
   FormBuilder,
@@ -72,6 +73,7 @@ export class LesionTabComponent implements OnInit, OnChanges {
 
   // ── Dependencies ────────────────────────────────────────────────────────
   private readonly svc = inject(LesionService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly fb = inject(FormBuilder);
   private readonly toastSvc = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
@@ -400,10 +402,13 @@ export class LesionTabComponent implements OnInit, OnChanges {
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────
-  confirmDelete(item: LesionDto): void {
-    const ok = window.confirm(
-      `¿Eliminar la lesión "${item.tipoLesion}" registrada el ${this.formatDate(item.fechaRegistro)}?`
-    );
+  async confirmDelete(item: LesionDto): Promise<void> {
+    const ok = await this.confirmDialog.ask({
+      title: 'Eliminar lesión',
+      message: `¿Eliminar la lesión "${item.tipoLesion}" registrada el ${this.formatDate(item.fechaRegistro)}?`,
+      type: 'warning',
+      confirmText: 'Eliminar',
+    });
     if (!ok) return;
 
     this.svc

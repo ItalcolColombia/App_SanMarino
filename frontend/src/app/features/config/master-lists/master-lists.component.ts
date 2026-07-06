@@ -1,5 +1,6 @@
 // src/app/features/config/master-lists/master-lists.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../shared/services/confirm-dialog.service';
 
 import { RouterModule, Router } from '@angular/router';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
@@ -49,7 +50,7 @@ export class MasterListsComponent implements OnInit {
   // Modal ver opciones (lista seleccionada o null = cerrado)
   viewList: MasterListDto | null = null;
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, 
     private svc: MasterListService,
     private router: Router,
     library: FaIconLibrary
@@ -94,8 +95,8 @@ export class MasterListsComponent implements OnInit {
   }
 
   // Elimina una lista y recarga
-  delete(list: MasterListDto): void {
-    if (!confirm(`¿Eliminar la lista “${list.name}”?`)) return;
+  async delete(list: MasterListDto): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar lista', message: `¿Eliminar la lista “${list.name}”?`, type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.svc.delete(list.id)
       .pipe(finalize(() => (this.loading = false)))

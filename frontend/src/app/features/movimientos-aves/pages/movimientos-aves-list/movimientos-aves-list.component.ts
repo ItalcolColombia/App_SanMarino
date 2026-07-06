@@ -1,5 +1,6 @@
 // frontend/src/app/features/movimientos-aves/pages/movimientos-aves-list/movimientos-aves-list.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { formatearNumero as fmtNumero } from '../../../../shared/utils/format';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -531,7 +532,7 @@ export class MovimientosAvesListComponent implements OnInit {
   }
 
   formatearNumero(num: number): string {
-    return new Intl.NumberFormat('es-CO').format(num);
+    return fmtNumero(num);
   }
 
   calcularEdadDiasDesdeEncasetamiento(): number {

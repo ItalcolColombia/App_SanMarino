@@ -1,5 +1,6 @@
 // src/app/features/inventario/components/movimientos-unificado-form/movimientos-unificado-form.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -57,7 +58,7 @@ export class MovimientosUnificadoFormComponent implements OnInit {
   lastOperationType: OperationType = 'entrada';
   transferData: { fromFarm: string; toFarm: string; product: string; quantity: number } | null = null;
 
-  constructor(
+  constructor(private toast: ToastService, 
     private fb: FormBuilder,
     private invSvc: InventarioService
   ) {}
@@ -228,14 +229,14 @@ export class MovimientosUnificadoFormComponent implements OnInit {
 
       // Validar que las granjas sean diferentes
       if (fromFarmId === toFarmId) {
-        alert('La granja origen y destino deben ser diferentes.');
+        this.toast.warning('La granja origen y destino deben ser diferentes.');
         this.loading = false;
         return;
       }
 
       // Validar que fromFarmId y toFarmId estén presentes
       if (!fromFarmId || !toFarmId) {
-        alert('Debe seleccionar ambas granjas para el traslado.');
+        this.toast.warning('Debe seleccionar ambas granjas para el traslado.');
         this.loading = false;
         return;
       }
@@ -277,7 +278,7 @@ export class MovimientosUnificadoFormComponent implements OnInit {
       
       // Validar que farmId esté presente
       if (!farmId) {
-        alert('Debe seleccionar una granja.');
+        this.toast.warning('Debe seleccionar una granja.');
         this.loading = false;
         return;
       }
@@ -325,7 +326,7 @@ export class MovimientosUnificadoFormComponent implements OnInit {
         console.error('Error al registrar movimiento:', err);
         const tipoTexto = operationType === 'traslado' ? 'traslado' :
                          operationType === 'entrada' ? 'entrada' : 'salida';
-        alert(`Error al registrar el ${tipoTexto}. Por favor, intente nuevamente.`);
+        this.toast.error(`Error al registrar el ${tipoTexto}. Por favor, intente nuevamente.`);
       }
     });
   }

@@ -3,6 +3,7 @@ import {
   Component, EventEmitter, Input, OnInit, Output, inject, signal, ChangeDetectorRef,
   ChangeDetectionStrategy
 } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
@@ -44,6 +45,7 @@ export class TicketPerfilEditorComponent implements OnInit {
   @Output() changed = new EventEmitter<void>();
 
   private readonly svc = inject(TicketPerfilService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly storage = inject(TokenStorageService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -179,12 +181,17 @@ export class TicketPerfilEditorComponent implements OnInit {
    * Re-aplica la plantilla del rol a todos los usuarios que lo tengan (solo modo='rol').
    * Idempotente: solo agrega lo faltante, no borra ajustes por usuario.
    */
-  reaplicarPlantilla(): void {
+  async reaplicarPlantilla(): Promise<void> {
     if (this.modo !== 'rol') return;
-    const ok = confirm(
-      'Se aplicará esta plantilla de atención a TODOS los usuarios que tengan este rol.\n' +
-      'Solo se agregan los tipos faltantes; no se quitan los ajustes que cada usuario haya hecho.\n\n¿Continuar?'
-    );
+    const ok = await this.confirmDialog.ask({
+      title: 'Reaplicar plantilla',
+      message:
+        'Se aplicará esta plantilla de atención a TODOS los usuarios que tengan este rol.\n' +
+        'Solo se agregan los tipos faltantes; no se quitan los ajustes que cada usuario haya hecho.\n\n¿Continuar?',
+      type: 'warning',
+      confirmText: 'Continuar',
+      preformatted: true,
+    });
     if (!ok) return;
 
     this.reaplicando.set(true);

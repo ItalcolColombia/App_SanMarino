@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -167,7 +168,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   private galponNameById = new Map<string, string>();
 
-  constructor(
+  constructor(private toast: ToastService, 
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
@@ -520,7 +521,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
           console.error('Error al cargar registro para editar:', err);
           const msg =
             err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudo cargar el registro completo.';
-          alert(msg);
+          this.toast.error(msg);
         }
       });
   }
@@ -539,7 +540,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
           console.error('Error al cargar registro para detalle:', err);
           const msg =
             err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudo cargar el registro.';
-          alert(msg);
+          this.toast.error(msg);
         }
       });
   }
@@ -677,7 +678,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
         this.loading = false;
         console.error('Error al eliminar registro:', err);
         const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
-        alert(errorMessage);
+        this.toast.error(errorMessage);
         this.onLoteChange(this.selectedLoteId);
       }
     });

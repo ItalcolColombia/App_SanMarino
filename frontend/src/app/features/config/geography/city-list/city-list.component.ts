@@ -5,6 +5,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef
 } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 
 import {
   ReactiveFormsModule,
@@ -68,7 +69,7 @@ export class CityListComponent implements OnInit {
   editingCity: CityDto | null = null;
   loading = false;
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, 
     library: FaIconLibrary,
     private fb: FormBuilder,
     private citySvc: CityService,
@@ -186,8 +187,8 @@ export class CityListComponent implements OnInit {
       .subscribe();
   }
 
-  deleteCity(id: number): void {
-    if (!confirm('¿Eliminar esta ciudad?')) return;
+  async deleteCity(id: number): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar ciudad', message: '¿Eliminar esta ciudad?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.citySvc.delete(id)
       .pipe(finalize(() => {

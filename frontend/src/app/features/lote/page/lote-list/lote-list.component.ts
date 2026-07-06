@@ -1,5 +1,6 @@
 // src/app/features/lote/pages/lote-list/lote-list.component.ts
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus } from '@fortawesome/free-solid-svg-icons';
@@ -53,7 +54,7 @@ export class LoteListComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, 
     private loteSvc: LoteService,
     private farmSvc: FarmService
   ) {}
@@ -236,8 +237,8 @@ export class LoteListComponent implements OnInit, OnDestroy {
     this.onModalClose();
   }
 
-  private deleteLote(lote: LoteDto): void {
-    if (!confirm(`¿Eliminar lote "${lote.loteNombre}"?`)) return;
+  private async deleteLote(lote: LoteDto): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar lote', message: `¿Eliminar lote "${lote.loteNombre}"?`, type: 'warning', confirmText: 'Eliminar' }))) return;
     
     this.loading = true;
     this.loteSvc.delete(lote.loteId)

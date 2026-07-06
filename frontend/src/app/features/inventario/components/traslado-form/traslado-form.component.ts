@@ -1,5 +1,6 @@
 // src/app/features/inventario/components/traslado-form/traslado-form.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -33,7 +34,7 @@ export class TrasladoFormComponent implements OnInit {
   showSuccessModal = false;
   transferData: { fromFarm: string; toFarm: string; product: string; quantity: number } | null = null;
 
-  constructor(
+  constructor(private toast: ToastService, 
     private fb: FormBuilder,
     private invSvc: InventarioService
   ) {}
@@ -62,7 +63,7 @@ export class TrasladoFormComponent implements OnInit {
 
     // Validar que las granjas sean diferentes
     if (fromFarmId === toFarmId) {
-      alert('La granja origen y destino deben ser diferentes.');
+      this.toast.warning('La granja origen y destino deben ser diferentes.');
       return;
     }
 
@@ -91,7 +92,7 @@ export class TrasladoFormComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error al registrar traslado:', err);
-          alert('Error al registrar el traslado. Por favor, intente nuevamente.');
+          this.toast.error('Error al registrar el traslado. Por favor, intente nuevamente.');
         }
       });
   }

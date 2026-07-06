@@ -1,5 +1,6 @@
 // src/app/features/config/item-inventario-ecuador/pages/item-inventario-ecuador-list/item-inventario-ecuador-list.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../../shared/services/confirm-dialog.service';
 
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -86,7 +87,7 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
   /** Opciones del selector: 10, 20 o todos (0 = todos) */
   readonly pageSizes: number[] = [10, 20, 0];
 
-  constructor(private svc: ItemInventarioEcuadorService) {}
+  constructor(private confirmDialog: ConfirmDialogService, private svc: ItemInventarioEcuadorService) {}
 
   ngOnInit(): void {
     this.load();
@@ -105,8 +106,8 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
     });
   }
 
-  delete(item: ItemInventarioEcuadorDto): void {
-    if (!confirm(`¿Eliminar el ítem "${item.nombre}"?`)) return;
+  async delete(item: ItemInventarioEcuadorDto): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar ítem', message: `¿Eliminar el ítem "${item.nombre}"?`, type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.svc.delete(item.id).subscribe({
       next: () => this.load(),

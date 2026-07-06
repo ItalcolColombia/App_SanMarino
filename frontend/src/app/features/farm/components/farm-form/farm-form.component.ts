@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import {
   ReactiveFormsModule,
@@ -43,7 +44,7 @@ export class FarmFormComponent implements OnInit {
 
   clientes: ClienteDto[] = [];
 
-  constructor(
+  constructor(private toast: ToastService, 
     private fb: FormBuilder,
     private svc: FarmService,
     private clienteService: ClienteService,
@@ -108,7 +109,7 @@ export class FarmFormComponent implements OnInit {
   /** Captura la ubicación geográfica actual del dispositivo. */
   capturarUbicacion(): void {
     if (!navigator.geolocation) {
-      alert('Geolocalización no disponible');
+      this.toast.warning('Geolocalización no disponible');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -118,7 +119,7 @@ export class FarmFormComponent implements OnInit {
           longitud: pos.coords.longitude
         });
       },
-      (err) => alert('No se pudo obtener ubicación: ' + err.message),
+      (err) => this.toast.error('No se pudo obtener ubicación: ' + err.message),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }

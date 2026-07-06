@@ -1,4 +1,6 @@
 import { Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -60,7 +62,7 @@ export class GuiaGeneticaListComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  constructor(
+  constructor(private confirmDialog: ConfirmDialogService, private toast: ToastService, 
     private svc: GuiaGeneticaAdminService,
     private router: Router,
     library: FaIconLibrary
@@ -145,8 +147,8 @@ export class GuiaGeneticaListComponent implements OnInit, OnDestroy {
     this.router.navigate(['/config/guia-genetica', id, 'edit']);
   }
 
-  eliminar(id: number): void {
-    if (!confirm('¿Eliminar este registro de guía genética?')) return;
+  async eliminar(id: number): Promise<void> {
+    if (!(await this.confirmDialog.ask({ title: 'Eliminar registro', message: '¿Eliminar este registro de guía genética?', type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.svc.delete(id)
       .pipe(finalize(() => (this.loading = false)), takeUntil(this.destroy$))
@@ -154,7 +156,7 @@ export class GuiaGeneticaListComponent implements OnInit, OnDestroy {
         next: () => this.buscar(),
         error: (err) => {
           console.error(err);
-          alert('No se pudo eliminar el registro.');
+          this.toast.error('No se pudo eliminar el registro.');
         }
       });
   }
@@ -176,7 +178,7 @@ export class GuiaGeneticaListComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error(err);
-          alert('No se pudo descargar la plantilla.');
+          this.toast.error('No se pudo descargar la plantilla.');
         }
       });
   }
