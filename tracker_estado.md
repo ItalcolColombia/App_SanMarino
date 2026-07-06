@@ -30,5 +30,10 @@
 - [x] Estaba inerte porque `ResolverItemsBPorCatalogItemAsync` (mapeo catalogItemId→item_inventario_ecuador por código) no encontraba ítems Colombia → **el backfill del paso 1 lo habilita** (mapeo verificado 323/323 y 20/20).
 - [ ] Test E2E: un seguimiento Colombia con consumo → verificar que baja `inventario_gestion_stock` + crea movimiento `Consumo` (requiere back en :5433 + login). Pendiente opcional.
 
-## Entrega a prod (pendiente de OK)
-- [ ] Empaquetar los 4 backfills (`backend/sql/migracion_inventario_colombia_0{1..4}_*.sql`) como **migración EF idempotente** (auto-aplica en deploy) o script manual. **No tocar prod sin OK.**
+## Entrega a prod ✅
+- [x] Migración EF idempotente `20260705194156_MigrarInventarioColombiaAModeloB` (4 backfills embebidos, date-fix). `Down` no-op.
+- [x] Validada en fresco (PG17): aplica vía `dotnet ef database update`; fechas originales; saldos 20/20; kardex 21/21; idempotente.
+- [x] `dotnet build` 0/0 · `dotnet test` 122 verdes · E2E UI (stock+histórico+menú) OK
+- [x] Commit `35caab8` (sin trailer Claude) → push `origin/main` (ff) → **PR #23 mergeado** a `main-produccion` (cd113cf)
+- [x] Backups rollback en origin: `rollback/{main,prod}-pre-inventario-20260705`
+- [x] Deploy OK y verificado: ECS backend `sanmarino-back-task:112` + front `:111`, rollout COMPLETED, imagen `cd113cf`; migración aplicada en RDS prod (rollout COMPLETED con RunMigrations=true); front 200 / api 401.

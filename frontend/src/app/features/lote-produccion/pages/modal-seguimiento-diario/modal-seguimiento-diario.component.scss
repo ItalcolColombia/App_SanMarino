@@ -276,19 +276,49 @@
 
 /* Mostrar el panel correspondiente */
 :host #tab-general:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-general { display: block; }
-:host #tab-hembras:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-hembras { display: block; }
-:host #tab-machos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-machos { display: block; }
 :host #tab-huevos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-huevos { display: block; }
-:host #tab-pesaje:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-pesaje { display: block; }
-:host #tab-agua:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-agua { display: block; }
+
+/* Tabla comparativa Hembras | Machos (mismo patrón que el modal de levante) */
+:host .compare-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.1fr) minmax(110px, 1fr) minmax(110px, 1fr);
+  gap: 0;
+  border: 2px solid var(--ital-orange-100, #fde4cc);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+:host .compare-grid > * {
+  border-right: 2px solid var(--ital-orange-100, #fde4cc);
+  border-bottom: 2px solid var(--ital-orange-100, #fde4cc);
+  padding: 0.55rem 0.7rem;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+}
+:host .compare-grid > *:nth-child(3n) { border-right: 0; }
+:host .compare-grid > *:nth-last-child(-n + 3) { border-bottom: 0; }
+:host .compare-grid__col-title {
+  font-weight: 700;
+  justify-content: center;
+  color: var(--ital-orange-dark, #c85a0e);
+  background: var(--ital-orange-50, #fef4ec);
+}
+:host .compare-grid__row-title {
+  font-weight: 700;
+  color: #1f2937;
+  background: #faf8f5;
+}
+:host .compare-grid .form-field { width: 100%; gap: 0; margin: 0; }
+:host .compare-grid .form-field input {
+  width: 100%;
+  background: #fffdf9;
+  border: 1.5px solid var(--ital-orange-100, #fde4cc);
+}
 
 /* Estado visual del tab ACTIVO */
 :host #tab-general:checked ~ .ux-tabs-wrapper label[for="tab-general"],
-:host #tab-hembras:checked ~ .ux-tabs-wrapper label[for="tab-hembras"],
-:host #tab-machos:checked ~ .ux-tabs-wrapper label[for="tab-machos"],
-:host #tab-huevos:checked ~ .ux-tabs-wrapper label[for="tab-huevos"],
-:host #tab-pesaje:checked ~ .ux-tabs-wrapper label[for="tab-pesaje"],
-:host #tab-agua:checked ~ .ux-tabs-wrapper label[for="tab-agua"] {
+:host #tab-huevos:checked ~ .ux-tabs-wrapper label[for="tab-huevos"] {
   background: var(--white);
   color: var(--ital-orange-dark);
   transform: translateY(-1px);
@@ -542,8 +572,6 @@
   }
 
   :host #tab-general:checked + label.ux-tab,
-  :host #tab-hembras:checked + label.ux-tab,
-  :host #tab-machos:checked + label.ux-tab,
   :host #tab-huevos:checked + label.ux-tab {
     border-bottom-color: var(--white);
   }
