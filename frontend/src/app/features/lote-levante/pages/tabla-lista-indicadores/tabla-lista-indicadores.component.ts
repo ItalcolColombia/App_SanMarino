@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
-import * as XLSX from 'xlsx';
+import { exportarObjetosMultiHojaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { SeguimientoLoteLevanteDto, SeguimientoLoteLevanteService, IndicadorSemanalLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
@@ -87,7 +87,6 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     const nombre = ((this.selectedLote as any)?.loteNombre || 'lote')
       .toString().trim().replace(/[\\/:*?"<>|]+/g, '-').slice(0, 100) || 'lote';
     const stamp = new Date().toISOString().slice(0, 10);
-    const wb = XLSX.utils.book_new();
 
     const seg = (this.seguimientos || []).map(s => ({
       Id: s.id,
@@ -108,8 +107,6 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       CvH: s.cvH ?? null,
       CvM: s.cvM ?? null
     }));
-    if (seg.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(seg), 'Seguimiento');
-
     const ind = (this.indicadoresSemanales || []).map((i: any) => ({
       Semana: i.semana,
       AvesInicio: i.avesInicioSemana,
@@ -129,10 +126,10 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       PorcErrSexajeSem: i.errorSexajeSem,
       PorcRetiroSem: i.mortalidadMasSeleccion
     }));
-    if (ind.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ind), 'Indicadores');
-
-    if (!wb.SheetNames.length) return;
-    XLSX.writeFile(wb, `levante-lote-${nombre}-seguimiento-indicadores-${stamp}.xlsx`);
+    exportarObjetosMultiHojaExcel([
+      ...(seg.length ? [{ sheetName: 'Seguimiento', rows: seg }] : []),
+      ...(ind.length ? [{ sheetName: 'Indicadores', rows: ind }] : []),
+    ], { filenameFull: `levante-lote-${nombre}-seguimiento-indicadores-${stamp}.xlsx` });
   }
 
   ngOnInit(): void {

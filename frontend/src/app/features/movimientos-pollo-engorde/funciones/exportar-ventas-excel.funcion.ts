@@ -5,9 +5,9 @@
  * valida que haya filas, arma la metadata de contexto (granja + filtros aplicados) y muestra el
  * toast; toda la construcción del libro vive aquí. Función pura sin estado de Angular.
  */
-import * as XLSX from 'xlsx';
 import { MovimientoPolloEngordeDto } from '../services/movimiento-pollo-engorde.service';
 import { fechaCorta } from './formato.funcion';
+import { exportarTablaExcel } from '../../../shared/utils/excel/exportar-tabla-excel.funcion';
 
 /** Contexto de exportación: nombre de granja (título/archivo) y filtros legibles aplicados. */
 export interface ExportarVentasExcelMeta {
@@ -77,20 +77,10 @@ export function exportarVentasExcel(rows: MovimientoPolloEngordeDto[], meta: Exp
   const granja = (meta.granjaNombre || '').trim();
   const title = granja ? `${titleBase} — Granja: ${granja}` : titleBase;
 
-  const aoa: (string | number)[][] = [
-    [title],
-    ...(meta.filtros.length ? [[`Filtros: ${meta.filtros.join(' · ')}`]] : []),
-    [],
-    HEADERS,
-    ...data
-  ];
-
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
-
-  const safeGranja = (granja || 'granja').replace(/[\\/:*?"<>|]/g, '_');
-  const d = new Date();
-  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  XLSX.writeFile(wb, `Venta_pollo_engorde_${safeGranja}_${stamp}.xlsx`);
+  exportarTablaExcel(HEADERS, data, {
+    filenameBase: `Venta_pollo_engorde_${granja || 'granja'}`,
+    sheetName: 'Ventas',
+    title,
+    subtitles: meta.filtros.length ? [`Filtros: ${meta.filtros.join(' · ')}`] : undefined,
+  });
 }

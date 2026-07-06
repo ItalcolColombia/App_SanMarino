@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, HostListener, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import * as XLSX from 'xlsx';
+import { exportarTablaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { SeguimientoLoteLevanteDto, LoteRegistroHistoricoUnificadoDto, SeguimientoDiarioTablaFilaDto } from '../../services/seguimiento-aves-engorde.service';
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { TablaIndicadoresDiariosEngordeComponent } from '../tabla-indicadores-diarios-engorde/tabla-indicadores-diarios-engorde.component';
@@ -276,14 +276,11 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       ? `Seguimiento diario pollo engorde — Lote: ${this.exportSeguimientoLoteNombre.trim()}`
       : 'Seguimiento diario pollo engorde';
     const title = this.hayFiltrosDiarioActivos ? `${titleBase} (filtros aplicados)` : titleBase;
-    const aoa: (string | number)[][] = [[title], [], headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
-    const safe = (this.exportSeguimientoLoteNombre.trim() || 'seguimiento_engorde').replace(/[\\/:*?"<>|]/g, '_');
-    const d = new Date();
-    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `Seguimiento_engorde_${safe}_${stamp}.xlsx`);
+    exportarTablaExcel(headers, rows, {
+      filenameBase: `Seguimiento_engorde_${this.exportSeguimientoLoteNombre.trim() || 'seguimiento_engorde'}`,
+      sheetName: 'Seguimiento',
+      title,
+    });
   }
 
   // ─── Helpers visuales (sin cálculos de negocio) ──────────────────────────

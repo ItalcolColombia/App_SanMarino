@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
-import * as XLSX from 'xlsx';
+import { exportarObjetosExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { ModalTrasladoHuevosComponent } from '../../components/modal-traslado-huevos/modal-traslado-huevos.component';
 import { TrasladosHuevosService, TrasladoHuevosDto, DisponibilidadLoteDto } from '../../services/traslados-huevos.service';
@@ -374,13 +374,11 @@ export class TrasladosHuevosListComponent implements OnInit {
         next: (res: ListaSeguimientoResponse) => {
           const items = res.items ?? [];
           const rows = items.map((i: SeguimientoItemDto) => this.mapSeguimientoToExportRow(i));
-          const ws = XLSX.utils.json_to_sheet(
-            rows.length ? rows : [{ Mensaje: 'Sin registros de seguimiento para este lote' }]
-          );
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
-          const fname = `seguimiento-produccion-LPP-${this.selectedLoteId}-${new Date().toISOString().slice(0, 10)}.xlsx`;
-          XLSX.writeFile(wb, fname);
+          exportarObjetosExcel(rows, {
+            sheetName: 'Seguimiento',
+            emptyRow: { Mensaje: 'Sin registros de seguimiento para este lote' },
+            filenameFull: `seguimiento-produccion-LPP-${this.selectedLoteId}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+          });
         },
         error: (err: { error?: { message?: string }; message?: string }) => {
           const d = err?.error?.message ?? err?.message ?? 'Error al exportar';
