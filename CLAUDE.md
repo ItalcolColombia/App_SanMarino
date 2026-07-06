@@ -1,6 +1,8 @@
 # CLAUDE.md — Guía operativa del repositorio
 
-Guía **vinculante** para Claude Code en este monorepo: backend **.NET 9 (Clean Architecture)** + frontend **Angular 20 (standalone)**, desplegado en **AWS ECS**. Estas reglas **anulan** cualquier comportamiento por defecto.
+Guía **vinculante** para Claude Code en este monorepo: backend **.NET 10 LTS (Clean Architecture)** + frontend **Angular 22 (standalone) + TypeScript 6**, desplegado en **AWS ECS**. Estas reglas **anulan** cualquier comportamiento por defecto.
+
+> **Actualización de plataforma (jul-2026):** stack subido a Angular 22 / TS 6 / Node 22 / .NET 10 LTS / EF Core 10, build front migrado a `@angular/build` (esbuild/vite). Motivo: soporte vigente, builds más rápidos y evitar deuda de framework. **Al tocar código, mantené el estándar de estas versiones — no reintroduzcas APIs deprecadas.**
 
 ---
 
@@ -32,18 +34,18 @@ Actuás a la vez como **arquitecto, backend senior, frontend senior y DevOps sen
 
 ## 🏛️ Arquitectura (mapa rápido)
 
-**Backend — .NET 9, Clean Architecture (`/backend/src/`):**
+**Backend — .NET 10 LTS, Clean Architecture (`/backend/src/`):**
 
 | Capa | Contenido |
 |---|---|
 | `ZooSanMarino.API` | Startup, 60+ controllers REST, JWT, middleware, Swagger, DI en `Program.cs`. |
 | `ZooSanMarino.Application` | DTOs, CQRS (Command/Query handlers), interfaces de servicio, validación (FluentValidation), **cálculo puro en `Calculos/`**. |
-| `ZooSanMarino.Infrastructure` | EF Core 9 + Npgsql, `ZooSanMarinoContext`, repos, email, Excel (ClosedXML/EPPlus). SQL crudo en `/backend/sql/`. |
+| `ZooSanMarino.Infrastructure` | EF Core 10 + Npgsql, `ZooSanMarinoContext`, repos, email, Excel (ClosedXML/EPPlus). SQL crudo en `/backend/sql/`. |
 | `ZooSanMarino.Domain` | Entidades, enums y lógica de dominio puros (sin dependencias externas). |
 
 ORM: **snake_case** vía `EFCore.NamingConventions`.
 
-**Frontend — Angular 20 standalone, sin NgModules (`/frontend/src/`):**
+**Frontend — Angular 22 standalone + TypeScript 6, sin NgModules, build `@angular/build` (esbuild/vite) (`/frontend/src/`):**
 - `app/core/`: auth state, JWT interceptor, token storage, **EncryptionService (crypto-js, AES)**, contexto de empresa activa.
 - `app/features/`: 33+ módulos de gestión avícola (granjas, lotes, inventario, seguimiento diario, traslados…).
 - `app/shared/`: UI reutilizable, layout, directivas · `app/services/`: HTTP por dominio · `app/app.config.ts`: routing + interceptors.
@@ -52,7 +54,7 @@ ORM: **snake_case** vía `EFCore.NamingConventions`.
 - **Prod:** AWS RDS PostgreSQL (us-east-1), ECS `devSanmarinoZoo` (us-east-2), ECR, ALB, CloudFront, S3.
 - **Local:** Docker `zoo_sanmarino_db` en `:5432`; connection/credenciales → **leer de `backend/src/ZooSanMarino.API/appsettings.Development.json`** (única fuente, no hardcodear).
 - **Auth:** JWT Bearer (expira 60 min) adjuntado por `AuthInterceptor`; datos de storage cifrados (AES).
-- **UI:** Tailwind 3, paleta Italfoods → `ital-orange #e85c25` (acento), `ital-green #2d7a3e` (acciones primarias), `ital-cream #faf8f5` (fondo).
+- **UI:** Tailwind 3, paleta Italfoods → `ital-orange #e85c25` (acento), `ital-green #2d7a3e` (acciones primarias), `ital-cream #faf8f5` (fondo). **Regla de marca:** `rojo SanMarino` = identidad/marca (topbar, ribbon, borde de marca); `naranja` = acciones; `verde` solo éxito; `rojo` solo peligro/destructivo. Los tokens viven **centralizados** en `theme-italfoods.scss` / `module-styles.scss` (variables CSS) — no hardcodear colores en componentes.
 
 ---
 
@@ -96,9 +98,30 @@ Infrastructure/Services/<Modulo>/
 - La **interfaz `: IXxx` va SOLO en el archivo ancla**; los demás son `public partial class <Modulo>Service`.
 - Cada miembro se declara en **exactamente un** archivo (al ser partial, todos los privados quedan accesibles entre archivos → la ubicación es solo organización). El ancla guarda campos/ctor y helpers estáticos cross-concern.
 - **Math/lógica PURA** (sin EF/`_ctx`/estado) → extraer a `Application/Calculos/<Modulo>Calculos.cs` (`static class`), NO a Infrastructure. Aritmética idéntica (mismo `Math.Round`, orden, residuos).
+- **Filtrado/agregación pesada (multipaís) → resolvela en la BD**, no en memoria del backend. Traer todo y filtrar/agrupar en C# hace **colgar** los endpoints multipaís; empujá el filtro/join/agrupación a la consulta (LINQ que traduce a SQL) o a una **vista/función SQL** en `/backend/sql/`. Regla: el backend orquesta, la BD filtra.
 - **Tests** del cálculo puro → `tests/ZooSanMarino.Application.Tests/<Modulo>CalculosTests.cs` (xUnit, `[Fact]`/`[Theory]`), verificando equivalencia con el comportamiento previo.
 - El `.csproj` es SDK-style (globbing) → archivos nuevos en subcarpetas se incluyen solos; **no** se edita el `.csproj`. Al partir un archivo grande, **asegurá partición completa** (ninguna línea perdida ni duplicada) y cortá respetando los doc-comments (`///`) de cada método.
 - Validar: `cd backend && dotnet build` (0 errores, sin nuevas advertencias) + `dotnet test`.
+
+---
+
+## 🎨 Sistema de diseño compartido — primitivos OBLIGATORIOS (front)
+
+> Refactor en curso hacia `frontend/src/app/shared/` (plan `fase_de_desarrollo/design_system_shared_ui_plan.md`, tracker `tracker_estado.md`). **Estas primitivas YA están en prod y son la única forma correcta de hacerlo.** Al crear o tocar una pantalla, usá SIEMPRE la primitiva; **prohibido reintroducir el patrón viejo** (mantener mejoras, no regresar deuda).
+
+| Necesidad | ✅ Usá SIEMPRE | ❌ Prohibido |
+|---|---|---|
+| Notificación / mensaje al usuario | `ToastService` (`.success/.error/.warning/.info`) inyectado | `alert()`, `window.alert()` nativos |
+| Confirmar una acción (sí/no) | `ConfirmDialogService` → `if (!(await this.confirmDialog.ask({ title, message, type, confirmText }))) return;` (método pasa a `async`) | `confirm()`, `window.confirm()` nativos; retrofitear el `ConfirmationModalComponent` a mano en cada template |
+| Exportar a `.xlsx` | helpers de `shared/utils/excel/exportar-tabla-excel.funcion.ts` (`exportarTablaExcel`/`exportarMultiHojaExcel`/`exportarObjetosExcel`/`exportarAoaExcel`/`exportarAoaMultiHojaExcel`) | `import * as XLSX` + `book_new/aoa_to_sheet/writeFile` inline (salvo LECTURA/parseo de un Excel subido, que sí usa `XLSX.read`) |
+| Formatear número/fecha/nombre de archivo | `shared/utils/format.ts` (`formatearNumero`/`fechaCorta`/`dateStampCompact`/`sanitizeFileName`), importado aliaseado (`import { formatearNumero as fmtNumero }`) y el método del componente delega | Redefinir el helper inline por enésima vez |
+
+**Reglas de aplicación:**
+- **Método que hoy usa `confirm()` → `async`:** cambiá `X(): void` a `async X(): Promise<void>` y `await this.confirmDialog.ask(...)`. `ask()` resuelve `true` (confirmar) / `false` (cancelar/cerrar). Ya existe el servicio en `shared/services/confirm-dialog.service.ts` (monta el modal dinámicamente, mismo look).
+- **Formato: adoptar el central SOLO si la salida es idéntica.** Muchos `formatearNumero`/`fechaCorta` locales tienen **firma distinta** (null→`'0.00'`/`'-'`, decimales por parámetro, `maximumFractionDigits` fijo). Migrarlos a la fuerza **cambiaría la salida** → prohibido (refactor ≠ cambio de comportamiento). Si hace falta una variante, agregala a `format.ts` con su propio nombre.
+- **El método del componente se conserva** (el template lo llama por `this.`); solo su cuerpo delega a la función central. No borres el método público que usa la vista.
+- **Referencia canónica:** módulo `movimientos-pollo-engorde` (front). Copiá ese patrón.
+- Validar: `cd frontend && yarn build` (0 errores; el único warning aceptado es el de *bundle budget* preexistente).
 
 ---
 
@@ -143,6 +166,7 @@ Leé esto antes de tocar `.github/workflows/deploy-production.yml` o de hacer un
 - ❌ **Nunca reintroducir `dorny/paths-filter`**: comparaba `main...main-produccion`; tras un merge ambas quedan en el mismo SHA → `diff=0` → deploys saltados en silencio. Push a `main-produccion` debe disparar back y front **siempre**.
 - ✅ Trigger = **`push` a `main-produccion`**, no `pull_request: closed` (el subject claim OIDC de `pull_request` no matchea la trust policy del rol IAM `github-actions-deploy`; commit `fed6120`).
 - ⏱️ `wait-for-minutes` del deploy ECS: **≥ 25 min** (con 15 reportaba "failed" antes de tiempo y forzaba rollback aunque la app levantara bien).
+- 🧪 **Gate de tests (obligatorio):** el pipeline ejecuta los tests por módulo y **solo despliega si los tests están escritos y pasan**. No relajés ni saltees esta compuerta para "sacar rápido"; si un módulo no tiene test para lo que tocaste, escribilo antes de mergear. Objetivo: que ningún error llegue a prod y quede auditoría del despliegue en Git.
 
 **Verificación post-deploy (OBLIGATORIA — nunca confíes en el output del CLI):**
 ```bash
@@ -161,7 +185,8 @@ aws ecs describe-task-definition --task-definition <arn-de-arriba> --region us-e
 
 ## 🧪 Testing & ciclo de vida de servicios
 
-- **Backend:** al crear/modificar endpoint, controller o handler → tests de integración o requests reales validando inputs, reglas de negocio, salidas y status codes.
+- **Tests por módulo + gate en CI/CD:** cada módulo tiene sus pruebas y el pipeline **bloquea el despliegue si no pasan** (ver sección 🚀). Al tocar un módulo, dejá su test verde antes de mergear; los despliegues críticos se hacen **controlados por fases** en horario de baja operación y con verificación post-deploy.
+- **Backend:** al crear/modificar endpoint, controller o handler → tests de integración o requests reales validando inputs, reglas de negocio, salidas y status codes. Cálculo puro → xUnit en `tests/ZooSanMarino.Application.Tests/` verificando equivalencia con el comportamiento previo.
 - **Frontend:** validá la estructura del payload contra el **contrato de la API antes** de enviar/mapear desde Angular.
 - **Sin procesos huérfanos:** todo servicio/contenedor/runner/compilador que levantes para validar, **detenelo al terminar** (`make down` o el comando que corresponda). No dejes procesos en background vivos.
 - **Ubicación de tests:** backend `backend/tests/` · frontend `frontend/src/tests/`.
