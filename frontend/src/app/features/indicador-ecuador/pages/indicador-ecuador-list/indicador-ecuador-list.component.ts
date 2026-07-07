@@ -798,8 +798,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
       porcentajeAjuste: enc > 0 ? ((enc - sac - mort) / enc) * 100 : 0,
       produccionKiloEnPie: prodKg,
       // Total a cliente de la CORRIDA: producción total (todos los lotes) − merma única.
-      // Antes se acumulaba solo por lotes con merma ⇒ excluía los lotes sin merma del total.
-      totalKilosDespachadosCliente: hayMerma ? (prodKg - mermaKg) : null,
+      // R1b: SIEMPRE se muestra. Sin merma en la corrida => = producción total (kg carne pollo);
+      //      con merma => producción total − merma. Coincide con la suma de los totales por lote.
+      totalKilosDespachadosCliente: hayMerma ? (prodKg - mermaKg) : prodKg,
       diasEngorde: lotesConDias > 0 ? diasEng / lotesConDias : 0,
       avesSobrante: sobrante,
       fechaInicioLote: null,

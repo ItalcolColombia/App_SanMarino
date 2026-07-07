@@ -9,11 +9,12 @@
 --   * R1/R2: merma, ajuste de aves, % ajuste, producción kilo en pie,
 --     total a cliente, días de engorde, sobrante.
 --   * R1 (campos vacíos): cuando Costos NO registró merma (merma_unidades y
---     merma_kilos ambos NULL en lote_ave_engorde), los 6 campos derivados
---     (merma_unidades, merma_kilos, merma_porcentaje, ajuste_aves,
---     porcentaje_ajuste, total_kilos_despachados_cliente) salen NULL para que
+--     merma_kilos ambos NULL en lote_ave_engorde), los campos de merma
+--     (merma_unidades, merma_kilos, merma_porcentaje) salen NULL para que
 --     el reporte los muestre vacíos. Con merma registrada la aritmética es
 --     idéntica a la versión previa.
+--   * R1b: total_kilos_despachados_cliente SIEMPRE se muestra: sin merma en kilos
+--     => = kg_carne (kg_carne - 0); con merma => kg_carne - merma_kilos.
 -- Resultado: 1 fila por lote padre (lote_ave_engorde).
 -- NO redondea (el servicio C# usa decimal sin redondeo intermedio).
 -- ============================================================================
@@ -248,7 +249,9 @@ SELECT
     ROUND(CASE WHEN d2.aves_encasetadas > 0
          THEN (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad)::NUMERIC / d2.aves_encasetadas * 100 ELSE 0 END, 6),
     d2.kg_carne,
-    CASE WHEN d2.merma_registrada THEN d2.kg_carne - COALESCE(d2.merma_kilos,0) END,
+    -- R1b: "Total kilos despachados a cliente" SIEMPRE se muestra. Sin merma registrada en kilos
+    --      => = kg_carne (kg_carne - 0); con merma => kg_carne - merma_kilos (aritmética previa intacta).
+    d2.kg_carne - COALESCE(d2.merma_kilos, 0),
     CASE WHEN d2.fecha_encaset IS NOT NULL AND d2.fecha_cierre_final IS NOT NULL
          THEN GREATEST(0, (d2.fecha_cierre_final::date - d2.fecha_encaset::date))
          ELSE 0 END,
