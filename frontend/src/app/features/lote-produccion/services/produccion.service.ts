@@ -110,8 +110,10 @@ export interface CrearSeguimientoRequest {
 export interface ItemSeguimientoDto {
   tipoItem: string;
   catalogItemId: number;
-  /** Ecuador/Panamá: ID de item_inventario_ecuador para aplicar consumo. */
+  /** Ecuador/Panamá/Colombia: ID de item_inventario_ecuador para aplicar consumo. */
   itemInventarioEcuadorId?: number | null;
+  /** Nombre del ítem resuelto por el front (informativo, metadata jsonb). No afecta cálculos. */
+  nombre?: string | null;
   cantidad: number;
   unidad: string;
 }
