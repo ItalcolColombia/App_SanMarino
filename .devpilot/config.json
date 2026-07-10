@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "enabledProviders": [
+    "claude-code"
+  ],
+  "routing": [],
+  "validationCommands": [],
+  "maxAttempts": 2,
+  "guardian": {
+    "enabled": true,
+    "maxFileLines": 800,
+    "maxImportsPerFile": 0,
+    "forbiddenImports": []
+  },
+  "budgetUsd": 10,
+  "requirePlanApproval": true,
+  "modelPricing": {},
+  "requireOnboarding": true
+}
