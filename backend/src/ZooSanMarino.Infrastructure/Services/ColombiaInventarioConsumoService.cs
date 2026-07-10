@@ -54,7 +54,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
         var codigos = codigosPorCatalogItem.Select(c => c.Codigo).Distinct().ToArray();
 
         // codigo → item_inventario_ecuador.id (modelo B, Colombia = company 1/pais 1).
-        var itemsB = await _db.ItemInventarioEcuador.AsNoTracking()
+        var itemsB = await _db.ItemInventario.AsNoTracking()
             .Where(e => e.CompanyId == CompanyColombia && e.PaisId == PaisColombia && codigos.Contains(e.Codigo))
             .Select(e => new { e.Id, e.Codigo })
             .ToListAsync(ct);
@@ -95,7 +95,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
                 throw new InvalidOperationException(
                     $"El producto (catalogItemId={kv.Key}) no tiene equivalente en el inventario unificado de Colombia (item_inventario_ecuador). No se puede descontar.");
 
-            var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(e => e.Id == itemBId, ct);
+            var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(e => e.Id == itemBId, ct);
             var disponible = await _db.InventarioGestionStock.AsNoTracking()
                 .Where(x => x.FarmId == farmId && x.ItemInventarioEcuadorId == itemBId && x.NucleoId == null && x.GalponId == null)
                 .Select(x => (decimal?)x.Quantity)

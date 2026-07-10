@@ -1,9 +1,9 @@
-// src/ZooSanMarino.Domain/Entities/ItemInventarioEcuador.cs
+// src/ZooSanMarino.Domain/Entities/ItemInventario.cs
 // Catálogo de ítems de inventario para el módulo Gestión de Inventario (Ecuador/Panama).
 
 namespace ZooSanMarino.Domain.Entities;
 
-public class ItemInventarioEcuador
+public class ItemInventario
 {
     public int Id { get; set; }
     public string Codigo { get; set; } = null!;

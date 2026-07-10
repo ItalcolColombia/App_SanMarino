@@ -265,8 +265,8 @@ export interface InventarioGestionStockUpdateRequest {
   fechaIngreso?: string | null;
 }
 
-/** Ítem del catálogo item_inventario_ecuador (Config > Ítems inventario Ecuador). */
-export interface ItemInventarioEcuadorDto {
+/** Ítem del catálogo de inventario (Config > Ítems de inventario). Compartido EC/PA/CO. */
+export interface ItemInventarioDto {
   id: number;
   codigo: string;
   nombre: string;
@@ -276,6 +276,9 @@ export interface ItemInventarioEcuadorDto {
   descripcion?: string | null;
   activo: boolean;
 }
+
+/** @deprecated Alias transicional del nombre viejo. Usar `ItemInventarioDto`. */
+export type ItemInventarioEcuadorDto = ItemInventarioDto;
 
 @Injectable({ providedIn: 'root' })
 export class GestionInventarioService {
@@ -481,16 +484,16 @@ export class GestionInventarioService {
   }
 
   /** Ítems desde Config > Ítems inventario Ecuador (item_inventario_ecuador). */
-  getItemsByType(tipoItem: string | null = null, search: string | null = null, activo = true): Observable<ItemInventarioEcuadorDto[]> {
+  getItemsByType(tipoItem: string | null = null, search: string | null = null, activo = true): Observable<ItemInventarioDto[]> {
     let httpParams = new HttpParams();
     if (tipoItem) httpParams = httpParams.set('tipoItem', tipoItem);
     if (search) httpParams = httpParams.set('q', search);
     if (activo !== undefined) httpParams = httpParams.set('activo', String(activo));
-    return this.http.get<ItemInventarioEcuadorDto[]>(`${this.api}/item-inventario-ecuador`, { params: httpParams });
+    return this.http.get<ItemInventarioDto[]>(`${this.api}/inventario/items`, { params: httpParams });
   }
 
   /** Obtiene un ítem de inventario Ecuador por su ID. */
-  getItemById(id: number): Observable<ItemInventarioEcuadorDto> {
-    return this.http.get<ItemInventarioEcuadorDto>(`${this.api}/item-inventario-ecuador/${id}`);
+  getItemById(id: number): Observable<ItemInventarioDto> {
+    return this.http.get<ItemInventarioDto>(`${this.api}/inventario/items/${id}`);
   }
 }

@@ -1,13 +1,13 @@
-// src/ZooSanMarino.Infrastructure/Persistence/Configurations/ItemInventarioEcuadorConfiguration.cs
+// src/ZooSanMarino.Infrastructure/Persistence/Configurations/ItemInventarioConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
 
-public class ItemInventarioEcuadorConfiguration : IEntityTypeConfiguration<ItemInventarioEcuador>
+public class ItemInventarioConfiguration : IEntityTypeConfiguration<ItemInventario>
 {
-    public void Configure(EntityTypeBuilder<ItemInventarioEcuador> e)
+    public void Configure(EntityTypeBuilder<ItemInventario> e)
     {
         e.ToTable("item_inventario_ecuador", "public");
 

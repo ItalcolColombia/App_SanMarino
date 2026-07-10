@@ -59,7 +59,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<FarmInventoryMovement> FarmInventoryMovements => Set<FarmInventoryMovement>();
         public DbSet<InventarioGestionStock> InventarioGestionStock => Set<InventarioGestionStock>();
         public DbSet<InventarioGestionMovimiento> InventarioGestionMovimientos => Set<InventarioGestionMovimiento>();
-        public DbSet<ItemInventarioEcuador> ItemInventarioEcuador => Set<ItemInventarioEcuador>();
+        public DbSet<ItemInventario> ItemInventario => Set<ItemInventario>();
         public DbSet<ProduccionResultadoLevante> ProduccionResultadoLevante => Set<ProduccionResultadoLevante>();
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
         public DbSet<CompanyMenu> CompanyMenus => Set<CompanyMenu>();

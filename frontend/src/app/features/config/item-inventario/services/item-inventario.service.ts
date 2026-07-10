@@ -1,10 +1,10 @@
-// src/app/features/config/item-inventario-ecuador/services/item-inventario-ecuador.service.ts
+// src/app/features/config/item-inventario/services/item-inventario.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 
-export interface ItemInventarioEcuadorDto {
+export interface ItemInventarioDto {
   id: number;
   codigo: string;
   nombre: string;
@@ -24,7 +24,7 @@ export interface ItemInventarioEcuadorDto {
   updatedAt: string;
 }
 
-export interface ItemInventarioEcuadorCreateRequest {
+export interface ItemInventarioCreateRequest {
   codigo: string;
   nombre: string;
   tipoItem: string;
@@ -39,7 +39,7 @@ export interface ItemInventarioEcuadorCreateRequest {
   concepto?: string | null;
 }
 
-export interface ItemInventarioEcuadorUpdateRequest {
+export interface ItemInventarioUpdateRequest {
   nombre: string;
   tipoItem: string;
   unidad: string;
@@ -54,7 +54,7 @@ export interface ItemInventarioEcuadorUpdateRequest {
 }
 
 /** Fila para carga masiva. Columnas: GRUPO, TIPO DE INVENTARIO, Desc. tipo inventario, Tipo inventario, Referencia, Desc. item, Concepto, Unidad de medida */
-export interface ItemInventarioEcuadorCargaMasivaRow {
+export interface ItemInventarioCargaMasivaRow {
   grupo?: string | null;
   tipoInventarioCodigo?: string | null;
   descripcionTipoInventario?: string | null;
@@ -65,7 +65,7 @@ export interface ItemInventarioEcuadorCargaMasivaRow {
   unidad?: string | null;
 }
 
-export interface ItemInventarioEcuadorCargaMasivaResult {
+export interface ItemInventarioCargaMasivaResult {
   totalFilas: number;
   creados: number;
   actualizados: number;
@@ -74,29 +74,30 @@ export interface ItemInventarioEcuadorCargaMasivaResult {
 }
 
 @Injectable({ providedIn: 'root' })
-export class ItemInventarioEcuadorService {
-  private readonly baseUrl = `${environment.apiUrl}/item-inventario-ecuador`;
+export class ItemInventarioService {
+  // Ruta neutra del backend (alias vigente: /api/item-inventario-ecuador). Módulo compartido EC/PA/CO.
+  private readonly baseUrl = `${environment.apiUrl}/inventario/items`;
 
   constructor(private http: HttpClient) {}
 
-  getAll(q?: string, tipoItem?: string, activo?: boolean): Observable<ItemInventarioEcuadorDto[]> {
+  getAll(q?: string, tipoItem?: string, activo?: boolean): Observable<ItemInventarioDto[]> {
     let params = new HttpParams();
     if (q) params = params.set('q', q);
     if (tipoItem) params = params.set('tipoItem', tipoItem);
     if (activo !== undefined) params = params.set('activo', String(activo));
-    return this.http.get<ItemInventarioEcuadorDto[]>(this.baseUrl, { params });
+    return this.http.get<ItemInventarioDto[]>(this.baseUrl, { params });
   }
 
-  getById(id: number): Observable<ItemInventarioEcuadorDto> {
-    return this.http.get<ItemInventarioEcuadorDto>(`${this.baseUrl}/${id}`);
+  getById(id: number): Observable<ItemInventarioDto> {
+    return this.http.get<ItemInventarioDto>(`${this.baseUrl}/${id}`);
   }
 
-  create(req: ItemInventarioEcuadorCreateRequest): Observable<ItemInventarioEcuadorDto> {
-    return this.http.post<ItemInventarioEcuadorDto>(this.baseUrl, req);
+  create(req: ItemInventarioCreateRequest): Observable<ItemInventarioDto> {
+    return this.http.post<ItemInventarioDto>(this.baseUrl, req);
   }
 
-  update(id: number, req: ItemInventarioEcuadorUpdateRequest): Observable<ItemInventarioEcuadorDto> {
-    return this.http.put<ItemInventarioEcuadorDto>(`${this.baseUrl}/${id}`, req);
+  update(id: number, req: ItemInventarioUpdateRequest): Observable<ItemInventarioDto> {
+    return this.http.put<ItemInventarioDto>(`${this.baseUrl}/${id}`, req);
   }
 
   delete(id: number, hard = false): Observable<void> {
@@ -105,13 +106,13 @@ export class ItemInventarioEcuadorService {
     return this.http.delete<void>(`${this.baseUrl}/${id}`, { params });
   }
 
-  cargaMasiva(filas: ItemInventarioEcuadorCargaMasivaRow[]): Observable<ItemInventarioEcuadorCargaMasivaResult> {
-    return this.http.post<ItemInventarioEcuadorCargaMasivaResult>(`${this.baseUrl}/carga-masiva`, filas);
+  cargaMasiva(filas: ItemInventarioCargaMasivaRow[]): Observable<ItemInventarioCargaMasivaResult> {
+    return this.http.post<ItemInventarioCargaMasivaResult>(`${this.baseUrl}/carga-masiva`, filas);
   }
 
-  cargaMasivaExcel(file: File): Observable<ItemInventarioEcuadorCargaMasivaResult> {
+  cargaMasivaExcel(file: File): Observable<ItemInventarioCargaMasivaResult> {
     const form = new FormData();
     form.append('file', file, file.name);
-    return this.http.post<ItemInventarioEcuadorCargaMasivaResult>(`${this.baseUrl}/carga-masiva-excel`, form);
+    return this.http.post<ItemInventarioCargaMasivaResult>(`${this.baseUrl}/carga-masiva-excel`, form);
   }
 }

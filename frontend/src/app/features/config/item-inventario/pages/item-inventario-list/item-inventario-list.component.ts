@@ -1,4 +1,4 @@
-// src/app/features/config/item-inventario-ecuador/pages/item-inventario-ecuador-list/item-inventario-ecuador-list.component.ts
+// src/app/features/config/item-inventario/pages/item-inventario-list/item-inventario-list.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ConfirmDialogService } from '../../../../../shared/services/confirm-dialog.service';
 
@@ -8,20 +8,20 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faSearch, faUpload } from '@fortawesome/free-solid-svg-icons';
 
 import {
-  ItemInventarioEcuadorService,
-  ItemInventarioEcuadorDto,
-  ItemInventarioEcuadorCargaMasivaResult
-} from '../../services/item-inventario-ecuador.service';
+  ItemInventarioService,
+  ItemInventarioDto,
+  ItemInventarioCargaMasivaResult
+} from '../../services/item-inventario.service';
 
 @Component({
-  selector: 'app-item-inventario-ecuador-list',
+  selector: 'app-item-inventario-list',
   standalone: true,
   imports: [FormsModule, RouterModule, FontAwesomeModule],
-  templateUrl: './item-inventario-ecuador-list.component.html',
+  templateUrl: './item-inventario-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrls: ['./item-inventario-ecuador-list.component.scss']
+  styleUrls: ['./item-inventario-list.component.scss']
 })
-export class ItemInventarioEcuadorListComponent implements OnInit {
+export class ItemInventarioListComponent implements OnInit {
   faPlus = faPlus;
   faPen = faPen;
   faTrash = faTrash;
@@ -29,7 +29,7 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
   faUpload = faUpload;
 
   loading = false;
-  items: ItemInventarioEcuadorDto[] = [];
+  items: ItemInventarioDto[] = [];
   q = '';
   tipoFilter = '';
   activoFilter: boolean | null = null;
@@ -38,7 +38,7 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
   showCargaMasiva = false;
   cargaMasivaFile: File | null = null;
   cargaMasivaLoading = false;
-  cargaMasivaResult: ItemInventarioEcuadorCargaMasivaResult | null = null;
+  cargaMasivaResult: ItemInventarioCargaMasivaResult | null = null;
   cargaMasivaError: string | null = null;
 
   // Modal: Nuevo ítem
@@ -87,7 +87,7 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
   /** Opciones del selector: 10, 20 o todos (0 = todos) */
   readonly pageSizes: number[] = [10, 20, 0];
 
-  constructor(private confirmDialog: ConfirmDialogService, private svc: ItemInventarioEcuadorService) {}
+  constructor(private confirmDialog: ConfirmDialogService, private svc: ItemInventarioService) {}
 
   ngOnInit(): void {
     this.load();
@@ -106,7 +106,7 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
     });
   }
 
-  async delete(item: ItemInventarioEcuadorDto): Promise<void> {
+  async delete(item: ItemInventarioDto): Promise<void> {
     if (!(await this.confirmDialog.ask({ title: 'Eliminar ítem', message: `¿Eliminar el ítem "${item.nombre}"?`, type: 'warning', confirmText: 'Eliminar' }))) return;
     this.loading = true;
     this.svc.delete(item.id).subscribe({
@@ -177,7 +177,7 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
     });
   }
 
-  openEditarModal(item: ItemInventarioEcuadorDto): void {
+  openEditarModal(item: ItemInventarioDto): void {
     this.editarError = null;
     this.editarLoading = false;
     this.editarId = item.id;
@@ -275,7 +275,7 @@ export class ItemInventarioEcuadorListComponent implements OnInit {
     return Math.max(1, Math.ceil(this.totalItems / this.pageSize));
   }
 
-  get pagedItems(): ItemInventarioEcuadorDto[] {
+  get pagedItems(): ItemInventarioDto[] {
     if (this.pageSize <= 0) return this.items;
     const p = Math.min(Math.max(1, this.page), this.totalPages);
     const start = (p - 1) * this.pageSize;

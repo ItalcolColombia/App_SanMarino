@@ -616,7 +616,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
         var itemIds = newByItemId.Keys.ToList();
 
-        var catalogItems = await _ctx.ItemInventarioEcuador
+        var catalogItems = await _ctx.ItemInventario
             .AsNoTracking()
             .Where(i => itemIds.Contains(i.Id))
             .ToDictionaryAsync(i => i.Id, i => i.Nombre);

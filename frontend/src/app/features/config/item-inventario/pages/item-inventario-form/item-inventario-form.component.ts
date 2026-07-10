@@ -1,19 +1,19 @@
-// src/app/features/config/item-inventario-ecuador/pages/item-inventario-ecuador-form/item-inventario-ecuador-form.component.ts
+// src/app/features/config/item-inventario/pages/item-inventario-form/item-inventario-form.component.ts
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
-import { ItemInventarioEcuadorService, ItemInventarioEcuadorCreateRequest, ItemInventarioEcuadorUpdateRequest } from '../../services/item-inventario-ecuador.service';
+import { ItemInventarioService, ItemInventarioCreateRequest, ItemInventarioUpdateRequest } from '../../services/item-inventario.service';
 
 @Component({
-  selector: 'app-item-inventario-ecuador-form',
+  selector: 'app-item-inventario-form',
   standalone: true,
   imports: [FormsModule, RouterModule],
-  templateUrl: './item-inventario-ecuador-form.component.html',
+  templateUrl: './item-inventario-form.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrls: ['./item-inventario-ecuador-form.component.scss']
+  styleUrls: ['./item-inventario-form.component.scss']
 })
-export class ItemInventarioEcuadorFormComponent implements OnInit {
+export class ItemInventarioFormComponent implements OnInit {
   loading = false;
   editingId: number | null = null;
   errorMessage: string | null = null;
@@ -35,7 +35,7 @@ export class ItemInventarioEcuadorFormComponent implements OnInit {
   readonly unidades: string[] = ['kg', 'und', 'l', 'ml', 'g', 'lb', 'saco'];
 
   constructor(
-    private svc: ItemInventarioEcuadorService,
+    private svc: ItemInventarioService,
     private router: Router,
     private route: ActivatedRoute
   ) {}
@@ -86,7 +86,7 @@ export class ItemInventarioEcuadorFormComponent implements OnInit {
 
     this.loading = true;
     if (this.editingId) {
-      const req: ItemInventarioEcuadorUpdateRequest = {
+      const req: ItemInventarioUpdateRequest = {
         nombre: this.nombre.trim(),
         tipoItem: this.tipoItem,
         unidad: this.unidad,
@@ -107,7 +107,7 @@ export class ItemInventarioEcuadorFormComponent implements OnInit {
         }
       });
     } else {
-      const req: ItemInventarioEcuadorCreateRequest = {
+      const req: ItemInventarioCreateRequest = {
         codigo: this.codigo.trim(),
         nombre: this.nombre.trim(),
         tipoItem: this.tipoItem,

@@ -27,5 +27,5 @@ public class InventarioGestionStock
     public Company Company { get; set; } = null!;
     public Pais Pais { get; set; } = null!;
     public Farm Farm { get; set; } = null!;
-    public ItemInventarioEcuador ItemInventarioEcuador { get; set; } = null!;
+    public ItemInventario ItemInventario { get; set; } = null!;
 }

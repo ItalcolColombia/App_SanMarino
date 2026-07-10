@@ -1,4 +1,4 @@
-// src/ZooSanMarino.API/Controllers/ItemInventarioEcuadorController.cs
+// src/ZooSanMarino.API/Controllers/ItemInventarioController.cs
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs;
@@ -7,19 +7,22 @@ using ZooSanMarino.Application.Interfaces;
 namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
+// Ruta neutra (nueva) + alias histórico. El módulo lo comparten Ecuador/Panamá/Colombia; la ruta
+// vieja se conserva para no romper el frontend hasta que migre a la neutra (decisión D2: wire estable).
+[Route("api/inventario/items")]
 [Route("api/item-inventario-ecuador")]
-[Tags("Config - Item Inventario Ecuador")]
-public class ItemInventarioEcuadorController : ControllerBase
+[Tags("Config - Ítems de Inventario")]
+public class ItemInventarioController : ControllerBase
 {
-    private readonly IItemInventarioEcuadorService _service;
+    private readonly IItemInventarioService _service;
 
-    public ItemInventarioEcuadorController(IItemInventarioEcuadorService service)
+    public ItemInventarioController(IItemInventarioService service)
     {
         _service = service;
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<ItemInventarioEcuadorDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IEnumerable<ItemInventarioDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? q = null,
         [FromQuery] string? tipoItem = null,
@@ -31,7 +34,7 @@ public class ItemInventarioEcuadorController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [ProducesResponseType(typeof(ItemInventarioEcuadorDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ItemInventarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(int id, CancellationToken ct = default)
     {
@@ -40,10 +43,10 @@ public class ItemInventarioEcuadorController : ControllerBase
     }
 
     [HttpPost]
-    [ProducesResponseType(typeof(ItemInventarioEcuadorDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ItemInventarioDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Create([FromBody] ItemInventarioEcuadorCreateRequest req, CancellationToken ct = default)
+    public async Task<IActionResult> Create([FromBody] ItemInventarioCreateRequest req, CancellationToken ct = default)
     {
         try
         {
@@ -59,9 +62,9 @@ public class ItemInventarioEcuadorController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [ProducesResponseType(typeof(ItemInventarioEcuadorDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ItemInventarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(int id, [FromBody] ItemInventarioEcuadorUpdateRequest req, CancellationToken ct = default)
+    public async Task<IActionResult> Update(int id, [FromBody] ItemInventarioUpdateRequest req, CancellationToken ct = default)
     {
         var updated = await _service.UpdateAsync(id, req, ct);
         return updated == null ? NotFound() : Ok(updated);
@@ -77,9 +80,9 @@ public class ItemInventarioEcuadorController : ControllerBase
     }
 
     [HttpPost("carga-masiva")]
-    [ProducesResponseType(typeof(ItemInventarioEcuadorCargaMasivaResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ItemInventarioCargaMasivaResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CargaMasiva([FromBody] List<ItemInventarioEcuadorCargaMasivaRow> filas, CancellationToken ct = default)
+    public async Task<IActionResult> CargaMasiva([FromBody] List<ItemInventarioCargaMasivaRow> filas, CancellationToken ct = default)
     {
         if (filas == null || filas.Count == 0)
             return BadRequest(new { message = "Debe enviar al menos una fila para la carga masiva." });
@@ -96,7 +99,7 @@ public class ItemInventarioEcuadorController : ControllerBase
 
     [HttpPost("carga-masiva-excel")]
     [Consumes("multipart/form-data")]
-    [ProducesResponseType(typeof(ItemInventarioEcuadorCargaMasivaResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ItemInventarioCargaMasivaResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CargaMasivaExcel([FromForm] IFormFile file, CancellationToken ct = default)
     {
@@ -154,7 +157,7 @@ public class ItemInventarioEcuadorController : ControllerBase
                 return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
             }
 
-            var filas = new List<ItemInventarioEcuadorCargaMasivaRow>();
+            var filas = new List<ItemInventarioCargaMasivaRow>();
             for (var r = dataStartRow; r <= lastRow; r++)
             {
                 var referencia = Cell(r, colReferencia);
@@ -166,7 +169,7 @@ public class ItemInventarioEcuadorController : ControllerBase
                 // En tu Excel, normalmente "Concepto" es el tipo (Alimento/Desinfectante/etc.)
                 var tipoItem = concepto;
 
-                filas.Add(new ItemInventarioEcuadorCargaMasivaRow(
+                filas.Add(new ItemInventarioCargaMasivaRow(
                     Cell(r, colGrupo),
                     Cell(r, colTipoInv),
                     Cell(r, colDescTipoInv),

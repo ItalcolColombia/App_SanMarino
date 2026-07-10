@@ -239,7 +239,7 @@ public class InventarioGestionService : IInventarioGestionService
         if (paisId > 0)
             movBase = movBase.Where(m => m.PaisId == paisId);
 
-        var itemsJoin = _db.ItemInventarioEcuador.AsNoTracking();
+        var itemsJoin = _db.ItemInventario.AsNoTracking();
 
         var conceptos = await (
             from m in movBase
@@ -310,7 +310,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var query = _db.InventarioGestionStock
             .AsNoTracking()
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .Include(x => x.Farm)
             .Where(x => x.CompanyId == companyId.Value && allowedFarmIds.Contains(x.FarmId));
         if (paisId > 0) query = query.Where(x => x.PaisId == paisId);
@@ -321,20 +321,20 @@ public class InventarioGestionService : IInventarioGestionService
         {
             var it = itemType.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                (x.ItemInventarioEcuador.Concepto != null &&
-                 x.ItemInventarioEcuador.Concepto.Trim().ToLower() == it) ||
-                (x.ItemInventarioEcuador.TipoItem != null &&
-                 x.ItemInventarioEcuador.TipoItem.Trim().ToLower() == it));
+                (x.ItemInventario.Concepto != null &&
+                 x.ItemInventario.Concepto.Trim().ToLower() == it) ||
+                (x.ItemInventario.TipoItem != null &&
+                 x.ItemInventario.TipoItem.Trim().ToLower() == it));
         }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                (x.ItemInventarioEcuador.Codigo ?? "").ToLower().Contains(s) ||
-                (x.ItemInventarioEcuador.Nombre ?? "").ToLower().Contains(s));
+                (x.ItemInventario.Codigo ?? "").ToLower().Contains(s) ||
+                (x.ItemInventario.Nombre ?? "").ToLower().Contains(s));
         }
 
-        var list = await query.OrderBy(x => x.Farm.Name).ThenBy(x => x.NucleoId).ThenBy(x => x.GalponId).ThenBy(x => x.ItemInventarioEcuador.Nombre).ToListAsync(ct);
+        var list = await query.OrderBy(x => x.Farm.Name).ThenBy(x => x.NucleoId).ThenBy(x => x.GalponId).ThenBy(x => x.ItemInventario.Nombre).ToListAsync(ct);
 
         var nucleos = await _db.Nucleos.AsNoTracking().Where(n => list.Select(x => x.NucleoId).Contains(n.NucleoId)).ToDictionaryAsync(n => (n.NucleoId, n.GranjaId), n => n.NucleoNombre, ct);
         var galpones = await _db.Galpones.AsNoTracking().Where(g => list.Select(x => x.GalponId).Contains(g.GalponId)).ToDictionaryAsync(g => (g.GalponId, g.GranjaId), g => g.GalponNombre, ct);
@@ -343,15 +343,15 @@ public class InventarioGestionService : IInventarioGestionService
         {
             string? nucleoNombre = x.NucleoId != null && nucleos.TryGetValue((x.NucleoId, x.FarmId), out var nn) ? nn : null;
             string? galponNombre = x.GalponId != null && galpones.TryGetValue((x.GalponId, x.FarmId), out var gn) ? gn : null;
-            var itemTypeOut = x.ItemInventarioEcuador.Concepto ?? x.ItemInventarioEcuador.TipoItem ?? "alimento";
+            var itemTypeOut = x.ItemInventario.Concepto ?? x.ItemInventario.TipoItem ?? "alimento";
             return new InventarioGestionStockDto(
                 x.Id, x.FarmId, x.NucleoId, x.GalponId, x.ItemInventarioEcuadorId,
-                x.ItemInventarioEcuador.Codigo, x.ItemInventarioEcuador.Nombre, itemTypeOut,
+                x.ItemInventario.Codigo, x.ItemInventario.Nombre, itemTypeOut,
                 x.Quantity, x.Unit, x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt);
         }).ToList();
     }
 
-    private static bool IsAlimento(ItemInventarioEcuador item)
+    private static bool IsAlimento(ItemInventario item)
     {
         var concept = item.Concepto;
         if (!string.IsNullOrWhiteSpace(concept))
@@ -390,7 +390,7 @@ public class InventarioGestionService : IInventarioGestionService
     public async Task<InventarioGestionStockDto> RegistrarIngresoAsync(InventarioGestionIngresoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad debe ser positiva.");
-        var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
+        var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
@@ -495,7 +495,7 @@ public class InventarioGestionService : IInventarioGestionService
     public async Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoAsync(InventarioGestionTrasladoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad debe ser positiva.");
-        var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
+        var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
 
         // Colombia (nivel granja): alimento sin núcleo/galpón → mismo camino que un ítem no-alimento
@@ -531,7 +531,7 @@ public class InventarioGestionService : IInventarioGestionService
     /// <summary>Traslado entre galpones de la misma granja: descuenta origen y suma destino en una sola operación (2 movimientos).</summary>
     private async Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoMismaGranjaAsync(
         InventarioGestionTrasladoRequest req,
-        ItemInventarioEcuador item,
+        ItemInventario item,
         string fromNucleoId,
         string fromGalponId,
         string toNucleoId,
@@ -637,7 +637,7 @@ public class InventarioGestionService : IInventarioGestionService
     /// </summary>
     private async Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoInterGranjaTransitoAsync(
         InventarioGestionTrasladoRequest req,
-        ItemInventarioEcuador item,
+        ItemInventario item,
         bool isAlimento,
         CancellationToken ct)
     {
@@ -727,7 +727,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var candidatos = await _db.InventarioGestionMovimientos
             .AsNoTracking()
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .Include(x => x.Farm)
             .Where(x => x.CompanyId == companyId.Value && x.TransferGroupId != null &&
                 (x.MovementType == "TrasladoInterGranjaPendiente" || x.MovementType == "TrasladoInterGranjaSalida"))
@@ -766,8 +766,8 @@ public class InventarioGestionService : IInventarioGestionService
                 s.FromNucleoId,
                 s.FromGalponId,
                 s.ItemInventarioEcuadorId,
-                s.ItemInventarioEcuador.Codigo,
-                s.ItemInventarioEcuador.Nombre,
+                s.ItemInventario.Codigo,
+                s.ItemInventario.Nombre,
                 s.Quantity,
                 s.Unit,
                 s.CreatedAt,
@@ -778,7 +778,7 @@ public class InventarioGestionService : IInventarioGestionService
     public async Task<(InventarioGestionStockDto Destino, InventarioGestionMovimientoDto Movimiento)> RegistrarRecepcionTransitoAsync(InventarioGestionRecepcionTransitoRequest req, CancellationToken ct = default)
     {
         var salida = await _db.InventarioGestionMovimientos
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .Include(x => x.Farm)
             .FirstOrDefaultAsync(x => x.TransferGroupId == req.TransferGroupId &&
                 (x.MovementType == "TrasladoInterGranjaPendiente" || x.MovementType == "TrasladoInterGranjaSalida"), ct);
@@ -793,7 +793,7 @@ public class InventarioGestionService : IInventarioGestionService
         if (salida.FromFarmId != req.ToFarmId)
             throw new InvalidOperationException("La granja de recepción debe ser la granja destino del traslado.");
 
-        var item = salida.ItemInventarioEcuador;
+        var item = salida.ItemInventario;
         var (companyIdTo, paisIdTo) = await GetFarmCompanyAndPaisAsync(req.ToFarmId, ct);
 
         // Colombia (nivel granja): recepción de alimento sin núcleo/galpón. EC/PA sin cambios.
@@ -955,7 +955,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var allowedFarmIds = await GetAssignedFarmIdsInCompanyAsync(companyId.Value, ct).ConfigureAwait(false);
         var stock = await _db.InventarioGestionStock
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .FirstOrDefaultAsync(x => x.Id == stockId, ct);
         if (stock == null)
             throw new InvalidOperationException("El registro de stock no existe.");
@@ -975,7 +975,7 @@ public class InventarioGestionService : IInventarioGestionService
             throw new InvalidOperationException("La cantidad no puede ser negativa.");
 
         var stock = await GetStockForMutationAsync(stockId, ct);
-        var item = stock.ItemInventarioEcuador;
+        var item = stock.ItemInventario;
         var oldQty = stock.Quantity;
         var oldUnit = stock.Unit;
         var newUnit = string.IsNullOrWhiteSpace(req.Unit) ? stock.Unit : req.Unit.Trim();
@@ -1143,7 +1143,7 @@ public class InventarioGestionService : IInventarioGestionService
     public async Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad de consumo debe ser positiva.");
-        var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
+        var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
         var isAlimento = IsAlimento(item);
         if (isAlimento && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
@@ -1210,7 +1210,7 @@ public class InventarioGestionService : IInventarioGestionService
     public async Task RegistrarConsumoNivelGranjaAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad de consumo debe ser positiva.");
-        var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
+        var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
 
         var stock = await _db.InventarioGestionStock
@@ -1251,7 +1251,7 @@ public class InventarioGestionService : IInventarioGestionService
     public async Task RegistrarIngresoNivelGranjaAsync(InventarioGestionIngresoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad debe ser positiva.");
-        var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
+        var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
@@ -1385,7 +1385,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var query = _db.InventarioGestionMovimientos
             .AsNoTracking()
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .Include(x => x.Farm)
             .Where(x => x.CompanyId == companyId.Value && allowedFarmIds.Contains(x.FarmId));
         if (paisId > 0) query = query.Where(x => x.PaisId == paisId);
@@ -1429,24 +1429,24 @@ public class InventarioGestionService : IInventarioGestionService
         {
             var c = concepto.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                x.ItemInventarioEcuador.Concepto != null &&
-                x.ItemInventarioEcuador.Concepto.Trim().ToLower() == c);
+                x.ItemInventario.Concepto != null &&
+                x.ItemInventario.Concepto.Trim().ToLower() == c);
         }
 
         if (!string.IsNullOrWhiteSpace(tipoItem))
         {
             var t = tipoItem.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                x.ItemInventarioEcuador.TipoItem != null &&
-                x.ItemInventarioEcuador.TipoItem.Trim().ToLower() == t);
+                x.ItemInventario.TipoItem != null &&
+                x.ItemInventario.TipoItem.Trim().ToLower() == t);
         }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                (x.ItemInventarioEcuador.Codigo ?? "").ToLower().Contains(s) ||
-                (x.ItemInventarioEcuador.Nombre ?? "").ToLower().Contains(s));
+                (x.ItemInventario.Codigo ?? "").ToLower().Contains(s) ||
+                (x.ItemInventario.Nombre ?? "").ToLower().Contains(s));
         }
 
         if (!string.IsNullOrWhiteSpace(unit))
@@ -1540,7 +1540,7 @@ public class InventarioGestionService : IInventarioGestionService
             }
             string? nucleoNombre = x.NucleoId != null && nucleos.TryGetValue((x.NucleoId, x.FarmId), out var nn) ? nn : null;
             string? galponNombre = x.GalponId != null && galpones.TryGetValue((x.GalponId, x.FarmId), out var gn) ? gn : null;
-            var itemType = x.ItemInventarioEcuador.Concepto ?? x.ItemInventarioEcuador.TipoItem ?? "alimento";
+            var itemType = x.ItemInventario.Concepto ?? x.ItemInventario.TipoItem ?? "alimento";
 
             string? fromGranjaNombre = null;
             string? fromNucleoNombre = null;
@@ -1556,7 +1556,7 @@ public class InventarioGestionService : IInventarioGestionService
 
             return new InventarioGestionMovimientoDto(
                 x.Id, x.FarmId, x.NucleoId, x.GalponId, x.ItemInventarioEcuadorId,
-                x.ItemInventarioEcuador.Codigo, x.ItemInventarioEcuador.Nombre, itemType,
+                x.ItemInventario.Codigo, x.ItemInventario.Nombre, itemType,
                 x.Quantity, x.Unit, x.MovementType, estadoDisplay,
                 x.FromFarmId, x.FromNucleoId, x.FromGalponId,
                 x.Reference, x.Reason, x.CreatedAt,
@@ -1566,8 +1566,8 @@ public class InventarioGestionService : IInventarioGestionService
                 fromNucleoNombre,
                 fromGalponNombre,
                 tipoOp,
-                x.ItemInventarioEcuador.Concepto,
-                x.ItemInventarioEcuador.TipoItem);
+                x.ItemInventario.Concepto,
+                x.ItemInventario.TipoItem);
         }).ToList();
     }
 
@@ -1655,7 +1655,7 @@ public class InventarioGestionService : IInventarioGestionService
         // Movimientos "salida" (registro primario del traslado)
         var query = _db.InventarioGestionMovimientos
             .AsNoTracking()
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .Include(x => x.Farm)
             .Where(x => x.CompanyId == companyId.Value
                         && salidaTypes.Contains(x.MovementType)
@@ -1680,16 +1680,16 @@ public class InventarioGestionService : IInventarioGestionService
         {
             var s = search.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                (x.ItemInventarioEcuador.Codigo ?? "").ToLower().Contains(s) ||
-                (x.ItemInventarioEcuador.Nombre ?? "").ToLower().Contains(s));
+                (x.ItemInventario.Codigo ?? "").ToLower().Contains(s) ||
+                (x.ItemInventario.Nombre ?? "").ToLower().Contains(s));
         }
 
         if (!string.IsNullOrWhiteSpace(itemTipoItem))
         {
             var t = itemTipoItem.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                (x.ItemInventarioEcuador.Concepto != null && x.ItemInventarioEcuador.Concepto.Trim().ToLower() == t) ||
-                (x.ItemInventarioEcuador.TipoItem != null && x.ItemInventarioEcuador.TipoItem.Trim().ToLower() == t));
+                (x.ItemInventario.Concepto != null && x.ItemInventario.Concepto.Trim().ToLower() == t) ||
+                (x.ItemInventario.TipoItem != null && x.ItemInventario.TipoItem.Trim().ToLower() == t));
         }
 
         if (!string.IsNullOrWhiteSpace(nucleoId))
@@ -1785,10 +1785,10 @@ public class InventarioGestionService : IInventarioGestionService
                 s.FromGalponId,
                 toGalponNombre,
                 s.ItemInventarioEcuadorId,
-                s.ItemInventarioEcuador.Codigo,
-                s.ItemInventarioEcuador.Nombre,
-                s.ItemInventarioEcuador.Concepto ?? s.ItemInventarioEcuador.TipoItem ?? "alimento",
-                s.ItemInventarioEcuador.TipoItem ?? "alimento",
+                s.ItemInventario.Codigo,
+                s.ItemInventario.Nombre,
+                s.ItemInventario.Concepto ?? s.ItemInventario.TipoItem ?? "alimento",
+                s.ItemInventario.TipoItem ?? "alimento",
                 s.Quantity,
                 s.Unit,
                 s.Reference,
@@ -1873,7 +1873,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var query = _db.InventarioGestionMovimientos
             .AsNoTracking()
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .Include(x => x.Farm)
             .Where(x => x.CompanyId == companyId.Value
                         && ingresoTypes.Contains(x.MovementType)
@@ -1898,16 +1898,16 @@ public class InventarioGestionService : IInventarioGestionService
         {
             var s = search.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                (x.ItemInventarioEcuador.Codigo ?? "").ToLower().Contains(s) ||
-                (x.ItemInventarioEcuador.Nombre ?? "").ToLower().Contains(s));
+                (x.ItemInventario.Codigo ?? "").ToLower().Contains(s) ||
+                (x.ItemInventario.Nombre ?? "").ToLower().Contains(s));
         }
 
         if (!string.IsNullOrWhiteSpace(itemTipoItem))
         {
             var t = itemTipoItem.Trim().ToLowerInvariant();
             query = query.Where(x =>
-                (x.ItemInventarioEcuador.Concepto != null && x.ItemInventarioEcuador.Concepto.Trim().ToLower() == t) ||
-                (x.ItemInventarioEcuador.TipoItem != null && x.ItemInventarioEcuador.TipoItem.Trim().ToLower() == t));
+                (x.ItemInventario.Concepto != null && x.ItemInventario.Concepto.Trim().ToLower() == t) ||
+                (x.ItemInventario.TipoItem != null && x.ItemInventario.TipoItem.Trim().ToLower() == t));
         }
 
         if (!string.IsNullOrWhiteSpace(nucleoId))
@@ -1961,7 +1961,7 @@ public class InventarioGestionService : IInventarioGestionService
             var t = itemTipoItem.Trim().ToLowerInvariant();
             orphanedQuery = orphanedQuery.Where(h =>
                 h.ItemInventarioEcuadorId != null &&
-                _db.ItemInventarioEcuador.Any(i => i.Id == h.ItemInventarioEcuadorId &&
+                _db.ItemInventario.Any(i => i.Id == h.ItemInventarioEcuadorId &&
                     ((i.Concepto != null && i.Concepto.Trim().ToLower() == t) ||
                      (i.TipoItem != null && i.TipoItem.Trim().ToLower() == t))));
         }
@@ -2017,10 +2017,10 @@ public class InventarioGestionService : IInventarioGestionService
             .Select(h => h.ItemInventarioEcuadorId!.Value)
             .Distinct().ToList();
         var orphanedItems = orphanedItemIds.Count > 0
-            ? await _db.ItemInventarioEcuador.AsNoTracking()
+            ? await _db.ItemInventario.AsNoTracking()
                 .Where(i => orphanedItemIds.Contains(i.Id))
                 .ToDictionaryAsync(i => i.Id, ct)
-            : new Dictionary<int, ItemInventarioEcuador>();
+            : new Dictionary<int, ItemInventario>();
 
         var mainDtos = list.Select(x =>
         {
@@ -2036,10 +2036,10 @@ public class InventarioGestionService : IInventarioGestionService
                 x.GalponId,
                 galponNombre,
                 x.ItemInventarioEcuadorId,
-                x.ItemInventarioEcuador.Codigo,
-                x.ItemInventarioEcuador.Nombre,
-                x.ItemInventarioEcuador.Concepto ?? x.ItemInventarioEcuador.TipoItem ?? "alimento",
-                x.ItemInventarioEcuador.TipoItem ?? "alimento",
+                x.ItemInventario.Codigo,
+                x.ItemInventario.Nombre,
+                x.ItemInventario.Concepto ?? x.ItemInventario.TipoItem ?? "alimento",
+                x.ItemInventario.TipoItem ?? "alimento",
                 x.Quantity,
                 x.Unit,
                 x.Reference,
@@ -2106,7 +2106,7 @@ public class InventarioGestionService : IInventarioGestionService
         var allowedFarmIds = await GetAssignedFarmIdsInCompanyAsync(companyId.Value, ct).ConfigureAwait(false);
 
         var mov = await _db.InventarioGestionMovimientos
-            .Include(x => x.ItemInventarioEcuador)
+            .Include(x => x.ItemInventario)
             .Include(x => x.Farm)
             .FirstOrDefaultAsync(x => x.Id == movimientoId && x.CompanyId == companyId.Value, ct);
 
@@ -2169,10 +2169,10 @@ public class InventarioGestionService : IInventarioGestionService
             mov.GalponId,
             galponNombre,
             mov.ItemInventarioEcuadorId,
-            mov.ItemInventarioEcuador.Codigo,
-            mov.ItemInventarioEcuador.Nombre,
-            mov.ItemInventarioEcuador.Concepto ?? mov.ItemInventarioEcuador.TipoItem ?? "alimento",
-            mov.ItemInventarioEcuador.TipoItem ?? "alimento",
+            mov.ItemInventario.Codigo,
+            mov.ItemInventario.Nombre,
+            mov.ItemInventario.Concepto ?? mov.ItemInventario.TipoItem ?? "alimento",
+            mov.ItemInventario.TipoItem ?? "alimento",
             mov.Quantity,
             mov.Unit,
             mov.Reference,

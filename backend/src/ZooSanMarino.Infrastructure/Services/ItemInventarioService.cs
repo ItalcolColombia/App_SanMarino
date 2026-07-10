@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Infrastructure/Services/ItemInventarioEcuadorService.cs
+// src/ZooSanMarino.Infrastructure/Services/ItemInventarioService.cs
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -7,20 +7,20 @@ using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
+public class ItemInventarioService : IItemInventarioService
 {
     private readonly ZooSanMarinoContext _db;
     private readonly ICurrentUser? _current;
 
-    public ItemInventarioEcuadorService(ZooSanMarinoContext db, ICurrentUser? current = null)
+    public ItemInventarioService(ZooSanMarinoContext db, ICurrentUser? current = null)
     {
         _db = db;
         _current = current;
     }
 
-    public async Task<List<ItemInventarioEcuadorDto>> GetAllAsync(string? q = null, string? tipoItem = null, bool? activo = null, CancellationToken ct = default)
+    public async Task<List<ItemInventarioDto>> GetAllAsync(string? q = null, string? tipoItem = null, bool? activo = null, CancellationToken ct = default)
     {
-        var query = _db.ItemInventarioEcuador.AsNoTracking();
+        var query = _db.ItemInventario.AsNoTracking();
 
         if (_current != null && _current.CompanyId > 0)
         {
@@ -45,7 +45,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
         var list = await query
             .OrderBy(x => x.TipoItem)
             .ThenBy(x => x.Nombre)
-            .Select(x => new ItemInventarioEcuadorDto(
+            .Select(x => new ItemInventarioDto(
                 x.Id, x.Codigo, x.Nombre, x.TipoItem, x.Unidad, x.Descripcion, x.Activo,
                 x.Grupo, x.TipoInventarioCodigo, x.DescripcionTipoInventario, x.Referencia, x.DescripcionItem, x.Concepto,
                 x.CompanyId, x.PaisId, x.CreatedAt, x.UpdatedAt))
@@ -53,9 +53,9 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
         return list;
     }
 
-    public async Task<ItemInventarioEcuadorDto?> GetByIdAsync(int id, CancellationToken ct = default)
+    public async Task<ItemInventarioDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
-        var query = _db.ItemInventarioEcuador.AsNoTracking().Where(x => x.Id == id);
+        var query = _db.ItemInventario.AsNoTracking().Where(x => x.Id == id);
         if (_current != null && _current.CompanyId > 0)
         {
             query = query.Where(x => x.CompanyId == _current.CompanyId);
@@ -63,13 +63,13 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
                 query = query.Where(x => x.PaisId == _current.PaisId.Value);
         }
         var e = await query.FirstOrDefaultAsync(ct);
-        return e == null ? null : new ItemInventarioEcuadorDto(
+        return e == null ? null : new ItemInventarioDto(
             e.Id, e.Codigo, e.Nombre, e.TipoItem, e.Unidad, e.Descripcion, e.Activo,
             e.Grupo, e.TipoInventarioCodigo, e.DescripcionTipoInventario, e.Referencia, e.DescripcionItem, e.Concepto,
             e.CompanyId, e.PaisId, e.CreatedAt, e.UpdatedAt);
     }
 
-    public async Task<ItemInventarioEcuadorDto> CreateAsync(ItemInventarioEcuadorCreateRequest req, CancellationToken ct = default)
+    public async Task<ItemInventarioDto> CreateAsync(ItemInventarioCreateRequest req, CancellationToken ct = default)
     {
         if (_current == null || _current.CompanyId <= 0)
             throw new InvalidOperationException("Se requiere empresa activa en la sesión.");
@@ -79,11 +79,11 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
             throw new InvalidOperationException("Se requiere país activo en la sesión.");
 
         var codigo = req.Codigo.Trim();
-        var exists = await _db.ItemInventarioEcuador.AnyAsync(x => x.CompanyId == companyId && x.PaisId == paisId && x.Codigo == codigo, ct);
+        var exists = await _db.ItemInventario.AnyAsync(x => x.CompanyId == companyId && x.PaisId == paisId && x.Codigo == codigo, ct);
         if (exists)
             throw new InvalidOperationException("Ya existe un ítem con el mismo código para esta empresa y país.");
 
-        var e = new ItemInventarioEcuador
+        var e = new ItemInventario
         {
             Codigo = codigo,
             Nombre = req.Nombre.Trim(),
@@ -102,17 +102,17 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
-        _db.ItemInventarioEcuador.Add(e);
+        _db.ItemInventario.Add(e);
         await _db.SaveChangesAsync(ct);
-        return new ItemInventarioEcuadorDto(
+        return new ItemInventarioDto(
             e.Id, e.Codigo, e.Nombre, e.TipoItem, e.Unidad, e.Descripcion, e.Activo,
             e.Grupo, e.TipoInventarioCodigo, e.DescripcionTipoInventario, e.Referencia, e.DescripcionItem, e.Concepto,
             e.CompanyId, e.PaisId, e.CreatedAt, e.UpdatedAt);
     }
 
-    public async Task<ItemInventarioEcuadorDto?> UpdateAsync(int id, ItemInventarioEcuadorUpdateRequest req, CancellationToken ct = default)
+    public async Task<ItemInventarioDto?> UpdateAsync(int id, ItemInventarioUpdateRequest req, CancellationToken ct = default)
     {
-        var query = _db.ItemInventarioEcuador.Where(x => x.Id == id);
+        var query = _db.ItemInventario.Where(x => x.Id == id);
         if (_current != null && _current.CompanyId > 0)
         {
             query = query.Where(x => x.CompanyId == _current.CompanyId);
@@ -135,7 +135,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
         e.Concepto = req.Concepto?.Trim();
         e.UpdatedAt = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct);
-        return new ItemInventarioEcuadorDto(
+        return new ItemInventarioDto(
             e.Id, e.Codigo, e.Nombre, e.TipoItem, e.Unidad, e.Descripcion, e.Activo,
             e.Grupo, e.TipoInventarioCodigo, e.DescripcionTipoInventario, e.Referencia, e.DescripcionItem, e.Concepto,
             e.CompanyId, e.PaisId, e.CreatedAt, e.UpdatedAt);
@@ -143,7 +143,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
 
     public async Task<bool> DeleteAsync(int id, bool hard = false, CancellationToken ct = default)
     {
-        var query = _db.ItemInventarioEcuador.Where(x => x.Id == id);
+        var query = _db.ItemInventario.Where(x => x.Id == id);
         if (_current != null && _current.CompanyId > 0)
         {
             query = query.Where(x => x.CompanyId == _current.CompanyId);
@@ -154,7 +154,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
         if (e == null) return false;
 
         if (hard)
-            _db.ItemInventarioEcuador.Remove(e);
+            _db.ItemInventario.Remove(e);
         else
         {
             e.Activo = false;
@@ -164,7 +164,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
         return true;
     }
 
-    public async Task<ItemInventarioEcuadorCargaMasivaResult> CargaMasivaAsync(IReadOnlyList<ItemInventarioEcuadorCargaMasivaRow> filas, CancellationToken ct = default)
+    public async Task<ItemInventarioCargaMasivaResult> CargaMasivaAsync(IReadOnlyList<ItemInventarioCargaMasivaRow> filas, CancellationToken ct = default)
     {
         if (_current == null || _current.CompanyId <= 0)
             throw new InvalidOperationException("Se requiere empresa activa en la sesión.");
@@ -187,7 +187,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
                 var tipoItem = string.IsNullOrWhiteSpace(fila.TipoItem) ? "alimento" : fila.TipoItem.Trim();
                 var unidad = string.IsNullOrWhiteSpace(fila.Unidad) ? "kg" : fila.Unidad.Trim();
 
-                var existente = await _db.ItemInventarioEcuador
+                var existente = await _db.ItemInventario
                     .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.PaisId == paisId && (x.Codigo == codigo || x.Referencia == codigo), ct);
 
                 if (existente != null)
@@ -207,7 +207,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
                 }
                 else
                 {
-                    var e = new ItemInventarioEcuador
+                    var e = new ItemInventario
                     {
                         Codigo = codigo,
                         Nombre = nombre,
@@ -226,7 +226,7 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
                         CreatedAt = DateTimeOffset.UtcNow,
                         UpdatedAt = DateTimeOffset.UtcNow
                     };
-                    _db.ItemInventarioEcuador.Add(e);
+                    _db.ItemInventario.Add(e);
                     creados++;
                 }
             }
@@ -238,6 +238,6 @@ public class ItemInventarioEcuadorService : IItemInventarioEcuadorService
         }
 
         await _db.SaveChangesAsync(ct);
-        return new ItemInventarioEcuadorCargaMasivaResult(filas.Count, creados, actualizados, errores, mensajes);
+        return new ItemInventarioCargaMasivaResult(filas.Count, creados, actualizados, errores, mensajes);
     }
 }

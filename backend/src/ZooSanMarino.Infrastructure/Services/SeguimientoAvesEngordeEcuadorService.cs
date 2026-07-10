@@ -839,7 +839,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         if (newByItemId.Count == 0) return null;
 
         var itemIds = newByItemId.Keys.ToList();
-        var catalogItems = await _ctx.ItemInventarioEcuador.AsNoTracking()
+        var catalogItems = await _ctx.ItemInventario.AsNoTracking()
             .Where(i => itemIds.Contains(i.Id))
             .ToDictionaryAsync(i => i.Id, i => i.Nombre);
 

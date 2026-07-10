@@ -249,7 +249,7 @@ builder.Services.AddScoped<IFarmInventoryConsumoService, FarmInventoryConsumoSer
 builder.Services.AddScoped<IColombiaInventarioConsumoService, ColombiaInventarioConsumoService>();
 builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
 builder.Services.AddScoped<IInventarioGestionService, InventarioGestionService>();
-builder.Services.AddScoped<IItemInventarioEcuadorService, ItemInventarioEcuadorService>();
+builder.Services.AddScoped<IItemInventarioService, ItemInventarioService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>(); 
 
 // ✅ Servicio orquestador único de roles/permissions/menús

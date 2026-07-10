@@ -4,7 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Va
 import { CrearSeguimientoRequest, SeguimientoItemDto } from '../../services/produccion.service';
 import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { GestionInventarioService, ItemInventarioEcuadorDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -74,7 +74,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   // Tipos de ítem (fijos para no-EC/PA; dinámicos conceptos para Ecuador/Panamá)
   tiposItem: string[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
   /** Ecuador/Panamá: catálogo item_inventario_ecuador y conceptos únicos. */
-  itemsEcuadorPanama: ItemInventarioEcuadorDto[] = [];
+  itemsEcuadorPanama: ItemInventarioDto[] = [];
   conceptosEcuadorPanama: string[] = [];
 
   // Inventario
@@ -347,7 +347,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     });
   }
 
-  private itemEcuadorToExtended(i: ItemInventarioEcuadorDto): CatalogItemExtended {
+  private itemEcuadorToExtended(i: ItemInventarioDto): CatalogItemExtended {
     return {
       id: i.id,
       codigo: i.codigo,
@@ -1032,7 +1032,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     if (!this.granjaId) return;
     this.gestionInventarioSvc.getItemsByType(null, null, true).pipe(
       catchError(err => { console.error('Error al cargar ítems inventario Ecuador:', err); return of([]); })
-    ).subscribe((list: ItemInventarioEcuadorDto[]) => {
+    ).subscribe((list: ItemInventarioDto[]) => {
       this.itemsEcuadorPanama = list ?? [];
       this.conceptosEcuadorPanama = Array.from(
         new Set(

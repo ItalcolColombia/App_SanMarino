@@ -1,7 +1,7 @@
-// src/ZooSanMarino.Application/DTOs/ItemInventarioEcuadorDtos.cs
+// src/ZooSanMarino.Application/DTOs/ItemInventarioDtos.cs
 namespace ZooSanMarino.Application.DTOs;
 
-public sealed record ItemInventarioEcuadorDto(
+public sealed record ItemInventarioDto(
     int Id,
     string Codigo,
     string Nombre,
@@ -21,7 +21,7 @@ public sealed record ItemInventarioEcuadorDto(
     DateTimeOffset UpdatedAt
 );
 
-public sealed record ItemInventarioEcuadorCreateRequest(
+public sealed record ItemInventarioCreateRequest(
     string Codigo,
     string Nombre,
     string TipoItem,
@@ -36,7 +36,7 @@ public sealed record ItemInventarioEcuadorCreateRequest(
     string? Concepto = null
 );
 
-public sealed record ItemInventarioEcuadorUpdateRequest(
+public sealed record ItemInventarioUpdateRequest(
     string Nombre,
     string TipoItem,
     string Unidad,
@@ -51,7 +51,7 @@ public sealed record ItemInventarioEcuadorUpdateRequest(
 );
 
 /// <summary>Fila para carga masiva de ítems. Columnas: GRUPO, TIPO DE INVENTARIO, Desc. tipo inventario, Tipo inventario, Referencia, Desc. item, Concepto, Unidad de medida.</summary>
-public sealed record ItemInventarioEcuadorCargaMasivaRow(
+public sealed record ItemInventarioCargaMasivaRow(
     string? Grupo,
     string? TipoInventarioCodigo,
     string? DescripcionTipoInventario,
@@ -63,7 +63,7 @@ public sealed record ItemInventarioEcuadorCargaMasivaRow(
 );
 
 /// <summary>Resultado de la carga masiva.</summary>
-public sealed record ItemInventarioEcuadorCargaMasivaResult(
+public sealed record ItemInventarioCargaMasivaResult(
     int TotalFilas,
     int Creados,
     int Actualizados,

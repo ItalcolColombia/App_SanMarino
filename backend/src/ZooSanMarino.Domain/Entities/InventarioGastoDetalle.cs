@@ -19,6 +19,6 @@ public class InventarioGastoDetalle
     public decimal? StockDespues { get; set; }
 
     public InventarioGasto InventarioGasto { get; set; } = null!;
-    public ItemInventarioEcuador ItemInventarioEcuador { get; set; } = null!;
+    public ItemInventario ItemInventario { get; set; } = null!;
 }
 
