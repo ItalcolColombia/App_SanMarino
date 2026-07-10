@@ -101,6 +101,7 @@
                   <p class="ux-hint modal-lev-colombia-food" style="margin: 0.25rem 0 1rem 0;">
                     <strong>Alimento (Colombia — inventario de productos):</strong> producto con existencias en la granja del lote,
                     consumo en kg o g; debajo, <strong>disponible</strong> y tope al editar.
+                    Hembras y machos pueden usar un <strong>alimento distinto</strong>; si es el mismo, el consumo se suma.
                   </p>
                 }
                 @if (isEcuadorOrPanama) {
@@ -108,82 +109,135 @@
                     Registre el alimento u otros ítems del día para este lote.
                   </p>
                 }
-                @for (itemH of itemsHembrasArray.controls; track itemH; let i = $index) {
-                  <div [formGroup]="$any(itemH)"
-                    class="modal-lev-item-row">
-                    <!-- Fila 1: Tipo de ítem + Ítem (selección única para ambos géneros) -->
-                    <div class="grid grid-2">
-                      <div class="form-field">
-                        <label [for]="'f-tipo-h-' + i">Tipo de ítem</label>
-                        <div class="ux-select">
-                          <select [id]="'f-tipo-h-' + i" formControlName="tipoItem"
-                            (change)="filtrarAlimentosPorTipo('hembras', $safeNavigationMigration($any(itemH).get('tipoItem')?.value))">
-                            <option [ngValue]="null">— Seleccione —</option>
-                            @for (t of tiposItemDisplay; track t) {
-                              <option [ngValue]="t">{{ t }}</option>
-                            }
-                          </select>
-                        </div>
-                      </div>
-                      <div class="form-field">
-                        <label [for]="'f-item-h-' + i">Ítem</label>
-                        <div class="ux-select">
-                          <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
-                            <option [ngValue]="null">— Seleccione —</option>
-                            @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH))); track a) {
-                              <option [ngValue]="a.id">
-                                {{ getItemDisplayText(a) }}
-                              </option>
-                            }
-                          </select>
-                        </div>
-                        @if (itemH.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))) {
-                          <small class="ux-hint text-success">
-                            Stock disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.unit }}
-                          </small>
-                        }
-                      </div>
-                    </div>
-                    <!-- Fila 2: Cantidad Hembras | Cantidad Machos -->
-                    <div class="grid grid-2" style="margin-top: 0.75rem;">
-                      <div class="form-field">
-                        <label [for]="'f-cantidad-h-' + i">🐔 Cantidad Hembras</label>
-                        <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                          <div style="flex: 1;">
-                            <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
-                          </div>
-                          <div style="width: 90px;">
-                            <select formControlName="unidad" class="ux-select" style="width: 100%;">
-                              <option value="kg">kg</option>
-                              <option value="g">gramos</option>
-                              <option value="unidades">unidades</option>
+
+                <!-- 🐔 Hembras -->
+                <div class="modal-lev-genero-block">
+                  <h4 class="data-group-subtitle">🐔 Hembras</h4>
+                  @for (itemH of itemsHembrasArray.controls; track itemH; let i = $index) {
+                    <div [formGroup]="$any(itemH)" class="modal-lev-item-row">
+                      <div class="grid grid-2">
+                        <div class="form-field">
+                          <label [for]="'f-tipo-h-' + i">Tipo de ítem</label>
+                          <div class="ux-select">
+                            <select [id]="'f-tipo-h-' + i" formControlName="tipoItem"
+                              (change)="filtrarAlimentosPorTipo('hembras', $safeNavigationMigration($any(itemH).get('tipoItem')?.value))">
+                              <option [ngValue]="null">— Seleccione —</option>
+                              @for (t of tiposItemDisplay; track t) {
+                                <option [ngValue]="t">{{ t }}</option>
+                              }
                             </select>
                           </div>
                         </div>
-                        @if (cantidadExcedeDisponible($any(itemH))) {
-                          <small class="ux-hint text-danger">
-                            Supera el stock disponible.
-                          </small>
-                        }
-                      </div>
-                      <div class="form-field">
-                        <label [for]="'f-cantidad-m-' + i">🐓 Cantidad Machos</label>
-                        <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                          <div style="flex: 1;">
-                            <input [id]="'f-cantidad-m-' + i" type="number" step="0.001" min="0" formControlName="cantidadMachos" />
-                          </div>
-                          <div style="width: 90px;">
-                            <select formControlName="unidadMachos" class="ux-select" style="width: 100%;">
-                              <option value="kg">kg</option>
-                              <option value="g">gramos</option>
-                              <option value="unidades">unidades</option>
+                        <div class="form-field">
+                          <label [for]="'f-item-h-' + i">Ítem</label>
+                          <div class="ux-select">
+                            <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
+                              <option [ngValue]="null">— Seleccione —</option>
+                              @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH))); track a) {
+                                <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
+                              }
                             </select>
                           </div>
+                          @if (itemH.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))) {
+                            <small class="ux-hint text-success">
+                              Stock disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.unit }}
+                            </small>
+                          }
+                        </div>
+                      </div>
+                      <div class="grid grid-2" style="margin-top: 0.75rem;">
+                        <div class="form-field">
+                          <label [for]="'f-cantidad-h-' + i">🐔 Cantidad Hembras</label>
+                          <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                            <div style="flex: 1;">
+                              <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
+                            </div>
+                            <div style="width: 90px;">
+                              <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                                <option value="kg">kg</option>
+                                <option value="g">gramos</option>
+                                <option value="unidades">unidades</option>
+                              </select>
+                            </div>
+                          </div>
+                          @if (cantidadExcedeDisponible($any(itemH))) {
+                            <small class="ux-hint text-danger">Supera el stock disponible.</small>
+                          }
+                        </div>
+                        <div class="form-field" style="display: flex; align-items: flex-end; justify-content: flex-end;">
+                          @if (itemsHembrasArray.length > 1) {
+                            <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" style="color: #d32f2f;">Quitar</button>
+                          }
                         </div>
                       </div>
                     </div>
-                  </div>
-                }
+                  }
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="agregarItemHembras()">+ Agregar alimento (hembras)</button>
+                </div>
+
+                <!-- 🐓 Machos -->
+                <div class="modal-lev-genero-block" style="margin-top: 1rem;">
+                  <h4 class="data-group-subtitle">🐓 Machos</h4>
+                  <p class="ux-hint" style="margin: 0 0 0.5rem 0;">Opcional. Si los machos usan el mismo alimento que las hembras, elija el mismo ítem: el consumo se suma.</p>
+                  @for (itemM of itemsMachosArray.controls; track itemM; let j = $index) {
+                    <div [formGroup]="$any(itemM)" class="modal-lev-item-row">
+                      <div class="grid grid-2">
+                        <div class="form-field">
+                          <label [for]="'f-tipo-m-' + j">Tipo de ítem</label>
+                          <div class="ux-select">
+                            <select [id]="'f-tipo-m-' + j" formControlName="tipoItem"
+                              (change)="filtrarAlimentosPorTipo('machos', $safeNavigationMigration($any(itemM).get('tipoItem')?.value))">
+                              <option [ngValue]="null">— Seleccione —</option>
+                              @for (t of tiposItemDisplay; track t) {
+                                <option [ngValue]="t">{{ t }}</option>
+                              }
+                            </select>
+                          </div>
+                        </div>
+                        <div class="form-field">
+                          <label [for]="'f-item-m-' + j">Ítem</label>
+                          <div class="ux-select">
+                            <select [id]="'f-item-m-' + j" formControlName="catalogItemId">
+                              <option [ngValue]="null">— Seleccione —</option>
+                              @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroMacho($any(itemM))); track a) {
+                                <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
+                              }
+                            </select>
+                          </div>
+                          @if (itemM.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemM.get('catalogItemId')?.value))) {
+                            <small class="ux-hint text-success">
+                              Stock disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemM.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemM.get('catalogItemId')?.value))?.unit }}
+                            </small>
+                          }
+                        </div>
+                      </div>
+                      <div class="grid grid-2" style="margin-top: 0.75rem;">
+                        <div class="form-field">
+                          <label [for]="'f-cantidad-m-' + j">🐓 Cantidad Machos</label>
+                          <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                            <div style="flex: 1;">
+                              <input [id]="'f-cantidad-m-' + j" type="number" step="0.001" min="0" formControlName="cantidad" />
+                            </div>
+                            <div style="width: 90px;">
+                              <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                                <option value="kg">kg</option>
+                                <option value="g">gramos</option>
+                                <option value="unidades">unidades</option>
+                              </select>
+                            </div>
+                          </div>
+                          @if (cantidadExcedeDisponible($any(itemM))) {
+                            <small class="ux-hint text-danger">Supera el stock disponible.</small>
+                          }
+                        </div>
+                        <div class="form-field" style="display: flex; align-items: flex-end; justify-content: flex-end;">
+                          <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(j)" style="color: #d32f2f;">Quitar</button>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="agregarItemMachos()">+ Agregar alimento (machos)</button>
+                </div>
               </div>
             </section>
             <!-- Ítems generales (lote completo) — solo si existen al editar -->
