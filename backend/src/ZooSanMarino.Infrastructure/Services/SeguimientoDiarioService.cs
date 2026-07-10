@@ -57,7 +57,8 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             x.TrasladoAvesEntrante, x.TrasladoAvesSalida, x.VentaAvesCantidad, x.VentaAvesMotivo,
             x.CreatedByUserId, x.CreatedAt, x.UpdatedAt, x.UpdatedByUserId,
             x.EsTraslado, x.TrasladoLoteContraparteId, x.TrasladoGranjaContraparteId, x.TrasladoDireccion,
-            x.TrasladoIngresoHembras, x.TrasladoIngresoMachos, x.TrasladoSalidaHembras, x.TrasladoSalidaMachos
+            x.TrasladoIngresoHembras, x.TrasladoIngresoMachos, x.TrasladoSalidaHembras, x.TrasladoSalidaMachos,
+            x.TipoAlimentoHembrasNombre, x.TipoAlimentoMachosNombre
         );
     }
 
@@ -271,6 +272,8 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             ConsumoKgHembras = dto.ConsumoKgHembras,
             ConsumoKgMachos = dto.ConsumoKgMachos,
             TipoAlimento = dto.TipoAlimento,
+            TipoAlimentoHembrasNombre = dto.TipoAlimentoHembrasNombre,
+            TipoAlimentoMachosNombre = dto.TipoAlimentoMachosNombre,
             Observaciones = dto.Observaciones,
             Ciclo = dto.Ciclo ?? "Normal",
             PesoPromHembras = dto.PesoPromHembras,
@@ -493,6 +496,8 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         ent.ConsumoKgHembras = dto.ConsumoKgHembras;
         ent.ConsumoKgMachos = dto.ConsumoKgMachos;
         ent.TipoAlimento = dto.TipoAlimento;
+        ent.TipoAlimentoHembrasNombre = dto.TipoAlimentoHembrasNombre;
+        ent.TipoAlimentoMachosNombre = dto.TipoAlimentoMachosNombre;
         ent.Observaciones = dto.Observaciones;
         ent.Ciclo = dto.Ciclo ?? "Normal";
         ent.PesoPromHembras = dto.PesoPromHembras;
@@ -792,6 +797,8 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         existente.ConsumoKgHembras    = dto.ConsumoKgHembras;
         existente.ConsumoKgMachos     = dto.ConsumoKgMachos;
         existente.TipoAlimento        = dto.TipoAlimento ?? existente.TipoAlimento;
+        existente.TipoAlimentoHembrasNombre = dto.TipoAlimentoHembrasNombre ?? existente.TipoAlimentoHembrasNombre;
+        existente.TipoAlimentoMachosNombre  = dto.TipoAlimentoMachosNombre ?? existente.TipoAlimentoMachosNombre;
         existente.Ciclo               = dto.Ciclo ?? existente.Ciclo;
         existente.PesoPromHembras     = dto.PesoPromHembras;
         existente.PesoPromMachos      = dto.PesoPromMachos;

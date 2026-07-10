@@ -9,7 +9,7 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
 {
     public void Configure(EntityTypeBuilder<SeguimientoDiario> b)
     {
-        b.ToTable("seguimiento_diario_levante_reproductoras", "public");
+        b.ToTable("seguimiento_diario_levante", "public");
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasColumnName("id");
 
@@ -29,6 +29,8 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
         b.Property(x => x.ConsumoKgHembras).HasColumnName("consumo_kg_hembras").HasPrecision(12, 3);
         b.Property(x => x.ConsumoKgMachos).HasColumnName("consumo_kg_machos").HasPrecision(12, 3);
         b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(100);
+        b.Property(x => x.TipoAlimentoHembrasNombre).HasColumnName("tipo_alimento_hembras").HasMaxLength(100);
+        b.Property(x => x.TipoAlimentoMachosNombre).HasColumnName("tipo_alimento_machos").HasMaxLength(100);
         b.Property(x => x.Observaciones).HasColumnName("observaciones");
         b.Property(x => x.Ciclo).HasColumnName("ciclo").HasMaxLength(50);
 

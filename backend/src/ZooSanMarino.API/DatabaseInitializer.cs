@@ -29,26 +29,10 @@ public static class DatabaseInitializer
                 );
             ") >= 0;
 
-            var produccionSeguimientoExists = await context.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS produccion_seguimiento (
-                    id SERIAL PRIMARY KEY,
-                    produccion_lote_id INTEGER NOT NULL,
-                    fecha_registro TIMESTAMP WITH TIME ZONE NOT NULL,
-                    mortalidad_h INTEGER NOT NULL,
-                    mortalidad_m INTEGER NOT NULL,
-                    consumo_kg NUMERIC(18,2) NOT NULL,
-                    huevos_totales INTEGER NOT NULL,
-                    huevos_incubables INTEGER NOT NULL,
-                    peso_huevo NUMERIC(18,2) NOT NULL,
-                    observaciones TEXT,
-                    company_id INTEGER NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMP WITH TIME ZONE,
-                    deleted_at TIMESTAMP WITH TIME ZONE,
-                    CONSTRAINT uk_produccion_seguimiento_lote_fecha UNIQUE (produccion_lote_id, fecha_registro),
-                    CONSTRAINT fk_produccion_seguimiento_lote FOREIGN KEY (produccion_lote_id) REFERENCES produccion_lote(id) ON DELETE CASCADE
-                );
-            ") >= 0;
+            // Nota (Fase 3): el bloque CREATE TABLE produccion_seguimiento se retiró.
+            // Esa tabla quedó consolidada en seguimiento_diario_produccion_reproductoras
+            // (entidad SeguimientoProduccion); su definición aquí era código muerto
+            // (esquema distinto que nunca corría por el IF NOT EXISTS).
 
             Console.WriteLine("Tablas de producción creadas exitosamente.");
         }

@@ -138,8 +138,8 @@ public class LiquidacionTecnicaService : ILiquidacionTecnicaService
 
         if (!loteExiste) return false;
 
-        var tieneSeguimiento = await _context.SeguimientoLoteLevante
-            .Where(s => s.LoteId == loteId)
+        var tieneSeguimiento = await _context.SeguimientoDiario
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString())
             .AnyAsync();
 
         return tieneSeguimiento;
@@ -164,13 +164,15 @@ public class LiquidacionTecnicaService : ILiquidacionTecnicaService
 
     private async Task<List<Domain.Entities.SeguimientoLoteLevante>> ObtenerSeguimientosAsync(int loteId, DateTime? fechaHasta)
     {
-        var query = _context.SeguimientoLoteLevante
+        // Repunte Fase 3: lee la tabla canónica (seguimiento_diario_levante_reproductoras, tipo='levante')
+        // y proyecta a SeguimientoLoteLevante para preservar EXACTA la aritmética aguas abajo.
+        var query = _context.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => s.LoteId == loteId);
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString());
 
         if (fechaHasta.HasValue)
         {
-            query = query.Where(s => s.FechaRegistro.Date <= fechaHasta.Value.Date);
+            query = query.Where(s => s.Fecha.Date <= fechaHasta.Value.Date);
         }
 
         // Filtrar hasta semana 25 (175 días aproximadamente)
@@ -178,12 +180,45 @@ public class LiquidacionTecnicaService : ILiquidacionTecnicaService
         if (lote.FechaEncaset.HasValue)
         {
             var fechaMaxima = lote.FechaEncaset.Value.AddDays(175); // Semana 25
-            query = query.Where(s => s.FechaRegistro <= fechaMaxima);
+            query = query.Where(s => s.Fecha <= fechaMaxima);
         }
 
-        return await query
-            .OrderBy(s => s.FechaRegistro)
+        var rows = await query
+            .OrderBy(s => s.Fecha)
+            .Select(s => new
+            {
+                s.Fecha,
+                s.MortalidadHembras,
+                s.MortalidadMachos,
+                s.SelH,
+                s.SelM,
+                s.ErrorSexajeHembras,
+                s.ErrorSexajeMachos,
+                s.ConsumoKgHembras,
+                s.ConsumoKgMachos,
+                s.PesoPromHembras,
+                s.PesoPromMachos,
+                s.UniformidadHembras,
+                s.UniformidadMachos
+            })
             .ToListAsync();
+
+        return rows.Select(s => new Domain.Entities.SeguimientoLoteLevante
+        {
+            FechaRegistro = s.Fecha,
+            MortalidadHembras = s.MortalidadHembras ?? 0,
+            MortalidadMachos = s.MortalidadMachos ?? 0,
+            SelH = s.SelH ?? 0,
+            SelM = s.SelM ?? 0,
+            ErrorSexajeHembras = s.ErrorSexajeHembras ?? 0,
+            ErrorSexajeMachos = s.ErrorSexajeMachos ?? 0,
+            ConsumoKgHembras = (double)(s.ConsumoKgHembras ?? 0m),
+            ConsumoKgMachos = (double?)s.ConsumoKgMachos,
+            PesoPromH = s.PesoPromHembras,
+            PesoPromM = s.PesoPromMachos,
+            UniformidadH = s.UniformidadHembras,
+            UniformidadM = s.UniformidadMachos
+        }).ToList();
     }
 
     private async Task<DatosGuiaGeneticaDto?> ObtenerDatosGuiaAsync(string? raza, int? anoTablaGenetica)

@@ -16,6 +16,10 @@ public class ItemSeguimientoDto
     /// <summary>ID de item_inventario_ecuador (Ecuador/Panamá). Cuando está presente, se aplica consumo en inventario-gestion.</summary>
     [JsonPropertyName("itemInventarioEcuadorId")]
     public int? ItemInventarioEcuadorId { get; set; }
+    /// <summary>Nombre del ítem resuelto por el frontend. Solo informativo: se persiste en metadata jsonb
+    /// para pintar el desglose por alimento en la tabla diaria sin recargar el catálogo. No afecta cálculos.</summary>
+    [JsonPropertyName("nombre")]
+    public string? Nombre { get; set; }
     [JsonPropertyName("cantidad")]
     public double Cantidad { get; set; } // Cantidad utilizada
     [JsonPropertyName("unidad")]
@@ -57,6 +61,14 @@ public class CreateSeguimientoLoteLevanteRequest
     // IDs de alimentos (opcionales, para validación de inventario)
     public int? TipoAlimentoHembras { get; set; }
     public int? TipoAlimentoMachos { get; set; }
+
+    // Nombres del alimento resueltos por el frontend, independientes por sexo. Se persisten como
+    // columnas y se muestran en la tabla diaria + Excel. Si el cliente no los envía, quedan null
+    // (la tabla cae al TipoAlimento combinado).
+    [JsonPropertyName("tipoAlimentoHembrasNombre")]
+    public string? TipoAlimentoHembrasNombre { get; set; }
+    [JsonPropertyName("tipoAlimentoMachosNombre")]
+    public string? TipoAlimentoMachosNombre { get; set; }
     
     // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata
     // DEPRECATED: Usar ItemsHembras e ItemsMachos en su lugar
@@ -214,7 +226,9 @@ public class CreateSeguimientoLoteLevanteRequest
             HistoricoConsumoAlimento: null,
             QqMixtas: QqMixtas,
             QqHembras: QqHembras,
-            QqMachos: QqMachos
+            QqMachos: QqMachos,
+            TipoAlimentoHembrasNombre: TipoAlimentoHembrasNombre,
+            TipoAlimentoMachosNombre: TipoAlimentoMachosNombre
         );
     }
     
@@ -262,17 +276,19 @@ public class CreateSeguimientoLoteLevanteRequest
             {
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
+                nombre = i.Nombre,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();
         }
-        
+
         if (itemsMachos != null && itemsMachos.Count > 0)
         {
             itemsAdicionales["itemsMachos"] = itemsMachos.Select(i => new
             {
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
+                nombre = i.Nombre,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();
@@ -284,6 +300,7 @@ public class CreateSeguimientoLoteLevanteRequest
             {
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
+                nombre = i.Nombre,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();
@@ -392,11 +409,12 @@ public class CreateSeguimientoLoteLevanteRequest
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
                 itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
+                nombre = i.Nombre,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();
         }
-        
+
         if (itemsMachos != null && itemsMachos.Count > 0)
         {
             metadata["itemsMachos"] = itemsMachos.Select(i => new
@@ -404,6 +422,7 @@ public class CreateSeguimientoLoteLevanteRequest
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
                 itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
+                nombre = i.Nombre,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();
@@ -416,6 +435,7 @@ public class CreateSeguimientoLoteLevanteRequest
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
                 itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
+                nombre = i.Nombre,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();

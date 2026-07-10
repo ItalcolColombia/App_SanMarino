@@ -27,5 +27,6 @@ public class ProduccionLote : AuditableEntity
     
     // Navegaciones
     // public Lote Lote { get; set; } = null!; // Comentado porque lote_id es VARCHAR
-    public ICollection<ProduccionSeguimiento> Seguimientos { get; set; } = new List<ProduccionSeguimiento>();
+    // Nota: la colección Seguimientos → ProduccionSeguimiento se retiró en Fase 3
+    // (tabla produccion_seguimiento consolidada en seguimiento_diario_produccion_reproductoras).
 }

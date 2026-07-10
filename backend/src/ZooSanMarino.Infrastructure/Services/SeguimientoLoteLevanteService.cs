@@ -88,6 +88,8 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             ErrorSexajeMachos: u.ErrorSexajeMachos ?? 0,
             ConsumoKgHembras: (double)(u.ConsumoKgHembras ?? 0),
             TipoAlimento: u.TipoAlimento ?? "",
+            TipoAlimentoHembrasNombre: u.TipoAlimentoHembrasNombre,
+            TipoAlimentoMachosNombre: u.TipoAlimentoMachosNombre,
             Observaciones: u.Observaciones,
             KcalAlH: u.KcalAlH,
             ProtAlH: u.ProtAlH,
@@ -188,7 +190,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             TrasladoAvesSalida: null,
             VentaAvesCantidad: null,
             VentaAvesMotivo: null,
-            CreatedByUserId: dto.CreatedByUserId
+            CreatedByUserId: dto.CreatedByUserId,
+            TipoAlimentoHembrasNombre: dto.TipoAlimentoHembrasNombre,
+            TipoAlimentoMachosNombre: dto.TipoAlimentoMachosNombre
         );
     }
 
@@ -255,7 +259,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             TrasladoAvesEntrante: null,
             TrasladoAvesSalida: null,
             VentaAvesCantidad: null,
-            VentaAvesMotivo: null
+            VentaAvesMotivo: null,
+            TipoAlimentoHembrasNombre: dto.TipoAlimentoHembrasNombre,
+            TipoAlimentoMachosNombre: dto.TipoAlimentoMachosNombre
         );
     }
 

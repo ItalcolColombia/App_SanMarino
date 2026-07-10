@@ -76,9 +76,6 @@ public class Lote : AuditableEntity
 
     public LotePosturaBase? LotePosturaBase { get; set; }
 
-    /// <summary>Seguimientos diarios de producción (solo cuando Fase == "Produccion").</summary>
-    public List<ProduccionSeguimiento> ProduccionSeguimientos { get; set; } = new();
-
     // Nota: La relación con LoteReproductora está comentada debido al desajuste de tipos
     // (lote_id es string en lote_reproductoras pero integer en lotes)
     // public List<LoteReproductora> Reproductoras { get; set; } = new(); // Comentado temporalmente
