@@ -7,6 +7,7 @@ import { forkJoin, of } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../../core/auth/auth.service';
+import { ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { IndicadorEcuadorService } from '../../../indicador-ecuador/services/indicador-ecuador.service';
 import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
@@ -82,6 +83,9 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   guardandoMerma = false;
   mermaGuardada = false;
 
+  // Ecuador: fecha de liquidación elegible por el usuario (antes se autogeneraba al cerrar).
+  fechaLiquidacion: string = this.todayYmd();
+
   // ── Panamá: insumos de liquidación digitados por el usuario para cerrar/liquidar el lote ──
   panamaDiasEnGranja: number | null = null;
   panamaDiasEngorde: number | null = null;
@@ -142,6 +146,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     this.mermaKilos = null;
     this.guardandoMerma = false;
     this.mermaGuardada = false;
+    this.fechaLiquidacion = this.todayYmd();
     this.panamaDiasEnGranja = null;
     this.panamaDiasEngorde = null;
     this.panamaAvesFinalGranja = null;
@@ -409,6 +414,14 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     return Math.abs(Number(s) - this.totalKgStockInventario) > 0.5;
   }
 
+  private todayYmd(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   private async userIdStr(): Promise<string> {
     const s = await firstValueFrom(this.auth.session$.pipe(take(1)));
     return s?.user?.id ?? '';
@@ -470,8 +483,11 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
       }
     }
 
+    // Solo Ecuador envía la fecha elegida (evita cambiar el comportamiento de otros países,
+    // que siguen liquidando con "ahora" como antes).
+    const fechaLiq = this.esEcuador ? ymdToIsoUtcNoon(this.fechaLiquidacion) : null;
     this.loteEngorde
-      .cerrarLote(this.loteId, uid, { mermaUnidades: this.mermaUnidades, mermaKilos: this.mermaKilos })
+      .cerrarLote(this.loteId, uid, { mermaUnidades: this.mermaUnidades, mermaKilos: this.mermaKilos }, fechaLiq)
       .pipe(finalize(() => (this.guardandoCerrar = false)))
       .subscribe({
         next: () => {

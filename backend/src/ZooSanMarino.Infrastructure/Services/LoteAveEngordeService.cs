@@ -429,7 +429,11 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             throw new InvalidOperationException("El lote ya está cerrado.");
 
         ent.EstadoOperativoLote = "Cerrado";
-        ent.LiquidadoAt = DateTime.UtcNow;
+        // Si el usuario eligió una fecha de liquidación, se ancla a medianoche UTC (misma
+        // fecha "pura" que fecha_encaset/fecha_alistamiento); si no, comportamiento previo (ahora).
+        ent.LiquidadoAt = request.FechaLiquidacion.HasValue
+            ? DateTime.SpecifyKind(request.FechaLiquidacion.Value.Date, DateTimeKind.Utc)
+            : DateTime.UtcNow;
         ent.LiquidadoPorUserId = request.ClosedByUserId.Trim();
         // Merma opcional digitada por Costos al liquidar (Parte B / R1).
         if (request.MermaUnidades.HasValue || request.MermaKilos.HasValue)

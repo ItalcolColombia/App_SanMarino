@@ -104,12 +104,15 @@ export class LoteEngordeService {
   cerrarLote(
     loteAveEngordeId: number,
     closedByUserId: string,
-    merma?: { mermaUnidades?: number | null; mermaKilos?: number | null }
+    merma?: { mermaUnidades?: number | null; mermaKilos?: number | null },
+    /** ISO (fecha de liquidación elegida). Si se omite, el backend usa el momento actual. */
+    fechaLiquidacion?: string | null
   ): Observable<LoteAveEngordeDto> {
     return this.http.post<LoteAveEngordeDto>(`${this.baseUrl}/${loteAveEngordeId}/cerrar`, {
       closedByUserId,
       mermaUnidades: merma?.mermaUnidades ?? null,
-      mermaKilos: merma?.mermaKilos ?? null
+      mermaKilos: merma?.mermaKilos ?? null,
+      fechaLiquidacion: fechaLiquidacion ?? null
     });
   }
 

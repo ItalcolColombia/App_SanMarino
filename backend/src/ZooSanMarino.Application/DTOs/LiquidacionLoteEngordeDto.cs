@@ -22,7 +22,9 @@ public sealed record LiquidacionLoteEngordeResumenDto(
 public sealed record CerrarLoteAveEngordeRequest(
     string ClosedByUserId,
     int? MermaUnidades = null,
-    decimal? MermaKilos = null);
+    decimal? MermaKilos = null,
+    /// <summary>Fecha de liquidación elegida por el usuario (Ecuador). Si es null, se usa el momento actual (comportamiento previo).</summary>
+    DateTime? FechaLiquidacion = null);
 
 public sealed record AbrirLoteAveEngordeRequest(string Motivo, string OpenedByUserId);
 
