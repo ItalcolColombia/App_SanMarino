@@ -91,6 +91,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   
   // Flag para mostrar tab de agua (solo Ecuador y Panamá)
   isEcuadorOrPanama: boolean = false;
+  /** Colombia opera el inventario unificado (modelo B) a NIVEL GRANJA. */
+  isColombia: boolean = false;
+  /** Colombia + EC/PA leen el catálogo/stock desde item_inventario_ecuador (inventario-gestion). */
+  get usaInventarioGestion(): boolean { return this.isEcuadorOrPanama || this.isColombia; }
+  /** Colombia: codigo(normalizado) → catalogo_items.id (contrato de ids al descontar). */
+  private catalogItemIdPorCodigo = new Map<string, number>();
 
   // Modal de mensaje
   showMessageModal = false;
@@ -118,6 +124,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   
   private checkCountry(): void {
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
+    this.isColombia = this.countryFilter.isColombia();
   }
 
   ngOnChanges(): void {
@@ -131,7 +138,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     }
 
     if (this.isOpen) {
-      if (this.isEcuadorOrPanama && this.granjaId) {
+      if (this.usaInventarioGestion && this.granjaId) {
         this.cargarCatalogEcuadorPanama();
       } else if (this.granjaId) {
         this.cargarInventarioGranja(this.granjaId);
@@ -333,7 +340,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   private computeAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemExtended[] {
-    if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+    if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
       if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToExtended(i));
       return this.itemsEcuadorPanama
@@ -745,33 +752,33 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       return;
     }
 
-    const itemsHembras = this.itemsHembrasArray.controls
-      .map(c => ({
+    // Contrato de ids por país (Colombia: migrado→catalogItemId camino-1 / nuevo→itemInventarioEcuadorId camino-2).
+    const mapItemControl = (c: any) => {
+      const idf = this.buildItemPersistFields(Number(c.get('catalogItemId')?.value) || 0);
+      return {
         tipoItem: c.get('tipoItem')?.value,
-        catalogItemId: c.get('catalogItemId')?.value ?? 0,
-        itemInventarioEcuadorId: this.isEcuadorOrPanama ? (c.get('catalogItemId')?.value ?? null) : null,
+        catalogItemId: idf.catalogItemId,
+        itemInventarioEcuadorId: idf.itemInventarioEcuadorId,
+        nombre: idf.nombre ?? null,
         cantidad: Number(c.get('cantidad')?.value) || 0,
         unidad: c.get('unidad')?.value || 'kg'
-      }))
+      };
+    };
+    const itemsHembras = this.itemsHembrasArray.controls
+      .map(mapItemControl)
       .filter((x: any) => x.tipoItem && (x.catalogItemId || x.itemInventarioEcuadorId));
     const itemsMachos = this.itemsMachosArray.controls
-      .map(c => ({
-        tipoItem: c.get('tipoItem')?.value,
-        catalogItemId: c.get('catalogItemId')?.value ?? 0,
-        itemInventarioEcuadorId: this.isEcuadorOrPanama ? (c.get('catalogItemId')?.value ?? null) : null,
-        cantidad: Number(c.get('cantidad')?.value) || 0,
-        unidad: c.get('unidad')?.value || 'kg'
-      }))
+      .map(mapItemControl)
       .filter((x: any) => x.tipoItem && (x.catalogItemId || x.itemInventarioEcuadorId));
     const useItems = itemsHembras.length > 0 || itemsMachos.length > 0;
     let tipoAlimentoVal = raw.tipoAlimento || 'Standard';
     if (useItems) {
       const nombres: string[] = [];
       [...itemsHembras, ...itemsMachos].forEach((it: any) => {
+        // El nombre viaja en el ítem (contrato de ids de Colombia puede usar id de catalogo_items,
+        // ausente en alimentosById que está indexado por id de dropdown).
         const id = it.itemInventarioEcuadorId ?? it.catalogItemId;
-        const a = this.alimentosById.get(id);
-        const ecuadorItem = this.isEcuadorOrPanama && this.itemsEcuadorPanama.length ? this.itemsEcuadorPanama.find(i => i.id === id) : null;
-        const name = a?.nombre ?? ecuadorItem?.nombre;
+        const name = it.nombre ?? this.alimentosById.get(id)?.nombre;
         if (name) nombres.push(name);
       });
       if (nombres.length) tipoAlimentoVal = nombres.join(' / ');
@@ -1027,11 +1034,22 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
   // ================== INVENTARIO Y ALIMENTOS ==================
 
-  /** Ecuador/Panamá: carga catálogo item_inventario_ecuador y conceptos; luego stock por granja. */
+  /** Colombia + EC/PA: carga catálogo item_inventario_ecuador y conceptos; luego stock por ubicación. */
   private cargarCatalogEcuadorPanama(): void {
     if (!this.granjaId) return;
+    // Colombia: mapa codigo→catalogo_items.id para el contrato de ids al descontar (una sola vez).
+    if (this.isColombia && this.catalogItemIdPorCodigo.size === 0) {
+      this.inventarioSvc.getCatalogo('', 1, 2000).pipe(
+        catchError(() => of([] as CatalogItemDto[]))
+      ).subscribe(cat => {
+        this.catalogItemIdPorCodigo.clear();
+        for (const c of cat) {
+          if (c?.codigo && c.id != null) this.catalogItemIdPorCodigo.set(String(c.codigo).trim().toLowerCase(), Number(c.id));
+        }
+      });
+    }
     this.gestionInventarioSvc.getItemsByType(null, null, true).pipe(
-      catchError(err => { console.error('Error al cargar ítems inventario Ecuador:', err); return of([]); })
+      catchError(err => { console.error('Error al cargar ítems inventario:', err); return of([]); })
     ).subscribe((list: ItemInventarioDto[]) => {
       this.itemsEcuadorPanama = list ?? [];
       this.conceptosEcuadorPanama = Array.from(
@@ -1041,19 +1059,22 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
             .filter(x => !!x)
         )
       ).sort((a, b) => a.localeCompare(b));
-      if (this.conceptosEcuadorPanama.length > 0) {
+      // Colombia usa la lista fija de tipos ('alimento' en minúscula matchea el filtro por concepto);
+      // solo EC/PA reemplazan los tipos por los conceptos del catálogo.
+      if (this.isEcuadorOrPanama && this.conceptosEcuadorPanama.length > 0) {
         this.tiposItem = this.conceptosEcuadorPanama;
       }
       this.cargarStockEcuadorPanama();
     });
   }
 
-  /** Ecuador/Panamá: carga stock inventario-gestion y llena inventarioPorItem por item id. */
+  /** Colombia + EC/PA: carga stock inventario-gestion y llena inventarioPorItem por item id.
+   * Colombia opera a NIVEL GRANJA (núcleo/galpón NULL); EC/PA por núcleo/galpón del lote. */
   private cargarStockEcuadorPanama(): void {
     if (!this.granjaId) return;
     const params: { farmId: number; nucleoId?: string; galponId?: string; itemType?: string } = { farmId: this.granjaId };
-    if (this.nucleoId) params.nucleoId = this.nucleoId;
-    if (this.galponId) params.galponId = this.galponId;
+    if (!this.isColombia && this.nucleoId) params.nucleoId = this.nucleoId;
+    if (!this.isColombia && this.galponId) params.galponId = this.galponId;
     this.gestionInventarioSvc.getStock(params).pipe(
       catchError(err => { console.error('Error al cargar stock:', err); return of([]); })
     ).subscribe((rows: InventarioGestionStockDto[]) => {
@@ -1068,7 +1089,55 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       this.alimentosFiltradosMachos = this.alimentosCatalog;
       this.alimentosById.clear();
       this.alimentosCatalog.forEach(a => { if (a.id != null) this.alimentosById.set(a.id, a); });
+      // Colombia edición: traducir ids guardados (catalogo_items) al id del dropdown (iie) por código.
+      if (this.isColombia && this.editingSeguimiento) this.traducirIdsColombiaAlEditar();
     });
+  }
+
+  /** Colombia edición: traduce el id guardado (posible catalogo_items.id) al id del dropdown actual
+   * (item_inventario_ecuador.id), buscando por código. Si ya es un iieId, lo deja igual. */
+  private mapStoredIdToDropdownId(storedId: number): number {
+    if (!this.isColombia || !storedId) return storedId;
+    if (this.itemsEcuadorPanama.some(i => i.id === storedId)) return storedId;
+    let codigo: string | undefined;
+    for (const [cod, id] of this.catalogItemIdPorCodigo.entries()) {
+      if (id === storedId) { codigo = cod; break; }
+    }
+    if (!codigo) return storedId;
+    const iie = this.itemsEcuadorPanama.find(i => (i.codigo ?? '').trim().toLowerCase() === codigo);
+    return iie ? iie.id : storedId;
+  }
+
+  private traducirIdsColombiaAlEditar(): void {
+    for (const arr of [this.itemsHembrasArray, this.itemsMachosArray]) {
+      for (const control of arr.controls) {
+        const actual = Number(control.get('catalogItemId')?.value);
+        if (!actual) continue;
+        const traducido = this.mapStoredIdToDropdownId(actual);
+        if (traducido !== actual) control.patchValue({ catalogItemId: traducido }, { emitEvent: false });
+      }
+    }
+  }
+
+  /**
+   * Campos de id + nombre para persistir un ítem según el contrato de inventario del país.
+   * `itemId` = id del dropdown (Colombia/EC/PA = item_inventario_ecuador.id). Colombia: si el ítem
+   * tiene espejo en catalogo_items (mismo código) se envía ese id (camino-1); si es nuevo sin espejo
+   * (p.ej. "moises") se envía el id de item_inventario_ecuador (camino-2).
+   */
+  private buildItemPersistFields(itemId: number): { catalogItemId: number; itemInventarioEcuadorId: number | null; nombre?: string } {
+    const nombre = this.alimentosById.get(itemId)?.nombre ?? undefined;
+    if (this.isEcuadorOrPanama) {
+      return { catalogItemId: itemId, itemInventarioEcuadorId: itemId, nombre };
+    }
+    if (this.isColombia) {
+      const item = this.itemsEcuadorPanama.find(i => i.id === itemId);
+      const codigo = (item?.codigo ?? '').trim().toLowerCase();
+      const catalogoItemsId = codigo ? this.catalogItemIdPorCodigo.get(codigo) : undefined;
+      if (catalogoItemsId) return { catalogItemId: catalogoItemsId, itemInventarioEcuadorId: null, nombre };
+      return { catalogItemId: 0, itemInventarioEcuadorId: itemId, nombre };
+    }
+    return { catalogItemId: itemId, itemInventarioEcuadorId: null, nombre };
   }
 
   /**
@@ -1077,6 +1146,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
    */
   cargarInventarioGranja(granjaId: number, sexo?: 'hembras' | 'machos', itemType?: string | null): void {
     if (!granjaId) return;
+    // Colombia + EC/PA usan el inventario nuevo (cargarCatalog/StockEcuadorPanama). No tocar el viejo
+    // (evita clobber de inventarioPorItem/alimentosCatalog con datos del inventario legacy).
+    if (this.usaInventarioGestion) return;
 
     // Obtener el tipo de item del formulario si no se proporciona
     if (!itemType && sexo) {
@@ -1190,6 +1262,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
    */
   consultarInventario(sexo: 'hembras' | 'machos', catalogItemId: number): void {
     if (!this.granjaId || !catalogItemId) return;
+    // Colombia + EC/PA: la disponibilidad se lee del inventario nuevo (inventarioPorItem vía
+    // getCantidadDisponible en la plantilla). No consultar el endpoint del inventario viejo.
+    if (this.usaInventarioGestion) return;
 
     if (sexo === 'hembras') {
       this.cargandoInventarioHembras = true;
