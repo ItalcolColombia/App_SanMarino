@@ -185,6 +185,7 @@
               <h3 class="modal-section__title">1) Ubicación y fecha</h3>
               <app-filtro-select
                 [filterDataUrl]="filterDataUrl"
+                [showNucleoGalpon]="false"
                 [selectedGranjaId]="formFarmId"
                 [selectedNucleoId]="formNucleoId"
                 [selectedGalponId]="formGalponId"
@@ -195,6 +196,7 @@
                 (loteChange)="formLoteId = $event"
                 (filterDataLoaded)="onFilterDataLoaded($event)">
               </app-filtro-select>
+              <p class="hint">El consumo se descuenta a nivel granja; se referencia por corrida (lote), sin importar el galpón.</p>
               <div class="modal-row">
                 <div class="ux-field">
                   <label>Fecha</label>

@@ -20,38 +20,42 @@
     </div>
 
     <!-- Núcleo -->
-    <div class="ux-field">
-      <label for="nucleo-select">Núcleo</label>
-      <select
-        id="nucleo-select"
-        [disabled]="!selectedGranjaId || nucleos.length === 0"
-        [ngModel]="selectedNucleoId"
-        (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
-        <option [ngValue]="null" disabled>— Seleccione núcleo —</option>
-        @for (n of nucleos; track trackByNucleo($index, n)) {
-          <option [ngValue]="n.nucleoId">
-            {{ n.nucleoNombre }}
-          </option>
-        }
-      </select>
-    </div>
+    @if (showNucleoGalpon) {
+      <div class="ux-field">
+        <label for="nucleo-select">Núcleo</label>
+        <select
+          id="nucleo-select"
+          [disabled]="!selectedGranjaId || nucleos.length === 0"
+          [ngModel]="selectedNucleoId"
+          (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
+          <option [ngValue]="null" disabled>— Seleccione núcleo —</option>
+          @for (n of nucleos; track trackByNucleo($index, n)) {
+            <option [ngValue]="n.nucleoId">
+              {{ n.nucleoNombre }}
+            </option>
+          }
+        </select>
+      </div>
+    }
 
     <!-- Galpón -->
-    <div class="ux-field">
-      <label for="galpon-select">Galpón</label>
-      <select
-        id="galpon-select"
-        [disabled]="!selectedGranjaId || galpones.length === 0"
-        [ngModel]="selectedGalponId"
-        (ngModelChange)="selectedGalponId = $event; onGalponChange()">
-        <option [ngValue]="null" disabled>— Seleccione galpón —</option>
-        @for (g of galpones; track trackByGalpon($index, g)) {
-          <option [ngValue]="g.id">
-            {{ g.label }}
-          </option>
-        }
-      </select>
-    </div>
+    @if (showNucleoGalpon) {
+      <div class="ux-field">
+        <label for="galpon-select">Galpón</label>
+        <select
+          id="galpon-select"
+          [disabled]="!selectedGranjaId || galpones.length === 0"
+          [ngModel]="selectedGalponId"
+          (ngModelChange)="selectedGalponId = $event; onGalponChange()">
+          <option [ngValue]="null" disabled>— Seleccione galpón —</option>
+          @for (g of galpones; track trackByGalpon($index, g)) {
+            <option [ngValue]="g.id">
+              {{ g.label }}
+            </option>
+          }
+        </select>
+      </div>
+    }
 
     <!-- Lote -->
     <div class="ux-field">

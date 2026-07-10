@@ -138,8 +138,10 @@ export class GastosInventarioPageComponent implements OnInit {
     this.modalMode = 'create';
     this.modalTitle = 'Registrar gasto de inventario';
     this.formFarmId = this.selectedFarmId;
-    this.formNucleoId = this.selectedNucleoId;
-    this.formGalponId = this.selectedGalponId;
+    // Núcleo/galpón no se piden para registrar el gasto (se descuenta y se referencia
+    // a nivel granja + corrida); se dejan null para no heredar el filtro de lista.
+    this.formNucleoId = null;
+    this.formGalponId = null;
     this.formLoteId = this.selectedLoteId;
     this.formFecha = this.todayYmd();
     this.formConcepto = '';

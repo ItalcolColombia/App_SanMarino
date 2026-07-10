@@ -46,6 +46,13 @@ export class FiltroSelectComponent implements OnInit {
   @Input() filterDataUrl: string | null = null;
   @Input() soloLotesPadres: boolean = false; // Si es true, solo muestra lotes sin padre
   @Input() excluirLoteId: number | null = null; // Lote a excluir de la lista (para edición)
+  /**
+   * Si es false, oculta los selects de Núcleo/Galpón (deja solo Granja → Lote).
+   * El lote se filtra únicamente por granja y se deduplica por corrida (mismo
+   * nombre de lote puede repetirse una vez por galpón). Default true = sin
+   * cambios en los demás consumidores de este componente.
+   */
+  @Input() showNucleoGalpon: boolean = true;
 
   // ================== outputs ==================
   @Output() granjaChange = new EventEmitter<number | null>();
@@ -252,15 +259,33 @@ export class FiltroSelectComponent implements OnInit {
 
     this.hasSinGalpon = filtered.some(l => !this.hasValue(l.galponId));
 
-    if (!this.selectedGalponId) { this.lotes = filtered; return; }
-
-    if (this.selectedGalponId === this.SIN_GALPON) {
-      this.lotes = filtered.filter(l => !this.hasValue(l.galponId));
-      return;
+    let result: LoteDto[];
+    if (!this.selectedGalponId) {
+      result = filtered;
+    } else if (this.selectedGalponId === this.SIN_GALPON) {
+      result = filtered.filter(l => !this.hasValue(l.galponId));
+    } else {
+      const sel = this.normalizeId(this.selectedGalponId);
+      result = filtered.filter(l => this.normalizeId(l.galponId) === sel);
     }
 
-    const sel = this.normalizeId(this.selectedGalponId);
-    this.lotes = filtered.filter(l => this.normalizeId(l.galponId) === sel);
+    this.lotes = this.showNucleoGalpon ? result : this.dedupLotesPorCorrida(result);
+  }
+
+  /**
+   * Una corrida (mismo nombre de lote) puede tener un registro por galpón. Cuando
+   * el galpón no se muestra/filtra (showNucleoGalpon=false), el select de Lote
+   * debe listar la corrida UNA sola vez — se reporta a nivel granja, no por galpón.
+   * Se queda con el loteId más bajo como representante (referencia estable).
+   */
+  private dedupLotesPorCorrida(lotes: LoteDto[]): LoteDto[] {
+    const seen = new Map<string, LoteDto>();
+    for (const l of lotes) {
+      const key = (l.loteNombre || '').trim().toLowerCase() || `__id_${l.loteId}`;
+      const existing = seen.get(key);
+      if (!existing || l.loteId < existing.loteId) seen.set(key, l);
+    }
+    return Array.from(seen.values());
   }
 
   /** Cuando se usa filterDataUrl: construye lista de galpones desde allGalpones filtrada. */
