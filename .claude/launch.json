@@ -29,6 +29,14 @@
       "cwd": "frontend",
       "port": 4300,
       "autoPort": false
+    },
+    {
+      "name": "frontend-node22-4300",
+      "runtimeExecutable": "C:/Users/SAN MARINO/node-portable/node-v22.23.1-win-x64/node.exe",
+      "runtimeArgs": ["node_modules/@angular/cli/bin/ng.js", "serve", "--port", "4300"],
+      "cwd": "frontend",
+      "port": 4300,
+      "autoPort": false
     }
   ]
 }
