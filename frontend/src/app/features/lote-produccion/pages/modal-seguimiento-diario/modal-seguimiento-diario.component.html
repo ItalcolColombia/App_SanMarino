@@ -96,12 +96,12 @@
                         <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
                           @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
-                            <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
+                            <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.unit }}
+                            Disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))?.unit }}
                           </small>
                         }
                       </div>
@@ -113,6 +113,9 @@
                           <div style="flex: 1;"><input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" /></div>
                           <div style="width: 100px;"><select formControlName="unidad" class="ux-select" style="width: 100%;"><option value="kg">kg</option><option value="g">gramos</option></select></div>
                         </div>
+                        @if (cantidadExcedeDisponible($any(itemGroup))) {
+                          <small class="ux-hint text-danger">Supera el stock disponible.</small>
+                        }
                       </div>
                     }
                     @if (itemGroup.get('tipoItem')?.value && itemGroup.get('tipoItem')?.value !== 'alimento') {
@@ -158,12 +161,12 @@
                         <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
                           @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
-                            <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
+                            <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.unit }}
+                            Disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))?.unit }}
                           </small>
                         }
                       </div>
@@ -175,6 +178,9 @@
                           <div style="flex: 1;"><input [id]="'f-cantidad-m-' + i" type="number" step="0.001" min="0" formControlName="cantidad" /></div>
                           <div style="width: 100px;"><select formControlName="unidad" class="ux-select" style="width: 100%;"><option value="kg">kg</option><option value="g">gramos</option></select></div>
                         </div>
+                        @if (cantidadExcedeDisponible($any(itemGroup))) {
+                          <small class="ux-hint text-danger">Supera el stock disponible.</small>
+                        }
                       </div>
                     }
                     @if (itemGroup.get('tipoItem')?.value && itemGroup.get('tipoItem')?.value !== 'alimento') {
@@ -395,7 +401,7 @@
         </div>
         <footer class="ux-modal__footer">
           <button type="button" class="btn btn--ghost" (click)="onClose()">Cancelar</button>
-          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">
+          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid || hasCantidadExcedida">
             {{ loading ? 'Guardando…' : (editingSeguimiento ? 'Actualizar' : 'Guardar Seguimiento') }}
           </button>
         </footer>
