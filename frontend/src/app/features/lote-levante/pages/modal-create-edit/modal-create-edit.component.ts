@@ -8,7 +8,7 @@ import { SeguimientoLoteLevanteDto, CreateSeguimientoLoteLevanteDto, UpdateSegui
 import { LoteDto } from '../../../lote/services/lote.service';
 import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { GestionInventarioService, ItemInventarioEcuadorDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of, firstValueFrom } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
@@ -91,7 +91,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   // Tipos de ítem (Ecuador/Panamá: se reemplaza por conceptos de item_inventario_ecuador)
   private readonly TIPOS_ITEM_DEFAULT: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
   tiposItem: string[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
-  itemsEcuadorPanama: ItemInventarioEcuadorDto[] = [];
+  itemsEcuadorPanama: ItemInventarioDto[] = [];
   conceptosEcuadorPanama: string[] = [];
 
   // Inventario
@@ -555,7 +555,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     });
   }
 
-  private itemEcuadorToCatalogItem(i: ItemInventarioEcuadorDto): CatalogItemDto {
+  private itemEcuadorToCatalogItem(i: ItemInventarioDto): CatalogItemDto {
     return {
       id: i.id,
       codigo: i.codigo,
@@ -1440,7 +1440,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   ): void {
     this.gestionInventarioSvc.getItemsByType(null, null, true).pipe(
       catchError(err => { console.error('Error al cargar ítems inventario Ecuador:', err); return of([]); })
-    ).subscribe((list: ItemInventarioEcuadorDto[]) => {
+    ).subscribe((list: ItemInventarioDto[]) => {
       if (loadId !== this.inventarioLoadId) return;
       this.itemsEcuadorPanama = list ?? [];
       this.conceptosEcuadorPanama = Array.from(

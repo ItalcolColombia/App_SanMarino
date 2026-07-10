@@ -277,9 +277,6 @@ export interface ItemInventarioDto {
   activo: boolean;
 }
 
-/** @deprecated Alias transicional del nombre viejo. Usar `ItemInventarioDto`. */
-export type ItemInventarioEcuadorDto = ItemInventarioDto;
-
 @Injectable({ providedIn: 'root' })
 export class GestionInventarioService {
   private readonly api = environment.apiUrl;
