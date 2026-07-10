@@ -134,13 +134,13 @@
                             <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                               <option [ngValue]="null">— Seleccione —</option>
                               @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH))); track a) {
-                                <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
+                                <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemH)) }}</option>
                               }
                             </select>
                           </div>
-                          @if (itemH.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))) {
+                          @if (itemH.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemH.get('catalogItemId')?.value), $any(itemH))) {
                             <small class="ux-hint text-success">
-                              Stock disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.unit }}
+                              Stock disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemH.get('catalogItemId')?.value), $any(itemH)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemH.get('catalogItemId')?.value), $any(itemH))?.unit }}
                             </small>
                           }
                         </div>
@@ -200,13 +200,13 @@
                             <select [id]="'f-item-m-' + j" formControlName="catalogItemId">
                               <option [ngValue]="null">— Seleccione —</option>
                               @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroMacho($any(itemM))); track a) {
-                                <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
+                                <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemM)) }}</option>
                               }
                             </select>
                           </div>
-                          @if (itemM.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemM.get('catalogItemId')?.value))) {
+                          @if (itemM.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemM.get('catalogItemId')?.value), $any(itemM))) {
                             <small class="ux-hint text-success">
-                              Stock disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemM.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemM.get('catalogItemId')?.value))?.unit }}
+                              Stock disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemM.get('catalogItemId')?.value), $any(itemM)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemM.get('catalogItemId')?.value), $any(itemM))?.unit }}
                             </small>
                           }
                         </div>
@@ -276,16 +276,16 @@
                                 <option [ngValue]="null">— Seleccione —</option>
                                 @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroGeneral($any(itemG))); track a) {
                                   <option [ngValue]="a.id">
-                                    {{ getItemDisplayText(a) }}
+                                    {{ getItemDisplayText(a, $any(itemG)) }}
                                   </option>
                                 }
                               </select>
                             </div>
-                            @if (itemG.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemG.get('catalogItemId')?.value))) {
+                            @if (itemG.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemG.get('catalogItemId')?.value), $any(itemG))) {
                               <small class="ux-hint text-success">
-                                Disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemG.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemG.get('catalogItemId')?.value))?.unit }}
+                                Disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemG.get('catalogItemId')?.value), $any(itemG)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemG.get('catalogItemId')?.value), $any(itemG))?.unit }}
                                 @if (editing) {
-                                  • Máx. editar: {{ getMaxPermitidoKg($safeNavigationMigration(itemG.get('catalogItemId')?.value)) | number:'1.0-2' }} kg
+                                  • Máx. editar: {{ getMaxPermitidoKg($safeNavigationMigration(itemG.get('catalogItemId')?.value), $any(itemG)) | number:'1.0-2' }} kg
                                 }
                               </small>
                             }
