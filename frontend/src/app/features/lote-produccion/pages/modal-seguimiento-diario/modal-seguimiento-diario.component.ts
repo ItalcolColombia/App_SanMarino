@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, AbstractControl, Validators } from '@angular/forms';
 import { CrearSeguimientoRequest, SeguimientoItemDto } from '../../services/produccion.service';
 import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
@@ -371,8 +371,74 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return this.inventarioPorItem.get(catalogItemId) ?? null;
   }
 
-  getItemDisplayText(item: CatalogItemExtended): string {
-    const cantidad = this.getCantidadDisponible(item.id ?? undefined);
+  /** Convierte cantidad a kg según la unidad declarada (g/gramos → /1000; resto se asume kg). */
+  private toKg(cantidad: number, unidad: string | null | undefined): number {
+    const u = String(unidad || 'kg').trim().toLowerCase();
+    if (u === 'g' || u === 'gramo' || u === 'gramos') return cantidad / 1000;
+    return cantidad;
+  }
+
+  /**
+   * Suma en kg ya asignada a este mismo ítem en OTRAS filas del formulario actual (hembras + machos),
+   * sin guardar aún, excluyendo la fila que se está evaluando. El backend suma en un solo descuento
+   * las filas que comparten ítem (mismo alimento en hembras y machos) — por eso el "disponible"
+   * mostrado en cada fila debe descontar lo que otras filas ya reservaron.
+   */
+  private sumaReservadaEnOtrasFilas(catalogItemId: number, excludeControl: AbstractControl | null): number {
+    if (!catalogItemId) return 0;
+    let total = 0;
+    for (const arr of [this.itemsHembrasArray, this.itemsMachosArray]) {
+      for (const c of arr.controls) {
+        if (c === excludeControl) continue;
+        if (Number(c.get('catalogItemId')?.value) !== catalogItemId) continue;
+        const cantidad = Number(c.get('cantidad')?.value) || 0;
+        if (cantidad <= 0) continue;
+        total += this.toKg(cantidad, c.get('unidad')?.value || 'kg');
+      }
+    }
+    return total;
+  }
+
+  /** Disponible AJUSTADO para una fila concreta: el stock menos lo que ya reservan otras filas del
+   * mismo ítem en este formulario. Usar esta versión (no `getCantidadDisponible`) en toda vista de
+   * "disponible" del bloque de alimento. */
+  getCantidadDisponibleAjustada(
+    catalogItemId: number | null | undefined,
+    excludeControl: AbstractControl | null
+  ): { quantity: number; unit: string } | null {
+    if (!catalogItemId) return null;
+    const base = this.getCantidadDisponible(catalogItemId);
+    if (!base) return null;
+    const baseKg = this.toKg(Number(base.quantity || 0), base.unit);
+    const reservado = this.sumaReservadaEnOtrasFilas(catalogItemId, excludeControl);
+    return { quantity: Math.max(0, baseKg - reservado), unit: 'kg' };
+  }
+
+  /** True si la cantidad ingresada supera el disponible del ítem (descontando lo que otras filas del
+   * formulario ya reservan del mismo ítem). */
+  cantidadExcedeDisponible(itemGroup: AbstractControl): boolean {
+    const catalogItemId = Number(itemGroup.get('catalogItemId')?.value);
+    const cantidad = Number(itemGroup.get('cantidad')?.value || 0);
+    const unidad = String(itemGroup.get('unidad')?.value || 'kg');
+    if (!catalogItemId || cantidad <= 0) return false;
+    const base = this.getCantidadDisponible(catalogItemId);
+    if (!base) return false; // sin dato de stock, no bloquear aquí
+    const baseKg = this.toKg(Number(base.quantity || 0), base.unit);
+    const reservadoOtrasFilas = this.sumaReservadaEnOtrasFilas(catalogItemId, itemGroup);
+    const maxPermitidoKg = baseKg - reservadoOtrasFilas;
+    return this.toKg(cantidad, unidad) > maxPermitidoKg;
+  }
+
+  /** Bloquea guardar si algún ítem (hembras o machos) supera el disponible una vez sumadas las filas
+   * que comparten el mismo ítem en este formulario. */
+  get hasCantidadExcedida(): boolean {
+    const h = this.itemsHembrasArray.controls.some(c => this.cantidadExcedeDisponible(c));
+    const m = this.itemsMachosArray.controls.some(c => this.cantidadExcedeDisponible(c));
+    return h || m;
+  }
+
+  getItemDisplayText(item: CatalogItemExtended, excludeControl: AbstractControl | null = null): string {
+    const cantidad = this.getCantidadDisponibleAjustada(item.id ?? undefined, excludeControl);
     if (cantidad) return `${item.codigo} — ${item.nombre} (Disp.: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
     return `${item.codigo} — ${item.nombre}`;
   }
