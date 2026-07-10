@@ -3,7 +3,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, AbstractControl, Validators } from '@angular/forms';
 import { SeguimientoLoteLevanteDto, CreateSeguimientoLoteLevanteDto, UpdateSeguimientoLoteLevanteDto, ItemSeguimientoDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
@@ -619,22 +619,61 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.originalConsumoKgByItem = map;
   }
 
-  getMaxPermitidoKg(catalogItemId: number | null | undefined): number | null {
+  /**
+   * Suma en kg ya asignada a este mismo ítem en OTRAS filas del formulario actual (hembras + machos +
+   * generales), sin guardar aún, excluyendo la fila que se está evaluando. El backend suma en un solo
+   * descuento las filas que comparten ítem (mismo alimento en hembras y machos, o dos filas del mismo
+   * género) — por eso el "disponible" mostrado en cada fila debe descontar lo que otras filas ya
+   * reservaron, o dos filas mostrarían cada una el stock completo aunque juntas lo superen.
+   */
+  private sumaReservadaEnOtrasFilas(catalogItemId: number, excludeControl: AbstractControl | null): number {
+    if (!catalogItemId) return 0;
+    let total = 0;
+    for (const arr of [this.itemsHembrasArray, this.itemsMachosArray, this.itemsGeneralesArray]) {
+      for (const c of arr.controls) {
+        if (c === excludeControl) continue;
+        if (Number(c.get('catalogItemId')?.value) !== catalogItemId) continue;
+        const cantidad = Number(c.get('cantidad')?.value) || 0;
+        if (cantidad <= 0) continue;
+        total += this.toKg(cantidad, c.get('unidad')?.value || 'kg');
+      }
+    }
+    return total;
+  }
+
+  getMaxPermitidoKg(catalogItemId: number | null | undefined, excludeControl: AbstractControl | null = null): number | null {
     if (!catalogItemId) return null;
     const disponible = this.getCantidadDisponible(catalogItemId);
     if (!disponible) return null;
     const disponibleKg = this.toKg(Number(disponible.quantity || 0), disponible.unit);
     const originalKg = this.editing ? this.getOriginalConsumoKg(catalogItemId) : 0;
-    return disponibleKg + originalKg;
+    const reservadoOtrasFilas = this.sumaReservadaEnOtrasFilas(catalogItemId, excludeControl);
+    return disponibleKg + originalKg - reservadoOtrasFilas;
   }
 
-  /** True si la cantidad ingresada supera el disponible del ítem seleccionado. */
+  /** Disponible AJUSTADO para una fila concreta: el stock (más consumo original si se edita) menos lo
+   * que ya reservan otras filas del mismo ítem en este formulario. Usar esta versión (no
+   * `getCantidadDisponible`) en toda vista de "disponible" del bloque de alimento. */
+  getCantidadDisponibleAjustada(
+    catalogItemId: number | null | undefined,
+    excludeControl: AbstractControl | null
+  ): { quantity: number; unit: string } | null {
+    if (!catalogItemId) return null;
+    const base = this.getCantidadDisponible(catalogItemId);
+    if (!base) return null;
+    const maxKg = this.getMaxPermitidoKg(catalogItemId, excludeControl);
+    if (maxKg == null) return null;
+    return { quantity: Math.max(0, maxKg), unit: 'kg' };
+  }
+
+  /** True si la cantidad ingresada supera el disponible del ítem seleccionado (descontando lo que
+   * otras filas del formulario ya reservan del mismo ítem). */
   cantidadExcedeDisponible(itemGroup: FormGroup): boolean {
     const catalogItemId = Number(itemGroup.get('catalogItemId')?.value);
     const cantidad = Number(itemGroup.get('cantidad')?.value || 0);
     const unidad = String(itemGroup.get('unidad')?.value || 'kg');
     if (!catalogItemId || cantidad <= 0) return false;
-    const maxPermitidoKg = this.getMaxPermitidoKg(catalogItemId);
+    const maxPermitidoKg = this.getMaxPermitidoKg(catalogItemId, itemGroup);
     if (maxPermitidoKg == null) return false; // si no hay dato, no bloquear aquí
     const qtyKg = this.toKg(cantidad, unidad);
     return qtyKg > maxPermitidoKg;
@@ -658,9 +697,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return false;
   }
 
-  // Obtener texto completo del ítem con cantidad disponible para mostrar en el dropdown
-  getItemDisplayText(item: CatalogItemDto): string {
-    const cantidad = this.getCantidadDisponible(item.id);
+  // Obtener texto completo del ítem con cantidad disponible (ajustada por reservas de otras filas) para el dropdown
+  getItemDisplayText(item: CatalogItemDto, excludeControl: AbstractControl | null = null): string {
+    const cantidad = this.getCantidadDisponibleAjustada(item.id, excludeControl);
     if (cantidad) {
       return `${item.codigo} — ${item.nombre} (Disponible: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
     }
