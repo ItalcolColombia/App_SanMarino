@@ -749,6 +749,13 @@ export class IndicadorEcuadorListComponent implements OnInit {
     }
     const hayMerma = lotesConMerma > 0;
     const first = R[0];
+    // Fechas del TOTAL = las del "primer galpón" (el que encasetó más temprano en la
+    // corrida), no un promedio ni vacío — así lo pide Costos para reconciliar contra su Excel.
+    const primerGalpon = R.reduce((min, r) => {
+      if (!r.fechaInicioLote) return min;
+      if (!min || !min.fechaInicioLote) return r;
+      return new Date(r.fechaInicioLote).getTime() < new Date(min.fechaInicioLote).getTime() ? r : min;
+    }, null as IndicadorEcuadorDto | null) ?? first;
     const pesoAj = first.pesoAjusteVariable;
     const divAj = first.divisorAjusteVariable;
     const mortPct = enc > 0 ? (mort / enc) * 100 : 0;
@@ -803,7 +810,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
       totalKilosDespachadosCliente: hayMerma ? (prodKg - mermaKg) : prodKg,
       diasEngorde: lotesConDias > 0 ? diasEng / lotesConDias : 0,
       avesSobrante: sobrante,
-      fechaInicioLote: null,
+      fechaAlistamiento: primerGalpon.fechaAlistamiento ?? null,
+      fechaInicioLote: primerGalpon.fechaInicioLote ?? null,
+      fechaLiquidacion: primerGalpon.fechaLiquidacion ?? null,
       fechaCierreLote: null,
       loteCerrado: true
     };
@@ -972,8 +981,16 @@ export class IndicadorEcuadorListComponent implements OnInit {
     return `${g} · ${item.loteNombre || 'Lote ' + item.loteAveEngordeId}`;
   }
 
+  /**
+   * Fecha guardada como timestamptz a medianoche UTC (fecha "pura", sin hora real).
+   * OJO: NO usar `new Date(fecha).toLocaleDateString()` — convierte a la zona horaria
+   * local del navegador y en Ecuador (UTC-5) corre la fecha un día hacia atrás.
+   * Se extrae YYYY-MM-DD directo del ISO, sin pasar por conversión de zona horaria.
+   */
   formatearFechaLote(fecha: string | null | undefined): string {
     if (!fecha) return '—';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
     const d = new Date(fecha);
     return isNaN(d.getTime()) ? fecha : d.toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
@@ -1017,9 +1034,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
       ['ECUADOR ITALCOL — Liquidación Técnica Pollo Engorde'],
       ['Indicador', ...encCols, 'TOTAL'],
       fila('Granja', r => r.granjaNombre, tot?.granjaNombre ?? ''),
-      fila('Fecha alistamiento',          r => fecha(r.fechaAlistamiento),      '—'),
-      fila('Fecha encasetamiento',        r => fecha(r.fechaInicioLote),        '—'),
-      fila('Fecha liquidación',           r => fecha(r.fechaLiquidacion),       '—'),
+      fila('Fecha alistamiento',          r => fecha(r.fechaAlistamiento),      fecha(tot?.fechaAlistamiento)),
+      fila('Fecha encasetamiento',        r => fecha(r.fechaInicioLote),        fecha(tot?.fechaInicioLote)),
+      fila('Fecha liquidación',           r => fecha(r.fechaLiquidacion),       fecha(tot?.fechaLiquidacion)),
       fila('Aves encasetadas',           r => n0(r.avesEncasetadas),           n0(tot?.avesEncasetadas)),
       fila('Aves vendidas / despacho',   r => n0(r.avesSacrificadas),          n0(tot?.avesSacrificadas)),
       fila('Aves agregadas de más (sobrante)', r => n0(r.avesSobrante ?? 0),    n0(tot?.avesSobrante ?? 0)),
