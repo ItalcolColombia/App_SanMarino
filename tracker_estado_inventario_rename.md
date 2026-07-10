@@ -43,6 +43,17 @@ Rename de token `ItemInventarioEcuador(?!Id)` → `ItemInventario` (case-sensiti
 - [x] Parametrización: se usan los primitivos existentes (`ShowIfEcuadorPanamaDirective`, `isEcuadorOrPanama`, `ManejaAlimentoPorGalpon`) → sin hardcode nuevo de "ecuador"; visibilidad de agua/galpón ya parametrizada.
 - [ ] ⚠️ `lote-levante/modal-create-edit` (otra sesión, otro worktree): NO tocado; usa el alias `ItemInventarioEcuadorDto`. Coordinar migración del alias cuando esa feature aterrice.
 
+## ✅ RESOLUCIÓN 2ª sesión (2026-07-10) — decisiones del usuario ratificadas
+
+Retomado en worktree `compassionate-fermat-677ea6` (fast-forward de `c0fd78e`→`c2dd7a2`, misma línea que `epic-mendel`). Verificado sobre el commit base: **control grep `ItemInventarioEcuador(?!Id)` = 0** en `backend/src` y `frontend/src` (fuera de `/Migrations/`). Único uso del alias `ItemInventarioEcuadorDto` = **la definición + 4 usos, todos dentro del modal bloqueado** `lote-levante/modal-create-edit`.
+
+El usuario resolvió las 3 tareas abiertas del handoff (todas por la recomendación registrada):
+1. **Símbolos país-gated `*EcuadorPanama`/`isEcuadorOrPanama` → CONSERVAR.** ✔ Cerrado. No se renombran (coherentes con `ShowIfEcuadorPanamaDirective`; el smell era el catálogo, ya neutralizado). Neutralizarlos habría exigido renombrar también la directiva + selector en ~10 templates y tocar el modal bloqueado.
+2. **Modal `lote-levante/modal-create-edit` → SIGUE EN CURSO (otra sesión). NO tocar.** Alias TS `ItemInventarioEcuadorDto` se **mantiene** (compila el modal). Sigue abierto/bloqueado.
+3. **Fase C (rename físico BD) → DIFERIR.** ✔ Cerrado para este pase. Los nombres físicos quedan como están (internos, no visibles). Se hará como fase propia con su OK de DDL prod + deploy coordinado front+back+wire.
+
+**Estado neto:** el repo queda 100% alineado *dado estas decisiones*. Lo único pendiente (tareas 2→3) queda **legítimamente bloqueado** esperando que la feature multi-alimento aterrice; nada más es accionable sin riesgo. Sin cambios de código en esta sesión (solo doc) → no se re-corrió build/test; el base `c2dd7a2` ya está validado verde.
+
 ## 🤝 HANDOFF para la próxima sesión (dejar alineado 100%)
 
 **Commit base:** el rename del catálogo + config front está commiteado en `claude/epic-mendel-dac9f3` (ver `git log`). Backend `dotnet build` 0/0 + `dotnet test` 61/61, front `ng build` OK. **Nada de esto tocó BD, wire ni jsonb** (decisión D1a/D2a).
@@ -54,12 +65,10 @@ Rename de token `ItemInventarioEcuador(?!Id)` → `ItemInventario` (case-sensiti
 - ⚠️ `lote-levante/pages/modal-create-edit` lo edita OTRA sesión (feature multi-alimento). Compila por el **alias deprecado** `ItemInventarioEcuadorDto` en `gestion-inventario.service.ts`. **NO reescribir ese archivo**; coordinar.
 
 **Tareas para alineación total (en orden):**
-1. **Decidir símbolos de flujo país-gated** `*EcuadorPanama` / `isEcuadorOrPanama` / `updateEcuadorOrPanamaStatus` en consumidores (engorde-comun, lote-produccion, gestion-inventario-page, y levante):
-   - Recomendación de esta sesión: **conservarlos** (nombran el flujo EC/PA, coherentes con la directiva sancionada `ShowIfEcuadorPanamaDirective`; el smell era el catálogo, ya resuelto).
-   - Si el usuario prefiere neutralizarlos: hacerlo **coherente** (incluir `isEcuadorOrPanama` y valorar renombrar la directiva) y **actualizar templates**; verificar que no queden bindings rotos. Excepto `itemInventarioEcuadorId` (wire) y `*ItemInventarioEcuadorId` (form) que se conservan.
-2. **Migrar `modal-create-edit` (levante) del alias** cuando la feature multi-alimento aterrice/mergee: cambiar import `ItemInventarioEcuadorDto` → `ItemInventarioDto` y las 3 usos. Coordinar con esa sesión para evitar conflicto.
-3. **Quitar el alias TS** `export type ItemInventarioEcuadorDto = ItemInventarioDto` de `gestion-inventario.service.ts` cuando NADIE lo use (grep `ItemInventarioEcuadorDto` en `frontend/src` = 0).
-4. **(Opcional, futuro — requiere OK de DDL prod) Fase C BD física:** migración EF idempotente rename `item_inventario_ecuador`→`item_inventario` + columna `item_inventario_ecuador_id`→`item_inventario_id` + índices `ix_item_inventario_ecuador_*` + vista `vw_validacion_alimento_engorde` + regen snapshot + **probar local**. Al hacerla, renombrar JUNTAS columna + prop `ItemInventarioEcuadorId` + wire `itemInventarioEcuadorId` (front+back mismo deploy) para mantener coherencia.
+1. ✅ **RESUELTO (2026-07-10): CONSERVAR** los símbolos país-gated `*EcuadorPanama` / `isEcuadorOrPanama` / `updateEcuadorOrPanamaStatus`. No se renombran. (Nombran el flujo EC/PA, coherentes con `ShowIfEcuadorPanamaDirective`; el smell era el catálogo, ya resuelto.)
+2. ⏳ **BLOQUEADO (esperar):** migrar `modal-create-edit` (levante) del alias `ItemInventarioEcuadorDto` → `ItemInventarioDto` (4 usos: import + `itemsEcuadorPanama` + `itemEcuadorToCatalogItem` + subscribe). El usuario confirma que la feature multi-alimento **sigue en curso** en otra sesión → NO tocar hasta que aterrice/mergee, para no pisar su trabajo ni generar conflicto.
+3. ⏳ **GATED por #2:** quitar el alias TS `export type ItemInventarioEcuadorDto = ItemInventarioDto` de `gestion-inventario.service.ts` SOLO cuando `grep ItemInventarioEcuadorDto` en `frontend/src` = 0 (hoy = 5: la def + 4 en el modal). Mientras el modal lo use, el alias DEBE quedar (compila el modal).
+4. ⏸️ **DIFERIDO por decisión del usuario (2026-07-10):** Fase C BD física. No se avanza en este pase. Cuando se retome (fase propia, con OK de DDL prod): migración EF idempotente rename `item_inventario_ecuador`→`item_inventario` + columna `item_inventario_ecuador_id`→`item_inventario_id` + índices `ix_item_inventario_ecuador_*` + vista `vw_validacion_alimento_engorde` + regen snapshot + **probar local**. Renombrar JUNTAS columna + prop `ItemInventarioEcuadorId` + wire `itemInventarioEcuadorId` (front+back mismo deploy) para mantener coherencia.
 
 **Validación de cada paso:** `dotnet build` 0/0 + `dotnet test` verde · `ng build` (único warning aceptado = bundle budget). Grep de control: `grep -rEn 'ItemInventarioEcuador(?!Id)'` (perl) en `backend/src` y `frontend/src` debe seguir en 0 fuera de `/Migrations/`.
 
