@@ -86,7 +86,10 @@ public record SeguimientoDiarioDto(
     int TrasladoIngresoHembras = 0,
     int TrasladoIngresoMachos = 0,
     int TrasladoSalidaHembras = 0,
-    int TrasladoSalidaMachos = 0
+    int TrasladoSalidaMachos = 0,
+    // Levante — alimento independiente Hembras/Machos (nombre resuelto al guardar)
+    string? TipoAlimentoHembrasNombre = null,
+    string? TipoAlimentoMachosNombre = null
 );
 
 /// <summary>
@@ -152,7 +155,10 @@ public record CreateSeguimientoDiarioDto(
     int? TrasladoAvesSalida,
     int? VentaAvesCantidad,
     string? VentaAvesMotivo,
-    string? CreatedByUserId
+    string? CreatedByUserId,
+    // Levante — alimento independiente Hembras/Machos (nombre resuelto al guardar)
+    string? TipoAlimentoHembrasNombre = null,
+    string? TipoAlimentoMachosNombre = null
 );
 
 /// <summary>
@@ -218,5 +224,8 @@ public record UpdateSeguimientoDiarioDto(
     int? TrasladoAvesEntrante,
     int? TrasladoAvesSalida,
     int? VentaAvesCantidad,
-    string? VentaAvesMotivo
+    string? VentaAvesMotivo,
+    // Levante — alimento independiente Hembras/Machos (nombre resuelto al guardar)
+    string? TipoAlimentoHembrasNombre = null,
+    string? TipoAlimentoMachosNombre = null
 );

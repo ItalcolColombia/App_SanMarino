@@ -36,13 +36,11 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<MasterListOption> MasterListOptions { get; set; } = null!;
         public DbSet<Role> Roles { get; set; } = null!;
         public DbSet<RoleCompany> RoleCompanies { get; set; } = null!;
-        public DbSet<SeguimientoLoteLevante> SeguimientoLoteLevante { get; set; } = null!;
+        // Fase 3: tabla deprecada seguimiento_lote_levante retirada (convergencia a
+        // seguimiento_diario tipo='levante'). La CLASE SeguimientoLoteLevante se conserva
+        // como POCO en memoria (proyección de los liquidadores técnicos), sin DbSet ni mapeo.
         public DbSet<SeguimientoProduccion> SeguimientoProduccion { get; set; } = null!;
         public DbSet<ProduccionLote> ProduccionLotes { get; set; } = null!;
-        public DbSet<ProduccionSeguimiento> ProduccionSeguimientos { get; set; } = null!;
-        // ProduccionDiaria está ignorada del modelo porque SeguimientoProduccion mapea a la misma tabla
-        // Si necesitas acceder a ella, usa SeguimientoProduccion en su lugar
-        // public DbSet<ProduccionDiaria> ProduccionDiaria { get; set; } = null!;
         public DbSet<Login> Logins { get; set; } = null!;
         public DbSet<UserLogin> UserLogins { get; set; } = null!;
         public DbSet<UserCompany> UserCompanies { get; set; } = null!;
@@ -148,10 +146,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder builder)
         {
             builder.ApplyConfiguration(new RoleMenuConfiguration());
-            
-            // Ignorar ProduccionDiaria porque SeguimientoProduccion ya mapea a produccion_diaria
-            builder.Ignore<ProduccionDiaria>();
-            
+
             // Aplica todas las configuraciones IEntityTypeConfiguration<T> automáticamente
             builder.ApplyConfigurationsFromAssembly(typeof(ZooSanMarinoContext).Assembly);
             base.OnModelCreating(builder);

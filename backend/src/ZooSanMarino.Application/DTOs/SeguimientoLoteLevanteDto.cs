@@ -46,5 +46,8 @@ public record SeguimientoLoteLevanteDto(
     DateTime? CreatedAt = null,
     DateTime? UpdatedAt = null,
     // Cruce reproductora→engorde: true si el registro se generó automáticamente (read-only en UI)
-    bool OrigenCruce = false
+    bool OrigenCruce = false,
+    // Alimento independiente Hembras/Machos (nombre resuelto al guardar). Se muestra en la tabla diaria + Excel.
+    string? TipoAlimentoHembrasNombre = null,
+    string? TipoAlimentoMachosNombre = null
 );

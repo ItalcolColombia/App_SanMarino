@@ -30,6 +30,10 @@ public class SeguimientoDiario
     public decimal? ConsumoKgHembras { get; set; }
     public decimal? ConsumoKgMachos { get; set; }
     public string? TipoAlimento { get; set; }
+    /// <summary>Nombre del alimento asignado a Hembras ese día (levante). Independiente de Machos.</summary>
+    public string? TipoAlimentoHembrasNombre { get; set; }
+    /// <summary>Nombre del alimento asignado a Machos ese día (levante). Independiente de Hembras.</summary>
+    public string? TipoAlimentoMachosNombre { get; set; }
     public string? Observaciones { get; set; }
     public string? Ciclo { get; set; }
 

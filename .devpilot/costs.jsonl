@@ -1,0 +1,3 @@
+{"timestamp":"2026-07-10T08:43:35.006Z","missionId":"845b34de-9d86-44d5-beb3-8883fa7889d7","providerId":"claude-code","modelId":"claude-fable-5","inputTokens":9052,"outputTokens":7208,"costUsd":1.7118130000000003}
+{"timestamp":"2026-07-10T09:17:13.783Z","missionId":"845b34de-9d86-44d5-beb3-8883fa7889d7","taskId":"3ace79ba-279b-4d21-97b6-46382d9cb3d1","providerId":"claude-code","modelId":"claude-haiku-4-5-20251001","inputTokens":186,"outputTokens":17607,"costUsd":0.36408779999999996}
+{"timestamp":"2026-07-10T09:20:34.699Z","missionId":"845b34de-9d86-44d5-beb3-8883fa7889d7","taskId":"3ace79ba-279b-4d21-97b6-46382d9cb3d1","providerId":"claude-code","modelId":"claude-sonnet-5","inputTokens":16361,"outputTokens":17215,"costUsd":0.9789673999999999}

@@ -82,9 +82,9 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         var ct = CancellationToken.None;
         int currentUserId = _current?.UserId ?? 0;
 
-        // ── Feature 14: MERGE con fila existente sólo-traslado en produccion_seguimiento ──
-        var existente = await _ctx.ProduccionSeguimientos
-            .FirstOrDefaultAsync(s => s.LoteId == dto.LoteId && s.FechaRegistro == fechaDate, ct);
+        // ── Feature 14: MERGE con fila existente sólo-traslado (canónica) ──
+        var existente = await _ctx.SeguimientoProduccion
+            .FirstOrDefaultAsync(s => s.LoteId == dto.LoteId && s.Fecha == fechaDate, ct);
 
         if (existente != null)
         {
@@ -93,8 +93,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             bool teneManual = existente.MortalidadH > 0 || existente.MortalidadM > 0
                            || existente.SelH > 0 || existente.SelM > 0
                            || existente.ErrorSexajeHembras > 0 || existente.ErrorSexajeMachos > 0
-                           || existente.ConsumoKg > 0
-                           || existente.HuevosTotales > 0;
+                           || existente.ConsKgH > 0 || existente.ConsKgM > 0
+                           || existente.HuevoTot > 0;
 
             if (teneTraslado && !teneManual)
             {
@@ -107,27 +107,29 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                     "Ya existe un seguimiento manual para ese lote en esa fecha.");
             }
             // Fila vacía — borramos y dejamos crear nueva
-            _ctx.ProduccionSeguimientos.Remove(existente);
+            _ctx.SeguimientoProduccion.Remove(existente);
             await _ctx.SaveChangesAsync(ct);
         }
 
-        var entity = new ProduccionSeguimiento
+        var entity = new SeguimientoProduccion
         {
             LoteId = dto.LoteId,
-            FechaRegistro = fechaDate,
+            Fecha = fechaDate,
             MortalidadH = dto.MortalidadH,
             MortalidadM = dto.MortalidadM,
-            ConsumoKg = dto.ConsKgH + dto.ConsKgM,
-            HuevosTotales = dto.HuevoTot,
-            HuevosIncubables = dto.HuevoInc,
+            ConsKgH = dto.ConsKgH + dto.ConsKgM,   // total en ConsKgH (ConsKgM=0), como la deprecada guardaba en consumo_kg
+            ConsKgM = 0m,
+            HuevoTot = dto.HuevoTot,
+            HuevoInc = dto.HuevoInc,
             PesoHuevo = dto.PesoHuevo,
             Observaciones = dto.Observaciones,
+            TipoAlimento = "",                     // NOT NULL en la canónica (la deprecada no tenía la columna)
             CompanyId = _current?.CompanyId ?? 0,
             CreatedByUserId = currentUserId,
             CreatedAt = DateTime.UtcNow
         };
 
-        _ctx.ProduccionSeguimientos.Add(entity);
+        _ctx.SeguimientoProduccion.Add(entity);
         await _ctx.SaveChangesAsync(ct);
 
         // Descuento de aves en LPP (mortalidad + sel + err) ─ Feature 14
@@ -142,22 +144,23 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<SeguimientoProduccionDto?> UpdateAsync(UpdateSeguimientoProduccionDto dto)
     {
-        var entity = await _ctx.ProduccionSeguimientos.FindAsync(dto.Id);
+        var entity = await _ctx.SeguimientoProduccion.FindAsync(dto.Id);
         if (entity == null) return null;
 
         // Capturar antiguos para calcular delta
         int oldMortH = entity.MortalidadH, oldMortM = entity.MortalidadM;
         int oldSelH = entity.SelH, oldSelM = entity.SelM;
 
-        entity.FechaRegistro = dto.Fecha.Date;
+        entity.Fecha = dto.Fecha.Date;
         entity.LoteId = dto.LoteId;
         entity.MortalidadH = dto.MortalidadH;
         entity.MortalidadM = dto.MortalidadM;
         entity.SelH = dto.SelH;
         entity.SelM = dto.SelM;
-        entity.ConsumoKg = dto.ConsKgH + dto.ConsKgM;
-        entity.HuevosTotales = dto.HuevoTot;
-        entity.HuevosIncubables = dto.HuevoInc;
+        entity.ConsKgH = dto.ConsKgH + dto.ConsKgM;
+        entity.ConsKgM = 0m;
+        entity.HuevoTot = dto.HuevoTot;
+        entity.HuevoInc = dto.HuevoInc;
         entity.PesoHuevo = dto.PesoHuevo;
         entity.Observaciones = dto.Observaciones;
         entity.UpdatedAt = DateTime.UtcNow;
@@ -179,7 +182,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var entity = await _ctx.ProduccionSeguimientos.FindAsync(id);
+        var entity = await _ctx.SeguimientoProduccion.FindAsync(id);
         if (entity == null) return false;
 
         // Feature 14: si la fila tiene traslado → revertir AMBOS lotes
@@ -204,7 +207,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                     resta: false, CancellationToken.None);
             }
 
-            _ctx.ProduccionSeguimientos.Remove(entity);
+            _ctx.SeguimientoProduccion.Remove(entity);
             await _ctx.SaveChangesAsync();
             await tx.CommitAsync();
             return true;
@@ -262,15 +265,16 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     /// Luego aplica el descuento centralizado (mort + sel + err) sobre LPP.
     /// </summary>
     private async Task<SeguimientoProduccionDto> MergearManualSobreTrasladoProdAsync(
-        ProduccionSeguimiento existente, CreateSeguimientoProduccionDto dto, int userId, CancellationToken ct)
+        SeguimientoProduccion existente, CreateSeguimientoProduccionDto dto, int userId, CancellationToken ct)
     {
         existente.MortalidadH    = dto.MortalidadH;
         existente.MortalidadM    = dto.MortalidadM;
         existente.SelH           = dto.SelH;
         existente.SelM           = dto.SelM;
-        existente.ConsumoKg      = dto.ConsKgH + dto.ConsKgM;
-        existente.HuevosTotales  = dto.HuevoTot;
-        existente.HuevosIncubables = dto.HuevoInc;
+        existente.ConsKgH        = dto.ConsKgH + dto.ConsKgM;
+        existente.ConsKgM        = 0m;
+        existente.HuevoTot       = dto.HuevoTot;
+        existente.HuevoInc       = dto.HuevoInc;
         existente.PesoHuevo      = dto.PesoHuevo;
         existente.Observaciones  = string.IsNullOrWhiteSpace(dto.Observaciones)
             ? existente.Observaciones
@@ -320,7 +324,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     /// Restaura aves y acumulados en LPP origen y destino, y borra/limpia la
     /// contraparte según tenga o no datos manuales (igual lógica que Levante).
     /// </summary>
-    private async Task RevertirTrasladoProduccionAsync(ProduccionSeguimiento ent, CancellationToken ct)
+    private async Task RevertirTrasladoProduccionAsync(SeguimientoProduccion ent, CancellationToken ct)
     {
         int salH = ent.TrasladoSalidaHembras, salM = ent.TrasladoSalidaMachos;
         int ingH = ent.TrasladoIngresoHembras, ingM = ent.TrasladoIngresoMachos;
@@ -355,8 +359,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 lppContra.AvesHActual = Math.Max(0, (lppContra.AvesHActual ?? 0) - salH);
                 lppContra.AvesMActual = Math.Max(0, (lppContra.AvesMActual ?? 0) - salM);
 
-                var sdContra = await _ctx.ProduccionSeguimientos
-                    .Where(s => s.LoteId == lppContra.LoteId && s.FechaRegistro == ent.FechaRegistro
+                var sdContra = await _ctx.SeguimientoProduccion
+                    .Where(s => s.LoteId == lppContra.LoteId && s.Fecha == ent.Fecha
                              && (s.TrasladoIngresoHembras > 0 || s.TrasladoIngresoMachos > 0))
                     .FirstOrDefaultAsync(ct);
                 if (sdContra != null)
@@ -385,8 +389,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 lppContra.AvesHActual = (lppContra.AvesHActual ?? 0) + ingH;
                 lppContra.AvesMActual = (lppContra.AvesMActual ?? 0) + ingM;
 
-                var sdContra = await _ctx.ProduccionSeguimientos
-                    .Where(s => s.LoteId == lppContra.LoteId && s.FechaRegistro == ent.FechaRegistro
+                var sdContra = await _ctx.SeguimientoProduccion
+                    .Where(s => s.LoteId == lppContra.LoteId && s.Fecha == ent.Fecha
                              && (s.TrasladoSalidaHembras > 0 || s.TrasladoSalidaMachos > 0))
                     .FirstOrDefaultAsync(ct);
                 if (sdContra != null)
@@ -400,17 +404,17 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     }
 
     /// <summary>Si la fila contraparte queda sin contenido, la marca para borrar; si tiene manual, sólo limpia flags.</summary>
-    private void AjustarContraparteProdSiQuedaVacia(ProduccionSeguimiento s)
+    private void AjustarContraparteProdSiQuedaVacia(SeguimientoProduccion s)
     {
         bool sinTraslado = s.TrasladoIngresoHembras == 0 && s.TrasladoIngresoMachos == 0
                         && s.TrasladoSalidaHembras  == 0 && s.TrasladoSalidaMachos  == 0;
         bool sinManual = s.MortalidadH == 0 && s.MortalidadM == 0
                       && s.SelH == 0 && s.SelM == 0
                       && s.ErrorSexajeHembras == 0 && s.ErrorSexajeMachos == 0
-                      && s.ConsumoKg == 0m && s.HuevosTotales == 0;
+                      && s.ConsKgH == 0m && s.ConsKgM == 0m && s.HuevoTot == 0;
         if (sinTraslado && sinManual)
         {
-            _ctx.ProduccionSeguimientos.Remove(s);
+            _ctx.SeguimientoProduccion.Remove(s);
         }
         else if (sinTraslado)
         {
@@ -426,19 +430,19 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         }
     }
 
-    private static SeguimientoProduccionDto MapToDto(ProduccionSeguimiento e) =>
+    private static SeguimientoProduccionDto MapToDto(SeguimientoProduccion e) =>
         new SeguimientoProduccionDto(
             e.Id,
-            e.FechaRegistro,
+            e.Fecha,
             e.LoteId.ToString(),
             e.MortalidadH,
             e.MortalidadM,
             e.SelH,
             e.SelM,
-            0m,  // ConsKgH (no separado en ProduccionSeguimiento, va todo en ConsumoKg)
-            e.ConsumoKg,
-            e.HuevosTotales,
-            e.HuevosIncubables,
+            0m,  // ConsKgH: contrato preservado (el total va en el slot ConsKgM, como con la deprecada)
+            e.ConsKgH,
+            e.HuevoTot,
+            e.HuevoInc,
             "",
             e.Observaciones ?? "",
             e.PesoHuevo,

@@ -272,14 +272,14 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
         if (lote == null) return null;
 
         // Obtener mortalidad acumulada desde seguimientos de levante
-        var mortalidad = await _ctx.SeguimientoLoteLevante
+        var mortalidad = await _ctx.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => s.LoteId == loteIdInt)
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteIdInt.ToString())
             .GroupBy(_ => 1)
             .Select(g => new
             {
-                MortH = (int?)g.Sum(x => x.MortalidadHembras) ?? 0,
-                MortM = (int?)g.Sum(x => x.MortalidadMachos) ?? 0
+                MortH = (int?)g.Sum(x => x.MortalidadHembras ?? 0) ?? 0,
+                MortM = (int?)g.Sum(x => x.MortalidadMachos ?? 0) ?? 0
             })
             .SingleOrDefaultAsync();
 
