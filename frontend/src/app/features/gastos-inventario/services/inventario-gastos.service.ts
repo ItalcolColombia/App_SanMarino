@@ -163,8 +163,11 @@ export class InventarioGastosService {
     return this.http.get<FilterDataResponse>(`${this.api}/inventario-gastos/filter-data`);
   }
 
-  getConceptos(): Observable<string[]> {
-    return this.http.get<string[]>(`${this.api}/inventario-gastos/conceptos`);
+  /** Sin farmId: todos los conceptos de la compañía. Con farmId: solo los que tienen ítems con stock en esa granja. */
+  getConceptos(farmId?: number | null): Observable<string[]> {
+    let httpParams = new HttpParams();
+    if (farmId != null) httpParams = httpParams.set('farmId', farmId);
+    return this.http.get<string[]>(`${this.api}/inventario-gastos/conceptos`, { params: httpParams });
   }
 
   getItems(params: { farmId: number; concepto: string }): Observable<InventarioGastoItemStockDto[]> {
