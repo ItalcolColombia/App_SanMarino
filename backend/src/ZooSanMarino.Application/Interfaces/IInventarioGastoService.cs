@@ -17,7 +17,7 @@ public interface IInventarioGastoService
 
     Task DeleteAsync(int id, string? motivo, CancellationToken ct = default);
 
-    Task<List<string>> GetConceptosAsync(CancellationToken ct = default);
+    Task<List<string>> GetConceptosAsync(int? farmId = null, CancellationToken ct = default);
 
     Task<List<InventarioGastoItemStockDto>> GetItemsWithStockAsync(int farmId, string concepto, CancellationToken ct = default);
 }

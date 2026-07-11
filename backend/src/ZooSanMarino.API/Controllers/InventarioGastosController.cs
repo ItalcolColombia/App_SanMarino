@@ -28,9 +28,9 @@ public class InventarioGastosController : ControllerBase
 
     [HttpGet("conceptos")]
     [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetConceptos(CancellationToken ct = default)
+    public async Task<IActionResult> GetConceptos([FromQuery] int? farmId = null, CancellationToken ct = default)
     {
-        var list = await _svc.GetConceptosAsync(ct);
+        var list = await _svc.GetConceptosAsync(farmId, ct);
         return Ok(list);
     }
 

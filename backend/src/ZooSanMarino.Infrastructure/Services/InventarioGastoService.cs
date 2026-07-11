@@ -45,15 +45,28 @@ public class InventarioGastoService : IInventarioGastoService
     public Task<LoteReproductoraFilterDataDto> GetFilterDataAsync(CancellationToken ct = default)
         => _filterDataSvc.GetFilterDataAsync(ct);
 
-    public async Task<List<string>> GetConceptosAsync(CancellationToken ct = default)
+    public async Task<List<string>> GetConceptosAsync(int? farmId = null, CancellationToken ct = default)
     {
         var companyId = await GetEffectiveCompanyIdAsync(ct);
         if (companyId is null or <= 0) return new List<string>();
 
-        return await _db.ItemInventario.AsNoTracking()
+        var items = _db.ItemInventario.AsNoTracking()
             .Where(i => i.CompanyId == companyId.Value && i.Activo)
             .Where(i => i.TipoItem.ToLower() != "alimento")
-            .Where(i => i.Concepto != null && i.Concepto.Trim() != "")
+            .Where(i => i.Concepto != null && i.Concepto.Trim() != "");
+
+        // Con granja: solo conceptos que tengan al menos un ítem con stock > 0 en esa
+        // granja (mismo criterio que GetItemsWithStockAsync), para que el select de
+        // Concepto del modal no ofrezca conceptos sin ítems disponibles para consumir.
+        if (farmId.HasValue)
+        {
+            var itemIdsConStock = _db.InventarioGestionStock.AsNoTracking()
+                .Where(s => s.FarmId == farmId.Value && s.NucleoId == null && s.GalponId == null && s.Quantity > 0)
+                .Select(s => s.ItemInventarioEcuadorId);
+            items = items.Where(i => itemIdsConStock.Contains(i.Id));
+        }
+
+        return await items
             .Select(i => i.Concepto!.Trim())
             .Distinct()
             .OrderBy(x => x)
