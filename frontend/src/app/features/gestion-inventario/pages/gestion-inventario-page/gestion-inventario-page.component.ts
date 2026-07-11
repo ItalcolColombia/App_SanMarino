@@ -29,7 +29,7 @@ import {
   InventarioGestionHistoricoFiltrosDto,
   InventarioGestionStockDto,
   InventarioGestionMovimientoDto,
-  ItemInventarioEcuadorDto,
+  ItemInventarioDto,
   InventarioGestionTransitoPendienteDto
 } from '../../services/gestion-inventario.service';
 
@@ -69,7 +69,7 @@ export class GestionInventarioPageComponent implements OnInit {
   readonly historicoPageSize = 100;
   historicoPage = 0;
   movimientosPagina: InventarioGestionMovimientoDto[] = [];
-  itemsList: ItemInventarioEcuadorDto[] = [];
+  itemsList: ItemInventarioDto[] = [];
   loading = false;
 
   // Modales (confirmación y mensajes)
@@ -107,7 +107,7 @@ export class GestionInventarioPageComponent implements OnInit {
   ingresoOrigenFarmId: number | null = null;
   /** Texto opcional: bodega / referencia cuando origen es bodega. */
   ingresoOrigenBodegaTexto = '';
-  ingresoItems: ItemInventarioEcuadorDto[] = [];
+  ingresoItems: ItemInventarioDto[] = [];
   submittingIngreso = false;
   /** Fecha del ingreso (yyyy-MM-dd) para el histórico; se define en el modal. */
   ingresoFechaMovimiento = '';
@@ -127,7 +127,7 @@ export class GestionInventarioPageComponent implements OnInit {
   trasladoReason = '';
   /** Fecha del traslado (yyyy-MM-dd) para el histórico; por defecto hoy. */
   trasladoFechaMovimiento = '';
-  trasladoItems: ItemInventarioEcuadorDto[] = [];
+  trasladoItems: ItemInventarioDto[] = [];
   submittingTraslado = false;
   /** Stock disponible en origen (para el ítem seleccionado). null = no cargado o sin stock. */
   originStockQuantity: number | null = null;
@@ -201,7 +201,7 @@ export class GestionInventarioPageComponent implements OnInit {
   pendingDeleteStock: InventarioGestionStockDto | null = null;
   pendingAnularMovimiento: InventarioGestionMovimientoDto | null = null;
 
-  private allCatalogItems: ItemInventarioEcuadorDto[] = [];
+  private allCatalogItems: ItemInventarioDto[] = [];
 
   /**
    * Fase 3 (paso 3) — Colombia opera el inventario modelo B unificado a NIVEL GRANJA:
@@ -318,7 +318,7 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   /** Ítems del catálogo para filtro exacto por ID (además de búsqueda texto). */
-  get historicoItemsCatalogSorted(): ItemInventarioEcuadorDto[] {
+  get historicoItemsCatalogSorted(): ItemInventarioDto[] {
     return this.listaEstable(
       'hItemsCatalog',
       [...this.allCatalogItems].sort((a, b) => (a.codigo ?? '').localeCompare(b.codigo ?? '', undefined, { numeric: true })),
@@ -1140,7 +1140,7 @@ export class GestionInventarioPageComponent implements OnInit {
     return (concept ?? '').trim().toLowerCase() === 'alimento';
   }
 
-  private filterByConcept(items: ItemInventarioEcuadorDto[], concept: string | null | undefined): ItemInventarioEcuadorDto[] {
+  private filterByConcept(items: ItemInventarioDto[], concept: string | null | undefined): ItemInventarioDto[] {
     const c = (concept ?? '').trim().toLowerCase();
     if (!c) return items;
     return items.filter(i => ((i.concepto ?? i.tipoItem ?? '').trim().toLowerCase() === c));

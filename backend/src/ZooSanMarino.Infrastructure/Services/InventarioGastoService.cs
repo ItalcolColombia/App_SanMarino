@@ -45,15 +45,28 @@ public class InventarioGastoService : IInventarioGastoService
     public Task<LoteReproductoraFilterDataDto> GetFilterDataAsync(CancellationToken ct = default)
         => _filterDataSvc.GetFilterDataAsync(ct);
 
-    public async Task<List<string>> GetConceptosAsync(CancellationToken ct = default)
+    public async Task<List<string>> GetConceptosAsync(int? farmId = null, CancellationToken ct = default)
     {
         var companyId = await GetEffectiveCompanyIdAsync(ct);
         if (companyId is null or <= 0) return new List<string>();
 
-        return await _db.ItemInventarioEcuador.AsNoTracking()
+        var items = _db.ItemInventario.AsNoTracking()
             .Where(i => i.CompanyId == companyId.Value && i.Activo)
             .Where(i => i.TipoItem.ToLower() != "alimento")
-            .Where(i => i.Concepto != null && i.Concepto.Trim() != "")
+            .Where(i => i.Concepto != null && i.Concepto.Trim() != "");
+
+        // Con granja: solo conceptos que tengan al menos un ítem con stock > 0 en esa
+        // granja (mismo criterio que GetItemsWithStockAsync), para que el select de
+        // Concepto del modal no ofrezca conceptos sin ítems disponibles para consumir.
+        if (farmId.HasValue)
+        {
+            var itemIdsConStock = _db.InventarioGestionStock.AsNoTracking()
+                .Where(s => s.FarmId == farmId.Value && s.NucleoId == null && s.GalponId == null && s.Quantity > 0)
+                .Select(s => s.ItemInventarioEcuadorId);
+            items = items.Where(i => itemIdsConStock.Contains(i.Id));
+        }
+
+        return await items
             .Select(i => i.Concepto!.Trim())
             .Distinct()
             .OrderBy(x => x)
@@ -76,7 +89,7 @@ public class InventarioGastoService : IInventarioGastoService
         var rows = await _db.InventarioGestionStock.AsNoTracking()
             .Where(s => s.FarmId == farmId && s.NucleoId == null && s.GalponId == null)
             .Where(s => s.Quantity > 0)
-            .Join(_db.ItemInventarioEcuador.AsNoTracking(),
+            .Join(_db.ItemInventario.AsNoTracking(),
                 s => s.ItemInventarioEcuadorId,
                 i => i.Id,
                 (s, i) => new { s, i })
@@ -185,7 +198,7 @@ public class InventarioGastoService : IInventarioGastoService
         var raw = await (
             from d in _db.InventarioGastoDetalles.AsNoTracking()
             join g in _db.InventarioGastos.AsNoTracking() on d.InventarioGastoId equals g.Id
-            join i in _db.ItemInventarioEcuador.AsNoTracking() on d.ItemInventarioEcuadorId equals i.Id
+            join i in _db.ItemInventario.AsNoTracking() on d.ItemInventarioEcuadorId equals i.Id
             join f in _db.Farms.AsNoTracking() on g.FarmId equals f.Id
             where idList.Contains(g.Id)
             orderby g.Fecha descending, g.Id descending, i.Nombre
@@ -311,7 +324,7 @@ public class InventarioGastoService : IInventarioGastoService
 
         var det = await _db.InventarioGastoDetalles.AsNoTracking()
             .Where(d => d.InventarioGastoId == g.Id)
-            .Join(_db.ItemInventarioEcuador.AsNoTracking(),
+            .Join(_db.ItemInventario.AsNoTracking(),
                 d => d.ItemInventarioEcuadorId,
                 i => i.Id,
                 (d, i) => new { d, i })
@@ -379,7 +392,7 @@ public class InventarioGastoService : IInventarioGastoService
         var conceptoNorm = req.Concepto.Trim().ToLower();
         var itemIds = req.Lineas.Select(x => x.ItemInventarioEcuadorId).Distinct().ToList();
 
-        var items = await _db.ItemInventarioEcuador.AsNoTracking()
+        var items = await _db.ItemInventario.AsNoTracking()
             .Where(i => i.CompanyId == companyId.Value && itemIds.Contains(i.Id))
             .ToListAsync(ct);
 

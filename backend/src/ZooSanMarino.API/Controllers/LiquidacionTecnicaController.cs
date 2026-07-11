@@ -154,14 +154,14 @@ public class LiquidacionTecnicaController : ControllerBase
                 });
             }
             
-            // Verificar seguimientos
-            var seguimientos = await context.SeguimientoLoteLevante
+            // Verificar seguimientos (tabla canónica seguimiento_diario, tipo='levante')
+            var seguimientos = await context.SeguimientoDiario
                 .AsNoTracking()
-                .Where(s => s.LoteId == loteId)
+                .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString())
                 .ToListAsync();
-            
-            return Ok(new { 
-                loteId, 
+
+            return Ok(new {
+                loteId,
                 loteExiste = true,
                 loteNombre = lote.LoteNombre,
                 fechaEncaset = lote.FechaEncaset,
@@ -170,12 +170,12 @@ public class LiquidacionTecnicaController : ControllerBase
                 totalSeguimientos = seguimientos.Count,
                 seguimientos = seguimientos.Take(5).Select(s => new {
                     s.Id,
-                    s.FechaRegistro,
+                    FechaRegistro = s.Fecha,
                     s.MortalidadHembras,
                     s.MortalidadMachos,
                     s.ConsumoKgHembras,
-                    s.PesoPromH,
-                    s.PesoPromM
+                    PesoPromH = s.PesoPromHembras,
+                    PesoPromM = s.PesoPromMachos
                 })
             });
         }

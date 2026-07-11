@@ -89,8 +89,11 @@ export interface SeguimientoLoteLevanteDto {
 export interface ItemSeguimientoDto {
   tipoItem: string; // "alimento", "vacuna", "medicamento", etc.
   catalogItemId: number; // ID del ítem del inventario (en Ecuador/Panamá = item_inventario_ecuador id)
-  /** Ecuador/Panamá: ID de item_inventario_ecuador para aplicar consumo en inventario-gestion. */
+  /** Ecuador/Panamá/Colombia: ID de item_inventario_ecuador para aplicar consumo en inventario-gestion. */
   itemInventarioEcuadorId?: number | null;
+  /** Nombre del ítem resuelto por el front. Solo informativo (metadata jsonb): pinta el desglose por
+   * alimento sin recargar el catálogo. No afecta cálculos. */
+  nombre?: string | null;
   cantidad: number; // Cantidad utilizada
   unidad: string; // "kg", "g", "unidades", etc.
 }

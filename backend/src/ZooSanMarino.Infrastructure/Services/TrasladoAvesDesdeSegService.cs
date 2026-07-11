@@ -316,25 +316,26 @@ public class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
                 var totalAvesP = dto.TrasladoHembras + dto.TrasladoMachos;
                 int createdByIdP = usuarioId; // AuditableEntity.CreatedByUserId es int
 
-                // ── UPSERT registro SALIDA en produccion_seguimiento (lote origen) ──
-                var segSalidaP = await _ctx.ProduccionSeguimientos
-                    .Where(s => s.LoteId == lppOrigen.LoteId!.Value && s.FechaRegistro == fechaDate)
+                // ── UPSERT registro SALIDA en la canónica de producción (lote origen) ──
+                var segSalidaP = await _ctx.SeguimientoProduccion
+                    .Where(s => s.LoteId == lppOrigen.LoteId!.Value && s.Fecha == fechaDate)
                     .FirstOrDefaultAsync(ct);
 
                 if (segSalidaP is null)
                 {
-                    segSalidaP = new ProduccionSeguimiento
+                    segSalidaP = new SeguimientoProduccion
                     {
                         LoteId = lppOrigen.LoteId!.Value,
-                        FechaRegistro = fechaDate,
+                        Fecha = fechaDate,
                         MortalidadH = 0, MortalidadM = 0,
                         SelH = 0, SelM = 0,
                         ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
+                        TipoAlimento = "—",
                         CompanyId = companyId,
                         CreatedByUserId = createdByIdP,
                         CreatedAt = fechaUtc
                     };
-                    _ctx.ProduccionSeguimientos.Add(segSalidaP);
+                    _ctx.SeguimientoProduccion.Add(segSalidaP);
                 }
 
                 segSalidaP.TrasladoSalidaHembras += dto.TrasladoHembras;
@@ -354,25 +355,26 @@ public class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
                 segSalidaP.UpdatedAt = fechaUtc;
                 segSalidaP.UpdatedByUserId = createdByIdP;
 
-                // ── UPSERT registro INGRESO en produccion_seguimiento (lote destino) ──
-                var segIngresoP = await _ctx.ProduccionSeguimientos
-                    .Where(s => s.LoteId == lppDestino.LoteId!.Value && s.FechaRegistro == fechaDate)
+                // ── UPSERT registro INGRESO en la canónica de producción (lote destino) ──
+                var segIngresoP = await _ctx.SeguimientoProduccion
+                    .Where(s => s.LoteId == lppDestino.LoteId!.Value && s.Fecha == fechaDate)
                     .FirstOrDefaultAsync(ct);
 
                 if (segIngresoP is null)
                 {
-                    segIngresoP = new ProduccionSeguimiento
+                    segIngresoP = new SeguimientoProduccion
                     {
                         LoteId = lppDestino.LoteId!.Value,
-                        FechaRegistro = fechaDate,
+                        Fecha = fechaDate,
                         MortalidadH = 0, MortalidadM = 0,
                         SelH = 0, SelM = 0,
                         ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
+                        TipoAlimento = "—",
                         CompanyId = companyId,
                         CreatedByUserId = createdByIdP,
                         CreatedAt = fechaUtc
                     };
-                    _ctx.ProduccionSeguimientos.Add(segIngresoP);
+                    _ctx.SeguimientoProduccion.Add(segIngresoP);
                 }
 
                 segIngresoP.TrasladoIngresoHembras += dto.TrasladoHembras;

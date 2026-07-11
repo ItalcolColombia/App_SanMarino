@@ -8,7 +8,7 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
 {
     public void Configure(EntityTypeBuilder<SeguimientoProduccion> builder)
     {
-        builder.ToTable("seguimiento_diario_produccion_reproductoras");
+        builder.ToTable("seguimiento_diario_produccion");
         
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id)
@@ -191,6 +191,42 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .HasColumnName("consumo_agua_temperatura")
             .HasColumnType("double precision")
             .IsRequired(false);
+
+        // ════════════════════════════════════════════════════════════════
+        // Fase 3 — columnas aumentadas desde la deprecada produccion_seguimiento
+        // ════════════════════════════════════════════════════════════════
+
+        // Selección y error de sexaje (Feature 14)
+        builder.Property(x => x.ErrorSexajeHembras).HasColumnName("error_sexaje_hembras").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.ErrorSexajeMachos ).HasColumnName("error_sexaje_machos" ).HasDefaultValue(0).IsRequired();
+
+        // Traslado — splits H/M dedicados
+        builder.Property(x => x.TrasladoIngresoHembras).HasColumnName("traslado_ingreso_hembras").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.TrasladoIngresoMachos ).HasColumnName("traslado_ingreso_machos" ).HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.TrasladoSalidaHembras ).HasColumnName("traslado_salida_hembras" ).HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.TrasladoSalidaMachos  ).HasColumnName("traslado_salida_machos"  ).HasDefaultValue(0).IsRequired();
+
+        // Traslado — marcado
+        builder.Property(x => x.EsTraslado).HasColumnName("es_traslado").HasDefaultValue(false).IsRequired();
+        builder.Property(x => x.TrasladoDireccion).HasColumnName("traslado_direccion").HasMaxLength(10);
+        builder.Property(x => x.TrasladoLoteContraparteId).HasColumnName("traslado_lote_contraparte_id");
+        builder.Property(x => x.TrasladoGranjaContraparteId).HasColumnName("traslado_granja_contraparte_id");
+
+        // Traslado — legacy R3
+        builder.Property(x => x.TrasladoHembras).HasColumnName("traslado_hembras");
+        builder.Property(x => x.TrasladoMachos).HasColumnName("traslado_machos");
+        builder.Property(x => x.LoteDestinoId).HasColumnName("lote_destino_id");
+        builder.Property(x => x.GranjaDestinoId).HasColumnName("granja_destino_id");
+        builder.Property(x => x.FechaTraslado).HasColumnName("fecha_traslado").HasColumnType("timestamp without time zone");
+        builder.Property(x => x.TrasladoObservaciones).HasColumnName("traslado_observaciones").HasMaxLength(500);
+
+        // Auditoría (AuditableEntity)
+        builder.Property(x => x.CompanyId).HasColumnName("company_id").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        builder.Property(x => x.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        builder.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
         // Índice único por lote y fecha
         builder.HasIndex(x => new { x.LoteId, x.Fecha }).IsUnique();

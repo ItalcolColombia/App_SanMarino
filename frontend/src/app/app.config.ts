@@ -214,12 +214,13 @@ export const appConfig: ApplicationConfig = {
               import('./features/catalogo-alimentos/catalogo-alimentos.module')
                 .then(m => m.CatalogoAlimentosModule)
           },
-          // Ítems de inventario Ecuador (catálogo para Gestión de Inventario)
+          // Ítems de inventario (catálogo compartido EC/PA/CO para Gestión de Inventario).
+          // La URL 'item-inventario-ecuador' se conserva por compatibilidad con el menú en BD.
           {
             path: 'item-inventario-ecuador',
             loadChildren: () =>
-              import('./features/config/item-inventario-ecuador/item-inventario-ecuador.module')
-                .then(m => m.ItemInventarioEcuadorModule)
+              import('./features/config/item-inventario/item-inventario.module')
+                .then(m => m.ItemInventarioModule)
           },
 
           // Gestión de Clientes

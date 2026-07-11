@@ -24,7 +24,7 @@ public class InventarioGastoDetalleConfiguration : IEntityTypeConfiguration<Inve
         e.HasIndex(x => x.InventarioGastoId).HasDatabaseName("ix_inventario_gasto_detalle_gasto");
 
         e.HasOne(x => x.InventarioGasto).WithMany(g => g.Detalles).HasForeignKey(x => x.InventarioGastoId).OnDelete(DeleteBehavior.Cascade);
-        e.HasOne(x => x.ItemInventarioEcuador).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.ItemInventario).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

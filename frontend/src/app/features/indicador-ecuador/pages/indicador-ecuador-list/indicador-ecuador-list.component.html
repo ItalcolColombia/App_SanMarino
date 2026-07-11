@@ -640,21 +640,21 @@
                                 @for (it of resultadoLiquidacionPollo.items; track it) {
                                   <td class="num">{{ it.indicador.fechaAlistamiento ? formatearFechaLote(it.indicador.fechaAlistamiento) : '—' }}</td>
                                 }
-                                <td class="ie-matrix__total-cell num">—</td>
+                                <td class="ie-matrix__total-cell num">{{ tot.fechaAlistamiento ? formatearFechaLote(tot.fechaAlistamiento) : '—' }}</td>
                               </tr>
                               <tr>
                                 <td class="ie-matrix__indicator-col">Fecha encasetamiento</td>
                                 @for (it of resultadoLiquidacionPollo.items; track it) {
                                   <td class="num">{{ it.indicador.fechaInicioLote ? formatearFechaLote(it.indicador.fechaInicioLote) : '—' }}</td>
                                 }
-                                <td class="ie-matrix__total-cell num">—</td>
+                                <td class="ie-matrix__total-cell num">{{ tot.fechaInicioLote ? formatearFechaLote(tot.fechaInicioLote) : '—' }}</td>
                               </tr>
                               <tr class="ie-matrix__stripe">
                                 <td class="ie-matrix__indicator-col">Fecha liquidación</td>
                                 @for (it of resultadoLiquidacionPollo.items; track it) {
                                   <td class="num">{{ it.indicador.fechaLiquidacion ? formatearFechaLote(it.indicador.fechaLiquidacion) : '—' }}</td>
                                 }
-                                <td class="ie-matrix__total-cell num">—</td>
+                                <td class="ie-matrix__total-cell num">{{ tot.fechaLiquidacion ? formatearFechaLote(tot.fechaLiquidacion) : '—' }}</td>
                               </tr>
                               <tr>
                                 <td class="ie-matrix__indicator-col">Aves encasetadas</td>

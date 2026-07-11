@@ -15,6 +15,11 @@
 --
 -- Fuente de verdad del algoritmo: tabla-lista-indicadores.component.ts
 -- Zona horaria: America/Bogota para el corte de semanas (calendario local).
+--
+-- Fase 3 (convergencia levante a Feature-13): lee la tabla CANÓNICA
+-- seguimiento_diario_levante (tipo_seguimiento='levante') y las
+-- salidas de la semana incluyen error de sexaje y traslados dedicados:
+--   out = mort + sel + err + traslado_salida - traslado_ingreso;  aves_fin = aves - out.
 -- ============================================================================
 CREATE OR REPLACE FUNCTION fn_indicadores_levante_postura(p_lote_id integer)
 RETURNS TABLE(
@@ -73,6 +78,8 @@ DECLARE
     r_sel_tot     double precision;
     r_cons_kg     double precision;
     r_err_tot     double precision;
+    r_tras_sal    double precision;
+    r_tras_ing    double precision;
     r_dias        integer;
     r_aves_fin    double precision;
     r_pH          double precision;
@@ -118,20 +125,22 @@ BEGIN
     CREATE TEMP TABLE _seg_sem ON COMMIT DROP AS
     SELECT
         GREATEST(1, LEAST(25,
-            (floor(( (sl.fecha_registro AT TIME ZONE 'America/Bogota')::date - v_enc_date ) / 7.0)::int) + 1
+            (floor(( (sl.fecha AT TIME ZONE 'America/Bogota')::date - v_enc_date ) / 7.0)::int) + 1
         )) AS sem,
-        (sl.fecha_registro AT TIME ZONE 'America/Bogota')::date AS reg_date,
+        (sl.fecha AT TIME ZONE 'America/Bogota')::date AS reg_date,
         COALESCE(sl.mortalidad_hembras,0) + COALESCE(sl.mortalidad_machos,0) AS mort,
         COALESCE(sl.sel_h,0) + COALESCE(sl.sel_m,0) AS sel,
         COALESCE(sl.consumo_kg_hembras,0) + COALESCE(sl.consumo_kg_machos,0) AS cons_kg,
         COALESCE(sl.error_sexaje_hembras,0) + COALESCE(sl.error_sexaje_machos,0) AS err,
-        COALESCE(sl.peso_prom_h,0) AS ph,
-        COALESCE(sl.peso_prom_m,0) AS pm,
-        COALESCE(sl.uniformidad_h,0) AS uh,
-        COALESCE(sl.uniformidad_m,0) AS um,
+        COALESCE(sl.traslado_salida_hembras,0) + COALESCE(sl.traslado_salida_machos,0) AS tras_sal,
+        COALESCE(sl.traslado_ingreso_hembras,0) + COALESCE(sl.traslado_ingreso_machos,0) AS tras_ing,
+        COALESCE(sl.peso_prom_hembras,0) AS ph,
+        COALESCE(sl.peso_prom_machos,0) AS pm,
+        COALESCE(sl.uniformidad_hembras,0) AS uh,
+        COALESCE(sl.uniformidad_machos,0) AS um,
         sl.id
-      FROM seguimiento_lote_levante sl
-     WHERE sl.lote_id = p_lote_id;
+      FROM seguimiento_diario_levante sl
+     WHERE sl.tipo_seguimiento = 'levante' AND sl.lote_id = p_lote_id::text;
 
     SELECT MAX(sem) INTO v_max_sem FROM _seg_sem;
     IF v_max_sem IS NULL THEN RETURN; END IF;
@@ -141,11 +150,12 @@ BEGIN
         CONTINUE WHEN NOT EXISTS (SELECT 1 FROM _seg_sem WHERE sem = s);
 
         SELECT COALESCE(SUM(mort),0), COALESCE(SUM(sel),0), COALESCE(SUM(cons_kg),0),
-               COALESCE(SUM(err),0), COUNT(*)::int
-          INTO r_mort_tot, r_sel_tot, r_cons_kg, r_err_tot, r_dias
+               COALESCE(SUM(err),0), COALESCE(SUM(tras_sal),0), COALESCE(SUM(tras_ing),0), COUNT(*)::int
+          INTO r_mort_tot, r_sel_tot, r_cons_kg, r_err_tot, r_tras_sal, r_tras_ing, r_dias
           FROM _seg_sem WHERE sem = s;
 
-        r_aves_fin := v_aves_acum - r_mort_tot - r_sel_tot;
+        -- Saldo físico Feature-13: salidas = mort + sel + err + traslado_salida - traslado_ingreso.
+        r_aves_fin := v_aves_acum - r_mort_tot - r_sel_tot - r_err_tot - r_tras_sal + r_tras_ing;
 
         -- Pesaje: último registro (por fecha, luego id) de la semana con peso>0.
         SELECT ph, pm, uh, um INTO r_pH, r_pM, r_uH, r_uM

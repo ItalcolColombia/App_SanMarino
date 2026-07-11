@@ -3,13 +3,13 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, AbstractControl, Validators } from '@angular/forms';
 import { SeguimientoLoteLevanteDto, CreateSeguimientoLoteLevanteDto, UpdateSeguimientoLoteLevanteDto, ItemSeguimientoDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { GestionInventarioService, ItemInventarioEcuadorDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
-import { EMPTY, forkJoin, of, firstValueFrom } from 'rxjs';
+import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { EMPTY, forkJoin, of } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -91,7 +91,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   // Tipos de ítem (Ecuador/Panamá: se reemplaza por conceptos de item_inventario_ecuador)
   private readonly TIPOS_ITEM_DEFAULT: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
   tiposItem: string[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
-  itemsEcuadorPanama: ItemInventarioEcuadorDto[] = [];
+  itemsEcuadorPanama: ItemInventarioDto[] = [];
   conceptosEcuadorPanama: string[] = [];
 
   // Inventario
@@ -108,6 +108,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   // Propiedad para verificar si es Ecuador o Panamá
   isEcuadorOrPanama = false;
+  /** Colombia opera el inventario unificado (modelo B) a NIVEL GRANJA. */
+  isColombia = false;
+  /** Colombia + EC/PA leen el catálogo/stock desde item_inventario_ecuador (inventario-gestion). */
+  get usaInventarioGestion(): boolean {
+    return this.isEcuadorOrPanama || this.isColombia;
+  }
+  /** Colombia: codigo(normalizado) → catalogo_items.id, para el contrato de ids al descontar
+   * (ítem migrado → catalogItemId camino-1; ítem nuevo sin espejo → itemInventarioEcuadorId camino-2). */
+  private catalogItemIdPorCodigo = new Map<string, number>();
   private sessionSubscription?: Subscription;
 
   constructor(private toast: ToastService, 
@@ -168,8 +177,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
     this.cargandoStockListado = true;
     const gid = this.granjaIdActual;
-    const u = this.inventarioUbicacionActual;
-    if (this.isEcuadorOrPanama) {
+    // Colombia opera a NIVEL GRANJA (núcleo/galpón NULL en el stock); EC/PA por núcleo/galpón del lote.
+    const u = this.isColombia ? { nucleoId: null, galponId: null } : this.inventarioUbicacionActual;
+    if (this.usaInventarioGestion) {
       const params: { farmId: number; nucleoId?: string; galponId?: string } = { farmId: gid };
       if (u.nucleoId) params.nucleoId = u.nucleoId;
       if (u.galponId) params.galponId = u.galponId;
@@ -223,6 +233,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   private updateEcuadorOrPanamaStatus(): void {
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
+    this.isColombia = this.countryFilter.isColombia();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -422,20 +433,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   agregarItemHembras(): void {
+    // Parte 2: bloque Hembras independiente del bloque Machos (cada sexo elige su propio ítem).
     const itemForm = this.fb.group({
       tipoItem: [this.isEcuadorOrPanama ? null : 'alimento'],
       catalogItemId: [null],
       cantidad: [0, [Validators.min(0)]],
-      unidad: ['kg'],
-      cantidadMachos: [0, [Validators.min(0)]],
-      unidadMachos: ['kg']
+      unidad: ['kg']
     });
 
     itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
       if (tipo === 'alimento') {
-        itemForm.patchValue({ unidad: 'kg', unidadMachos: 'kg' }, { emitEvent: false });
+        itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
       } else if (tipo) {
-        itemForm.patchValue({ unidad: 'unidades', unidadMachos: 'unidades' }, { emitEvent: false });
+        itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
       }
       itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
     });
@@ -538,7 +548,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private computeAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemDto[] {
-    if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+    if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
       if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i));
       return this.itemsEcuadorPanama
@@ -555,7 +565,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     });
   }
 
-  private itemEcuadorToCatalogItem(i: ItemInventarioEcuadorDto): CatalogItemDto {
+  private itemEcuadorToCatalogItem(i: ItemInventarioDto): CatalogItemDto {
     return {
       id: i.id,
       codigo: i.codigo,
@@ -583,103 +593,6 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return cantidad;
   }
 
-  /** Colombia: consumo de alimento (kg) por catalogItemId desde metadata guardada. */
-  private buildFoodKgMapFromMetadata(ed: SeguimientoLoteLevanteDto): Map<number, number> {
-    const m = new Map<number, number>();
-    const meta = this.normalizeSeguimientoMetadata(ed);
-    const addArr = (arr: any[] | undefined) => {
-      if (!Array.isArray(arr)) return;
-      for (const it of arr) {
-        if (String(it?.tipoItem ?? 'alimento').toLowerCase() !== 'alimento') continue;
-        const id = Number(it.catalogItemId ?? it.itemInventarioEcuadorId);
-        if (!id) continue;
-        const kg = this.toKg(Number(it.cantidad ?? 0), it.unidad ?? 'kg');
-        m.set(id, (m.get(id) ?? 0) + kg);
-      }
-    };
-    addArr(meta?.itemsHembras);
-    addArr(meta?.itemsMachos);
-    addArr(meta?.itemsGenerales ?? meta?.items_generales);
-    if (m.size === 0) {
-      const hId = Number(meta?.tipoAlimentoHembras ?? ed.tipoAlimentoHembras);
-      if (hId) {
-        const kg = this.toKg(
-          Number(meta?.consumoOriginalHembras ?? ed.consumoKgHembras ?? 0),
-          meta?.unidadConsumoOriginalHembras ?? 'kg'
-        );
-        m.set(hId, kg);
-      }
-      const mId = Number(meta?.tipoAlimentoMachos ?? ed.tipoAlimentoMachos);
-      if (mId) {
-        const kg = this.toKg(
-          Number(meta?.consumoOriginalMachos ?? ed.consumoKgMachos ?? 0),
-          meta?.unidadConsumoOriginalMachos ?? 'kg'
-        );
-        m.set(mId, (m.get(mId) ?? 0) + kg);
-      }
-    }
-    return m;
-  }
-
-  private buildFoodKgMapFromAlimentoLists(
-    h: ItemSeguimientoDto[],
-    mach: ItemSeguimientoDto[],
-    gen: ItemSeguimientoDto[] = []
-  ): Map<number, number> {
-    const m = new Map<number, number>();
-    const add = (list: ItemSeguimientoDto[]) => {
-      for (const it of list) {
-        const kg = this.toKg(it.cantidad, it.unidad);
-        m.set(it.catalogItemId, (m.get(it.catalogItemId) ?? 0) + kg);
-      }
-    };
-    add(h);
-    add(mach);
-    add(gen);
-    return m;
-  }
-
-  /** deltaKg positivo: salida; negativo: entrada (devolución). Cantidad en la unidad del registro de stock. */
-  private async colombiaApplyInventoryDelta(
-    farmId: number,
-    lote: LoteDto,
-    loteId: string | number,
-    catalogItemId: number,
-    deltaKg: number
-  ): Promise<void> {
-    if (Math.abs(deltaKg) < 1e-12) return;
-    const inv = await firstValueFrom(
-      this.inventarioSvc.getInventoryByItem(farmId, catalogItemId).pipe(catchError(() => of(null)))
-    );
-    const unit = (inv?.unit || 'kg').trim();
-    const ul = unit.toLowerCase();
-    let qty = Math.abs(deltaKg);
-    if (ul === 'g' || ul === 'gramos' || ul === 'gramo') qty = Math.abs(deltaKg) * 1000;
-    const ref = `Consumo diario levante - Lote ${lote.loteNombre || loteId}`;
-    if (deltaKg > 0) {
-      await firstValueFrom(
-        this.inventarioSvc.postExit(farmId, {
-          catalogItemId,
-          quantity: qty,
-          unit,
-          reference: ref,
-          reason: 'Consumo diario',
-          destination: 'Consumo'
-        })
-      );
-    } else {
-      await firstValueFrom(
-        this.inventarioSvc.postEntry(farmId, {
-          catalogItemId,
-          quantity: qty,
-          unit,
-          reference: `${ref} (ajuste)`,
-          reason: 'Devolución por edición seguimiento',
-          origin: 'Ajuste'
-        })
-      );
-    }
-  }
 
   private buildOriginalConsumoMap(
     itemsH: any[] | null | undefined,
@@ -706,22 +619,61 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.originalConsumoKgByItem = map;
   }
 
-  getMaxPermitidoKg(catalogItemId: number | null | undefined): number | null {
+  /**
+   * Suma en kg ya asignada a este mismo ítem en OTRAS filas del formulario actual (hembras + machos +
+   * generales), sin guardar aún, excluyendo la fila que se está evaluando. El backend suma en un solo
+   * descuento las filas que comparten ítem (mismo alimento en hembras y machos, o dos filas del mismo
+   * género) — por eso el "disponible" mostrado en cada fila debe descontar lo que otras filas ya
+   * reservaron, o dos filas mostrarían cada una el stock completo aunque juntas lo superen.
+   */
+  private sumaReservadaEnOtrasFilas(catalogItemId: number, excludeControl: AbstractControl | null): number {
+    if (!catalogItemId) return 0;
+    let total = 0;
+    for (const arr of [this.itemsHembrasArray, this.itemsMachosArray, this.itemsGeneralesArray]) {
+      for (const c of arr.controls) {
+        if (c === excludeControl) continue;
+        if (Number(c.get('catalogItemId')?.value) !== catalogItemId) continue;
+        const cantidad = Number(c.get('cantidad')?.value) || 0;
+        if (cantidad <= 0) continue;
+        total += this.toKg(cantidad, c.get('unidad')?.value || 'kg');
+      }
+    }
+    return total;
+  }
+
+  getMaxPermitidoKg(catalogItemId: number | null | undefined, excludeControl: AbstractControl | null = null): number | null {
     if (!catalogItemId) return null;
     const disponible = this.getCantidadDisponible(catalogItemId);
     if (!disponible) return null;
     const disponibleKg = this.toKg(Number(disponible.quantity || 0), disponible.unit);
     const originalKg = this.editing ? this.getOriginalConsumoKg(catalogItemId) : 0;
-    return disponibleKg + originalKg;
+    const reservadoOtrasFilas = this.sumaReservadaEnOtrasFilas(catalogItemId, excludeControl);
+    return disponibleKg + originalKg - reservadoOtrasFilas;
   }
 
-  /** True si la cantidad ingresada supera el disponible del ítem seleccionado. */
+  /** Disponible AJUSTADO para una fila concreta: el stock (más consumo original si se edita) menos lo
+   * que ya reservan otras filas del mismo ítem en este formulario. Usar esta versión (no
+   * `getCantidadDisponible`) en toda vista de "disponible" del bloque de alimento. */
+  getCantidadDisponibleAjustada(
+    catalogItemId: number | null | undefined,
+    excludeControl: AbstractControl | null
+  ): { quantity: number; unit: string } | null {
+    if (!catalogItemId) return null;
+    const base = this.getCantidadDisponible(catalogItemId);
+    if (!base) return null;
+    const maxKg = this.getMaxPermitidoKg(catalogItemId, excludeControl);
+    if (maxKg == null) return null;
+    return { quantity: Math.max(0, maxKg), unit: 'kg' };
+  }
+
+  /** True si la cantidad ingresada supera el disponible del ítem seleccionado (descontando lo que
+   * otras filas del formulario ya reservan del mismo ítem). */
   cantidadExcedeDisponible(itemGroup: FormGroup): boolean {
     const catalogItemId = Number(itemGroup.get('catalogItemId')?.value);
     const cantidad = Number(itemGroup.get('cantidad')?.value || 0);
     const unidad = String(itemGroup.get('unidad')?.value || 'kg');
     if (!catalogItemId || cantidad <= 0) return false;
-    const maxPermitidoKg = this.getMaxPermitidoKg(catalogItemId);
+    const maxPermitidoKg = this.getMaxPermitidoKg(catalogItemId, itemGroup);
     if (maxPermitidoKg == null) return false; // si no hay dato, no bloquear aquí
     const qtyKg = this.toKg(cantidad, unidad);
     return qtyKg > maxPermitidoKg;
@@ -732,7 +684,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * Ecuador/Panamá en edición no valida aquí.
    */
   get hasCantidadExcedida(): boolean {
-    if (this.editing && this.isEcuadorOrPanama) return false;
+    // EC/PA y Colombia: en edición la validación de tope la hace el backend (evita falsos bloqueos
+    // por desalineación de ids al leer el consumo original de registros antiguos).
+    if (this.editing && this.usaInventarioGestion) return false;
     const h = this.itemsHembrasArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
     const m = this.itemsMachosArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
     const g = this.itemsGeneralesArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
@@ -743,9 +697,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return false;
   }
 
-  // Obtener texto completo del ítem con cantidad disponible para mostrar en el dropdown
-  getItemDisplayText(item: CatalogItemDto): string {
-    const cantidad = this.getCantidadDisponible(item.id);
+  // Obtener texto completo del ítem con cantidad disponible (ajustada por reservas de otras filas) para el dropdown
+  getItemDisplayText(item: CatalogItemDto, excludeControl: AbstractControl | null = null): string {
+    const cantidad = this.getCantidadDisponibleAjustada(item.id, excludeControl);
     if (cantidad) {
       return `${item.codigo} — ${item.nombre} (Disponible: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
     }
@@ -858,15 +812,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       }
     }
 
-    // Construir mapa catalogItemId → {cantidad, unidad} desde itemsMachos para rellenar cantidadMachos
-    const machosByCid = new Map<number, { cantidad: number; unidad: string }>();
-    if (itemsMachosFromMetadata && Array.isArray(itemsMachosFromMetadata)) {
-      itemsMachosFromMetadata.forEach((item: any) => {
-        const cid = this.resolveItemCatalogId(item);
-        if (cid == null) return;
-        machosByCid.set(cid, { cantidad: item.cantidad ?? 0, unidad: item.unidad || 'kg' });
-      });
-    }
+    // Parte 2: Hembras y Machos son bloques independientes; los ítems de machos se cargan en su
+    // propio array (itemsMachosArray) más abajo. Las filas de hembras ya no llevan cantidad de machos.
 
     // Si hay items en metadata, cargarlos todos (incluyendo alimentos)
     // IMPORTANTE: El tipoItem debe venir desde metadata, si no está, se obtendrá del inventario después
@@ -879,14 +826,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const cid = this.resolveItemCatalogId(item);
         if (cid == null) return;
 
-        const machoData = machosByCid.get(cid);
         this.itemsHembrasArray.push(this.fb.group({
           tipoItem: [tipoItem, Validators.required],
           catalogItemId: [cid, Validators.required],
           cantidad: [item.cantidad ?? item.cantidadKg ?? consumoHembras, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || unidadConsumoHembras || 'kg', Validators.required],
-          cantidadMachos: [machoData?.cantidad ?? 0, [Validators.min(0)]],
-          unidadMachos: [machoData?.unidad ?? 'kg']
+          unidad: [item.unidad || unidadConsumoHembras || 'kg', Validators.required]
         }));
       });
     } else {
@@ -1296,9 +1240,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const loadId = ++this.inventarioLoadId;
     this.cargandoInventarioGranja = true;
 
-    // Ecuador/Panamá: catálogo desde item_inventario_ecuador (conceptos como tipo ítem) y stock desde inventario-gestion
-    if (this.isEcuadorOrPanama) {
-      this.cargarCatalogEcuadorPanama(granjaId, loadId, this.inventarioUbicacionActual);
+    // Colombia + EC/PA: catálogo desde item_inventario_ecuador (conceptos como tipo ítem) y stock desde inventario-gestion.
+    // Colombia opera a NIVEL GRANJA (sin núcleo/galpón); EC/PA por núcleo/galpón del lote.
+    if (this.usaInventarioGestion) {
+      const u = this.isColombia ? { nucleoId: null, galponId: null } : this.inventarioUbicacionActual;
+      this.cargarCatalogEcuadorPanama(granjaId, loadId, u);
       return;
     }
 
@@ -1438,9 +1384,20 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     loadId: number,
     u: { nucleoId: string | null; galponId: string | null }
   ): void {
+    // Colombia: mapa codigo→catalogo_items.id para el contrato de ids al descontar (una sola vez por granja).
+    if (this.isColombia && this.catalogItemIdPorCodigo.size === 0) {
+      this.inventarioSvc.getCatalogo('', 1, 2000).pipe(
+        catchError(() => of([] as CatalogItemDto[]))
+      ).subscribe(cat => {
+        this.catalogItemIdPorCodigo.clear();
+        for (const c of cat) {
+          if (c?.codigo && c.id != null) this.catalogItemIdPorCodigo.set(String(c.codigo).trim().toLowerCase(), Number(c.id));
+        }
+      });
+    }
     this.gestionInventarioSvc.getItemsByType(null, null, true).pipe(
-      catchError(err => { console.error('Error al cargar ítems inventario Ecuador:', err); return of([]); })
-    ).subscribe((list: ItemInventarioEcuadorDto[]) => {
+      catchError(err => { console.error('Error al cargar ítems inventario:', err); return of([]); })
+    ).subscribe((list: ItemInventarioDto[]) => {
       if (loadId !== this.inventarioLoadId) return;
       this.itemsEcuadorPanama = list ?? [];
       this.conceptosEcuadorPanama = Array.from(
@@ -1477,8 +1434,37 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { numeric: true, sensitivity: 'base' }));
       this.actualizarMapasYFiltros();
       this.cargandoInventarioGranja = false;
+      // Colombia edición: registros viejos guardaron ids de catalogo_items; traducirlos al id del
+      // dropdown actual (item_inventario_ecuador) por código para que la selección se pre-cargue.
+      if (this.isColombia && this.editing) this.traducirIdsColombiaAlEditar();
       this.actualizarTiposItemDesdeInventario();
     });
+  }
+
+  /** Colombia edición: traduce el id guardado (posible catalogo_items.id) al id del dropdown actual
+   * (item_inventario_ecuador.id), buscando por código. Si ya es un iieId, lo deja igual. */
+  private mapStoredIdToDropdownId(storedId: number): number {
+    if (!this.isColombia || !storedId) return storedId;
+    if (this.itemsEcuadorPanama.some(i => i.id === storedId)) return storedId; // ya es iieId
+    let codigo: string | undefined;
+    for (const [cod, id] of this.catalogItemIdPorCodigo.entries()) {
+      if (id === storedId) { codigo = cod; break; }
+    }
+    if (!codigo) return storedId;
+    const iie = this.itemsEcuadorPanama.find(i => (i.codigo ?? '').trim().toLowerCase() === codigo);
+    return iie ? iie.id : storedId;
+  }
+
+  private traducirIdsColombiaAlEditar(): void {
+    const arrays = [this.itemsHembrasArray, this.itemsMachosArray, this.itemsGeneralesArray];
+    for (const arr of arrays) {
+      for (const control of arr.controls) {
+        const actual = Number(control.get('catalogItemId')?.value);
+        if (!actual) continue;
+        const traducido = this.mapStoredIdToDropdownId(actual);
+        if (traducido !== actual) control.patchValue({ catalogItemId: traducido }, { emitEvent: false });
+      }
+    }
   }
 
   /**
@@ -1496,7 +1482,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
       if (catalogItemId) {
         let tipoItem: string | undefined;
-        if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+        if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
           const ecuadorItem = this.itemsEcuadorPanama.find(i => i.id === catalogItemId);
           tipoItem = ecuadorItem ? (ecuadorItem.concepto ?? ecuadorItem.tipoItem ?? '').trim() || ecuadorItem.tipoItem : undefined;
         } else {
@@ -1522,7 +1508,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
       if (catalogItemId) {
         let tipoItem: string | undefined;
-        if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+        if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
           const ecuadorItem = this.itemsEcuadorPanama.find(i => i.id === catalogItemId);
           tipoItem = ecuadorItem ? (ecuadorItem.concepto ?? ecuadorItem.tipoItem ?? '').trim() || ecuadorItem.tipoItem : undefined;
         } else {
@@ -1550,7 +1536,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       const tipoItemActual = control.get('tipoItem')?.value;
       if (catalogItemId) {
         let tipoItem: string | undefined;
-        if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+        if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
           const ecuadorItem = this.itemsEcuadorPanama.find(i => i.id === catalogItemId);
           tipoItem = ecuadorItem
             ? (ecuadorItem.concepto ?? ecuadorItem.tipoItem ?? '').trim() || ecuadorItem.tipoItem
@@ -1582,7 +1568,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * Obtiene el tipo de ítem desde el catálogo y actualiza el FormArray
    */
   private obtenerTipoItemDesdeCatalogo(catalogItemId: number, genero: 'hembras' | 'machos', index: number): void {
-    if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+    if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
       const ecuadorItem = this.itemsEcuadorPanama.find(i => i.id === catalogItemId);
       if (ecuadorItem) {
         const tipoItem = (ecuadorItem.concepto ?? ecuadorItem.tipoItem ?? '').trim() || ecuadorItem.tipoItem;
@@ -1727,7 +1713,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         this.alimentosFiltradosGeneral = this.alimentosCatalog;
       }
     } else {
-      const alimentos = this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0
+      const alimentos = this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0
         ? this.getAlimentosFiltradosPorTipo(tipoItem)
         : this.alimentosCatalog.filter(a => {
             const metadata = a.metadata;
@@ -1849,7 +1835,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       this.mensajeInventarioMachos = '';
     }
 
-    if (this.isEcuadorOrPanama) {
+    if (this.usaInventarioGestion) {
       this.aplicarConsultaInventarioEcuadorPanama(tipoGenero, catalogItemId);
       return;
     }
@@ -1950,6 +1936,31 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.close.emit();
   }
 
+  /**
+   * Campos de id + nombre para persistir un ítem según el contrato de inventario del país.
+   * `itemId` es el id seleccionado en el dropdown (EC/PA/Colombia = item_inventario_ecuador.id;
+   * otros países = catalogo_items.id).
+   * Colombia: si el ítem tiene espejo en catalogo_items (mismo código) se envía ese id (el backend
+   * descuenta por código, camino-1); si es un ítem nuevo sin espejo (p.ej. "moises") se envía el id
+   * de item_inventario_ecuador (camino-2 pass-through).
+   */
+  private buildItemPersistFields(itemId: number): { catalogItemId: number; itemInventarioEcuadorId?: number; nombre?: string } {
+    const nombre = this.alimentosById.get(itemId)?.nombre ?? undefined;
+    if (this.isEcuadorOrPanama) {
+      return { catalogItemId: itemId, itemInventarioEcuadorId: itemId, nombre };
+    }
+    if (this.isColombia) {
+      const item = this.itemsEcuadorPanama.find(i => i.id === itemId);
+      const codigo = (item?.codigo ?? '').trim().toLowerCase();
+      const catalogoItemsId = codigo ? this.catalogItemIdPorCodigo.get(codigo) : undefined;
+      if (catalogoItemsId) {
+        return { catalogItemId: catalogoItemsId, nombre };
+      }
+      return { catalogItemId: 0, itemInventarioEcuadorId: itemId, nombre };
+    }
+    return { catalogItemId: itemId, nombre };
+  }
+
   onSave(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -1980,39 +1991,36 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       const itemValue = control.value;
       const tipoH = itemValue.tipoItem;
       if (!tipoH || !itemValue.catalogItemId) return;
-      const catalogItemId = Number(itemValue.catalogItemId);
-      const ecPa = this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {};
-
       if (Number(itemValue.cantidad) > 0) {
         itemsHembras.push({
           tipoItem: tipoH,
-          catalogItemId,
-          ...ecPa,
+          ...this.buildItemPersistFields(Number(itemValue.catalogItemId)),
           cantidad: Number(itemValue.cantidad),
           unidad: itemValue.unidad || 'kg'
         });
       }
-      if (Number(itemValue.cantidadMachos) > 0) {
-        itemsMachos.push({
-          tipoItem: tipoH,
-          catalogItemId,
-          ...ecPa,
-          cantidad: Number(itemValue.cantidadMachos),
-          unidad: itemValue.unidadMachos || 'kg'
-        });
-      }
     });
 
-    // machosControls ya no se usa (datos de machos vienen del array unificado arriba)
+    // Parte 2: los ítems de machos tienen su propio selector (pueden ser un alimento distinto).
+    // Si H y M usan el mismo ítem, el backend suma el consumo (ParseMetadataItemsToKg) y hace un solo descuento.
+    machosControls.forEach(control => {
+      const itemValue = control.value;
+      const tipoM = itemValue.tipoItem;
+      if (!tipoM || !itemValue.catalogItemId || !(Number(itemValue.cantidad) > 0)) return;
+      itemsMachos.push({
+        tipoItem: tipoM,
+        ...this.buildItemPersistFields(Number(itemValue.catalogItemId)),
+        cantidad: Number(itemValue.cantidad),
+        unidad: itemValue.unidad || 'kg'
+      });
+    });
 
     generalesControls.forEach(control => {
       const itemValue = control.value;
       if (itemValue.tipoItem && itemValue.catalogItemId && itemValue.cantidad > 0) {
-        const catalogItemId = Number(itemValue.catalogItemId);
         itemsGenerales.push({
           tipoItem: itemValue.tipoItem,
-          catalogItemId,
-          ...(this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {}),
+          ...this.buildItemPersistFields(Number(itemValue.catalogItemId)),
           cantidad: Number(itemValue.cantidad),
           unidad: itemValue.unidad || 'kg'
         });
@@ -2052,25 +2060,21 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const alimentosGenerales = itemsGenerales.filter(item => item.tipoItem === 'alimento');
     const nombresAlimentos: string[] = [];
 
+    // El nombre viaja en el propio ítem (item.nombre): con el contrato de ids de Colombia el
+    // catalogItemId puede ser el de catalogo_items y no estar en alimentosById (indexado por id de dropdown).
     alimentosHembras.forEach(item => {
-      const alimento = this.alimentosById.get(item.catalogItemId);
-      if (alimento?.nombre) {
-        nombresAlimentos.push(`H: ${alimento.nombre}`);
-      }
+      const nombre = item.nombre ?? this.alimentosById.get(item.catalogItemId)?.nombre;
+      if (nombre) nombresAlimentos.push(`H: ${nombre}`);
     });
 
     alimentosMachos.forEach(item => {
-      const alimento = this.alimentosById.get(item.catalogItemId);
-      if (alimento?.nombre) {
-        nombresAlimentos.push(`M: ${alimento.nombre}`);
-      }
+      const nombre = item.nombre ?? this.alimentosById.get(item.catalogItemId)?.nombre;
+      if (nombre) nombresAlimentos.push(`M: ${nombre}`);
     });
 
     alimentosGenerales.forEach(item => {
-      const alimento = this.alimentosById.get(item.catalogItemId);
-      if (alimento?.nombre) {
-        nombresAlimentos.push(`G: ${alimento.nombre}`);
-      }
+      const nombre = item.nombre ?? this.alimentosById.get(item.catalogItemId)?.nombre;
+      if (nombre) nombresAlimentos.push(`G: ${nombre}`);
     });
 
     const tipoAlimentoStr = nombresAlimentos.length > 0 ? nombresAlimentos.join(' / ') : raw.tipoAlimento || '';
@@ -2123,35 +2127,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       ? { ...baseDto, id: this.editing!.id } as UpdateSeguimientoLoteLevanteDto
       : baseDto as CreateSeguimientoLoteLevanteDto;
 
-    // Ecuador/Panamá: consumo en inventario-gestion lo resuelve el backend con metadata.
-    if (this.isEcuadorOrPanama) {
-      this.save.emit({ data, isEdit });
-      return;
-    }
-
-    // Colombia (San Marino): inventario de productos — farm inventory / catalog_items.
-    const newFoodKg = this.buildFoodKgMapFromAlimentoLists(alimentosHembras, alimentosMachos, alimentosGenerales);
-    // Si el registro era legacy sintético (sin baseline inventario), NO ajustar inventario en este update.
-    // Evita “consumir de inventario” retroactivamente al migrar un registro viejo.
-    const oldFoodKg =
-      isEdit && this.editing
-        ? (this.isLegacySyntheticRecord ? newFoodKg : this.buildFoodKgMapFromMetadata(this.editing))
-        : new Map<number, number>();
-    const allFoodIds = new Set<number>([...oldFoodKg.keys(), ...newFoodKg.keys()]);
-
-    void (async () => {
-      try {
-        for (const catalogItemId of allFoodIds) {
-          const oldK = oldFoodKg.get(catalogItemId) ?? 0;
-          const newK = newFoodKg.get(catalogItemId) ?? 0;
-          const diff = newK - oldK;
-          await this.colombiaApplyInventoryDelta(lote.granjaId, lote, loteId, catalogItemId, diff);
-        }
-        this.save.emit({ data, isEdit });
-      } catch (e: any) {
-        this.toast.error(e?.message ?? 'Error al actualizar el inventario de la granja (inventario de productos).');
-      }
-    })();
+    // Colombia + EC/PA: el consumo del inventario unificado (modelo B) lo resuelve el BACKEND desde
+    // metadata (ColombiaInventarioConsumoService / inventario-gestion). El front NO postea movimientos
+    // manuales (se eliminó el doble descuento al inventario viejo).
+    this.save.emit({ data, isEdit });
   }
 
   // ================== HELPERS ==================

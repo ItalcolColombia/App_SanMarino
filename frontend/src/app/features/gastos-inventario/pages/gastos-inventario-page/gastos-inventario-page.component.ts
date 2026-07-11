@@ -37,11 +37,6 @@ export class GastosInventarioPageComponent implements OnInit {
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
   selectedLoteId: number | null = null;
-  fechaDesde: string | null = null;
-  fechaHasta: string | null = null;
-  conceptoFilter: string = '';
-  estadoFilter: '' | 'Activo' | 'Eliminado' = '';
-  searchTerm: string = '';
 
   conceptos: string[] = [];
   list: InventarioGastoListItemDto[] = [];
@@ -83,7 +78,6 @@ export class GastosInventarioPageComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
-    await this.loadConceptos();
     await this.refresh();
   }
 
@@ -95,9 +89,14 @@ export class GastosInventarioPageComponent implements OnInit {
     return `${y}-${m}-${day}`;
   }
 
-  async loadConceptos(): Promise<void> {
+  /** Carga los conceptos del formulario, filtrados a los que tienen ítems con stock en `formFarmId`. */
+  async loadConceptosParaFormFarm(): Promise<void> {
+    if (!this.formFarmId) {
+      this.conceptos = [];
+      return;
+    }
     try {
-      this.conceptos = await firstValueFrom(this.api.getConceptos());
+      this.conceptos = await firstValueFrom(this.api.getConceptos(this.formFarmId));
     } catch {
       this.conceptos = [];
     }
@@ -112,12 +111,7 @@ export class GastosInventarioPageComponent implements OnInit {
           farmId: this.selectedFarmId ?? undefined,
           nucleoId: this.selectedNucleoId ?? undefined,
           galponId: this.selectedGalponId ?? undefined,
-          loteAveEngordeId: this.selectedLoteId ?? undefined,
-          fechaDesde: this.fechaDesde ?? undefined,
-          fechaHasta: this.fechaHasta ?? undefined,
-          concepto: this.conceptoFilter?.trim() || undefined,
-          search: this.searchTerm?.trim() || undefined,
-          estado: this.estadoFilter || undefined
+          loteAveEngordeId: this.selectedLoteId ?? undefined
         })
       );
       this.list = list ?? [];
@@ -138,17 +132,28 @@ export class GastosInventarioPageComponent implements OnInit {
     this.modalMode = 'create';
     this.modalTitle = 'Registrar gasto de inventario';
     this.formFarmId = this.selectedFarmId;
-    this.formNucleoId = this.selectedNucleoId;
-    this.formGalponId = this.selectedGalponId;
+    // Núcleo/galpón no se piden para registrar el gasto (se descuenta y se referencia
+    // a nivel granja + corrida); se dejan null para no heredar el filtro de lista.
+    this.formNucleoId = null;
+    this.formGalponId = null;
     this.formLoteId = this.selectedLoteId;
     this.formFecha = this.todayYmd();
     this.formConcepto = '';
     this.formObservaciones = '';
+    this.conceptos = [];
     this.items = [];
     this.selectedItemId = null;
     this.selectedItem = null;
     this.qtyToAdd = null;
     this.lineas = [];
+    void this.loadConceptosParaFormFarm();
+  }
+
+  /** Al cambiar la granja del formulario: recarga conceptos (con stock en esa granja) y limpia la selección previa. */
+  async onFormFarmChange(): Promise<void> {
+    this.formConcepto = '';
+    await this.loadConceptosParaFormFarm();
+    await this.onConceptoChange();
   }
 
   async openDetail(id: number): Promise<void> {
@@ -192,13 +197,12 @@ export class GastosInventarioPageComponent implements OnInit {
     await this.eliminar(row);
   }
 
-  /** Limpia los filtros secundarios (fechas/concepto/estado/búsqueda) y recarga. */
+  /** Limpia los filtros (granja/corrida) y recarga. */
   limpiarFiltros(): void {
-    this.fechaDesde = null;
-    this.fechaHasta = null;
-    this.conceptoFilter = '';
-    this.estadoFilter = '';
-    this.searchTerm = '';
+    this.selectedFarmId = null;
+    this.selectedNucleoId = null;
+    this.selectedGalponId = null;
+    this.selectedLoteId = null;
     this.refresh();
   }
 
@@ -339,12 +343,7 @@ export class GastosInventarioPageComponent implements OnInit {
         farmId: this.selectedFarmId ?? undefined,
         nucleoId: this.selectedNucleoId ?? undefined,
         galponId: this.selectedGalponId ?? undefined,
-        loteAveEngordeId: this.selectedLoteId ?? undefined,
-        fechaDesde: this.fechaDesde ?? undefined,
-        fechaHasta: this.fechaHasta ?? undefined,
-        concepto: this.conceptoFilter?.trim() || undefined,
-        search: this.searchTerm?.trim() || undefined,
-        estado: this.estadoFilter || undefined
+        loteAveEngordeId: this.selectedLoteId ?? undefined
       })
       .subscribe({
         next: rows => {

@@ -33,7 +33,7 @@ public class InventarioGestionStockConfiguration : IEntityTypeConfiguration<Inve
         e.HasIndex(x => x.PaisId).HasDatabaseName("ix_inventario_gestion_stock_pais_id");
 
         e.HasOne(x => x.Farm).WithMany().HasForeignKey(x => x.FarmId).OnDelete(DeleteBehavior.Restrict);
-        e.HasOne(x => x.ItemInventarioEcuador).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.ItemInventario).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId).OnDelete(DeleteBehavior.Restrict);
         e.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         e.HasOne(x => x.Pais).WithMany().HasForeignKey(x => x.PaisId).OnDelete(DeleteBehavior.Restrict);
     }

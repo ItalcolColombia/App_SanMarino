@@ -1,9 +1,14 @@
-.PHONY: up down open logs restart rebuild build-angular check-port help deploy-backend deploy-frontend deploy-all
+.PHONY: up down open logs restart rebuild build-angular check-port help deploy-backend deploy-frontend deploy-all dev dev-back dev-front
 
 help:
 	@echo "🧰 Opciones disponibles:"
 	@echo ""
-	@echo "📦 Desarrollo Local:"
+	@echo "📦 Desarrollo Local (nativo, sin Docker):"
+	@echo "  make dev            👉 Levanta BACK (:5002) + FRONT (:4200) en ventanas separadas"
+	@echo "  make dev-back       👉 Solo Backend .NET 10 (:5002)  [usa .dotnet user-local]"
+	@echo "  make dev-front      👉 Solo Frontend Angular 22 (:4200)  [usa Node portable]"
+	@echo ""
+	@echo "📦 Desarrollo Local (Docker):"
 	@echo "  make up             👉 Levanta los servicios Docker (compila frontend)"
 	@echo "  make down           👉 Detiene y elimina los contenedores"
 	@echo "  make rebuild        👉 Fuerza reconstrucción completa"
@@ -17,6 +22,21 @@ help:
 	@echo "  make deploy-backend  👉 Despliega solo el Backend a AWS"
 	@echo "  make deploy-frontend 👉 Despliega solo el Frontend a AWS"
 	@echo "  make deploy-all      👉 Despliega Backend y Frontend a AWS"
+
+# ==========================================
+# Desarrollo local NATIVO (sin Docker)
+#   Resuelve el PATH: back -> .NET 10 user-local, front -> Node portable.
+#   Detalle en dev-back.ps1 / dev-front.ps1 / dev.ps1 (raiz del repo).
+# ==========================================
+
+dev:
+	powershell -NoProfile -ExecutionPolicy Bypass -File dev.ps1
+
+dev-back:
+	powershell -NoProfile -ExecutionPolicy Bypass -File dev-back.ps1
+
+dev-front:
+	powershell -NoProfile -ExecutionPolicy Bypass -File dev-front.ps1
 
 up: check-port build-angular
 	docker-compose up -d --build

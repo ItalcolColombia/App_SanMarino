@@ -377,6 +377,12 @@
                 <span>Merma (kilos)</span>
                 <input type="number" min="0" step="0.001" [(ngModel)]="mermaKilos" class="form-input" placeholder="0" />
               </label>
+              @if (!loteCerrado) {
+                <label class="liq-lote__merma-field">
+                  <span>Fecha de liquidación</span>
+                  <input type="date" [(ngModel)]="fechaLiquidacion" class="form-input" />
+                </label>
+              }
             </div>
             <p class="liq-lote__hint">
               Ajuste de aves (preview): <strong>{{ ajusteAvesPreview }}</strong>

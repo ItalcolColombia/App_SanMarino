@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -10,10 +11,11 @@ namespace ZooSanMarino.Infrastructure.Services;
 /// (inventario_gestion_stock / item_inventario_ecuador) a NIVEL GRANJA. Reemplaza a
 /// FarmInventoryConsumoService (modelo A) para los lotes Colombia.
 ///
-/// Id-mapping: los ítems del seguimiento traen <c>catalogItemId</c> (modelo A). Se resuelven a
-/// <c>item_inventario_ecuador.id</c> por CÓDIGO (catalogo_items.codigo == item_inventario_ecuador.codigo,
-/// company 1/pais 1), que es exactamente el mapeo que dejó el backfill A→B. Batch: una query resuelve
-/// todos los ids a la vez.
+/// Id-mapping (dos caminos, ver <see cref="ResolverItemsBPorCatalogItemAsync"/>): (1) registros/ítems
+/// históricos traen <c>catalogItemId</c> (modelo A) y se resuelven a <c>item_inventario_ecuador.id</c>
+/// por CÓDIGO (mapeo del backfill A→B); (2) ítems creados directamente en el inventario nuevo (sin fila
+/// espejo en catalogo_items) llegan como <c>itemInventarioEcuadorId</c> y se usan tal cual (pass-through
+/// validado contra company/pais de Colombia). Batch: una query por camino resuelve todos los ids a la vez.
 ///
 /// Descuenta contra el stock B nivel granja (nucleo/galpon NULL) mediante los métodos aditivos de
 /// InventarioGestionService — sin exigir galpón (Ecuador/Panamá siguen con núcleo/galpón, intactos).
@@ -36,8 +38,17 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
     }
 
     /// <summary>
-    /// Resuelve en BATCH catalogItemId (modelo A) → item_inventario_ecuador.id (modelo B) por código,
-    /// scope company 1/pais 1 de Colombia. Los catalogItemId sin mapeo NO figuran en el diccionario.
+    /// Resuelve en BATCH un id "mixto" → item_inventario_ecuador.id (modelo B), scope company 1/pais 1
+    /// de Colombia. Dos caminos, en orden:
+    ///   1) catalogItemId (modelo A histórico) → codigo → item_inventario_ecuador por código
+    ///      (mapeo del backfill A→B).
+    ///   2) Ids que NO existen en catalogo_items (nunca tuvieron fila ahí): se asume que ya son un
+    ///      item_inventario_ecuador.id directo — ítems creados directamente en el inventario nuevo
+    ///      (p.ej. desde Config > Ítems de inventario), sin espejo en catalogo_items. Se valida que
+    ///      el id exista y pertenezca a Colombia antes de aceptarlo (pass-through controlado).
+    /// Un id que SÍ existe en catalogo_items pero no tiene equivalente por código NO cae al camino 2
+    /// (evita interpretar mal un id de catalogo_items como si fuera de item_inventario_ecuador).
+    /// Los ids que no resuelven por ninguno de los dos caminos NO figuran en el diccionario.
     /// </summary>
     private async Task<Dictionary<int, int>> ResolverItemsBPorCatalogItemAsync(IEnumerable<int> catalogItemIds, CancellationToken ct)
     {
@@ -49,28 +60,32 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
             .Where(c => ids.Contains(c.Id))
             .Select(c => new { c.Id, c.Codigo })
             .ToListAsync(ct);
-        if (codigosPorCatalogItem.Count == 0) return new Dictionary<int, int>();
 
         var codigos = codigosPorCatalogItem.Select(c => c.Codigo).Distinct().ToArray();
 
         // codigo → item_inventario_ecuador.id (modelo B, Colombia = company 1/pais 1).
-        var itemsB = await _db.ItemInventarioEcuador.AsNoTracking()
-            .Where(e => e.CompanyId == CompanyColombia && e.PaisId == PaisColombia && codigos.Contains(e.Codigo))
-            .Select(e => new { e.Id, e.Codigo })
-            .ToListAsync(ct);
+        var itemsB = codigos.Length == 0
+            ? new List<(int Id, string Codigo)>()
+            : (await _db.ItemInventario.AsNoTracking()
+                .Where(e => e.CompanyId == CompanyColombia && e.PaisId == PaisColombia && codigos.Contains(e.Codigo))
+                .Select(e => new { e.Id, e.Codigo })
+                .ToListAsync(ct))
+              .Select(e => (e.Id, e.Codigo)).ToList();
 
-        var itemBPorCodigo = itemsB
-            .GroupBy(e => e.Codigo.Trim().ToLowerInvariant())
-            .ToDictionary(g => g.Key, g => g.First().Id);
+        // Camino 2: ids que ni siquiera existen en catalogo_items → posible item_inventario_ecuador.id directo.
+        var idsEnCatalogoItems = codigosPorCatalogItem.Select(c => c.Id).ToHashSet();
+        var candidatosDirectos = ids.Where(id => !idsEnCatalogoItems.Contains(id)).ToArray();
+        var itemsBDirectos = candidatosDirectos.Length == 0
+            ? new List<int>()
+            : await _db.ItemInventario.AsNoTracking()
+                .Where(e => e.CompanyId == CompanyColombia && e.PaisId == PaisColombia && candidatosDirectos.Contains(e.Id))
+                .Select(e => e.Id)
+                .ToListAsync(ct);
 
-        var map = new Dictionary<int, int>();
-        foreach (var ci in codigosPorCatalogItem)
-        {
-            var key = ci.Codigo.Trim().ToLowerInvariant();
-            if (itemBPorCodigo.TryGetValue(key, out var itemBId))
-                map[ci.Id] = itemBId;
-        }
-        return map;
+        return ColombiaInventarioIdResolutionCalculos.Resolver(
+            codigosPorCatalogItem.Select(c => (c.Id, c.Codigo)).ToList(),
+            itemsB,
+            itemsBDirectos);
     }
 
     /// <summary>Resuelve el ítem B de un solo catalogItemId (Colombia). Lanza si no existe/no tiene mapeo.</summary>
@@ -95,7 +110,7 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
                 throw new InvalidOperationException(
                     $"El producto (catalogItemId={kv.Key}) no tiene equivalente en el inventario unificado de Colombia (item_inventario_ecuador). No se puede descontar.");
 
-            var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(e => e.Id == itemBId, ct);
+            var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(e => e.Id == itemBId, ct);
             var disponible = await _db.InventarioGestionStock.AsNoTracking()
                 .Where(x => x.FarmId == farmId && x.ItemInventarioEcuadorId == itemBId && x.NucleoId == null && x.GalponId == null)
                 .Select(x => (decimal?)x.Quantity)

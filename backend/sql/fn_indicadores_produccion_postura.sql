@@ -252,7 +252,7 @@ BEGIN
                    sd.peso_huevo::double precision AS peso_huevo,
                    sd.peso_h::double precision AS peso_h, sd.peso_m::double precision AS peso_m,
                    sd.uniformidad::double precision AS unif, sd.coeficiente_variacion::double precision AS cv
-              FROM seguimiento_diario_levante_reproductoras sd
+              FROM seguimiento_diario_levante sd
              WHERE sd.tipo_seguimiento = 'produccion'
                AND sd.lote_postura_produccion_id = p_lote_postura_produccion_id
             UNION ALL
@@ -265,7 +265,7 @@ BEGIN
                    sp.peso_huevo::double precision,
                    sp.peso_h::double precision, sp.peso_m::double precision,
                    sp.uniformidad::double precision, sp.coeficiente_variacion::double precision
-              FROM seguimiento_diario_produccion_reproductoras sp
+              FROM seguimiento_diario_produccion sp
              WHERE sp.lote_postura_produccion_id = p_lote_postura_produccion_id
         ),
         dedup AS (
@@ -349,7 +349,7 @@ BEGIN
                    sd.peso_huevo::double precision AS peso_huevo,
                    sd.peso_h::double precision AS peso_h, sd.peso_m::double precision AS peso_m,
                    sd.uniformidad::double precision AS unif, sd.coeficiente_variacion::double precision AS cv
-              FROM seguimiento_diario_levante_reproductoras sd
+              FROM seguimiento_diario_levante sd
              WHERE sd.tipo_seguimiento = 'produccion'
                AND sd.lote_id = v_lote_id_str
             UNION ALL
@@ -362,7 +362,7 @@ BEGIN
                    sp.peso_huevo::double precision,
                    sp.peso_h::double precision, sp.peso_m::double precision,
                    sp.uniformidad::double precision, sp.coeficiente_variacion::double precision
-              FROM seguimiento_diario_produccion_reproductoras sp
+              FROM seguimiento_diario_produccion sp
              WHERE sp.lote_id::text = v_lote_id_str
         ),
         dedup AS (

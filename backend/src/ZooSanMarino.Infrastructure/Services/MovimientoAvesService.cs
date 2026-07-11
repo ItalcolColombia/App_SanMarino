@@ -673,6 +673,50 @@ public class MovimientoAvesService : IMovimientoAvesService
     /// <summary>
     /// Aplica descuento en seguimiento diario de levante para traslado de aves (solo si el lote está en levante - semana < 26)
     /// </summary>
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Helpers de convergencia a Feature-13 (seguimiento_diario, tipo='levante')
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>LotePosturaLevante activa del lote (tracked) para mantener acumulados de traslado.</summary>
+    private Task<LotePosturaLevante?> ResolverLplLevanteAsync(int loteId) =>
+        _context.LotePosturaLevante
+            .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+    /// <summary>
+    /// Upsert de la fila canónica de levante por (tipo='levante', lote, fecha.Date).
+    /// Si no existe la crea con los NOT-NULL canónicos (convención Feature-13,
+    /// igual que TrasladoAvesDesdeSegService). No toca Sel/Mortalidad.
+    /// </summary>
+    private async Task<SeguimientoDiario> UpsertSeguimientoLevanteAsync(int loteId, DateTime fechaDate, int? lotePosturaLevanteId)
+    {
+        var seg = await _context.SeguimientoDiario
+            .Where(s => s.TipoSeguimiento == "levante"
+                     && s.LoteId == loteId.ToString()
+                     && s.Fecha.Date == fechaDate)
+            .FirstOrDefaultAsync();
+
+        if (seg is null)
+        {
+            seg = new SeguimientoDiario
+            {
+                TipoSeguimiento = "levante",
+                LoteId = loteId.ToString(),
+                LotePosturaLevanteId = lotePosturaLevanteId,
+                Fecha = fechaDate,
+                MortalidadHembras = 0, MortalidadMachos = 0,
+                SelH = 0, SelM = 0,
+                ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
+                Ciclo = "Traslado",
+                TipoAlimento = "—",
+                CreatedByUserId = _currentUser.UserGuid?.ToString() ?? _currentUser.UserId.ToString(),
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.SeguimientoDiario.Add(seg);
+        }
+        return seg;
+    }
+
     private async Task AplicarDescuentoEnLevanteDiariaAvesAsync(MovimientoAves movimiento)
     {
         if (!movimiento.LoteOrigenId.HasValue || (movimiento.CantidadHembras == 0 && movimiento.CantidadMachos == 0))
@@ -681,8 +725,8 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Obtener información del lote
         var lote = await _context.Lotes
             .AsNoTracking()
-            .Where(l => l.LoteId == movimiento.LoteOrigenId.Value && 
-                       l.CompanyId == _currentUser.CompanyId && 
+            .Where(l => l.LoteId == movimiento.LoteOrigenId.Value &&
+                       l.CompanyId == _currentUser.CompanyId &&
                        l.DeletedAt == null)
             .FirstOrDefaultAsync();
 
@@ -699,61 +743,52 @@ public class MovimientoAvesService : IMovimientoAvesService
             return;
 
         var loteId = movimiento.LoteOrigenId.Value;
+        var lplOrigen = await ResolverLplLevanteAsync(loteId);
 
-        // Buscar registro existente para esa fecha
-        var registroExistente = await _context.SeguimientoLoteLevante
-            .Where(s => s.LoteId == loteId && s.FechaRegistro.Date == fechaMovimiento)
-            .FirstOrDefaultAsync();
+        // Convergencia Feature-13: NO se codifica el movimiento como ±Sel. Se usa la
+        // fila canónica con columnas dedicadas de traslado/venta (misma convención que
+        // TrasladoAvesDesdeSegService), preservando el saldo físico de aves.
+        var seg = await UpsertSeguimientoLevanteAsync(loteId, fechaMovimiento, lplOrigen?.LotePosturaLevanteId);
 
-        if (registroExistente != null)
+        string obs;
+        if (movimiento.TipoMovimiento == "Venta")
         {
-            // Restar las aves trasladadas del registro existente
-            // Las aves trasladadas se registran como selección para descontar
-            // Hembras trasladadas se restan como SelH (selección hembras)
-            // Machos trasladados se restan como SelM (selección machos)
-            // Permitimos valores negativos para representar descuentos por traslado
-            registroExistente.SelH = registroExistente.SelH - movimiento.CantidadHembras;
-            registroExistente.SelM = registroExistente.SelM - movimiento.CantidadMachos;
-
-            // Actualizar observaciones
-            var obsTraslado = $"Descuento por traslado {movimiento.NumeroMovimiento} - {movimiento.TipoMovimiento}";
-            if (movimiento.CantidadHembras > 0)
-                obsTraslado += $" (H: {movimiento.CantidadHembras}";
-            if (movimiento.CantidadMachos > 0)
-                obsTraslado += movimiento.CantidadHembras > 0 ? $", M: {movimiento.CantidadMachos})" : $" (M: {movimiento.CantidadMachos})";
-
-            registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
-                ? obsTraslado
-                : $"{registroExistente.Observaciones} | {obsTraslado}";
-
-            await _context.SaveChangesAsync();
+            // La venta NO es traslado. Se registra el total para display/auditoría; el
+            // descuento del saldo lo aporta el registro MovimientoAves (así lo consumen
+            // los indicadores). No se tocan splits de traslado ni acumulados.
+            seg.VentaAvesCantidad = (seg.VentaAvesCantidad ?? 0) + (movimiento.CantidadHembras + movimiento.CantidadMachos);
+            seg.VentaAvesMotivo = movimiento.MotivoMovimiento;
+            obs = $"Venta {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
         }
         else
         {
-            // Si no existe registro para esa fecha, crear uno con valores negativos para descontar
-            var registroDescuento = new SeguimientoLoteLevante
-            {
-                LoteId = loteId,
-                FechaRegistro = fechaMovimiento,
-                // Valores negativos para descontar aves trasladadas
-                SelH = -movimiento.CantidadHembras, // Hembras trasladadas
-                SelM = -movimiento.CantidadMachos, // Machos trasladados
-                // Otros campos en cero
-                MortalidadHembras = 0,
-                MortalidadMachos = 0,
-                ErrorSexajeHembras = 0,
-                ErrorSexajeMachos = 0,
-                ConsumoKgHembras = 0,
-                ConsumoKgMachos = 0,
-                TipoAlimento = "N/A",
-                Observaciones = $"Registro de descuento por traslado {movimiento.NumeroMovimiento} - {movimiento.TipoMovimiento} " +
-                               $"(H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})",
-                Ciclo = "Normal"
-            };
+            // Traslado SALIDA en el lote origen (columnas dedicadas Feature-13).
+            LotePosturaLevante? lplDestino = movimiento.LoteDestinoId.HasValue
+                ? await ResolverLplLevanteAsync(movimiento.LoteDestinoId.Value)
+                : null;
 
-            _context.SeguimientoLoteLevante.Add(registroDescuento);
-            await _context.SaveChangesAsync();
+            seg.TrasladoSalidaHembras += movimiento.CantidadHembras;
+            seg.TrasladoSalidaMachos  += movimiento.CantidadMachos;
+            seg.TrasladoAvesSalida     = (seg.TrasladoAvesSalida ?? 0) + (movimiento.CantidadHembras + movimiento.CantidadMachos);
+            seg.EsTraslado             = true;
+            seg.TrasladoDireccion      = "SALIDA";
+            seg.TrasladoLoteContraparteId   = lplDestino?.LotePosturaLevanteId;
+            seg.TrasladoGranjaContraparteId = movimiento.GranjaDestinoId;
+
+            // Mantener acumulados de traslado en la LPL origen (lo que el hack NO hacía),
+            // para que GetMortalidadResumenAsync refleje el traslado.
+            if (lplOrigen != null)
+            {
+                lplOrigen.LevanteTrasladoSalidaHembras += movimiento.CantidadHembras;
+                lplOrigen.LevanteTrasladoSalidaMachos  += movimiento.CantidadMachos;
+            }
+            obs = $"Traslado SALIDA {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
         }
+
+        seg.Observaciones = string.IsNullOrEmpty(seg.Observaciones) ? obs : $"{seg.Observaciones} | {obs}";
+        seg.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>
@@ -1637,26 +1672,51 @@ public class MovimientoAvesService : IMovimientoAvesService
         var fechaMovimiento = movimiento.FechaMovimiento.Date;
         var diasDesdeEncaset = (fechaMovimiento - lote.FechaEncaset.Value.Date).Days;
         var semanaActual = (diasDesdeEncaset / 7) + 1;
-        var loteIdStr = movimiento.LoteOrigenId.Value.ToString();
 
         // Si es Levante (semana < 26)
         if (semanaActual < 26)
         {
-            var registroLevante = await _context.SeguimientoLoteLevante
-                .Where(s => s.LoteId == movimiento.LoteOrigenId.Value && 
-                           s.FechaRegistro.Date == fechaMovimiento)
+            // Convergencia Feature-13: invertir los splits de traslado / venta del ORIGEN
+            // (misma cobertura que el legacy, que solo revertía el origen).
+            var loteIdOrigen = movimiento.LoteOrigenId.Value;
+            var seg = await _context.SeguimientoDiario
+                .Where(s => s.TipoSeguimiento == "levante"
+                         && s.LoteId == loteIdOrigen.ToString()
+                         && s.Fecha.Date == fechaMovimiento)
                 .FirstOrDefaultAsync();
 
-            if (registroLevante != null)
+            if (seg != null)
             {
-                // Devolver las aves (sumar SelH y SelM)
-                registroLevante.SelH += movimiento.CantidadHembras;
-                registroLevante.SelM += movimiento.CantidadMachos;
+                if (movimiento.TipoMovimiento == "Venta")
+                {
+                    seg.VentaAvesCantidad = Math.Max(0, (seg.VentaAvesCantidad ?? 0) - (movimiento.CantidadHembras + movimiento.CantidadMachos));
+                }
+                else
+                {
+                    seg.TrasladoSalidaHembras = Math.Max(0, seg.TrasladoSalidaHembras - movimiento.CantidadHembras);
+                    seg.TrasladoSalidaMachos  = Math.Max(0, seg.TrasladoSalidaMachos  - movimiento.CantidadMachos);
+                    seg.TrasladoAvesSalida     = Math.Max(0, (seg.TrasladoAvesSalida ?? 0) - (movimiento.CantidadHembras + movimiento.CantidadMachos));
+
+                    var lplOrigen = await ResolverLplLevanteAsync(loteIdOrigen);
+                    if (lplOrigen != null)
+                    {
+                        lplOrigen.LevanteTrasladoSalidaHembras = Math.Max(0, lplOrigen.LevanteTrasladoSalidaHembras - movimiento.CantidadHembras);
+                        lplOrigen.LevanteTrasladoSalidaMachos  = Math.Max(0, lplOrigen.LevanteTrasladoSalidaMachos  - movimiento.CantidadMachos);
+                    }
+
+                    if (seg.TrasladoSalidaHembras == 0 && seg.TrasladoSalidaMachos == 0
+                        && seg.TrasladoIngresoHembras == 0 && seg.TrasladoIngresoMachos == 0)
+                    {
+                        seg.EsTraslado = false;
+                        seg.TrasladoDireccion = null;
+                    }
+                }
 
                 var obsDevolucion = $"Aves devueltas por cancelación de movimiento {movimiento.NumeroMovimiento}";
-                registroLevante.Observaciones = string.IsNullOrEmpty(registroLevante.Observaciones)
+                seg.Observaciones = string.IsNullOrEmpty(seg.Observaciones)
                     ? obsDevolucion
-                    : $"{registroLevante.Observaciones} | {obsDevolucion}";
+                    : $"{seg.Observaciones} | {obsDevolucion}";
+                seg.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
             }
@@ -1709,47 +1769,35 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Si es Levante (semana < 26)
         if (semanaActual < 26)
         {
-            var registroExistente = await _context.SeguimientoLoteLevante
-                .Where(s => s.LoteId == movimiento.LoteDestinoId.Value && 
-                           s.FechaRegistro.Date == fechaMovimiento)
-                .FirstOrDefaultAsync();
+            // Convergencia Feature-13: entrada en destino con columnas dedicadas de
+            // traslado INGRESO (idéntico a TrasladoAvesDesdeSegService). NO ±Sel.
+            var loteDestinoId = movimiento.LoteDestinoId.Value;
+            var lplDestino = await ResolverLplLevanteAsync(loteDestinoId);
+            var lplOrigen = movimiento.LoteOrigenId.HasValue
+                ? await ResolverLplLevanteAsync(movimiento.LoteOrigenId.Value)
+                : null;
 
-            if (registroExistente != null)
+            var seg = await UpsertSeguimientoLevanteAsync(loteDestinoId, fechaMovimiento, lplDestino?.LotePosturaLevanteId);
+
+            seg.TrasladoIngresoHembras += movimiento.CantidadHembras;
+            seg.TrasladoIngresoMachos  += movimiento.CantidadMachos;
+            seg.TrasladoAvesEntrante     = (seg.TrasladoAvesEntrante ?? 0) + (movimiento.CantidadHembras + movimiento.CantidadMachos);
+            seg.EsTraslado               = true;
+            seg.TrasladoDireccion        = "INGRESO";
+            seg.TrasladoLoteContraparteId   = lplOrigen?.LotePosturaLevanteId;
+            seg.TrasladoGranjaContraparteId = movimiento.GranjaOrigenId;
+
+            if (lplDestino != null)
             {
-                // Sumar las aves que entran (como entrada positiva)
-                registroExistente.SelH = registroExistente.SelH + movimiento.CantidadHembras;
-                registroExistente.SelM = registroExistente.SelM + movimiento.CantidadMachos;
-
-                var obsEntrada = $"Entrada por movimiento {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
-                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
-                    ? obsEntrada
-                    : $"{registroExistente.Observaciones} | {obsEntrada}";
-
-                await _context.SaveChangesAsync();
+                lplDestino.LevanteTrasladoIngresoHembras += movimiento.CantidadHembras;
+                lplDestino.LevanteTrasladoIngresoMachos  += movimiento.CantidadMachos;
             }
-            else
-            {
-                // Crear nuevo registro de entrada
-                var registroEntrada = new SeguimientoLoteLevante
-                {
-                    LoteId = movimiento.LoteDestinoId.Value,
-                    FechaRegistro = fechaMovimiento,
-                    SelH = movimiento.CantidadHembras, // Entrada de hembras
-                    SelM = movimiento.CantidadMachos, // Entrada de machos
-                    MortalidadHembras = 0,
-                    MortalidadMachos = 0,
-                    ErrorSexajeHembras = 0,
-                    ErrorSexajeMachos = 0,
-                    ConsumoKgHembras = 0,
-                    ConsumoKgMachos = 0,
-                    TipoAlimento = "N/A",
-                    Observaciones = $"Entrada por movimiento {movimiento.NumeroMovimiento} desde lote origen (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})",
-                    Ciclo = "Normal"
-                };
 
-                _context.SeguimientoLoteLevante.Add(registroEntrada);
-                await _context.SaveChangesAsync();
-            }
+            var obsEntrada = $"Traslado INGRESO {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
+            seg.Observaciones = string.IsNullOrEmpty(seg.Observaciones) ? obsEntrada : $"{seg.Observaciones} | {obsEntrada}";
+            seg.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
         }
         // Si es Producción (semana >= 26)
         else
@@ -1835,25 +1883,43 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Si es Levante (semana < 26)
         if (semanaActual < 26)
         {
-            var registroExistente = await _context.SeguimientoLoteLevante
-                .Where(s => s.LoteId == movimiento.LoteOrigenId.Value && 
-                           s.FechaRegistro.Date == fechaMovimiento)
+            // Convergencia Feature-13: ajustar por delta (new - original) sobre los splits
+            // de traslado SALIDA / venta del ORIGEN (no ±Sel).
+            var loteIdOrigen = movimiento.LoteOrigenId.Value;
+            var seg = await _context.SeguimientoDiario
+                .Where(s => s.TipoSeguimiento == "levante"
+                         && s.LoteId == loteIdOrigen.ToString()
+                         && s.Fecha.Date == fechaMovimiento)
                 .FirstOrDefaultAsync();
 
-            if (registroExistente != null)
+            if (seg != null)
             {
-                // PRIMERO: Devolver las cantidades originales (sumarlas de vuelta)
-                registroExistente.SelH += cantidadesOriginales["Hembras"];
-                registroExistente.SelM += cantidadesOriginales["Machos"];
+                var deltaH = movimiento.CantidadHembras - cantidadesOriginales["Hembras"];
+                var deltaM = movimiento.CantidadMachos - cantidadesOriginales["Machos"];
 
-                // AHORA: Aplicar las nuevas cantidades (restarlas)
-                registroExistente.SelH -= movimiento.CantidadHembras;
-                registroExistente.SelM -= movimiento.CantidadMachos;
+                if (movimiento.TipoMovimiento == "Venta")
+                {
+                    seg.VentaAvesCantidad = Math.Max(0, (seg.VentaAvesCantidad ?? 0) + deltaH + deltaM);
+                }
+                else
+                {
+                    seg.TrasladoSalidaHembras = Math.Max(0, seg.TrasladoSalidaHembras + deltaH);
+                    seg.TrasladoSalidaMachos  = Math.Max(0, seg.TrasladoSalidaMachos  + deltaM);
+                    seg.TrasladoAvesSalida     = Math.Max(0, (seg.TrasladoAvesSalida ?? 0) + deltaH + deltaM);
+
+                    var lplOrigen = await ResolverLplLevanteAsync(loteIdOrigen);
+                    if (lplOrigen != null)
+                    {
+                        lplOrigen.LevanteTrasladoSalidaHembras = Math.Max(0, lplOrigen.LevanteTrasladoSalidaHembras + deltaH);
+                        lplOrigen.LevanteTrasladoSalidaMachos  = Math.Max(0, lplOrigen.LevanteTrasladoSalidaMachos  + deltaM);
+                    }
+                }
 
                 var obsAjuste = $"Ajuste por edición de movimiento {movimiento.NumeroMovimiento}";
-                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                seg.Observaciones = string.IsNullOrEmpty(seg.Observaciones)
                     ? obsAjuste
-                    : $"{registroExistente.Observaciones} | {obsAjuste}";
+                    : $"{seg.Observaciones} | {obsAjuste}";
+                seg.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
             }
@@ -1917,25 +1983,36 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Si es Levante (semana < 26)
         if (semanaActual < 26)
         {
-            var registroExistente = await _context.SeguimientoLoteLevante
-                .Where(s => s.LoteId == movimiento.LoteDestinoId.Value && 
-                           s.FechaRegistro.Date == fechaMovimiento)
+            // Convergencia Feature-13: ajustar por delta (new - original) sobre el traslado
+            // INGRESO del DESTINO (no ±Sel).
+            var loteDestinoId = movimiento.LoteDestinoId.Value;
+            var seg = await _context.SeguimientoDiario
+                .Where(s => s.TipoSeguimiento == "levante"
+                         && s.LoteId == loteDestinoId.ToString()
+                         && s.Fecha.Date == fechaMovimiento)
                 .FirstOrDefaultAsync();
 
-            if (registroExistente != null)
+            if (seg != null)
             {
-                // PRIMERO: Revertir las cantidades originales (restarlas)
-                registroExistente.SelH -= cantidadesOriginales["Hembras"];
-                registroExistente.SelM -= cantidadesOriginales["Machos"];
+                var deltaH = movimiento.CantidadHembras - cantidadesOriginales["Hembras"];
+                var deltaM = movimiento.CantidadMachos - cantidadesOriginales["Machos"];
 
-                // AHORA: Aplicar las nuevas cantidades (sumarlas)
-                registroExistente.SelH += movimiento.CantidadHembras;
-                registroExistente.SelM += movimiento.CantidadMachos;
+                seg.TrasladoIngresoHembras = Math.Max(0, seg.TrasladoIngresoHembras + deltaH);
+                seg.TrasladoIngresoMachos  = Math.Max(0, seg.TrasladoIngresoMachos  + deltaM);
+                seg.TrasladoAvesEntrante     = Math.Max(0, (seg.TrasladoAvesEntrante ?? 0) + deltaH + deltaM);
+
+                var lplDestino = await ResolverLplLevanteAsync(loteDestinoId);
+                if (lplDestino != null)
+                {
+                    lplDestino.LevanteTrasladoIngresoHembras = Math.Max(0, lplDestino.LevanteTrasladoIngresoHembras + deltaH);
+                    lplDestino.LevanteTrasladoIngresoMachos  = Math.Max(0, lplDestino.LevanteTrasladoIngresoMachos  + deltaM);
+                }
 
                 var obsAjuste = $"Ajuste por edición de movimiento {movimiento.NumeroMovimiento}";
-                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                seg.Observaciones = string.IsNullOrEmpty(seg.Observaciones)
                     ? obsAjuste
-                    : $"{registroExistente.Observaciones} | {obsAjuste}";
+                    : $"{seg.Observaciones} | {obsAjuste}";
+                seg.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
             }

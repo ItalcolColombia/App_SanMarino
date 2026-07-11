@@ -1,0 +1,245 @@
+{
+  "id": "845b34de-9d86-44d5-beb3-8883fa7889d7",
+  "projectPath": "C:\\Users\\SAN MARINO\\Desktop\\App_SanMarino",
+  "title": "realia esta tarea tengo archivos tocados realiza un commit de esos arc",
+  "objective": "realia esta tarea tengo archivos tocados realiza un commit de esos archivo y sigue con las misiones > Riesgos y misiones sugeridas\n⚠ 3 archivo(s) superan 400 líneas (posible deuda técnica).\n\n⚠ Módulo con mayor deuda técnica: \"backend\" — 3 archivo(s) de más de 400 líneas; poco test (0 de 3 archivos).",
+  "type": "feature",
+  "constraints": [],
+  "priority": "normal",
+  "status": "blocked",
+  "epics": [
+    {
+      "id": "11454e3e-d2da-4ecb-9c12-efaaf47cb1aa",
+      "missionId": "845b34de-9d86-44d5-beb3-8883fa7889d7",
+      "title": "Commit seguro del trabajo en curso",
+      "description": "Consolidar los ~80 archivos modificados/eliminados del working tree en commits limpios y auditados, sin secretos y sin romper el build, cumpliendo el workflow obligatorio de CLAUDE.md (plan + tracker).",
+      "order": 0,
+      "tasks": [
+        {
+          "id": "3ace79ba-279b-4d21-97b6-46382d9cb3d1",
+          "epicId": "11454e3e-d2da-4ecb-9c12-efaaf47cb1aa",
+          "title": "Plan y tracker de la misión",
+          "description": "Crear ./fase_de_desarrollo/commit_y_deuda_backend_plan.md con el enfoque (commit por alcances + refactor de 5 archivos >800 líneas) y reescribir ./tracker_estado.md con el checklist granular, según el workflow obligatorio del repo.",
+          "confidence": 0.95,
+          "kind": "documentation",
+          "agentRole": "documentation",
+          "dependsOn": [],
+          "status": "failed",
+          "attempts": 2,
+          "maxAttempts": 2,
+          "result": {
+            "summary": "",
+            "filesChanged": [],
+            "error": "Architecture Guardian rechazó los cambios: backend/src/ZooSanMarino.API/Controllers/MovimientoAvesController.cs [max-file-lines]: 1020 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Migrations/20260710010220_Fase3ConvergeLevanteFeature13.cs [max-file-lines]: 807 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Migrations/20260710012849_Fase3RenameSeguimientoTables.cs [max-file-lines]: 1759 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/IndicadorEcuadorService.cs [max-file-lines]: 1186 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/MovimientoAvesService.cs [max-file-lines]: 2508 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoAvesEngordeEcuadorService.cs [max-file-lines]: 1088 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoAvesEngordeService.cs [max-file-lines]: 1885 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoDiarioService.cs [max-file-lines]: 841 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoLoteLevanteService.cs [max-file-lines]: 838 líneas (máximo 800). Divide el archivo en módulos más pequeños."
+          }
+        },
+        {
+          "id": "e79e0b5b-5dfb-4468-aae1-9c7d1f003dec",
+          "epicId": "11454e3e-d2da-4ecb-9c12-efaaf47cb1aa",
+          "title": "Auditoría del diff y filtro de secretos",
+          "description": "Revisar git diff completo agrupando por alcance (consolidación entidades seguimiento/producción backend, eliminación módulo inventario viejo front, servicios movimientos/liquidación, tooling). Verificar que appsettings.Development.json, launchSettings.json, .claude/launch.json y .claude/scheduled_tasks.lock no introduzcan credenciales al historial; excluirlos del commit (o proponer .gitignore) si contienen secretos. Confirmar que las entidades eliminadas (ProduccionDiaria, ProduccionSeguimiento) no tienen referencias vivas restantes.",
+          "confidence": 0.8,
+          "kind": "review",
+          "agentRole": "security",
+          "dependsOn": [
+            "3ace79ba-279b-4d21-97b6-46382d9cb3d1"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "fa62687f-fd00-452b-857a-ab17f5bd4df3",
+          "epicId": "11454e3e-d2da-4ecb-9c12-efaaf47cb1aa",
+          "title": "Validación de build pre-commit",
+          "description": "Ejecutar cd backend && dotnet build y dotnet test, y cd frontend && yarn build. Reportar salida real; si falla, bloquear el commit y reportar el error sin maquillar. Detener procesos al terminar (sin huérfanos).",
+          "confidence": 0.85,
+          "kind": "tests",
+          "agentRole": "qa",
+          "dependsOn": [
+            "e79e0b5b-5dfb-4468-aae1-9c7d1f003dec"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "ded2f1b8-31cb-4435-9e16-7b28d2d824cb",
+          "epicId": "11454e3e-d2da-4ecb-9c12-efaaf47cb1aa",
+          "title": "Crear commits agrupados por alcance",
+          "description": "Stagear y commitear los archivos auditados en 2-4 commits con mensajes convencionales en español (ej. refactor(seguimiento): consolida entidades de producción; chore(front): elimina módulo inventario legado). Autor único moisesmurillo; PROHIBIDO añadir Co-Authored-By de Claude o footer 'Generated with Claude Code'. No hacer push a ramas de deploy ni desplegar.",
+          "confidence": 0.9,
+          "kind": "crud",
+          "agentRole": "devops",
+          "dependsOn": [
+            "fa62687f-fd00-452b-857a-ab17f5bd4df3"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        }
+      ]
+    },
+    {
+      "id": "743b58f9-0038-4cee-9993-2ba5316daf26",
+      "missionId": "845b34de-9d86-44d5-beb3-8883fa7889d7",
+      "title": "Reducción de deuda técnica backend (archivos >800 líneas)",
+      "description": "Aplicar el patrón canónico del repo (movimientos-pollo-engorde): partir servicios largos en partial classes bajo Services/<Modulo>/Funciones/ con namespace plano, extraer matemática pura a Application/Calculos/ y cubrirla con tests xUnit de equivalencia. Refactor sin cambio de comportamiento: interfaz, DI, contratos y aritmética (Math.Round, orden, residuos) idénticos.",
+      "order": 1,
+      "tasks": [
+        {
+          "id": "a9bce7e5-f65e-45ab-a8f0-135a78016a0f",
+          "epicId": "743b58f9-0038-4cee-9993-2ba5316daf26",
+          "title": "Refactor MovimientoAvesService (2507 líneas) a partials + cálculo puro",
+          "description": "Partir Infrastructure/Services/MovimientoAvesService.cs en archivo ancla (usings, campos, ctor, interfaz IMovimientoAvesService) + partials por concern en Services/MovimientoAves/Funciones/ (Crud, Traslados, Validaciones, Auditoría). Extraer lógica pura a Application/Calculos/MovimientoAvesCalculos.cs. Partición completa sin líneas perdidas ni duplicadas, respetando doc-comments. Ningún archivo resultante >800 líneas.",
+          "confidence": 0.55,
+          "kind": "complex-refactor",
+          "agentRole": "backend",
+          "dependsOn": [
+            "ded2f1b8-31cb-4435-9e16-7b28d2d824cb"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "a5cc0b77-8d57-4f41-bc05-a39b4cde4bb9",
+          "epicId": "743b58f9-0038-4cee-9993-2ba5316daf26",
+          "title": "Tests de equivalencia MovimientoAvesCalculos",
+          "description": "Crear tests/ZooSanMarino.Application.Tests/MovimientoAvesCalculosTests.cs (xUnit, [Fact]/[Theory]) verificando que el cálculo extraído produce resultados idénticos al comportamiento previo, incluyendo redondeos y casos borde (cantidades cero/negativas, lotes mixtos H/M).",
+          "confidence": 0.75,
+          "kind": "tests",
+          "agentRole": "qa",
+          "dependsOn": [
+            "a9bce7e5-f65e-45ab-a8f0-135a78016a0f"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "4da3cad6-84be-4fe1-8cb0-fae6de7508c9",
+          "epicId": "743b58f9-0038-4cee-9993-2ba5316daf26",
+          "title": "Refactor SeguimientoAvesEngordeService (1884 líneas)",
+          "description": "Mismo patrón: ancla + partials en Services/SeguimientoAvesEngorde/Funciones/ y extracción de cálculo puro a Application/Calculos/. Atención: este servicio alimenta las vistas Power BI de engorde Ecuador (no renombrar tablas/vistas) y el filtrado multipaís debe quedarse en la BD, no en memoria.",
+          "confidence": 0.55,
+          "kind": "complex-refactor",
+          "agentRole": "backend",
+          "dependsOn": [
+            "ded2f1b8-31cb-4435-9e16-7b28d2d824cb"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "157f2a52-c8ef-4aca-8ebe-76e4a4763c6c",
+          "epicId": "743b58f9-0038-4cee-9993-2ba5316daf26",
+          "title": "Tests de equivalencia SeguimientoAvesEngordeCalculos",
+          "description": "Tests xUnit del cálculo puro extraído en t7, verificando equivalencia con el comportamiento previo (indicadores, conversiones, mortalidad acumulada).",
+          "confidence": 0.75,
+          "kind": "tests",
+          "agentRole": "qa",
+          "dependsOn": [
+            "4da3cad6-84be-4fe1-8cb0-fae6de7508c9"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "685e7e38-e28e-4ab1-9707-607c4a2e9fdd",
+          "epicId": "743b58f9-0038-4cee-9993-2ba5316daf26",
+          "title": "Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087)",
+          "description": "Aplicar el mismo patrón de partials + Calculos/ a ambos servicios de Ecuador. Preservar la regla de negocio de liquidación (merma NULL excluye lote del total a cliente) y la aritmética de kilos despachados exactamente como está.",
+          "confidence": 0.6,
+          "kind": "complex-refactor",
+          "agentRole": "backend",
+          "dependsOn": [
+            "ded2f1b8-31cb-4435-9e16-7b28d2d824cb"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "9f8717e8-685b-47a1-b07d-ab383afbd718",
+          "epicId": "743b58f9-0038-4cee-9993-2ba5316daf26",
+          "title": "Refactor MovimientoAvesController (1019 líneas)",
+          "description": "Adelgazar el controller: mover lógica que no sea de transporte HTTP hacia el servicio/Application (sin cambiar rutas, verbos, DTOs ni status codes — API pública intacta). Si el tamaño viene de muchos endpoints, partir en partial classes del mismo controller manteniendo la clase única y las rutas idénticas.",
+          "confidence": 0.6,
+          "kind": "complex-refactor",
+          "agentRole": "backend",
+          "dependsOn": [
+            "a9bce7e5-f65e-45ab-a8f0-135a78016a0f"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "8a51fdbd-a26b-4fd6-87f3-25d8d212cf96",
+          "epicId": "743b58f9-0038-4cee-9993-2ba5316daf26",
+          "title": "Tests de indicadores Ecuador",
+          "description": "Tests xUnit para los cálculos puros extraídos en t9 (indicadores y liquidación Ecuador), cubriendo el caso merma NULL y la equivalencia de totales.",
+          "confidence": 0.7,
+          "kind": "tests",
+          "agentRole": "qa",
+          "dependsOn": [
+            "685e7e38-e28e-4ab1-9707-607c4a2e9fdd"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        }
+      ]
+    },
+    {
+      "id": "b60933e4-e8d6-4baa-acfd-5e924a0f8337",
+      "missionId": "845b34de-9d86-44d5-beb3-8883fa7889d7",
+      "title": "Validación final y cierre",
+      "description": "Compuerta de calidad de toda la misión: build verde, tests verdes, gate de 800 líneas cumplido, tracker actualizado y conocimiento registrado.",
+      "order": 2,
+      "tasks": [
+        {
+          "id": "c6f07de6-e595-4350-a662-23262d603aa9",
+          "epicId": "b60933e4-e8d6-4baa-acfd-5e924a0f8337",
+          "title": "Build + suite completa + verificación del gate de líneas",
+          "description": "dotnet build (0 errores, sin advertencias nuevas) + dotnet test completo. Verificar con conteo de líneas que ningún archivo tocado supera 800 líneas. Commit final del refactor (mismas reglas de autoría de t4). Detener todos los procesos levantados.",
+          "confidence": 0.8,
+          "kind": "tests",
+          "agentRole": "qa",
+          "dependsOn": [
+            "a5cc0b77-8d57-4f41-bc05-a39b4cde4bb9",
+            "157f2a52-c8ef-4aca-8ebe-76e4a4763c6c",
+            "9f8717e8-685b-47a1-b07d-ab383afbd718",
+            "8a51fdbd-a26b-4fd6-87f3-25d8d212cf96"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        },
+        {
+          "id": "731a239c-a7ad-4169-b72e-2a47c697d11e",
+          "epicId": "b60933e4-e8d6-4baa-acfd-5e924a0f8337",
+          "title": "Cierre: tracker y base de conocimiento",
+          "description": "Marcar el checklist de tracker_estado.md, documentar en el plan las decisiones tomadas (qué archivos se excluyeron del commit y por qué, cómo se particionó cada servicio) para reproducibilidad de la misión.",
+          "confidence": 0.95,
+          "kind": "summary",
+          "agentRole": "documentation",
+          "dependsOn": [
+            "c6f07de6-e595-4350-a662-23262d603aa9"
+          ],
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-07-10T08:41:05.623Z",
+  "updatedAt": "2026-07-10T09:21:19.450Z",
+  "strategy": "Monorepo Clean Architecture: backend .NET 10 (API/Application/Infrastructure/Domain, EF Core 10 + Npgsql) y frontend Angular 22 standalone. El working tree tiene ~80 archivos tocados que cruzan tres contextos: consolidación de entidades de seguimiento/producción (entidades y configuraciones ProduccionDiaria/ProduccionSeguimiento eliminadas, snapshot EF actualizado), eliminación del módulo viejo frontend/features/inventario (reemplazado por gestion-inventario), y ajustes en servicios de movimientos/liquidación. Verifiqué líneas reales: los archivos tocados que superan el umbral son MovimientoAvesService.cs (2507), SeguimientoAvesEngordeService.cs (1884), IndicadorEcuadorService.cs (1185), y además SeguimientoAvesEngordeEcuadorService.cs (1087) y MovimientoAvesController.cs (1019) también violan el gate de 800 líneas. Orden de ataque: (1) validar build+tests y auditar el diff para excluir archivos con credenciales (appsettings.Development.json y launchSettings.json están tocados y esa es la fuente de credenciales locales — constitución #5) antes de commitear; (2) commit del trabajo en curso agrupado por alcance, autor único moisesmurillo sin atribución a Claude (preferencia registrada del usuario); (3) refactor de deuda con el patrón canónico del repo (partial class en Services/<Modulo>/Funciones/ + cálculo puro en Application/Calculos/ + tests xUnit de equivalencia), un servicio por tarea para mantener diffs revisables, empezando por el peor (MovimientoAvesService). Refactor ≠ cambio de comportamiento: aritmética y contratos idénticos, validado con dotnet build + dotnet test tras cada partición.",
+  "visionAlignment": "No se proporcionó una visión de producto explícita; la misión es higiene del repositorio (consolidar trabajo en curso bajo Git y reducir deuda técnica en backend), lo cual es ortogonal a features pero mejora directamente la mantenibilidad y cumple el gate arquitectónico de 800 líneas que hoy está violado por 5 archivos tocados.",
+  "blockedReason": "La tarea \"Plan y tracker de la misión\" falló tras 2 intentos: Architecture Guardian rechazó los cambios: backend/src/ZooSanMarino.API/Controllers/MovimientoAvesController.cs [max-file-lines]: 1020 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Migrations/20260710010220_Fase3ConvergeLevanteFeature13.cs [max-file-lines]: 807 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Migrations/20260710012849_Fase3RenameSeguimientoTables.cs [max-file-lines]: 1759 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/IndicadorEcuadorService.cs [max-file-lines]: 1186 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/MovimientoAvesService.cs [max-file-lines]: 2508 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoAvesEngordeEcuadorService.cs [max-file-lines]: 1088 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoAvesEngordeService.cs [max-file-lines]: 1885 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoDiarioService.cs [max-file-lines]: 841 líneas (máximo 800). Divide el archivo en módulos más pequeños. | backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoLoteLevanteService.cs [max-file-lines]: 838 líneas (máximo 800). Divide el archivo en módulos más pequeños. | La tarea \"Auditoría del diff y filtro de secretos\" depende de tareas que no pueden completarse. | La tarea \"Validación de build pre-commit\" depende de tareas que no pueden completarse. | La tarea \"Crear commits agrupados por alcance\" depende de tareas que no pueden completarse. | La tarea \"Refactor MovimientoAvesService (2507 líneas) a partials + cálculo puro\" depende de tareas que no pueden completarse. | La tarea \"Tests de equivalencia MovimientoAvesCalculos\" depende de tareas que no pueden completarse. | La tarea \"Refactor SeguimientoAvesEngordeService (1884 líneas)\" depende de tareas que no pueden completarse. | La tarea \"Tests de equivalencia SeguimientoAvesEngordeCalculos\" depende de tareas que no pueden completarse. | La tarea \"Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087)\" depende de tareas que no pueden completarse. | La tarea \"Refactor MovimientoAvesController (1019 líneas)\" depende de tareas que no pueden completarse. | La tarea \"Tests de indicadores Ecuador\" depende de tareas que no pueden completarse. | La tarea \"Build + suite completa + verificación del gate de líneas\" depende de tareas que no pueden completarse. | La tarea \"Cierre: tracker y base de conocimiento\" depende de tareas que no pueden completarse."
+}

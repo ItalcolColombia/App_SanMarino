@@ -39,6 +39,7 @@
     <div class="ux-card__body">
       <app-filtro-select
         [filterDataUrl]="filterDataUrl"
+        [showNucleoGalpon]="false"
         [selectedGranjaId]="selectedFarmId"
         [selectedNucleoId]="selectedNucleoId"
         [selectedGalponId]="selectedGalponId"
@@ -49,38 +50,6 @@
         (loteChange)="selectedLoteId = $event; refresh()"
         (filterDataLoaded)="onFilterDataLoaded($event)">
       </app-filtro-select>
-
-      <div class="filters-extra">
-        <div class="ux-field">
-          <label>Desde</label>
-          <input type="date" [(ngModel)]="fechaDesde" (change)="refresh()" />
-        </div>
-        <div class="ux-field">
-          <label>Hasta</label>
-          <input type="date" [(ngModel)]="fechaHasta" (change)="refresh()" />
-        </div>
-        <div class="ux-field">
-          <label>Concepto</label>
-          <select [(ngModel)]="conceptoFilter" (change)="refresh()">
-            <option value="">— Todos —</option>
-            @for (c of conceptos; track c) {
-              <option [value]="c">{{ c }}</option>
-            }
-          </select>
-        </div>
-        <div class="ux-field">
-          <label>Estado</label>
-          <select [(ngModel)]="estadoFilter" (change)="refresh()">
-            <option value="">— Todos —</option>
-            <option value="Activo">Activo</option>
-            <option value="Eliminado">Eliminado</option>
-          </select>
-        </div>
-        <div class="ux-field grow">
-          <label>Búsqueda</label>
-          <input type="text" [(ngModel)]="searchTerm" (keyup.enter)="refresh()" placeholder="Observaciones..." />
-        </div>
-      </div>
     </div>
   </section>
 
@@ -185,16 +154,18 @@
               <h3 class="modal-section__title">1) Ubicación y fecha</h3>
               <app-filtro-select
                 [filterDataUrl]="filterDataUrl"
+                [showNucleoGalpon]="false"
                 [selectedGranjaId]="formFarmId"
                 [selectedNucleoId]="formNucleoId"
                 [selectedGalponId]="formGalponId"
                 [selectedLoteId]="formLoteId"
-                (granjaChange)="formFarmId = $event; onConceptoChange()"
+                (granjaChange)="formFarmId = $event; onFormFarmChange()"
                 (nucleoChange)="formNucleoId = $event"
                 (galponChange)="formGalponId = $event"
                 (loteChange)="formLoteId = $event"
                 (filterDataLoaded)="onFilterDataLoaded($event)">
               </app-filtro-select>
+              <p class="hint">El consumo se descuenta a nivel granja; se referencia por corrida (lote), sin importar el galpón.</p>
               <div class="modal-row">
                 <div class="ux-field">
                   <label>Fecha</label>
@@ -211,13 +182,21 @@
               <div class="modal-row">
                 <div class="ux-field grow">
                   <label>Concepto</label>
-                  <select [(ngModel)]="formConcepto" (change)="onConceptoChange()">
+                  <select [(ngModel)]="formConcepto" (change)="onConceptoChange()" [disabled]="!formFarmId || !conceptos.length">
                     <option value="" disabled>— Seleccione concepto —</option>
                     @for (c of conceptos; track c) {
                       <option [value]="c">{{ c }}</option>
                     }
                   </select>
-                  <p class="hint">Solo se muestran ítems con stock disponible.</p>
+                  <p class="hint">
+                    @if (!formFarmId) {
+                      Seleccione una granja para ver sus conceptos.
+                    } @else if (!conceptos.length) {
+                      Esta granja no tiene ítems con stock disponible.
+                    } @else {
+                      Solo se muestran conceptos con ítems en stock en esta granja.
+                    }
+                  </p>
                 </div>
                 <div class="ux-field grow">
                   <label>Ítem (con stock)</label>
@@ -231,26 +210,28 @@
                   </select>
                 </div>
               </div>
-              <div class="ux-field inline">
-                <div class="grow">
-                  <label>Cantidad a consumir</label>
-                  <input type="number" step="0.001" [(ngModel)]="qtyToAdd" [disabled]="!selectedItem" [class.input--error]="qtyExceedsStock" />
+              <div class="ux-field">
+                <div class="inline">
+                  <div class="grow">
+                    <label>Cantidad a consumir</label>
+                    <input type="number" step="0.001" [(ngModel)]="qtyToAdd" [disabled]="!selectedItem" [class.input--error]="qtyExceedsStock" />
+                  </div>
                   @if (selectedItem) {
-                    <p class="hint" [class.hint--error]="qtyExceedsStock">
-                      Máximo: {{ formatNum(selectedItem.stockCantidad, 3) }} {{ selectedItem.unidad }}
-                      @if (qtyExceedsStock) {
-                        <span> — La cantidad supera el stock</span>
-                      }
-                    </p>
+                    <div class="unit">
+                      <label>Unidad</label>
+                      <div class="unit__box">{{ selectedItem.unidad }}</div>
+                    </div>
                   }
+                  <button type="button" class="btn-primary" (click)="addLinea()" [disabled]="!selectedItem || !qtyToAdd || qtyExceedsStock">Agregar</button>
                 </div>
                 @if (selectedItem) {
-                  <div class="unit">
-                    <label>Unidad</label>
-                    <div class="unit__box">{{ selectedItem.unidad }}</div>
-                  </div>
+                  <p class="hint" [class.hint--error]="qtyExceedsStock">
+                    Máximo: {{ formatNum(selectedItem.stockCantidad, 3) }} {{ selectedItem.unidad }}
+                    @if (qtyExceedsStock) {
+                      <span> — La cantidad supera el stock</span>
+                    }
+                  </p>
                 }
-                <button type="button" class="btn-primary" (click)="addLinea()" [disabled]="!selectedItem || !qtyToAdd || qtyExceedsStock">Agregar</button>
               </div>
             </div>
             <div class="ux-card mt">

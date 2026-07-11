@@ -344,17 +344,17 @@ public class MovimientoAvesController : ControllerBase
                     var mortCajaHLev = lote.MortCajaH ?? 0;
                     var mortCajaMlev = lote.MortCajaM ?? 0;
 
-                    var mortalidadLev = await _context.SeguimientoLoteLevante
+                    var mortalidadLev = await _context.SeguimientoDiario
                         .AsNoTracking()
-                        .Where(s => s.LoteId == loteId)
+                        .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString())
                         .GroupBy(_ => 1)
                         .Select(g => new {
-                            MortH = g.Sum(x => (int?)x.MortalidadHembras) ?? 0,
-                            MortM = g.Sum(x => (int?)x.MortalidadMachos) ?? 0,
-                            SelH  = g.Sum(x => (int?)x.SelH) ?? 0,
-                            SelM  = g.Sum(x => (int?)x.SelM) ?? 0,
-                            ErrH  = g.Sum(x => (int?)x.ErrorSexajeHembras) ?? 0,
-                            ErrM  = g.Sum(x => (int?)x.ErrorSexajeMachos) ?? 0
+                            MortH = g.Sum(x => x.MortalidadHembras ?? 0),
+                            MortM = g.Sum(x => x.MortalidadMachos ?? 0),
+                            SelH  = g.Sum(x => x.SelH ?? 0),
+                            SelM  = g.Sum(x => x.SelM ?? 0),
+                            ErrH  = g.Sum(x => x.ErrorSexajeHembras ?? 0),
+                            ErrM  = g.Sum(x => x.ErrorSexajeMachos ?? 0)
                         })
                         .FirstOrDefaultAsync();
 
@@ -385,17 +385,17 @@ public class MovimientoAvesController : ControllerBase
                     var mortCajaH = lote.MortCajaH ?? 0;
                     var mortCajaM = lote.MortCajaM ?? 0;
 
-                    var seguimientos = await _context.SeguimientoLoteLevante
+                    var seguimientos = await _context.SeguimientoDiario
                         .AsNoTracking()
-                        .Where(s => s.LoteId == loteId)
+                        .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString())
                         .ToListAsync();
 
-                    var totalMortalidadH = seguimientos.Sum(s => s.MortalidadHembras);
-                    var totalMortalidadM = seguimientos.Sum(s => s.MortalidadMachos);
-                    var totalSeleccionH = seguimientos.Sum(s => s.SelH);
-                    var totalSeleccionM = seguimientos.Sum(s => s.SelM);
-                    var totalErrorSexajeH = seguimientos.Sum(s => s.ErrorSexajeHembras);
-                    var totalErrorSexajeM = seguimientos.Sum(s => s.ErrorSexajeMachos);
+                    var totalMortalidadH = seguimientos.Sum(s => s.MortalidadHembras ?? 0);
+                    var totalMortalidadM = seguimientos.Sum(s => s.MortalidadMachos ?? 0);
+                    var totalSeleccionH = seguimientos.Sum(s => s.SelH ?? 0);
+                    var totalSeleccionM = seguimientos.Sum(s => s.SelM ?? 0);
+                    var totalErrorSexajeH = seguimientos.Sum(s => s.ErrorSexajeHembras ?? 0);
+                    var totalErrorSexajeM = seguimientos.Sum(s => s.ErrorSexajeMachos ?? 0);
 
                     var movimientosSalida = await _context.MovimientoAves
                         .AsNoTracking()

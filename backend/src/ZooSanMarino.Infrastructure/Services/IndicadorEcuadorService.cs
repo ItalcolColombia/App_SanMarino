@@ -817,9 +817,9 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
     private async Task<string> DeterminarTipoLoteAsync(int loteId)
     {
         // Verificar si tiene seguimiento de levante
-        var tieneLevante = await _context.SeguimientoLoteLevante
+        var tieneLevante = await _context.SeguimientoDiario
             .AsNoTracking()
-            .AnyAsync(s => s.LoteId == loteId);
+            .AnyAsync(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString());
 
         // Verificar si tiene seguimiento de producción
         var tieneProduccion = await _context.SeguimientoProduccion
@@ -993,14 +993,14 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
     private async Task<(int mortalidad, int seleccion)> CalcularMortalidadYSeleccionAsync(int loteId)
     {
         // Mortalidad y selección de levante
-        var levante = await _context.SeguimientoLoteLevante
+        var levante = await _context.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => s.LoteId == loteId)
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString())
             .GroupBy(s => 1)
             .Select(g => new
             {
-                Mortalidad = g.Sum(s => (int?)(s.MortalidadHembras + s.MortalidadMachos)) ?? 0,
-                Seleccion = g.Sum(s => (int?)(s.SelH + s.SelM)) ?? 0
+                Mortalidad = g.Sum(s => (int?)((s.MortalidadHembras ?? 0) + (s.MortalidadMachos ?? 0))) ?? 0,
+                Seleccion = g.Sum(s => (int?)((s.SelH ?? 0) + (s.SelM ?? 0))) ?? 0
             })
             .FirstOrDefaultAsync();
 
@@ -1041,10 +1041,10 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
     private async Task<decimal> CalcularConsumoTotalAsync(int loteId)
     {
         // Consumo de levante
-        var consumoLevante = await _context.SeguimientoLoteLevante
+        var consumoLevante = await _context.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => s.LoteId == loteId)
-            .SumAsync(s => (decimal?)(s.ConsumoKgHembras + (s.ConsumoKgMachos ?? 0)));
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString())
+            .SumAsync(s => (decimal?)((s.ConsumoKgHembras ?? 0m) + (s.ConsumoKgMachos ?? 0m)));
 
         // Consumo de producción
         var consumoProduccion = await _context.SeguimientoProduccion
@@ -1142,10 +1142,34 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
 
         var (mortalidad, seleccion) = await CalcularMortalidadYSeleccionAsync(loteId);
         var avesSacrificadas = await CalcularAvesSacrificadasAsync(loteId);
+        var trasladoNeto = await CalcularTrasladosNetosAsync(loteId);
 
-        // Aves actuales = iniciales - mortalidad - selección - sacrificadas
-        var avesActuales = avesIniciales - mortalidad - seleccion - avesSacrificadas;
+        // Aves actuales = iniciales - mortalidad - selección genuina - sacrificadas - traslado neto.
+        // Convergencia Feature-13: el traslado sale de las columnas dedicadas
+        // (traslado_salida/ingreso), NO de la selección. Las ventas/despachos siguen
+        // restando vía 'sacrificadas' (movimiento_aves), una sola vez.
+        var avesActuales = avesIniciales - mortalidad - seleccion - avesSacrificadas - trasladoNeto;
         return Math.Max(0, avesActuales);
+    }
+
+    /// <summary>
+    /// Traslado NETO de levante (salida - ingreso) desde las columnas dedicadas de la
+    /// tabla canónica (Feature-13). Positivo = más salidas que ingresos (resta del saldo).
+    /// </summary>
+    private async Task<int> CalcularTrasladosNetosAsync(int loteId)
+    {
+        var neto = await _context.SeguimientoDiario
+            .AsNoTracking()
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteId.ToString())
+            .GroupBy(s => 1)
+            .Select(g => new
+            {
+                Salida  = g.Sum(s => (int?)(s.TrasladoSalidaHembras + s.TrasladoSalidaMachos)) ?? 0,
+                Ingreso = g.Sum(s => (int?)(s.TrasladoIngresoHembras + s.TrasladoIngresoMachos)) ?? 0
+            })
+            .FirstOrDefaultAsync();
+
+        return (neto?.Salida ?? 0) - (neto?.Ingreso ?? 0);
     }
 
     private class LoteInfo
