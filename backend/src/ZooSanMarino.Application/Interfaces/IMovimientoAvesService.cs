@@ -22,6 +22,11 @@ public interface IMovimientoAvesService
     Task<IEnumerable<MovimientoAvesDto>> GetMovimientosByLoteAsync(int loteId);  // Changed from string to int
     Task<IEnumerable<MovimientoAvesDto>> GetMovimientosByUsuarioAsync(int usuarioId);
     
+    // Contexto de lote (información para movimientos y validaciones previas)
+    Task<InformacionLoteMovimientoDto?> ObtenerInformacionLoteAsync(int loteId);
+    Task<ValidacionFechaSeguimientoResultado?> ValidarFechaSeguimientoAsync(int loteId, DateTime fecha);
+    Task<UltimoNumeroDespachoDto> ObtenerUltimoNumeroDespachoAsync();
+
     // Operaciones de movimiento
     Task<ResultadoMovimientoDto> ProcesarMovimientoAsync(ProcesarMovimientoDto dto);
     Task<ResultadoMovimientoDto> CancelarMovimientoAsync(CancelarMovimientoDto dto);
