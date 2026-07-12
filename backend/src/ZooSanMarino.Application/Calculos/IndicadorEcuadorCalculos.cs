@@ -7,6 +7,13 @@ namespace ZooSanMarino.Application.Calculos;
 /// </summary>
 public static class IndicadorEcuadorCalculos
 {
+    /// <summary>
+    /// Conversión ajustada = conversión + (pesoAjuste − pesoPromedio) / divisorAjuste.
+    /// Devuelve 0 cuando la conversión es ≤ 0 (sin kg de carne producidos).
+    /// </summary>
+    public static decimal ConversionAjustada(decimal conversion, decimal pesoPromedio, decimal pesoAjuste, decimal divisorAjuste)
+        => conversion <= 0 ? 0m : conversion + ((pesoAjuste - pesoPromedio) / divisorAjuste);
+
     /// <summary>Merma % = merma_unidades / aves_vendidas × 100.</summary>
     public static decimal MermaPorcentaje(int mermaUnidades, int avesVendidas)
         => avesVendidas > 0 ? (decimal)mermaUnidades / avesVendidas * 100 : 0m;

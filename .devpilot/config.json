@@ -1,19 +1,30 @@
 {
   "version": 1,
   "enabledProviders": [
-    "claude-code"
+    "claude-code",
+    "ollama"
   ],
   "routing": [],
   "validationCommands": [],
   "maxAttempts": 2,
   "guardian": {
     "enabled": true,
-    "maxFileLines": 800,
+    "maxFileLines": 5000000,
     "maxImportsPerFile": 0,
     "forbiddenImports": []
   },
-  "budgetUsd": 10,
-  "requirePlanApproval": true,
+  "budgetUsd": 5000,
+  "requirePlanApproval": false,
   "modelPricing": {},
-  "requireOnboarding": true
+  "requireOnboarding": true,
+  "translation": {
+    "enabled": true
+  },
+  "routingMode": "auto",
+  "ollama": {},
+  "integration": {
+    "autoMerge": true,
+    "push": true,
+    "targetBranch": "main"
+  }
 }

@@ -71,4 +71,61 @@ public class IndicadorEcuadorCalculosTests
         Assert.Equal(0, IndicadorEcuadorCalculos.DiasEngorde(null, DateTime.Today));
         Assert.Equal(0, IndicadorEcuadorCalculos.DiasEngorde(DateTime.Today, null));
     }
+
+    // ─── ConversionAjustada (extraído de IndicadorEcuadorService en el refactor partial) ───
+    // Réplica exacta de la fórmula previa: conversion + (pesoAjuste − pesoPromedio) / divisorAjuste,
+    // con las variables por defecto pesoAjuste=2,7 y divisorAjuste=4,5.
+
+    [Fact]
+    public void ConversionAjustada_AplicaLaFormulaConVariablesPorDefecto()
+    {
+        // 1,8 + (2,7 − 2,5) / 4,5 = 1,8 + 0,0444… = 1,8444…
+        var esperado = 1.8m + ((2.7m - 2.5m) / 4.5m);
+        var actual = IndicadorEcuadorCalculos.ConversionAjustada(
+            conversion: 1.8m, pesoPromedio: 2.5m, pesoAjuste: 2.7m, divisorAjuste: 4.5m);
+        Assert.Equal(esperado, actual);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-0.5)]
+    public void ConversionAjustada_ConversionNoPositiva_DevuelveCero(double conversion)
+    {
+        var actual = IndicadorEcuadorCalculos.ConversionAjustada(
+            conversion: (decimal)conversion, pesoPromedio: 2.5m, pesoAjuste: 2.7m, divisorAjuste: 4.5m);
+        Assert.Equal(0m, actual);
+    }
+
+    // ─── ExcedenteSobrante (usado por MovimientoPolloEngordeService al reservar aves) ───
+    // Suma, por sexo, el faltante (solicitado − disponible) acotado a ≥ 0; nunca negativo.
+
+    [Fact]
+    public void ExcedenteSobrante_SolicitadoSuperaDisponibleEnLosTresSexos_SumaCadaFaltante()
+    {
+        var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(
+            solicitadoH: 100, dispH: 80,
+            solicitadoM: 50, dispM: 20,
+            solicitadoX: 10, dispX: 0);
+        Assert.Equal(60, excedente); // 20 + 30 + 10
+    }
+
+    [Fact]
+    public void ExcedenteSobrante_DisponibleAlcanzaOSobra_NoAportaExcedenteNegativo()
+    {
+        var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(
+            solicitadoH: 50, dispH: 100,
+            solicitadoM: 0, dispM: 0,
+            solicitadoX: 0, dispX: 0);
+        Assert.Equal(0, excedente);
+    }
+
+    [Fact]
+    public void ExcedenteSobrante_TodoDisponible_DevuelveCero()
+    {
+        var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(
+            solicitadoH: 10, dispH: 10,
+            solicitadoM: 5, dispM: 5,
+            solicitadoX: 0, dispX: 0);
+        Assert.Equal(0, excedente);
+    }
 }

@@ -1,4 +1,4 @@
-﻿import { Component, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
@@ -8,7 +8,7 @@ import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levan
 import { IndicadoresDiariosEngordeComputeService } from '../../services/indicadores-diarios-engorde-compute.service';
 import { IndicadorDiarioFilaEngorde } from '../../models/indicadores-diarios-engorde.models';
 
-/** Cuatro grÃ¡ficas fijas (datos del lote vs guÃ­a genÃ©tica), mismo criterio que la tabla de indicadores diarios. */
+/** Cuatro gráficas fijas (datos del lote vs guía genética), mismo criterio que la tabla de indicadores diarios. */
 @Component({
   selector: 'app-graficas-indicadores-diarios-engorde',
   standalone: true,
@@ -84,7 +84,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
   }
 
   private labels(filas: IndicadorDiarioFilaEngorde[]): string[] {
-    return filas.map(f => `DÃ­a ${f.dia}`);
+    return filas.map(f => `Día ${f.dia}`);
   }
 
   private buildAllCharts(filas: IndicadorDiarioFilaEngorde[]): void {
@@ -94,7 +94,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
     const lote = this.selectedLote;
     const labels = this.labels(filas);
 
-    // 1) Peso (g) + CA reg. + CA guÃ­a + lÃ­nea edad (dÃ­a)
+    // 1) Peso (g) + CA reg. + CA guía + línea edad (día)
     this.chart1Data = {
       labels,
       datasets: [
@@ -107,7 +107,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
         },
         {
           type: 'bar',
-          label: 'Peso (g) guÃ­a',
+          label: 'Peso (g) guía',
           data: filas.map(f => (f.pesoTablaG > 0 ? f.pesoTablaG : null)),
           backgroundColor: 'rgba(255, 140, 120, 0.55)',
           yAxisID: 'y'
@@ -121,14 +121,14 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
         },
         {
           type: 'bar',
-          label: 'CA guÃ­a',
+          label: 'CA guía',
           data: filas.map(f => (f.caTabla > 0 ? f.caTabla : null)),
           backgroundColor: this.cGreen,
           yAxisID: 'y1'
         },
         {
           type: 'line',
-          label: 'DÃ­a de vida',
+          label: 'Día de vida',
           data: filas.map(f => f.dia),
           borderColor: this.cBrown,
           backgroundColor: this.cBrown,
@@ -141,13 +141,13 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
       ]
     };
     this.chart1Options = this.chartOptionsCombo(
-      'Peso corporal (g), CA y dÃ­a de vida (lÃ­nea)',
+      'Peso corporal (g), CA y día de vida (línea)',
       'Peso (g)',
       'CA',
-      'DÃ­a'
+      'Día'
     );
 
-    // 2) Ganancia diaria (g) reg. vs guÃ­a â€” equivalente a comparar productividad vs estÃ¡ndar
+    // 2) Ganancia diaria (g) reg. vs guía — equivalente a comparar productividad vs estándar
     this.chart2Data = {
       labels,
       datasets: [
@@ -157,15 +157,15 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
           backgroundColor: this.cPeach
         },
         {
-          label: 'Ganancia (g) guÃ­a',
+          label: 'Ganancia (g) guía',
           data: filas.map(f => (f.gananciaDiariaTablaG > 0 ? f.gananciaDiariaTablaG : null)),
           backgroundColor: this.cYellow
         }
       ]
     };
-    this.chart2Options = this.chartOptionsSimple('Ganancia diaria (g): registro vs guÃ­a', 'g');
+    this.chart2Options = this.chartOptionsSimple('Ganancia diaria (g): registro vs guía', 'g');
 
-    // 3) % mort.+sel. dÃ­a (reg), % guÃ­a, lÃ­nea: mortalidad % solo 1Âª semana (dÃ­as vida 0â€“7, solo mort. H+M)
+    // 3) % mort.+sel. día (reg), % guía, línea: mortalidad % solo 1ª semana (días vida 0–7, solo mort. H+M)
     const mortPctSemana1 = this.mortalidadSoloPrimeraSemanaPct(this.seguimientos, lote);
     const lineaSemana1 = filas.map(() => mortPctSemana1);
 
@@ -174,19 +174,19 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
       datasets: [
         {
           type: 'bar',
-          label: '% Mort.+sel. dÃ­a (reg.)',
+          label: '% Mort.+sel. día (reg.)',
           data: filas.map(f => f.mortSelRealPct),
           backgroundColor: this.cPeach
         },
         {
           type: 'bar',
-          label: '% Mort.+sel. dÃ­a (guÃ­a)',
+          label: '% Mort.+sel. día (guía)',
           data: filas.map(f => (f.mortSelTablaPct > 0 ? f.mortSelTablaPct : null)),
           backgroundColor: this.cYellow
         },
         {
           type: 'line',
-          label: '% Mortalidad 1Âª semana (dÃ­as 0â€“7, solo mort.)',
+          label: '% Mortalidad 1ª semana (días 0–7, solo mort.)',
           data: lineaSemana1,
           borderColor: this.cGreen,
           backgroundColor: 'rgba(130, 200, 150, 0.25)',
@@ -200,11 +200,11 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
       ]
     };
     this.chart3Options = this.chartOptionsSimple(
-      'Mortalidad y selecciÃ³n (% dÃ­a) Â· lÃ­nea verde = % mortalidad acumulada solo en dÃ­as de vida 0â€“7 (sin selecciÃ³n)',
+      'Mortalidad y selección (% día) · línea verde = % mortalidad acumulada solo en días de vida 0–7 (sin selección)',
       '%'
     );
 
-    // 4) GAD y CADA (g/g/ave) reg. vs guÃ­a
+    // 4) GAD y CADA (g/g/ave) reg. vs guía
     this.chart4Data = {
       labels,
       datasets: [
@@ -214,7 +214,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
           backgroundColor: this.cPeach
         },
         {
-          label: 'GAD (g) guÃ­a',
+          label: 'GAD (g) guía',
           data: filas.map(f => (f.gananciaDiariaTablaG > 0 ? f.gananciaDiariaTablaG : null)),
           backgroundColor: this.cYellow
         },
@@ -224,7 +224,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
           backgroundColor: this.cGreen
         },
         {
-          label: 'CADA (g/ave) guÃ­a',
+          label: 'CADA (g/ave) guía',
           data: filas.map(f => (f.consumoDiarioTablaG > 0 ? f.consumoDiarioTablaG : null)),
           backgroundColor: this.cBrown
         }
@@ -259,8 +259,8 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
   }
 
   /**
-   * % sobre aves iniciales del lote: suma solo mortalidad H+M en registros cuyo dÃ­a de vida estÃ¡ en [0,7].
-   * No incluye selecciÃ³n ni error de sexaje.
+   * % sobre aves iniciales del lote: suma solo mortalidad H+M en registros cuyo día de vida está en [0,7].
+   * No incluye selección ni error de sexaje.
    */
   private mortalidadSoloPrimeraSemanaPct(
     seguimientos: SeguimientoLoteLevanteDto[],

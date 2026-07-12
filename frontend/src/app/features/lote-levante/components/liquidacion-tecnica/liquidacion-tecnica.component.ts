@@ -17,6 +17,28 @@ import {
 } from '../../services/liquidacion-comparacion.service';
 import { GuiaGeneticaService } from '../../../../services/guia-genetica.service';
 import { LoteDto } from '../../../lote/services/lote.service';
+import {
+  getEstadoClase,
+  getDiferenciaClass,
+  getEstadoClass,
+  getEstadoTexto,
+  getCumplimientoClass,
+  formatDate,
+  getErrorMessageLiquidacion,
+  calcularEdadSemanas,
+  calcularEdadDias
+} from '../../funciones/liquidacion-tecnica-estados.funcion';
+import {
+  construirIndicadores,
+  calcularConversionEsperada,
+  calcularCumplimientoGeneral
+} from '../../funciones/liquidacion-tecnica-indicadores.funcion';
+import {
+  construirIndicadoresChartData,
+  construirRetirosChartData,
+  construirEvolucionChartData,
+  construirConsumoPesoChartData
+} from '../../funciones/liquidacion-tecnica-graficos.funcion';
 
 @Component({
   selector: 'app-liquidacion-tecnica',
@@ -254,161 +276,21 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
    * Obtener indicadores para la tabla comparativa
    */
   get indicadores() {
-    const liquidacion = this.liquidacion();
-    const comparacion = this.comparacion();
-    if (!liquidacion) return [];
-
-    
-    
-    
-    
-    
-    
-
-    return [
-      {
-        concepto: 'Mortalidad Hembras',
-        real: liquidacion.porcentajeMortalidadHembras,
-        guia: this.mortalidadEsperadaHembrasGuia > 0 ? this.mortalidadEsperadaHembrasGuia : null,
-        diferencia: this.mortalidadEsperadaHembrasGuia > 0
-                    ? (liquidacion.porcentajeMortalidadHembras - this.mortalidadEsperadaHembrasGuia)
-                    : null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: this.mortalidadEsperadaHembrasGuia > 0
-                ? Math.abs(liquidacion.porcentajeMortalidadHembras - this.mortalidadEsperadaHembrasGuia) <= (this.mortalidadEsperadaHembrasGuia * 0.2)
-                : false
-      },
-      {
-        concepto: 'Mortalidad Machos',
-        real: liquidacion.porcentajeMortalidadMachos,
-        guia: this.mortalidadEsperadaMachosGuia > 0 ? this.mortalidadEsperadaMachosGuia : null,
-        diferencia: this.mortalidadEsperadaMachosGuia > 0
-                    ? (liquidacion.porcentajeMortalidadMachos - this.mortalidadEsperadaMachosGuia)
-                    : null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: this.mortalidadEsperadaMachosGuia > 0
-                ? Math.abs(liquidacion.porcentajeMortalidadMachos - this.mortalidadEsperadaMachosGuia) <= (this.mortalidadEsperadaMachosGuia * 0.2)
-                : false
-      },
-      {
-        concepto: 'Selección Hembras',
-        real: liquidacion.porcentajeSeleccionHembras,
-        guia: null,
-        diferencia: null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: true // No hay guía para selección
-      },
-      {
-        concepto: 'Selección Machos',
-        real: liquidacion.porcentajeSeleccionMachos,
-        guia: null,
-        diferencia: null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: true // No hay guía para selección
-      },
-      {
-        concepto: 'Retiro Total Hembras',
-        real: liquidacion.porcentajeRetiroTotalHembras,
-        guia: liquidacion.porcentajeRetiroGuia,
-        diferencia: liquidacion.porcentajeRetiroGuia ?
-          liquidacion.porcentajeRetiroTotalHembras - liquidacion.porcentajeRetiroGuia : null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: true // Usar lógica existente
-      },
-      {
-        concepto: 'Retiro Total Machos',
-        real: liquidacion.porcentajeRetiroTotalMachos,
-        guia: liquidacion.porcentajeRetiroGuia,
-        diferencia: liquidacion.porcentajeRetiroGuia ?
-          liquidacion.porcentajeRetiroTotalMachos - liquidacion.porcentajeRetiroGuia : null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: true // Usar lógica existente
-      },
-      {
-        concepto: 'Consumo Alimento',
-        real: liquidacion.consumoAlimentoRealGramos,
-        guia: comparacion?.consumoAcumuladoEsperadoHembras || liquidacion.consumoAlimentoGuiaGramos,
-        diferencia: comparacion?.diferenciaConsumoHembras || liquidacion.porcentajeDiferenciaConsumo,
-        unidad: 'gr',
-        tipo: 'peso',
-        cumple: comparacion?.cumpleConsumoHembras || false
-      },
-      {
-        concepto: 'Peso Semana 25 (Hembras)',
-        real: liquidacion.pesoSemana25RealHembras || 0,
-        guia: this.pesoEsperadoHembrasGuia > 0 ? this.pesoEsperadoHembrasGuia : null,
-        diferencia: liquidacion.pesoSemana25RealHembras && this.pesoEsperadoHembrasGuia > 0
-                    ? (liquidacion.pesoSemana25RealHembras - this.pesoEsperadoHembrasGuia)
-                    : null,
-        unidad: 'gr',
-        tipo: 'peso',
-        cumple: liquidacion.pesoSemana25RealHembras && this.pesoEsperadoHembrasGuia > 0
-                ? Math.abs(liquidacion.pesoSemana25RealHembras - this.pesoEsperadoHembrasGuia) / this.pesoEsperadoHembrasGuia <= 0.1
-                : false
-      },
-      {
-        concepto: 'Peso Semana 25 (Machos)',
-        real: liquidacion.pesoSemana25RealMachos || 0,
-        guia: this.pesoEsperadoMachosGuia > 0 ? this.pesoEsperadoMachosGuia : null,
-        diferencia: liquidacion.pesoSemana25RealMachos && this.pesoEsperadoMachosGuia > 0
-                    ? (liquidacion.pesoSemana25RealMachos - this.pesoEsperadoMachosGuia)
-                    : null,
-        unidad: 'gr',
-        tipo: 'peso',
-        cumple: liquidacion.pesoSemana25RealMachos && this.pesoEsperadoMachosGuia > 0
-                ? Math.abs(liquidacion.pesoSemana25RealMachos - this.pesoEsperadoMachosGuia) / this.pesoEsperadoMachosGuia <= 0.1
-                : false
-      },
-      {
-        concepto: 'Uniformidad (Hembras)',
-        real: liquidacion.uniformidadRealHembras || 0,
-        guia: this.uniformidadEsperadaHembrasGuia > 0 ? this.uniformidadEsperadaHembrasGuia : null,
-        diferencia: liquidacion.uniformidadRealHembras && this.uniformidadEsperadaHembrasGuia > 0
-          ? (liquidacion.uniformidadRealHembras - this.uniformidadEsperadaHembrasGuia)
-          : null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: liquidacion.uniformidadRealHembras && this.uniformidadEsperadaHembrasGuia > 0
-          ? Math.abs(liquidacion.uniformidadRealHembras - this.uniformidadEsperadaHembrasGuia) <= 2
-          : false
-      },
-      {
-        concepto: 'Uniformidad (Machos)',
-        real: liquidacion.uniformidadRealMachos || 0,
-        guia: this.uniformidadEsperadaMachosGuia > 0 ? this.uniformidadEsperadaMachosGuia : null,
-        diferencia: liquidacion.uniformidadRealMachos && this.uniformidadEsperadaMachosGuia > 0
-          ? (liquidacion.uniformidadRealMachos - this.uniformidadEsperadaMachosGuia)
-          : null,
-        unidad: '%',
-        tipo: 'porcentaje',
-        cumple: liquidacion.uniformidadRealMachos && this.uniformidadEsperadaMachosGuia > 0
-          ? Math.abs(liquidacion.uniformidadRealMachos - this.uniformidadEsperadaMachosGuia) <= 2
-          : false
-      }
-    ].filter(ind => ind.real != null);
+    return construirIndicadores(this.liquidacion(), this.comparacion(), {
+      pesoEsperadoHembrasGuia: this.pesoEsperadoHembrasGuia,
+      pesoEsperadoMachosGuia: this.pesoEsperadoMachosGuia,
+      mortalidadEsperadaHembrasGuia: this.mortalidadEsperadaHembrasGuia,
+      mortalidadEsperadaMachosGuia: this.mortalidadEsperadaMachosGuia,
+      uniformidadEsperadaHembrasGuia: this.uniformidadEsperadaHembrasGuia,
+      uniformidadEsperadaMachosGuia: this.uniformidadEsperadaMachosGuia
+    });
   }
 
   /**
    * Obtener clase CSS para el estado del indicador
    */
   getEstadoClase(diferencia: number | null | undefined, tipo: string, cumple?: boolean): string {
-    if (cumple !== undefined) {
-      return cumple ? 'estado-bueno' : 'estado-critico';
-    }
-
-    if (diferencia === null || diferencia === undefined) return 'estado-neutral';
-
-    const umbral = tipo === 'porcentaje' ? 2 : 5; // 2% para porcentajes, 5% para otros
-
-    if (Math.abs(diferencia) <= umbral) return 'estado-bueno';
-    if (Math.abs(diferencia) <= umbral * 2) return 'estado-alerta';
-    return 'estado-critico';
+    return getEstadoClase(diferencia, tipo, cumple);
   }
 
 
@@ -434,25 +316,14 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
    * Formatear fecha para mostrar
    */
   formatDate(date: Date | string | null | undefined): string {
-    if (!date) return '—';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('es-ES');
+    return formatDate(date);
   }
 
   /**
    * Obtener mensaje de error amigable
    */
   private getErrorMessage(error: any): string {
-    if (error.status === 404) {
-      return 'Lote no encontrado o sin datos para liquidación técnica';
-    }
-    if (error.status === 400) {
-      return 'Parámetros inválidos para el cálculo';
-    }
-    if (error.status === 500) {
-      return 'Error interno del servidor';
-    }
-    return 'Error desconocido al calcular liquidación técnica';
+    return getErrorMessageLiquidacion(error);
   }
 
   // ==================== MÉTODOS PARA GRÁFICOS ====================
@@ -461,86 +332,14 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
    * Datos para gráfico de barras: Indicadores Real vs Guía
    */
   get indicadoresChartData(): ChartData<'bar'> {
-    const liquidacion = this.liquidacion();
-    if (!liquidacion) {
-      return { labels: [], datasets: [] };
-    }
-
-    const indicadores = [
-      { label: 'Mort. H (%)', real: liquidacion.porcentajeMortalidadHembras, guia: null },
-      { label: 'Mort. M (%)', real: liquidacion.porcentajeMortalidadMachos, guia: null },
-      { label: 'Retiro H (%)', real: liquidacion.porcentajeRetiroTotalHembras, guia: liquidacion.porcentajeRetiroGuia },
-      { label: 'Retiro M (%)', real: liquidacion.porcentajeRetiroTotalMachos, guia: liquidacion.porcentajeRetiroGuia },
-      { label: 'Consumo (g)', real: liquidacion.consumoAlimentoRealGramos / 1000, guia: liquidacion.consumoAlimentoGuiaGramos ? liquidacion.consumoAlimentoGuiaGramos / 1000 : null },
-      { label: 'Peso H (g)', real: liquidacion.pesoSemana25RealHembras ? liquidacion.pesoSemana25RealHembras / 1000 : null, guia: liquidacion.pesoSemana25GuiaHembras ? liquidacion.pesoSemana25GuiaHembras / 1000 : null },
-      { label: 'Unif. H (%)', real: liquidacion.uniformidadRealHembras, guia: liquidacion.uniformidadGuiaHembras }
-    ].filter(ind => ind.real != null);
-
-    return {
-      labels: indicadores.map(ind => ind.label),
-      datasets: [
-        {
-          label: 'Real',
-          data: indicadores.map(ind => ind.real || 0),
-          backgroundColor: 'rgba(211, 47, 47, 0.8)',
-          borderColor: 'rgba(211, 47, 47, 1)',
-          borderWidth: 1
-        },
-        {
-          label: 'Guía',
-          data: indicadores.map(ind => ind.guia || 0),
-          backgroundColor: 'rgba(120, 113, 108, 0.8)',
-          borderColor: 'rgba(120, 113, 108, 1)',
-          borderWidth: 1
-        }
-      ]
-    };
+    return construirIndicadoresChartData(this.liquidacion());
   }
 
   /**
    * Datos para gráfico de torta: Distribución de retiros
    */
   get retirosChartData(): ChartData<'pie'> {
-    const liquidacion = this.liquidacion();
-    if (!liquidacion) {
-      return { labels: [], datasets: [] };
-    }
-
-    const totalHembras = liquidacion.hembrasEncasetadas;
-    const totalMachos = liquidacion.machosEncasetados;
-    const total = totalHembras + totalMachos;
-
-    const mortHembras = (liquidacion.porcentajeMortalidadHembras / 100) * totalHembras;
-    const mortMachos = (liquidacion.porcentajeMortalidadMachos / 100) * totalMachos;
-    const selHembras = (liquidacion.porcentajeSeleccionHembras / 100) * totalHembras;
-    const selMachos = (liquidacion.porcentajeSeleccionMachos / 100) * totalMachos;
-    const errHembras = (liquidacion.porcentajeErrorSexajeHembras / 100) * totalHembras;
-    const errMachos = (liquidacion.porcentajeErrorSexajeMachos / 100) * totalMachos;
-    const vivas = total - (mortHembras + mortMachos + selHembras + selMachos + errHembras + errMachos);
-
-    return {
-      labels: ['Vivas', 'Mort. Hembras', 'Mort. Machos', 'Sel. Hembras', 'Sel. Machos', 'Error Sexaje'],
-      datasets: [{
-        data: [vivas, mortHembras, mortMachos, selHembras, selMachos, errHembras + errMachos],
-        backgroundColor: [
-          'rgba(16, 185, 129, 0.8)', // Verde - Vivas
-          'rgba(239, 68, 68, 0.8)',  // Rojo - Mort Hembras
-          'rgba(185, 28, 28, 0.8)',  // Rojo oscuro - Mort Machos
-          'rgba(245, 158, 11, 0.8)', // Amarillo - Sel Hembras
-          'rgba(217, 119, 6, 0.8)',  // Amarillo oscuro - Sel Machos
-          'rgba(107, 114, 128, 0.8)' // Gris - Error Sexaje
-        ],
-        borderColor: [
-          'rgba(16, 185, 129, 1)',
-          'rgba(239, 68, 68, 1)',
-          'rgba(185, 28, 28, 1)',
-          'rgba(245, 158, 11, 1)',
-          'rgba(217, 119, 6, 1)',
-          'rgba(107, 114, 128, 1)'
-        ],
-        borderWidth: 2
-      }]
-    };
+    return construirRetirosChartData(this.liquidacion());
   }
 
   /**

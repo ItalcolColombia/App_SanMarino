@@ -1,6 +1,6 @@
 {
-  "taskId": "3ace79ba-279b-4d21-97b6-46382d9cb3d1",
-  "title": "Plan y tracker de la misión",
-  "status": "failed",
-  "finishedAt": "2026-07-10T09:20:35.501Z"
+  "taskId": "e147ad34-c540-4f88-98b8-edfa757b9bf1",
+  "title": "Build frontend de validación",
+  "status": "done",
+  "finishedAt": "2026-07-12T05:49:26.761Z"
 }

@@ -1,37 +1,57 @@
-# Plan propuesto: realia esta tarea tengo archivos tocados realiza un commit de esos arc
+# Plan propuesto: busca archivos que este muy largos y dividilos octimizando foram de le
 
-**Objetivo:** realia esta tarea tengo archivos tocados realiza un commit de esos archivo y sigue con las misiones > Riesgos y misiones sugeridas
-⚠ 3 archivo(s) superan 400 líneas (posible deuda técnica).
-
-⚠ Módulo con mayor deuda técnica: "backend" — 3 archivo(s) de más de 400 líneas; poco test (0 de 3 archivos).
+**Objetivo:** busca archivos que este muy largos y dividilos octimizando foram de lectura tanto en la carpeta front y carpeta back , valida todo el proyecto y comenzemos a organizar todo el codigo completo
 
 ## Estrategia
-Monorepo Clean Architecture: backend .NET 10 (API/Application/Infrastructure/Domain, EF Core 10 + Npgsql) y frontend Angular 22 standalone. El working tree tiene ~80 archivos tocados que cruzan tres contextos: consolidación de entidades de seguimiento/producción (entidades y configuraciones ProduccionDiaria/ProduccionSeguimiento eliminadas, snapshot EF actualizado), eliminación del módulo viejo frontend/features/inventario (reemplazado por gestion-inventario), y ajustes en servicios de movimientos/liquidación. Verifiqué líneas reales: los archivos tocados que superan el umbral son MovimientoAvesService.cs (2507), SeguimientoAvesEngordeService.cs (1884), IndicadorEcuadorService.cs (1185), y además SeguimientoAvesEngordeEcuadorService.cs (1087) y MovimientoAvesController.cs (1019) también violan el gate de 800 líneas. Orden de ataque: (1) validar build+tests y auditar el diff para excluir archivos con credenciales (appsettings.Development.json y launchSettings.json están tocados y esa es la fuente de credenciales locales — constitución #5) antes de commitear; (2) commit del trabajo en curso agrupado por alcance, autor único moisesmurillo sin atribución a Claude (preferencia registrada del usuario); (3) refactor de deuda con el patrón canónico del repo (partial class en Services/<Modulo>/Funciones/ + cálculo puro en Application/Calculos/ + tests xUnit de equivalencia), un servicio por tarea para mantener diffs revisables, empezando por el peor (MovimientoAvesService). Refactor ≠ cambio de comportamiento: aritmética y contratos idénticos, validado con dotnet build + dotnet test tras cada partición.
+Backend sigue Clean Architecture (.NET 10: API/Application/Infrastructure/Domain) y ya tiene un patrón canónico de refactor definido en CLAUDE.md (partial classes en `Funciones/` + cálculo puro en `Application/Calculos/`, referencia: módulo movimientos-pollo-engorde). Verifiqué en el repo actual (no en memoria vieja) que los principales infractores siguen intactos: `MovimientoAvesService.cs` 2507 líneas, `SeguimientoAvesEngordeService.cs` 1884, `IndicadorEcuadorService.cs` 1185, `SeguimientoAvesEngordeEcuadorService.cs` 1087, `MovimientoAvesController.cs` 1019, `SeguimientoLoteLevanteService.cs` 837 (supera el límite de 800 recién por poco). El frontend (Angular 22 standalone) tiene su propio patrón (`funciones/`+`models/`) pero no fue auditado todavía, así que el ataque empieza con una auditoría completa (back+front) para no repetir trabajo ya hecho ni perder archivos nuevos. Orden: auditar → refactorizar backend de mayor a menor deuda (servicio+tests de equivalencia antes de tocar el controller que depende de él) → refactorizar frontend con el mismo criterio → build+test completo de ambos stacks → cerrar tracker y knowledge base. Cada paso deja el sistema compilando y con comportamiento idéntico (refactor ≠ cambio de lógica), evitando el rewrite big-bang.
 
 ## Alineación con la visión
-No se proporcionó una visión de producto explícita; la misión es higiene del repositorio (consolidar trabajo en curso bajo Git y reducir deuda técnica en backend), lo cual es ortogonal a features pero mejora directamente la mantenibilidad y cumple el gate arquitectónico de 800 líneas que hoy está violado por 5 archivos tocados.
+El repo no tiene una visión de producto documentada (el template está vacío), así que no hay north star estratégico contra el cual medir. Sin embargo esta misión sirve directamente al estándar de ingeniería vinculante del propio CLAUDE.md (clean code, orquestadores delgados, gate de líneas) y reduce una deuda técnica que ya bloqueó una misión anterior — es una mejora de mantenibilidad pura, sin tocar reglas de negocio ni UI.
 
-## Commit seguro del trabajo en curso
-Consolidar los ~80 archivos modificados/eliminados del working tree en commits limpios y auditados, sin secretos y sin romper el build, cumpliendo el workflow obligatorio de CLAUDE.md (plan + tracker).
+## Veredicto del CTO (salud arquitectónica)
+✓ **approve** (tendencia: stable)
 
-- Plan y tracker de la misión — `documentation` · documentation
-- Auditoría del diff y filtro de secretos — `review` · security
-- Validación de build pre-commit — `tests` · qa
-- Crear commits agrupados por alcance — `crud` · devops
+- La arquitectura está sana.
 
-## Reducción de deuda técnica backend (archivos >800 líneas)
-Aplicar el patrón canónico del repo (movimientos-pollo-engorde): partir servicios largos en partial classes bajo Services/<Modulo>/Funciones/ con namespace plano, extraer matemática pura a Application/Calculos/ y cubrirla con tests xUnit de equivalencia. Refactor sin cambio de comportamiento: interfaz, DI, contratos y aritmética (Math.Round, orden, residuos) idénticos.
+### Evidencia
+- Sin línea base previa: se registra el estado actual como referencia (tendencia estable).
+- Ciclos de dependencia: 0 actual(es).
+- Concentración de hotspots (top-10 PageRank): 12.5%.
+- Violaciones del Architecture Guardian: 0.
 
-- Refactor MovimientoAvesService (2507 líneas) a partials + cálculo puro — `complex-refactor` · backend
+## CFO (estimación de costo)
+Estimación: $6.85 (modelo base: claude-sonnet-5)
+
+## Auditoría de archivos largos (front + back)
+Relevar todo el repo para tener el inventario completo y priorizado antes de tocar código.
+
+- Auditar backend y frontend en busca de archivos largos — `architecture` · architect
+
+## Backend — reducción de deuda técnica (partials + cálculo puro)
+Dividir los servicios/controllers más largos del backend siguiendo el patrón partial class + Application/Calculos, sin cambiar comportamiento.
+
+- Refactor MovimientoAvesService (2507 líneas) — `complex-refactor` · backend
 - Tests de equivalencia MovimientoAvesCalculos — `tests` · qa
+- Refactor MovimientoAvesController (1019 líneas) — `complex-refactor` · backend
 - Refactor SeguimientoAvesEngordeService (1884 líneas) — `complex-refactor` · backend
 - Tests de equivalencia SeguimientoAvesEngordeCalculos — `tests` · qa
 - Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087) — `complex-refactor` · backend
-- Refactor MovimientoAvesController (1019 líneas) — `complex-refactor` · backend
 - Tests de indicadores Ecuador — `tests` · qa
+- Refactor SeguimientoLoteLevanteService (837 líneas) — `complex-refactor` · backend
 
-## Validación final y cierre
-Compuerta de calidad de toda la misión: build verde, tests verdes, gate de 800 líneas cumplido, tracker actualizado y conocimiento registrado.
+## Frontend — componentes/servicios largos
+Aplicar el patrón funciones/+models/ a los archivos Angular más largos detectados en la auditoría.
 
-- Build + suite completa + verificación del gate de líneas — `tests` · qa
-- Cierre: tracker y base de conocimiento — `summary` · documentation
+- Priorizar archivos frontend a refactorizar — `architecture` · frontend
+- Refactor de archivos frontend priorizados — `complex-refactor` · frontend
+
+## Validación global
+Confirmar que ambos stacks compilan y los tests pasan tras todos los refactors.
+
+- Build + suite completa backend + gate de líneas — `tests` · qa
+- Build frontend de validación — `tests` · qa
+
+## Cierre
+Dejar registro reproducible del trabajo realizado.
+
+- Actualizar tracker y base de conocimiento — `documentation` · documentation

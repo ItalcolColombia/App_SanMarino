@@ -13,6 +13,22 @@ import { EMPTY, forkJoin, of } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { toNumOrNull, todayYMD, toYMD, ymdToIsoAtNoon } from '../../funciones/lote-levante-fechas.funcion';
+import {
+  normalizeJsonField,
+  unwrapJsonApiEnvelope,
+  resolveItemCatalogId,
+  pickLegacyFoodText,
+  normalizeKeyText
+} from '../../funciones/lote-levante-metadata.funcion';
+import {
+  toKg,
+  unidadToGramos,
+  itemEcuadorToCatalogItem,
+  getInventarioUbicacionFromLote,
+  buildItemPersistFields
+} from '../../funciones/lote-levante-inventario.funcion';
+import { InventarioUbicacion } from '../../models/lote-levante-inventario.model';
 
 @Component({
   selector: 'app-modal-create-edit',
@@ -566,13 +582,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private itemEcuadorToCatalogItem(i: ItemInventarioDto): CatalogItemDto {
-    return {
-      id: i.id,
-      codigo: i.codigo,
-      nombre: i.nombre,
-      metadata: { type_item: i.tipoItem, concepto: i.concepto },
-      activo: i.activo
-    } as CatalogItemDto;
+    return itemEcuadorToCatalogItem(i);
   }
 
   // Obtener cantidad disponible en inventario para un ítem
@@ -588,9 +598,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   /** Convierte cantidad a kg para validar contra inventario. */
   private toKg(cantidad: number, unidad: string | null | undefined): number {
-    const u = String(unidad || 'kg').trim().toLowerCase();
-    if (u === 'g' || u === 'gramo' || u === 'gramos') return cantidad / 1000;
-    return cantidad;
+    return toKg(cantidad, unidad);
   }
 
 
@@ -721,15 +729,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   /** itemsAdicionales u otros JSONB a veces llegan como string desde la API. */
   private normalizeJsonField(raw: any): any {
-    if (raw == null) return null;
-    if (typeof raw === 'string') {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
-    }
-    return raw;
+    return normalizeJsonField(raw);
   }
 
   /**
@@ -737,25 +737,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * También acepta { itemsHembras, itemsMachos } en cualquier nivel visible.
    */
   private unwrapJsonApiEnvelope(raw: any): any {
-    if (raw == null || typeof raw !== 'object') return raw;
-    const o = raw as Record<string, unknown>;
-    if (o['rootElement'] != null && typeof o['rootElement'] === 'object') {
-      return this.normalizeJsonField(o['rootElement']) ?? raw;
-    }
-    return raw;
+    return unwrapJsonApiEnvelope(raw);
   }
 
   /** Ecuador envía itemInventarioEcuadorId; catálogo legacy usa catalogItemId. */
   private resolveItemCatalogId(item: any): number | null {
-    if (!item || typeof item !== 'object') return null;
-    const v =
-      item.catalogItemId ??
-      item.itemInventarioEcuadorId ??
-      item.catalog_item_id ??
-      item.item_inventario_ecuador_id;
-    if (v === null || v === undefined || v === '') return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+    return resolveItemCatalogId(item);
   }
 
   private populateForm(): void {
@@ -1073,16 +1060,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   /** Para metadata legacy: escogemos un texto que probablemente mapea a un ítem del catálogo. */
   private pickLegacyFoodText(metadata: any, editing: SeguimientoLoteLevanteDto): string | null {
-    const t = (metadata?.tipoAlimentoCodigo ?? metadata?.tipo_alimento_codigo ?? editing?.tipoAlimento ?? '').toString().trim();
-    return t ? t : null;
+    return pickLegacyFoodText(metadata, editing);
   }
 
   private normalizeKeyText(s: string): string {
-    return (s ?? '')
-      .toString()
-      .trim()
-      .replace(/\s+/g, ' ')
-      .toLowerCase();
+    return normalizeKeyText(s);
   }
 
   private findCatalogItemIdByText(text: string | null | undefined): number | null {
@@ -1216,13 +1198,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
-  private getInventarioUbicacionFromLote(lote: LoteDto | undefined | null): { nucleoId: string | null; galponId: string | null } {
-    if (!lote) return { nucleoId: null, galponId: null };
-    const n = lote.nucleoId;
-    const g = lote.galponId;
-    const nucleoId = n != null && String(n).trim() !== '' ? String(n).trim() : null;
-    const galponId = g != null && String(g).trim() !== '' ? String(g).trim() : null;
-    return { nucleoId, galponId };
+  private getInventarioUbicacionFromLote(lote: LoteDto | undefined | null): InventarioUbicacion {
+    return getInventarioUbicacionFromLote(lote);
   }
 
   // ================== CARGA DE INVENTARIO DE LA GRANJA ==================
@@ -1752,15 +1729,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const cantidadOriginal = Number(item.quantity);
         this.inventarioUnidadHembras = unidad;
         this.inventarioCantidadOriginalHembras = cantidadOriginal;
-        const unidadLower = unidad.toLowerCase();
-        let cantidadGramos: number;
-        if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-          cantidadGramos = Math.round(cantidadOriginal);
-        } else {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        }
+        const cantidadGramos = unidadToGramos(cantidadOriginal, unidad);
         this.inventarioDisponibleHembras = cantidadGramos;
         this.mensajeInventarioHembras = '';
       } else {
@@ -1776,15 +1745,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const cantidadOriginal = Number(item.quantity);
         this.inventarioUnidadMachos = unidad;
         this.inventarioCantidadOriginalMachos = cantidadOriginal;
-        const unidadLower = unidad.toLowerCase();
-        let cantidadGramos: number;
-        if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-          cantidadGramos = Math.round(cantidadOriginal);
-        } else {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        }
+        const cantidadGramos = unidadToGramos(cantidadOriginal, unidad);
         this.inventarioDisponibleMachos = cantidadGramos;
         this.mensajeInventarioMachos = '';
       } else {
@@ -1861,17 +1822,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
             // Convertir a gramos para mostrar en la interfaz (si el inventario está en kg)
             // Si el inventario está en gramos, no hay conversión
-            let cantidadGramos: number;
-            const unidadLower = unidad.toLowerCase();
-            if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
-            } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-              cantidadGramos = Math.round(cantidadOriginal);
-            } else {
-              // Para otras unidades, asumir kg
-              console.warn(`Unidad desconocida del inventario: ${unidad}, asumiendo kg`);
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
-            }
+            const cantidadGramos = unidadToGramos(cantidadOriginal, unidad, u =>
+              console.warn(`Unidad desconocida del inventario: ${u}, asumiendo kg`)
+            );
 
             this.inventarioDisponibleHembras = cantidadGramos;
             this.mensajeInventarioHembras = '';
@@ -1894,17 +1847,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             this.inventarioCantidadOriginalMachos = cantidadOriginal;
 
             // Convertir a gramos para mostrar en la interfaz (si el inventario está en kg)
-            let cantidadGramos: number;
-            const unidadLower = unidad.toLowerCase();
-            if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
-            } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-              cantidadGramos = Math.round(cantidadOriginal);
-            } else {
-              // Para otras unidades, asumir kg
-              console.warn(`Unidad desconocida del inventario: ${unidad}, asumiendo kg`);
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
-            }
+            const cantidadGramos = unidadToGramos(cantidadOriginal, unidad, u =>
+              console.warn(`Unidad desconocida del inventario: ${u}, asumiendo kg`)
+            );
 
             this.inventarioDisponibleMachos = cantidadGramos;
             this.mensajeInventarioMachos = '';
@@ -1945,20 +1890,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * de item_inventario_ecuador (camino-2 pass-through).
    */
   private buildItemPersistFields(itemId: number): { catalogItemId: number; itemInventarioEcuadorId?: number; nombre?: string } {
-    const nombre = this.alimentosById.get(itemId)?.nombre ?? undefined;
-    if (this.isEcuadorOrPanama) {
-      return { catalogItemId: itemId, itemInventarioEcuadorId: itemId, nombre };
-    }
-    if (this.isColombia) {
-      const item = this.itemsEcuadorPanama.find(i => i.id === itemId);
-      const codigo = (item?.codigo ?? '').trim().toLowerCase();
-      const catalogoItemsId = codigo ? this.catalogItemIdPorCodigo.get(codigo) : undefined;
-      if (catalogoItemsId) {
-        return { catalogItemId: catalogoItemsId, nombre };
-      }
-      return { catalogItemId: 0, itemInventarioEcuadorId: itemId, nombre };
-    }
-    return { catalogItemId: itemId, nombre };
+    return buildItemPersistFields(itemId, {
+      isEcuadorOrPanama: this.isEcuadorOrPanama,
+      isColombia: this.isColombia,
+      alimentosById: this.alimentosById,
+      itemsEcuadorPanama: this.itemsEcuadorPanama,
+      catalogItemIdPorCodigo: this.catalogItemIdPorCodigo
+    });
   }
 
   onSave(): void {
@@ -2135,66 +2073,21 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   // ================== HELPERS ==================
   private toNumOrNull(v: any): number | null {
-    if (v === null || v === undefined || v === '') return null;
-    const n = typeof v === 'number' ? v : Number(v);
-    return isNaN(n) ? null : n;
+    return toNumOrNull(v);
   }
 
   /** Hoy en formato YYYY-MM-DD (local, sin zona) para <input type="date"> */
   private todayYMD(): string {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}-${dd}`;
+    return todayYMD();
   }
 
   /** Normaliza cadenas mm/dd/aaaa, dd/mm/aaaa, ISO o Date a YYYY-MM-DD (local) */
   private toYMD(input: string | Date | null | undefined): string | null {
-    if (!input) return null;
-
-    if (input instanceof Date && !isNaN(input.getTime())) {
-      const y = input.getFullYear();
-      const m = String(input.getMonth() + 1).padStart(2, '0');
-      const d = String(input.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    const s = String(input).trim();
-
-    // YYYY-MM-DD
-    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/;
-    const m1 = s.match(ymd);
-    if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
-
-    // mm/dd/aaaa o dd/mm/aaaa
-    const sl = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const m2 = s.match(sl);
-    if (m2) {
-      let a = parseInt(m2[1], 10);
-      let b = parseInt(m2[2], 10);
-      const yyyy = parseInt(m2[3], 10);
-      let mm = a, dd = b;
-      if (a > 12 && b <= 12) { mm = b; dd = a; }
-      const mmS = String(mm).padStart(2, '0');
-      const ddS = String(dd).padStart(2, '0');
-      return `${yyyy}-${mmS}-${ddS}`;
-    }
-
-    // ISO (con T). Extrae la fecha en LOCAL sin cambiar el día
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-
-    return null;
+    return toYMD(input);
   }
 
   /** Convierte YYYY-MM-DD a ISO asegurando MEDIODÍA local → evita cruzar de día por zona horaria */
   private ymdToIsoAtNoon(ymd: string): string {
-    const iso = new Date(`${ymd}T12:00:00`);
-    return iso.toISOString();
+    return ymdToIsoAtNoon(ymd);
   }
 }
