@@ -71,4 +71,28 @@ public class IndicadorEcuadorCalculosTests
         Assert.Equal(0, IndicadorEcuadorCalculos.DiasEngorde(null, DateTime.Today));
         Assert.Equal(0, IndicadorEcuadorCalculos.DiasEngorde(DateTime.Today, null));
     }
+
+    // ─── ConversionAjustada (extraído de IndicadorEcuadorService en el refactor partial) ───
+    // Réplica exacta de la fórmula previa: conversion + (pesoAjuste − pesoPromedio) / divisorAjuste,
+    // con las variables por defecto pesoAjuste=2,7 y divisorAjuste=4,5.
+
+    [Fact]
+    public void ConversionAjustada_AplicaLaFormulaConVariablesPorDefecto()
+    {
+        // 1,8 + (2,7 − 2,5) / 4,5 = 1,8 + 0,0444… = 1,8444…
+        var esperado = 1.8m + ((2.7m - 2.5m) / 4.5m);
+        var actual = IndicadorEcuadorCalculos.ConversionAjustada(
+            conversion: 1.8m, pesoPromedio: 2.5m, pesoAjuste: 2.7m, divisorAjuste: 4.5m);
+        Assert.Equal(esperado, actual);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-0.5)]
+    public void ConversionAjustada_ConversionNoPositiva_DevuelveCero(double conversion)
+    {
+        var actual = IndicadorEcuadorCalculos.ConversionAjustada(
+            conversion: (decimal)conversion, pesoPromedio: 2.5m, pesoAjuste: 2.7m, divisorAjuste: 4.5m);
+        Assert.Equal(0m, actual);
+    }
 }
