@@ -15,7 +15,7 @@ Plan: [refactor_archivos_largos_plan.md](fase_de_desarrollo/refactor_archivos_la
 ## Etapa 1 — Backend: Indicadores/Liquidaciones (cálculo puro, mayor riesgo aritmético)
 - [ ] Revisar `Application/Calculos/IndicadorEcuadorCalculos.cs` existente antes de mover nada (evitar duplicar)
 - [ ] `IndicadorEcuadorService.cs` (1185) → partials `Funciones/` + cálculo puro
-- [ ] `SeguimientoAvesEngordeService.cs` (1884) → partials `Funciones/`
+- [x] `SeguimientoAvesEngordeService.cs` (1884) → partials `Funciones/` (Consultas/Crud/SaldoAlimento/Metadata/CuadrarSaldos) + `Application/Calculos/SeguimientoAvesEngordeCalculos.cs` (aritmética pura de saldo de alimento, fechas efectivas, cuadre). Build Infra 0W/0E; 176 tests verdes. Plan: [refactor_seguimiento_aves_engorde_service_plan.md](fase_de_desarrollo/refactor_seguimiento_aves_engorde_service_plan.md)
 - [ ] `SeguimientoAvesEngordeEcuadorService.cs` (1087) → partials `Funciones/`
 - [ ] `CorreccionAvesDisponiblesEngordeService.cs` (535) → revisar solapamiento con los anteriores
 - [ ] Tests de equivalencia xUnit por cálculo movido
