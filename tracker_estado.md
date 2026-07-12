@@ -54,29 +54,79 @@ Plan: [refactor_archivos_largos_plan.md](fase_de_desarrollo/refactor_archivos_la
 - [ ] `EmailQueueProcessorService.cs` (519)
 - [ ] `dotnet build` + `dotnet test` verdes
 
-## Etapa 6 — Frontend: modales con lógica de negocio
-- [ ] `lote-levante/modal-create-edit.component.ts` (2200)
-- [ ] `engorde-comun/modal-seguimiento-engorde.component.ts` (2135)
-- [ ] `lote-produccion/modal-seguimiento-diario.component.ts` (1381)
-- [ ] `movimientos-aves/modal-movimiento-aves.component.ts` (1045)
-- [ ] `yarn build` + `yarn test` verdes; verificación manual golden path
+## Frontend — priorización confirmada (ver plan §2.3, umbral 400 líneas, 58 archivos `.ts`)
+- [x] Priorizar archivos frontend a refactorizar — orden final documentado en plan §2.3 (Etapas 6/7/8/8b)
 
-## Etapa 7 — Frontend: listados grandes (componente + template)
+## Etapa 6 — Frontend: riesgo alto (cálculo de negocio / dominio recién tocado en backend)
+- [ ] `lote-levante/modal-create-edit.component.ts` (2200) — INICIAR
+- [ ] `engorde-comun/modal-seguimiento-engorde.component.ts` (2135) — INICIAR (espejo `SeguimientoAvesEngordeService`)
+- [ ] `indicador-ecuador/indicador-ecuador-list.component.ts` (1128) — INICIAR (espejo `IndicadorEcuadorService`)
+- [ ] `lote-levante/liquidacion-tecnica.component.ts` (1047) — INICIAR (cálculo financiero, zona frágil — ver memoria `liquidacion-engorde-ecuador-descuadre`)
+- [ ] `yarn build` + `yarn test` verdes; verificación manual golden path (modal abre/guarda, indicadores calculan igual)
+
+## Etapa 7 — Frontend: listados/dashboards grandes (componente + template)
 - [ ] `traslados-aves/inventario-dashboard` (1663 ts / 1827 html)
 - [ ] `lote/lote-list` (1593 ts / 1345 html)
 - [ ] `gestion-inventario-page` (1565 ts / 1236 html)
-- [ ] `indicador-ecuador-list` (1128 ts / 1487 html)
-- [ ] `lote-reproductora-list` (935 ts / 1068 html)
+- [ ] `lote-produccion/modal-seguimiento-diario.component.ts` (1381)
+- [ ] `lote-levante/graficas-principal.component.ts` (1245)
+- [ ] `lote-levante/seguimiento-lote-levante-list.component.ts` (1078)
+- [ ] `movimientos-aves/modal-movimiento-aves.component.ts` (1045)
+- [ ] `yarn build` + `yarn test` verdes; verificación manual golden path
+
+## Etapa 8 — Frontend: medianos (600–1000) + continuación de módulos ya iniciados
+- [ ] `movimientos-pollo-engorde-list.component.ts` (1109) — CONTINUAR (ya tiene `funciones/`+`models/`)
 - [ ] `config/role-management` (984 ts / 1085 html)
+- [ ] `lote-produccion-list.component.ts` (973)
+- [ ] `lote-reproductora-list` (935 ts / 1068 html)
+- [ ] `reportes-tecnicos/reporte-tecnico.service.ts` (914)
+- [ ] `dashboard.component.ts` (895)
+- [ ] `movimientos-pollo-engorde/modal-movimiento-pollo-engorde.component.ts` (767) — CONTINUAR
+- [ ] `lote-levante/tabs-principal.component.ts` (766)
+- [ ] `farm/farm-list.component.ts` (763)
 - [ ] `lote-engorde-list` (731 ts / 819 html)
 - [ ] `yarn build` + `yarn test` verdes; verificación manual golden path
 
-## Etapa 8 — Frontend: resto (gráficas, servicios, listados medianos)
-- [ ] `lote-levante/graficas-principal` (1245) / `lote-produccion/graficas-principal` (629)
-- [ ] `seguimiento-lote-levante-list` (1078) / `liquidacion-tecnica.component.ts` (1047)
-- [ ] `lote-produccion-list` (973) / `reporte-tecnico.service.ts` (914) / `dashboard.component.ts` (895)
-- [ ] Backlog 400–600 líneas (ver plan §2.2) según prioridad
-- [ ] `yarn build` + `yarn test` verdes
+## Etapa 8b — Frontend: backlog 400–720 líneas (batch por módulo)
+- [ ] `traslados-huevos/modal-traslado-huevos.component.ts` (717)
+- [ ] `traslados-aves/traslados-aves.service.ts` (715)
+- [ ] `config/user-management/modal-create-edit.component.ts` (715)
+- [ ] `lote/modal-create-edit-lote.component.ts` (692)
+- [ ] `aves-engorde/seguimiento-aves-engorde-list.component.ts` (684) — CONTINUAR
+- [ ] `config/company-management.component.ts` (675) — CONTINUAR
+- [ ] `lote-produccion/graficas-principal.component.ts` (629)
+- [ ] `lote-levante/tabla-lista-indicadores.component.ts` (619)
+- [ ] `seguimiento-diario-lote-reproductora-list.component.ts` (614)
+- [ ] `reporte-contable-main.component.ts` (597)
+- [ ] `aves-engorde/modal-liquidacion-lote-engorde.component.ts` (587) — CONTINUAR
+- [ ] `movimientos-aves-list.component.ts` (545)
+- [ ] `lote-produccion/produccion.service.ts` (536)
+- [ ] `catalogo-alimentos-list.component.ts` (519)
+- [ ] `guia-genetica-ecuador-page.component.ts` (509)
+- [ ] `config/geography/country-list.component.ts` (503)
+- [ ] `lote-levante/indicadores-diarios-compute.service.ts` (498)
+- [ ] `gestion-inventario.service.ts` (496)
+- [ ] `movimiento-pollo-engorde.service.ts` (491) — CONTINUAR
+- [ ] `lote-reproductora-ave-engorde-list.component.ts` (487)
+- [ ] `lote-levante/filtro-select.component.ts` (487)
+- [ ] `guia-genetica-admin/guia-genetica-form.component.ts` (473)
+- [ ] `modal-seguimiento-reproductora.component.ts` (472)
+- [ ] `lesiones/lesion-tab.component.ts` (470)
+- [ ] `db-studio/data/db-studio.service.ts` (469) — CONTINUAR
+- [ ] `nucleo/nucleo-list.component.ts` (468)
+- [ ] `clientes/cliente-list.component.ts` (460)
+- [ ] `traslados-huevos-list.component.ts` (446)
+- [ ] `galpon/galpon-list.component.ts` (430)
+- [ ] `config/farm-management.component.ts` (425)
+- [ ] `reporte-tecnico-produccion.service.ts` (422)
+- [ ] `core/auth/encryption.service.ts` (416) — CORE, tratar aparte (seguridad transversal, no patrón de feature)
+- [ ] `gastos-inventario-page.component.ts` (411)
+- [ ] `lote-produccion/filtro-select.component.ts` (408)
+- [ ] `inventario/movimientos-unificado-form.component.ts` (408)
+- [ ] `traslados-aves/traslado-form.component.ts` (406)
+- [ ] `yarn build` + `yarn test` verdes tras cada archivo; commits pequeños por archivo
+
+**Excluido:** `app.config.ts` (430) — bootstrap (providers/rutas), no aplica patrón `funciones/`+`models/`; fuera de alcance salvo pedido explícito.
 
 ## Etapa 9 — Validación final
 - [ ] `dotnet build` + `dotnet test` completos

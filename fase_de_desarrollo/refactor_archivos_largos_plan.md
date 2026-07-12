@@ -119,6 +119,81 @@
 
 (36 archivos `.html` superan 400 líneas y 58 `.ts` superan 400; se listan solo los prioritarios. El resto queda en backlog del tracker si se decide bajar el umbral en una fase posterior.)
 
+### 2.3 Frontend — priorización final (umbral 400 líneas, orden de intervención)
+
+Re-auditado 2026-07-12: **58 archivos `.ts` (sin `*.spec.ts`) ≥ 400 líneas**. Cuatro módulos ya arrancaron el patrón `funciones/`+`models/` en una ronda anterior (`movimientos-pollo-engorde`, `aves-engorde`, `config/company-management`, `db-studio`) pero el archivo ancla **sigue sobre el umbral** — quedan marcados **CONTINUAR** (completar la delegación, no repartir desde cero) en vez de **INICIAR**.
+
+Criterio de orden: **tamaño × riesgo aritmético/negocio × módulo hermano de un service backend recién refactorizado** (mantener el contrato sincronizado mientras el dominio está "caliente" reduce el costo de contexto) > cohesión de módulo (agrupar todos los archivos de un mismo feature en la misma etapa) > el resto por tamaño descendente.
+
+**Etapa 6 — Frontend, riesgo alto (cálculo de negocio / dominio recién tocado en backend):**
+1. `lote-levante/modal-create-edit.component.ts` (2200) — INICIAR. El archivo más grande del repo; alta on/off de reglas de creación/edición de lote.
+2. `engorde-comun/modal-seguimiento-engorde.component.ts` (2135) — INICIAR. Espejo de `SeguimientoAvesEngordeService` (backend ya refactorizado); mismo cálculo de saldo/consumo en vivo.
+3. `indicador-ecuador/indicador-ecuador-list.component.ts` (1128) — INICIAR. Espejo de `IndicadorEcuadorService` (backend ya refactorizado).
+4. `lote-levante/liquidacion-tecnica.component.ts` (1047) — INICIAR. Cálculo financiero (ver memoria `liquidacion-engorde-ecuador-descuadre`: zona históricamente frágil) → doble verificación manual antes/después.
+
+**Etapa 7 — Frontend, listados/dashboards grandes (alto volumen, riesgo mayormente UI/CRUD):**
+5. `traslados-aves/inventario-dashboard.component.ts` (1663, HTML hermano 1827)
+6. `lote/lote-list.component.ts` (1593, HTML hermano 1345)
+7. `gestion-inventario/gestion-inventario-page.component.ts` (1565, HTML hermano 1236)
+8. `lote-produccion/modal-seguimiento-diario.component.ts` (1381)
+9. `lote-levante/graficas-principal.component.ts` (1245)
+10. `lote-levante/seguimiento-lote-levante-list.component.ts` (1078)
+11. `movimientos-aves/modal-movimiento-aves.component.ts` (1045)
+
+**Etapa 8 — Frontend, medianos (600–1000 líneas) + continuación de módulos ya iniciados:**
+12. `movimientos-pollo-engorde-list.component.ts` (1109) — **CONTINUAR** (ya tiene `funciones/`+`models/`; completar delegación de lo que quedó inline).
+13. `config/role-management.component.ts` (984, HTML hermano 1085)
+14. `lote-produccion/lote-produccion-list.component.ts` (973)
+15. `lote-reproductora/lote-reproductora-list.component.ts` (935, HTML hermano 1068)
+16. `reportes-tecnicos/reporte-tecnico.service.ts` (914) — servicio, no componente; extraer mapeos/formateo a `funciones/`.
+17. `dashboard/dashboard.component.ts` (895)
+18. `movimientos-pollo-engorde/modal-movimiento-pollo-engorde.component.ts` (767) — **CONTINUAR**
+19. `lote-levante/tabs-principal.component.ts` (766)
+20. `farm/farm-list.component.ts` (763)
+21. `lote-engorde/lote-engorde-list.component.ts` (731, HTML hermano 819)
+
+**Etapa 8b — Frontend, backlog 400–720 líneas (batch por módulo, menor riesgo individual):**
+22. `traslados-huevos/modal-traslado-huevos.component.ts` (717)
+23. `traslados-aves/traslados-aves.service.ts` (715)
+24. `config/user-management/modal-create-edit.component.ts` (715)
+25. `lote/modal-create-edit-lote.component.ts` (692)
+26. `aves-engorde/seguimiento-aves-engorde-list.component.ts` (684) — **CONTINUAR**
+27. `config/company-management.component.ts` (675) — **CONTINUAR**
+28. `lote-produccion/graficas-principal.component.ts` (629)
+29. `lote-levante/tabla-lista-indicadores.component.ts` (619)
+30. `seguimiento-diario-lote-reproductora-list.component.ts` (614)
+31. `reporte-contable/reporte-contable-main.component.ts` (597)
+32. `aves-engorde/modal-liquidacion-lote-engorde.component.ts` (587) — **CONTINUAR**
+33. `movimientos-aves/movimientos-aves-list.component.ts` (545)
+34. `lote-produccion/produccion.service.ts` (536)
+35. `catalogo-alimentos/catalogo-alimentos-list.component.ts` (519)
+36. `config/guia-genetica-ecuador-page.component.ts` (509)
+37. `config/geography/country-list.component.ts` (503)
+38. `lote-levante/indicadores-diarios-compute.service.ts` (498)
+39. `gestion-inventario/gestion-inventario.service.ts` (496)
+40. `movimientos-pollo-engorde/movimiento-pollo-engorde.service.ts` (491) — **CONTINUAR**
+41. `lote-reproductora-ave-engorde-list.component.ts` (487)
+42. `lote-levante/filtro-select.component.ts` (487)
+43. `config/guia-genetica-admin/guia-genetica-form.component.ts` (473)
+44. `seguimiento-diario-lote-reproductora/modal-seguimiento-reproductora.component.ts` (472)
+45. `lesiones/lesion-tab.component.ts` (470)
+46. `db-studio/data/db-studio.service.ts` (469) — **CONTINUAR**
+47. `nucleo/nucleo-list.component.ts` (468)
+48. `clientes/cliente-list.component.ts` (460)
+49. `traslados-huevos/traslados-huevos-list.component.ts` (446)
+50. `galpon/galpon-list.component.ts` (430)
+51. `config/farm-management.component.ts` (425)
+52. `reporte-tecnico-produccion/reporte-tecnico-produccion.service.ts` (422)
+53. `core/auth/encryption.service.ts` (416) — **CORE, tratar aparte**: no es un feature, es servicio de seguridad (cifrado AES de storage) usado transversalmente; extraer solo si hay concerns claramente separables (ej. key derivation vs. encrypt/decrypt vs. storage helpers), con tests antes/después — no forzar `funciones/` de feature aquí.
+54. `gastos-inventario/gastos-inventario-page.component.ts` (411)
+55. `lote-produccion/filtro-select.component.ts` (408)
+56. `inventario/movimientos-unificado-form.component.ts` (408)
+57. `traslados-aves/traslado-form.component.ts` (406)
+
+**Excluido de esta ronda:** `app.config.ts` (430) — no es un componente/servicio de feature, es bootstrap (providers/rutas/interceptors). Si se reduce, la vía correcta es extraer arrays de `providers`/`routes` a archivos propios (`app.routes.ts`, `app.providers.ts`), no aplicar el patrón `funciones/`+`models/`. Fuera de alcance salvo pedido explícito.
+
+**Validación entre archivos (obligatoria, no negociable):** `yarn build` tras cada archivo partido + verificación manual del golden path (abrir modal/lista, guardar, exportar Excel si aplica) antes de pasar al siguiente — regla de UI de `CLAUDE.md` (build/test no sustituye la prueba manual). Commits pequeños por archivo, no un solo commit gigante por etapa.
+
 ## 3. Orden de ataque (staged, cada etapa deja el sistema desplegable)
 
 Criterio de prioridad: **tamaño × superficie de impacto × riesgo de regresión en cálculo**. Los servicios con aritmética de negocio (indicadores, liquidaciones, movimientos) van con doble red (tests de equivalencia) antes que los de solo CRUD/UI.
