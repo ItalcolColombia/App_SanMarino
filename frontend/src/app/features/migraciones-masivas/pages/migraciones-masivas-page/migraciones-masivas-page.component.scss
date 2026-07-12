@@ -1,0 +1,116 @@
+:host {
+  display: block;
+  background: var(--ital-cream, #faf8f5);
+  min-height: 100%;
+}
+
+.mig {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: clamp(1rem, 4vw, 1.75rem);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.25rem 1.5rem;
+  background: #fff;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(245, 130, 31, 0.14);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+}
+.page-header__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.page-header__title {
+  margin: 0;
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: var(--ital-text, #1f2937);
+  line-height: 1.1;
+}
+.page-header__subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--ital-muted, #6b7280);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  max-width: 70ch;
+}
+.page-header__accent {
+  width: 4rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--ital-orange, #F5821F), var(--ital-orange-light, #FBB040));
+  flex-shrink: 0;
+}
+.page-header__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Cards de paso ── */
+.card {
+  background: #fff;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(245, 130, 31, 0.12);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+  padding: 1.15rem 1.25rem 1.35rem;
+}
+.card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.card__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ital-text, #1f2937);
+}
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--ital-orange, #F5821F), var(--ital-orange-light, #FBB040));
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(245, 130, 31, 0.3);
+}
+
+/* ── Loading ── */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ital-muted, #6b7280);
+  font-size: 0.9rem;
+  padding: 1rem 0;
+}
+.spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2.5px solid rgba(245, 130, 31, 0.25);
+  border-top-color: var(--ital-orange, #F5821F);
+  border-radius: 999px;
+  animation: mig-spin 0.7s linear infinite;
+}
+@keyframes mig-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .page-header__title { font-size: 1.3rem; }
+}

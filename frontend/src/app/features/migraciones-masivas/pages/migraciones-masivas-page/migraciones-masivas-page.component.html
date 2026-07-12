@@ -1,0 +1,57 @@
+<div class="mig">
+  <header class="page-header">
+    <div class="page-header__content">
+      <div class="page-header__text">
+        <h1 class="page-header__title">Migraciones Masivas</h1>
+        <p class="page-header__subtitle">
+          Carga masiva por Excel — Postura. Descargá la plantilla del sistema, complétala y súbela.
+          Los módulos existentes siguen siendo la fuente oficial; este módulo solo automatiza la carga.
+        </p>
+      </div>
+      <div class="page-header__accent" aria-hidden="true"></div>
+    </div>
+    <div class="page-header__toolbar">
+      <app-company-selector></app-company-selector>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="card__head">
+      <span class="step">1</span>
+      <h2 class="card__title">Seleccioná el tipo de migración</h2>
+    </div>
+    <div *ngIf="cargandoTipos()" class="loading">
+      <span class="spinner" aria-hidden="true"></span> Cargando tipos…
+    </div>
+    <app-selector-tipo-migracion
+      *ngIf="!cargandoTipos()"
+      [tipos]="tipos()"
+      [seleccionado]="seleccionado()?.codigo ?? null"
+      (seleccionar)="onSeleccionar($event)">
+    </app-selector-tipo-migracion>
+  </section>
+
+  <ng-container *ngIf="seleccionado() as tipo">
+    <section class="card" *ngIf="tipo.requiereLote">
+      <div class="card__head">
+        <span class="step">2</span>
+        <h2 class="card__title">Seleccioná el lote</h2>
+      </div>
+      <app-hierarchical-filter
+        [showLoteSelection]="true"
+        [filterLabel]="'Filtros de Lote'"
+        [showChips]="true"
+        (filterChange)="onFilterChange($event)"
+        (loteSelected)="onLoteSelected($event)">
+      </app-hierarchical-filter>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <span class="step">{{ tipo.requiereLote ? '3' : '2' }}</span>
+        <h2 class="card__title">Plantilla y carga — {{ tipo.nombre }}</h2>
+      </div>
+      <app-panel-plantilla-upload [tipo]="tipo" [contexto]="contexto()"></app-panel-plantilla-upload>
+    </section>
+  </ng-container>
+</div>
