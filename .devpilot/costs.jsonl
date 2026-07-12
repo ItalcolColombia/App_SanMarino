@@ -1,3 +1,8 @@
 {"timestamp":"2026-07-10T08:43:35.006Z","missionId":"845b34de-9d86-44d5-beb3-8883fa7889d7","providerId":"claude-code","modelId":"claude-fable-5","inputTokens":9052,"outputTokens":7208,"costUsd":1.7118130000000003}
 {"timestamp":"2026-07-10T09:17:13.783Z","missionId":"845b34de-9d86-44d5-beb3-8883fa7889d7","taskId":"3ace79ba-279b-4d21-97b6-46382d9cb3d1","providerId":"claude-code","modelId":"claude-haiku-4-5-20251001","inputTokens":186,"outputTokens":17607,"costUsd":0.36408779999999996}
 {"timestamp":"2026-07-10T09:20:34.699Z","missionId":"845b34de-9d86-44d5-beb3-8883fa7889d7","taskId":"3ace79ba-279b-4d21-97b6-46382d9cb3d1","providerId":"claude-code","modelId":"claude-sonnet-5","inputTokens":16361,"outputTokens":17215,"costUsd":0.9789673999999999}
+{"timestamp":"2026-07-12T03:34:07.405Z","missionId":"i18n","taskId":"translate","providerId":"ollama","modelId":"qwen2.5-coder:1.5b","inputTokens":290,"outputTokens":160,"costUsd":0}
+{"timestamp":"2026-07-12T03:34:22.687Z","missionId":"i18n","taskId":"translate","providerId":"ollama","modelId":"qwen2.5-coder:1.5b","inputTokens":275,"outputTokens":139,"costUsd":0}
+{"timestamp":"2026-07-12T03:35:01.147Z","missionId":"i18n","taskId":"translate","providerId":"ollama","modelId":"qwen2.5-coder:1.5b","inputTokens":514,"outputTokens":357,"costUsd":0}
+{"timestamp":"2026-07-12T03:37:16.272Z","missionId":"d387ed60-c2bb-4057-9e48-94ff360516a8","providerId":"claude-code","modelId":"claude-sonnet-5","inputTokens":9340,"outputTokens":11287,"costUsd":0.9325179000000001}
+{"timestamp":"2026-07-12T03:43:32.958Z","missionId":"d387ed60-c2bb-4057-9e48-94ff360516a8","taskId":"14caddbb-5f04-470a-97c6-fd6723edc5c1","providerId":"claude-code","modelId":"claude-sonnet-5","inputTokens":9344,"outputTokens":19260,"costUsd":1.0103056}
