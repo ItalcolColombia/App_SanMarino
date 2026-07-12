@@ -2,8 +2,8 @@
 
 **Misión:** busca archivos que este muy largos y dividilos octimizando foram de le
 **Estado:** running
-**Progreso:** 9/14 tareas completadas
-**Actualizado:** 2026-07-12T05:12:04.885Z
+**Progreso:** 10/14 tareas completadas
+**Actualizado:** 2026-07-12T05:16:04.170Z
 
 ## Auditoría de archivos largos (front + back)
 - [x] Auditar backend y frontend en busca de archivos largos — `done` (architect)
@@ -19,11 +19,11 @@
 - [x] Refactor SeguimientoLoteLevanteService (837 líneas) — `done` (backend)
 
 ## Frontend — componentes/servicios largos
-- [ ] Priorizar archivos frontend a refactorizar — `ready` (frontend)
+- [x] Priorizar archivos frontend a refactorizar — `done` (frontend)
 - [ ] Refactor de archivos frontend priorizados — `pending` (frontend)
 
 ## Validación global
-- [ ] Build + suite completa backend + gate de líneas — `pending` (qa)
+- [ ] Build + suite completa backend + gate de líneas — `ready` (qa)
 - [ ] Build frontend de validación — `pending` (qa)
 
 ## Cierre

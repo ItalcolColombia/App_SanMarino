@@ -14,6 +14,26 @@ import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, swit
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { AvesDisponiblesDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
+import { InventarioUbicacion } from '../../models/inventario-ubicacion.model';
+import { computeDefaultFecha, toYMD, ymdToIsoAtNoon } from '../../funciones/fecha.funcion';
+import {
+  toKg,
+  esUnidadDesconocidaParaGramos,
+  cantidadOriginalAGramos,
+  normalizarIdCatalogoSeleccion
+} from '../../funciones/inventario-calculos.funcion';
+import {
+  normalizeJsonField,
+  resolveItemCatalogId,
+  getInventarioUbicacionFromLote,
+  itemEcuadorToCatalogItem,
+  construirItemsSeguimiento,
+  construirItemsAdicionales,
+  construirTipoAlimentoStr,
+  aplicarCerosSinAvesDisponibles,
+  mapearPanamaMixtoAHM,
+  buildBaseSeguimientoDto
+} from '../../funciones/mapear-seguimiento-dto.funcion';
 
 @Component({
   selector: 'app-modal-seguimiento-engorde',
@@ -54,7 +74,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   private alimentosByName = new Map<string, CatalogItemDto>();
   private granjaIdActual: number | null = null;
   /** Núcleo/galpón del lote seleccionado: el stock EC/PA se consulta por esta ubicación, no agregado a toda la granja. */
-  private inventarioUbicacionActual: { nucleoId: string | null; galponId: string | null } = {
+  private inventarioUbicacionActual: InventarioUbicacion = {
     nucleoId: null,
     galponId: null
   };
@@ -145,7 +165,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   // ================== FORMULARIO ==================
   private initializeForm(): void {
     this.form = this.fb.group({
-      fechaRegistro: [this.computeDefaultFecha(), Validators.required],
+      fechaRegistro: [computeDefaultFecha(this.existingFechas, this.selectedLoteId, this.lotes), Validators.required],
       loteId: ['', Validators.required],
       mortalidadHembras: [0, [Validators.required, Validators.min(0)]],
       mortalidadMachos: [0, [Validators.required, Validators.min(0)]],
@@ -192,7 +212,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
         const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
         if (lote && lote.granjaId) {
           const nuevaGranjaId = lote.granjaId;
-          const u = this.getInventarioUbicacionFromLote(lote);
+          const u = getInventarioUbicacionFromLote(lote);
           const granjaCambio = this.granjaIdActual !== nuevaGranjaId;
           const ubicCambio =
             this.inventarioUbicacionActual.nucleoId !== u.nucleoId ||
@@ -249,7 +269,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     }
 
     this.form.reset({
-      fechaRegistro: this.computeDefaultFecha(),
+      fechaRegistro: computeDefaultFecha(this.existingFechas, this.selectedLoteId, this.lotes),
       loteId: this.selectedLoteId,
       mortalidadHembras: 0,
       mortalidadMachos: 0,
@@ -300,7 +320,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       const lote = this.lotes.find(l => String(l.loteId) === String(this.selectedLoteId));
       if (lote && lote.granjaId) {
         this.granjaIdActual = lote.granjaId;
-        this.inventarioUbicacionActual = this.getInventarioUbicacionFromLote(lote);
+        this.inventarioUbicacionActual = getInventarioUbicacionFromLote(lote);
         this.cargarInventarioGranja(lote.granjaId, undefined, this.inventarioUbicacionActual);
       }
     } else {
@@ -437,11 +457,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
       if (!c) {
-        list = this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i));
+        list = this.itemsEcuadorPanama.map(i => itemEcuadorToCatalogItem(i));
       } else {
         list = this.itemsEcuadorPanama
           .filter(i => ((i.concepto ?? i.tipoItem ?? '').trim().toLowerCase() === c))
-          .map(i => this.itemEcuadorToCatalogItem(i));
+          .map(i => itemEcuadorToCatalogItem(i));
       }
     } else if (!tipoItem || !this.granjaIdActual) {
       list = this.alimentosCatalog;
@@ -460,17 +480,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
    * El id seleccionado en la fila siempre se incluye para no romper edición o valor ya guardado.
    */
   private filtrarAlimentosConStockDisponible(items: CatalogItemDto[], selectedCatalogId?: number | string | null): CatalogItemDto[] {
-    const sel = this.normalizarIdCatalogoSeleccion(selectedCatalogId);
+    const sel = normalizarIdCatalogoSeleccion(selectedCatalogId);
     return items.filter(a => {
       if (sel != null && a.id === sel) return true;
       return this.itemTieneStockDisponibleEnUbicacion(a.id);
     });
-  }
-
-  private normalizarIdCatalogoSeleccion(v: number | string | null | undefined): number | null {
-    if (v == null || v === '') return null;
-    const n = typeof v === 'string' ? parseInt(v, 10) : Number(v);
-    return Number.isFinite(n) && n > 0 ? n : null;
   }
 
   /** True si hay cantidad &gt; 0 en `inventarioPorItem` para el ítem (kg/g según backend). */
@@ -480,16 +494,6 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     if (!d) return false;
     const q = Number(d.quantity);
     return Number.isFinite(q) && q > 0;
-  }
-
-  private itemEcuadorToCatalogItem(i: ItemInventarioDto): CatalogItemDto {
-    return {
-      id: i.id,
-      codigo: i.codigo,
-      nombre: i.nombre,
-      metadata: { type_item: i.tipoItem, concepto: i.concepto },
-      activo: i.activo
-    } as CatalogItemDto;
   }
 
   // Obtener cantidad disponible en inventario para un ítem
@@ -503,23 +507,16 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     return this.originalConsumoKgByItem.get(Number(catalogItemId)) ?? 0;
   }
 
-  /** Convierte cantidad a kg para validar contra inventario. */
-  private toKg(cantidad: number, unidad: string | null | undefined): number {
-    const u = String(unidad || 'kg').trim().toLowerCase();
-    if (u === 'g' || u === 'gramo' || u === 'gramos') return cantidad / 1000;
-    return cantidad;
-  }
-
   private buildOriginalConsumoMap(itemsH: any[] | null | undefined, itemsM: any[] | null | undefined): void {
     const map = new Map<number, number>();
     const addArr = (arr: any[] | null | undefined) => {
       if (!arr || !Array.isArray(arr)) return;
       arr.forEach((it: any) => {
-        const id = this.resolveItemCatalogId(it);
+        const id = resolveItemCatalogId(it);
         if (!id) return;
         const cantidad = Number(it?.cantidad ?? it?.cantidadKg ?? 0);
         if (!Number.isFinite(cantidad) || cantidad <= 0) return;
-        const kg = this.toKg(cantidad, it?.unidad ?? 'kg');
+        const kg = toKg(cantidad, it?.unidad ?? 'kg');
         map.set(id, (map.get(id) ?? 0) + kg);
       });
     };
@@ -532,7 +529,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     if (!catalogItemId) return null;
     const disponible = this.getCantidadDisponible(catalogItemId);
     if (!disponible) return null;
-    const disponibleKg = this.toKg(Number(disponible.quantity || 0), disponible.unit);
+    const disponibleKg = toKg(Number(disponible.quantity || 0), disponible.unit);
     const originalKg = this.editing ? this.getOriginalConsumoKg(catalogItemId) : 0;
     return disponibleKg + originalKg;
   }
@@ -572,7 +569,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     if (!catalogItemId || cantidad <= 0) return false;
     const maxPermitidoKg = this.getMaxPermitidoKg(catalogItemId);
     if (maxPermitidoKg == null) return false; // si no hay dato, no bloquear aquí
-    const qtyKg = this.toKg(cantidad, unidad);
+    const qtyKg = toKg(cantidad, unidad);
     return qtyKg > maxPermitidoKg;
   }
 
@@ -662,33 +659,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
 
   /** Metadata puede venir como objeto, string JSON o con claves snake_case desde la API. */
   private normalizeSeguimientoMetadata(editing: SeguimientoLoteLevanteDto): any {
-    return this.normalizeJsonField(editing.metadata) ?? {};
-  }
-
-  /** itemsAdicionales u otros JSONB a veces llegan como string desde la API. */
-  private normalizeJsonField(raw: any): any {
-    if (raw == null) return null;
-    if (typeof raw === 'string') {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
-    }
-    return raw;
-  }
-
-  /** Ecuador envía itemInventarioEcuadorId; catálogo legacy usa catalogItemId. */
-  private resolveItemCatalogId(item: any): number | null {
-    if (!item || typeof item !== 'object') return null;
-    const v =
-      item.catalogItemId ??
-      item.itemInventarioEcuadorId ??
-      item.catalog_item_id ??
-      item.item_inventario_ecuador_id;
-    if (v === null || v === undefined || v === '') return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+    return normalizeJsonField(editing.metadata) ?? {};
   }
 
   private populateForm(): void {
@@ -718,11 +689,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     // Fallback para registros antiguos sin itemsHembras/itemsMachos en metadata.
     if (this.originalConsumoKgByItem.size === 0) {
       if (tipoAlimentoHembras && consumoHembras > 0) {
-        const kgH = this.toKg(Number(consumoHembras), unidadConsumoHembras);
+        const kgH = toKg(Number(consumoHembras), unidadConsumoHembras);
         this.originalConsumoKgByItem.set(Number(tipoAlimentoHembras), kgH);
       }
       if (tipoAlimentoMachos && consumoMachos && consumoMachos > 0) {
-        const kgM = this.toKg(Number(consumoMachos), unidadConsumoMachos);
+        const kgM = toKg(Number(consumoMachos), unidadConsumoMachos);
         const idM = Number(tipoAlimentoMachos);
         this.originalConsumoKgByItem.set(idM, (this.originalConsumoKgByItem.get(idM) ?? 0) + kgM);
       }
@@ -747,7 +718,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
           return; // Pollo engorde: pestaña hembras solo alimentos
         }
 
-        const cid = this.resolveItemCatalogId(item);
+        const cid = resolveItemCatalogId(item);
         if (cid == null) return;
 
         this.itemsHembrasArray.push(this.fb.group({
@@ -775,7 +746,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
         // Si no está, se actualizará después cuando se cargue el inventario
         const tipoItem = item.tipoItem || 'alimento'; // Fallback temporal, se actualizará después
 
-        const cid = this.resolveItemCatalogId(item);
+        const cid = resolveItemCatalogId(item);
         if (cid == null) return;
 
         this.itemsMachosArray.push(this.fb.group({
@@ -799,7 +770,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
 
     // itemsAdicionales solo contiene ítems NO alimentos; metadata.itemsHembras/Machos ya tiene TODOS los ítems.
     // Solo cargar desde itemsAdicionales si no había items en metadata (registros antiguos).
-    const itemsAdicionales: any = this.normalizeJsonField(this.editing.itemsAdicionales);
+    const itemsAdicionales: any = normalizeJsonField(this.editing.itemsAdicionales);
     const yaCargamosHembras = (itemsHembrasFromMetadata && itemsHembrasFromMetadata.length > 0);
     const yaCargamosMachos = (itemsMachosFromMetadata && itemsMachosFromMetadata.length > 0);
 
@@ -809,7 +780,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
           if (this.hembrasSoloAlimento && String(item.tipoItem || '').trim().toLowerCase() !== 'alimento') {
             return;
           }
-          const cid = this.resolveItemCatalogId(item as any) ?? item.catalogItemId;
+          const cid = resolveItemCatalogId(item as any) ?? item.catalogItemId;
           if (cid == null) return;
           this.itemsHembrasArray.push(this.fb.group({
             tipoItem: [item.tipoItem, Validators.required],
@@ -823,7 +794,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     if (itemsAdicionales && !yaCargamosMachos) {
       if (itemsAdicionales.itemsMachos && Array.isArray(itemsAdicionales.itemsMachos)) {
         itemsAdicionales.itemsMachos.forEach((item: ItemSeguimientoDto) => {
-          const cid = this.resolveItemCatalogId(item as any) ?? item.catalogItemId;
+          const cid = resolveItemCatalogId(item as any) ?? item.catalogItemId;
           if (cid == null) return;
           this.itemsMachosArray.push(this.fb.group({
             tipoItem: [item.tipoItem, Validators.required],
@@ -838,7 +809,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     this.ensureDefaultFoodRows();
 
     this.form.patchValue({
-      fechaRegistro: this.toYMD(this.editing.fechaRegistro),
+      fechaRegistro: toYMD(this.editing.fechaRegistro),
       loteId: this.editing.loteId,
       mortalidadHembras: this.editing.mortalidadHembras,
       mortalidadMachos: this.editing.mortalidadMachos,
@@ -880,7 +851,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
 
     if (lote && lote.granjaId) {
       this.granjaIdActual = lote.granjaId;
-      this.inventarioUbicacionActual = this.getInventarioUbicacionFromLote(lote);
+      this.inventarioUbicacionActual = getInventarioUbicacionFromLote(lote);
 
       // Cargar inventario de la granja (y núcleo/galpón del lote en EC/PA)
       this.cargarInventarioGranja(lote.granjaId, undefined, this.inventarioUbicacionActual);
@@ -1099,15 +1070,6 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     }
   }
 
-  private getInventarioUbicacionFromLote(lote: LoteDto | undefined | null): { nucleoId: string | null; galponId: string | null } {
-    if (!lote) return { nucleoId: null, galponId: null };
-    const n = lote.nucleoId;
-    const g = lote.galponId;
-    const nucleoId = n != null && String(n).trim() !== '' ? String(n).trim() : null;
-    const galponId = g != null && String(g).trim() !== '' ? String(g).trim() : null;
-    return { nucleoId, galponId };
-  }
-
   // ================== CARGA DE INVENTARIO DE LA GRANJA ==================
   private cargarInventarioGranja(
     granjaId: number,
@@ -1300,7 +1262,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
         const q = prev ? prev.quantity + r.quantity : r.quantity;
         this.inventarioPorItem.set(r.itemInventarioEcuadorId, { quantity: q, unit: r.unit });
       });
-      this.alimentosCatalog = this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i))
+      this.alimentosCatalog = this.itemsEcuadorPanama.map(i => itemEcuadorToCatalogItem(i))
         .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { numeric: true, sensitivity: 'base' }));
       this.actualizarMapasYFiltros();
       this.cargandoInventarioGranja = false;
@@ -1557,15 +1519,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
         const cantidadOriginal = Number(item.quantity);
         this.inventarioUnidadHembras = unidad;
         this.inventarioCantidadOriginalHembras = cantidadOriginal;
-        const unidadLower = unidad.toLowerCase();
-        let cantidadGramos: number;
-        if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-          cantidadGramos = Math.round(cantidadOriginal);
-        } else {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        }
+        const cantidadGramos = cantidadOriginalAGramos(cantidadOriginal, unidad);
         this.inventarioDisponibleHembras = cantidadGramos;
         this.mensajeInventarioHembras = '';
       } else {
@@ -1581,15 +1535,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
         const cantidadOriginal = Number(item.quantity);
         this.inventarioUnidadMachos = unidad;
         this.inventarioCantidadOriginalMachos = cantidadOriginal;
-        const unidadLower = unidad.toLowerCase();
-        let cantidadGramos: number;
-        if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-          cantidadGramos = Math.round(cantidadOriginal);
-        } else {
-          cantidadGramos = Math.round(cantidadOriginal * 1000);
-        }
+        const cantidadGramos = cantidadOriginalAGramos(cantidadOriginal, unidad);
         this.inventarioDisponibleMachos = cantidadGramos;
         this.mensajeInventarioMachos = '';
       } else {
@@ -1666,17 +1612,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
 
             // Convertir a gramos para mostrar en la interfaz (si el inventario está en kg)
             // Si el inventario está en gramos, no hay conversión
-            let cantidadGramos: number;
-            const unidadLower = unidad.toLowerCase();
-            if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
-            } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-              cantidadGramos = Math.round(cantidadOriginal);
-            } else {
+            if (esUnidadDesconocidaParaGramos(unidad)) {
               // Para otras unidades, asumir kg
               console.warn(`Unidad desconocida del inventario: ${unidad}, asumiendo kg`);
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
             }
+            const cantidadGramos = cantidadOriginalAGramos(cantidadOriginal, unidad);
 
             this.inventarioDisponibleHembras = cantidadGramos;
             this.mensajeInventarioHembras = '';
@@ -1699,17 +1639,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
             this.inventarioCantidadOriginalMachos = cantidadOriginal;
 
             // Convertir a gramos para mostrar en la interfaz (si el inventario está en kg)
-            let cantidadGramos: number;
-            const unidadLower = unidad.toLowerCase();
-            if (unidadLower === 'kg' || unidadLower === 'kilogramos' || unidadLower === 'kilogramo') {
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
-            } else if (unidadLower === 'g' || unidadLower === 'gramos' || unidadLower === 'gramo') {
-              cantidadGramos = Math.round(cantidadOriginal);
-            } else {
+            if (esUnidadDesconocidaParaGramos(unidad)) {
               // Para otras unidades, asumir kg
               console.warn(`Unidad desconocida del inventario: ${unidad}, asumiendo kg`);
-              cantidadGramos = Math.round(cantidadOriginal * 1000);
             }
+            const cantidadGramos = cantidadOriginalAGramos(cantidadOriginal, unidad);
 
             this.inventarioDisponibleMachos = cantidadGramos;
             this.mensajeInventarioMachos = '';
@@ -1755,42 +1689,12 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     // getRawValue() incluye todos los controles (también los que están en tabs condicionales como Agua)
     const raw = { ...this.form.getRawValue() };
     if (!this.editing && this.avesDisponibles) {
-      if (this.isPanama) {
-        // Panamá: si no hay mixtas, zeroise todos los campos de mixto
-        if ((this.avesDisponibles.mixtasDisponibles ?? 0) <= 0) {
-          Object.assign(raw, {
-            mortalidadMixtas: 0, selMixtas: 0, errorSexajeMixtas: 0,
-            pesoPromMixto: null, uniformidadMixta: null, cvMixto: null
-          });
-        }
-      } else {
-        const h0 = (this.avesDisponibles.hembrasDisponibles ?? 0) <= 0;
-        const m0 = (this.avesDisponibles.machosDisponibles ?? 0) <= 0;
-        if (h0) {
-          Object.assign(raw, { mortalidadHembras: 0, selH: 0, errorSexajeHembras: 0, pesoPromH: null, uniformidadH: null, cvH: null });
-        }
-        if (m0) {
-          Object.assign(raw, { mortalidadMachos: 0, selM: 0, errorSexajeMachos: 0, pesoPromM: null, uniformidadM: null, cvM: null });
-        }
-      }
+      aplicarCerosSinAvesDisponibles(raw, this.isPanama, this.avesDisponibles);
     }
 
     // Panamá: mapear campos Mixto → H (M=0) en el DTO antes de enviar al backend
     if (this.isPanama) {
-      Object.assign(raw, {
-        mortalidadHembras: Number(raw.mortalidadMixtas) || 0,
-        mortalidadMachos: 0,
-        selH: Number(raw.selMixtas) || 0,
-        selM: 0,
-        errorSexajeHembras: Number(raw.errorSexajeMixtas) || 0,
-        errorSexajeMachos: 0,
-        pesoPromH: raw.pesoPromMixto ?? null,
-        pesoPromM: null,
-        uniformidadH: raw.uniformidadMixta ?? null,
-        uniformidadM: null,
-        cvH: raw.cvMixto ?? null,
-        cvM: null,
-      });
+      mapearPanamaMixtoAHM(raw);
     }
     const loteId = raw.loteId;
     const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
@@ -1801,131 +1705,38 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     }
 
     // Construir arrays de ítems desde FormArrays
-    const itemsHembras: ItemSeguimientoDto[] = [];
-    const itemsMachos: ItemSeguimientoDto[] = [];
+    const itemsHembras = construirItemsSeguimiento(
+      this.itemsHembrasArray.controls.map(c => c.value),
+      { forzarAlimento: this.hembrasSoloAlimento, isEcuadorOrPanama: this.isEcuadorOrPanama }
+    );
+    const itemsMachos = construirItemsSeguimiento(
+      this.itemsMachosArray.controls.map(c => c.value),
+      { forzarAlimento: false, isEcuadorOrPanama: this.isEcuadorOrPanama }
+    );
 
-    const hembrasControls = this.itemsHembrasArray.controls;
-    const machosControls = this.itemsMachosArray.controls;
-
-    // Procesar ítems de hembras
-    hembrasControls.forEach(control => {
-      const itemValue = control.value;
-      const tipoH = this.hembrasSoloAlimento ? 'alimento' : itemValue.tipoItem;
-      if (tipoH && itemValue.catalogItemId && itemValue.cantidad > 0) {
-        const catalogItemId = Number(itemValue.catalogItemId);
-        itemsHembras.push({
-          tipoItem: tipoH,
-          catalogItemId,
-          ...(this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {}),
-          cantidad: Number(itemValue.cantidad),
-          unidad: itemValue.unidad || 'kg'
-        });
-      }
-    });
-
-    // Procesar ítems de machos
-    machosControls.forEach(control => {
-      const itemValue = control.value;
-      if (itemValue.tipoItem && itemValue.catalogItemId && itemValue.cantidad > 0) {
-        const catalogItemId = Number(itemValue.catalogItemId);
-        itemsMachos.push({
-          tipoItem: itemValue.tipoItem,
-          catalogItemId,
-          ...(this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {}),
-          cantidad: Number(itemValue.cantidad),
-          unidad: itemValue.unidad || 'kg'
-        });
-      }
-    });
-
-    // Validar inventario para alimentos (validación básica, la validación completa se hace en el backend)
-    const alimentosHembrasParaValidar = itemsHembras.filter(item => item.tipoItem === 'alimento');
-    const alimentosMachosParaValidar = itemsMachos.filter(item => item.tipoItem === 'alimento');
-
-    // Nota: La validación completa de inventario se hace en el backend
-    // Aquí solo hacemos una validación básica si es necesario
-
-    // Separar alimentos de otros ítems para itemsAdicionales
-    const otrosItemsHembras = itemsHembras.filter(item => item.tipoItem !== 'alimento');
-    const otrosItemsMachos = itemsMachos.filter(item => item.tipoItem !== 'alimento');
-
-    const itemsAdicionales: { itemsHembras?: ItemSeguimientoDto[], itemsMachos?: ItemSeguimientoDto[] } | null =
-      (otrosItemsHembras.length > 0 || otrosItemsMachos.length > 0) ? {
-        ...(otrosItemsHembras.length > 0 ? { itemsHembras: otrosItemsHembras } : {}),
-        ...(otrosItemsMachos.length > 0 ? { itemsMachos: otrosItemsMachos } : {})
-      } : null;
+    // Items adicionales JSONB (solo ítems que NO son alimentos)
+    const itemsAdicionales = construirItemsAdicionales(itemsHembras, itemsMachos);
 
     // Construir string de tipoAlimento desde los alimentos
     const alimentosHembras = itemsHembras.filter(item => item.tipoItem === 'alimento');
     const alimentosMachos = itemsMachos.filter(item => item.tipoItem === 'alimento');
-    const nombresAlimentos: string[] = [];
+    const tipoAlimentoStr = construirTipoAlimentoStr(alimentosHembras, alimentosMachos, this.alimentosById, raw.tipoAlimento);
 
-    alimentosHembras.forEach(item => {
-      const alimento = this.alimentosById.get(item.catalogItemId);
-      if (alimento?.nombre) {
-        nombresAlimentos.push(`H: ${alimento.nombre}`);
-      }
-    });
-
-    alimentosMachos.forEach(item => {
-      const alimento = this.alimentosById.get(item.catalogItemId);
-      if (alimento?.nombre) {
-        nombresAlimentos.push(`M: ${alimento.nombre}`);
-      }
-    });
-
-    const tipoAlimentoStr = nombresAlimentos.length > 0 ? nombresAlimentos.join(' / ') : raw.tipoAlimento || '';
-
-    const ymd = this.toYMD(raw.fechaRegistro)!;
+    const ymd = toYMD(raw.fechaRegistro)!;
 
     // El backend ahora acepta consumo con unidad y hace la conversión automáticamente
     const lotePosturaLevanteId = this.editing?.lotePosturaLevanteId ?? null;
-    const baseDto = {
-      fechaRegistro: this.ymdToIsoAtNoon(ymd),
-      loteId: raw.loteId,
-      lotePosturaLevanteId: lotePosturaLevanteId,
-      mortalidadHembras: Number(raw.mortalidadHembras) || 0,
-      mortalidadMachos: Number(raw.mortalidadMachos) || 0,
-      selH: Number(raw.selH) || 0,
-      selM: Number(raw.selM) || 0,
-      errorSexajeHembras: Number(raw.errorSexajeHembras) || 0,
-      errorSexajeMachos: Number(raw.errorSexajeMachos) || 0,
-      tipoAlimento: tipoAlimentoStr || '',
-      // Arrays de ítems (el backend separa alimentos de otros ítems)
-      itemsHembras: itemsHembras.length > 0 ? itemsHembras : null,
-      itemsMachos: itemsMachos.length > 0 ? itemsMachos : null,
-      // Items adicionales JSONB (solo ítems que NO son alimentos)
-      itemsAdicionales: itemsAdicionales,
-      pesoPromH: this.toNumOrNull(raw.pesoPromH),
-      pesoPromM: this.toNumOrNull(raw.pesoPromM),
-      uniformidadH: this.toNumOrNull(raw.uniformidadH),
-      uniformidadM: this.toNumOrNull(raw.uniformidadM),
-      cvH: this.toNumOrNull(raw.cvH),
-      cvM: this.toNumOrNull(raw.cvM),
-      observaciones: raw.observaciones,
-      kcalAlH: null,
-      protAlH: null,
-      kcalAveH: null,
-      protAveH: null,
-      ciclo: raw.ciclo,
-      // Campos de agua (siempre enviar; el backend los persiste en seguimiento_diario_*)
-      consumoAguaDiario: this.toNumOrNull(raw.consumoAguaDiario),
-      consumoAguaPh: this.toNumOrNull(raw.consumoAguaPh),
-      consumoAguaOrp: this.toNumOrNull(raw.consumoAguaOrp),
-      consumoAguaTemperatura: this.toNumOrNull(raw.consumoAguaTemperatura),
-      // Campos específicos Panamá: quintales de alimento por categoría.
-      // Solo viajan en Panamá; en otros países las claves no se incluyen (contrato intacto).
-      ...(this.isPanama
-        ? {
-            qqMixtas: this.toNumOrNull(raw.qqMixtas),
-            qqHembras: this.toNumOrNull(raw.qqHembras),
-            qqMachos: this.toNumOrNull(raw.qqMachos)
-          }
-        : {}),
-      // Usuario en sesión y tipo para el servicio unificado seguimiento_diario
+    const baseDto = buildBaseSeguimientoDto({
+      fechaRegistroIso: ymdToIsoAtNoon(ymd),
+      raw,
+      lotePosturaLevanteId,
+      itemsHembras,
+      itemsMachos,
+      itemsAdicionales,
+      tipoAlimentoStr,
+      isPanama: this.isPanama,
       createdByUserId: this.storage.get()?.user?.id ?? null,
-      tipoSeguimiento: 'levante',
-    };
+    });
 
     const isEdit = !!this.editing;
     const data = isEdit
@@ -2028,108 +1839,4 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     }
   }
 
-  // ================== HELPERS ==================
-  private toNumOrNull(v: any): number | null {
-    if (v === null || v === undefined || v === '') return null;
-    const n = typeof v === 'number' ? v : Number(v);
-    return isNaN(n) ? null : n;
-  }
-
-  /** Hoy en formato YYYY-MM-DD (local, sin zona) para <input type="date"> */
-  private todayYMD(): string {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}-${dd}`;
-  }
-
-  /**
-   * Calcula la fecha por defecto para un nuevo registro:
-   * → día siguiente al último registro existente; si no hay registros,
-   *   día siguiente al encasillamiento del lote; si nada aplica, hoy.
-   * El usuario puede cambiarla libremente en el formulario.
-   */
-  private computeDefaultFecha(): string {
-    // 1. Buscar la fecha más reciente entre los registros ya creados
-    let latest: Date | null = null;
-    for (const raw of this.existingFechas) {
-      if (!raw) continue;
-      const ymd = raw.substring(0, 10); // "2025-01-05"
-      const d = new Date(ymd + 'T00:00:00');
-      if (!isNaN(d.getTime()) && (!latest || d > latest)) {
-        latest = d;
-      }
-    }
-
-    // 2. Si no hay registros, usar la fecha de encasillamiento del lote
-    if (!latest && this.selectedLoteId) {
-      const lote = this.lotes.find(l => String(l.loteId) === String(this.selectedLoteId));
-      const encaset = lote?.fechaEncaset;
-      if (encaset) {
-        const ymd = String(encaset).substring(0, 10);
-        const d = new Date(ymd + 'T00:00:00');
-        if (!isNaN(d.getTime())) latest = d;
-      }
-    }
-
-    // 3. Sumar 1 día y devolver YYYY-MM-DD; si nada aplica, hoy
-    if (latest) {
-      latest.setDate(latest.getDate() + 1);
-      const y = latest.getFullYear();
-      const m = String(latest.getMonth() + 1).padStart(2, '0');
-      const dd = String(latest.getDate()).padStart(2, '0');
-      return `${y}-${m}-${dd}`;
-    }
-    return this.todayYMD();
-  }
-
-  /** Normaliza cadenas mm/dd/aaaa, dd/mm/aaaa, ISO o Date a YYYY-MM-DD (local) */
-  private toYMD(input: string | Date | null | undefined): string | null {
-    if (!input) return null;
-
-    if (input instanceof Date && !isNaN(input.getTime())) {
-      const y = input.getFullYear();
-      const m = String(input.getMonth() + 1).padStart(2, '0');
-      const d = String(input.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    const s = String(input).trim();
-
-    // YYYY-MM-DD
-    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/;
-    const m1 = s.match(ymd);
-    if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
-
-    // mm/dd/aaaa o dd/mm/aaaa
-    const sl = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const m2 = s.match(sl);
-    if (m2) {
-      let a = parseInt(m2[1], 10);
-      let b = parseInt(m2[2], 10);
-      const yyyy = parseInt(m2[3], 10);
-      let mm = a, dd = b;
-      if (a > 12 && b <= 12) { mm = b; dd = a; }
-      const mmS = String(mm).padStart(2, '0');
-      const ddS = String(dd).padStart(2, '0');
-      return `${yyyy}-${mmS}-${ddS}`;
-    }
-
-    // ISO (con T). Extrae la fecha en LOCAL sin cambiar el día
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-
-    return null;
-  }
-
-  /** Convierte YYYY-MM-DD a ISO asegurando MEDIODÍA local → evita cruzar de día por zona horaria */
-  private ymdToIsoAtNoon(ymd: string): string {
-    const iso = new Date(`${ymd}T12:00:00`);
-    return iso.toISOString();
-  }
 }
