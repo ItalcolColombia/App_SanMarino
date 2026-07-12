@@ -17,7 +17,6 @@ node_modules/
 **/.vs/
 
 # Test Files
-/backend/tests
 /backend/tests/ZooSanMarino.Application.Tests/obj
 backend/tests/ZooSanMarino.Application.Tests/obj/Debug/net9.0/ZooSanMarino.Application.Tests.AssemblyInfoInputs.cache
 backend/tests/ZooSanMarino.Domain.Tests/obj/Debug/net9.0/ZooSanMarino.Domain.Tests.AssemblyInfo.cs
