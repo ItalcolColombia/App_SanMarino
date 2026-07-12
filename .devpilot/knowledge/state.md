@@ -1,25 +1,30 @@
 # Estado del proyecto (generado por devpilot)
 
-**Misión:** realia esta tarea tengo archivos tocados realiza un commit de esos arc
-**Estado:** cancelled
-**Progreso:** 0/13 tareas completadas
-**Actualizado:** 2026-07-11T22:46:11.430Z
+**Misión:** busca archivos que este muy largos y dividilos octimizando foram de le
+**Estado:** running
+**Progreso:** 1/14 tareas completadas
+**Actualizado:** 2026-07-12T03:43:34.665Z
 
-## Commit seguro del trabajo en curso
-- [ ] Plan y tracker de la misión — `failed` (documentation)
-- [ ] Auditoría del diff y filtro de secretos — `pending` (security)
-- [ ] Validación de build pre-commit — `pending` (qa)
-- [ ] Crear commits agrupados por alcance — `pending` (devops)
+## Auditoría de archivos largos (front + back)
+- [x] Auditar backend y frontend en busca de archivos largos — `done` (architect)
 
-## Reducción de deuda técnica backend (archivos >800 líneas)
-- [ ] Refactor MovimientoAvesService (2507 líneas) a partials + cálculo puro — `pending` (backend)
+## Backend — reducción de deuda técnica (partials + cálculo puro)
+- [ ] Refactor MovimientoAvesService (2507 líneas) — `pending` (backend)
 - [ ] Tests de equivalencia MovimientoAvesCalculos — `pending` (qa)
+- [ ] Refactor MovimientoAvesController (1019 líneas) — `pending` (backend)
 - [ ] Refactor SeguimientoAvesEngordeService (1884 líneas) — `pending` (backend)
 - [ ] Tests de equivalencia SeguimientoAvesEngordeCalculos — `pending` (qa)
 - [ ] Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087) — `pending` (backend)
-- [ ] Refactor MovimientoAvesController (1019 líneas) — `pending` (backend)
 - [ ] Tests de indicadores Ecuador — `pending` (qa)
+- [ ] Refactor SeguimientoLoteLevanteService (837 líneas) — `pending` (backend)
 
-## Validación final y cierre
-- [ ] Build + suite completa + verificación del gate de líneas — `pending` (qa)
-- [ ] Cierre: tracker y base de conocimiento — `pending` (documentation)
+## Frontend — componentes/servicios largos
+- [ ] Priorizar archivos frontend a refactorizar — `pending` (frontend)
+- [ ] Refactor de archivos frontend priorizados — `pending` (frontend)
+
+## Validación global
+- [ ] Build + suite completa backend + gate de líneas — `pending` (qa)
+- [ ] Build frontend de validación — `pending` (qa)
+
+## Cierre
+- [ ] Actualizar tracker y base de conocimiento — `pending` (documentation)

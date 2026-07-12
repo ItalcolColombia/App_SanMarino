@@ -1,6 +1,6 @@
 {
-  "taskId": "3ace79ba-279b-4d21-97b6-46382d9cb3d1",
-  "title": "Plan y tracker de la misión",
-  "status": "failed",
-  "finishedAt": "2026-07-10T09:20:35.501Z"
+  "taskId": "14caddbb-5f04-470a-97c6-fd6723edc5c1",
+  "title": "Auditar backend y frontend en busca de archivos largos",
+  "status": "done",
+  "finishedAt": "2026-07-12T03:43:34.629Z"
 }
