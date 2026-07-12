@@ -248,3 +248,6 @@ logs/
 *.bak
 *.backup
 *~
+
+# Estado de la plataforma devpilot (ADR-0003) — no versionar
+.devpilot/
