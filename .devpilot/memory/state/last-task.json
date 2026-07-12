@@ -1,6 +1,6 @@
 {
-  "taskId": "14caddbb-5f04-470a-97c6-fd6723edc5c1",
-  "title": "Auditar backend y frontend en busca de archivos largos",
+  "taskId": "95c4e46e-a177-4b63-8ea2-71af6ef64945",
+  "title": "Refactor MovimientoAvesService (2507 líneas)",
   "status": "done",
-  "finishedAt": "2026-07-12T03:43:34.629Z"
+  "finishedAt": "2026-07-12T04:02:15.174Z"
 }

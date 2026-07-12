@@ -2,24 +2,24 @@
 
 **Misión:** busca archivos que este muy largos y dividilos octimizando foram de le
 **Estado:** running
-**Progreso:** 1/14 tareas completadas
-**Actualizado:** 2026-07-12T03:43:34.665Z
+**Progreso:** 2/14 tareas completadas
+**Actualizado:** 2026-07-12T04:02:15.200Z
 
 ## Auditoría de archivos largos (front + back)
 - [x] Auditar backend y frontend en busca de archivos largos — `done` (architect)
 
 ## Backend — reducción de deuda técnica (partials + cálculo puro)
-- [ ] Refactor MovimientoAvesService (2507 líneas) — `pending` (backend)
+- [x] Refactor MovimientoAvesService (2507 líneas) — `done` (backend)
 - [ ] Tests de equivalencia MovimientoAvesCalculos — `pending` (qa)
 - [ ] Refactor MovimientoAvesController (1019 líneas) — `pending` (backend)
-- [ ] Refactor SeguimientoAvesEngordeService (1884 líneas) — `pending` (backend)
+- [ ] Refactor SeguimientoAvesEngordeService (1884 líneas) — `ready` (backend)
 - [ ] Tests de equivalencia SeguimientoAvesEngordeCalculos — `pending` (qa)
-- [ ] Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087) — `pending` (backend)
+- [ ] Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087) — `ready` (backend)
 - [ ] Tests de indicadores Ecuador — `pending` (qa)
-- [ ] Refactor SeguimientoLoteLevanteService (837 líneas) — `pending` (backend)
+- [ ] Refactor SeguimientoLoteLevanteService (837 líneas) — `ready` (backend)
 
 ## Frontend — componentes/servicios largos
-- [ ] Priorizar archivos frontend a refactorizar — `pending` (frontend)
+- [ ] Priorizar archivos frontend a refactorizar — `ready` (frontend)
 - [ ] Refactor de archivos frontend priorizados — `pending` (frontend)
 
 ## Validación global
