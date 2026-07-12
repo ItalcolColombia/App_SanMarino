@@ -2,8 +2,8 @@
 
 **Misión:** busca archivos que este muy largos y dividilos octimizando foram de le
 **Estado:** running
-**Progreso:** 10/14 tareas completadas
-**Actualizado:** 2026-07-12T05:16:04.170Z
+**Progreso:** 11/14 tareas completadas
+**Actualizado:** 2026-07-12T05:28:47.680Z
 
 ## Auditoría de archivos largos (front + back)
 - [x] Auditar backend y frontend en busca de archivos largos — `done` (architect)
@@ -20,7 +20,7 @@
 
 ## Frontend — componentes/servicios largos
 - [x] Priorizar archivos frontend a refactorizar — `done` (frontend)
-- [ ] Refactor de archivos frontend priorizados — `pending` (frontend)
+- [x] Refactor de archivos frontend priorizados — `done` (frontend)
 
 ## Validación global
 - [ ] Build + suite completa backend + gate de líneas — `ready` (qa)
