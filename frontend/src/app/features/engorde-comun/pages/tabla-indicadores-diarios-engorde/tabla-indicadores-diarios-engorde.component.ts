@@ -1,4 +1,4 @@
-﻿import { Component, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -67,14 +67,14 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
 
   formatNum(v: number | null | undefined, decimals = 1): string {
     if (v == null || Number.isNaN(v)) {
-      return 'â€”';
+      return '—';
     }
     return formatDecimalTrim(v, decimals);
   }
 
   formatPct(v: number | null | undefined, decimals = 2): string {
     if (v == null || Number.isNaN(v)) {
-      return 'â€”';
+      return '—';
     }
     return `${formatDecimalTrim(v, decimals)}%`;
   }
@@ -179,7 +179,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
       case 'bad':
         return 'Alerta';
       default:
-        return 'â€”';
+        return '—';
     }
   }
 
@@ -201,20 +201,20 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const head = [
       'Fecha',
-      'DÃ­a',
+      'Día',
       'Aves inicio',
       'Peso reg (g)',
-      'Peso guÃ­a (g)',
+      'Peso guía (g)',
       'Ganancia reg (g)',
-      'Ganancia guÃ­a (g)',
+      'Ganancia guía (g)',
       'Alim. diario reg (g/ave)',
-      'Alim. diario guÃ­a (g/ave)',
+      'Alim. diario guía (g/ave)',
       'Alim. acum. reg (g/ave)',
-      'Alim. acum. guÃ­a (g/ave)',
+      'Alim. acum. guía (g/ave)',
       'CA reg',
-      'CA guÃ­a',
+      'CA guía',
       'Mort+sel reg %',
-      'Mort+sel guÃ­a %'
+      'Mort+sel guía %'
     ];
     const lines = [head.join(sep)];
     for (const row of this.filas) {
