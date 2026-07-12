@@ -95,4 +95,37 @@ public class IndicadorEcuadorCalculosTests
             conversion: (decimal)conversion, pesoPromedio: 2.5m, pesoAjuste: 2.7m, divisorAjuste: 4.5m);
         Assert.Equal(0m, actual);
     }
+
+    // ─── ExcedenteSobrante (usado por MovimientoPolloEngordeService al reservar aves) ───
+    // Suma, por sexo, el faltante (solicitado − disponible) acotado a ≥ 0; nunca negativo.
+
+    [Fact]
+    public void ExcedenteSobrante_SolicitadoSuperaDisponibleEnLosTresSexos_SumaCadaFaltante()
+    {
+        var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(
+            solicitadoH: 100, dispH: 80,
+            solicitadoM: 50, dispM: 20,
+            solicitadoX: 10, dispX: 0);
+        Assert.Equal(60, excedente); // 20 + 30 + 10
+    }
+
+    [Fact]
+    public void ExcedenteSobrante_DisponibleAlcanzaOSobra_NoAportaExcedenteNegativo()
+    {
+        var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(
+            solicitadoH: 50, dispH: 100,
+            solicitadoM: 0, dispM: 0,
+            solicitadoX: 0, dispX: 0);
+        Assert.Equal(0, excedente);
+    }
+
+    [Fact]
+    public void ExcedenteSobrante_TodoDisponible_DevuelveCero()
+    {
+        var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(
+            solicitadoH: 10, dispH: 10,
+            solicitadoM: 5, dispM: 5,
+            solicitadoX: 0, dispX: 0);
+        Assert.Equal(0, excedente);
+    }
 }

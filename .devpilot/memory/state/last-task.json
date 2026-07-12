@@ -1,6 +1,6 @@
 {
-  "taskId": "3b1764bd-ce65-457c-9483-33d8a9e54344",
-  "title": "Tests de equivalencia SeguimientoAvesEngordeCalculos",
+  "taskId": "d3227ec7-5567-4f92-81ca-f01d831764c2",
+  "title": "Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087)",
   "status": "done",
-  "finishedAt": "2026-07-12T04:42:31.726Z"
+  "finishedAt": "2026-07-12T05:00:26.453Z"
 }

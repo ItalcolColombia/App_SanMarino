@@ -2,8 +2,8 @@
 
 **Misión:** busca archivos que este muy largos y dividilos octimizando foram de le
 **Estado:** running
-**Progreso:** 6/14 tareas completadas
-**Actualizado:** 2026-07-12T04:42:31.744Z
+**Progreso:** 7/14 tareas completadas
+**Actualizado:** 2026-07-12T05:00:26.469Z
 
 ## Auditoría de archivos largos (front + back)
 - [x] Auditar backend y frontend en busca de archivos largos — `done` (architect)
@@ -14,7 +14,7 @@
 - [x] Refactor MovimientoAvesController (1019 líneas) — `done` (backend)
 - [x] Refactor SeguimientoAvesEngordeService (1884 líneas) — `done` (backend)
 - [x] Tests de equivalencia SeguimientoAvesEngordeCalculos — `done` (qa)
-- [ ] Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087) — `ready` (backend)
+- [x] Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087) — `done` (backend)
 - [ ] Tests de indicadores Ecuador — `pending` (qa)
 - [ ] Refactor SeguimientoLoteLevanteService (837 líneas) — `ready` (backend)
 
