@@ -1,6 +1,6 @@
 {
-  "taskId": "f7beab06-aa4c-41ce-931a-abc2db188a4f",
-  "title": "Refactor de archivos frontend priorizados",
+  "taskId": "a3a7562e-486f-4026-b0c3-af6f60d0c7bf",
+  "title": "Build + suite completa backend + gate de líneas",
   "status": "done",
-  "finishedAt": "2026-07-12T05:28:47.665Z"
+  "finishedAt": "2026-07-12T05:38:00.049Z"
 }

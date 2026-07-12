@@ -183,7 +183,7 @@ export interface BuildBaseSeguimientoDtoCtx {
   itemsAdicionales: { itemsHembras?: ItemSeguimientoDto[]; itemsMachos?: ItemSeguimientoDto[] } | null;
   tipoAlimentoStr: string;
   isPanama: boolean;
-  createdByUserId: number | null;
+  createdByUserId: string | null;
 }
 
 /**
