@@ -599,6 +599,34 @@
   &__row-error {
     background: rgba(254, 226, 226, 0.45);
   }
+
+  &__row-bloqueada {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--ital-muted);
+  }
+}
+
+/* Lote cerrado / corrida anterior en Venta por granja */
+.venta-granja-lote-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--ital-orange-100);
+  color: var(--ital-orange-dark);
+  vertical-align: middle;
+
+  &--bypass {
+    background: var(--ital-green-100);
+    color: var(--ital-green-dark, #166534);
+  }
+}
+
+.form-hint--bloqueo {
+  color: var(--ital-orange-dark);
 }
 
 /* Peso bascula obligatorio en ventas */
