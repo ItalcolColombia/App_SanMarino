@@ -1,7 +1,13 @@
 // features/migraciones-masivas/components/selector-tipo-migracion/selector-tipo-migracion.component.ts
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TipoMigracionInfo, TipoMigracionCodigo } from '../../models/migracion.model';
+import { esTipoPolloEngorde } from '../../funciones/agrupar-tipo-migracion.funcion';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+
+/** Permisos que habilitan cada línea del módulo (control interino por rol, ver plan). */
+const PERMISO_POLLO_ENGORDE = 'carga_masiva_pollo_engorde';
+const PERMISO_POSTURA = 'carga_masiva_postura';
 
 @Component({
   selector: 'app-selector-tipo-migracion',
@@ -16,7 +22,10 @@ import { TipoMigracionInfo, TipoMigracionCodigo } from '../../models/migracion.m
         class="tile"
         [class.tile--active]="seleccionado === t.codigo"
         [class.tile--soon]="!t.disponible"
-        (click)="seleccionar.emit(t)">
+        [class.tile--locked]="t.disponible && !tienePermiso(t.codigo)"
+        [disabled]="!t.disponible || !tienePermiso(t.codigo)"
+        [title]="!t.disponible ? '' : !tienePermiso(t.codigo) ? mensajeSinPermiso(t.codigo) : ''"
+        (click)="onClick(t)">
         <span class="tile__icon">{{ icono(t.codigo) }}</span>
         <span class="tile__body">
           <span class="tile__name">{{ t.nombre }}</span>
@@ -25,6 +34,7 @@ import { TipoMigracionInfo, TipoMigracionCodigo } from '../../models/migracion.m
         <span class="tile__meta">
           <span class="tile__phase">Fase {{ t.fase }}</span>
           <span class="tile__soon" *ngIf="!t.disponible">Próximamente</span>
+          <span class="tile__locked" *ngIf="t.disponible && !tienePermiso(t.codigo)">{{ mensajeSinPermiso(t.codigo) }}</span>
         </span>
       </button>
     </div>
@@ -58,6 +68,16 @@ import { TipoMigracionInfo, TipoMigracionCodigo } from '../../models/migracion.m
       box-shadow: 0 10px 22px rgba(245, 130, 31, 0.18);
     }
     .tile--soon { opacity: 0.7; }
+    .tile--locked {
+      cursor: not-allowed;
+      opacity: 0.55;
+      filter: grayscale(0.6);
+    }
+    .tile--locked:hover {
+      border-color: #eef0f3;
+      transform: none;
+      box-shadow: none;
+    }
     .tile__icon {
       display: inline-flex;
       align-items: center;
@@ -78,12 +98,19 @@ import { TipoMigracionInfo, TipoMigracionCodigo } from '../../models/migracion.m
       padding: 0.12rem 0.4rem; border-radius: 999px;
       background: #f1f2f4; color: #8a8f98; white-space: nowrap;
     }
+    .tile__locked {
+      font-size: 0.6rem; font-weight: 700; text-align: right;
+      padding: 0.12rem 0.4rem; border-radius: 999px;
+      background: #f1f2f4; color: #b3261e; white-space: nowrap;
+    }
   `]
 })
 export class SelectorTipoMigracionComponent {
   @Input() tipos: TipoMigracionInfo[] = [];
   @Input() seleccionado: string | null = null;
   @Output() seleccionar = new EventEmitter<TipoMigracionInfo>();
+
+  private readonly permService = inject(UserPermissionService);
 
   private readonly iconos: Record<TipoMigracionCodigo, string> = {
     Granjas: '🏡',
@@ -101,5 +128,20 @@ export class SelectorTipoMigracionComponent {
 
   icono(codigo: string): string {
     return this.iconos[codigo as TipoMigracionCodigo] ?? '📄';
+  }
+
+  /** Control interino por línea: sin el permiso de su línea, el tile queda deshabilitado. */
+  tienePermiso(codigo: TipoMigracionCodigo): boolean {
+    return this.permService.has(esTipoPolloEngorde(codigo) ? PERMISO_POLLO_ENGORDE : PERMISO_POSTURA);
+  }
+
+  mensajeSinPermiso(codigo: TipoMigracionCodigo): string {
+    return esTipoPolloEngorde(codigo) ? 'Sin permisos' : 'Sin permiso para carga masiva';
+  }
+
+  /** Refuerzo del `[disabled]` del template (un tile bloqueado no debe poder seleccionarse). */
+  onClick(t: TipoMigracionInfo): void {
+    if (!t.disponible || !this.tienePermiso(t.codigo)) return;
+    this.seleccionar.emit(t);
   }
 }
