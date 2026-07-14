@@ -402,6 +402,13 @@ export const appConfig: ApplicationConfig = {
           import('./features/movimientos-pollo-engorde/movimientos-pollo-engorde-routing.module')
             .then(m => m.MovimientosPolloEngordeRoutingModule)
       },
+      {
+        path: 'vacunacion',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/vacunacion/vacunacion-routing.module')
+            .then(m => m.VacunacionRoutingModule)
+      },
 
       // Módulo Mapas (configuraciones y ejecución)
       {

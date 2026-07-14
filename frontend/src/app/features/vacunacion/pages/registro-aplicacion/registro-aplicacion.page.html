@@ -1,0 +1,96 @@
+<div class="mx-auto max-w-6xl p-4 sm:p-6">
+  <div class="mb-4">
+    <h1 class="text-xl font-semibold text-gray-800">Registro de aplicación de vacunas</h1>
+    <p class="text-sm text-gray-500">Operador: confirma si se aplicó (a tiempo o tardía) o si no se aplicó, con motivo.</p>
+  </div>
+
+  <div class="mb-4 grid grid-cols-1 gap-3 rounded-lg border bg-white p-4 sm:grid-cols-3">
+    <div>
+      <label class="mb-1 block text-sm font-medium text-gray-700">Granja</label>
+      <select class="w-full rounded border-gray-300 text-sm" [(ngModel)]="granjaSeleccionadaId" (ngModelChange)="onGranjaChange()">
+        <option [ngValue]="null">Seleccione…</option>
+        <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
+      </select>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="mb-1 block text-sm font-medium text-gray-700">Lote</label>
+      <select
+        class="w-full rounded border-gray-300 text-sm"
+        [ngModel]="loteSeleccionado"
+        (ngModelChange)="onLoteChange($event)"
+        [disabled]="!granjaSeleccionadaId"
+      >
+        <option [ngValue]="null">Seleccione…</option>
+        <option *ngFor="let l of lotesFiltrados" [ngValue]="l">
+          {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
+        </option>
+      </select>
+    </div>
+  </div>
+
+  <div *ngIf="loteSeleccionado" class="rounded-lg border bg-white">
+    <div class="flex items-center justify-between border-b px-4 py-3">
+      <h2 class="text-sm font-semibold text-gray-700">
+        {{ loteSeleccionado.loteNombre }} — {{ lineaLabel[loteSeleccionado.lineaProductiva] }}
+      </h2>
+      <button type="button" class="rounded border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" (click)="exportarHistorial()">
+        Exportar historial
+      </button>
+    </div>
+
+    <div *ngIf="cargando" class="p-6 text-center text-sm text-gray-500">Cargando…</div>
+
+    <table *ngIf="!cargando" class="w-full text-left text-sm">
+      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="px-4 py-2">Vacuna</th>
+          <th class="px-4 py-2">Franja programada</th>
+          <th class="px-4 py-2">Estado</th>
+          <th class="px-4 py-2">Motivo</th>
+          <th class="px-4 py-2 text-right">Acción</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        <tr *ngFor="let item of items">
+          <td class="px-4 py-2 font-medium text-gray-800">{{ item.itemInventarioNombre }}</td>
+          <td class="px-4 py-2 text-gray-600">
+            {{ item.fechaInicioFranja | date: 'dd/MM/yyyy' }} — {{ item.fechaFinFranja | date: 'dd/MM/yyyy' }}
+          </td>
+          <td class="px-4 py-2">
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="calcularEstadoVisual(item).claseBadge">
+              {{ calcularEstadoVisual(item).etiqueta }}
+            </span>
+          </td>
+          <td class="px-4 py-2 text-gray-500">{{ item.registro?.motivoDescripcion ?? '—' }}</td>
+          <td class="px-4 py-2 text-right">
+            <ng-container *ngIf="!item.registro || item.registro.estado === 'Pendiente'">
+              <button
+                type="button"
+                *appHasPermission="'vacunacion.registro.aplicar'"
+                class="rounded px-3 py-1 text-sm font-medium text-white"
+                style="background-color:#2d7a3e"
+                (click)="abrirRegistro(item)"
+              >
+                Registrar
+              </button>
+            </ng-container>
+          </td>
+        </tr>
+        <tr *ngIf="!items.length">
+          <td colspan="5" class="px-4 py-6 text-center text-gray-400">Este lote no tiene cronograma de vacunación.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="!loteSeleccionado" class="rounded-lg border border-dashed bg-white p-10 text-center text-sm text-gray-400">
+    Seleccione una granja y un lote para registrar aplicaciones.
+  </div>
+</div>
+
+<app-modal-registro-aplicacion
+  [open]="modalAbierto"
+  [item]="itemRegistrar"
+  (cerrado)="cerrarModal()"
+  (guardado)="onGuardado()"
+></app-modal-registro-aplicacion>

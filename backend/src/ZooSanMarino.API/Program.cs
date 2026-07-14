@@ -221,6 +221,9 @@ builder.Services.AddScoped<IMovimientoPolloEngordeService, MovimientoPolloEngord
 builder.Services.AddScoped<IMovimientoPolloEngordePanamaService, MovimientoPolloEngordePanamaService>();
 builder.Services.AddScoped<IMovimientoPolloEngordeFilterDataService, MovimientoPolloEngordeFilterDataService>();
 builder.Services.AddScoped<IInventarioGastoService, InventarioGastoService>();
+builder.Services.AddScoped<IVacunacionCronogramaService, VacunacionCronogramaService>();
+builder.Services.AddScoped<IVacunacionRegistroService, VacunacionRegistroService>();
+builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();

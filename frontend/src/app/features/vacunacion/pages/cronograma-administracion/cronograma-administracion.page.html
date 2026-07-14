@@ -1,0 +1,123 @@
+<div class="mx-auto max-w-6xl p-4 sm:p-6">
+  <div class="mb-4 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-800">Cronograma de vacunación</h1>
+      <p class="text-sm text-gray-500">Administrador: arma el plan de vacunas de todo el ciclo de vida del lote.</p>
+    </div>
+  </div>
+
+  <div class="mb-4 grid grid-cols-1 gap-3 rounded-lg border bg-white p-4 sm:grid-cols-3">
+    <div>
+      <label class="mb-1 block text-sm font-medium text-gray-700">Granja</label>
+      <select class="w-full rounded border-gray-300 text-sm" [(ngModel)]="granjaSeleccionadaId" (ngModelChange)="onGranjaChange()">
+        <option [ngValue]="null">Seleccione…</option>
+        <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
+      </select>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="mb-1 block text-sm font-medium text-gray-700">Lote</label>
+      <select
+        class="w-full rounded border-gray-300 text-sm"
+        [ngModel]="loteSeleccionado"
+        (ngModelChange)="onLoteChange($event)"
+        [disabled]="!granjaSeleccionadaId"
+      >
+        <option [ngValue]="null">Seleccione…</option>
+        <option *ngFor="let l of lotesFiltrados" [ngValue]="l">
+          {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
+        </option>
+      </select>
+    </div>
+  </div>
+
+  <div *ngIf="loteSeleccionado" class="rounded-lg border bg-white">
+    <div class="flex items-center justify-between border-b px-4 py-3">
+      <h2 class="text-sm font-semibold text-gray-700">
+        {{ loteSeleccionado.loteNombre }} — {{ lineaLabel[loteSeleccionado.lineaProductiva] }}
+      </h2>
+      <div class="flex gap-2">
+        <button type="button" class="rounded border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" (click)="exportar()">
+          Exportar Excel
+        </button>
+        <button
+          type="button"
+          *appHasPermission="'vacunacion.cronograma.administrar'"
+          class="rounded px-3 py-1.5 text-sm font-medium text-white"
+          style="background-color:#e85c25"
+          (click)="abrirNuevo()"
+        >
+          + Agregar vacuna
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="cargandoCronograma" class="p-6 text-center text-sm text-gray-500">Cargando cronograma…</div>
+
+    <table *ngIf="!cargandoCronograma" class="w-full text-left text-sm">
+      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="px-4 py-2">Vacuna</th>
+          <th class="px-4 py-2">Programado</th>
+          <th class="px-4 py-2">Franja</th>
+          <th class="px-4 py-2">Estado</th>
+          <th class="px-4 py-2 text-right">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        <tr *ngFor="let item of items">
+          <td class="px-4 py-2 font-medium text-gray-800">{{ item.itemInventarioNombre }}</td>
+          <td class="px-4 py-2 text-gray-600">
+            <ng-container [ngSwitch]="item.unidadObjetivo">
+              <span *ngSwitchCase="'Semana'">Semana {{ item.valorObjetivo }}</span>
+              <span *ngSwitchCase="'Dia'">Día {{ item.valorObjetivo }}</span>
+              <span *ngSwitchDefault>{{ item.fechaObjetivo | date: 'dd/MM/yyyy' }}</span>
+            </ng-container>
+          </td>
+          <td class="px-4 py-2 text-gray-600">
+            {{ item.fechaInicioFranja | date: 'dd/MM/yyyy' }} — {{ item.fechaFinFranja | date: 'dd/MM/yyyy' }}
+          </td>
+          <td class="px-4 py-2">
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="calcularEstadoVisual(item).claseBadge">
+              {{ calcularEstadoVisual(item).etiqueta }}
+            </span>
+          </td>
+          <td class="px-4 py-2 text-right">
+            <button
+              type="button"
+              *appHasPermission="'vacunacion.cronograma.administrar'"
+              class="mr-2 text-sm text-blue-600 hover:underline"
+              (click)="abrirEditar(item)"
+            >
+              Editar
+            </button>
+            <button
+              type="button"
+              *appHasPermission="'vacunacion.cronograma.administrar'"
+              class="text-sm text-red-600 hover:underline"
+              (click)="eliminar(item)"
+            >
+              Eliminar
+            </button>
+          </td>
+        </tr>
+        <tr *ngIf="!items.length">
+          <td colspan="5" class="px-4 py-6 text-center text-gray-400">Sin vacunas programadas todavía.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="!loteSeleccionado" class="rounded-lg border border-dashed bg-white p-10 text-center text-sm text-gray-400">
+    Seleccione una granja y un lote para ver o armar su cronograma de vacunación.
+  </div>
+</div>
+
+<app-modal-item-cronograma
+  [open]="modalAbierto"
+  [lineaProductiva]="loteSeleccionado?.lineaProductiva ?? 'Levante'"
+  [loteId]="loteSeleccionado?.loteId ?? 0"
+  [vacunas]="vacunas"
+  [itemEditar]="itemEditar"
+  (cerrado)="cerrarModal()"
+  (guardado)="onGuardado()"
+></app-modal-item-cronograma>

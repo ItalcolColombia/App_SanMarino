@@ -1,0 +1,102 @@
+<div class="mx-auto max-w-6xl p-4 sm:p-6">
+  <div class="mb-4">
+    <h1 class="text-xl font-semibold text-gray-800">Reportes de cumplimiento de vacunación</h1>
+    <p class="text-sm text-gray-500">Comparativa por lote: % a tiempo, tardío, no aplicado y promedio de días de atraso.</p>
+  </div>
+
+  <div class="mb-4 grid grid-cols-1 gap-3 rounded-lg border bg-white p-4 sm:grid-cols-5">
+    <div>
+      <label class="mb-1 block text-sm font-medium text-gray-700">Granja</label>
+      <select class="w-full rounded border-gray-300 text-sm" [(ngModel)]="granjaSeleccionadaId">
+        <option [ngValue]="null">Todas</option>
+        <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
+      </select>
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-gray-700">Línea</label>
+      <select class="w-full rounded border-gray-300 text-sm" [(ngModel)]="lineaSeleccionada">
+        <option [ngValue]="null">Todas</option>
+        <option *ngFor="let l of lineas" [ngValue]="l">{{ lineaLabel[l] }}</option>
+      </select>
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-gray-700">Desde</label>
+      <input type="date" class="w-full rounded border-gray-300 text-sm" [(ngModel)]="fechaDesde" />
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-gray-700">Hasta</label>
+      <input type="date" class="w-full rounded border-gray-300 text-sm" [(ngModel)]="fechaHasta" />
+    </div>
+    <div class="flex items-end">
+      <button
+        type="button"
+        class="w-full rounded px-3 py-1.5 text-sm font-medium text-white"
+        style="background-color:#e85c25"
+        [disabled]="cargando"
+        (click)="consultar()"
+      >
+        {{ cargando ? 'Consultando…' : 'Consultar' }}
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="consultado" class="rounded-lg border bg-white">
+    <div class="flex items-center justify-between border-b px-4 py-3">
+      <h2 class="text-sm font-semibold text-gray-700">Resultado ({{ filas.length }} lote(s))</h2>
+      <button type="button" class="rounded border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" (click)="exportar()">
+        Exportar Excel
+      </button>
+    </div>
+
+    <table class="w-full text-left text-sm">
+      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="px-4 py-2">Granja</th>
+          <th class="px-4 py-2">Lote</th>
+          <th class="px-4 py-2">Línea</th>
+          <th class="px-4 py-2">Programadas</th>
+          <th class="px-4 py-2">% a tiempo</th>
+          <th class="px-4 py-2">% tardío</th>
+          <th class="px-4 py-2">% no aplicado</th>
+          <th class="px-4 py-2">Prom. días atraso</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        <tr *ngFor="let f of filas">
+          <td class="px-4 py-2 text-gray-600">{{ f.granjaNombre }}</td>
+          <td class="px-4 py-2 font-medium text-gray-800">{{ f.loteNombre }}</td>
+          <td class="px-4 py-2 text-gray-600">{{ lineaLabel[f.lineaProductiva] }}</td>
+          <td class="px-4 py-2 text-gray-600">{{ f.totalProgramadas }}</td>
+          <td class="px-4 py-2">
+            <div class="flex items-center gap-2">
+              <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
+                <div class="h-2 bg-green-500" [style.width.%]="f.porcentajeATiempo"></div>
+              </div>
+              <span class="text-xs text-gray-600">{{ f.porcentajeATiempo }}%</span>
+            </div>
+          </td>
+          <td class="px-4 py-2">
+            <div class="flex items-center gap-2">
+              <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
+                <div class="h-2" [class]="f.totalTardio2MasSemanas > 0 ? 'bg-red-500' : 'bg-amber-500'" [style.width.%]="f.porcentajeTardio"></div>
+              </div>
+              <span class="text-xs text-gray-600">{{ f.porcentajeTardio }}%</span>
+            </div>
+          </td>
+          <td class="px-4 py-2">
+            <div class="flex items-center gap-2">
+              <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
+                <div class="h-2 bg-red-500" [style.width.%]="f.porcentajeNoAplicado"></div>
+              </div>
+              <span class="text-xs text-gray-600">{{ f.porcentajeNoAplicado }}%</span>
+            </div>
+          </td>
+          <td class="px-4 py-2 text-gray-600">{{ f.promedioDiasAtraso ?? '—' }}</td>
+        </tr>
+        <tr *ngIf="!filas.length && !cargando">
+          <td colspan="8" class="px-4 py-6 text-center text-gray-400">Sin datos para los filtros seleccionados.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
