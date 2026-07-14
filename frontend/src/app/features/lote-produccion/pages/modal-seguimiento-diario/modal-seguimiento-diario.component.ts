@@ -342,9 +342,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private computeAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemExtended[] {
     if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
-      if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToExtended(i));
-      return this.itemsEcuadorPanama
-        .filter(i => ((i.concepto ?? i.tipoItem ?? '').trim().toLowerCase() === c))
+      const base = c
+        ? this.itemsEcuadorPanama.filter(i => ((i.concepto ?? i.tipoItem ?? '').trim().toLowerCase() === c))
+        : this.itemsEcuadorPanama;
+      return base
+        .filter(i => this.tieneInventarioDisponible(i.id))
         .map(i => this.itemEcuadorToExtended(i));
     }
     if (!tipoItem) return this.alimentosCatalog;
@@ -352,6 +354,20 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       const t = a.tipoItem || (a as any).metadata?.type_item || (a as any).metadata?.itemType;
       return t === tipoItem;
     });
+  }
+
+  /** El select de ítems solo debe listar los que tienen stock disponible en la granja/núcleo/galpón.
+   * Excepción: un ítem ya elegido en alguna fila del formulario se conserva visible aunque su stock
+   * esté en 0, para no romper la edición de un registro cuyo ítem ya se agotó. */
+  private tieneInventarioDisponible(itemId: number): boolean {
+    const stock = this.inventarioPorItem.get(itemId);
+    if (stock && stock.quantity > 0) return true;
+    for (const arr of [this.itemsHembrasArray, this.itemsMachosArray]) {
+      for (const c of arr.controls) {
+        if (Number(c.get('catalogItemId')?.value) === itemId) return true;
+      }
+    }
+    return false;
   }
 
   private itemEcuadorToExtended(i: ItemInventarioDto): CatalogItemExtended {

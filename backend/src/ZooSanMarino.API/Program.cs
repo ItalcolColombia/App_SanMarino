@@ -261,6 +261,10 @@ builder.Services.AddScoped<IProduccionAvicolaRawService, ProduccionAvicolaRawSer
 // Excel Import Service
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 
+// Migraciones Masivas (módulo independiente)
+builder.Services.AddScoped<IMigracionRepository, MigracionRepository>();
+builder.Services.AddScoped<IMigracionService, MigracionService>();
+
 // Liquidación Técnica Service
 builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService>();
 builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();

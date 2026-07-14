@@ -2377,7 +2377,7 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("inventario_gestion_stock", "public");
                 });
 
-            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ItemInventarioEcuador", b =>
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ItemInventario", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -5032,6 +5032,111 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDatabaseName("ix_menu_permissions_permission_id");
 
                     b.ToTable("menu_permissions", (string)null);
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.MigracionMasiva", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<long?>("DuracionMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("duracion_ms");
+
+                    b.Property<string>("ErroresJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("errores");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("estado");
+
+                    b.Property<DateTime>("FechaProceso")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_proceso");
+
+                    b.Property<int>("FilasError")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("filas_error");
+
+                    b.Property<int>("FilasOmitidas")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("filas_omitidas");
+
+                    b.Property<int>("FilasProcesadas")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("filas_procesadas");
+
+                    b.Property<int>("FilasTotales")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("filas_totales");
+
+                    b.Property<bool>("FueDryRun")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("fue_dry_run");
+
+                    b.Property<string>("NombreArchivo")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("nombre_archivo");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("tipo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_migracion_masiva");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_migracion_masiva_company_id");
+
+                    b.HasIndex("Tipo")
+                        .HasDatabaseName("ix_migracion_masiva_tipo");
+
+                    b.ToTable("migracion_masiva", (string)null);
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.MovimientoAves", b =>
@@ -9483,16 +9588,16 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_inventario_gasto_detalle_inventario_gasto_inventario_gasto_");
 
-                    b.HasOne("ZooSanMarino.Domain.Entities.ItemInventarioEcuador", "ItemInventarioEcuador")
+                    b.HasOne("ZooSanMarino.Domain.Entities.ItemInventario", "ItemInventario")
                         .WithMany()
                         .HasForeignKey("ItemInventarioEcuadorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_inventario_gasto_detalle_item_inventario_ecuador_item_inven");
+                        .HasConstraintName("fk_inventario_gasto_detalle_item_inventario_item_inventario_ec");
 
                     b.Navigation("InventarioGasto");
 
-                    b.Navigation("ItemInventarioEcuador");
+                    b.Navigation("ItemInventario");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.InventarioGestionMovimiento", b =>
@@ -9511,12 +9616,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_inventario_gestion_movimiento_farms_farm_id");
 
-                    b.HasOne("ZooSanMarino.Domain.Entities.ItemInventarioEcuador", "ItemInventarioEcuador")
+                    b.HasOne("ZooSanMarino.Domain.Entities.ItemInventario", "ItemInventario")
                         .WithMany()
                         .HasForeignKey("ItemInventarioEcuadorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_inventario_gestion_movimiento_item_inventario_ecuador_item_");
+                        .HasConstraintName("fk_inventario_gestion_movimiento_item_inventario_item_inventar");
 
                     b.HasOne("ZooSanMarino.Domain.Entities.Pais", "Pais")
                         .WithMany()
@@ -9529,7 +9634,7 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.Navigation("Farm");
 
-                    b.Navigation("ItemInventarioEcuador");
+                    b.Navigation("ItemInventario");
 
                     b.Navigation("Pais");
                 });
@@ -9550,12 +9655,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_inventario_gestion_stock_farms_farm_id");
 
-                    b.HasOne("ZooSanMarino.Domain.Entities.ItemInventarioEcuador", "ItemInventarioEcuador")
+                    b.HasOne("ZooSanMarino.Domain.Entities.ItemInventario", "ItemInventario")
                         .WithMany()
                         .HasForeignKey("ItemInventarioEcuadorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_inventario_gestion_stock_item_inventario_ecuador_item_inven");
+                        .HasConstraintName("fk_inventario_gestion_stock_item_inventario_item_inventario_ec");
 
                     b.HasOne("ZooSanMarino.Domain.Entities.Pais", "Pais")
                         .WithMany()
@@ -9568,12 +9673,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.Navigation("Farm");
 
-                    b.Navigation("ItemInventarioEcuador");
+                    b.Navigation("ItemInventario");
 
                     b.Navigation("Pais");
                 });
 
-            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ItemInventarioEcuador", b =>
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.ItemInventario", b =>
                 {
                     b.HasOne("ZooSanMarino.Domain.Entities.Company", "Company")
                         .WithMany()

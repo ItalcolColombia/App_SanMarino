@@ -70,9 +70,10 @@ public class ProduccionService : IProduccionService
     }
 
     /// <summary>
-    /// Acumula por catalogItemId los kg de los ítems del request (ItemsHembras + ItemsMachos),
-    /// usando la MISMA conversión g→kg que ParseMetadataItemsToKg. TODOS los tipos (alimento +
-    /// medicamento + insumo), sin re-parsear el JSON del metadata. catalogItemId &lt;= 0 se ignora.
+    /// Acumula por id de ítem (item_inventario_ecuador si viene camino-2, si no catalogItemId) los kg de
+    /// los ítems del request (ItemsHembras + ItemsMachos), usando la MISMA resolución de id y conversión
+    /// g→kg que ParseMetadataItemsToKg (itemInventarioEcuadorId tiene prioridad; fallback a catalogItemId).
+    /// TODOS los tipos (alimento + medicamento + insumo), sin re-parsear el JSON del metadata. Id &lt;= 0 se ignora.
     /// </summary>
     private static Dictionary<int, decimal> AcumularItemsRequestPorCatalogItem(
         List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
@@ -83,8 +84,10 @@ public class ProduccionService : IProduccionService
             if (items == null) return;
             foreach (var i in items)
             {
-                if (i.CatalogItemId <= 0) continue;
-                byItem[i.CatalogItemId] = byItem.GetValueOrDefault(i.CatalogItemId) + ToKg(i.Cantidad, i.Unidad);
+                var id = i.ItemInventarioEcuadorId.GetValueOrDefault();
+                if (id <= 0) id = i.CatalogItemId;
+                if (id <= 0) continue;
+                byItem[id] = byItem.GetValueOrDefault(id) + ToKg(i.Cantidad, i.Unidad);
             }
         }
         Acumular(itemsHembras);
@@ -377,7 +380,10 @@ public class ProduccionService : IProduccionService
             ConsumoAguaDiario = request.ConsumoAguaDiario,
             ConsumoAguaPh = request.ConsumoAguaPh,
             ConsumoAguaOrp = request.ConsumoAguaOrp,
-            ConsumoAguaTemperatura = request.ConsumoAguaTemperatura
+            ConsumoAguaTemperatura = request.ConsumoAguaTemperatura,
+            CompanyId = _currentUser.CompanyId,
+            CreatedByUserId = _currentUser.UserId,
+            CreatedAt = DateTime.UtcNow
         };
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2) ────────────
@@ -544,6 +550,8 @@ public class ProduccionService : IProduccionService
         entity.ConsumoAguaPh = request.ConsumoAguaPh;
         entity.ConsumoAguaOrp = request.ConsumoAguaOrp;
         entity.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura;
+        entity.UpdatedByUserId = _currentUser.UserId;
+        entity.UpdatedAt = DateTime.UtcNow;
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (Fase 3 paso 2) ──
         // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.

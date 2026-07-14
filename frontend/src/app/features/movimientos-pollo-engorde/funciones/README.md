@@ -22,6 +22,7 @@ un botón— para que sea **fácil de encontrar, testear y reutilizar**.
 | `exportar-ventas-excel.funcion.ts` | `exportarVentasExcel`: arma y descarga el `.xlsx` de ventas. |
 | `mapear-movimiento-dto.funcion.ts` | `buildCreateDto` / `buildUpdateDto` / `buildVentaGranjaDespachoDto`. |
 | `prorateo-peso.funcion.ts` | `calcularProrateoPreview` / `calcularProrateoTotales`. |
+| `detectar-lotes-bloqueados-venta.funcion.ts` | `marcarLotesBloqueadosVenta`: bloquea en Venta por granja los lotes cerrados o de una corrida anterior en el mismo galpón. |
 
 ## Nota multi-país
 

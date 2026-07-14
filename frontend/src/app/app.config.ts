@@ -130,6 +130,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.TICKETS_ROUTES)
       },
 
+      // Migraciones Masivas (módulo independiente)
+      {
+        path: 'migraciones-masivas',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/migraciones-masivas/migraciones-masivas-routing.module')
+            .then(m => m.MigracionesMasivasRoutingModule)
+      },
+
       {
         path: 'config',
         component: ConfigComponent,

@@ -128,7 +128,8 @@
       "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d galpones\")",
       "Bash(python -c ' *)",
       "Bash(pip install *)",
-      "Bash(python -X utf8 -c ' *)"
+      "Bash(python -X utf8 -c ' *)",
+      "Bash(mkdir -p \"/c/Users/SANMAR~1/AppData/Local/Temp/claude/C--Users-SAN-MARINO-Desktop-App-SanMarino/a8eb2b89-283f-4a60-8fe5-065f12fac1f6/scratchpad/SmokeTestMigracion\" && echo ok)"
     ]
   }
 }

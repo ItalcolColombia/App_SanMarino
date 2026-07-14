@@ -37,6 +37,10 @@ export interface VentaLineaGranja {
   flashExcesoH?: boolean;
   flashExcesoM?: boolean;
   flashExcesoX?: boolean;
+  /** true si el lote está cerrado o es una corrida anterior en el mismo galpón (ver `detectar-lotes-bloqueados-venta.funcion.ts`). */
+  bloqueada?: boolean;
+  /** Motivo del bloqueo a mostrar en la UI ("Lote cerrado" | "Corrida anterior en este galpón"). */
+  motivoBloqueo?: string;
 }
 
 export interface MovimientoPolloEngordeSaveDetail {

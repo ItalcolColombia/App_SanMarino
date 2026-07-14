@@ -22,6 +22,7 @@ import {
 } from '../../services/movimiento-pollo-engorde.service';
 import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import {
   LoteDestinoOption,
@@ -42,6 +43,10 @@ import {
   ProrateoTotales
 } from '../../funciones/prorateo-peso.funcion';
 import { formatearNumero as fmtNumero, fechaCorta as fmtFecha } from '../../funciones/formato.funcion';
+import { marcarLotesBloqueadosVenta } from '../../funciones/detectar-lotes-bloqueados-venta.funcion';
+
+/** Permiso que habilita cargar cantidades en lotes cerrados o de una corrida anterior en el mismo galpón. */
+const PERMISO_VENDER_LOTES_CERRADOS = 'movimientos_pollo_engorde.vender_lotes_cerrados';
 
 // Tipos movidos a models/; se re-exportan para no romper imports externos previos.
 export type { LoteDestinoOption, AvailableBirds, VentaLineaGranja, MovimientoPolloEngordeSaveDetail };
@@ -190,9 +195,21 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     private fb: FormBuilder,
     private movimientoSvc: MovimientoPolloEngordeService,
     private tokenStorage: TokenStorageService,
+    private permService: UserPermissionService,
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
+  }
+
+  /** True si el usuario puede cargar cantidades en lotes cerrados o de una corrida anterior en el mismo galpón. */
+  get puedeVenderLotesCerrados(): boolean {
+    return this.permService.has(PERMISO_VENDER_LOTES_CERRADOS);
+  }
+
+  /** Alguna línea está bloqueada (cerrado / corrida anterior) y el usuario no tiene el permiso para saltarlo. */
+  get hayLoteBloqueadoSinPermiso(): boolean {
+    if (this.puedeVenderLotesCerrados) return false;
+    return this.ventaLineasGranja.some((l) => l.bloqueada);
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -446,6 +463,11 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
           'Alguna cantidad supera lo disponible en el lote (H / M / mixtas según corresponda). Marque "Permitir sobrante de aves" para registrar de más.';
         return;
       }
+      if (!this.puedeVenderLotesCerrados && withQty.some((l) => l.bloqueada)) {
+        this.error =
+          'Hay cantidades cargadas en lotes cerrados o de una corrida anterior en el mismo galpón. Quite esas cantidades o solicite el permiso correspondiente.';
+        return;
+      }
       this.error = null;
       const sobranteMsg = this.permitirSobrante && this.exceedsVentaGranjaLine
         ? ' Se registrará el excedente como SOBRANTE de aves en el lote.'
@@ -604,6 +626,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
             flashExcesoX: false
           };
         });
+        this.ventaLineasGranja = marcarLotesBloqueadosVenta(this.ventaLineasGranja, lotes);
         this.loadingVentaLineas = false;
         this.rebuildGruposVentaPorGalpon();
         this.configureTotalPollosGalponControl();
@@ -642,6 +665,12 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
    */
   onLineaCantidadInput(ev: Event, line: VentaLineaGranja, field: 'h' | 'm' | 'x'): void {
     const input = ev.target as HTMLInputElement;
+    // Refuerzo del `disabled` del template: un lote cerrado / de corrida anterior no admite
+    // cantidad salvo que el usuario tenga el permiso de bypass.
+    if (line.bloqueada && !this.puedeVenderLotesCerrados) {
+      input.value = field === 'h' ? line.hStr : field === 'm' ? line.mStr : line.xStr;
+      return;
+    }
     const digits = (input.value ?? '').replace(/\D/g, '');
     const max = field === 'h' ? line.maxH : field === 'm' ? line.maxM : line.maxX;
     const parsed = digits === '' ? 0 : parseInt(digits, 10) || 0;

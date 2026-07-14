@@ -77,6 +77,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         
         // Cola de correos electrónicos
         public DbSet<EmailQueue> EmailQueue => Set<EmailQueue>();
+
+        // Migraciones masivas (auditoría de corridas de carga por Excel)
+        public DbSet<MigracionMasiva> MigracionMasiva => Set<MigracionMasiva>();
         
         // Historial de traslados de lotes
         public DbSet<HistorialTrasladoLote> HistorialTrasladoLote => Set<HistorialTrasladoLote>();
