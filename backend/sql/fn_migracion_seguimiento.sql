@@ -145,6 +145,17 @@ $$;
 -- Nota de contrato: el módulo de producción almacena el consumo TOTAL en cons_kg_h
 -- (cons_kg_m = 0) y tipo_alimento = ''. La migración replica ese contrato para que la
 -- data histórica sea idéntica a la creada por el módulo.
+-- Fix (aves-fix, paridad con Levante): descuento INCREMENTAL igual semántica que el alta manual
+-- (SeguimientoProduccionService.AplicarDescuentoLppAsync) — NO se recalcula aves_h_actual/aves_m_actual
+-- desde cero, porque ese campo también lo tocan los traslados entre lotes de Producción
+-- (TrasladoAvesDesdeSegService, rama Producción↔Producción) y el módulo Movimiento de Aves
+-- (MovimientoAvesService.Postura.cs), que no dejan mortalidad/sel/error en esta tabla. Un
+-- recálculo total pisaría esos ajustes. Además, si la fecha ya tiene una fila "solo traslado"
+-- (es_traslado=true, sin datos manuales) se completa (merge) en vez de saltear la fila del Excel
+-- en silencio — mismo criterio que el merge manual ("Feature 14" en SeguimientoProduccionService).
+-- Importante: las filas de traslado NO setean lote_postura_produccion_id (ver
+-- TrasladoAvesDesdeSegService), así que el matching es por lote_id crudo + fecha calendario, no
+-- por lote_postura_produccion_id (el dedup original por ese FK nunca encontraba esas filas).
 CREATE OR REPLACE FUNCTION public.fn_migracion_seguimiento_produccion(
     p_company_id integer,
     p_usuario    integer,
@@ -152,21 +163,64 @@ CREATE OR REPLACE FUNCTION public.fn_migracion_seguimiento_produccion(
 ) RETURNS integer
 LANGUAGE plpgsql AS $$
 DECLARE
-    v_insertados integer := 0;
+    v_actualizados integer := 0;
+    v_insertados   integer := 0;
 BEGIN
-    WITH filas AS (
-        SELECT * FROM jsonb_to_recordset(p_rows) AS x(
-            lote_id  integer,
-            fecha    date,
-            mort_h integer, mort_m integer,
-            sel_h  integer, sel_m  integer,
-            err_h  integer, err_m  integer,
-            cons_h numeric, cons_m numeric,
-            huevo_tot integer, huevo_inc integer, peso_huevo double precision,
-            etapa integer, observaciones text
-        )
-    ),
-    ins AS (
+    DROP TABLE IF EXISTS tmp_filas_prod;
+    DROP TABLE IF EXISTS tmp_delta_prod;
+
+    CREATE TEMP TABLE tmp_filas_prod ON COMMIT DROP AS
+    SELECT * FROM jsonb_to_recordset(p_rows) AS x(
+        lote_id  integer,
+        fecha    date,
+        mort_h integer, mort_m integer,
+        sel_h  integer, sel_m  integer,
+        err_h  integer, err_m  integer,
+        cons_h numeric, cons_m numeric,
+        huevo_tot integer, huevo_inc integer, peso_huevo double precision,
+        etapa integer, observaciones text
+    );
+
+    CREATE TEMP TABLE tmp_delta_prod (lote_postura_produccion_id integer, h integer, m integer) ON COMMIT DROP;
+
+    -- Paso 1: completar filas "solo traslado" existentes con los datos históricos (merge).
+    WITH upd AS (
+        UPDATE public.seguimiento_diario_produccion sd
+        SET mortalidad_hembras   = COALESCE(f.mort_h,0),
+            mortalidad_machos    = COALESCE(f.mort_m,0),
+            sel_h                = COALESCE(f.sel_h,0),
+            sel_m                = COALESCE(f.sel_m,0),
+            error_sexaje_hembras = COALESCE(f.err_h,0),
+            error_sexaje_machos  = COALESCE(f.err_m,0),
+            cons_kg_h            = (COALESCE(f.cons_h,0) + COALESCE(f.cons_m,0)),
+            cons_kg_m            = 0,
+            huevo_tot            = COALESCE(f.huevo_tot,0),
+            huevo_inc            = COALESCE(f.huevo_inc,0),
+            peso_huevo           = f.peso_huevo,
+            etapa                = COALESCE(f.etapa,1),
+            observaciones        = f.observaciones,
+            updated_by_user_id   = p_usuario,
+            updated_at           = (NOW() AT TIME ZONE 'utc')
+        FROM tmp_filas_prod f
+        JOIN public.lote_postura_produccion lpp2
+          ON lpp2.lote_id = f.lote_id AND lpp2.deleted_at IS NULL AND lpp2.company_id = p_company_id
+        WHERE sd.lote_id = f.lote_id
+          AND sd.fecha_registro::date = f.fecha
+          AND sd.es_traslado = true
+          AND COALESCE(sd.mortalidad_hembras,0) = 0 AND COALESCE(sd.mortalidad_machos,0) = 0
+          AND COALESCE(sd.sel_h,0) = 0 AND COALESCE(sd.sel_m,0) = 0
+          AND COALESCE(sd.error_sexaje_hembras,0) = 0 AND COALESCE(sd.error_sexaje_machos,0) = 0
+          AND COALESCE(sd.cons_kg_h,0) = 0 AND COALESCE(sd.cons_kg_m,0) = 0
+          AND COALESCE(sd.huevo_tot,0) = 0
+        RETURNING lpp2.lote_postura_produccion_id,
+                  COALESCE(f.mort_h,0) + COALESCE(f.sel_h,0) + COALESCE(f.err_h,0) AS h,
+                  COALESCE(f.mort_m,0) + COALESCE(f.sel_m,0) + COALESCE(f.err_m,0) AS m
+    )
+    INSERT INTO tmp_delta_prod SELECT lote_postura_produccion_id, h, m FROM upd;
+    GET DIAGNOSTICS v_actualizados = ROW_COUNT;
+
+    -- Paso 2: insertar filas nuevas (fechas sin ninguna fila previa para el lote).
+    WITH ins AS (
         INSERT INTO public.seguimiento_diario_produccion (
             lote_id, lote_postura_produccion_id, fecha_registro,
             mortalidad_hembras, mortalidad_machos, sel_h, sel_m,
@@ -182,40 +236,38 @@ BEGIN
             (COALESCE(f.cons_h,0) + COALESCE(f.cons_m,0)), 0, '',
             COALESCE(f.huevo_tot,0), COALESCE(f.huevo_inc,0), f.peso_huevo, COALESCE(f.etapa,1), f.observaciones,
             p_company_id, p_usuario, (NOW() AT TIME ZONE 'utc')
-        FROM filas f
+        FROM tmp_filas_prod f
         JOIN public.lotes l
           ON l.lote_id = f.lote_id AND l.company_id = p_company_id AND l.deleted_at IS NULL AND l.fase = 'Produccion'
         JOIN public.lote_postura_produccion lpp
           ON lpp.lote_id = f.lote_id AND lpp.deleted_at IS NULL
         WHERE NOT EXISTS (
             SELECT 1 FROM public.seguimiento_diario_produccion sd
-            WHERE sd.lote_postura_produccion_id = lpp.lote_postura_produccion_id
-              AND sd.fecha_registro = f.fecha::timestamptz
+            WHERE sd.lote_id = f.lote_id
+              AND sd.fecha_registro::date = f.fecha
         )
-        RETURNING 1
+        RETURNING lote_postura_produccion_id,
+                  COALESCE(mortalidad_hembras,0) + COALESCE(sel_h,0) + COALESCE(error_sexaje_hembras,0) AS h,
+                  COALESCE(mortalidad_machos,0)  + COALESCE(sel_m,0) + COALESCE(error_sexaje_machos,0)  AS m
     )
-    SELECT COUNT(*) INTO v_insertados FROM ins;
+    INSERT INTO tmp_delta_prod SELECT lote_postura_produccion_id, h, m FROM ins;
+    GET DIAGNOSTICS v_insertados = ROW_COUNT;
 
+    -- Paso 3: descuento INCREMENTAL sobre el valor actual (no recálculo total) —
+    -- conserva cualquier ajuste ya reflejado por traslados o movimientos de aves.
     UPDATE public.lote_postura_produccion lpp
-    SET aves_h_actual = GREATEST(0, sub.h),
-        aves_m_actual = GREATEST(0, sub.m),
+    SET aves_h_actual = GREATEST(0, COALESCE(lpp.aves_h_actual, lpp.aves_h_inicial, lpp.hembras_iniciales_prod, 0) - sub.h),
+        aves_m_actual = GREATEST(0, COALESCE(lpp.aves_m_actual, lpp.aves_m_inicial, lpp.machos_iniciales_prod, 0) - sub.m),
         updated_at    = (NOW() AT TIME ZONE 'utc')
     FROM (
-        SELECT lpp2.lote_postura_produccion_id,
-               (COALESCE(lpp2.aves_h_inicial, lpp2.hembras_iniciales_prod, 0)
-                - COALESCE(SUM(sd.mortalidad_hembras),0) - COALESCE(SUM(sd.sel_h),0) - COALESCE(SUM(sd.error_sexaje_hembras),0)) AS h,
-               (COALESCE(lpp2.aves_m_inicial, lpp2.machos_iniciales_prod, 0)
-                - COALESCE(SUM(sd.mortalidad_machos),0) - COALESCE(SUM(sd.sel_m),0) - COALESCE(SUM(sd.error_sexaje_machos),0)) AS m
-        FROM public.lote_postura_produccion lpp2
-        LEFT JOIN public.seguimiento_diario_produccion sd
-          ON sd.lote_postura_produccion_id = lpp2.lote_postura_produccion_id
-        WHERE lpp2.deleted_at IS NULL
-          AND lpp2.company_id = p_company_id
-          AND lpp2.lote_id IN (SELECT DISTINCT (e->>'lote_id')::int FROM jsonb_array_elements(p_rows) e)
-        GROUP BY lpp2.lote_postura_produccion_id, lpp2.aves_h_inicial, lpp2.hembras_iniciales_prod, lpp2.aves_m_inicial, lpp2.machos_iniciales_prod
+        SELECT lote_postura_produccion_id, SUM(h) AS h, SUM(m) AS m
+        FROM tmp_delta_prod
+        WHERE lote_postura_produccion_id IS NOT NULL
+        GROUP BY lote_postura_produccion_id
     ) sub
-    WHERE lpp.lote_postura_produccion_id = sub.lote_postura_produccion_id;
+    WHERE lpp.lote_postura_produccion_id = sub.lote_postura_produccion_id
+      AND (sub.h <> 0 OR sub.m <> 0);
 
-    RETURN v_insertados;
+    RETURN v_actualizados + v_insertados;
 END;
 $$;
