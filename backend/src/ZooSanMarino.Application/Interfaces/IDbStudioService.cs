@@ -45,6 +45,13 @@ namespace ZooSanMarino.Application.Interfaces
         Task<SqlValidationResult> ValidateSqlAsync(string sql);
         Task<byte[]> ExportTableAsync(string schema, string table, string format = "sql");
         Task ImportTableAsync(string schema, string table, byte[] fileContent, string format = "csv");
+
+        /// <summary>
+        /// Escribe una copia de seguridad completa (todas las tablas, todos los esquemas, todos los
+        /// datos sin tope) como SQL restaurable directo al stream de salida (streaming, sin bufferear
+        /// todo en memoria). Solo admin.
+        /// </summary>
+        Task WriteDatabaseBackupAsync(Stream output, CancellationToken ct = default);
         
         // ===================== ANÁLISIS Y DEPENDENCIAS =====================
         Task<TableDependenciesDto> GetTableDependenciesAsync(string schema, string table);

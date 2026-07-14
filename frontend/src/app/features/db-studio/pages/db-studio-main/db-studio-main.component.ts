@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, signal, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -9,7 +10,8 @@ import {
   QueryPageDto, MyAccessDto, ObjectGrantDto, ActivitySnapshot, PoolStats, AccessLevel
 } from '../../models/db-studio.models';
 import {
-  construirWherePk, filasACsv, descargarTexto, formatCell, antiguedad, colorEstado
+  construirWherePk, filasACsv, descargarTexto, descargarBlob, filenameDesdeContentDisposition,
+  formatCell, antiguedad, colorEstado
 } from '../../funciones/db-studio.funciones';
 
 type Tab = 'explorer' | 'sql' | 'permissions' | 'activity';
@@ -27,6 +29,7 @@ interface SelectedObject { schema: string; name: string; kind: 'table' | 'view' 
 export class DbStudioMainComponent implements OnInit, OnDestroy {
   private db = inject(DbStudioService);
   private confirmDialog = inject(ConfirmDialogService);
+  private toast = inject(ToastService);
 
   // expuestos al template
   readonly formatCell = formatCell;
@@ -39,6 +42,7 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   tab = signal<Tab>('explorer');
   access = signal<MyAccessDto | null>(null);
   isAdmin = computed(() => this.access()?.isAdmin ?? false);
+  backupBusy = signal(false);
 
   // ---- explorador ----
   schemas = signal<SchemaDto[]>([]);
@@ -260,6 +264,31 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   exportCsv(): void {
     const p = this.page(); const s = this.selected(); if (!p || !s) return;
     descargarTexto(`${s.schema}_${s.name}.csv`, filasACsv(this.dataColumns(), p.rows), 'text/csv');
+  }
+
+  // ===================== Copia de seguridad =====================
+  async downloadBackup(): Promise<void> {
+    if (this.backupBusy()) return;
+    if (!(await this.confirmDialog.ask({
+      title: 'Copia de seguridad completa',
+      message: 'Se generará y descargará un backup SQL de toda la base de datos (todas las tablas y datos). Puede tardar varios minutos según el tamaño. ¿Continuar?',
+      type: 'warning',
+      confirmText: 'Generar backup'
+    }))) return;
+
+    this.backupBusy.set(true);
+    this.db.downloadBackup().subscribe({
+      next: res => {
+        this.backupBusy.set(false);
+        const blob = res.body;
+        if (!blob) { this.toast.error('El servidor no devolvió contenido.'); return; }
+        const fallback = `sanmarino-backup.sql`;
+        const filename = filenameDesdeContentDisposition(res.headers.get('Content-Disposition'), fallback);
+        descargarBlob(blob, filename);
+        this.toast.success('Backup descargado correctamente.');
+      },
+      error: e => { this.backupBusy.set(false); this.toast.error(this.msg(e)); }
+    });
   }
 
   // ===================== Consola SQL =====================

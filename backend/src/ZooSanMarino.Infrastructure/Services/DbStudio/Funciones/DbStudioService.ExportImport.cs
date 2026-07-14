@@ -37,18 +37,7 @@ public sealed partial class DbStudioService
         foreach (var t in tables.Where(t => t.Kind is "BASE TABLE" or "PARTITIONED TABLE"))
         {
             var cols = (await GetTableColumnsAsync(schema, t.Name)).ToList();
-            sb.AppendLine().AppendLine($"CREATE TABLE {QuoteQualified(schema, t.Name)} (");
-            var defs = new List<string>();
-            foreach (var c in cols)
-            {
-                var def = $"  {QuoteIdent(c.Name)} {c.DataType}";
-                if (!c.IsNullable) def += " NOT NULL";
-                if (!string.IsNullOrWhiteSpace(c.Default)) def += $" DEFAULT {c.Default}";
-                defs.Add(def);
-            }
-            var pk = cols.Where(c => c.IsPrimaryKey).Select(c => QuoteIdent(c.Name)).ToList();
-            if (pk.Count > 0) defs.Add($"  PRIMARY KEY ({string.Join(", ", pk)})");
-            sb.AppendLine(string.Join(",\n", defs)).AppendLine(");");
+            sb.AppendLine().Append(BuildCreateTableSql(schema, t.Name, cols, ifNotExists: false, includeIdentity: false));
         }
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
@@ -89,15 +78,6 @@ public sealed partial class DbStudioService
         DateTime dt => dt.ToString("o", CultureInfo.InvariantCulture),
         bool b => b ? "true" : "false",
         _ => Convert.ToString(v, CultureInfo.InvariantCulture)
-    };
-
-    private static string SqlLiteral(object? v) => v switch
-    {
-        null => "NULL",
-        bool b => b ? "true" : "false",
-        short or int or long or float or double or decimal => Convert.ToString(v, CultureInfo.InvariantCulture)!,
-        DateTime dt => $"'{dt:o}'",
-        _ => "'" + (Convert.ToString(v, CultureInfo.InvariantCulture) ?? "").Replace("'", "''") + "'"
     };
 
     // ===================== IMPORT =====================
