@@ -14,18 +14,19 @@ namespace ZooSanMarino.Infrastructure.Services;
 public partial class MigracionService
 {
     // ── Import ───────────────────────────────────────────────────────────────
-    private async Task<MigracionResultDto> ProcesarVentaEngordeAsync(IFormFile file, bool dryRun, int companyId, MigracionContextoDto ctx, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarVentaEngordeAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.VentaPolloEngorde;
         if (ctx.LoteId is not int loteId) return ErrorContexto(tipo, dryRun, "Seleccioná un lote de engorde antes de importar.");
         var (lote, errLote) = await ResolverLoteEngordeAsync(companyId, loteId, ct);
         if (lote is null) return ErrorContexto(tipo, dryRun, errLote!);
 
-        using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
-
         var errores = new List<MigracionErrorDto>();
+        using var stream = file.OpenReadStream();
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+
         var filasJson = new List<Dictionary<string, object?>>();
 
         foreach (var fila in filas)
@@ -61,7 +62,7 @@ public partial class MigracionService
             });
         }
 
-        return await EjecutarHistoricoAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, filasJson,
+        return await EjecutarHistoricoAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, errores, filasJson,
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_venta_engorde({0}, {1}, {2}::jsonb) AS \"Value\"",
                 companyId, _current.UserId, json).FirstAsync(ct), ct);
@@ -77,8 +78,7 @@ public partial class MigracionService
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, "Fecha", "Cantidad H", "Cantidad M", "Cantidad Mixtas", "Motivo",
-            "Peso Bruto (kg)", "Peso Tara (kg)", "Edad Aves", "Raza", "Placa", "Observaciones");
+        PonerEncabezados(ws, MigracionEsquemas.VentaPolloEngorde);
 
         HojaInstrucciones(pkg, $"Migración Venta Engorde — Lote {lote.LoteNombre} (id {loteId})",
             "Una fila por venta en la hoja 'Datos'. Todas las filas corresponden a ESTE lote.",

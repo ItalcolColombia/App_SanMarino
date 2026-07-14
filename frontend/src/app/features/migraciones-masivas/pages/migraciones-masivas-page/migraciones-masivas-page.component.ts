@@ -8,6 +8,7 @@ import {
 import { CompanySelectorComponent } from '../../../../shared/components/company-selector/company-selector.component';
 import { SelectorTipoMigracionComponent } from '../../components/selector-tipo-migracion/selector-tipo-migracion.component';
 import { PanelPlantillaUploadComponent } from '../../components/panel-plantilla-upload/panel-plantilla-upload.component';
+import { HistorialMigracionesComponent } from '../../components/historial-migraciones/historial-migraciones.component';
 import { MigracionService } from '../../services/migracion.service';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { TipoMigracionInfo, MigracionContexto } from '../../models/migracion.model';
@@ -26,7 +27,8 @@ import { TipoMigracionInfo, MigracionContexto } from '../../models/migracion.mod
     HierarchicalFilterComponent,
     CompanySelectorComponent,
     SelectorTipoMigracionComponent,
-    PanelPlantillaUploadComponent
+    PanelPlantillaUploadComponent,
+    HistorialMigracionesComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './migraciones-masivas-page.component.html',
@@ -40,6 +42,8 @@ export class MigracionesMasivasPageComponent implements OnInit {
   readonly cargandoTipos = signal(true);
   readonly seleccionado = signal<TipoMigracionInfo | null>(null);
   readonly contexto = signal<MigracionContexto>({});
+  /** Bump para que <app-historial-migraciones> refresque tras una importación real. */
+  readonly historialRefreshTick = signal(0);
 
   ngOnInit(): void {
     this.svc.getTipos().subscribe({
@@ -64,5 +68,10 @@ export class MigracionesMasivasPageComponent implements OnInit {
 
   onLoteSelected(lote: { loteId: number } | null): void {
     this.contexto.update(ctx => ({ ...ctx, loteId: lote?.loteId ?? null }));
+  }
+
+  /** Una importación real terminó: el historial (siempre visible al pie) se refresca solo. */
+  onImportado(): void {
+    this.historialRefreshTick.update(n => n + 1);
   }
 }

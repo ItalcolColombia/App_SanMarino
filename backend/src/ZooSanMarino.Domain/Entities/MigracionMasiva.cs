@@ -19,7 +19,16 @@ public class MigracionMasiva : AuditableEntity
     public int FilasProcesadas { get; set; }
     public int FilasError { get; set; }
 
-    /// <summary>Validado | Procesado | ConErrores | Fallido.</summary>
+    /// <summary>Filas no procesadas por idempotencia (ya existían en BD); no son error (F2).</summary>
+    public int FilasOmitidas { get; set; }
+
+    /// <summary>Duración total de la corrida en milisegundos (F2).</summary>
+    public long? DuracionMs { get; set; }
+
+    /// <summary>Si la corrida fue una validación (dry-run, /validar) en vez de una importación real (F2).</summary>
+    public bool FueDryRun { get; set; }
+
+    /// <summary>Validado | Procesado | ProcesadoParcial | ConErrores | Fallido.</summary>
     public string Estado { get; set; } = default!;
 
     /// <summary>Errores serializados (jsonb) — lista de <c>MigracionErrorDto</c>.</summary>

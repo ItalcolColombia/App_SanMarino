@@ -7,10 +7,19 @@ import {
   TipoMigracionInfo,
   TipoMigracionCodigo,
   MigracionResult,
+  MigracionError,
   LoteElegible,
-  MigracionHistorial,
+  MigracionHistorialPaged,
   MigracionContexto
 } from '../models/migracion.model';
+
+/** Filtros/paginación de `GET historial`. */
+export interface HistorialOpciones {
+  tipo?: string;
+  page?: number;
+  pageSize?: number;
+  incluirValidaciones?: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class MigracionService {
@@ -22,10 +31,20 @@ export class MigracionService {
     return this.http.get<TipoMigracionInfo[]>(`${this.baseUrl}/tipos`);
   }
 
-  /** Historial de auditoría de la empresa activa (opcionalmente por tipo). */
-  getHistorial(tipo?: string): Observable<MigracionHistorial[]> {
-    const options = tipo ? { params: { tipo } } : {};
-    return this.http.get<MigracionHistorial[]>(`${this.baseUrl}/historial`, options);
+  /** Historial paginado de auditoría de la empresa activa (filtro opcional por tipo). */
+  getHistorial(opts: HistorialOpciones = {}): Observable<MigracionHistorialPaged> {
+    const params: Record<string, string> = {
+      page: String(opts.page ?? 1),
+      pageSize: String(opts.pageSize ?? 20),
+      incluirValidaciones: String(opts.incluirValidaciones ?? true)
+    };
+    if (opts.tipo) params['tipo'] = opts.tipo;
+    return this.http.get<MigracionHistorialPaged>(`${this.baseUrl}/historial`, { params });
+  }
+
+  /** Errores/advertencias guardados de una corrida puntual del historial (404 si es de otra empresa). */
+  getErrores(id: number): Observable<MigracionError[]> {
+    return this.http.get<MigracionError[]>(`${this.baseUrl}/historial/${id}/errores`);
   }
 
   /** Lotes elegibles para migración de históricos según las reglas de fase. */
@@ -43,9 +62,14 @@ export class MigracionService {
     return this.http.post<MigracionResult>(`${this.baseUrl}/validar`, this.buildForm(tipo, file, ctx));
   }
 
-  /** Importa el archivo: valida y, solo si no hay errores, inserta masivamente. */
-  importar(tipo: TipoMigracionCodigo, file: File, ctx: MigracionContexto): Observable<MigracionResult> {
-    return this.http.post<MigracionResult>(`${this.baseUrl}/importar`, this.buildForm(tipo, file, ctx));
+  /**
+   * Importa el archivo: valida y, solo si no hay errores, inserta masivamente.
+   * `permitirParcial` viaja en el form SOLO si es `true` (el backend por default es all-or-nothing).
+   */
+  importar(tipo: TipoMigracionCodigo, file: File, ctx: MigracionContexto, permitirParcial: boolean): Observable<MigracionResult> {
+    const form = this.buildForm(tipo, file, ctx);
+    if (permitirParcial) form.append('permitirParcial', 'true');
+    return this.http.post<MigracionResult>(`${this.baseUrl}/importar`, form);
   }
 
   private ctxParams(tipo: string, ctx: MigracionContexto): Record<string, string> {

@@ -1,8 +1,8 @@
 // src/ZooSanMarino.Infrastructure/Services/Migracion/Funciones/MigracionService.EstructuraEngorde.cs
 // Línea Engorde · Lotes — patrón Estructura. Valida las filas del Excel (reporte completo,
-// all-or-nothing) e inserta REUTILIZANDO ILoteAveEngordeService.CreateAsync (que valida granja/
-// núcleo/galpón/guía genética y crea el HistorialLotePolloEngorde "Inicio") dentro de una transacción.
-// No duplica reglas de negocio.
+// all-or-nothing por defecto, parcial opt-in) e inserta REUTILIZANDO ILoteAveEngordeService.CreateAsync
+// (que valida granja/núcleo/galpón/guía genética y crea el HistorialLotePolloEngorde "Inicio") dentro
+// de una transacción. No duplica reglas de negocio.
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
@@ -45,13 +45,25 @@ public partial class MigracionService
     // Clave de matching raza+año idéntica al servicio (raza .Trim().ToLower() + año como string).
     private static string ClaveRazaAnio(string raza, int anio) => $"{raza.Trim().ToLowerInvariant()}|{anio}";
 
+    // Nombres de lote de engorde ya existentes en la empresa (normalizados) — para detectar duplicados
+    // contra BD, no solo dentro del archivo (bug fix F1: hoy solo valida duplicado intra-archivo).
+    private async Task<HashSet<string>> CargarLotesEngordeExistentesAsync(int companyId, CancellationToken ct) =>
+        (await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.CompanyId == companyId && l.DeletedAt == null)
+            .Select(l => l.LoteNombre)
+            .ToListAsync(ct))
+        .Select(MigracionCalculos.NormalizarClave)
+        .ToHashSet();
+
     // ── Import ───────────────────────────────────────────────────────────────
-    private async Task<MigracionResultDto> ProcesarLotesPolloEngordeAsync(IFormFile file, bool dryRun, int companyId, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarLotesPolloEngordeAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.LotesPolloEngorde;
+        var errores = new List<MigracionErrorDto>();
         using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
         var granjaPorNombre = (await CargarGranjasAsync(companyId, ct))
             .GroupBy(g => MigracionCalculos.NormalizarClave(g.Name)).ToDictionary(g => g.Key, g => g.First().Id);
@@ -63,8 +75,8 @@ public partial class MigracionService
         // Clave = raza normalizada + año (string de la guía). El año de fila (int) matchea vía su ToString.
         var razaAnioSet = (await CargarRazaAnioGuiaAsync(companyId, ct))
             .Select(c => $"{c.Raza.Trim().ToLowerInvariant()}|{c.Anio}").ToHashSet();
+        var lotesExistentes = await CargarLotesEngordeExistentesAsync(companyId, ct);
 
-        var errores = new List<MigracionErrorDto>();
         var dtos = new List<CreateLoteAveEngordeDto>();
         var vistosNombre = new HashSet<string>();
 
@@ -107,6 +119,7 @@ public partial class MigracionService
 
             var claveNombre = MigracionCalculos.NormalizarClave(nombre);
             if (!vistosNombre.Add(claveNombre)) { errores.Add(new(fila.Numero, "Lote", nombre, "Lote duplicado en el archivo (mismo nombre).")); continue; }
+            if (lotesExistentes.Contains(claveNombre)) { errores.Add(new(fila.Numero, "Lote", nombre, "El lote ya existe en la empresa.")); continue; }
 
             int e1 = errores.Count;
             var fechaEncaset = FechaOpc(fila, errores, "Fecha Encaset", "fecha encaset", "fecha de encaset");
@@ -140,7 +153,7 @@ public partial class MigracionService
             });
         }
 
-        return await EjecutarImportacionAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, dtos,
+        return await EjecutarImportacionAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, errores, dtos,
             dto => _loteAveEngordeService.CreateAsync(dto), ct);
     }
 
@@ -157,8 +170,7 @@ public partial class MigracionService
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, "Lote", "Granja", "Núcleo", "Galpón", "Raza", "Año Tabla", "Fecha Encaset",
-            "Hembras", "Machos", "Mixtas", "Aves Encasetadas", "Peso Inicial H (g)", "Peso Inicial M (g)", "Edad Inicial", "Técnico", "Lote ERP");
+        PonerEncabezados(ws, MigracionEsquemas.LotesPolloEngorde);
 
         var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
         EscribirColumnaRef(wsRef, 1, "Granjas de la empresa", granjas.Select(g => g.Name));

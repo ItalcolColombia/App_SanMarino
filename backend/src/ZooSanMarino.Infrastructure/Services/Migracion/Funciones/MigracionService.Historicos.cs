@@ -68,11 +68,7 @@ public partial class MigracionService
         var esLevante = tipo == TipoMigracion.SeguimientoLevante;
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-
-        var headers = esLevante
-            ? new[] { "Fecha", "Mort H", "Mort M", "Sel H", "Sel M", "Error Sexaje H", "Error Sexaje M", "Consumo H (kg)", "Consumo M (kg)", "Tipo Alimento", "Peso H (g)", "Peso M (g)", "Uniformidad H", "Uniformidad M", "Observaciones" }
-            : new[] { "Fecha", "Mort H", "Mort M", "Sel H", "Sel M", "Consumo H (kg)", "Consumo M (kg)", "Huevo Total", "Huevo Incubable", "Peso Huevo (g)", "Etapa", "Observaciones" };
-        PonerEncabezados(ws, headers);
+        PonerEncabezados(ws, MigracionEsquemas.Para(tipo));
 
         HojaInstrucciones(pkg, $"Migración Seguimiento {(esLevante ? "Levante" : "Producción")} — Lote {lote.LoteNombre} (id {loteId})",
             "Una fila por día en la hoja 'Datos'. Todas las filas corresponden a ESTE lote.",
@@ -86,17 +82,18 @@ public partial class MigracionService
     }
 
     // ── Import ───────────────────────────────────────────────────────────────
-    private async Task<MigracionResultDto> ProcesarSeguimientoLevanteAsync(IFormFile file, bool dryRun, int companyId, MigracionContextoDto ctx, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarSeguimientoLevanteAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.SeguimientoLevante;
         if (ctx.LoteId is not int loteId) return ErrorContexto(tipo, dryRun, "Seleccioná un lote elegible antes de importar.");
         if (!await EsLoteElegibleAsync(tipo, companyId, loteId, ct)) return ErrorContexto(tipo, dryRun, "El lote no está habilitado para migración de Levante.");
 
-        using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
-
         var errores = new List<MigracionErrorDto>();
+        using var stream = file.OpenReadStream();
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+
         var filasJson = new List<Dictionary<string, object?>>();
         var fechasVistas = new HashSet<DateTime>();
 
@@ -134,23 +131,24 @@ public partial class MigracionService
             });
         }
 
-        return await EjecutarHistoricoAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, filasJson,
+        return await EjecutarHistoricoAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, errores, filasJson,
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_levante({0}, {1}, {2}::jsonb) AS \"Value\"",
                 companyId, _current.UserId.ToString(), json).FirstAsync(ct), ct);
     }
 
-    private async Task<MigracionResultDto> ProcesarSeguimientoProduccionAsync(IFormFile file, bool dryRun, int companyId, MigracionContextoDto ctx, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarSeguimientoProduccionAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.SeguimientoProduccion;
         if (ctx.LoteId is not int loteId) return ErrorContexto(tipo, dryRun, "Seleccioná un lote elegible antes de importar.");
         if (!await EsLoteElegibleAsync(tipo, companyId, loteId, ct)) return ErrorContexto(tipo, dryRun, "El lote no está habilitado (requiere Levante cerrado + liquidado + lote Producción).");
 
-        using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
-
         var errores = new List<MigracionErrorDto>();
+        using var stream = file.OpenReadStream();
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+
         var filasJson = new List<Dictionary<string, object?>>();
         var fechasVistas = new HashSet<DateTime>();
 
@@ -186,27 +184,27 @@ public partial class MigracionService
             });
         }
 
-        return await EjecutarHistoricoAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, filasJson,
+        return await EjecutarHistoricoAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, errores, filasJson,
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_produccion({0}, {1}, {2}::jsonb) AS \"Value\"",
                 companyId, _current.UserId, json).FirstAsync(ct), ct);
     }
 
-    // ── Runner de histórico (valida → dry-run corta → invoca función BD) ─────
+    // ── Runner de histórico (valida → dry-run corta → invoca función BD, parcial opt-in) ─────
     private async Task<MigracionResultDto> EjecutarHistoricoAsync(
-        TipoMigracion tipo, bool dryRun, int companyId, string nombreArchivo,
+        TipoMigracion tipo, bool dryRun, bool permitirParcial, string nombreArchivo,
         int total, List<MigracionErrorDto> errores, List<Dictionary<string, object?>> filasJson,
         Func<string, Task<int>> invocarFn, CancellationToken ct)
     {
-        if (total == 0) return ResultadoVacio(tipo, dryRun);
-        if (errores.Count > 0)
-        {
-            if (!dryRun)
-                await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, 0,
-                    errores.Select(e => e.Fila).Where(f => f > 0).Distinct().Count(), "ConErrores", SerializarErrores(errores), ct);
+        if (total == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+
+        var hayErroresReales = errores.Any(e => e.Severidad == "Error");
+        var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && filasJson.Count > 0;
+
+        if (hayErroresReales && !puedeInsertarParcial)
             return ResultadoConErrores(tipo, dryRun, total, errores);
-        }
-        if (dryRun) return ResultadoOk(tipo, dryRun, total);
+
+        if (dryRun) return ResultadoOk(tipo, dryRun, total, errores);
 
         int insertados;
         try
@@ -216,42 +214,17 @@ public partial class MigracionService
         }
         catch (Exception ex)
         {
-            var err = new[] { new MigracionErrorDto(0, "-", null, $"Error al insertar: {ex.Message}") };
-            await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, 0, total, "Fallido", SerializarErrores(err), ct);
-            return ResultadoConErrores(tipo, dryRun, total, err);
+            var err = new List<MigracionErrorDto>(errores) { new(0, "-", null, $"Error al insertar: {ex.Message}") };
+            return ResultadoFallido(tipo, total, err);
         }
-        await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, insertados, 0, "Procesado", null, ct);
-        return new MigracionResultDto(tipo.ToString(), true, total, insertados, 0, "Procesado", dryRun, Array.Empty<MigracionErrorDto>());
-    }
 
-    // ── Helpers de celda numérica ────────────────────────────────────────────
-    private static int EnteroNoNeg(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
-    {
-        var cell = Celda(fila, headers);
-        if (MigracionCalculos.EsVacia(cell)) return 0;
-        if (!MigracionCalculos.TryEntero(cell, out var v) || v < 0)
-        { errores.Add(new(fila.Numero, etiqueta, MigracionCalculos.TextoLimpio(cell), $"{etiqueta}: se esperaba un entero ≥ 0.")); return 0; }
-        return v;
-    }
+        if (puedeInsertarParcial)
+        {
+            var filasError = errores.Where(e => e.Severidad == "Error" && e.Fila > 0).Select(e => e.Fila).Distinct().Count();
+            var (capados, totalReal) = MigracionEsquemaCalculos.LimitarErrores(errores, MaxErroresReportados);
+            return new MigracionResultDto(tipo.ToString(), true, total, insertados, filasError, "ProcesadoParcial", dryRun, capados, 0, 0, totalReal);
+        }
 
-    private static decimal? DecimalNoNeg(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
-    {
-        var cell = Celda(fila, headers);
-        if (MigracionCalculos.EsVacia(cell)) return null;
-        if (!MigracionCalculos.TryDecimal(cell, out var v) || v < 0)
-        { errores.Add(new(fila.Numero, etiqueta, MigracionCalculos.TextoLimpio(cell), $"{etiqueta}: se esperaba un número ≥ 0.")); return null; }
-        return v;
+        return ResultadoOk(tipo, dryRun, total, errores, procesadas: insertados);
     }
-
-    private static double? DobleOpc(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
-    {
-        var cell = Celda(fila, headers);
-        if (MigracionCalculos.EsVacia(cell)) return null;
-        if (!MigracionCalculos.TryDecimal(cell, out var v))
-        { errores.Add(new(fila.Numero, etiqueta, MigracionCalculos.TextoLimpio(cell), $"{etiqueta}: número inválido.")); return null; }
-        return (double)v;
-    }
-
-    private static MigracionResultDto ErrorContexto(TipoMigracion tipo, bool dryRun, string mensaje)
-        => new(tipo.ToString(), false, 0, 0, 0, "ConErrores", dryRun, new[] { new MigracionErrorDto(0, "Lote", null, mensaje) });
 }

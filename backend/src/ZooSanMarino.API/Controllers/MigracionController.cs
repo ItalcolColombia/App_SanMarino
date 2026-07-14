@@ -29,11 +29,32 @@ public class MigracionController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<TipoMigracionInfoDto>), StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<TipoMigracionInfoDto>> GetTipos() => Ok(_svc.GetTipos());
 
-    /// <summary>Historial de auditoría de la empresa activa (opcionalmente por tipo).</summary>
+    /// <summary>
+    /// Historial paginado de auditoría de la empresa activa (opcionalmente por tipo).
+    /// <paramref name="incluirValidaciones"/> (default true) incluye las corridas dry-run (/validar);
+    /// en false solo muestra importaciones reales. <paramref name="pageSize"/> se acota a 1..100.
+    /// </summary>
     [HttpGet("historial")]
-    [ProducesResponseType(typeof(IEnumerable<MigracionHistorialDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<MigracionHistorialDto>>> GetHistorial([FromQuery] string? tipo, CancellationToken ct)
-        => Ok(await _svc.GetHistorialAsync(tipo, ct));
+    [ProducesResponseType(typeof(MigracionHistorialPagedDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MigracionHistorialPagedDto>> GetHistorial(
+        [FromQuery] string? tipo,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] bool incluirValidaciones = true,
+        CancellationToken ct = default)
+        => Ok(await _svc.GetHistorialAsync(tipo, page, pageSize, incluirValidaciones, ct));
+
+    /// <summary>Errores/advertencias de una corrida puntual del historial (deserializados desde su auditoría).</summary>
+    [HttpGet("historial/{id:int}/errores")]
+    [ProducesResponseType(typeof(IEnumerable<MigracionErrorDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetErroresDeCorrida(int id, CancellationToken ct)
+    {
+        var errores = await _svc.GetErroresAsync(id, ct);
+        if (errores is null)
+            return NotFound(new { message = $"No se encontró la corrida de migración {id}." });
+        return Ok(errores);
+    }
 
     /// <summary>Lotes elegibles para migración de históricos según las reglas de fase.</summary>
     [HttpGet("elegibles")]
@@ -74,14 +95,18 @@ public class MigracionController : ControllerBase
         }, tipo);
     }
 
-    /// <summary>Valida el Excel (dry-run): no inserta, devuelve el reporte de errores.</summary>
+    /// <summary>Valida el Excel (dry-run): no inserta, devuelve el reporte de errores completo (sin importación parcial).</summary>
     [HttpPost("validar")]
     [ProducesResponseType(typeof(MigracionResultDto), StatusCodes.Status200OK)]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
     public Task<IActionResult> Validar([FromForm] MigracionUploadForm form, CancellationToken ct)
         => ProcesarUpload(form, dryRun: true, ct);
 
-    /// <summary>Importa el Excel: valida y, solo si no hay errores, inserta masivamente.</summary>
+    /// <summary>
+    /// Importa el Excel: valida y, solo si no hay errores, inserta masivamente (all-or-nothing).
+    /// Si <see cref="MigracionUploadForm.PermitirParcial"/> es true, inserta únicamente las filas
+    /// válidas cuando el archivo tiene además filas con error (Estado "ProcesadoParcial" en la respuesta).
+    /// </summary>
     [HttpPost("importar")]
     [ProducesResponseType(typeof(MigracionResultDto), StatusCodes.Status200OK)]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
@@ -102,7 +127,7 @@ public class MigracionController : ControllerBase
         {
             var res = dryRun
                 ? await _svc.ValidarAsync(t, form.File!, ctx, ct)
-                : await _svc.ImportarAsync(t, form.File!, ctx, ct);
+                : await _svc.ImportarAsync(t, form.File!, ctx, form.PermitirParcial, ct);
             return Ok(res);
         }, form.Tipo);
     }
@@ -154,4 +179,10 @@ public class MigracionUploadForm
     public string? NucleoId { get; set; }
     public string? GalponId { get; set; }
     public int? LoteId { get; set; }
+
+    /// <summary>
+    /// Solo aplica a /importar. Si true y hay filas válidas junto a filas con error, inserta SOLO
+    /// las válidas (Estado "ProcesadoParcial"). Default false: comportamiento all-or-nothing.
+    /// </summary>
+    public bool PermitirParcial { get; set; }
 }

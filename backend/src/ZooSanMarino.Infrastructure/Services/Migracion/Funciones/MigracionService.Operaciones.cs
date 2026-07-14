@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/Migracion/Funciones/MigracionService.Operaciones.cs
 // Despacho por tipo. Estructura (Estructura.cs) y Seguimientos (Historicos.cs) implementados;
 // Ventas/Movimientos (Fase 3) lanzan NotImplementedException → 501 en el controller.
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using ZooSanMarino.Application.DTOs.Migracion;
 
@@ -38,26 +39,42 @@ public partial class MigracionService
         };
     }
 
+    /// <summary>Valida el archivo (dry-run): nunca inserta, siempre reporta el listado completo de errores.</summary>
     public Task<MigracionResultDto> ValidarAsync(TipoMigracion tipo, IFormFile file, MigracionContextoDto contexto, CancellationToken ct = default)
-        => ProcesarAsync(tipo, file, contexto, dryRun: true, ct);
+        => ProcesarAsync(tipo, file, contexto, dryRun: true, permitirParcial: false, ct);
 
-    public Task<MigracionResultDto> ImportarAsync(TipoMigracion tipo, IFormFile file, MigracionContextoDto contexto, CancellationToken ct = default)
-        => ProcesarAsync(tipo, file, contexto, dryRun: false, ct);
+    /// <summary>
+    /// Importa el archivo: valida y, si no hay errores, inserta de forma masiva. Si
+    /// <paramref name="permitirParcial"/> es true y hay ≥1 fila válida junto a filas con error,
+    /// inserta SOLO las válidas (Estado "ProcesadoParcial"); por defecto (false) se mantiene el
+    /// comportamiento all-or-nothing: cualquier error real cancela la importación completa.
+    /// </summary>
+    public Task<MigracionResultDto> ImportarAsync(TipoMigracion tipo, IFormFile file, MigracionContextoDto contexto, bool permitirParcial, CancellationToken ct = default)
+        => ProcesarAsync(tipo, file, contexto, dryRun: false, permitirParcial, ct);
 
-    private async Task<MigracionResultDto> ProcesarAsync(TipoMigracion tipo, IFormFile file, MigracionContextoDto contexto, bool dryRun, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarAsync(TipoMigracion tipo, IFormFile file, MigracionContextoDto contexto, bool dryRun, bool permitirParcial, CancellationToken ct)
     {
+        ValidarArchivo(file);
         var companyId = await GetEffectiveCompanyIdAsync();
-        return tipo switch
+
+        var sw = Stopwatch.StartNew();
+        var result = tipo switch
         {
-            TipoMigracion.Granjas  => await ProcesarGranjasAsync(file, dryRun, companyId, ct),
-            TipoMigracion.Nucleos  => await ProcesarNucleosAsync(file, dryRun, companyId, ct),
-            TipoMigracion.Galpones => await ProcesarGalponesAsync(file, dryRun, companyId, ct),
-            TipoMigracion.SeguimientoLevante    => await ProcesarSeguimientoLevanteAsync(file, dryRun, companyId, contexto, ct),
-            TipoMigracion.SeguimientoProduccion => await ProcesarSeguimientoProduccionAsync(file, dryRun, companyId, contexto, ct),
-            TipoMigracion.LotesPolloEngorde       => await ProcesarLotesPolloEngordeAsync(file, dryRun, companyId, ct),
-            TipoMigracion.SeguimientoPolloEngorde => await ProcesarSeguimientoEngordeAsync(file, dryRun, companyId, contexto, ct),
-            TipoMigracion.VentaPolloEngorde       => await ProcesarVentaEngordeAsync(file, dryRun, companyId, contexto, ct),
+            TipoMigracion.Granjas  => await ProcesarGranjasAsync(file, dryRun, permitirParcial, companyId, ct),
+            TipoMigracion.Nucleos  => await ProcesarNucleosAsync(file, dryRun, permitirParcial, companyId, ct),
+            TipoMigracion.Galpones => await ProcesarGalponesAsync(file, dryRun, permitirParcial, companyId, ct),
+            TipoMigracion.SeguimientoLevante    => await ProcesarSeguimientoLevanteAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
+            TipoMigracion.SeguimientoProduccion => await ProcesarSeguimientoProduccionAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
+            TipoMigracion.LotesPolloEngorde       => await ProcesarLotesPolloEngordeAsync(file, dryRun, permitirParcial, companyId, ct),
+            TipoMigracion.SeguimientoPolloEngorde => await ProcesarSeguimientoEngordeAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
+            TipoMigracion.VentaPolloEngorde       => await ProcesarVentaEngordeAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
             _ => throw new NotImplementedException($"La migración de '{tipo}' se implementa en su fase correspondiente.")
         };
+        sw.Stop();
+        result = result with { DuracionMs = sw.ElapsedMilliseconds };
+
+        // Auditoría CENTRAL: se registra toda corrida (dry-run o real, exitosa o no) exactamente una vez.
+        await RegistrarAuditoriaAsync(tipo, companyId, file.FileName, result, ct);
+        return result;
     }
 }

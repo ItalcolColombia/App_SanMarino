@@ -38,6 +38,17 @@ public class MigracionMasivaConfiguration : IEntityTypeConfiguration<MigracionMa
             .HasColumnName("filas_error")
             .HasDefaultValue(0);
 
+        builder.Property(x => x.FilasOmitidas)
+            .HasColumnName("filas_omitidas")
+            .HasDefaultValue(0);
+
+        builder.Property(x => x.DuracionMs)
+            .HasColumnName("duracion_ms");
+
+        builder.Property(x => x.FueDryRun)
+            .HasColumnName("fue_dry_run")
+            .HasDefaultValue(false);
+
         builder.Property(x => x.Estado)
             .HasColumnName("estado")
             .HasMaxLength(20)

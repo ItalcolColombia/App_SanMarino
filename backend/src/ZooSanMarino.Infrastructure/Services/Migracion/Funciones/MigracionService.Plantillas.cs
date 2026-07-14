@@ -4,6 +4,8 @@
 //   • Hoja "Referencias"  → datos existentes de la empresa (para elegir de la lista).
 //   • Hoja "Instrucciones"→ cómo completar.
 using OfficeOpenXml;
+using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.DTOs.Migracion;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
@@ -18,6 +20,36 @@ public partial class MigracionService
             cell.Value = headers[i];
             cell.Style.Font.Bold = true;
         }
+    }
+
+    /// <summary>
+    /// Escribe los encabezados desde el esquema único (F1): mismos títulos y orden que la sobrecarga
+    /// por <c>params string[]</c>, más el dropdown inline de las columnas que declaran <c>Opciones</c>
+    /// (ej. Estado "A"/"I"). Salida visual idéntica a la generación manual previa.
+    /// </summary>
+    private static void PonerEncabezados(ExcelWorksheet ws, EsquemaMigracion esquema)
+    {
+        PonerEncabezados(ws, esquema.Columnas.Select(c => c.Titulo).ToArray());
+        for (int i = 0; i < esquema.Columnas.Count; i++)
+        {
+            var opciones = esquema.Columnas[i].Opciones;
+            if (opciones is null || opciones.Length == 0) continue;
+            DropdownInline(ws, ColumnaLetra(i + 1), 1000, opciones);
+        }
+    }
+
+    /// <summary>Convierte un índice de columna 1-based (1=A, 2=B, ..., 27=AA, ...) a su letra de Excel.</summary>
+    private static string ColumnaLetra(int indice1Based)
+    {
+        var letras = string.Empty;
+        int n = indice1Based;
+        while (n > 0)
+        {
+            int resto = (n - 1) % 26;
+            letras = (char)('A' + resto) + letras;
+            n = (n - 1) / 26;
+        }
+        return letras;
     }
 
     private static void EscribirColumnaRef(ExcelWorksheet wsRef, int col, string titulo, IEnumerable<string> valores)
@@ -69,7 +101,7 @@ public partial class MigracionService
         using var pkg = new ExcelPackage();
 
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, "Granja", "Código Núcleo", "Nombre");
+        PonerEncabezados(ws, MigracionEsquemas.Nucleos);
 
         var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
         EscribirColumnaRef(wsRef, 1, "Granjas de la empresa", granjas.Select(g => g.Name));
@@ -94,7 +126,7 @@ public partial class MigracionService
         using var pkg = new ExcelPackage();
 
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, "Granja", "Núcleo", "Código Galpón", "Nombre", "Ancho", "Largo", "Tipo Galpón");
+        PonerEncabezados(ws, MigracionEsquemas.Galpones);
 
         var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
         EscribirColumnaRef(wsRef, 1, "Granjas de la empresa", granjas.Select(g => g.Name));
@@ -134,7 +166,7 @@ public partial class MigracionService
         using var pkg = new ExcelPackage();
 
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, "Nombre", "Departamento", "Ciudad", "Regional", "Estado");
+        PonerEncabezados(ws, MigracionEsquemas.Granjas);
 
         var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
         EscribirColumnaRef(wsRef, 1, "Departamentos", departamentos.Select(d => d.DepartamentoNombre));
@@ -152,7 +184,7 @@ public partial class MigracionService
 
         if (departamentos.Count > 0) DropdownRango(ws, "B", $"Referencias!$A$2:$A${departamentos.Count + 1}");
         if (regionalesNombres.Count > 0) DropdownRango(ws, "D", $"Referencias!$C$2:$C${regionalesNombres.Count + 1}");
-        DropdownInline(ws, "E", 1000, "A", "I");
+        // Estado (A/I): dropdown inline agregado automáticamente por PonerEncabezados desde el esquema.
 
         HojaInstrucciones(pkg, "Migración de Granjas",
             "Una fila por granja en la hoja 'Datos'.",

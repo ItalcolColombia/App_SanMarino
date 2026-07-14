@@ -20,6 +20,13 @@ export function fechaCorta(iso: string | null | undefined): string {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es');
 }
 
+/** Fecha y hora legibles (`dd/mm/aaaa, hh:mm`); `—` si no hay valor, y el original si no parsea. */
+export function fechaHoraCorta(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString('es');
+}
+
 /**
  * Convierte `YYYY-MM-DD` (input date) a ISO estable a mediodía UTC, evitando el
  * desfase de zona horaria que dejaría la fecha en el día anterior/siguiente.

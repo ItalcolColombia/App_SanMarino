@@ -24,11 +24,15 @@ export interface TipoMigracionInfo {
   disponible: boolean;
 }
 
+/** "Error" bloquea el all-or-nothing; "Advertencia" es informativa y no bloquea la importación. */
+export type MigracionSeveridad = 'Error' | 'Advertencia';
+
 export interface MigracionError {
   fila: number;
   columna: string;
   valor?: string | null;
   mensaje: string;
+  severidad: MigracionSeveridad;
 }
 
 export interface MigracionResult {
@@ -37,9 +41,16 @@ export interface MigracionResult {
   filasTotales: number;
   filasProcesadas: number;
   filasError: number;
+  /** Filas no procesadas por idempotencia (ya existían en BD); no cuentan como error. */
+  filasOmitidas: number;
+  // Validado | Procesado | ProcesadoParcial | ConErrores | Fallido
   estado: string;
   fueDryRun: boolean;
   errores: MigracionError[];
+  /** Duración total de la corrida, en milisegundos. */
+  duracionMs: number;
+  /** Total real de errores/advertencias detectados, antes del cap que trae `errores` (máx. 300). */
+  totalErrores: number;
 }
 
 export interface LoteElegible {
@@ -62,6 +73,18 @@ export interface MigracionHistorial {
   estado: string;
   fechaProceso: string;
   usuarioId: number;
+  filasOmitidas: number;
+  duracionMs: number | null;
+  fueDryRun: boolean;
+  tieneErrores: boolean;
+}
+
+/** Página del historial de auditoría de migraciones (endpoint `/historial` paginado). */
+export interface MigracionHistorialPaged {
+  items: MigracionHistorial[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 /** Selección jerárquica que acompaña a la validación/importación (la empresa va por header). */

@@ -1,13 +1,31 @@
 /* ==========================================================================
    Hierarchical Filter Component Styles
    ========================================================================== */
+@use 'shared/styles/module-styles' as *;
+
+// Puente de tokens: alinea los nombres --warm-*/--slate-800 (los usan las clases
+// compartidas .ux-label/.ux-input/.ux-select/.detail-*) con la paleta real Italfoods.
+// Mismo patrón que farm-management/nucleo-form/galpon-form (copiar, no reinventar).
+:host {
+  --brand-red: var(--ital-green);
+  --brand-red-600: var(--ital-green-dark);
+  --warm-50: var(--ital-cream);
+  --warm-100: var(--ital-cream);
+  --warm-200: var(--ital-green-100);
+  --warm-300: var(--ital-green-50);
+  --warm-400: var(--ital-muted);
+  --warm-500: var(--ital-muted);
+  --warm-600: var(--ital-orange-dark);
+  --slate-800: var(--ital-text);
+  --radius: 14px;
+  -webkit-font-smoothing: antialiased;
+}
 
 .hierarchical-filter {
-  background: var(--white);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-4);
-  margin-bottom: var(--space-4);
+  background: var(--warm-50);
+  border: 1px solid var(--warm-200);
+  border-radius: 1rem;
+  padding: 1rem 1.1rem 1.2rem;
 }
 
 /* Header */
@@ -15,38 +33,41 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-4);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--warm-200);
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px dashed var(--warm-200);
 }
 
 .filter-title {
   margin: 0;
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  color: var(--warm-700);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--slate-800);
 }
 
-/* Chips de estado (como en seguimiento de lotes) */
+/* Chips de estado */
 .ux-header__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  background: var(--warm-50);
-  border-radius: var(--radius-sm);
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.7rem;
+  background: #fff;
+  border-radius: 0.65rem;
   border: 1px solid var(--warm-200);
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-sm);
-  font-weight: 500;
+  gap: 0.4rem;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -55,11 +76,13 @@
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  flex-shrink: 0;
 }
 
+/* Tiene valor: mismo degradé naranja que los pasos numerados de la página */
 .chip--info {
-  background: var(--brand-blue);
-  color: var(--white);
+  background: linear-gradient(135deg, var(--ital-orange), var(--ital-orange-light));
+  color: #fff;
 }
 
 .chip--muted {
@@ -67,78 +90,58 @@
   color: var(--warm-600);
 }
 
+/* Pendiente de elegir: aviso suave, sin rojo (el rojo de marca es solo peligro/destructivo) */
 .chip--warning {
-  background: var(--brand-orange);
-  color: var(--white);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  border: 1px dashed var(--ital-orange-100);
 }
 
-/* Loading y Error States */
+/* Loading y Error states */
 .loading-state,
 .error-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--space-6);
+  gap: 0.5rem;
+  padding: 2rem 1rem;
   text-align: center;
-}
-
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--warm-200);
-  border-top: 2px solid var(--brand-blue);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: var(--space-2);
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  color: var(--warm-600);
+  font-size: 0.9rem;
 }
 
 .error-message {
-  color: var(--brand-red);
-  margin-bottom: var(--space-3);
+  margin: 0 0 0.4rem;
+  color: var(--danger);
+  font-weight: 600;
 }
 
 /* Grid de filtros */
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.ux-label {
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  color: var(--warm-600);
-  margin: 0;
-}
-
-.ux-select,
-.ux-input {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--warm-300);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-sm);
-  background: var(--white);
-  transition: all 0.2s ease;
-}
-
-.ux-select:focus,
-.ux-input:focus {
-  outline: none;
-  border-color: var(--brand-blue);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+/* .ux-label / .ux-input / .ux-select llegan ya con borde, foco y color reales desde
+   module-styles (usan el puente de arriba). Solo se agrega la flecha del <select>:
+   module-styles deja appearance:none sin reemplazo y por eso se veía "plano". */
+.ux-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 1.05rem;
+  padding-right: 2.1rem;
+  cursor: pointer;
 }
 
 .search-input {
@@ -146,147 +149,141 @@
 }
 
 .search-input .ux-input {
-  padding-right: var(--space-8);
+  padding-left: 2.25rem;
 }
 
 .search-icon {
   position: absolute;
-  right: var(--space-2);
+  left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
   color: var(--warm-400);
+  font-size: 0.9rem;
   pointer-events: none;
 }
 
 /* Lote seleccionado */
 .selected-lote-info {
-  margin-top: var(--space-4);
+  margin-top: 1rem;
 }
 
 .lote-card {
-  background: var(--warm-50);
-  border: 1px solid var(--warm-200);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
+  background: var(--ital-orange-50);
+  border: 1px solid var(--ital-orange-100);
+  border-radius: 0.9rem;
+  padding: 1rem 1.1rem;
 }
 
 .lote-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-3);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--warm-200);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--ital-orange-100);
 }
 
 .lote-header h4 {
   margin: 0;
-  font-size: var(--fs-md);
-  font-weight: 600;
-  color: var(--warm-700);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ital-orange-dark);
 }
 
 .lote-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--space-2);
+  gap: 0.6rem;
 }
 
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 0.2rem;
 }
 
 .detail-label {
-  font-size: var(--fs-xs);
-  font-weight: 500;
+  font-size: 0.7rem;
+  font-weight: 700;
   color: var(--warm-500);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
 }
 
 .detail-value {
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  color: var(--warm-700);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--slate-800);
 }
 
 /* Resumen */
 .filter-summary {
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
+  margin-top: 1rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--warm-200);
 }
 
 .summary-text {
   margin: 0;
-  font-size: var(--fs-sm);
+  font-size: 0.85rem;
   color: var(--warm-600);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .filter-grid {
-    grid-template-columns: 1fr;
-    gap: var(--space-3);
-  }
-  
-  .ux-header__meta {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .lote-details {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* Botones */
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
   border: none;
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-sm);
-  font-weight: 500;
+  border-radius: 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .btn--ghost {
-  background: transparent;
+  background: #fff;
   color: var(--warm-600);
-  border: 1px solid var(--warm-300);
-}
+  border: 1px solid var(--warm-200);
 
-.btn--ghost:hover {
-  background: var(--warm-50);
-  border-color: var(--warm-400);
+  &:hover {
+    background: var(--warm-100);
+    border-color: var(--warm-300);
+  }
 }
 
 .btn--outline {
   background: transparent;
-  color: var(--brand-blue);
-  border: 1px solid var(--brand-blue);
-}
+  color: var(--ital-orange);
+  border: 1px solid var(--ital-orange);
 
-.btn--outline:hover {
-  background: var(--brand-blue);
-  color: var(--white);
+  &:hover {
+    background: var(--ital-orange);
+    color: #fff;
+  }
 }
 
 .btn--sm {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--fs-xs);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
 }
 
+/* Responsive */
+@media (max-width: 768px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
 
+  .ux-header__meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-
-
-
-
+  .lote-details {
+    grid-template-columns: 1fr;
+  }
+}

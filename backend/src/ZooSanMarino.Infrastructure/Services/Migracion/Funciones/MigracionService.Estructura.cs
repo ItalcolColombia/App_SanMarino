@@ -1,7 +1,8 @@
 // src/ZooSanMarino.Infrastructure/Services/Migracion/Funciones/MigracionService.Estructura.cs
 // Fase 1 — Estructura: Granjas, Núcleos, Galpones. Valida las filas del Excel (reporte completo,
-// all-or-nothing) e inserta REUTILIZANDO los servicios existentes (IFarmService/INucleoService/
-// IGalponService) dentro de una transacción, respetando el orden FK. No duplica reglas de negocio.
+// all-or-nothing por defecto, parcial opt-in) e inserta REUTILIZANDO los servicios existentes
+// (IFarmService/INucleoService/IGalponService) dentro de una transacción, respetando el orden FK.
+// No duplica reglas de negocio.
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
@@ -61,24 +62,21 @@ public partial class MigracionService
             .OrderBy(o => o.Order)
             .ToListAsync(ct);
 
-    // ── Runner de importación (valida → dry-run corta → inserta en transacción) ─
+    // ── Runner de importación (valida → dry-run corta → inserta en transacción, parcial opt-in) ─
     private async Task<MigracionResultDto> EjecutarImportacionAsync<TDto>(
-        TipoMigracion tipo, bool dryRun, int companyId, string nombreArchivo,
+        TipoMigracion tipo, bool dryRun, bool permitirParcial, string nombreArchivo,
         int total, List<MigracionErrorDto> errores, List<TDto> dtos,
         Func<TDto, Task> insertar, CancellationToken ct)
     {
-        if (total == 0) return ResultadoVacio(tipo, dryRun);
+        if (total == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
-        if (errores.Count > 0)
-        {
-            if (!dryRun)
-                await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, 0,
-                    errores.Select(e => e.Fila).Where(f => f > 0).Distinct().Count(),
-                    "ConErrores", SerializarErrores(errores), ct);
+        var hayErroresReales = errores.Any(e => e.Severidad == "Error");
+        var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && dtos.Count > 0;
+
+        if (hayErroresReales && !puedeInsertarParcial)
             return ResultadoConErrores(tipo, dryRun, total, errores);
-        }
 
-        if (dryRun) return ResultadoOk(tipo, dryRun, total);
+        if (dryRun) return ResultadoOk(tipo, dryRun, total, errores);
 
         await using var tx = await _ctx.Database.BeginTransactionAsync(ct);
         try
@@ -89,29 +87,35 @@ public partial class MigracionService
         catch (Exception ex)
         {
             await tx.RollbackAsync(ct);
-            var err = new[] { new MigracionErrorDto(0, "-", null, $"Error al insertar: {ex.Message}") };
-            await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, 0, total, "Fallido", SerializarErrores(err), ct);
-            return ResultadoConErrores(tipo, dryRun, total, err);
+            var err = new List<MigracionErrorDto>(errores) { new(0, "-", null, $"Error al insertar: {ex.Message}") };
+            return ResultadoFallido(tipo, total, err);
         }
 
-        await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, total, 0, "Procesado", null, ct);
-        return ResultadoOk(tipo, dryRun, total);
+        if (puedeInsertarParcial)
+        {
+            var filasError = errores.Where(e => e.Severidad == "Error" && e.Fila > 0).Select(e => e.Fila).Distinct().Count();
+            var (capados, totalReal) = MigracionEsquemaCalculos.LimitarErrores(errores, MaxErroresReportados);
+            return new MigracionResultDto(tipo.ToString(), true, total, dtos.Count, filasError, "ProcesadoParcial", dryRun, capados, 0, 0, totalReal);
+        }
+
+        return ResultadoOk(tipo, dryRun, total, errores);
     }
 
     // ── Núcleos ──────────────────────────────────────────────────────────────
-    private async Task<MigracionResultDto> ProcesarNucleosAsync(IFormFile file, bool dryRun, int companyId, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarNucleosAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.Nucleos;
+        var errores = new List<MigracionErrorDto>();
         using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
         var granjaPorNombre = (await CargarGranjasAsync(companyId, ct))
             .GroupBy(g => MigracionCalculos.NormalizarClave(g.Name)).ToDictionary(g => g.Key, g => g.First().Id);
         var nucleosExistentes = (await CargarNucleosAsync(companyId, ct))
             .Select(n => $"{n.GranjaId}|{MigracionCalculos.NormalizarClave(n.NucleoId)}").ToHashSet();
 
-        var errores = new List<MigracionErrorDto>();
         var dtos = new List<CreateNucleoDto>();
         var vistos = new HashSet<string>();
 
@@ -134,17 +138,19 @@ public partial class MigracionService
             dtos.Add(new CreateNucleoDto(granjaId, codigo, nombre));
         }
 
-        return await EjecutarImportacionAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, dtos,
+        return await EjecutarImportacionAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, errores, dtos,
             dto => _nucleoService.CreateAsync(dto), ct);
     }
 
     // ── Galpones ─────────────────────────────────────────────────────────────
-    private async Task<MigracionResultDto> ProcesarGalponesAsync(IFormFile file, bool dryRun, int companyId, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarGalponesAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.Galpones;
+        var errores = new List<MigracionErrorDto>();
         using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
         var granjaPorNombre = (await CargarGranjasAsync(companyId, ct))
             .GroupBy(g => MigracionCalculos.NormalizarClave(g.Name)).ToDictionary(g => g.Key, g => g.First().Id);
@@ -153,7 +159,6 @@ public partial class MigracionService
         var galponesExistentes = (await CargarGalponesAsync(companyId, ct))
             .Select(g => MigracionCalculos.NormalizarClave(g.GalponId)).ToHashSet();
 
-        var errores = new List<MigracionErrorDto>();
         var dtos = new List<CreateGalponDto>();
         var vistosCodigo = new HashSet<string>();
 
@@ -185,17 +190,19 @@ public partial class MigracionService
             dtos.Add(new CreateGalponDto(galponCodigo ?? string.Empty, nombre, nucleoCodigo, granjaId, ancho, largo, tipoGalpon));
         }
 
-        return await EjecutarImportacionAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, dtos,
+        return await EjecutarImportacionAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, errores, dtos,
             dto => _galponService.CreateAsync(dto), ct);
     }
 
     // ── Granjas ──────────────────────────────────────────────────────────────
-    private async Task<MigracionResultDto> ProcesarGranjasAsync(IFormFile file, bool dryRun, int companyId, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarGranjasAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.Granjas;
+        var errores = new List<MigracionErrorDto>();
         using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
         var departamentos = await CargarDepartamentosAsync(companyId, ct);
         var deptPorNombre = departamentos
@@ -208,7 +215,6 @@ public partial class MigracionService
         var granjasExistentes = (await CargarGranjasAsync(companyId, ct))
             .Select(g => MigracionCalculos.NormalizarClave(g.Name)).ToHashSet();
 
-        var errores = new List<MigracionErrorDto>();
         var dtos = new List<CreateFarmDto>();
         var vistosNombre = new HashSet<string>();
 
@@ -242,7 +248,7 @@ public partial class MigracionService
                 DepartamentoId: deptId, CiudadId: muniId));
         }
 
-        return await EjecutarImportacionAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, dtos,
+        return await EjecutarImportacionAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, errores, dtos,
             dto => _farmService.CreateAsync(dto), ct);
     }
 }

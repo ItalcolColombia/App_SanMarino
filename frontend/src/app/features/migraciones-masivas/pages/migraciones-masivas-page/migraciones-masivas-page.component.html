@@ -51,7 +51,21 @@
         <span class="step">{{ tipo.requiereLote ? '3' : '2' }}</span>
         <h2 class="card__title">Plantilla y carga — {{ tipo.nombre }}</h2>
       </div>
-      <app-panel-plantilla-upload [tipo]="tipo" [contexto]="contexto()"></app-panel-plantilla-upload>
+      <app-panel-plantilla-upload
+        [tipo]="tipo"
+        [contexto]="contexto()"
+        (importado)="onImportado()">
+      </app-panel-plantilla-upload>
     </section>
   </ng-container>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="card__title">Historial de migraciones</h2>
+    </div>
+    <app-historial-migraciones
+      [tipos]="tipos()"
+      [refrescarTrigger]="historialRefreshTick()">
+    </app-historial-migraciones>
+  </section>
 </div>

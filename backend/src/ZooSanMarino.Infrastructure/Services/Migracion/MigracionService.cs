@@ -2,6 +2,7 @@
 // ANCLA del módulo de Migraciones Masivas (partial class).
 // Contiene: campos, ctor, helpers de scoping y la declaración de la interfaz.
 // Las operaciones (validar/importar/plantilla/elegibles) viven en Funciones/*.cs.
+using System.Text.Json;
 using ZooSanMarino.Application.DTOs.Migracion;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -66,13 +67,31 @@ public partial class MigracionService : IMigracionService
 
     public IReadOnlyList<TipoMigracionInfoDto> GetTipos() => TipoMigracionCatalogo.Todos;
 
-    public async Task<IReadOnlyList<MigracionHistorialDto>> GetHistorialAsync(string? tipo, CancellationToken ct = default)
+    /// <summary>Historial paginado de auditoría de la empresa activa (opcionalmente por tipo).</summary>
+    public async Task<MigracionHistorialPagedDto> GetHistorialAsync(string? tipo, int page, int pageSize, bool incluirValidaciones, CancellationToken ct = default)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
-        var items = await _repo.GetHistorialAsync(companyId, tipo, ct);
-        return items.Select(x => new MigracionHistorialDto(
+        var (items, total) = await _repo.GetHistorialAsync(companyId, tipo, page, pageSize, incluirValidaciones, ct);
+
+        var dtos = items.Select(x => new MigracionHistorialDto(
             x.Id, x.Tipo, x.NombreArchivo,
             x.FilasTotales, x.FilasProcesadas, x.FilasError,
-            x.Estado, x.FechaProceso, x.CreatedByUserId)).ToList();
+            x.Estado, x.FechaProceso, x.CreatedByUserId,
+            x.FilasOmitidas, x.DuracionMs, x.FueDryRun,
+            TieneErrores: x.ErroresJson is not null)).ToList();
+
+        var pageClamped = page < 1 ? 1 : page;
+        var pageSizeClamped = pageSize < 1 ? 20 : Math.Min(pageSize, 100);
+        return new MigracionHistorialPagedDto(dtos, total, pageClamped, pageSizeClamped);
+    }
+
+    /// <summary>Errores/advertencias de una corrida puntual del historial. Null si no existe o no es de la empresa activa.</summary>
+    public async Task<IReadOnlyList<MigracionErrorDto>?> GetErroresAsync(int id, CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var registro = await _repo.GetPorIdAsync(id, companyId, ct);
+        if (registro is null) return null;
+        if (string.IsNullOrWhiteSpace(registro.ErroresJson)) return Array.Empty<MigracionErrorDto>();
+        return JsonSerializer.Deserialize<List<MigracionErrorDto>>(registro.ErroresJson) ?? new List<MigracionErrorDto>();
     }
 }

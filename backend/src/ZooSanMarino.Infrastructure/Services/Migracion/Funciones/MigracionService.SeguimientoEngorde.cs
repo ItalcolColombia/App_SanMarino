@@ -3,8 +3,8 @@
 // lote + parse/validación en C#. La INSERCIÓN reutiliza ISeguimientoAvesEngordeService.CreateAsync por
 // fila (decisión: replicar todos los efectos vivos — retiro de InventarioAves + recálculo de saldo;
 // el descuento de inventario de alimento solo aplica si la fila trae ítems de catálogo, que la plantilla
-// histórica no incluye). Idempotente: omite fechas ya cargadas. Sin transacción externa para no anidar
-// con la transacción propia de la ruta Colombia (modelo-B).
+// histórica no incluye). Idempotente: omite fechas ya cargadas (contadas en FilasOmitidas, F2). Sin
+// transacción externa para no anidar con la transacción propia de la ruta Colombia (modelo-B).
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
@@ -43,16 +43,18 @@ public partial class MigracionService
     }
 
     // ── Import ───────────────────────────────────────────────────────────────
-    private async Task<MigracionResultDto> ProcesarSeguimientoEngordeAsync(IFormFile file, bool dryRun, int companyId, MigracionContextoDto ctx, CancellationToken ct)
+    private async Task<MigracionResultDto> ProcesarSeguimientoEngordeAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.SeguimientoPolloEngorde;
         if (ctx.LoteId is not int loteId) return ErrorContexto(tipo, dryRun, "Seleccioná un lote de engorde antes de importar.");
         var (lote, errLote) = await ResolverLoteEngordeAsync(companyId, loteId, ct);
         if (lote is null) return ErrorContexto(tipo, dryRun, errLote!);
 
+        var errores = new List<MigracionErrorDto>();
         using var stream = file.OpenReadStream();
-        var filas = LeerDatos(stream, "Datos");
-        if (filas.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
+        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
         // Fechas ya cargadas para este lote (idempotencia: se omiten; incluye filas origen_cruce de días 1-7).
         var existentes = (await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
@@ -60,16 +62,16 @@ public partial class MigracionService
                 .Select(s => s.Fecha).ToListAsync(ct))
             .Select(f => f.Date).ToHashSet();
 
-        var errores = new List<MigracionErrorDto>();
         var dtos = new List<SeguimientoLoteLevanteDto>();
         var fechasVistas = new HashSet<DateTime>();
+        int omitidas = 0;
 
         foreach (var fila in filas)
         {
             if (!MigracionCalculos.TryFecha(Celda(fila, "fecha"), out var fecha))
             { errores.Add(new(fila.Numero, "Fecha", null, "Fecha inválida o faltante.")); continue; }
             if (!fechasVistas.Add(fecha.Date)) { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "Fecha repetida en el archivo.")); continue; }
-            if (existentes.Contains(fecha.Date)) continue; // ya existe → idempotente, se omite
+            if (existentes.Contains(fecha.Date)) { omitidas++; continue; } // ya existe → idempotente, se omite
 
             int e0 = errores.Count;
             var mortH = EnteroNoNeg(fila, errores, "Mort H", "mort h", "mortalidad hembras");
@@ -111,23 +113,23 @@ public partial class MigracionService
             dtos.Add(req.ToDto());
         }
 
-        return await EjecutarSeguimientoEngordeAsync(tipo, dryRun, companyId, file.FileName, filas.Count, errores, dtos, ct);
+        return await EjecutarSeguimientoEngordeAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, omitidas, errores, dtos, ct);
     }
 
-    // ── Runner (valida → dry-run corta → CreateAsync fila por fila, sin TX externa) ─
+    // ── Runner (valida → dry-run corta → CreateAsync fila por fila, sin TX externa, parcial opt-in) ─
     private async Task<MigracionResultDto> EjecutarSeguimientoEngordeAsync(
-        TipoMigracion tipo, bool dryRun, int companyId, string nombreArchivo,
-        int total, List<MigracionErrorDto> errores, List<SeguimientoLoteLevanteDto> dtos, CancellationToken ct)
+        TipoMigracion tipo, bool dryRun, bool permitirParcial, string nombreArchivo,
+        int total, int omitidas, List<MigracionErrorDto> errores, List<SeguimientoLoteLevanteDto> dtos, CancellationToken ct)
     {
-        if (total == 0) return ResultadoVacio(tipo, dryRun);
-        if (errores.Count > 0)
-        {
-            if (!dryRun)
-                await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, 0,
-                    errores.Select(e => e.Fila).Where(f => f > 0).Distinct().Count(), "ConErrores", SerializarErrores(errores), ct);
-            return ResultadoConErrores(tipo, dryRun, total, errores);
-        }
-        if (dryRun) return ResultadoOk(tipo, dryRun, total);
+        if (total == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+
+        var hayErroresReales = errores.Any(e => e.Severidad == "Error");
+        var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && dtos.Count > 0;
+
+        if (hayErroresReales && !puedeInsertarParcial)
+            return ResultadoConErrores(tipo, dryRun, total, errores) with { FilasOmitidas = omitidas };
+
+        if (dryRun) return ResultadoOk(tipo, dryRun, total, errores) with { FilasOmitidas = omitidas };
 
         int insertados = 0;
         var fallos = new List<MigracionErrorDto>();
@@ -138,14 +140,18 @@ public partial class MigracionService
             { fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Error al insertar: {ex.Message}")); }
         }
 
+        var filasErrorValidacion = errores.Where(e => e.Severidad == "Error" && e.Fila > 0).Select(e => e.Fila).Distinct().Count();
+
         if (fallos.Count > 0)
         {
-            await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, insertados, fallos.Count, "ConErrores", SerializarErrores(fallos), ct);
-            return new MigracionResultDto(tipo.ToString(), insertados > 0, total, insertados, fallos.Count, "ConErrores", dryRun, fallos);
+            var combinados = errores.Concat(fallos).ToList();
+            var (capados, totalReal) = MigracionEsquemaCalculos.LimitarErrores(combinados, MaxErroresReportados);
+            return new MigracionResultDto(tipo.ToString(), insertados > 0, total, insertados, filasErrorValidacion + fallos.Count, "ConErrores", dryRun, capados, omitidas, 0, totalReal);
         }
 
-        await RegistrarAuditoriaAsync(tipo, companyId, nombreArchivo, total, insertados, 0, "Procesado", null, ct);
-        return new MigracionResultDto(tipo.ToString(), true, total, insertados, 0, "Procesado", dryRun, Array.Empty<MigracionErrorDto>());
+        var (capadosOk, totalRealOk) = MigracionEsquemaCalculos.LimitarErrores(errores, MaxErroresReportados);
+        var estado = puedeInsertarParcial ? "ProcesadoParcial" : "Procesado";
+        return new MigracionResultDto(tipo.ToString(), true, total, insertados, puedeInsertarParcial ? filasErrorValidacion : 0, estado, dryRun, capadosOk, omitidas, 0, totalRealOk);
     }
 
     // ── Plantilla ────────────────────────────────────────────────────────────
@@ -158,8 +164,7 @@ public partial class MigracionService
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, "Fecha", "Mort H", "Mort M", "Sel H", "Sel M", "Error Sexaje H", "Error Sexaje M",
-            "Consumo H (kg)", "Consumo M (kg)", "Tipo Alimento", "Peso H (g)", "Peso M (g)", "Uniformidad H", "Uniformidad M", "Observaciones");
+        PonerEncabezados(ws, MigracionEsquemas.SeguimientoPolloEngorde);
 
         HojaInstrucciones(pkg, $"Migración Seguimiento Engorde — Lote {lote.LoteNombre} (id {loteId})",
             "Una fila por día en la hoja 'Datos'. Todas las filas corresponden a ESTE lote.",
