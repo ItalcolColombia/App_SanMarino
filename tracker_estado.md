@@ -20,7 +20,7 @@ Rama: `feature/modulo-vacunacion`
 - [x] EF Configurations (`Infrastructure/Persistence/Configurations/Vacunacion/`), snake_case + check constraints (línea/unidad válida, un solo FK de lote, motivo obligatorio, aplicado-por coherente)
 - [x] Migración EF `AddVacunacionModule` (3 tablas nuevas, generada con `dotnet ef migrations add` — no requiere `IF NOT EXISTS` a mano, es el patrón real del repo para tablas nuevas, confirmado contra 18 migraciones previas)
 - [x] Migración de datos `AddPermisosVacunacion` (`vacunacion.cronograma.ver/administrar`, `vacunacion.registro.aplicar`, `vacunacion.reportes.ver`), idempotente `WHERE NOT EXISTS`
-- [x] `backend/sql/add_vacunacion_menu.sql` (grupo "Vacunación" + 3 hijos; **gotcha**: el patrón viejo de otros `*.sql` del folder no tiene `key`/`is_group`/`sort_order` — esquema real de `menus` los exige, corregido y verificado con `\d menus`; sin `role_menus` automático, a asignar por UI de Roles)
+- [x] Menú "Vacunación" + 3 hijos — **convertido a migración `AddVacunacionMenu`** a pedido explícito del usuario (auditoría post-commit: era el único objeto de BD aplicado directo, sin migración, a diferencia de otros menús del repo que sí quedan manuales por convención). Se eliminó el `.sql` suelto (`backend/sql/add_vacunacion_menu.sql`) para no duplicar la fuente de verdad. **Gotcha** encontrado al escribir el `.sql` original: el patrón viejo de otros `*.sql` del folder no tiene `key`/`is_group`/`sort_order` — esquema real de `menus` los exige, corregido y verificado con `\d menus`; sin `role_menus` automático, a asignar por UI de Roles
 - [x] Probar local: `dotnet ef database update` sin error contra `sanmarinoapplocal` — 3 tablas + 4 permisos + 4 filas de menú confirmados por `psql`
 
 ## Backend — cálculo puro
