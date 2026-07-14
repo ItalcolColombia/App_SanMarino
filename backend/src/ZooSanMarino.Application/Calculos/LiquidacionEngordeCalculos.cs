@@ -30,7 +30,11 @@ public static class LiquidacionEngordeCalculos
         return (h, m, x);
     }
 
-    /// <summary>Aves vivas actuales: inicio − bajas acumuladas − ventas acumuladas, nunca negativo.</summary>
-    public static int CalcularAvesVivas(int totalInicio, int bajasAcumuladas, int ventasAcumuladas) =>
-        Math.Max(0, totalInicio - bajasAcumuladas - ventasAcumuladas);
+    /// <summary>
+    /// Aves vivas actuales: inicio − mortalidad en caja (aves que llegaron muertas en el
+    /// transporte, capturada una vez al crear/editar el lote, fuera del seguimiento diario) −
+    /// bajas acumuladas del seguimiento − ventas acumuladas, nunca negativo.
+    /// </summary>
+    public static int CalcularAvesVivas(int totalInicio, int mortCajaTotal, int bajasAcumuladas, int ventasAcumuladas) =>
+        Math.Max(0, totalInicio - mortCajaTotal - bajasAcumuladas - ventasAcumuladas);
 }

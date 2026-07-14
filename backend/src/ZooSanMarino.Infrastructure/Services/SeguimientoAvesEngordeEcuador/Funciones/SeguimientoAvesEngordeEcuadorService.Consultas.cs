@@ -69,7 +69,9 @@ public partial class SeguimientoAvesEngordeEcuadorService
                 l.Mixtas,
                 l.AvesEncasetadas,
                 l.MermaUnidades,
-                l.MermaKilos
+                l.MermaKilos,
+                l.MortCajaH,
+                l.MortCajaM
             })
             .SingleOrDefaultAsync();
         if (lote is null) return null;
@@ -113,7 +115,8 @@ public partial class SeguimientoAvesEngordeEcuadorService
                 (s.ErrorSexajeHembras ?? 0) +
                 (s.ErrorSexajeMachos ?? 0))
             .SumAsync();
-        var avesVivas = LiquidacionEngordeCalculos.CalcularAvesVivas(totalInicio, bajas, vh + vm + vx);
+        var mortCajaTotal = (lote.MortCajaH ?? 0) + (lote.MortCajaM ?? 0);
+        var avesVivas = LiquidacionEngordeCalculos.CalcularAvesVivas(totalInicio, mortCajaTotal, bajas, vh + vm + vx);
 
         return new LiquidacionLoteEngordeResumenDto(
             lote.LoteAveEngordeId ?? loteId,
