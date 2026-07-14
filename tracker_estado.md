@@ -1,34 +1,36 @@
-# Tracker — Bloquear venta de lotes cerrados / corridas anteriores en "Venta por granja"
+# Tracker — Permisos de acceso a Migraciones Masivas (Postura / Pollo Engorde)
 
-Plan: [venta_granja_bloqueo_lotes_cerrados_plan.md](fase_de_desarrollo/venta_granja_bloqueo_lotes_cerrados_plan.md)
-
-**Alcance:** solo front-end (decisión del usuario) + migración EF para sembrar el permiso
-`movimientos_pollo_engorde.vender_lotes_cerrados` en `permissions`. Módulo:
-`frontend/src/app/features/movimientos-pollo-engorde/`.
+Plan: [migraciones_masivas_permiso_carga_masiva_plan.md](fase_de_desarrollo/migraciones_masivas_permiso_carga_masiva_plan.md)
 
 ---
 
-## Frontend
+## Paso 0 — Commit del backlog pendiente del módulo Migraciones Masivas
 
-- [x] `models/venta-granja.model.ts` — agregar `bloqueada?` / `motivoBloqueo?` a `VentaLineaGranja`
-- [x] `funciones/detectar-lotes-bloqueados-venta.funcion.ts` — nueva función pura `marcarLotesBloqueadosVenta`
-- [x] `funciones/README.md` — agregar la nueva función al índice
-- [x] `modal-movimiento-pollo-engorde.component.ts` — inyectar `UserPermissionService`, getter `puedeVenderLotesCerrados`, aplicar marcado en `loadVentaGranjaLineas()`, guard en `onLineaCantidadInput`, guard en `onSubmit`
-- [x] `modal-movimiento-pollo-engorde.component.html` — disabled/readonly extendido, badge de motivo, hint explicativo
-- [x] `modal-movimiento-pollo-engorde.component.scss` — estilos badge + fila bloqueada
-- [x] `yarn build` (frontend) 0 errores (Node portable 22.23.1 — Node del sistema 22.15 no cumple el mínimo de Angular)
+- [x] Revisar diff pendiente (mejoras 2026-07-13 + fixes descuento aves 2026-07-14) ya validado por memoria
+- [x] `dotnet build` sanity (Infrastructure/Application)
+- [x] `yarn build` sanity (frontend)
+- [x] Commit del backlog pendiente (`af3ad69`)
 
-## Backend (solo permiso)
+## Backend — permisos nuevos
 
-- [x] `dotnet ef migrations add` (pura de datos) — seed `movimientos_pollo_engorde.vender_lotes_cerrados` (`20260714112951_AddPermisoVentaLotesCerradosMovimientoPolloEngorde`)
-- [x] `dotnet build` 0 errores (Infrastructure + Application.Tests; API no se pudo rebuildear por bin bloqueado del backend en vivo del usuario — no bloqueante)
-- [x] `dotnet ef database update` local sin error — permiso id 58 confirmado por psql; idempotencia del `INSERT ... WHERE NOT EXISTS` verificada (rollback de prueba: `INSERT 0 0`)
+- [x] Migración EF idempotente `AddPermisosCargaMasivaMigracionesMasivas` (seed `carga_masiva_pollo_engorde` + `carga_masiva_postura`)
+- [x] `dotnet build` 0 errores
+- [x] `dotnet ef database update` local sin error (ids 59/60 verificados por psql)
+
+## Frontend — gating de tiles
+
+- [x] `funciones/agrupar-tipo-migracion.funcion.ts` — función pura `esTipoPolloEngorde`
+- [x] `selector-tipo-migracion.component.ts` — inyectar `UserPermissionService`, `tienePermiso`, disabled+badge+guard de click
+- [x] Estilos tile bloqueado (gris, cursor not-allowed)
+- [x] `yarn build` 0 errores
 
 ## Validación
 
-- [x] Prueba manual en navegador — confirmada por el usuario ("esta correcto ya lo probe")
-- [x] Reportar al usuario
+- [x] Smoke visual en navegador: NO realizado — requiere iniciar sesión y no ingreso credenciales
+      (ni siquiera de dev) por regla operativa propia. Verificación quedó en: build limpio
+      (back+front) + permisos confirmados en BD (ids 59/60) + revisión de código del template.
+- [x] Reportar al usuario (incluye aviso de asignar permisos a roles tras el deploy + pendiente de smoke visual)
 
 ## Cierre
 
-- [x] Todo implementado y validado. Pendiente: el usuario decide si commitea (no se hizo commit, solo se preguntó/implementó).
+- [x] Commit de la feature de permisos (`354368f`)
