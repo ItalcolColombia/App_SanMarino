@@ -1,17 +1,50 @@
--- =============================================================================
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// v8 de fn_seguimiento_diario_engorde: aves_iniciales ahora resta mort_caja_h + mort_caja_m
+    /// (mortalidad en caja de transporte, capturada una sola vez al crear/editar el lote) en toda
+    /// rama que parte de aves_encasetadas/suma_hm. Antes la tabla diaria (saldo_aves) sobreestimaba
+    /// las aves vivas en ese monto frente al widget "Aves disponibles" (GetAvesDisponiblesAsync) y
+    /// la validación de creación de registros (CalcularHembrasVivasAsync), que sí la restaban del
+    /// maestro. Caso reportado: lote 77 "2603" (Sacachun 3b, galpón G0049) con mort_caja_h=17
+    /// mostraba 17 aves vivas en la tabla diaria mientras "Aves disponibles" mostraba 0/0 y
+    /// bloqueaba nuevos registros. No-op para lotes sin mort_caja registrada (inmensa mayoría). La
+    /// rama 'cerrado' no cambia: ya fuerza el cierre en 0 por construcción propia (bajas+ventas).
+    /// Idempotente: CREATE OR REPLACE. SQL sincronizado con backend/sql/fn_seguimiento_diario_engorde.sql.
+    /// </summary>
+    public partial class FixFnSeguimientoEngordeMortCaja : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(FN_SQL, suppressTransaction: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // La función queda en v8. Para revertirla, re-aplicar el SQL de
+            // 20260611033748_FixFnSeguimientoEngordeVentasPostCierre (v7).
+        }
+
+        private const string FN_SQL = @"-- =============================================================================
 -- fn_seguimiento_diario_engorde(p_lote_id INT)
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
 -- v8 (2026-07-14) — Fix: aves_iniciales no restaba mort_caja_h/mort_caja_m.
---   * Problema: "Mort. caja H/M" (aves que llegaron muertas en la caja de transporte, campo
+--   * Problema: ""Mort. caja H/M"" (aves que llegaron muertas en la caja de transporte, campo
 --     capturado una sola vez al crear/editar el lote, fuera del seguimiento diario) NO se
 --     restaba de `aves_iniciales`, así saldo_aves quedaba inflado exactamente en ese monto vs.
---     el widget "Aves disponibles" (GetAvesDisponiblesAsync) y la validación de creación de
---     registros (CalcularHembrasVivasAsync), que SÍ la restan del maestro. Caso lote 77 "2603"
+--     el widget ""Aves disponibles"" (GetAvesDisponiblesAsync) y la validación de creación de
+--     registros (CalcularHembrasVivasAsync), que SÍ la restan del maestro. Caso lote 77 ""2603""
 --     (Sacachun 3b, galpón G0049): mort_caja_h=17 → tabla diaria mostraba 17 aves vivas mientras
---     "Aves disponibles" mostraba 0/0 y bloqueaba nuevos registros ("no se puede hacer
---     seguimiento"), generando un descuadre visible entre ambas pantallas.
+--     ""Aves disponibles"" mostraba 0/0 y bloqueaba nuevos registros (""no se puede hacer
+--     seguimiento""), generando un descuadre visible entre ambas pantallas.
 --   * Solución: `lote_info` expone `mort_caja_total` (mort_caja_h + mort_caja_m); `aves_iniciales`
 --     lo resta (con piso 0) en toda rama que parte de aves_encasetadas/suma_hm. La rama 'cerrado'
 --     no cambia: ya fuerza el cierre en 0 por construcción propia (bajas + ventas), sin depender
@@ -21,9 +54,9 @@
 --   * Problema: en lotes CERRADOS `aves_iniciales = bajas + ventas_totales` (cierre en 0
 --     por construcción) y `ventas_totales` NO tiene tope de fecha, pero `fechas_universo`
 --     SÍ acotaba por fecha_max (cierre por alimento=0, v5). Una venta posterior al corte
---     (ej. lote 23: venta de 8 machos el 2026-05-13, reapertura "PARA TRASLADO", con corte
+--     (ej. lote 23: venta de 8 machos el 2026-05-13, reapertura ""PARA TRASLADO"", con corte
 --     2026-03-18) inflaba `inicial` sin fila que la restara → saldo_aves residual fantasma
---     (el lote "cerrado" mostraba saldo 8 en vez de 0).
+--     (el lote ""cerrado"" mostraba saldo 8 en vez de 0).
 --   * Solución: en `fechas_universo` y `docs_por_fecha` las VENTA_AVES del lote NO se
 --     acotan por fecha_min/fecha_max (solo por fecha_encaset). Las ventas pertenecen al
 --     lote (no al galpón), no hay riesgo de contaminación de otro ciclo. Los eventos de
@@ -34,7 +67,7 @@
 --   * Problema: la fn calculaba el saldo como GREATEST(0, acumulado) sobre el cumulativo
 --     desde apertura (modelo M0). Eso ARRASTRABA el déficit transitorio: cuando el consumo
 --     se adelantaba a un ingreso registrado tarde, el acumulado se volvía negativo, se
---     mostraba 0, y al llegar el ingreso "rebotaba" → el usuario lo veía como "no cuadra"
+--     mostraba 0, y al llegar el ingreso ""rebotaba"" → el usuario lo veía como ""no cuadra""
 --     (caso lote 75, 29→30 may-2026). Además, M0 NO coincidía con la lógica canónica del
 --     frontend (computeSaldoAlimentoKgPorSeguimiento) ni del backend C#
 --     (RecalcularSaldoAlimentoPorLoteAsync), que SÍ usan piso 0 con reseteo.
@@ -540,7 +573,7 @@ SELECT
     -- ⭐ v6 (M1): piso 0 con reseteo de base (Lindley). Alinea la fn con la lógica canónica
     -- del frontend (computeSaldoAlimentoKgPorSeguimiento) y del backend C#
     -- (RecalcularSaldoAlimentoPorLoteAsync): saldo_t = max(0, saldo_{t-1} + ingreso − consumo).
-    -- Forma cerrada: P_t − LEAST(0, MIN(P_t) acumulado). "Olvida" el déficit transitorio de timing.
+    -- Forma cerrada: P_t − LEAST(0, MIN(P_t) acumulado). ""Olvida"" el déficit transitorio de timing.
     (se.pt - LEAST(0, MIN(se.pt) OVER w_ord))::FLOAT8                                  AS saldo_alimento_kg,
     se.ingreso_alimento_kg,
     se.traslado_entrada_kg,
@@ -579,3 +612,7 @@ WINDOW
     w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
 ORDER BY se.fecha, COALESCE(se.seg_id, 0);
 $$;
+
+";
+    }
+}

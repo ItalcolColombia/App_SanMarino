@@ -1,47 +1,30 @@
-# Tracker — DB Studio: copia de seguridad completa descargable (SQL)
+# Tracker — Fix: "aves vivas" ignora mortalidad en caja (mort_caja_h/m) en engorde
 
-Plan: [db_studio_backup_descargable_plan.md](fase_de_desarrollo/db_studio_backup_descargable_plan.md)
+Plan: [fix_aves_vivas_mort_caja_engorde_plan.md](fase_de_desarrollo/fix_aves_vivas_mort_caja_engorde_plan.md)
 
 ---
 
-## Backend — servicio de backup
+## Diagnóstico
 
-- [x] `IDbStudioService.WriteDatabaseBackupAsync(Stream, CancellationToken)`
-- [x] Refactor: extraer `BuildCreateTableSql` compartido (usado por `ExportSchemaAsync` y el backup nuevo), sin cambiar el output de `ExportSchemaAsync`
-- [x] Extender `SqlLiteral` para `byte[]` (bytea) y arrays (`T[]`, incluye cast explícito para arrays vacíos)
-- [x] Nuevo partial `DbStudioService.Backup.cs`: schemas → secuencias legacy → tablas (CREATE TABLE) → datos streamed (INSERT por lotes, sin tope) → índices no-PK (`pg_get_indexdef`) → FKs (`pg_get_constraintdef`) → resync de secuencias → funciones (orden de creación) → vistas → triggers
-- [x] Conexión dedicada con `SET statement_timeout = 0` + transacción `REPEATABLE READ` (solo fase de datos)
-- [x] Auditoría `backup.download` en `dbstudio_audit` (éxito y fallo)
-- [x] `dotnet build` 0 errores
+- [x] Reproducir el descuadre reportado (lote 77 "2603" Sacachun 3b G0049): tabla diaria = 17 aves vivas vs widget "Aves disponibles" = 0/0
+- [x] Identificar causa raíz: `fn_seguimiento_diario_engorde` y `LiquidacionEngordeCalculos.CalcularAvesVivas` no restan `mort_caja_h`/`mort_caja_m`; `GetAvesDisponiblesAsync` y `CalcularHembrasVivasAsync` sí lo hacen
+- [x] Descartar ventas pendientes sin confirmar como causa (todos los movimientos del lote 77 están Completado/Anulado)
+- [x] Auditar alcance: todos los lotes "2603" (corrida 03) + todos los lotes de la company con `mort_caja_h`/`mort_caja_m` > 0 → solo lote 77 activo (lote 1 "LT-55" también tiene mort_caja pero está soft-deleted)
 
-## Backend — controller
+## Backend — fix
 
-- [x] `GET api/DbStudio/backup` — admin-only, streaming a `Response.Body`, `Content-Disposition: attachment; filename="sanmarino-{yyyy-MM-dd}-produccion.sql"`, `Content-Type: application/sql`
-- [x] 403 si no-admin (vía `EnsureAdminAsync`, mismo patrón que el resto del controller)
+- [x] `LiquidacionEngordeCalculos.CalcularAvesVivas`: nuevo parámetro `mortCajaTotal`
+- [x] `SeguimientoAvesEngordeEcuadorService.Consultas.cs` (`GetLiquidacionResumenAsync`): proyectar y restar `MortCajaH/M`
+- [x] `SeguimientoAvesEngordeService.Consultas.cs` Colombia (`GetLiquidacionResumenAsync`): ídem
+- [x] `backend/sql/fn_seguimiento_diario_engorde.sql` v8: restar `mort_caja_h+mort_caja_m` en `aves_iniciales` (ramas no-cerrado)
+- [x] Migración EF nueva (`20260714150000_FixFnSeguimientoEngordeMortCaja`, `CREATE OR REPLACE FUNCTION`, idempotente) sincronizada con el `.sql`
+- [x] Test `LiquidacionEngordeCalculosTests.cs`: caso mortCaja=0 (equivalencia previa) + caso lote 77 (mortCaja=17 → 0)
+- [x] `dotnet build` del proyecto Infrastructure (incluye Application/Domain) — 0 errores, 0 warnings. (No se pudo compilar el proyecto API: el backend del usuario está corriendo local y bloquea su bin/; no se tocó ese proceso.)
+- [x] `dotnet test` (proyecto Application.Tests) — 336/336 en verde
 
-## Frontend
+## Validación local
 
-- [x] `db-studio.service.ts`: `downloadBackup()` (blob + `observe: 'response'`)
-- [x] `db-studio.funciones.ts`: funciones puras `descargarBlob(blob, filename)` + `filenameDesdeContentDisposition`
-- [x] `db-studio-main.component.ts`: `backupBusy` signal + `downloadBackup()` (confirm dialog + toast, sin `alert()`)
-- [x] `db-studio-main.component.html`: botón "Copia de seguridad" (solo admin) en el header
-- [x] `yarn build` 0 errores (solo warning preexistente de bundle budget)
-
-## Validación
-
-- [x] `dotnet test` Application: 335/335 OK (incluye 33 tests nuevos de `DbStudioSqlCalculosTests`: literales SQL, arrays vacíos, CREATE TABLE, secuencias legacy, índices idempotentes)
-- [x] Smoke real contra `sanmarinoapplocal` (harness descartable, NO commiteado): generó backup completo (11.7 MB, 98 tablas), restauró contra BD scratch nueva statement-por-statement (como `psql -f`) — **97/98 tablas con conteo exacto** (la única diferencia es `dbstudio_audit`, esperada: el propio backup audita su ejecución después del snapshot). De 841 sentencias, solo 3 fallan (funciones con dependencia cruzada entre sí, ver limitación abajo) — el resto del archivo sigue sin problema.
-- [x] Bugs reales encontrados y corregidos gracias al smoke test:
-      secuencias "serial" clásicas sin CREATE previo, arrays vacíos sin cast, índices parciales
-      reconstruidos mal (se cambió a `pg_get_indexdef`/`pg_get_constraintdef` en vez de armar DDL a mano),
-      overloads de función perdidos por el `LIMIT 1` de `GetFunctionSourceAsync` (el backup ahora consulta
-      por `oid` directo)
-- [x] Limitación documentada (no bloqueante): función `LANGUAGE SQL` que llama a otra función creada
-      después → falla solo esa sentencia al restaurar; se resuelve corriendo el mismo archivo una 2da vez
-      (header del backup ya lo explica)
-- [x] No-admin recibe 403 (mismo patrón `EnsureAdminAsync` ya usado y probado en el resto del controller)
-- [x] Reportar al usuario (incluye: requiere deploy a prod para estar disponible ahí; smoke fue contra BD real, no requirió login a la app)
-
-## Cierre
-
-- [ ] Commit (pendiente confirmación del usuario)
+- [x] Aplicar la función corregida a `sanmarinoapplocal` local (`psql -f backend/sql/fn_seguimiento_diario_engorde.sql`, CREATE OR REPLACE — no toca `__EFMigrationsHistory`)
+- [x] `SELECT * FROM fn_seguimiento_diario_engorde(77)` → última fila `saldo_aves = 0` (antes 17) ✅ igualando el widget "Aves disponibles"
+- [x] Confirmar no-op en lotes sin mort_caja (76 abierto, 80 cerrado): sin errores, valores coherentes
+- [x] Reportar hallazgo + fix al usuario (sin deploy — la migración se aplica sola en el próximo deploy normal)

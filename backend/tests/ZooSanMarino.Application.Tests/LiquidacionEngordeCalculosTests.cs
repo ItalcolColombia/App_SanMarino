@@ -53,13 +53,17 @@ public class LiquidacionEngordeCalculosTests
     }
 
     [Theory]
-    [InlineData(1000, 100, 200, 700)]
-    [InlineData(100, 80, 50, 0)]   // nunca negativo
-    [InlineData(0, 0, 0, 0)]
-    [InlineData(500, 0, 0, 500)]
-    public void AvesVivas_InicioMenosBajasMenosVentas_NuncaNegativo(
-        int totalInicio, int bajas, int ventas, int esperado)
+    [InlineData(1000, 0, 100, 200, 700)]
+    [InlineData(100, 0, 80, 50, 0)]   // nunca negativo
+    [InlineData(0, 0, 0, 0, 0)]
+    [InlineData(500, 0, 0, 0, 500)]
+    // Caso real: lote 77 "2603" (Sacachun 3b, galpón G0049) — mort_caja_h=17 sin registrar en la
+    // tabla diaria dejaba "17 aves vivas" fantasma mientras el widget "Aves disponibles" (que sí
+    // resta mort_caja del maestro) mostraba 0/0. Ver fn_seguimiento_diario_engorde v8.
+    [InlineData(20121, 17, 2357, 17747, 0)]
+    public void AvesVivas_InicioMenosMortCajaMenosBajasMenosVentas_NuncaNegativo(
+        int totalInicio, int mortCajaTotal, int bajas, int ventas, int esperado)
     {
-        Assert.Equal(esperado, LiquidacionEngordeCalculos.CalcularAvesVivas(totalInicio, bajas, ventas));
+        Assert.Equal(esperado, LiquidacionEngordeCalculos.CalcularAvesVivas(totalInicio, mortCajaTotal, bajas, ventas));
     }
 }
