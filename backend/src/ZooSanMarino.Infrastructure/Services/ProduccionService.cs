@@ -377,7 +377,10 @@ public class ProduccionService : IProduccionService
             ConsumoAguaDiario = request.ConsumoAguaDiario,
             ConsumoAguaPh = request.ConsumoAguaPh,
             ConsumoAguaOrp = request.ConsumoAguaOrp,
-            ConsumoAguaTemperatura = request.ConsumoAguaTemperatura
+            ConsumoAguaTemperatura = request.ConsumoAguaTemperatura,
+            CompanyId = _currentUser.CompanyId,
+            CreatedByUserId = _currentUser.UserId,
+            CreatedAt = DateTime.UtcNow
         };
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2) ────────────
@@ -544,6 +547,8 @@ public class ProduccionService : IProduccionService
         entity.ConsumoAguaPh = request.ConsumoAguaPh;
         entity.ConsumoAguaOrp = request.ConsumoAguaOrp;
         entity.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura;
+        entity.UpdatedByUserId = _currentUser.UserId;
+        entity.UpdatedAt = DateTime.UtcNow;
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (Fase 3 paso 2) ──
         // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.
