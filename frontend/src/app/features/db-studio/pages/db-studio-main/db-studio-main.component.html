@@ -30,6 +30,18 @@
       }
     </nav>
 
+    @if (isAdmin()) {
+      <button type="button"
+        class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border border-ital-green/30 text-ital-green bg-ital-green/5 hover:bg-ital-green/10 disabled:opacity-50 disabled:cursor-not-allowed"
+        [disabled]="backupBusy()" (click)="downloadBackup()" title="Descargar copia de seguridad completa (SQL)">
+        @if (backupBusy()) {
+          <span class="animate-spin">⏳</span> Generando…
+        } @else {
+          <span>💾</span> Copia de seguridad
+        }
+      </button>
+    }
+
     <span class="text-[11px] px-2 py-1 rounded-full font-semibold"
           [class]="isAdmin() ? 'bg-ital-orange/15 text-ital-orange' : 'bg-slate-100 text-slate-500'">
       {{ isAdmin() ? 'Administrador' : 'Acceso limitado' }}

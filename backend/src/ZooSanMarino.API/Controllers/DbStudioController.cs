@@ -371,6 +371,33 @@ public class DbStudioController : ControllerBase
         return (object?)new { message = "Datos importados exitosamente" };
     });
 
+    // ===================== BACKUP COMPLETO (admin) =====================
+    /// <summary>
+    /// Descarga una copia de seguridad completa (todas las tablas/datos/índices/FKs/vistas/funciones/
+    /// triggers) como SQL restaurable. Streaming directo a la respuesta: no se buferea en memoria.
+    /// </summary>
+    [HttpGet("backup")]
+    public async Task<IActionResult> DownloadBackup()
+    {
+        try
+        {
+            await _authz.EnsureAdminAsync();
+            var fileName = $"sanmarino-{DateTime.UtcNow:yyyy-MM-dd}-produccion.sql";
+            Response.ContentType = "application/sql";
+            Response.Headers.ContentDisposition = $"attachment; filename=\"{fileName}\"";
+            await _svc.WriteDatabaseBackupAsync(Response.Body, HttpContext.RequestAborted);
+            return new EmptyResult();
+        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DownloadBackup");
+            if (Response.HasStarted) throw; // ya se envió streaming al cliente: no se puede cambiar el status code.
+            return StatusCode(500, new { message = "Error interno" });
+        }
+    }
+
     // ===================== ANÁLISIS / UTILIDADES =====================
     [HttpGet("data-types")]
     public Task<ActionResult> GetDataTypes() => Run(async () =>

@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import type {
   MyAccessDto, ObjectGrantDto, GrantRequest, ActivitySnapshot, PoolStats, LockDto,
@@ -381,6 +381,11 @@ export class DbStudioService {
     return this.http.get(`${API}/schemas/${encodeURIComponent(schema)}/export`, {
       responseType: 'blob'
     });
+  }
+
+  /** Copia de seguridad completa (todas las tablas/datos/índices/FKs/vistas/funciones/triggers). Solo admin. */
+  downloadBackup(): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${API}/backup`, { responseType: 'blob', observe: 'response' });
   }
 
   // ===================== ACCESO / VISTAS / FUNCIONES =====================
