@@ -74,6 +74,17 @@ Rama: `feature/modulo-vacunacion`
 - [x] Preview server de verificación (`frontend-node22-4300`) detenido al terminar — sin procesos huérfanos de este agente
 - [x] Reportado al usuario (ver resumen de cierre)
 
+## Fix post-entrega — permisos de rol Admin (2026-07-15)
+
+Reportado por el usuario: "Cronograma no trae nada" — el botón "+ Agregar vacuna" no aparecía tras elegir granja/lote (captura: granja NIZA III, lote K345B). Causa confirmada por `psql` contra `sanmarinoapplocal`: el rol `Admin` (role_id=1) solo tenía 2/4 permisos de vacunación asignados (`vacunacion.cronograma.ver`, `vacunacion.registro.aplicar`, asignados manualmente en algún momento vía Roles/UI) — faltaban `vacunacion.cronograma.administrar` (gatea el botón "+ Agregar vacuna"/Editar/Eliminar) y `vacunacion.reportes.ver` (gatea `POST /VacunacionReportes/cumplimiento`, 403 si falta).
+
+- [x] Migración `20260715131452_AddRolePermissionsVacunacionAdmin` — asigna los 4 permisos `vacunacion.%` a role_id=1, idempotente (`NOT EXISTS`), a pedido explícito del usuario (vía migración en vez de hacerlo a mano en Roles/UI)
+- [x] Aplicada a `sanmarinoapplocal` con `dotnet ef database update` desde `ZooSanMarino.Infrastructure` (evita el lock del `bin/` de la API, que el usuario tenía corriendo)
+- [x] Verificado por `psql`: los 4 permisos ya están en `role_permissions` para role_id=1
+- [ ] **Pendiente que el usuario haga**: cerrar sesión y volver a iniciar sesión en la app (el array `permisos` se arma en el login/bootstrap; sin re-login la sesión en `localStorage` sigue con los permisos viejos)
+- [ ] **Pendiente que el usuario haga**: cargar al menos 1 ítem de catálogo con `tipo_item='vacuna'` en Inventario para `company_id=1` (Agroavicola Sanmarino) — hoy son 0; sin eso el modal "+ Agregar vacuna" no tiene ninguna vacuna para ofrecer en el desplegable, aunque el botón ya sea visible
+- [ ] Sin commitear todavía (rama `feature/modulo-vacunacion`)
+
 ## Pendiente explícito (no alcanzado en esta sesión)
 - Tests de integración backend (cronograma por línea, registrar aplicación, motivo obligatorio)
 - Tests Karma de `funciones/` puras del frontend
