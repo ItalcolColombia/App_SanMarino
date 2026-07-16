@@ -147,7 +147,12 @@ public partial class SeguimientoAvesEngordeService
             CreatedByUserId = dto.CreatedByUserId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = null,
-            HistoricoConsumoAlimento = historicoConsumo
+            HistoricoConsumoAlimento = historicoConsumo,
+            // Panamá: alimento en quintales por categoría. El DTO ya los traía (formularios Panamá y puente
+            // de migración) pero se descartaban al persistir; sin esto qq_* queda null en BD.
+            QqMixtas = dto.QqMixtas,
+            QqHembras = dto.QqHembras,
+            QqMachos = dto.QqMachos
         };
         _ctx.SeguimientoDiarioAvesEngorde.Add(ent);
 
@@ -282,6 +287,10 @@ public partial class SeguimientoAvesEngordeService
         ent.ConsumoAguaPh = dto.ConsumoAguaPh;
         ent.ConsumoAguaOrp = dto.ConsumoAguaOrp;
         ent.ConsumoAguaTemperatura = dto.ConsumoAguaTemperatura;
+        // Panamá: quintales por categoría (espejo del Create; antes se descartaban al persistir).
+        ent.QqMixtas = dto.QqMixtas;
+        ent.QqHembras = dto.QqHembras;
+        ent.QqMachos = dto.QqMachos;
         var oldByItemId = ent.Metadata != null ? ParseMetadataItemsToKg(ent.Metadata.RootElement) : new Dictionary<int, decimal>();
 
         // Reconstruir snapshot de consumo por ítem (saldo_inicial = stock actual + consumo anterior del registro).

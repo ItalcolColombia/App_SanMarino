@@ -58,6 +58,10 @@ public class MigracionMasivaConfiguration : IEntityTypeConfiguration<MigracionMa
             .HasColumnName("errores")
             .HasColumnType("jsonb");
 
+        builder.Property(x => x.DetalleJson)
+            .HasColumnName("detalle_json")
+            .HasColumnType("jsonb");
+
         builder.Property(x => x.FechaProceso)
             .HasColumnName("fecha_proceso")
             .HasColumnType("timestamp with time zone")

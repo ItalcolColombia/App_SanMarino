@@ -34,5 +34,13 @@ public class MigracionMasiva : AuditableEntity
     /// <summary>Errores serializados (jsonb) — lista de <c>MigracionErrorDto</c>.</summary>
     public string? ErroresJson { get; set; }
 
+    /// <summary>
+    /// Detalle completo de la corrida serializado (jsonb), específico de cada tipo de migración.
+    /// Hoy lo usa el puente Panamá (Tipo="SincronizacionPanamaEngorde": ResultadoSincronizacionDto podado)
+    /// para reconstruir en el historial los mismos contadores/mensajes de la previsualización.
+    /// Null en los tipos que no lo persisten (contrato del historial genérico intacto).
+    /// </summary>
+    public string? DetalleJson { get; set; }
+
     public DateTime FechaProceso { get; set; } = DateTime.UtcNow;
 }

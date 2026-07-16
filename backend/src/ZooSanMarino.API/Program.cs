@@ -221,6 +221,9 @@ builder.Services.AddScoped<IMovimientoPolloEngordeService, MovimientoPolloEngord
 builder.Services.AddScoped<IMovimientoPolloEngordePanamaService, MovimientoPolloEngordePanamaService>();
 builder.Services.AddScoped<IMovimientoPolloEngordeFilterDataService, MovimientoPolloEngordeFilterDataService>();
 builder.Services.AddScoped<IInventarioGastoService, InventarioGastoService>();
+builder.Services.AddScoped<IVacunacionCronogramaService, VacunacionCronogramaService>();
+builder.Services.AddScoped<IVacunacionRegistroService, VacunacionRegistroService>();
+builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
@@ -264,6 +267,10 @@ builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 // Migraciones Masivas (módulo independiente)
 builder.Services.AddScoped<IMigracionRepository, MigracionRepository>();
 builder.Services.AddScoped<IMigracionService, MigracionService>();
+
+// Puente de consulta ZooPanamaPollo → pollo engorde (SOLO LECTURA del origen; sincronización idempotente)
+builder.Services.AddHttpClient<IPuentePanamaApiClient, PuentePanamaApiClient>();
+builder.Services.AddScoped<IPuentePanamaService, PuentePanamaService>();
 
 // Liquidación Técnica Service
 builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService>();

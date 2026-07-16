@@ -139,6 +139,16 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.MigracionesMasivasRoutingModule)
       },
 
+      // Sincronización / Integración Panamá (bajo el área de Migraciones)
+      // Ruta resultante: /migraciones/sincronizacion-panama
+      {
+        path: 'migraciones',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/sincronizacion-panama/sincronizacion-panama-routing.module')
+            .then(m => m.SincronizacionPanamaRoutingModule)
+      },
+
       {
         path: 'config',
         component: ConfigComponent,
@@ -401,6 +411,13 @@ export const appConfig: ApplicationConfig = {
         loadChildren: () =>
           import('./features/movimientos-pollo-engorde/movimientos-pollo-engorde-routing.module')
             .then(m => m.MovimientosPolloEngordeRoutingModule)
+      },
+      {
+        path: 'vacunacion',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/vacunacion/vacunacion-routing.module')
+            .then(m => m.VacunacionRoutingModule)
       },
 
       // Módulo Mapas (configuraciones y ejecución)

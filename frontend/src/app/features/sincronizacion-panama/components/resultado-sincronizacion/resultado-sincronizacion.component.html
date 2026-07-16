@@ -1,0 +1,85 @@
+<div class="res" *ngIf="resultado() as r">
+  <!-- Cabecera: estado + duración + export -->
+  <div class="res__head">
+    <div class="res__badge" [class]="'tono--' + badge().tono">
+      <span class="res__dot" aria-hidden="true"></span>
+      {{ titulo() }} · <strong>{{ badge().etiqueta }}</strong>
+    </div>
+    <div class="res__meta">
+      <span class="res__chip" *ngIf="r.anio != null">Año: {{ r.anio }}</span>
+      <span class="res__chip" *ngIf="r.anio == null">Año: todos</span>
+      <span class="res__chip">Empresa #{{ r.companyId }}</span>
+      <span class="res__chip" *ngIf="r.guiaGeneticaImportada">
+        Guía importada{{ r.guiaGeneticaRazaAnio ? ' · ' + r.guiaGeneticaRazaAnio : '' }}
+      </span>
+      <span class="res__chip res__chip--time">⏱ {{ num(r.duracionMs) }} ms</span>
+    </div>
+    <button type="button" class="btn btn--outline btn--sm" (click)="exportar()" [disabled]="!r.lotes.length">
+      <span aria-hidden="true">⬇️</span> Exportar Excel
+    </button>
+  </div>
+
+  <!-- Aviso fuerte: se creó (o se crearía) una guía de PRUEBA -->
+  <div class="res__fake tono--alerta" *ngIf="r.guiaGeneticaFakeCreada" role="alert">
+    <strong>⚠ GUÍA DE PRUEBA (FAKE){{ r.dryRun ? ' — se crearía' : ' creada' }}</strong>
+    {{ r.guiaGeneticaRazaAnio ? '· ' + r.guiaGeneticaRazaAnio : '' }} —
+    cargá la guía genética real: los indicadores contra guía NO son válidos hasta entonces.
+  </div>
+
+  <!-- Tarjetas de contadores -->
+  <div class="tarjetas">
+    <div *ngFor="let t of tarjetas()" class="tarjeta" [class]="'tono--' + t.tono">
+      <span class="tarjeta__valor">{{ t.valor }}</span>
+      <span class="tarjeta__etiqueta">{{ t.etiqueta }}</span>
+    </div>
+  </div>
+
+  <!-- Tabla por lote -->
+  <div class="tabla-wrap" *ngIf="filas().length; else sinLotes">
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>Lote</th>
+          <th>Granja</th>
+          <th>Galpón</th>
+          <th>Fecha inicio</th>
+          <th class="num">Aves enc.</th>
+          <th class="num"># Seg.</th>
+          <th class="num"># Repro.</th>
+          <th class="num"># Seg. repro.</th>
+          <th class="num"># Lesiones</th>
+          <th>Estado</th>
+          <th>Mensaje</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let f of filas()">
+          <td class="strong">{{ f.l.lote }}</td>
+          <td>{{ f.l.granja }}</td>
+          <td>{{ f.l.galpon }}</td>
+          <td>{{ fecha(f.l.fechaInicio) }}</td>
+          <td class="num">{{ num(f.l.avesEncasetadas) }}</td>
+          <td class="num">{{ num(f.l.seguimientos) }}</td>
+          <td class="num">{{ num(f.l.reproductoras) }}</td>
+          <td class="num">{{ num(f.l.seguimientosReproductora) }}</td>
+          <td class="num">{{ num(f.l.lesiones || 0) }}</td>
+          <td>
+            <span class="pill" [class]="'tono--' + f.badge.tono">{{ f.badge.etiqueta }}</span>
+          </td>
+          <td class="msg">{{ f.l.mensaje || '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <ng-template #sinLotes>
+    <p class="empty">No se encontraron lotes con los filtros aplicados.</p>
+  </ng-template>
+
+  <!-- Mensajes / advertencias -->
+  <div class="mensajes" *ngIf="mensajes().length">
+    <h4 class="mensajes__title">Mensajes ({{ mensajes().length }})</h4>
+    <ul class="mensajes__list">
+      <li *ngFor="let m of mensajes()">{{ m }}</li>
+    </ul>
+  </div>
+</div>

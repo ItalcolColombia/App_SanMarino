@@ -1,0 +1,224 @@
+<div class="mx-auto max-w-7xl p-4 sm:p-6">
+  <!-- Header de página -->
+  <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div
+        class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
+        style="background: var(--ital-orange-100)"
+        aria-hidden="true"
+      >
+        💉
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Cronograma de vacunación</h1>
+        <p class="text-sm" style="color: var(--ital-muted)">
+          Armá el plan de vacunas de todo el ciclo de vida del lote (Levante ↔ Producción encadenados).
+        </p>
+      </div>
+    </div>
+    <button type="button" class="btn-ghost text-sm" (click)="cargarFiltros(true)" [disabled]="cargandoFiltros">
+      ⟳ Actualizar datos
+    </button>
+  </header>
+
+  <!-- Filtros -->
+  <div class="ux-card mb-4 p-4">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div>
+        <label class="form-label" for="cron-granja">Granja</label>
+        <select
+          id="cron-granja"
+          class="form-input"
+          [(ngModel)]="granjaSeleccionadaId"
+          (ngModelChange)="onGranjaChange()"
+          [disabled]="cargandoFiltros"
+        >
+          <option [ngValue]="null">{{ cargandoFiltros ? 'Cargando granjas…' : 'Seleccione…' }}</option>
+          <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
+        </select>
+      </div>
+      <div class="sm:col-span-1 lg:col-span-2">
+        <label class="form-label" for="cron-lote">Lote</label>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="text"
+            class="form-input sm:max-w-[230px]"
+            placeholder="🔍 Buscar lote…"
+            [(ngModel)]="filtroLote"
+            (ngModelChange)="aplicarFiltroLotes()"
+            [disabled]="!granjaSeleccionadaId || cargandoFiltros"
+            aria-label="Buscar lote por nombre"
+          />
+          <select
+            id="cron-lote"
+            class="form-input"
+            [ngModel]="loteSeleccionado"
+            (ngModelChange)="onLoteChange($event)"
+            [disabled]="!granjaSeleccionadaId || cargandoFiltros"
+          >
+            <option [ngValue]="null">
+              {{ lotesFiltrados.length ? 'Seleccione…' : granjaSeleccionadaId ? 'Sin lotes para esta granja' : 'Elija una granja primero' }}
+            </option>
+            <option *ngFor="let l of lotesFiltrados; trackBy: trackByLote" [ngValue]="l">
+              {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div *ngIf="cargandoFiltros" class="loading-toast mt-3" role="status">
+      <span class="spinner spinner--sm"></span> Cargando granjas, lotes y vacunas…
+    </div>
+  </div>
+
+  <!-- KPIs del lote -->
+  <div *ngIf="kpis && loteSeleccionado" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-orange-dark)">{{ kpis.total }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Programadas</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--success)">{{ kpis.aplicadasATiempo }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">A tiempo</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold text-amber-600">{{ kpis.tardias + kpis.adelantadas }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Fuera de franja</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--danger)">{{ kpis.incumplidas + kpis.noAplicadas }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Incumplidas / No aplic.</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-text)">{{ kpis.pendientes }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Pendientes</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-orange)">
+        {{ kpis.porcentajeAvance !== null ? kpis.porcentajeAvance + '%' : '—' }}
+      </div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Avance</div>
+    </div>
+  </div>
+
+  <!-- Tabla del cronograma -->
+  <div *ngIf="loteSeleccionado" class="ux-card overflow-hidden">
+    <div
+      class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3"
+      style="border-color: var(--ital-green-100)"
+    >
+      <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">
+        {{ loteSeleccionado.loteNombre }} — {{ lineaLabel[loteSeleccionado.lineaProductiva] }}
+      </h2>
+      <div class="flex gap-2">
+        <button type="button" class="btn-ghost text-sm" (click)="exportar()">⬇ Exportar Excel</button>
+        <button
+          type="button"
+          *appHasPermission="'vacunacion.cronograma.administrar'"
+          class="btn-primary text-sm"
+          (click)="abrirNuevo()"
+        >
+          + Agregar vacuna
+        </button>
+      </div>
+    </div>
+
+    <div class="relative">
+      <div class="ux-scroll overflow-x-auto">
+        <table class="ux-table min-w-[780px]">
+          <thead>
+            <tr>
+              <th>Vacuna</th>
+              <th>Programado</th>
+              <th>Franja válida</th>
+              <th>Estado</th>
+              <th>Notas</th>
+              <th class="text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let fila of filas; trackBy: trackByFila">
+              <td>{{ fila.item.itemInventarioNombre }}</td>
+              <td>
+                <ng-container [ngSwitch]="fila.item.unidadObjetivo">
+                  <span *ngSwitchCase="'Semana'">Semana {{ fila.item.valorObjetivo }}</span>
+                  <span *ngSwitchCase="'Dia'">Día {{ fila.item.valorObjetivo }}</span>
+                  <span *ngSwitchDefault>{{ fila.item.fechaObjetivo | date: 'dd/MM/yyyy' }}</span>
+                </ng-container>
+              </td>
+              <td>{{ fila.item.fechaInicioFranja | date: 'dd/MM/yyyy' }} — {{ fila.item.fechaFinFranja | date: 'dd/MM/yyyy' }}</td>
+              <td>
+                <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="fila.estado.claseBadge">
+                  {{ fila.estado.etiqueta }}
+                </span>
+              </td>
+              <td class="max-w-[220px] truncate" [title]="fila.item.notas ?? ''">{{ fila.item.notas ?? '—' }}</td>
+              <td class="text-right">
+                <div class="inline-flex gap-1.5">
+                  <button
+                    type="button"
+                    *appHasPermission="'vacunacion.cronograma.administrar'"
+                    class="rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors hover:brightness-95"
+                    style="color: var(--ital-orange-dark); background: var(--ital-orange-50)"
+                    (click)="abrirEditar(fila)"
+                  >
+                    ✎ Editar
+                  </button>
+                  <button
+                    type="button"
+                    *appHasPermission="'vacunacion.cronograma.administrar'"
+                    class="rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors hover:brightness-95"
+                    style="color: var(--danger); background: rgba(220, 38, 38, 0.08)"
+                    (click)="eliminar(fila)"
+                  >
+                    🗑 Eliminar
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="!filas.length && !cargandoCronograma">
+              <td colspan="6">
+                <div class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">📋</div>
+                  Sin vacunas programadas todavía. Usá “+ Agregar vacuna” para armar el plan.
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div *ngIf="cargandoCronograma" class="loading-overlay" role="status" aria-label="Cargando cronograma">
+        <span class="spinner"></span>
+      </div>
+    </div>
+
+    <!-- Leyenda de estados -->
+    <div
+      class="flex flex-wrap items-center gap-3 border-t px-4 py-2 text-xs"
+      style="border-color: var(--ital-green-100); color: var(--ital-muted)"
+    >
+      <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-gray-300"></span> Pendiente</span>
+      <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-green-500"></span> A tiempo</span>
+      <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-amber-500"></span> Adelantado / tardío leve</span>
+      <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-red-500"></span> Incumplido / no aplicado</span>
+    </div>
+  </div>
+
+  <!-- Placeholder sin lote -->
+  <div *ngIf="!loteSeleccionado" class="ux-card">
+    <div class="empty-state">
+      <div class="empty-illustration" aria-hidden="true">💉</div>
+      Seleccioná una granja y un lote para ver o armar su cronograma de vacunación.
+    </div>
+  </div>
+</div>
+
+<app-modal-item-cronograma
+  [open]="modalAbierto"
+  [lineaProductiva]="loteSeleccionado?.lineaProductiva ?? 'Levante'"
+  [loteId]="loteSeleccionado?.loteId ?? 0"
+  [vacunas]="vacunas"
+  [itemEditar]="itemEditar"
+  (cerrado)="cerrarModal()"
+  (guardado)="onGuardado()"
+></app-modal-item-cronograma>

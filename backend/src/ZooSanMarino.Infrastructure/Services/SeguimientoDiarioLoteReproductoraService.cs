@@ -62,7 +62,10 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             ConsumoAguaOrp: e.ConsumoAguaOrp,
             ConsumoAguaTemperatura: e.ConsumoAguaTemperatura,
             CreatedByUserId: e.CreatedByUserId,
-            SaldoAlimentoKg: null
+            SaldoAlimentoKg: null,
+            QqMixtas: e.QqMixtas,
+            QqHembras: e.QqHembras,
+            QqMachos: e.QqMachos
         );
     }
 
@@ -203,7 +206,11 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             ProtAveH = dto.ProtAveH,
             CreatedByUserId = dto.CreatedByUserId,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = null
+            UpdatedAt = null,
+            // Panamá: quintales por categoría (el DTO ya los traía; antes se descartaban al persistir)
+            QqMixtas = dto.QqMixtas,
+            QqHembras = dto.QqHembras,
+            QqMachos = dto.QqMachos
         };
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
@@ -276,6 +283,10 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         ent.ConsumoAguaPh = dto.ConsumoAguaPh;
         ent.ConsumoAguaOrp = dto.ConsumoAguaOrp;
         ent.ConsumoAguaTemperatura = dto.ConsumoAguaTemperatura;
+        // Panamá: quintales por categoría (espejo del Create).
+        ent.QqMixtas = dto.QqMixtas;
+        ent.QqHembras = dto.QqHembras;
+        ent.QqMachos = dto.QqMachos;
         ent.Metadata = dto.Metadata;
         ent.ItemsAdicionales = dto.ItemsAdicionales;
         ent.KcalAlH = dto.KcalAlH;

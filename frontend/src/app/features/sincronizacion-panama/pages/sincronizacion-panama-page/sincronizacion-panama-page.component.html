@@ -1,0 +1,278 @@
+<div class="sync">
+  <!-- Header -->
+  <header class="page-header">
+    <div class="page-header__content">
+      <div class="page-header__text">
+        <h1 class="page-header__title">Sincronización · Integración Panamá</h1>
+        <p class="page-header__subtitle">
+          Trae datos del sistema anterior <strong>ZooPanamaPollo</strong> hacia el módulo de Pollo
+          Engorde. Solo lectura contra el origen; la inserción se hace en la <strong>empresa activa</strong>.
+          Previsualizá primero (dry-run) para ver exactamente qué se traería.
+        </p>
+      </div>
+      <div class="page-header__accent" aria-hidden="true"></div>
+    </div>
+    <div class="page-header__toolbar">
+      <app-company-selector></app-company-selector>
+    </div>
+  </header>
+
+  <!-- 1) Conexión (origen) -->
+  <section class="card" [formGroup]="conexionForm">
+    <div class="card__head">
+      <span class="step">1</span>
+      <h2 class="card__title">Conexión al origen</h2>
+    </div>
+
+    <div class="grid grid--conexion">
+      <label class="field field--wide">
+        <span class="field__label">URL del Swagger (baseUrl)</span>
+        <input type="url" class="input" formControlName="baseUrl" placeholder="https://…" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span class="field__label">Email</span>
+        <input type="email" class="input" formControlName="email" placeholder="usuario@italcol.com" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span class="field__label">Contraseña</span>
+        <input type="password" class="input" formControlName="password" placeholder="••••••••" autocomplete="new-password" />
+      </label>
+    </div>
+
+    <p class="hint">
+      Si dejás estos campos vacíos se usa la configuración del backend. Completalos solo para
+      apuntar a otro origen o probar con otras credenciales.
+    </p>
+
+    <div class="actions">
+      <button type="button" class="btn btn--outline" (click)="probarConexion()" [disabled]="probando()">
+        <span *ngIf="probando()" class="spinner" aria-hidden="true"></span>
+        {{ probando() ? 'Probando…' : 'Probar conexión' }}
+      </button>
+
+      <span *ngIf="testResult() as t"
+            class="conn-result"
+            [class.conn-result--ok]="t.ok"
+            [class.conn-result--err]="!t.ok">
+        <span class="conn-result__dot" aria-hidden="true"></span>
+        <ng-container *ngIf="t.ok">
+          Conexión OK<span *ngIf="t.expiracion"> · token expira {{ t.expiracion }}</span>
+        </ng-container>
+        <ng-container *ngIf="!t.ok">{{ t.mensaje || 'No se pudo conectar.' }}</ng-container>
+      </span>
+    </div>
+  </section>
+
+  <!-- 2) Filtros -->
+  <section class="card" [formGroup]="filtrosForm">
+    <div class="card__head">
+      <span class="step">2</span>
+      <h2 class="card__title">Filtros</h2>
+    </div>
+
+    <div class="grid grid--filtros">
+      <!-- Cliente (dependiente del origen) -->
+      <div class="field">
+        <span class="field__label">Cliente (origen)</span>
+        <div class="field__row">
+          <select class="input" formControlName="clienteIdOrigen">
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let c of clientes()" [ngValue]="c.id">{{ c.nombre }}</option>
+          </select>
+          <button type="button" class="btn btn--ghost btn--sm" (click)="cargarClientes()" [disabled]="cargandoClientes()">
+            <span *ngIf="cargandoClientes()" class="spinner" aria-hidden="true"></span>
+            {{ clientes().length ? 'Recargar' : 'Cargar' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Granja (dependiente del cliente) -->
+      <div class="field">
+        <span class="field__label">Granja (origen)</span>
+        <div class="field__row">
+          <select class="input" formControlName="granjaIdOrigen">
+            <option [ngValue]="null">Todas</option>
+            <option *ngFor="let g of granjas()" [ngValue]="g.id">{{ g.nombre }}</option>
+          </select>
+          <button type="button" class="btn btn--ghost btn--sm" (click)="cargarGranjas()" [disabled]="cargandoGranjas()">
+            <span *ngIf="cargandoGranjas()" class="spinner" aria-hidden="true"></span>
+            {{ granjas().length ? 'Recargar' : 'Cargar' }}
+          </button>
+        </div>
+      </div>
+
+      <label class="field">
+        <span class="field__label">Año <em class="field__opt">(opcional = todos)</em></span>
+        <input type="number" class="input" formControlName="anio" placeholder="Ej. 2025" min="2000" max="2100" />
+      </label>
+
+      <label class="field">
+        <span class="field__label">Fecha hasta <em class="field__opt">(opcional)</em></span>
+        <input type="date" class="input" formControlName="fechaHasta" />
+      </label>
+    </div>
+
+    <!-- Genética -->
+    <div class="subsection">
+      <h3 class="subsection__title">Genética</h3>
+      <div class="grid grid--filtros">
+        <label class="field">
+          <span class="field__label">Raza global <em class="field__opt">(opcional = línea genética del origen por lote)</em></span>
+          <input type="text" class="input" formControlName="geneticaRaza" placeholder="Ej. Ross 308" />
+        </label>
+        <label class="field">
+          <span class="field__label">Año genética <em class="field__opt">(opcional = año de inicio del lote)</em></span>
+          <input type="number" class="input" formControlName="geneticaAnio" placeholder="Ej. 2024" min="2000" max="2100" />
+        </label>
+        <label class="field field--check">
+          <input type="checkbox" formControlName="importarGuiaGenetica" />
+          <span>Importar guía genética del origen</span>
+        </label>
+        <label class="field field--check">
+          <input type="checkbox" formControlName="crearGuiaFakeSiFalta" />
+          <span>Crear guía de PRUEBA (FAKE) si falta la real</span>
+        </label>
+      </div>
+      <p class="hint">
+        Sin guía genética (raza + año) en la empresa destino los lotes quedan <strong>pendientes y NO se crean</strong>.
+        Dejá marcado «Importar guía genética del origen». La guía de PRUEBA es una red de seguridad: se marca como
+        FAKE y los indicadores contra guía no valen hasta cargar la real.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3) Acciones -->
+  <section class="card">
+    <div class="card__head">
+      <span class="step">3</span>
+      <h2 class="card__title">Previsualizar y sincronizar</h2>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn--outline" (click)="previsualizar()" [disabled]="procesando()">
+        <span *ngIf="previsualizando()" class="spinner" aria-hidden="true"></span>
+        {{ previsualizando() ? 'Previsualizando…' : 'Previsualizar (dry-run)' }}
+      </button>
+
+      <button type="button" class="btn btn--primary" (click)="sincronizar()" [disabled]="procesando()">
+        <span *ngIf="sincronizando()" class="spinner" aria-hidden="true"></span>
+        {{ sincronizando() ? 'Sincronizando…' : 'Sincronizar (real)' }}
+      </button>
+
+      <span class="actions__note">
+        La previsualización no modifica nada. La sincronización inserta/actualiza en la empresa activa.
+      </span>
+    </div>
+  </section>
+
+  <!-- 4) Resultado -->
+  <section class="card" *ngIf="resultado() as r">
+    <div class="card__head">
+      <h2 class="card__title">{{ r.dryRun ? 'Resultado de la previsualización' : 'Resultado de la sincronización' }}</h2>
+    </div>
+
+    <!-- Confirmación inequívoca de la corrida (persistente hasta la próxima corrida) -->
+    <div class="confirmacion" *ngIf="confirmacion() as cf" [class]="'confirmacion tono--' + cf.tono" role="status">
+      <p class="confirmacion__titulo">{{ cf.titulo }}</p>
+      <p class="confirmacion__detalle">{{ cf.detalle }}</p>
+    </div>
+
+    <app-resultado-sincronizacion [resultado]="r"></app-resultado-sincronizacion>
+  </section>
+
+  <!-- 5) Historial de sincronizaciones -->
+  <section class="card">
+    <div class="card__head card__head--split">
+      <div class="card__head-left">
+        <span class="step">4</span>
+        <h2 class="card__title">Historial de sincronizaciones</h2>
+      </div>
+      <div class="historial__tools">
+        <label class="field--check field--check-sm">
+          <input type="checkbox" [checked]="incluirValidaciones()"
+                 (change)="toggleValidaciones($any($event.target).checked)" />
+          <span>Incluir validaciones (dry-run)</span>
+        </label>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="cargarHistorial()" [disabled]="cargandoHistorial()">
+          <span *ngIf="cargandoHistorial()" class="spinner" aria-hidden="true"></span>
+          Refrescar
+        </button>
+      </div>
+    </div>
+
+    <ng-container *ngIf="historial() as h; else historialVacio">
+      <div class="htabla-wrap" *ngIf="h.items.length; else historialVacio">
+        <table class="htabla">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Estado</th>
+              <th class="num">Duración</th>
+              <th class="num">Lotes</th>
+              <th class="num">Nuevos</th>
+              <th class="num">Pendientes</th>
+              <th class="num">Con error</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let f of filasHistorial()"
+                [class.htabla__fila--activa]="detalleHistorial()?.id === f.h.id">
+              <td class="strong">#{{ f.h.id }}</td>
+              <td>{{ fechaHistorial(f.h.fechaProceso) }}</td>
+              <td>
+                <span class="pill" [class]="'pill ' + (f.h.fueDryRun ? 'pill--validacion' : 'pill--real')">
+                  {{ f.h.fueDryRun ? 'Validación' : 'Real' }}
+                </span>
+              </td>
+              <td><span class="pill" [class]="'pill tono--' + f.badge.tono">{{ f.badge.etiqueta }}</span></td>
+              <td class="num">{{ f.h.duracionMs != null ? ((f.h.duracionMs / 1000) | number:'1.1-1') + ' s' : '—' }}</td>
+              <td class="num">{{ f.h.lotesTotales }}</td>
+              <td class="num">{{ f.h.lotesNuevos }}</td>
+              <td class="num" [class.htabla__alerta]="f.h.lotesPendientes > 0">{{ f.h.lotesPendientes }}</td>
+              <td class="num" [class.htabla__peligro]="f.h.lotesConError > 0">{{ f.h.lotesConError }}</td>
+              <td>
+                <button type="button" class="btn btn--outline btn--sm"
+                        (click)="verDetalleHistorial(f.h.id)"
+                        [disabled]="cargandoDetalleId() != null"
+                        [title]="f.h.tieneDetalle ? 'Ver el detalle completo de la corrida' : 'Corrida anterior a la mejora: solo metadatos'">
+                  <span *ngIf="cargandoDetalleId() === f.h.id" class="spinner" aria-hidden="true"></span>
+                  Ver detalle
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="historial__paginado" *ngIf="totalPaginasHistorial() > 1">
+        <button type="button" class="btn btn--ghost btn--sm"
+                (click)="cargarHistorial(h.page - 1)" [disabled]="h.page <= 1 || cargandoHistorial()">‹ Anterior</button>
+        <span class="historial__pagina">Página {{ h.page }} de {{ totalPaginasHistorial() }} · {{ h.total }} corrida(s)</span>
+        <button type="button" class="btn btn--ghost btn--sm"
+                (click)="cargarHistorial(h.page + 1)" [disabled]="h.page >= totalPaginasHistorial() || cargandoHistorial()">Siguiente ›</button>
+      </div>
+    </ng-container>
+    <ng-template #historialVacio>
+      <p class="hint" *ngIf="!cargandoHistorial()">
+        Todavía no hay corridas registradas para la empresa activa (o el backend aún no tiene la mejora de historial: reinicialo).
+      </p>
+    </ng-template>
+
+    <!-- Detalle de la corrida seleccionada (mismo componente que la previsualización) -->
+    <div class="historial__detalle" *ngIf="detalleHistorial() as d">
+      <div class="historial__detalle-head">
+        <h3 class="historial__detalle-titulo">
+          Corrida #{{ d.id }} · {{ d.fueDryRun ? 'Validación' : 'Sincronización real' }} · {{ fechaHistorial(d.fechaProceso) }}
+        </h3>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="cerrarDetalleHistorial()">✕ Cerrar</button>
+      </div>
+      <app-resultado-sincronizacion *ngIf="d.resultado; else sinDetalle" [resultado]="d.resultado"></app-resultado-sincronizacion>
+      <ng-template #sinDetalle>
+        <p class="hint">Esta corrida es anterior a la mejora de historial: no tiene el detalle completo persistido (solo los contadores de la tabla).</p>
+      </ng-template>
+    </div>
+  </section>
+</div>

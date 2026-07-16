@@ -92,6 +92,11 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
         public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();
         public DbSet<LiquidacionLoteEngordePanama> LiquidacionLoteEngordePanama => Set<LiquidacionLoteEngordePanama>();
+
+        // Vacunación (cronogramas por lote/granja/galpón)
+        public DbSet<VacunacionCronogramaItem> VacunacionCronogramaItem => Set<VacunacionCronogramaItem>();
+        public DbSet<VacunacionRegistroAplicacion> VacunacionRegistroAplicacion => Set<VacunacionRegistroAplicacion>();
+        public DbSet<VacunacionConfiguracion> VacunacionConfiguracion => Set<VacunacionConfiguracion>();
         public DbSet<LoteRegistroHistoricoUnificado> LoteRegistroHistoricoUnificados => Set<LoteRegistroHistoricoUnificado>();
         public DbSet<LotePosturaLevante> LotePosturaLevante => Set<LotePosturaLevante>();
         public DbSet<LotePosturaProduccion> LotePosturaProduccion => Set<LotePosturaProduccion>();
