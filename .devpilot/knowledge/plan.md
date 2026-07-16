@@ -1,57 +1,18 @@
-# Plan propuesto: busca archivos que este muy largos y dividilos octimizando foram de le
+# Plan propuesto: Matriz Verenice rev 6-jul-26 — Postura Colombia (validación + corrección)
 
-**Objetivo:** busca archivos que este muy largos y dividilos octimizando foram de lectura tanto en la carpeta front y carpeta back , valida todo el proyecto y comenzemos a organizar todo el codigo completo
+**Objetivo:** corregir todos los módulos de la línea POSTURA Colombia (seguimiento diario levante, seguimiento diario producción, movimiento de aves, movimiento de huevos, reportes, indicadores/gráficas Sanmarino levante+producción) según la matriz de requerimientos de la líder funcional Verenice (rev 6-jul-26, 10 REQ + hoja FÓRMULAS ~140 parámetros), con validación previa de qué ya está resuelto en main.
+
+**Plan detallado (fuente de verdad):** `fase_de_desarrollo/postura_verenice_rev_6jul26_plan.md` · **Tracker:** `tracker_estado.md`
 
 ## Estrategia
-Backend sigue Clean Architecture (.NET 10: API/Application/Infrastructure/Domain) y ya tiene un patrón canónico de refactor definido en CLAUDE.md (partial classes en `Funciones/` + cálculo puro en `Application/Calculos/`, referencia: módulo movimientos-pollo-engorde). Verifiqué en el repo actual (no en memoria vieja) que los principales infractores siguen intactos: `MovimientoAvesService.cs` 2507 líneas, `SeguimientoAvesEngordeService.cs` 1884, `IndicadorEcuadorService.cs` 1185, `SeguimientoAvesEngordeEcuadorService.cs` 1087, `MovimientoAvesController.cs` 1019, `SeguimientoLoteLevanteService.cs` 837 (supera el límite de 800 recién por poco). El frontend (Angular 22 standalone) tiene su propio patrón (`funciones/`+`models/`) pero no fue auditado todavía, así que el ataque empieza con una auditoría completa (back+front) para no repetir trabajo ya hecho ni perder archivos nuevos. Orden: auditar → refactorizar backend de mayor a menor deuda (servicio+tests de equivalencia antes de tocar el controller que depende de él) → refactorizar frontend con el mismo criterio → build+test completo de ambos stacks → cerrar tracker y knowledge base. Cada paso deja el sistema compilando y con comportamiento idéntico (refactor ≠ cambio de lógica), evitando el rewrite big-bang.
+Validación hecha (2026-07-16) con investigación de código multi-agente (evidencia file:line) + verificación de datos en BD local (copia de prod). Resultado: 7 ítems ya RESUELTOS en main (fixes de julio, desplegados — los screenshots de Verenice eran del 12-jun, pre-fix), 18 con FALLA vigente, 17 PARCIALES y 4 alcances nuevos. Orden de ataque: Fase 0 data-fix (lotes 116/117 con encaset futuro, filas de traslado mal fechadas, año de guía K345 2023→2026 — desbloquea la mayoría de síntomas) → Fase 1 hotfixes front (columnas corridas thead/tbody en Indicadores, % consumo, TIPO ITEM, labels) → Fase 2 fn_indicadores_levante_postura (consumo H/M, acumulados sobre aves iniciales, defensas) → Fase 3 semana/edad/etapa + validaciones anti-corrupción (anti-futuro, consumo vs saldo por sexo, filter-data producción con fechaEncaset, semana 25, etapa 26-33/34-50/>50) → Fase 4 traslado (default de fecha) → Fase 5 reporte semanal por sexo + barrido conversión alimenticia + selector H/M → Fase 6 transversales (vista Power BI a migración EF, enforcement edición, Lote General A+B+C, %Retiro, autosave borrador, carga masiva lotes postura) → Fase 7 fórmulas nuevas (Kcal/Proteína, % clasificación huevo vs guía, IP/Masa/PesoM-H, embriodiagnosis — bloqueadas por insumos de la líder).
 
-## Alineación con la visión
-El repo no tiene una visión de producto documentada (el template está vacío), así que no hay north star estratégico contra el cual medir. Sin embargo esta misión sirve directamente al estándar de ingeniería vinculante del propio CLAUDE.md (clean code, orquestadores delgados, gate de líneas) y reduce una deuda técnica que ya bloqueó una misión anterior — es una mejora de mantenibilidad pura, sin tocar reglas de negocio ni UI.
+## Causas raíz descubiertas (conocimiento clave)
+1. Indicadores levante: `<tbody>` desalineado del `<thead>` en tabla-lista-indicadores (mortalidad pintada antes que peso/uniformidad) → 9 columnas corridas; el backend calcula bien.
+2. Lotes duplicados A374A/B (ids 116/117) creados a mano con fecha_encaset un año en el futuro y sin aves iniciales; `LoteService.CreateAsync` no valida futuro ni duplicado → semana=1 congelada, saldo=0, %pérdidas=100%, indicadores colapsados.
+3. Filas de traslado en seguimiento_diario_levante fechadas con "hoy" UTC (default de los callers del modal) → semanas fantasma 34/35.
+4. K345A/B siguen con año de guía 2023 (el script de alineación jamás corrió en prod).
+5. Producción: endpoint filter-data devuelve DTO sin fechaEncaset → edad 0/semana 26 fija/etapa errada; la tarjeta usa otro endpoint correcto (74 semanas).
 
-## Veredicto del CTO (salud arquitectónica)
-✓ **approve** (tendencia: stable)
-
-- La arquitectura está sana.
-
-### Evidencia
-- Sin línea base previa: se registra el estado actual como referencia (tendencia estable).
-- Ciclos de dependencia: 0 actual(es).
-- Concentración de hotspots (top-10 PageRank): 12.5%.
-- Violaciones del Architecture Guardian: 0.
-
-## CFO (estimación de costo)
-Estimación: $6.85 (modelo base: claude-sonnet-5)
-
-## Auditoría de archivos largos (front + back)
-Relevar todo el repo para tener el inventario completo y priorizado antes de tocar código.
-
-- Auditar backend y frontend en busca de archivos largos — `architecture` · architect
-
-## Backend — reducción de deuda técnica (partials + cálculo puro)
-Dividir los servicios/controllers más largos del backend siguiendo el patrón partial class + Application/Calculos, sin cambiar comportamiento.
-
-- Refactor MovimientoAvesService (2507 líneas) — `complex-refactor` · backend
-- Tests de equivalencia MovimientoAvesCalculos — `tests` · qa
-- Refactor MovimientoAvesController (1019 líneas) — `complex-refactor` · backend
-- Refactor SeguimientoAvesEngordeService (1884 líneas) — `complex-refactor` · backend
-- Tests de equivalencia SeguimientoAvesEngordeCalculos — `tests` · qa
-- Refactor IndicadorEcuadorService (1185) y SeguimientoAvesEngordeEcuadorService (1087) — `complex-refactor` · backend
-- Tests de indicadores Ecuador — `tests` · qa
-- Refactor SeguimientoLoteLevanteService (837 líneas) — `complex-refactor` · backend
-
-## Frontend — componentes/servicios largos
-Aplicar el patrón funciones/+models/ a los archivos Angular más largos detectados en la auditoría.
-
-- Priorizar archivos frontend a refactorizar — `architecture` · frontend
-- Refactor de archivos frontend priorizados — `complex-refactor` · frontend
-
-## Validación global
-Confirmar que ambos stacks compilan y los tests pasan tras todos los refactors.
-
-- Build + suite completa backend + gate de líneas — `tests` · qa
-- Build frontend de validación — `tests` · qa
-
-## Cierre
-Dejar registro reproducible del trabajo realizado.
-
-- Actualizar tracker y base de conocimiento — `documentation` · documentation
+## Validación y gates
+Cada fase: `yarn build` / `dotnet build` + `dotnet test` (xUnit para toda fórmula pura nueva). Data-fix en PROD solo con OK explícito + backup. Cambios de fn SQL vía migración EF idempotente (CREATE OR REPLACE), nunca editando migraciones aplicadas.

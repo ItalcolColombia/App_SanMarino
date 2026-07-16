@@ -1,92 +1,73 @@
-# Tracker — Módulo Vacunación (cronogramas por lote/granja/galpón)
+# Tracker — Matriz Verenice rev 6-jul-26 · Postura Colombia
 
-Plan: [vacunacion_cronograma_plan.md](fase_de_desarrollo/vacunacion_cronograma_plan.md)
+**Plan:** [fase_de_desarrollo/postura_verenice_rev_6jul26_plan.md](fase_de_desarrollo/postura_verenice_rev_6jul26_plan.md)
 
-Rama: `feature/modulo-vacunacion`
+## Validación (hecha)
+- [x] Leer Excel 6jul26 completo (12 hojas + 17 screenshots embebidos)
+- [x] Investigación de código en main por REQ (workflow 8 agentes, evidencia file:line)
+- [x] Verificación de datos en BD local (lotes 116/117 encaset futuro, filas traslado fantasma, K345 año 2023, regional resoluble vía master_list_options)
+- [x] Matriz de estado por ítem (RESUELTO/PARCIAL/FALLA/NUEVO/BLOQUEADO) en el plan
+- [ ] Validación en vivo con credenciales de Verenice (pendiente: credenciales no recibidas)
 
----
+## Fase 0 — Data-fix 🔥 (`backend/sql/fix_datos_postura_verenice_jul26.sql`)
+- [ ] Script idempotente: encaset 116/117 ← lote origen + sync lote_postura_levante
+- [ ] Aves iniciales 116/117 (o re-fechar ingreso traslado) — ⛔ confirmar fecha real movimiento físico
+- [ ] Re-fechar/eliminar filas traslado-only mal fechadas (114: 2026-06-08/11 + espejo 116)
+- [ ] K345A/B año guía 2023→2026 + auditoría lotes activos company 1 + sync tablas postura
+- [ ] Backfill fecha_inicio_produccion = MIN(fecha) seguimientos
+- [ ] Aplicar en LOCAL + verificar (fn 116 devuelve semanas reales; sin semanas 34/35)
+- [ ] PROD: presentar plan + esperar OK explícito
 
-## Fase 0 — Verificaciones antes de migrar
+## Fase 1 — Hotfixes front (S)
+- [ ] REQ-002m/n: reordenar td tbody (peso+unif antes de mortalidad) en tabla-lista-indicadores
+- [ ] REQ-002a: quitar 4 columnas por fila → chips encima (con Regional); fix colspan empty-state
+- [ ] REQ-008b: eliminar % consumo H/M (tabla + export)
+- [ ] REQ-012e: quitar TIPO ITEM H/M (tabla + export) + ocultar select si Colombia
+- [ ] REQ-001a: renombrar "Bajas total"/"% bajas/ini" en Reporte semana + export + hints
+- [ ] `yarn build` 0 errores
 
-- [x] Verificar en `sanmarinoapplocal` qué tan poblado está `LoteId` en `lote_postura_levante` (8/8) / `lote_postura_produccion` (2/5, no confiable) / `lote_ave_engorde` (columna `lote_id` NO existe, solo `lote_erp`) → **confirmado: ancla de 3 FKs + `LineaProductiva` es necesaria, no opcional**
-- [x] Confirmar filtro de `ItemInventario` (tabla física `item_inventario_ecuador`, 17 columnas, `tipo_item` string libre) — ya hay 19 filas con `tipo_item='Vacuna'` en local, **pero el casing es inconsistente** (`Vacuna`/`Medicamento` vs `medicamento` minúscula) → el filtro del módulo de vacunación debe ser case-insensitive (`ILIKE`/`.ToLower()`), no `==` exacto como el existente `ItemInventarioService.cs:41`
-- [x] Confirmar tabla de configuración por empresa: no existe ninguna reusable (`pg_tables ILIKE '%config%'` solo trae catálogos de Postgres) → se crea `vacunacion_configuracion` dedicada, como estaba previsto
+## Fase 2 — Indicadores levante (fn + DTO + UI)
+- [ ] REQ-002b: Regional = l.Regional ?? MasterListOptions (LotePosturaLevanteService)
+- [ ] REQ-002e: consumo H/M real+guía en fn_indicadores_levante_postura + DTO + columnas
+- [ ] REQ-002f: acumulados = bajas_acum/aves_iniciales; excluir filas solo-traslado; resumen desde totales
+- [ ] REQ-002-B36: defensas fn (fallback base, sin clamp negativo, DROP TEMP TABLE IF EXISTS)
+- [ ] Migración EF idempotente CREATE OR REPLACE + spec en backend/sql/ + probar local
 
-## Backend — modelo de datos
+## Fase 3 — Semana/edad/etapa + validaciones
+- [ ] REQ-011a/009c: rechazar encaset futuro (back Create/Update) + [max]=hoy + warning duplicado
+- [ ] REQ-011d: fecha<encaset ⇒ null + "—" + banner; unificar cálculo semana (fix LiquidacionTecnica negativos)
+- [ ] REQ-011b: validar consumo/mort vs saldo por sexo a la fecha + fix CalcularHembrasVivasAsync (traslados)
+- [ ] REQ-007d: cablear %Retiro semanal (saldo 0 → null, nunca 100%)
+- [ ] REQ-012d: getFechaBaseEdad ← informacionLote.fechaEncaset + filter-data producción con DTO real
+- [ ] REQ-012c: etapa calculada en vivo 26-33/34-50/>50 (select readonly) + alinear MovimientoAvesCalculos
+- [ ] REQ-012a: fecha inicio producción efectiva MIN(fecha) + warning modal cierre
+- [ ] REQ-012b: habilitar semana 25 (fn 25.. + clamps front + legacy 175 días) vía migración
+- [ ] `dotnet build` + `dotnet test` verdes
 
-- [x] Entidad `VacunacionCronogramaItem` (`Domain/Entities/Vacunacion/`)
-- [x] Entidad `VacunacionRegistroAplicacion` (1:1 con `VacunacionCronogramaItem`)
-- [x] Entidad `VacunacionConfiguracion` (umbral configurable por empresa/país, PK compuesta company_id+pais_id)
-- [x] EF Configurations (`Infrastructure/Persistence/Configurations/Vacunacion/`), snake_case + check constraints (línea/unidad válida, un solo FK de lote, motivo obligatorio, aplicado-por coherente)
-- [x] Migración EF `AddVacunacionModule` (3 tablas nuevas, generada con `dotnet ef migrations add` — no requiere `IF NOT EXISTS` a mano, es el patrón real del repo para tablas nuevas, confirmado contra 18 migraciones previas)
-- [x] Migración de datos `AddPermisosVacunacion` (`vacunacion.cronograma.ver/administrar`, `vacunacion.registro.aplicar`, `vacunacion.reportes.ver`), idempotente `WHERE NOT EXISTS`
-- [x] Menú "Vacunación" + 3 hijos — **convertido a migración `AddVacunacionMenu`** a pedido explícito del usuario (auditoría post-commit: era el único objeto de BD aplicado directo, sin migración, a diferencia de otros menús del repo que sí quedan manuales por convención). Se eliminó el `.sql` suelto (`backend/sql/add_vacunacion_menu.sql`) para no duplicar la fuente de verdad. **Gotcha** encontrado al escribir el `.sql` original: el patrón viejo de otros `*.sql` del folder no tiene `key`/`is_group`/`sort_order` — esquema real de `menus` los exige, corregido y verificado con `\d menus`; sin `role_menus` automático, a asignar por UI de Roles
-- [x] Probar local: `dotnet ef database update` sin error contra `sanmarinoapplocal` — 3 tablas + 4 permisos + 4 filas de menú confirmados por `psql`
+## Fase 4 — Traslado
+- [ ] REQ-009a: default fecha = último registro origen (o required); hoy LOCAL no UTC
+- [ ] REQ-008c: excluir filas traslado-only del Reporte semana
 
-## Backend — cálculo puro
+## Fase 5 — Reporte semana + gráficas
+- [ ] REQ-008a: quitar Consumo total; gr/ave/día H/M (saldo por sexo); memoizar reporteSemanaFilas
+- [ ] REQ-010f/002h: barrido conversión alimenticia (gráficas + indicadores diarios + FCR + liquidación 4→3 params)
+- [ ] REQ-010b: sexo H/M/Ambos en fn/endpoint + selector en gráficas e indicadores
+- [ ] Etiquetas "Consumo (g/ave/día)"
 
-- [x] `Application/Calculos/VacunacionCalculos.cs`: cálculo de franja (fecha inicio/fin dado unidad+valor+fechaEncaset+rango), genérico Semana/Dia/Fecha
-- [x] `VacunacionCalculos`: cálculo de estado+desviación (a tiempo/tardío/adelantado/no aplicado, incumplido según umbral configurable)
-- [x] Tests xUnit `tests/ZooSanMarino.Application.Tests/VacunacionCalculosTests.cs` — 10/10 verde (franjas semana/día/fecha, los 5 estados, umbral configurable). Suite completa: 346/346 verde (sin regresiones)
+## Fase 6 — Transversales
+- [ ] REQ-005: migración EF vw_guia_genetica_por_lote_postura + f_safe_numeric
+- [ ] REQ-006: guard producción + enforcement backend lote cerrado
+- [ ] REQ-003: opción "Lote General (A+B+C)" en tabs (consume consolidados existentes)
+- [ ] REQ-004: %Retiro real en fn producción + UI + Excel
+- [ ] REQ-000b: DraftStorageService + autosave modales levante/producción
+- [ ] REQ-000a: TipoMigracion.LotesPostura + Fase 3 migraciones (Ventas/MovAves/MovHuevos)
+- [ ] REQ-000c: empty-state con causa (encaset inválido / sin guía)
 
-## Backend — servicios y endpoints
+## Fase 7 — Fórmulas nuevas (⛔ insumos de la líder)
+- [ ] N1 Kcal/Prot H/M sem+acum vs guía (falta tabla nutricional)
+- [ ] N2 % clasificación huevo vs guía (falta confirmar guía)
+- [ ] N3 IP/MasaHuevo/PesoM-H/GrHuevoT-Inc(+MES) (IP sin fórmula)
+- [ ] N4 Módulo embriodiagnosis (falta levantamiento)
 
-- [x] `VacunacionCronogramaService` (ancla + interfaz) + `Funciones/Crud.cs` + `Funciones/Filtros.cs` + `Funciones/Consultas.cs` (reusa `IFarmService.GetAssignedFarmsForCompanyAsync`; `GetCronogramaLoteAsync` encadena Levante↔Producción vía `LotePosturaProduccion.LotePosturaLevanteId`)
-- [x] `VacunacionRegistroService` (ancla + interfaz) + `Funciones/Registrar.cs` (fecha server-side `DateTime.UtcNow.Date`, motivo obligatorio condicional, aplicado-por FK/texto libre exactamente uno)
-- [x] `VacunacionReportesService` (invoca `fn_vacunacion_cumplimiento_lote` vía `SqlQueryRaw` + `NpgsqlParameter` tipados, patrón de `InformeSemanalPolloEngordeService`)
-- [x] DTOs (`Application/DTOs/Vacunacion/`)
-- [x] `VacunacionCronogramaController` (policy `vacunacion.cronograma.administrar`/`.ver`)
-- [x] `VacunacionRegistroController` (policy `vacunacion.registro.aplicar`)
-- [x] `VacunacionReportesController` (policy `vacunacion.reportes.ver`)
-- [x] DI registrado en `Program.cs`; build completo (Domain+Application+Infrastructure+API) 0 errores/0 warnings (API se compiló a carpeta temporal porque el backend del usuario estaba corriendo y bloqueaba `bin/`)
-- [ ] Tests de integración: cronograma por línea (Levante/Producción/Engorde), registrar a tiempo/tarde/no aplicada, motivo obligatorio, `FechaAplicacion` no aceptada desde el request
-
-## Backend — SQL de reportes
-
-- [x] `backend/sql/fn_vacunacion_cumplimiento_lote.sql` (% a tiempo/tardío bajo-o-sobre-umbral/no aplicado, promedio días atraso; filtros granja/núcleo/galpón/lote/línea/fecha; replica en SQL el cálculo de franja de `VacunacionCalculos` para poder filtrar por fecha)
-- [x] Migración `AddFnVacunacionCumplimientoLote` (CREATE OR REPLACE, sincronizada con el `.sql`) aplicada y probada con `psql` — sin datos aún, 0 filas sin error
-- [x] **Decisión de alcance**: se descartó la función "comparativa" separada del plan original — `fn_vacunacion_cumplimiento_lote` ya devuelve una fila por lote para cualquier lista de `p_lote_ids`/`p_granja_ids`, así que sirve para comparar lotes sin duplicar lógica
-- [ ] Validar la función con datos reales de prueba (cronograma + registros cargados) una vez exista UI para cargarlos
-
-## Frontend
-
-- [x] `features/vacunacion/models/vacunacion.model.ts` (todos los tipos en un archivo, alineados 1:1 con los DTOs backend)
-- [x] `features/vacunacion/funciones/` — `calcular-estado-visual.funcion.ts` (presentación de badges, regla de marca verde/rojo/ámbar) + 3 exports Excel vía `exportar-tabla-excel.funcion.ts`
-- [x] `components/modal-item-cronograma` (admin: alta/edición de un ítem, unidad Semana/Dia/Fecha)
-- [x] `components/modal-registro-aplicacion` (operador, motivo obligatorio condicional, aplicado-por FK/libre, `ConfirmDialogService`/`ToastService`)
-- [ ] `components/graficas-cumplimiento` (ng2-charts) — **simplificado a barras de % con Tailwind directo en `reportes-cumplimiento.page.html`** en vez de un componente de gráfica aparte, por tiempo; queda pendiente si se quiere la versión con ng2-charts
-- [x] `pages/cronograma-administracion.page.ts` (+ html)
-- [x] `pages/registro-aplicacion.page.ts` (+ html)
-- [x] `pages/reportes-cumplimiento.page.ts` (+ html)
-- [x] `services/vacunacion.service.ts` — **un solo servicio** (no 3 separados como decía el plan original) para cronograma+registro+reportes; mismo comportamiento, menos archivos
-- [x] `vacunacion-routing.module.ts` + registrado en `app.config.ts` (`/vacunacion` con `authGuard`) + entrada de menú (`add_vacunacion_menu.sql`, ver Backend)
-- [x] Selector de vacunas: resuelto en el backend (`GetFilterDataAsync` con `ILIKE`), no en el front
-- [ ] Tests Karma de `funciones/` puras
-- [x] `yarn build` — **0 errores**, solo el warning preexistente de bundle budget aceptado por `CLAUDE.md`; confirmados los chunks lazy de `vacunacion` en `frontend/dist/browser/`. **Dos gotchas encontrados y corregidos** vía `ng serve` (el primer `yarn build` en background compiló un estado intermedio de los archivos que no los detectó): (1) `appHasPermission` es directiva ESTRUCTURAL, se escribió mal como atributo plano en 5 lugares → corregido a `*appHasPermission="'...'"`; (2) eso a su vez generó NG5002 en `registro-aplicacion.page.html` (dos directivas `*` en el mismo `<button>` junto a `*ngIf`) → envuelto en `<ng-container *ngIf="...">`. Re-verificado con `ng serve` (rebuild limpio) y navegación real en el Browser pane (`/vacunacion/cronograma` → redirige a login vía `authGuard`, sin errores de consola) — build de producción final corriendo para confirmación definitiva
-
-## Validación end-to-end
-
-- [ ] Flujo completo local: crear cronograma (Levante por semana, Engorde por día, ítem con fecha fija) → registrar aplicación a tiempo/tardía/no aplicada → ver reflejado en reportes de cumplimiento → exportar los 3 Excel — **no ejecutado**: requiere credenciales de login reales que el asistente no tiene: cargar datos vía UI necesita sesión autenticada
-- [ ] Verificar visibilidad: usuario con 1 granja asignada vs usuario con varias — mismo bloqueo (requiere login)
-- [x] `dotnet build` + `dotnet test` en verde (346/346)
-- [x] `ng serve` rebuild limpio + navegación real en Browser pane (`/vacunacion/cronograma` → redirige a login por `authGuard`, sin errores de consola) — confirma que el compilador Angular no tiene errores en el estado final de los archivos
-- [x] `yarn build` (producción) final — **confirmado exit 0**, mismo único warning preexistente de bundle budget, sin errores (tardó ~110s por carga del sistema, varias sesiones en paralelo del usuario)
-- [x] Preview server de verificación (`frontend-node22-4300`) detenido al terminar — sin procesos huérfanos de este agente
-- [x] Reportado al usuario (ver resumen de cierre)
-
-## Fix post-entrega — permisos de rol Admin (2026-07-15)
-
-Reportado por el usuario: "Cronograma no trae nada" — el botón "+ Agregar vacuna" no aparecía tras elegir granja/lote (captura: granja NIZA III, lote K345B). Causa confirmada por `psql` contra `sanmarinoapplocal`: el rol `Admin` (role_id=1) solo tenía 2/4 permisos de vacunación asignados (`vacunacion.cronograma.ver`, `vacunacion.registro.aplicar`, asignados manualmente en algún momento vía Roles/UI) — faltaban `vacunacion.cronograma.administrar` (gatea el botón "+ Agregar vacuna"/Editar/Eliminar) y `vacunacion.reportes.ver` (gatea `POST /VacunacionReportes/cumplimiento`, 403 si falta).
-
-- [x] Migración `20260715131452_AddRolePermissionsVacunacionAdmin` — asigna los 4 permisos `vacunacion.%` a role_id=1, idempotente (`NOT EXISTS`), a pedido explícito del usuario (vía migración en vez de hacerlo a mano en Roles/UI)
-- [x] Aplicada a `sanmarinoapplocal` con `dotnet ef database update` desde `ZooSanMarino.Infrastructure` (evita el lock del `bin/` de la API, que el usuario tenía corriendo)
-- [x] Verificado por `psql`: los 4 permisos ya están en `role_permissions` para role_id=1
-- [ ] **Pendiente que el usuario haga**: cerrar sesión y volver a iniciar sesión en la app (el array `permisos` se arma en el login/bootstrap; sin re-login la sesión en `localStorage` sigue con los permisos viejos)
-- [ ] **Pendiente que el usuario haga**: cargar al menos 1 ítem de catálogo con `tipo_item='vacuna'` en Inventario para `company_id=1` (Agroavicola Sanmarino) — hoy son 0; sin eso el modal "+ Agregar vacuna" no tiene ninguna vacuna para ofrecer en el desplegable, aunque el botón ya sea visible
-- [ ] Sin commitear todavía (rama `feature/modulo-vacunacion`)
-
-## Pendiente explícito (no alcanzado en esta sesión)
-- Tests de integración backend (cronograma por línea, registrar aplicación, motivo obligatorio)
-- Tests Karma de `funciones/` puras del frontend
-- `components/graficas-cumplimiento` con ng2-charts (se simplificó a barras CSS)
-- Nada de esto está commiteado a git todavía (rama `feature/modulo-vacunacion`, todo en working tree)
+## Bloqueantes con Verenice (sección 4 del plan)
+- [ ] Fecha real movimiento físico A374A/B · política año guía · flujo REQ-006 · definición "bodega" REQ-007i · doc Informe RA 2025 · maestro ERP · tabla nutricional · % huevo en guía · fórmula IP · formato embriodiagnosis

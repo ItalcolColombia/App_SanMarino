@@ -13,13 +13,11 @@ public partial class VacunacionCronogramaService : IVacunacionCronogramaService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
-    private readonly IFarmService _farmService;
 
-    public VacunacionCronogramaService(ZooSanMarinoContext ctx, ICurrentUser currentUser, IFarmService farmService)
+    public VacunacionCronogramaService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
     {
         _ctx = ctx;
         _currentUser = currentUser;
-        _farmService = farmService;
     }
 
     private static readonly HashSet<string> LineasValidas = new(StringComparer.Ordinal) { "Levante", "Produccion", "Engorde" };

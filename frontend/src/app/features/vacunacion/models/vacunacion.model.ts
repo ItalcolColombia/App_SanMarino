@@ -103,10 +103,17 @@ export interface VacunacionVacunaOpcionDto {
   unidad: string;
 }
 
+/** Usuario del sistema para "aplicado por" (id = UserId entero del sistema). */
+export interface VacunacionUsuarioOpcionDto {
+  id: number;
+  nombre: string | null;
+}
+
 export interface VacunacionFilterDataDto {
   granjas: FarmDtoLite[];
   lotes: VacunacionLoteOpcionDto[];
   vacunas: VacunacionVacunaOpcionDto[];
+  usuarios: VacunacionUsuarioOpcionDto[];
 }
 
 export interface VacunacionCumplimientoFiltroRequest {
@@ -135,6 +142,32 @@ export interface VacunacionCumplimientoLoteDto {
   porcentajeTardio: number;
   porcentajeNoAplicado: number;
   promedioDiasAtraso: number | null;
+}
+
+/** Detalle ítem a ítem del reporte de cumplimiento (POST /VacunacionReportes/detalle). */
+export interface VacunacionCumplimientoDetalleDto {
+  itemId: number;
+  granjaId: number;
+  granjaNombre: string | null;
+  loteId: number;
+  loteNombre: string | null;
+  lineaProductiva: LineaProductiva;
+  nucleoId: string | null;
+  galponId: string | null;
+  vacunaNombre: string;
+  unidadObjetivo: UnidadObjetivo;
+  valorObjetivo: number | null;
+  fechaObjetivoEfectiva: string | null;
+  fechaInicioFranja: string | null;
+  fechaFinFranja: string | null;
+  estado: EstadoAplicacion;
+  fechaAplicacion: string | null;
+  diasDesviacion: number | null;
+  incumplido: boolean;
+  motivo: string | null;
+  aplicadoPor: string | null;
+  registradoPor: string | null;
+  notas: string | null;
 }
 
 /** Etiqueta legible por línea, para selects y encabezados. */

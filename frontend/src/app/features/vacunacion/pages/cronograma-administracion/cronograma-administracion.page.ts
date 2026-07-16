@@ -8,11 +8,11 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { ModalItemCronogramaComponent } from '../../components/modal-item-cronograma/modal-item-cronograma.component';
-import { calcularEstadoVisual } from '../../funciones/calcular-estado-visual.funcion';
+import { construirFilasCronograma, trackByFilaCronograma, FilaCronograma } from '../../funciones/construir-filas-cronograma.funcion';
+import { calcularKpisCronograma, KpisCronograma } from '../../funciones/calcular-kpis-cronograma.funcion';
 import { exportarCronogramaExcel } from '../../funciones/exportar-cronograma-excel.funcion';
 import {
   FarmDtoLite,
-  LineaProductiva,
   LINEA_PRODUCTIVA_LABEL,
   VacunacionCronogramaItemDto,
   VacunacionLoteOpcionDto,
@@ -27,7 +27,9 @@ import {
 })
 export class CronogramaAdministracionPage implements OnInit {
   readonly lineaLabel = LINEA_PRODUCTIVA_LABEL;
-  readonly calcularEstadoVisual = calcularEstadoVisual;
+  readonly trackByFila = trackByFilaCronograma;
+  readonly trackByGranja = (_: number, g: FarmDtoLite): number => g.id;
+  readonly trackByLote = (_: number, l: VacunacionLoteOpcionDto): string => `${l.lineaProductiva}-${l.loteId}`;
 
   granjas: FarmDtoLite[] = [];
   lotes: VacunacionLoteOpcionDto[] = [];
@@ -36,13 +38,20 @@ export class CronogramaAdministracionPage implements OnInit {
 
   granjaSeleccionadaId: number | null = null;
   loteSeleccionado: VacunacionLoteOpcionDto | null = null;
+  filtroLote = '';
 
-  items: VacunacionCronogramaItemDto[] = [];
+  /** Filas con estado visual precalculado (referencias estables — sin funciones en template). */
+  filas: FilaCronograma[] = [];
+  kpis: KpisCronograma | null = null;
+
   cargandoFiltros = false;
   cargandoCronograma = false;
 
   modalAbierto = false;
   itemEditar: VacunacionCronogramaItemDto | null = null;
+
+  /** Fuente cruda para el export (las filas son solo presentación). */
+  private items: VacunacionCronogramaItemDto[] = [];
 
   constructor(
     private vacunacionSvc: VacunacionService,
@@ -54,13 +63,16 @@ export class CronogramaAdministracionPage implements OnInit {
     await this.cargarFiltros();
   }
 
-  async cargarFiltros(): Promise<void> {
+  async cargarFiltros(refrescar = false): Promise<void> {
     this.cargandoFiltros = true;
     try {
-      const data = await firstValueFrom(this.vacunacionSvc.getFilterData());
+      const data = await firstValueFrom(
+        refrescar ? this.vacunacionSvc.refrescarFilterData() : this.vacunacionSvc.getFilterData()
+      );
       this.granjas = data.granjas;
       this.lotes = data.lotes;
       this.vacunas = data.vacunas;
+      this.aplicarFiltroLotes();
     } catch {
       this.toast.error('No se pudieron cargar los datos de filtros (granjas/lotes/vacunas).');
     } finally {
@@ -69,21 +81,35 @@ export class CronogramaAdministracionPage implements OnInit {
   }
 
   onGranjaChange(): void {
-    this.lotesFiltrados = this.granjaSeleccionadaId
-      ? this.lotes.filter((l) => l.granjaId === this.granjaSeleccionadaId)
-      : [];
+    this.filtroLote = '';
     this.loteSeleccionado = null;
     this.items = [];
+    this.filas = [];
+    this.kpis = null;
+    this.aplicarFiltroLotes();
+  }
+
+  aplicarFiltroLotes(): void {
+    let lista = this.granjaSeleccionadaId
+      ? this.lotes.filter((l) => l.granjaId === this.granjaSeleccionadaId)
+      : [];
+    const q = this.filtroLote.trim().toLowerCase();
+    if (q) lista = lista.filter((l) => l.loteNombre.toLowerCase().includes(q));
+    this.lotesFiltrados = lista;
   }
 
   async onLoteChange(lote: VacunacionLoteOpcionDto | null): Promise<void> {
     this.loteSeleccionado = lote;
     this.items = [];
+    this.filas = [];
+    this.kpis = null;
     if (!lote) return;
 
     this.cargandoCronograma = true;
     try {
       this.items = await firstValueFrom(this.vacunacionSvc.getCronogramaLote(lote.lineaProductiva, lote.loteId));
+      this.filas = construirFilasCronograma(this.items);
+      this.kpis = calcularKpisCronograma(this.items);
     } catch {
       this.toast.error('No se pudo cargar el cronograma del lote.');
     } finally {
@@ -96,8 +122,8 @@ export class CronogramaAdministracionPage implements OnInit {
     this.modalAbierto = true;
   }
 
-  abrirEditar(item: VacunacionCronogramaItemDto): void {
-    this.itemEditar = item;
+  abrirEditar(fila: FilaCronograma): void {
+    this.itemEditar = fila.item;
     this.modalAbierto = true;
   }
 
@@ -111,7 +137,8 @@ export class CronogramaAdministracionPage implements OnInit {
     if (this.loteSeleccionado) await this.onLoteChange(this.loteSeleccionado);
   }
 
-  async eliminar(item: VacunacionCronogramaItemDto): Promise<void> {
+  async eliminar(fila: FilaCronograma): Promise<void> {
+    const item = fila.item;
     const ok = await this.confirmDialog.ask({
       title: 'Eliminar vacuna del cronograma',
       message: `¿Eliminar "${item.itemInventarioNombre}" del cronograma de ${item.loteNombre}?`,

@@ -1,96 +1,180 @@
-<div class="mx-auto max-w-6xl p-4 sm:p-6">
-  <div class="mb-4">
-    <h1 class="text-xl font-semibold text-gray-800">Registro de aplicación de vacunas</h1>
-    <p class="text-sm text-gray-500">Operador: confirma si se aplicó (a tiempo o tardía) o si no se aplicó, con motivo.</p>
-  </div>
-
-  <div class="mb-4 grid grid-cols-1 gap-3 rounded-lg border bg-white p-4 sm:grid-cols-3">
-    <div>
-      <label class="mb-1 block text-sm font-medium text-gray-700">Granja</label>
-      <select class="w-full rounded border-gray-300 text-sm" [(ngModel)]="granjaSeleccionadaId" (ngModelChange)="onGranjaChange()">
-        <option [ngValue]="null">Seleccione…</option>
-        <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
-      </select>
-    </div>
-    <div class="sm:col-span-2">
-      <label class="mb-1 block text-sm font-medium text-gray-700">Lote</label>
-      <select
-        class="w-full rounded border-gray-300 text-sm"
-        [ngModel]="loteSeleccionado"
-        (ngModelChange)="onLoteChange($event)"
-        [disabled]="!granjaSeleccionadaId"
+<div class="mx-auto max-w-7xl p-4 sm:p-6">
+  <!-- Header de página -->
+  <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div
+        class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
+        style="background: var(--ital-orange-100)"
+        aria-hidden="true"
       >
-        <option [ngValue]="null">Seleccione…</option>
-        <option *ngFor="let l of lotesFiltrados" [ngValue]="l">
-          {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
-        </option>
-      </select>
+        ✅
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Registro de aplicación de vacunas</h1>
+        <p class="text-sm" style="color: var(--ital-muted)">
+          Confirmá si cada vacuna se aplicó (a tiempo o tardía) o si no se aplicó, con su motivo.
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Filtros -->
+  <div class="ux-card mb-4 p-4">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div>
+        <label class="form-label" for="reg-granja">Granja</label>
+        <select
+          id="reg-granja"
+          class="form-input"
+          [(ngModel)]="granjaSeleccionadaId"
+          (ngModelChange)="onGranjaChange()"
+          [disabled]="cargandoFiltros"
+        >
+          <option [ngValue]="null">{{ cargandoFiltros ? 'Cargando granjas…' : 'Seleccione…' }}</option>
+          <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
+        </select>
+      </div>
+      <div class="sm:col-span-1 lg:col-span-2">
+        <label class="form-label" for="reg-lote">Lote</label>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="text"
+            class="form-input sm:max-w-[230px]"
+            placeholder="🔍 Buscar lote…"
+            [(ngModel)]="filtroLote"
+            (ngModelChange)="aplicarFiltroLotes()"
+            [disabled]="!granjaSeleccionadaId || cargandoFiltros"
+            aria-label="Buscar lote por nombre"
+          />
+          <select
+            id="reg-lote"
+            class="form-input"
+            [ngModel]="loteSeleccionado"
+            (ngModelChange)="onLoteChange($event)"
+            [disabled]="!granjaSeleccionadaId || cargandoFiltros"
+          >
+            <option [ngValue]="null">
+              {{ lotesFiltrados.length ? 'Seleccione…' : granjaSeleccionadaId ? 'Sin lotes para esta granja' : 'Elija una granja primero' }}
+            </option>
+            <option *ngFor="let l of lotesFiltrados; trackBy: trackByLote" [ngValue]="l">
+              {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div *ngIf="cargandoFiltros" class="loading-toast mt-3" role="status">
+      <span class="spinner spinner--sm"></span> Cargando granjas y lotes…
     </div>
   </div>
 
-  <div *ngIf="loteSeleccionado" class="rounded-lg border bg-white">
-    <div class="flex items-center justify-between border-b px-4 py-3">
-      <h2 class="text-sm font-semibold text-gray-700">
+  <!-- KPIs del lote -->
+  <div *ngIf="kpis && loteSeleccionado" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-orange-dark)">{{ kpis.pendientes }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Por registrar</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--success)">{{ kpis.aplicadasATiempo }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">A tiempo</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--danger)">{{ kpis.incumplidas + kpis.noAplicadas }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Incumplidas / No aplic.</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-orange)">
+        {{ kpis.porcentajeAvance !== null ? kpis.porcentajeAvance + '%' : '—' }}
+      </div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Avance</div>
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <div *ngIf="loteSeleccionado" class="ux-card overflow-hidden">
+    <div
+      class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3"
+      style="border-color: var(--ital-green-100)"
+    >
+      <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">
         {{ loteSeleccionado.loteNombre }} — {{ lineaLabel[loteSeleccionado.lineaProductiva] }}
       </h2>
-      <button type="button" class="rounded border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" (click)="exportarHistorial()">
-        Exportar historial
-      </button>
+      <button type="button" class="btn-ghost text-sm" (click)="exportarHistorial()">⬇ Exportar historial</button>
     </div>
 
-    <div *ngIf="cargando" class="p-6 text-center text-sm text-gray-500">Cargando…</div>
-
-    <table *ngIf="!cargando" class="w-full text-left text-sm">
-      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-        <tr>
-          <th class="px-4 py-2">Vacuna</th>
-          <th class="px-4 py-2">Franja programada</th>
-          <th class="px-4 py-2">Estado</th>
-          <th class="px-4 py-2">Motivo</th>
-          <th class="px-4 py-2 text-right">Acción</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y">
-        <tr *ngFor="let item of items">
-          <td class="px-4 py-2 font-medium text-gray-800">{{ item.itemInventarioNombre }}</td>
-          <td class="px-4 py-2 text-gray-600">
-            {{ item.fechaInicioFranja | date: 'dd/MM/yyyy' }} — {{ item.fechaFinFranja | date: 'dd/MM/yyyy' }}
-          </td>
-          <td class="px-4 py-2">
-            <span class="rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="calcularEstadoVisual(item).claseBadge">
-              {{ calcularEstadoVisual(item).etiqueta }}
-            </span>
-          </td>
-          <td class="px-4 py-2 text-gray-500">{{ item.registro?.motivoDescripcion ?? '—' }}</td>
-          <td class="px-4 py-2 text-right">
-            <ng-container *ngIf="!item.registro || item.registro.estado === 'Pendiente'">
-              <button
-                type="button"
-                *appHasPermission="'vacunacion.registro.aplicar'"
-                class="rounded px-3 py-1 text-sm font-medium text-white"
-                style="background-color:#2d7a3e"
-                (click)="abrirRegistro(item)"
-              >
-                Registrar
-              </button>
-            </ng-container>
-          </td>
-        </tr>
-        <tr *ngIf="!items.length">
-          <td colspan="5" class="px-4 py-6 text-center text-gray-400">Este lote no tiene cronograma de vacunación.</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="relative">
+      <div class="ux-scroll overflow-x-auto">
+        <table class="ux-table min-w-[920px]">
+          <thead>
+            <tr>
+              <th>Vacuna</th>
+              <th>Franja programada</th>
+              <th>Estado</th>
+              <th>Fecha aplicación</th>
+              <th>Aplicado por</th>
+              <th>Registrado por</th>
+              <th>Motivo</th>
+              <th class="text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let fila of filas; trackBy: trackByFila">
+              <td>{{ fila.item.itemInventarioNombre }}</td>
+              <td>{{ fila.item.fechaInicioFranja | date: 'dd/MM/yyyy' }} — {{ fila.item.fechaFinFranja | date: 'dd/MM/yyyy' }}</td>
+              <td>
+                <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="fila.estado.claseBadge">
+                  {{ fila.estado.etiqueta }}
+                </span>
+              </td>
+              <td>{{ fila.item.registro?.fechaAplicacion ? (fila.item.registro?.fechaAplicacion | date: 'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ responsableDe(fila) }}</td>
+              <td>{{ fila.item.registro?.usuarioRegistraNombre ?? '—' }}</td>
+              <td class="max-w-[200px] truncate" [title]="fila.item.registro?.motivoDescripcion ?? ''">
+                {{ fila.item.registro?.motivoDescripcion ?? '—' }}
+              </td>
+              <td class="text-right">
+                <ng-container *ngIf="puedeRegistrar(fila)">
+                  <button
+                    type="button"
+                    *appHasPermission="'vacunacion.registro.aplicar'"
+                    class="btn-primary px-3 py-1 text-xs"
+                    (click)="abrirRegistro(fila)"
+                  >
+                    Registrar
+                  </button>
+                </ng-container>
+              </td>
+            </tr>
+            <tr *ngIf="!filas.length && !cargando">
+              <td colspan="8">
+                <div class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">📋</div>
+                  Este lote no tiene cronograma de vacunación.
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div *ngIf="cargando" class="loading-overlay" role="status" aria-label="Cargando cronograma">
+        <span class="spinner"></span>
+      </div>
+    </div>
   </div>
 
-  <div *ngIf="!loteSeleccionado" class="rounded-lg border border-dashed bg-white p-10 text-center text-sm text-gray-400">
-    Seleccione una granja y un lote para registrar aplicaciones.
+  <!-- Placeholder sin lote -->
+  <div *ngIf="!loteSeleccionado" class="ux-card">
+    <div class="empty-state">
+      <div class="empty-illustration" aria-hidden="true">✅</div>
+      Seleccioná una granja y un lote para registrar aplicaciones.
+    </div>
   </div>
 </div>
 
 <app-modal-registro-aplicacion
   [open]="modalAbierto"
   [item]="itemRegistrar"
+  [usuarios]="usuarios"
   (cerrado)="cerrarModal()"
   (guardado)="onGuardado()"
 ></app-modal-registro-aplicacion>

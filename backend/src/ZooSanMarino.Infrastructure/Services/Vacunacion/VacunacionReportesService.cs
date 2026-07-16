@@ -1,4 +1,5 @@
 // Vacunacion/VacunacionReportesService.cs
+// Partial 'ancla': campos, ctor y helpers compartidos (parámetros de las fns + scoping de granjas).
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
@@ -8,8 +9,10 @@ using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-/// <summary>Cumplimiento de vacunación: envoltorio C# de fn_vacunacion_cumplimiento_lote (backend/sql/).</summary>
-public sealed class VacunacionReportesService : IVacunacionReportesService
+/// <summary>Reportes de vacunación: envoltorios C# de fn_vacunacion_cumplimiento_lote y
+/// fn_vacunacion_cumplimiento_detalle (backend/sql/). La BD filtra y agrega; acá solo se arman
+/// parámetros y se mapean filas.</summary>
+public sealed partial class VacunacionReportesService : IVacunacionReportesService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
@@ -20,59 +23,65 @@ public sealed class VacunacionReportesService : IVacunacionReportesService
         _currentUser = currentUser;
     }
 
-    /// <inheritdoc />
-    public async Task<List<VacunacionCumplimientoLoteDto>> GetCumplimientoAsync(
-        VacunacionCumplimientoFiltroRequest req, CancellationToken ct = default)
+    /// <summary>
+    /// Scoping de seguridad: interseca las granjas pedidas con las ASIGNADAS al usuario
+    /// (user_farms ∩ farms activas de la empresa), igual que filter-data. Sin granjas asignadas
+    /// → array vacío → el reporte sale vacío (nunca "toda la empresa" por omisión).
+    /// </summary>
+    private async Task<int[]> ResolverGranjasPermitidasAsync(IReadOnlyCollection<int>? solicitadas, CancellationToken ct)
     {
-        var pCompany = new NpgsqlParameter("p_company_id", NpgsqlDbType.Integer) { Value = _currentUser.CompanyId };
-        var pPais = new NpgsqlParameter("p_pais_id", NpgsqlDbType.Integer)
-        {
-            Value = _currentUser.PaisId.HasValue ? _currentUser.PaisId.Value : DBNull.Value
-        };
-        var pGranjas = new NpgsqlParameter("p_granja_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer)
-        {
-            Value = (req.GranjaIds is { Count: > 0 }) ? req.GranjaIds.ToArray() : (object)DBNull.Value
-        };
-        var pNucleo = new NpgsqlParameter("p_nucleo_id", NpgsqlDbType.Text)
-        {
-            Value = string.IsNullOrWhiteSpace(req.NucleoId) ? DBNull.Value : req.NucleoId
-        };
-        var pGalpon = new NpgsqlParameter("p_galpon_id", NpgsqlDbType.Text)
-        {
-            Value = string.IsNullOrWhiteSpace(req.GalponId) ? DBNull.Value : req.GalponId
-        };
-        var pLotes = new NpgsqlParameter("p_lote_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer)
-        {
-            Value = (req.LoteIds is { Count: > 0 }) ? req.LoteIds.ToArray() : (object)DBNull.Value
-        };
-        var pLinea = new NpgsqlParameter("p_linea_productiva", NpgsqlDbType.Text)
-        {
-            Value = string.IsNullOrWhiteSpace(req.LineaProductiva) ? DBNull.Value : req.LineaProductiva
-        };
-        var pDesde = new NpgsqlParameter("p_fecha_desde", NpgsqlDbType.Date)
-        {
-            Value = req.FechaDesde.HasValue ? req.FechaDesde.Value.Date : DBNull.Value
-        };
-        var pHasta = new NpgsqlParameter("p_fecha_hasta", NpgsqlDbType.Date)
-        {
-            Value = req.FechaHasta.HasValue ? req.FechaHasta.Value.Date : DBNull.Value
-        };
+        if (!_currentUser.UserGuid.HasValue)
+            throw new UnauthorizedAccessException("Sesión inválida. Inicie sesión de nuevo.");
+        var userGuid = _currentUser.UserGuid.Value;
 
-        const string sql =
-            "SELECT * FROM public.fn_vacunacion_cumplimiento_lote(" +
-            "@p_company_id, @p_pais_id, @p_granja_ids, @p_nucleo_id, @p_galpon_id, @p_lote_ids, @p_linea_productiva, @p_fecha_desde, @p_fecha_hasta)";
-
-        var rows = await _ctx.Database
-            .SqlQueryRaw<VacunacionCumplimientoLoteRow>(sql, pCompany, pPais, pGranjas, pNucleo, pGalpon, pLotes, pLinea, pDesde, pHasta)
+        var asignadas = await _ctx.UserFarms.AsNoTracking()
+            .Where(uf => uf.UserId == userGuid)
+            .Join(
+                _ctx.Farms.AsNoTracking().Where(f => f.DeletedAt == null && f.CompanyId == _currentUser.CompanyId),
+                uf => uf.FarmId, f => f.Id, (uf, f) => f.Id)
+            .Distinct()
             .ToListAsync(ct);
 
-        return rows.Select(r => new VacunacionCumplimientoLoteDto(
-            r.LoteId, r.LoteNombre ?? "", r.LineaProductiva ?? "",
-            r.GranjaId, r.GranjaNombre,
-            r.TotalProgramadas, r.TotalATiempo, r.TotalTardio1Semana, r.TotalTardio2MasSemanas,
-            r.TotalNoAplicado, r.TotalPendiente,
-            r.PorcentajeATiempo ?? 0, r.PorcentajeTardio ?? 0, r.PorcentajeNoAplicado ?? 0,
-            r.PromedioDiasAtraso
-        )).ToList();
+        return (solicitadas is { Count: > 0 })
+            ? asignadas.Where(solicitadas.Contains).ToArray()
+            : asignadas.ToArray();
+    }
+
+    /// <summary>Los 9 parámetros compartidos por ambas funciones de reporte (misma firma).</summary>
+    private NpgsqlParameter[] BuildReporteParams(VacunacionCumplimientoFiltroRequest req, int[] granjasPermitidas)
+    {
+        return new[]
+        {
+            new NpgsqlParameter("p_company_id", NpgsqlDbType.Integer) { Value = _currentUser.CompanyId },
+            new NpgsqlParameter("p_pais_id", NpgsqlDbType.Integer)
+            {
+                Value = _currentUser.PaisId.HasValue ? _currentUser.PaisId.Value : DBNull.Value
+            },
+            new NpgsqlParameter("p_granja_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer) { Value = granjasPermitidas },
+            new NpgsqlParameter("p_nucleo_id", NpgsqlDbType.Text)
+            {
+                Value = string.IsNullOrWhiteSpace(req.NucleoId) ? DBNull.Value : req.NucleoId
+            },
+            new NpgsqlParameter("p_galpon_id", NpgsqlDbType.Text)
+            {
+                Value = string.IsNullOrWhiteSpace(req.GalponId) ? DBNull.Value : req.GalponId
+            },
+            new NpgsqlParameter("p_lote_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer)
+            {
+                Value = (req.LoteIds is { Count: > 0 }) ? req.LoteIds.ToArray() : (object)DBNull.Value
+            },
+            new NpgsqlParameter("p_linea_productiva", NpgsqlDbType.Text)
+            {
+                Value = string.IsNullOrWhiteSpace(req.LineaProductiva) ? DBNull.Value : req.LineaProductiva
+            },
+            new NpgsqlParameter("p_fecha_desde", NpgsqlDbType.Date)
+            {
+                Value = req.FechaDesde.HasValue ? req.FechaDesde.Value.Date : DBNull.Value
+            },
+            new NpgsqlParameter("p_fecha_hasta", NpgsqlDbType.Date)
+            {
+                Value = req.FechaHasta.HasValue ? req.FechaHasta.Value.Date : DBNull.Value
+            },
+        };
     }
 }

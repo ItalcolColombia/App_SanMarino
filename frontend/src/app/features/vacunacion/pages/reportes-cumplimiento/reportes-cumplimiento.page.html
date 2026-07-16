@@ -1,102 +1,270 @@
-<div class="mx-auto max-w-6xl p-4 sm:p-6">
-  <div class="mb-4">
-    <h1 class="text-xl font-semibold text-gray-800">Reportes de cumplimiento de vacunación</h1>
-    <p class="text-sm text-gray-500">Comparativa por lote: % a tiempo, tardío, no aplicado y promedio de días de atraso.</p>
-  </div>
-
-  <div class="mb-4 grid grid-cols-1 gap-3 rounded-lg border bg-white p-4 sm:grid-cols-5">
-    <div>
-      <label class="mb-1 block text-sm font-medium text-gray-700">Granja</label>
-      <select class="w-full rounded border-gray-300 text-sm" [(ngModel)]="granjaSeleccionadaId">
-        <option [ngValue]="null">Todas</option>
-        <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
-      </select>
-    </div>
-    <div>
-      <label class="mb-1 block text-sm font-medium text-gray-700">Línea</label>
-      <select class="w-full rounded border-gray-300 text-sm" [(ngModel)]="lineaSeleccionada">
-        <option [ngValue]="null">Todas</option>
-        <option *ngFor="let l of lineas" [ngValue]="l">{{ lineaLabel[l] }}</option>
-      </select>
-    </div>
-    <div>
-      <label class="mb-1 block text-sm font-medium text-gray-700">Desde</label>
-      <input type="date" class="w-full rounded border-gray-300 text-sm" [(ngModel)]="fechaDesde" />
-    </div>
-    <div>
-      <label class="mb-1 block text-sm font-medium text-gray-700">Hasta</label>
-      <input type="date" class="w-full rounded border-gray-300 text-sm" [(ngModel)]="fechaHasta" />
-    </div>
-    <div class="flex items-end">
-      <button
-        type="button"
-        class="w-full rounded px-3 py-1.5 text-sm font-medium text-white"
-        style="background-color:#e85c25"
-        [disabled]="cargando"
-        (click)="consultar()"
+<div class="mx-auto max-w-7xl p-4 sm:p-6">
+  <!-- Header de página -->
+  <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div
+        class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
+        style="background: var(--ital-orange-100)"
+        aria-hidden="true"
       >
-        {{ cargando ? 'Consultando…' : 'Consultar' }}
-      </button>
+        📊
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Reportes de cumplimiento de vacunación</h1>
+        <p class="text-sm" style="color: var(--ital-muted)">
+          Comparativo por lote y detalle por vacuna: % a tiempo, tardío, no aplicado y días de atraso.
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Filtros -->
+  <div class="ux-card mb-4 p-4">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div>
+        <label class="form-label" for="rep-granja">Granja</label>
+        <select
+          id="rep-granja"
+          class="form-input"
+          [(ngModel)]="granjaSeleccionadaId"
+          (ngModelChange)="onGranjaChange()"
+          [disabled]="cargandoFiltros"
+        >
+          <option [ngValue]="null">{{ cargandoFiltros ? 'Cargando…' : 'Todas' }}</option>
+          <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="rep-lote">Lote (opcional)</label>
+        <select
+          id="rep-lote"
+          class="form-input"
+          [(ngModel)]="loteSeleccionado"
+          [disabled]="!granjaSeleccionadaId || cargandoFiltros"
+        >
+          <option [ngValue]="null">Todos</option>
+          <option *ngFor="let l of lotesFiltrados; trackBy: trackByLoteOpcion" [ngValue]="l">
+            {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
+          </option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="rep-linea">Línea</label>
+        <select id="rep-linea" class="form-input" [(ngModel)]="lineaSeleccionada" [disabled]="!!loteSeleccionado">
+          <option [ngValue]="null">Todas</option>
+          <option *ngFor="let l of lineas" [ngValue]="l">{{ lineaLabel[l] }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="rep-desde">Desde</label>
+        <input id="rep-desde" type="date" class="form-input" [(ngModel)]="fechaDesde" />
+      </div>
+      <div>
+        <label class="form-label" for="rep-hasta">Hasta</label>
+        <input id="rep-hasta" type="date" class="form-input" [(ngModel)]="fechaHasta" />
+      </div>
+      <div class="flex items-end">
+        <button type="button" class="btn-primary w-full justify-center text-sm" [disabled]="cargando" (click)="consultar()">
+          {{ cargando ? 'Consultando…' : 'Consultar' }}
+        </button>
+      </div>
     </div>
   </div>
 
-  <div *ngIf="consultado" class="rounded-lg border bg-white">
-    <div class="flex items-center justify-between border-b px-4 py-3">
-      <h2 class="text-sm font-semibold text-gray-700">Resultado ({{ filas.length }} lote(s))</h2>
-      <button type="button" class="rounded border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" (click)="exportar()">
-        Exportar Excel
-      </button>
+  <!-- KPIs globales -->
+  <div *ngIf="kpis && consultado" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-orange-dark)">{{ kpis.lotes }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Lotes</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-text)">{{ kpis.totalProgramadas }}</div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Programadas</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--success)">
+        {{ kpis.porcentajeATiempo !== null ? kpis.porcentajeATiempo + '%' : '—' }}
+      </div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">A tiempo</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold text-amber-600">
+        {{ kpis.porcentajeTardio !== null ? kpis.porcentajeTardio + '%' : '—' }}
+      </div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Tardío</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--danger)">
+        {{ kpis.porcentajeNoAplicado !== null ? kpis.porcentajeNoAplicado + '%' : '—' }}
+      </div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">No aplicado</div>
+    </div>
+    <div class="ux-card p-3 text-center">
+      <div class="text-2xl font-extrabold" style="color: var(--ital-orange)">
+        {{ kpis.promedioDiasAtraso !== null ? kpis.promedioDiasAtraso + ' d' : '—' }}
+      </div>
+      <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Atraso promedio</div>
+    </div>
+  </div>
+
+  <!-- Resultado -->
+  <div *ngIf="consultado" class="ux-card overflow-hidden">
+    <div
+      class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3"
+      style="border-color: var(--ital-green-100)"
+    >
+      <div class="flex items-center gap-1 rounded-xl p-1" style="background: var(--ital-cream)">
+        <button
+          type="button"
+          class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+          [style.background]="vista === 'lotes' ? 'var(--ital-orange)' : 'transparent'"
+          [style.color]="vista === 'lotes' ? '#fff' : 'var(--ital-muted)'"
+          (click)="vista = 'lotes'"
+        >
+          Por lote ({{ filas.length }})
+        </button>
+        <button
+          type="button"
+          class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+          [style.background]="vista === 'detalle' ? 'var(--ital-orange)' : 'transparent'"
+          [style.color]="vista === 'detalle' ? '#fff' : 'var(--ital-muted)'"
+          (click)="vista = 'detalle'"
+        >
+          Detalle por vacuna ({{ filasDetalle.length }})
+        </button>
+      </div>
+      <button type="button" class="btn-ghost text-sm" (click)="exportar()">⬇ Exportar Excel (multi-hoja)</button>
     </div>
 
-    <table class="w-full text-left text-sm">
-      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-        <tr>
-          <th class="px-4 py-2">Granja</th>
-          <th class="px-4 py-2">Lote</th>
-          <th class="px-4 py-2">Línea</th>
-          <th class="px-4 py-2">Programadas</th>
-          <th class="px-4 py-2">% a tiempo</th>
-          <th class="px-4 py-2">% tardío</th>
-          <th class="px-4 py-2">% no aplicado</th>
-          <th class="px-4 py-2">Prom. días atraso</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y">
-        <tr *ngFor="let f of filas">
-          <td class="px-4 py-2 text-gray-600">{{ f.granjaNombre }}</td>
-          <td class="px-4 py-2 font-medium text-gray-800">{{ f.loteNombre }}</td>
-          <td class="px-4 py-2 text-gray-600">{{ lineaLabel[f.lineaProductiva] }}</td>
-          <td class="px-4 py-2 text-gray-600">{{ f.totalProgramadas }}</td>
-          <td class="px-4 py-2">
-            <div class="flex items-center gap-2">
-              <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
-                <div class="h-2 bg-green-500" [style.width.%]="f.porcentajeATiempo"></div>
-              </div>
-              <span class="text-xs text-gray-600">{{ f.porcentajeATiempo }}%</span>
-            </div>
-          </td>
-          <td class="px-4 py-2">
-            <div class="flex items-center gap-2">
-              <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
-                <div class="h-2" [class]="f.totalTardio2MasSemanas > 0 ? 'bg-red-500' : 'bg-amber-500'" [style.width.%]="f.porcentajeTardio"></div>
-              </div>
-              <span class="text-xs text-gray-600">{{ f.porcentajeTardio }}%</span>
-            </div>
-          </td>
-          <td class="px-4 py-2">
-            <div class="flex items-center gap-2">
-              <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
-                <div class="h-2 bg-red-500" [style.width.%]="f.porcentajeNoAplicado"></div>
-              </div>
-              <span class="text-xs text-gray-600">{{ f.porcentajeNoAplicado }}%</span>
-            </div>
-          </td>
-          <td class="px-4 py-2 text-gray-600">{{ f.promedioDiasAtraso ?? '—' }}</td>
-        </tr>
-        <tr *ngIf="!filas.length && !cargando">
-          <td colspan="8" class="px-4 py-6 text-center text-gray-400">Sin datos para los filtros seleccionados.</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="relative">
+      <!-- Vista por lote -->
+      <div *ngIf="vista === 'lotes'" class="ux-scroll overflow-x-auto">
+        <table class="ux-table min-w-[960px]">
+          <thead>
+            <tr>
+              <th>Granja</th>
+              <th>Lote</th>
+              <th>Línea</th>
+              <th>Programadas</th>
+              <th>% a tiempo</th>
+              <th>% tardío</th>
+              <th>% no aplicado</th>
+              <th>Pendientes</th>
+              <th>Prom. días atraso</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let f of filas; trackBy: trackByFilaLote">
+              <td>{{ f.granjaNombre }}</td>
+              <td>{{ f.loteNombre }}</td>
+              <td>{{ lineaLabel[f.lineaProductiva] }}</td>
+              <td>{{ f.totalProgramadas }}</td>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
+                    <div class="h-2" style="background: var(--success)" [style.width.%]="f.porcentajeATiempo"></div>
+                  </div>
+                  <span class="text-xs">{{ f.porcentajeATiempo }}%</span>
+                </div>
+              </td>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
+                    <div
+                      class="h-2"
+                      [style.background]="f.totalTardio2MasSemanas > 0 ? 'var(--danger)' : '#f59e0b'"
+                      [style.width.%]="f.porcentajeTardio"
+                    ></div>
+                  </div>
+                  <span class="text-xs">{{ f.porcentajeTardio }}%</span>
+                </div>
+              </td>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="h-2 w-16 overflow-hidden rounded bg-gray-100">
+                    <div class="h-2" style="background: var(--danger)" [style.width.%]="f.porcentajeNoAplicado"></div>
+                  </div>
+                  <span class="text-xs">{{ f.porcentajeNoAplicado }}%</span>
+                </div>
+              </td>
+              <td>{{ f.totalPendiente }}</td>
+              <td>{{ f.promedioDiasAtraso ?? '—' }}</td>
+            </tr>
+            <tr *ngIf="!filas.length && !cargando">
+              <td colspan="9">
+                <div class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">📊</div>
+                  Sin datos para los filtros seleccionados.
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Vista detalle por vacuna -->
+      <div *ngIf="vista === 'detalle'" class="ux-scroll overflow-x-auto">
+        <table class="ux-table min-w-[1100px]">
+          <thead>
+            <tr>
+              <th>Granja</th>
+              <th>Lote</th>
+              <th>Vacuna</th>
+              <th>Programado</th>
+              <th>Franja</th>
+              <th>Estado</th>
+              <th>Fecha aplicación</th>
+              <th>Aplicado por</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let fila of filasDetalle; trackBy: trackByFilaDetalle">
+              <td>{{ fila.d.granjaNombre }}</td>
+              <td>{{ fila.d.loteNombre }}</td>
+              <td>{{ fila.d.vacunaNombre }}</td>
+              <td>
+                <ng-container [ngSwitch]="fila.d.unidadObjetivo">
+                  <span *ngSwitchCase="'Semana'">Semana {{ fila.d.valorObjetivo }}</span>
+                  <span *ngSwitchCase="'Dia'">Día {{ fila.d.valorObjetivo }}</span>
+                  <span *ngSwitchDefault>{{ fila.d.fechaObjetivoEfectiva | date: 'dd/MM/yyyy' }}</span>
+                </ng-container>
+              </td>
+              <td>
+                {{ fila.d.fechaInicioFranja | date: 'dd/MM/yyyy' }} — {{ fila.d.fechaFinFranja | date: 'dd/MM/yyyy' }}
+              </td>
+              <td>
+                <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="fila.estado.claseBadge">
+                  {{ fila.estado.etiqueta }}
+                </span>
+              </td>
+              <td>{{ fila.d.fechaAplicacion ? (fila.d.fechaAplicacion | date: 'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ fila.d.aplicadoPor ?? '—' }}</td>
+              <td class="max-w-[200px] truncate" [title]="fila.d.motivo ?? ''">{{ fila.d.motivo ?? '—' }}</td>
+            </tr>
+            <tr *ngIf="!filasDetalle.length && !cargando">
+              <td colspan="9">
+                <div class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">💉</div>
+                  Sin vacunas programadas para los filtros seleccionados.
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="cargando" class="loading-overlay" role="status" aria-label="Generando reporte">
+        <span class="spinner"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Placeholder inicial -->
+  <div *ngIf="!consultado" class="ux-card">
+    <div class="empty-state">
+      <div class="empty-illustration" aria-hidden="true">📊</div>
+      Elegí los filtros y presioná “Consultar” para generar el reporte.
+    </div>
   </div>
 </div>

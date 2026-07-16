@@ -44,6 +44,8 @@ public class VacunacionCronogramaItemConfiguration : IEntityTypeConfiguration<Va
         b.Property(x => x.UpdatedByUserId).HasColumnName("updated_by_user_id");
         b.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
+        // Filtro primario de las fn_vacunacion_* (reportes multipaís): company + país.
+        b.HasIndex(x => new { x.CompanyId, x.PaisId }).HasDatabaseName("ix_vacunacion_cronograma_item_company_pais");
         b.HasIndex(x => x.GranjaId).HasDatabaseName("ix_vacunacion_cronograma_item_granja");
         b.HasIndex(x => x.LotePosturaLevanteId).HasDatabaseName("ix_vacunacion_cronograma_item_levante");
         b.HasIndex(x => x.LotePosturaProduccionId).HasDatabaseName("ix_vacunacion_cronograma_item_produccion");
