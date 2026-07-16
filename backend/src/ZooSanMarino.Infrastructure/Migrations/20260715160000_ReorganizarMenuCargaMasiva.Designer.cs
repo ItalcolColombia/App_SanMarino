@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260715160000_ReorganizarMenuCargaMasiva")]
+    partial class ReorganizarMenuCargaMasiva
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5062,10 +5065,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<long?>("DuracionMs")
                         .HasColumnType("bigint")
                         .HasColumnName("duracion_ms");
-
-                    b.Property<string>("DetalleJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("detalle_json");
 
                     b.Property<string>("ErroresJson")
                         .HasColumnType("jsonb")

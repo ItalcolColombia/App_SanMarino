@@ -202,7 +202,10 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
             ConsumoAguaTemperatura: e.ConsumoAguaTemperatura,
             CreatedByUserId: e.CreatedByUserId,
             SaldoAlimentoKg: e.SaldoAlimentoKg.HasValue ? (double)e.SaldoAlimentoKg.Value : null,
-            HistoricoConsumoAlimento: e.HistoricoConsumoAlimento
+            HistoricoConsumoAlimento: e.HistoricoConsumoAlimento,
+            QqMixtas: e.QqMixtas,
+            QqHembras: e.QqHembras,
+            QqMachos: e.QqMachos
         );
     }
 

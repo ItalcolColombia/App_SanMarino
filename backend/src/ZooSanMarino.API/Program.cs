@@ -268,6 +268,10 @@ builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IMigracionRepository, MigracionRepository>();
 builder.Services.AddScoped<IMigracionService, MigracionService>();
 
+// Puente de consulta ZooPanamaPollo → pollo engorde (SOLO LECTURA del origen; sincronización idempotente)
+builder.Services.AddHttpClient<IPuentePanamaApiClient, PuentePanamaApiClient>();
+builder.Services.AddScoped<IPuentePanamaService, PuentePanamaService>();
+
 // Liquidación Técnica Service
 builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService>();
 builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();
