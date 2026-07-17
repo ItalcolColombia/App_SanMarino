@@ -8,6 +8,14 @@
 --
 -- Idempotente. No cambia schema. Semana = edad (semanas de vida).
 -- La guía se almacena como texto (puede traer '', '-', o coma decimal) → se castea seguro.
+--
+-- DEPLOY (REQ-005): este .sql es la SPEC. NO se aplica corriéndolo a mano en prod.
+-- Se aplica envolviendo su contenido tal cual en `migrationBuilder.Sql(@"...")`
+-- dentro de una migración EF nueva (mismo patrón que
+-- 20260703120000_AddFnIndicadoresProduccionPostura.cs: Up() = CREATE OR REPLACE
+-- FUNCTION + CREATE OR REPLACE VIEW; Down() = DROP VIEW/FUNCTION IF EXISTS). La
+-- migración la crea el coordinador; este archivo queda como fuente de verdad para
+-- copiar/pegar dentro de Up().
 -- ============================================================================
 
 -- Cast seguro a numeric: tolera vacío, '-', y coma decimal.
