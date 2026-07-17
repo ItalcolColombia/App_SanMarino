@@ -22,7 +22,6 @@ interface IndicadorSemanal {
   consumoDiario: number; // Consumo diario por ave (g/ave/día) - para comparar con tabla
   consumoTabla: number; // Consumo esperado de tabla (g/ave/día)
   consumoTotalSemana: number; // Consumo total de la semana en gramos
-  conversionAlimenticia: number;
   // Guía genética / comparativos
   pesoTabla: number; // peso esperado tabla (promedio H/M)
   unifReal: number; // uniformidad real (promedio H/M del último registro)
@@ -212,7 +211,6 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       consumoDiario: d.consumoDiario,
       consumoTabla: d.consumoTabla,
       consumoTotalSemana: d.consumoTotalSemana,
-      conversionAlimenticia: d.conversionAlimenticia,
       pesoTabla: d.pesoTabla,
       unifReal: d.unifReal,
       unifTabla: d.unifTabla,
@@ -505,6 +503,24 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     return '';
   }
 
+  // ================== CHIPS DE CONTEXTO (Regional · Granja · Módulo · Sub Lote) ==================
+  /** Regional del lote; el backend resuelve el nombre ("Oriente"/"Occidente"). Fallback '-' si no viene. */
+  get chipRegional(): string {
+    return this.selectedLote?.regional || '-';
+  }
+
+  get chipGranja(): string {
+    return (this.selectedLote as any)?.farm?.name || '-';
+  }
+
+  get chipModulo(): string {
+    return (this.selectedLote as any)?.nucleo?.nucleoNombre || '-';
+  }
+
+  get chipSubLote(): string {
+    return this.extraerSublote((this.selectedLote as any)?.loteNombre || '') || '-';
+  }
+
   // ================== FÓRMULAS DE INDICADORES ==================
   get gruposFormulas() {
     return [
@@ -543,10 +559,6 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
           {
             nombre: 'Consumo Total Semana (g)',
             formula: 'Σ(Consumo Hembras + Consumo Machos) × 1000 (conversión kg a g)'
-          },
-          {
-            nombre: 'Conversión Alimenticia (FCR)',
-            formula: '(Consumo Total por Ave en g) / (Ganancia de Peso por Ave en g)'
           }
         ]
       },
