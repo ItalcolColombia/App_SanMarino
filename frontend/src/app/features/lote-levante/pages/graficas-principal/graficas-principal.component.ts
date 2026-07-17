@@ -41,7 +41,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   indicadoresSemanales: any[] = [];
 
   // ========== SELECTORES DE GRÁFICAS ==========
-  tipoGraficaSeleccionada: 'mortalidad' | 'consumo' | 'peso' | 'conversion' | 'seleccion' | 'aves' | 'comparacion' = 'mortalidad';
+  tipoGraficaSeleccionada: 'mortalidad' | 'consumo' | 'peso' | 'seleccion' | 'aves' | 'comparacion' = 'mortalidad';
   tiposGraficaSeleccionados: string[] = ['mortalidad']; // Lista de tipos seleccionados para gráfica combinada
   tipoVisualizacion: 'linea' | 'barra' | 'torta' = 'barra';
   mostrarGraficaCombinada: boolean = false; // Activar gráfica combinada cuando hay múltiples tipos seleccionados
@@ -85,7 +85,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   // ========== SELECTOR MÚLTIPLE DE MÉTRICAS ==========
   metricasDisponibles = [
     { id: 'mortalidad', nombre: 'Mortalidad (%)', icono: '💀', color: 'rgba(245, 124, 0, 1)' },
-    { id: 'consumoReal', nombre: 'Consumo Real (g)', icono: '🍽️', color: 'rgba(211, 47, 47, 1)' },
+    { id: 'consumoReal', nombre: 'Consumo (g/ave/día)', icono: '🍽️', color: 'rgba(211, 47, 47, 1)' },
     { id: 'consumoTabla', nombre: 'Consumo Tabla (g)', icono: '📊', color: 'rgba(25, 118, 210, 1)' },
     { id: 'peso', nombre: 'Peso Promedio (g)', icono: '⚖️', color: 'rgba(56, 142, 60, 1)' },
     // Conversión Alimenticia removida: es parámetro de pollo de engorde, no aplica a reproductoras (REQ-002h).
@@ -94,6 +94,45 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   ];
   metricasSeleccionadas: string[] = [];
   mostrarComparacionPersonalizada: boolean = false;
+
+  // ========== SELECTOR DE SEXO (REQ-010b) ==========
+  /**
+   * Selector Hembras/Machos/Ambos. El backend (`fn_indicadores_levante_postura` vía
+   * `IndicadorSemanalLevanteDto`) ya expone series POR SEXO (consumoDiario/consumoTabla/peso/
+   * pesoTabla/mortPct/mortTabla/retiroPct por Hembras y Machos) además de las mixtas. Con el grupo:
+   *   - 'ambos'   → usa las series MIXTAS (comportamiento previo, intacto).
+   *   - 'hembras' → usa las series *Hembras.
+   *   - 'machos'  → usa las series *Machos.
+   * `grupoSexoSeleccionado`/`grupoSexoLabel` etiquetan los títulos; `prepararChartData` y la tarjeta
+   * "Comparativo con Guía" (`construirComparativoGuia`) recomputan las series al cambiar el grupo.
+   */
+  grupoSexoSeleccionado: 'ambos' | 'hembras' | 'machos' = 'ambos';
+  readonly grupoSexoDisponible = true;
+
+  get grupoSexoLabel(): string {
+    switch (this.grupoSexoSeleccionado) {
+      case 'hembras': return 'Hembras';
+      case 'machos': return 'Machos';
+      default: return 'Hembras + Machos';
+    }
+  }
+
+  /** Recalcula las series de todas las gráficas y del comparativo con guía según el grupo activo. */
+  onGrupoSexoChange(): void {
+    this.prepararChartData();
+    this.construirComparativoGuia();
+  }
+
+  /**
+   * Valor Real de una métrica para un punto según el grupo activo (REQ-010b).
+   * 'ambos' devuelve EXACTAMENTE la expresión mixta previa (`x[mixto] || 0`); 'hembras'/'machos'
+   * toman la serie por sexo (null/undefined → 0 para las gráficas de barras/líneas).
+   */
+  private serieValor(x: any, mixto: string, hembras: string, machos: string): number {
+    if (this.grupoSexoSeleccionado === 'hembras') return x[hembras] ?? 0;
+    if (this.grupoSexoSeleccionado === 'machos')  return x[machos] ?? 0;
+    return x[mixto] || 0;
+  }
 
   // Gráfica combinada personalizada
   comparacionPersonalizadaChartData: ChartData<'bar' | 'line'> = { labels: [], datasets: [] };
@@ -115,10 +154,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   // Gráfica de Peso
   pesoChartData: ChartData<'bar' | 'line'> = { labels: [], datasets: [] };
   pesoChartOptions: ChartConfiguration['options'] = {};
-
-  // Gráfica de Conversión
-  conversionChartData: ChartData<'bar' | 'line'> = { labels: [], datasets: [] };
-  conversionChartOptions: ChartConfiguration['options'] = {};
 
   // Gráfica de Selección
   seleccionChartData: ChartData<'bar' | 'line'> = { labels: [], datasets: [] };
@@ -156,28 +191,31 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     let etiqueta = '', unidad = '';
 
     // Los valores "tabla" (guía) vienen del DTO calculado en la BD (fn_indicadores_levante_postura):
-    // consumoTabla, pesoTabla, mortTabla. El front ya NO consulta la guía genética.
+    // consumoTabla, pesoTabla, mortTabla (mixtos) + *Hembras/*Machos por sexo. El front NO recalcula.
+    // Según el grupo activo (REQ-010b): 'ambos' usa la serie mixta (comportamiento previo intacto),
+    // 'hembras'/'machos' usan la serie por sexo. Real preserva null (spanGaps); Guía convierte 0/null
+    // a null para que el chart no dibuje puntos falsos.
     for (const d of data) {
       switch (this.metricaComparativa) {
         case 'consumo':
           etiqueta = 'Consumo'; unidad = 'g/ave/día';
-          real.push(d.consumoReal ?? null);
-          guia.push((d.consumoTabla ?? 0) > 0 ? d.consumoTabla : null);
+          real.push(this.realPorGrupo(d, 'consumoReal', 'consumoRealHembras', 'consumoRealMachos'));
+          guia.push(this.guiaPorGrupo(d, 'consumoTabla', 'consumoTablaHembras', 'consumoTablaMachos'));
           break;
         case 'peso':
           etiqueta = 'Peso'; unidad = 'g';
-          real.push(d.pesoCierre ?? null);
-          guia.push((d.pesoTabla ?? 0) > 0 ? d.pesoTabla : null);
+          real.push(this.realPorGrupo(d, 'pesoCierre', 'pesoHembras', 'pesoMachos'));
+          guia.push(this.guiaPorGrupo(d, 'pesoTabla', 'pesoTablaHembras', 'pesoTablaMachos'));
           break;
         case 'mortalidad':
           etiqueta = '% Mortalidad semana'; unidad = '%';
-          real.push(d.mortalidadSem ?? null);
-          guia.push((d.mortTabla ?? 0) > 0 ? d.mortTabla : null);
+          real.push(this.realPorGrupo(d, 'mortalidadSem', 'mortPctHembras', 'mortPctMachos'));
+          guia.push(this.guiaPorGrupo(d, 'mortTabla', 'mortTablaHembras', 'mortTablaMachos'));
           break;
         case 'retiro':
-          // La BD no expone una guía de retiro (mort+sel+errSex); se muestra solo la serie real.
+          // La BD no expone guía de retiro (ni mixta ni por sexo); se muestra solo la serie real.
           etiqueta = '% Retiro (Mort+Sel+ErrSex)'; unidad = '%';
-          real.push(d.retiroSem ?? null);
+          real.push(this.realPorGrupo(d, 'retiroSem', 'retiroPctHembras', 'retiroPctMachos'));
           guia.push(null);
           break;
       }
@@ -192,9 +230,32 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     };
     this.comparativoGuiaChartOptions = {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: true, position: 'top' }, title: { display: true, text: `${etiqueta} — Real vs Guía (${unidad})` } },
+      plugins: { legend: { display: true, position: 'top' }, title: { display: true, text: `${etiqueta} — Real vs Guía (${unidad}) · ${this.grupoSexoLabel}` } },
       scales: { y: { beginAtZero: false, title: { display: true, text: unidad } } }
     };
+  }
+
+  /**
+   * Serie Real por grupo (comparativo): 'ambos' usa la mixta (comportamiento previo, `x[mixto] ?? null`),
+   * 'hembras'/'machos' la serie por sexo. Preserva null para que el chart use spanGaps.
+   */
+  private realPorGrupo(x: any, mixto: string, hembras: string, machos: string): number | null {
+    const v = this.grupoSexoSeleccionado === 'hembras' ? x[hembras]
+            : this.grupoSexoSeleccionado === 'machos'  ? x[machos]
+            : x[mixto];
+    return v ?? null;
+  }
+
+  /**
+   * Serie Guía por grupo (comparativo): 'ambos' usa la mixta; convierte 0/null a null para no dibujar
+   * puntos falsos (idéntico al criterio previo `(v ?? 0) > 0 ? v : null`). H/M usan la guía por sexo
+   * (peso_h/_m, mort_sem_h/_m); si la guía no trae el dato del sexo, degrada a null (spanGaps).
+   */
+  private guiaPorGrupo(x: any, mixto: string, hembras: string, machos: string): number | null {
+    const v = this.grupoSexoSeleccionado === 'hembras' ? x[hembras]
+            : this.grupoSexoSeleccionado === 'machos'  ? x[machos]
+            : x[mixto];
+    return (v ?? 0) > 0 ? (v as number) : null;
   }
 
   constructor(private seguimientoSvc: SeguimientoLoteLevanteService) {
@@ -275,7 +336,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     this.mortalidadChartOptions = { ...baseOptions };
     this.consumoChartOptions = { ...baseOptions };
     this.pesoChartOptions = { ...baseOptions };
-    this.conversionChartOptions = { ...baseOptions };
     this.seleccionChartOptions = { ...baseOptions };
     this.avesChartOptions = { ...baseOptions };
     this.comparativoChartOptions = {
@@ -473,32 +533,32 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
     const labels = ind.map((x: any) => `Semana ${x.semana}`);
 
-    // Gráfica de Mortalidad
+    // Gráfica de Mortalidad — Real por grupo (REQ-010b: 'ambos' mixta, H/M por sexo).
     this.mortalidadChartData = {
       labels,
       datasets: [{
         label: 'Mortalidad (%)',
-        data: ind.map((x: any) => x.mortalidadSem || 0),
+        data: ind.map((x: any) => this.serieValor(x, 'mortalidadSem', 'mortPctHembras', 'mortPctMachos')),
         backgroundColor: 'rgba(245, 124, 0, 0.7)',
         borderColor: 'rgba(245, 124, 0, 1)',
         borderWidth: 2
       }]
     };
 
-    // Gráfica de Consumo
+    // Gráfica de Consumo — Real + Tabla por grupo (REQ-010b).
     this.consumoChartData = {
       labels,
       datasets: [
         {
-          label: 'Consumo Real (g)',
-          data: ind.map((x: any) => x.consumoReal || 0),
+          label: 'Consumo (g/ave/día)',
+          data: ind.map((x: any) => this.serieValor(x, 'consumoReal', 'consumoRealHembras', 'consumoRealMachos')),
           backgroundColor: 'rgba(211, 47, 47, 0.7)',
           borderColor: 'rgba(211, 47, 47, 1)',
           borderWidth: 2
         },
         {
           label: 'Consumo Tabla (g)',
-          data: ind.map((x: any) => x.consumoTabla || 0),
+          data: ind.map((x: any) => this.serieValor(x, 'consumoTabla', 'consumoTablaHembras', 'consumoTablaMachos')),
           backgroundColor: 'rgba(25, 118, 210, 0.7)',
           borderColor: 'rgba(25, 118, 210, 1)',
           borderWidth: 2
@@ -506,28 +566,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       ]
     };
 
-    // Gráfica de Peso
+    // Gráfica de Peso — Real por grupo (REQ-010b).
     this.pesoChartData = {
       labels,
       datasets: [{
         label: 'Peso Promedio (g)',
-        data: ind.map((x: any) => x.pesoCierre || 0),
+        data: ind.map((x: any) => this.serieValor(x, 'pesoCierre', 'pesoHembras', 'pesoMachos')),
         backgroundColor: 'rgba(56, 142, 60, 0.7)',
         borderColor: 'rgba(56, 142, 60, 1)',
-        borderWidth: 2,
-        fill: false,
-        tension: 0.4
-      }]
-    };
-
-    // Gráfica de Conversión
-    this.conversionChartData = {
-      labels,
-      datasets: [{
-        label: 'Conversión Alimenticia',
-        data: ind.map((x: any) => x.conversionAlimenticia || 0),
-        backgroundColor: 'rgba(33, 150, 243, 0.7)',
-        borderColor: 'rgba(33, 150, 243, 1)',
         borderWidth: 2,
         fill: false,
         tension: 0.4
@@ -648,9 +694,8 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     return [
       { nombre: 'Mortalidad (%)', semana1: semana1.mortalidadSem || 0, semana2: semana2.mortalidadSem || 0 },
       { nombre: 'Selección (%)', semana1: semana1.seleccionSem || 0, semana2: semana2.seleccionSem || 0 },
-      { nombre: 'Consumo Real (g)', semana1: semana1.consumoReal || 0, semana2: semana2.consumoReal || 0 },
+      { nombre: 'Consumo (g/ave/día)', semana1: semana1.consumoReal || 0, semana2: semana2.consumoReal || 0 },
       { nombre: 'Peso (g)', semana1: semana1.pesoCierre || 0, semana2: semana2.pesoCierre || 0 },
-      { nombre: 'Conversión', semana1: semana1.conversionAlimenticia || 0, semana2: semana2.conversionAlimenticia || 0 },
       { nombre: 'Aves Vivas', semana1: semana1.avesFinSemana || 0, semana2: semana2.avesFinSemana || 0 }
     ];
   }
@@ -729,7 +774,12 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     }
   }
 
+  /** Título de la gráfica activa, etiquetado con el grupo H/M/Ambos activo (REQ-010b). */
   getTituloGrafica(): string {
+    return `${this.getTituloGraficaBase()} · ${this.grupoSexoLabel}`;
+  }
+
+  private getTituloGraficaBase(): string {
     if (this.mostrarComparacionPersonalizada && this.metricasSeleccionadas.length > 0) {
       return this.getTituloComparacionPersonalizada();
     }
@@ -741,7 +791,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
         'consumo': '🍽️',
         'consumoTabla': '📊',
         'peso': '⚖️',
-        'conversion': '🔄',
         'seleccion': '📋',
         'retiro': '📉',
         'uniformidad': '📐',
@@ -757,7 +806,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       'mortalidad': '💀 Mortalidad por Semana',
       'consumo': '🍽️ Consumo de Alimento',
       'peso': '⚖️ Evolución de Peso',
-      'conversion': '🔄 Conversión Alimenticia',
       'seleccion': '📋 Selección por Semana',
       'aves': '🐔 Aves Vivas por Semana',
       'comparacion': '📊 Comparación Personalizada'
@@ -807,6 +855,22 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       pesoTabla: d.pesoTabla,
       mortTabla: d.mortTabla,
       gananciaSemana: d.gananciaSemana,
+      // ── Series POR SEXO (REQ-010b): se copian tal cual de la BD (ya calculadas), el front NO
+      //    recalcula. Alimentan el selector Hembras/Machos; 'ambos' sigue usando las mixtas. ──
+      consumoRealHembras: d.consumoDiarioHembras ?? null,
+      consumoRealMachos: d.consumoDiarioMachos ?? null,
+      consumoTablaHembras: d.consumoTablaHembras ?? null,
+      consumoTablaMachos: d.consumoTablaMachos ?? null,
+      pesoHembras: d.pesoHembras ?? null,
+      pesoMachos: d.pesoMachos ?? null,
+      pesoTablaHembras: d.pesoTablaHembras ?? null,
+      pesoTablaMachos: d.pesoTablaMachos ?? null,
+      mortPctHembras: d.mortPctHembras ?? null,
+      mortPctMachos: d.mortPctMachos ?? null,
+      mortTablaHembras: d.mortTablaHembras ?? null,
+      mortTablaMachos: d.mortTablaMachos ?? null,
+      retiroPctHembras: d.retiroPctHembras ?? null,
+      retiroPctMachos: d.retiroPctMachos ?? null,
       // Se completan en calcularIncrementosConsumo (diferencia vs semana anterior).
       incrConsumoReal: 0,
       incrConsumoTabla: 0
@@ -829,7 +893,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
     return [
       {
-        nombre: 'Consumo Real (g)',
+        nombre: 'Consumo (g/ave/día)',
         datos: ind.map((x: any) => ({
           semana: x.semana,
           fecha: x.fechaInicio,
@@ -882,17 +946,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
         })),
         color: '#9c27b0',
         tipo: 'barra'
-      },
-      {
-        nombre: 'Conversión Alimenticia',
-        datos: ind.map((x: any) => ({
-          semana: x.semana,
-          fecha: x.fechaInicio,
-          valor: x.conversionAlimenticia,
-          etiqueta: `Semana ${x.semana}: ${x.conversionAlimenticia.toFixed(2)}`
-        })),
-        color: '#2196f3',
-        tipo: 'linea'
       },
       {
         nombre: 'Eficiencia',
@@ -996,17 +1049,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     return suma / ind.length;
   }
 
-  getMejorSemanaConversion(): string {
-    const ind = this.indicadoresFiltrados;
-    if (ind.length === 0) return 'N/A';
-
-    const mejorSemana = ind.reduce((mejor: any, actual: any) =>
-      actual.conversionAlimenticia < mejor.conversionAlimenticia ? actual : mejor
-    );
-
-    return `Semana ${mejorSemana.semana} (${mejorSemana.conversionAlimenticia.toFixed(2)})`;
-  }
-
   // ========== MÉTODOS PARA COMPARACIÓN PERSONALIZADA ==========
   toggleComparacionPersonalizada(): void {
     this.mostrarComparacionPersonalizada = !this.mostrarComparacionPersonalizada;
@@ -1077,9 +1119,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
         case 'peso':
           data = ind.map((x: any) => x.pesoCierre || 0);
           break;
-        case 'conversion':
-          data = ind.map((x: any) => x.conversionAlimenticia || 0);
-          break;
         case 'seleccion':
           data = ind.map((x: any) => x.seleccionSem || 0);
           break;
@@ -1143,7 +1182,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       'consumo': 'rgba(211, 47, 47, 1)',
       'consumoTabla': 'rgba(25, 118, 210, 1)',
       'peso': 'rgba(56, 142, 60, 1)',
-      'conversion': 'rgba(33, 150, 243, 1)',
       'seleccion': 'rgba(156, 39, 176, 1)',
       'retiro': 'rgba(244, 67, 54, 1)',
       'uniformidad': 'rgba(156, 39, 176, 1)',
@@ -1154,10 +1192,9 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
     const nombresPorTipo: { [key: string]: string } = {
       'mortalidad': 'Mortalidad (%)',
-      'consumo': 'Consumo Real (g)',
+      'consumo': 'Consumo (g/ave/día)',
       'consumoTabla': 'Consumo Tabla (g)',
       'peso': 'Peso Promedio (g)',
-      'conversion': 'Conversión Alimenticia',
       'seleccion': 'Selección (%)',
       'retiro': 'Retiro (%)',
       'uniformidad': 'Uniformidad (%)',
@@ -1181,9 +1218,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
           break;
         case 'peso':
           data = ind.map((x: any) => x.pesoCierre || 0);
-          break;
-        case 'conversion':
-          data = ind.map((x: any) => x.conversionAlimenticia || 0);
           break;
         case 'seleccion':
           data = ind.map((x: any) => x.seleccionSem || 0);

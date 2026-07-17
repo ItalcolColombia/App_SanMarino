@@ -255,6 +255,28 @@ export interface IndicadorSemanalLevanteDto {
   pesoInicial: number;
   pesoCierre: number;
   diasConRegistro: number;
+
+  // ── Series POR SEXO (REQ-010b) para el selector Hembras/Machos/Ambos ──
+  // Las columnas mixtas de arriba las usa "Ambos"; estas alimentan Hembras/Machos.
+  // null cuando el sexo no tiene saldo/pesaje o la guía no trae el dato del sexo.
+  // Consumo g/ave/día real y guía (tabla) SIN promediar.
+  consumoDiarioHembras?: number | null;
+  consumoDiarioMachos?: number | null;
+  consumoTablaHembras?: number | null;
+  consumoTablaMachos?: number | null;
+  // Peso prom por sexo real (con arrastre) y guía.
+  pesoHembras?: number | null;
+  pesoMachos?: number | null;
+  pesoTablaHembras?: number | null;
+  pesoTablaMachos?: number | null;
+  // % Mortalidad semanal por sexo real y guía.
+  mortPctHembras?: number | null;
+  mortPctMachos?: number | null;
+  mortTablaHembras?: number | null;
+  mortTablaMachos?: number | null;
+  // % Retiro semanal por sexo real (la guía de retiro por sexo no existe ⇒ solo real).
+  retiroPctHembras?: number | null;
+  retiroPctMachos?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
