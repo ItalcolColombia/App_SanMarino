@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/LiquidacionTecnicaService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -359,8 +360,12 @@ public class LiquidacionTecnicaService : ILiquidacionTecnicaService
         if (!fechaEncaset.HasValue)
             return 0;
 
-        var dias = (fechaRegistro - fechaEncaset.Value).Days;
-        return (dias / 7) + 1;
+        // REQ-011d: antes esto NO clampeaba y, con un encaset futuro (dato corrupto, ver REQ-011a),
+        // devolvía semanas NEGATIVAS en el detalle de liquidación. Se alinea al mismo criterio que
+        // SeguimientoEngordeCalculos.CalcularSemana (Application/Calculos): mínimo semana 1. Para el
+        // caso normal (fechaRegistro >= fechaEncaset) el resultado es idéntico al de antes; el resto
+        // de la liquidación no cambia.
+        return SeguimientoEngordeCalculos.CalcularSemana(fechaEncaset.Value, fechaRegistro);
     }
 
     #endregion

@@ -19,6 +19,9 @@ public partial class SeguimientoLoteLevanteService
         if (lote is null)
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
+        // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
+        await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
+
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
         {
@@ -41,6 +44,9 @@ public partial class SeguimientoLoteLevanteService
                 consumoKgH = Math.Round((gramajeGrAve.Value * hembrasVivas) / 1000.0, 3);
             }
         }
+
+        // REQ-011b (soft-check, no bloquea): advierte si hay consumo/mortalidad de un sexo sin saldo a esa fecha.
+        await ValidarConsumoVsSaldoPorSexoAsync(dto, consumoKgH);
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var createDto = MapToCreateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
@@ -105,6 +111,9 @@ public partial class SeguimientoLoteLevanteService
         if (lote is null)
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
+        // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
+        await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
+
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
         {
@@ -132,6 +141,10 @@ public partial class SeguimientoLoteLevanteService
         var oldH = (oldRec?.MortalidadHembras ?? 0) + (oldRec?.SelH ?? 0) + (oldRec?.ErrorSexajeHembras ?? 0);
         var oldM = (oldRec?.MortalidadMachos ?? 0) + (oldRec?.SelM ?? 0) + (oldRec?.ErrorSexajeMachos ?? 0);
         var oldByItemId = oldRec?.Metadata != null ? ParseMetadataItemsToKg(oldRec.Metadata.RootElement) : new Dictionary<int, decimal>();
+
+        // REQ-011b (soft-check, no bloquea): advierte si hay consumo/mortalidad de un sexo sin saldo a esa
+        // fecha; excluye el propio registro (edición) para no auto-justificarse.
+        await ValidarConsumoVsSaldoPorSexoAsync(dto, consumoKgH, excludeRegistroId: (long)dto.Id);
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var updateDto = MapToUpdateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
@@ -229,6 +242,11 @@ public partial class SeguimientoLoteLevanteService
             return await _seguimientoDiarioService.DeleteAsync((long)id);
 
         int? loteIdInt = int.TryParse(rec.LoteId, out var lid) ? lid : null;
+
+        // REQ-006: bloqueo backend — no permitir eliminar seguimiento de un lote de levante cerrado.
+        if (loteIdInt.HasValue)
+            await EnsureLoteLevanteAbiertoAsync(loteIdInt.Value, rec.LotePosturaLevanteId);
+
         var loteRow = loteIdInt.HasValue
             ? await _ctx.Lotes.AsNoTracking()
                 .Where(l => l.LoteId == loteIdInt.Value && l.CompanyId == _current.CompanyId && l.DeletedAt == null)
@@ -288,5 +306,61 @@ public partial class SeguimientoLoteLevanteService
             catch (Exception ex) { _logger?.LogError(ex, "Error al restaurar aves al eliminar seguimiento levante"); }
         }
         return await _seguimientoDiarioService.DeleteAsync((long)id);
+    }
+
+    /// <summary>
+    /// REQ-006: bloqueo backend de edición sobre lote de levante cerrado (antes el guard era solo UI —
+    /// ver seguimiento-lote-levante-list.component.ts:163-166,888 — y un request directo a la API podía
+    /// editar/borrar registros de un lote ya cerrado). Mismo criterio que
+    /// LotePosturaLevanteService.cs:335 (CloseAsync): EstadoCierre == "Cerrado" (case-insensitive).
+    /// Resuelve el LotePosturaLevante por Id si viene informado; si no, por LoteId. Si no se encuentra
+    /// el registro de levante no bloquea (no hay estado de cierre que validar). Solo aplica a Levante;
+    /// Producción lo cubre otro módulo.
+    /// </summary>
+    private async Task EnsureLoteLevanteAbiertoAsync(int loteId, int? lotePosturaLevanteId)
+    {
+        var lev = lotePosturaLevanteId.HasValue
+            ? await _ctx.LotePosturaLevante.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LotePosturaLevanteId == lotePosturaLevanteId.Value && l.DeletedAt == null)
+            : await _ctx.LotePosturaLevante.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == loteId && l.DeletedAt == null);
+
+        var estado = (lev?.EstadoCierre ?? "").Trim();
+        if (string.Equals(estado, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote de levante está cerrado; no se pueden crear, modificar ni eliminar registros de seguimiento diario.");
+    }
+
+    /// <summary>
+    /// REQ-011b (soft-check, NO bloqueo duro): advierte cuando se registra consumo/mortalidad/selección
+    /// de un sexo con saldo 0 a la fecha del registro — señal de lote poblado solo por traslado (auto-
+    /// consumo/mortalidad calculado sobre una base que la aritmética de saldo no ve) o de una fecha de
+    /// registro fuera del rango real del lote. Implementado como advertencia en el log (no en el DTO de
+    /// respuesta, que es un record inmutable compartido por otros módulos) para no romper ajustes
+    /// retroactivos legítimos con un error duro.
+    /// </summary>
+    private async Task ValidarConsumoVsSaldoPorSexoAsync(SeguimientoLoteLevanteDto dto, double consumoKgH, long? excludeRegistroId = null)
+    {
+        try
+        {
+            var huboMovH = consumoKgH > 0 || dto.MortalidadHembras > 0 || dto.SelH > 0;
+            var huboMovM = (dto.ConsumoKgMachos ?? 0) > 0 || dto.MortalidadMachos > 0 || dto.SelM > 0;
+            if (!huboMovH && !huboMovM) return;
+
+            var (saldoH, saldoM) = await CalcularSaldoPorSexoAFechaAsync(dto.LoteId, dto.FechaRegistro, excludeRegistroId);
+
+            if (huboMovH && saldoH == 0)
+                _logger?.LogWarning(
+                    "REQ-011b: seguimiento lote levante {LoteId} fecha {Fecha:yyyy-MM-dd} registra consumo/mortalidad/selección de HEMBRAS (consumoKgH={ConsumoKgH}, mortH={MortH}, selH={SelH}) con saldo de hembras = 0 a esa fecha. Posible lote poblado solo por traslado o fecha de registro fuera de rango.",
+                    dto.LoteId, dto.FechaRegistro, consumoKgH, dto.MortalidadHembras, dto.SelH);
+
+            if (huboMovM && saldoM == 0)
+                _logger?.LogWarning(
+                    "REQ-011b: seguimiento lote levante {LoteId} fecha {Fecha:yyyy-MM-dd} registra consumo/mortalidad/selección de MACHOS (consumoKgM={ConsumoKgM}, mortM={MortM}, selM={SelM}) con saldo de machos = 0 a esa fecha. Posible lote poblado solo por traslado o fecha de registro fuera de rango.",
+                    dto.LoteId, dto.FechaRegistro, dto.ConsumoKgMachos ?? 0, dto.MortalidadMachos, dto.SelM);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error al validar saldo por sexo (REQ-011b, soft-check) en seguimiento lote levante {LoteId}", dto.LoteId);
+        }
     }
 }
