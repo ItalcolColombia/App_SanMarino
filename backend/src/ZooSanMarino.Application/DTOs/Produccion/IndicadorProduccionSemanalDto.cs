@@ -92,7 +92,21 @@ public record IndicadorProduccionSemanalDto(
     // H.T.A.A / H.I.A.A reales (acumulados por ave alojada) — comparables con h_total_aa / h_inc_aa
     // de la guía. Se agregan al final para no alterar el orden posicional de los campos previos.
     decimal HtaaReal,
-    decimal HiaaReal
+    decimal HiaaReal,
+
+    // REQ-004: %Retiro REAL por sexo (mortalidad + selección). Contrato JSON con el front (los *Guia
+    // ya viajan). Semanal = (mort+sel semana)/saldo del sexo*100; Acumulado = acum/aves iniciales*100.
+    decimal RetiroSemanalHembrasReal,
+    decimal RetiroSemanalMachosReal,
+    decimal RetiroAcumuladoHembrasReal,
+    decimal RetiroAcumuladoMachosReal,
+
+    // Verenice rev 6-jul-26: %Retiro acumulado de GUÍA por sexo (la tabla ya mostraba el Real;
+    // la Guía quedaba vacía porque el backend nunca la emitía). Nombres exactos que ya espera el
+    // front (produccion.service.ts: IndicadorProduccionSemanalDto.retiroAcumuladoHembrasGuia/
+    // retiroAcumuladoMachosGuia). NULL si la guía no tiene esa semana.
+    decimal? RetiroAcumuladoHembrasGuia,
+    decimal? RetiroAcumuladoMachosGuia
 );
 
 /// <summary>

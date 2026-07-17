@@ -78,6 +78,9 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             throw new InvalidOperationException(
                 "No existe lote en fase Producción con ese ID. Cree primero el lote de producción desde el lote en Levante.");
 
+        // REQ-006: no permitir alta sobre un lote de producción cerrado.
+        await EnsureLoteProduccionAbiertoAsync(dto.LoteId, CancellationToken.None);
+
         var fechaDate = dto.Fecha.Date;
         var ct = CancellationToken.None;
         int currentUserId = _current?.UserId ?? 0;
@@ -147,6 +150,9 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         var entity = await _ctx.SeguimientoProduccion.FindAsync(dto.Id);
         if (entity == null) return null;
 
+        // REQ-006: no permitir edición si el lote de producción asociado está cerrado.
+        await EnsureLoteProduccionAbiertoAsync(entity.LoteId, CancellationToken.None);
+
         // Capturar antiguos para calcular delta
         int oldMortH = entity.MortalidadH, oldMortM = entity.MortalidadM;
         int oldSelH = entity.SelH, oldSelM = entity.SelM;
@@ -184,6 +190,9 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     {
         var entity = await _ctx.SeguimientoProduccion.FindAsync(id);
         if (entity == null) return false;
+
+        // REQ-006: no permitir eliminación si el lote de producción asociado está cerrado.
+        await EnsureLoteProduccionAbiertoAsync(entity.LoteId, CancellationToken.None);
 
         // Feature 14: si la fila tiene traslado → revertir AMBOS lotes
         bool tieneTraslado = entity.TrasladoIngresoHembras > 0 || entity.TrasladoIngresoMachos > 0
@@ -254,6 +263,39 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             ))
             .ToListAsync();
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    // REQ-006 — Enforcement de lote cerrado (backend)
+    // ════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// REQ-006: bloqueo backend de creación/edición/eliminación de seguimiento diario de producción
+    /// cuando el lote de producción está cerrado. Antes no validaba ni el front ni el back en
+    /// producción, y un request directo a la API podía tocar registros de un lote ya cerrado. Mismo
+    /// criterio que el levante (LotePosturaLevanteService.cs:335 / SeguimientoLoteLevanteService):
+    /// EstadoCierre "Cerrado"/"Cerrada" (case-insensitive).
+    ///
+    /// Solo se valida el <c>LotePosturaProduccion</c> asociado (por LoteId): el LotePosturaLevante
+    /// del que proviene queda SIEMPRE "Cerrado" al pasar a producción (CerrarLoteYCrearProduccion),
+    /// por eso NO se valida el levante — bloquearía toda captura de producción. Si no hay LPP
+    /// asociado (flujo legacy sin registro LPP) no hay estado de cierre que validar y no bloquea.
+    /// </summary>
+    private async Task EnsureLoteProduccionAbiertoAsync(int loteId, CancellationToken ct = default)
+    {
+        var estado = await _ctx.LotePosturaProduccion.AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.DeletedAt == null)
+            .Select(l => l.EstadoCierre)
+            .FirstOrDefaultAsync(ct);
+
+        if (EstaCerrado(estado))
+            throw new InvalidOperationException(
+                "El lote de producción está cerrado; no se pueden crear, modificar ni eliminar registros de seguimiento diario.");
+    }
+
+    /// <summary>EstadoCierre cerrado (cubre "Cerrado" y "Cerrada", case-insensitive).</summary>
+    private static bool EstaCerrado(string? estado) =>
+        !string.IsNullOrWhiteSpace(estado) &&
+        estado.Trim().StartsWith("Cerrad", StringComparison.OrdinalIgnoreCase);
 
     // ════════════════════════════════════════════════════════════════════
     // Helpers Feature 14

@@ -15,6 +15,11 @@
 --   REQ-004c  H.T.A.A / H.I.A.A reales (acumulados por ave alojada) se comparan contra
 --             h_total_aa / h_inc_aa de la guía (que son acumulados), no contra huevos/día.
 --   REQ-004d  Mortalidad de guía es % (decimal), no entero (no se trunca a 0).
+--   REQ-004e  (Verenice rev 6-jul-26) La tabla "% Retiro (Real vs Guía)" del front mostraba el
+--             REAL pero la GUÍA quedaba vacía: la fn calculaba retiro_ac_h/m REAL pero nunca
+--             exponía la guía. Se agregan retiro_ac_h_guia/retiro_ac_m_guia leyendo
+--             guia_genetica_sanmarino_colombia.retiro_ac_h/retiro_ac_m (mismo parseo NULLIF/btrim
+--             que las demás columnas guía; NULL si no hay guía para la semana).
 --   Guía = tabla real guia_genetica_sanmarino_colombia filtrada por company + raza + año
 --          (misma tabla que ProduccionAvicolaRaw); indexada por Edad = SEMANA DE VIDA.
 --
@@ -60,6 +65,10 @@ BEGIN
     RETURN v_match::integer;
 END;
 $$;
+
+-- REQ-004 cambia la firma de RETURNS TABLE (agrega retiro_sem_h/m + retiro_ac_h/m). Postgres NO
+-- permite CREATE OR REPLACE cuando cambia el row type de los parámetros OUT → DROP idempotente antes.
+DROP FUNCTION IF EXISTS fn_indicadores_produccion_postura(integer, integer, integer, integer, integer, date, date);
 
 CREATE OR REPLACE FUNCTION fn_indicadores_produccion_postura(
     p_company_id                  integer,
@@ -132,7 +141,20 @@ RETURNS TABLE(
     aves_hembras_fin_semana             integer,
     aves_machos_fin_semana              integer,
     htaa_real                           double precision,
-    hiaa_real                           double precision
+    hiaa_real                           double precision,
+    -- REQ-004: %Retiro REAL por sexo (mortalidad + selección). Semanal sobre saldo de inicio del
+    --   sexo; acumulado sobre aves iniciales del sexo. Aritmética == ProduccionCalculos.PorcentajeRetiro*.
+    retiro_sem_h                        double precision,
+    retiro_sem_m                        double precision,
+    retiro_ac_h                         double precision,
+    retiro_ac_m                         double precision,
+    -- REQ-004 (Verenice rev 6-jul-26): %Retiro acumulado de GUÍA por sexo, desde
+    --   guia_genetica_sanmarino_colombia.retiro_ac_h/retiro_ac_m (texto, mismo parseo que las
+    --   demás columnas guía: NULLIF(btrim(...),'')::double precision). NULL si no hay guía para
+    --   esa semana (g_found=false); si hay guía pero el campo viene vacío, 0 (mismo criterio que
+    --   g_mort_h/g_mort_m, no el de huevos/%prod que preservan NULL).
+    retiro_ac_h_guia                    double precision,
+    retiro_ac_m_guia                    double precision
 )
 LANGUAGE plpgsql VOLATILE AS $fn$
 DECLARE
@@ -150,6 +172,10 @@ DECLARE
     v_aves_m_act     integer;
     v_cum_h_tot      bigint := 0;
     v_cum_h_inc      bigint := 0;
+    -- REQ-004: acumulados de retiro por sexo (mortalidad + selección)
+    v_cum_mort_h     bigint := 0;
+    v_cum_sel_h      bigint := 0;
+    v_cum_mort_m     bigint := 0;
 
     v_max_sem        integer;
     s                integer;
@@ -175,6 +201,11 @@ DECLARE
     r_porc_mort_h    double precision;
     r_porc_mort_m    double precision;
     r_porc_sel_h     double precision;
+    -- REQ-004: %Retiro real por semana
+    r_retiro_sem_h   double precision;
+    r_retiro_sem_m   double precision;
+    r_retiro_ac_h    double precision;
+    r_retiro_ac_m    double precision;
     r_aves_h_inicio  integer;
     r_aves_m_inicio  integer;
     -- guía
@@ -189,6 +220,9 @@ DECLARE
     g_huevos_inc     double precision;
     g_prod_pct       double precision;
     g_peso_huevo     double precision;
+    -- REQ-004 (Verenice): %Retiro acumulado de guía por sexo.
+    g_retiro_ac_h    double precision;
+    g_retiro_ac_m    double precision;
     g_found          boolean;
     -- consumo real
     r_cons_real_h    double precision;
@@ -393,21 +427,22 @@ BEGIN
         DELETE FROM _seg WHERE reg_date > p_fecha_hasta;
     END IF;
     UPDATE _seg SET sem_vida = ((reg_date - v_enc_date) / 7) + 1;  -- división entera == C# (dias/7)+1
-    -- Solo semanas de producción (>= 26 de vida)
-    DELETE FROM _seg WHERE sem_vida < 26;
+    -- REQ-012b: producción arranca en la semana 25 de vida (antes 26). La guía genética empieza en
+    --   la semana 26, así que la 25 queda con columnas de guía en NULL (g_found=false ya lo soporta).
+    DELETE FROM _seg WHERE sem_vida < 25;
 
     SELECT MAX(sem_vida) INTO v_max_sem FROM _seg;
     IF v_max_sem IS NULL THEN RETURN; END IF;
 
     -- ════════════════════════════════════════════════════════════════════
     -- 3) Iterar semanas presentes en orden (== foreach sobre grupos ordenados).
-    --    OJO: el C# itera SOLO las semanas con registros (>=26) y en orden asc.
-    --    Los acumuladores (aves actuales, htaa/hiaa) avanzan solo en esas semanas.
+    --    OJO: itera SOLO las semanas con registros (>=25 tras REQ-012b) y en orden asc.
+    --    Los acumuladores (aves actuales, htaa/hiaa, retiro) avanzan solo en esas semanas.
     -- ════════════════════════════════════════════════════════════════════
     v_aves_h_act := v_aves_h_ini;
     v_aves_m_act := v_aves_m_ini;
 
-    FOR s IN 26..v_max_sem LOOP
+    FOR s IN 25..v_max_sem LOOP  -- REQ-012b: incluir semana 25 (antes 26)
         CONTINUE WHEN NOT EXISTS (SELECT 1 FROM _seg WHERE sem_vida = s);
 
         SELECT COUNT(*)::int,
@@ -432,6 +467,12 @@ BEGIN
         -- Acumulados por ave alojada (REQ-004c)
         v_cum_h_tot := v_cum_h_tot + r_huevos_tot;
         v_cum_h_inc := v_cum_h_inc + r_huevos_inc;
+
+        -- REQ-004: acumulados de retiro (mortalidad + selección) por sexo. Machos sin selección en
+        --   esta fn (igual que el decremento de aves, que solo resta mort_m).
+        v_cum_mort_h := v_cum_mort_h + r_mort_h;
+        v_cum_sel_h  := v_cum_sel_h + r_sel_h;
+        v_cum_mort_m := v_cum_mort_m + r_mort_m;
         r_htaa := CASE WHEN v_aves_h_ini > 0 THEN v_cum_h_tot::double precision / v_aves_h_ini ELSE 0 END;
         r_hiaa := CASE WHEN v_aves_h_ini > 0 THEN v_cum_h_inc::double precision / v_aves_h_ini ELSE 0 END;
 
@@ -451,6 +492,14 @@ BEGIN
         r_porc_mort_m := CASE WHEN v_aves_m_act > 0 THEN r_mort_m::double precision / v_aves_m_act * 100 ELSE 0 END;
         r_porc_sel_h  := CASE WHEN v_aves_h_act > 0 THEN r_sel_h::double precision  / v_aves_h_act * 100 ELSE 0 END;
 
+        -- REQ-004: %Retiro REAL (== ProduccionCalculos.PorcentajeRetiroSemanal/Acumulado).
+        --   Semanal: (mort + sel de la semana) / saldo REAL de inicio del sexo (v_aves_*_act, pre-decremento) * 100.
+        --   Acumulado: (mort + sel acumulados) / aves iniciales del sexo * 100.
+        r_retiro_sem_h := CASE WHEN v_aves_h_act > 0 THEN (r_mort_h + r_sel_h)::double precision / v_aves_h_act * 100 ELSE 0 END;
+        r_retiro_sem_m := CASE WHEN v_aves_m_act > 0 THEN r_mort_m::double precision / v_aves_m_act * 100 ELSE 0 END;
+        r_retiro_ac_h  := CASE WHEN v_aves_h_ini > 0 THEN (v_cum_mort_h + v_cum_sel_h)::double precision / v_aves_h_ini * 100 ELSE 0 END;
+        r_retiro_ac_m  := CASE WHEN v_aves_m_ini > 0 THEN v_cum_mort_m::double precision / v_aves_m_ini * 100 ELSE 0 END;
+
         -- Censo de inicio de semana (desviación preservada: sobrecuenta con las bajas de la propia semana)
         r_aves_h_inicio := v_aves_h_act + r_mort_h + r_sel_h;
         r_aves_m_inicio := v_aves_m_act + r_mort_m;
@@ -468,9 +517,11 @@ BEGIN
                NULLIF(btrim(g.h_total_aa),'')::double precision,
                NULLIF(btrim(g.h_inc_aa),'')::double precision,
                NULLIF(btrim(g.prod_porcentaje),'')::double precision,
-               NULLIF(btrim(g.peso_huevo),'')::double precision
+               NULLIF(btrim(g.peso_huevo),'')::double precision,
+               NULLIF(btrim(g.retiro_ac_h),'')::double precision,
+               NULLIF(btrim(g.retiro_ac_m),'')::double precision
           INTO g_found, g_cons_h, g_cons_m, g_mort_h, g_mort_m, g_peso_h, g_peso_m, g_unif,
-               g_huevos_tot, g_huevos_inc, g_prod_pct, g_peso_huevo
+               g_huevos_tot, g_huevos_inc, g_prod_pct, g_peso_huevo, g_retiro_ac_h, g_retiro_ac_m
           FROM guia_genetica_sanmarino_colombia g
          WHERE g.company_id = p_company_id
            AND g.deleted_at IS NULL
@@ -492,10 +543,14 @@ BEGIN
             g_peso_m := COALESCE(g_peso_m, 0) / 1000;   -- peso_m/1000
             g_unif   := COALESCE(g_unif, 0);
             -- huevos/%prod/pesoHuevo: quedan NULL si vacíos (ParseDecimal), no 0.
+            -- retiro_ac_h/m guía: mismo criterio que mort_h/mort_m (ParseDouble => 0 si vacío).
+            g_retiro_ac_h := COALESCE(g_retiro_ac_h, 0);
+            g_retiro_ac_m := COALESCE(g_retiro_ac_m, 0);
         ELSE
             g_cons_h := NULL; g_cons_m := NULL; g_mort_h := NULL; g_mort_m := NULL;
             g_peso_h := NULL; g_peso_m := NULL; g_unif := NULL;
             g_huevos_tot := NULL; g_huevos_inc := NULL; g_prod_pct := NULL; g_peso_huevo := NULL;
+            g_retiro_ac_h := NULL; g_retiro_ac_m := NULL;
         END IF;
 
         -- Consumo real (g/ave/día) — denominador = censo de inicio sobrecontado (desviación preservada)
@@ -573,6 +628,12 @@ BEGIN
             aves_machos_fin_semana           := v_aves_m_act;
             htaa_real                        := r_htaa;
             hiaa_real                        := r_hiaa;
+            retiro_sem_h                     := r_retiro_sem_h;
+            retiro_sem_m                     := r_retiro_sem_m;
+            retiro_ac_h                      := r_retiro_ac_h;
+            retiro_ac_m                      := r_retiro_ac_m;
+            retiro_ac_h_guia                 := g_retiro_ac_h;
+            retiro_ac_m_guia                 := g_retiro_ac_m;
             RETURN NEXT;
         END IF;
     END LOOP;

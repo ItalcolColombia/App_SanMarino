@@ -667,6 +667,7 @@ public class ProduccionService : IProduccionService
             .Select(g => new
             {
                 Registros = g.Count(),
+                MinFecha = g.Min(x => (DateTime?)x.Fecha),
                 MortalidadH = g.Sum(x => (int?)x.MortalidadH) ?? 0,
                 MortalidadM = g.Sum(x => (int?)x.MortalidadM) ?? 0,
                 SelH = g.Sum(x => (int?)x.SelH) ?? 0,
@@ -679,6 +680,17 @@ public class ProduccionService : IProduccionService
 
         var avesInicialesH = loteEntity.AvesHInicial ?? loteEntity.HembrasInicialesProd ?? 0;
         var avesInicialesM = loteEntity.AvesMInicial ?? loteEntity.MachosInicialesProd ?? 0;
+
+        // REQ-012a: fecha de inicio de producción EFECTIVA = MIN(fecha) de los seguimientos si es
+        // anterior a la almacenada (la fecha se congela con el default "hoy" al cerrar levante, pero
+        // pueden existir registros anteriores). Solo se ajusta lo que se MUESTRA; no se persiste.
+        var fechaInicioProduccionEfectiva = loteEntity.FechaInicioProduccion;
+        if (agg?.MinFecha != null &&
+            (fechaInicioProduccionEfectiva == null ||
+             agg.MinFecha.Value.Date < fechaInicioProduccionEfectiva.Value.Date))
+        {
+            fechaInicioProduccionEfectiva = agg.MinFecha;
+        }
 
         var mortalidadSeleccionH = (agg?.MortalidadH ?? 0) + (agg?.SelH ?? 0);
         var mortalidadSeleccionM = (agg?.MortalidadM ?? 0) + (agg?.SelM ?? 0);
@@ -769,7 +781,7 @@ public class ProduccionService : IProduccionService
             LoteNombre: loteEntity.LoteNombre ?? "",
             Estado: string.IsNullOrWhiteSpace(loteEntity.EstadoCierre) ? "Abierta" : loteEntity.EstadoCierre!,
             FechaEncaset: loteEntity.FechaEncaset,
-            FechaInicioProduccion: loteEntity.FechaInicioProduccion,
+            FechaInicioProduccion: fechaInicioProduccionEfectiva,
             AvesInicialesH: avesInicialesH,
             AvesInicialesM: avesInicialesM,
             AvesActualesH: avesActualesH,
@@ -921,31 +933,30 @@ public class ProduccionService : IProduccionService
     }
 
     /// <summary>
-    /// Obtiene los lotes que tienen semana 26 o superior (calculada desde fechaEncaset)
-    /// Solo muestra lotes que han alcanzado la semana 26 de producción
+    /// Obtiene los lotes que ya alcanzaron la etapa de producción (calculada desde fechaEncaset).
+    /// REQ-012b: el umbral es la semana 25 de vida (antes 26). Además corrige el off-by-one previo:
+    /// con 182 días (26*7) un lote solo aparecía al iniciar la semana 27 (semanaVida = dias/7 + 1),
+    /// no en la 26. Con 175 días (25*7) el lote aparece al iniciar la semana 26 y las semanas 25 ya
+    /// capturadas quedan habilitadas.
     /// </summary>
     public async Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync()
     {
         var fechaHoy = DateTime.Today;
-        
-        // Calcular la fecha límite: para estar en semana 26, deben haber pasado al menos 26 semanas (182 días)
-        // Semana 26 = días desde fechaEncaset >= 182 días
-        // Por lo tanto: fechaEncaset <= fechaHoy - 182 días
-        var diasSemana26 = 26 * 7; // 182 días
-        var fechaLimiteSemana26 = fechaHoy.AddDays(-diasSemana26);
 
-        // Un lote está en semana 26 o más si: fechaEncaset <= fechaLimiteSemana26
-        // Esto significa que han pasado al menos 26 semanas desde fechaEncaset
+        // semanaVida = dias/7 + 1 (división entera). Umbral REQ-012b: 25 semanas = 175 días.
+        var diasSemanaProduccion = 25 * 7; // 175 días
+        var fechaLimiteProduccion = fechaHoy.AddDays(-diasSemanaProduccion);
+
         var lotes = await _context.Lotes
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
             .Include(l => l.Galpon)
-            .Where(l => 
-                l.CompanyId == _currentUser.CompanyId && 
+            .Where(l =>
+                l.CompanyId == _currentUser.CompanyId &&
                 l.DeletedAt == null &&
                 l.FechaEncaset != null &&
-                l.FechaEncaset <= fechaLimiteSemana26)
+                l.FechaEncaset <= fechaLimiteProduccion)
             .OrderBy(l => l.LoteId)
             .ToListAsync();
 
