@@ -177,16 +177,25 @@
                           Nombre del lote es requerido (mínimo 2 caracteres)
                         </div>
                       }
+                      @if (form.get('loteNombre')?.valid && nombreDuplicadoWarning) {
+                        <div class="ux-hint" style="color:#b45309; font-size:12px; margin-top:4px;">
+                          ⚠️ {{ nombreDuplicadoWarning }}
+                        </div>
+                      }
                     }
                   </div>
                   <!-- Fecha de Encaset -->
                   <div>
                     <label class="ux-label">📅 Fecha de Encaset <span class="req">*</span></label>
-                    <input formControlName="fechaEncaset" type="date" class="ux-input"
+                    <input formControlName="fechaEncaset" type="date" class="ux-input" [max]="todayYMD"
                       [class.is-invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched">
                       @if (form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched) {
                         <div class="ux-error">
-                          Fecha de encaset es requerida
+                          @if (form.get('fechaEncaset')?.errors?.['fechaFutura']) {
+                            La fecha de encasetamiento no puede ser futura
+                          } @else {
+                            Fecha de encaset es requerida
+                          }
                         </div>
                       }
                     </div>
