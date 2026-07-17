@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/ItemInventarioService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -11,22 +12,58 @@ public class ItemInventarioService : IItemInventarioService
 {
     private readonly ZooSanMarinoContext _db;
     private readonly ICurrentUser? _current;
+    private readonly ICompanyResolver? _companyResolver;
 
-    public ItemInventarioService(ZooSanMarinoContext db, ICurrentUser? current = null)
+    public ItemInventarioService(ZooSanMarinoContext db, ICurrentUser? current = null, ICompanyResolver? companyResolver = null)
     {
         _db = db;
         _current = current;
+        _companyResolver = companyResolver;
+    }
+
+    /// <summary>
+    /// Empresa efectiva de la sesión: resuelve el nombre del header X-Active-Company (ICompanyResolver)
+    /// y cae al CompanyId del token. Mismo criterio que InventarioGestionService y el módulo de engorde,
+    /// para que el catálogo de ítems y las granjas resuelvan SIEMPRE la misma empresa (evita ver granjas de
+    /// una empresa e ítems de otra). Devuelve null si no hay empresa resoluble.
+    /// </summary>
+    private async Task<int?> GetEffectiveCompanyIdAsync()
+    {
+        if (_current == null) return null;
+        int? byName = null;
+        if (_companyResolver != null && !string.IsNullOrWhiteSpace(_current.ActiveCompanyName))
+            byName = await _companyResolver.GetCompanyIdByNameAsync(_current.ActiveCompanyName.Trim());
+        return InventarioCatalogoScopeCalculos.EmpresaEfectiva(byName, _current.CompanyId);
+    }
+
+    /// <summary>País efectivo: header X-Active-Pais (_current.PaisId) o, si falta, el país de la empresa (company_pais).</summary>
+    private async Task<int?> GetEffectivePaisIdAsync(int companyId, CancellationToken ct = default)
+    {
+        if (_current?.PaisId is > 0) return _current.PaisId;
+        var paisId = await _db.CompanyPaises.AsNoTracking()
+            .Where(cp => cp.CompanyId == companyId)
+            .Select(cp => (int?)cp.PaisId)
+            .FirstOrDefaultAsync(ct);
+        return paisId is > 0 ? paisId : null;
     }
 
     public async Task<List<ItemInventarioDto>> GetAllAsync(string? q = null, string? tipoItem = null, bool? activo = null, CancellationToken ct = default)
     {
         var query = _db.ItemInventario.AsNoTracking();
 
-        if (_current != null && _current.CompanyId > 0)
+        var companyId = await GetEffectiveCompanyIdAsync();
+        switch (InventarioCatalogoScopeCalculos.Decidir(_current != null, companyId))
         {
-            query = query.Where(x => x.CompanyId == _current.CompanyId);
-            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
-                query = query.Where(x => x.PaisId == _current.PaisId.Value);
+            // Fail-closed: hay sesión pero no se resuelve empresa → NO exponer todo el catálogo
+            // (esto era la fuga: en Panamá caía a "sin filtro" y devolvía los ítems de Ecuador).
+            case InventarioCatalogoScopeCalculos.ScopeDecision.FailClosed:
+                return new List<ItemInventarioDto>();
+            case InventarioCatalogoScopeCalculos.ScopeDecision.FilterByCompany:
+                query = query.Where(x => x.CompanyId == companyId!.Value);
+                if (_current!.PaisId is > 0)
+                    query = query.Where(x => x.PaisId == _current.PaisId!.Value);
+                break;
+            // NoSession (uso interno/no-HTTP): sin filtro de empresa.
         }
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -56,11 +93,13 @@ public class ItemInventarioService : IItemInventarioService
     public async Task<ItemInventarioDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
         var query = _db.ItemInventario.AsNoTracking().Where(x => x.Id == id);
-        if (_current != null && _current.CompanyId > 0)
+        if (_current != null)
         {
-            query = query.Where(x => x.CompanyId == _current.CompanyId);
-            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
-                query = query.Where(x => x.PaisId == _current.PaisId.Value);
+            var companyId = await GetEffectiveCompanyIdAsync();
+            if (companyId is null or <= 0) return null;
+            query = query.Where(x => x.CompanyId == companyId.Value);
+            if (_current.PaisId is > 0)
+                query = query.Where(x => x.PaisId == _current.PaisId!.Value);
         }
         var e = await query.FirstOrDefaultAsync(ct);
         return e == null ? null : new ItemInventarioDto(
@@ -71,15 +110,16 @@ public class ItemInventarioService : IItemInventarioService
 
     public async Task<ItemInventarioDto> CreateAsync(ItemInventarioCreateRequest req, CancellationToken ct = default)
     {
-        if (_current == null || _current.CompanyId <= 0)
+        var companyId = await GetEffectiveCompanyIdAsync();
+        if (companyId is null or <= 0)
             throw new InvalidOperationException("Se requiere empresa activa en la sesión.");
-        var companyId = _current.CompanyId;
-        var paisId = _current.PaisId ?? 0;
+        var cid = companyId.Value;
+        var paisId = await GetEffectivePaisIdAsync(cid, ct) ?? 0;
         if (paisId <= 0)
             throw new InvalidOperationException("Se requiere país activo en la sesión.");
 
         var codigo = req.Codigo.Trim();
-        var exists = await _db.ItemInventario.AnyAsync(x => x.CompanyId == companyId && x.PaisId == paisId && x.Codigo == codigo, ct);
+        var exists = await _db.ItemInventario.AnyAsync(x => x.CompanyId == cid && x.PaisId == paisId && x.Codigo == codigo, ct);
         if (exists)
             throw new InvalidOperationException("Ya existe un ítem con el mismo código para esta empresa y país.");
 
@@ -97,7 +137,7 @@ public class ItemInventarioService : IItemInventarioService
             Referencia = req.Referencia?.Trim(),
             DescripcionItem = req.DescripcionItem?.Trim(),
             Concepto = req.Concepto?.Trim(),
-            CompanyId = companyId,
+            CompanyId = cid,
             PaisId = paisId,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -113,11 +153,13 @@ public class ItemInventarioService : IItemInventarioService
     public async Task<ItemInventarioDto?> UpdateAsync(int id, ItemInventarioUpdateRequest req, CancellationToken ct = default)
     {
         var query = _db.ItemInventario.Where(x => x.Id == id);
-        if (_current != null && _current.CompanyId > 0)
+        if (_current != null)
         {
-            query = query.Where(x => x.CompanyId == _current.CompanyId);
-            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
-                query = query.Where(x => x.PaisId == _current.PaisId.Value);
+            var companyId = await GetEffectiveCompanyIdAsync();
+            if (companyId is null or <= 0) return null;
+            query = query.Where(x => x.CompanyId == companyId.Value);
+            if (_current.PaisId is > 0)
+                query = query.Where(x => x.PaisId == _current.PaisId!.Value);
         }
         var e = await query.FirstOrDefaultAsync(ct);
         if (e == null) return null;
@@ -144,11 +186,13 @@ public class ItemInventarioService : IItemInventarioService
     public async Task<bool> DeleteAsync(int id, bool hard = false, CancellationToken ct = default)
     {
         var query = _db.ItemInventario.Where(x => x.Id == id);
-        if (_current != null && _current.CompanyId > 0)
+        if (_current != null)
         {
-            query = query.Where(x => x.CompanyId == _current.CompanyId);
-            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
-                query = query.Where(x => x.PaisId == _current.PaisId.Value);
+            var companyId = await GetEffectiveCompanyIdAsync();
+            if (companyId is null or <= 0) return false;
+            query = query.Where(x => x.CompanyId == companyId.Value);
+            if (_current.PaisId is > 0)
+                query = query.Where(x => x.PaisId == _current.PaisId!.Value);
         }
         var e = await query.FirstOrDefaultAsync(ct);
         if (e == null) return false;
@@ -166,10 +210,11 @@ public class ItemInventarioService : IItemInventarioService
 
     public async Task<ItemInventarioCargaMasivaResult> CargaMasivaAsync(IReadOnlyList<ItemInventarioCargaMasivaRow> filas, CancellationToken ct = default)
     {
-        if (_current == null || _current.CompanyId <= 0)
+        var companyId = await GetEffectiveCompanyIdAsync();
+        if (companyId is null or <= 0)
             throw new InvalidOperationException("Se requiere empresa activa en la sesión.");
-        var companyId = _current.CompanyId;
-        var paisId = _current.PaisId ?? 0;
+        var cid = companyId.Value;
+        var paisId = await GetEffectivePaisIdAsync(cid, ct) ?? 0;
         if (paisId <= 0)
             throw new InvalidOperationException("Se requiere país activo en la sesión.");
 
@@ -188,7 +233,7 @@ public class ItemInventarioService : IItemInventarioService
                 var unidad = string.IsNullOrWhiteSpace(fila.Unidad) ? "kg" : fila.Unidad.Trim();
 
                 var existente = await _db.ItemInventario
-                    .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.PaisId == paisId && (x.Codigo == codigo || x.Referencia == codigo), ct);
+                    .FirstOrDefaultAsync(x => x.CompanyId == cid && x.PaisId == paisId && (x.Codigo == codigo || x.Referencia == codigo), ct);
 
                 if (existente != null)
                 {
@@ -221,7 +266,7 @@ public class ItemInventarioService : IItemInventarioService
                         Referencia = fila.Referencia?.Trim(),
                         DescripcionItem = fila.DescripcionItem?.Trim(),
                         Concepto = fila.Concepto?.Trim(),
-                        CompanyId = companyId,
+                        CompanyId = cid,
                         PaisId = paisId,
                         CreatedAt = DateTimeOffset.UtcNow,
                         UpdatedAt = DateTimeOffset.UtcNow
