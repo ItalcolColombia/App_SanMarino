@@ -183,7 +183,9 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         return await ProjectToDetail(q).ToListAsync(ct);
     }
 
-    private static IQueryable<LotePosturaLevanteDetailDto> ProjectToDetail(
+    // Instancia (no static) para poder resolver el Regional vía _ctx.MasterListOptions
+    // dentro de la proyección (REQ-002b). Los tres callers ya son métodos de instancia.
+    private IQueryable<LotePosturaLevanteDetailDto> ProjectToDetail(
         IQueryable<LotePosturaLevante> q)
     {
         return q
@@ -196,7 +198,17 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
                 l.GranjaId,
                 l.NucleoId,
                 l.GalponId,
-                l.Regional,
+                // REQ-002b: Regional resoluble. En la BD lote_postura_levante.regional
+                // viene como CADENA VACÍA (no NULL), por eso un simple `??` no basta:
+                // cuando está vacío/NULL se traduce farms.regional_id a nombre vía
+                // master_list_options (mismo patrón que FarmService: 60='Oriente',
+                // 59='Occidente').
+                (l.Regional == null || l.Regional == "")
+                    ? _ctx.MasterListOptions
+                        .Where(o => o.Id == l.Farm.RegionalId)
+                        .Select(o => o.Value)
+                        .FirstOrDefault()
+                    : l.Regional,
                 l.FechaEncaset,
                 l.HembrasL,
                 l.MachosL,
