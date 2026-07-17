@@ -105,9 +105,10 @@ public class MovimientoAvesCalculosTests
     }
 
     [Theory]
-    [InlineData(0, 3)]
-    [InlineData(1, 3)]
-    [InlineData(25, 3)]
+    // REQ-012c: semanas < 26 (registro temprano / borde) → etapa 1, no etapa 3.
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(25, 1)]
     [InlineData(26, 1)]
     [InlineData(30, 1)]
     [InlineData(33, 1)]
@@ -116,7 +117,7 @@ public class MovimientoAvesCalculosTests
     [InlineData(50, 2)]
     [InlineData(51, 3)]
     [InlineData(100, 3)]
-    public void EtapaProduccion_Tramos26a33_34a50_Resto(int semana, int etapaEsperada)
+    public void EtapaProduccion_Tramos_Hasta33_34a50_Mayor50(int semana, int etapaEsperada)
     {
         Assert.Equal(etapaEsperada, MovimientoAvesCalculos.EtapaProduccion(semana));
     }
