@@ -55,9 +55,10 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
     this.close.emit();
   }
 
+  /** REQ-012c: rango alineado a la hoja de fórmulas (26-33 / 34-50 / >50, no 25-33). */
   getEtapaLabel(etapa: number): string {
     switch (etapa) {
-      case 1: return 'Etapa 1 (Semana 25-33)';
+      case 1: return 'Etapa 1 (Semana 26-33)';
       case 2: return 'Etapa 2 (Semana 34-50)';
       case 3: return 'Etapa 3 (Semana >50)';
       default: return `Etapa ${etapa}`;
