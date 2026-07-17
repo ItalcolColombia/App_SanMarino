@@ -114,19 +114,20 @@ export class TablaListaRegistroComponent implements OnInit {
   // ================== HELPERS ==================
   trackById = (_: number, r: SeguimientoLoteLevanteDto) => r.id;
 
-  /** Edad (en días) del pollito AL MOMENTO DEL REGISTRO. */
-  calcularEdadDiasDesde(fechaEncaset?: string | Date | null, fechaReferencia?: string | Date | null): number {
+  /** Edad (en días) del pollito AL MOMENTO DEL REGISTRO. null si el registro es anterior al
+   *  encasetamiento (REQ-011d): antes devolvía 0 en silencio, ocultando el lote mal encasetado. */
+  calcularEdadDiasDesde(fechaEncaset?: string | Date | null, fechaReferencia?: string | Date | null): number | null {
     const enc = this.ymdToLocalNoonDate(this.toYMD(fechaEncaset));
     const ref = this.ymdToLocalNoonDate(this.toYMD(fechaReferencia));
     if (!enc || !ref) return 0;
     const MS_DAY = 24 * 60 * 60 * 1000;
     const diff = ref.getTime() - enc.getTime();
-    if (diff < 0) return 0;
+    if (diff < 0) return null;
     return Math.max(1, Math.floor(diff / MS_DAY) + 1);
   }
 
   /** Atajo para la tabla: edad en días del registro s usando el encaset del lote seleccionado. */
-  edadDiasDe(s: SeguimientoLoteLevanteDto): number {
+  edadDiasDe(s: SeguimientoLoteLevanteDto): number | null {
     return this.calcularEdadDiasDesde(this.selectedLote?.fechaEncaset ?? null, s?.fechaRegistro ?? null);
   }
 
