@@ -1,0 +1,72 @@
+@if (data; as d) {
+  <section class="rc">
+    <!-- Encabezado de la corrida -->
+    <header class="rc__head">
+      <div class="rc__brand">
+        <span class="rc__flag">🇵🇦</span>
+        <div>
+          <h2 class="rc__title">Liquidación de Corrida {{ d.corrida }}</h2>
+          <p class="rc__subtitle">
+            @if (granjaNombre) {
+              <span>{{ granjaNombre }} · </span>
+            }
+            <span>{{ d.items.length }} galpón(es) con liquidación</span>
+            @if (d.lotesSinLiquidacion.length) {
+              <span> · {{ d.lotesSinLiquidacion.length }} pendiente(s)</span>
+            }
+          </p>
+        </div>
+      </div>
+      <div class="rc__actions">
+        <button type="button" class="rc__btn rc__btn--print" (click)="print()">🖨️ Imprimir</button>
+        <button type="button" class="rc__btn rc__btn--ghost" (click)="cerrar.emit()">✕ Cerrar</button>
+      </div>
+    </header>
+
+    <!-- Galpones sin liquidación registrada -->
+    @if (d.lotesSinLiquidacion.length) {
+      <div class="rc__alert">
+        <span class="rc__alert-icon">⚠️</span>
+        <div>
+          <strong>Galpones de la corrida sin liquidación registrada:</strong>
+          <span>
+            @for (l of d.lotesSinLiquidacion; track l.loteAveEngordeId) {
+              <span class="rc__chip">{{ etiquetaSinLiquidacion(l) }}</span>
+            }
+          </span>
+          <p class="rc__alert-hint">Liquídelos desde Seguimiento Pollo Engorde para incluirlos en el consolidado.</p>
+        </div>
+      </div>
+    }
+
+    @if (d.items.length) {
+      <!-- Tabs: consolidado + un tab por galpón -->
+      <nav class="rc__tabs">
+        @if (d.consolidado) {
+          <button type="button" class="rc__tab" [class.rc__tab--active]="tabActiva === 'consolidado'"
+            (click)="seleccionarTab('consolidado')">📊 Consolidado</button>
+        }
+        @for (item of d.items; track item.loteAveEngordeId) {
+          <button type="button" class="rc__tab" [class.rc__tab--active]="tabActiva === item.loteAveEngordeId"
+            (click)="seleccionarTab(item.loteAveEngordeId)">🐔 {{ etiquetaTab(item) }}</button>
+        }
+      </nav>
+
+      <!-- Reporte de la tab activa (reutiliza el reporte individual) -->
+      @if (reporteActivo; as rep) {
+        <div class="rc__body">
+          <app-liquidacion-reporte-panama
+            [data]="rep"
+            [subtitulo]="subtituloActivo"
+            [mostrarAcciones]="false">
+          </app-liquidacion-reporte-panama>
+        </div>
+      }
+    } @else {
+      <div class="rc__empty">
+        La corrida {{ d.corrida }} aún no tiene liquidaciones registradas.
+        Liquide sus lotes desde Seguimiento Pollo Engorde y vuelva a generar el reporte.
+      </div>
+    }
+  </section>
+}

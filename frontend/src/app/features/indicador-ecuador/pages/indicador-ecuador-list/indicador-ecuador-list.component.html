@@ -125,43 +125,62 @@
                       }
                     </select>
                   </div>
-                  <div class="ie-field">
-                    <label class="ie-label">🔍 Estado de lote</label>
-                    <select [(ngModel)]="tipoFiltroLotes" class="ie-input ie-input--filter-state" [disabled]="!peGranjaId">
-                      <option value="cerrados">Lotes Cerrados (Fin de Ciclo)</option>
-                      <option value="aves_cero">Lotes con Aves = 0</option>
-                      <option value="todos">Mostrar Todos los Lotes</option>
-                    </select>
-                  </div>
+                  @if (!esPanama) {
+                    <div class="ie-field">
+                      <label class="ie-label">🔍 Estado de lote</label>
+                      <select [(ngModel)]="tipoFiltroLotes" class="ie-input ie-input--filter-state" [disabled]="!peGranjaId">
+                        <option value="cerrados">Lotes Cerrados (Fin de Ciclo)</option>
+                        <option value="aves_cero">Lotes con Aves = 0</option>
+                        <option value="todos">Mostrar Todos los Lotes</option>
+                      </select>
+                    </div>
+                  }
                 </div>
                 <!-- Filtro Año / Corrida — visible cuando no hay lote específico elegido -->
                 @if (peGranjaId && !peLoteAveEngordeId) {
-                  <div class="ie-grid ie-grid--3">
-                    <div class="ie-field">
-                      <label class="ie-label">📅 Año</label>
-                      <select [(ngModel)]="selectedAnio" (ngModelChange)="onFiltroAnioChange($event)" class="ie-input">
-                        <option [ngValue]="null">— Todos los años —</option>
-                        @for (a of aniosDisponibles; track a) {
-                          <option [ngValue]="a">{{ a }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="ie-field">
-                      <label class="ie-label">🔢 Corrida</label>
-                      <select [(ngModel)]="selectedCorrida" (ngModelChange)="onFiltroCorreidaChange($event)"
-                        class="ie-input" [disabled]="!selectedAnio">
-                        <option [ngValue]="null">— Todas —</option>
-                        @for (c of corridasDisponibles; track c) {
-                          <option [ngValue]="c">{{ c }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="ie-field">
-                      <label class="ie-label">🔍 Prefijo de lote</label>
-                      <input type="text" [ngModel]="loteConvertido" [disabled]="true" class="ie-input ie-input--readonly"
-                        placeholder="Ej: 2601">
+                  @if (!esPanama) {
+                    <div class="ie-grid ie-grid--3">
+                      <div class="ie-field">
+                        <label class="ie-label">📅 Año</label>
+                        <select [(ngModel)]="selectedAnio" (ngModelChange)="onFiltroAnioChange($event)" class="ie-input">
+                          <option [ngValue]="null">— Todos los años —</option>
+                          @for (a of aniosDisponibles; track a) {
+                            <option [ngValue]="a">{{ a }}</option>
+                          }
+                        </select>
+                      </div>
+                      <div class="ie-field">
+                        <label class="ie-label">🔢 Corrida</label>
+                        <select [(ngModel)]="selectedCorrida" (ngModelChange)="onFiltroCorreidaChange($event)"
+                          class="ie-input" [disabled]="!selectedAnio">
+                          <option [ngValue]="null">— Todas —</option>
+                          @for (c of corridasDisponibles; track c) {
+                            <option [ngValue]="c">{{ c }}</option>
+                          }
+                        </select>
+                      </div>
+                      <div class="ie-field">
+                        <label class="ie-label">🔍 Prefijo de lote</label>
+                        <input type="text" [ngModel]="loteConvertido" [disabled]="true" class="ie-input ie-input--readonly"
+                          placeholder="Ej: 2601">
                       </div>
                     </div>
+                  }
+                  <!-- Panamá: la corrida es el número de lote compartido por los galpones de la granja -->
+                  @if (esPanama) {
+                    <div class="ie-grid ie-grid--3">
+                      <div class="ie-field">
+                        <label class="ie-label">🔢 Corrida</label>
+                        <select [(ngModel)]="selectedCorridaPanama" (ngModelChange)="onCorridaPanamaChange()" class="ie-input">
+                          <option [ngValue]="null">— Seleccione corrida —</option>
+                          @for (c of corridasPanama; track c) {
+                            <option [ngValue]="c">{{ c }}</option>
+                          }
+                        </select>
+                        <p class="ie-hint">La corrida agrupa los galpones de la granja · el reporte trae todos sus galpones + consolidado</p>
+                      </div>
+                    </div>
+                  }
                   }
                   <!-- Filtro tiempo encasetamiento -->
                   @if (peGranjaId) {
@@ -190,7 +209,7 @@
                         @if (tipoFiltroFechaPollo === 'anio') {
                           <div style="margin-top:.625rem;">
                             <select [(ngModel)]="filtroAnioPollo" class="ie-input" style="max-width:160px;"
-                              (ngModelChange)="peLoteAveEngordeId = null">
+                              (ngModelChange)="onFiltroEncasetValorChange()">
                               <option [ngValue]="null">Seleccione año</option>
                               @for (a of aniosDisponiblesPollo; track a) {
                                 <option [ngValue]="a">{{ a }}</option>
@@ -212,10 +231,10 @@
                         @if (tipoFiltroFechaPollo === 'rango') {
                           <div class="ie-date-range">
                             <input type="date" [(ngModel)]="filtroEncDesde" class="ie-input" style="max-width:170px;"
-                              (ngModelChange)="peLoteAveEngordeId = null">
+                              (ngModelChange)="onFiltroEncasetValorChange()">
                               <span class="ie-date-range__sep">→</span>
                               <input type="date" [(ngModel)]="filtroEncHasta" class="ie-input" style="max-width:170px;"
-                                (ngModelChange)="peLoteAveEngordeId = null">
+                                (ngModelChange)="onFiltroEncasetValorChange()">
                               </div>
                             }
                             <!-- Contador -->
@@ -236,7 +255,7 @@
                         </label>
                         <select [(ngModel)]="peLoteAveEngordeId" class="ie-input" [disabled]="!peGranjaId">
                           <option [ngValue]="null">— Sin filtro de lote (consulta masiva por alcance) —</option>
-                          @for (l of peLotesFiltradosPorFecha; track l) {
+                          @for (l of peLotesSelector; track l) {
                             <option [ngValue]="l.loteAveEngordeId">
                               {{ etiquetaLoteFiltro(l) }}
                             </option>
@@ -507,6 +526,19 @@
                       [data]="reportePanama"
                       (cerrar)="mostrarReportePanama = false; reportePanama = null;">
                     </app-liquidacion-reporte-panama>
+                  </div>
+                }
+
+                <!-- ═══════════════════════════════════════════
+                RESULTADO — LIQUIDACIÓN POR CORRIDA (PANAMÁ)
+                ═══════════════════════════════════════════ -->
+                @if (!loading && esPanama && mostrarReporteCorridaPanama && reporteCorridaPanama) {
+                  <div style="margin-bottom:1.25rem;">
+                    <app-liquidacion-reporte-corrida-panama
+                      [data]="reporteCorridaPanama"
+                      [granjaNombre]="granjaNombrePanama"
+                      (cerrar)="mostrarReporteCorridaPanama = false; reporteCorridaPanama = null;">
+                    </app-liquidacion-reporte-corrida-panama>
                   </div>
                 }
 
