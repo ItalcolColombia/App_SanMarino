@@ -1,0 +1,130 @@
+<div class="mx-auto max-w-7xl p-4 sm:p-6">
+  <!-- Header de página -->
+  <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div
+        class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
+        style="background: var(--ital-orange-100)"
+        aria-hidden="true"
+      >
+        🚀
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Planes de implementación</h1>
+        <p class="text-sm" style="color: var(--ital-muted)">
+          Cronogramas de entrega de la aplicación por empresa: checklist con doble check (se completa y el
+          usuario asignado confirma) para auditar parametrizaciones y capacitaciones.
+        </p>
+      </div>
+    </div>
+    <button type="button" class="btn-primary text-sm" (click)="abrirCrear()">＋ Nuevo plan</button>
+  </header>
+
+  <div *ngIf="cargando" class="loading-toast" role="status">
+    <span class="spinner spinner--sm"></span> Cargando planes…
+  </div>
+
+  <!-- Empty state -->
+  <div *ngIf="!cargando && !planes.length" class="empty-state ux-card p-8 text-center">
+    <div class="mb-2 text-3xl" aria-hidden="true">📋</div>
+    <p class="font-semibold" style="color: var(--ital-text)">Aún no hay planes de implementación para esta empresa.</p>
+    <p class="mb-4 text-sm" style="color: var(--ital-muted)">
+      Creá el primero con la plantilla estándar (parametrizaciones, capacitación, carga de datos y puesta en marcha).
+    </p>
+    <button type="button" class="btn-primary text-sm" (click)="abrirCrear()">Crear plan</button>
+  </div>
+
+  <!-- Tabla de planes -->
+  <div *ngIf="!cargando && planes.length" class="ux-card overflow-hidden">
+    <div class="ux-scroll overflow-x-auto">
+      <table class="table-italfoods w-full text-sm">
+        <thead>
+          <tr>
+            <th class="text-left">Plan</th>
+            <th class="text-left">Cronograma</th>
+            <th class="text-left">Estado</th>
+            <th class="text-left">Avance</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let p of planes; trackBy: trackByPlan">
+            <td>
+              <button
+                type="button"
+                class="text-left font-semibold hover:underline"
+                style="color: var(--ital-orange-dark)"
+                (click)="verDetalle(p)"
+              >
+                {{ p.nombre }}
+              </button>
+              <div *ngIf="p.descripcion" class="max-w-md truncate text-xs" style="color: var(--ital-muted)">
+                {{ p.descripcion }}
+              </div>
+            </td>
+            <td class="whitespace-nowrap" style="color: var(--ital-text)">
+              {{ p.fechaInicio ? (p.fechaInicio | date: 'dd/MM/yyyy') : '—' }}
+              →
+              {{ p.fechaFin ? (p.fechaFin | date: 'dd/MM/yyyy') : '—' }}
+            </td>
+            <td>
+              <span
+                class="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold"
+                [style.color]="estiloPlan(p.estado).fg"
+                [style.background]="estiloPlan(p.estado).bg"
+              >
+                {{ estiloPlan(p.estado).label }}
+              </span>
+            </td>
+            <td class="min-w-[180px]">
+              <div class="mb-1 flex justify-between text-xs" style="color: var(--ital-muted)">
+                <span>{{ p.tareasCompletadas + p.tareasConfirmadas }}/{{ p.totalTareas }} con check</span>
+                <span>{{ p.porcentajeConfirmado }}% confirmado</span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full" style="background: var(--ital-cream)">
+                <div class="flex h-full">
+                  <div class="h-full" style="background: var(--success)" [style.width.%]="p.porcentajeConfirmado"></div>
+                  <div
+                    class="h-full"
+                    style="background: var(--ital-orange)"
+                    [style.width.%]="p.porcentajeAvance - p.porcentajeConfirmado"
+                  ></div>
+                </div>
+              </div>
+            </td>
+            <td class="whitespace-nowrap text-right">
+              <button type="button" class="btn-ghost text-xs" (click)="verDetalle(p)">Ver checklist</button>
+              <button type="button" class="btn-ghost text-xs" (click)="abrirEditar(p)">Editar</button>
+              <button
+                *ngIf="p.estado !== 'cancelado'"
+                type="button"
+                class="btn-ghost text-xs"
+                (click)="cancelarPlan(p)"
+              >
+                Cancelar
+              </button>
+              <button
+                *ngIf="p.estado === 'cancelado'"
+                type="button"
+                class="btn-ghost text-xs"
+                (click)="reactivarPlan(p)"
+              >
+                Reactivar
+              </button>
+              <button type="button" class="btn-ghost text-xs" style="color: var(--danger)" (click)="eliminar(p)">
+                Eliminar
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <app-modal-plan-implementacion
+    [open]="modalAbierto"
+    [plan]="planEditando"
+    (cerrado)="cerrarModal()"
+    (guardado)="onGuardado()"
+  />
+</div>
