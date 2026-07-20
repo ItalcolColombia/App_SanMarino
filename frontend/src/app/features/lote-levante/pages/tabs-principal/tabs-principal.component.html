@@ -191,9 +191,16 @@
                   </button>
                 }
               </div>
+              @if (registrosAnterioresAEncaset > 0) {
+                <div class="info-lote-alerta info-lote-alerta--cerrado" role="alert">
+                  <strong>Atención:</strong> la fecha de encasetamiento del lote
+                  ({{ fechaEncasetLote ? (fechaEncasetLote | date:'dd/MM/yyyy') : '—' }}) es posterior a
+                  {{ registrosAnterioresAEncaset }} registro(s) — revisar el lote.
+                </div>
+              }
               @if (!enriquecerTablaConHistoricoInventario) {
                 <p class="registro-diario__hint">
-                  Orden cronológico. <strong>Saldo aves</strong> = aves iniciales − bajas acumuladas (mortalidad, selección y, si aplica, error de sexaje registrado en cada día).
+                  Orden cronológico. <strong>Saldo aves</strong> = aves iniciales − Mortalidad Total acumulada (mortalidad, selección y, si aplica, error de sexaje registrado en cada día).
                 </p>
               }
               @if (enriquecerTablaConHistoricoInventario) {
@@ -229,6 +236,8 @@
                       <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
                       <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
                       <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Consumo acum. <span class="th-diario__sub">hembras (kg)</span></th>
+                      <th scope="col" class="th-diario th-diario--num">Consumo acum. <span class="th-diario__sub">machos (kg)</span></th>
                       <th scope="col" class="th-diario th-diario--num">% Retiro <span class="th-diario__sub">(Mort+Sel)/aves</span></th>
                       <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
                       <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
@@ -257,8 +266,8 @@
                     @for (f of diarioFilas; track trackByDiarioFila($index, f)) {
                       <tr class="ux-row">
                         <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
-                        <td>{{ f.semana }}</td>
-                        <td>{{ f.edadDia }}</td>
+                        <td [title]="f.semana == null ? 'Registro anterior al encasetamiento' : ''">{{ f.semana ?? '—' }}</td>
+                        <td [title]="f.edadDia == null ? 'Registro anterior al encasetamiento' : ''">{{ f.edadDia ?? '—' }}</td>
                         <td>{{ f.seg.mortalidadHembras }}</td>
                         <td>{{ f.seg.mortalidadMachos }}</td>
                         <td>{{ f.seg.selH }}</td>
@@ -279,7 +288,9 @@
                         <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
                         <td class="num">{{ f.consumoDiaKg | number:'1.0-2' }}</td>
                         <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
-                        <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.0-2') + '%' : '—' }}</td>
+                        <td class="num">{{ f.acumConsumoHKg | number:'1.0-2' }}</td>
+                        <td class="num">{{ f.acumConsumoMKg | number:'1.0-2' }}</td>
+                        <td class="num">{{ f.pctRetiroSemana != null ? (f.pctRetiroSemana | number:'1.0-2') + '%' : '—' }}</td>
                         <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
                         <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
                         <!-- 🔀 Feature 13 — traslados por género -->
@@ -357,7 +368,7 @@
               </button>
             </div>
             <p class="registro-diario__hint">
-              Totales por semana (sumas de registros diarios). <strong>Saldo inicio</strong> se estima como saldo fin + bajas de la semana.
+              Totales por semana (sumas de registros diarios). <strong>Saldo inicio</strong> se estima como saldo fin + Mortalidad Total de la semana.
             </p>
             @if (reporteSemanaFilas.length > 0) {
               <div class="ux-scroll ux-scroll--reporte">
@@ -375,15 +386,14 @@
                       <th class="text-right">Err. H</th>
                       <th class="text-right">Err. M</th>
                       <th class="text-right">Err. Total</th>
-                      <th class="text-right">Bajas total</th>
+                      <th class="text-right">Mortalidad Total</th>
                       <th class="text-right">Consumo H (kg)</th>
                       <th class="text-right">Consumo M (kg)</th>
-                      <th class="text-right">Consumo total (kg)</th>
-                      <th class="text-right">% consumo H</th>
-                      <th class="text-right">% consumo M</th>
+                      <th class="text-right">Consumo (g/ave/día) H</th>
+                      <th class="text-right">Consumo (g/ave/día) M</th>
                       <th class="text-right">Saldo inicio</th>
                       <th class="text-right">Saldo fin</th>
-                      <th class="text-right">% bajas/ini</th>
+                      <th class="text-right">% Mort. Total/ini</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -403,9 +413,8 @@
                         <td class="text-right">{{ r.bajasTotal | number:'1.0-0' }}</td>
                         <td class="text-right">{{ r.consumoHkg | number:'1.0-2' }}</td>
                         <td class="text-right">{{ r.consumoMkg | number:'1.0-2' }}</td>
-                        <td class="text-right">{{ r.consumoTotalkg | number:'1.0-2' }}</td>
-                        <td class="text-right">{{ r.pctConsumoH != null ? (r.pctConsumoH | number:'1.0-2') + '%' : '—' }}</td>
-                        <td class="text-right">{{ r.pctConsumoM != null ? (r.pctConsumoM | number:'1.0-2') + '%' : '—' }}</td>
+                        <td class="text-right">{{ r.grAveDiaH != null ? (r.grAveDiaH | number:'1.0-1') : '—' }}</td>
+                        <td class="text-right">{{ r.grAveDiaM != null ? (r.grAveDiaM | number:'1.0-1') : '—' }}</td>
                         <td class="text-right">{{ r.saldoInicio != null ? (r.saldoInicio | number:'1.0-0') : '—' }}</td>
                         <td class="text-right">{{ r.saldoFin != null ? (r.saldoFin | number:'1.0-0') : '—' }}</td>
                         <td class="text-right">{{ r.pctBajasSobreInicio != null ? (r.pctBajasSobreInicio | number:'1.0-2') + '%' : '—' }}</td>

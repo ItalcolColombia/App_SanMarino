@@ -150,18 +150,13 @@ export function construirIndicadores(
   ].filter(ind => ind.real != null);
 }
 
-/** Conversión esperada = consumo/peso de la guía; 1.8 por defecto si falta alguno. */
-export function calcularConversionEsperada(pesoEsperadoGuia: number, consumoEsperadoGuia: number): number {
-  // Conversión esperada basada en peso y consumo
-  if (pesoEsperadoGuia > 0 && consumoEsperadoGuia > 0) {
-    return consumoEsperadoGuia / pesoEsperadoGuia;
-  }
-  return 1.8; // Valor por defecto
-}
-
 /**
- * Cumplimiento general vs. guía (peso, consumo, mortalidad, conversión). Devuelve el conteo de
+ * Cumplimiento general vs. guía (peso, consumo, mortalidad). Devuelve el conteo de
  * parámetros óptimos y el % de cumplimiento promedio. Aritmética idéntica al método original.
+ *
+ * REQ-010f/REQ-002h: se retiró el parámetro "Conversión Alimenticia" (KPI de pollo de engorde,
+ * no aplica a reproductoras) — el promedio pasa de 4 a 3 parámetros. Cambio de comportamiento
+ * INTENCIONAL pedido por el REQ (antes promediaba peso+consumo+mortalidad+conversión).
  */
 export function calcularCumplimientoGeneral(input: CumplimientoGeneralInput): CumplimientoGeneralResult {
   let cumplimientos: number[] = [];
@@ -187,13 +182,6 @@ export function calcularCumplimientoGeneral(input: CumplimientoGeneralInput): Cu
   const cumplimientoMortalidad = Math.max(0, 100 - porcentajeMortalidad);
   cumplimientos.push(cumplimientoMortalidad);
   if (porcentajeMortalidad <= 20) parametrosOptimos++;
-
-  // Conversión alimenticia
-  const diferenciaConversion = Math.abs(input.conversionEsperadaGuia - input.conversionReal);
-  const porcentajeConversion = input.conversionEsperadaGuia > 0 ? (diferenciaConversion / input.conversionEsperadaGuia) * 100 : 100;
-  const cumplimientoConversion = Math.max(0, 100 - porcentajeConversion);
-  cumplimientos.push(cumplimientoConversion);
-  if (porcentajeConversion <= 10) parametrosOptimos++;
 
   // Promedio general
   const porcentajeCumplimientoGeneral = cumplimientos.reduce((sum, val) => sum + val, 0) / cumplimientos.length;

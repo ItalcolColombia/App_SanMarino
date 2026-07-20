@@ -44,11 +44,11 @@
               <div class="form-field">
                 <label for="f-etapa-general"><span class="label-icon">📊</span> Etapa de Producción</label>
                 <select id="f-etapa-general" formControlName="etapa" required>
-                  <option [value]="1">Etapa 1 (Semana 25-33)</option>
+                  <option [value]="1">Etapa 1 (Semana 26-33)</option>
                   <option [value]="2">Etapa 2 (Semana 34-50)</option>
                   <option [value]="3">Etapa 3 (Semana >50)</option>
                 </select>
-                <small class="ux-hint">{{ getEtapaLabel(form.get('etapa')?.value || 1) }}</small>
+                <small class="ux-hint">Autocalculada — {{ getEtapaLabel(form.get('etapa')?.value || 1) }}</small>
               </div>
               <div class="form-field">
                 <label for="f-ciclo"><span class="label-icon">🔄</span> Ciclo</label>
@@ -79,7 +79,8 @@
                     }
                   </div>
                   <div class="grid grid-2">
-                    @if (!$any(itemGroup).get('esFijo')?.value) {
+                    <!-- REQ-012e: Colombia no expone el select "Tipo de ítem" (siempre alimento). -->
+                    @if (!$any(itemGroup).get('esFijo')?.value && !isColombia) {
                     <div class="form-field">
                       <label [for]="'f-tipo-item-h-' + i">Tipo de ítem *</label>
                       <select [id]="'f-tipo-item-h-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">
@@ -144,7 +145,8 @@
                     }
                   </div>
                   <div class="grid grid-2">
-                    @if (!$any(itemGroup).get('esFijo')?.value) {
+                    <!-- REQ-012e: Colombia no expone el select "Tipo de ítem" (siempre alimento). -->
+                    @if (!$any(itemGroup).get('esFijo')?.value && !isColombia) {
                     <div class="form-field">
                       <label [for]="'f-tipo-item-m-' + i">Tipo de ítem *</label>
                       <select [id]="'f-tipo-item-m-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">

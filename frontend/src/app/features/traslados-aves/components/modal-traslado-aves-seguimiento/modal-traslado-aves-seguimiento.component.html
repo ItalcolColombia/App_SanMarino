@@ -41,16 +41,21 @@
             }
           </div>
         }
-        <!-- Fecha REAL del evento de traslado (editable) — REQ-009 -->
+        <!-- Fecha REAL del evento de traslado (editable, obligatoria) — REQ-009a -->
         <div class="field-group" style="margin-bottom: 12px;">
-          <label class="field-label" for="fecha-traslado">📅 Fecha del traslado (evento real)</label>
+          <label class="field-label" for="fecha-traslado">📅 Fecha del traslado (evento real) <span style="color:#dc2626;">*</span></label>
           <input
             id="fecha-traslado"
             type="date"
             class="field-input"
+            required
             [(ngModel)]="fechaEvento"
             [max]="hoyStr">
-            <small class="field-hint">Se vincula al día real del evento (no necesariamente hoy).</small>
+            @if (!fechaEvento) {
+              <small class="field-hint" style="color:#b45309;">⚠️ Elegí la fecha real en la que ocurrió el traslado (no se asume "hoy").</small>
+            } @else {
+              <small class="field-hint">Se vincula al día real del evento (no necesariamente hoy).</small>
+            }
           </div>
           <div class="section-divider">
             <span class="section-divider__label">Destino del traslado (misma etapa: {{ tipoDestino }})</span>

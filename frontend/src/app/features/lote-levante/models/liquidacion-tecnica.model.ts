@@ -15,7 +15,13 @@ export interface GuiaValoresEsperados {
   uniformidadEsperadaMachosGuia: number;
 }
 
-/** Entradas (ya calculadas) para el cálculo de cumplimiento general vs. la guía genética. */
+/**
+ * Entradas (ya calculadas) para el cálculo de cumplimiento general vs. la guía genética.
+ *
+ * REQ-010f/REQ-002h: se retiró "Conversión Alimenticia" (KPI de pollo de engorde, no aplica a
+ * reproductoras) — el % de cumplimiento general se promedia ahora sobre 3 parámetros
+ * (peso, consumo, mortalidad) en vez de 4. Cambio de comportamiento INTENCIONAL pedido por el REQ.
+ */
 export interface CumplimientoGeneralInput {
   pesoReal: number;
   pesoEsperadoGuia: number;
@@ -23,8 +29,6 @@ export interface CumplimientoGeneralInput {
   consumoEsperadoGuia: number;
   mortalidadReal: number;
   mortalidadEsperadaGuia: number;
-  conversionReal: number;
-  conversionEsperadaGuia: number;
 }
 
 /** Resultado del cálculo de cumplimiento general (se asigna al estado del componente). */

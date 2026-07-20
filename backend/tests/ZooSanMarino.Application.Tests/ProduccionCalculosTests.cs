@@ -52,4 +52,30 @@ public class ProduccionCalculosTests
     [Fact]
     public void GramosAveDia_SinAves_Cero()
         => Assert.Equal(0m, ProduccionCalculos.GramosAveDia(100m, 0, 7));
+
+    // ── REQ-004: %Retiro real (la fn SQL replica esta misma aritmética en retiro_sem_*/retiro_ac_*) ──
+
+    [Fact]
+    public void PorcentajeRetiroSemanal_MortMasSelSobreSaldo()
+    {
+        // (5 + 2) / 7000 * 100
+        var esperado = 7m / 7000m * 100m;
+        Assert.Equal(esperado, ProduccionCalculos.PorcentajeRetiroSemanal(5, 2, 7000), 10);
+    }
+
+    [Fact]
+    public void PorcentajeRetiroSemanal_SinSaldo_Cero()
+        => Assert.Equal(0m, ProduccionCalculos.PorcentajeRetiroSemanal(3, 1, 0));
+
+    [Fact]
+    public void PorcentajeRetiroAcumulado_AcumSobreIniciales()
+    {
+        // (40 + 10) / 7600 * 100
+        var esperado = 50m / 7600m * 100m;
+        Assert.Equal(esperado, ProduccionCalculos.PorcentajeRetiroAcumulado(40, 10, 7600), 10);
+    }
+
+    [Fact]
+    public void PorcentajeRetiroAcumulado_SinIniciales_Cero()
+        => Assert.Equal(0m, ProduccionCalculos.PorcentajeRetiroAcumulado(50, 0, 0));
 }

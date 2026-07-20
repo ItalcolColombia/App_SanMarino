@@ -75,10 +75,16 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.viewDetail.emit(seg);
   }
 
-  /** Fecha base para calcular edad (encaset desde Lote Levante). */
+  /**
+   * Fecha base para calcular edad (encaset del lote).
+   * REQ-012d: informacionLote.fechaEncaset (InformacionLoteDto, flujo LPP) es la fuente confiable —
+   * viaja siempre en el header del módulo. Se prioriza sobre selectedLoteLPP (puede venir null desde
+   * filter-data). Se ELIMINÓ el fallback a produccionLote.fechaInicio: es la fecha de INICIO DE
+   * PRODUCCIÓN, no el encaset — usarla como base de edad daba semanas incorrectas en lotes legacy.
+   */
   getFechaBaseEdad(): string | Date | null {
+    if (this.informacionLote?.fechaEncaset) return this.informacionLote.fechaEncaset;
     if (this.selectedLoteLPP?.fechaEncaset) return this.selectedLoteLPP.fechaEncaset;
-    if (this.produccionLote?.fechaInicio) return this.produccionLote.fechaInicio;
     return this.selectedLote?.fechaEncaset ?? null;
   }
 
@@ -112,6 +118,18 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     return Math.max(26, Math.floor(dias / 7) + 1);
   }
 
+  /**
+   * REQ-012c: etapa calculada EN VIVO desde la semana de vida real (fuente = getFechaBaseEdad(),
+   * ya corregida por REQ-012d), en vez de usar el valor `etapa` almacenado (que se congeló con
+   * fechaEncaset=null en flujo LPP). Rangos alineados a la hoja de fórmulas: 26-33→1, 34-50→2, >50→3.
+   */
+  getEtapaEnVivo(fechaRegistro: string | Date): number {
+    const semana = this.calcularEdadSemanas(fechaRegistro);
+    if (semana <= 33) return 1;
+    if (semana <= 50) return 2;
+    return 3;
+  }
+
   // ================== CALCULOS ==================
   getTotalHuevos(): number {
     return this.seguimientos.reduce((total, seg) => total + (seg.huevosTotales || 0), 0);
@@ -132,7 +150,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   private getMaxSemanaEdadFromSeguimientos(): number | null {
     if (!this.seguimientos?.length) return null;
-    const base = this.selectedLoteLPP?.fechaEncaset || this.selectedLote?.fechaEncaset || null;
+    // REQ-012d: misma prioridad de fuente que getFechaBaseEdad() (informacionLote.fechaEncaset primero).
+    const base = this.informacionLote?.fechaEncaset || this.selectedLoteLPP?.fechaEncaset || this.selectedLote?.fechaEncaset || null;
     if (!base) return null;
     const enc = new Date(base as any);
     if (isNaN(enc.getTime())) return null;
@@ -157,15 +176,13 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       Id: s.id,
       Fecha: new Date(s.fechaRegistro as any).toISOString().slice(0, 10),
       SemanaEdad: this.calcularEdadSemanas(s.fechaRegistro),
-      Etapa: s.etapa,
+      Etapa: this.getEtapaEnVivo(s.fechaRegistro),
       MortalidadH: s.mortalidadH,
       MortalidadM: s.mortalidadM,
       SeleccionH: s.selH,
       SeleccionM: s.selM,
       ConsKgH: s.consKgH,
       ConsKgM: s.consKgM,
-      TipoItemH: this.getTipoItemH(s),
-      TipoItemM: this.getTipoItemM(s),
       AlimentoH: this.getTipoAlimentoH(s),
       AlimentoM: this.getTipoAlimentoM(s),
       ConsumoOriginalH: this.getConsumoOriginalH(s),
@@ -250,21 +267,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       if (idM > 0) ids.add(idM);
     }
     ids.forEach(id => this.ensureCatalogItemFetched(id));
-  }
-
-  getTipoItemH(s: SeguimientoItemDto): string {
-    const m = this.meta(s);
-    // Nuevo: si hay items por sexo, el tipo se infiere como "alimento" (o el primero)
-    const itemsH = this.normalizeItems(m?.itemsHembras ?? m?.items_hembras);
-    if (itemsH.length) return String(itemsH[0].tipoItem || 'alimento');
-    return (m?.tipoItemHembras ?? m?.tipo_item_hembras ?? '—') || '—';
-  }
-
-  getTipoItemM(s: SeguimientoItemDto): string {
-    const m = this.meta(s);
-    const itemsM = this.normalizeItems(m?.itemsMachos ?? m?.items_machos);
-    if (itemsM.length) return String(itemsM[0].tipoItem || 'alimento');
-    return (m?.tipoItemMachos ?? m?.tipo_item_machos ?? '—') || '—';
   }
 
   getTipoAlimentoH(s: SeguimientoItemDto): string {

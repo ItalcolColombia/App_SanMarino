@@ -151,10 +151,17 @@ namespace ZooSanMarino.Infrastructure.Services
         public async Task<LoteDetailDto> CreateAsync(CreateLoteDto dto)
         {
             var companyId = await GetEffectiveCompanyIdAsync();
+
+            // REQ-011a/REQ-009c: anti-encaset-futuro (mismo patrón que ProduccionService.cs:147-150)
+            ValidarFechaEncasetNoFutura(dto.FechaEncaset);
+
             // La base de datos generará automáticamente el loteId
             // No necesitamos generar IDs manualmente
 
             await EnsureFarmExists(dto.GranjaId, companyId);
+
+            // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos)
+            await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: null);
 
             // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
             if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
@@ -395,7 +402,13 @@ namespace ZooSanMarino.Infrastructure.Services
 
             if (ent is null) return null;
 
+            // REQ-011a/REQ-009c: anti-encaset-futuro (mismo patrón que ProduccionService.cs:147-150)
+            ValidarFechaEncasetNoFutura(dto.FechaEncaset);
+
             await EnsureFarmExists(dto.GranjaId, companyId);
+
+            // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos; excluye el propio lote)
+            await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: dto.LoteId);
 
             // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
             if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
@@ -579,6 +592,43 @@ namespace ZooSanMarino.Infrastructure.Services
                 .AsNoTracking()
                 .AnyAsync(f => f.Id == granjaId && f.CompanyId == companyId);
             if (!exists) throw new InvalidOperationException("Granja no existe o no pertenece a la compañía.");
+        }
+
+        /// <summary>
+        /// REQ-011a/REQ-009c: rechaza fecha de encasetamiento futura (mismo patrón que
+        /// ProduccionService.cs:147-150, que valida FechaInicio de producción). Previene el bug que
+        /// generó el lote duplicado "A374A" (id 116) con encaset 2026-10-14 (un año en el futuro),
+        /// que colapsa Semana/Edad y todos los cálculos derivados (indicadores, liquidación).
+        /// </summary>
+        private static void ValidarFechaEncasetNoFutura(DateTime? fechaEncaset)
+        {
+            if (fechaEncaset?.Date > DateTime.UtcNow.Date)
+                throw new InvalidOperationException("La fecha de encasetamiento no puede ser futura.");
+        }
+
+        /// <summary>
+        /// REQ-009c: rechaza nombre de lote duplicado dentro de la misma compañía+granja, entre lotes
+        /// activos (DeletedAt == null). Acotado a compañía+granja (no global) para no romper el caso
+        /// legítimo de reutilizar el mismo nombre en distinta granja. excludeLoteId permite que Update
+        /// no se auto-reporte como duplicado.
+        /// </summary>
+        private async Task EnsureLoteNombreNoDuplicadoAsync(int companyId, int granjaId, string? loteNombre, int? excludeLoteId)
+        {
+            var nombreNorm = (loteNombre ?? string.Empty).Trim();
+            if (nombreNorm.Length == 0) return;
+
+            var existeDuplicado = await _ctx.Lotes
+                .AsNoTracking()
+                .AnyAsync(l =>
+                    l.CompanyId == companyId &&
+                    l.GranjaId == granjaId &&
+                    l.DeletedAt == null &&
+                    (!excludeLoteId.HasValue || l.LoteId != excludeLoteId.Value) &&
+                    l.LoteNombre != null &&
+                    l.LoteNombre.ToLower() == nombreNorm.ToLower());
+
+            if (existeDuplicado)
+                throw new InvalidOperationException($"Ya existe un lote activo con el nombre '{nombreNorm}' en esta granja.");
         }
 
         /// <summary>Calcula la semana de edad desde fecha encaset hasta la fecha de referencia. Semana 1 = días 0-6, 2 = 7-13, etc. >= 26 → Producción.</summary>

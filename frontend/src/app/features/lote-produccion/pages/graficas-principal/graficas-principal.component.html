@@ -56,7 +56,11 @@
       <div class="empty-icon">📊</div>
       <h4>No hay datos para mostrar</h4>
       <p>Se necesitan registros de seguimiento diario de producción para generar las gráficas.</p>
-      <p class="empty-hint">Las semanas de producción comienzan desde la semana {{ SEMANA_INICIO_PRODUCCION }}.</p>
+      @if (getEmptyStateCausa(); as causa) {
+        <p class="empty-hint">{{ causa }}</p>
+      } @else {
+        <p class="empty-hint">Las semanas de producción comienzan desde la semana {{ SEMANA_INICIO_PRODUCCION }}.</p>
+      }
     </div>
   }
 

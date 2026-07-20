@@ -79,8 +79,6 @@ export function getEstadoClass(tipo: string, esperado: number, real: number): st
       return porcentaje <= 10 ? 'estado-optimo' : porcentaje <= 20 ? 'estado-aceptable' : 'estado-problema';
     case 'mortalidad':
       return porcentaje <= 20 ? 'estado-optimo' : porcentaje <= 40 ? 'estado-aceptable' : 'estado-problema';
-    case 'conversion':
-      return porcentaje <= 10 ? 'estado-optimo' : porcentaje <= 20 ? 'estado-aceptable' : 'estado-problema';
     default:
       return 'estado-aceptable';
   }
@@ -103,10 +101,6 @@ export function getEstadoTexto(tipo: string, esperado: number, real: number): st
     case 'mortalidad':
       if (porcentaje <= 20) return 'Normal';
       if (porcentaje <= 40) return 'Aceptable';
-      return real < esperado ? 'Baja' : 'Alta';
-    case 'conversion':
-      if (porcentaje <= 10) return 'Óptima';
-      if (porcentaje <= 20) return 'Aceptable';
       return real < esperado ? 'Baja' : 'Alta';
     default:
       return 'Aceptable';

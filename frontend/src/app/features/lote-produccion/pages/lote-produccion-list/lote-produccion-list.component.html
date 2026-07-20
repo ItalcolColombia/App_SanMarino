@@ -163,7 +163,7 @@
       [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
       [editingSeguimiento]="editingSeguimiento"
       [loading]="loading"
-      [fechaEncaset]="selectedLote?.fechaEncaset || null"
+      [fechaEncaset]="informacionLote?.fechaEncaset || selectedLote?.fechaEncaset || null"
       [granjaId]="selectedLote?.granjaId || null"
       [nucleoId]="selectedLote?.nucleoId || null"
       [galponId]="selectedLote?.galponId || null"

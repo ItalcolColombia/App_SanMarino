@@ -438,6 +438,17 @@ export interface IndicadorProduccionSemanalDto {
   // H.T.A.A / H.I.A.A reales (acumulados por ave alojada) — comparables con la guía
   htaaReal?: number | null;
   hiaaReal?: number | null;
+
+  // REQ-004 — %Retiro (mortalidad + selección) semanal/acumulado, real vs guía.
+  // El backend agrega estos campos a fn_indicadores_produccion_postura; hasta entonces viajan
+  // undefined y las columnas/Excel muestran "—" (no rompe el build ni la UI).
+  retiroSemanalHembrasReal?: number | null;
+  retiroSemanalMachosReal?: number | null;
+  retiroAcumuladoHembrasReal?: number | null;
+  retiroAcumuladoMachosReal?: number | null;
+  /** Guía: ya existe como dato de guía genética (GuiaGeneticaDto.RetiroAcumuladoHembras/Machos); se declara aquí para cuando el backend la sume a este endpoint. */
+  retiroAcumuladoHembrasGuia?: number | null;
+  retiroAcumuladoMachosGuia?: number | null;
 }
 
 export interface IndicadoresProduccionRequest {

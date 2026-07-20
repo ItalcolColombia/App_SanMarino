@@ -27,6 +27,18 @@ const requiredArray: ValidatorFn = (ctrl: AbstractControl) => {
   return Array.isArray(v) && v.length > 0 ? null : { required: true };
 };
 
+// === Validador: fecha de encaset no puede ser futura (REQ-011a/009c) ===
+// Compara en LOCAL (no UTC) contra el día de hoy a medianoche.
+const noFechaFutura: ValidatorFn = (ctrl: AbstractControl) => {
+  const v = ctrl.value;
+  if (!v) return null; // Validators.required ya cubre el caso vacío
+  const fecha = new Date(`${v}T00:00:00`);
+  if (isNaN(fecha.getTime())) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return fecha.getTime() > hoy.getTime() ? { fechaFutura: true } : null;
+};
+
 // === Validador: confirmar contraseña ===
 const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
   const parent = ctrl.parent as FormGroup | null;
@@ -77,6 +89,8 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   galpones: GalponDetailDto[] = [];
   tecnicos: User[] = [];
   companies: Company[] = [];
+  /** REQ-009c (opcional): todos los lotes, para advertir nombre duplicado en la misma granja. */
+  todosLotes: LoteDto[] = [];
 
   // Datos para raza y línea genética
   razasDisponibles: string[] = [];
@@ -197,7 +211,7 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
       nucleoId: ['', Validators.required],
       galponId: [''],
       loteNombre: ['', [Validators.required, Validators.minLength(2)]],
-      fechaEncaset: ['', Validators.required],
+      fechaEncaset: ['', [Validators.required, noFechaFutura]],
       hembrasL: [0, [Validators.min(0)]],
       machosL: [0, [Validators.min(0)]],
       pesoInicialH: [0, [Validators.min(0)]],
@@ -246,18 +260,20 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
       tecnicos: this.userSvc.getAll(),
       companies: this.companySvc.getAll(),
       razas: this.guiaGeneticaSvc.obtenerRazasDisponibles(),
-    }).subscribe(({ farms, nucleos, galpones, tecnicos, companies, razas }) => {
-      
-      
-      
-      
+      lotes: this.loteSvc.getAll().pipe(catchError(() => of<LoteDto[]>([]))),
+    }).subscribe(({ farms, nucleos, galpones, tecnicos, companies, razas, lotes }) => {
+
+
+
+
       this.farms = farms;
       this.nucleos = nucleos;
       this.galpones = galpones;
       this.tecnicos = tecnicos;
       this.companies = companies;
       this.razasDisponibles = razas;
-      
+      this.todosLotes = lotes;
+
       this.loading = false;
       this.loadingRazas = false;
       this.cdr.detectChanges();
@@ -582,15 +598,9 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   private resetForm(): void {
     this.form.reset();
     // Inicializar campo de prueba
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const todayIsoDate = `${yyyy}-${mm}-${dd}`; // para <input type="date">
-
     this.form.patchValue({
       campoPrueba: 'Campo de prueba inicializado',
-      fechaEncaset: todayIsoDate
+      fechaEncaset: this.todayYMD
     });
     this.nucleosFiltrados = [];
     this.galponesFiltrados = [];
@@ -669,6 +679,33 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
 
   get modalTitle(): string {
     return this.isEditing ? 'Editar Lote' : 'Registrar Nuevo Lote';
+  }
+
+  /** Fecha de hoy en formato yyyy-MM-dd LOCAL (no UTC) — usado como [max] del date picker de encaset. */
+  get todayYMD(): string {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  /**
+   * REQ-009c (opcional, no bloqueante): advierte si ya existe otro lote con el mismo nombre
+   * en la misma granja. No es un chequeo exhaustivo contra el backend (no hay endpoint dedicado
+   * hoy) — solo compara contra los lotes ya cargados en el modal.
+   */
+  get nombreDuplicadoWarning(): string | null {
+    if (this.usarSelectorLetra) return null; // el nombre lo arma el selector de letra (ya valida contra el backend)
+    const nombre = String(this.form?.get('loteNombre')?.value ?? '').trim().toLowerCase();
+    const granjaId = Number(this.form?.get('granjaId')?.value);
+    if (!nombre || !granjaId) return null;
+    const duplicado = this.todosLotes.find(l =>
+      String(l.loteNombre ?? '').trim().toLowerCase() === nombre &&
+      l.granjaId === granjaId &&
+      (!this.editingLote || l.loteId !== this.editingLote.loteId)
+    );
+    return duplicado ? `Ya existe un lote "${duplicado.loteNombre}" en esta granja. Verificá que no sea un duplicado.` : null;
   }
 
   /** Semanas desde encaset hasta hoy (null si no hay fecha). Regla: >= 26 → Producción, < 26 → Levante. */

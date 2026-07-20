@@ -217,8 +217,6 @@
                       <th class="th-prod-trasl-out" title="Machos enviados por traslado">↗ Sal. M</th>
                       <th>Cons. H (kg)</th>
                       <th>Cons. M (kg)</th>
-                      <th>Tipo item H</th>
-                      <th>Tipo item M</th>
                       <th>Alimento H</th>
                       <th>Alimento M</th>
                       <th>Cons. orig H</th>
@@ -276,7 +274,7 @@
                         <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
                         <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
                         <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>
-                        <td>{{ s.etapa }}</td>
+                        <td>{{ getEtapaEnVivo(s.fechaRegistro) }}</td>
                         <td>{{ s.mortalidadH }}</td>
                         <td>{{ s.mortalidadM }}</td>
                         <td>{{ s.selH }}</td>
@@ -288,8 +286,6 @@
                         <td [class.prod-cell--out]="(s.trasladoSalidaMachos ||0) > 0">{{ s.trasladoSalidaMachos  ?? 0 }}</td>
                         <td>{{ s.consKgH | number:'1.0-2' }}</td>
                         <td>{{ s.consKgM | number:'1.0-2' }}</td>
-                        <td>{{ getTipoItemH(s) }}</td>
-                        <td>{{ getTipoItemM(s) }}</td>
                         <td class="truncate" [title]="getTipoAlimentoH(s)">{{ getTipoAlimentoH(s) }}</td>
                         <td class="truncate" [title]="getTipoAlimentoM(s)">{{ getTipoAlimentoM(s) }}</td>
                         <td>{{ getConsumoOriginalH(s) | number:'1.0-2' }}</td>
@@ -343,6 +339,7 @@
               [selectedLote]="selectedLote"
               [produccionLoteId]="produccionLoteId"
               [lotePosturaProduccionId]="lotePosturaProduccionId"
+              [informacionLote]="informacionLote"
               [loading]="loading">
             </app-tabla-lista-indicadores>
           </div>
@@ -357,7 +354,8 @@
             <app-graficas-principal
               [seguimientos]="seguimientos"
               [selectedLote]="selectedLote"
-              [fechaEncaset]="selectedLoteLPP?.fechaEncaset || selectedLote.fechaEncaset || null"
+              [fechaEncaset]="informacionLote?.fechaEncaset || selectedLoteLPP?.fechaEncaset || selectedLote.fechaEncaset || null"
+              [informacionLote]="informacionLote"
               [lotePosturaProduccionId]="lotePosturaProduccionId"
               [produccionLoteId]="produccionLoteId"
               [loading]="loading">

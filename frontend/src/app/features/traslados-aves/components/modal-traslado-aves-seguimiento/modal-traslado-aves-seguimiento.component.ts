@@ -80,10 +80,19 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
   trasladoMachos  = 0;
   observaciones   = '';
 
-  /** Fecha REAL del evento de traslado (editable; default = fecha sugerida). REQ-009. */
+  /** Fecha REAL del evento de traslado (editable; default = fecha sugerida por el caller, o vacía). REQ-009a. */
   fechaEvento = '';
-  /** Hoy (YYYY-MM-DD) para acotar el máximo del date picker. */
-  readonly hoyStr = new Date().toISOString().split('T')[0];
+  /** Hoy (YYYY-MM-DD) en LOCAL (no UTC, evita el +1 día de toISOString() de noche en Colombia) — acota el máximo del date picker. */
+  readonly hoyStr = ModalTrasladoAvesSeguimientoComponent.todayYMDLocal();
+
+  /** Fecha de hoy en formato yyyy-MM-dd LOCAL. */
+  private static todayYMDLocal(): string {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
 
   // ── Saldo REAL del origen (Feature 13) ─────────────────────────
   /** Resumen de mortalidad — saldoHembras/saldoMachos son las "aves vivas". */
@@ -105,7 +114,9 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen) {
       this.resetForm();
-      this.fechaEvento = this.origen?.fechaSeguimiento || new Date().toISOString().split('T')[0];
+      // REQ-009a: si el caller no trae una fecha sugerida (último registro del lote origen),
+      // queda VACÍA para forzar una elección consciente en vez de asumir "hoy".
+      this.fechaEvento = this.origen?.fechaSeguimiento || '';
       this.cargarDatosIniciales();
     }
   }
@@ -234,6 +245,7 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
 
   get formularioValido(): boolean {
     return (
+      !!this.fechaEvento && // REQ-009a: fecha del evento es obligatoria (elección consciente, no default silencioso)
       this.loteDestinoId != null &&
       (this.trasladoHembras > 0 || this.trasladoMachos > 0) &&
       this.hembrasValidas &&

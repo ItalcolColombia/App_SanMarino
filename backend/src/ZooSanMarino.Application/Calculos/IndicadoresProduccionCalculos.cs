@@ -79,7 +79,15 @@ public static class IndicadoresProduccionCalculos
             r.AvesHembrasFinSemana,
             r.AvesMachosFinSemana,
             (decimal)r.HtaaReal,
-            (decimal)r.HiaaReal);
+            (decimal)r.HiaaReal,
+            // REQ-004: %Retiro real (mismo double→decimal sin alterar el valor)
+            (decimal)r.RetiroSemH,
+            (decimal)r.RetiroSemM,
+            (decimal)r.RetiroAcH,
+            (decimal)r.RetiroAcM,
+            // Verenice rev 6-jul-26: %Retiro acumulado de guía por sexo (NULL si la fn no la tiene)
+            Dec(r.RetiroAcHGuia),
+            Dec(r.RetiroAcMGuia));
 
     /// <summary>
     /// Construye la respuesta a partir de las filas de la fn y del estado de la guía genética.
