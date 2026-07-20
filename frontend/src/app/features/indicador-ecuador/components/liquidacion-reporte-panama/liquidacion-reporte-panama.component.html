@@ -6,13 +6,19 @@
         <span class="rp__flag">🇵🇦</span>
         <div class="rp__brand-text">
           <h2 class="rp__title">Resultados de Liquidación</h2>
-          <p class="rp__subtitle">{{ empresa }} · Lote #{{ d.liquidacion.idLote }}</p>
+          @if (subtitulo) {
+            <p class="rp__subtitle">{{ subtitulo }}</p>
+          } @else {
+            <p class="rp__subtitle">{{ empresa }} · Lote #{{ d.liquidacion.idLote }}</p>
+          }
         </div>
       </div>
-      <div class="rp__actions">
-        <button type="button" class="rp__btn rp__btn--print" (click)="print()">🖨️ Imprimir</button>
-        <button type="button" class="rp__btn rp__btn--ghost" (click)="cerrar.emit()">✕ Cerrar</button>
-      </div>
+      @if (mostrarAcciones) {
+        <div class="rp__actions">
+          <button type="button" class="rp__btn rp__btn--print" (click)="print()">🖨️ Imprimir</button>
+          <button type="button" class="rp__btn rp__btn--ghost" (click)="cerrar.emit()">✕ Cerrar</button>
+        </div>
+      }
     </header>
     <!-- Hero KPIs (los 6 insumos de la liquidación) -->
     <div class="rp__hero">

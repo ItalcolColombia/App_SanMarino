@@ -213,6 +213,35 @@ export interface ReporteIndicadoresPanamaDto {
   avesEncasetadas: number;
 }
 
+/** Reporte individual de un lote/galpón dentro de una corrida (Panamá). */
+export interface ReporteCorridaPanamaItemDto {
+  loteAveEngordeId: number;
+  loteNombre: string;
+  galponId: string | null;
+  fechaEncaset: string | null;
+  reporte: ReporteIndicadoresPanamaDto;
+}
+
+/** Lote/galpón de la corrida que aún no tiene liquidación registrada. */
+export interface LoteCorridaPanamaResumenDto {
+  loteAveEngordeId: number;
+  loteNombre: string;
+  galponId: string | null;
+  fechaEncaset: string | null;
+}
+
+/**
+ * Reporte de una CORRIDA completa (Panamá): el lote_nombre ES el número de corrida y se
+ * repite en varios galpones de la granja. Un reporte por galpón + consolidado.
+ */
+export interface ReporteCorridaPanamaDto {
+  corrida: string;
+  granjaId: number;
+  items: ReporteCorridaPanamaItemDto[];
+  lotesSinLiquidacion: LoteCorridaPanamaResumenDto[];
+  consolidado: ReporteIndicadoresPanamaDto | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class IndicadorEcuadorService {
   private readonly baseUrl = `${environment.apiUrl}/IndicadorEcuador`;
@@ -228,6 +257,21 @@ export class IndicadorEcuadorService {
   /** Reporte "RESULTADOS DE LIQUIDACIÓN" del lote (ejecuta fn_reporte_indicadores_panama). */
   getReporteIndicadoresPanama(loteAveEngordeId: number): Observable<ReporteIndicadoresPanamaDto> {
     return this.http.get<ReporteIndicadoresPanamaDto>(`${this.panamaUrl}/${loteAveEngordeId}`);
+  }
+
+  /** Reporte de una CORRIDA Panamá: todos los galpones de la corrida en la granja + consolidado. */
+  getReporteCorridaPanama(
+    granjaId: number,
+    corrida: string,
+    nucleoId?: string | null,
+    galponId?: string | null
+  ): Observable<ReporteCorridaPanamaDto> {
+    let params = new HttpParams()
+      .set('granjaId', String(granjaId))
+      .set('corrida', corrida);
+    if (nucleoId) params = params.set('nucleoId', nucleoId);
+    if (galponId) params = params.set('galponId', galponId);
+    return this.http.get<ReporteCorridaPanamaDto>(`${this.panamaUrl}/por-corrida`, { params });
   }
 
   calcularIndicadores(request: IndicadorEcuadorRequest): Observable<IndicadorEcuadorDto[]> {

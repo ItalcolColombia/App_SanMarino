@@ -14,10 +14,12 @@ import {
   LiquidacionPeriodoDto,
   LiquidacionPolloEngordeReporteDto,
   LiquidacionPolloEngordeItemDto,
-  ReporteIndicadoresPanamaDto
+  ReporteIndicadoresPanamaDto,
+  ReporteCorridaPanamaDto
 } from '../../services/indicador-ecuador.service';
 import { LiquidacionReporteComponent } from '../../components/liquidacion-reporte/liquidacion-reporte.component';
 import { LiquidacionReportePanamaComponent } from '../../components/liquidacion-reporte-panama/liquidacion-reporte-panama.component';
+import { LiquidacionReporteCorridaPanamaComponent } from '../../components/liquidacion-reporte-corrida-panama/liquidacion-reporte-corrida-panama.component';
 import { AuditoriaLiquidacionModalComponent } from '../../components/auditoria-liquidacion-modal/auditoria-liquidacion-modal.component';
 import { AuditoriaScopeInput } from '../../models/auditoria-liquidacion.model';
 import {
@@ -36,6 +38,10 @@ import {
   filtrarCascadaPe,
   filtrarLotesPorFechaEncaset
 } from '../../funciones/cascada-filtros.funcion';
+import {
+  corridasDisponiblesPanama,
+  filtrarLotesPorCorridaPanama
+} from '../../funciones/corridas-panama.funcion';
 import { parsearFilterDataPollo } from '../../funciones/parsear-filter-data-pollo.funcion';
 import {
   etiquetaColumnaLiquidacion,
@@ -58,7 +64,7 @@ import { environment } from '../../../../../environments/environment';
 @Component({
   selector: 'app-indicador-ecuador-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, LiquidacionReporteComponent, LiquidacionReportePanamaComponent, AuditoriaLiquidacionModalComponent],
+  imports: [CommonModule, FormsModule, LiquidacionReporteComponent, LiquidacionReportePanamaComponent, LiquidacionReporteCorridaPanamaComponent, AuditoriaLiquidacionModalComponent],
   templateUrl: './indicador-ecuador-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./indicador-ecuador-list.component.scss']
@@ -141,6 +147,15 @@ export class IndicadorEcuadorListComponent implements OnInit {
   /** Reporte de liquidación Panamá ("RESULTADOS DE LIQUIDACIÓN"). Solo cuando el país activo es Panamá. */
   reportePanama: ReporteIndicadoresPanamaDto | null = null;
   mostrarReportePanama = false;
+
+  /**
+   * Panamá: la CORRIDA es el `loteNombre` compartido por los galpones de la granja.
+   * `corridasPanama` se recalcula (memoizado, no getter — NG0103) al cambiar cascada o filtro de encaset.
+   */
+  selectedCorridaPanama: string | null = null;
+  corridasPanama: string[] = [];
+  reporteCorridaPanama: ReporteCorridaPanamaDto | null = null;
+  mostrarReporteCorridaPanama = false;
 
   // Datos
   indicadores: IndicadorEcuadorDto[] = [];
@@ -247,6 +262,34 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.peNucleos = r.nucleos;
     this.peGalpones = r.galpones;
     this.peLotesAveEngorde = r.lotesAveEngorde;
+    this.recalcularCorridasPanama();
+  }
+
+  /**
+   * Panamá: corridas del alcance actual (cascada + filtro de encaset). Campo memoizado
+   * (no getter) para no alocar arrays por ciclo de CD; si la corrida elegida sale del
+   * alcance, se des-selecciona.
+   */
+  private recalcularCorridasPanama(): void {
+    if (!this.esPanama) {
+      this.corridasPanama = [];
+      return;
+    }
+    this.corridasPanama = corridasDisponiblesPanama(this.peLotesFiltradosPorFecha);
+    if (this.selectedCorridaPanama && !this.corridasPanama.includes(this.selectedCorridaPanama)) {
+      this.selectedCorridaPanama = null;
+    }
+  }
+
+  /** Cambio de corrida (Panamá): el lote específico se limpia (la corrida acota el selector). */
+  onCorridaPanamaChange(): void {
+    this.peLoteAveEngordeId = null;
+  }
+
+  /** Cambio de valor en el filtro de encaset (año/fechas): limpia lote y recalcula corridas. */
+  onFiltroEncasetValorChange(): void {
+    this.peLoteAveEngordeId = null;
+    this.recalcularCorridasPanama();
   }
 
   /** Si solo hay un núcleo en la granja, se selecciona solo (flujo Ecuador: núcleo 1 implícito). */
@@ -269,6 +312,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.filtroEncHasta = '';
     this.selectedAnio = null;
     this.selectedCorrida = null;
+    this.selectedCorridaPanama = null;
     this.applyPeCascade();
     this.aplicarNucleoUnicoPorDefecto();
   }
@@ -522,27 +566,53 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.showReporte = false;
     this.mostrarReportePanama = false;
     this.reportePanama = null;
+    this.mostrarReporteCorridaPanama = false;
+    this.reporteCorridaPanama = null;
 
-    // Panamá: el reporte de liquidación es el de "RESULTADOS DE LIQUIDACIÓN" (fn_reporte_indicadores_panama),
-    // por lote. Requiere un lote específico seleccionado.
+    // Panamá: lote específico ⇒ reporte individual (fn_reporte_indicadores_panama);
+    // sin lote pero con CORRIDA ⇒ reporte de la corrida completa (todos los galpones + consolidado).
     if (this.esPanama) {
-      if (!this.peLoteAveEngordeId) {
-        this.error = 'Seleccione un lote para generar el reporte de liquidación (Panamá).';
+      if (this.peLoteAveEngordeId) {
+        try {
+          this.reportePanama = await firstValueFrom(
+            this.indicadorService.getReporteIndicadoresPanama(this.peLoteAveEngordeId)
+          );
+          this.mostrarReportePanama = true;
+        } catch (err: any) {
+          if (err?.status === 404) {
+            this.error = 'El lote aún no tiene liquidación registrada. Ciérrelo/liquídelo desde Seguimiento Pollo Engorde.';
+          } else {
+            this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'Error al generar el reporte de liquidación.';
+          }
+          this.reportePanama = null;
+        } finally {
+          this.loading = false;
+        }
+        return;
+      }
+
+      if (!this.peGranjaId || !this.selectedCorridaPanama) {
+        this.error = 'Seleccione una corrida (o un lote específico) para generar la liquidación (Panamá).';
         this.loading = false;
         return;
       }
       try {
-        this.reportePanama = await firstValueFrom(
-          this.indicadorService.getReporteIndicadoresPanama(this.peLoteAveEngordeId)
+        this.reporteCorridaPanama = await firstValueFrom(
+          this.indicadorService.getReporteCorridaPanama(
+            this.peGranjaId,
+            this.selectedCorridaPanama,
+            this.peNucleoId || null,
+            this.peGalponId || null
+          )
         );
-        this.mostrarReportePanama = true;
+        this.mostrarReporteCorridaPanama = true;
       } catch (err: any) {
         if (err?.status === 404) {
-          this.error = 'El lote aún no tiene liquidación registrada. Ciérrelo/liquídelo desde Seguimiento Pollo Engorde.';
+          this.error = `La corrida ${this.selectedCorridaPanama} no tiene lotes en el alcance seleccionado.`;
         } else {
-          this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'Error al generar el reporte de liquidación.';
+          this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'Error al generar el reporte de la corrida.';
         }
-        this.reportePanama = null;
+        this.reporteCorridaPanama = null;
       } finally {
         this.loading = false;
       }
@@ -717,10 +787,15 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.filtroEncHasta = '';
     this.selectedAnio = null;
     this.selectedCorrida = null;
+    this.selectedCorridaPanama = null;
     this.tabActivaLiquidacion = 'consolidado';
     this.applyPeCascade();
     this.resultadoLiquidacionPollo = null;
     this.mostrarLiquidacionPollo = false;
+    this.reportePanama = null;
+    this.mostrarReportePanama = false;
+    this.reporteCorridaPanama = null;
+    this.mostrarReporteCorridaPanama = false;
   }
 
   /** Lotes del selector filtrados por fecha de encaset según el tipo de filtro activo. */
@@ -733,6 +808,23 @@ export class IndicadorEcuadorListComponent implements OnInit {
       filtroDesde: this.filtroEncDesde,
       filtroHasta: this.filtroEncHasta
     });
+  }
+
+  /**
+   * Opciones del select de lote: en Panamá, si hay corrida elegida, acota a sus lotes;
+   * sin corrida (o en Ecuador) devuelve la MISMA referencia del filtro por fecha.
+   */
+  get peLotesSelector(): PeLoteAveEngordeItem[] {
+    return filtrarLotesPorCorridaPanama(
+      this.peLotesFiltradosPorFecha,
+      this.esPanama ? this.selectedCorridaPanama : null
+    );
+  }
+
+  /** Nombre de la granja seleccionada (encabezado del reporte de corrida Panamá). */
+  get granjaNombrePanama(): string | null {
+    if (!this.peGranjaId) return null;
+    return this.peFarms.find(f => f.id === Number(this.peGranjaId))?.name ?? null;
   }
 
   get aniosDisponiblesPollo(): number[] {
@@ -767,6 +859,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
     if (idx === -1) this.filtroMesesPollo.push(mes);
     else this.filtroMesesPollo.splice(idx, 1);
     this.peLoteAveEngordeId = null;
+    this.recalcularCorridasPanama();
   }
 
   onTipoFiltroFechaChange(): void {
@@ -775,6 +868,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.filtroEncDesde = '';
     this.filtroEncHasta = '';
     this.peLoteAveEngordeId = null;
+    this.recalcularCorridasPanama();
   }
 
   seleccionarTab(tab: 'consolidado' | number): void {

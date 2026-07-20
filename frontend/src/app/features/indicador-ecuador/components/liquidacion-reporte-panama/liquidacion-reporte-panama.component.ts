@@ -27,6 +27,10 @@ interface FilaResultado {
 export class LiquidacionReportePanamaComponent {
   @Input({ required: true }) data!: ReporteIndicadoresPanamaDto;
   @Input() empresa = 'PAN - ITALCOL S.A.';
+  /** Subtítulo del encabezado; null ⇒ el texto por defecto (empresa · Lote #id). */
+  @Input() subtitulo: string | null = null;
+  /** false cuando el reporte va embebido (ej. tabs de corrida): oculta Imprimir/Cerrar propios. */
+  @Input() mostrarAcciones = true;
 
   @Output() cerrar = new EventEmitter<void>();
 

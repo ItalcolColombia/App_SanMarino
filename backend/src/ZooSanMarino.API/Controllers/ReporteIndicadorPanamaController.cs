@@ -48,6 +48,40 @@ public class ReporteIndicadorPanamaController : ControllerBase
     }
 
     /// <summary>
+    /// Reporte de una CORRIDA completa (Panamá): lote_nombre = número de corrida, repetido en
+    /// varios galpones de la granja. Devuelve un reporte por galpón + consolidado de la corrida
+    /// y lista los galpones que aún no tienen liquidación registrada.
+    /// 404 si la corrida no tiene lotes en la granja (empresa activa).
+    /// </summary>
+    [HttpGet("por-corrida")]
+    public async Task<ActionResult<ReporteCorridaPanamaDto>> GetReportePorCorrida(
+        [FromQuery] int granjaId,
+        [FromQuery] string corrida,
+        [FromQuery] string? nucleoId,
+        [FromQuery] string? galponId,
+        CancellationToken ct)
+    {
+        if (granjaId <= 0 || string.IsNullOrWhiteSpace(corrida))
+            return BadRequest(new { error = "granjaId y corrida son requeridos." });
+        try
+        {
+            var reporte = await _service.GetReportePorCorridaAsync(granjaId, corrida, nucleoId, galponId, ct);
+            if (reporte is null)
+                return NotFound(new { error = $"La corrida '{corrida.Trim()}' no tiene lotes en la granja indicada." });
+            return Ok(reporte);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al generar reporte por corrida Panamá. Granja: {GranjaId}, Corrida: {Corrida}", granjaId, corrida);
+            return StatusCode(500, new { error = "Error interno al generar el reporte de la corrida." });
+        }
+    }
+
+    /// <summary>
     /// Reporte "RESULTADOS DE LIQUIDACIÓN" del lote (ejecuta fn_reporte_indicadores_panama).
     /// 404 si el lote aún no tiene liquidación registrada.
     /// </summary>
