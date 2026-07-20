@@ -3,6 +3,12 @@
 -- ============================================================================
 --                          + BACKUP PREVIO (db-studio → copia completa)
 --
+-- 📌 2026-07-20: los BLOQUES 1-3 ahora también corren SOLOS en el deploy vía la
+--    migración EF 20260720211748_FixDatosPosturaVereniceBloques1a3 (espejo exacto).
+--    Son idempotentes → correr este .sql a mano además es un no-op seguro.
+--    El BLOQUE 4 (re-fechado de traslados) sigue SOLO acá y manual: espera la fecha
+--    real del movimiento confirmada por Verenice.
+--
 -- Corrige los datos corruptos detectados en la re-validación "Matriz Verenice
 -- rev 6-jul-26" (fase_de_desarrollo/postura_verenice_rev_6jul26_plan.md, Fase 0).
 --
