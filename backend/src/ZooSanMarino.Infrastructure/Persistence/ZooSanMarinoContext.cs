@@ -138,6 +138,10 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<DbStudioObjectGrant> DbStudioObjectGrants => Set<DbStudioObjectGrant>();
         public DbSet<DbStudioAudit> DbStudioAudits => Set<DbStudioAudit>();
 
+        // Módulo Implementación (cronogramas de entrega por empresa con checklist confirmable)
+        public DbSet<ImplementacionPlan> ImplementacionPlanes => Set<ImplementacionPlan>();
+        public DbSet<ImplementacionTarea> ImplementacionTareas => Set<ImplementacionTarea>();
+
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote
 

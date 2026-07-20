@@ -1,0 +1,179 @@
+<div class="mx-auto max-w-7xl p-4 sm:p-6">
+  <div class="mb-3">
+    <a routerLink="/implementacion/planes" class="text-sm font-semibold hover:underline" style="color: var(--ital-muted)">
+      ← Volver a planes
+    </a>
+  </div>
+
+  <div *ngIf="cargando" class="loading-toast" role="status">
+    <span class="spinner spinner--sm"></span> Cargando plan…
+  </div>
+
+  <ng-container *ngIf="!cargando && plan">
+    <!-- Cabecera del plan -->
+    <header class="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">{{ plan.nombre }}</h1>
+          <span
+            class="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold"
+            [style.color]="estiloPlan(plan.estado).fg"
+            [style.background]="estiloPlan(plan.estado).bg"
+          >
+            {{ estiloPlan(plan.estado).label }}
+          </span>
+        </div>
+        <p *ngIf="plan.descripcion" class="mt-1 text-sm" style="color: var(--ital-muted)">{{ plan.descripcion }}</p>
+        <p class="mt-1 text-xs" style="color: var(--ital-muted)">
+          Cronograma:
+          {{ plan.fechaInicio ? (plan.fechaInicio | date: 'dd/MM/yyyy') : '—' }} →
+          {{ plan.fechaFin ? (plan.fechaFin | date: 'dd/MM/yyyy') : '—' }}
+        </p>
+      </div>
+      <button type="button" class="btn-primary text-sm" (click)="abrirNuevaTarea()">＋ Agregar tarea</button>
+    </header>
+
+    <!-- KPIs -->
+    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="ux-card p-3 text-center">
+        <div class="text-2xl font-extrabold" style="color: var(--ital-text)">{{ plan.totalTareas }}</div>
+        <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Tareas</div>
+      </div>
+      <div class="ux-card p-3 text-center">
+        <div class="text-2xl font-extrabold" style="color: var(--ital-orange-dark)">{{ plan.tareasCompletadas }}</div>
+        <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Por confirmar</div>
+      </div>
+      <div class="ux-card p-3 text-center">
+        <div class="text-2xl font-extrabold" style="color: var(--success)">{{ plan.tareasConfirmadas }}</div>
+        <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Confirmadas</div>
+      </div>
+      <div class="ux-card p-3 text-center">
+        <div class="text-2xl font-extrabold" style="color: var(--ital-orange)">{{ plan.porcentajeAvance }}%</div>
+        <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Avance</div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="!grupos.length" class="empty-state ux-card p-8 text-center">
+      <div class="mb-2 text-3xl" aria-hidden="true">📝</div>
+      <p class="font-semibold" style="color: var(--ital-text)">Este plan todavía no tiene tareas.</p>
+      <p class="mb-4 text-sm" style="color: var(--ital-muted)">Agregá las tareas del checklist de entrega.</p>
+      <button type="button" class="btn-primary text-sm" (click)="abrirNuevaTarea()">Agregar tarea</button>
+    </div>
+
+    <!-- Checklist por categoría -->
+    <section *ngFor="let g of grupos; trackBy: trackByGrupo" class="ux-card mb-4 overflow-hidden">
+      <div
+        class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3"
+        style="border-color: var(--ital-green-100); background: var(--ital-cream)"
+      >
+        <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">{{ g.categoria }}</h2>
+        <span class="text-xs font-semibold" style="color: var(--ital-muted)">
+          {{ g.confirmadas }}/{{ g.total }} confirmadas · {{ g.avance }}/{{ g.total }} con check
+        </span>
+      </div>
+      <div class="ux-scroll overflow-x-auto">
+        <table class="table-italfoods w-full text-sm">
+          <thead>
+            <tr>
+              <th class="w-10 text-center">✓</th>
+              <th class="text-left">Tarea</th>
+              <th class="text-left">Programada</th>
+              <th class="text-left">Responsable</th>
+              <th class="text-left">Completada</th>
+              <th class="text-left">Confirmada</th>
+              <th class="text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let t of g.tareas; trackBy: trackByTarea">
+              <td class="text-center text-base" aria-hidden="true">
+                <span *ngIf="t.estado === 'confirmada'" title="Confirmada" style="color: var(--success)">✅</span>
+                <span *ngIf="t.estado === 'completada'" title="Completada, por confirmar" style="color: var(--ital-orange)">☑️</span>
+                <span *ngIf="t.estado === 'pendiente'" title="Pendiente" style="color: var(--ital-muted)">⬜</span>
+              </td>
+              <td>
+                <div class="font-semibold" style="color: var(--ital-text)">{{ t.titulo }}</div>
+                <div *ngIf="t.descripcion" class="max-w-md text-xs" style="color: var(--ital-muted)">{{ t.descripcion }}</div>
+                <div *ngIf="t.observaciones" class="max-w-md text-xs italic" style="color: var(--ital-muted)">
+                  Obs.: {{ t.observaciones }}
+                </div>
+              </td>
+              <td class="whitespace-nowrap">
+                <span style="color: var(--ital-text)">
+                  {{ t.fechaProgramada ? (t.fechaProgramada | date: 'dd/MM/yyyy') : '—' }}
+                </span>
+                <span
+                  *ngIf="t.vencida"
+                  class="ml-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  style="color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent)"
+                >
+                  Vencida
+                </span>
+              </td>
+              <td class="whitespace-nowrap text-xs" style="color: var(--ital-text)">
+                <div *ngIf="t.roleNombre">🧩 {{ t.roleNombre }}</div>
+                <div *ngIf="t.asignadoNombre">👤 {{ t.asignadoNombre }}</div>
+                <span *ngIf="!t.roleNombre && !t.asignadoNombre" style="color: var(--ital-muted)">—</span>
+              </td>
+              <td class="whitespace-nowrap text-xs" style="color: var(--ital-text)">
+                <ng-container *ngIf="t.fechaCompletada; else sinDato">
+                  {{ t.fechaCompletada | date: 'dd/MM/yyyy HH:mm' }}
+                  <div style="color: var(--ital-muted)">{{ t.completadaPorNombre || '—' }}</div>
+                </ng-container>
+              </td>
+              <td class="whitespace-nowrap text-xs" style="color: var(--ital-text)">
+                <ng-container *ngIf="t.fechaConfirmada; else sinDato">
+                  {{ t.fechaConfirmada | date: 'dd/MM/yyyy HH:mm' }}
+                  <div style="color: var(--ital-muted)">{{ t.confirmadaPorNombre || '—' }}</div>
+                </ng-container>
+              </td>
+              <td class="whitespace-nowrap text-right">
+                <button
+                  *ngIf="t.estado === 'pendiente'"
+                  type="button"
+                  class="btn-primary text-xs"
+                  (click)="completar(t)"
+                >
+                  Completar
+                </button>
+                <button
+                  *ngIf="t.estado !== 'pendiente'"
+                  type="button"
+                  class="btn-ghost text-xs"
+                  (click)="reabrir(t)"
+                >
+                  Reabrir
+                </button>
+                <button
+                  *ngIf="t.estado !== 'confirmada'"
+                  type="button"
+                  class="btn-ghost text-xs"
+                  (click)="abrirEditarTarea(t)"
+                >
+                  Editar
+                </button>
+                <button type="button" class="btn-ghost text-xs" style="color: var(--danger)" (click)="eliminarTarea(t)">
+                  Eliminar
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <ng-template #sinDato><span style="color: var(--ital-muted)">—</span></ng-template>
+
+    <app-modal-tarea-implementacion
+      [open]="modalAbierto"
+      [planId]="planId"
+      [tarea]="tareaEditando"
+      [usuarios]="usuarios"
+      [roles]="roles"
+      [categoriasSugeridas]="categoriasExistentes"
+      (cerrado)="cerrarModal()"
+      (guardado)="onGuardado()"
+    />
+  </ng-container>
+</div>
