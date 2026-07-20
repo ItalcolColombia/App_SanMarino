@@ -64,6 +64,7 @@
             <th rowspan="2" class="sticky-left sticky-col-4">Reg.</th>
             <th rowspan="2" class="sticky-left sticky-col-5">Detalle</th>
             <th colspan="8" class="grp">💀 Mortalidad / Selección</th>
+            <th colspan="6" class="grp">🔻 % Retiro (Real vs Guía)</th>
             <th colspan="10" class="grp">🌾 Consumo</th>
             <th colspan="14" class="grp">🥚 Producción Huevos</th>
             <th colspan="10" class="grp">⚖️ Peso / Uniformidad</th>
@@ -81,6 +82,13 @@
             <th>Dif Mort M</th>
             <th>Sel H</th>
             <th>%Sel H</th>
+            <!-- % Retiro (Real vs Guía) -->
+            <th class="grp">Sem H (Real)</th>
+            <th>Sem M (Real)</th>
+            <th>Acum H (Real)</th>
+            <th>Acum H (Guía)</th>
+            <th>Acum M (Real)</th>
+            <th>Acum M (Guía)</th>
             <!-- Consumo -->
             <th class="grp">Kg H</th>
             <th>Kg M</th>
@@ -159,6 +167,13 @@
               <td [class]="getDiferenciaClass(ind.diferenciaMortalidadMachos)">{{ formatearPorcentaje(ind.diferenciaMortalidadMachos) }}</td>
               <td>{{ ind.seleccionHembras }}</td>
               <td>{{ ind.porcentajeSeleccionHembras | number:'1.0-2' }}%</td>
+              <!-- % Retiro (Real vs Guía) -->
+              <td class="grp">{{ ind.retiroSemanalHembrasReal != null ? (ind.retiroSemanalHembrasReal | number:'1.0-2') + '%' : '—' }}</td>
+              <td>{{ ind.retiroSemanalMachosReal != null ? (ind.retiroSemanalMachosReal | number:'1.0-2') + '%' : '—' }}</td>
+              <td>{{ ind.retiroAcumuladoHembrasReal != null ? (ind.retiroAcumuladoHembrasReal | number:'1.0-2') + '%' : '—' }}</td>
+              <td>{{ ind.retiroAcumuladoHembrasGuia != null ? (ind.retiroAcumuladoHembrasGuia | number:'1.0-2') + '%' : '—' }}</td>
+              <td>{{ ind.retiroAcumuladoMachosReal != null ? (ind.retiroAcumuladoMachosReal | number:'1.0-2') + '%' : '—' }}</td>
+              <td>{{ ind.retiroAcumuladoMachosGuia != null ? (ind.retiroAcumuladoMachosGuia | number:'1.0-2') + '%' : '—' }}</td>
               <!-- Consumo -->
               <td class="grp">{{ ind.consumoKgHembras | number:'1.0-2' }}</td>
               <td>{{ ind.consumoKgMachos | number:'1.0-2' }}</td>
@@ -242,7 +257,11 @@
     <div class="empty-state">
       <div class="empty-icon">📊</div>
       <p>No hay datos suficientes para calcular indicadores semanales.</p>
-      <p class="empty-hint">Los indicadores se calculan con los registros del <strong>Seguimiento Diario</strong> (pestaña General). Agrega registros desde la semana 26 de producción para ver los indicadores aquí.</p>
+      @if (getEmptyStateCausa(); as causa) {
+        <p class="empty-hint">{{ causa }}</p>
+      } @else {
+        <p class="empty-hint">Los indicadores se calculan con los registros del <strong>Seguimiento Diario</strong> (pestaña General). Agrega registros desde la semana 26 de producción para ver los indicadores aquí.</p>
+      }
     </div>
   }
 </div>

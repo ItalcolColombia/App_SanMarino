@@ -116,6 +116,32 @@
   align-items: center;
 }
 
+/* ==========================================================================
+   🏷️ Chips de contexto del lote (Regional · Granja · Módulo · Sub Lote)
+   ========================================================================== */
+.indicadores-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.indicadores-chips .chip {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: var(--fs-xs); line-height: 1;
+  padding: .45rem .6rem; border-radius: 999px;
+  border: 1px solid var(--border); font-weight: 700;
+  background: var(--bg-muted); color: var(--text-sub);
+}
+
+.indicadores-chips .chip__dot {
+  width: .5rem; height: .5rem; border-radius: 999px; background: var(--warm-400);
+}
+
+.indicadores-chips .chip--info { background: var(--amber-100); border-color: var(--amber-200); }
+.indicadores-chips .chip--info .chip__dot { background: var(--brand-red); }
+.indicadores-chips .chip--muted { background: var(--warm-50); border-color: var(--border); color: var(--warm-600); }
+
 .indicadores-container h3 {
   margin: 0; 
   font-size: var(--fs-lg);
@@ -222,27 +248,6 @@
   font-size: 0.8rem;
 }
 
-/* Headers de información (Región, Granja, Nave, Sub Lote) */
-.header-group-info {
-  font-size: 0.85rem;
-  font-weight: 900;
-  padding: var(--space-3) var(--space-4);
-}
-
-/* Headers de Región y Granja (amarillo) */
-.header-group-region {
-  background: linear-gradient(180deg, rgba(255, 193, 7, 0.25) 0%, rgba(255, 193, 7, 0.15) 100%);
-  border-left: 2px solid rgba(255, 193, 7, 0.4);
-  border-right: 2px solid rgba(255, 193, 7, 0.4);
-}
-
-/* Headers de Nave y Sub Lote (púrpura) */
-.header-group-nave {
-  background: linear-gradient(180deg, rgba(156, 39, 176, 0.25) 0%, rgba(156, 39, 176, 0.15) 100%);
-  border-left: 2px solid rgba(156, 39, 176, 0.4);
-  border-right: 2px solid rgba(156, 39, 176, 0.4);
-}
-
 /* Headers de Aves */
 .header-group-aves {
   background: linear-gradient(180deg, rgba(76, 175, 80, 0.25) 0%, rgba(76, 175, 80, 0.15) 100%);
@@ -280,30 +285,15 @@
   padding: var(--space-2) var(--space-3);
 }
 
-/* Headers sub para Consumo, Ganancia, Mortalidad (azul) */
-.header-sub:not(.header-sub-region):not(.header-sub-nave) {
+/* Headers sub para Consumo, Ganancia, Peso, Uniformidad, Mortalidad (azul) */
+.header-sub {
   background: linear-gradient(180deg, rgba(33, 150, 243, 0.2) 0%, rgba(33, 150, 243, 0.1) 100%);
   border-left: 1px solid rgba(33, 150, 243, 0.3);
   border-right: 1px solid rgba(33, 150, 243, 0.3);
 }
 
-/* Headers sub para Región y Granja (amarillo) */
-.header-sub-region {
-  background: linear-gradient(180deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.1) 100%);
-  border-left: 1px solid rgba(255, 193, 7, 0.3);
-  border-right: 1px solid rgba(255, 193, 7, 0.3);
-}
-
-/* Headers sub para Nave y Sub Lote (púrpura) */
-.header-sub-nave {
-  background: linear-gradient(180deg, rgba(156, 39, 176, 0.2) 0%, rgba(156, 39, 176, 0.1) 100%);
-  border-left: 1px solid rgba(156, 39, 176, 0.3);
-  border-right: 1px solid rgba(156, 39, 176, 0.3);
-}
-
 /* Separadores visuales entre grupos */
-.header-group-basic + .header-group-info,
-.header-group-info + .header-group-aves,
+.header-group-basic + .header-group-aves,
 .header-group-aves + .header-group-main,
 .header-group-main + .header-group-indicadores,
 .header-group-indicadores + .header-group-otros {

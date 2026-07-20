@@ -940,7 +940,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el lote 
           loteNombre: lppFresh.loteNombre || lpp.loteNombre,
           avesHActual: lppFresh.avesHActual ?? lpp.avesHActual ?? 0,
           avesMActual: lppFresh.avesMActual ?? lpp.avesMActual ?? 0,
-          fechaSeguimiento: new Date().toISOString().split('T')[0]
+          fechaSeguimiento: this.ultimaFechaSeguimientoOrigen() ?? this.todayYMD()
         };
         this.trasladoAvesModalOpen = true;
       },
@@ -953,11 +953,22 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el lote 
           loteNombre: lpp.loteNombre,
           avesHActual: lpp.avesHActual ?? 0,
           avesMActual: lpp.avesMActual ?? 0,
-          fechaSeguimiento: new Date().toISOString().split('T')[0]
+          fechaSeguimiento: this.ultimaFechaSeguimientoOrigen() ?? this.todayYMD()
         };
         this.trasladoAvesModalOpen = true;
       }
     });
+  }
+
+  /** REQ-009a: última fecha (YYYY-MM-DD local) registrada en seguimiento diario del lote origen actual.
+   * Evita el default "hoy" en UTC (toISOString) que en Colombia cruza de día después de ~19:00. */
+  private ultimaFechaSeguimientoOrigen(): string | null {
+    let max: string | null = null;
+    for (const s of this.seguimientos) {
+      const ymd = this.toYMD(s.fechaRegistro);
+      if (ymd && (!max || ymd > max)) max = ymd;
+    }
+    return max;
   }
 
   onTrasladoAvesCompletado(result: TrasladoAvesResultSegDto): void {

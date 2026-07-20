@@ -1,9 +1,10 @@
 import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionResponse, IndicadoresProduccionRequest } from '../../services/produccion.service';
+import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionResponse, IndicadoresProduccionRequest, InformacionLoteDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { finalize } from 'rxjs/operators';
 import { exportarObjetosMultiHojaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
+import { causaEmptyStateIndicadores } from '../../funciones/empty-state-causa-indicadores.funcion';
 
 @Component({
   selector: 'app-tabla-lista-indicadores',
@@ -20,6 +21,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   @Input() produccionLoteId: number | null = null;
   /** ID del lote postura producción (flujo LPP). Si viene, se prioriza sobre produccionLoteId. */
   @Input() lotePosturaProduccionId: number | null = null;
+  /** REQ-000c: información general del lote (fechaEncaset) para inferir la causa del empty-state. */
+  @Input() informacionLote: InformacionLoteDto | null = null;
   @Input() loading: boolean = false;
 
   indicadoresSemanales: IndicadorProduccionSemanalDto[] = [];
@@ -193,6 +196,15 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       SeleccionH: ind.seleccionHembras,
       PorcSelH: ind.porcentajeSeleccionHembras,
 
+      RetiroSemH: ind.retiroSemanalHembrasReal,
+      RetiroSemM: ind.retiroSemanalMachosReal,
+      RetiroAcumH: ind.retiroAcumuladoHembrasReal,
+      RetiroAcumHGuia: ind.retiroAcumuladoHembrasGuia,
+      DifRetiroAcumH: this.diferenciaRetiroAcumuladoHembras(ind),
+      RetiroAcumM: ind.retiroAcumuladoMachosReal,
+      RetiroAcumMGuia: ind.retiroAcumuladoMachosGuia,
+      DifRetiroAcumM: this.diferenciaRetiroAcumuladoMachos(ind),
+
       ConsumoKgH: ind.consumoKgHembras,
       ConsumoKgM: ind.consumoKgMachos,
       ConsumoKgTotal: ind.consumoTotalKg,
@@ -305,11 +317,32 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   calcularEtapa(semana: number): string {
-    // "semana" viene del backend como SEMANA DE VIDA (edad).
-    if (semana >= 25 && semana <= 33) return 'Etapa 1';
+    // "semana" viene del backend como SEMANA DE VIDA (edad). REQ-012c: rango 26-33 (no 25-33).
+    if (semana >= 26 && semana <= 33) return 'Etapa 1';
     if (semana >= 34 && semana <= 50) return 'Etapa 2';
     if (semana > 50) return 'Etapa 3';
     return 'Inicial';
+  }
+
+  /** REQ-000c: causa probable del empty-state (encaset futuro / sin guía genética), o null → mensaje genérico. */
+  getEmptyStateCausa(): string | null {
+    return causaEmptyStateIndicadores({
+      fechaEncaset: this.informacionLote?.fechaEncaset,
+      tieneDatosGuiaGenetica: this.tieneDatosGuiaGenetica,
+      mensajeGuiaGenetica: this.mensajeGuiaGenetica
+    });
+  }
+
+  // REQ-004: %Retiro (mortalidad + selección) acumulado, diferencia Real vs Guía (cálculo client-side
+  // a partir de los 2 campos declarados en el DTO; sin campo "Dif" propio en el backend).
+  diferenciaRetiroAcumuladoHembras(ind: IndicadorProduccionSemanalDto): number | null {
+    if (ind.retiroAcumuladoHembrasReal == null || ind.retiroAcumuladoHembrasGuia == null) return null;
+    return ind.retiroAcumuladoHembrasReal - ind.retiroAcumuladoHembrasGuia;
+  }
+
+  diferenciaRetiroAcumuladoMachos(ind: IndicadorProduccionSemanalDto): number | null {
+    if (ind.retiroAcumuladoMachosReal == null || ind.retiroAcumuladoMachosGuia == null) return null;
+    return ind.retiroAcumuladoMachosReal - ind.retiroAcumuladoMachosGuia;
   }
 
   formatearFecha(fecha: string | Date | null | undefined): string {

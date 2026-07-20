@@ -40,8 +40,10 @@ public static class MovimientoAvesCalculos
     public static bool EstaEnProduccion(int semana) => semana >= SemanaInicioProduccion;
 
     /// <summary>
-    /// Etapa de producción (1, 2 ó 3) según el tramo de semanas: 26–33 → 1, 34–50 → 2, resto → 3.
+    /// Etapa de producción (1, 2 ó 3) según el tramo de semanas: 26–33 → 1, 34–50 → 2, &gt;50 → 3.
+    /// REQ-012c: una semana &lt; 26 (registro temprano / borde) cae en la etapa 1, no en la 3 — antes
+    /// el "resto" englobaba las semanas tempranas y devolvía etapa 3 erróneamente.
     /// </summary>
     public static int EtapaProduccion(int semana) =>
-        semana >= 26 && semana <= 33 ? 1 : (semana >= 34 && semana <= 50 ? 2 : 3);
+        semana <= 33 ? 1 : (semana <= 50 ? 2 : 3);
 }

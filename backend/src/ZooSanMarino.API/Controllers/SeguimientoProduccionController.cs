@@ -25,8 +25,40 @@ public class SeguimientoProduccionController : ControllerBase
     public async Task<ActionResult<SeguimientoProduccionFilterDataDto>> GetFilterData(CancellationToken ct = default)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var filterDataSvc = scope.ServiceProvider.GetRequiredService<ILoteProduccionFilterDataService>();
-        var data = await filterDataSvc.GetFilterDataAsync(ct);
+        var sp = scope.ServiceProvider;
+
+        // Granjas/núcleos/galpones accesibles (cascada) desde el servicio de filtros existente.
+        var filterDataSvc = sp.GetRequiredService<ILoteProduccionFilterDataService>();
+        var baseData = await filterDataSvc.GetFilterDataAsync(ct);
+        var farmIds = baseData.Farms.Select(f => f.Id).ToHashSet();
+
+        // REQ-012d: construir el DTO REAL (LotePosturaProduccionFilterItemDto) proyectando
+        // lote_postura_produccion CON FechaEncaset (+ aves iniciales/actuales y estado de cierre).
+        // Antes el endpoint devolvía el item genérico SIN fechaEncaset → el front calculaba la edad
+        // con base null (EDAD DÍAS=0, EDAD SEMANAS clamp fijo). El front lee `fechaEncaset` (camelCase).
+        var lppSvc = sp.GetRequiredService<ILotePosturaProduccionService>();
+        var lotes = (await lppSvc.GetAllAsync(ct))
+            .Where(l => farmIds.Contains(l.GranjaId))
+            .Select(l => new LotePosturaProduccionFilterItemDto(
+                LotePosturaProduccionId: l.LotePosturaProduccionId,
+                LoteNombre: l.LoteNombre,
+                GranjaId: l.GranjaId,
+                NucleoId: l.NucleoId,
+                GalponId: l.GalponId,
+                AvesHInicial: l.AvesHInicial ?? l.HembrasInicialesProd,
+                AvesMInicial: l.AvesMInicial ?? l.MachosInicialesProd,
+                AvesHActual: l.AvesHActual,
+                AvesMActual: l.AvesMActual,
+                EstadoCierre: l.EstadoCierre,
+                FechaEncaset: l.FechaEncaset))
+            .ToList();
+
+        var data = new SeguimientoProduccionFilterDataDto(
+            Farms: baseData.Farms,
+            Nucleos: baseData.Nucleos,
+            Galpones: baseData.Galpones,
+            Lotes: lotes);
+
         return Ok(data);
     }
 

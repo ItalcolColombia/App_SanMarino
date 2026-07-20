@@ -130,6 +130,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.TICKETS_ROUTES)
       },
 
+      // Implementación (cronogramas de entrega por empresa con checklist confirmable)
+      {
+        path: 'implementacion',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/implementacion/implementacion.routes')
+            .then(m => m.IMPLEMENTACION_ROUTES)
+      },
+
       // Migraciones Masivas (módulo independiente)
       {
         path: 'migraciones-masivas',

@@ -1,0 +1,100 @@
+// Liquidación de CORRIDA — Panamá. Misma paleta que el reporte individual (rp).
+:host {
+  --ital-orange: #F5821F;
+  --ink: #2a2a2a;
+  --muted: #7a7368;
+  --line: #ece7df;
+  display: block;
+}
+
+.rc {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(40, 32, 20, 0.07);
+}
+
+/* ── Encabezado ── */
+.rc__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.5rem;
+  background: linear-gradient(100deg, var(--ital-orange), #c96a15);
+  color: #fff;
+}
+.rc__brand { display: flex; align-items: center; gap: 0.9rem; }
+.rc__flag { font-size: 2rem; line-height: 1; }
+.rc__title { margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: 0.2px; }
+.rc__subtitle { margin: 0.15rem 0 0; font-size: 0.82rem; opacity: 0.92; }
+.rc__actions { display: flex; gap: 0.5rem; }
+.rc__btn {
+  border: 0; border-radius: 9px; padding: 0.5rem 0.9rem;
+  font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  transition: transform 0.06s ease, filter 0.15s ease;
+  &:active { transform: translateY(1px); }
+}
+.rc__btn--print { background: rgba(255, 255, 255, 0.92); color: var(--ital-orange); &:hover { filter: brightness(1.05); } }
+.rc__btn--ghost { background: rgba(255, 255, 255, 0.16); color: #fff; &:hover { background: rgba(255, 255, 255, 0.26); } }
+
+/* ── Aviso: galpones sin liquidación ── */
+.rc__alert {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  margin: 1rem 1.5rem 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid #f2d9a4;
+  background: #fdf6e7;
+  border-radius: 12px;
+  color: #7a5c17;
+  font-size: 0.85rem;
+}
+.rc__alert-icon { font-size: 1.1rem; line-height: 1.2; }
+.rc__chip {
+  display: inline-block;
+  margin: 0.2rem 0.3rem 0 0;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #edd9ae;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+.rc__alert-hint { margin: 0.35rem 0 0; font-size: 0.78rem; opacity: 0.85; }
+
+/* ── Tabs ── */
+.rc__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 1rem 1.5rem 0;
+}
+.rc__tab {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-size: 0.83rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  &:hover { border-color: var(--ital-orange); color: var(--ital-orange); }
+}
+.rc__tab--active {
+  background: var(--ital-orange);
+  border-color: var(--ital-orange);
+  color: #fff;
+}
+
+/* ── Cuerpo / vacío ── */
+.rc__body { padding: 1rem 1.5rem 1.5rem; }
+.rc__empty {
+  padding: 2rem 1.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}

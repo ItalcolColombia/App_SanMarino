@@ -24,15 +24,24 @@ interface AggregadoHistoricoDia {
 /** Fila enriquecida para la tabla de registros diarios (libro de seguimiento / pestaña Seguimiento). */
 export interface RegistroDiarioTablaFila {
   seg: SeguimientoLoteLevanteDto;
-  /** Día de vida 1…n (encaset = día 1). */
-  edadDia: number;
-  semana: number;
+  /** Día de vida 1…n (encaset = día 1). null si la fecha del registro es anterior al encasetamiento (REQ-011d). */
+  edadDia: number | null;
+  /** null si la fecha del registro es anterior al encasetamiento (REQ-011d). */
+  semana: number | null;
   diaCorto: string;
   /** Solo mortalidad + selección (como TOTAL MORT+ SEL / DÍA). */
   totalMortSelDia: number;
   saldoAves: number;
+  /** Saldo de aves vivas (hembras) — REQ-008a: necesario para gr/ave/día por sexo en Reporte semana. */
+  saldoAvesH: number;
+  /** Saldo de aves vivas (machos) — REQ-008a. */
+  saldoAvesM: number;
   consumoDiaKg: number;
   acumConsumoKg: number;
+  /** Consumo acumulado de hembras (kg) — REQ-007c. */
+  acumConsumoHKg: number;
+  /** Consumo acumulado de machos (kg) — REQ-007c. */
+  acumConsumoMKg: number;
   ingresoAlimento: string;
   traslado: string;
   documento: string;
@@ -43,8 +52,9 @@ export interface RegistroDiarioTablaFila {
   /** INV_CONSUMO sumado del inventario (kg); solo pollo engorde. */
   consumoBodegaKg: number | null;
   tipoAlimentoCorto: string;
-  /** % pérdidas del día sobre aves vivas al inicio del día. */
-  pctPerdidasDia: number | null;
+  /** % Retiro (Mort+Sel) de la SEMANA sobre aves al inicio de la semana (REQ-007d). Mismo valor en
+   *  todas las filas de la semana. null si el saldo al inicio de semana es <= 0 (nunca 100% sintético). */
+  pctRetiroSemana: number | null;
 }
 
 interface ReporteSemanaFila {
@@ -59,12 +69,14 @@ interface ReporteSemanaFila {
   errH: number;
   errM: number;
   errTotal: number;
+  /** Mortalidad Total de la semana (mort + sel + err. sexaje) — glosario REQ-001a. */
   bajasTotal: number;
   consumoHkg: number;
   consumoMkg: number;
-  consumoTotalkg: number;
-  pctConsumoH: number | null;
-  pctConsumoM: number | null;
+  /** Consumo (g/ave/día) de hembras en la semana — REQ-008a. null si no hay saldo/días para calcularlo. */
+  grAveDiaH: number | null;
+  /** Consumo (g/ave/día) de machos en la semana — REQ-008a. */
+  grAveDiaM: number | null;
   saldoInicio: number | null;
   saldoFin: number | null;
   pctBajasSobreInicio: number | null;
@@ -114,6 +126,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   /** Registros ordenados por fecha (asc) con acumulados y campos de metadata (traslado, ingreso, etc.). */
   diarioFilas: RegistroDiarioTablaFila[] = [];
 
+  /** Totales por semana para el tab "Reporte semana". Memoizado en ngOnChanges (patrón NG0103: evita
+   *  recalcular/alocar un array nuevo en cada ciclo de detección de cambios vía getter de template). */
+  reporteSemanaFilas: ReporteSemanaFila[] = [];
+
   constructor(
     private storageService: TokenStorageService
   ) { }
@@ -133,6 +149,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['seguimientos'] || changes['selectedLote'] || changes['historicoUnificado'] || changes['enriquecerTablaConHistoricoInventario']) {
       this.diarioFilas = this.buildDiarioFilas();
+      this.reporteSemanaFilas = this.buildReporteSemanaFilas();
     }
   }
 
@@ -140,8 +157,14 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    *  por género (↘ Ing.H, ↘ Ing.M, ↗ Sal.H, ↗ Sal.M) en lugar de 2 totales,
    *  por lo que sumamos +2 columnas al cómputo base. */
   get colspanRegistroDiario(): number {
-    // 24 columnas base (se quitó "Día (calendario)"; la fecha ya lo cubre — REQ-007e).
-    return 24 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    // 26 columnas base (se quitó "Día (calendario)"; la fecha ya lo cubre — REQ-007e;
+    // se sumaron "Consumo acum. hembras/machos (kg)" — REQ-007c).
+    return 26 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+  }
+
+  /** Cantidad de registros cuya fecha es anterior al encasetamiento del lote (REQ-011d). */
+  get registrosAnterioresAEncaset(): number {
+    return (this.diarioFilas ?? []).reduce((n, f) => n + (f.edadDia == null ? 1 : 0), 0);
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFila) => f.seg.id;
@@ -191,12 +214,22 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     const histPorFecha = this.enriquecerTablaConHistoricoInventario ? this.aggregateHistoricoPorFecha() : null;
 
     const inicial = this.avesInicialesLote();
+    const iniciales = this.avesInicialesPorGenero();
     /** Acumulado de todas las bajas (mort + sel + err. sexaje) para saldo de aves. */
     let acumTodasPerdidas = 0;
     /** Acumulado de traslados ingresos (+) y salidas (-) — Feature 13. */
     let acumTrasIn = 0;
     let acumTrasOut = 0;
     let acumCons = 0;
+    /** Acumuladores por sexo — REQ-007c (consumo H/M) y REQ-008a (saldo de aves por sexo). */
+    let acumConsH = 0;
+    let acumConsM = 0;
+    let acumPerdidasH = 0;
+    let acumPerdidasM = 0;
+    let acumTrasInH = 0;
+    let acumTrasInM = 0;
+    let acumTrasOutH = 0;
+    let acumTrasOutM = 0;
     const out: RegistroDiarioTablaFila[] = [];
 
     for (const seg of list) {
@@ -209,33 +242,40 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       const totalMortSelDia = mh + mm + selh + selm;
       const perdidasTodasDia = totalMortSelDia + erh + erm;
       acumTodasPerdidas += perdidasTodasDia;
+      acumPerdidasH += mh + selh + erh;
+      acumPerdidasM += mm + selm + erm;
 
       // 🔀 Feature 13 — acumular traslados por fila (en orden cronológico)
-      const tIn  = (seg.trasladoIngresoHembras ?? 0) + (seg.trasladoIngresoMachos ?? 0);
-      const tOut = (seg.trasladoSalidaHembras  ?? 0) + (seg.trasladoSalidaMachos  ?? 0);
-      acumTrasIn  += tIn;
-      acumTrasOut += tOut;
+      const tInH  = seg.trasladoIngresoHembras ?? 0;
+      const tInM  = seg.trasladoIngresoMachos ?? 0;
+      const tOutH = seg.trasladoSalidaHembras  ?? 0;
+      const tOutM = seg.trasladoSalidaMachos   ?? 0;
+      acumTrasIn  += tInH + tInM;
+      acumTrasOut += tOutH + tOutM;
+      acumTrasInH  += tInH;
+      acumTrasInM  += tInM;
+      acumTrasOutH += tOutH;
+      acumTrasOutM += tOutM;
 
       const ch = Number(seg.consumoKgHembras ?? 0);
       const cm = Number(seg.consumoKgMachos ?? 0);
       const consDia = ch + cm;
-      acumCons += consDia;
+      acumCons  += consDia;
+      acumConsH += ch;
+      acumConsM += cm;
 
       // saldo = inicial − bajas + ingresos_traslado − salidas_traslado
       const saldo = Math.max(0, inicial - acumTodasPerdidas + acumTrasIn - acumTrasOut);
-      const saldoInicioDia = saldo + perdidasTodasDia;
-      const pctPerdidasDia =
-        saldoInicioDia > 0
-          ? (100 * totalMortSelDia) / saldoInicioDia
-          : totalMortSelDia > 0
-            ? 100
-            : null;
+      // REQ-008a: mismo criterio pero por sexo (necesario para gr/ave/día H/M en Reporte semana).
+      const saldoH = Math.max(0, iniciales.h - acumPerdidasH + acumTrasInH - acumTrasOutH);
+      const saldoM = Math.max(0, iniciales.m - acumPerdidasM + acumTrasInM - acumTrasOutM);
 
       const edad0 = this.calcularEdadDias(seg.fechaRegistro);
-      /** Días de vida: el día del encasetamiento es 1. */
-      const edadDia = Math.max(1, edad0 + 1);
-      /** Semana de cría: semana 1 = días 1..7, semana 2 = 8..14, etc. (sin tope). */
-      const semana = Math.max(1, Math.ceil(edadDia / 7));
+      /** Días de vida: el día del encasetamiento es 1. null si el registro es anterior al
+       *  encasetamiento (REQ-011d): antes se clampeaba en silencio con Math.max(0, diff). */
+      const edadDia = edad0 == null ? null : Math.max(1, edad0 + 1);
+      /** Semana de cría: semana 1 = días 1..7, semana 2 = 8..14, etc. (sin tope). null si edadDia es null. */
+      const semana = edadDia == null ? null : Math.max(1, Math.ceil(edadDia / 7));
 
       const ymd = this.toYMD(seg.fechaRegistro);
       const agg = ymd && histPorFecha ? histPorFecha.get(ymd) : undefined;
@@ -280,8 +320,12 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         diaCorto: this.formatDiaSemanaCorto(seg.fechaRegistro),
         totalMortSelDia,
         saldoAves: saldo,
+        saldoAvesH: saldoH,
+        saldoAvesM: saldoM,
         consumoDiaKg: consDia,
         acumConsumoKg: acumCons,
+        acumConsumoHKg: acumConsH,
+        acumConsumoMKg: acumConsM,
         ingresoAlimento,
         traslado,
         documento,
@@ -290,10 +334,36 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         despachoX,
         consumoBodegaKg,
         tipoAlimentoCorto: this.tipoAlimentoCorto(seg.tipoAlimento),
-        pctPerdidasDia
+        pctRetiroSemana: null // se completa abajo, agrupado por semana (REQ-007d)
       });
     }
+
+    this.aplicarPctRetiroSemana(out);
     return out;
+  }
+
+  /** REQ-007d: %Retiro (Mort+Sel) de la SEMANA sobre el saldo de aves al inicio de esa semana.
+   *  Reemplaza el % diario anterior (que caía a 100% sintético cuando el saldo del día era 0 —
+   *  el síntoma visible de lotes con encaset corrupto). Se agrupa `out` por semana y se asigna el
+   *  mismo valor a todas las filas de esa semana; null si el saldo al inicio de semana es <= 0. */
+  private aplicarPctRetiroSemana(out: RegistroDiarioTablaFila[]): void {
+    const porSemana = new Map<number, { mortSel: number; bajas: number; saldoFin: number }>();
+    for (const f of out) {
+      if (f.semana == null) continue;
+      const acc = porSemana.get(f.semana) ?? { mortSel: 0, bajas: 0, saldoFin: 0 };
+      const erh = f.seg.errorSexajeHembras ?? 0;
+      const erm = f.seg.errorSexajeMachos ?? 0;
+      acc.mortSel += f.totalMortSelDia;
+      acc.bajas += f.totalMortSelDia + erh + erm;
+      acc.saldoFin = f.saldoAves; // filas en orden cronológico → queda la de la última fecha de la semana
+      porSemana.set(f.semana, acc);
+    }
+    for (const f of out) {
+      if (f.semana == null) continue;
+      const acc = porSemana.get(f.semana)!;
+      const saldoInicioSemana = acc.saldoFin + acc.bajas;
+      f.pctRetiroSemana = saldoInicioSemana > 0 ? (100 * acc.mortSel) / saldoInicioSemana : null;
+    }
   }
 
   /** Agrupa historial unificado por fecha de operación (misma lógica que el backfill de metadata). */
@@ -372,6 +442,16 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     return 0;
   }
 
+  /** Aves iniciales por sexo (hembras/machos) — REQ-008a. Solo usa hembrasL/machosL: a diferencia de
+   *  avesInicialesLote(), el fallback "avesEncasetadas" (combinado) no trae el split por sexo. */
+  private avesInicialesPorGenero(): { h: number; m: number } {
+    const l = this.selectedLote as Record<string, unknown> | null;
+    if (!l) return { h: 0, m: 0 };
+    const h = Number(l['hembrasL'] ?? 0);
+    const m = Number(l['machosL'] ?? 0);
+    return { h: Math.round(h) || 0, m: Math.round(m) || 0 };
+  }
+
   private metaStr(seg: SeguimientoLoteLevanteDto, ...keys: string[]): string {
     const raw = seg.metadata;
     if (!raw || typeof raw !== 'object') return '';
@@ -428,13 +508,17 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.activeTab = tab;
   }
 
-  get reporteSemanaFilas(): ReporteSemanaFila[] {
-    const filas = this.diarioFilas ?? [];
+  /** Construye el Reporte semana (memoizado en `reporteSemanaFilas` desde ngOnChanges — patrón NG0103,
+   *  antes era un getter que recalculaba y alocaba un array nuevo en cada ciclo de detección). */
+  private buildReporteSemanaFilas(): ReporteSemanaFila[] {
+    // REQ-008c: excluir filas administrativas de puro traslado (sin conteos productivos) y filas sin
+    // semana válida (REQ-011d, registro anterior al encasetamiento) — no deben generar semanas fantasma.
+    const filas = (this.diarioFilas ?? []).filter(f => f.semana != null && !this.esFilaTrasladoPuro(f));
     if (filas.length === 0) return [];
 
     const porSemana = new Map<number, RegistroDiarioTablaFila[]>();
     for (const f of filas) {
-      const s = Number(f.semana);
+      const s = f.semana as number;
       if (!porSemana.has(s)) porSemana.set(s, []);
       porSemana.get(s)!.push(f);
     }
@@ -445,11 +529,11 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       const list = porSemana.get(semana) ?? [];
       if (list.length === 0) continue;
       // vienen ya ordenadas por fecha en buildDiarioFilas()
-      const first = list[0];
       const last = list[list.length - 1];
 
       let mortH = 0, mortM = 0, selH = 0, selM = 0, errH = 0, errM = 0;
       let consumoHkg = 0, consumoMkg = 0;
+      let sumSaldoH = 0, sumSaldoM = 0;
       for (const f of list) {
         const s = f.seg;
         mortH += Number(s.mortalidadHembras ?? 0);
@@ -460,15 +544,21 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         errM += Number(s.errorSexajeMachos ?? 0);
         consumoHkg += Number(s.consumoKgHembras ?? 0);
         consumoMkg += Number(s.consumoKgMachos ?? 0);
+        sumSaldoH += f.saldoAvesH;
+        sumSaldoM += f.saldoAvesM;
       }
 
       const mortTotal = mortH + mortM;
       const selTotal = selH + selM;
       const errTotal = errH + errM;
       const bajasTotal = mortTotal + selTotal + errTotal;
-      const consumoTotalkg = consumoHkg + consumoMkg;
-      const pctConsumoH = consumoTotalkg > 0 ? (100 * consumoHkg) / consumoTotalkg : null;
-      const pctConsumoM = consumoTotalkg > 0 ? (100 * consumoMkg) / consumoTotalkg : null;
+      const dias = list.length;
+
+      // REQ-008a: gr/ave/día por sexo = (consumo de la semana en g) / (saldo promedio del sexo en la semana) / días.
+      const saldoPromH = dias > 0 ? sumSaldoH / dias : 0;
+      const saldoPromM = dias > 0 ? sumSaldoM / dias : 0;
+      const grAveDiaH = saldoPromH > 0 ? (consumoHkg * 1000) / saldoPromH / dias : null;
+      const grAveDiaM = saldoPromM > 0 ? (consumoMkg * 1000) / saldoPromM / dias : null;
 
       // Saldo inicio de semana: saldo fin + bajas acumuladas dentro de la semana (aprox. aves vivas al iniciar)
       const saldoFin = last.saldoAves;
@@ -477,22 +567,39 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
       out.push({
         semana,
-        dias: list.length,
+        dias,
         mortH, mortM, mortTotal,
         selH, selM, selTotal,
         errH, errM, errTotal,
         bajasTotal,
         consumoHkg,
         consumoMkg,
-        consumoTotalkg,
-        pctConsumoH,
-        pctConsumoM,
+        grAveDiaH,
+        grAveDiaM,
         saldoInicio: Number.isFinite(saldoInicio) ? saldoInicio : null,
         saldoFin: Number.isFinite(saldoFin) ? saldoFin : null,
         pctBajasSobreInicio
       });
     }
     return out;
+  }
+
+  /** REQ-008c: fila administrativa creada por un traslado (no por seguimiento manual) sin ningún
+   *  conteo productivo (mort/sel/err/consumo en 0). El traslado ya impacta los saldos vía
+   *  buildDiarioFilas; estas filas no deben generar una semana propia en el Reporte semana. */
+  private esFilaTrasladoPuro(f: RegistroDiarioTablaFila): boolean {
+    const s = f.seg;
+    if (s.esTraslado !== true) return false;
+    return (
+      (s.mortalidadHembras ?? 0) === 0 &&
+      (s.mortalidadMachos ?? 0) === 0 &&
+      (s.selH ?? 0) === 0 &&
+      (s.selM ?? 0) === 0 &&
+      (s.errorSexajeHembras ?? 0) === 0 &&
+      (s.errorSexajeMachos ?? 0) === 0 &&
+      Number(s.consumoKgHembras ?? 0) === 0 &&
+      Number(s.consumoKgMachos ?? 0) === 0
+    );
   }
 
   onCreate(): void {
@@ -590,6 +697,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Consumo kg machos',
       'Consumo real día (kg)',
       'Consumo acumulado (kg)',
+      'Consumo acum. hembras (kg)',
+      'Consumo acum. machos (kg)',
       '% Retiro (Mort+Sel)/aves',
       'Peso prom. hembras (kg)',
       'Peso prom. machos (kg)',
@@ -605,8 +714,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       const s: any = f.seg;
       return [
         this.formatDMY(s.fechaRegistro),
-        f.semana,
-        f.edadDia,
+        f.semana ?? '—',
+        f.edadDia ?? '—',
         s.mortalidadHembras ?? 0,
         s.mortalidadMachos ?? 0,
         s.selH ?? 0,
@@ -631,7 +740,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         s.consumoKgMachos ?? 0,
         f.consumoDiaKg,
         f.acumConsumoKg,
-        f.pctPerdidasDia != null ? Math.round(f.pctPerdidasDia * 100) / 100 : '',
+        f.acumConsumoHKg,
+        f.acumConsumoMKg,
+        f.pctRetiroSemana != null ? Math.round(f.pctRetiroSemana * 100) / 100 : '',
         s.pesoPromH != null ? s.pesoPromH : '',
         s.pesoPromM != null ? s.pesoPromM : '',
         (s.observaciones || '').trim() || '—',
@@ -672,15 +783,14 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Err. H',
       'Err. M',
       'Err. Total',
-      'Bajas total',
+      'Mortalidad Total',
       'Consumo H (kg)',
       'Consumo M (kg)',
-      'Consumo total (kg)',
-      '% consumo H',
-      '% consumo M',
+      'Consumo (g/ave/día) H',
+      'Consumo (g/ave/día) M',
       'Saldo inicio',
       'Saldo fin',
-      '% bajas/ini'
+      '% Mort. Total/ini'
     ];
 
     const rows = filas.map(r => ([
@@ -698,9 +808,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       r.bajasTotal,
       r.consumoHkg,
       r.consumoMkg,
-      r.consumoTotalkg,
-      r.pctConsumoH != null ? Math.round(r.pctConsumoH * 100) / 100 : '',
-      r.pctConsumoM != null ? Math.round(r.pctConsumoM * 100) / 100 : '',
+      r.grAveDiaH != null ? Math.round(r.grAveDiaH * 100) / 100 : '',
+      r.grAveDiaM != null ? Math.round(r.grAveDiaM * 100) / 100 : '',
       r.saldoInicio != null ? r.saldoInicio : '',
       r.saldoFin != null ? r.saldoFin : '',
       r.pctBajasSobreInicio != null ? Math.round(r.pctBajasSobreInicio * 100) / 100 : ''
@@ -723,7 +832,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    * Edad del lote en la fecha del registro (días de calendario desde encasetamiento).
    * Retorna 0 si la fecha es igual al encasetamiento; para UI se muestra como día 1 (edad0 + 1).
    */
-  calcularEdadDias(fechaRegistro: string | Date): number {
+  calcularEdadDias(fechaRegistro: string | Date): number | null {
     if (!this.selectedLote?.fechaEncaset) return 0;
     const encYmd = this.toYMD(this.selectedLote.fechaEncaset);
     const regYmd = this.toYMD(fechaRegistro);
@@ -733,6 +842,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     const reg = this.ymdToLocalNoonDate(regYmd);
     if (!enc || !reg) return 0;
     const diff = Math.floor((reg.getTime() - enc.getTime()) / MS_DAY);
+    // REQ-011d: registro anterior al encasetamiento -> edad indefinida. Antes Math.max(0, diff)
+    // clampeaba en silencio a día 0, haciendo que semana/edad quedaran "congeladas" sin avisar.
+    if (diff < 0) return null;
+    // Math.max(0, …) se conserva solo para el borde del mismo día (diff === 0, ya no negativo).
     return Math.max(0, diff);
   }
 

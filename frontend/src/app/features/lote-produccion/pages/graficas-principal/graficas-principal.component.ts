@@ -3,8 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
-import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionRequest } from '../../services/produccion.service';
+import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionRequest, InformacionLoteDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
+import { causaEmptyStateIndicadores } from '../../funciones/empty-state-causa-indicadores.funcion';
 
 interface IndicadorSemanal {
   semana: number;
@@ -46,12 +47,17 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   /** IDs para traer los indicadores del API (mismos que usa la tabla): comparación REAL vs GUÍA. */
   @Input() lotePosturaProduccionId: number | null = null;
   @Input() produccionLoteId: number | null = null;
+  /** REQ-000c: información general del lote (fechaEncaset) para inferir la causa del empty-state. */
+  @Input() informacionLote: InformacionLoteDto | null = null;
 
   private readonly produccionSvc = inject(ProduccionService);
 
   // ===== Comparativo Real vs Guía (alimentado por el API de indicadores, ya corregido) =====
   indicadoresApi: IndicadorProduccionSemanalDto[] = [];
   cargandoComparativo = false;
+  /** REQ-000c: estado de guía genética de la última respuesta del API de indicadores. */
+  tieneDatosGuiaGenetica = false;
+  mensajeGuiaGenetica: string | null = null;
   metricaComparativa: 'consumo' | 'peso' | 'produccion' | 'mortalidad' | 'htaa' = 'consumo';
   sexoComparativo: 'H' | 'M' = 'H';
   comparativoGuiaChartData: ChartData<'line'> = { labels: [], datasets: [] };
@@ -145,11 +151,19 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     this.produccionSvc.obtenerIndicadoresSemanales(req).subscribe({
       next: resp => {
         this.indicadoresApi = resp.indicadores || [];
+        this.tieneDatosGuiaGenetica = resp.tieneDatosGuiaGenetica || false;
+        this.mensajeGuiaGenetica = resp.mensajeGuiaGenetica ?? null;
         this.construirComparativoGuia();
         this.prepararDatosGraficas(); // reconstruye TODAS las gráficas desde la fuente correcta
         this.cargandoComparativo = false;
       },
-      error: () => { this.indicadoresApi = []; this.construirComparativoGuia(); this.cargandoComparativo = false; }
+      error: () => {
+        this.indicadoresApi = [];
+        this.tieneDatosGuiaGenetica = false;
+        this.mensajeGuiaGenetica = null;
+        this.construirComparativoGuia();
+        this.cargandoComparativo = false;
+      }
     });
   }
 
@@ -625,5 +639,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     if (this.indicadoresSemanales.length === 0) return 0;
     const suma = this.indicadoresSemanales.reduce((acc, ind) => acc + ((ind[propiedad] as number) || 0), 0);
     return suma / this.indicadoresSemanales.length;
+  }
+
+  /** REQ-000c: causa probable del empty-state (encaset futuro / sin guía genética), o null → mensaje genérico. */
+  getEmptyStateCausa(): string | null {
+    return causaEmptyStateIndicadores({
+      fechaEncaset: this.informacionLote?.fechaEncaset ?? this.fechaEncaset,
+      tieneDatosGuiaGenetica: this.tieneDatosGuiaGenetica,
+      mensajeGuiaGenetica: this.mensajeGuiaGenetica
+    });
   }
 }

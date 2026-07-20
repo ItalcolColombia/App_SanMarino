@@ -219,6 +219,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     this.form.get('huevosIncubables')?.disable({ emitEvent: false });
     this.setupHuevosAutoCalculo();
 
+    // REQ-012c: Etapa es autocalculada desde fechaRegistro/fechaEncaset — el select queda solo-lectura.
+    // Se sigue enviando en el payload vía form.getRawValue() (onSave), que incluye controles disabled.
+    this.form.get('etapa')?.disable({ emitEvent: false });
+
     // Calcular etapa automáticamente cuando cambia la fecha
     this.form.get('fechaRegistro')?.valueChanges.subscribe(() => {
       this.calcularYActualizarEtapa();
@@ -302,8 +306,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     if (idx !== 0) { array.removeAt(idx); array.insert(0, grp); }
   }
 
+  // REQ-012e: Colombia no expone el select "Tipo de ítem" (siempre termina en "alimento" en la
+  // práctica) — se defaultea aquí para que el ítem quede usable sin el select visible.
   agregarItemHembras(): void {
-    this.itemsHembrasArray.push(this.crearItemGroup());
+    this.itemsHembrasArray.push(this.crearItemGroup(this.isColombia ? 'alimento' : null));
   }
 
   eliminarItemHembras(index: number): void {
@@ -312,7 +318,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   agregarItemMachos(): void {
-    this.itemsMachosArray.push(this.crearItemGroup());
+    this.itemsMachosArray.push(this.crearItemGroup(this.isColombia ? 'alimento' : null));
   }
 
   eliminarItemMachos(index: number): void {
@@ -1030,6 +1036,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     }
   }
 
+  /** REQ-012c: rango alineado a la hoja de fórmulas (26-33 / 34-50 / >50, no 25-33). */
   calcularEtapa(fechaRegistro: string | Date | null): number {
     if (!fechaRegistro || !this.fechaEncaset) return 1;
 
@@ -1037,10 +1044,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     const fechaReg = new Date(fechaRegistro);
     const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const semana = Math.max(25, Math.ceil(diffDays / 7));
+    const semana = Math.max(26, Math.ceil(diffDays / 7));
 
-    // Etapa 1: semana 25-33
-    if (semana >= 25 && semana <= 33) return 1;
+    // Etapa 1: semana 26-33
+    if (semana >= 26 && semana <= 33) return 1;
     // Etapa 2: semana 34-50
     if (semana >= 34 && semana <= 50) return 2;
     // Etapa 3: semana >50
@@ -1049,7 +1056,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
   getEtapaLabel(etapa: number): string {
     const labels: { [key: number]: string } = {
-      1: 'Etapa 1 (Semana 25-33)',
+      1: 'Etapa 1 (Semana 26-33)',
       2: 'Etapa 2 (Semana 34-50)',
       3: 'Etapa 3 (Semana >50)'
     };

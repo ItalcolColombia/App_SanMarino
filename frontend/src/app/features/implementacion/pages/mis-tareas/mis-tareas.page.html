@@ -1,0 +1,135 @@
+<div class="mx-auto max-w-5xl p-4 sm:p-6">
+  <!-- Header -->
+  <header class="mb-5 flex items-center gap-3">
+    <div
+      class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
+      style="background: var(--ital-orange-100)"
+      aria-hidden="true"
+    >
+      ✅
+    </div>
+    <div>
+      <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Mis tareas de implementación</h1>
+      <p class="text-sm" style="color: var(--ital-muted)">
+        Tareas de entrega/capacitación asignadas a vos en la empresa activa. Cuando el gestor las marca
+        completadas, confirmá acá que efectivamente se cumplieron.
+      </p>
+    </div>
+  </header>
+
+  <div *ngIf="cargando" class="loading-toast" role="status">
+    <span class="spinner spinner--sm"></span> Cargando tus tareas…
+  </div>
+
+  <ng-container *ngIf="!cargando">
+    <!-- Vacío total -->
+    <div
+      *ngIf="!porConfirmar.length && !enProceso.length && !confirmadas.length"
+      class="empty-state ux-card p-8 text-center"
+    >
+      <div class="mb-2 text-3xl" aria-hidden="true">🎉</div>
+      <p class="font-semibold" style="color: var(--ital-text)">No tenés tareas de implementación asignadas.</p>
+      <p class="text-sm" style="color: var(--ital-muted)">
+        Cuando te asignen tareas de un plan de implementación van a aparecer acá.
+      </p>
+    </div>
+
+    <!-- Por confirmar -->
+    <section *ngIf="porConfirmar.length" class="ux-card mb-4 overflow-hidden">
+      <div class="border-b px-4 py-3" style="border-color: var(--ital-green-100); background: var(--ital-orange-100)">
+        <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">
+          Esperan tu confirmación ({{ porConfirmar.length }})
+        </h2>
+      </div>
+      <ul>
+        <li
+          *ngFor="let t of porConfirmar; trackBy: trackByTarea"
+          class="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+          style="border-color: var(--ital-green-100)"
+        >
+          <div class="min-w-0">
+            <div class="font-semibold" style="color: var(--ital-text)">{{ t.titulo }}</div>
+            <div class="text-xs" style="color: var(--ital-muted)">
+              {{ t.planNombre }} · {{ t.categoria }}
+              <ng-container *ngIf="t.fechaCompletada">
+                · completada el {{ t.fechaCompletada | date: 'dd/MM/yyyy HH:mm' }}
+                <ng-container *ngIf="t.completadaPorNombre"> por {{ t.completadaPorNombre }}</ng-container>
+              </ng-container>
+            </div>
+            <div *ngIf="t.descripcion" class="mt-0.5 max-w-xl text-xs" style="color: var(--ital-muted)">
+              {{ t.descripcion }}
+            </div>
+          </div>
+          <button
+            type="button"
+            class="btn-primary text-sm"
+            [disabled]="confirmandoId === t.id"
+            (click)="confirmar(t)"
+          >
+            {{ confirmandoId === t.id ? 'Confirmando…' : 'Confirmar cumplimiento' }}
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <!-- En proceso -->
+    <section *ngIf="enProceso.length" class="ux-card mb-4 overflow-hidden">
+      <div class="border-b px-4 py-3" style="border-color: var(--ital-green-100); background: var(--ital-cream)">
+        <h2 class="text-sm font-bold" style="color: var(--ital-text)">En proceso ({{ enProceso.length }})</h2>
+      </div>
+      <ul>
+        <li
+          *ngFor="let t of enProceso; trackBy: trackByTarea"
+          class="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+          style="border-color: var(--ital-green-100)"
+        >
+          <div class="min-w-0">
+            <div class="font-semibold" style="color: var(--ital-text)">{{ t.titulo }}</div>
+            <div class="text-xs" style="color: var(--ital-muted)">{{ t.planNombre }} · {{ t.categoria }}</div>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span *ngIf="t.fechaProgramada" style="color: var(--ital-text)">
+              Programada: {{ t.fechaProgramada | date: 'dd/MM/yyyy' }}
+            </span>
+            <span
+              *ngIf="t.vencida"
+              class="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style="color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent)"
+            >
+              Vencida
+            </span>
+            <span
+              class="inline-block rounded-full px-2.5 py-0.5 font-bold"
+              [style.color]="estiloTarea(t.estado).fg"
+              [style.background]="estiloTarea(t.estado).bg"
+            >
+              {{ estiloTarea(t.estado).label }}
+            </span>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Confirmadas (historial) -->
+    <section *ngIf="confirmadas.length" class="ux-card overflow-hidden">
+      <div class="border-b px-4 py-3" style="border-color: var(--ital-green-100); background: var(--ital-cream)">
+        <h2 class="text-sm font-bold" style="color: var(--ital-text)">Confirmadas por vos ({{ confirmadas.length }})</h2>
+      </div>
+      <ul>
+        <li
+          *ngFor="let t of confirmadas; trackBy: trackByTarea"
+          class="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+          style="border-color: var(--ital-green-100)"
+        >
+          <div class="min-w-0">
+            <div class="font-semibold" style="color: var(--ital-text)">{{ t.titulo }}</div>
+            <div class="text-xs" style="color: var(--ital-muted)">{{ t.planNombre }} · {{ t.categoria }}</div>
+          </div>
+          <span class="text-xs" style="color: var(--success)">
+            ✅ Confirmada el {{ t.fechaConfirmada | date: 'dd/MM/yyyy HH:mm' }}
+          </span>
+        </li>
+      </ul>
+    </section>
+  </ng-container>
+</div>

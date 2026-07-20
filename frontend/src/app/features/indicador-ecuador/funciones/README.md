@@ -22,6 +22,7 @@ un botón o de un getter— para que sea **fácil de encontrar, testear y reutil
 |---|---|
 | `formato.funcion.ts` | `formatearNumero`, `formatearPorcentaje`, `formatearFechaLote`, `sanitizarNombreHoja` (formato exacto, NO el central `shared/utils/format.ts` que separa miles). |
 | `cascada-filtros.funcion.ts` | `construirCodigoAnioCorrida`, `aplicarFiltroCronologico`, `filtrarCascadaPe`, `filtrarCascadaGeneral`, `filtrarLotesPorFechaEncaset` (cascadas Granja→Núcleo→Galpón→Lote y filtros por fecha/año-corrida). |
+| `corridas-panama.funcion.ts` | `corridasDisponiblesPanama`, `filtrarLotesPorCorridaPanama`: en Panamá el `loteNombre` ES el número de corrida (se repite por galpón); catálogo de corridas del alcance y filtro exacto del selector de lotes. |
 | `parsear-filter-data-pollo.funcion.ts` | `parsearFilterDataPollo`: normaliza la respuesta camel/Pascal de `LoteReproductoraAveEngorde/filter-data`. |
 | `etiquetas.funcion.ts` | `nombreGalponPe`, `etiquetaLoteFiltro`, `etiquetaColumnaLiquidacion`, `etiquetaTabLote` (labels de selector/columna/tab). |
 | `liquidacion-totales.funcion.ts` | `ajusteAvesDe`, `porcentajeAjusteAvesDe`, `calcularLiquidacionTotales` (fila TOTAL de la planilla). |

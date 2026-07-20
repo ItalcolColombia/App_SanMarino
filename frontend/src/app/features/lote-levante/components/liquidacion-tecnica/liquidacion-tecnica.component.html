@@ -175,19 +175,6 @@
                   </span>
                 </td>
               </tr>
-              <tr>
-                <td><strong>Conversión Alimenticia</strong></td>
-                <td>{{ calcularConversionAlimenticia() | number:'1.0-2' }}</td>
-                <td>{{ conversionEsperadaGuia | number:'1.0-2' }}</td>
-                <td [class]="getDiferenciaClass(conversionEsperadaGuia - calcularConversionAlimenticia())">
-                  {{ (conversionEsperadaGuia - calcularConversionAlimenticia()) | number:'1.0-2' }}
-                </td>
-                <td>
-                  <span [class]="getEstadoClass('conversion', conversionEsperadaGuia, calcularConversionAlimenticia())">
-                    {{ getEstadoTexto('conversion', conversionEsperadaGuia, calcularConversionAlimenticia()) }}
-                  </span>
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -202,7 +189,9 @@
         </div>
         <div class="cumplimiento-item">
           <span class="cumplimiento-label">✅ Parámetros Óptimos:</span>
-          <span class="cumplimiento-valor">{{ parametrosOptimos }}/4</span>
+          <!-- REQ-010f/REQ-002h: cumplimiento general recalculado sobre 3 parámetros (peso, consumo,
+               mortalidad) tras retirar Conversión Alimenticia — antes era /4. Cambio intencional. -->
+          <span class="cumplimiento-valor">{{ parametrosOptimos }}/3</span>
         </div>
       </div>
     </section>

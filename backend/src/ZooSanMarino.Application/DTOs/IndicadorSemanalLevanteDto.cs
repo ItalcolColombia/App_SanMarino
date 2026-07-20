@@ -37,4 +37,36 @@ public sealed class IndicadorSemanalLevanteDto
     public double PesoInicial { get; set; }
     public double PesoCierre { get; set; }
     public int DiasConRegistro { get; set; }
+
+    // REQ-002e / REQ-010b: series POR SEXO para el selector Hembras/Machos/Ambos.
+    // La fn expone columnas numeric cuyo nombre es el snake_case EXACTO de estas
+    // props (…Hembras→…_hembras, …Machos→…_machos) para que EF SqlQueryRaw las
+    // mapee por convención (mismo patrón probado que fn_indicadores_produccion_postura:
+    // porcentaje_mortalidad_hembras↔PorcentajeMortalidadHembras). Nullable: NULL
+    // cuando el sexo no tiene saldo/pesaje o la guía no trae el dato del sexo. Las
+    // columnas mixtas (ConsumoDiario/ConsumoTabla/PesoCierre/MortalidadSem/…) se
+    // conservan intactas ("Ambos" las sigue usando).
+
+    // Consumo g/ave/día real (…Hembras/…Machos) y guía SIN promediar (…Tabla…).
+    public decimal? ConsumoDiarioHembras { get; set; }
+    public decimal? ConsumoDiarioMachos { get; set; }
+    public decimal? ConsumoTablaHembras { get; set; }
+    public decimal? ConsumoTablaMachos { get; set; }
+
+    // Peso prom por sexo real (con arrastre) y guía (peso_h/_m).
+    public decimal? PesoHembras { get; set; }
+    public decimal? PesoMachos { get; set; }
+    public decimal? PesoTablaHembras { get; set; }
+    public decimal? PesoTablaMachos { get; set; }
+
+    // % Mortalidad semanal por sexo real y guía (mort_sem_h/_m).
+    public decimal? MortPctHembras { get; set; }
+    public decimal? MortPctMachos { get; set; }
+    public decimal? MortTablaHembras { get; set; }
+    public decimal? MortTablaMachos { get; set; }
+
+    // % Retiro semanal por sexo real (mort+sel+errSex del sexo). La guía de retiro
+    // por sexo no existe en Colombia ⇒ sin columna guía (serie Guía = NULL en el chart).
+    public decimal? RetiroPctHembras { get; set; }
+    public decimal? RetiroPctMachos { get; set; }
 }

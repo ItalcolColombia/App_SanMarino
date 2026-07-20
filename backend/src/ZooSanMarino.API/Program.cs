@@ -224,6 +224,7 @@ builder.Services.AddScoped<IInventarioGastoService, InventarioGastoService>();
 builder.Services.AddScoped<IVacunacionCronogramaService, VacunacionCronogramaService>();
 builder.Services.AddScoped<IVacunacionRegistroService, VacunacionRegistroService>();
 builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService>();
+builder.Services.AddScoped<IImplementacionService, ImplementacionService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();

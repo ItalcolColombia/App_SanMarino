@@ -1055,9 +1055,21 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
       loteNombre: this.selectedLote.loteNombre,
       avesHActual: this.selectedLote.avesHActual ?? 0,
       avesMActual: this.selectedLote.avesMActual ?? 0,
-      fechaSeguimiento: new Date().toISOString().split('T')[0]
+      // REQ-009a: sugerir la fecha del ÚLTIMO registro de seguimiento del lote origen
+      // (no "hoy" en UTC vía toISOString(), que después de ~19:00 en Colombia da mañana).
+      fechaSeguimiento: this.ultimaFechaSeguimientoOrigen() ?? this.toYMD(new Date()) ?? ''
     };
     this.trasladoAvesModalOpen = true;
+  }
+
+  /** REQ-009a: última fecha (YYYY-MM-DD local) registrada en seguimiento diario del lote origen actual. */
+  private ultimaFechaSeguimientoOrigen(): string | null {
+    let max: string | null = null;
+    for (const s of this.seguimientos) {
+      const ymd = this.toYMD(s.fechaRegistro);
+      if (ymd && (!max || ymd > max)) max = ymd;
+    }
+    return max;
   }
 
   onTrasladoAvesCompletado(result: TrasladoAvesResultSegDto): void {

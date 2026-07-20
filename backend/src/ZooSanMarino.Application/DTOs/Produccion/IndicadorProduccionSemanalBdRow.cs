@@ -82,4 +82,16 @@ public sealed class IndicadorProduccionSemanalBdRow
 
     public double HtaaReal { get; set; }
     public double HiaaReal { get; set; }
+
+    // REQ-004: %Retiro REAL por sexo (mortalidad + selección). Mapean a las columnas de la fn
+    // retiro_sem_h / retiro_sem_m / retiro_ac_h / retiro_ac_m (vía convención snake_case).
+    public double RetiroSemH { get; set; }
+    public double RetiroSemM { get; set; }
+    public double RetiroAcH { get; set; }
+    public double RetiroAcM { get; set; }
+
+    // Verenice rev 6-jul-26: %Retiro acumulado de GUÍA por sexo (columna "% Retiro (Real vs Guía)"
+    // del front que quedaba vacía). Mapea a retiro_ac_h_guia / retiro_ac_m_guia de la fn.
+    public double? RetiroAcHGuia { get; set; }
+    public double? RetiroAcMGuia { get; set; }
 }

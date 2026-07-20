@@ -13,7 +13,7 @@
   @if (indicadoresSemanales.length > 0) {
     <div class="grafica-card comparativo-guia-card">
       <div class="comparativo-controls">
-        <span class="comparativo-titulo">📈 Comparativo con Guía Genética (Real vs Guía)</span>
+        <span class="comparativo-titulo">📈 Comparativo con Guía Genética (Real vs Guía) · {{ grupoSexoLabel }}</span>
         <label class="comparativo-label">Métrica
           <select [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
             <option value="consumo">Consumo (g/ave/día)</option>
@@ -141,14 +141,6 @@
                       <span class="tipo-icon">⚖️</span>
                       <span class="tipo-nombre">Peso</span>
                     </label>
-                    <label class="tipo-checkbox-label"
-                      [class.selected]="isTipoGraficaSeleccionado('conversion')">
-                      <input type="checkbox"
-                        [checked]="isTipoGraficaSeleccionado('conversion')"
-                        (change)="toggleTipoGrafica('conversion')">
-                        <span class="tipo-icon">🔄</span>
-                        <span class="tipo-nombre">Conversión</span>
-                      </label>
                       <label class="tipo-checkbox-label"
                         [class.selected]="isTipoGraficaSeleccionado('seleccion')">
                         <input type="checkbox"
@@ -231,6 +223,19 @@
                                     🥧 Torta
                                   </button>
                                 </div>
+                              </div>
+                              <!-- Selector de grupo H/M/Ambos (REQ-010b): activo. La fn de indicadores ya
+                                   entrega series por sexo; al cambiar recalcula las gráficas y el comparativo
+                                   con guía. 'Ambos' usa las series mixtas (comportamiento previo). -->
+                              <div class="control-group">
+                                <label class="control-label" for="grupoSexoSelect">🚻 Grupo:</label>
+                                <select id="grupoSexoSelect" class="control-select"
+                                  [(ngModel)]="grupoSexoSeleccionado"
+                                  (ngModelChange)="onGrupoSexoChange()">
+                                  <option value="ambos">Ambos (H+M)</option>
+                                  <option value="hembras">Hembras</option>
+                                  <option value="machos">Machos</option>
+                                </select>
                               </div>
                               <!-- Selector comparativo -->
                               <div class="control-group control-group--comparativo comparativo-card">
@@ -362,7 +367,7 @@
                                           </canvas>
                                           <div class="chart-info chart-info--comparativo">
                                             <p class="info-text">
-                                              Comparando <strong>Semana {{ semanaComparacion1 }}</strong> vs <strong>Semana {{ semanaComparacion2 }}</strong> en mortalidad, selección, consumo, peso, conversión y aves vivas.
+                                              Comparando <strong>Semana {{ semanaComparacion1 }}</strong> vs <strong>Semana {{ semanaComparacion2 }}</strong> en mortalidad, selección, consumo, peso y aves vivas.
                                             </p>
                                           </div>
                                         </div>
@@ -436,23 +441,6 @@
                                               [options]="pesoChartOptions">
                                             </canvas>
                                           }
-                                          <!-- Gráfica de Conversión -->
-                                          @if (tipoGraficaSeleccionada === 'conversion' && tipoVisualizacion === 'barra') {
-                                            <canvas
-                                              baseChart
-                                              [type]="barChartType"
-                                              [data]="conversionChartData"
-                                              [options]="conversionChartOptions">
-                                            </canvas>
-                                          }
-                                          @if (tipoGraficaSeleccionada === 'conversion' && tipoVisualizacion === 'linea') {
-                                            <canvas
-                                              baseChart
-                                              [type]="lineChartType"
-                                              [data]="conversionChartData"
-                                              [options]="conversionChartOptions">
-                                            </canvas>
-                                          }
                                           <!-- Gráfica de Selección -->
                                           @if (tipoGraficaSeleccionada === 'seleccion' && tipoVisualizacion === 'barra') {
                                             <canvas
@@ -508,6 +496,7 @@
                                     <div class="grafica-card grafica-card--small">
                                       <div class="grafica-card-header">
                                         <h5>💀 Mortalidad por Semana</h5>
+                                        <span class="grafica-badge">{{ grupoSexoLabel }}</span>
                                       </div>
                                       <div class="grafica-card-body">
                                         <div class="chart-container chart-container--small">
@@ -529,6 +518,7 @@
                                     <div class="grafica-card grafica-card--small">
                                       <div class="grafica-card-header">
                                         <h5>🍽️ Consumo de Alimento</h5>
+                                        <span class="grafica-badge">{{ grupoSexoLabel }}</span>
                                       </div>
                                       <div class="grafica-card-body">
                                         <div class="chart-container chart-container--small">
@@ -554,6 +544,7 @@
                                     <div class="grafica-card grafica-card--small">
                                       <div class="grafica-card-header">
                                         <h5>⚖️ Evolución de Peso</h5>
+                                        <span class="grafica-badge">{{ grupoSexoLabel }}</span>
                                       </div>
                                       <div class="grafica-card-body">
                                         <div class="chart-container chart-container--small">
@@ -575,36 +566,12 @@
                                         </div>
                                       </div>
                                     </div>
-                                    <!-- Gráfica de Conversión -->
-                                    <div class="grafica-card grafica-card--small">
-                                      <div class="grafica-card-header">
-                                        <h5>🔄 Conversión Alimenticia</h5>
-                                      </div>
-                                      <div class="grafica-card-body">
-                                        <div class="chart-container chart-container--small">
-                                          <canvas baseChart
-                                            [type]="lineChartType"
-                                            [data]="conversionChartData"
-                                            [options]="conversionChartOptions">
-                                          </canvas>
-                                        </div>
-                                        <div class="grafica-stats">
-                                          <div class="stat-item">
-                                            <span class="stat-label">Promedio:</span>
-                                            <span class="stat-value">{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</span>
-                                          </div>
-                                          <div class="stat-item">
-                                            <span class="stat-label">Mejor:</span>
-                                            <span class="stat-value">{{ getMejorSemanaConversion() }}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
                                     <!-- Gráfica de Distribución (Torta) -->
                                     @if (indicadoresFiltrados.length > 0) {
                                       <div class="grafica-card grafica-card--small">
                                         <div class="grafica-card-header">
                                           <h5>🥧 Distribución Última Semana</h5>
+                                          <span class="grafica-badge">{{ grupoSexoLabel }}</span>
                                         </div>
                                         <div class="grafica-card-body">
                                           <div class="chart-container chart-container--small chart-container--torta">
@@ -633,6 +600,7 @@
                                     <div class="grafica-card grafica-card--small">
                                       <div class="grafica-card-header">
                                         <h5>🐔 Aves Vivas por Semana</h5>
+                                        <span class="grafica-badge">{{ grupoSexoLabel }}</span>
                                       </div>
                                       <div class="grafica-card-body">
                                         <div class="chart-container chart-container--small">
@@ -662,13 +630,6 @@
                                         <div class="metrica-content">
                                           <h5>Peso Actual</h5>
                                           <p>{{ $safeNavigationMigration(indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre) | number:'1.0-2' }}g</p>
-                                        </div>
-                                      </div>
-                                      <div class="metrica-card">
-                                        <div class="metrica-icon">🍽️</div>
-                                        <div class="metrica-content">
-                                          <h5>Conv. Promedio</h5>
-                                          <p>{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</p>
                                         </div>
                                       </div>
                                       <div class="metrica-card">

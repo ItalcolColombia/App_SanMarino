@@ -30,7 +30,6 @@ import {
 } from '../../funciones/liquidacion-tecnica-estados.funcion';
 import {
   construirIndicadores,
-  calcularConversionEsperada,
   calcularCumplimientoGeneral
 } from '../../funciones/liquidacion-tecnica-indicadores.funcion';
 import {
@@ -84,7 +83,6 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   uniformidadEsperadaGuia: number = 0;
   uniformidadEsperadaHembrasGuia: number = 0;
   uniformidadEsperadaMachosGuia: number = 0;
-  conversionEsperadaGuia: number = 0;
   porcentajeCumplimientoGeneral: number = 0;
   parametrosOptimos: number = 0;
 
@@ -569,8 +567,6 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
           
           
 
-          this.conversionEsperadaGuia = this.calcularConversionEsperada();
-
           // Calcular cumplimiento general
           this.calcularCumplimientoGeneral();
 
@@ -593,7 +589,6 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
         this.mortalidadEsperadaHembrasGuia = 0;
         this.mortalidadEsperadaMachosGuia = 0;
         this.uniformidadEsperadaGuia = 0;
-        this.conversionEsperadaGuia = 1.8;
         this.calcularCumplimientoGeneral();
       }
     });
@@ -646,20 +641,6 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     return (liquidacionData.porcentajeMortalidadHembras + liquidacionData.porcentajeMortalidadMachos) / 2;
   }
 
-  calcularConversionAlimenticia(): number {
-    const liquidacionData = this.liquidacion();
-    if (!liquidacionData) return 0;
-
-    const pesoPromedio = this.calcularPesoPromedio();
-    const consumoTotal = liquidacionData.consumoAlimentoRealGramos;
-
-    if (pesoPromedio > 0 && consumoTotal > 0) {
-      return consumoTotal / pesoPromedio;
-    }
-
-    return 0;
-  }
-
   calcularEdadSemanas(fechaEncaset: string | Date): number {
     const fechaInicio = new Date(fechaEncaset);
     const fechaActual = new Date();
@@ -667,14 +648,14 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     return Math.floor(diferenciaDias / 7);
   }
 
-  calcularConversionEsperada(): number {
-    // Conversión esperada basada en peso y consumo
-    if (this.pesoEsperadoGuia > 0 && this.consumoEsperadoGuia > 0) {
-      return this.consumoEsperadoGuia / this.pesoEsperadoGuia;
-    }
-    return 1.8; // Valor por defecto
-  }
-
+  /**
+   * % de cumplimiento general vs. guía genética (peso, consumo, mortalidad).
+   *
+   * REQ-010f/REQ-002h: se retiró "Conversión Alimenticia" del cálculo (es KPI de pollo de engorde,
+   * no aplica a reproductoras) — el promedio pasa de 4 a 3 parámetros. Cambio de comportamiento
+   * INTENCIONAL pedido por el REQ: el % de cumplimiento general ahora puede diferir del valor que
+   * mostraba esta pantalla antes del cambio (antes promediaba peso+consumo+mortalidad+conversión).
+   */
   calcularCumplimientoGeneral(): void {
     const liquidacionData = this.liquidacion();
     if (!liquidacionData) return;
@@ -705,14 +686,6 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     cumplimientos.push(cumplimientoMortalidad);
     if (porcentajeMortalidad <= 20) this.parametrosOptimos++;
 
-    // Conversión alimenticia
-    const conversionReal = this.calcularConversionAlimenticia();
-    const diferenciaConversion = Math.abs(this.conversionEsperadaGuia - conversionReal);
-    const porcentajeConversion = this.conversionEsperadaGuia > 0 ? (diferenciaConversion / this.conversionEsperadaGuia) * 100 : 100;
-    const cumplimientoConversion = Math.max(0, 100 - porcentajeConversion);
-    cumplimientos.push(cumplimientoConversion);
-    if (porcentajeConversion <= 10) this.parametrosOptimos++;
-
     // Promedio general
     this.porcentajeCumplimientoGeneral = cumplimientos.reduce((sum, val) => sum + val, 0) / cumplimientos.length;
   }
@@ -736,8 +709,6 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
         return porcentaje <= 10 ? 'estado-optimo' : porcentaje <= 20 ? 'estado-aceptable' : 'estado-problema';
       case 'mortalidad':
         return porcentaje <= 20 ? 'estado-optimo' : porcentaje <= 40 ? 'estado-aceptable' : 'estado-problema';
-      case 'conversion':
-        return porcentaje <= 10 ? 'estado-optimo' : porcentaje <= 20 ? 'estado-aceptable' : 'estado-problema';
       default:
         return 'estado-aceptable';
     }
@@ -759,10 +730,6 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
       case 'mortalidad':
         if (porcentaje <= 20) return 'Normal';
         if (porcentaje <= 40) return 'Aceptable';
-        return real < esperado ? 'Baja' : 'Alta';
-      case 'conversion':
-        if (porcentaje <= 10) return 'Óptima';
-        if (porcentaje <= 20) return 'Aceptable';
         return real < esperado ? 'Baja' : 'Alta';
       default:
         return 'Aceptable';
