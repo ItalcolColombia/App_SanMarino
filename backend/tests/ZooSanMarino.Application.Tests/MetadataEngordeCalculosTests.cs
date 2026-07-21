@@ -83,4 +83,73 @@ public class MetadataEngordeCalculosTests
         var r = MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
         Assert.Empty(r);
     }
+
+    // ── ParseMetadataItemsToKgPorOrigen (variante TIPADA para las ramas Colombia) ────────────
+
+    [Fact]
+    public void PorOrigen_ItemInventarioEcuadorId_ProduceClaveCamino2()
+    {
+        // Caso Demo/"Alimneto ERP": ítem del inventario nuevo sin espejo → catalogItemId=0 +
+        // itemInventarioEcuadorId=208. La clave conserva el origen (EsItemInventario=true).
+        var root = Parse(@"{
+            ""itemsHembras"": [ { ""catalogItemId"": 0, ""itemInventarioEcuadorId"": 208, ""cantidad"": 400, ""unidad"": ""kg"" } ]
+        }");
+        var r = MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(root);
+        var entry = Assert.Single(r);
+        Assert.Equal(new ItemConsumoKey(208, EsItemInventario: true), entry.Key);
+        Assert.Equal(400m, entry.Value);
+    }
+
+    [Fact]
+    public void PorOrigen_SoloCatalogItemId_ProduceClaveCamino1()
+    {
+        var root = Parse(@"{
+            ""itemsHembras"": [ { ""catalogItemId"": 89, ""cantidad"": 40, ""unidad"": ""kg"" } ]
+        }");
+        var r = MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(root);
+        var entry = Assert.Single(r);
+        Assert.Equal(new ItemConsumoKey(89, EsItemInventario: false), entry.Key);
+        Assert.Equal(40m, entry.Value);
+    }
+
+    [Fact]
+    public void PorOrigen_MismoNumeroEnAmbosOrigenes_NoSeMezclan()
+    {
+        // Colisión numérica catálogo↔inventario: el número 89 aparece como catalogItemId en un
+        // ítem y como itemInventarioEcuadorId en otro → claves DISTINTAS (no se suman).
+        var root = Parse(@"{
+            ""itemsHembras"": [ { ""catalogItemId"": 89, ""cantidad"": 40, ""unidad"": ""kg"" } ],
+            ""itemsMachos"":  [ { ""catalogItemId"": 0, ""itemInventarioEcuadorId"": 89, ""cantidad"": 10, ""unidad"": ""kg"" } ]
+        }");
+        var r = MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(root);
+        Assert.Equal(2, r.Count);
+        Assert.Equal(40m, r[new ItemConsumoKey(89, false)]);
+        Assert.Equal(10m, r[new ItemConsumoKey(89, true)]);
+    }
+
+    [Fact]
+    public void PorOrigen_AcumulaPorClave_YConvierteGramos_IgualQueElParserPlano()
+    {
+        var root = Parse(@"{
+            ""itemsHembras"":   [ { ""itemInventarioEcuadorId"": 10, ""cantidad"": 5, ""unidad"": ""kg"" } ],
+            ""itemsMachos"":    [ { ""itemInventarioEcuadorId"": 10, ""cantidad"": 3, ""unidad"": ""kg"" } ],
+            ""itemsGenerales"": [ { ""catalogItemId"": 200, ""cantidad"": 2000, ""unidad"": ""g"" } ]
+        }");
+        var r = MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(root);
+        Assert.Equal(8m, r[new ItemConsumoKey(10, true)]);   // 5 (H) + 3 (M)
+        Assert.Equal(2m, r[new ItemConsumoKey(200, false)]); // 2000 g → 2 kg
+        Assert.Equal(2, r.Count);
+    }
+
+    [Fact]
+    public void PorOrigen_IdsNoPositivosYNoArrays_SeIgnoran()
+    {
+        var root = Parse(@"{
+            ""itemsHembras"": [ { ""catalogItemId"": 0, ""cantidad"": 40, ""unidad"": ""kg"" },
+                                { ""itemInventarioEcuadorId"": null, ""catalogItemId"": 0, ""cantidad"": 1, ""unidad"": ""kg"" } ],
+            ""itemsGenerales"": ""x""
+        }");
+        var r = MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(root);
+        Assert.Empty(r);
+    }
 }

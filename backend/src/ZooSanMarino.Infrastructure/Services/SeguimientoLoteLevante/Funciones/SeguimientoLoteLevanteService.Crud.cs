@@ -61,7 +61,7 @@ public partial class SeguimientoLoteLevanteService
         // ítem → rollback → NO se guarda. (Antes Fase 2: modelo A vía _farmInventoryConsumo.)
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && dto.Metadata != null)
         {
-            var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
+            var byItem = ParseMetadataItemsToKgPorOrigen(dto.Metadata.RootElement);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, positivos); // lanza si falta (antes de persistir)
@@ -157,14 +157,17 @@ public partial class SeguimientoLoteLevanteService
         // ajuste de aves envueltos en UNA tx (todo-o-nada). Si falta stock → rollback, NO se guarda.
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null)
         {
-            var newByItemId = dto.Metadata != null ? ParseMetadataItemsToKg(dto.Metadata.RootElement) : new Dictionary<int, decimal>();
-            var incrementos = new Dictionary<int, decimal>();
-            var allIds = new HashSet<int>(oldByItemId.Keys);
-            foreach (var k in newByItemId.Keys) allIds.Add(k);
-            foreach (var id in allIds)
+            // Parseo TIPADO (conserva el origen del id, camino 1/2) — el diff plano de arriba
+            // (oldByItemId) sigue siendo el de la rama Ecuador/Panamá.
+            var oldByItemCo = oldRec?.Metadata != null ? ParseMetadataItemsToKgPorOrigen(oldRec.Metadata.RootElement) : new Dictionary<ItemConsumoKey, decimal>();
+            var newByItemCo = dto.Metadata != null ? ParseMetadataItemsToKgPorOrigen(dto.Metadata.RootElement) : new Dictionary<ItemConsumoKey, decimal>();
+            var incrementos = new Dictionary<ItemConsumoKey, decimal>();
+            var allKeys = new HashSet<ItemConsumoKey>(oldByItemCo.Keys);
+            foreach (var k in newByItemCo.Keys) allKeys.Add(k);
+            foreach (var key in allKeys)
             {
-                var diff = newByItemId.GetValueOrDefault(id) - oldByItemId.GetValueOrDefault(id);
-                if (diff > 0) incrementos[id] = diff;
+                var diff = newByItemCo.GetValueOrDefault(key) - oldByItemCo.GetValueOrDefault(key);
+                if (diff > 0) incrementos[key] = diff;
             }
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, incrementos); // lanza si falta (antes de persistir)
 
@@ -173,7 +176,7 @@ public partial class SeguimientoLoteLevanteService
             if (updatedCo is null) { await tx.RollbackAsync(); return null; }
 
             var refCo = $"Seguimiento lote levante #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemId, newByItemId, refCo);
+            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
 
             var newHCo = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
             var newMCo = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
@@ -263,7 +266,7 @@ public partial class SeguimientoLoteLevanteService
         // ── Colombia (modelo B nivel granja) — devolución total + restauración de aves + borrado, ATÓMICO ──
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && loteRow != null)
         {
-            var byItem = rec.Metadata != null ? ParseMetadataItemsToKg(rec.Metadata.RootElement) : new Dictionary<int, decimal>();
+            var byItem = rec.Metadata != null ? ParseMetadataItemsToKgPorOrigen(rec.Metadata.RootElement) : new Dictionary<ItemConsumoKey, decimal>();
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
             await using var tx = await _ctx.Database.BeginTransactionAsync();

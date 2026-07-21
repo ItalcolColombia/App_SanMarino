@@ -165,7 +165,7 @@ public partial class SeguimientoAvesEngordeService
         // Colombia traen catalogItemId (id-mapping A→B por código dentro del servicio).
         if (modeloInv == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && dto.Metadata != null)
         {
-            var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
+            var byItem = ParseMetadataItemsToKgPorOrigen(dto.Metadata.RootElement);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, positivos); // lanza si falta (antes de persistir)
 
@@ -292,6 +292,9 @@ public partial class SeguimientoAvesEngordeService
         ent.QqHembras = dto.QqHembras;
         ent.QqMachos = dto.QqMachos;
         var oldByItemId = ent.Metadata != null ? ParseMetadataItemsToKg(ent.Metadata.RootElement) : new Dictionary<int, decimal>();
+        // Snapshot TIPADO del consumo anterior (conserva el origen del id, camino 1/2) para la rama
+        // Colombia — hay que capturarlo AQUÍ, antes de pisar ent.Metadata con el nuevo.
+        var oldByItemCo = ent.Metadata != null ? ParseMetadataItemsToKgPorOrigen(ent.Metadata.RootElement) : new Dictionary<ItemConsumoKey, decimal>();
 
         // Reconstruir snapshot de consumo por ítem (saldo_inicial = stock actual + consumo anterior del registro).
         var historicoConsumoUpdate = await BuildHistoricoConsumoAlimentoAsync(
@@ -325,20 +328,23 @@ public partial class SeguimientoAvesEngordeService
         // stock B de los diff POSITIVOS ANTES de commitear; update + diff en UNA tx (todo-o-nada).
         if (modeloInv == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null)
         {
-            var incrementos = new Dictionary<int, decimal>();
-            var allIds = new HashSet<int>(oldByItemId.Keys);
-            foreach (var k in newByItemIdInv.Keys) allIds.Add(k);
-            foreach (var itemId in allIds)
+            // Diff TIPADO (conserva el origen del id) — el diff plano (oldByItemId/newByItemIdInv)
+            // sigue siendo el de la rama Ecuador/Panamá de abajo.
+            var newByItemCo = dto.Metadata != null ? ParseMetadataItemsToKgPorOrigen(dto.Metadata.RootElement) : new Dictionary<ItemConsumoKey, decimal>();
+            var incrementos = new Dictionary<ItemConsumoKey, decimal>();
+            var allKeys = new HashSet<ItemConsumoKey>(oldByItemCo.Keys);
+            foreach (var k in newByItemCo.Keys) allKeys.Add(k);
+            foreach (var key in allKeys)
             {
-                var diff = newByItemIdInv.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
-                if (diff > 0) incrementos[itemId] = diff;
+                var diff = newByItemCo.GetValueOrDefault(key) - oldByItemCo.GetValueOrDefault(key);
+                if (diff > 0) incrementos[key] = diff;
             }
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, incrementos); // lanza si falta (antes de persistir)
 
             await using var tx = await _ctx.Database.BeginTransactionAsync();
             await _ctx.SaveChangesAsync();
             var refCo = $"Seguimiento aves engorde #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
-            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemId, newByItemIdInv, refCo);
+            await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
             await _ctx.SaveChangesAsync();
             await tx.CommitAsync();
         }
@@ -433,7 +439,7 @@ public partial class SeguimientoAvesEngordeService
         {
             try
             {
-                var byItem = ParseMetadataItemsToKg(ent.Seguimiento.Metadata.RootElement);
+                var byItem = ParseMetadataItemsToKgPorOrigen(ent.Seguimiento.Metadata.RootElement);
                 var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
                 if (positivos.Count > 0)
                 {

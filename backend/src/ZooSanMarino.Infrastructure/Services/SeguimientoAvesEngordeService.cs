@@ -83,6 +83,14 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
     private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
         => MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
 
+    /// <summary>
+    /// Variante TIPADA del parseo (conserva el origen del id — camino 1/2) para las ramas
+    /// Colombia (IColombiaInventarioConsumoService), donde catalogItemId e
+    /// itemInventarioEcuadorId conviven y sus rangos numéricos colisionan.
+    /// </summary>
+    private static Dictionary<ItemConsumoKey, decimal> ParseMetadataItemsToKgPorOrigen(JsonElement root)
+        => MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(root);
+
     private static bool MetadataYaTieneCamposKardex(JsonDocument? metadata)
         => SeguimientoAvesEngordeCalculos.MetadataYaTieneCamposKardex(metadata);
 
