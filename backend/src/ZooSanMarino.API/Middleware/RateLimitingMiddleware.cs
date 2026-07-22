@@ -1,12 +1,15 @@
 // src/ZooSanMarino.API/Middleware/RateLimitingMiddleware.cs
 using Microsoft.Extensions.Caching.Memory;
 using System.Collections.Concurrent;
+using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.API.Middleware;
 
 /// <summary>
 /// Middleware que limita la cantidad de peticiones por IP para prevenir ataques DDoS
-/// y fuerza bruta.
+/// y fuerza bruta. La política (límites por ruta, alcance del bloqueo, tiempos) es pura
+/// y vive en <see cref="RateLimitingCalculos"/>; acá solo se orquesta HttpContext + caché.
+/// Valores tuneables sin redeploy vía sección "RateLimiting" (env RateLimiting__* en ECS).
 /// </summary>
 public class RateLimitingMiddleware
 {
@@ -21,19 +24,22 @@ public class RateLimitingMiddleware
     public RateLimitingMiddleware(
         RequestDelegate next,
         ILogger<RateLimitingMiddleware> logger,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        IConfiguration configuration)
     {
         _next = next;
         _logger = logger;
         _cache = cache;
-        
-        // Configuración por defecto (ajustada para balance entre seguridad y usabilidad)
+
+        // Defaults pensados para IPs compartidas (oficinas/granjas detrás de NAT): el login
+        // tolera varios usuarios por minuto y el bloqueo es corto; la defensa fuerte contra
+        // fuerza bruta por cuenta es el lockout de AuthService (5 fallos → bloqueo temporal).
         _options = new RateLimitOptions
         {
-            MaxRequestsPerMinute = 100,         // 100 peticiones por minuto por IP (aumentado para usuarios legítimos)
-            MaxRequestsPerMinuteForAuth = 5,    // 5 intentos de login por minuto (mantiene seguridad)
-            MaxRequestsPerMinuteForSwagger = 50, // 50 peticiones por minuto para Swagger
-            BlockDurationMinutes = 10           // Bloquear IP por 10 minutos si excede límites (reducido)
+            MaxRequestsPerMinute        = configuration.GetValue("RateLimiting:MaxRequestsPerMinute", 100),
+            MaxRequestsPerMinuteForAuth = configuration.GetValue("RateLimiting:MaxRequestsPerMinuteForAuth", 15),
+            MaxRequestsPerMinuteForSwagger = configuration.GetValue("RateLimiting:MaxRequestsPerMinuteForSwagger", 50),
+            BlockDurationMinutes        = configuration.GetValue("RateLimiting:BlockDurationMinutes", 3)
         };
     }
 
@@ -41,9 +47,13 @@ public class RateLimitingMiddleware
     {
         var path = context.Request.Path.Value?.ToLower() ?? "";
         var clientIp = GetClientIpAddress(context);
+        var esRutaAuth = RateLimitingCalculos.EsRutaAuth(path);
 
-        // Obtener límite según el tipo de endpoint
-        var limit = GetRateLimitForPath(path);
+        var limit = RateLimitingCalculos.LimiteParaRuta(
+            path,
+            _options.MaxRequestsPerMinute,
+            _options.MaxRequestsPerMinuteForAuth,
+            _options.MaxRequestsPerMinuteForSwagger);
         var windowSeconds = 60; // Ventana de 1 minuto
 
         var key = $"{clientIp}:{path}";
@@ -52,19 +62,21 @@ public class RateLimitingMiddleware
         // Limpiar entradas antiguas periódicamente
         CleanupOldEntries(now);
 
-        // Verificar si la IP está bloqueada
-        var blockKey = $"blocked:{clientIp}";
-        if (_cache.TryGetValue(blockKey, out DateTime blockUntil))
+        // Verificar si aplica un bloqueo vigente (global de la IP y, en rutas de auth, el acotado)
+        foreach (var blockKey in RateLimitingCalculos.ClavesAVerificar(clientIp, esRutaAuth))
         {
+            if (!_cache.TryGetValue(blockKey, out DateTime blockUntil)) continue;
+
             if (blockUntil > now)
             {
                 _logger.LogWarning(
                     "IP bloqueada intentando acceder: {ClientIp} desde {Path}. Bloqueo hasta: {BlockUntil}",
                     clientIp, path, blockUntil);
 
+                var remainingSeconds = RateLimitingCalculos.SegundosRestantes(now, blockUntil);
                 context.Response.StatusCode = 429; // Too Many Requests
                 context.Response.ContentType = "application/json";
-                var remainingSeconds = (int)(blockUntil - now).TotalSeconds;
+                context.Response.Headers["Retry-After"] = remainingSeconds.ToString();
                 await context.Response.WriteAsJsonAsync(new
                 {
                     error = "Too Many Requests",
@@ -73,11 +85,9 @@ public class RateLimitingMiddleware
                 });
                 return;
             }
-            else
-            {
-                // Desbloquear si ya pasó el tiempo
-                _cache.Remove(blockKey);
-            }
+
+            // Desbloquear si ya pasó el tiempo
+            _cache.Remove(blockKey);
         }
 
         // Obtener o crear información de rate limit para esta IP
@@ -92,7 +102,7 @@ public class RateLimitingMiddleware
         }
 
         // Resetear contador si la ventana de tiempo expiró
-        if ((now - rateLimitInfo.WindowStart).TotalSeconds >= windowSeconds)
+        if (RateLimitingCalculos.VentanaExpirada(now, rateLimitInfo.WindowStart, windowSeconds))
         {
             rateLimitInfo.RequestCount = 0;
             rateLimitInfo.WindowStart = now;
@@ -102,24 +112,30 @@ public class RateLimitingMiddleware
         rateLimitInfo.RequestCount++;
 
         // Verificar si excedió el límite
-        if (rateLimitInfo.RequestCount > limit)
+        if (RateLimitingCalculos.ExcedeLimite(rateLimitInfo.RequestCount, limit))
         {
             _logger.LogWarning(
                 "Rate limit excedido: {ClientIp} desde {Path}. Intentos: {Count}/{Limit}",
                 clientIp, path, rateLimitInfo.RequestCount, limit);
 
-            // Bloquear IP por el tiempo configurado
+            // Bloquear por el tiempo configurado: rutas de auth solo bloquean auth para esa IP;
+            // el resto bloquea la IP completa.
+            var blockKey = RateLimitingCalculos.ClaveBloqueo(clientIp, esRutaAuth);
             var blockUntilTime = now.AddMinutes(_options.BlockDurationMinutes);
             _cache.Set(blockKey, blockUntilTime, TimeSpan.FromMinutes(_options.BlockDurationMinutes + 1));
 
             context.Response.StatusCode = 429; // Too Many Requests
             context.Response.ContentType = "application/json";
             context.Response.Headers["Retry-After"] = (_options.BlockDurationMinutes * 60).ToString();
-            
+
+            var mensaje = esRutaAuth
+                ? $"Demasiados intentos de inicio de sesión desde tu red. Podrás intentar de nuevo en {_options.BlockDurationMinutes} minutos."
+                : $"Has excedido el límite de peticiones. IP bloqueada por {_options.BlockDurationMinutes} minutos.";
+
             await context.Response.WriteAsJsonAsync(new
             {
                 error = "Too Many Requests",
-                message = $"Has excedido el límite de peticiones. IP bloqueada por {_options.BlockDurationMinutes} minutos.",
+                message = mensaje,
                 retryAfter = _options.BlockDurationMinutes * 60
             });
             return;
@@ -131,21 +147,6 @@ public class RateLimitingMiddleware
         context.Response.Headers["X-RateLimit-Reset"] = rateLimitInfo.WindowStart.AddSeconds(windowSeconds).ToString("R");
 
         await _next(context);
-    }
-
-    private int GetRateLimitForPath(string path)
-    {
-        if (path.Contains("/auth/login") || path.Contains("/auth/register"))
-        {
-            return _options.MaxRequestsPerMinuteForAuth;
-        }
-        
-        if (path.StartsWith("/swagger") || path.StartsWith("/swagger-ui"))
-        {
-            return _options.MaxRequestsPerMinuteForSwagger;
-        }
-
-        return _options.MaxRequestsPerMinute;
     }
 
     private string GetClientIpAddress(HttpContext context)
@@ -209,4 +210,3 @@ public static class RateLimitingMiddlewareExtensions
         return builder.UseMiddleware<RateLimitingMiddleware>();
     }
 }
-

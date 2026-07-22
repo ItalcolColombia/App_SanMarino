@@ -380,7 +380,16 @@ public class UserService : IUserService
         if (dto.Telefono  is not null) user.telefono  = dto.Telefono.Trim();
         if (dto.Ubicacion is not null) user.ubicacion = dto.Ubicacion.Trim();
         if (dto.IsActive  is not null) user.IsActive  = dto.IsActive.Value;
-        if (dto.IsLocked  is not null) user.IsLocked  = dto.IsLocked.Value;
+        if (dto.IsLocked  is not null)
+        {
+            user.IsLocked = dto.IsLocked.Value;
+            if (!dto.IsLocked.Value)
+            {
+                // Desbloqueo manual: sin resetear el conteo, el primer fallo siguiente re-bloquea (>= 5).
+                user.FailedAttempts = 0;
+                user.LockedAt = null;
+            }
+        }
         if (dto.Zona      is not null) user.Zona      = string.IsNullOrWhiteSpace(dto.Zona) ? null : dto.Zona.Trim();
 
         // Normalizar intención
