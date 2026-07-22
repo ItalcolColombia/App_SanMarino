@@ -1,22 +1,24 @@
-# Tracker — Sesión deslizante por inactividad (auto-logout 5 min + desconexión)
+# Tracker — Unidad `qq` (quintal) en alimento del seguimiento pollo engorde
 
-Plan: [sesion_deslizante_inactividad_plan.md](fase_de_desarrollo/sesion_deslizante_inactividad_plan.md)
+Plan: [fase_de_desarrollo/qq_a_kg_alimento_seguimiento_engorde_plan.md](fase_de_desarrollo/qq_a_kg_alimento_seguimiento_engorde_plan.md)
 
-Auto-logout tras 5 min sin interacción (sesión deslizante client-side) + cierre por pérdida de conexión
-(heartbeat con tolerancia) + 401 → login. Token JWT se queda en 60 min (sin reemisión server-side).
-
-## Backend
-- [x] `SessionController`: `GET /api/session/heartbeat` `[Authorize]` → 200/{ok,serverTimeUtc}
-- [x] `RateLimitingMiddleware`: bypass del heartbeat (no bloquear IP NAT)
-- [x] `dotnet build` 0 errores + `dotnet test` 542 passed
-
-## Frontend
-- [x] `SessionTimeoutService` (idle 5 min por interacción + heartbeat 90 s + endSession idempotente)
-- [x] `AuthService.heartbeat()`
-- [x] `auth.interceptor`: 401 con token → onUnauthorized → endSession
-- [x] `AppComponent.ngOnInit` → `sessionTimeout.init()`
-- [x] `yarn build` 0 errores (solo warning bundle budget preexistente)
+## Frontend (solo front — sin BD ni backend)
+- [x] `inventario-calculos.funcion.ts`: `KG_POR_QUINTAL = 45.36` + `toKg` entiende `qq`
+- [x] `mapear-seguimiento-dto.funcion.ts`: `construirItemsSeguimiento` normaliza `qq`→kg antes de enviar
+- [x] Componente: helper `unidadAlimentoPorDefecto()` (qq en Panamá) + preview `consumoKgDeFila()`
+- [x] Componente: usar el default en `agregarItemHembras`/`agregarItemMachos`
+- [x] HTML: opción `qq (quintal)` (solo Panamá) + hint "Se guardará en consumo: X kg"
+- [x] `README.md` de `funciones/` actualizado
+- [x] Spec pura `inventario-calculos.funcion.spec.ts`
 
 ## Validación
-- [x] Backend arranca limpio (migraciones al día); heartbeat exige token → 401 sin credenciales
-- [ ] (pendiente) Walkthrough en vivo: idle 5 min, interacción resetea, backend caído, 401, login normal (requiere login + esperar 5 min)
+- [x] `yarn build`: los archivos tocados por esta tarea compilan **sin errores**
+      (verificado: ningún error del build referencia mis archivos).
+- [ ] `yarn build` **global** falla por trabajo en curso **ajeno a esta tarea**
+      (`lote-engorde-list.component.ts/.html` — lote_base_engorde, cambios sin commitear).
+      No lo toqué; se resuelve al terminar ese módulo.
+- [ ] `yarn test` (Karma) — bloqueado por lo mismo (compila todo el proyecto).
+
+## Nota
+El tracker previo (lote_base_engorde) se reinició por el workflow de CLAUDE.md; es recuperable por git
+y su plan sigue en `fase_de_desarrollo/lote_base_engorde_por_granja_plan.md`.

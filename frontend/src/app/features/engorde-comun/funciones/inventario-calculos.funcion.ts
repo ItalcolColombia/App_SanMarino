@@ -4,6 +4,13 @@
  * (mismos `Math.round`, mismo orden, mismo manejo de null).
  */
 
+/**
+ * Kilogramos por quintal (qq). Fuente de verdad = backend
+ * `ReporteIndicadorPanamaCalculos.KgPorQuintal` (1 qq = 45.36 kg). Se replica el mismo
+ * valor en el front para que la conversión de alimento (Panamá) no diverja del cálculo del backend.
+ */
+export const KG_POR_QUINTAL = 45.36;
+
 /** Número o null desde un valor de formulario que puede venir vacío. */
 export function toNumOrNull(v: any): number | null {
   if (v === null || v === undefined || v === '') return null;
@@ -11,10 +18,14 @@ export function toNumOrNull(v: any): number | null {
   return isNaN(n) ? null : n;
 }
 
-/** Convierte cantidad a kg para validar contra inventario. */
+/**
+ * Convierte cantidad a kg para validar contra inventario y para el consumo persistido.
+ * `g/gramos` → /1000; `qq/quintal/quintales` → × KG_POR_QUINTAL; el resto se asume kg.
+ */
 export function toKg(cantidad: number, unidad: string | null | undefined): number {
   const u = String(unidad || 'kg').trim().toLowerCase();
   if (u === 'g' || u === 'gramo' || u === 'gramos') return cantidad / 1000;
+  if (u === 'qq' || u === 'quintal' || u === 'quintales') return cantidad * KG_POR_QUINTAL;
   return cantidad;
 }
 
