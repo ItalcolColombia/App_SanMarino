@@ -122,6 +122,11 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
             HembrasInicialesProd = avesH,
             MachosInicialesProd = avesM,
             HuevosIniciales = huevosIniciales,
+            // Heredar el Lote base (padre) del levante — igual que Levante lo tiene desde su creación.
+            // Sin esto, lote_postura_produccion.lote_id queda NULL y el seguimiento de producción
+            // falla con 400 ("no tiene LoteId asociado", requerido por produccion_diaria).
+            LoteId = lev.LoteId,
+            LotePadreId = lev.LotePadreId,
             LotePosturaLevanteId = lev.LotePosturaLevanteId,
             AvesHInicial = avesH,
             AvesMInicial = avesM,

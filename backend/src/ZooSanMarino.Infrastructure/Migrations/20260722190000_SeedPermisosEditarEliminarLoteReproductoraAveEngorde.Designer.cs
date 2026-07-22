@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,10 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260722190000_SeedPermisosEditarEliminarLoteReproductoraAveEngorde")]
+    partial class SeedPermisosEditarEliminarLoteReproductoraAveEngorde
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3570,6 +3572,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("nucleo_id");
 
+                    b.Property<int?>("NumeroCorrida")
+                        .HasColumnType("integer")
+                        .HasColumnName("numero_corrida");
+
                     b.Property<int?>("PaisId")
                         .HasColumnType("integer")
                         .HasColumnName("pais_id");
@@ -3653,6 +3659,9 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.HasIndex("NucleoId", "GranjaId")
                         .HasDatabaseName("ix_lote_ave_engorde_nucleo_id_granja_id");
+
+                    b.HasIndex("CompanyId", "LoteBaseEngordeId", "GalponId")
+                        .HasDatabaseName("ix_lote_ave_engorde_corrida");
 
                     b.ToTable("lote_ave_engorde", "public", t =>
                         {

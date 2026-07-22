@@ -27,6 +27,7 @@ import { GalponService } from '../../../galpon/services/galpon.service';
 import { Company } from '../../../../core/services/company/company.service';
 import { GuiaGeneticaEcuadorFiltersDto, GuiaGeneticaEcuadorService } from '../../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
 import { LoteBaseEngordeApi, LoteBaseEngordeDto, PERMISOS_LOTE_BASE } from '../../../engorde-comun/services/lote-base-engorde.api';
+import { AsignarGranjasLoteBaseComponent } from '../asignar-granjas-lote-base/asignar-granjas-lote-base.component';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
@@ -41,7 +42,8 @@ import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
     FormsModule,
     ThousandSeparatorDirective,
     ConfirmationModalComponent,
-    HasPermissionDirective
+    HasPermissionDirective,
+    AsignarGranjasLoteBaseComponent
   ],
   templateUrl: './lote-engorde-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -141,8 +143,8 @@ export class LoteEngordeListComponent implements OnInit {
   /** Claves de permisos del módulo lote base (gate de botón/modal/campo). */
   readonly permLoteBase = PERMISOS_LOTE_BASE;
   lotesBase: LoteBaseEngordeDto[] = [];
-  /** Solo activos y del año en curso: opciones del selector "Nombre del lote" en Panamá. */
-  lotesBaseVigentes: LoteBaseEngordeDto[] = [];
+  /** Lotes base visibles para la granja seleccionada en el form (activos + asignados a esa granja). */
+  lotesBaseParaGranja: LoteBaseEngordeDto[] = [];
   nuevoLoteBaseNombre = '';
   creandoLoteBase = false;
 
@@ -150,15 +152,15 @@ export class LoteEngordeListComponent implements OnInit {
   esPanama = false;
   tabActiva: 'lotes' | 'lotes-base' = 'lotes';
 
-  // Gestión de lotes base (modal en Ecuador, tab en Panamá)
+  // Gestión de lotes base (modal en Ecuador, tab en Panamá) — solo nombre
   lotesBaseModalOpen = false;
   lbEditando: LoteBaseEngordeDto | null = null;
   lbNombre = '';
-  lbCodigoErp = '';
-  lbLineaGenetica = '';
-  lbDescripcion = '';
-  lbFechaActivacion = '';
   lbGuardando = false;
+
+  // Modal "Asignar granjas" de un lote base
+  asignarGranjasOpen = false;
+  loteBaseParaAsignar: LoteBaseEngordeDto | null = null;
 
   constructor(
     private fb: FormBuilder,
@@ -206,6 +208,11 @@ export class LoteEngordeListComponent implements OnInit {
         this.filteredGalpones = this.galponesFiltrados;
         this.form.patchValue({ galponId: this.galponesFiltrados[0]?.galponId ?? null }, { emitEvent: false });
       }
+      // Al cambiar de granja, el lote base debe re-elegirse entre los de esa granja.
+      // (En edición, applyModalFormState vuelve a fijar el valor tras el patch de granja.)
+      this.form.patchValue({ loteBaseEngordeId: null }, { emitEvent: false });
+      if (this.esPanama) this.form.patchValue({ loteNombre: '' }, { emitEvent: false });
+      this.recomputeLotesBaseParaGranja();
     });
 
     this.form.get('nucleoId')!.valueChanges.subscribe((nucleoIdVal: string | number | null) => {
@@ -276,22 +283,39 @@ export class LoteEngordeListComponent implements OnInit {
     });
   }
 
-  /** Vigente = activo y (sin fecha de activación o del año en curso). */
-  private static esVigente(b: LoteBaseEngordeDto): boolean {
-    if (!b.activo) return false;
-    if (!b.fechaActivacion) return true;
-    return Number(String(b.fechaActivacion).slice(0, 4)) === new Date().getFullYear();
-  }
-
-  /** Carga el catálogo de lotes base y precalcula los vigentes (referencias estables). */
+  /** Carga el catálogo de lotes base y recalcula los visibles para la granja del form. */
   private loadLotesBase(): void {
     this.loteBaseApi.getAll().subscribe({
       next: (bases) => {
         this.lotesBase = bases ?? [];
-        this.lotesBaseVigentes = this.lotesBase.filter(b => LoteEngordeListComponent.esVigente(b));
+        this.recomputeLotesBaseParaGranja();
       },
-      error: () => { this.lotesBase = []; this.lotesBaseVigentes = []; }
+      error: () => { this.lotesBase = []; this.lotesBaseParaGranja = []; }
     });
+  }
+
+  /**
+   * Opciones del selector "Lote base / Nombre del lote" al crear/editar un lote:
+   * solo lotes base activos y asignados a la granja seleccionada. En edición conserva
+   * el lote base actual aunque ya no esté asignado (para no perder el valor). Referencia
+   * estable: solo se recalcula ante eventos, no por ciclo de CD.
+   */
+  private recomputeLotesBaseParaGranja(): void {
+    const granjaId = Number(this.form?.get('granjaId')?.value);
+    const currentBaseId = this.form?.get('loteBaseEngordeId')?.value;
+    const currentId = currentBaseId != null && currentBaseId !== '' ? Number(currentBaseId) : null;
+
+    let list: LoteBaseEngordeDto[] = granjaId
+      ? this.lotesBase.filter(b => b.activo && (b.granjaIds ?? []).includes(granjaId))
+      : [];
+
+    // En edición conservar el lote base actual aunque ya no esté asignado a la granja
+    // (para no perder el valor guardado). En creación NO: debe elegirse uno de la granja.
+    if (this.editing && currentId != null && !list.some(b => b.id === currentId)) {
+      const actual = this.lotesBase.find(b => b.id === currentId);
+      if (actual) list = [...list, actual];
+    }
+    this.lotesBaseParaGranja = list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
 
   // ── Gestión de lotes base (modal en Ecuador, tab en Panamá) ─────────────
@@ -315,43 +339,40 @@ export class LoteEngordeListComponent implements OnInit {
   lbLimpiarForm(): void {
     this.lbEditando = null;
     this.lbNombre = '';
-    this.lbCodigoErp = '';
-    this.lbLineaGenetica = '';
-    this.lbDescripcion = '';
-    this.lbFechaActivacion = '';
   }
 
   lbEditar(b: LoteBaseEngordeDto): void {
     this.lbEditando = b;
     this.lbNombre = b.nombre;
-    this.lbCodigoErp = b.codigoErp ?? '';
-    this.lbLineaGenetica = b.lineaGenetica ?? '';
-    this.lbDescripcion = b.descripcion ?? '';
-    this.lbFechaActivacion = b.fechaActivacion ? String(b.fechaActivacion).slice(0, 10) : '';
   }
 
-  /** Crea o actualiza (según lbEditando) desde el form de gestión. */
+  // ── Modal "Asignar granjas" de un lote base ──────────────────────────────
+  abrirAsignarGranjas(b: LoteBaseEngordeDto): void {
+    this.loteBaseParaAsignar = b;
+    this.asignarGranjasOpen = true;
+  }
+
+  cerrarAsignarGranjas(): void {
+    this.asignarGranjasOpen = false;
+    this.loteBaseParaAsignar = null;
+  }
+
+  /** Tras asignar/quitar granjas: refresca el catálogo (para actualizar granjaIds y conteos). */
+  onGranjasActualizadas(): void {
+    this.loadLotesBase();
+  }
+
+  /** Crea o actualiza (según lbEditando) desde el form de gestión. Solo nombre. */
   lbGuardar(): void {
     const nombre = (this.lbNombre || '').trim();
     if (!nombre) {
       this.toastService.warning('El nombre del lote base es requerido (ej. "94").');
       return;
     }
-    if (!this.lbFechaActivacion) {
-      this.toastService.warning('La fecha de activación es requerida: el lote base aparece en crear-lote solo durante ese año.');
-      return;
-    }
-    const payload = {
-      nombre,
-      codigoErp: (this.lbCodigoErp || '').trim() || null,
-      lineaGenetica: (this.lbLineaGenetica || '').trim() || null,
-      descripcion: (this.lbDescripcion || '').trim() || null,
-      fechaActivacion: this.lbFechaActivacion
-    };
     this.lbGuardando = true;
     const req = this.lbEditando
-      ? this.loteBaseApi.update(this.lbEditando.id, { id: this.lbEditando.id, ...payload })
-      : this.loteBaseApi.create(payload);
+      ? this.loteBaseApi.update(this.lbEditando.id, nombre)
+      : this.loteBaseApi.create(nombre);
     const esEdicion = !!this.lbEditando;
     req.subscribe({
       next: () => {
@@ -404,21 +425,35 @@ export class LoteEngordeListComponent implements OnInit {
     });
   }
 
-  /** Crea un lote base al vuelo desde el form del lote y lo deja seleccionado. */
+  /** Crea un lote base al vuelo desde el form del lote, lo asigna a la granja actual y lo deja seleccionado. */
   crearLoteBaseRapido(): void {
     const nombre = (this.nuevoLoteBaseNombre || '').trim();
     if (!nombre) {
       this.toastService.warning('Escribí el nombre del lote base (ej. "95").');
       return;
     }
+    const granjaId = Number(this.form.get('granjaId')?.value) || null;
     this.creandoLoteBase = true;
-    this.loteBaseApi.create({ nombre }).subscribe({
+    this.loteBaseApi.create(nombre).subscribe({
       next: (creado) => {
-        this.lotesBase = [...this.lotesBase, creado].sort((a, b) => a.nombre.localeCompare(b.nombre));
-        this.form.patchValue({ loteBaseEngordeId: creado.id });
-        this.nuevoLoteBaseNombre = '';
-        this.creandoLoteBase = false;
-        this.toastService.success(`Lote base "${creado.nombre}" creado y asignado.`);
+        const finalizar = (base: LoteBaseEngordeDto) => {
+          this.lotesBase = [...this.lotesBase, base].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+          this.form.patchValue({ loteBaseEngordeId: base.id });
+          this.recomputeLotesBaseParaGranja();
+          this.nuevoLoteBaseNombre = '';
+          this.creandoLoteBase = false;
+          this.toastService.success(
+            granjaId ? `Lote base "${base.nombre}" creado y asignado a la granja.` : `Lote base "${base.nombre}" creado.`
+          );
+        };
+        if (granjaId) {
+          this.loteBaseApi.assignGranja(creado.id, granjaId).subscribe({
+            next: () => finalizar({ ...creado, granjaIds: [...(creado.granjaIds ?? []), granjaId] }),
+            error: () => finalizar(creado)
+          });
+        } else {
+          finalizar(creado);
+        }
       },
       error: (err) => {
         this.creandoLoteBase = false;
@@ -716,6 +751,8 @@ export class LoteEngordeListComponent implements OnInit {
       this.nucleosFiltrados = this.filteredNucleos = [];
       this.galponesFiltrados = this.filteredGalpones = [];
     }
+    // Recalcular tras fijar granja + lote base (en edición se parchean en orden).
+    this.recomputeLotesBaseParaGranja();
   }
 
   openModal(l?: LoteAveEngordeDto): void {

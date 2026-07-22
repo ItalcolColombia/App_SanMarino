@@ -41,9 +41,10 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var num = stats?.Num ?? 0;
         var avesActualesH = Math.Max(0, avesInicioH - (stats?.MortH ?? 0) - (stats?.SelH ?? 0) - (stats?.ErrH ?? 0));
         var avesActualesM = Math.Max(0, avesInicioM - (stats?.MortM ?? 0) - (stats?.SelM ?? 0) - (stats?.ErrM ?? 0));
-        var edadDias = x.FechaEncasetamiento.HasValue
-            ? Math.Max(0, (int)(DateTime.UtcNow.Date - x.FechaEncasetamiento.Value.Date).TotalDays)
-            : 0;
+        // Edad: mientras Vigente = hoy − encasetamiento; al Cerrar (7 confirmados) se congela en la fecha
+        // del último registro de recogida (deja de crecer con el reloj del sistema).
+        var edadDias = ReproductoraEngordeCalculos.CalcularEdadDias(
+            x.FechaEncasetamiento, DateTime.UtcNow, estado == "Cerrado", stats?.MaxFecha);
 
         return new LoteReproductoraAveEngordeDto(
             x.Id,
@@ -98,8 +99,8 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
     /// <summary>Máximo de días de recogida de datos del lote reproductora. Al completarlos pasa a Cerrado.</summary>
     private const int DiasRecogidaReproductora = 7;
 
-    /// <summary>Bajas desglosadas por género + nº de registros por lote reproductora.</summary>
-    private sealed record ReproStats(int MortH, int MortM, int SelH, int SelM, int ErrH, int ErrM, int Num);
+    /// <summary>Bajas desglosadas por género + nº de registros (total y confirmados) + fecha del último registro (cierre) por lote reproductora.</summary>
+    private sealed record ReproStats(int MortH, int MortM, int SelH, int SelM, int ErrH, int ErrM, int Num, int NumConfirmados, DateTime? MaxFecha);
 
     /// <summary>Mortalidad/selección/error por género + cantidad de registros. Key = LoteReproductoraAveEngordeId.</summary>
     private async Task<Dictionary<int, ReproStats>> GetReproStatsAsync(IEnumerable<int> ids, CancellationToken ct = default)
@@ -118,19 +119,19 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 SelM = g.Sum(s => s.SelM ?? 0),
                 ErrH = g.Sum(s => s.ErrorSexajeHembras ?? 0),
                 ErrM = g.Sum(s => s.ErrorSexajeMachos ?? 0),
-                Num = g.Count()
+                Num = g.Count(),
+                NumConfirmados = g.Sum(s => s.Confirmado ? 1 : 0),
+                // Fecha del último registro de recogida → se usa como fecha de cierre para congelar la edad.
+                MaxFecha = g.Max(s => (DateTime?)s.Fecha)
             });
         var list = await q.ToListAsync(ct);
-        return list.ToDictionary(x => x.Id, x => new ReproStats(x.MortH, x.MortM, x.SelH, x.SelM, x.ErrH, x.ErrM, x.Num));
+        return list.ToDictionary(x => x.Id, x => new ReproStats(x.MortH, x.MortM, x.SelH, x.SelM, x.ErrH, x.ErrM, x.Num, x.NumConfirmados, x.MaxFecha));
     }
 
-    private static (string Estado, int AvesActuales) CalcularEstado(int avesEncasetadas, int ventas, int mortalidad, int seleccion, int errorSexaje = 0, int numRegistros = 0)
-    {
-        var avesActuales = Math.Max(0, avesEncasetadas - mortalidad - seleccion - errorSexaje - ventas);
-        // Cerrado si se agotaron las aves O si completó los 7 días de recogida de datos.
-        var estado = (avesActuales <= 0 || numRegistros >= DiasRecogidaReproductora) ? "Cerrado" : "Vigente";
-        return (estado, avesActuales);
-    }
+    // Cerrado SOLO cuando los 7 días están CONFIRMADOS (la confirmación sincroniza hacia pollo engorde).
+    // Lógica pura centralizada en Application/Calculos para poder testearla.
+    private static (string Estado, int AvesActuales) CalcularEstado(int avesEncasetadas, int ventas, int mortalidad, int seleccion, int errorSexaje = 0, int numConfirmados = 0)
+        => ReproductoraEngordeCalculos.CalcularEstado(avesEncasetadas, ventas, mortalidad, seleccion, errorSexaje, numConfirmados, DiasRecogidaReproductora);
 
     public async Task<IEnumerable<LoteReproductoraAveEngordeDto>> GetAllAsync(int? loteAveEngordeId = null)
     {
@@ -154,7 +155,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
             var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
             var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
-            var (estado, avesActuales) = CalcularEstado(encaset, v, mort, sel, err, st?.Num ?? 0);
+            var (estado, avesActuales) = CalcularEstado(encaset, v, mort, sel, err, st?.NumConfirmados ?? 0);
             return Map(x, estado, avesActuales, st);
         }).ToList();
     }
@@ -172,7 +173,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
         var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
         var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
-        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.Num ?? 0);
+        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.NumConfirmados ?? 0);
         return Map(ent, estado, avesActuales, st);
     }
 
@@ -349,13 +350,17 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         ent.PesoInicialH = dto.PesoInicialH;
         ent.PesoMixto = dto.PesoMixto;
         ent.UpdatedAt = DateTime.UtcNow;
+        // La entidad se cargó con un join AsNoTracking → NO queda rastreada, así que mutar propiedades
+        // no emitiría UPDATE. Forzar Modified para persistir la edición (mismo patrón que
+        // SeguimientoDiarioLoteReproductoraService.UpdateAsync).
+        _ctx.Entry(ent).State = EntityState.Modified;
         await _ctx.SaveChangesAsync();
         var ventas = (await GetVentasPorReproductoraAsync(new[] { id })).GetValueOrDefault(id, 0);
         var stU = (await GetReproStatsAsync(new[] { id })).GetValueOrDefault(id);
         var mortU = (stU?.MortH ?? 0) + (stU?.MortM ?? 0);
         var selU  = (stU?.SelH ?? 0) + (stU?.SelM ?? 0);
         var errU  = (stU?.ErrH ?? 0) + (stU?.ErrM ?? 0);
-        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mortU, selU, errU, stU?.Num ?? 0);
+        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mortU, selU, errU, stU?.NumConfirmados ?? 0);
         return Map(ent, estado, avesActuales, stU);
     }
 
@@ -370,10 +375,17 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             throw new InvalidOperationException("La novedad es obligatoria para reabrir el lote.");
 
         var companyId = await GetEffectiveCompanyIdAsync();
-        var ent = await (from lrae in _ctx.LoteReproductoraAveEngorde
-                         join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
-                         where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                         select lrae).SingleOrDefaultAsync();
+        // Scoping por compañía con un join AsNoTracking que NO arrastra la entidad al ChangeTracker.
+        // (Cargar la entidad DENTRO de ese join la dejaría sin rastrear → un mutate + SaveChanges sería
+        //  no-op y `reabierto` nunca se escribiría en BD. Mismo patrón probado que ConfirmarAsync.)
+        var pertenece = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                               join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
+                               where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
+                               select lrae.Id).AnyAsync();
+        if (!pertenece) return null;
+
+        // Cargar la entidad RASTREADA (sin join) para que el UPDATE de reapertura sí persista.
+        var ent = await _ctx.LoteReproductoraAveEngorde.SingleOrDefaultAsync(l => l.Id == id);
         if (ent is null) return null;
 
         ent.Reabierto = true;
@@ -388,7 +400,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
         var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
         var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
-        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.Num ?? 0);
+        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.NumConfirmados ?? 0);
         return Map(ent, estado, avesActuales, st);
     }
 
@@ -400,6 +412,15 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                          where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
                          select lrae).SingleOrDefaultAsync();
         if (ent is null) return false;
+
+        // No se puede eliminar una reproductora que ya tiene registros de seguimiento cargados:
+        // primero hay que eliminar esos registros (evita borrar en cascada datos capturados).
+        var numRegistros = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+            .CountAsync(s => s.LoteReproductoraAveEngordeId == id);
+        if (numRegistros > 0)
+            throw new InvalidOperationException(
+                $"No se puede eliminar la reproductora: tiene {numRegistros} registro(s) de seguimiento. Elimine primero esos registros.");
+
         _ctx.LoteReproductoraAveEngorde.Remove(ent);
         await _ctx.SaveChangesAsync();
         return true;
@@ -427,10 +448,12 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         const int diasSeguimientoReproductora = 7;
         var nLotesRepro = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
             .CountAsync(lr => lr.LoteAveEngordeId == loteAveEngordeId);
+        // El saldo "regresa" a pollo engorde solo cuando cada lote reproductora tiene sus 7 días
+        // CONFIRMADOS (la confirmación es la que sincroniza el cruce diario). Contar confirmados, no registros.
         var nReproCompletos = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
             .CountAsync(lr => lr.LoteAveEngordeId == loteAveEngordeId
                 && _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
-                       .Count(s => s.LoteReproductoraAveEngordeId == lr.Id) >= diasSeguimientoReproductora);
+                       .Count(s => s.LoteReproductoraAveEngordeId == lr.Id && s.Confirmado) >= diasSeguimientoReproductora);
         bool sieteDiasCompletos = nLotesRepro > 0 && nReproCompletos == nLotesRepro;
 
         // Mortalidad en caja de los lotes reproductora (no está en los registros de cruce).

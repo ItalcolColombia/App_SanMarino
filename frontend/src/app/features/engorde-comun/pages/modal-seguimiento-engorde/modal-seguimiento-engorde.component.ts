@@ -343,20 +343,38 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     return this.form.get('itemsMachos') as FormArray;
   }
 
+  /**
+   * Unidad por defecto de una fila de alimento. En Panamá el alimento se ingresa en quintales (`qq`);
+   * en el resto de países se mantiene `kg` (comportamiento previo). El consumo siempre se guarda en kg.
+   */
+  private unidadAlimentoPorDefecto(): string {
+    return this.isPanama ? 'qq' : 'kg';
+  }
+
+  /**
+   * Kg que se guardarán en consumo para una fila de alimento (preview vivo bajo el campo Cantidad).
+   * Devuelve un número (primitivo) → seguro para el template, no aloca en cada ciclo de CD.
+   */
+  consumoKgDeFila(itemGroup: FormGroup): number {
+    const cantidad = Number(itemGroup.get('cantidad')?.value || 0);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) return 0;
+    return toKg(cantidad, String(itemGroup.get('unidad')?.value || 'kg'));
+  }
+
   agregarItemHembras(): void {
     const soloAlimento = this.hembrasSoloAlimento;
     const itemForm = this.fb.group({
       tipoItem: [soloAlimento ? 'alimento' : null, Validators.required],
       catalogItemId: [null],
       cantidad: [0, [Validators.min(0)]],
-      unidad: ['kg', Validators.required]
+      unidad: [this.unidadAlimentoPorDefecto(), Validators.required]
     });
 
     if (!soloAlimento) {
       // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
       itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
         if (tipo === 'alimento') {
-          itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+          itemForm.patchValue({ unidad: this.unidadAlimentoPorDefecto() }, { emitEvent: false });
         } else if (tipo) {
           itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
         }
@@ -364,7 +382,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
         itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
       });
     } else {
-      itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      itemForm.patchValue({ unidad: this.unidadAlimentoPorDefecto() }, { emitEvent: false });
     }
 
     this.itemsHembrasArray.push(itemForm);
@@ -392,14 +410,14 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       tipoItem: [soloAlimento ? 'alimento' : null, Validators.required],
       catalogItemId: [null],
       cantidad: [0, [Validators.min(0)]],
-      unidad: ['kg', Validators.required]
+      unidad: [this.unidadAlimentoPorDefecto(), Validators.required]
     });
 
     if (!soloAlimento) {
       // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
       itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
         if (tipo === 'alimento') {
-          itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+          itemForm.patchValue({ unidad: this.unidadAlimentoPorDefecto() }, { emitEvent: false });
         } else if (tipo) {
           itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
         }
@@ -407,7 +425,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
         itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
       });
     } else {
-      itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      itemForm.patchValue({ unidad: this.unidadAlimentoPorDefecto() }, { emitEvent: false });
     }
 
     this.itemsMachosArray.push(itemForm);

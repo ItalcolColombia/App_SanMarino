@@ -18,7 +18,7 @@ sea **fácil de encontrar, testear y reutilizar**.
 | Archivo | Qué hace |
 |---|---|
 | `fecha.funcion.ts` | `todayYMD`, `computeDefaultFecha`, `toYMD`, `ymdToIsoAtNoon` (helpers de fecha del formulario). |
-| `inventario-calculos.funcion.ts` | `toNumOrNull`, `toKg`, `esUnidadDesconocidaParaGramos`, `cantidadOriginalAGramos`, `normalizarIdCatalogoSeleccion` (conversiones/aritmética de inventario). |
+| `inventario-calculos.funcion.ts` | `KG_POR_QUINTAL` (45.36, = backend `ReporteIndicadorPanamaCalculos.KgPorQuintal`), `toNumOrNull`, `toKg` (kg/g/**qq**), `esUnidadDesconocidaParaGramos`, `cantidadOriginalAGramos`, `normalizarIdCatalogoSeleccion` (conversiones/aritmética de inventario). |
 | `mapear-seguimiento-dto.funcion.ts` | Normalización (`normalizeJsonField`, `resolveItemCatalogId`, `getInventarioUbicacionFromLote`, `itemEcuadorToCatalogItem`) y armado del DTO de `onSave` (`construirItemsSeguimiento`, `construirItemsAdicionales`, `construirTipoAlimentoStr`, `aplicarCerosSinAvesDisponibles`, `mapearPanamaMixtoAHM`, `buildBaseSeguimientoDto`). |
 
 ## Nota multi-país

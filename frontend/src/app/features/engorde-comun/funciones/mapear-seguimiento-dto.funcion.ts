@@ -12,7 +12,7 @@ import { ItemSeguimientoDto } from '../../lote-levante/services/seguimiento-lote
 import { LoteDto } from '../../lote/services/lote.service';
 import { AvesDisponiblesDto } from '../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 import { InventarioUbicacion } from '../models/inventario-ubicacion.model';
-import { toNumOrNull } from './inventario-calculos.funcion';
+import { toNumOrNull, toKg } from './inventario-calculos.funcion';
 
 /** itemsAdicionales u otros JSONB a veces llegan como string desde la API. */
 export function normalizeJsonField(raw: any): any {
@@ -74,12 +74,19 @@ export function construirItemsSeguimiento(
     const tipo = opts.forzarAlimento ? 'alimento' : itemValue.tipoItem;
     if (tipo && itemValue.catalogItemId && itemValue.cantidad > 0) {
       const catalogItemId = Number(itemValue.catalogItemId);
+      // El backend (MetadataEngordeCalculos.ToKg) solo entiende kg/g. `qq` (quintal, Panamá) se
+      // normaliza a kg AQUÍ antes de enviar: el consumo se guarda siempre en kg y no se toca el
+      // path de descuento del backend. kg/g viajan tal cual (el backend hace g→kg).
+      const unidadRaw = String(itemValue.unidad || 'kg').trim().toLowerCase();
+      const esQuintal = unidadRaw === 'qq' || unidadRaw === 'quintal' || unidadRaw === 'quintales';
+      const cantidad = esQuintal ? toKg(Number(itemValue.cantidad), unidadRaw) : Number(itemValue.cantidad);
+      const unidad = esQuintal ? 'kg' : (itemValue.unidad || 'kg');
       out.push({
         tipoItem: tipo,
         catalogItemId,
         ...(opts.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {}),
-        cantidad: Number(itemValue.cantidad),
-        unidad: itemValue.unidad || 'kg'
+        cantidad,
+        unidad
       });
     }
   });

@@ -7,6 +7,8 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faEye, faFilter, faLayerGroup, faPlusCircle, faMinusCircle, faTimes } from '@fortawesome/free-solid-svg-icons';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import {
   LoteReproductoraAveEngordeService,
   LoteReproductoraAveEngordeDto,
@@ -29,7 +31,8 @@ import { ymdSinTz } from '../../../../shared/utils/format';
     FormsModule,
     ReactiveFormsModule,
     FontAwesomeModule,
-    ConfirmationModalComponent
+    ConfirmationModalComponent,
+    HasPermissionDirective
 ]
 })
 export class LoteReproductoraAveEngordeListComponent implements OnInit {
@@ -75,12 +78,26 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   confirmData: ConfirmationModalData = { title: 'Eliminar', message: '¿Está seguro?', type: 'warning', confirmText: 'Eliminar', cancelText: 'Cancelar', showCancel: true };
   pendingDeleteId: number | null = null;
 
+  /** Permission keys de los botones (patrón "modulo.accion"). */
+  readonly PERM_EDITAR = 'lote_reproductora_engorde.editar';
+  readonly PERM_ELIMINAR = 'lote_reproductora_engorde.eliminar';
+
   constructor(
     private fb: FormBuilder,
     private svc: LoteReproductoraAveEngordeService,
     private loteEngordeSvc: LoteEngordeService,
-    private toast: ToastService
+    private toast: ToastService,
+    private permSvc: UserPermissionService
   ) {}
+
+  /** True si el usuario puede editar la reproductora. */
+  get canEditarPerm(): boolean {
+    return this.permSvc.has(this.PERM_EDITAR);
+  }
+  /** True si el usuario puede eliminar la reproductora. */
+  get canEliminarPerm(): boolean {
+    return this.permSvc.has(this.PERM_ELIMINAR);
+  }
 
   ngOnInit(): void {
     this.form = this.fb.group({
@@ -169,11 +186,10 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   }
 
   private createBulkRow(initialCode = ''): FormGroup {
-    const baseNombre = this.loteSeleccionado?.loteNombre ?? '';
+    // Nombre del lote: obligatorio pero SIN prellenar con el nombre del lote principal → el usuario lo asigna.
     return this.fb.group({
       reproductoraId: [initialCode, [Validators.required, Validators.maxLength(100)]],
-      codigoReproductora: [null as string | null, [Validators.maxLength(100)]],
-      nombreLote: [baseNombre, [Validators.required, Validators.maxLength(200)]],
+      nombreLote: ['', [Validators.required, Validators.maxLength(200)]],
       fechaEncasetamiento: [''],
       m: [0, [Validators.min(0)]],
       h: [0, [Validators.min(0)]],
@@ -258,7 +274,6 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       return {
         loteAveEngordeId,
         reproductoraId: (v.reproductoraId ?? '').trim(),
-        codigoReproductora: v.codigoReproductora?.trim() || null,
         nombreLote: (v.nombreLote ?? '').trim(),
         fechaEncasetamiento: v.fechaEncasetamiento || null, // YYYY-MM-DD crudo: el service lo ancla a mediodía UTC
         m: v.m ?? 0,
@@ -356,6 +371,10 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   }
 
   edit(r: LoteReproductoraAveEngordeDto): void {
+    if (!this.canEditarPerm) {
+      this.toast.warning('No tiene permiso para editar la reproductora.', 'Permiso requerido');
+      return;
+    }
     this.editing = r;
     this.incubadoras.clear();
     this.form.patchValue({
@@ -382,6 +401,19 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   }
 
   deleteRegistro(r: LoteReproductoraAveEngordeDto): void {
+    if (!this.canEliminarPerm) {
+      this.toast.warning('No tiene permiso para eliminar la reproductora.', 'Permiso requerido');
+      return;
+    }
+    // No se puede eliminar una reproductora que ya tiene registros de seguimiento: hay que eliminarlos primero.
+    // (El backend también lo bloquea con 400; esto es la validación inmediata en UI.)
+    if ((r.numRegistros ?? 0) > 0) {
+      this.toast.warning(
+        `Esta reproductora tiene ${r.numRegistros} registro(s) de seguimiento. Elimine primero esos registros para poder eliminarla.`,
+        'No se puede eliminar'
+      );
+      return;
+    }
     this.pendingDeleteId = r.id;
     this.confirmData = { ...this.confirmData, title: 'Eliminar lote reproductora', message: `¿Eliminar "${r.nombreLote}" (${r.reproductoraId})?` };
     this.confirmOpen = true;
@@ -458,7 +490,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
     const dto: CreateLoteReproductoraAveEngordeDto = {
       loteAveEngordeId,
       reproductoraId: (v.reproductoraId ?? '').trim(),
-      nombreLote: (v.nombreLote ?? '').trim() || (this.loteSeleccionado?.loteNombre ?? ''),
+      nombreLote: (v.nombreLote ?? '').trim(),
       fechaEncasetamiento: v.fechaEncasetamiento ? new Date(v.fechaEncasetamiento).toISOString() : null,
       m: v.m ?? null, h: v.h ?? null, mixtas: v.mixtas ?? null,
       mortCajaH: v.mortCajaH ?? null, mortCajaM: v.mortCajaM ?? null,

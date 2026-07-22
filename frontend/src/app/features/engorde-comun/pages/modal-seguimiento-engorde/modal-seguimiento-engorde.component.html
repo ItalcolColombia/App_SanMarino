@@ -102,11 +102,22 @@
                             </div>
                             <div style="width: 100px;">
                               <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                                @if (isPanama) {
+                                  <option value="qq">qq (quintal)</option>
+                                }
                                 <option value="kg">kg</option>
                                 <option value="g">gramos</option>
                               </select>
                             </div>
                           </div>
+                          @if (consumoKgDeFila($any(itemH)) > 0) {
+                            <small class="ux-hint text-success">
+                              Se guardará en consumo: <strong>{{ consumoKgDeFila($any(itemH)) | number:'1.0-3' }} kg</strong>
+                              @if (itemH.get('unidad')?.value === 'qq') {
+                                <span class="ux-hint">(1 qq = 45.36 kg)</span>
+                              }
+                            </small>
+                          }
                           @if (cantidadExcedeDisponible($any(itemH))) {
                             <small class="ux-hint text-danger">
                               La cantidad ingresada supera el máximo permitido para este ítem.
@@ -352,55 +363,7 @@
                         </div>
                       </div>
                     </section>
-                    <!-- QUINTALES ALIMENTO (específico Panamá) -->
-                    @if (isPanama) {
-                      <section class="ux-section">
-                        <h3 class="ux-section__title">Alimento por Categoría (Quintales)</h3>
-                        <div class="ux-section__body">
-                          <div class="ux-grid ux-grid--3">
-                            <div class="ux-field">
-                              <label for="f-qq-mixtas" class="ux-label">
-                                QQ Mixtas (Quintal)
-                              </label>
-                              <input
-                                id="f-qq-mixtas"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                formControlName="qqMixtas"
-                                placeholder="Ej: 2.50" />
-                                <small class="ux-hint">Quintales de alimento para aves mixtas</small>
-                              </div>
-                              <div class="ux-field">
-                                <label for="f-qq-hembras" class="ux-label">
-                                  QQ Hembras (Quintal)
-                                </label>
-                                <input
-                                  id="f-qq-hembras"
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  formControlName="qqHembras"
-                                  placeholder="Ej: 1.75" />
-                                  <small class="ux-hint">Quintales de alimento para hembras</small>
-                                </div>
-                                <div class="ux-field">
-                                  <label for="f-qq-machos" class="ux-label">
-                                    QQ Machos (Quintal)
-                                  </label>
-                                  <input
-                                    id="f-qq-machos"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    formControlName="qqMachos"
-                                    placeholder="Ej: 1.75" />
-                                    <small class="ux-hint">Quintales de alimento para machos</small>
-                                  </div>
-                                </div>
-                              </div>
-                            </section>
-                          }
+                  
                         }
                       </div>
                       <footer class="ux-modal__footer">
@@ -417,17 +380,17 @@
                           }
                         </button>
                       </footer>
-                    </form>
-                    @if (loadingRecord) {
-                      <div class="modal-loading" role="status" aria-live="polite">
-                        <div class="spinner"></div> Cargando registro…
+                      </form>
+                      @if (loadingRecord) {
+                        <div class="modal-loading" role="status" aria-live="polite">
+                          <div class="spinner"></div> Cargando registro…
+                        </div>
+                      }
+                      @if (loading && !loadingRecord) {
+                        <div class="modal-loading" role="status" aria-live="polite">
+                          <div class="spinner"></div> {{ editing ? 'Actualizando registro…' : 'Guardando…' }}
+                        </div>
+                      }
+                        </div>
                       </div>
-                    }
-                    @if (loading && !loadingRecord) {
-                      <div class="modal-loading" role="status" aria-live="polite">
-                        <div class="spinner"></div> {{ editing ? 'Actualizando registro…' : 'Guardando…' }}
-                      </div>
-                    }
-                  </div>
-                </div>
               }
