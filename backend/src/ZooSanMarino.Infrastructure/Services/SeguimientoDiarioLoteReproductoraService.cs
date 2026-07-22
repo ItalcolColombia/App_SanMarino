@@ -409,29 +409,11 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             .SingleOrDefaultAsync(l => l.Id == ent.LoteReproductoraAveEngordeId);
         if (loteRep is not null)
         {
-            var numRegistros = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
-                .CountAsync(s => s.LoteReproductoraAveEngordeId == loteRep.Id);
-            var bajas = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
-                .Where(s => s.LoteReproductoraAveEngordeId == loteRep.Id)
-                .GroupBy(_ => 1)
-                .Select(g => new
-                {
-                    Mort = g.Sum(s => (s.MortalidadHembras ?? 0) + (s.MortalidadMachos ?? 0)),
-                    Sel = g.Sum(s => (s.SelH ?? 0) + (s.SelM ?? 0)),
-                    Err = g.Sum(s => (s.ErrorSexajeHembras ?? 0) + (s.ErrorSexajeMachos ?? 0))
-                })
-                .SingleOrDefaultAsync();
-            var ventas = await _ctx.MovimientoPolloEngorde
-                .Where(m => m.Estado != "Cancelado" && m.DeletedAt == null
-                    && (m.TipoMovimiento == "Venta" || m.TipoMovimiento == "Despacho" || m.TipoMovimiento == "Retiro")
-                    && m.LoteReproductoraAveEngordeOrigenId == loteRep.Id)
-                .SumAsync(m => (int?)(m.CantidadHembras + m.CantidadMachos + m.CantidadMixtas)) ?? 0;
-
-            var encaset = (loteRep.AvesInicioHembras ?? loteRep.H ?? 0)
-                        + (loteRep.AvesInicioMachos ?? loteRep.M ?? 0)
-                        + (loteRep.Mixtas ?? 0);
-            var avesActuales = Math.Max(0, encaset - (bajas?.Mort ?? 0) - (bajas?.Sel ?? 0) - (bajas?.Err ?? 0) - ventas);
-            var cerrado = avesActuales <= 0 || numRegistros >= MaxDiasSeguimiento;
+            // Coherente con el estado del lote: cerrado = los 7 días CONFIRMADOS (no por nº de registros
+            // ni por aves agotadas). Mientras haya pendientes el lote sigue Vigente → se puede eliminar.
+            var numConfirmados = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+                .CountAsync(s => s.LoteReproductoraAveEngordeId == loteRep.Id && s.Confirmado);
+            var cerrado = numConfirmados >= MaxDiasSeguimiento;
 
             if (cerrado && !loteRep.Reabierto)
                 throw new InvalidOperationException(

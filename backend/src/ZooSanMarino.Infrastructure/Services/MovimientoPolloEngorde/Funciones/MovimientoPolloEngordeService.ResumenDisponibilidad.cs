@@ -385,7 +385,8 @@ public partial class MovimientoPolloEngordeService
             .ToListAsync();
         var reproById = reproData.ToDictionary(x => x.Id);
 
-        // Contar cuántos reproductora tienen >= 7 registros de seguimiento por lote
+        // Contar cuántos reproductora tienen sus 7 días CONFIRMADOS por lote (la confirmación es la que
+        // sincroniza el cruce; el saldo "regresa" a pollo engorde solo con los 7 confirmados).
         var reproComplData = await _ctx.LoteReproductoraAveEngorde
             .AsNoTracking()
             .Where(lr => ids.Contains(lr.LoteAveEngordeId))
@@ -393,7 +394,7 @@ public partial class MovimientoPolloEngordeService
             {
                 lr.LoteAveEngordeId,
                 Completo = _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
-                    .Count(s => s.LoteReproductoraAveEngordeId == lr.Id) >= diasSeguimientoReproductora
+                    .Count(s => s.LoteReproductoraAveEngordeId == lr.Id && s.Confirmado) >= diasSeguimientoReproductora
             })
             .ToListAsync();
         var sieteDiasById = reproComplData
