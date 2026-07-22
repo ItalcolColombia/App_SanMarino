@@ -1,54 +1,120 @@
 <div class="mx-auto max-w-7xl p-4 sm:p-6">
-  <!-- Header de página -->
-  <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+  <!-- Header del módulo -->
+  <header class="imp-header">
     <div class="flex items-center gap-3">
-      <div
-        class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
-        style="background: var(--ital-orange-100)"
-        aria-hidden="true"
-      >
-        🚀
-      </div>
+      <div class="imp-header__icon" aria-hidden="true">🚀</div>
       <div>
-        <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Planes de implementación</h1>
-        <p class="text-sm" style="color: var(--ital-muted)">
-          Cronogramas de entrega de la aplicación por empresa: checklist con doble check (se completa y el
-          usuario asignado confirma) para auditar parametrizaciones y capacitaciones.
+        <h1>Cronogramas de implementación</h1>
+        <p class="imp-header__subtitle">
+          Checklists de entrega y capacitación por empresa: cada cronograma tiene sus ítems de validación
+          con fechas, encargado, y participantes que firman el recibido de cada punto.
         </p>
       </div>
     </div>
-    <button type="button" class="btn-primary text-sm" (click)="abrirCrear()">＋ Nuevo plan</button>
+    <button type="button" class="btn-italfoods-primary text-sm" (click)="abrirCrear()">＋ Nuevo cronograma</button>
   </header>
 
+  <!-- Filtros (client-side: filtran al instante sobre lo ya cargado) -->
+  <section class="ux-card imp-card" *ngIf="!errorMsg && (planes.length || hayFiltros)">
+    <div class="imp-card__header">
+      <h2>Filtros</h2>
+      <span class="imp-card__meta">{{ planesFiltrados.length }} de {{ planes.length }} cronogramas</span>
+    </div>
+    <div class="imp-card__body">
+      <div class="filters-row">
+        <div class="filter-group">
+          <label for="f-busqueda">Buscar</label>
+          <input
+            id="f-busqueda"
+            type="text"
+            class="input-italfoods"
+            placeholder="Nombre, descripción, encargado…"
+            [(ngModel)]="filtros.busqueda"
+            (ngModelChange)="aplicarFiltros()"
+          />
+        </div>
+        <div class="filter-group">
+          <label for="f-tipo">Tipo</label>
+          <select id="f-tipo" class="input-italfoods" [(ngModel)]="filtros.tipo" (ngModelChange)="aplicarFiltros()">
+            <option value="">Todos</option>
+            <option value="implementacion">Implementación</option>
+            <option value="capacitacion">Capacitación</option>
+            <option value="mixto">Implementación + capacitación</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="f-estado">Estado</label>
+          <select id="f-estado" class="input-italfoods" [(ngModel)]="filtros.estado" (ngModelChange)="aplicarFiltros()">
+            <option value="">Todos</option>
+            <option value="borrador">Borrador</option>
+            <option value="en_progreso">En progreso</option>
+            <option value="completado">Completado</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button
+            type="button"
+            class="btn-italfoods-secondary text-xs"
+            [disabled]="!hayFiltros"
+            (click)="limpiarFiltros()"
+          >
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cargando -->
   <div *ngIf="cargando" class="loading-toast" role="status">
-    <span class="spinner spinner--sm"></span> Cargando planes…
+    <span class="spinner spinner--sm"></span> Cargando cronogramas…
   </div>
 
-  <!-- Empty state -->
-  <div *ngIf="!cargando && !planes.length" class="empty-state ux-card p-8 text-center">
+  <!-- Error visible con reintento (la carga nunca queda "pensando") -->
+  <div *ngIf="!cargando && errorMsg" class="ux-card imp-error" role="alert">
+    <div class="imp-error__icon" aria-hidden="true">⚠️</div>
+    <p class="imp-error__titulo">No se pudieron cargar los cronogramas</p>
+    <p class="imp-error__detalle">{{ errorMsg }}</p>
+    <button type="button" class="btn-italfoods-orange text-sm" (click)="cargar()">Reintentar</button>
+  </div>
+
+  <!-- Vacío real -->
+  <div *ngIf="!cargando && !errorMsg && !planes.length" class="empty-state ux-card p-8 text-center">
     <div class="mb-2 text-3xl" aria-hidden="true">📋</div>
-    <p class="font-semibold" style="color: var(--ital-text)">Aún no hay planes de implementación para esta empresa.</p>
+    <p class="font-semibold" style="color: var(--ital-text)">Aún no hay cronogramas para esta empresa.</p>
     <p class="mb-4 text-sm" style="color: var(--ital-muted)">
       Creá el primero con la plantilla estándar (parametrizaciones, capacitación, carga de datos y puesta en marcha).
     </p>
-    <button type="button" class="btn-primary text-sm" (click)="abrirCrear()">Crear plan</button>
+    <button type="button" class="btn-italfoods-primary text-sm" (click)="abrirCrear()">Crear cronograma</button>
   </div>
 
-  <!-- Tabla de planes -->
-  <div *ngIf="!cargando && planes.length" class="ux-card overflow-hidden">
+  <!-- Vacío por filtros -->
+  <div
+    *ngIf="!cargando && !errorMsg && planes.length && !planesFiltrados.length"
+    class="empty-state ux-card p-8 text-center"
+  >
+    <div class="mb-2 text-3xl" aria-hidden="true">🔎</div>
+    <p class="font-semibold" style="color: var(--ital-text)">Ningún cronograma coincide con los filtros.</p>
+    <button type="button" class="btn-italfoods-secondary mt-3 text-sm" (click)="limpiarFiltros()">Limpiar filtros</button>
+  </div>
+
+  <!-- Tabla -->
+  <div *ngIf="!cargando && !errorMsg && planesFiltrados.length" class="ux-card overflow-hidden">
     <div class="ux-scroll overflow-x-auto">
       <table class="table-italfoods w-full text-sm">
         <thead>
           <tr>
-            <th class="text-left">Plan</th>
             <th class="text-left">Cronograma</th>
+            <th class="text-left">Fechas</th>
+            <th class="text-left">Encargado</th>
             <th class="text-left">Estado</th>
             <th class="text-left">Avance</th>
             <th class="text-right">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let p of planes; trackBy: trackByPlan">
+          <tr *ngFor="let p of planesFiltrados; trackBy: trackByPlan">
             <td>
               <button
                 type="button"
@@ -58,7 +124,12 @@
               >
                 {{ p.nombre }}
               </button>
-              <div *ngIf="p.descripcion" class="max-w-md truncate text-xs" style="color: var(--ital-muted)">
+              <div class="mt-0.5">
+                <span class="chip" [style.color]="estiloTipo(p.tipo).fg" [style.background]="estiloTipo(p.tipo).bg">
+                  {{ estiloTipo(p.tipo).label }}
+                </span>
+              </div>
+              <div *ngIf="p.descripcion" class="mt-0.5 max-w-md truncate text-xs" style="color: var(--ital-muted)">
                 {{ p.descripcion }}
               </div>
             </td>
@@ -67,12 +138,12 @@
               →
               {{ p.fechaFin ? (p.fechaFin | date: 'dd/MM/yyyy') : '—' }}
             </td>
+            <td class="text-xs">
+              <div class="font-semibold" style="color: var(--ital-text)">👤 {{ p.implementadorNombre || '—' }}</div>
+              <div *ngIf="p.implementadorEmail" style="color: var(--ital-muted)">{{ p.implementadorEmail }}</div>
+            </td>
             <td>
-              <span
-                class="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold"
-                [style.color]="estiloPlan(p.estado).fg"
-                [style.background]="estiloPlan(p.estado).bg"
-              >
+              <span class="chip" [style.color]="estiloPlan(p.estado).fg" [style.background]="estiloPlan(p.estado).bg">
                 {{ estiloPlan(p.estado).label }}
               </span>
             </td>
@@ -81,39 +152,47 @@
                 <span>{{ p.tareasCompletadas + p.tareasConfirmadas }}/{{ p.totalTareas }} con check</span>
                 <span>{{ p.porcentajeConfirmado }}% confirmado</span>
               </div>
-              <div class="h-2 overflow-hidden rounded-full" style="background: var(--ital-cream)">
-                <div class="flex h-full">
-                  <div class="h-full" style="background: var(--success)" [style.width.%]="p.porcentajeConfirmado"></div>
-                  <div
-                    class="h-full"
-                    style="background: var(--ital-orange)"
-                    [style.width.%]="p.porcentajeAvance - p.porcentajeConfirmado"
-                  ></div>
-                </div>
+              <div class="progress-track">
+                <div class="progress-fill--confirmado" [style.width.%]="p.porcentajeConfirmado"></div>
+                <div class="progress-fill--avance" [style.width.%]="p.porcentajeAvance - p.porcentajeConfirmado"></div>
               </div>
             </td>
-            <td class="whitespace-nowrap text-right">
-              <button type="button" class="btn-ghost text-xs" (click)="verDetalle(p)">Ver checklist</button>
-              <button type="button" class="btn-ghost text-xs" (click)="abrirEditar(p)">Editar</button>
-              <button
-                *ngIf="p.estado !== 'cancelado'"
-                type="button"
-                class="btn-ghost text-xs"
-                (click)="cancelarPlan(p)"
-              >
-                Cancelar
-              </button>
-              <button
-                *ngIf="p.estado === 'cancelado'"
-                type="button"
-                class="btn-ghost text-xs"
-                (click)="reactivarPlan(p)"
-              >
-                Reactivar
-              </button>
-              <button type="button" class="btn-ghost text-xs" style="color: var(--danger)" (click)="eliminar(p)">
-                Eliminar
-              </button>
+            <td class="text-right">
+              <div class="row-actions justify-end">
+                <button type="button" class="btn-italfoods-secondary text-xs" (click)="verDetalle(p)">
+                  Ver checklist
+                </button>
+                <button type="button" class="icon-btn" title="Editar" aria-label="Editar" (click)="abrirEditar(p)">✏️</button>
+                <button
+                  *ngIf="p.estado !== 'cancelado'"
+                  type="button"
+                  class="icon-btn"
+                  title="Cancelar cronograma"
+                  aria-label="Cancelar cronograma"
+                  (click)="cancelarPlan(p)"
+                >
+                  ⏸️
+                </button>
+                <button
+                  *ngIf="p.estado === 'cancelado'"
+                  type="button"
+                  class="icon-btn"
+                  title="Reactivar"
+                  aria-label="Reactivar"
+                  (click)="reactivarPlan(p)"
+                >
+                  ▶️
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn danger"
+                  title="Eliminar"
+                  aria-label="Eliminar"
+                  (click)="eliminar(p)"
+                >
+                  🗑️
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -124,6 +203,7 @@
   <app-modal-plan-implementacion
     [open]="modalAbierto"
     [plan]="planEditando"
+    [usuarios]="usuarios"
     (cerrado)="cerrarModal()"
     (guardado)="onGuardado()"
   />

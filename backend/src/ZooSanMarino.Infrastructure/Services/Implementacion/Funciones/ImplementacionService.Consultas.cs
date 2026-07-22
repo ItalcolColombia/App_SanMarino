@@ -50,7 +50,11 @@ public partial class ImplementacionService
             join u in _ctx.Users.AsNoTracking() on uc.UserId equals u.Id
             where u.IsActive
             orderby u.firstName, u.surName
-            select new ImplementacionUsuarioAsignableDto(u.Id, u.firstName + " " + u.surName, u.cedula))
+            select new ImplementacionUsuarioAsignableDto(
+                u.Id,
+                u.firstName + " " + u.surName,
+                u.cedula,
+                u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()))
            .ToListAsync(ct);
 
     public Task<List<ImplementacionRolAsignableDto>> GetRolesAsignablesAsync(CancellationToken ct = default)

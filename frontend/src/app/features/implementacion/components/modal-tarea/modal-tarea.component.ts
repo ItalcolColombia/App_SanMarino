@@ -15,6 +15,7 @@ import {
   selector: 'app-modal-tarea-implementacion',
   standalone: true,
   imports: [CommonModule, FormsModule],
+  styleUrls: ['../../styles/implementacion-shared.scss'],
   template: `
     <div
       *ngIf="open"
@@ -32,7 +33,7 @@ import {
       >
         <div class="flex items-center justify-between border-b px-5 py-4" style="border-color: var(--ital-green-100)">
           <h3 id="titulo-modal-tarea" class="text-base font-extrabold" style="color: var(--ital-orange-dark)">
-            {{ tarea ? 'Editar tarea del checklist' : 'Nueva tarea del checklist' }}
+            {{ tarea ? 'Editar ítem del checklist' : 'Nuevo ítem de validación' }}
           </h3>
           <button type="button" class="icon-btn" aria-label="Cerrar" (click)="cerrar()">✕</button>
         </div>
@@ -44,7 +45,7 @@ import {
               <input
                 id="mt-categoria"
                 type="text"
-                class="form-input"
+                class="input-italfoods"
                 maxlength="100"
                 list="mt-categorias-sugeridas"
                 placeholder="Ej. Parametrizaciones"
@@ -56,7 +57,7 @@ import {
             </div>
             <div>
               <label class="form-label" for="mt-fecha">Fecha programada</label>
-              <input id="mt-fecha" type="date" class="form-input" [(ngModel)]="fechaProgramada" />
+              <input id="mt-fecha" type="date" class="input-italfoods" [(ngModel)]="fechaProgramada" />
             </div>
           </div>
 
@@ -65,7 +66,7 @@ import {
             <input
               id="mt-titulo"
               type="text"
-              class="form-input"
+              class="input-italfoods"
               maxlength="300"
               placeholder="Ej. Parametrización de granjas, núcleos y galpones"
               [(ngModel)]="titulo"
@@ -74,20 +75,20 @@ import {
 
           <div>
             <label class="form-label" for="mt-descripcion">Descripción</label>
-            <textarea id="mt-descripcion" rows="2" class="form-input" maxlength="2000" [(ngModel)]="descripcion"></textarea>
+            <textarea id="mt-descripcion" rows="2" class="input-italfoods" maxlength="2000" [(ngModel)]="descripcion"></textarea>
           </div>
 
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label class="form-label" for="mt-rol">Rol responsable</label>
-              <select id="mt-rol" class="form-input" [(ngModel)]="roleId">
+              <select id="mt-rol" class="input-italfoods" [(ngModel)]="roleId">
                 <option [ngValue]="null">Sin rol específico</option>
                 <option *ngFor="let r of roles" [ngValue]="r.id">{{ r.nombre }}</option>
               </select>
             </div>
             <div>
               <label class="form-label" for="mt-usuario">Usuario que confirma</label>
-              <select id="mt-usuario" class="form-input" [(ngModel)]="asignadoUserId">
+              <select id="mt-usuario" class="input-italfoods" [(ngModel)]="asignadoUserId">
                 <option [ngValue]="null">Sin usuario asignado</option>
                 <option *ngFor="let u of usuarios" [ngValue]="u.id">{{ u.nombre }} ({{ u.cedula }})</option>
               </select>
@@ -99,9 +100,9 @@ import {
         </div>
 
         <div class="flex justify-end gap-2 border-t px-5 py-4" style="border-color: var(--ital-green-100); background: var(--ital-cream)">
-          <button type="button" class="btn-ghost text-sm" (click)="cerrar()">Cancelar</button>
-          <button type="button" class="btn-primary text-sm" [disabled]="guardando" (click)="guardar()">
-            {{ guardando ? 'Guardando…' : tarea ? 'Guardar cambios' : 'Agregar tarea' }}
+          <button type="button" class="btn-italfoods-secondary text-sm" (click)="cerrar()">Cancelar</button>
+          <button type="button" class="btn-italfoods-primary text-sm" [disabled]="guardando" (click)="guardar()">
+            {{ guardando ? 'Guardando…' : tarea ? 'Guardar cambios' : 'Agregar ítem' }}
           </button>
         </div>
       </div>
@@ -163,10 +164,10 @@ export class ModalTareaImplementacionComponent implements OnChanges {
     try {
       if (this.tarea) {
         await firstValueFrom(this.svc.updateTarea(this.tarea.id, req));
-        this.toast.success('Tarea actualizada.');
+        this.toast.success('Ítem actualizado.');
       } else {
         await firstValueFrom(this.svc.createTarea(this.planId, req));
-        this.toast.success('Tarea agregada al checklist.');
+        this.toast.success('Ítem agregado al checklist.');
       }
       this.guardado.emit();
     } catch (err: any) {

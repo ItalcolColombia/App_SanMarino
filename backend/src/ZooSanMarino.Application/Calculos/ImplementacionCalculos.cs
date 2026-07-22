@@ -18,6 +18,16 @@ public static class ImplementacionCalculos
     public const string TareaCompletada = "completada";
     public const string TareaConfirmada = "confirmada";
 
+    // Tipos de cronograma (el plan sirve para entregas y capacitaciones)
+    public const string TipoImplementacion = "implementacion";
+    public const string TipoCapacitacion   = "capacitacion";
+    public const string TipoMixto          = "mixto";
+
+    // Estados de firma de participante (asistente que confirma recibido)
+    public const string FirmaPendiente = "pendiente";
+    public const string FirmaFirmada   = "firmada";
+    public const string FirmaRechazada = "rechazada";
+
     public sealed record ResumenPlan(
         int TotalTareas,
         int Completadas,
@@ -73,6 +83,62 @@ public static class ImplementacionCalculos
            && asignadoUserId.HasValue
            && usuarioActual.HasValue
            && asignadoUserId.Value == usuarioActual.Value;
+
+    /// <summary>
+    /// Normaliza el tipo de cronograma: null/vacío → "implementacion" (default histórico);
+    /// otro valor debe ser un tipo conocido o lanza <see cref="InvalidOperationException"/>.
+    /// </summary>
+    public static string NormalizarTipoPlan(string? tipo)
+    {
+        var t = (tipo ?? "").Trim().ToLowerInvariant();
+        if (t.Length == 0) return TipoImplementacion;
+        if (t is TipoImplementacion or TipoCapacitacion or TipoMixto) return t;
+        throw new InvalidOperationException(
+            "Tipo de cronograma inválido; use 'implementacion', 'capacitacion' o 'mixto'.");
+    }
+
+    public sealed record ResumenFirmas(
+        int Total,
+        int Firmadas,
+        int Rechazadas,
+        int Pendientes,
+        decimal PorcentajeFirmado);
+
+    /// <summary>
+    /// Resumen de firmas de participantes. Pendientes = total − firmadas − rechazadas (mínimo 0).
+    /// Porcentaje 0–100 con 1 decimal (AwayFromZero, igual que los % de avance); total 0 → 0 %.
+    /// </summary>
+    public static ResumenFirmas CalcularResumenFirmas(int total, int firmadas, int rechazadas)
+    {
+        if (total <= 0)
+            return new ResumenFirmas(0, 0, 0, 0, 0m);
+
+        var pendientes = Math.Max(0, total - firmadas - rechazadas);
+        var pct = Math.Round(100m * firmadas / total, 1, MidpointRounding.AwayFromZero);
+        return new ResumenFirmas(total, firmadas, rechazadas, pendientes, pct);
+    }
+
+    /// <summary>Firmar: vale desde pendiente y también desde rechazada (el participante se retracta de la novedad).</summary>
+    public static bool PuedeFirmar(string estadoFirma)
+        => estadoFirma is FirmaPendiente or FirmaRechazada;
+
+    /// <summary>Rechazar (novedad): solo desde pendiente; una firma ya digitada no se puede rechazar.</summary>
+    public static bool PuedeRechazar(string estadoFirma)
+        => estadoFirma == FirmaPendiente;
+
+    /// <summary>
+    /// Valida y normaliza la firma digitada: obligatoria, 3–300 caracteres tras trim.
+    /// Devuelve el texto normalizado o lanza <see cref="InvalidOperationException"/>.
+    /// </summary>
+    public static string ValidarFirmaTexto(string? firma)
+    {
+        var f = (firma ?? "").Trim();
+        if (f.Length < 3)
+            throw new InvalidOperationException("La firma es obligatoria (escribí tu nombre completo, mínimo 3 caracteres).");
+        if (f.Length > 300)
+            throw new InvalidOperationException("La firma supera el máximo de 300 caracteres.");
+        return f;
+    }
 
     /// <summary>
     /// Checklist estándar de entrega de la aplicación, usado al crear un plan con "usar plantilla".

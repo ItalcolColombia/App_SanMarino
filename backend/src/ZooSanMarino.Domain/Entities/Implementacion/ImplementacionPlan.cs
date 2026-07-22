@@ -15,11 +15,26 @@ public class ImplementacionPlan : AuditableEntity
     public string Nombre { get; set; } = null!;
     public string? Descripcion { get; set; }
 
+    /// <summary>"implementacion" | "capacitacion" | "mixto" (entrega + capacitación).</summary>
+    public string Tipo { get; set; } = "implementacion";
+
     public DateTime? FechaInicio { get; set; }
     public DateTime? FechaFin { get; set; }
 
     /// <summary>"borrador" | "en_progreso" | "completado" | "cancelado".</summary>
     public string Estado { get; set; } = "borrador";
 
+    /// <summary>
+    /// Encargado/implementador responsable de la entrega (Guid real de <c>users.id</c>).
+    /// Si al crear no se elige un "implementador diferente", queda el mismo creador.
+    /// </summary>
+    public Guid? ImplementadorUserId { get; set; }
+
+    /// <summary>Guid real del creador (la auditoría int heredada no permite joinear nombre/correo).</summary>
+    public Guid? CreadoPorUserGuid { get; set; }
+
     public ICollection<ImplementacionTarea> Tareas { get; set; } = new List<ImplementacionTarea>();
+
+    public User? ImplementadorUser { get; set; }
+    public User? CreadoPorUser { get; set; }
 }

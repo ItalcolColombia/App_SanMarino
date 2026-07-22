@@ -142,6 +142,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // Módulo Implementación (cronogramas de entrega por empresa con checklist confirmable)
         public DbSet<ImplementacionPlan> ImplementacionPlanes => Set<ImplementacionPlan>();
         public DbSet<ImplementacionTarea> ImplementacionTareas => Set<ImplementacionTarea>();
+        public DbSet<ImplementacionTareaFirma> ImplementacionTareaFirmas => Set<ImplementacionTareaFirma>();
 
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote

@@ -133,4 +133,92 @@ public class ImplementacionCalculosTests
         Assert.Contains("Carga de datos", categorias);
         Assert.Contains("Puesta en marcha", categorias);
     }
+
+    // ── NormalizarTipoPlan ───────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(null, "implementacion")]           // default histórico
+    [InlineData("", "implementacion")]
+    [InlineData("   ", "implementacion")]
+    [InlineData("implementacion", "implementacion")]
+    [InlineData("capacitacion", "capacitacion")]
+    [InlineData("mixto", "mixto")]
+    [InlineData("  Capacitacion  ", "capacitacion")] // trim + case-insensitive
+    public void TipoPlan_NormalizaValidos(string? entrada, string esperado)
+        => Assert.Equal(esperado, ImplementacionCalculos.NormalizarTipoPlan(entrada));
+
+    [Theory]
+    [InlineData("entrenamiento")]
+    [InlineData("otro")]
+    public void TipoPlan_InvalidoLanza(string entrada)
+        => Assert.Throws<InvalidOperationException>(() => ImplementacionCalculos.NormalizarTipoPlan(entrada));
+
+    // ── CalcularResumenFirmas ────────────────────────────────────────────────
+
+    [Fact]
+    public void ResumenFirmas_SinParticipantes_TodoCero()
+    {
+        var r = ImplementacionCalculos.CalcularResumenFirmas(0, 0, 0);
+        Assert.Equal(0, r.Total);
+        Assert.Equal(0, r.Pendientes);
+        Assert.Equal(0m, r.PorcentajeFirmado);
+    }
+
+    [Fact]
+    public void ResumenFirmas_Mixto_CuentaPendientesYPorcentaje()
+    {
+        // 5 participantes: 2 firmaron, 1 novedad → 2 pendientes, 40 % firmado.
+        var r = ImplementacionCalculos.CalcularResumenFirmas(5, 2, 1);
+        Assert.Equal(2, r.Pendientes);
+        Assert.Equal(1, r.Rechazadas);
+        Assert.Equal(40m, r.PorcentajeFirmado);
+    }
+
+    [Theory]
+    [InlineData(3, 1, 0, 33.3)]  // 33.33… → 33.3 (1 decimal AwayFromZero, igual que avance)
+    [InlineData(3, 2, 1, 66.7)]  // 66.66… → 66.7
+    [InlineData(8, 1, 0, 12.5)]  // exacto
+    public void ResumenFirmas_RedondeaAUnDecimal(int total, int firmadas, int rechazadas, decimal esperado)
+        => Assert.Equal(esperado, ImplementacionCalculos.CalcularResumenFirmas(total, firmadas, rechazadas).PorcentajeFirmado);
+
+    // ── PuedeFirmar / PuedeRechazar ──────────────────────────────────────────
+
+    [Fact]
+    public void Firma_PendienteSePuedeFirmarYRechazar()
+    {
+        Assert.True(ImplementacionCalculos.PuedeFirmar("pendiente"));
+        Assert.True(ImplementacionCalculos.PuedeRechazar("pendiente"));
+    }
+
+    [Fact]
+    public void Firma_RechazadaPuedeRetractarseFirmandoPeroNoReRechazar()
+    {
+        Assert.True(ImplementacionCalculos.PuedeFirmar("rechazada"));
+        Assert.False(ImplementacionCalculos.PuedeRechazar("rechazada"));
+    }
+
+    [Fact]
+    public void Firma_FirmadaNoAdmiteNada()
+    {
+        Assert.False(ImplementacionCalculos.PuedeFirmar("firmada"));
+        Assert.False(ImplementacionCalculos.PuedeRechazar("firmada"));
+    }
+
+    // ── ValidarFirmaTexto ────────────────────────────────────────────────────
+
+    [Fact]
+    public void FirmaTexto_ValidaYTrimea()
+        => Assert.Equal("Moisés Murillo", ImplementacionCalculos.ValidarFirmaTexto("  Moisés Murillo  "));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ab ")]  // < 3 tras trim
+    public void FirmaTexto_CortaOVaciaLanza(string? firma)
+        => Assert.Throws<InvalidOperationException>(() => ImplementacionCalculos.ValidarFirmaTexto(firma));
+
+    [Fact]
+    public void FirmaTexto_MayorA300Lanza()
+        => Assert.Throws<InvalidOperationException>(
+            () => ImplementacionCalculos.ValidarFirmaTexto(new string('a', 301)));
 }
