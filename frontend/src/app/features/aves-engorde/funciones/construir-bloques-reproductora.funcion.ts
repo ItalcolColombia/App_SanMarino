@@ -22,6 +22,7 @@ import {
   SeguimientoPrimeraSemanaLike,
   TotalesBloque
 } from '../models/reproductora-primera-semana.model';
+import { ymdSinTz } from '../../../shared/utils/format';
 
 const MAX_DIAS = 7;
 
@@ -29,9 +30,9 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Fecha ISO → días UTC (ignora hora y zona horaria: usa solo YYYY-MM-DD). */
+/** Fecha ISO → días UTC de la fecha intencional (con offset usa la fecha UTC del instante). */
 function diasUtc(iso: string): number | null {
-  const ymd = (iso ?? '').slice(0, 10);
+  const ymd = ymdSinTz(iso) ?? '';
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
   if (!m) return null;
   return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000);

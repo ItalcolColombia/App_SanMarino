@@ -16,6 +16,7 @@ import { CatalogoAlimentosService } from '../../../catalogo-alimentos/services/c
 import { GestionInventarioService } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
+import { toYMD } from '../../funciones/fecha.funcion';
 
 export interface ItemDetalleEngorde {
   catalogItemId: number;
@@ -166,7 +167,8 @@ export class ModalDetalleSeguimientoEngordeComponent implements OnChanges {
 
   formatDate(date: string | Date | null | undefined): string {
     if (!date) return '—';
-    const ymd = String(date).slice(0, 10);
+    // toYMD es tz-aware: no resta un día cuando la API devuelve la fecha con offset
+    const ymd = toYMD(date instanceof Date ? date : String(date)) ?? String(date).slice(0, 10);
     const [y, m, d] = ymd.split('-');
     return `${d}/${m}/${y}`;
   }

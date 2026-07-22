@@ -60,7 +60,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
         var ent = new SeguimientoDiarioAvesEngorde
         {
             LoteAveEngordeId = dto.LoteId,
-            Fecha = dto.FechaRegistro,
+            Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro),
             MortalidadHembras = dto.MortalidadHembras,
             MortalidadMachos = dto.MortalidadMachos,
             SelH = dto.SelH,
@@ -217,7 +217,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
             ? ParseMetadataItemsToKgPorOrigen(ent.Metadata.RootElement)
             : new Dictionary<ItemConsumoKey, decimal>();
 
-        ent.Fecha = dto.FechaRegistro;
+        ent.Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         ent.MortalidadHembras = dto.MortalidadHembras;
         ent.MortalidadMachos = dto.MortalidadMachos;
         ent.SelH = dto.SelH;

@@ -8,6 +8,7 @@ import {
   GuiaGeneticaEcuadorService
 } from '../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
 import { IndicadorDiarioFilaEngorde } from '../models/indicadores-diarios-engorde.models';
+import { ymdSinTz } from '../../../shared/utils/format';
 
 interface MetadataItem {
   unidad?: string;
@@ -349,9 +350,9 @@ export class IndicadoresDiariosEngordeComputeService {
       return null;
     }
     if (typeof value === 'string') {
-      const m = value.match(/^(\d{4}-\d{2}-\d{2})/);
-      if (m) {
-        return m[1];
+      const ymd = ymdSinTz(value); // tz-aware: con Z/offset usa la fecha UTC del instante
+      if (ymd) {
+        return ymd;
       }
       const d = new Date(value);
       if (isNaN(d.getTime())) {

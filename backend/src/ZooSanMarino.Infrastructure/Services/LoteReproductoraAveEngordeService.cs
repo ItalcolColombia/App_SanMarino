@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/LoteReproductoraAveEngordeService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -195,7 +196,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             ReproductoraId = (dto.ReproductoraId ?? "").Trim(),
             NombreLote = (dto.NombreLote ?? "").Trim(),
             CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim(),
-            FechaEncasetamiento = dto.FechaEncasetamiento?.ToUniversalTime(),
+            FechaEncasetamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento),
             M = dto.M ?? 0,
             H = dto.H ?? 0,
             AvesInicioHembras = dto.H ?? 0,
@@ -282,7 +283,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 ReproductoraId = (dto.ReproductoraId ?? "").Trim(),
                 NombreLote = (dto.NombreLote ?? "").Trim(),
                 CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim(),
-                FechaEncasetamiento = dto.FechaEncasetamiento?.ToUniversalTime(),
+                FechaEncasetamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento),
                 M = dto.M ?? 0,
                 H = dto.H ?? 0,
                 AvesInicioHembras = dto.H ?? 0,
@@ -336,7 +337,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
 
         ent.NombreLote = (dto.NombreLote ?? "").Trim();
         ent.CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim();
-        ent.FechaEncasetamiento = dto.FechaEncasetamiento?.ToUniversalTime();
+        ent.FechaEncasetamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento);
         ent.M = dto.M;
         ent.H = dto.H;
         ent.Mixtas = dto.Mixtas;

@@ -140,13 +140,17 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteReproductoraId, DateTime? desde, DateTime? hasta)
     {
         var companyId = _current.CompanyId;
+        // Rango por DÍA completo en UTC: las fechas se guardan ancladas a mediodía UTC
+        // (FechasPuras), así que un "hasta" a medianoche excluiría los registros de ese día.
+        var desdeUtc = FechasPuras.AnclarMediodiaUtc(desde)?.AddHours(-12);
+        var hastaExcl = FechasPuras.AnclarMediodiaUtc(hasta)?.AddHours(12);
         var q = from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
                 join l in _ctx.LoteReproductoraAveEngorde.AsNoTracking() on s.LoteReproductoraAveEngordeId equals l.Id
                 join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
                 where lae.CompanyId == companyId && lae.DeletedAt == null
                    && (!loteReproductoraId.HasValue || s.LoteReproductoraAveEngordeId == loteReproductoraId.Value)
-                   && (!desde.HasValue || s.Fecha >= desde.Value)
-                   && (!hasta.HasValue || s.Fecha <= hasta.Value)
+                   && (!desdeUtc.HasValue || s.Fecha >= desdeUtc.Value)
+                   && (!hastaExcl.HasValue || s.Fecha < hastaExcl.Value)
                 orderby s.Fecha
                 select s;
         var list = await q.ToListAsync();
@@ -176,7 +180,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var ent = new SeguimientoDiarioLoteReproductoraAvesEngorde
         {
             LoteReproductoraAveEngordeId = dto.LoteId,
-            Fecha = dto.FechaRegistro,
+            Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro),
             MortalidadHembras = dto.MortalidadHembras,
             MortalidadMachos = dto.MortalidadMachos,
             SelH = dto.SelH,
@@ -261,7 +265,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             ? ParseMetadataItemsToKg(ent.Metadata.RootElement)
             : new Dictionary<int, decimal>();
 
-        ent.Fecha = dto.FechaRegistro;
+        ent.Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         ent.MortalidadHembras = dto.MortalidadHembras;
         ent.MortalidadMachos = dto.MortalidadMachos;
         ent.SelH = dto.SelH;

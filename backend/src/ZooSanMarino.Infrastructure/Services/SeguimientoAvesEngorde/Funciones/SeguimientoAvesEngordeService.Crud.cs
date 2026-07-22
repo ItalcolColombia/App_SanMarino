@@ -116,7 +116,7 @@ public partial class SeguimientoAvesEngordeService
         var ent = new SeguimientoDiarioAvesEngorde
         {
             LoteAveEngordeId = dto.LoteId,
-            Fecha = dto.FechaRegistro,
+            Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro),
             MortalidadHembras = dto.MortalidadHembras,
             MortalidadMachos = dto.MortalidadMachos,
             SelH = dto.SelH,
@@ -265,7 +265,7 @@ public partial class SeguimientoAvesEngordeService
         var oldHRet = (ent.MortalidadHembras ?? 0) + (ent.SelH ?? 0) + (ent.ErrorSexajeHembras ?? 0);
         var oldMRet = (ent.MortalidadMachos ?? 0) + (ent.SelM ?? 0) + (ent.ErrorSexajeMachos ?? 0);
 
-        ent.Fecha = dto.FechaRegistro;
+        ent.Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         ent.MortalidadHembras = dto.MortalidadHembras;
         ent.MortalidadMachos = dto.MortalidadMachos;
         ent.SelH = dto.SelH;

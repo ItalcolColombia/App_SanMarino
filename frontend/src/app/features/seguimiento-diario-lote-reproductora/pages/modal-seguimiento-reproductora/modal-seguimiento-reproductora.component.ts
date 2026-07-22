@@ -10,6 +10,7 @@ import { CountryFilterService } from '../../../../core/services/country/country-
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { catchError, finalize } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 
 interface CatalogItemExtended {
   id: number;
@@ -367,7 +368,7 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     const cantH = primerH?.cantidad ?? null;
     const cantM = primerM?.cantidad ?? null;
 
-    const fecha = e.fecha ? new Date(e.fecha).toISOString().substring(0, 10) : this.todayYMD();
+    const fecha = ymdSinTz(e.fecha) ?? this.todayYMD();
     this.form.patchValue({
       fecha,
       loteId: String(e.loteId),
@@ -432,7 +433,8 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     if (itemsMachos)  metadata.itemsMachos  = itemsMachos;
 
     const payload: any = {
-      fecha: new Date(raw.fecha).toISOString(),
+      // Mediodía UTC: la fecha "pura" no cruza de día al mostrarse en UTC-5
+      fecha: ymdToIsoUtcNoon(raw.fecha) ?? new Date(raw.fecha).toISOString(),
       loteId: Number(raw.loteId),
       reproductoraId: raw.reproductoraId,
       mortalidadH: raw.mortalidadH, mortalidadM: raw.mortalidadM,

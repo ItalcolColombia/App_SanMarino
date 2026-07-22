@@ -16,6 +16,7 @@ import {
 } from '../../services/lote-reproductora-ave-engorde.service';
 import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
 import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
+import { ymdSinTz } from '../../../../shared/utils/format';
 // ShowIfCountryDirective removed — not used in this component
 
 @Component({
@@ -259,7 +260,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
         reproductoraId: (v.reproductoraId ?? '').trim(),
         codigoReproductora: v.codigoReproductora?.trim() || null,
         nombreLote: (v.nombreLote ?? '').trim(),
-        fechaEncasetamiento: v.fechaEncasetamiento ? new Date(v.fechaEncasetamiento).toISOString() : null,
+        fechaEncasetamiento: v.fechaEncasetamiento || null, // YYYY-MM-DD crudo: el service lo ancla a mediodía UTC
         m: v.m ?? 0,
         h: v.h ?? 0,
         mixtas: v.mixtas ?? 0,
@@ -361,7 +362,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       nombreLote: r.nombreLote ?? '',
       reproductoraId: r.reproductoraId ?? '',
       codigoReproductora: r.codigoReproductora ?? null,
-      fechaEncasetamiento: r.fechaEncasetamiento ? r.fechaEncasetamiento.slice(0, 10) : '',
+      fechaEncasetamiento: ymdSinTz(r.fechaEncasetamiento) ?? '',
       m: r.m ?? 0, h: r.h ?? 0, mixtas: r.mixtas ?? 0,
       mortCajaH: r.mortCajaH ?? 0, mortCajaM: r.mortCajaM ?? 0,
       unifH: r.unifH ?? null, unifM: r.unifM ?? null,
@@ -424,7 +425,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
         reproductoraId: (v.reproductoraId ?? this.editing.reproductoraId ?? '').trim(),
         codigoReproductora: v.codigoReproductora?.trim() || null,
         nombreLote: (v.nombreLote ?? '').trim(),
-        fechaEncasetamiento: v.fechaEncasetamiento ? new Date(v.fechaEncasetamiento).toISOString() : null,
+        fechaEncasetamiento: v.fechaEncasetamiento || null, // YYYY-MM-DD crudo: el service lo ancla a mediodía UTC
         m: v.m ?? null, h: v.h ?? null, mixtas: v.mixtas ?? null,
         mortCajaH: v.mortCajaH ?? null, mortCajaM: v.mortCajaM ?? null,
         unifH: v.unifH ?? null, unifM: v.unifM ?? null,
@@ -480,8 +481,9 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   }
 
   formatDate(s: string | null | undefined): string {
-    if (!s) return '—';
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es');
+    // Fecha "pura": extraer el día intencional sin restar un día por zona horaria
+    const ymd = ymdSinTz(s);
+    if (!ymd) return '—';
+    return new Date(ymd + 'T00:00:00').toLocaleDateString('es');
   }
 }

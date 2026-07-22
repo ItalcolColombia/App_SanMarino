@@ -21,6 +21,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
 import { ShowIfCountryDirective } from '../../../../core/directives/show-if-country.directive';
 import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { ymdSinTz } from '../../../../shared/utils/format';
 import { LesionService } from '../../../lesiones/services/lesion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LoteReproductoraAveEngordeService, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
@@ -151,13 +152,13 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   get nextSuggestedFecha(): string {
     if (this.seguimientos.length === 0) {
       // Primer registro: día siguiente al encasetamiento (día 1 = encasetamiento + 1)
-      const enc = this.selectedReproductoraDetail?.fechaEncasetamiento;
-      if (enc) return this.addDaysToYmd(String(enc).slice(0, 10), 1);
+      const enc = ymdSinTz(this.selectedReproductoraDetail?.fechaEncasetamiento);
+      if (enc) return this.addDaysToYmd(enc, 1);
       return this.todayYmd();
     }
     // Registro N: último registrado + 1 día
     const last = this.seguimientos[this.seguimientos.length - 1];
-    const lastFecha = last?.fechaRegistro ? String(last.fechaRegistro).slice(0, 10) : this.todayYmd();
+    const lastFecha = ymdSinTz(last?.fechaRegistro) ?? this.todayYmd();
     return this.addDaysToYmd(lastFecha, 1);
   }
 
@@ -168,7 +169,9 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   private todayYmd(): string {
-    return new Date().toISOString().slice(0, 10);
+    // Fecha LOCAL (toISOString daría el día siguiente después de las 19:00 en UTC-5)
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   faPlus = faPlus;
@@ -593,10 +596,13 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
    * Devuelve null si alguna fecha no está disponible o la fecha es anterior al encasetamiento.
    */
   calcularEdad(fechaRegistro: string | Date | null | undefined): number | null {
-    const base = this.selectedReproductoraDetail?.fechaEncasetamiento;
-    if (!base || !fechaRegistro) return null;
-    const inicio = new Date(base);
-    const registro = new Date(fechaRegistro);
+    // Días de calendario sobre la fecha intencional: con instantes crudos, un encaset a
+    // medianoche y un registro a mediodía difieren 0.5 días y Math.round sumaría un día.
+    const baseYmd = ymdSinTz(this.selectedReproductoraDetail?.fechaEncasetamiento);
+    const regYmd = ymdSinTz(fechaRegistro);
+    if (!baseYmd || !regYmd) return null;
+    const inicio = new Date(baseYmd + 'T00:00:00');
+    const registro = new Date(regYmd + 'T00:00:00');
     if (isNaN(inicio.getTime()) || isNaN(registro.getTime())) return null;
     const dias = Math.round((registro.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
     return dias > 0 ? dias : null;

@@ -26,6 +26,7 @@ import { ModalDetalleSeguimientoEngordeComponent } from '../modal-detalle-seguim
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { TabsPrincipalEngordeComponent } from '../tabs-principal-engorde/tabs-principal-engorde.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { ymdSinTz } from '../../../../shared/utils/format';
 import {
   CatalogoAlimentosService,
   CatalogItemDto,
@@ -662,8 +663,9 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       return `${input.getFullYear()}-${String(input.getMonth() + 1).padStart(2, '0')}-${String(input.getDate()).padStart(2, '0')}`;
     }
     const s = String(input).trim();
-    const head = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (head) return `${head[1]}-${head[2]}-${head[3]}`;
+    // tz-aware: sin zona → literal; con Z/offset → fecha UTC del instante
+    const ymd = ymdSinTz(s);
+    if (ymd) return ymd;
     const d = new Date(s);
     if (!isNaN(d.getTime())) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
