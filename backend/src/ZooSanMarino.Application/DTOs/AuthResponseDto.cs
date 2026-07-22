@@ -33,6 +33,9 @@ public class AuthResponseDto
 
     /// <summary>Lista de permisos asignados por los roles</summary>
     public List<string> Permisos { get; set; } = new();
+
+    /// <summary>Indica si el usuario es Super Admin (Admin General). Gatea funciones exclusivas en el front.</summary>
+    public bool IsSuperAdmin { get; set; }
     
       // NUEVO: ids de menús por rol
     public List<RoleMenusLiteDto> MenusByRole { get; set; } = new();

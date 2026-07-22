@@ -28,6 +28,16 @@ public interface IFarmService
     Task<IEnumerable<FarmDto>> GetAllAsync(Guid? userId = null, int? companyId = null);
 
     /// <summary>
+    /// Granjas asignables al configurar usuarios (modal "Asignar Granjas").
+    ///   • Si el usuario actual es Administrador de Empresa (rol con <c>is_company_admin</c> para la
+    ///     empresa activa) o Super Admin → TODAS las granjas activas y no eliminadas de la empresa activa,
+    ///     omitiendo el filtro de granjas asignadas al propio usuario.
+    ///   • En caso contrario → solo las granjas de la empresa activa asignadas al usuario actual (UserFarms).
+    /// Filtra siempre por empresa activa + <c>status='A'</c> + <c>deleted_at IS NULL</c>.
+    /// </summary>
+    Task<IEnumerable<FarmDto>> GetAssignableFarmsAsync();
+
+    /// <summary>
     /// Feature 13: lista de granjas válidas como destino de traslado de aves
     /// entre seguimientos diarios. Filtra automáticamente por:
     ///   • CompanyId del usuario actual (token).

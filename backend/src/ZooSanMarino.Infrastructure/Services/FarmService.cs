@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
+using ZooSanMarino.Application.Calculos;                      // RoleAdminCalculos (lógica pura)
 using ZooSanMarino.Application.DTOs;                          // FarmDto, Create/Update
 using AppInterfaces = ZooSanMarino.Application.Interfaces;   // IFarmService, ICurrentUser
 using CommonDtos   = ZooSanMarino.Application.DTOs.Common;   // PagedResult<>
@@ -388,6 +389,65 @@ namespace ZooSanMarino.Infrastructure.Services
 
             Console.WriteLine($"=== FarmService.GetAllAsync - Devolviendo {result.Count} granjas ===");
             return result;
+        }
+
+        // ======================================================
+        // ASIGNAR GRANJAS — granjas asignables al configurar usuarios
+        // ======================================================
+        // Admin de Empresa (flag is_company_admin) o Super Admin → TODAS las granjas activas de la
+        // empresa activa. Resto → solo las granjas de la empresa activa asignadas al propio usuario.
+        public async Task<IEnumerable<FarmDto>> GetAssignableFarmsAsync()
+        {
+            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+
+            var esAdminEmpresa = await IsCurrentUserCompanyAdminAsync(effectiveCompanyId);
+            var esSuperAdmin   = await IsSuperAdminAsync(_current.UserId);
+            var verTodas       = RoleAdminCalculos.PuedeVerTodasLasGranjas(esAdminEmpresa, esSuperAdmin);
+
+            // Base: empresa activa + no eliminadas + activas ('A' o NULL por compatibilidad histórica).
+            var query = _ctx.Farms
+                .AsNoTracking()
+                .Where(f => f.CompanyId == effectiveCompanyId
+                         && f.DeletedAt == null
+                         && (f.Status == null || f.Status == "A"));
+
+            if (!verTodas)
+            {
+                // Comportamiento actual para no-admin: solo las granjas asignadas al usuario logueado.
+                var guid = _current.UserGuid;
+                if (!guid.HasValue) return Array.Empty<FarmDto>();
+
+                var userFarmIds = await _ctx.UserFarms
+                    .AsNoTracking()
+                    .Where(uf => uf.UserId == guid.Value)
+                    .Select(uf => uf.FarmId)
+                    .Distinct()
+                    .ToListAsync();
+
+                query = userFarmIds.Any()
+                    ? query.Where(f => userFarmIds.Contains(f.Id))
+                    : query.Where(f => f.Id == -1); // sin asignaciones → lista vacía
+            }
+
+            Console.WriteLine($"=== FarmService.GetAssignableFarmsAsync - company={effectiveCompanyId}, verTodas={verTodas} ===");
+            var result = await ToFarmDtoListAsync(query);
+            Console.WriteLine($"=== FarmService.GetAssignableFarmsAsync - Devolviendo {result.Count} granjas ===");
+            return result;
+        }
+
+        /// <summary>
+        /// El usuario actual es Administrador de Empresa para la empresa indicada si tiene algún
+        /// <c>user_roles</c> en esa empresa cuyo rol tenga <c>is_company_admin = true</c>.
+        /// </summary>
+        private async Task<bool> IsCurrentUserCompanyAdminAsync(int companyId)
+        {
+            var guid = _current.UserGuid;
+            if (!guid.HasValue) return false;
+
+            return await _ctx.UserRoles
+                .AsNoTracking()
+                .Where(ur => ur.UserId == guid.Value && ur.CompanyId == companyId)
+                .AnyAsync(ur => ur.Role.IsCompanyAdmin);
         }
 
         // ======================================================

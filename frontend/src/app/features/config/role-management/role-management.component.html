@@ -743,6 +743,23 @@ MODAL: ROL (crear / editar)
                 class="rm-form-input" />
                 <p class="rm-form-hint">Usa nombres claros y específicos que describan el alcance del rol.</p>
               </div>
+
+              <!-- Administrador de Empresa/País: solo visible para Super Admin -->
+              @if (isSuperAdminUser) {
+                <div class="rm-form-section">
+                  <label class="rm-check-item">
+                    <input type="checkbox" formControlName="isCompanyAdmin" class="rm-check" />
+                    <span class="rm-check-item__text">
+                      <span class="rm-check-item__key">Es Administrador de Empresa/País</span>
+                      <small class="rm-check-item__desc">
+                        Otorga visibilidad global de las entidades activas de la empresa: los usuarios con
+                        este rol verán el 100% de las granjas activas de su empresa al asignar granjas a
+                        otros usuarios. Solo un Super Admin puede activar esta opción.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+              }
             }
             <!-- ── Paso 2: Permisos ─────────────────────────────────────────────── -->
             @if (roleModalTab === 'permisos') {

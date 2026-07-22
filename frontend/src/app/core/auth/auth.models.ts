@@ -58,6 +58,7 @@ export interface LoginResult {
   empresas?: string[];       // ["Agricola sanmarino", ...] - legacy
   companyPaises?: CompanyPais[]; // ← NUEVO: combinaciones empresa-país
   permisos?: string[];
+  isSuperAdmin?: boolean;         // ← NUEVO: Super Admin (Admin General)
   menusByRole?: RoleMenusLite[]; // 👈 NUEVO
   menu?: MenuItem[];             // 👈 NUEVO (árbol efectivo)
 }
@@ -75,6 +76,7 @@ export interface AuthSession {
     fullName?: string;
     roles?: string[];
     permisos?: string[];
+    isSuperAdmin?: boolean;          // Super Admin (Admin General): gatea funciones exclusivas
     hasMultipleCompanies?: boolean;  // Indica si el usuario tiene múltiples empresas
   };
 

@@ -269,6 +269,7 @@ public class AuthController : ControllerBase
         var companies= User.FindAll("company").Select(c => c.Value).Distinct().ToArray();
         var companyIds = User.FindAll("company_id").Select(c => c.Value).Distinct().ToArray();
         var permissions = User.FindAll("permission").Select(c => c.Value).Distinct().ToArray();
+        var isSuperAdmin = string.Equals(email, "moiesbbuga@gmail.com", StringComparison.OrdinalIgnoreCase);
 
         return Ok(new
         {
@@ -279,7 +280,8 @@ public class AuthController : ControllerBase
             roles,
             companies,
             companyIds,
-            permissions
+            permissions,
+            isSuperAdmin
         });
     }
 
