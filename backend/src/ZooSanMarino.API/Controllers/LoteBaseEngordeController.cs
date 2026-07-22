@@ -19,11 +19,25 @@ public class LoteBaseEngordeController : ControllerBase
 
     public LoteBaseEngordeController(ILoteBaseEngordeService svc) => _svc = svc;
 
-    /// <summary>Lista los lotes base vivos de la empresa efectiva.</summary>
+    /// <summary>
+    /// Lista los lotes base vivos de la empresa efectiva. Con soloVigentes=true devuelve
+    /// solo los activos y del año en curso (selector de crear-lote en Panamá).
+    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<LoteBaseEngordeDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<LoteBaseEngordeDto>>> GetAll(CancellationToken ct) =>
-        Ok(await _svc.GetAllAsync(ct));
+    public async Task<ActionResult<IReadOnlyList<LoteBaseEngordeDto>>> GetAll(
+        [FromQuery] bool soloVigentes = false, CancellationToken ct = default) =>
+        Ok(await _svc.GetAllAsync(soloVigentes, ct));
+
+    /// <summary>Activa/desactiva manualmente el lote base (inactivo no aparece en el selector de crear-lote).</summary>
+    [HttpPut("{id:int}/activo")]
+    [ProducesResponseType(typeof(LoteBaseEngordeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteBaseEngordeDto>> SetActivo(int id, [FromBody] SetActivoLoteBaseEngordeDto body, CancellationToken ct)
+    {
+        var res = await _svc.SetActivoAsync(id, body.Activo, ct);
+        return res is null ? NotFound() : Ok(res);
+    }
 
     /// <summary>Crea un lote base (nombre único por empresa).</summary>
     [HttpPost]

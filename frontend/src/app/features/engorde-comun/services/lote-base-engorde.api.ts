@@ -16,6 +16,10 @@ export interface LoteBaseEngordeDto {
   descripcion?: string | null;
   codigoErp?: string | null;
   lineaGenetica?: string | null;
+  /** Fecha de activación (ISO). Vigencia por AÑO: aparece en crear-lote solo durante ese año; null = siempre. */
+  fechaActivacion?: string | null;
+  /** Desactivación manual: inactivo no aparece en el selector de crear-lote. */
+  activo: boolean;
   /** Lotes de engorde vivos amarrados a este lote base. */
   lotesAsignados: number;
   createdAt?: string;
@@ -26,6 +30,8 @@ export interface LoteBaseEngordePayload {
   descripcion?: string | null;
   codigoErp?: string | null;
   lineaGenetica?: string | null;
+  /** 'yyyy-MM-dd'. */
+  fechaActivacion?: string | null;
 }
 
 /**
@@ -44,8 +50,16 @@ export class LoteBaseEngordeApi {
   private readonly baseUrl = `${environment.apiUrl}/LoteBaseEngorde`;
   private readonly http = inject(HttpClient);
 
-  getAll(): Observable<LoteBaseEngordeDto[]> {
-    return this.http.get<LoteBaseEngordeDto[]>(this.baseUrl);
+  /** soloVigentes: solo activos y del año en curso (selector de crear-lote en Panamá). */
+  getAll(soloVigentes = false): Observable<LoteBaseEngordeDto[]> {
+    return this.http.get<LoteBaseEngordeDto[]>(this.baseUrl, {
+      params: soloVigentes ? { soloVigentes: true } : {}
+    });
+  }
+
+  /** Toggle manual de activación. */
+  setActivo(id: number, activo: boolean): Observable<LoteBaseEngordeDto> {
+    return this.http.put<LoteBaseEngordeDto>(`${this.baseUrl}/${id}/activo`, { activo });
   }
 
   create(dto: LoteBaseEngordePayload): Observable<LoteBaseEngordeDto> {

@@ -17,6 +17,8 @@ public class LoteBaseEngordeConfiguration : IEntityTypeConfiguration<LoteBaseEng
         b.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(300);
         b.Property(x => x.CodigoErp).HasColumnName("codigo_erp").HasMaxLength(80);
         b.Property(x => x.LineaGenetica).HasColumnName("linea_genetica").HasMaxLength(120);
+        b.Property(x => x.FechaActivacion).HasColumnName("fecha_activacion").HasColumnType("date");
+        b.Property(x => x.Activo).HasColumnName("activo").HasDefaultValue(true);
 
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id");

@@ -22,11 +22,14 @@
         }
       </div>
       <div class="le-header__actions">
-        <ng-container *appHasPermission="permLoteBase.ver">
-          <button type="button" (click)="abrirLotesBaseModal()" class="le-btn le-btn--muted">
-            <span>Lotes base</span>
-          </button>
-        </ng-container>
+        <!-- Ecuador: gestión de lotes base en modal (Panamá la tiene en tab) -->
+        @if (!esPanama) {
+          <ng-container *appHasPermission="permLoteBase.ver">
+            <button type="button" (click)="abrirLotesBaseModal()" class="le-btn le-btn--muted">
+              <span>Lotes base</span>
+            </button>
+          </ng-container>
+        }
         <button type="button" (click)="openModal()" class="le-btn le-btn--primary">
           <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
           <span>Nuevo Lote de Engorde</span>
@@ -34,6 +37,31 @@
       </div>
     </header>
 
+    <!-- Panamá: tabs Lotes de engorde | Lotes base -->
+    @if (esPanama) {
+      <div class="flex items-center gap-1 border-b border-gray-200 mb-3">
+        <button type="button" (click)="tabActiva = 'lotes'"
+          class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px"
+          [class.border-ital-orange]="tabActiva === 'lotes'"
+          [class.text-ital-orange]="tabActiva === 'lotes'"
+          [class.border-transparent]="tabActiva !== 'lotes'"
+          [class.text-gray-500]="tabActiva !== 'lotes'">
+          Lotes de engorde
+        </button>
+        <ng-container *appHasPermission="permLoteBase.ver">
+          <button type="button" (click)="tabActiva = 'lotes-base'; loadLotesBasePublico()"
+            class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px"
+            [class.border-ital-orange]="tabActiva === 'lotes-base'"
+            [class.text-ital-orange]="tabActiva === 'lotes-base'"
+            [class.border-transparent]="tabActiva !== 'lotes-base'"
+            [class.text-gray-500]="tabActiva !== 'lotes-base'">
+            Lotes base
+          </button>
+        </ng-container>
+      </div>
+    }
+
+    @if (!esPanama || tabActiva === 'lotes') {
     <!-- Filtros -->
     <section class="le-card le-card--filters" role="group" aria-labelledby="le-filtros-title">
       <h2 id="le-filtros-title" class="le-card__title">
@@ -248,6 +276,16 @@
           </div>
         }
       </section>
+      }
+
+      <!-- Panamá: tab de gestión de lotes base -->
+      @if (esPanama && tabActiva === 'lotes-base') {
+        <ng-container *appHasPermission="permLoteBase.ver">
+          <section class="le-card">
+            <ng-container [ngTemplateOutlet]="gestionLotesBaseTpl"></ng-container>
+          </section>
+        </ng-container>
+      }
 
       <!-- MODAL: Crear / Editar -->
       @if (modalOpen) {
@@ -311,9 +349,26 @@
                   <div class="le-form-grid">
                     <div class="le-field">
                       <label class="le-label">Nombre del lote <span class="le-req">*</span></label>
-                      <input formControlName="loteNombre" class="le-input" placeholder="Ej: Lote 001" [class.le-input--invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"/>
-                      @if (form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched) {
-                        <small class="le-error">El nombre es requerido</small>
+                      @if (esPanama) {
+                        <!-- Panamá: el nombre sale del lote base VIGENTE (activo + año en curso) y queda amarrado -->
+                        <select formControlName="loteBaseEngordeId" class="le-input"
+                          [class.le-input--invalid]="form.get('loteBaseEngordeId')?.invalid && form.get('loteBaseEngordeId')?.touched">
+                          <option [ngValue]="null">— Seleccione lote base —</option>
+                          @for (b of lotesBaseVigentes; track b.id) {
+                            <option [ngValue]="b.id">{{ b.nombre }}{{ b.codigoErp ? ' · ' + b.codigoErp : '' }}</option>
+                          }
+                        </select>
+                        @if (form.get('loteBaseEngordeId')?.invalid && form.get('loteBaseEngordeId')?.touched) {
+                          <small class="le-error">El lote base es requerido en Panamá</small>
+                        }
+                        @if (lotesBaseVigentes.length === 0) {
+                          <p class="le-form-hint">No hay lotes base vigentes: creá uno en la pestaña "Lotes base" (activo y con fecha del año en curso).</p>
+                        }
+                      } @else {
+                        <input formControlName="loteNombre" class="le-input" placeholder="Ej: Lote 001" [class.le-input--invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"/>
+                        @if (form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched) {
+                          <small class="le-error">El nombre es requerido</small>
+                        }
                       }
                     </div>
                     <div class="le-field">
@@ -335,6 +390,7 @@
                       <label class="le-label">Lote ERP</label>
                       <input formControlName="loteErp" class="le-input" placeholder="Código ERP"/>
                     </div>
+                    @if (!esPanama) {
                     <ng-container *appHasPermission="permLoteBase.ver">
                       <div class="le-field">
                         <label class="le-label">Lote base (opcional)</label>
@@ -357,6 +413,7 @@
                         <p class="le-form-hint">Agrupa lotes de varios galpones para el Reporte Diario Costos. No es obligatorio.</p>
                       </div>
                     </ng-container>
+                    }
                   </div>
                 </div>
                 <!-- Sección: Genética (misma fuente que Configuración → Guía genética Ecuador: raza + año para indicadores y curvas) -->
@@ -484,7 +541,7 @@
         </div>
       }
 
-      <!-- MODAL: Lotes base (gestión del catálogo; visible con lote_base_pollo_engorde.ver) -->
+      <!-- MODAL: Lotes base (Ecuador; Panamá usa el tab con el mismo template) -->
       @if (lotesBaseModalOpen) {
         <div class="le-modal" role="dialog" aria-modal="true" aria-labelledby="le-lb-title">
           <div class="le-modal__panel">
@@ -493,98 +550,127 @@
               <button type="button" (click)="cerrarLotesBaseModal()" class="le-btn le-btn--muted" aria-label="Cerrar">Cerrar</button>
             </div>
             <div class="le-modal__body">
-              <p class="le-form-hint">
-                Un lote base agrupa lotes de engorde de varios galpones bajo un mismo nombre (ej. "94")
-                para el Reporte Diario Costos. Asignarlo al lote es opcional.
-              </p>
-
-              <!-- Form crear / editar (permiso crear; en edición, permiso editar) -->
-              <ng-container *appHasPermission="lbEditando ? permLoteBase.editar : permLoteBase.crear">
-                <div class="le-form-section">
-                  <h3 class="le-form-section__title">{{ lbEditando ? ('Editar "' + lbEditando.nombre + '"') : 'Nuevo lote base' }}</h3>
-                  <div class="le-form-grid">
-                    <div class="le-field">
-                      <label class="le-label">Nombre <span class="le-req">*</span></label>
-                      <input type="text" class="le-input" [(ngModel)]="lbNombre"
-                        [ngModelOptions]="{ standalone: true }" placeholder="Ej. 94" maxlength="80"/>
-                    </div>
-                    <div class="le-field">
-                      <label class="le-label">Código ERP</label>
-                      <input type="text" class="le-input" [(ngModel)]="lbCodigoErp"
-                        [ngModelOptions]="{ standalone: true }" placeholder="Ej. PA-246" maxlength="80"/>
-                    </div>
-                    <div class="le-field">
-                      <label class="le-label">Línea genética</label>
-                      <input type="text" class="le-input" [(ngModel)]="lbLineaGenetica"
-                        [ngModelOptions]="{ standalone: true }" placeholder="Ej. ROSS 308 AP" maxlength="120"/>
-                    </div>
-                    <div class="le-field">
-                      <label class="le-label">Descripción</label>
-                      <input type="text" class="le-input" [(ngModel)]="lbDescripcion"
-                        [ngModelOptions]="{ standalone: true }" placeholder="Opcional" maxlength="300"/>
-                    </div>
-                  </div>
-                  <div class="le-modal__actions">
-                    @if (lbEditando) {
-                      <button type="button" (click)="lbLimpiarForm()" class="le-btn le-btn--muted">Cancelar edición</button>
-                    }
-                    <button type="button" (click)="lbGuardar()" [disabled]="lbGuardando || !lbNombre.trim()"
-                      class="le-btn le-btn--primary">
-                      {{ lbGuardando ? 'Guardando…' : (lbEditando ? 'Actualizar' : 'Crear lote base') }}
-                    </button>
-                  </div>
-                </div>
-              </ng-container>
-
-              <!-- Lista -->
-              <div class="le-form-section">
-                <h3 class="le-form-section__title">Lotes base creados ({{ lotesBase.length }})</h3>
-                @if (lotesBase.length === 0) {
-                  <p class="le-form-hint">Aún no hay lotes base creados.</p>
-                } @else {
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                      <thead>
-                        <tr class="text-left text-xs uppercase text-gray-500 border-b border-gray-200">
-                          <th class="py-1.5 pr-2">Nombre</th>
-                          <th class="py-1.5 pr-2">Código ERP</th>
-                          <th class="py-1.5 pr-2">Línea genética</th>
-                          <th class="py-1.5 pr-2 text-center">Lotes amarrados</th>
-                          <th class="py-1.5 pr-2">Descripción</th>
-                          <th class="py-1.5 text-right">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (b of lotesBase; track b.id) {
-                          <tr class="border-b border-gray-100" [class.bg-ital-cream]="lbEditando?.id === b.id">
-                            <td class="py-1.5 pr-2 font-semibold">{{ b.nombre }}</td>
-                            <td class="py-1.5 pr-2">{{ b.codigoErp || '—' }}</td>
-                            <td class="py-1.5 pr-2">{{ b.lineaGenetica || '—' }}</td>
-                            <td class="py-1.5 pr-2 text-center">{{ b.lotesAsignados }}</td>
-                            <td class="py-1.5 pr-2">{{ b.descripcion || '—' }}</td>
-                            <td class="py-1.5 text-right whitespace-nowrap">
-                              <ng-container *appHasPermission="permLoteBase.editar">
-                                <button type="button" (click)="lbEditar(b)" class="le-icon-btn" title="Editar" aria-label="Editar">
-                                  <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                                </button>
-                              </ng-container>
-                              <ng-container *appHasPermission="permLoteBase.eliminar">
-                                <button type="button" (click)="lbEliminar(b)" class="le-icon-btn le-icon-btn--danger" title="Eliminar" aria-label="Eliminar">
-                                  <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                                </button>
-                              </ng-container>
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                }
-              </div>
+              <ng-container [ngTemplateOutlet]="gestionLotesBaseTpl"></ng-container>
             </div>
           </div>
         </div>
       }
+
+      <!-- Gestión de lotes base (compartida por el modal de Ecuador y el tab de Panamá) -->
+      <ng-template #gestionLotesBaseTpl>
+        <p class="le-form-hint">
+          Un lote base agrupa lotes de engorde de varios galpones bajo un mismo nombre (ej. "94")
+          para el Reporte Diario Costos. Aparece al crear lotes solo si está <strong>activo</strong>
+          y su fecha de activación es del <strong>año en curso</strong>.
+          @if (esPanama) { <span>En Panamá el nombre del lote se elige de esta lista (obligatorio).</span> }
+        </p>
+
+        <!-- Form crear / editar (permiso crear; en edición, permiso editar) -->
+        <ng-container *appHasPermission="lbEditando ? permLoteBase.editar : permLoteBase.crear">
+          <div class="le-form-section">
+            <h3 class="le-form-section__title">{{ lbEditando ? ('Editar "' + lbEditando.nombre + '"') : 'Nuevo lote base' }}</h3>
+            <div class="le-form-grid">
+              <div class="le-field">
+                <label class="le-label">Nombre <span class="le-req">*</span></label>
+                <input type="text" class="le-input" [(ngModel)]="lbNombre"
+                  [ngModelOptions]="{ standalone: true }" placeholder="Ej. 94" maxlength="80"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Código ERP</label>
+                <input type="text" class="le-input" [(ngModel)]="lbCodigoErp"
+                  [ngModelOptions]="{ standalone: true }" placeholder="Ej. PA-246" maxlength="80"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Línea genética</label>
+                <input type="text" class="le-input" [(ngModel)]="lbLineaGenetica"
+                  [ngModelOptions]="{ standalone: true }" placeholder="Ej. ROSS 308 AP" maxlength="120"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Fecha de activación <span class="le-req">*</span></label>
+                <input type="date" class="le-input" [(ngModel)]="lbFechaActivacion"
+                  [ngModelOptions]="{ standalone: true }"/>
+                <p class="le-form-hint">Vigente durante el año de esta fecha.</p>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Descripción</label>
+                <input type="text" class="le-input" [(ngModel)]="lbDescripcion"
+                  [ngModelOptions]="{ standalone: true }" placeholder="Opcional" maxlength="300"/>
+              </div>
+            </div>
+            <div class="le-modal__actions">
+              @if (lbEditando) {
+                <button type="button" (click)="lbLimpiarForm()" class="le-btn le-btn--muted">Cancelar edición</button>
+              }
+              <button type="button" (click)="lbGuardar()" [disabled]="lbGuardando || !lbNombre.trim() || !lbFechaActivacion"
+                class="le-btn le-btn--primary">
+                {{ lbGuardando ? 'Guardando…' : (lbEditando ? 'Actualizar' : 'Crear lote base') }}
+              </button>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Lista -->
+        <div class="le-form-section">
+          <h3 class="le-form-section__title">Lotes base creados ({{ lotesBase.length }})</h3>
+          @if (lotesBase.length === 0) {
+            <p class="le-form-hint">Aún no hay lotes base creados.</p>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs uppercase text-gray-500 border-b border-gray-200">
+                    <th class="py-1.5 pr-2">Nombre</th>
+                    <th class="py-1.5 pr-2">Código ERP</th>
+                    <th class="py-1.5 pr-2">Línea genética</th>
+                    <th class="py-1.5 pr-2">Activación</th>
+                    <th class="py-1.5 pr-2 text-center">Estado</th>
+                    <th class="py-1.5 pr-2 text-center">Lotes amarrados</th>
+                    <th class="py-1.5 pr-2">Descripción</th>
+                    <th class="py-1.5 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (b of lotesBase; track b.id) {
+                    <tr class="border-b border-gray-100"
+                      [class.bg-ital-cream]="lbEditando?.id === b.id"
+                      [class.opacity-60]="!b.activo">
+                      <td class="py-1.5 pr-2 font-semibold">{{ b.nombre }}</td>
+                      <td class="py-1.5 pr-2">{{ b.codigoErp || '—' }}</td>
+                      <td class="py-1.5 pr-2">{{ b.lineaGenetica || '—' }}</td>
+                      <td class="py-1.5 pr-2">{{ b.fechaActivacion ? (b.fechaActivacion | date:'dd/MM/yyyy') : '—' }}</td>
+                      <td class="py-1.5 pr-2 text-center">
+                        <span class="text-xs px-2 py-0.5 rounded border"
+                          [class.bg-green-50]="b.activo" [class.text-green-800]="b.activo" [class.border-green-200]="b.activo"
+                          [class.bg-gray-100]="!b.activo" [class.text-gray-500]="!b.activo" [class.border-gray-200]="!b.activo">
+                          {{ b.activo ? 'Activo' : 'Inactivo' }}
+                        </span>
+                      </td>
+                      <td class="py-1.5 pr-2 text-center">{{ b.lotesAsignados }}</td>
+                      <td class="py-1.5 pr-2">{{ b.descripcion || '—' }}</td>
+                      <td class="py-1.5 text-right whitespace-nowrap">
+                        <ng-container *appHasPermission="permLoteBase.editar">
+                          <button type="button" (click)="lbToggleActivo(b)" class="le-btn le-btn--ghost text-xs"
+                            [title]="b.activo ? 'Desactivar (sale del selector de crear-lote)' : 'Activar'">
+                            {{ b.activo ? 'Desactivar' : 'Activar' }}
+                          </button>
+                          <button type="button" (click)="lbEditar(b)" class="le-icon-btn" title="Editar" aria-label="Editar">
+                            <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                          </button>
+                        </ng-container>
+                        <ng-container *appHasPermission="permLoteBase.eliminar">
+                          <button type="button" (click)="lbEliminar(b)" class="le-icon-btn le-icon-btn--danger" title="Eliminar" aria-label="Eliminar">
+                            <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                          </button>
+                        </ng-container>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </ng-template>
 
       <!-- MODAL: Detalle (se abre al hacer clic en Ver detalle; carga con getById) -->
       @if (loadingDetail || selectedLote) {

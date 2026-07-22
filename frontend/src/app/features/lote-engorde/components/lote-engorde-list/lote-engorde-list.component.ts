@@ -28,6 +28,7 @@ import { Company } from '../../../../core/services/company/company.service';
 import { GuiaGeneticaEcuadorFiltersDto, GuiaGeneticaEcuadorService } from '../../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
 import { LoteBaseEngordeApi, LoteBaseEngordeDto, PERMISOS_LOTE_BASE } from '../../../engorde-comun/services/lote-base-engorde.api';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 
 @Component({
@@ -136,20 +137,27 @@ export class LoteEngordeListComponent implements OnInit {
   filteredNucleos: NucleoDto[] = [];
   filteredGalpones: GalponDetailDto[] = [];
 
-  // ── Lote base global (opcional) — agrupador para el Reporte Diario Costos ──
+  // ── Lote base global — agrupador para el Reporte Diario Costos ──
   /** Claves de permisos del módulo lote base (gate de botón/modal/campo). */
   readonly permLoteBase = PERMISOS_LOTE_BASE;
   lotesBase: LoteBaseEngordeDto[] = [];
+  /** Solo activos y del año en curso: opciones del selector "Nombre del lote" en Panamá. */
+  lotesBaseVigentes: LoteBaseEngordeDto[] = [];
   nuevoLoteBaseNombre = '';
   creandoLoteBase = false;
 
-  // Modal de gestión de lotes base (lista + crear/editar/eliminar)
+  /** Panamá: nombre del lote = lote base (obligatorio) y gestión en tab. Ecuador: vista actual. */
+  esPanama = false;
+  tabActiva: 'lotes' | 'lotes-base' = 'lotes';
+
+  // Gestión de lotes base (modal en Ecuador, tab en Panamá)
   lotesBaseModalOpen = false;
   lbEditando: LoteBaseEngordeDto | null = null;
   lbNombre = '';
   lbCodigoErp = '';
   lbLineaGenetica = '';
   lbDescripcion = '';
+  lbFechaActivacion = '';
   lbGuardando = false;
 
   constructor(
@@ -161,13 +169,25 @@ export class LoteEngordeListComponent implements OnInit {
     private guiaEcuadorSvc: GuiaGeneticaEcuadorService,
     private loteBaseApi: LoteBaseEngordeApi,
     private confirmDialog: ConfirmDialogService,
+    private countryFilter: CountryFilterService,
     private toastService: ToastService
   ) {}
 
   ngOnInit(): void {
+    this.esPanama = this.countryFilter.isPanama();
     this.initForm();
     this.loadLotes();
     this.loadLotesBase();
+
+    if (this.esPanama) {
+      // Panamá: el nombre del lote sale del lote base elegido (obligatorio).
+      this.form.get('loteBaseEngordeId')!.addValidators(Validators.required);
+      this.form.get('loteBaseEngordeId')!.updateValueAndValidity({ emitEvent: false });
+      this.form.get('loteBaseEngordeId')!.valueChanges.subscribe(id => {
+        const base = this.lotesBase.find(b => b.id === Number(id));
+        if (base) this.form.patchValue({ loteNombre: base.nombre }, { emitEvent: false });
+      });
+    }
 
     this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
       const granjaId = Number(granjaIdVal);
@@ -256,15 +276,30 @@ export class LoteEngordeListComponent implements OnInit {
     });
   }
 
-  /** Carga el catálogo de lotes base (agrupador global opcional). */
+  /** Vigente = activo y (sin fecha de activación o del año en curso). */
+  private static esVigente(b: LoteBaseEngordeDto): boolean {
+    if (!b.activo) return false;
+    if (!b.fechaActivacion) return true;
+    return Number(String(b.fechaActivacion).slice(0, 4)) === new Date().getFullYear();
+  }
+
+  /** Carga el catálogo de lotes base y precalcula los vigentes (referencias estables). */
   private loadLotesBase(): void {
     this.loteBaseApi.getAll().subscribe({
-      next: (bases) => { this.lotesBase = bases ?? []; },
-      error: () => { this.lotesBase = []; }
+      next: (bases) => {
+        this.lotesBase = bases ?? [];
+        this.lotesBaseVigentes = this.lotesBase.filter(b => LoteEngordeListComponent.esVigente(b));
+      },
+      error: () => { this.lotesBase = []; this.lotesBaseVigentes = []; }
     });
   }
 
-  // ── Modal de gestión de lotes base ──────────────────────────────────────
+  // ── Gestión de lotes base (modal en Ecuador, tab en Panamá) ─────────────
+
+  /** Refresco al entrar al tab de Panamá (el template no puede llamar privados). */
+  loadLotesBasePublico(): void {
+    this.loadLotesBase();
+  }
 
   abrirLotesBaseModal(): void {
     this.lbLimpiarForm();
@@ -283,6 +318,7 @@ export class LoteEngordeListComponent implements OnInit {
     this.lbCodigoErp = '';
     this.lbLineaGenetica = '';
     this.lbDescripcion = '';
+    this.lbFechaActivacion = '';
   }
 
   lbEditar(b: LoteBaseEngordeDto): void {
@@ -291,20 +327,26 @@ export class LoteEngordeListComponent implements OnInit {
     this.lbCodigoErp = b.codigoErp ?? '';
     this.lbLineaGenetica = b.lineaGenetica ?? '';
     this.lbDescripcion = b.descripcion ?? '';
+    this.lbFechaActivacion = b.fechaActivacion ? String(b.fechaActivacion).slice(0, 10) : '';
   }
 
-  /** Crea o actualiza (según lbEditando) desde el form del modal de gestión. */
+  /** Crea o actualiza (según lbEditando) desde el form de gestión. */
   lbGuardar(): void {
     const nombre = (this.lbNombre || '').trim();
     if (!nombre) {
       this.toastService.warning('El nombre del lote base es requerido (ej. "94").');
       return;
     }
+    if (!this.lbFechaActivacion) {
+      this.toastService.warning('La fecha de activación es requerida: el lote base aparece en crear-lote solo durante ese año.');
+      return;
+    }
     const payload = {
       nombre,
       codigoErp: (this.lbCodigoErp || '').trim() || null,
       lineaGenetica: (this.lbLineaGenetica || '').trim() || null,
-      descripcion: (this.lbDescripcion || '').trim() || null
+      descripcion: (this.lbDescripcion || '').trim() || null,
+      fechaActivacion: this.lbFechaActivacion
     };
     this.lbGuardando = true;
     const req = this.lbEditando
@@ -321,6 +363,20 @@ export class LoteEngordeListComponent implements OnInit {
       error: (err) => {
         this.lbGuardando = false;
         this.toastService.error(err?.error?.message || 'No se pudo guardar el lote base.');
+      }
+    });
+  }
+
+  /** Desactivación MANUAL: inactivo deja de aparecer en el selector de crear-lote. */
+  lbToggleActivo(b: LoteBaseEngordeDto): void {
+    const nuevoEstado = !b.activo;
+    this.loteBaseApi.setActivo(b.id, nuevoEstado).subscribe({
+      next: () => {
+        this.toastService.success(`Lote base "${b.nombre}" ${nuevoEstado ? 'activado' : 'desactivado'}.`);
+        this.loadLotesBase();
+      },
+      error: (err) => {
+        this.toastService.error(err?.error?.message || 'No se pudo cambiar el estado del lote base.');
       }
     });
   }

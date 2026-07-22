@@ -157,3 +157,21 @@ CREATE INDEX IF NOT EXISTS ix_lote_ave_engorde_lote_base ON lote_ave_engorde (lo
 | Front form lote | Campo "Lote base (opcional)" envuelto en gate ver; crear rápido inline en gate crear |
 
 **Casos de prueba:** sin permisos → ni botón ni campo (Ecuador intacto); ver solo → lista sin acciones; crear/editar/eliminar según permiso; eliminar con lotes amarrados → toast de error del backend; duplicado → 400 con mensaje.
+
+---
+
+## 8. EXTENSIÓN (2026-07-21 b) — Panamá: lote base obligatorio + tab + vigencia por año
+
+**Pedido:**
+1. **Panamá:** al crear un lote de engorde, el campo **"Nombre lote" pasa a ser un select de los lotes base vigentes** → el nombre del lote = nombre del lote base elegido y queda amarrado (`loteBaseEngordeId`). Obligatorio (debe existir un lote base para poder crear el lote). **Ecuador conserva la vista actual** (input libre + campo opcional gateado por permiso).
+2. **Panamá:** la gestión de lotes base pasa del modal a un **tab** en la página Lote Aves de Engorde ("Lotes de engorde" | "Lotes base"). Ecuador sigue con el botón+modal actual.
+3. **Lote base gana `fecha_activacion` (date) y `activo` (bool, default true):** vigente = activo **y** (sin fecha o año(fecha_activacion) = año en curso). Un lote base 2026 aparece todo 2026; en 2027 deja de aparecer. Desactivar es **manual** (toggle en la gestión). El select de crear-lote solo muestra **vigentes**; la gestión y el filtro del reporte muestran todos.
+
+**Decisiones:**
+- Obligatoriedad **100% frontend** (`CountryFilterService.isPanama()` + validador required en el select): `PuentePanamaService` crea lotes vía `ILoteAveEngordeService.CreateAsync` y una validación dura en backend rompería la sincronización automática. Mismo patrón del repo (permisos/reglas de venta 100% front).
+- `FechaActivacion` = `DateTime?` con columna **`date`** (convención ImplementacionPlan.FechaInicio); persistir `.Date` con Kind Unspecified (gotcha Npgsql date). Vigencia comparada por **año** (`.Year == año actual`).
+- Backend: `GET /api/LoteBaseEngorde?soloVigentes=true` (filtro en BD) + `PUT /api/LoteBaseEngorde/{id}/activo` (toggle manual).
+- Migración `AddLoteBaseEngordeActivacion`: `ADD COLUMN IF NOT EXISTS fecha_activacion date NULL` + `activo boolean NOT NULL DEFAULT true`.
+- Front: gestión extraída a `ng-template` reutilizado por el modal (Ecuador) y el tab (Panamá); tab bar solo Panamá con gate `ver` para el tab de lotes base.
+
+**Casos de prueba:** Panamá sin lotes base vigentes → select vacío con hint y submit bloqueado; elegir lote base setea nombre+amarre; lote base inactivo o de año pasado no aparece en el select pero sí en gestión y reporte; Ecuador: sin cambios de comportamiento; toggle activo/inactivo con toasts.

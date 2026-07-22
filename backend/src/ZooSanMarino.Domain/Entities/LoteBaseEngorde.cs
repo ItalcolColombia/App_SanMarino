@@ -20,4 +20,13 @@ public class LoteBaseEngorde : AuditableEntity
 
     /// <summary>Línea genética del lote base (opcional, ej. "ROSS 308 AP").</summary>
     public string? LineaGenetica { get; set; }
+
+    /// <summary>
+    /// Fecha de activación (columna date). Vigencia por AÑO: el lote base aparece en el
+    /// selector de crear-lote solo durante el año de esta fecha (NULL = siempre vigente).
+    /// </summary>
+    public DateTime? FechaActivacion { get; set; }
+
+    /// <summary>Desactivación MANUAL: inactivo deja de aparecer en el selector de crear-lote.</summary>
+    public bool Activo { get; set; } = true;
 }
