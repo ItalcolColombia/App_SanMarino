@@ -1,22 +1,22 @@
-# Tracker — Panamá: lote base obligatorio + tab de gestión + vigencia por año
+# Tracker — Sesión deslizante por inactividad (auto-logout 5 min + desconexión)
 
-**Plan:** [fase_de_desarrollo/reporte_diario_costos_engorde_plan.md](fase_de_desarrollo/reporte_diario_costos_engorde_plan.md) (sección 8)
+Plan: [sesion_deslizante_inactividad_plan.md](fase_de_desarrollo/sesion_deslizante_inactividad_plan.md)
+
+Auto-logout tras 5 min sin interacción (sesión deslizante client-side) + cierre por pérdida de conexión
+(heartbeat con tolerancia) + 401 → login. Token JWT se queda en 60 min (sin reemisión server-side).
 
 ## Backend
-- [x] `LoteBaseEngorde`: + `FechaActivacion` (DateTime?, columna date) + `Activo` (bool default true) + config
-- [x] DTOs: fecha/activo en list y create/update + `SetActivoLoteBaseEngordeDto`
-- [x] Service: `GetAllAsync(soloVigentes)` (activo + año actual en BD), mapeo fecha (Kind Unspecified), `SetActivoAsync`
-- [x] Controller: `GET ?soloVigentes=true` + `PUT {id}/activo`
-- [x] Migración `AddLoteBaseEngordeActivacion` (ADD COLUMN IF NOT EXISTS ×2)
-- [x] Build API (output alterno por backend corriendo) 0 errores + tests 527/527
+- [x] `SessionController`: `GET /api/session/heartbeat` `[Authorize]` → 200/{ok,serverTimeUtc}
+- [x] `RateLimitingMiddleware`: bypass del heartbeat (no bloquear IP NAT)
+- [x] `dotnet build` 0 errores + `dotnet test` 542 passed
 
 ## Frontend
-- [x] api: `fechaActivacion`/`activo`, `getAll(soloVigentes)`, `setActivo`
-- [x] `lote-engorde-list`: `esPanama` (CountryFilterService), tabs "Lotes de engorde" | "Lotes base" (solo Panamá, gate ver), gestión extraída a ng-template compartido con el modal (Ecuador)
-- [x] Gestión: campo Fecha de activación (requerido) + columna Activación/Estado + toggle activar/desactivar (gate editar)
-- [x] Form crear lote (Panamá): "Nombre lote" = select de lotes base VIGENTES (required, setea nombre + loteBaseEngordeId); campo "Lote base (opcional)" solo Ecuador
-- [x] `yarn build` verde (solo warning de bundle budget preexistente)
+- [x] `SessionTimeoutService` (idle 5 min por interacción + heartbeat 90 s + endSession idempotente)
+- [x] `AuthService.heartbeat()`
+- [x] `auth.interceptor`: 401 con token → onUnauthorized → endSession
+- [x] `AppComponent.ngOnInit` → `sessionTimeout.init()`
+- [x] `yarn build` 0 errores (solo warning bundle budget preexistente)
 
-## Validación pendiente (usuario)
-- [ ] `dotnet ef database update` local (BD :5433) — aplica también las 4 migraciones de la fase anterior
-- [ ] Smoke Panamá: crear lote base con fecha 2026 → aparece en el select de crear lote; desactivarlo o fecharlo 2025 → desaparece; Ecuador intacto
+## Validación
+- [x] Backend arranca limpio (migraciones al día); heartbeat exige token → 401 sin credenciales
+- [ ] (pendiente) Walkthrough en vivo: idle 5 min, interacción resetea, backend caído, 401, login normal (requiere login + esperar 5 min)

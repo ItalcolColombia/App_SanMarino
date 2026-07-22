@@ -43,9 +43,21 @@ public class RateLimitingMiddleware
         };
     }
 
+    // Rutas exentas del rate limiter: heartbeat de sesión. Es autenticado (no es vector de fuerza
+    // bruta) y se llama periódicamente desde CADA pestaña; contarlo bloquearía la IP compartida de
+    // una oficina NAT (muchos usuarios) y tumbaría el acceso de todos.
+    private const string HeartbeatPath = "/api/session/heartbeat";
+
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value?.ToLower() ?? "";
+
+        if (path == HeartbeatPath)
+        {
+            await _next(context);
+            return;
+        }
+
         var clientIp = GetClientIpAddress(context);
         var esRutaAuth = RateLimitingCalculos.EsRutaAuth(path);
 

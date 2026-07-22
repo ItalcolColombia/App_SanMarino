@@ -55,6 +55,10 @@ public class SeguimientoDiarioLoteReproductoraAvesEngordeConfiguration : IEntity
         b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
 
+        b.Property(x => x.Confirmado).HasColumnName("confirmado").IsRequired().HasDefaultValue(false);
+        b.Property(x => x.ConfirmadoAt).HasColumnName("confirmado_at");
+        b.Property(x => x.ConfirmadoPor).HasColumnName("confirmado_por").HasMaxLength(64);
+
         b.HasIndex(x => x.LoteReproductoraAveEngordeId).HasDatabaseName("ix_seg_diario_lrae_lote_reproductora");
         b.HasIndex(x => x.Fecha).HasDatabaseName("ix_seg_diario_lrae_fecha");
 

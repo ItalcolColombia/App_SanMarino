@@ -19,6 +19,8 @@ import { ModalSeguimientoReproductoraComponent } from '../modal-seguimiento-repr
 import { ModalDetalleSeguimientoReproductoraComponent } from '../modal-detalle-seguimiento-reproductora/modal-detalle-seguimiento-reproductora.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ShowIfCountryDirective } from '../../../../core/directives/show-if-country.directive';
+import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ymdSinTz } from '../../../../shared/utils/format';
@@ -26,7 +28,7 @@ import { LesionService } from '../../../lesiones/services/lesion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LoteReproductoraAveEngordeService, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faFilter, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faFilter, faEye, faCheck, faLock } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-seguimiento-diario-lote-reproductora-list',
@@ -39,6 +41,7 @@ import { faPlus, faPen, faTrash, faFilter, faEye } from '@fortawesome/free-solid
     ConfirmationModalComponent,
     FontAwesomeModule,
     ShowIfCountryDirective,
+    HasPermissionDirective,
     LesionTabComponent
   ],
   templateUrl: './seguimiento-diario-lote-reproductora-list.component.html',
@@ -179,13 +182,41 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   faTrash = faTrash;
   faFilter = faFilter;
   faEye = faEye;
+  faCheck = faCheck;
+  faLock = faLock;
+
+  /** Permission keys de los botones (patrón "modulo.accion"). */
+  readonly PERM_CONFIRMAR = 'seguimiento_reproductora_engorde.confirmar';
+  readonly PERM_ELIMINAR = 'seguimiento_reproductora_engorde.eliminar';
+
+  /** Modal de confirmación de la acción "Confirmar registro" (avisa que queda de solo lectura). */
+  confirmarModalOpen = false;
+  confirmarModalData: ConfirmationModalData = {
+    title: 'Confirmar registro',
+    message: 'Al confirmar, este registro se sincroniza con el seguimiento de pollo engorde (cuando todos los lotes reproductora hayan confirmado ese día) y ya NO podrá editarse. Para corregirlo tendría que eliminarlo. ¿Confirmar?',
+    type: 'warning',
+    confirmText: 'Confirmar',
+    cancelText: 'Cancelar',
+    showCancel: true
+  };
+  private pendingConfirmId: number | null = null;
 
   constructor(
     private segSvc: SeguimientoDiarioLoteReproductoraService,
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private toastService: ToastService,
-    private lesionSvc: LesionService
+    private lesionSvc: LesionService,
+    private permSvc: UserPermissionService
   ) {}
+
+  /** True si el usuario puede confirmar registros. */
+  get canConfirmar(): boolean {
+    return this.permSvc.has(this.PERM_CONFIRMAR);
+  }
+  /** True si el usuario puede eliminar registros. */
+  get canEliminarPerm(): boolean {
+    return this.permSvc.has(this.PERM_ELIMINAR);
+  }
 
   openLesionCreate(): void {
     this.activeTab = 'lesiones';
@@ -385,7 +416,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   edit(seg: SeguimientoLoteLevanteDto): void {
-    if (this.isLoteReproductoraCerrado) return;
+    // Confirmado = solo lectura: para corregirlo hay que eliminarlo y recrearlo.
+    if (this.isLoteReproductoraCerrado || seg.confirmado) return;
     this.editing = seg;
     this.editingModal = this.mapSegToLocalDto(seg);
     const granjaId = this.getGranjaIdForModal();
@@ -495,15 +527,7 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
         this.editing = null;
         this.editingModal = null;
         this.toastService.success(event.isEdit ? 'Registro actualizado.' : 'Registro creado.', 'Éxito', 4000);
-        if (this.selectedLoteReproductoraId != null) {
-          this.segSvc.getByLoteReproductoraId(this.selectedLoteReproductoraId).subscribe({
-            next: rows => (this.seguimientos = rows ?? [])
-          });
-          this.loteReproductoraSvc.getById(this.selectedLoteReproductoraId).subscribe({
-            next: detail => (this.selectedReproductoraDetail = detail),
-            error: () => (this.selectedReproductoraDetail = null)
-          });
-        }
+        this.reloadCurrent();
       },
       error: err => {
         this.toastService.error(
@@ -516,9 +540,53 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   delete(id: number): void {
-    if (!this.puedeEliminar) return;
+    if (!this.puedeEliminar || !this.canEliminarPerm) return;
     this.pendingDeleteId = id;
     this.confirmModalOpen = true;
+  }
+
+  /** Abre el modal para confirmar un registro (queda de solo lectura y habilita el cruce). */
+  confirmar(seg: SeguimientoLoteLevanteDto): void {
+    if (!this.canConfirmar || seg.confirmado || this.isLoteReproductoraCerrado) return;
+    this.pendingConfirmId = seg.id;
+    this.confirmarModalOpen = true;
+  }
+
+  onConfirmConfirmar(): void {
+    if (this.pendingConfirmId == null) {
+      this.confirmarModalOpen = false;
+      return;
+    }
+    const id = this.pendingConfirmId;
+    this.pendingConfirmId = null;
+    this.confirmarModalOpen = false;
+    this.loading = true;
+    this.segSvc.confirmar(id).pipe(finalize(() => (this.loading = false))).subscribe({
+      next: () => {
+        this.toastService.success('Registro confirmado y sincronizado.', 'Éxito', 4000);
+        this.reloadCurrent();
+      },
+      error: err => {
+        this.toastService.error(err?.error?.message || err?.message || 'Error al confirmar.', 'Error', 6000);
+      }
+    });
+  }
+
+  onCancelConfirmar(): void {
+    this.pendingConfirmId = null;
+    this.confirmarModalOpen = false;
+  }
+
+  /** Recarga los registros y el detalle del lote reproductora seleccionado. */
+  private reloadCurrent(): void {
+    if (this.selectedLoteReproductoraId == null) return;
+    this.segSvc.getByLoteReproductoraId(this.selectedLoteReproductoraId).subscribe({
+      next: rows => (this.seguimientos = rows ?? [])
+    });
+    this.loteReproductoraSvc.getById(this.selectedLoteReproductoraId).subscribe({
+      next: detail => (this.selectedReproductoraDetail = detail),
+      error: () => (this.selectedReproductoraDetail = null)
+    });
   }
 
   /** Abre el modal para reabrir un lote cerrado capturando la novedad (motivo). */
@@ -566,15 +634,7 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     this.segSvc.delete(id).pipe(finalize(() => (this.loading = false))).subscribe({
       next: () => {
         this.toastService.success('Registro eliminado.', 'Éxito', 4000);
-        if (this.selectedLoteReproductoraId != null) {
-          this.segSvc.getByLoteReproductoraId(this.selectedLoteReproductoraId).subscribe({
-            next: rows => (this.seguimientos = rows ?? [])
-          });
-          this.loteReproductoraSvc.getById(this.selectedLoteReproductoraId).subscribe({
-            next: detail => (this.selectedReproductoraDetail = detail),
-            error: () => (this.selectedReproductoraDetail = null)
-          });
-        }
+        this.reloadCurrent();
       },
       error: err => {
         this.toastService.error(err?.error?.message || err?.message || 'Error al eliminar.', 'Error', 6000);

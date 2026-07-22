@@ -368,6 +368,7 @@
                 <th scope="col" colspan="2" class="col-group">Peso prom. (kg)</th>
                 <th scope="col" rowspan="2" class="col-ciclo">Ciclo</th>
                 <th scope="col" rowspan="2" class="col-obs">Observaciones</th>
+                <th scope="col" rowspan="2" class="col-estado">Estado</th>
                 <th scope="col" rowspan="2" class="col-actions">Acciones</th>
               </tr>
               <tr class="data-table__subrow">
@@ -387,7 +388,7 @@
               <!-- Empty state -->
               @if (!loading && (!seguimientos || seguimientos.length === 0)) {
                 <tr class="data-table__empty-row">
-                  <td colspan="16">
+                  <td colspan="17">
                     <div class="empty-state">
                       <div class="empty-state__visual" aria-hidden="true">
                         <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -478,6 +479,21 @@
                   <td class="cell-obs" data-label="Observaciones" [title]="s.observaciones || ''">
                     {{ s.observaciones ? (s.observaciones.length > 40 ? (s.observaciones | slice:0:40) + '…' : s.observaciones) : '—' }}
                   </td>
+                  <!-- Estado de confirmación -->
+                  <td class="cell-estado" data-label="Estado">
+                    @if (s.confirmado) {
+                      <span class="estado-badge estado-badge--confirmado"
+                        title="Confirmado — sincroniza con el seguimiento de pollo engorde">
+                        <fa-icon [icon]="faLock" class="estado-badge__icon"></fa-icon>
+                        Confirmado
+                      </span>
+                    } @else {
+                      <span class="estado-badge estado-badge--pendiente"
+                        title="Pendiente de confirmar — todavía no sincroniza">
+                        Pendiente
+                      </span>
+                    }
+                  </td>
                   <!-- Acciones -->
                   <td class="cell-actions" data-label="Acciones">
                     <div class="action-group">
@@ -489,16 +505,29 @@
                         aria-label="Ver detalle">
                         <fa-icon [icon]="faEye"></fa-icon>
                       </button>
+                      @if (!s.confirmado) {
+                        <button
+                          *appHasPermission="PERM_CONFIRMAR"
+                          type="button"
+                          class="action-btn action-btn--confirm"
+                          (click)="confirmar(s)"
+                          [disabled]="isLoteReproductoraCerrado"
+                          [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede confirmar' : 'Confirmar registro (habilita la sincronización; quedará de solo lectura)'"
+                          aria-label="Confirmar">
+                          <fa-icon [icon]="faCheck"></fa-icon>
+                        </button>
+                      }
                       <button
                         type="button"
                         class="action-btn action-btn--edit"
                         (click)="edit(s)"
-                        [disabled]="isLoteReproductoraCerrado"
-                        [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede editar' : 'Editar registro'"
+                        [disabled]="isLoteReproductoraCerrado || s.confirmado"
+                        [title]="s.confirmado ? 'Registro confirmado: solo lectura (elimínelo para corregir)' : (isLoteReproductoraCerrado ? 'Lote cerrado: no se puede editar' : 'Editar registro')"
                         aria-label="Editar">
                         <fa-icon [icon]="faPen"></fa-icon>
                       </button>
                       <button
+                        *appHasPermission="PERM_ELIMINAR"
                         type="button"
                         class="action-btn action-btn--delete"
                         (click)="delete(s.id)"
@@ -607,6 +636,15 @@ MODALES
   (confirmed)="onConfirmDelete()"
   (cancelled)="onCancelDelete()"
   (closed)="confirmModalOpen = false">
+</app-confirmation-modal>
+
+<!-- Modal confirmación de la acción "Confirmar registro" -->
+<app-confirmation-modal
+  [isOpen]="confirmarModalOpen"
+  [data]="confirmarModalData"
+  (confirmed)="onConfirmConfirmar()"
+  (cancelled)="onCancelConfirmar()"
+  (closed)="confirmarModalOpen = false">
 </app-confirmation-modal>
 
 <!-- Modal informativo lote cerrado -->

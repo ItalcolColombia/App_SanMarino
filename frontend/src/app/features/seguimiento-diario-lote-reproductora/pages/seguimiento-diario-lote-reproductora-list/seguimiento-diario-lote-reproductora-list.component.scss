@@ -823,6 +823,38 @@
   color: var(--c-accent-dk);
 }
 
+/* Estado de confirmación (verde = éxito/confirmado, gris = pendiente) */
+:host .estado-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .55rem;
+  border-radius: var(--radius-xs);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+:host .estado-badge__icon { font-size: .6rem; }
+:host .estado-badge--confirmado {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+:host .estado-badge--pendiente {
+  background: #f3f4f6;
+  color: var(--c-muted);
+  border: 1px solid #e5e7eb;
+}
+
+/* Botón confirmar (verde = éxito/commit) */
+:host .action-btn--confirm:hover:not([disabled]) {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
 :host .data-table__row:last-child td { border-bottom: none; }
 
 /* Empty row */

@@ -10,5 +10,7 @@ public interface ISeguimientoDiarioLoteReproductoraService
     Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteReproductoraId, DateTime? desde, DateTime? hasta);
     Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto);
     Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto);
+    /// <summary>Confirma un registro (gatea el cruce hacia pollo engorde). Idempotente. Devuelve null si no existe.</summary>
+    Task<SeguimientoLoteLevanteDto?> ConfirmarAsync(int id);
     Task<bool> DeleteAsync(int id);
 }

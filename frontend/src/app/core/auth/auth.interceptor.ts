@@ -1,14 +1,16 @@
 // src/app/core/auth/auth.interceptor.ts
-import { HttpInterceptorFn, HttpHandlerFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { from, switchMap } from 'rxjs';
+import { from, switchMap, catchError, throwError } from 'rxjs';
 import { TokenStorageService } from './token-storage.service';
 import { EncryptionService } from './encryption.service';
+import { SessionTimeoutService } from './session-timeout.service';
 import { environment } from '../../../environments/environment';
 
 export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => {
   const storage = inject(TokenStorageService);
   const encryption = inject(EncryptionService);
+  const sessionTimeout = inject(SessionTimeoutService);
   const token = storage.getToken();
   const session = storage.get();
 
@@ -68,7 +70,16 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
         setHeaders: headers
       });
 
-      return next(authReq);
+      return next(authReq).pipe(
+        catchError((err: unknown) => {
+          // 401 en una petición autenticada (había token) = token expirado/invalidado → fin de sesión.
+          // El login (sin token) queda excluido: su 401 es "credenciales inválidas".
+          if (err instanceof HttpErrorResponse && err.status === 401 && token) {
+            sessionTimeout.onUnauthorized();
+          }
+          return throwError(() => err);
+        })
+      );
     })
   );
 };

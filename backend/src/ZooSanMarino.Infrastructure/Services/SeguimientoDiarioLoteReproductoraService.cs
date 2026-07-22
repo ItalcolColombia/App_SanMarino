@@ -65,7 +65,10 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             SaldoAlimentoKg: null,
             QqMixtas: e.QqMixtas,
             QqHembras: e.QqHembras,
-            QqMachos: e.QqMachos
+            QqMachos: e.QqMachos,
+            Confirmado: e.Confirmado,
+            ConfirmadoAt: e.ConfirmadoAt,
+            ConfirmadoPor: e.ConfirmadoPor
         );
     }
 
@@ -260,6 +263,11 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                          select s).SingleOrDefaultAsync();
         if (ent is null) return null;
 
+        // Un registro confirmado es de solo lectura: para corregirlo se elimina (retorna aves/consumo) y se recrea.
+        if (ent.Confirmado)
+            throw new InvalidOperationException(
+                "El registro está confirmado y no puede editarse. Elimínelo (se retornan aves y consumo) para corregirlo.");
+
         // Capturar ítems anteriores antes de actualizar
         var oldByItemId = ent.Metadata != null
             ? ParseMetadataItemsToKg(ent.Metadata.RootElement)
@@ -343,6 +351,42 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                 Console.WriteLine($"Error al actualizar inventario (reproductora): {ex.Message}");
             }
         }
+
+        return MapToDto(ent);
+    }
+
+    // ─── Confirmar ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Confirma un registro reproductora. Al guardar dispara trg_cruce_reproductora_engorde:
+    /// la función de cruce solo cuenta registros confirmados, así el día sincroniza hacia el
+    /// seguimiento pollo engorde cuando TODOS los lotes reproductora confirmaron esa edad.
+    /// Idempotente: si ya estaba confirmado no re-dispara nada.
+    /// </summary>
+    public async Task<SeguimientoLoteLevanteDto?> ConfirmarAsync(int id)
+    {
+        var companyId = _current.CompanyId;
+        // Scoping por compañía sin arrastrar la entidad al tracker por el join.
+        var pertenece = await (from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
+                               join l in _ctx.LoteReproductoraAveEngorde.AsNoTracking() on s.LoteReproductoraAveEngordeId equals l.Id
+                               join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
+                               where s.Id == id && lae.CompanyId == companyId && lae.DeletedAt == null
+                               select s.Id).AnyAsync();
+        if (!pertenece) return null;
+
+        var ent = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+            .SingleOrDefaultAsync(s => s.Id == id);
+        if (ent is null) return null;
+
+        // Idempotente.
+        if (ent.Confirmado) return MapToDto(ent);
+
+        ent.Confirmado = true;
+        ent.ConfirmadoAt = DateTime.UtcNow;
+        ent.ConfirmadoPor = _current.UserId > 0 ? _current.UserId.ToString() : null;
+        ent.UpdatedAt = DateTime.UtcNow;
+        // Entidad rastreada por PK → EF emite UPDATE de las columnas cambiadas → dispara el trigger de cruce.
+        await _ctx.SaveChangesAsync();
 
         return MapToDto(ent);
     }

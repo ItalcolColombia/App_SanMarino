@@ -49,5 +49,10 @@ public record SeguimientoLoteLevanteDto(
     bool OrigenCruce = false,
     // Alimento independiente Hembras/Machos (nombre resuelto al guardar). Se muestra en la tabla diaria + Excel.
     string? TipoAlimentoHembrasNombre = null,
-    string? TipoAlimentoMachosNombre = null
+    string? TipoAlimentoMachosNombre = null,
+    // Confirmación por registro (solo seguimiento reproductora aves de engorde): gatea el cruce hacia pollo engorde.
+    // Confirmado ⇒ read-only en UI (solo eliminar). Otros servicios dejan el default (false/null).
+    bool Confirmado = false,
+    DateTime? ConfirmadoAt = null,
+    string? ConfirmadoPor = null
 );
