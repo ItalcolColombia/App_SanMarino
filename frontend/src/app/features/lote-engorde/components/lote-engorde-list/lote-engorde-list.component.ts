@@ -26,6 +26,9 @@ import { User } from '../../../../core/services/user/user.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { Company } from '../../../../core/services/company/company.service';
 import { GuiaGeneticaEcuadorFiltersDto, GuiaGeneticaEcuadorService } from '../../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
+import { LoteBaseEngordeApi, LoteBaseEngordeDto, PERMISOS_LOTE_BASE } from '../../../engorde-comun/services/lote-base-engorde.api';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 
 @Component({
   selector: 'app-lote-engorde-list',
@@ -133,6 +136,22 @@ export class LoteEngordeListComponent implements OnInit {
   filteredNucleos: NucleoDto[] = [];
   filteredGalpones: GalponDetailDto[] = [];
 
+  // ── Lote base global (opcional) — agrupador para el Reporte Diario Costos ──
+  /** Claves de permisos del módulo lote base (gate de botón/modal/campo). */
+  readonly permLoteBase = PERMISOS_LOTE_BASE;
+  lotesBase: LoteBaseEngordeDto[] = [];
+  nuevoLoteBaseNombre = '';
+  creandoLoteBase = false;
+
+  // Modal de gestión de lotes base (lista + crear/editar/eliminar)
+  lotesBaseModalOpen = false;
+  lbEditando: LoteBaseEngordeDto | null = null;
+  lbNombre = '';
+  lbCodigoErp = '';
+  lbLineaGenetica = '';
+  lbDescripcion = '';
+  lbGuardando = false;
+
   constructor(
     private fb: FormBuilder,
     private loteEngordeSvc: LoteEngordeService,
@@ -140,12 +159,15 @@ export class LoteEngordeListComponent implements OnInit {
     private farmSvc: FarmService,
     private galponSvc: GalponService,
     private guiaEcuadorSvc: GuiaGeneticaEcuadorService,
+    private loteBaseApi: LoteBaseEngordeApi,
+    private confirmDialog: ConfirmDialogService,
     private toastService: ToastService
   ) {}
 
   ngOnInit(): void {
     this.initForm();
     this.loadLotes();
+    this.loadLotesBase();
 
     this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
       const granjaId = Number(granjaIdVal);
@@ -230,6 +252,122 @@ export class LoteEngordeListComponent implements OnInit {
       pesoMixto: [null],
       avesEncasetadas: [null],
       loteErp: [''],
+      loteBaseEngordeId: [null],
+    });
+  }
+
+  /** Carga el catálogo de lotes base (agrupador global opcional). */
+  private loadLotesBase(): void {
+    this.loteBaseApi.getAll().subscribe({
+      next: (bases) => { this.lotesBase = bases ?? []; },
+      error: () => { this.lotesBase = []; }
+    });
+  }
+
+  // ── Modal de gestión de lotes base ──────────────────────────────────────
+
+  abrirLotesBaseModal(): void {
+    this.lbLimpiarForm();
+    this.lotesBaseModalOpen = true;
+    this.loadLotesBase();
+  }
+
+  cerrarLotesBaseModal(): void {
+    this.lotesBaseModalOpen = false;
+    this.lbLimpiarForm();
+  }
+
+  lbLimpiarForm(): void {
+    this.lbEditando = null;
+    this.lbNombre = '';
+    this.lbCodigoErp = '';
+    this.lbLineaGenetica = '';
+    this.lbDescripcion = '';
+  }
+
+  lbEditar(b: LoteBaseEngordeDto): void {
+    this.lbEditando = b;
+    this.lbNombre = b.nombre;
+    this.lbCodigoErp = b.codigoErp ?? '';
+    this.lbLineaGenetica = b.lineaGenetica ?? '';
+    this.lbDescripcion = b.descripcion ?? '';
+  }
+
+  /** Crea o actualiza (según lbEditando) desde el form del modal de gestión. */
+  lbGuardar(): void {
+    const nombre = (this.lbNombre || '').trim();
+    if (!nombre) {
+      this.toastService.warning('El nombre del lote base es requerido (ej. "94").');
+      return;
+    }
+    const payload = {
+      nombre,
+      codigoErp: (this.lbCodigoErp || '').trim() || null,
+      lineaGenetica: (this.lbLineaGenetica || '').trim() || null,
+      descripcion: (this.lbDescripcion || '').trim() || null
+    };
+    this.lbGuardando = true;
+    const req = this.lbEditando
+      ? this.loteBaseApi.update(this.lbEditando.id, { id: this.lbEditando.id, ...payload })
+      : this.loteBaseApi.create(payload);
+    const esEdicion = !!this.lbEditando;
+    req.subscribe({
+      next: () => {
+        this.lbGuardando = false;
+        this.toastService.success(esEdicion ? `Lote base "${nombre}" actualizado.` : `Lote base "${nombre}" creado.`);
+        this.lbLimpiarForm();
+        this.loadLotesBase();
+      },
+      error: (err) => {
+        this.lbGuardando = false;
+        this.toastService.error(err?.error?.message || 'No se pudo guardar el lote base.');
+      }
+    });
+  }
+
+  async lbEliminar(b: LoteBaseEngordeDto): Promise<void> {
+    if (!(await this.confirmDialog.ask({
+      title: 'Eliminar lote base',
+      message: `¿Eliminar el lote base "${b.nombre}"?` +
+        (b.lotesAsignados > 0
+          ? ` Tiene ${b.lotesAsignados} lote(s) amarrado(s); el sistema bloqueará la eliminación.`
+          : ' Esta acción no se puede deshacer.'),
+      type: 'error',
+      confirmText: 'Eliminar'
+    }))) return;
+
+    this.loteBaseApi.delete(b.id).subscribe({
+      next: () => {
+        this.toastService.success(`Lote base "${b.nombre}" eliminado.`);
+        if (this.lbEditando?.id === b.id) this.lbLimpiarForm();
+        this.loadLotesBase();
+      },
+      error: (err) => {
+        this.toastService.error(err?.error?.message || 'No se pudo eliminar el lote base.');
+      }
+    });
+  }
+
+  /** Crea un lote base al vuelo desde el form del lote y lo deja seleccionado. */
+  crearLoteBaseRapido(): void {
+    const nombre = (this.nuevoLoteBaseNombre || '').trim();
+    if (!nombre) {
+      this.toastService.warning('Escribí el nombre del lote base (ej. "95").');
+      return;
+    }
+    this.creandoLoteBase = true;
+    this.loteBaseApi.create({ nombre }).subscribe({
+      next: (creado) => {
+        this.lotesBase = [...this.lotesBase, creado].sort((a, b) => a.nombre.localeCompare(b.nombre));
+        this.form.patchValue({ loteBaseEngordeId: creado.id });
+        this.nuevoLoteBaseNombre = '';
+        this.creandoLoteBase = false;
+        this.toastService.success(`Lote base "${creado.nombre}" creado y asignado.`);
+      },
+      error: (err) => {
+        this.creandoLoteBase = false;
+        this.toastService.error(err?.error?.message || 'No se pudo crear el lote base.');
+      }
     });
   }
 
@@ -460,8 +598,8 @@ export class LoteEngordeListComponent implements OnInit {
         nucleoId: l.nucleoId ?? null,
         galponId: l.galponId ?? null,
         regional: l.regional ?? '',
-        fechaEncaset: l.fechaEncaset ? new Date(l.fechaEncaset).toISOString().substring(0, 10) : null,
-        fechaAlistamiento: l.fechaAlistamiento ? new Date(l.fechaAlistamiento).toISOString().substring(0, 10) : null,
+        fechaEncaset: ymdSinTz(l.fechaEncaset),
+        fechaAlistamiento: ymdSinTz(l.fechaAlistamiento),
         hembrasL: l.hembrasL ?? null,
         machosL: l.machosL ?? null,
         pesoInicialH: l.pesoInicialH ?? null,
@@ -480,6 +618,7 @@ export class LoteEngordeListComponent implements OnInit {
         pesoMixto: l.pesoMixto ?? null,
         avesEncasetadas: l.avesEncasetadas ?? null,
         loteErp: l.loteErp ?? '',
+        loteBaseEngordeId: l.loteBaseEngordeId ?? null,
       });
       this.nucleosFiltrados = this.nucleos.filter(n => n.granjaId === l.granjaId);
       this.filteredNucleos = this.nucleosFiltrados;
@@ -516,6 +655,7 @@ export class LoteEngordeListComponent implements OnInit {
         pesoMixto: null,
         avesEncasetadas: null,
         loteErp: '',
+        loteBaseEngordeId: null,
       });
       this.nucleosFiltrados = this.filteredNucleos = [];
       this.galponesFiltrados = this.filteredGalpones = [];
@@ -574,8 +714,9 @@ export class LoteEngordeListComponent implements OnInit {
       nucleoId: raw.nucleoId != null && raw.nucleoId !== '' ? String(raw.nucleoId) : undefined,
       galponId: raw.galponId != null && raw.galponId !== '' ? String(raw.galponId) : undefined,
       regional: raw.regional != null && raw.regional !== '' ? String(raw.regional).trim() : undefined,
-      fechaEncaset: raw.fechaEncaset ? new Date(raw.fechaEncaset + 'T00:00:00Z').toISOString() : undefined,
-      fechaAlistamiento: raw.fechaAlistamiento ? new Date(raw.fechaAlistamiento + 'T00:00:00Z').toISOString() : undefined,
+      // Mediodía UTC: evita que la fecha "pura" cruce de día al mostrarse en UTC-5
+      fechaEncaset: ymdToIsoUtcNoon(raw.fechaEncaset) ?? undefined,
+      fechaAlistamiento: ymdToIsoUtcNoon(raw.fechaAlistamiento) ?? undefined,
       hembrasL: toNum(raw.hembrasL),
       machosL: toNum(raw.machosL),
       pesoInicialH: toNum(raw.pesoInicialH),
@@ -594,6 +735,7 @@ export class LoteEngordeListComponent implements OnInit {
       pesoMixto: toNum(raw.pesoMixto),
       avesEncasetadas: toNum(raw.avesEncasetadas),
       loteErp: raw.loteErp != null && raw.loteErp !== '' ? String(raw.loteErp).trim() : undefined,
+      loteBaseEngordeId: raw.loteBaseEngordeId != null && raw.loteBaseEngordeId !== '' ? Number(raw.loteBaseEngordeId) : null,
     } as CreateLoteAveEngordeDto | UpdateLoteAveEngordeDto;
     if (this.editing) {
       (dto as UpdateLoteAveEngordeDto).loteAveEngordeId = Number(raw.loteAveEngordeId) || this.editing.loteAveEngordeId;
@@ -666,9 +808,11 @@ export class LoteEngordeListComponent implements OnInit {
   }
 
   calcularEdadDias(fechaEncaset?: string | Date | null): number {
-    if (!fechaEncaset) return 0;
-    const inicio = new Date(fechaEncaset);
-    const hoy = new Date();
+    const ymd = ymdSinTz(fechaEncaset);
+    if (!ymd) return 0;
+    const inicio = new Date(ymd + 'T00:00:00');
+    const ahora = new Date();
+    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
     return Math.floor((hoy.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   }
 

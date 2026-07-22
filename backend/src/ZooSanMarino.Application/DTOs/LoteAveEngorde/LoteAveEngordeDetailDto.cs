@@ -56,5 +56,8 @@ public sealed record LoteAveEngordeDetailDto(
     DateTime? UpdatedAt,
     FarmLiteDto Farm,
     NucleoLiteDto? Nucleo,
-    GalponLiteDto? Galpon
+    GalponLiteDto? Galpon,
+    // Lote base global (opcional): agrupador para reportes por granja
+    int? LoteBaseEngordeId = null,
+    string? LoteBaseNombre = null
 );

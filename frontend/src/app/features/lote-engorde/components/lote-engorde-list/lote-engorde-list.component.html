@@ -22,6 +22,11 @@
         }
       </div>
       <div class="le-header__actions">
+        <ng-container *appHasPermission="permLoteBase.ver">
+          <button type="button" (click)="abrirLotesBaseModal()" class="le-btn le-btn--muted">
+            <span>Lotes base</span>
+          </button>
+        </ng-container>
         <button type="button" (click)="openModal()" class="le-btn le-btn--primary">
           <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
           <span>Nuevo Lote de Engorde</span>
@@ -199,7 +204,7 @@
                   <td>{{ formatOrDash(l.hembrasL) }}</td>
                   <td>{{ formatOrDash(l.machosL) }}</td>
                   <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
-                  <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
+                  <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy':'UTC') : '—' }}</td>
                   <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
                   <td class="le-table__actions-cell">
                     <div class="le-actions-inline">
@@ -330,6 +335,28 @@
                       <label class="le-label">Lote ERP</label>
                       <input formControlName="loteErp" class="le-input" placeholder="Código ERP"/>
                     </div>
+                    <ng-container *appHasPermission="permLoteBase.ver">
+                      <div class="le-field">
+                        <label class="le-label">Lote base (opcional)</label>
+                        <select formControlName="loteBaseEngordeId" class="le-input">
+                          <option [ngValue]="null">— Sin lote base —</option>
+                          @for (b of lotesBase; track b.id) {
+                            <option [ngValue]="b.id">{{ b.nombre }}{{ b.codigoErp ? ' · ' + b.codigoErp : '' }}</option>
+                          }
+                        </select>
+                        <ng-container *appHasPermission="permLoteBase.crear">
+                          <div class="mt-1 flex items-center gap-1">
+                            <input type="text" class="le-input" [(ngModel)]="nuevoLoteBaseNombre"
+                              [ngModelOptions]="{ standalone: true }" placeholder="Nuevo lote base (ej. 95)"/>
+                            <button type="button" (click)="crearLoteBaseRapido()" [disabled]="creandoLoteBase"
+                              class="shrink-0 px-2 py-1.5 rounded border border-ital-orange text-ital-orange text-xs font-medium disabled:opacity-50">
+                              {{ creandoLoteBase ? 'Creando…' : '+ Crear' }}
+                            </button>
+                          </div>
+                        </ng-container>
+                        <p class="le-form-hint">Agrupa lotes de varios galpones para el Reporte Diario Costos. No es obligatorio.</p>
+                      </div>
+                    </ng-container>
                   </div>
                 </div>
                 <!-- Sección: Genética (misma fuente que Configuración → Guía genética Ecuador: raza + año para indicadores y curvas) -->
@@ -457,6 +484,108 @@
         </div>
       }
 
+      <!-- MODAL: Lotes base (gestión del catálogo; visible con lote_base_pollo_engorde.ver) -->
+      @if (lotesBaseModalOpen) {
+        <div class="le-modal" role="dialog" aria-modal="true" aria-labelledby="le-lb-title">
+          <div class="le-modal__panel">
+            <div class="le-modal__header">
+              <h2 id="le-lb-title" class="le-modal__title">Lotes base · Pollo Engorde</h2>
+              <button type="button" (click)="cerrarLotesBaseModal()" class="le-btn le-btn--muted" aria-label="Cerrar">Cerrar</button>
+            </div>
+            <div class="le-modal__body">
+              <p class="le-form-hint">
+                Un lote base agrupa lotes de engorde de varios galpones bajo un mismo nombre (ej. "94")
+                para el Reporte Diario Costos. Asignarlo al lote es opcional.
+              </p>
+
+              <!-- Form crear / editar (permiso crear; en edición, permiso editar) -->
+              <ng-container *appHasPermission="lbEditando ? permLoteBase.editar : permLoteBase.crear">
+                <div class="le-form-section">
+                  <h3 class="le-form-section__title">{{ lbEditando ? ('Editar "' + lbEditando.nombre + '"') : 'Nuevo lote base' }}</h3>
+                  <div class="le-form-grid">
+                    <div class="le-field">
+                      <label class="le-label">Nombre <span class="le-req">*</span></label>
+                      <input type="text" class="le-input" [(ngModel)]="lbNombre"
+                        [ngModelOptions]="{ standalone: true }" placeholder="Ej. 94" maxlength="80"/>
+                    </div>
+                    <div class="le-field">
+                      <label class="le-label">Código ERP</label>
+                      <input type="text" class="le-input" [(ngModel)]="lbCodigoErp"
+                        [ngModelOptions]="{ standalone: true }" placeholder="Ej. PA-246" maxlength="80"/>
+                    </div>
+                    <div class="le-field">
+                      <label class="le-label">Línea genética</label>
+                      <input type="text" class="le-input" [(ngModel)]="lbLineaGenetica"
+                        [ngModelOptions]="{ standalone: true }" placeholder="Ej. ROSS 308 AP" maxlength="120"/>
+                    </div>
+                    <div class="le-field">
+                      <label class="le-label">Descripción</label>
+                      <input type="text" class="le-input" [(ngModel)]="lbDescripcion"
+                        [ngModelOptions]="{ standalone: true }" placeholder="Opcional" maxlength="300"/>
+                    </div>
+                  </div>
+                  <div class="le-modal__actions">
+                    @if (lbEditando) {
+                      <button type="button" (click)="lbLimpiarForm()" class="le-btn le-btn--muted">Cancelar edición</button>
+                    }
+                    <button type="button" (click)="lbGuardar()" [disabled]="lbGuardando || !lbNombre.trim()"
+                      class="le-btn le-btn--primary">
+                      {{ lbGuardando ? 'Guardando…' : (lbEditando ? 'Actualizar' : 'Crear lote base') }}
+                    </button>
+                  </div>
+                </div>
+              </ng-container>
+
+              <!-- Lista -->
+              <div class="le-form-section">
+                <h3 class="le-form-section__title">Lotes base creados ({{ lotesBase.length }})</h3>
+                @if (lotesBase.length === 0) {
+                  <p class="le-form-hint">Aún no hay lotes base creados.</p>
+                } @else {
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                      <thead>
+                        <tr class="text-left text-xs uppercase text-gray-500 border-b border-gray-200">
+                          <th class="py-1.5 pr-2">Nombre</th>
+                          <th class="py-1.5 pr-2">Código ERP</th>
+                          <th class="py-1.5 pr-2">Línea genética</th>
+                          <th class="py-1.5 pr-2 text-center">Lotes amarrados</th>
+                          <th class="py-1.5 pr-2">Descripción</th>
+                          <th class="py-1.5 text-right">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (b of lotesBase; track b.id) {
+                          <tr class="border-b border-gray-100" [class.bg-ital-cream]="lbEditando?.id === b.id">
+                            <td class="py-1.5 pr-2 font-semibold">{{ b.nombre }}</td>
+                            <td class="py-1.5 pr-2">{{ b.codigoErp || '—' }}</td>
+                            <td class="py-1.5 pr-2">{{ b.lineaGenetica || '—' }}</td>
+                            <td class="py-1.5 pr-2 text-center">{{ b.lotesAsignados }}</td>
+                            <td class="py-1.5 pr-2">{{ b.descripcion || '—' }}</td>
+                            <td class="py-1.5 text-right whitespace-nowrap">
+                              <ng-container *appHasPermission="permLoteBase.editar">
+                                <button type="button" (click)="lbEditar(b)" class="le-icon-btn" title="Editar" aria-label="Editar">
+                                  <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                                </button>
+                              </ng-container>
+                              <ng-container *appHasPermission="permLoteBase.eliminar">
+                                <button type="button" (click)="lbEliminar(b)" class="le-icon-btn le-icon-btn--danger" title="Eliminar" aria-label="Eliminar">
+                                  <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                                </button>
+                              </ng-container>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- MODAL: Detalle (se abre al hacer clic en Ver detalle; carga con getById) -->
       @if (loadingDetail || selectedLote) {
         <div class="le-modal" role="dialog" aria-modal="true" aria-labelledby="le-detail-title">
@@ -517,12 +646,16 @@
                         <input type="text" class="le-detail-input" [value]="selectedLote.loteErp || '—'" readonly disabled>
                       </div>
                       <div class="le-detail-field">
+                        <label class="le-detail-label">Lote base</label>
+                        <input type="text" class="le-detail-input" [value]="selectedLote.loteBaseNombre || '—'" readonly disabled>
+                      </div>
+                      <div class="le-detail-field">
                         <label class="le-detail-label">Fecha encasetamiento</label>
-                        <input type="text" class="le-detail-input" [value]="selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy') : '—'" readonly disabled>
+                        <input type="text" class="le-detail-input" [value]="selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy':'UTC') : '—'" readonly disabled>
                       </div>
                       <div class="le-detail-field">
                         <label class="le-detail-label">Fecha alistamiento</label>
-                        <input type="text" class="le-detail-input" [value]="selectedLote.fechaAlistamiento ? (selectedLote.fechaAlistamiento | date:'dd/MM/yyyy') : '—'" readonly disabled>
+                        <input type="text" class="le-detail-input" [value]="selectedLote.fechaAlistamiento ? (selectedLote.fechaAlistamiento | date:'dd/MM/yyyy':'UTC') : '—'" readonly disabled>
                       </div>
                       <div class="le-detail-field">
                         <label class="le-detail-label">Edad (días)</label>
@@ -732,7 +865,7 @@
                     </div>
                     <div class="le-detail-field">
                       <label class="le-detail-label">Fecha encasetamiento</label>
-                      <input type="text" class="le-detail-input" [value]="selectedReproductor.fechaEncasetamiento ? (selectedReproductor.fechaEncasetamiento | date:'dd/MM/yyyy') : '—'" readonly disabled>
+                      <input type="text" class="le-detail-input" [value]="selectedReproductor.fechaEncasetamiento ? (selectedReproductor.fechaEncasetamiento | date:'dd/MM/yyyy':'UTC') : '—'" readonly disabled>
                     </div>
                     <div class="le-detail-field">
                       <label class="le-detail-label">Estado</label>

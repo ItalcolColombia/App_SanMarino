@@ -40,6 +40,40 @@ export function ymdToIsoUtcNoon(ymd: string | null | undefined): string | null {
 }
 
 /**
+ * Extrae el `YYYY-MM-DD` intencional de una fecha de la API SIN corrimiento de zona:
+ * - `YYYY-MM-DD` o ISO sin zona (`2026-07-21T00:00:00`) → los 10 primeros chars, literal.
+ * - ISO con `Z` u offset (`2026-07-20T19:00:00-05:00`) → fecha UTC del instante.
+ * Complemento de lectura de `ymdToIsoUtcNoon`: las "fechas puras" viajan ancladas dentro
+ * del día UTC intencional, así que la fecha UTC siempre es la digitada.
+ */
+export function ymdSinTz(iso: string | Date | null | undefined): string | null {
+  if (!iso) return null;
+  if (iso instanceof Date) {
+    return isNaN(iso.getTime()) ? null : iso.toISOString().slice(0, 10);
+  }
+  const s = String(iso).trim();
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return null;
+  const conZona = /(?:Z|[+-]\d{2}:?\d{2})$/.test(s);
+  if (!conZona) return s.slice(0, 10);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? s.slice(0, 10) : d.toISOString().slice(0, 10);
+}
+
+/**
+ * Variante de `fechaCorta` sin corrimiento de zona horaria (misma salida
+ * `toLocaleDateString('es')`, p. ej. "21/7/2026"), para "fechas puras" que la API
+ * devuelve con offset. `—` si no hay valor y el original si no parsea.
+ */
+export function fechaCortaSinTz(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const ymd = ymdSinTz(iso);
+  if (!ymd) return iso;
+  const d = new Date(`${ymd}T00:00:00`);
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es');
+}
+
+/**
  * Sello de fecha compacto para nombres de archivo: `YYYYMMDD` (fecha local).
  * Es el patrón repetido en ~44 exports (`new Date()` + `padStart(2,'0')`).
  */

@@ -196,6 +196,7 @@ builder.Services.AddScoped<ILotePosturaLevanteService, LotePosturaLevanteService
 builder.Services.AddScoped<ILotePosturaProduccionService, LotePosturaProduccionService>();
 builder.Services.AddScoped<ILoteFormDataService, LoteFormDataService>();
 builder.Services.AddScoped<ILoteAveEngordeService, LoteAveEngordeService>();
+builder.Services.AddScoped<ILoteBaseEngordeService, LoteBaseEngordeService>();
 builder.Services.AddScoped<ILoteReproductoraService, LoteReproductoraService>();
 builder.Services.AddScoped<ILoteReproductoraFilterDataService, LoteReproductoraFilterDataService>();
 builder.Services.AddScoped<ILoteReproductoraAveEngordeService, LoteReproductoraAveEngordeService>();
@@ -282,6 +283,9 @@ builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
 
 // Informe Semanal Pollo de Engorde (Panamá)
 builder.Services.AddScoped<IInformeSemanalPolloEngordeService, InformeSemanalPolloEngordeService>();
+
+// Reporte Diario Costos Pollo Engorde (por granja + lote base)
+builder.Services.AddScoped<IReporteDiarioCostosEngordeService, ReporteDiarioCostosEngordeService>();
 
 // Reporte Indicador Panamá Service (liquidación Pollo Engorde Panamá)
 builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanamaService>();
