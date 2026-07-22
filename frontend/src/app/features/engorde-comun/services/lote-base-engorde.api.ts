@@ -6,8 +6,9 @@ import { environment } from '../../../../environments/environment';
 
 /**
  * Catálogo "Lote base" global de pollo engorde (por empresa). Agrupa varios
- * lote_ave_engorde (distintos galpones) bajo un mismo nombre (ej. "95") para
- * reportes por granja. La asignación en el lote es OPCIONAL.
+ * lote_ave_engorde (distintos galpones) bajo un mismo nombre (ej. "95").
+ * La visibilidad al crear lote se parametriza por granja: cada lote base trae sus
+ * `granjaIds` y solo aparece en el selector de esas granjas.
  * Compartido entre el form de lotes engorde y el Reporte Diario Costos.
  */
 export interface LoteBaseEngordeDto {
@@ -16,22 +17,23 @@ export interface LoteBaseEngordeDto {
   descripcion?: string | null;
   codigoErp?: string | null;
   lineaGenetica?: string | null;
-  /** Fecha de activación (ISO). Vigencia por AÑO: aparece en crear-lote solo durante ese año; null = siempre. */
+  /** Fecha de activación (ISO). Se toma automática al crear; ya NO controla vigencia por año. */
   fechaActivacion?: string | null;
-  /** Desactivación manual: inactivo no aparece en el selector de crear-lote. */
+  /** Desactivación manual (apagado global): inactivo no aparece en ningún crear-lote. */
   activo: boolean;
   /** Lotes de engorde vivos amarrados a este lote base. */
   lotesAsignados: number;
+  /** Granjas donde el lote base es visible al crear lote (filtro de visibilidad). */
+  granjaIds: number[];
+  /** Nombre del usuario que creó el lote base. */
+  createdByNombre?: string | null;
   createdAt?: string;
 }
 
-export interface LoteBaseEngordePayload {
-  nombre: string;
-  descripcion?: string | null;
-  codigoErp?: string | null;
-  lineaGenetica?: string | null;
-  /** 'yyyy-MM-dd'. */
-  fechaActivacion?: string | null;
+/** Granja asignada a un lote base. */
+export interface LoteBaseEngordeGranjaDto {
+  farmId: number;
+  farmName: string;
 }
 
 /**
@@ -50,27 +52,44 @@ export class LoteBaseEngordeApi {
   private readonly baseUrl = `${environment.apiUrl}/LoteBaseEngorde`;
   private readonly http = inject(HttpClient);
 
-  /** soloVigentes: solo activos y del año en curso (selector de crear-lote en Panamá). */
-  getAll(soloVigentes = false): Observable<LoteBaseEngordeDto[]> {
-    return this.http.get<LoteBaseEngordeDto[]>(this.baseUrl, {
-      params: soloVigentes ? { soloVigentes: true } : {}
-    });
+  /** Lista los lotes base vivos con sus granjas asignadas (granjaIds) y creador. */
+  getAll(): Observable<LoteBaseEngordeDto[]> {
+    return this.http.get<LoteBaseEngordeDto[]>(this.baseUrl);
   }
 
-  /** Toggle manual de activación. */
+  /** Toggle manual de activación (apagado global). */
   setActivo(id: number, activo: boolean): Observable<LoteBaseEngordeDto> {
     return this.http.put<LoteBaseEngordeDto>(`${this.baseUrl}/${id}/activo`, { activo });
   }
 
-  create(dto: LoteBaseEngordePayload): Observable<LoteBaseEngordeDto> {
-    return this.http.post<LoteBaseEngordeDto>(this.baseUrl, dto);
+  /** Crea un lote base: solo nombre (fecha y usuario se capturan en el backend). */
+  create(nombre: string): Observable<LoteBaseEngordeDto> {
+    return this.http.post<LoteBaseEngordeDto>(this.baseUrl, { nombre });
   }
 
-  update(id: number, dto: LoteBaseEngordePayload & { id: number }): Observable<LoteBaseEngordeDto> {
-    return this.http.put<LoteBaseEngordeDto>(`${this.baseUrl}/${id}`, dto);
+  /** Renombra el lote base. */
+  update(id: number, nombre: string): Observable<LoteBaseEngordeDto> {
+    return this.http.put<LoteBaseEngordeDto>(`${this.baseUrl}/${id}`, { id, nombre });
   }
 
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
+  // ── Asignación de granjas (visibilidad al crear lote) ────────────────────
+
+  /** Granjas asignadas a un lote base. */
+  getGranjas(id: number): Observable<LoteBaseEngordeGranjaDto[]> {
+    return this.http.get<LoteBaseEngordeGranjaDto[]>(`${this.baseUrl}/${id}/granjas`);
+  }
+
+  /** Asigna una granja al lote base (idempotente). */
+  assignGranja(id: number, farmId: number): Observable<LoteBaseEngordeGranjaDto> {
+    return this.http.post<LoteBaseEngordeGranjaDto>(`${this.baseUrl}/${id}/granjas`, { farmId });
+  }
+
+  /** Quita una granja del lote base. */
+  unassignGranja(id: number, farmId: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}/granjas/${farmId}`);
   }
 }

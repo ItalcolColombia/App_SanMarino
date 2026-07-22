@@ -350,19 +350,22 @@
                     <div class="le-field">
                       <label class="le-label">Nombre del lote <span class="le-req">*</span></label>
                       @if (esPanama) {
-                        <!-- Panamá: el nombre sale del lote base VIGENTE (activo + año en curso) y queda amarrado -->
+                        <!-- Panamá: el nombre sale de un lote base ASIGNADO a la granja seleccionada -->
                         <select formControlName="loteBaseEngordeId" class="le-input"
-                          [class.le-input--invalid]="form.get('loteBaseEngordeId')?.invalid && form.get('loteBaseEngordeId')?.touched">
+                          [class.le-input--invalid]="form.get('loteBaseEngordeId')?.invalid && form.get('loteBaseEngordeId')?.touched"
+                          [disabled]="!form.get('granjaId')?.value">
                           <option [ngValue]="null">— Seleccione lote base —</option>
-                          @for (b of lotesBaseVigentes; track b.id) {
+                          @for (b of lotesBaseParaGranja; track b.id) {
                             <option [ngValue]="b.id">{{ b.nombre }}{{ b.codigoErp ? ' · ' + b.codigoErp : '' }}</option>
                           }
                         </select>
                         @if (form.get('loteBaseEngordeId')?.invalid && form.get('loteBaseEngordeId')?.touched) {
                           <small class="le-error">El lote base es requerido en Panamá</small>
                         }
-                        @if (lotesBaseVigentes.length === 0) {
-                          <p class="le-form-hint">No hay lotes base vigentes: creá uno en la pestaña "Lotes base" (activo y con fecha del año en curso).</p>
+                        @if (!form.get('granjaId')?.value) {
+                          <p class="le-form-hint">Seleccione primero la granja: se listan solo los lotes base asignados a ella.</p>
+                        } @else if (lotesBaseParaGranja.length === 0) {
+                          <p class="le-form-hint">No hay lotes base asignados a esta granja. Creá uno y asignale la granja en la pestaña "Lotes base".</p>
                         }
                       } @else {
                         <input formControlName="loteNombre" class="le-input" placeholder="Ej: Lote 001" [class.le-input--invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"/>
@@ -394,9 +397,9 @@
                     <ng-container *appHasPermission="permLoteBase.ver">
                       <div class="le-field">
                         <label class="le-label">Lote base (opcional)</label>
-                        <select formControlName="loteBaseEngordeId" class="le-input">
+                        <select formControlName="loteBaseEngordeId" class="le-input" [disabled]="!form.get('granjaId')?.value">
                           <option [ngValue]="null">— Sin lote base —</option>
-                          @for (b of lotesBase; track b.id) {
+                          @for (b of lotesBaseParaGranja; track b.id) {
                             <option [ngValue]="b.id">{{ b.nombre }}{{ b.codigoErp ? ' · ' + b.codigoErp : '' }}</option>
                           }
                         </select>
@@ -404,13 +407,13 @@
                           <div class="mt-1 flex items-center gap-1">
                             <input type="text" class="le-input" [(ngModel)]="nuevoLoteBaseNombre"
                               [ngModelOptions]="{ standalone: true }" placeholder="Nuevo lote base (ej. 95)"/>
-                            <button type="button" (click)="crearLoteBaseRapido()" [disabled]="creandoLoteBase"
+                            <button type="button" (click)="crearLoteBaseRapido()" [disabled]="creandoLoteBase || !form.get('granjaId')?.value"
                               class="shrink-0 px-2 py-1.5 rounded border border-ital-orange text-ital-orange text-xs font-medium disabled:opacity-50">
                               {{ creandoLoteBase ? 'Creando…' : '+ Crear' }}
                             </button>
                           </div>
                         </ng-container>
-                        <p class="le-form-hint">Agrupa lotes de varios galpones para el Reporte Diario Costos. No es obligatorio.</p>
+                        <p class="le-form-hint">Se listan solo los lotes base asignados a la granja seleccionada. Al crear uno aquí se asigna a esa granja. No es obligatorio.</p>
                       </div>
                     </ng-container>
                     }
@@ -559,9 +562,9 @@
       <!-- Gestión de lotes base (compartida por el modal de Ecuador y el tab de Panamá) -->
       <ng-template #gestionLotesBaseTpl>
         <p class="le-form-hint">
-          Un lote base agrupa lotes de engorde de varios galpones bajo un mismo nombre (ej. "94")
-          para el Reporte Diario Costos. Aparece al crear lotes solo si está <strong>activo</strong>
-          y su fecha de activación es del <strong>año en curso</strong>.
+          Un lote base agrupa lotes de engorde de varios galpones bajo un mismo nombre (ej. "94").
+          Aparece al crear un lote solo si está <strong>activo</strong> y está <strong>asignado a esa granja</strong>
+          (usá <strong>Asignar granjas</strong>). El mismo nombre se puede repetir en distintos años.
           @if (esPanama) { <span>En Panamá el nombre del lote se elige de esta lista (obligatorio).</span> }
         </p>
 
@@ -574,34 +577,14 @@
                 <label class="le-label">Nombre <span class="le-req">*</span></label>
                 <input type="text" class="le-input" [(ngModel)]="lbNombre"
                   [ngModelOptions]="{ standalone: true }" placeholder="Ej. 94" maxlength="80"/>
-              </div>
-              <div class="le-field">
-                <label class="le-label">Código ERP</label>
-                <input type="text" class="le-input" [(ngModel)]="lbCodigoErp"
-                  [ngModelOptions]="{ standalone: true }" placeholder="Ej. PA-246" maxlength="80"/>
-              </div>
-              <div class="le-field">
-                <label class="le-label">Línea genética</label>
-                <input type="text" class="le-input" [(ngModel)]="lbLineaGenetica"
-                  [ngModelOptions]="{ standalone: true }" placeholder="Ej. ROSS 308 AP" maxlength="120"/>
-              </div>
-              <div class="le-field">
-                <label class="le-label">Fecha de activación <span class="le-req">*</span></label>
-                <input type="date" class="le-input" [(ngModel)]="lbFechaActivacion"
-                  [ngModelOptions]="{ standalone: true }"/>
-                <p class="le-form-hint">Vigente durante el año de esta fecha.</p>
-              </div>
-              <div class="le-field">
-                <label class="le-label">Descripción</label>
-                <input type="text" class="le-input" [(ngModel)]="lbDescripcion"
-                  [ngModelOptions]="{ standalone: true }" placeholder="Opcional" maxlength="300"/>
+                <p class="le-form-hint">La fecha de activación y el usuario se registran automáticamente. Después asigná las granjas.</p>
               </div>
             </div>
             <div class="le-modal__actions">
               @if (lbEditando) {
                 <button type="button" (click)="lbLimpiarForm()" class="le-btn le-btn--muted">Cancelar edición</button>
               }
-              <button type="button" (click)="lbGuardar()" [disabled]="lbGuardando || !lbNombre.trim() || !lbFechaActivacion"
+              <button type="button" (click)="lbGuardar()" [disabled]="lbGuardando || !lbNombre.trim()"
                 class="le-btn le-btn--primary">
                 {{ lbGuardando ? 'Guardando…' : (lbEditando ? 'Actualizar' : 'Crear lote base') }}
               </button>
@@ -620,12 +603,11 @@
                 <thead>
                   <tr class="text-left text-xs uppercase text-gray-500 border-b border-gray-200">
                     <th class="py-1.5 pr-2">Nombre</th>
-                    <th class="py-1.5 pr-2">Código ERP</th>
-                    <th class="py-1.5 pr-2">Línea genética</th>
                     <th class="py-1.5 pr-2">Activación</th>
+                    <th class="py-1.5 pr-2">Creado por</th>
+                    <th class="py-1.5 pr-2 text-center">Granjas</th>
                     <th class="py-1.5 pr-2 text-center">Estado</th>
                     <th class="py-1.5 pr-2 text-center">Lotes amarrados</th>
-                    <th class="py-1.5 pr-2">Descripción</th>
                     <th class="py-1.5 text-right">Acciones</th>
                   </tr>
                 </thead>
@@ -635,9 +617,9 @@
                       [class.bg-ital-cream]="lbEditando?.id === b.id"
                       [class.opacity-60]="!b.activo">
                       <td class="py-1.5 pr-2 font-semibold">{{ b.nombre }}</td>
-                      <td class="py-1.5 pr-2">{{ b.codigoErp || '—' }}</td>
-                      <td class="py-1.5 pr-2">{{ b.lineaGenetica || '—' }}</td>
-                      <td class="py-1.5 pr-2">{{ b.fechaActivacion ? (b.fechaActivacion | date:'dd/MM/yyyy') : '—' }}</td>
+                      <td class="py-1.5 pr-2">{{ b.fechaActivacion ? (b.fechaActivacion | date:'dd/MM/yyyy':'UTC') : '—' }}</td>
+                      <td class="py-1.5 pr-2">{{ b.createdByNombre || '—' }}</td>
+                      <td class="py-1.5 pr-2 text-center">{{ b.granjaIds?.length || 0 }}</td>
                       <td class="py-1.5 pr-2 text-center">
                         <span class="text-xs px-2 py-0.5 rounded border"
                           [class.bg-green-50]="b.activo" [class.text-green-800]="b.activo" [class.border-green-200]="b.activo"
@@ -646,14 +628,17 @@
                         </span>
                       </td>
                       <td class="py-1.5 pr-2 text-center">{{ b.lotesAsignados }}</td>
-                      <td class="py-1.5 pr-2">{{ b.descripcion || '—' }}</td>
                       <td class="py-1.5 text-right whitespace-nowrap">
                         <ng-container *appHasPermission="permLoteBase.editar">
+                          <button type="button" (click)="abrirAsignarGranjas(b)" class="le-btn le-btn--ghost text-xs"
+                            title="Asignar granjas donde el lote base es visible al crear lote">
+                            Asignar granjas
+                          </button>
                           <button type="button" (click)="lbToggleActivo(b)" class="le-btn le-btn--ghost text-xs"
-                            [title]="b.activo ? 'Desactivar (sale del selector de crear-lote)' : 'Activar'">
+                            [title]="b.activo ? 'Desactivar (sale de todos los crear-lote)' : 'Activar'">
                             {{ b.activo ? 'Desactivar' : 'Activar' }}
                           </button>
-                          <button type="button" (click)="lbEditar(b)" class="le-icon-btn" title="Editar" aria-label="Editar">
+                          <button type="button" (click)="lbEditar(b)" class="le-icon-btn" title="Editar nombre" aria-label="Editar nombre">
                             <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                           </button>
                         </ng-container>
@@ -1026,6 +1011,15 @@
           </div>
         </div>
       }
+
+      <!-- MODAL: Asignar granjas a un lote base -->
+      <app-asignar-granjas-lote-base
+        [isOpen]="asignarGranjasOpen"
+        [loteBaseId]="loteBaseParaAsignar?.id ?? null"
+        [loteBaseNombre]="loteBaseParaAsignar?.nombre ?? ''"
+        (close)="cerrarAsignarGranjas()"
+        (updated)="onGranjasActualizadas()">
+      </app-asignar-granjas-lote-base>
 
       <app-confirmation-modal
         [isOpen]="confirmOpen"

@@ -86,6 +86,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<LoteEtapaLevante> LoteEtapaLevante => Set<LoteEtapaLevante>();
         public DbSet<LoteAveEngorde> LoteAveEngorde { get; set; } = null!;
         public DbSet<LoteBaseEngorde> LoteBaseEngorde => Set<LoteBaseEngorde>();
+        public DbSet<LoteBaseEngordeGranja> LoteBaseEngordeGranja => Set<LoteBaseEngordeGranja>();
         public DbSet<LoteReproductoraAveEngorde> LoteReproductoraAveEngorde => Set<LoteReproductoraAveEngorde>();
         public DbSet<SeguimientoDiarioAvesEngorde> SeguimientoDiarioAvesEngorde => Set<SeguimientoDiarioAvesEngorde>();
         public DbSet<SeguimientoDiarioAvesEngordeEcuador> SeguimientoDiarioAvesEngordeEcuador => Set<SeguimientoDiarioAvesEngordeEcuador>();

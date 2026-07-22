@@ -1,0 +1,92 @@
+@if (isOpen) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="agl-title">
+    <div class="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-lg bg-white shadow-xl flex flex-col">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+        <h2 id="agl-title" class="text-base font-bold text-ital-orange">
+          <fa-icon [icon]="faBuilding" class="mr-1" aria-hidden="true"></fa-icon>
+          Asignar granjas · {{ loteBaseNombre }}
+        </h2>
+        <button type="button" (click)="closeModal()" class="text-gray-500 hover:text-gray-700" aria-label="Cerrar">
+          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+        </button>
+      </div>
+
+      <div class="px-5 py-3 overflow-y-auto">
+        <p class="text-xs text-gray-500 mb-3">
+          El lote base solo aparecerá al crear un lote en las granjas <strong>asignadas</strong>.
+          Se listan las granjas según tus permisos (Administrador de Empresa ve todas).
+        </p>
+
+        <!-- Búsqueda -->
+        <div class="relative mb-3">
+          <fa-icon [icon]="faSearch" class="absolute left-2.5 top-2.5 text-gray-400 text-sm" aria-hidden="true"></fa-icon>
+          <input type="text" [(ngModel)]="searchTerm" placeholder="Buscar granja…"
+            class="w-full rounded border border-gray-300 pl-8 pr-8 py-1.5 text-sm focus:border-ital-orange focus:outline-none"/>
+          @if (searchTerm) {
+            <button type="button" (click)="clearSearch()" class="absolute right-2 top-2 text-gray-400 hover:text-gray-600" aria-label="Limpiar">
+              <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+            </button>
+          }
+        </div>
+
+        @if (loading) {
+          <div class="py-8 text-center text-sm text-gray-500">Cargando granjas…</div>
+        } @else {
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Asignadas -->
+            <div>
+              <h3 class="text-xs font-semibold uppercase text-gray-500 mb-2">
+                Asignadas ({{ filteredAsignadas.length }})
+              </h3>
+              @if (filteredAsignadas.length === 0) {
+                <p class="text-xs text-gray-400 italic">Ninguna granja asignada.</p>
+              } @else {
+                <ul class="space-y-1">
+                  @for (g of filteredAsignadas; track trackByAsignadaId($index, g)) {
+                    <li class="flex items-center justify-between rounded border border-green-200 bg-green-50 px-3 py-1.5 text-sm">
+                      <span class="truncate">{{ g.farmName }}</span>
+                      <button type="button" (click)="quitar(g)" [disabled]="saving"
+                        class="shrink-0 text-red-600 hover:text-red-800 disabled:opacity-50" title="Quitar" aria-label="Quitar granja">
+                        <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <!-- Disponibles -->
+            <div>
+              <h3 class="text-xs font-semibold uppercase text-gray-500 mb-2">
+                Disponibles ({{ filteredDisponibles.length }})
+              </h3>
+              @if (filteredDisponibles.length === 0) {
+                <p class="text-xs text-gray-400 italic">No hay más granjas para asignar.</p>
+              } @else {
+                <ul class="space-y-1">
+                  @for (f of filteredDisponibles; track trackByFarmId($index, f)) {
+                    <li class="flex items-center justify-between rounded border border-gray-200 px-3 py-1.5 text-sm">
+                      <span class="truncate">{{ f.name }}</span>
+                      <button type="button" (click)="asignar(f)" [disabled]="saving"
+                        class="shrink-0 text-ital-orange hover:opacity-80 disabled:opacity-50" title="Asignar" aria-label="Asignar granja">
+                        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Footer -->
+      <div class="border-t border-gray-200 px-5 py-3 flex justify-end">
+        <button type="button" (click)="closeModal()" class="rounded bg-gray-100 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200">
+          Listo
+        </button>
+      </div>
+    </div>
+  </div>
+}
