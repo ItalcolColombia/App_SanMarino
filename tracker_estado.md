@@ -202,36 +202,39 @@ Plan: [gestion_granjas_cascada_refresh_plan.md](fase_de_desarrollo/gestion_granj
 - [x] RC4 — Front núcleo deja editar granja en edición (no bloqueada)
 - [x] RC5 — Borrado de núcleo/galpón sin validar hijos ni cascada
 
+> Enfoque decidido con el usuario: **cascada por función SQL** en `/backend/sql/fn_mover_ubicacion.sql` + **incluir Fase 3**.
+> Estado: **BACKEND + FRONTEND COMPLETOS** (build 0/0, front `ng build` OK, 13/13 xUnit). Funciones SQL validadas contra BD real (smoke con ROLLBACK). Falta: aplicar `fn_mover_ubicacion.sql` en PROD (manual, como las demás fns) + smoke E2E con stack vivo (BD :5433 compartida → bajo pedido).
+
 ## Fase 0 — Blindaje anti-duplicado / anti-huérfano
-- [x] `GalponService.CreateAsync` — quitado auto-regenerar-ID; `GalponId` dado y duplicado → `InvalidOperationException`; carrera 23505 → falla explícita (helper `EsClaveDuplicada`)
-- [x] `Galpon/Nucleo Controller` Create/Update — `try/catch InvalidOperationException → 400 {message}` (legible por el front)
-- [x] `dotnet build` (API, .NET 10 portable) — **0 warnings / 0 errores**
-- [ ] Front `nucleo-list` — bloquear `<select>` granja en modo edición
-- [ ] Front `galpon-list` — asegurar que edición siempre llama `update` y no recalcula `galponId`
-- [ ] xUnit `CreateAsync` duplicado → excepción + `yarn build`
+- [x] `GalponService.CreateAsync` — quitado auto-regenerar-ID; `GalponId` duplicado → `InvalidOperationException`; carrera 23505 → falla explícita (helper `EsClaveDuplicada`)
+- [x] `Galpon/Nucleo Controller` Create/Update/Delete — `try/catch InvalidOperationException → 400 {message}`
+- [x] Front `nucleo-list` — granja bloqueada en edición (disabled) + `getRawValue()` en save
+- [x] Front `galpon-list` — edición siempre `update`; granja+núcleo+galponId bloqueados en edición
+- [x] `GalponService.UpdateAsync` — ya NO cambia ubicación (solo nombre/medidas/tipo); mover va por MoverAsync
 
 ## Fase 1 — Mover Lote de ubicación
-- [x] **Auditoría bloqueante (HECHA):** la ubicación está denormalizada con FK `Restrict` en ~9 tablas: `lotes`, `LotePosturaLevante`, `LotePosturaProduccion`, `LoteAveEngorde`, `InventarioAves`, `HistorialInventario` (núcleo+galpón) · `LoteGalpon`, `PlanGramajeGalpon` (galpón) + tablas sin FK (Vacunación, ProduccionLote, InventarioGestión, Lesion, LoteRegistroHistoricoUnificado, InventarioGasto). `seguimiento_diario` NO denormaliza (usa `lote_id`). → cascada de `move`/re-key debe cubrir todas. **PENDIENTE OK del enfoque antes de reordenar datos.**
-- [ ] `MoverLoteDto` + `LoteService.MoverAsync` (transaccional, valida destino, no toca nombre/corrida/fase)
-- [ ] `POST /api/Lote/{loteId}/mover` + front acción "Mover ubicación"
-- [ ] Tests puro + integración
+- [x] **Auditoría bloqueante (HECHA):** ubicación denormalizada en 18 tablas (verdad del esquema por information_schema). `seguimiento_diario` NO denormaliza (usa `lote_id`).
+- [x] `fn_mover_lote` (lotes + lote_postura_levante/produccion) + `MoverLoteDto` + `LoteService.MoverUbicacionAsync` (valida destino, no toca nombre/fase)
+- [x] `POST /api/Lote/{loteId}/mover` + front acción "Mover ubicación" (permite misma granja; nuevo, distinto de traslado de aves)
 
 ## Fase 2 — Mover Galpón (cascada a lotes)
-- [ ] `MoverGalponDto` + `GalponService.MoverAsync` (transaccional: repunta lotes → galpón)
-- [ ] `POST /api/Galpon/{galponId}/mover` + front separar "Editar" (datos) de "Mover"
-- [ ] Tests puro + integración (N lotes repuntados, cero duplicados)
+- [x] `fn_mover_galpon` (galpón + 13 tablas hijas por `galpon_id`) + `MoverGalponDto` + `GalponService.MoverAsync`
+- [x] `POST /api/Galpon/{galponId}/mover` + front "Mover" separado de "Editar" (datos)
+- [x] Smoke SQL (ROLLBACK): re-key movió 4 galpones + 2 lotes; cero duplicados
 
-## Fase 3 — Mover Núcleo a otra granja (re-key, OPCIONAL, gated)
-- [ ] `MoverNucleoDto` + `NucleoService.MoverAsync` (insert-repoint-delete transaccional; colisión → 409)
-- [ ] `POST /api/Nucleo/{nucleoId}/{granjaId}/mover` + front confirmación con impacto (N galpones, M lotes)
-- [ ] Tests integración (re-key completo, colisión, rollback)
+## Fase 3 — Mover Núcleo a otra granja (re-key) — INCLUIDA
+- [x] `fn_rekey_nucleo` (insert-repoint-delete transaccional; colisión/inexistencia → RAISE) + `MoverNucleoDto` + `NucleoService.MoverAsync`
+- [x] `POST /api/Nucleo/{nucleoId}/{granjaId}/mover` + front "Mover a otra granja" con impacto
+- [x] Smoke SQL con ROLLBACK verde (núcleo 324 g5→g2 arrastró galpones+lotes; ROLLBACK sin cambios)
 
 ## Fase 4 — Flujo completo de eliminar
-- [ ] `Nucleo.DeleteAsync` — bloquear si hay lotes con datos; cascada de galpones vacíos con confirmación
-- [ ] `Galpon.DeleteAsync` — bloquear si hay lotes activos
-- [ ] Front — `ConfirmDialogService` con detalle de impacto + toasts de error
+- [x] `Nucleo.DeleteAsync` — bloquea si hay galpones o lotes (postura+engorde) activos
+- [x] `Galpon.DeleteAsync` — bloquea si hay lotes (postura+engorde) activos
+- [x] Controllers `Delete` → 400 {message}; front ya muestra `err.error.message`
 
 ## Transversal
-- [ ] `Application/Calculos/UbicacionCalculos.cs` (puro) + `UbicacionCalculosTests.cs`
-- [ ] País-agnóstico: los `move` no alteran nombres/numeración de lote (CO/EC/PA)
-- [ ] Validación final: `dotnet build`+`dotnet test` · `yarn build` · smoke local bajo pedido (BD :5433 compartida)
+- [x] `Application/Calculos/UbicacionCalculos.cs` (puro) + `UbicacionCalculosTests.cs` — **13/13 verdes**
+- [x] País-agnóstico: los `move` no alteran nombres/numeración de lote (CO/EC/PA)
+- [x] Validación: `dotnet build` API 0/0 · `dotnet test` 13/13 · `ng build` OK (solo warning bundle preexistente)
+- [ ] **Aplicar `backend/sql/fn_mover_ubicacion.sql` en PROD** (manual; en local ya aplicado)
+- [ ] Smoke E2E con stack vivo (rebuild+restart backend del usuario; BD :5433 compartida) — bajo pedido

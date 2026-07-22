@@ -58,10 +58,14 @@ export interface LoteAveEngordeDto {
   /** Lote base global (opcional): agrupa lotes de engorde para el Reporte Diario Costos. */
   loteBaseEngordeId?: number | null;
   loteBaseNombre?: string | null;
+  /** Referencia de corrida (solo Panamá): número dentro del mismo lote base + galpón. */
+  numeroCorrida?: number | null;
 }
 
 export interface CreateLoteAveEngordeDto extends Omit<LoteAveEngordeDto, 'loteAveEngordeId'> {
   loteAveEngordeId?: number;
+  /** Solo Panamá: pide al backend asignar el número de corrida y armar "{base} - {n}". */
+  autoNombrePorCorrida?: boolean;
 }
 
 export interface UpdateLoteAveEngordeDto extends LoteAveEngordeDto {}

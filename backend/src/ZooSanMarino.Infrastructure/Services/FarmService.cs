@@ -853,9 +853,34 @@ namespace ZooSanMarino.Infrastructure.Services
                 .SingleOrDefaultAsync(f => f.Id == id && f.CompanyId == _current.CompanyId);
             if (entity is null || entity.DeletedAt != null) return false;
 
-            entity.DeletedAt       = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+
+            entity.DeletedAt       = now;
             entity.UpdatedByUserId = _current.UserId;
-            entity.UpdatedAt       = DateTime.UtcNow;
+            entity.UpdatedAt       = now;
+
+            // Cascada: deshabilitar (soft-delete) los núcleos y galpones de la granja que sigan
+            // activos (GestionGranjasCalculos.RequiereInhabilitar → DeletedAt == null). Mismo
+            // SaveChanges = operación atómica.
+            var nucleos = await _ctx.Nucleos
+                .Where(n => n.GranjaId == entity.Id && n.CompanyId == entity.CompanyId && n.DeletedAt == null)
+                .ToListAsync();
+            foreach (var n in nucleos)
+            {
+                n.DeletedAt       = now;
+                n.UpdatedByUserId = _current.UserId;
+                n.UpdatedAt       = now;
+            }
+
+            var galpones = await _ctx.Galpones
+                .Where(g => g.GranjaId == entity.Id && g.CompanyId == entity.CompanyId && g.DeletedAt == null)
+                .ToListAsync();
+            foreach (var g in galpones)
+            {
+                g.DeletedAt       = now;
+                g.UpdatedByUserId = _current.UserId;
+                g.UpdatedAt       = now;
+            }
 
             await _ctx.SaveChangesAsync();
             return true;
@@ -866,6 +891,18 @@ namespace ZooSanMarino.Infrastructure.Services
             var entity = await _ctx.Farms
                 .SingleOrDefaultAsync(f => f.Id == id && f.CompanyId == _current.CompanyId);
             if (entity is null) return false;
+
+            // Cascada dura: eliminar físicamente núcleos y galpones de la granja (consistencia con
+            // el borrado de la granja; evita huérfanos con FK a una granja inexistente).
+            var galpones = await _ctx.Galpones
+                .Where(g => g.GranjaId == entity.Id && g.CompanyId == entity.CompanyId)
+                .ToListAsync();
+            if (galpones.Count > 0) _ctx.Galpones.RemoveRange(galpones);
+
+            var nucleos = await _ctx.Nucleos
+                .Where(n => n.GranjaId == entity.Id && n.CompanyId == entity.CompanyId)
+                .ToListAsync();
+            if (nucleos.Count > 0) _ctx.Nucleos.RemoveRange(nucleos);
 
             _ctx.Farms.Remove(entity);
             await _ctx.SaveChangesAsync();

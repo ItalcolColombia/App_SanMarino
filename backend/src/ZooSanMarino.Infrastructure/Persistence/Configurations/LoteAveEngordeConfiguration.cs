@@ -64,11 +64,15 @@ public class LoteAveEngordeConfiguration : IEntityTypeConfiguration<LoteAveEngor
         b.Property(x => x.EmpresaNombre).HasColumnName("empresa_nombre").HasMaxLength(200);
 
         b.Property(x => x.LoteBaseEngordeId).HasColumnName("lote_base_engorde_id");
+        b.Property(x => x.NumeroCorrida).HasColumnName("numero_corrida");
 
         b.HasIndex(x => x.GranjaId).HasDatabaseName("ix_lote_ave_engorde_granja");
         b.HasIndex(x => x.NucleoId).HasDatabaseName("ix_lote_ave_engorde_nucleo");
         b.HasIndex(x => x.GalponId).HasDatabaseName("ix_lote_ave_engorde_galpon");
         b.HasIndex(x => x.LoteBaseEngordeId).HasDatabaseName("ix_lote_ave_engorde_lote_base");
+        // MAX(numero_corrida) por (company, lote base, galpón) al asignar el siguiente número de corrida.
+        b.HasIndex(x => new { x.CompanyId, x.LoteBaseEngordeId, x.GalponId })
+            .HasDatabaseName("ix_lote_ave_engorde_corrida");
 
         b.ToTable(t =>
         {

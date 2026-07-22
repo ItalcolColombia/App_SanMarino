@@ -33,4 +33,11 @@ public class CreateLoteAveEngordeDto
     public int? EdadInicial { get; set; }
     /// <summary>Lote base global (opcional) al que se amarra este lote para reportes por granja.</summary>
     public int? LoteBaseEngordeId { get; set; }
+
+    /// <summary>
+    /// Solo Panamá (lo activa el front): si es true y hay lote base + galpón, el backend asigna el siguiente
+    /// número de corrida (MAX por company+base+galpón + 1) y sobrescribe <see cref="LoteNombre"/> con
+    /// "{lote base} - {numero}". False (default) → nombre libre, sin numeración (Ecuador, Puente, etc.).
+    /// </summary>
+    public bool AutoNombrePorCorrida { get; set; }
 }

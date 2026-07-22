@@ -207,9 +207,28 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             paisNombre = pais?.PaisNombre;
         }
 
+        // Lote base (opcional) + numeración de corrida (solo Panamá, lo pide el front vía AutoNombrePorCorrida).
+        // Cuando aplica, el backend es la fuente de verdad del número (MAX+1 por company+base+galpón, contando
+        // también soft-deleted para no reusar números) y sobrescribe el nombre "{base} - {n}".
+        var loteBaseId = await ResolverLoteBaseAsync(dto.LoteBaseEngordeId, companyId);
+        string loteNombre = (dto.LoteNombre ?? string.Empty).Trim();
+        int? numeroCorrida = null;
+        if (dto.AutoNombrePorCorrida && loteBaseId.HasValue && !string.IsNullOrWhiteSpace(galponId))
+        {
+            var baseNombre = await _ctx.LoteBaseEngorde.AsNoTracking()
+                .Where(b => b.Id == loteBaseId.Value)
+                .Select(b => b.Nombre)
+                .FirstAsync();
+            var maxActual = await _ctx.LoteAveEngorde
+                .Where(l => l.CompanyId == companyId && l.LoteBaseEngordeId == loteBaseId.Value && l.GalponId == galponId)
+                .MaxAsync(l => (int?)l.NumeroCorrida);
+            numeroCorrida = GestionLotesEngordeCalculos.SiguienteNumeroCorrida(maxActual);
+            loteNombre = GestionLotesEngordeCalculos.ConstruirNombreCorrida(baseNombre, numeroCorrida.Value);
+        }
+
         var ent = new LoteAveEngorde
         {
-            LoteNombre = (dto.LoteNombre ?? string.Empty).Trim(),
+            LoteNombre = loteNombre,
             GranjaId = dto.GranjaId,
             NucleoId = nucleoId,
             GalponId = galponId,
@@ -236,7 +255,8 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             AvesEncasetadas = dto.AvesEncasetadas,
             EdadInicial = dto.EdadInicial,
             LoteErp = dto.LoteErp,
-            LoteBaseEngordeId = await ResolverLoteBaseAsync(dto.LoteBaseEngordeId, companyId),
+            LoteBaseEngordeId = loteBaseId,
+            NumeroCorrida = numeroCorrida,
             CompanyId = companyId,
             CreatedByUserId = _current.UserId,
             CreatedAt = DateTime.UtcNow,
@@ -645,7 +665,8 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 l.Nucleo == null ? null : new NucleoLiteDto(l.Nucleo.NucleoId, l.Nucleo.NucleoNombre, l.Nucleo.GranjaId),
                 l.Galpon == null ? null : new GalponLiteDto(l.Galpon.GalponId, l.Galpon.GalponNombre, l.Galpon.NucleoId, l.Galpon.GranjaId),
                 l.LoteBaseEngordeId,
-                l.LoteBaseEngorde == null ? null : l.LoteBaseEngorde.Nombre
+                l.LoteBaseEngorde == null ? null : l.LoteBaseEngorde.Nombre,
+                l.NumeroCorrida
             ));
     }
 
