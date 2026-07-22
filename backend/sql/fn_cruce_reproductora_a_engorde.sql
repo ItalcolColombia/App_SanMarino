@@ -12,9 +12,11 @@
 --   * Aves vivas al inicio del día d = aves_inicio - Σ(mort+sel+error) de edades < d.
 --   * Peso promedio = PROMEDIO PONDERADO por aves vivas:
 --         peso_m = Σ(aves_m_i · peso_m_i) / Σ(aves_m_i)   (idem hembras).
+--   * Solo cuentan registros CONFIRMADOS (s.confirmado = true): el cruce se habilita
+--     por la validación manual del registro reproductora.
 --   * Multi-lote: solo se genera el día d cuando TODOS los lotes reproductora
---     tienen registro de esa edad. Si falta alguno → no se genera (y se borra
---     el cruce previo de esa edad si existía). 1 solo lote → copia directa.
+--     tienen registro CONFIRMADO de esa edad. Si falta alguno → no se genera (y se
+--     borra el cruce previo de esa edad si existía). 1 solo lote → copia directa.
 --   * Inventario/aves NO se vuelven a descontar (espejo informativo).
 --   * Registros marcados origen_cruce=true → solo lectura, regenerables.
 --
@@ -104,6 +106,7 @@ BEGIN
                                  + COALESCE(p.error_sexaje_machos,0))
                           FROM seguimiento_diario_lote_reproductora_aves_engorde p
                          WHERE p.lote_reproductora_ave_engorde_id = lr.id
+                           AND p.confirmado = true
                            AND (p.fecha::date - lr.fecha_encasetamiento::date) >= 1
                            AND (p.fecha::date - lr.fecha_encasetamiento::date) <  d
                     ), 0)                                                  AS aves_m,
@@ -114,6 +117,7 @@ BEGIN
                                  + COALESCE(p.error_sexaje_hembras,0))
                           FROM seguimiento_diario_lote_reproductora_aves_engorde p
                          WHERE p.lote_reproductora_ave_engorde_id = lr.id
+                           AND p.confirmado = true
                            AND (p.fecha::date - lr.fecha_encasetamiento::date) >= 1
                            AND (p.fecha::date - lr.fecha_encasetamiento::date) <  d
                     ), 0)                                                  AS aves_h,
@@ -128,6 +132,7 @@ BEGIN
               FROM lote_reproductora_ave_engorde lr
               JOIN seguimiento_diario_lote_reproductora_aves_engorde s
                 ON s.lote_reproductora_ave_engorde_id = lr.id
+               AND s.confirmado = true
                AND (s.fecha::date - lr.fecha_encasetamiento::date) = d
              WHERE lr.lote_ave_engorde_id = p_lote_ave_engorde_id
           ) dia;

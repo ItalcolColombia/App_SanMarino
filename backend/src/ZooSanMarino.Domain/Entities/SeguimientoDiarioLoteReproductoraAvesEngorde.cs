@@ -49,6 +49,13 @@ public class SeguimientoDiarioLoteReproductoraAvesEngorde
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
+    // Confirmación por registro: gatea la sincronización (cruce) hacia el seguimiento pollo engorde.
+    // Un día solo cruza cuando TODOS los lotes reproductora confirmaron el registro de esa edad.
+    // Confirmado ⇒ no editable (solo se puede eliminar para corregir).
+    public bool Confirmado { get; set; }
+    public DateTime? ConfirmadoAt { get; set; }
+    public string? ConfirmadoPor { get; set; }
+
     // Panamá: cantidad de alimento por categoría (quintales) — visible solo en formularios de Panamá
     public decimal? QqMixtas { get; set; }
     public decimal? QqHembras { get; set; }

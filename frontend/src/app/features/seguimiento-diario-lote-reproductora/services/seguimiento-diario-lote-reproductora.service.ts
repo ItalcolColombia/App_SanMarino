@@ -108,6 +108,11 @@ export class SeguimientoDiarioLoteReproductoraService {
     return this.http.put<SeguimientoLoteLevanteDto>(`${this.baseUrl}/${dto.id}`, dto);
   }
 
+  /** Confirma un registro: habilita el cruce hacia pollo engorde. El registro queda de solo lectura. */
+  confirmar(id: number): Observable<SeguimientoLoteLevanteDto> {
+    return this.http.post<SeguimientoLoteLevanteDto>(`${this.baseUrl}/${id}/confirmar`, {});
+  }
+
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }

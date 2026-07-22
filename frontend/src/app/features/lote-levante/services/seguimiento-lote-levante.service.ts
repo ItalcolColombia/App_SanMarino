@@ -58,6 +58,12 @@ export interface SeguimientoLoteLevanteDto {
   qqHembras?: number | null;
   qqMachos?: number | null;
 
+  // Confirmación por registro (solo seguimiento reproductora aves de engorde):
+  // gatea la sincronización hacia pollo engorde. Confirmado ⇒ read-only (solo eliminar).
+  confirmado?: boolean | null;
+  confirmadoAt?: string | null;
+  confirmadoPor?: string | null;
+
   // Movimientos de aves registrados en este día
   trasladoAvesEntrante?: number | null;
   trasladoAvesSalida?: number | null;

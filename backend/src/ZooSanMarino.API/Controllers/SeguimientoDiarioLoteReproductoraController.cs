@@ -13,13 +13,20 @@ public class SeguimientoDiarioLoteReproductoraController : ControllerBase
 {
     private readonly ISeguimientoDiarioLoteReproductoraService _svc;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ICurrentUser _current;
+
+    // Permisos de botones (patrón "modulo.accion"; se otorgan a los roles con el menú del módulo).
+    private const string PermConfirmar = "seguimiento_reproductora_engorde.confirmar";
+    private const string PermEliminar = "seguimiento_reproductora_engorde.eliminar";
 
     public SeguimientoDiarioLoteReproductoraController(
         ISeguimientoDiarioLoteReproductoraService svc,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        ICurrentUser current)
     {
         _svc = svc;
         _scopeFactory = scopeFactory;
+        _current = current;
     }
 
     /// <summary>Datos para filtros en cascada (Granja → Núcleo → Galpón → Lote Aves Engorde → Lote Reproductora).</summary>
@@ -101,16 +108,54 @@ public class SeguimientoDiarioLoteReproductoraController : ControllerBase
         }
     }
 
-    /// <summary>Eliminar un registro diario.</summary>
+    /// <summary>
+    /// Confirmar un registro diario. Habilita la sincronización (cruce) hacia el seguimiento pollo engorde.
+    /// Un registro confirmado ya no se puede editar (solo eliminar). Requiere permiso.
+    /// </summary>
+    [HttpPost("{id:int}/confirmar")]
+    [ProducesResponseType(typeof(SeguimientoLoteLevanteDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SeguimientoLoteLevanteDto>> Confirmar(int id)
+    {
+        if (!_current.Permissions.Contains(PermConfirmar))
+            return Forbid();
+        try
+        {
+            var confirmado = await _svc.ConfirmarAsync(id);
+            return confirmado is null ? NotFound(new { message = "Registro no encontrado." }) : Ok(confirmado);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            var inner = ex.InnerException?.InnerException?.Message ?? ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, new { message = ex.Message, detail = inner });
+        }
+    }
+
+    /// <summary>Eliminar un registro diario. Restituye inventario y recalcula el cruce (retorna aves/consumo). Requiere permiso.</summary>
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(int id)
     {
-        var deleted = await _svc.DeleteAsync(id);
-        if (!deleted)
-            return NotFound(new { message = "Registro no encontrado o no tienes permisos para eliminarlo." });
-        return NoContent();
+        if (!_current.Permissions.Contains(PermEliminar))
+            return Forbid();
+        try
+        {
+            var deleted = await _svc.DeleteAsync(id);
+            if (!deleted)
+                return NotFound(new { message = "Registro no encontrado o no tienes permisos para eliminarlo." });
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>Filtrar por fechas opcionalmente con loteReproductoraId.</summary>

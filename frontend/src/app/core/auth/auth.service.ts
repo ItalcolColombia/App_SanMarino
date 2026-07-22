@@ -247,6 +247,15 @@ export class AuthService {
     return !!this.storage.getToken();
   }
 
+  /**
+   * Heartbeat de sesión: verifica conexión con el backend y la validez del token.
+   * 200 = ok; 401 = token expirado/invalidado; status 0 = sin conexión.
+   * Lo usa SessionTimeoutService (sesión deslizante por inactividad).
+   */
+  heartbeat(): Observable<unknown> {
+    return this.http.get(`${environment.apiUrl}/session/heartbeat`);
+  }
+
   // Actualiza los datos del usuario en la sesión actual
   updateUserData(userData: { firstName?: string; surName?: string; fullName?: string }) {
     const currentSession = this.storage.get();
