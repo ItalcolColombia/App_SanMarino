@@ -347,6 +347,10 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         ent.PesoInicialH = dto.PesoInicialH;
         ent.PesoMixto = dto.PesoMixto;
         ent.UpdatedAt = DateTime.UtcNow;
+        // La entidad se cargó con un join AsNoTracking → NO queda rastreada, así que mutar propiedades
+        // no emitiría UPDATE. Forzar Modified para persistir la edición (mismo patrón que
+        // SeguimientoDiarioLoteReproductoraService.UpdateAsync).
+        _ctx.Entry(ent).State = EntityState.Modified;
         await _ctx.SaveChangesAsync();
         var ventas = (await GetVentasPorReproductoraAsync(new[] { id })).GetValueOrDefault(id, 0);
         var stU = (await GetReproStatsAsync(new[] { id })).GetValueOrDefault(id);
@@ -368,10 +372,17 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             throw new InvalidOperationException("La novedad es obligatoria para reabrir el lote.");
 
         var companyId = await GetEffectiveCompanyIdAsync();
-        var ent = await (from lrae in _ctx.LoteReproductoraAveEngorde
-                         join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
-                         where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                         select lrae).SingleOrDefaultAsync();
+        // Scoping por compañía con un join AsNoTracking que NO arrastra la entidad al ChangeTracker.
+        // (Cargar la entidad DENTRO de ese join la dejaría sin rastrear → un mutate + SaveChanges sería
+        //  no-op y `reabierto` nunca se escribiría en BD. Mismo patrón probado que ConfirmarAsync.)
+        var pertenece = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                               join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
+                               where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
+                               select lrae.Id).AnyAsync();
+        if (!pertenece) return null;
+
+        // Cargar la entidad RASTREADA (sin join) para que el UPDATE de reapertura sí persista.
+        var ent = await _ctx.LoteReproductoraAveEngorde.SingleOrDefaultAsync(l => l.Id == id);
         if (ent is null) return null;
 
         ent.Reabierto = true;
