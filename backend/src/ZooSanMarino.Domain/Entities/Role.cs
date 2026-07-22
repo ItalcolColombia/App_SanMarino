@@ -7,6 +7,13 @@ namespace ZooSanMarino.Domain.Entities
         public string Name { get; set; } = null!;
         public string? Description { get; set; }  // puede ser nullable
 
+        /// <summary>
+        /// Rol "Administrador de Empresa/País": otorga visibilidad global de las
+        /// entidades activas de la empresa (hoy: todas las granjas al asignar usuarios).
+        /// Solo un Super Admin puede activar/desactivar este flag.
+        /// </summary>
+        public bool IsCompanyAdmin { get; set; }
+
         // N:M con usuarios
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 

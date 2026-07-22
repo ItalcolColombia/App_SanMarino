@@ -70,24 +70,26 @@ public class ProduccionService : IProduccionService
     }
 
     /// <summary>
-    /// Acumula por id de ítem (item_inventario_ecuador si viene camino-2, si no catalogItemId) los kg de
-    /// los ítems del request (ItemsHembras + ItemsMachos), usando la MISMA resolución de id y conversión
-    /// g→kg que ParseMetadataItemsToKg (itemInventarioEcuadorId tiene prioridad; fallback a catalogItemId).
+    /// Acumula por CLAVE TIPADA de ítem (conserva el origen del id: item_inventario_ecuador si viene
+    /// camino-2, si no catalogItemId) los kg de los ítems del request (ItemsHembras + ItemsMachos),
+    /// usando la MISMA prioridad de id y conversión g→kg que ParseMetadataItemsToKgPorOrigen.
     /// TODOS los tipos (alimento + medicamento + insumo), sin re-parsear el JSON del metadata. Id &lt;= 0 se ignora.
     /// </summary>
-    private static Dictionary<int, decimal> AcumularItemsRequestPorCatalogItem(
+    private static Dictionary<ItemConsumoKey, decimal> AcumularItemsRequestPorOrigen(
         List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
     {
-        var byItem = new Dictionary<int, decimal>();
+        var byItem = new Dictionary<ItemConsumoKey, decimal>();
         void Acumular(List<ItemSeguimientoDto>? items)
         {
             if (items == null) return;
             foreach (var i in items)
             {
                 var id = i.ItemInventarioEcuadorId.GetValueOrDefault();
+                var esItemInventario = id > 0;
                 if (id <= 0) id = i.CatalogItemId;
                 if (id <= 0) continue;
-                byItem[id] = byItem.GetValueOrDefault(id) + ToKg(i.Cantidad, i.Unidad);
+                var key = new ItemConsumoKey(id, esItemInventario);
+                byItem[key] = byItem.GetValueOrDefault(key) + ToKg(i.Cantidad, i.Unidad);
             }
         }
         Acumular(itemsHembras);
@@ -393,7 +395,7 @@ public class ProduccionService : IProduccionService
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0 && useItems)
         {
-            var byItem = AcumularItemsRequestPorCatalogItem(request.ItemsHembras, request.ItemsMachos);
+            var byItem = AcumularItemsRequestPorOrigen(request.ItemsHembras, request.ItemsMachos);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
             await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
@@ -509,10 +511,11 @@ public class ProduccionService : IProduccionService
             throw new InvalidOperationException("No se encontró el registro o no tiene permisos para actualizarlo.");
 
         // Fase 2 (S4) — capturar el consumo ANTERIOR (desde el metadata guardado) ANTES de pisarlo,
-        // para calcular el diff old/new en el descuento Colombia (modelo A).
+        // para calcular el diff old/new en el descuento Colombia. Parseo TIPADO (conserva el
+        // origen del id, camino 1/2) — solo la rama Colombia consume este diccionario.
         var oldByItemId = entity.Metadata != null
-            ? MetadataEngordeCalculos.ParseMetadataItemsToKg(entity.Metadata.RootElement)
-            : new Dictionary<int, decimal>();
+            ? MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(entity.Metadata.RootElement)
+            : new Dictionary<ItemConsumoKey, decimal>();
 
         entity.LoteId = loteId;
         entity.LotePosturaProduccionId = lotePosturaProduccionId;
@@ -559,14 +562,14 @@ public class ProduccionService : IProduccionService
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
         {
-            var newByItemId = AcumularItemsRequestPorCatalogItem(request.ItemsHembras, request.ItemsMachos);
-            var incrementos = new Dictionary<int, decimal>();
-            var allIds = new HashSet<int>(oldByItemId.Keys);
-            foreach (var k in newByItemId.Keys) allIds.Add(k);
-            foreach (var itemId in allIds)
+            var newByItemId = AcumularItemsRequestPorOrigen(request.ItemsHembras, request.ItemsMachos);
+            var incrementos = new Dictionary<ItemConsumoKey, decimal>();
+            var allKeys = new HashSet<ItemConsumoKey>(oldByItemId.Keys);
+            foreach (var k in newByItemId.Keys) allKeys.Add(k);
+            foreach (var key in allKeys)
             {
-                var diff = newByItemId.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
-                if (diff > 0) incrementos[itemId] = diff;
+                var diff = newByItemId.GetValueOrDefault(key) - oldByItemId.GetValueOrDefault(key);
+                if (diff > 0) incrementos[key] = diff;
             }
             await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, incrementos); // lanza si falta (antes de persistir)
 
@@ -907,8 +910,8 @@ public class ProduccionService : IProduccionService
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
         {
             var byItem = e.Metadata != null
-                ? MetadataEngordeCalculos.ParseMetadataItemsToKg(e.Metadata.RootElement)
-                : new Dictionary<int, decimal>();
+                ? MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(e.Metadata.RootElement)
+                : new Dictionary<ItemConsumoKey, decimal>();
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
             await using var tx = await _context.Database.BeginTransactionAsync();

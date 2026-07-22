@@ -43,4 +43,7 @@ public class ImplementacionTarea : AuditableEntity
     public User? AsignadoUser { get; set; }
     public User? CompletadaPorUser { get; set; }
     public User? ConfirmadaPorUser { get; set; }
+
+    /// <summary>Participantes que deben firmar el recibido de este punto (asistentes).</summary>
+    public ICollection<ImplementacionTareaFirma> Firmas { get; set; } = new List<ImplementacionTareaFirma>();
 }

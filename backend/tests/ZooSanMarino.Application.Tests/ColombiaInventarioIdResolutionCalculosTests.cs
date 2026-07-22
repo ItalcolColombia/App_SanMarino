@@ -3,52 +3,92 @@ using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.Application.Tests;
 
+/// <summary>
+/// Contrato TIPADO del id-mapping Colombia (fix multi-empresa jul-2026): el origen del id viaja
+/// explícito en <see cref="ItemConsumoKey"/> (camino 1 = catalogItemId por código; camino 2 =
+/// itemInventarioEcuadorId pass-through validado contra la empresa efectiva). Antes el servicio
+/// ADIVINABA la tabla por existencia en catalogo_items y las colisiones numéricas entre ambas
+/// tablas (rangos solapados) producían el 400 "no tiene equivalente" o riesgo de descuento cruzado.
+/// </summary>
 public class ColombiaInventarioIdResolutionCalculosTests
 {
+    private static ItemConsumoKey Catalogo(int id) => new(id, EsItemInventario: false);
+    private static ItemConsumoKey Inventario(int id) => new(id, EsItemInventario: true);
+
     [Fact]
-    public void Resuelve_por_codigo_cuando_el_catalogItem_tiene_equivalente_en_item_inventario_ecuador()
+    public void Camino1_ResuelvePorCodigo_CuandoElCatalogItemTieneEquivalenteEnItemInventario()
     {
         var map = ColombiaInventarioIdResolutionCalculos.Resolver(
             catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD1") },
             itemsBPorCodigoEncontrados: new[] { (Id: 147, Codigo: "COD1") },
             itemsBDirectosValidos: Array.Empty<int>());
 
-        var itemBId = Assert.Single(map);
-        Assert.Equal(5, itemBId.Key);
-        Assert.Equal(147, itemBId.Value);
+        var entry = Assert.Single(map);
+        Assert.Equal(Catalogo(5), entry.Key);
+        Assert.Equal(147, entry.Value);
     }
 
     [Fact]
-    public void Pass_through_cuando_el_id_nunca_existio_en_catalogo_items_pero_es_un_item_inventario_ecuador_valido()
+    public void Camino2_PassThrough_DeUnItemInventarioValidoDeLaEmpresaEfectiva()
     {
-        // Ítem creado directamente en el inventario nuevo (Config > Ítems de inventario), sin fila espejo en catalogo_items.
+        // Caso Demo: ítem 208 "Alimneto ERP" creado en el inventario nuevo por la empresa de la
+        // granja (sin fila espejo en catalogo_items). itemsBDirectosValidos ya viene filtrado por
+        // empresa efectiva + país Colombia → se acepta tal cual.
         var map = ColombiaInventarioIdResolutionCalculos.Resolver(
             catalogItemsEncontrados: Array.Empty<(int Id, string Codigo)>(),
             itemsBPorCodigoEncontrados: Array.Empty<(int Id, string Codigo)>(),
-            itemsBDirectosValidos: new[] { 300 });
+            itemsBDirectosValidos: new[] { 208 });
 
-        var itemBId = Assert.Single(map);
-        Assert.Equal(300, itemBId.Key);
-        Assert.Equal(300, itemBId.Value);
+        var entry = Assert.Single(map);
+        Assert.Equal(Inventario(208), entry.Key);
+        Assert.Equal(208, entry.Value);
     }
 
     [Fact]
-    public void No_resuelve_por_pass_through_un_id_que_existe_en_catalogo_items_aunque_coincida_numericamente_con_un_item_B_valido()
+    public void Camino2_NoResuelve_SiElItemNoEsValidoParaLaEmpresaEfectiva()
     {
-        // id=5 SÍ existe en catalogo_items pero su código no tiene equivalente en item_inventario_ecuador
-        // (gap de migración). Aunque el número 5 TAMBIÉN sea, por coincidencia, un item_inventario_ecuador.id
-        // válido (de otro ítem sin relación), NO debe resolverse por el camino 2 — evita descontar el ítem
-        // equivocado por colisión de ids entre las dos tablas.
+        // El ítem existe en otra empresa (p.ej. id de Demo consultado con granja Sanmarino):
+        // la query por empresa efectiva no lo devuelve → no figura → el servicio lanza.
         var map = ColombiaInventarioIdResolutionCalculos.Resolver(
-            catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD-SIN-MIGRAR") },
+            catalogItemsEncontrados: Array.Empty<(int Id, string Codigo)>(),
             itemsBPorCodigoEncontrados: Array.Empty<(int Id, string Codigo)>(),
-            itemsBDirectosValidos: new[] { 5 });
+            itemsBDirectosValidos: Array.Empty<int>());
 
         Assert.Empty(map);
     }
 
     [Fact]
-    public void Resuelve_mezcla_de_items_historicos_por_codigo_y_items_nuevos_por_pass_through()
+    public void ColisionNumericaEntreTablas_CadaClaveResuelvePorSuPropioCamino()
+    {
+        // id=5 existe EN AMBAS tablas (colisión de rangos). Con el origen explícito ya no se
+        // adivina: (5, catálogo) → espejo por código (147); (5, inventario) → pass-through (5).
+        // Antes esta colisión forzaba el camino 1 para ambos y el ítem del inventario nuevo
+        // terminaba en 400 "no tiene equivalente" (o mapeado a otro producto).
+        var map = ColombiaInventarioIdResolutionCalculos.Resolver(
+            catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD1") },
+            itemsBPorCodigoEncontrados: new[] { (Id: 147, Codigo: "COD1") },
+            itemsBDirectosValidos: new[] { 5 });
+
+        Assert.Equal(2, map.Count);
+        Assert.Equal(147, map[Catalogo(5)]);
+        Assert.Equal(5, map[Inventario(5)]);
+    }
+
+    [Fact]
+    public void Camino1_SinEquivalentePorCodigo_NoResuelve()
+    {
+        // Gap de migración A→B: el catálogo existe pero no hay ítem B con ese código para la
+        // empresa efectiva → no figura → el servicio lanza (mismo criterio de siempre).
+        var map = ColombiaInventarioIdResolutionCalculos.Resolver(
+            catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD-SIN-MIGRAR") },
+            itemsBPorCodigoEncontrados: Array.Empty<(int Id, string Codigo)>(),
+            itemsBDirectosValidos: Array.Empty<int>());
+
+        Assert.Empty(map);
+    }
+
+    [Fact]
+    public void Resuelve_MezclaDeItemsHistoricosPorCodigo_YItemsNuevosPorPassThrough()
     {
         var map = ColombiaInventarioIdResolutionCalculos.Resolver(
             catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD1"), (Id: 6, Codigo: "COD2") },
@@ -56,20 +96,20 @@ public class ColombiaInventarioIdResolutionCalculosTests
             itemsBDirectosValidos: new[] { 300, 301 });
 
         Assert.Equal(4, map.Count);
-        Assert.Equal(147, map[5]);
-        Assert.Equal(148, map[6]);
-        Assert.Equal(300, map[300]);
-        Assert.Equal(301, map[301]);
+        Assert.Equal(147, map[Catalogo(5)]);
+        Assert.Equal(148, map[Catalogo(6)]);
+        Assert.Equal(300, map[Inventario(300)]);
+        Assert.Equal(301, map[Inventario(301)]);
     }
 
     [Fact]
-    public void Codigo_se_compara_normalizado_trim_y_case_insensitive()
+    public void Codigo_SeComparaNormalizado_TrimYCaseInsensitive()
     {
         var map = ColombiaInventarioIdResolutionCalculos.Resolver(
             catalogItemsEncontrados: new[] { (Id: 5, Codigo: "  Cod1  ") },
             itemsBPorCodigoEncontrados: new[] { (Id: 147, Codigo: "cod1") },
             itemsBDirectosValidos: Array.Empty<int>());
 
-        Assert.Equal(147, map[5]);
+        Assert.Equal(147, map[Catalogo(5)]);
     }
 }

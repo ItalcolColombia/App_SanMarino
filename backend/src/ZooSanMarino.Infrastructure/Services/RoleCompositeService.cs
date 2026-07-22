@@ -5,6 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -171,7 +172,8 @@ public class RoleCompositeService : IRoleCompositeService
                 r.Name,
                 r.RolePermissions.Select(rp => rp.Permission.Key).ToArray(),
                 r.RoleCompanies.Select(rc => rc.CompanyId).ToArray(),
-                r.RoleMenus.Select(rm => rm.MenuId).ToArray()
+                r.RoleMenus.Select(rm => rm.MenuId).ToArray(),
+                r.IsCompanyAdmin
             ))
             .ToListAsync();
 
@@ -196,6 +198,25 @@ public class RoleCompositeService : IRoleCompositeService
              string.Equals(name, "administrador", StringComparison.OrdinalIgnoreCase)));
     }
 
+    /// <summary>
+    /// Verifica si el usuario actual es el Super Admin (email hardcodeado). Solo el Super Admin
+    /// puede activar/desactivar el flag <c>is_company_admin</c> de un rol.
+    /// </summary>
+    private async Task<bool> IsCurrentUserSuperAdminAsync()
+    {
+        var userGuid = _currentUser.UserGuid;
+        if (!userGuid.HasValue) return false;
+
+        var userEmail = await _ctx.UserLogins
+            .AsNoTracking()
+            .Include(ul => ul.Login)
+            .Where(ul => ul.UserId == userGuid.Value)
+            .Select(ul => ul.Login.email)
+            .FirstOrDefaultAsync();
+
+        return userEmail?.ToLowerInvariant() == "moiesbbuga@gmail.com";
+    }
+
     public async Task<RoleDto?> Roles_GetByIdAsync(int id)
     {
         if (id <= 0) return null;
@@ -213,7 +234,8 @@ public class RoleCompositeService : IRoleCompositeService
                 r.Name,
                 r.RolePermissions.Select(rp => rp.Permission.Key).ToArray(),
                 r.RoleCompanies.Select(rc => rc.CompanyId).ToArray(),
-                r.RoleMenus.Select(rm => rm.MenuId).ToArray()
+                r.RoleMenus.Select(rm => rm.MenuId).ToArray(),
+                r.IsCompanyAdmin
             ))
             .SingleOrDefaultAsync();
     }
@@ -234,6 +256,10 @@ public class RoleCompositeService : IRoleCompositeService
         await EnsureCompaniesExist(companyIds);
         var permMap = await EnsurePermissionsExistAndMap(permKeys);
 
+        // Solo el Super Admin puede marcar un rol como Administrador de Empresa/País.
+        var esSuperAdmin = await IsCurrentUserSuperAdminAsync();
+        var isCompanyAdmin = RoleAdminCalculos.ResolverIsCompanyAdminEnCreacion(esSuperAdmin, dto.IsCompanyAdmin);
+
         // Validar menús si vinieron
         if (menuIds.Length > 0)
         {
@@ -248,7 +274,7 @@ public class RoleCompositeService : IRoleCompositeService
 
         return await ExecInTxAsync(async () =>
         {
-            var role = new Role { Name = name! };
+            var role = new Role { Name = name!, IsCompanyAdmin = isCompanyAdmin };
             _ctx.Roles.Add(role);
             await _ctx.SaveChangesAsync();
 
@@ -295,6 +321,10 @@ public class RoleCompositeService : IRoleCompositeService
         await EnsureCompaniesExist(companyIds);
         var permMap = await EnsurePermissionsExistAndMap(permKeys);
 
+        // Solo el Super Admin puede cambiar el flag Administrador de Empresa/País (null = no tocar).
+        var esSuperAdmin = await IsCurrentUserSuperAdminAsync();
+        var isCompanyAdmin = RoleAdminCalculos.ResolverIsCompanyAdminEnEdicion(esSuperAdmin, dto.IsCompanyAdmin, role.IsCompanyAdmin);
+
         // Si MenuIds viene null => no tocar menús. Si viene array => aplicar delta.
         int[]? incomingMenuIds = dto.MenuIds is null
             ? null
@@ -303,6 +333,7 @@ public class RoleCompositeService : IRoleCompositeService
         return await ExecInTxAsync(async () =>
         {
             role.Name = name!;
+            role.IsCompanyAdmin = isCompanyAdmin;
 
             // ===== Permisos (replace)
             _ctx.RolePermissions.RemoveRange(role.RolePermissions);

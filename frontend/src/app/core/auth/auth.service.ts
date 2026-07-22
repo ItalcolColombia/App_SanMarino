@@ -54,6 +54,7 @@ export class AuthService {
         const empresas = rawRes.empresas || rawRes.Empresas || [];
         const companyPaises = rawRes.companyPaises || rawRes.CompanyPaises || [];
         const permisos = rawRes.permisos || rawRes.Permisos || [];
+        const isSuperAdmin = rawRes.isSuperAdmin ?? rawRes.IsSuperAdmin ?? false;
         // NOTA: El menú ya NO viene en el login, se carga por separado después
         const menu: MenuItem[] = [];
         const menusByRole: RoleMenusLite[] = [];
@@ -128,6 +129,7 @@ export class AuthService {
             fullName: fullName,
             roles: roles,
             permisos: permisos,
+            isSuperAdmin: isSuperAdmin,
             hasMultipleCompanies: hasMultipleCompanies,
           },
           companies,

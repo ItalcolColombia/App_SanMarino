@@ -1,22 +1,25 @@
 namespace ZooSanMarino.Application.Calculos;
 
 /// <summary>
-/// Combina, sin tocar BD, el mapeo de ids "mixtos" → item_inventario_ecuador.id que usa
-/// <c>ColombiaInventarioConsumoService</c>. Dos caminos: (1) catalogItemId (modelo A histórico) →
-/// codigo → item_inventario_ecuador por código (mapeo del backfill A→B); (2) ids que nunca
-/// existieron en catalogo_items pero sí son un item_inventario_ecuador.id válido de Colombia
-/// (ítems creados directamente en el inventario nuevo, sin fila espejo en catalogo_items).
-/// Un id que existe en catalogo_items pero no tiene equivalente por código NO cae al camino 2
-/// (evita interpretar mal un id de catalogo_items como si fuera de item_inventario_ecuador).
+/// Combina, sin tocar BD, el mapeo de ids del seguimiento → item_inventario_ecuador.id que usa
+/// <c>ColombiaInventarioConsumoService</c>. El origen de cada id viaja explícito en
+/// <see cref="ItemConsumoKey"/> (contrato camino-1/2 del front), así que ya NO se adivina la
+/// tabla por existencia en catalogo_items (heurístico anterior que fallaba cuando los rangos
+/// numéricos de ambas tablas colisionaban):
+///   camino 1 (EsItemInventario=false): catalogItemId (modelo A histórico) → codigo →
+///     item_inventario_ecuador por código (mapeo del backfill A→B, empresa efectiva).
+///   camino 2 (EsItemInventario=true): id directo de item_inventario_ecuador, aceptado solo si
+///     figura entre los válidos de la empresa efectiva (pass-through controlado).
+/// Las claves que no resuelven por su camino NO figuran en el diccionario (el servicio lanza).
 /// </summary>
 public static class ColombiaInventarioIdResolutionCalculos
 {
-    public static Dictionary<int, int> Resolver(
+    public static Dictionary<ItemConsumoKey, int> Resolver(
         IReadOnlyCollection<(int Id, string Codigo)> catalogItemsEncontrados,
         IReadOnlyCollection<(int Id, string Codigo)> itemsBPorCodigoEncontrados,
         IReadOnlyCollection<int> itemsBDirectosValidos)
     {
-        var map = new Dictionary<int, int>();
+        var map = new Dictionary<ItemConsumoKey, int>();
 
         var itemBPorCodigo = itemsBPorCodigoEncontrados
             .GroupBy(e => e.Codigo.Trim().ToLowerInvariant())
@@ -26,15 +29,11 @@ public static class ColombiaInventarioIdResolutionCalculos
         {
             var key = ci.Codigo.Trim().ToLowerInvariant();
             if (itemBPorCodigo.TryGetValue(key, out var itemBId))
-                map[ci.Id] = itemBId;
+                map[new ItemConsumoKey(ci.Id, EsItemInventario: false)] = itemBId;
         }
 
-        var idsEnCatalogoItems = catalogItemsEncontrados.Select(c => c.Id).ToHashSet();
         foreach (var id in itemsBDirectosValidos)
-        {
-            if (!idsEnCatalogoItems.Contains(id))
-                map[id] = id;
-        }
+            map[new ItemConsumoKey(id, EsItemInventario: true)] = id;
 
         return map;
     }

@@ -87,7 +87,9 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
     forkJoin({
       userFarms: this.userFarmService.getUserFarms(this.userId),
       accessibleFarms: this.userFarmService.getUserAccessibleFarms(this.userId),
-      allFarms: this.farmService.getAll()
+      // Admin de Empresa (flag) o Super Admin → todas las granjas activas de la empresa;
+      // resto → solo las asignadas al usuario actual (scoping resuelto en el backend).
+      allFarms: this.farmService.getAssignableFarms()
     })
     .pipe(takeUntil(this.destroy$))
     .subscribe({

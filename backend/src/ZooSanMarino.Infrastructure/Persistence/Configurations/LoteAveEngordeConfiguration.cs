@@ -63,9 +63,12 @@ public class LoteAveEngordeConfiguration : IEntityTypeConfiguration<LoteAveEngor
         b.Property(x => x.PaisNombre).HasColumnName("pais_nombre").HasMaxLength(120);
         b.Property(x => x.EmpresaNombre).HasColumnName("empresa_nombre").HasMaxLength(200);
 
+        b.Property(x => x.LoteBaseEngordeId).HasColumnName("lote_base_engorde_id");
+
         b.HasIndex(x => x.GranjaId).HasDatabaseName("ix_lote_ave_engorde_granja");
         b.HasIndex(x => x.NucleoId).HasDatabaseName("ix_lote_ave_engorde_nucleo");
         b.HasIndex(x => x.GalponId).HasDatabaseName("ix_lote_ave_engorde_galpon");
+        b.HasIndex(x => x.LoteBaseEngordeId).HasDatabaseName("ix_lote_ave_engorde_lote_base");
 
         b.ToTable(t =>
         {
@@ -95,6 +98,12 @@ public class LoteAveEngordeConfiguration : IEntityTypeConfiguration<LoteAveEngor
         b.HasOne(x => x.Farm)
             .WithMany()
             .HasForeignKey(x => x.GranjaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        b.HasOne(x => x.LoteBaseEngorde)
+            .WithMany()
+            .HasForeignKey(x => x.LoteBaseEngordeId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -27,7 +27,8 @@ export function computeDefaultFecha(
   let latest: Date | null = null;
   for (const raw of existingFechas) {
     if (!raw) continue;
-    const ymd = raw.substring(0, 10); // "2025-01-05"
+    const ymd = toYMD(raw); // tz-aware: no resta un día con strings con offset
+    if (!ymd) continue;
     const d = new Date(ymd + 'T00:00:00');
     if (!isNaN(d.getTime()) && (!latest || d > latest)) {
       latest = d;
@@ -39,9 +40,9 @@ export function computeDefaultFecha(
     const lote = lotes.find(l => String(l.loteId) === String(selectedLoteId));
     const encaset = lote?.fechaEncaset;
     if (encaset) {
-      const ymd = String(encaset).substring(0, 10);
-      const d = new Date(ymd + 'T00:00:00');
-      if (!isNaN(d.getTime())) latest = d;
+      const ymd = toYMD(String(encaset));
+      const d = ymd ? new Date(ymd + 'T00:00:00') : null;
+      if (d && !isNaN(d.getTime())) latest = d;
     }
   }
 
@@ -88,7 +89,16 @@ export function toYMD(input: string | Date | null | undefined): string | null {
     return `${yyyy}-${mmS}-${ddS}`;
   }
 
-  // ISO (con T). Extrae la fecha en LOCAL sin cambiar el día
+  // ISO (con T). Sin zona → literal (la API guarda la fecha digitada tal cual);
+  // con Z/offset → fecha UTC del instante (las "fechas puras" viajan ancladas dentro
+  // del día UTC intencional, así que extraer en LOCAL restaría un día en UTC-5).
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    if (!/(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) return s.slice(0, 10);
+    const dIso = new Date(s);
+    if (!isNaN(dIso.getTime())) return dIso.toISOString().slice(0, 10);
+  }
+
+  // Otros formatos parseables → extracción LOCAL (comportamiento previo)
   const d = new Date(s);
   if (!isNaN(d.getTime())) {
     const y = d.getFullYear();

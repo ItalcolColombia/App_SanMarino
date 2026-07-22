@@ -181,6 +181,71 @@ public class ImplementacionController : ControllerBase
         }
     }
 
+    // ── Participantes y firmas ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Sincroniza los participantes (asistentes) de la tarea que deben firmar el recibido.
+    /// Solo se pueden quitar participantes que sigan pendientes.
+    /// </summary>
+    [HttpPut("tareas/{id:int}/participantes")]
+    [ProducesResponseType(typeof(ImplementacionTareaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SetParticipantes(int id, [FromBody] ImplementacionParticipantesRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _svc.SetParticipantesAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Firma digitada del participante actual: confirma que estuvo/recibió el punto (404 si no es participante).</summary>
+    [HttpPost("tareas/{id:int}/firmar")]
+    [ProducesResponseType(typeof(ImplementacionMiFirmaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Firmar(int id, [FromBody] ImplementacionFirmarRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _svc.FirmarAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Novedad del participante actual: registra el motivo por el que NO firma (el front lo guía a crear un ticket).</summary>
+    [HttpPost("tareas/{id:int}/rechazar")]
+    [ProducesResponseType(typeof(ImplementacionMiFirmaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Rechazar(int id, [FromBody] ImplementacionRechazarRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _svc.RechazarAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Puntos donde el usuario actual es participante (pendientes de firma + historial).</summary>
+    [HttpGet("mis-firmas")]
+    [ProducesResponseType(typeof(List<ImplementacionMiFirmaDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMisFirmas(CancellationToken ct)
+        => Ok(await _svc.GetMisFirmasAsync(ct));
+
     // ── Consultas de apoyo ───────────────────────────────────────────────────
 
     /// <summary>Tareas asignadas al usuario actual en la empresa activa (vista "Mis tareas").</summary>

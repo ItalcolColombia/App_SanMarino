@@ -68,7 +68,11 @@ public class LoteAveEngorde : AuditableEntity
     public string? PaisNombre { get; set; }
     public string? EmpresaNombre { get; set; }
 
+    /// <summary>Lote base global (opcional): agrupa varios lotes de engorde para reportes por granja.</summary>
+    public int? LoteBaseEngordeId { get; set; }
+
     public Farm Farm { get; set; } = null!;
     public Nucleo? Nucleo { get; set; }
     public Galpon? Galpon { get; set; }
+    public LoteBaseEngorde? LoteBaseEngorde { get; set; }
 }

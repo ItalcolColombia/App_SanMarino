@@ -10,6 +10,7 @@ export interface Role {
   permissions: string[];
   companyIds: number[];
   menuIds?: number[];
+  isCompanyAdmin?: boolean; // Administrador de Empresa/País (solo Super Admin lo edita)
 }
 
 export interface CreateRoleDto {
@@ -17,6 +18,7 @@ export interface CreateRoleDto {
   permissions: string[];
   companyIds: number[];
   menuIds?: number[]; // ⬅️ IMPORTANTE (replace total)
+  isCompanyAdmin?: boolean; // solo Super Admin puede activarlo
 }
 
 export interface UpdateRoleDto {
@@ -25,6 +27,7 @@ export interface UpdateRoleDto {
   permissions: string[];
   companyIds: number[];
   menuIds?: number[]; // ⬅️ IMPORTANTE (replace total)
+  isCompanyAdmin?: boolean; // null/undefined = no tocar; solo Super Admin lo cambia
 }
 
 @Injectable({ providedIn: 'root' })

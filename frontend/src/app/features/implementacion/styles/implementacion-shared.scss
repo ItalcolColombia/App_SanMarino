@@ -1,0 +1,168 @@
+// src/app/features/implementacion/styles/implementacion-shared.scss
+// Estilos compartidos del módulo Implementación (lo global —ux-card, table-italfoods, input-italfoods,
+// btn-italfoods-*, loading-toast, spinner, empty-state— vive en theme-italfoods.scss; acá solo el
+// layout propio del módulo: card de filtros patrón canónico, chips, barra de avance y estado de error).
+// Solo tokens var(--…), sin hex hardcodeado.
+
+// ── Header del módulo ────────────────────────────────────────────────────────
+.imp-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+
+  .imp-header__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+    font-size: 1.25rem;
+    background: var(--ital-orange-100);
+  }
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--ital-text);
+  }
+  .imp-header__subtitle {
+    font-size: 0.875rem;
+    color: var(--ital-muted);
+    max-width: 46rem;
+  }
+}
+
+// ── Card de filtros (patrón canónico de movimientos-pollo-engorde) ───────────
+.imp-card {
+  margin-bottom: 1rem;
+
+  .imp-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.8rem 1.25rem;
+    border-bottom: 1px solid var(--ital-green-100);
+    background: var(--ital-cream);
+    border-radius: 14px 14px 0 0;
+
+    h2 {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--ital-orange-dark);
+    }
+    .imp-card__meta {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ital-muted);
+    }
+  }
+  .imp-card__body {
+    padding: 0.9rem 1.25rem 1.1rem;
+  }
+}
+
+.filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.9rem 1rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 180px;
+  min-width: 170px;
+  max-width: 300px;
+
+  > label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ital-orange-dark);
+  }
+  small {
+    color: var(--ital-muted);
+  }
+}
+
+.filter-group--check {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  padding-bottom: 0.55rem;
+
+  label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ital-text);
+    cursor: pointer;
+  }
+}
+
+.filter-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+// ── Chips y avance ───────────────────────────────────────────────────────────
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.progress-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ital-cream);
+  border: 1px solid var(--ital-green-50);
+  display: flex;
+}
+.progress-fill--confirmado { height: 100%; background: var(--success); }
+.progress-fill--avance     { height: 100%; background: var(--ital-orange); }
+
+// ── Estados de página: la carga SIEMPRE termina en datos, vacío o este error ─
+.imp-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+  padding: 2rem 1rem;
+
+  .imp-error__icon { font-size: 2rem; line-height: 1; }
+  .imp-error__titulo { font-weight: 700; color: var(--ital-text); }
+  .imp-error__detalle { font-size: 0.875rem; color: var(--ital-muted); max-width: 34rem; }
+}
+
+// ── Detalle de firmas dentro de tablas/modales ───────────────────────────────
+.firma-detalle {
+  font-size: 0.75rem;
+  color: var(--ital-muted);
+
+  .firma-detalle__texto {
+    font-style: italic;
+    color: var(--ital-text);
+  }
+}
+
+// Acciones compactas por fila
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  white-space: nowrap;
+}

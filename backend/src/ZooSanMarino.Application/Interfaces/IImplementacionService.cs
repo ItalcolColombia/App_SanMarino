@@ -24,6 +24,12 @@ public interface IImplementacionService
     Task<ImplementacionTareaDto?> ConfirmarTareaAsync(int tareaId, ImplementacionConfirmarRequest req, CancellationToken ct = default);
     Task<ImplementacionTareaDto?> ReabrirTareaAsync(int tareaId, CancellationToken ct = default);
 
+    // Participantes y firmas (asistentes que firman el recibido de cada punto)
+    Task<ImplementacionTareaDto?> SetParticipantesAsync(int tareaId, ImplementacionParticipantesRequest req, CancellationToken ct = default);
+    Task<ImplementacionMiFirmaDto?> FirmarAsync(int tareaId, ImplementacionFirmarRequest req, CancellationToken ct = default);
+    Task<ImplementacionMiFirmaDto?> RechazarAsync(int tareaId, ImplementacionRechazarRequest req, CancellationToken ct = default);
+    Task<List<ImplementacionMiFirmaDto>> GetMisFirmasAsync(CancellationToken ct = default);
+
     // Consultas de apoyo
     Task<List<ImplementacionMiTareaDto>> GetMisTareasAsync(CancellationToken ct = default);
     Task<List<ImplementacionUsuarioAsignableDto>> GetUsuariosAsignablesAsync(CancellationToken ct = default);

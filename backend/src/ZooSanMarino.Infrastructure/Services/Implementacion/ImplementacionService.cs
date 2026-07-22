@@ -23,6 +23,24 @@ public partial class ImplementacionService : IImplementacionService
     private static string NombreCompleto(User? u)
         => u is null ? "" : $"{u.firstName} {u.surName}".Trim();
 
+    /// <summary>Primer correo de login del usuario (requiere UserLogins→Login cargados; null si no hay).</summary>
+    private static string? EmailDe(User? u)
+        => u?.UserLogins?
+            .Select(ul => ul.Login?.email)
+            .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e));
+
+    private static ImplementacionFirmaDto MapFirma(ImplementacionTareaFirma f) => new(
+        f.Id,
+        f.TareaId,
+        f.UserId,
+        NombreCompleto(f.User),
+        f.User?.cedula ?? "",
+        EmailDe(f.User),
+        f.Estado,
+        f.FirmaTexto,
+        f.Nota,
+        f.FechaRespuesta);
+
     private static ImplementacionTareaDto MapTarea(ImplementacionTarea t, DateTime hoy) => new(
         t.Id,
         t.PlanId,
@@ -41,7 +59,27 @@ public partial class ImplementacionService : IImplementacionService
         t.CompletadaPorUser is null ? null : NombreCompleto(t.CompletadaPorUser),
         t.FechaConfirmada,
         t.ConfirmadaPorUser is null ? null : NombreCompleto(t.ConfirmadaPorUser),
-        t.Observaciones);
+        t.Observaciones,
+        (t.Firmas ?? Enumerable.Empty<ImplementacionTareaFirma>())
+            .Where(f => f.DeletedAt == null)
+            .OrderBy(f => f.Id)
+            .Select(MapFirma)
+            .ToList());
+
+    /// <summary>Nombre completo + correo de un usuario por Guid (una consulta; (null, null) si no existe).</summary>
+    private async Task<(string? Nombre, string? Email)> NombreYEmailAsync(Guid? userId, CancellationToken ct)
+    {
+        if (userId is null) return (null, null);
+        var fila = await _ctx.Users.AsNoTracking()
+            .Where(u => u.Id == userId.Value)
+            .Select(u => new
+            {
+                Nombre = u.firstName + " " + u.surName,
+                Email  = u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()
+            })
+            .FirstOrDefaultAsync(ct);
+        return fila is null ? (null, null) : (fila.Nombre.Trim(), fila.Email);
+    }
 
     /// <summary>Plan de la empresa activa (tracked para mutaciones); null si no existe o no es de la empresa.</summary>
     private Task<ImplementacionPlan?> GetPlanScopedAsync(int planId, CancellationToken ct)
@@ -57,7 +95,7 @@ public partial class ImplementacionService : IImplementacionService
                         && t.DeletedAt == null && t.Plan.DeletedAt == null)
             .FirstOrDefaultAsync(ct);
 
-    /// <summary>Recarga la tarea con sus navegaciones de nombres y la mapea a DTO.</summary>
+    /// <summary>Recarga la tarea con sus navegaciones de nombres (incl. firmas con correo) y la mapea a DTO.</summary>
     private async Task<ImplementacionTareaDto?> ReloadTareaDtoAsync(int tareaId, CancellationToken ct)
     {
         var t = await _ctx.ImplementacionTareas.AsNoTracking()
@@ -65,6 +103,10 @@ public partial class ImplementacionService : IImplementacionService
             .Include(x => x.AsignadoUser)
             .Include(x => x.CompletadaPorUser)
             .Include(x => x.ConfirmadaPorUser)
+            .Include(x => x.Firmas.Where(f => f.DeletedAt == null))
+                .ThenInclude(f => f.User)
+                .ThenInclude(u => u.UserLogins)
+                .ThenInclude(ul => ul.Login)
             .FirstOrDefaultAsync(x => x.Id == tareaId, ct);
         return t is null ? null : MapTarea(t, DateTime.UtcNow);
     }
@@ -111,10 +153,16 @@ public partial class ImplementacionService : IImplementacionService
             !await _ctx.Roles.AnyAsync(r => r.Id == roleId.Value, ct))
             throw new InvalidOperationException("El rol responsable indicado no existe.");
 
-        if (asignadoUserId.HasValue &&
+        await ValidarUsuarioDeEmpresaAsync(asignadoUserId, "El usuario asignado", ct);
+    }
+
+    /// <summary>Valida que el usuario (si viene) pertenezca a la empresa activa (fail-closed).</summary>
+    private async Task ValidarUsuarioDeEmpresaAsync(Guid? userId, string etiqueta, CancellationToken ct)
+    {
+        if (userId.HasValue &&
             !await _ctx.UserCompanies.AnyAsync(
-                uc => uc.UserId == asignadoUserId.Value && uc.CompanyId == _current.CompanyId, ct))
-            throw new InvalidOperationException("El usuario asignado no pertenece a la empresa activa.");
+                uc => uc.UserId == userId.Value && uc.CompanyId == _current.CompanyId, ct))
+            throw new InvalidOperationException($"{etiqueta} no pertenece a la empresa activa.");
     }
 
     private static string TextoRequerido(string? valor, string campo, int maxLen)

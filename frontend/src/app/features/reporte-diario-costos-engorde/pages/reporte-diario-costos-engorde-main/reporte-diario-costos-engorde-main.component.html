@@ -1,0 +1,199 @@
+<div class="p-4 md:p-6 space-y-4">
+  <!-- Encabezado -->
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h1 class="text-xl font-bold text-gray-800">Reporte Diario Costos — Pollo Engorde</h1>
+      <p class="text-sm text-gray-500">
+        Unifica por fecha los lotes de la granja (o del lote base): alimento del día, mortalidad + selección y aves vivas por galpón.
+      </p>
+    </div>
+  </div>
+
+  <!-- Panel de filtros -->
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
+    @if (loadingFilterData) {
+      <div class="text-sm text-gray-500">Cargando filtros…</div>
+    }
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Granja *</label>
+        <select class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="granjaId">
+          <option [ngValue]="null">— Seleccionar —</option>
+          @for (g of granjas; track g.id) {
+            <option [ngValue]="g.id">{{ g.name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Lote base</label>
+        <select class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="loteBaseEngordeId">
+          <option [ngValue]="null">Todos los lotes</option>
+          @for (b of lotesBase; track b.id) {
+            <option [ngValue]="b.id">{{ b.nombre }}</option>
+          }
+        </select>
+        <p class="mt-0.5 text-xs text-gray-400">Sin lote base = todos los lotes de la granja.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Fecha inicio</label>
+        <input type="date" class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="fechaInicio" />
+        <p class="mt-0.5 text-xs text-gray-400">Vacía = encaset del lote más reciente.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Fecha fin</label>
+        <input type="date" class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="fechaFin" />
+        <p class="mt-0.5 text-xs text-gray-400">Vacía = hoy.</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button (click)="generar()" [disabled]="loading || !granjaId"
+        class="px-4 py-2 rounded bg-ital-green text-white text-sm font-medium disabled:opacity-50">
+        {{ loading ? 'Generando…' : 'Generar' }}
+      </button>
+      <button (click)="limpiar()"
+        class="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm">Limpiar</button>
+      <button (click)="exportarExcel()" [disabled]="!reporte || reporte.filas.length === 0"
+        class="px-4 py-2 rounded border border-ital-orange text-ital-orange text-sm disabled:opacity-50">
+        Exportar Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Error / vacío -->
+  @if (error) {
+    <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded p-3">{{ error }}</div>
+  }
+  @if (reporte && reporte.filas.length === 0) {
+    <div class="text-sm text-gray-500">
+      No hay seguimientos diarios para los filtros seleccionados.
+    </div>
+  }
+
+  @if (reporte && reporte.filas.length > 0) {
+    <!-- Contexto del reporte -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <span class="font-semibold text-gray-800">{{ reporte.granjaNombre }}</span>
+        <span class="text-gray-400">·</span>
+        <span class="text-gray-600">Lote base: <strong>{{ reporte.loteBaseNombre || 'Todos los lotes' }}</strong></span>
+        <span class="text-gray-400">·</span>
+        <span class="text-gray-600">Del {{ fecha(reporte.fechaInicioEfectiva) }} al {{ fecha(reporte.fechaFinEfectiva) }}</span>
+      </div>
+
+      <!-- Lotes involucrados ("lote nombre", "lote nombre 2", …) -->
+      <div class="flex flex-wrap gap-2">
+        @for (l of reporte.lotes; track l.loteAveEngordeId) {
+          <span class="text-xs px-2 py-1 rounded border"
+            [class.bg-gray-100]="l.estadoOperativoLote === 'Cerrado'"
+            [class.text-gray-500]="l.estadoOperativoLote === 'Cerrado'"
+            [class.border-gray-200]="l.estadoOperativoLote === 'Cerrado'"
+            [class.bg-green-50]="l.estadoOperativoLote !== 'Cerrado'"
+            [class.text-green-800]="l.estadoOperativoLote !== 'Cerrado'"
+            [class.border-green-200]="l.estadoOperativoLote !== 'Cerrado'">
+            {{ l.loteNombre }} · {{ l.galponNombre }}
+            @if (l.fechaEncaset) { <span class="text-gray-400">({{ fecha(l.fechaEncaset) }})</span> }
+            @if (l.estadoOperativoLote === 'Cerrado') { <span> · Cerrado</span> }
+          </span>
+        }
+      </div>
+
+      <!-- Aves vivas actuales por galpón -->
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold text-gray-600 uppercase">Aves vivas actuales:</span>
+        @for (g of galponesCols; track trackGalpon($index, g); let i = $index) {
+          <span class="text-xs px-2 py-1 rounded bg-ital-cream border border-gray-200 text-gray-700">
+            {{ g.galponNombre }}: <strong>{{ ent(avesActualesPorGalpon[i]) }}</strong>
+          </span>
+        }
+        <span class="text-xs px-2 py-1 rounded bg-ital-green text-white">
+          Total: <strong>{{ ent(reporte.avesVivasActualesTotal) }}</strong>
+        </span>
+      </div>
+    </div>
+
+    <!-- Tabla principal -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+      <table class="rdc-table w-full text-sm">
+        <thead>
+          <tr>
+            <th rowspan="2" class="rdc-th rdc-th--fecha">Fecha</th>
+            <th colspan="3" class="rdc-th rdc-th--grupo">Resumen global de alimento por día (kg)</th>
+            <th rowspan="2" class="rdc-th rdc-th--total">Total día (kg)</th>
+            <th [attr.colspan]="galponesCols.length" class="rdc-th rdc-th--grupo rdc-th--mort">Mortalidad + selección</th>
+            <th [attr.colspan]="galponesCols.length + 1" class="rdc-th rdc-th--grupo">Aves vivas</th>
+          </tr>
+          <tr>
+            <th class="rdc-th">Tipo alimento</th>
+            <th class="rdc-th">Stock (kg)</th>
+            <th class="rdc-th">Consumo (kg)</th>
+            @for (g of galponesCols; track trackGalpon($index, g)) {
+              <th class="rdc-th rdc-th--mort" [title]="g.lotes.join(', ')">{{ g.galponNombre }}</th>
+            }
+            @for (g of galponesCols; track trackGalpon($index, g)) {
+              <th class="rdc-th" [title]="g.lotes.join(', ')">{{ g.galponNombre }}</th>
+            }
+            <th class="rdc-th">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of filasView; track trackFila($index, f)) {
+            @for (a of f.alimentoRows; track $index; let primera = $first) {
+              <tr class="rdc-row" [class.rdc-row--primera]="primera">
+                @if (primera) {
+                  <td class="rdc-td rdc-td--fecha" [attr.rowspan]="f.alimentoRows.length">{{ f.fechaFmt }}</td>
+                }
+                <td class="rdc-td text-left">{{ a.nombreAlimento }}</td>
+                <td class="rdc-td">{{ kg(a.stockKg) }}</td>
+                <td class="rdc-td">{{ kg(a.consumoKg) }}</td>
+                @if (primera) {
+                  <td class="rdc-td rdc-td--total" [attr.rowspan]="f.alimentoRows.length">{{ kg(f.consumoTotalKg) }}</td>
+                  @for (g of f.galpones; track g.galponId) {
+                    <td class="rdc-td rdc-td--mort" [attr.rowspan]="f.alimentoRows.length"
+                      [title]="'Mortalidad: ' + g.mortalidad + ' · Selección: ' + g.seleccion + ' · Err. sexaje: ' + g.errSexaje">
+                      {{ ent(g.mortSel) }}
+                    </td>
+                  }
+                  @for (g of f.galpones; track g.galponId) {
+                    <td class="rdc-td" [attr.rowspan]="f.alimentoRows.length">{{ ent(g.avesVivas) }}</td>
+                  }
+                  <td class="rdc-td font-semibold" [attr.rowspan]="f.alimentoRows.length">{{ ent(f.avesVivasTotal) }}</td>
+                }
+              </tr>
+            }
+          }
+        </tbody>
+        <tfoot>
+          <tr class="rdc-foot">
+            <td class="rdc-td rdc-td--foot" colspan="4">SUMA TOTAL</td>
+            <td class="rdc-td rdc-td--foot">{{ kg(reporte.totales.consumoTotalKg) }}</td>
+            @for (t of totalesPorGalpon; track t.galponId) {
+              <td class="rdc-td rdc-td--foot"
+                [title]="'Mortalidad: ' + t.mortalidad + ' · Selección: ' + t.seleccion + ' · Err. sexaje: ' + t.errSexaje">
+                {{ ent(t.mortSel) }}
+              </td>
+            }
+            @for (g of galponesCols; track trackGalpon($index, g); let i = $index) {
+              <td class="rdc-td rdc-td--foot">{{ ent(avesActualesPorGalpon[i]) }}</td>
+            }
+            <td class="rdc-td rdc-td--foot">{{ ent(reporte.avesVivasActualesTotal) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Totales por alimento -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <h2 class="text-sm font-semibold text-gray-700 mb-2">Consumo total por alimento (kg)</h2>
+      <div class="flex flex-wrap gap-2">
+        @for (a of reporte.totales.alimentos; track a.nombreAlimento) {
+          <span class="text-xs px-2 py-1 rounded bg-ital-cream border border-gray-200 text-gray-700">
+            {{ a.nombreAlimento }}: <strong>{{ kg(a.consumoKg) }}</strong>
+          </span>
+        }
+        <span class="text-xs px-2 py-1 rounded bg-ital-green text-white">
+          Total: <strong>{{ kg(reporte.totales.consumoTotalKg) }} kg</strong>
+        </span>
+      </div>
+    </div>
+  }
+</div>

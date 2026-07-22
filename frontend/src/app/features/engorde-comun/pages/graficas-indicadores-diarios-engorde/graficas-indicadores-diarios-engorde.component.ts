@@ -7,6 +7,7 @@ import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { IndicadoresDiariosEngordeComputeService } from '../../services/indicadores-diarios-engorde-compute.service';
 import { IndicadorDiarioFilaEngorde } from '../../models/indicadores-diarios-engorde.models';
+import { ymdSinTz } from '../../../../shared/utils/format';
 
 /** Cuatro gráficas fijas (datos del lote vs guía genética), mismo criterio que la tabla de indicadores diarios. */
 @Component({
@@ -316,9 +317,9 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
       return null;
     }
     if (typeof value === 'string') {
-      const m = value.match(/^(\d{4}-\d{2}-\d{2})/);
-      if (m) {
-        return m[1];
+      const ymd = ymdSinTz(value); // tz-aware: con Z/offset usa la fecha UTC del instante
+      if (ymd) {
+        return ymd;
       }
       const d = new Date(value);
       if (isNaN(d.getTime())) {

@@ -1,0 +1,72 @@
+// Reporte Diario Costos — Pollo Engorde
+// Solo layout de tabla; colores desde los tokens centralizados (theme-italfoods).
+
+.rdc-table {
+  border-collapse: collapse;
+  min-width: 900px;
+
+  .rdc-th {
+    position: sticky;
+    top: 0;
+    background: var(--ital-cream, #faf8f5);
+    border: 1px solid var(--border-color, #e5e7eb);
+    padding: 0.4rem 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary, #4b5563);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .rdc-th--grupo {
+    background: var(--ital-green, #2d7a3e);
+    color: #fff;
+  }
+
+  .rdc-th--mort {
+    background: var(--ital-orange, #e85c25);
+    color: #fff;
+  }
+
+  .rdc-td {
+    border: 1px solid var(--border-color, #e5e7eb);
+    padding: 0.35rem 0.5rem;
+    text-align: right;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .rdc-td--fecha {
+    text-align: center;
+    font-weight: 600;
+    background: var(--ital-cream, #faf8f5);
+  }
+
+  .rdc-td--total {
+    font-weight: 700;
+  }
+
+  .rdc-td--mort {
+    text-align: center;
+  }
+
+  .rdc-row--primera .rdc-td {
+    border-top: 2px solid var(--border-color-strong, #d1d5db);
+  }
+
+  .rdc-foot .rdc-td--foot {
+    background: var(--ital-cream, #faf8f5);
+    font-weight: 700;
+    text-align: right;
+    border-top: 2px solid var(--border-color-strong, #d1d5db);
+  }
+
+  .rdc-foot .rdc-td--foot:first-child {
+    text-align: left;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+  }
+}

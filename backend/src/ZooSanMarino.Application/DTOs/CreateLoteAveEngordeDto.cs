@@ -31,4 +31,6 @@ public class CreateLoteAveEngordeDto
     public string? LoteErp { get; set; }
     public string? LineaGenetica { get; set; }
     public int? EdadInicial { get; set; }
+    /// <summary>Lote base global (opcional) al que se amarra este lote para reportes por granja.</summary>
+    public int? LoteBaseEngordeId { get; set; }
 }

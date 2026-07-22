@@ -46,8 +46,11 @@ public partial class SeguimientoAvesEngordeEcuadorService
     {
         var query = _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking();
         if (loteId.HasValue) query = query.Where(x => x.LoteAveEngordeId == loteId.Value);
-        if (desde.HasValue)  query = query.Where(x => x.Fecha >= desde.Value);
-        if (hasta.HasValue)  query = query.Where(x => x.Fecha <= hasta.Value);
+        // Día completo en UTC (fechas ancladas a mediodía por FechasPuras)
+        var desdeUtc = FechasPuras.AnclarMediodiaUtc(desde)?.AddHours(-12);
+        var hastaExcl = FechasPuras.AnclarMediodiaUtc(hasta)?.AddHours(12);
+        if (desdeUtc.HasValue)  query = query.Where(x => x.Fecha >= desdeUtc.Value);
+        if (hastaExcl.HasValue) query = query.Where(x => x.Fecha < hastaExcl.Value);
         var entities = await query.OrderBy(x => x.Fecha).ToListAsync();
         return entities.Select(MapToDto);
     }

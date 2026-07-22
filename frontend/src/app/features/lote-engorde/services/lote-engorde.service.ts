@@ -55,6 +55,9 @@ export interface LoteAveEngordeDto {
   avesSobrante?: number;
   mermaUnidades?: number | null;
   mermaKilos?: number | null;
+  /** Lote base global (opcional): agrupa lotes de engorde para el Reporte Diario Costos. */
+  loteBaseEngordeId?: number | null;
+  loteBaseNombre?: string | null;
 }
 
 export interface CreateLoteAveEngordeDto extends Omit<LoteAveEngordeDto, 'loteAveEngordeId'> {

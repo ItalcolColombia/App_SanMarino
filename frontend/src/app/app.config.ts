@@ -282,6 +282,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.InformeSemanalEngordeListComponent)
       },
 
+      // Reporte Diario Costos Pollo Engorde (por granja + lote base)
+      {
+        path: 'reporte-diario-costos-engorde',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/reporte-diario-costos-engorde/pages/reporte-diario-costos-engorde-main/reporte-diario-costos-engorde-main.component')
+            .then(m => m.ReporteDiarioCostosEngordeMainComponent)
+      },
+
       // Inventario (fuera de config, ruta independiente)
       {
         path: 'inventario',

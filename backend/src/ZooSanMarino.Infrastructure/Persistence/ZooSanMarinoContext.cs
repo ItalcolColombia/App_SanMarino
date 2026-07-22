@@ -85,6 +85,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<HistorialTrasladoLote> HistorialTrasladoLote => Set<HistorialTrasladoLote>();
         public DbSet<LoteEtapaLevante> LoteEtapaLevante => Set<LoteEtapaLevante>();
         public DbSet<LoteAveEngorde> LoteAveEngorde { get; set; } = null!;
+        public DbSet<LoteBaseEngorde> LoteBaseEngorde => Set<LoteBaseEngorde>();
         public DbSet<LoteReproductoraAveEngorde> LoteReproductoraAveEngorde => Set<LoteReproductoraAveEngorde>();
         public DbSet<SeguimientoDiarioAvesEngorde> SeguimientoDiarioAvesEngorde => Set<SeguimientoDiarioAvesEngorde>();
         public DbSet<SeguimientoDiarioAvesEngordeEcuador> SeguimientoDiarioAvesEngordeEcuador => Set<SeguimientoDiarioAvesEngordeEcuador>();
@@ -141,6 +142,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // Módulo Implementación (cronogramas de entrega por empresa con checklist confirmable)
         public DbSet<ImplementacionPlan> ImplementacionPlanes => Set<ImplementacionPlan>();
         public DbSet<ImplementacionTarea> ImplementacionTareas => Set<ImplementacionTarea>();
+        public DbSet<ImplementacionTareaFirma> ImplementacionTareaFirmas => Set<ImplementacionTareaFirma>();
 
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote

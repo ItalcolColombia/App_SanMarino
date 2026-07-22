@@ -75,6 +75,25 @@ export class FarmService {
     return this.getAll();
   }
 
+  /**
+   * Granjas asignables al configurar usuarios (modal "Asignar Granjas").
+   * Admin de Empresa (rol con is_company_admin) o Super Admin → todas las granjas activas de la
+   * empresa activa; resto → solo las asignadas al usuario actual. El scoping lo resuelve el backend
+   * a partir de la empresa activa (headers) y el usuario del token.
+   */
+  getAssignableFarms(): Observable<Farm[]> {
+    this.companyHelper.logActiveCompany('FarmService.getAssignableFarms');
+
+    const headers = this.companyHelper.getAuthenticatedHeaders();
+
+    return this.http.get<Farm[]>(`${this.baseUrl}/assignable`, { headers }).pipe(
+      catchError(error => {
+        console.error('❌ Error en FarmService.getAssignableFarms():', error);
+        return throwError(() => error);
+      })
+    );
+  }
+
   /** Obtener granja por ID */
   getById(id: number): Observable<Farm> {
     this.companyHelper.logActiveCompany('FarmService.getById');

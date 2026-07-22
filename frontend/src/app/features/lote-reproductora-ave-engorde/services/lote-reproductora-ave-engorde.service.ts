@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
+import { ymdSinTz, ymdToIsoUtcNoon } from '../../../shared/utils/format';
 
 export interface FarmDto {
   readonly id: number;
@@ -131,7 +132,9 @@ export class LoteReproductoraAveEngordeService {
 
   private toIso(d?: string | Date | null): string | null {
     if (!d) return null;
-    if (typeof d === 'string' && d.length === 10) return new Date(d + 'T00:00:00Z').toISOString();
+    // Fecha "pura": anclar a mediodía UTC para que no se muestre un día menos en UTC-5
+    const anclado = ymdToIsoUtcNoon(ymdSinTz(d));
+    if (anclado) return anclado;
     const parsed = new Date(d);
     return isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }

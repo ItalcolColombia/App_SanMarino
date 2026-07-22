@@ -206,12 +206,16 @@ public partial class SeguimientoAvesEngordeService
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta)
     {
         var companyId = _current.CompanyId;
+        // Rango por DÍA completo en UTC: las fechas van ancladas a mediodía UTC (FechasPuras),
+        // así que un "hasta" a medianoche excluiría los registros de ese mismo día.
+        var desdeUtc = FechasPuras.AnclarMediodiaUtc(desde)?.AddHours(-12);
+        var hastaExcl = FechasPuras.AnclarMediodiaUtc(hasta)?.AddHours(12);
         var q = from s in _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                 join l in _ctx.LoteAveEngorde.AsNoTracking() on s.LoteAveEngordeId equals l.LoteAveEngordeId
                 where l.CompanyId == companyId && l.DeletedAt == null
                    && (!loteId.HasValue || s.LoteAveEngordeId == loteId.Value)
-                   && (!desde.HasValue || s.Fecha >= desde.Value)
-                   && (!hasta.HasValue || s.Fecha <= hasta.Value)
+                   && (!desdeUtc.HasValue || s.Fecha >= desdeUtc.Value)
+                   && (!hastaExcl.HasValue || s.Fecha < hastaExcl.Value)
                 orderby s.Fecha
                 select s;
         var list = await q.ToListAsync();

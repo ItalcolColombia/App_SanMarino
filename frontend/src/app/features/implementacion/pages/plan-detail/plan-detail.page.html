@@ -1,43 +1,65 @@
 <div class="mx-auto max-w-7xl p-4 sm:p-6">
   <div class="mb-3">
     <a routerLink="/implementacion/planes" class="text-sm font-semibold hover:underline" style="color: var(--ital-muted)">
-      ← Volver a planes
+      ← Volver a cronogramas
     </a>
   </div>
 
+  <!-- Cargando -->
   <div *ngIf="cargando" class="loading-toast" role="status">
-    <span class="spinner spinner--sm"></span> Cargando plan…
+    <span class="spinner spinner--sm"></span> Cargando cronograma…
   </div>
 
-  <ng-container *ngIf="!cargando && plan">
-    <!-- Cabecera del plan -->
-    <header class="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <div class="flex flex-wrap items-center gap-2">
-          <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">{{ plan.nombre }}</h1>
-          <span
-            class="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold"
-            [style.color]="estiloPlan(plan.estado).fg"
-            [style.background]="estiloPlan(plan.estado).bg"
-          >
-            {{ estiloPlan(plan.estado).label }}
-          </span>
+  <!-- Error visible con reintento -->
+  <div *ngIf="!cargando && errorMsg" class="ux-card imp-error" role="alert">
+    <div class="imp-error__icon" aria-hidden="true">⚠️</div>
+    <p class="imp-error__titulo">No se pudo cargar el cronograma</p>
+    <p class="imp-error__detalle">{{ errorMsg }}</p>
+    <button type="button" class="btn-italfoods-orange text-sm" (click)="cargar()">Reintentar</button>
+  </div>
+
+  <ng-container *ngIf="!cargando && !errorMsg && plan">
+    <!-- Cabecera del cronograma -->
+    <header class="ux-card imp-card">
+      <div class="imp-card__body">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">{{ plan.nombre }}</h1>
+              <span class="chip" [style.color]="estiloTipo(plan.tipo).fg" [style.background]="estiloTipo(plan.tipo).bg">
+                {{ estiloTipo(plan.tipo).label }}
+              </span>
+              <span class="chip" [style.color]="estiloPlan(plan.estado).fg" [style.background]="estiloPlan(plan.estado).bg">
+                {{ estiloPlan(plan.estado).label }}
+              </span>
+            </div>
+            <p *ngIf="plan.descripcion" class="mt-1 text-sm" style="color: var(--ital-muted)">{{ plan.descripcion }}</p>
+            <p class="mt-1 text-xs" style="color: var(--ital-muted)">
+              📅 Cronograma:
+              {{ plan.fechaInicio ? (plan.fechaInicio | date: 'dd/MM/yyyy') : '—' }} →
+              {{ plan.fechaFin ? (plan.fechaFin | date: 'dd/MM/yyyy') : '—' }}
+            </p>
+            <div class="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+              <span style="color: var(--ital-text)">
+                👤 <strong>Encargado:</strong> {{ plan.implementadorNombre || '—' }}
+                <span *ngIf="plan.implementadorEmail" style="color: var(--ital-muted)"> · {{ plan.implementadorEmail }}</span>
+              </span>
+              <span style="color: var(--ital-text)">
+                📝 <strong>Creado por:</strong> {{ plan.creadoPorNombre || '—' }}
+                <span *ngIf="plan.creadoPorEmail" style="color: var(--ital-muted)"> · {{ plan.creadoPorEmail }}</span>
+              </span>
+            </div>
+          </div>
+          <button type="button" class="btn-italfoods-primary text-sm" (click)="abrirNuevaTarea()">＋ Agregar ítem</button>
         </div>
-        <p *ngIf="plan.descripcion" class="mt-1 text-sm" style="color: var(--ital-muted)">{{ plan.descripcion }}</p>
-        <p class="mt-1 text-xs" style="color: var(--ital-muted)">
-          Cronograma:
-          {{ plan.fechaInicio ? (plan.fechaInicio | date: 'dd/MM/yyyy') : '—' }} →
-          {{ plan.fechaFin ? (plan.fechaFin | date: 'dd/MM/yyyy') : '—' }}
-        </p>
       </div>
-      <button type="button" class="btn-primary text-sm" (click)="abrirNuevaTarea()">＋ Agregar tarea</button>
     </header>
 
     <!-- KPIs -->
-    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
       <div class="ux-card p-3 text-center">
         <div class="text-2xl font-extrabold" style="color: var(--ital-text)">{{ plan.totalTareas }}</div>
-        <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Tareas</div>
+        <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Ítems</div>
       </div>
       <div class="ux-card p-3 text-center">
         <div class="text-2xl font-extrabold" style="color: var(--ital-orange-dark)">{{ plan.tareasCompletadas }}</div>
@@ -51,24 +73,96 @@
         <div class="text-2xl font-extrabold" style="color: var(--ital-orange)">{{ plan.porcentajeAvance }}%</div>
         <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">Avance</div>
       </div>
+      <div class="ux-card p-3 text-center">
+        <div class="text-2xl font-extrabold" style="color: var(--ital-text)">
+          {{ firmasPlan.firmadas }}/{{ firmasPlan.total }}
+        </div>
+        <div class="text-xs font-semibold uppercase" style="color: var(--ital-muted)">
+          Firmas
+          <span *ngIf="firmasPlan.rechazadas" style="color: var(--danger)">· {{ firmasPlan.rechazadas }} novedad(es)</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Empty state -->
-    <div *ngIf="!grupos.length" class="empty-state ux-card p-8 text-center">
+    <!-- Filtros de ítems -->
+    <section *ngIf="tareas.length" class="ux-card imp-card">
+      <div class="imp-card__header">
+        <h2>Filtros del checklist</h2>
+        <span class="imp-card__meta">{{ grupos.length }} categoría(s)</span>
+      </div>
+      <div class="imp-card__body">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label for="ft-busqueda">Buscar</label>
+            <input
+              id="ft-busqueda"
+              type="text"
+              class="input-italfoods"
+              placeholder="Ítem, responsable, participante…"
+              [(ngModel)]="filtros.busqueda"
+              (ngModelChange)="aplicarFiltros()"
+            />
+          </div>
+          <div class="filter-group">
+            <label for="ft-categoria">Categoría</label>
+            <select
+              id="ft-categoria"
+              class="input-italfoods"
+              [(ngModel)]="filtros.categoria"
+              (ngModelChange)="aplicarFiltros()"
+            >
+              <option value="">Todas</option>
+              <option *ngFor="let c of categoriasExistentes" [value]="c">{{ c }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="ft-estado">Estado</label>
+            <select
+              id="ft-estado"
+              class="input-italfoods"
+              [(ngModel)]="filtros.estado"
+              (ngModelChange)="aplicarFiltros()"
+            >
+              <option value="">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="completada">Completada</option>
+              <option value="confirmada">Confirmada</option>
+            </select>
+          </div>
+          <div class="filter-group filter-group--check">
+            <input id="ft-vencidas" type="checkbox" [(ngModel)]="filtros.soloVencidas" (ngModelChange)="aplicarFiltros()" />
+            <label for="ft-vencidas">Solo vencidas</label>
+          </div>
+          <div class="filter-actions">
+            <button type="button" class="btn-italfoods-secondary text-xs" [disabled]="!hayFiltros" (click)="limpiarFiltros()">
+              Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty states -->
+    <div *ngIf="!tareas.length" class="empty-state ux-card p-8 text-center">
       <div class="mb-2 text-3xl" aria-hidden="true">📝</div>
-      <p class="font-semibold" style="color: var(--ital-text)">Este plan todavía no tiene tareas.</p>
-      <p class="mb-4 text-sm" style="color: var(--ital-muted)">Agregá las tareas del checklist de entrega.</p>
-      <button type="button" class="btn-primary text-sm" (click)="abrirNuevaTarea()">Agregar tarea</button>
+      <p class="font-semibold" style="color: var(--ital-text)">Este cronograma todavía no tiene ítems.</p>
+      <p class="mb-4 text-sm" style="color: var(--ital-muted)">
+        Agregá los ítems de validación: qué se implementa/capacita, con su fecha y descripción.
+      </p>
+      <button type="button" class="btn-italfoods-primary text-sm" (click)="abrirNuevaTarea()">Agregar ítem</button>
+    </div>
+
+    <div *ngIf="tareas.length && !grupos.length" class="empty-state ux-card p-8 text-center">
+      <div class="mb-2 text-3xl" aria-hidden="true">🔎</div>
+      <p class="font-semibold" style="color: var(--ital-text)">Ningún ítem coincide con los filtros.</p>
+      <button type="button" class="btn-italfoods-secondary mt-3 text-sm" (click)="limpiarFiltros()">Limpiar filtros</button>
     </div>
 
     <!-- Checklist por categoría -->
     <section *ngFor="let g of grupos; trackBy: trackByGrupo" class="ux-card mb-4 overflow-hidden">
-      <div
-        class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3"
-        style="border-color: var(--ital-green-100); background: var(--ital-cream)"
-      >
-        <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">{{ g.categoria }}</h2>
-        <span class="text-xs font-semibold" style="color: var(--ital-muted)">
+      <div class="imp-card__header">
+        <h2>{{ g.categoria }}</h2>
+        <span class="imp-card__meta">
           {{ g.confirmadas }}/{{ g.total }} confirmadas · {{ g.avance }}/{{ g.total }} con check
         </span>
       </div>
@@ -77,11 +171,12 @@
           <thead>
             <tr>
               <th class="w-10 text-center">✓</th>
-              <th class="text-left">Tarea</th>
+              <th class="text-left">Ítem de validación</th>
               <th class="text-left">Programada</th>
               <th class="text-left">Responsable</th>
-              <th class="text-left">Completada</th>
-              <th class="text-left">Confirmada</th>
+              <th class="text-left">Firmas</th>
+              <th class="text-left">Realizado</th>
+              <th class="text-left">Confirmado</th>
               <th class="text-right">Acciones</th>
             </tr>
           </thead>
@@ -105,7 +200,7 @@
                 </span>
                 <span
                   *ngIf="t.vencida"
-                  class="ml-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  class="chip ml-1"
                   style="color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent)"
                 >
                   Vencida
@@ -115,6 +210,26 @@
                 <div *ngIf="t.roleNombre">🧩 {{ t.roleNombre }}</div>
                 <div *ngIf="t.asignadoNombre">👤 {{ t.asignadoNombre }}</div>
                 <span *ngIf="!t.roleNombre && !t.asignadoNombre" style="color: var(--ital-muted)">—</span>
+              </td>
+              <td class="whitespace-nowrap text-xs">
+                <button
+                  type="button"
+                  class="font-semibold hover:underline"
+                  style="color: var(--ital-orange-dark)"
+                  title="Ver firmas y novedades"
+                  (click)="abrirFirmas(t)"
+                >
+                  ✍️ {{ firmasDe(t.id).firmadas }}/{{ firmasDe(t.id).total }}
+                </button>
+                <span
+                  *ngIf="firmasDe(t.id).rechazadas"
+                  class="chip ml-1"
+                  style="color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent)"
+                  title="Novedades registradas (no firmaron)"
+                >
+                  {{ firmasDe(t.id).rechazadas }} novedad(es)
+                </span>
+                <div *ngIf="!firmasDe(t.id).total" style="color: var(--ital-muted)">Sin participantes</div>
               </td>
               <td class="whitespace-nowrap text-xs" style="color: var(--ital-text)">
                 <ng-container *ngIf="t.fechaCompletada; else sinDato">
@@ -128,34 +243,55 @@
                   <div style="color: var(--ital-muted)">{{ t.confirmadaPorNombre || '—' }}</div>
                 </ng-container>
               </td>
-              <td class="whitespace-nowrap text-right">
-                <button
-                  *ngIf="t.estado === 'pendiente'"
-                  type="button"
-                  class="btn-primary text-xs"
-                  (click)="completar(t)"
-                >
-                  Completar
-                </button>
-                <button
-                  *ngIf="t.estado !== 'pendiente'"
-                  type="button"
-                  class="btn-ghost text-xs"
-                  (click)="reabrir(t)"
-                >
-                  Reabrir
-                </button>
-                <button
-                  *ngIf="t.estado !== 'confirmada'"
-                  type="button"
-                  class="btn-ghost text-xs"
-                  (click)="abrirEditarTarea(t)"
-                >
-                  Editar
-                </button>
-                <button type="button" class="btn-ghost text-xs" style="color: var(--danger)" (click)="eliminarTarea(t)">
-                  Eliminar
-                </button>
+              <td class="text-right">
+                <div class="row-actions justify-end">
+                  <button
+                    *ngIf="t.estado === 'pendiente'"
+                    type="button"
+                    class="btn-italfoods-primary text-xs"
+                    (click)="completar(t)"
+                  >
+                    Completar
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    title="Participantes que firman"
+                    aria-label="Participantes que firman"
+                    (click)="abrirParticipantes(t)"
+                  >
+                    👥
+                  </button>
+                  <button
+                    *ngIf="t.estado !== 'pendiente'"
+                    type="button"
+                    class="icon-btn"
+                    title="Reabrir"
+                    aria-label="Reabrir"
+                    (click)="reabrir(t)"
+                  >
+                    ↩️
+                  </button>
+                  <button
+                    *ngIf="t.estado !== 'confirmada'"
+                    type="button"
+                    class="icon-btn"
+                    title="Editar"
+                    aria-label="Editar"
+                    (click)="abrirEditarTarea(t)"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn danger"
+                    title="Eliminar"
+                    aria-label="Eliminar"
+                    (click)="eliminarTarea(t)"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -166,14 +302,28 @@
     <ng-template #sinDato><span style="color: var(--ital-muted)">—</span></ng-template>
 
     <app-modal-tarea-implementacion
-      [open]="modalAbierto"
+      [open]="modalTareaAbierto"
       [planId]="planId"
       [tarea]="tareaEditando"
       [usuarios]="usuarios"
       [roles]="roles"
       [categoriasSugeridas]="categoriasExistentes"
-      (cerrado)="cerrarModal()"
+      (cerrado)="cerrarModales()"
       (guardado)="onGuardado()"
+    />
+
+    <app-modal-participantes-implementacion
+      [open]="modalParticipantesAbierto"
+      [tarea]="tareaSeleccionada"
+      [usuarios]="usuarios"
+      (cerrado)="cerrarModales()"
+      (guardado)="onGuardado()"
+    />
+
+    <app-modal-firmas-implementacion
+      [open]="modalFirmasAbierto"
+      [tarea]="tareaSeleccionada"
+      (cerrado)="cerrarModales()"
     />
   </ng-container>
 </div>

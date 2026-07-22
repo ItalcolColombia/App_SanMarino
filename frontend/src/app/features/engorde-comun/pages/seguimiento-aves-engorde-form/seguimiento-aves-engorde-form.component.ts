@@ -15,6 +15,7 @@ import {
   EngordeFormOpciones
 } from '../../services/seguimiento-engorde-crud.api';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
+import { toYMD } from '../../funciones/fecha.funcion';
 
 @Component({
   selector: 'app-seguimiento-engorde-form',
@@ -85,7 +86,7 @@ export class SeguimientoEngordeFormComponent implements OnInit {
     if (seg) {
       this.editingRecord = seg;
       this.form.patchValue({
-        fechaRegistro: seg.fechaRegistro.substring(0, 10),
+        fechaRegistro: toYMD(seg.fechaRegistro) ?? seg.fechaRegistro.substring(0, 10),
         loteId: seg.loteId,
         mortalidadHembras: seg.mortalidadHembras,
         mortalidadMachos: seg.mortalidadMachos,

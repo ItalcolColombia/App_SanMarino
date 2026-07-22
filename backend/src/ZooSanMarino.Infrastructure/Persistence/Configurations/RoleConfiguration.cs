@@ -21,6 +21,10 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
             builder.Property(r => r.Description)
                    .HasMaxLength(250);
 
+            builder.Property(r => r.IsCompanyAdmin)
+                   .IsRequired()
+                   .HasDefaultValue(false);
+
             // Role -> RolePermissions
             builder.HasMany(r => r.RolePermissions)
                    .WithOne(rp => rp.Role)

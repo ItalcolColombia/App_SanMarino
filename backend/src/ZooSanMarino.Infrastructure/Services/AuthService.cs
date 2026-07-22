@@ -372,7 +372,10 @@ public class AuthService : IAuthService
                                 .Distinct()
                                 .ToList()!,
         CompanyPaises = companyPaisesList,
-        Permisos = permissions
+        Permisos = permissions,
+
+        // Super Admin (Admin General): gatea funciones exclusivas en el front (ej. flag Admin de Empresa en Roles).
+        IsSuperAdmin = login.email?.ToLowerInvariant() == "moiesbbuga@gmail.com"
 
         // NOTA: MenusByRole y Menu ya NO se incluyen en el login
         // Se cargarán en una segunda petición separada desde el frontend

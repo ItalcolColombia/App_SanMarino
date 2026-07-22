@@ -2,6 +2,7 @@
 // unificado y backfill masivo de esa metadata para registros existentes.
 // Partial de SeguimientoAvesEngordeService.
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -121,8 +122,11 @@ public partial class SeguimientoAvesEngordeService
 
         var q = _ctx.SeguimientoDiarioAvesEngorde
             .Where(s => s.LoteAveEngordeId == loteId);
-        if (desde.HasValue) q = q.Where(s => s.Fecha >= desde.Value.Date);
-        if (hasta.HasValue) q = q.Where(s => s.Fecha <= hasta.Value.Date);
+        // Día completo en UTC (fechas ancladas a mediodía por FechasPuras)
+        var desdeUtc = FechasPuras.AnclarMediodiaUtc(desde)?.AddHours(-12);
+        var hastaExcl = FechasPuras.AnclarMediodiaUtc(hasta)?.AddHours(12);
+        if (desdeUtc.HasValue) q = q.Where(s => s.Fecha >= desdeUtc.Value);
+        if (hastaExcl.HasValue) q = q.Where(s => s.Fecha < hastaExcl.Value);
 
         var list = await q.OrderBy(s => s.Fecha).ToListAsync();
         var total = list.Count;

@@ -1,19 +1,15 @@
 <div class="mx-auto max-w-5xl p-4 sm:p-6">
   <!-- Header -->
-  <header class="mb-5 flex items-center gap-3">
-    <div
-      class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
-      style="background: var(--ital-orange-100)"
-      aria-hidden="true"
-    >
-      ✅
-    </div>
-    <div>
-      <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Mis tareas de implementación</h1>
-      <p class="text-sm" style="color: var(--ital-muted)">
-        Tareas de entrega/capacitación asignadas a vos en la empresa activa. Cuando el gestor las marca
-        completadas, confirmá acá que efectivamente se cumplieron.
-      </p>
+  <header class="imp-header">
+    <div class="flex items-center gap-3">
+      <div class="imp-header__icon" aria-hidden="true">✅</div>
+      <div>
+        <h1>Mis tareas de implementación</h1>
+        <p class="imp-header__subtitle">
+          Puntos de entrega/capacitación de la empresa activa donde participás: firmá lo que recibiste,
+          registrá novedades y confirmá las tareas que te asignaron.
+        </p>
+      </div>
     </div>
   </header>
 
@@ -21,25 +17,63 @@
     <span class="spinner spinner--sm"></span> Cargando tus tareas…
   </div>
 
-  <ng-container *ngIf="!cargando">
+  <!-- Error visible con reintento -->
+  <div *ngIf="!cargando && errorMsg" class="ux-card imp-error" role="alert">
+    <div class="imp-error__icon" aria-hidden="true">⚠️</div>
+    <p class="imp-error__titulo">No se pudieron cargar tus tareas</p>
+    <p class="imp-error__detalle">{{ errorMsg }}</p>
+    <button type="button" class="btn-italfoods-orange text-sm" (click)="cargar()">Reintentar</button>
+  </div>
+
+  <ng-container *ngIf="!cargando && !errorMsg">
     <!-- Vacío total -->
-    <div
-      *ngIf="!porConfirmar.length && !enProceso.length && !confirmadas.length"
-      class="empty-state ux-card p-8 text-center"
-    >
+    <div *ngIf="sinNada" class="empty-state ux-card p-8 text-center">
       <div class="mb-2 text-3xl" aria-hidden="true">🎉</div>
-      <p class="font-semibold" style="color: var(--ital-text)">No tenés tareas de implementación asignadas.</p>
+      <p class="font-semibold" style="color: var(--ital-text)">No tenés tareas ni firmas pendientes.</p>
       <p class="text-sm" style="color: var(--ital-muted)">
-        Cuando te asignen tareas de un plan de implementación van a aparecer acá.
+        Cuando te asignen puntos de un cronograma de implementación van a aparecer acá.
       </p>
     </div>
 
-    <!-- Por confirmar -->
-    <section *ngIf="porConfirmar.length" class="ux-card mb-4 overflow-hidden">
-      <div class="border-b px-4 py-3" style="border-color: var(--ital-green-100); background: var(--ital-orange-100)">
-        <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">
-          Esperan tu confirmación ({{ porConfirmar.length }})
-        </h2>
+    <!-- Por firmar (participante) -->
+    <section *ngIf="porFirmar.length" class="ux-card imp-card overflow-hidden">
+      <div class="imp-card__header" style="background: var(--ital-orange-100)">
+        <h2>✍️ Esperan tu firma ({{ porFirmar.length }})</h2>
+        <span class="imp-card__meta">Confirmá que estuviste/recibiste cada punto</span>
+      </div>
+      <ul>
+        <li
+          *ngFor="let f of porFirmar; trackBy: trackByFirma"
+          class="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+          style="border-color: var(--ital-green-100)"
+        >
+          <div class="min-w-0">
+            <div class="font-semibold" style="color: var(--ital-text)">{{ f.tareaTitulo }}</div>
+            <div class="text-xs" style="color: var(--ital-muted)">
+              {{ f.planNombre }} · {{ f.categoria }}
+              <ng-container *ngIf="f.fechaCompletada">
+                · realizado el {{ f.fechaCompletada | date: 'dd/MM/yyyy HH:mm' }}
+                <ng-container *ngIf="f.completadaPorNombre"> por {{ f.completadaPorNombre }}</ng-container>
+              </ng-container>
+            </div>
+            <div *ngIf="f.tareaDescripcion" class="mt-0.5 max-w-xl text-xs" style="color: var(--ital-muted)">
+              {{ f.tareaDescripcion }}
+            </div>
+            <div *ngIf="f.implementadorNombre" class="mt-0.5 text-xs" style="color: var(--ital-muted)">
+              👤 Encargado: {{ f.implementadorNombre }}
+            </div>
+          </div>
+          <button type="button" class="btn-italfoods-primary text-sm" (click)="abrirFirmar(f)">
+            Ver y firmar
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Esperan mi confirmación (asignado) -->
+    <section *ngIf="porConfirmar.length" class="ux-card imp-card overflow-hidden">
+      <div class="imp-card__header" style="background: var(--ital-orange-100)">
+        <h2>Esperan tu confirmación ({{ porConfirmar.length }})</h2>
       </div>
       <ul>
         <li
@@ -62,7 +96,7 @@
           </div>
           <button
             type="button"
-            class="btn-primary text-sm"
+            class="btn-italfoods-primary text-sm"
             [disabled]="confirmandoId === t.id"
             (click)="confirmar(t)"
           >
@@ -73,9 +107,9 @@
     </section>
 
     <!-- En proceso -->
-    <section *ngIf="enProceso.length" class="ux-card mb-4 overflow-hidden">
-      <div class="border-b px-4 py-3" style="border-color: var(--ital-green-100); background: var(--ital-cream)">
-        <h2 class="text-sm font-bold" style="color: var(--ital-text)">En proceso ({{ enProceso.length }})</h2>
+    <section *ngIf="enProceso.length" class="ux-card imp-card overflow-hidden">
+      <div class="imp-card__header">
+        <h2>En proceso ({{ enProceso.length }})</h2>
       </div>
       <ul>
         <li
@@ -93,16 +127,12 @@
             </span>
             <span
               *ngIf="t.vencida"
-              class="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold"
+              class="chip"
               style="color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent)"
             >
               Vencida
             </span>
-            <span
-              class="inline-block rounded-full px-2.5 py-0.5 font-bold"
-              [style.color]="estiloTarea(t.estado).fg"
-              [style.background]="estiloTarea(t.estado).bg"
-            >
+            <span class="chip" [style.color]="estiloTarea(t.estado).fg" [style.background]="estiloTarea(t.estado).bg">
               {{ estiloTarea(t.estado).label }}
             </span>
           </div>
@@ -110,10 +140,51 @@
       </ul>
     </section>
 
+    <!-- Historial: mis firmas y novedades -->
+    <section *ngIf="firmasRespondidas.length" class="ux-card imp-card overflow-hidden">
+      <div class="imp-card__header">
+        <h2>Tus firmas y novedades ({{ firmasRespondidas.length }})</h2>
+      </div>
+      <ul>
+        <li
+          *ngFor="let f of firmasRespondidas; trackBy: trackByFirma"
+          class="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+          style="border-color: var(--ital-green-100)"
+        >
+          <div class="min-w-0">
+            <div class="font-semibold" style="color: var(--ital-text)">{{ f.tareaTitulo }}</div>
+            <div class="text-xs" style="color: var(--ital-muted)">{{ f.planNombre }} · {{ f.categoria }}</div>
+            <div *ngIf="f.miEstado === 'firmada'" class="firma-detalle mt-0.5">
+              ✍️ Firmaste como <span class="firma-detalle__texto">"{{ f.firmaTexto }}"</span>
+              el {{ f.fechaRespuesta | date: 'dd/MM/yyyy HH:mm' }}
+              <ng-container *ngIf="f.nota"> · Obs.: {{ f.nota }}</ng-container>
+            </div>
+            <div *ngIf="f.miEstado === 'rechazada'" class="firma-detalle mt-0.5" style="color: var(--danger)">
+              ⚠️ Novedad ({{ f.fechaRespuesta | date: 'dd/MM/yyyy HH:mm' }}): {{ f.nota }}
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="chip" [style.color]="estiloFirma(f.miEstado).fg" [style.background]="estiloFirma(f.miEstado).bg">
+              {{ estiloFirma(f.miEstado).label }}
+            </span>
+            <!-- Retractarse de una novedad: puede firmar después -->
+            <button
+              *ngIf="f.miEstado === 'rechazada'"
+              type="button"
+              class="btn-italfoods-secondary text-xs"
+              (click)="abrirFirmar(f)"
+            >
+              Firmar ahora
+            </button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
     <!-- Confirmadas (historial) -->
-    <section *ngIf="confirmadas.length" class="ux-card overflow-hidden">
-      <div class="border-b px-4 py-3" style="border-color: var(--ital-green-100); background: var(--ital-cream)">
-        <h2 class="text-sm font-bold" style="color: var(--ital-text)">Confirmadas por vos ({{ confirmadas.length }})</h2>
+    <section *ngIf="confirmadas.length" class="ux-card imp-card overflow-hidden">
+      <div class="imp-card__header">
+        <h2>Confirmadas por vos ({{ confirmadas.length }})</h2>
       </div>
       <ul>
         <li
@@ -132,4 +203,11 @@
       </ul>
     </section>
   </ng-container>
+
+  <app-modal-firmar-implementacion
+    [open]="modalFirmarAbierto"
+    [item]="firmaSeleccionada"
+    (cerrado)="cerrarModalFirmar()"
+    (respondido)="onRespondido($event)"
+  />
 </div>

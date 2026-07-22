@@ -268,7 +268,7 @@
               </div>
               <div class="info-dl__row">
                 <dt>Encasetamiento</dt>
-                <dd>{{ selectedReproductoraDetail.fechaEncasetamiento ? (selectedReproductoraDetail.fechaEncasetamiento | date:'dd/MM/yyyy') : '—' }}</dd>
+                <dd>{{ selectedReproductoraDetail.fechaEncasetamiento ? (selectedReproductoraDetail.fechaEncasetamiento | date:'dd/MM/yyyy':'UTC') : '—' }}</dd>
               </div>
               <div class="info-dl__row">
                 <dt>Estado</dt>
@@ -429,7 +429,7 @@
               <!-- Filas de datos -->
               @for (s of seguimientos; track trackById($index, s)) {
                 <tr class="data-table__row">
-                  <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
+                  <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy':'UTC' }}</td>
                   <!-- Edad del lote en el registro (días desde encasetamiento) -->
                   <td class="cell-edad" data-label="Edad">
                     @if (calcularEdad(s.fechaRegistro) !== null) {

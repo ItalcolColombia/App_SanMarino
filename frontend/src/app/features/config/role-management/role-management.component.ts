@@ -145,6 +145,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   // UI state
   loading = false;
   isAdminUser = false;
+  isSuperAdminUser = false; // Super Admin: puede ver/editar el flag "Administrador de Empresa/País"
   activeCompanyId: number | null = null;
 
   @ViewChild(TicketPerfilEditorComponent) ticketEditor?: TicketPerfilEditorComponent;
@@ -222,6 +223,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       permissions:  [[], Validators.required],
       companyIds:   [[], Validators.required],
       menuIds:      [[]],
+      isCompanyAdmin: [false],
     });
 
     // Form Permiso
@@ -276,6 +278,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
           this.isAdminUser = userRoles.some(role =>
             role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'administrador')
           );
+          this.isSuperAdminUser = session?.user?.isSuperAdmin ?? false;
           this.activeCompanyId = session?.activeCompanyId ?? null;
 
           return this.isAdminUser
@@ -618,6 +621,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         permissions:  [...(r.permissions || []).map(k => (k || '').toLowerCase())],
         companyIds:   [...(r.companyIds || [])],
         menuIds:      [...(r.menuIds || [])],
+        isCompanyAdmin: r.isCompanyAdmin ?? false,
       });
       // valueChanges de companyIds cargará los menús de la primera empresa
     } else {
@@ -629,7 +633,8 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         name: '',
         permissions: [],
         companyIds: defaultCompanyIds,
-        menuIds: []
+        menuIds: [],
+        isCompanyAdmin: false
       });
       this.roleModalFlatMenus = [];
       this.roleModalMenusTree = [];
@@ -723,6 +728,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       permissions: (v.permissions as string[]).map(k => (k || '').toLowerCase()),
       companyIds: (v.companyIds as number[]),
       menuIds: (v.menuIds as number[]),
+      isCompanyAdmin: !!v.isCompanyAdmin, // el backend solo lo aplica si el usuario es Super Admin
     };
 
     // Crear

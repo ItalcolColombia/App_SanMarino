@@ -8,6 +8,7 @@ using AppInterfaces = ZooSanMarino.Application.Interfaces;
 using FarmLiteDto = ZooSanMarino.Application.DTOs.Farms.FarmLiteDto;
 using NucleoLiteDto = ZooSanMarino.Application.DTOs.Shared.NucleoLiteDto;
 using GalponLiteDto = ZooSanMarino.Application.DTOs.Shared.GalponLiteDto;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 
@@ -213,8 +214,8 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             NucleoId = nucleoId,
             GalponId = galponId,
             Regional = dto.Regional,
-            FechaEncaset = dto.FechaEncaset?.ToUniversalTime(),
-            FechaAlistamiento = dto.FechaAlistamiento?.ToUniversalTime(),
+            FechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncaset),
+            FechaAlistamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaAlistamiento),
             HembrasL = dto.HembrasL,
             MachosL = dto.MachosL,
             PesoInicialH = dto.PesoInicialH,
@@ -235,6 +236,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             AvesEncasetadas = dto.AvesEncasetadas,
             EdadInicial = dto.EdadInicial,
             LoteErp = dto.LoteErp,
+            LoteBaseEngordeId = await ResolverLoteBaseAsync(dto.LoteBaseEngordeId, companyId),
             CompanyId = companyId,
             CreatedByUserId = _current.UserId,
             CreatedAt = DateTime.UtcNow,
@@ -343,8 +345,8 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.NucleoId = nucleoId ?? ent.NucleoId;
         ent.GalponId = galponId ?? ent.GalponId;
         ent.Regional = dto.Regional;
-        ent.FechaEncaset = dto.FechaEncaset?.ToUniversalTime();
-        ent.FechaAlistamiento = dto.FechaAlistamiento?.ToUniversalTime();
+        ent.FechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncaset);
+        ent.FechaAlistamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaAlistamiento);
         ent.HembrasL = dto.HembrasL;
         ent.MachosL = dto.MachosL;
         ent.PesoInicialH = dto.PesoInicialH;
@@ -365,6 +367,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.AvesEncasetadas = dto.AvesEncasetadas;
         ent.EdadInicial = dto.EdadInicial;
         ent.LoteErp = dto.LoteErp;
+        ent.LoteBaseEngordeId = await ResolverLoteBaseAsync(dto.LoteBaseEngordeId, companyId);
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
 
@@ -557,6 +560,21 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             throw new InvalidOperationException("Granja no existe o no pertenece a la compañía.");
     }
 
+    /// <summary>
+    /// Valida el lote base (opcional): debe existir, estar vivo y pertenecer a la empresa efectiva.
+    /// Devuelve el id normalizado (null si no se envió).
+    /// </summary>
+    private async Task<int?> ResolverLoteBaseAsync(int? loteBaseEngordeId, int companyId)
+    {
+        if (!loteBaseEngordeId.HasValue) return null;
+        var existe = await _ctx.LoteBaseEngorde
+            .AsNoTracking()
+            .AnyAsync(b => b.Id == loteBaseEngordeId.Value && b.CompanyId == companyId && b.DeletedAt == null);
+        if (!existe)
+            throw new InvalidOperationException("El lote base indicado no existe o no pertenece a la compañía.");
+        return loteBaseEngordeId;
+    }
+
     private static IQueryable<LoteAveEngordeDetailDto> ProjectToDetail(IQueryable<LoteAveEngorde> q)
     {
         return q
@@ -625,7 +643,9 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                     l.Farm.Longitud
                 ),
                 l.Nucleo == null ? null : new NucleoLiteDto(l.Nucleo.NucleoId, l.Nucleo.NucleoNombre, l.Nucleo.GranjaId),
-                l.Galpon == null ? null : new GalponLiteDto(l.Galpon.GalponId, l.Galpon.GalponNombre, l.Galpon.NucleoId, l.Galpon.GranjaId)
+                l.Galpon == null ? null : new GalponLiteDto(l.Galpon.GalponId, l.Galpon.GalponNombre, l.Galpon.NucleoId, l.Galpon.GranjaId),
+                l.LoteBaseEngordeId,
+                l.LoteBaseEngorde == null ? null : l.LoteBaseEngorde.Nombre
             ));
     }
 

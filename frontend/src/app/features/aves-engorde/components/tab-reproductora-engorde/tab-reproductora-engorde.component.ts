@@ -19,6 +19,7 @@ import {
 import { BloquePrimeraSemana, ResumenReproductora } from '../../models/reproductora-primera-semana.model';
 import { construirBloquesReproductora } from '../../funciones/construir-bloques-reproductora.funcion';
 import { calcularResumenVpi } from '../../funciones/calcular-resumen-vpi.funcion';
+import { ymdSinTz } from '../../../../shared/utils/format';
 
 @Component({
   selector: 'app-tab-reproductora-engorde',
@@ -119,9 +120,9 @@ export class TabReproductoraEngordeComponent implements OnChanges {
     return `${value.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
   }
 
-  /** Fecha ISO → dd/MM/yyyy usando solo la parte YYYY-MM-DD (sin corrimiento de zona horaria). */
+  /** Fecha ISO → dd/MM/yyyy sin corrimiento de zona (con offset usa la fecha UTC del instante). */
   formatFechaUtc(iso: string | null): string {
-    const ymd = (iso ?? '').slice(0, 10);
+    const ymd = ymdSinTz(iso) ?? '';
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
     return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
   }

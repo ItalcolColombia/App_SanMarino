@@ -58,6 +58,23 @@ public class FarmController : ControllerBase
     }
 
     // ===========================
+    // ASIGNAR GRANJAS — granjas asignables al configurar usuarios
+    // ===========================
+    // GET /api/Farm/assignable
+    //  • Admin de Empresa (rol con is_company_admin) o Super Admin → TODAS las granjas activas de la
+    //    empresa activa (omite el filtro de granjas asignadas al propio usuario).
+    //  • Resto → solo las granjas de la empresa activa asignadas al usuario actual.
+    //  • Filtra por empresa activa (header) + status='A' + deleted_at IS NULL.
+    [HttpGet("assignable")]
+    [HttpGet("/Farm/assignable")]
+    [ProducesResponseType(typeof(IEnumerable<FarmDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<FarmDto>>> GetAssignable()
+    {
+        var items = await _svc.GetAssignableFarmsAsync();
+        return Ok(items);
+    }
+
+    // ===========================
     // FEATURE 13 — Granjas válidas para traslado entre seguimientos diarios
     // ===========================
     // GET /api/Farm/traslado-seguimiento-diario

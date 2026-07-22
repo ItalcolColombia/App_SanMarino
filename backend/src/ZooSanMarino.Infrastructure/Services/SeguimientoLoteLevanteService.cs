@@ -9,6 +9,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
 
@@ -225,7 +226,15 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     /// un solo lugar → un solo test). Antes había una copia idéntica acá + su propio ToKg.
     /// </summary>
     private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
-        => ZooSanMarino.Application.Calculos.MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
+        => MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
+
+    /// <summary>
+    /// Variante TIPADA del parseo (conserva el origen del id — camino 1/2) para las ramas
+    /// Colombia (IColombiaInventarioConsumoService), donde catalogItemId e
+    /// itemInventarioEcuadorId conviven y sus rangos numéricos colisionan.
+    /// </summary>
+    private static Dictionary<ItemConsumoKey, decimal> ParseMetadataItemsToKgPorOrigen(JsonElement root)
+        => MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(root);
 }
 
 public interface IGramajeProviderV2

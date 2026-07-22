@@ -598,7 +598,9 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     if (!loteId || !fechaStr) return -1;
     const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
     if (!lote?.fechaEncaset) return -1;
-    const encaset = new Date(lote.fechaEncaset.substring(0, 10) + 'T00:00:00');
+    const encasetYmd = toYMD(lote.fechaEncaset);
+    if (!encasetYmd) return -1;
+    const encaset = new Date(encasetYmd + 'T00:00:00');
     const registro = new Date(fechaStr + 'T00:00:00');
     if (isNaN(encaset.getTime()) || isNaN(registro.getTime())) return -1;
     return Math.round((registro.getTime() - encaset.getTime()) / (1000 * 60 * 60 * 24));
