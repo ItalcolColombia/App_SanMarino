@@ -41,9 +41,10 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         var num = stats?.Num ?? 0;
         var avesActualesH = Math.Max(0, avesInicioH - (stats?.MortH ?? 0) - (stats?.SelH ?? 0) - (stats?.ErrH ?? 0));
         var avesActualesM = Math.Max(0, avesInicioM - (stats?.MortM ?? 0) - (stats?.SelM ?? 0) - (stats?.ErrM ?? 0));
-        var edadDias = x.FechaEncasetamiento.HasValue
-            ? Math.Max(0, (int)(DateTime.UtcNow.Date - x.FechaEncasetamiento.Value.Date).TotalDays)
-            : 0;
+        // Edad: mientras Vigente = hoy − encasetamiento; al Cerrar (7 confirmados) se congela en la fecha
+        // del último registro de recogida (deja de crecer con el reloj del sistema).
+        var edadDias = ReproductoraEngordeCalculos.CalcularEdadDias(
+            x.FechaEncasetamiento, DateTime.UtcNow, estado == "Cerrado", stats?.MaxFecha);
 
         return new LoteReproductoraAveEngordeDto(
             x.Id,
@@ -98,8 +99,8 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
     /// <summary>Máximo de días de recogida de datos del lote reproductora. Al completarlos pasa a Cerrado.</summary>
     private const int DiasRecogidaReproductora = 7;
 
-    /// <summary>Bajas desglosadas por género + nº de registros (total y confirmados) por lote reproductora.</summary>
-    private sealed record ReproStats(int MortH, int MortM, int SelH, int SelM, int ErrH, int ErrM, int Num, int NumConfirmados);
+    /// <summary>Bajas desglosadas por género + nº de registros (total y confirmados) + fecha del último registro (cierre) por lote reproductora.</summary>
+    private sealed record ReproStats(int MortH, int MortM, int SelH, int SelM, int ErrH, int ErrM, int Num, int NumConfirmados, DateTime? MaxFecha);
 
     /// <summary>Mortalidad/selección/error por género + cantidad de registros. Key = LoteReproductoraAveEngordeId.</summary>
     private async Task<Dictionary<int, ReproStats>> GetReproStatsAsync(IEnumerable<int> ids, CancellationToken ct = default)
@@ -119,10 +120,12 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 ErrH = g.Sum(s => s.ErrorSexajeHembras ?? 0),
                 ErrM = g.Sum(s => s.ErrorSexajeMachos ?? 0),
                 Num = g.Count(),
-                NumConfirmados = g.Sum(s => s.Confirmado ? 1 : 0)
+                NumConfirmados = g.Sum(s => s.Confirmado ? 1 : 0),
+                // Fecha del último registro de recogida → se usa como fecha de cierre para congelar la edad.
+                MaxFecha = g.Max(s => (DateTime?)s.Fecha)
             });
         var list = await q.ToListAsync(ct);
-        return list.ToDictionary(x => x.Id, x => new ReproStats(x.MortH, x.MortM, x.SelH, x.SelM, x.ErrH, x.ErrM, x.Num, x.NumConfirmados));
+        return list.ToDictionary(x => x.Id, x => new ReproStats(x.MortH, x.MortM, x.SelH, x.SelM, x.ErrH, x.ErrM, x.Num, x.NumConfirmados, x.MaxFecha));
     }
 
     // Cerrado SOLO cuando los 7 días están CONFIRMADOS (la confirmación sincroniza hacia pollo engorde).
@@ -409,6 +412,15 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                          where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
                          select lrae).SingleOrDefaultAsync();
         if (ent is null) return false;
+
+        // No se puede eliminar una reproductora que ya tiene registros de seguimiento cargados:
+        // primero hay que eliminar esos registros (evita borrar en cascada datos capturados).
+        var numRegistros = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+            .CountAsync(s => s.LoteReproductoraAveEngordeId == id);
+        if (numRegistros > 0)
+            throw new InvalidOperationException(
+                $"No se puede eliminar la reproductora: tiene {numRegistros} registro(s) de seguimiento. Elimine primero esos registros.");
+
         _ctx.LoteReproductoraAveEngorde.Remove(ent);
         await _ctx.SaveChangesAsync();
         return true;

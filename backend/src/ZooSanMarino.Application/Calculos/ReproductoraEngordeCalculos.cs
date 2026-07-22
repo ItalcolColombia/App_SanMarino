@@ -30,4 +30,23 @@ public static class ReproductoraEngordeCalculos
         var estado = numConfirmados >= dias ? "Cerrado" : "Vigente";
         return (estado, avesActuales);
     }
+
+    /// <summary>
+    /// Edad en días del lote reproductora.
+    /// <para>Mientras está <b>Vigente</b> crece con el reloj: <c>hoy − fechaEncasetamiento</c> (comportamiento
+    /// previo). Cuando el lote está <b>Cerrado</b> (7 días confirmados) la edad se <b>congela</b> en la
+    /// <paramref name="fechaCierre"/> (fecha del último registro de recogida) para que no siga creciendo con
+    /// la fecha del sistema.</para>
+    /// </summary>
+    /// <param name="fechaEncasetamiento">Fecha de encasetamiento del lote reproductora (null ⇒ edad 0).</param>
+    /// <param name="hoyUtc">"Hoy" (UTC) — se pasa como parámetro para mantener la función pura/testeable.</param>
+    /// <param name="cerrado">True si el lote está Cerrado (7 días confirmados).</param>
+    /// <param name="fechaCierre">Fecha de cierre = MAX(fecha) de los registros de recogida. Solo se usa si <paramref name="cerrado"/>.</param>
+    public static int CalcularEdadDias(DateTime? fechaEncasetamiento, DateTime hoyUtc, bool cerrado, DateTime? fechaCierre)
+    {
+        if (!fechaEncasetamiento.HasValue) return 0;
+        var baseDate = fechaEncasetamiento.Value.Date;
+        var asOf = (cerrado && fechaCierre.HasValue) ? fechaCierre.Value.Date : hoyUtc.Date;
+        return Math.Max(0, (int)(asOf - baseDate).TotalDays);
+    }
 }

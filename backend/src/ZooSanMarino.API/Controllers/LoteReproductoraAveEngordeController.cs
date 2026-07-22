@@ -112,11 +112,20 @@ public class LoteReproductoraAveEngordeController : ControllerBase
 
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete([FromRoute] int id, CancellationToken ct)
     {
-        var ok = await _svc.DeleteAsync(id);
-        return ok ? NoContent() : NotFound();
+        try
+        {
+            var ok = await _svc.DeleteAsync(id);
+            return ok ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // p.ej. reproductora con registros de seguimiento cargados → hay que eliminarlos primero.
+            return ValidationProblem(new ValidationProblemDetails { Detail = ex.Message });
+        }
     }
 
     [HttpPost("{id:int}/reabrir")]

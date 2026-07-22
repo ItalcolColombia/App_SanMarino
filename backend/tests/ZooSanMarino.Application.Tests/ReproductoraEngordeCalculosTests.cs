@@ -79,4 +79,48 @@ public class ReproductoraEngordeCalculosTests
 
         Assert.Equal("Cerrado", estado);
     }
+
+    // ── Edad en días: Vigente crece con el reloj; Cerrado se congela en la fecha de cierre ─────────
+    [Fact]
+    public void Edad_SinFechaEncasetamiento_EsCero()
+    {
+        var hoy = new DateTime(2026, 7, 22);
+        Assert.Equal(0, ReproductoraEngordeCalculos.CalcularEdadDias(null, hoy, cerrado: false, fechaCierre: null));
+    }
+
+    [Fact]
+    public void Edad_Vigente_UsaHoy_ComoAntes()
+    {
+        var encaset = new DateTime(2026, 7, 16);
+        var hoy = new DateTime(2026, 7, 22);
+        // Comportamiento previo: hoy − encasetamiento (6 días). La fechaCierre se ignora si no está cerrado.
+        Assert.Equal(6, ReproductoraEngordeCalculos.CalcularEdadDias(encaset, hoy, cerrado: false, fechaCierre: new DateTime(2026, 7, 30)));
+    }
+
+    [Fact]
+    public void Edad_Cerrado_SeCongelaEnFechaCierre_NoCreceConElReloj()
+    {
+        var encaset = new DateTime(2026, 7, 16);
+        var hoy = new DateTime(2026, 7, 30);              // ya pasaron 14 días
+        var fechaCierre = new DateTime(2026, 7, 22);       // último registro de recogida (día 6)
+        // Congelado: 6 (fechaCierre − encaset), NO 14 (hoy − encaset).
+        Assert.Equal(6, ReproductoraEngordeCalculos.CalcularEdadDias(encaset, hoy, cerrado: true, fechaCierre: fechaCierre));
+    }
+
+    [Fact]
+    public void Edad_Cerrado_SinFechaCierre_CaeAHoy()
+    {
+        var encaset = new DateTime(2026, 7, 16);
+        var hoy = new DateTime(2026, 7, 22);
+        // Defensa: si por algún motivo no hay fecha de cierre, no rompe → usa hoy.
+        Assert.Equal(6, ReproductoraEngordeCalculos.CalcularEdadDias(encaset, hoy, cerrado: true, fechaCierre: null));
+    }
+
+    [Fact]
+    public void Edad_NuncaNegativa()
+    {
+        var encaset = new DateTime(2026, 7, 22);
+        var hoy = new DateTime(2026, 7, 16);               // "hoy" anterior al encasetamiento (borde)
+        Assert.Equal(0, ReproductoraEngordeCalculos.CalcularEdadDias(encaset, hoy, cerrado: false, fechaCierre: null));
+    }
 }
