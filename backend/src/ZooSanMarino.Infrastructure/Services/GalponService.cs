@@ -14,7 +14,7 @@ using ZooSanMarino.Application.DTOs.Farms;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public class GalponService : AppInterfaces.IGalponService
+public partial class GalponService : AppInterfaces.IGalponService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly AppInterfaces.ICurrentUser _current;
@@ -113,6 +113,23 @@ public class GalponService : AppInterfaces.IGalponService
         var accessible = await _userFarmService.GetUserAccessibleFarmsAsync(userIdGuid.Value);
         var ids = accessible.Select(x => x.FarmId).Distinct().ToList();
         return ids;
+    }
+
+    /// <summary>
+    /// Granjas asignadas DIRECTAMENTE al usuario actual (UserFarms). Mismo criterio que la tab
+    /// Granjas (FarmService.GetAllAsync con id_user_session) para que las tres tabs muestren el
+    /// mismo alcance. Devuelve null si no hay UserGuid (fail-closed en el consumidor).
+    /// </summary>
+    private async Task<List<int>?> GetAssignedFarmIdsForCurrentUserAsync()
+    {
+        var userIdGuid = _current.UserGuid;
+        if (!userIdGuid.HasValue) return null;
+
+        return await _ctx.UserFarms.AsNoTracking()
+            .Where(uf => uf.UserId == userIdGuid.Value)
+            .Select(uf => uf.FarmId)
+            .Distinct()
+            .ToListAsync();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -283,31 +300,15 @@ public class GalponService : AppInterfaces.IGalponService
     {
         IQueryable<Galpon> q = _ctx.Galpones.AsNoTracking().Where(g => g.DeletedAt == null);
 
-        // Verificar si el usuario es admin/administrador
-        var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
-        var allCountriesCount = await _ctx.Set<Pais>().CountAsync();
-        var isAdmin = assignedCountries.Count() >= allCountriesCount || 
-                     await IsUserAdminOrAdministratorAsync(_current.UserId) ||
-                     await IsSuperAdminAsync(_current.UserId);
+        // Scoping por granjas asignadas al usuario (UserFarms) — mismo alcance que la tab Granjas,
+        // incluso para super-admin. Excluye galpones de granjas eliminadas (defensivo: la cascada de
+        // FarmService.DeleteAsync ya los deshabilita). Fail-closed: sin usuario/asignaciones → vacío.
+        var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+        if (assignedFarmIds == null || assignedFarmIds.Count == 0)
+            return Array.Empty<GalponDtos.GalponDetailDto>();
 
-        if (isAdmin)
-        {
-            Console.WriteLine($"=== GalponService.GetAllAsync - Usuario es admin/administrador, mostrando TODOS los galpones ===");
-            // No filtrar por empresa - mostrar todos los galpones
-        }
-        else
-        {
-            // Doble filtro: empresa + granjas con permiso (galpones solo de núcleos de esas granjas)
-            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
-            Console.WriteLine($"=== GalponService.GetAllAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
-            q = q.Where(g => g.CompanyId == effectiveCompanyId);
-
-            var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
-            if (allowedFarmIds != null && allowedFarmIds.Count > 0)
-                q = q.Where(g => allowedFarmIds.Contains(g.GranjaId));
-            else
-                q = q.Where(g => g.GranjaId == -1);
-        }
+        q = q.Where(g => assignedFarmIds.Contains(g.GranjaId)
+                      && _ctx.Farms.Any(f => f.Id == g.GranjaId && f.DeletedAt == null));
 
         return await ProjectToDetail(q).ToListAsync();
     }
@@ -386,41 +387,24 @@ public class GalponService : AppInterfaces.IGalponService
         // Obtener la empresa efectiva
         var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
 
-        // Si el GalponId está vacío o ya existe, generar uno nuevo automáticamente
+        // Resolución del Id — SIN auto-regenerar (eso creaba galpones duplicados en silencio, causa del
+        // incidente de prod donde editar un galpón terminó insertando otro y dejó lotes huérfanos):
+        //   · Id vacío  → generamos UNO automáticamente.
+        //   · Id dado   → debe ser único; si ya existe (activo o eliminado; la PK es global) → error explícito.
+        // Nunca inventamos otro Id para "esquivar" el choque: un alta con Id ocupado FALLA de forma visible.
         string galponId = dto.GalponId?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(galponId))
         {
             galponId = await GenerateNextGalponIdAsync(effectiveCompanyId);
-            Console.WriteLine($"=== GalponService.CreateAsync - GalponId generado automáticamente: {galponId} ===");
         }
         else
         {
-            // Verificar si ya existe
-            var exists = await _ctx.Galpones.AnyAsync(x =>
-                x.CompanyId == effectiveCompanyId &&
-                x.GalponId == galponId &&
-                x.DeletedAt == null);
-
-            if (exists)
-            {
-                // Si ya existe, generar uno nuevo automáticamente
-                Console.WriteLine($"=== GalponService.CreateAsync - GalponId '{galponId}' ya existe, generando uno nuevo ===");
-                galponId = await GenerateNextGalponIdAsync(effectiveCompanyId);
-                Console.WriteLine($"=== GalponService.CreateAsync - Nuevo GalponId generado: {galponId} ===");
-            }
-        }
-
-        // Verificación final antes de crear (por si hubo una condición de carrera)
-        var finalCheck = await _ctx.Galpones
-            .AsNoTracking()
-            .AnyAsync(x => x.GalponId == galponId);
-
-        if (finalCheck)
-        {
-            // Si el ID ya existe, generar uno nuevo
-            Console.WriteLine($"=== GalponService.CreateAsync - Verificación final: ID '{galponId}' ya existe, generando uno nuevo ===");
-            galponId = await GenerateNextGalponIdAsync(effectiveCompanyId);
-            Console.WriteLine($"=== GalponService.CreateAsync - Nuevo ID generado después de verificación final: {galponId} ===");
+            var yaExiste = await _ctx.Galpones
+                .AsNoTracking()
+                .AnyAsync(x => x.GalponId == galponId);
+            if (yaExiste)
+                throw new InvalidOperationException(
+                    $"Ya existe un galpón con el Id '{galponId}'. Use otro Id o edite el galpón existente.");
         }
 
         var ent = new Galpon
@@ -438,47 +422,17 @@ public class GalponService : AppInterfaces.IGalponService
         };
 
         _ctx.Galpones.Add(ent);
-        
+
         try
         {
             await _ctx.SaveChangesAsync();
         }
-        catch (DbUpdateException ex)
+        catch (DbUpdateException ex) when (EsClaveDuplicada(ex))
         {
-            // Verificar si es un error de clave duplicada de PostgreSQL
-            var innerException = ex.InnerException;
-            bool isDuplicateKey = false;
-            
-            if (innerException != null)
-            {
-                var exceptionType = innerException.GetType();
-                if (exceptionType.Name == "PostgresException")
-                {
-                    var sqlStateProperty = exceptionType.GetProperty("SqlState");
-                    if (sqlStateProperty != null)
-                    {
-                        var sqlState = sqlStateProperty.GetValue(innerException)?.ToString();
-                        isDuplicateKey = sqlState == "23505";
-                    }
-                }
-            }
-
-            if (isDuplicateKey)
-            {
-                // Si aún así hay un error de clave duplicada (condición de carrera extrema),
-                // remover la entidad del contexto, generar un nuevo ID y reintentar
-                Console.WriteLine($"=== GalponService.CreateAsync - Error de clave duplicada detectado, generando nuevo ID ===");
-                _ctx.Entry(ent).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
-                galponId = await GenerateNextGalponIdAsync(effectiveCompanyId);
-                ent.GalponId = galponId;
-                _ctx.Galpones.Add(ent);
-                await _ctx.SaveChangesAsync();
-            }
-            else
-            {
-                // Si no es un error de clave duplicada, relanzar la excepción
-                throw;
-            }
+            // Choque de clave (carrera): fallamos de forma explícita. NO auto-generamos otro Id
+            // (eso insertaba un galpón duplicado en silencio y dejaba lotes huérfanos).
+            throw new InvalidOperationException(
+                $"Ya existe un galpón con el Id '{galponId}'. Use otro Id o edite el galpón existente.");
         }
 
         // Releer con proyección a detalle (para traer Farm/Nucleo/Company)
@@ -506,12 +460,10 @@ public class GalponService : AppInterfaces.IGalponService
 
         if (ent is null || ent.DeletedAt != null) return null;
 
-        await EnsureFarmExists(dto.GranjaId);
-        await EnsureNucleoExists(dto.NucleoId, dto.GranjaId);
-
+        // La edición NO cambia la ubicación (granja/núcleo): mover un galpón debe arrastrar sus lotes
+        // y demás tablas denormalizadas → se hace por MoverAsync (fn_mover_galpon), nunca por este
+        // update parcial (que dejaba lotes huérfanos, el incidente de prod). Aquí solo datos propios.
         ent.GalponNombre   = dto.GalponNombre;
-        ent.NucleoId       = dto.NucleoId;
-        ent.GranjaId       = dto.GranjaId;
         ent.Ancho          = dto.Ancho;
         ent.Largo          = dto.Largo;
         ent.TipoGalpon     = dto.TipoGalpon;
@@ -530,6 +482,15 @@ public class GalponService : AppInterfaces.IGalponService
             x.GalponId  == galponId);
 
         if (ent is null || ent.DeletedAt != null) return false;
+
+        // Guard flujo completo: no borrar un galpón con lotes activos (dejaría lotes huérfanos, el
+        // incidente de prod). El usuario debe moverlos/eliminarlos primero.
+        var lotesActivos =
+            await _ctx.Lotes.CountAsync(l => l.GalponId == galponId && l.DeletedAt == null) +
+            await _ctx.LoteAveEngorde.CountAsync(l => l.GalponId == galponId && l.DeletedAt == null);
+        if (!ZooSanMarino.Application.Calculos.UbicacionCalculos.PuedeEliminarGalpon(lotesActivos))
+            throw new InvalidOperationException(
+                ZooSanMarino.Application.Calculos.UbicacionCalculos.MensajeBloqueoEliminarGalpon(lotesActivos));
 
         ent.DeletedAt       = DateTime.UtcNow;
         ent.UpdatedByUserId = _current.UserId;
@@ -603,6 +564,15 @@ public class GalponService : AppInterfaces.IGalponService
         // Si llegamos aquí, algo está muy mal. Usar timestamp como fallback
         var timestamp = DateTime.UtcNow.Ticks % 100000;
         return $"G{timestamp:D4}";
+    }
+
+    /// <summary>true si la excepción de EF envuelve un unique_violation de PostgreSQL (SQLSTATE 23505).</summary>
+    private static bool EsClaveDuplicada(DbUpdateException ex)
+    {
+        var inner = ex.InnerException;
+        if (inner is null) return false;
+        var sqlState = inner.GetType().GetProperty("SqlState")?.GetValue(inner)?.ToString();
+        return sqlState == "23505";
     }
 
     private async Task EnsureFarmExists(int granjaId)

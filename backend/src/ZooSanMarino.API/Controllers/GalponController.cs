@@ -120,8 +120,16 @@ public class GalponController : ControllerBase
     public async Task<ActionResult<GalponDtos.GalponDetailDto>> Create([FromBody] CreateGalponDto dto)
     {
         if (dto is null) return BadRequest("Body requerido.");
-        var created = await _svc.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { galponId = created.GalponId }, created);
+        try
+        {
+            var created = await _svc.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { galponId = created.GalponId }, created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Reglas de negocio (Id duplicado, granja/núcleo inexistentes, etc.)
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>Actualiza un galpón y retorna su detalle.</summary>
@@ -135,20 +143,56 @@ public class GalponController : ControllerBase
         if (!string.Equals(dto.GalponId, galponId, StringComparison.OrdinalIgnoreCase))
             return BadRequest("El id de la ruta no coincide con el del cuerpo.");
 
-        var updated = await _svc.UpdateAsync(dto);
-        if (updated is null) return NotFound();
-        return Ok(updated);
+        try
+        {
+            var updated = await _svc.UpdateAsync(dto);
+            if (updated is null) return NotFound();
+            return Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
-    /// <summary>Elimina (soft delete) un galpón.</summary>
+    /// <summary>Mueve un galpón (y todo su contenido) a otro núcleo/granja.</summary>
+    [HttpPost("{galponId}/mover")]
+    [ProducesResponseType(typeof(MoverResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MoverResultDto>> Mover(string galponId, [FromBody] MoverGalponDto dto)
+    {
+        if (dto is null) return BadRequest("Body requerido.");
+        if (!string.Equals(dto.GalponId, galponId, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("El id de la ruta no coincide con el del cuerpo.");
+        try
+        {
+            var res = await _svc.MoverAsync(dto);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Elimina (soft delete) un galpón. Bloquea si tiene lotes activos.</summary>
     [HttpDelete("{galponId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(string galponId)
     {
-        var ok = await _svc.DeleteAsync(galponId);
-        if (!ok) return NotFound();
-        return NoContent();
+        try
+        {
+            var ok = await _svc.DeleteAsync(galponId);
+            if (!ok) return NotFound();
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>Elimina físicamente (hard delete) un galpón.</summary>

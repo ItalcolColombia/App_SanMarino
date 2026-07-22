@@ -73,11 +73,18 @@ public class NucleoController : ControllerBase
     {
         if (dto is null) return BadRequest("Body requerido.");
 
-        var created = await _svc.CreateAsync(dto);
-        // Apuntamos al detalle
-        return CreatedAtAction(nameof(GetDetail),
-            new { nucleoId = created.NucleoId, granjaId = created.GranjaId },
-            created);
+        try
+        {
+            var created = await _svc.CreateAsync(dto);
+            // Apuntamos al detalle
+            return CreatedAtAction(nameof(GetDetail),
+                new { nucleoId = created.NucleoId, granjaId = created.GranjaId },
+                created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // ===========================
@@ -90,9 +97,36 @@ public class NucleoController : ControllerBase
         if (!string.Equals(dto.NucleoId, nucleoId, StringComparison.OrdinalIgnoreCase) || dto.GranjaId != granjaId)
             return BadRequest("La clave de la ruta no coincide con el cuerpo.");
 
-        var updated = await _svc.UpdateAsync(dto);
-        if (updated is null) return NotFound();
-        return Ok(updated);
+        try
+        {
+            var updated = await _svc.UpdateAsync(dto);
+            if (updated is null) return NotFound();
+            return Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ===========================
+    // MOVER (re-key a otra granja)
+    // ===========================
+    [HttpPost("{nucleoId}/{granjaId:int}/mover")]
+    public async Task<ActionResult<MoverResultDto>> Mover(string nucleoId, int granjaId, [FromBody] MoverNucleoDto dto)
+    {
+        if (dto is null) return BadRequest("Body requerido.");
+        if (!string.Equals(dto.NucleoId, nucleoId, StringComparison.OrdinalIgnoreCase) || dto.GranjaOrigenId != granjaId)
+            return BadRequest("La clave de la ruta no coincide con el cuerpo.");
+        try
+        {
+            var res = await _svc.MoverAsync(dto);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // ===========================
@@ -101,9 +135,16 @@ public class NucleoController : ControllerBase
     [HttpDelete("{nucleoId}/{granjaId:int}")]
     public async Task<IActionResult> Delete(string nucleoId, int granjaId)
     {
-        var ok = await _svc.DeleteAsync(nucleoId, granjaId);
-        if (!ok) return NotFound();
-        return NoContent();
+        try
+        {
+            var ok = await _svc.DeleteAsync(nucleoId, granjaId);
+            if (!ok) return NotFound();
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // ===========================

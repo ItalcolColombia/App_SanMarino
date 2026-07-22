@@ -9,7 +9,7 @@ import { finalize } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight, faMagnifyingGlass, faRightLeft } from '@fortawesome/free-solid-svg-icons';
 import { ModalTrasladoLoteComponent } from '../modal-traslado-lote/modal-traslado-lote.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -17,7 +17,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
 
 import {
   LoteService, LoteDto, CreateLoteDto, UpdateLoteDto, LoteMortalidadResumenDto,
-  TrasladoLoteRequest, TrasladoLoteResponse, LoteFormDataResponse
+  TrasladoLoteRequest, TrasladoLoteResponse, LoteFormDataResponse, MoverLoteRequest
 } from '../../services/lote.service';
 import { LotePosturaLevanteService, LotePosturaLevanteDto } from '../../services/lote-postura-levante.service';
 import { LotePosturaProduccionService, LotePosturaProduccionDto } from '../../services/lote-postura-produccion.service';
@@ -148,6 +148,7 @@ export class LoteListComponent implements OnInit {
   // Iconos
   faPlus = faPlus; faPen = faPen; faTrash = faTrash; faTimes = faTimes; faEye = faEye; faArrowRight = faArrowRight;
   faMagnifyingGlass = faMagnifyingGlass;
+  faRightLeft = faRightLeft;
 
   // Estado UI
   loading = false;
@@ -176,6 +177,16 @@ export class LoteListComponent implements OnInit {
   modalTrasladoOpen = false;
   loteParaTrasladar: LoteDto | null = null;
   loadingTraslado = false;
+
+  // Modal "Mover ubicación" (reubicar galpón/núcleo/granja, incl. dentro de la misma granja)
+  moverUbicOpen = false;
+  moverUbicLote: LoteDto | null = null;
+  moverUbicGranjaId: number | null = null;
+  moverUbicNucleoId: string | null = null;
+  moverUbicGalponId: string | null = null;
+  moverUbicLoading = false;
+  moverUbicNucleos: NucleoDto[] = [];
+  moverUbicGalpones: GalponDetailDto[] = [];
 
   // Pestaña: Lote = lotes (primera por defecto), Levante = lote_postura_levante, Producción = lote_postura_produccion, LoteBase = lotes base
   activeTab: 'levante' | 'lote' | 'produccion' | 'loteBase' = 'lote';
@@ -1540,8 +1551,88 @@ export class LoteListComponent implements OnInit {
     });
   }
 
+  // ===================== Mover ubicación del lote (sin traslado de aves) =====================
+  openMoverUbicacion(lote: LoteDto): void {
+    this.moverUbicLote = lote;
+    this.moverUbicGranjaId = null;
+    this.moverUbicNucleoId = null;
+    this.moverUbicGalponId = null;
+    this.moverUbicNucleos = [];
+    this.moverUbicGalpones = [];
+    if (this.farms.length > 0 && this.nucleos.length > 0) {
+      this.moverUbicOpen = true;
+      return;
+    }
+    this.moverUbicLoading = true;
+    forkJoin({ farms: this.farmSvc.getAll(), nucleos: this.nucleoSvc.getAll() })
+      .pipe(finalize(() => (this.moverUbicLoading = false)))
+      .subscribe({
+        next: ({ farms, nucleos }) => {
+          this.farms = farms; this.nucleos = nucleos;
+          this.moverUbicOpen = true;
+        },
+        error: () => this.toastService.error('No se pudieron cargar granjas y núcleos.', 'Error')
+      });
+  }
+
+  /** Al elegir granja destino: recalcula núcleos y limpia núcleo/galpón (referencias estables). */
+  onMoverUbicGranja(granjaId: number | null): void {
+    this.moverUbicGranjaId = granjaId != null ? Number(granjaId) : null;
+    this.moverUbicNucleoId = null;
+    this.moverUbicGalponId = null;
+    this.moverUbicGalpones = [];
+    const gid = this.moverUbicGranjaId;
+    this.moverUbicNucleos = gid == null ? [] : this.nucleos.filter(n => Number(n.granjaId) === gid);
+  }
+
+  /** Al elegir núcleo destino: carga los galpones de ese núcleo/granja. */
+  onMoverUbicNucleo(nucleoId: string | null): void {
+    this.moverUbicNucleoId = nucleoId || null;
+    this.moverUbicGalponId = null;
+    this.moverUbicGalpones = [];
+    const gid = this.moverUbicGranjaId;
+    if (gid == null || !this.moverUbicNucleoId) return;
+    this.galponSvc.getByGranjaAndNucleo(gid, this.moverUbicNucleoId)
+      .subscribe({
+        next: (list) => this.moverUbicGalpones = list ?? [],
+        error: () => this.moverUbicGalpones = []
+      });
+  }
+
+  closeMoverUbicacion(): void {
+    this.moverUbicOpen = false;
+    this.moverUbicLote = null;
+  }
+
+  confirmMoverUbicacion(): void {
+    const lote = this.moverUbicLote;
+    const granja = this.moverUbicGranjaId != null ? Number(this.moverUbicGranjaId) : null;
+    if (!lote || lote.loteId == null || granja == null) return;
+
+    const request: MoverLoteRequest = {
+      loteId: lote.loteId,
+      granjaDestinoId: granja,
+      nucleoDestinoId: this.moverUbicNucleoId || null,
+      galponDestinoId: this.moverUbicGalponId || null
+    };
+    this.moverUbicLoading = true;
+    this.loteSvc.moverUbicacion(request)
+      .pipe(finalize(() => (this.moverUbicLoading = false)))
+      .subscribe({
+        next: () => {
+          this.toastService.success('Ubicación del lote actualizada.', 'Listo');
+          this.closeMoverUbicacion();
+          this.loadData();
+        },
+        error: (err) => {
+          const msg = err?.error?.message || err?.message || 'No se pudo mover el lote.';
+          this.toastService.error(msg, 'Error');
+        }
+      });
+  }
+
   // ===================== Métodos para años de tabla genética =====================
-  
+
   private loadAnosDisponibles(raza: string): void {
     
     

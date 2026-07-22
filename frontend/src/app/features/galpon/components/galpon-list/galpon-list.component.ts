@@ -9,7 +9,7 @@ import { catchError, takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faEye, faMagnifyingGlass, faRightLeft } from '@fortawesome/free-solid-svg-icons';
 
 import { GalponService } from '../../services/galpon.service';
 import { GalponDetailDto, CreateGalponDto, UpdateGalponDto } from '../../models/galpon.models';
@@ -19,6 +19,7 @@ import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { GestionGranjasRefreshService } from '../../../farm/services/gestion-granjas-refresh.service';
 
 interface NucleoOption { id: string; label: string; granjaId: number; }
 
@@ -38,7 +39,7 @@ interface NucleoOption { id: string; label: string; granjaId: number; }
 })
 export class GalponListComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
-  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faEye = faEye; faMagnifyingGlass = faMagnifyingGlass;
+  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faEye = faEye; faMagnifyingGlass = faMagnifyingGlass; faRightLeft = faRightLeft;
 
   loading = false;
   filtro = '';
@@ -75,6 +76,17 @@ export class GalponListComponent implements OnInit, OnDestroy {
   };
   pendingDeleteId: string | null = null;
 
+  // Estado del modal "Mover galpón" (a otro núcleo/granja)
+  moverOpen = false;
+  moverGalpon: GalponDetailDto | null = null;
+  moverGranjaDestId: number | null = null;
+  moverNucleoDestId: string | null = null;
+  moverLoading = false;
+  /** Granjas destino (misma empresa, distinta a la actual). Referencia estable. */
+  moverFarms: FarmDto[] = [];
+  /** Núcleos elegibles del destino (granja destino). Referencia estable. */
+  moverNucleoOptions: NucleoOption[] = [];
+
   farms: FarmDto[] = [];
   allNucleos: NucleoDto[] = [];
   nucleoOptions: NucleoOption[] = [];
@@ -89,6 +101,7 @@ export class GalponListComponent implements OnInit, OnDestroy {
     private farmSvc: FarmService,
     private mlSvc: MasterListService,
     private toastSvc: ToastService,
+    private refreshBus: GestionGranjasRefreshService,
   ) {}
 
   ngOnInit(): void {
@@ -113,6 +126,22 @@ export class GalponListComponent implements OnInit, OnDestroy {
     });
 
     this.loadGalpones();
+
+    // Los galpones dependen de granjas y núcleos: si cambian en otra tab (crear/editar/eliminar,
+    // o cascada al borrar una granja) hay que refrescar la tabla y las cachés del modal sin
+    // recargar la app.
+    this.refreshBus.changes$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(source => {
+        if (source === 'farm' || source === 'nucleo') {
+          // Resetea cachés que alimentan el modal (se recargan al abrirlo)
+          this.farms = [];
+          this.allNucleos = [];
+          this.nucleoOptions = [];
+          this.nucleoSvc.invalidate(); // la cascada de granjas no pasa por nucleoSvc
+          this.loadGalpones();
+        }
+      });
   }
 
   ngOnDestroy(): void {
@@ -267,6 +296,7 @@ export class GalponListComponent implements OnInit, OnDestroy {
         }
         this.toastSvc.success('Galpón eliminado correctamente.', 'Listo');
         this.loadGalponesAgain();
+        this.refreshBus.notify('galpon');
       },
       error: err => {
         const msg = err?.error?.message || err?.error?.detail || 'No se pudo eliminar el galpón.';
@@ -333,6 +363,10 @@ export class GalponListComponent implements OnInit, OnDestroy {
         tipoGalpon: g.tipoGalpon ?? ''
       }, { emitEvent: false });
       this.form.get('galponId')?.disable();
+      // La ubicación (granja/núcleo) NO se cambia por edición: mover el galpón arrastra sus lotes
+      // y se hace con la acción "Mover". Editar solo cambia nombre/medidas/tipo.
+      this.form.get('granjaId')?.disable();
+      this.form.get('nucleoId')?.disable();
     } else {
       const lastNum = this.allGalpones
         .map(x => parseInt(String(x.galponId || '').replace(/\D/g, ''), 10))
@@ -349,6 +383,8 @@ export class GalponListComponent implements OnInit, OnDestroy {
         tipoGalpon: ''
       }, { emitEvent: false });
       this.form.get('galponId')?.enable();
+      this.form.get('granjaId')?.enable();
+      this.form.get('nucleoId')?.enable();
     }
   }
 
@@ -394,6 +430,92 @@ export class GalponListComponent implements OnInit, OnDestroy {
       .subscribe(res => {
         if (res) {
           this.toastSvc.success(this.editing ? 'Galpón actualizado correctamente.' : 'Galpón creado correctamente.', 'Listo');
+          this.refreshBus.notify('galpon');
+        }
+      });
+  }
+
+  // ======================
+  // Mover galpón (a otro núcleo/granja)
+  // ======================
+  openMover(g: GalponDetailDto): void {
+    this.moverGalpon = g;
+    this.moverGranjaDestId = null;
+    this.moverNucleoDestId = null;
+    this.moverNucleoOptions = [];
+    this.moverFarms = [];
+    this.moverOpen = true;
+
+    if (this.farms.length > 0 && this.allNucleos.length > 0) {
+      this.computeMoverFarms(g);
+      return;
+    }
+    this.loadingModal = true;
+    forkJoin({
+      farms: this.farmSvc.getAll().pipe(catchError(() => of([]))),
+      nucleos: this.nucleoSvc.getAll().pipe(catchError(() => of([])))
+    }).pipe(
+      finalize(() => (this.loadingModal = false)),
+      takeUntil(this.destroy$)
+    ).subscribe(({ farms, nucleos }) => {
+      this.farms = farms ?? [];
+      this.allNucleos = nucleos ?? [];
+      const farmNameById = new Map(this.farms.map(f => [f.id, f.name]));
+      this.nucleoOptions = this.allNucleos.map(n => ({
+        id: n.nucleoId, granjaId: n.granjaId,
+        label: `${n.nucleoNombre} (Granja ${farmNameById.get(n.granjaId) ?? '#' + n.granjaId})`
+      }));
+      this.computeMoverFarms(g);
+    });
+  }
+
+  /** Granjas destino: misma empresa que el galpón, excluyendo la granja actual. */
+  private computeMoverFarms(g: GalponDetailDto): void {
+    const companyId = g.company?.id != null ? Number(g.company.id) : null;
+    this.moverFarms = this.farms.filter(f =>
+      Number(f.id) !== Number(g.granjaId) &&
+      (companyId == null || Number(f.companyId) === companyId)
+    );
+  }
+
+  /** Al elegir la granja destino, recalcula los núcleos disponibles (referencia estable). */
+  onMoverGranjaChange(granjaId: number | null): void {
+    this.moverGranjaDestId = granjaId != null ? Number(granjaId) : null;
+    this.moverNucleoDestId = null;
+    const gid = this.moverGranjaDestId;
+    this.moverNucleoOptions = gid == null ? [] : this.nucleoOptions.filter(o => Number(o.granjaId) === gid);
+  }
+
+  closeMover(): void {
+    this.moverOpen = false;
+    this.moverGalpon = null;
+    this.moverGranjaDestId = null;
+    this.moverNucleoDestId = null;
+  }
+
+  confirmMover(): void {
+    const g = this.moverGalpon;
+    const dest = this.moverGranjaDestId != null ? Number(this.moverGranjaDestId) : null;
+    const nucleoDest = this.moverNucleoDestId;
+    if (!g || dest == null || !nucleoDest) return;
+
+    this.moverLoading = true;
+    this.svc.mover(g.galponId, dest, nucleoDest)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(err => {
+          const msg = err?.error?.message || err?.error?.detail || 'No se pudo mover el galpón.';
+          this.toastSvc.error(msg, 'Error');
+          return of(null);
+        }),
+        finalize(() => (this.moverLoading = false))
+      )
+      .subscribe(res => {
+        if (res) {
+          this.toastSvc.success(res.message || 'Galpón movido correctamente.', 'Listo');
+          this.closeMover();
+          this.loadGalpones();
+          this.refreshBus.notify('galpon');
         }
       });
   }

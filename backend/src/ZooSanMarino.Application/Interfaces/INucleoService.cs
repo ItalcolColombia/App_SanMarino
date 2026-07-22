@@ -21,6 +21,11 @@ public interface INucleoService
     Task<bool>                   DeleteAsync(string nucleoId, int granjaId);
     Task<bool>                   HardDeleteAsync(string nucleoId, int granjaId);
 
+    /// <summary>
+    /// Mueve un núcleo (re-key) a otra granja, arrastrando galpones y lotes de forma transaccional.
+    /// </summary>
+    Task<MoverResultDto>         MoverAsync(MoverNucleoDto dto);
+
     // Avanzado
     Task<CommonDtos.PagedResult<NucleoDetailDto>> SearchAsync(NucleoSearchRequest req);
     Task<NucleoDetailDto?>                        GetDetailByIdAsync(string nucleoId, int granjaId);

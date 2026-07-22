@@ -199,6 +199,20 @@ export class LoteService {
   trasladarLote(request: TrasladoLoteRequest): Observable<TrasladoLoteResponse> {
     return this.http.post<TrasladoLoteResponse>(`${this.baseUrl}/trasladar`, request);
   }
+
+  // ======================================================
+  // MOVER UBICACIÓN (reubicar galpón/núcleo/granja, sin traslado de aves)
+  // ======================================================
+  moverUbicacion(request: MoverLoteRequest): Observable<LoteDto> {
+    return this.http.post<LoteDto>(`${this.baseUrl}/${request.loteId}/mover`, request);
+  }
+}
+
+export interface MoverLoteRequest {
+  loteId: number;
+  granjaDestinoId: number;
+  nucleoDestinoId?: string | null;
+  galponDestinoId?: string | null;
 }
 
 export interface TrasladoLoteRequest {

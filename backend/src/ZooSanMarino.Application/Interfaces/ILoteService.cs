@@ -34,4 +34,10 @@ public interface ILoteService
         /// </summary>
         Task<TrasladoLoteResponseDto> TrasladarLoteAsync(TrasladoLoteRequestDto dto);
     Task<IEnumerable<HistorialTrasladoLoteDto>> GetHistorialTrasladosAsync(int loteId);
+
+    /// <summary>
+    /// Reubica un lote (granja/núcleo/galpón) de forma transaccional, arrastrando sus espejos
+    /// de fase (lote_postura_levante/produccion). No altera nombre/numeración del lote.
+    /// </summary>
+    Task<LoteDetailDto?> MoverUbicacionAsync(MoverLoteDto dto);
 }
