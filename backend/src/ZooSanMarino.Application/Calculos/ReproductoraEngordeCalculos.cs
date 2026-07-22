@@ -49,4 +49,21 @@ public static class ReproductoraEngordeCalculos
         var asOf = (cerrado && fechaCierre.HasValue) ? fechaCierre.Value.Date : hoyUtc.Date;
         return Math.Max(0, (int)(asOf - baseDate).TotalDays);
     }
+
+    /// <summary>
+    /// Edad (en días de calendario) de un registro de seguimiento respecto al encasetamiento:
+    /// <c>fechaRegistro − fechaEncasetamiento</c>. Puede ser negativa si la fecha es anterior al encaset.
+    /// Se compara por <see cref="DateTime.Date"/> para no depender de la hora (las fechas puras se
+    /// anclan a mediodía UTC, así que el día de calendario es el intencional).
+    /// </summary>
+    public static int EdadSeguimientoDias(DateTime fechaEncasetamiento, DateTime fechaRegistro)
+        => (int)(fechaRegistro.Date - fechaEncasetamiento.Date).TotalDays;
+
+    /// <summary>
+    /// Un registro de seguimiento reproductora es válido solo si su edad ∈ [1, <paramref name="dias"/>]:
+    /// la función de cruce a pollo engorde (fn_cruce_reproductora_a_engorde) solo consolida edades 1..7.
+    /// Edad 0 (mismo día del encaset) o &gt; 7 nunca cruzarían → se rechazan.
+    /// </summary>
+    public static bool EsEdadSeguimientoValida(int edad, int dias = DiasRecogidaReproductora)
+        => edad >= 1 && edad <= dias;
 }

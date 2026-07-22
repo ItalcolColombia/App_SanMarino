@@ -180,10 +180,23 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             throw new InvalidOperationException(
                 $"Este lote reproductora ya tiene {totalRegistros} días de seguimiento registrados. El máximo permitido es {MaxDiasSeguimiento}.");
 
+        // Regla de fecha: el registro debe caer en edad [1, 7] respecto al encasetamiento. La función de
+        // cruce a pollo engorde solo consolida esas edades; edad 0 (mismo día del encaset) nunca cruzaría.
+        var fechaAnclada = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
+        if (loteRep.FechaEncasetamiento.HasValue)
+        {
+            var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(loteRep.FechaEncasetamiento.Value, fechaAnclada);
+            if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDiasSeguimiento))
+                throw new InvalidOperationException(
+                    edad < 1
+                        ? "La fecha del seguimiento no puede ser anterior al día siguiente del encasetamiento del lote reproductora."
+                        : $"La fecha del seguimiento supera los {MaxDiasSeguimiento} días de edad permitidos desde el encasetamiento.");
+        }
+
         var ent = new SeguimientoDiarioLoteReproductoraAvesEngorde
         {
             LoteReproductoraAveEngordeId = dto.LoteId,
-            Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro),
+            Fecha = fechaAnclada,
             MortalidadHembras = dto.MortalidadHembras,
             MortalidadMachos = dto.MortalidadMachos,
             SelH = dto.SelH,
@@ -268,12 +281,29 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             throw new InvalidOperationException(
                 "El registro está confirmado y no puede editarse. Elimínelo (se retornan aves y consumo) para corregirlo.");
 
+        // Regla de fecha (defensa en profundidad, espejo del Create): edad [1, 7] respecto al encasetamiento.
+        const int MaxDiasSeguimiento = 7;
+        var encasetUpd = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+            .Where(l => l.Id == ent.LoteReproductoraAveEngordeId)
+            .Select(l => l.FechaEncasetamiento)
+            .FirstOrDefaultAsync();
+        var fechaAncladaUpd = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
+        if (encasetUpd.HasValue)
+        {
+            var edadUpd = ReproductoraEngordeCalculos.EdadSeguimientoDias(encasetUpd.Value, fechaAncladaUpd);
+            if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadUpd, MaxDiasSeguimiento))
+                throw new InvalidOperationException(
+                    edadUpd < 1
+                        ? "La fecha del seguimiento no puede ser anterior al día siguiente del encasetamiento del lote reproductora."
+                        : $"La fecha del seguimiento supera los {MaxDiasSeguimiento} días de edad permitidos desde el encasetamiento.");
+        }
+
         // Capturar ítems anteriores antes de actualizar
         var oldByItemId = ent.Metadata != null
             ? ParseMetadataItemsToKg(ent.Metadata.RootElement)
             : new Dictionary<int, decimal>();
 
-        ent.Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
+        ent.Fecha = fechaAncladaUpd;
         ent.MortalidadHembras = dto.MortalidadHembras;
         ent.MortalidadMachos = dto.MortalidadMachos;
         ent.SelH = dto.SelH;

@@ -67,6 +67,16 @@
             </div>
           </div>
         }
+        <!-- Aviso de edición limitada -->
+        @if (editing) {
+          <div class="sr-alert sr-alert--info" role="note">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="sr-alert__icon" aria-hidden="true"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+            <div>
+              <strong>Edición limitada</strong>
+              <p>Puede cambiar fecha, ciclo, observaciones, pesos y agua. Para modificar <b>alimento/consumo</b> o <b>mortalidad/selección/error de sexaje</b>, elimine el registro (retorna aves y consumo) y créelo de nuevo.</p>
+            </div>
+          </div>
+        }
         <!-- ══════════════════════════════════════════════
         SECCIÓN 1 — Información general
         ══════════════════════════════════════════════ -->
@@ -86,19 +96,24 @@
                   </span>
                 }
               </label>
-              <!-- Siempre editable — pre-poblado con la fecha consecutiva al abrir -->
+              <!-- Siempre editable — pre-poblado con la fecha consecutiva al abrir. Acotada a edad [1,7]. -->
               <input id="f-fecha" type="date" class="sr-input"
                 formControlName="fecha"
+                [min]="minFechaYmd" [max]="maxFechaYmd"
                 [class.sr-input--error]="form.get('fecha')?.invalid && (form.get('fecha')?.touched || showValidationErrors)">
                 @if (!editing) {
                   <span class="sr-fecha-hint">
                     Fecha sugerida: consecutiva al {{ registrosCount === 0 ? 'día del encasetamiento' : 'último registro' }}
                   </span>
                 }
-                @if (form.get('fecha')?.invalid && (form.get('fecha')?.touched || showValidationErrors)) {
-                  <span class="sr-error">
-                    La fecha es requerida
-                  </span>
+                @if (form.get('fecha')?.errors?.['required'] && (form.get('fecha')?.touched || showValidationErrors)) {
+                  <span class="sr-error">La fecha es requerida</span>
+                }
+                @if (form.get('fecha')?.errors?.['fechaMin'] && (form.get('fecha')?.touched || showValidationErrors)) {
+                  <span class="sr-error">La fecha no puede ser anterior al día siguiente del encasetamiento.</span>
+                }
+                @if (form.get('fecha')?.errors?.['fechaMax'] && (form.get('fecha')?.touched || showValidationErrors)) {
+                  <span class="sr-error">La fecha no puede superar los 7 días desde el encasetamiento.</span>
                 }
               </div>
               <div class="sr-field">
@@ -125,6 +140,9 @@
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3z"/></svg>
               <span>Alimento y consumo</span>
               <span class="sr-section-hint">Seleccione el alimento del inventario y la cantidad consumida por género</span>
+              @if (editing) {
+                <span class="sr-lock-badge" aria-label="Bloqueado en edición">🔒 Solo lectura — eliminar y recrear</span>
+              }
             </div>
             <!-- Selector de alimento único -->
             <div class="sr-fields" style="padding: 1rem;">
@@ -220,6 +238,9 @@
                 <div class="sr-section__header sr-section__header--bajas">
                   <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 10a7 7 0 1114 0A7 7 0 013 10zm7-4a1 1 0 011 1v2.586l1.707 1.707a1 1 0 01-1.414 1.414l-2-2A1 1 0 019 10V7a1 1 0 011-1z" clip-rule="evenodd"/></svg>
                   <span>Mortalidad, selección y error de sexaje</span>
+                  @if (editing) {
+                    <span class="sr-lock-badge" aria-label="Bloqueado en edición">🔒 Solo lectura — eliminar y recrear</span>
+                  }
                 </div>
                 <div class="sr-compare">
                   <!-- Cabecera -->
