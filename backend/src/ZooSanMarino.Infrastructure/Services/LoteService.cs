@@ -17,7 +17,7 @@ using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services
 {
-    public class LoteService : AppInterfaces.ILoteService
+    public partial class LoteService : AppInterfaces.ILoteService
     {
         private readonly ZooSanMarinoContext _ctx;
         private readonly AppInterfaces.ICurrentUser _current;

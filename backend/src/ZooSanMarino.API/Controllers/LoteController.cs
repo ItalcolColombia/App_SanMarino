@@ -170,6 +170,29 @@ public class LoteController : ControllerBase
     }
 
     // ===========================
+    // MOVER UBICACIÓN (reubicar galpón/núcleo/granja, sin traslado de aves)
+    // ===========================
+    [HttpPost("{loteId:int}/mover")]
+    [ProducesResponseType(typeof(LoteDtos.LoteDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteDtos.LoteDetailDto>> MoverUbicacion(int loteId, [FromBody] MoverLoteDto dto)
+    {
+        if (dto is null) return BadRequest("Body requerido.");
+        if (loteId != dto.LoteId) return BadRequest("El id de la ruta no coincide con el del cuerpo.");
+        try
+        {
+            var res = await _svc.MoverUbicacionAsync(dto);
+            if (res is null) return NotFound();
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ===========================
     // TRASLADO DE LOTE
     // ===========================
     /// <summary>

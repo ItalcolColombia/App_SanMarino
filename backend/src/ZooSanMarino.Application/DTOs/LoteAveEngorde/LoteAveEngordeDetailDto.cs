@@ -59,5 +59,7 @@ public sealed record LoteAveEngordeDetailDto(
     GalponLiteDto? Galpon,
     // Lote base global (opcional): agrupador para reportes por granja
     int? LoteBaseEngordeId = null,
-    string? LoteBaseNombre = null
+    string? LoteBaseNombre = null,
+    // Referencia de corrida (solo Panamá): número dentro del mismo lote base + galpón
+    int? NumeroCorrida = null
 );

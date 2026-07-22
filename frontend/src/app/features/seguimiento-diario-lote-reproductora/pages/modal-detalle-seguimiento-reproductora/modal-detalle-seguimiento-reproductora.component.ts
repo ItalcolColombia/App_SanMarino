@@ -16,6 +16,7 @@ import { CatalogoAlimentosService } from '../../../catalogo-alimentos/services/c
 import { GestionInventarioService } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
+import { ymdSinTz } from '../../../../shared/utils/format';
 
 interface ItemSeguimientoLocal {
   tipoItem: string;
@@ -214,9 +215,16 @@ export class ModalDetalleSeguimientoReproductoraComponent implements OnInit, OnC
     return v.toFixed(decimals);
   }
 
+  /**
+   * Formatea una fecha "pura" a dd/MM/yyyy SIN corrimiento de zona.
+   * Usa ymdSinTz (misma regla que la tabla con `| date:'…':'UTC'`) para que el modal
+   * muestre exactamente el día registrado. Antes usaba new Date().toLocaleDateString(),
+   * que convertía a zona local y restaba un día a los datos guardados a medianoche UTC.
+   */
   formatDate(d: string | Date | null | undefined): string {
-    if (!d) return '—';
-    const date = typeof d === 'string' ? new Date(d) : d;
-    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const ymd = ymdSinTz(d);
+    if (!ymd) return '—';
+    const [y, m, day] = ymd.split('-');
+    return `${day}/${m}/${y}`;
   }
 }

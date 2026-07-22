@@ -22,8 +22,13 @@ public interface IGalponService
     Task<IEnumerable<GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId);
     Task<GalponDetailDto>              CreateAsync(CreateGalponDto dto);
     Task<GalponDetailDto?>             UpdateAsync(UpdateGalponDto dto);
-    Task<bool>                         DeleteAsync(string galponId);     // Soft delete
+    Task<bool>                         DeleteAsync(string galponId);     // Soft delete (bloquea si tiene lotes activos)
     Task<bool>                         HardDeleteAsync(string galponId); // Hard delete
+
+    /// <summary>
+    /// Mueve un galpón (y todo lo que contiene) a otro núcleo/granja, cascada transaccional.
+    /// </summary>
+    Task<MoverResultDto>               MoverAsync(MoverGalponDto dto);
 
     // ─────────────────────────────────────────────────────────────────────────────
     // BÚSQUEDA / DETALLE (nuevos métodos)

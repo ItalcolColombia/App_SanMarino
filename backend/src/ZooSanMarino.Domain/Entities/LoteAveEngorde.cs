@@ -71,6 +71,12 @@ public class LoteAveEngorde : AuditableEntity
     /// <summary>Lote base global (opcional): agrupa varios lotes de engorde para reportes por granja.</summary>
     public int? LoteBaseEngordeId { get; set; }
 
+    /// <summary>
+    /// Número de corrida (referencia) dentro del mismo lote base + galpón. Solo Panamá: el nombre del lote se
+    /// arma como "{lote base} - {numero_corrida}" (ej. "96 - 1", "96 - 2"). NULL para países sin la feature.
+    /// </summary>
+    public int? NumeroCorrida { get; set; }
+
     public Farm Farm { get; set; } = null!;
     public Nucleo? Nucleo { get; set; }
     public Galpon? Galpon { get; set; }

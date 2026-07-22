@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { LoteSeguimientoDto, CreateLoteSeguimientoDto, UpdateLoteSeguimientoDto } from '../../services/lote-seguimiento.service';
 import { LoteReproductoraDto } from '../../../lote-reproductora/services/lote-reproductora.service';
 import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
@@ -65,6 +65,8 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   @Input() galponId: string | null = null;
   /** Fecha pre-calculada por el padre (encasetamiento + N días). Se fija como readonly al crear. */
   @Input() defaultFecha: string | null = null;
+  /** Fecha de encasetamiento del lote reproductora — acota la fecha del registro a edad [1, 7]. */
+  @Input() fechaEncasetamiento: string | Date | null = null;
   /** Número de registros existentes en el lote reproductora (para mostrar el hint). */
   @Input() registrosCount: number = 0;
   /** Contexto de navegación mostrado en la banda superior del modal. */
@@ -129,6 +131,38 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
   }
 
+  /** Fecha mínima permitida (YYYY-MM-DD) = encasetamiento + 1 día (edad 1). Null si no hay encaset. */
+  get minFechaYmd(): string | null {
+    const enc = ymdSinTz(this.fechaEncasetamiento);
+    return enc ? this.addDaysYmd(enc, 1) : null;
+  }
+
+  /** Fecha máxima permitida (YYYY-MM-DD) = encasetamiento + 7 días (edad 7). Null si no hay encaset. */
+  get maxFechaYmd(): string | null {
+    const enc = ymdSinTz(this.fechaEncasetamiento);
+    return enc ? this.addDaysYmd(enc, 7) : null;
+  }
+
+  private addDaysYmd(ymd: string, days: number): string {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  }
+
+  /**
+   * Valida que la fecha del registro caiga en edad [1, 7] respecto al encasetamiento.
+   * Compara strings YYYY-MM-DD (orden lexicográfico = orden cronológico). El "requerido"
+   * lo maneja Validators.required aparte, así que un valor vacío no dispara este error.
+   */
+  private fechaRangoValidator = (control: AbstractControl): ValidationErrors | null => {
+    const v = (control.value ?? '').toString().trim();
+    if (!v) return null;
+    const min = this.minFechaYmd;
+    const max = this.maxFechaYmd;
+    if (min && v < min) return { fechaMin: true };
+    if (max && v > max) return { fechaMax: true };
+    return null;
+  };
+
   /**
    * Granja efectiva para componentes hijos (Lesiones). Prioriza el Input `farmId`
    * y cae al `granjaIdActual` derivado del lote elegido. Puede ser null hasta que
@@ -158,6 +192,10 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       this.granjaIdActual = this.farmId;
       this.cargarInventarioGranja(this.farmId);
     }
+    // El encasetamiento puede llegar/cambiar después de crear el form → re-evaluar el rango de fecha.
+    if (this.isOpen) {
+      this.form?.get('fecha')?.updateValueAndValidity({ emitEvent: false });
+    }
   }
 
   /** 1 quintal (QQ) = 45.36 kg (100 libras). */
@@ -166,7 +204,7 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   // ================== FORMULARIO ==================
   private initializeForm(): void {
     this.form = this.fb.group({
-      fecha: [this.todayYMD(), Validators.required],
+      fecha: [this.todayYMD(), [Validators.required, this.fechaRangoValidator]],
       loteId: ['', Validators.required],
       reproductoraId: ['', Validators.required],
       mortalidadH: [0, [Validators.required, Validators.min(0)]],
@@ -240,6 +278,25 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       this.form?.get('consumoMachosQty')?.value,
       this.form?.get('unidadMachos')?.value ?? 'kg'
     );
+  }
+
+  /**
+   * Controles que NO se editan al reabrir un registro: cambiarlos alteraría el saldo de aves,
+   * el inventario o el cruce a pollo engorde. Para modificarlos hay que eliminar y recrear.
+   */
+  private static readonly HARD_FIELDS = [
+    'alimentoId', 'consumoHembrasQty', 'unidadHembras', 'consumoMachosQty', 'unidadMachos',
+    'mortalidadH', 'mortalidadM', 'selH', 'selM', 'errorH', 'errorM',
+  ];
+
+  /** Edición → deshabilita los campos duros (siguen en getRawValue, se preservan intactos); creación → habilita. */
+  private setHardFieldsDisabled(disabled: boolean): void {
+    for (const name of ModalSeguimientoReproductoraComponent.HARD_FIELDS) {
+      const c = this.form.get(name);
+      if (!c) continue;
+      if (disabled) c.disable({ emitEvent: false });
+      else c.enable({ emitEvent: false });
+    }
   }
 
   private limpiarCatalogos(): void {
@@ -344,6 +401,9 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       consumoAguaOrp: null, consumoAguaTemperatura: null,
     });
 
+    // Creación: todos los campos habilitados (limpia un posible bloqueo de una edición previa).
+    this.setHardFieldsDisabled(false);
+
     if (this.selectedLoteId) {
       const lote = this.lotes.find(l => String(l.loteId) === String(this.selectedLoteId));
       if (lote?.granjaId) {
@@ -395,6 +455,9 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     const lote = this.lotes.find(l => String(l.loteId) === String(e.loteId));
     const gid = lote?.granjaId ? Number(lote.granjaId) : (this.farmId ?? null);
     if (gid) { this.granjaIdActual = gid; this.cargarInventarioGranja(gid); }
+
+    // Edición: bloquear alimento/consumo y mortalidad/selección/error (se editan eliminando y recreando).
+    this.setHardFieldsDisabled(true);
   }
 
   // ================== GUARDAR ==================
@@ -407,7 +470,9 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
 
     this.saving = true;
     this.showValidationErrors = false;
-    const raw = this.form.value;
+    // getRawValue incluye los controles deshabilitados en edición (alimento/consumo, mortalidad/sel/error),
+    // así se preservan sin cambios → sin ajuste de inventario ni de saldo por esos campos.
+    const raw = this.form.getRawValue();
 
     // Convertir consumo a kg según unidad seleccionada
     const consumoHKg = this.toKg(raw.consumoHembrasQty, raw.unidadHembras ?? 'kg');

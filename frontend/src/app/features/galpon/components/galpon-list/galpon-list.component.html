@@ -115,6 +115,9 @@
                     <button (click)="openModal(g)" class="icon-btn" title="Editar" aria-label="Editar">
                       <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                     </button>
+                    <button (click)="openMover(g)" class="icon-btn" title="Mover a otro núcleo/granja" aria-label="Mover galpón">
+                      <fa-icon [icon]="faRightLeft" aria-hidden="true"></fa-icon>
+                    </button>
                     <button (click)="showDetail(g)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle">
                       <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
                     </button>
@@ -367,6 +370,79 @@
               Editar Galpón
             </button>
           </div>
+        </div>
+      </div>
+    }
+
+    <!-- MODAL: Mover galpón a otro núcleo/granja -->
+    @if (moverOpen && moverGalpon) {
+      <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="mover-galpon-title">
+        <div class="ux-modal__panel">
+          <div class="ux-modal__head">
+            <h2 id="mover-galpon-title" class="ux-title">Mover galpón</h2>
+            <button type="button" (click)="closeMover()" class="btn-close" aria-label="Cerrar">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+          </div>
+
+          @if (loadingModal) {
+            <div class="modal-loading">
+              <div class="spinner" aria-hidden="true"></div>
+              <p>Cargando destinos…</p>
+            </div>
+          }
+
+          @if (!loadingModal) {
+            <div class="ux-modal__body modal-form-grid">
+              <div class="col-span-2 ux-meta">
+                <div class="ux-meta__item"><strong>Galpón:</strong> {{ moverGalpon!.galponNombre }} ({{ moverGalpon!.galponId }})</div>
+                <div class="ux-meta__item"><strong>Ubicación actual:</strong> {{ moverGalpon!.nucleo?.nucleoNombre }} · {{ moverGalpon!.farm?.name }}</div>
+              </div>
+
+              <div class="col-span-2">
+                <p class="ux-help">Se moverán también <strong>todos los lotes</strong> del galpón. Operación transaccional.</p>
+              </div>
+
+              <!-- Granja destino -->
+              <div>
+                <label class="ux-label">Granja destino <span class="req">*</span></label>
+                <select class="ux-input" [ngModel]="moverGranjaDestId" (ngModelChange)="onMoverGranjaChange($event)">
+                  <option [ngValue]="null" disabled>Seleccione…</option>
+                  @for (f of moverFarms; track f.id) {
+                    <option [ngValue]="f.id">{{ f.name }}</option>
+                  }
+                </select>
+              </div>
+
+              <!-- Núcleo destino -->
+              <div>
+                <label class="ux-label">Núcleo destino <span class="req">*</span></label>
+                <select class="ux-input" [ngModel]="moverNucleoDestId" (ngModelChange)="moverNucleoDestId = $event"
+                        [disabled]="moverGranjaDestId == null">
+                  <option [ngValue]="null" disabled>
+                    {{ moverGranjaDestId == null ? 'Seleccione una granja primero' : 'Seleccione…' }}
+                  </option>
+                  @for (opt of moverNucleoOptions; track opt.id) {
+                    <option [ngValue]="opt.id">{{ opt.label }}</option>
+                  }
+                </select>
+                @if (moverGranjaDestId != null && moverNucleoOptions.length === 0) {
+                  <p class="ux-help">La granja destino no tiene núcleos. Cree uno primero.</p>
+                }
+              </div>
+            </div>
+
+            <div class="ux-modal__foot">
+              <button type="button" (click)="closeMover()" class="btn-muted">Cancelar</button>
+              <button type="button" class="btn-primary"
+                      [disabled]="moverGranjaDestId == null || !moverNucleoDestId || moverLoading"
+                      (click)="confirmMover()">
+                {{ moverLoading ? 'Moviendo…' : 'Mover' }}
+              </button>
+            </div>
+          }
         </div>
       </div>
     }

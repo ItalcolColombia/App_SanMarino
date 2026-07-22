@@ -18,7 +18,7 @@ import {
 import { Subject, of } from 'rxjs';
 import { catchError, finalize, takeUntil, tap } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPen, faPlus, faTrash, faSearch } from '@fortawesome/free-solid-svg-icons';
+import { faPen, faPlus, faTrash, faSearch, faRightLeft } from '@fortawesome/free-solid-svg-icons';
 
 import {
   CreateNucleoDto,
@@ -29,6 +29,7 @@ import {
 import { FarmDto, FarmService } from '../../../farm/services/farm.service';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { GestionGranjasRefreshService } from '../../../farm/services/gestion-granjas-refresh.service';
 
 type NucleoForm = {
   nucleoId: string | number;
@@ -56,6 +57,7 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   protected readonly faSearch = faSearch;
   protected readonly faPen = faPen;
   protected readonly faTrash = faTrash;
+  protected readonly faRightLeft = faRightLeft;
 
   @Input() embedded = false;
 
@@ -91,6 +93,14 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   };
   pendingDelete: NucleoDto | null = null;
 
+  // Estado del modal "Mover a otra granja"
+  moverOpen = false;
+  moverNucleo: NucleoDto | null = null;
+  moverGranjaDestId: number | null = null;
+  moverLoading = false;
+  /** Granjas destino elegibles (misma empresa, distinta a la actual). Referencia estable (OnPush). */
+  moverFarms: FarmDto[] = [];
+
   // Formulario
   form!: FormGroup;
 
@@ -103,12 +113,24 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     private readonly farmSvc: FarmService,
     private readonly cdr: ChangeDetectorRef,
     private readonly toastSvc: ToastService,
+    private readonly refreshBus: GestionGranjasRefreshService,
   ) {}
 
   // ======== Lifecycle ========
   ngOnInit(): void {
     this.buildForm();
     this.loadNucleos();
+
+    // Al crear/editar/eliminar una granja en la tab Granjas, los núcleos disponibles cambian
+    // (cascada al eliminar; nuevo destino al crear). Recargar sin recargar la app.
+    this.refreshBus.changes$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(source => {
+        if (source === 'farm') {
+          this.farms = [];            // fuerza recarga de granjas en el modal
+          this.loadNucleos(true);     // recarga la tabla con datos frescos del backend
+        }
+      });
   }
 
   ngOnDestroy(): void {
@@ -157,11 +179,12 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     this.recompute();
   }
 
-  /** Solo carga la lista de núcleos. Farms se cargan al abrir el modal (crear/editar). */
-  private loadNucleos(): void {
+  /** Solo carga la lista de núcleos. Farms se cargan al abrir el modal (crear/editar).
+   *  `force` descarta la caché del servicio (necesario tras cambios en otra tab). */
+  private loadNucleos(force = false): void {
     this.loading = true;
     this.nucleoSvc
-      .getAll()
+      .getAll(force)
       .pipe(
         tap(list => {
           this.nucleos = list ?? [];
@@ -231,6 +254,9 @@ export class NucleoListComponent implements OnInit, OnDestroy {
         granjaId: n.granjaId,
         nucleoNombre: n.nucleoNombre
       });
+      // La granja es parte de la identidad del núcleo: no se cambia por edición (el backend solo
+      // renombra; cambiarla aquí daba un 404 silencioso). Para moverlo de granja está "Mover".
+      this.form.get('granjaId')?.disable();
     } else {
       const newId = this.generateUniqueId6(this.nucleos);
       this.form.reset({
@@ -238,6 +264,7 @@ export class NucleoListComponent implements OnInit, OnDestroy {
         granjaId: null,
         nucleoNombre: ''
       });
+      this.form.get('granjaId')?.enable();
     }
     this.cdr.markForCheck();
   }
@@ -260,7 +287,8 @@ export class NucleoListComponent implements OnInit, OnDestroy {
       }
     }
 
-    const payload = this.form.value as NucleoDto;
+    // getRawValue incluye la granja aunque esté deshabilitada en edición (la ruta la necesita).
+    const payload = this.form.getRawValue() as NucleoDto;
     const req$ = this.editing
       ? this.nucleoSvc.update(payload as UpdateNucleoDto)
       : this.nucleoSvc.create(payload as CreateNucleoDto);
@@ -273,6 +301,7 @@ export class NucleoListComponent implements OnInit, OnDestroy {
           this.recompute();
           this.closeModal();
           this.toastSvc.success(this.editing ? 'Núcleo actualizado correctamente.' : 'Núcleo creado correctamente.', 'Listo');
+          this.refreshBus.notify('nucleo');
         }),
         catchError(err => {
           console.error('[Nucleo] save error', err);
@@ -323,6 +352,7 @@ export class NucleoListComponent implements OnInit, OnDestroy {
           this.removeNucleo(n);
           this.recompute();
           this.toastSvc.success('Núcleo eliminado correctamente.', 'Listo');
+          this.refreshBus.notify('nucleo');
         }),
         catchError(err => {
           console.error('[Nucleo] delete error', err);
@@ -343,6 +373,73 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     this.confirmOpen = false;
     this.pendingDelete = null;
     this.cdr.markForCheck();
+  }
+
+  // ======== Mover a otra granja (re-key) ========
+  openMover(n: NucleoDto): void {
+    this.moverNucleo = n;
+    this.moverGranjaDestId = null;
+    this.moverOpen = true;
+    this.moverFarms = [];
+    // Necesitamos las granjas para elegir destino; reutiliza la caché si ya se cargó.
+    if (this.farms.length > 0) {
+      this.computeMoverFarms(n);
+      this.cdr.markForCheck();
+      return;
+    }
+    this.farmSvc.getAll()
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(() => { this.toastSvc.warning('No se pudieron cargar las granjas.', 'Aviso'); return of([]); })
+      )
+      .subscribe(list => {
+        this.farms = list ?? [];
+        this.computeMoverFarms(n);
+        this.cdr.markForCheck();
+      });
+  }
+
+  /** Granjas destino = misma empresa que el núcleo, excluyendo su granja actual. Referencia estable. */
+  private computeMoverFarms(n: NucleoDto): void {
+    const companyId = n.companyId != null ? Number(n.companyId) : null;
+    this.moverFarms = this.farms.filter(f =>
+      Number(f.id) !== Number(n.granjaId) &&
+      (companyId == null || Number(f.companyId) === companyId)
+    );
+  }
+
+  closeMover(): void {
+    this.moverOpen = false;
+    this.moverNucleo = null;
+    this.moverGranjaDestId = null;
+    this.cdr.markForCheck();
+  }
+
+  confirmMover(): void {
+    const n = this.moverNucleo;
+    const dest = this.moverGranjaDestId != null ? Number(this.moverGranjaDestId) : null;
+    if (!n || dest == null || dest === Number(n.granjaId)) return;
+
+    this.moverLoading = true;
+    this.cdr.markForCheck();
+    this.nucleoSvc.mover(n.nucleoId, Number(n.granjaId), dest)
+      .pipe(
+        tap(res => {
+          this.toastSvc.success(res?.message || 'Núcleo movido correctamente.', 'Listo');
+          this.closeMover();
+          this.loadNucleos(true);          // recarga con datos frescos (la clave del núcleo cambió)
+          this.refreshBus.notify('nucleo'); // avisa a las tabs Galpones/Lotes
+        }),
+        catchError(err => {
+          console.error('[Nucleo] mover error', err);
+          const msg = err?.error?.message || err?.error?.detail || 'No se pudo mover el núcleo.';
+          this.toastSvc.error(msg, 'Error');
+          return of(null);
+        }),
+        finalize(() => { this.moverLoading = false; this.cdr.markForCheck(); }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe();
   }
 
   // ======== Estado local ========

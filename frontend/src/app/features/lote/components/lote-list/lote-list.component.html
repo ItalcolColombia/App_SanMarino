@@ -445,6 +445,9 @@
                         <button (click)="openTrasladoModal(l)" class="icon-btn" title="Trasladar lote">
                           <fa-icon [icon]="faArrowRight" aria-hidden="true"></fa-icon>
                         </button>
+                        <button (click)="openMoverUbicacion(l)" class="icon-btn" title="Mover ubicación (galpón/núcleo/granja)">
+                          <fa-icon [icon]="faRightLeft" aria-hidden="true"></fa-icon>
+                        </button>
                         <button (click)="delete(l)" class="icon-btn danger" title="Eliminar">
                           <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                         </button>
@@ -1323,6 +1326,81 @@
   (closed)="closeTrasladoModal()"
   (confirm)="onConfirmarTraslado($event)">
 </app-modal-traslado-lote>
+
+<!-- MODAL: Mover ubicación del lote (reubicar galpón/núcleo/granja, incl. misma granja) -->
+@if (moverUbicOpen && moverUbicLote) {
+  <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="mover-ubic-title">
+    <div class="ux-modal__panel">
+      <div class="ux-modal__head">
+        <h2 id="mover-ubic-title" class="ux-title">Mover ubicación del lote</h2>
+        <button type="button" (click)="closeMoverUbicacion()" class="btn-close" aria-label="Cerrar">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="ux-modal__body modal-form-grid">
+        <div class="col-span-2 ux-meta">
+          <div class="ux-meta__item"><strong>Lote:</strong> {{ moverUbicLote!.loteNombre }} (ID {{ moverUbicLote!.loteId }})</div>
+          <div class="ux-meta__item"><strong>Ubicación actual:</strong>
+            {{ moverUbicLote!.galpon?.galponNombre || moverUbicLote!.galponId || '—' }} ·
+            {{ moverUbicLote!.nucleo?.nucleoNombre || moverUbicLote!.nucleoId || '—' }} ·
+            {{ moverUbicLote!.farm?.name || moverUbicLote!.granjaId }}
+          </div>
+        </div>
+
+        <!-- Granja destino -->
+        <div>
+          <label class="ux-label">Granja destino <span class="req">*</span></label>
+          <select class="ux-input" [ngModel]="moverUbicGranjaId" (ngModelChange)="onMoverUbicGranja($event)">
+            <option [ngValue]="null" disabled>Seleccione…</option>
+            @for (f of farms; track f.id) {
+              <option [ngValue]="f.id">{{ f.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Núcleo destino -->
+        <div>
+          <label class="ux-label">Núcleo destino</label>
+          <select class="ux-input" [ngModel]="moverUbicNucleoId" (ngModelChange)="onMoverUbicNucleo($event)"
+                  [disabled]="moverUbicGranjaId == null">
+            <option [ngValue]="null">{{ moverUbicGranjaId == null ? 'Seleccione una granja primero' : '(Sin núcleo)' }}</option>
+            @for (n of moverUbicNucleos; track n.nucleoId) {
+              <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Galpón destino -->
+        <div>
+          <label class="ux-label">Galpón destino</label>
+          <select class="ux-input" [ngModel]="moverUbicGalponId" (ngModelChange)="moverUbicGalponId = $event"
+                  [disabled]="!moverUbicNucleoId">
+            <option [ngValue]="null">{{ !moverUbicNucleoId ? 'Seleccione un núcleo primero' : '(Sin galpón)' }}</option>
+            @for (g of moverUbicGalpones; track g.galponId) {
+              <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-span-2">
+          <p class="ux-help">Solo cambia la ubicación del lote (no traslada aves ni altera su nombre). Puede ser dentro de la misma granja.</p>
+        </div>
+      </div>
+
+      <div class="ux-modal__foot">
+        <button type="button" (click)="closeMoverUbicacion()" class="btn-muted">Cancelar</button>
+        <button type="button" class="btn-primary"
+                [disabled]="moverUbicGranjaId == null || moverUbicLoading"
+                (click)="confirmMoverUbicacion()">
+          {{ moverUbicLoading ? 'Moviendo…' : 'Mover' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
 <!-- /MODAL TRASLADO -->
 
 <!-- MODAL CONFIRMACIÓN ELIMINAR -->

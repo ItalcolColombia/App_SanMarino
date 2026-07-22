@@ -367,6 +367,9 @@
                         } @else if (lotesBaseParaGranja.length === 0) {
                           <p class="le-form-hint">No hay lotes base asignados a esta granja. Creá uno y asignale la granja en la pestaña "Lotes base".</p>
                         }
+                        @if (nombreCorridaPreview) {
+                          <p class="le-form-hint">Nombre del lote: <strong>{{ nombreCorridaPreview }}</strong> — número de corrida por galpón; se confirma al guardar.</p>
+                        }
                       } @else {
                         <input formControlName="loteNombre" class="le-input" placeholder="Ej: Lote 001" [class.le-input--invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"/>
                         @if (form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched) {
@@ -720,6 +723,12 @@
                         <label class="le-detail-label">Lote base</label>
                         <input type="text" class="le-detail-input" [value]="selectedLote.loteBaseNombre || '—'" readonly disabled>
                       </div>
+                      @if (selectedLote.numeroCorrida != null) {
+                        <div class="le-detail-field">
+                          <label class="le-detail-label">Corrida (referencia)</label>
+                          <input type="text" class="le-detail-input" [value]="selectedLote.numeroCorrida" readonly disabled>
+                        </div>
+                      }
                       <div class="le-detail-field">
                         <label class="le-detail-label">Fecha encasetamiento</label>
                         <input type="text" class="le-detail-input" [value]="selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy':'UTC') : '—'" readonly disabled>

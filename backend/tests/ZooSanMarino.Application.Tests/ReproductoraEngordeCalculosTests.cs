@@ -123,4 +123,38 @@ public class ReproductoraEngordeCalculosTests
         var hoy = new DateTime(2026, 7, 16);               // "hoy" anterior al encasetamiento (borde)
         Assert.Equal(0, ReproductoraEngordeCalculos.CalcularEdadDias(encaset, hoy, cerrado: false, fechaCierre: null));
     }
+
+    // ── Edad de un registro de seguimiento y su validez para cruzar (edad ∈ [1, 7]) ────────────────
+    [Theory]
+    [InlineData("2026-07-13", 0)]   // mismo día del encaset
+    [InlineData("2026-07-14", 1)]   // encaset + 1
+    [InlineData("2026-07-20", 7)]   // encaset + 7
+    [InlineData("2026-07-21", 8)]   // encaset + 8
+    [InlineData("2026-07-12", -1)]  // anterior al encaset
+    public void EdadSeguimientoDias_CuentaDiasCalendario(string fecha, int esperado)
+    {
+        var encaset = new DateTime(2026, 7, 13);
+        var reg = DateTime.Parse(fecha);
+        Assert.Equal(esperado, ReproductoraEngordeCalculos.EdadSeguimientoDias(encaset, reg));
+    }
+
+    [Fact]
+    public void EdadSeguimientoDias_IgnoraLaHora()
+    {
+        // Fechas puras ancladas a mediodía UTC: la hora no debe mover el día de calendario.
+        var encaset = new DateTime(2026, 7, 13, 12, 0, 0, DateTimeKind.Utc);
+        var reg = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
+        Assert.Equal(1, ReproductoraEngordeCalculos.EdadSeguimientoDias(encaset, reg));
+    }
+
+    [Theory]
+    [InlineData(0, false)]   // edad 0 (mismo día del encaset) → no cruza
+    [InlineData(1, true)]    // primer día válido
+    [InlineData(7, true)]    // último día válido
+    [InlineData(8, false)]   // supera los 7 días
+    [InlineData(-1, false)]  // anterior al encaset
+    public void EsEdadSeguimientoValida_SoloEntre1y7(int edad, bool esperado)
+    {
+        Assert.Equal(esperado, ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad));
+    }
 }

@@ -22,6 +22,7 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { GestionGranjasRefreshService } from '../../services/gestion-granjas-refresh.service';
 
 import { DepartamentoService, DepartamentoDto } from '../../services/departamento.service';
 import { CiudadService, CiudadDto } from '../../services/ciudad.service';
@@ -127,7 +128,8 @@ export class FarmListComponent implements OnInit {
     private readonly storage: TokenStorageService,
     private readonly masterListSvc: MasterListService,
     private readonly clienteSvc: ClienteService,
-    private readonly countryFilter: CountryFilterService
+    private readonly countryFilter: CountryFilterService,
+    private readonly refreshBus: GestionGranjasRefreshService
   ) {}
 
   // ================
@@ -638,6 +640,7 @@ export class FarmListComponent implements OnInit {
             this.modalOpen = false;
             this.toastSvc.success('Granja actualizada correctamente.', 'Listo');
             this.loadAll();
+            this.refreshBus.notify('farm');
           }
         });
     } else {
@@ -656,6 +659,7 @@ export class FarmListComponent implements OnInit {
             this.modalOpen = false;
             this.toastSvc.success('Granja creada correctamente.', 'Listo');
             this.loadAll();
+            this.refreshBus.notify('farm');
           }
         });
     }
@@ -698,8 +702,9 @@ export class FarmListComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.toastSvc.success('Granja eliminada correctamente.', 'Listo');
+          this.toastSvc.success('Granja eliminada correctamente. Sus núcleos y galpones fueron deshabilitados.', 'Listo');
           this.loadAll();
+          this.refreshBus.notify('farm');
         },
       });
   }

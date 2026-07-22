@@ -11,10 +11,11 @@ using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 using ZooSanMarino.Application.DTOs.Farms;
 using ZooSanMarino.Application.DTOs.Nucleos;
+using ZooSanMarino.Application.Calculos;
 
 namespace ZooSanMarino.Infrastructure.Services
 {
-    public class NucleoService : AppInterfaces.INucleoService
+    public partial class NucleoService : AppInterfaces.INucleoService
     {
         private readonly ZooSanMarinoContext _ctx;
         private readonly AppInterfaces.ICurrentUser _current;
@@ -113,6 +114,23 @@ namespace ZooSanMarino.Infrastructure.Services
             var accessible = await _userFarmService.GetUserAccessibleFarmsAsync(userIdGuid.Value);
             var ids = accessible.Select(x => x.FarmId).Distinct().ToList();
             return ids;
+        }
+
+        /// <summary>
+        /// Granjas asignadas DIRECTAMENTE al usuario actual (UserFarms). Mismo criterio que la tab
+        /// Granjas (FarmService.GetAllAsync con id_user_session) para que las tres tabs muestren el
+        /// mismo alcance. Devuelve null si no hay UserGuid (fail-closed en el consumidor).
+        /// </summary>
+        private async Task<List<int>?> GetAssignedFarmIdsForCurrentUserAsync()
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue) return null;
+
+            return await _ctx.UserFarms.AsNoTracking()
+                .Where(uf => uf.UserId == userIdGuid.Value)
+                .Select(uf => uf.FarmId)
+                .Distinct()
+                .ToListAsync();
         }
 
         // ===========================
@@ -219,36 +237,15 @@ namespace ZooSanMarino.Infrastructure.Services
         {
             IQueryable<Nucleo> q = _ctx.Nucleos.AsNoTracking().Where(n => n.DeletedAt == null);
 
-            // Verificar si el usuario es admin/administrador
-            var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
-            var allCountriesCount = await _ctx.Set<Pais>().CountAsync();
-            var isAdmin = assignedCountries.Count() >= allCountriesCount || 
-                         await IsUserAdminOrAdministratorAsync(_current.UserId) ||
-                         await IsSuperAdminAsync(_current.UserId);
+            // Scoping por granjas asignadas al usuario (UserFarms) — mismo alcance que la tab Granjas,
+            // incluso para super-admin. Excluye núcleos de granjas eliminadas (defensivo: la cascada de
+            // FarmService.DeleteAsync ya los deshabilita). Fail-closed: sin usuario/asignaciones → vacío.
+            var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+            if (assignedFarmIds == null || assignedFarmIds.Count == 0)
+                return Array.Empty<NucleoDto>();
 
-            if (isAdmin)
-            {
-                Console.WriteLine($"=== NucleoService.GetAllAsync - Usuario es admin/administrador, mostrando TODOS los núcleos ===");
-                // No filtrar por empresa - mostrar todos los núcleos
-            }
-            else
-            {
-                // Si NO es admin, filtrar por empresa y por granjas a las que el usuario tiene permiso
-                var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
-                Console.WriteLine($"=== NucleoService.GetAllAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
-                q = q.Where(n => n.CompanyId == effectiveCompanyId);
-
-                var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
-                if (allowedFarmIds != null && allowedFarmIds.Count > 0)
-                {
-                    q = q.Where(n => allowedFarmIds.Contains(n.GranjaId));
-                }
-                else
-                {
-                    // Usuario sin granjas asignadas ni por empresa: no mostrar núcleos
-                    q = q.Where(n => n.GranjaId == -1);
-                }
-            }
+            q = q.Where(n => assignedFarmIds.Contains(n.GranjaId)
+                          && _ctx.Farms.Any(f => f.Id == n.GranjaId && f.DeletedAt == null));
 
             return await q
                 .Select(n => new NucleoDto(
@@ -368,6 +365,17 @@ namespace ZooSanMarino.Infrastructure.Services
                                            n.NucleoId == nucleoId &&
                                            n.GranjaId == granjaId);
             if (ent is null || ent.DeletedAt != null) return false;
+
+            // Guard flujo completo: no borrar un núcleo con galpones o lotes activos (dejaría hijos
+            // colgando de un padre eliminado). El usuario debe moverlos/eliminarlos primero.
+            var galponesActivos = await _ctx.Galpones
+                .CountAsync(g => g.NucleoId == nucleoId && g.GranjaId == granjaId && g.DeletedAt == null);
+            var lotesActivos =
+                await _ctx.Lotes.CountAsync(l => l.NucleoId == nucleoId && l.GranjaId == granjaId && l.DeletedAt == null) +
+                await _ctx.LoteAveEngorde.CountAsync(l => l.NucleoId == nucleoId && l.GranjaId == granjaId && l.DeletedAt == null);
+            if (!UbicacionCalculos.PuedeEliminarNucleo(galponesActivos, lotesActivos))
+                throw new InvalidOperationException(
+                    UbicacionCalculos.MensajeBloqueoEliminarNucleo(galponesActivos, lotesActivos));
 
             ent.DeletedAt       = DateTime.UtcNow;
             ent.UpdatedByUserId = _current.UserId;
