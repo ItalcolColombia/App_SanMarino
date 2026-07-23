@@ -1,36 +1,31 @@
-# Tracker — Guía genética Panamá: Ross 308 AP 2022 (mixto)
+# Tracker — Código ERP de engorde por granja + avance automático al cerrar ciclo (Panamá)
 
-Plan: [guia_genetica_panama_ross308ap_2022_plan.md](fase_de_desarrollo/guia_genetica_panama_ross308ap_2022_plan.md)
+**Plan:** [fase_de_desarrollo/codigo_erp_granja_engorde_panama_plan.md](fase_de_desarrollo/codigo_erp_granja_engorde_panama_plan.md)
 
-Decisión confirmada: **Opción A** — guía año 2022 + repuntar los 31 lotes de Panamá (2026 → 2022).
+## Backend
+- [x] `Farm.cs`: propiedad `CodigoErpEngorde`
+- [x] `FarmConfiguration.cs`: mapeo `codigo_erp_engorde` (varchar 20)
+- [x] DTOs granja (`FarmDto`, `CreateFarmDto`, `UpdateFarmDto`, `FarmDetailDto`): campo al final
+- [x] `FarmService`: Create/Update normaliza + valida (solo dígitos); todas las proyecciones incluyen el campo (ToFarmDtoListAsync ×2, GetByIdAsync ×2, Create, Update, GetByZonaUsuario, ProjectToDetail)
+- [x] `GestionLotesEngordeCalculos`: `SiguienteCodigoErpGranja` + `EsCodigoErpGranjaValido` (puros)
+- [x] `LoteAveEngordeService.CreateAsync`: estampa `LoteErp` desde la granja si tiene código
+- [x] `LoteAveEngordeService.UpdateAsync`: conserva `LoteErp` almacenado si la granja tiene código
+- [x] `LoteAveEngordeService.CerrarLoteAsync`: avance automático del código de la granja (guardas: lote base, código granja, ERP coincide, ningún otro abierto) en el mismo SaveChanges
+- [x] Migración EF idempotente `20260723130810_AddCodigoErpEngordeToFarm` + snapshot regenerado
+- [x] Tests xUnit del cálculo puro (incluye 4001099→4001100)
+- [x] Build verde: Infrastructure 0 err/0 warn, API 0 err/0 warn (OutDir temporal, bin bloqueado por API corriendo) · `dotnet test` 619/619 ✔
+- [x] Migración aplicada en BD local (:5433) — columna verificada con psql
 
-## Checklist
+## Frontend
+- [x] `farm.service.ts`: `codigoErpEngorde` en `FarmDto`/`CreateFarmDto`
+- [x] Form granja (sección Panamá): input `codigoErpEngorde` con validación numérica (pattern `^\d*$`, max 18) + help text; payload normalizado (trim, ''→null)
+- [x] Form lote engorde: `loteErp` se autollena desde la granja (Panamá, `farmById` del form-data) y queda readonly; edición bloquea si ya capturó; granja sin código/otros países = editable como hoy
+- [x] `yarn build` verde (solo warning preexistente de bundle budget)
 
-### Validación e investigación
-- [x] Validar PDF Aviagen YP × Ross 308 AP 2022 (legítimo, columnas calzan con el módulo)
-- [x] Extraer tabla Mixto (g) por coordenadas: 57 filas (día 0-56) + validación aritmética CA
-- [x] Mapear módulo guía genética Ecuador (entidades, config, servicio, indicadores)
-- [x] Diagnosticar BD: países (PA=3), guía actual Panamá (header 2, 2026, pesos en 0), 31 lotes 2026
-- [x] Confirmar linkage indicadores (raza + anoTablaGenetica del lote + sexo mixto)
-- [x] Verificar sin riesgo prod: created_by_user_id sin FK, company 5 existe, tipos ok
+## Ajuste post-revisión
+- [x] Estampado en `CreateAsync` gateado por `AutoNombrePorCorrida` (flujo interactivo Panamá): protege la idempotencia del Puente Panamá (`LoteErp="PA-{id}"`) y el ERP explícito de la migración masiva Excel, que no mandan el flag
 
-### Workflow
-- [x] Plan (`fase_de_desarrollo/…_plan.md`)
-- [x] Tracker (este archivo)
-
-### Implementación
-- [x] Generar bloque VALUES (57 filas) desde el PDF (script, no manual)
-- [x] Crear migración `20260722220000_SeedGuiaGeneticaPanamaRoss308AP2022.cs` (DELETE + INSERT + UPDATE, idempotente)
-- [x] Crear `…Designer.cs` (clon del snapshot vigente, solo id/clase; sin tocar ModelSnapshot)
-- [x] `dotnet build` Infrastructure con .NET 10 (0 errores, 0 warnings)
-
-### Pruebas locales (sanmarinoapplocal:5433)
-- [x] Ejecutar Up() completo contra el schema real en transacción + ROLLBACK (sin persistir; backend del usuario intacto)
-- [x] Verificar: 0 headers Panamá 2026; 1 header 2022 con 57 filas mixto; día 0/7/56 correctos
-- [x] Verificar: 31 lotes Panamá repuntados a 2022; Ecuador (header 1) intacto (3 sexos × 57)
-- [x] Verificar idempotencia (segunda corrida de Up = mismo estado, sin duplicar)
-- [ ] Aplicación real local: se auto-aplica en el próximo arranque del backend (`Database:RunMigrations=true`) / deploy
-
-### Cierre
-- [x] Actualizar memoria
-- [ ] Confirmación del usuario antes de deploy a prod (incluye borrado de la guía vieja + repunte de 31 lotes)
+## Verificación
+- [x] Compilación: Infrastructure 0 err/0 warn · API 0 err/0 warn · tests 619/619 · front OK
+- [x] Migración `20260723130810_AddCodigoErpEngordeToFarm` aplicada en BD local (:5433); columna `farms.codigo_erp_engorde varchar(20)` verificada con psql (aplicó también las 2 pendientes de la sesión paralela: FixNombres… y SeedGuiaGenetica…)
+- [ ] Smoke manual (requiere REINICIAR el backend local — el proceso que corre tiene binarios previos al cambio): granja Panamá con `4001017` → crear lote captura el código (readonly); cerrar última corrida del lote base avanza a `4001018`; re-cerrar lote reabierto no doble-avanza; granja sin código = comportamiento actual

@@ -70,6 +70,12 @@ public class FarmConfiguration : IEntityTypeConfiguration<Farm>
             .HasPrecision(10, 7)
             .IsRequired(false);
 
+        // Panamá: código ERP vigente de la granja para lotes de engorde (avanza +1 al cerrar el ciclo)
+        e.Property(x => x.CodigoErpEngorde)
+            .HasColumnName("codigo_erp_engorde")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
         // Auditoría
         e.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id");
         e.Property(x => x.CreatedAt).HasColumnName("created_at");

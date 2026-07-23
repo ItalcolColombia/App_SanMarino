@@ -25,6 +25,14 @@ public class Farm : AuditableEntity
     /// </summary>
     public bool? ManejaAlimentoPorGalpon { get; set; }
 
+    /// <summary>
+    /// Panamá: código ERP vigente de la granja para lotes de pollo engorde (ej. "4001017" =
+    /// prefijo granja + lote base activo). Los lotes nuevos lo capturan en <c>lote_erp</c>; al
+    /// cerrar TODOS los lotes del lote base en la granja avanza +1 automáticamente
+    /// (4001017 → 4001018 … 4001099 → 4001100). <c>null</c> = comportamiento actual (otros países).
+    /// </summary>
+    public string? CodigoErpEngorde { get; set; }
+
     public ICollection<Nucleo> Nucleos { get; set; } = new List<Nucleo>();
     public ICollection<Lote> Lotes { get; set; } = new List<Lote>();
     public ICollection<Galpon> Galpones { get; set; } = new List<Galpon>();

@@ -149,6 +149,23 @@
                         </select>
                       </div>
 
+                      <!-- Código ERP engorde (los lotes lo capturan; avanza al cerrar el ciclo) -->
+                      <div>
+                        <label class="ux-label">Código ERP engorde</label>
+                        <input
+                          formControlName="codigoErpEngorde"
+                          type="text"
+                          inputmode="numeric"
+                          maxlength="18"
+                          class="ux-input"
+                          placeholder="Ej. 4001017"
+                          />
+                        @if (form.get('codigoErpEngorde')?.invalid && form.get('codigoErpEngorde')?.touched) {
+                          <small class="text-red-600 text-xs">Solo dígitos (máx. 18).</small>
+                        }
+                        <p class="ux-help">Los lotes de engorde nuevos capturan este código. Al cerrar todos los lotes del lote base en la granja, avanza +1 automáticamente (ej. 4001017 → 4001018).</p>
+                      </div>
+
                       <!-- Botón Capturar ubicación -->
                       <div class="flex items-end">
                         <button

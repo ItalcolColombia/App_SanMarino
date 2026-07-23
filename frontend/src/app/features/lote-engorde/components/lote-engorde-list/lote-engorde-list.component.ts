@@ -155,6 +155,13 @@ export class LoteEngordeListComponent implements OnInit {
   /** Panamá (solo creación): preview del nombre del lote = "{lote base} - {corrida}" (ej. "96 - 1"). */
   nombreCorridaPreview = '';
 
+  /**
+   * Panamá: el código ERP del lote viene de la granja (farms.codigo_erp_engorde) y no se digita.
+   * true ⇒ input readonly (creación con granja que tiene código, o edición con código ya capturado).
+   * Granja sin código u otros países ⇒ editable como siempre. El backend es autoritativo igual.
+   */
+  loteErpBloqueado = false;
+
   // Gestión de lotes base (modal en Ecuador, tab en Panamá) — solo nombre
   lotesBaseModalOpen = false;
   lbEditando: LoteBaseEngordeDto | null = null;
@@ -217,6 +224,7 @@ export class LoteEngordeListComponent implements OnInit {
       if (this.esPanama) this.form.patchValue({ loteNombre: '' }, { emitEvent: false });
       this.recomputeLotesBaseParaGranja();
       this.recomputeNombrePanama();
+      this.aplicarErpGranjaPanama();
     });
 
     this.form.get('nucleoId')!.valueChanges.subscribe((nucleoIdVal: string | number | null) => {
@@ -323,6 +331,25 @@ export class LoteEngordeListComponent implements OnInit {
       if (actual) list = [...list, actual];
     }
     this.lotesBaseParaGranja = list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  /**
+   * Panamá: refleja el código ERP de la granja en el campo "Lote ERP" del form.
+   * Creación: al elegir granja con código ⇒ se autollena y queda readonly; granja sin
+   * código ⇒ editable (comportamiento actual). Edición: no se re-estampa (el código
+   * capturado es histórico del ciclo); solo se bloquea si el lote ya tiene uno.
+   * Otros países: sin cambios. El backend aplica la misma regla al guardar.
+   */
+  private aplicarErpGranjaPanama(): void {
+    if (!this.esPanama) { this.loteErpBloqueado = false; return; }
+    if (this.editing) {
+      this.loteErpBloqueado = !!(this.editing.loteErp ?? '').trim();
+      return;
+    }
+    const granjaId = Number(this.form.get('granjaId')?.value) || null;
+    const codigo = (granjaId != null ? this.farmById[granjaId]?.codigoErpEngorde ?? '' : '').trim();
+    this.form.patchValue({ loteErp: codigo }, { emitEvent: false });
+    this.loteErpBloqueado = !!codigo;
   }
 
   /**
@@ -785,6 +812,7 @@ export class LoteEngordeListComponent implements OnInit {
     }
     // Recalcular tras fijar granja + lote base (en edición se parchean en orden).
     this.recomputeLotesBaseParaGranja();
+    this.aplicarErpGranjaPanama();
   }
 
   openModal(l?: LoteAveEngordeDto): void {

@@ -226,6 +226,23 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             loteNombre = GestionLotesEngordeCalculos.ConstruirNombreCorrida(baseNombre, numeroCorrida.Value);
         }
 
+        // Panamá (solo flujo interactivo, gateado por AutoNombrePorCorrida igual que la corrida):
+        // si la granja tiene código ERP de engorde configurado, el lote nuevo lo captura (la granja
+        // es la fuente; el front lo muestra readonly y el backend ignora lo que venga en el DTO).
+        // Puente Panamá y migración masiva NO mandan el flag → conservan su LoteErp explícito
+        // ("PA-{id}" = clave de idempotencia del puente / columna ERP del Excel). Granja sin
+        // código = comportamiento actual (se respeta lo digitado, como en los demás países).
+        var loteErp = dto.LoteErp;
+        if (dto.AutoNombrePorCorrida)
+        {
+            var codigoErpGranja = await _ctx.Farms.AsNoTracking()
+                .Where(f => f.Id == dto.GranjaId && f.CompanyId == companyId)
+                .Select(f => f.CodigoErpEngorde)
+                .FirstOrDefaultAsync();
+            if (!string.IsNullOrWhiteSpace(codigoErpGranja))
+                loteErp = codigoErpGranja.Trim();
+        }
+
         var ent = new LoteAveEngorde
         {
             LoteNombre = loteNombre,
@@ -254,7 +271,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             PesoMixto = dto.PesoMixto,
             AvesEncasetadas = dto.AvesEncasetadas,
             EdadInicial = dto.EdadInicial,
-            LoteErp = dto.LoteErp,
+            LoteErp = loteErp,
             LoteBaseEngordeId = loteBaseId,
             NumeroCorrida = numeroCorrida,
             CompanyId = companyId,
@@ -386,7 +403,15 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.PesoMixto = dto.PesoMixto;
         ent.AvesEncasetadas = dto.AvesEncasetadas;
         ent.EdadInicial = dto.EdadInicial;
-        ent.LoteErp = dto.LoteErp;
+        // Panamá: si la granja tiene código ERP configurado y el lote ya capturó uno, se conserva
+        // el almacenado (histórico del ciclo; no se re-estampa ni se deja pisar desde el DTO).
+        // Lotes viejos sin código pueden backfillearse a mano. Granja sin código = como hoy.
+        var codigoErpGranjaUpd = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == dto.GranjaId && f.CompanyId == companyId)
+            .Select(f => f.CodigoErpEngorde)
+            .FirstOrDefaultAsync();
+        if (string.IsNullOrWhiteSpace(codigoErpGranjaUpd) || string.IsNullOrWhiteSpace(ent.LoteErp))
+            ent.LoteErp = dto.LoteErp;
         ent.LoteBaseEngordeId = await ResolverLoteBaseAsync(dto.LoteBaseEngordeId, companyId);
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
@@ -470,8 +495,50 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         }
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
+        // Panamá: si con este cierre no queda ningún lote abierto del lote base en la granja,
+        // el código ERP de la granja avanza +1 (mismo SaveChanges ⇒ atómico con el cierre).
+        await AvanzarCodigoErpGranjaSiCicloCerradoAsync(ent);
         await _ctx.SaveChangesAsync();
         return await GetByIdAsync(loteAveEngordeId);
+    }
+
+    /// <summary>
+    /// Panamá — avance automático del código ERP de la granja al cerrarse el ciclo del lote base.
+    /// Con el lote recién marcado "Cerrado" (aún sin guardar), avanza el código SOLO si:
+    /// (1) el lote tiene lote base; (2) la granja tiene <c>CodigoErpEngorde</c> configurado;
+    /// (3) el <c>LoteErp</c> del lote coincide con el código vigente de la granja — guarda de ciclo:
+    /// re-cerrar un lote reabierto de un ciclo viejo no vuelve a avanzar; y (4) no queda ningún
+    /// otro lote abierto (no eliminado) de esa misma granja + lote base.
+    /// Ej.: granja "4001017" y cierran todas las corridas del base 17 ⇒ pasa a "4001018"
+    /// (… "4001099" → "4001100"). La reapertura NO decrementa: si hace falta, se corrige el
+    /// código editando la granja.
+    /// </summary>
+    private async Task AvanzarCodigoErpGranjaSiCicloCerradoAsync(LoteAveEngorde ent)
+    {
+        if (!ent.LoteBaseEngordeId.HasValue) return;
+
+        var farm = await _ctx.Farms
+            .SingleOrDefaultAsync(f => f.Id == ent.GranjaId && f.CompanyId == ent.CompanyId && f.DeletedAt == null);
+        if (farm is null || string.IsNullOrWhiteSpace(farm.CodigoErpEngorde)) return;
+
+        var codigoVigente = farm.CodigoErpEngorde.Trim();
+        if (!string.Equals((ent.LoteErp ?? string.Empty).Trim(), codigoVigente, StringComparison.Ordinal)) return;
+
+        var quedanAbiertos = await _ctx.LoteAveEngorde.AnyAsync(l =>
+            l.CompanyId == ent.CompanyId &&
+            l.GranjaId == ent.GranjaId &&
+            l.LoteBaseEngordeId == ent.LoteBaseEngordeId &&
+            l.DeletedAt == null &&
+            l.LoteAveEngordeId != ent.LoteAveEngordeId &&
+            l.EstadoOperativoLote.ToLower() != "cerrado");
+        if (quedanAbiertos) return;
+
+        var siguiente = GestionLotesEngordeCalculos.SiguienteCodigoErpGranja(codigoVigente);
+        if (siguiente is null) return;
+
+        farm.CodigoErpEngorde = siguiente;
+        farm.UpdatedByUserId = _current.UserId;
+        farm.UpdatedAt = DateTime.UtcNow;
     }
 
     /// <summary>Digita/edita la merma del lote (Costos) sin requerir cierre/reapertura. Parte B / R1.</summary>
