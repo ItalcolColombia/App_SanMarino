@@ -1,4 +1,115 @@
 <!-- ================= FILTROS DE SELECCIÓN ================= -->
+
+<!-- Variante 'steps': tarjeta «Selección de contexto» con pasos numerados en cascada.
+     Mismo comportamiento (bindings/disabled idénticos); solo cambia la presentación. -->
+@if (variant === 'steps') {
+  <section class="ux-card filter-card" aria-label="Filtros de selección">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h3 class="filter-card__title">Selección de contexto</h3>
+        <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+      </div>
+    </div>
+
+    <div class="filter-steps">
+      <!-- Paso 1: Granja -->
+      <div class="filter-step"
+        [class.filter-step--active]="!!selectedGranjaId"
+        [class.filter-step--done]="!!selectedNucleoId || (!showNucleoGalpon && !!selectedLoteId)">
+        <div class="filter-step__num">1</div>
+        <div class="filter-step__body">
+          <label for="granja-select" class="filter-step__label">Granja</label>
+          <select
+            id="granja-select"
+            class="filter-step__select"
+            [ngModel]="selectedGranjaId"
+            (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
+            <option [ngValue]="null" disabled>— Seleccione granja —</option>
+            @for (g of granjas; track g) {
+              <option [ngValue]="g.id">{{ g.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      @if (showNucleoGalpon) {
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGranjaId" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedNucleoId"
+          [class.filter-step--done]="!!selectedGalponId"
+          [class.filter-step--disabled]="!selectedGranjaId || nucleos.length === 0">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label for="nucleo-select" class="filter-step__label">Núcleo</label>
+            <select
+              id="nucleo-select"
+              class="filter-step__select"
+              [disabled]="!selectedGranjaId || nucleos.length === 0"
+              [ngModel]="selectedNucleoId"
+              (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
+              <option [ngValue]="null" disabled>— Seleccione núcleo —</option>
+              @for (n of nucleos; track trackByNucleo($index, n)) {
+                <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+        <!-- Paso 3: Galpón -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedGalponId"
+          [class.filter-step--done]="!!selectedLoteId"
+          [class.filter-step--disabled]="!selectedGranjaId || galpones.length === 0">
+          <div class="filter-step__num">3</div>
+          <div class="filter-step__body">
+            <label for="galpon-select" class="filter-step__label">Galpón</label>
+            <select
+              id="galpon-select"
+              class="filter-step__select"
+              [disabled]="!selectedGranjaId || galpones.length === 0"
+              [ngModel]="selectedGalponId"
+              (ngModelChange)="selectedGalponId = $event; onGalponChange()">
+              <option [ngValue]="null" disabled>— Seleccione galpón —</option>
+              @for (g of galpones; track trackByGalpon($index, g)) {
+                <option [ngValue]="g.id">{{ g.label }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      }
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="showNucleoGalpon ? !!selectedGalponId : !!selectedGranjaId" aria-hidden="true"></div>
+
+      <!-- Paso final: Lote -->
+      <div class="filter-step filter-step--last"
+        [class.filter-step--active]="!!selectedLoteId"
+        [class.filter-step--disabled]="!selectedGranjaId || lotes.length === 0">
+        <div class="filter-step__num filter-step__num--accent">{{ loteStepNum }}</div>
+        <div class="filter-step__body">
+          <label for="lote-select" class="filter-step__label">Lote</label>
+          <select
+            id="lote-select"
+            class="filter-step__select"
+            [disabled]="!selectedGranjaId || lotes.length === 0"
+            [ngModel]="selectedLoteId"
+            (ngModelChange)="selectedLoteId = $event; onLoteChange()">
+            <option [ngValue]="null" disabled>— Seleccione lote —</option>
+            @for (l of lotes; track trackByLote($index, l)) {
+              <option [ngValue]="l.loteId">{{ formatLoteLabel(l) }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+} @else {
 <section class="ux-card">
   <h3 class="sr-only">Filtros de selección</h3>
 
@@ -111,3 +222,4 @@
     </div>
   }
 </section>
+}

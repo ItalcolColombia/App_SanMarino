@@ -1,63 +1,56 @@
 <div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
 
   <div class="ux-main">
+
+    <!-- ══════════════════════════════════════════
+    HEADER
+    ══════════════════════════════════════════ -->
     <header class="ux-header">
-      <div class="ux-header__title">
-        <h1>Seguimiento diario pollo de engorde</h1>
-
-        <div class="ux-header__meta">
-
-          @if (selectedGranjaId) {
-            <span class="chip chip--info">
-              <span class="chip chip--dot" aria-hidden="true"></span>
-              Granja: {{ selectedGranjaName || selectedGranjaId }}
-            </span>
-          } @else {
-            <span class="chip chip--warning">
-              <span class="chip__dot" aria-hidden="true"></span>
-              Selecciona una granja
-            </span>
-          }
-
-          @if (selectedNucleoId) {
-            <span class="chip chip--muted">
-              Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-            </span>
-          }
-
-          @if (selectedGalponId) {
-            <span class="chip chip--muted">
-              Galpón: {{ selectedGalponNombre }}
-            </span>
-          }
-
-          @if (selectedLoteId) {
-            <span class="chip chip--info">
-              <span class="chip__dot" aria-hidden="true"></span>
-              Lote: {{ selectedLoteNombre }}
-            </span>
-          }
-
-          @if (selectedLoteId) {
-            <span class="chip chip--muted">
-              {{ calcularEdadDias($safeNavigationMigration(selectedLote?.fechaEncaset)) }} días
-            </span>
-          }
-
-          @if (selectedLoteId) {
-            <span class="chip chip--muted">
-              {{ tablaFilas.length || 0 }} registro(s)
-            </span>
-          }
-
-          @if (selectedLoteId && loteOperativoCerrado) {
-            <span class="chip chip--warning" role="status">
-              Lote operativo: cerrado
-            </span>
-          }
+      <div class="ux-header__left">
+        <div class="ux-header__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/>
+            <path d="M12 8v4l3 3"/>
+          </svg>
+        </div>
+        <div class="ux-header__text">
+          <h1 class="ux-header__title">Seguimiento diario pollo de engorde</h1>
+          <p class="ux-header__subtitle">Aves de engorde · Registro diario por lote</p>
         </div>
       </div>
 
+      <!-- Breadcrumb chips de contexto activo -->
+      @if (selectedGranjaId) {
+        <div class="ux-header__breadcrumb">
+          <span class="bc-item bc-item--farm">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="bc-icon"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+            {{ selectedGranjaName || selectedGranjaId }}
+          </span>
+          @if (selectedNucleoId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span class="bc-item">{{ selectedNucleoNombre || selectedNucleoId }}</span>
+          }
+          @if (selectedGalponId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span class="bc-item">{{ selectedGalponNombre }}</span>
+          }
+          @if (selectedLoteId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span class="bc-item bc-item--repro">
+              {{ selectedLoteNombre }}
+              <span class="bc-badge">{{ tablaFilas.length || 0 }}</span>
+            </span>
+          }
+          @if (selectedLoteId) {
+            <span class="bc-item">{{ calcularEdadDias(selectedLote?.fechaEncaset) }} días</span>
+          }
+          @if (selectedLoteId && loteOperativoCerrado) {
+            <span class="bc-item bc-item--warn" role="status">Lote operativo: cerrado</span>
+          }
+        </div>
+      }
+
+      <!-- Acciones -->
       <div class="ux-header__actions">
         <ng-container *appHasPermission="'liquidar_lote'">
           @if (selectedLoteId && !loteOperativoCerrado) {
@@ -89,12 +82,19 @@
           class="btn btn--primary"
           [disabled]="!selectedLoteId"
           [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro'">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="btn-icon">
+            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
           Nuevo registro
         </button>
       </div>
     </header>
 
+    <!-- ══════════════════════════════════════════
+    FILTROS EN CASCADA (componente compartido, variante pasos numerados)
+    ══════════════════════════════════════════ -->
     <app-filtro-select
+      [variant]="'steps'"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
@@ -107,62 +107,120 @@
       (loteChange)="onLoteChange($event)">
     </app-filtro-select>
 
-    <!-- Información del lote y aves disponibles (después de restar lotes reproductora) -->
+    <!-- Hint cuando aún no hay lote seleccionado -->
+    @if (!selectedLoteId) {
+      <section class="ux-card">
+        <div class="empty-state empty-state--pad">
+          <div class="empty-state__visual" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="8" y="8" width="32" height="36" rx="3"/>
+              <line x1="15" y1="18" x2="33" y2="18"/>
+              <line x1="15" y1="24" x2="33" y2="24"/>
+              <line x1="15" y1="30" x2="24" y2="30"/>
+            </svg>
+          </div>
+          <p class="empty-state__title">Selecciona los filtros para comenzar</p>
+          <p class="empty-state__hint">Sigue la secuencia <strong>1 → 4</strong> (Granja, Núcleo, Galpón y Lote) para cargar el seguimiento diario del lote.</p>
+        </div>
+      </section>
+    }
+
+    <!-- ══════════════════════════════════════════
+    INFO CARD PLEGABLE: LOTE + AVES DISPONIBLES
+    (colapsada por defecto para dejar espacio a la tabla)
+    ══════════════════════════════════════════ -->
     @if (selectedLoteId && selectedLote) {
-      <section class="ux-card ux-card--info pe-info-lote">
-        <h2 class="ux-card__title">Información del lote y disponibilidad de aves</h2>
+      <section class="ux-card info-card" aria-label="Información del lote y disponibilidad de aves">
+        <button
+          type="button"
+          class="info-card__toggle"
+          (click)="infoLoteOpen = !infoLoteOpen"
+          [attr.aria-expanded]="infoLoteOpen"
+          aria-controls="info-lote-body">
+          <span class="info-card__toggle-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+          </span>
+          <span class="info-card__toggle-text">
+            <span class="info-card__toggle-title">Información del lote y disponibilidad de aves</span>
+            <span class="info-card__toggle-hint">{{ infoLoteOpen ? 'Clic para ocultar el detalle' : 'Clic para ver el detalle' }}</span>
+          </span>
+          @if (avesDisponibles) {
+            <span class="info-card__summary" title="Aves disponibles para seguimiento pollo engorde">
+              Aves disp.: <strong>{{ avesDisponiblesTotal | number:'1.0-0' }}</strong>
+            </span>
+          }
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
+            class="info-card__chevron" [class.info-card__chevron--open]="infoLoteOpen">
+            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+
+        <!-- Alertas de estado: siempre visibles (explican por qué se bloquea el seguimiento) -->
         @if (avesDisponiblesTotal === 0 && avesDisponibles && lotesReproductora.length > 0) {
-          <p class="pe-info-lote__msg pe-info-lote__msg--error" role="alert">
+          <p class="info-card__msg info-card__msg--error" role="alert">
             <strong>No se puede hacer seguimiento todavía</strong> porque las aves están asignadas a los lotes reproductora. Cuando se completen los <strong>7 días</strong> de seguimiento en todos los lotes reproductora, las aves vivas restantes se devolverán automáticamente al lote para continuar el seguimiento aquí.
           </p>
         }
         @if (loteCerradoPorReproductoras && lotesReproductora.length > 0) {
-          <p class="pe-info-lote__msg pe-info-lote__msg--warning" role="status">
+          <p class="info-card__msg info-card__msg--warning" role="status">
             <strong>Lote cerrado</strong> porque los lotes reproductora ya no tienen aves disponibles.
           </p>
         }
         @if (loteOperativoCerrado) {
-          <p class="pe-info-lote__msg pe-info-lote__msg--warning" role="status">
+          <p class="info-card__msg info-card__msg--warning" role="status">
             <strong>Lote operativo cerrado</strong> (liquidación). No se pueden crear ni editar registros de seguimiento hasta usar «Abrir lote».
           </p>
         }
-        <div class="pe-info-lote__grid">
-          <div class="pe-info-lote__block">
-            <h3 class="pe-info-lote__block-title">Datos del lote</h3>
-            <dl class="pe-info-lote-dl">
-              <dt>Nombre</dt>
-              <dd>{{ selectedLote.loteNombre }}</dd>
-              <dt>Fecha encasetamiento</dt>
-              <dd>{{ formatDMY(selectedLote.fechaEncaset) }}</dd>
-              <dt>Aves encasetadas</dt>
-              <dd>{{ (selectedLote.avesEncasetadas ?? 0) | number:'1.0-0' }}</dd>
-            </dl>
-          </div>
-          @if (avesDisponibles) {
-            <div class="pe-info-lote__block">
-              <h3 class="pe-info-lote__block-title">Aves disponibles (para seguimiento pollo engorde)</h3>
-              <p class="pe-info-lote-aves">{{ avesDisponiblesTotal | number:'1.0-0' }}</p>
-              <div class="pe-info-lote-genero">
-                <!-- Tras la devolución las aves NO se separan por género: se muestran como un único total MIXTO. -->
-                @if (avesDisponibles.avesDevueltas) {
-                  <span class="pe-genero-chip pe-genero-chip--mixto">
-                    🐤 Mixto: <strong>{{ (avesDisponibles.mixtasDisponibles ?? (avesDisponibles.hembrasDisponibles + avesDisponibles.machosDisponibles)) | number:'1.0-0' }}</strong>
-                  </span>
-                }
-                @if (!avesDisponibles.avesDevueltas) {
-                  <span class="pe-genero-chip pe-genero-chip--h">🐔 Hembras: <strong>{{ avesDisponibles.hembrasDisponibles | number:'1.0-0' }}</strong></span>
-                  <span class="pe-genero-chip pe-genero-chip--m">🐓 Machos: <strong>{{ avesDisponibles.machosDisponibles | number:'1.0-0' }}</strong></span>
+
+        <!-- Detalle: solo al desplegar -->
+        @if (infoLoteOpen) {
+          <div id="info-lote-body" class="info-card__body">
+            <div class="info-block">
+              <h3 class="info-block__title">
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+                Datos del lote
+              </h3>
+              <dl class="info-dl">
+                <div class="info-dl__row">
+                  <dt>Nombre</dt>
+                  <dd>{{ selectedLote.loteNombre }}</dd>
+                </div>
+                <div class="info-dl__row">
+                  <dt>Fecha encasetamiento</dt>
+                  <dd>{{ formatDMY(selectedLote.fechaEncaset) }}</dd>
+                </div>
+                <div class="info-dl__row">
+                  <dt>Aves encasetadas</dt>
+                  <dd>{{ (selectedLote.avesEncasetadas ?? 0) | number:'1.0-0' }}</dd>
+                </div>
+              </dl>
+            </div>
+            @if (avesDisponibles) {
+              <div class="info-block info-block--highlight">
+                <h3 class="info-block__title">
+                  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+                  Aves disponibles (para seguimiento pollo engorde)
+                </h3>
+                <p class="aves-count">{{ avesDisponiblesTotal | number:'1.0-0' }}</p>
+                <div class="pe-info-lote-genero">
+                  <!-- Tras la devolución las aves NO se separan por género: se muestran como un único total MIXTO. -->
+                  @if (avesDisponibles.avesDevueltas) {
+                    <span class="pe-genero-chip pe-genero-chip--mixto">
+                      🐤 Mixto: <strong>{{ (avesDisponibles.mixtasDisponibles ?? (avesDisponibles.hembrasDisponibles + avesDisponibles.machosDisponibles)) | number:'1.0-0' }}</strong>
+                    </span>
+                  }
+                  @if (!avesDisponibles.avesDevueltas) {
+                    <span class="pe-genero-chip pe-genero-chip--h">🐔 Hembras: <strong>{{ avesDisponibles.hembrasDisponibles | number:'1.0-0' }}</strong></span>
+                    <span class="pe-genero-chip pe-genero-chip--m">🐓 Machos: <strong>{{ avesDisponibles.machosDisponibles | number:'1.0-0' }}</strong></span>
+                  }
+                </div>
+                @if (avesDisponiblesTotal === 0 && lotesReproductora.length > 0) {
+                  <p class="aves-hint">Las aves están asignadas a los lotes reproductora. Al completar los 7 días de seguimiento en todos, las aves vivas se devolverán automáticamente al lote.</p>
                 }
               </div>
-              @if (avesDisponiblesTotal === 0 && avesDisponibles && lotesReproductora.length > 0 && avesDisponiblesTotal > 0 ) {
-                <p  class="pe-info-lote-hint">Saldo de aves devueltas al lote (mixto) tras completar los 7 días de los lotes reproductora (descontando mortalidad y selección registradas).</p>
-              }
-              @if (avesDisponiblesTotal === 0 && avesDisponibles && lotesReproductora.length > 0 && avesDisponiblesTotal === 0 && lotesReproductora.length > 0) {
-                <p  class="pe-info-lote-hint">Las aves están asignadas a los lotes reproductora. Al completar los 7 días de seguimiento en todos, las aves vivas se devolverán automáticamente al lote.</p>
-              }
-            </div>
-          }
-        </div>
+            }
+          </div>
+        }
       </section>
     }
 

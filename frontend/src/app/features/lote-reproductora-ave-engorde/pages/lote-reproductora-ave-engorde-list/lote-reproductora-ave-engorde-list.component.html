@@ -1,186 +1,362 @@
-<div class="lrae-page" [attr.aria-busy]="loading ? 'true' : null">
-  <div class="lrae-main">
-    <header class="lrae-header">
-      <div>
-        <h1 class="lrae-header__title">Lote Reproductora Aves de Engorde</h1>
-        <p class="lrae-header__subtitle">Crea y gestiona lotes reproductora a partir de un Lote Aves de Engorde</p>
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+  <div class="ux-main">
+
+    <!-- ══════════════════════════════════════════
+    HEADER
+    ══════════════════════════════════════════ -->
+    <header class="ux-header">
+      <div class="ux-header__left">
+        <div class="ux-header__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3 2 8l10 5 10-5-10-5z"/>
+            <path d="m2 13 10 5 10-5"/>
+            <path d="m2 18 10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="ux-header__text">
+          <h1 class="ux-header__title">Lote Reproductora Aves de Engorde</h1>
+          <p class="ux-header__subtitle">Crea y gestiona lotes reproductora a partir de un Lote Aves de Engorde</p>
+        </div>
       </div>
-      <div class="lrae-header__actions">
-        <button type="button" class="lrae-btn lrae-btn--primary" (click)="openCreateModal()" [disabled]="!selectedLoteAveEngordeId || !canCreateMore()">
+
+      <!-- Breadcrumb chips de contexto activo -->
+      @if (selectedGranjaId) {
+        <div class="ux-header__breadcrumb">
+          <span class="bc-item bc-item--farm">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="bc-icon"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+            {{ selectedGranjaName }}
+          </span>
+          @if (selectedNucleoId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span class="bc-item">{{ selectedNucleoNombre }}</span>
+          }
+          @if (selectedGalponId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span class="bc-item">{{ selectedGalponNombre }}</span>
+          }
+          @if (selectedLoteAveEngordeId) {
+            <span class="bc-sep" aria-hidden="true">›</span>
+            <span class="bc-item bc-item--repro">
+              {{ loteSeleccionado?.loteNombre ?? selectedLoteAveEngordeId }}
+              <span class="bc-badge">{{ registros.length }}</span>
+            </span>
+          }
+        </div>
+      }
+
+      <!-- Acciones -->
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="openCreateModal()"
+          [disabled]="!selectedLoteAveEngordeId || !canCreateMore()"
+          [title]="!selectedLoteAveEngordeId ? 'Selecciona todos los filtros primero'
+            : sieteDiasCompletosLote ? 'Los lotes reproductora ya completaron los 7 días de seguimiento'
+            : !canCreateMore() ? 'No hay aves disponibles para asignar'
+            : 'Registrar uno o varios lotes reproductora'">
           <fa-icon [icon]="faPlus"></fa-icon>
           Registrar lote reproductora
         </button>
       </div>
     </header>
 
-    <section class="lrae-card">
-      <h2 class="lrae-card__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</h2>
-      <div class="lrae-filters">
-        <div class="lrae-field">
-          <label class="lrae-label">Granja</label>
-          <select class="lrae-select" [(ngModel)]="selectedGranjaId" (ngModelChange)="onGranjaChange()">
-            <option [ngValue]="null">— Seleccione —</option>
-            @for (g of granjas; track g) {
-              <option [ngValue]="g.id">{{ g.name }}</option>
-            }
-          </select>
+    <!-- ══════════════════════════════════════════
+    FILTROS EN CASCADA
+    ══════════════════════════════════════════ -->
+    <section class="ux-card filter-card" aria-label="Filtros de selección">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <fa-icon [icon]="faFilter"></fa-icon>
         </div>
-        <div class="lrae-field">
-          <label class="lrae-label">Núcleo</label>
-          <select class="lrae-select" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChange()" [disabled]="!selectedGranjaId">
-            <option [ngValue]="null">— Seleccione —</option>
-            @for (n of nucleos; track n) {
-              <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            }
-          </select>
+        <div>
+          <h2 class="filter-card__title">Selección de contexto</h2>
+          <p class="filter-card__subtitle">Selecciona en cascada para ver los lotes reproductora y crear nuevos</p>
         </div>
-        <div class="lrae-field">
-          <label class="lrae-label">Galpón</label>
-          <select class="lrae-select" [(ngModel)]="selectedGalponId" (ngModelChange)="onGalponChange()" [disabled]="!selectedNucleoId">
-            <option [ngValue]="null">— Seleccione —</option>
-            @for (g of galpones; track g) {
-              <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-            }
-          </select>
+      </div>
+
+      <div class="filter-steps">
+        <!-- Paso 1: Granja -->
+        <div class="filter-step" [class.filter-step--active]="!!selectedGranjaId" [class.filter-step--done]="!!selectedNucleoId">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label for="lrae-sel-granja" class="filter-step__label">Granja</label>
+            <select id="lrae-sel-granja" class="filter-step__select"
+              [(ngModel)]="selectedGranjaId" (ngModelChange)="onGranjaChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              @for (g of granjas; track g) {
+                <option [ngValue]="g.id">{{ g.name }}</option>
+              }
+            </select>
+          </div>
         </div>
-        <div class="lrae-field">
-          <label class="lrae-label">Lote Aves de Engorde</label>
-          <select class="lrae-select" [(ngModel)]="selectedLoteAveEngordeId" (ngModelChange)="onLoteAveEngordeChange()" [disabled]="!selectedGalponId">
-            <option [ngValue]="null">— Seleccione —</option>
-            @for (l of lotesAveEngorde; track l) {
-              <option [ngValue]="l.loteAveEngordeId">{{ l.loteNombre }} (ID {{ l.loteAveEngordeId }})</option>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGranjaId" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo -->
+        <div class="filter-step" [class.filter-step--active]="!!selectedNucleoId" [class.filter-step--done]="!!selectedGalponId" [class.filter-step--disabled]="!selectedGranjaId">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label for="lrae-sel-nucleo" class="filter-step__label">Núcleo</label>
+            <select id="lrae-sel-nucleo" class="filter-step__select"
+              [disabled]="!selectedGranjaId"
+              [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              @for (n of nucleos; track n) {
+                <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+        <!-- Paso 3: Galpón -->
+        <div class="filter-step" [class.filter-step--active]="!!selectedGalponId" [class.filter-step--done]="!!selectedLoteAveEngordeId" [class.filter-step--disabled]="!selectedNucleoId">
+          <div class="filter-step__num">3</div>
+          <div class="filter-step__body">
+            <label for="lrae-sel-galpon" class="filter-step__label">Galpón</label>
+            <select id="lrae-sel-galpon" class="filter-step__select"
+              [disabled]="!selectedNucleoId"
+              [(ngModel)]="selectedGalponId" (ngModelChange)="onGalponChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              @for (g of galpones; track g) {
+                <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGalponId" aria-hidden="true"></div>
+
+        <!-- Paso 4: Lote aves engorde -->
+        <div class="filter-step filter-step--last" [class.filter-step--active]="!!selectedLoteAveEngordeId" [class.filter-step--disabled]="!selectedGalponId">
+          <div class="filter-step__num filter-step__num--accent">4</div>
+          <div class="filter-step__body">
+            <label for="lrae-sel-lote" class="filter-step__label">Lote Aves de Engorde</label>
+            <select id="lrae-sel-lote" class="filter-step__select"
+              [disabled]="!selectedGalponId"
+              [(ngModel)]="selectedLoteAveEngordeId" (ngModelChange)="onLoteAveEngordeChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              @for (l of lotesAveEngorde; track l) {
+                <option [ngValue]="l.loteAveEngordeId">{{ l.loteNombre }} (ID {{ l.loteAveEngordeId }})</option>
+              }
+            </select>
+            @if (selectedGalponId && !loading && lotesAveEngorde.length === 0) {
+              <p class="filter-step__warn">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="warn-icon" aria-hidden="true"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                Sin lotes aves de engorde en este galpón.
+              </p>
             }
-          </select>
+          </div>
         </div>
       </div>
     </section>
 
     @if (!selectedLoteAveEngordeId) {
-      <section class="lrae-card lrae-card--hint">
-        <p>Seleccione Granja, Núcleo, Galpón y Lote Aves de Engorde para ver los lotes reproductora y poder crear nuevos.</p>
-      </section>
-    }
-
-    <!-- Información completa del lote seleccionado -->
-    @if (selectedLoteAveEngordeId && loteDetalle) {
-      <section class="lrae-card lrae-card--lote-info">
-        <h2 class="lrae-card__title">Información del lote</h2>
-        <div class="lrae-lote-info">
-          <div class="lrae-lote-info__grid">
-            <div class="lrae-lote-info__item">
-              <span class="lrae-lote-info__label">Lote</span>
-              <span class="lrae-lote-info__value">{{ loteDetalle.loteNombre }}</span>
-            </div>
-            @if (loteDetalle.raza) {
-              <div class="lrae-lote-info__item">
-                <span class="lrae-lote-info__label">Raza</span>
-                <span class="lrae-lote-info__value">{{ loteDetalle.raza }}</span>
-              </div>
-            }
-            @if (loteDetalle.linea) {
-              <div class="lrae-lote-info__item">
-                <span class="lrae-lote-info__label">Línea</span>
-                <span class="lrae-lote-info__value">{{ loteDetalle.linea }}</span>
-              </div>
-            }
-            <div class="lrae-lote-info__item">
-              <span class="lrae-lote-info__label">Hembras (inicial)</span>
-              <span class="lrae-lote-info__value">{{ formatNum(loteDetalle.hembrasL) }}</span>
-            </div>
-            <div class="lrae-lote-info__item">
-              <span class="lrae-lote-info__label">Machos (inicial)</span>
-              <span class="lrae-lote-info__value">{{ formatNum(loteDetalle.machosL) }}</span>
-            </div>
-            @if (avesDisponibles) {
-              <div class="lrae-lote-info__item">
-                <span class="lrae-lote-info__label">Asignadas (H / M)</span>
-                <span class="lrae-lote-info__value">{{ avesDisponibles.asignadasHembras }} / {{ avesDisponibles.asignadasMachos }}</span>
-              </div>
-            }
-            @if (avesDisponibles) {
-              <div class="lrae-lote-info__item lrae-lote-info__item--highlight">
-                <span class="lrae-lote-info__label">Aves disponibles</span>
-                <span class="lrae-lote-info__value">Hembras: <strong>{{ avesDisponibles.hembrasDisponibles }}</strong> · Machos: <strong>{{ avesDisponibles.machosDisponibles }}</strong></span>
-              </div>
-            }
+      <section class="ux-card">
+        <div class="empty-state empty-state--pad">
+          <div class="empty-state__visual" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="8" y="8" width="32" height="36" rx="3"/>
+              <line x1="15" y1="18" x2="33" y2="18"/>
+              <line x1="15" y1="24" x2="33" y2="24"/>
+              <line x1="15" y1="30" x2="24" y2="30"/>
+            </svg>
           </div>
+          <p class="empty-state__title">Selecciona los filtros para comenzar</p>
+          <p class="empty-state__hint">Sigue la secuencia <strong>1 → 4</strong> (Granja, Núcleo, Galpón y Lote Aves de Engorde) para ver los lotes reproductora y poder crear nuevos.</p>
         </div>
       </section>
     }
 
-    @if (selectedLoteAveEngordeId && loteSeleccionado) {
-      <section class="lrae-card">
-        <div class="lrae-bar">
-          <span class="lrae-bar__label">Lote Aves de Engorde:</span>
-          <strong>{{ loteSeleccionado.loteNombre }}</strong> (ID {{ loteSeleccionado.loteAveEngordeId }})
+    <!-- ══════════════════════════════════════════
+    INFO CARD: LOTE AVES DE ENGORDE + AVES DISPONIBLES
+    ══════════════════════════════════════════ -->
+    @if (selectedLoteAveEngordeId && loteDetalle) {
+      <section class="ux-card info-card" aria-label="Información del lote aves de engorde">
+        <div class="info-card__body">
+          <!-- Datos del lote -->
+          <div class="info-block">
+            <h3 class="info-block__title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+              Información del lote
+            </h3>
+            <dl class="info-dl">
+              <div class="info-dl__row">
+                <dt>Lote</dt>
+                <dd>{{ loteDetalle.loteNombre }}</dd>
+              </div>
+              @if (loteDetalle.raza) {
+                <div class="info-dl__row">
+                  <dt>Raza</dt>
+                  <dd>{{ loteDetalle.raza }}</dd>
+                </div>
+              }
+              @if (loteDetalle.linea) {
+                <div class="info-dl__row">
+                  <dt>Línea</dt>
+                  <dd>{{ loteDetalle.linea }}</dd>
+                </div>
+              }
+              <div class="info-dl__row">
+                <dt>Hembras (inicial)</dt>
+                <dd>{{ formatNum(loteDetalle.hembrasL) }}</dd>
+              </div>
+              <div class="info-dl__row">
+                <dt>Machos (inicial)</dt>
+                <dd>{{ formatNum(loteDetalle.machosL) }}</dd>
+              </div>
+              @if (avesDisponibles) {
+                <div class="info-dl__row">
+                  <dt>Asignadas (H / M)</dt>
+                  <dd>{{ avesDisponibles.asignadasHembras }} / {{ avesDisponibles.asignadasMachos }}</dd>
+                </div>
+              }
+            </dl>
+          </div>
+          <!-- Aves disponibles -->
           @if (avesDisponibles) {
-            <span class="lrae-bar__meta">
-              · Hembras disp.: {{ avesDisponibles.hembrasDisponibles }} · Machos disp.: {{ avesDisponibles.machosDisponibles }}
-            </span>
+            <div class="info-block info-block--highlight">
+              <h3 class="info-block__title">
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+                Aves disponibles
+              </h3>
+              <p class="aves-count aves-count--dual">
+                <span>H&nbsp;{{ formatNum(avesDisponibles.hembrasDisponibles) }}</span>
+                <span class="aves-count__sep" aria-hidden="true">·</span>
+                <span>M&nbsp;{{ formatNum(avesDisponibles.machosDisponibles) }}</span>
+              </p>
+              <p class="aves-hint">Aves del lote aún sin asignar a lotes reproductora.</p>
+            </div>
           }
         </div>
+      </section>
+    }
+
+    <!-- ══════════════════════════════════════════
+    TABLA: LOTES REPRODUCTORA
+    ══════════════════════════════════════════ -->
+    @if (selectedLoteAveEngordeId && loteSeleccionado) {
+      <section class="ux-card table-card" aria-label="Lotes reproductora del lote seleccionado">
+        <header class="table-card__header">
+          <div class="table-card__title-group">
+            <h2 class="table-card__title">Lotes reproductora</h2>
+            @if (registros.length) {
+              <span class="table-card__badge">{{ registros.length }}</span>
+            }
+          </div>
+          <span class="table-card__context">
+            Lote Aves de Engorde: <strong>{{ loteSeleccionado.loteNombre }}</strong> (ID {{ loteSeleccionado.loteAveEngordeId }})
+            @if (avesDisponibles) {
+              <span class="table-card__context-meta">
+                · Hembras disp.: {{ avesDisponibles.hembrasDisponibles }} · Machos disp.: {{ avesDisponibles.machosDisponibles }}
+              </span>
+            }
+          </span>
+        </header>
         <!-- Alerta 7 días completos -->
         @if (sieteDiasCompletosLote) {
-          <div class="lrae-alert lrae-alert--info">
+          <div class="table-card__alert">
             <fa-icon [icon]="faLayerGroup"></fa-icon>
             Este lote no puede crear más lotes reproductora porque ya se asignaron y tienen seguimiento (7 días completados).
           </div>
         }
-        <div class="lrae-table-wrap">
-          <table class="lrae-table">
+        <div class="table-wrap" [class.table-wrap--loading]="loading">
+          <table class="data-table" aria-label="Lotes reproductora aves de engorde">
+            <caption class="sr-only">Lotes reproductora del lote aves de engorde seleccionado</caption>
             <thead>
               <tr>
-                <th>Reproductora</th>
-                <th>Cód. Reprod.</th>
-                <th>Nombre lote</th>
-                <th>Fecha encaset.</th>
-                <th title="Hembras encasetadas">H Encaset.</th>
-                <th title="Machos encasetados">M Encaset.</th>
-                <th title="Hembras actuales vivas">H Actual</th>
-                <th title="Machos actuales vivos">M Actual</th>
-                <th title="Días de edad desde encasetamiento">Edad (días)</th>
-                <th title="Registros de seguimiento completados de 7">Registros</th>
-                <th>Estado</th>
-                <th>Acciones</th>
+                <th scope="col" class="col-code">Reproductora</th>
+                <th scope="col">Cód. Reprod.</th>
+                <th scope="col" class="col-name">Nombre lote</th>
+                <th scope="col">Fecha encaset.</th>
+                <th scope="col" title="Hembras encasetadas">H Encaset.</th>
+                <th scope="col" title="Machos encasetados">M Encaset.</th>
+                <th scope="col" title="Hembras actuales vivas">H Actual</th>
+                <th scope="col" title="Machos actuales vivos">M Actual</th>
+                <th scope="col" title="Días de edad desde encasetamiento">Edad (días)</th>
+                <th scope="col" title="Registros de seguimiento completados de 7">Registros</th>
+                <th scope="col">Estado</th>
+                <th scope="col" class="col-actions">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              @for (r of registros; track r) {
-                <tr>
-                  <td>{{ r.reproductoraId }}</td>
-                  <td>{{ r.codigoReproductora || '—' }}</td>
-                  <td>{{ r.nombreLote }}</td>
-                  <td>{{ formatDate(r.fechaEncasetamiento) }}</td>
-                  <td>{{ formatNum(r.avesInicioHembras) }}</td>
-                  <td>{{ formatNum(r.avesInicioMachos) }}</td>
-                  <td>{{ formatNum(r.avesActualesHembras) }}</td>
-                  <td>{{ formatNum(r.avesActualesMachos) }}</td>
-                  <td>{{ r.edadDias ?? '—' }}</td>
-                  <td>
-                    <span class="lrae-badge-registros" [class.lrae-badge-registros--completo]="(r.numRegistros ?? 0) >= 7">
-                      {{ r.numRegistros ?? 0 }}/7
-                    </span>
-                  </td>
-                  <td>
-                    <span class="lrae-estado" [class.lrae-estado--cerrado]="r.estado === 'Cerrado'" [class.lrae-estado--vigente]="r.estado === 'Vigente'">{{ r.estado }}</span>
-                  </td>
-                  <td>
-                    <button type="button" class="lrae-icon-btn" (click)="view(r)" title="Ver"> <fa-icon [icon]="faEye"></fa-icon> </button>
-                    <button type="button" class="lrae-icon-btn" (click)="edit(r)" title="Editar" *appHasPermission="PERM_EDITAR"> <fa-icon [icon]="faPen"></fa-icon> </button>
-                    <button type="button" class="lrae-icon-btn lrae-icon-btn--danger" (click)="deleteRegistro(r)" title="Eliminar" *appHasPermission="PERM_ELIMINAR"> <fa-icon [icon]="faTrash"></fa-icon> </button>
+              <!-- Empty state -->
+              @if (!loading && registros.length === 0) {
+                <tr class="data-table__empty-row">
+                  <td colspan="12">
+                    <div class="empty-state">
+                      <div class="empty-state__visual" aria-hidden="true">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="8" y="8" width="32" height="36" rx="3"/>
+                          <line x1="15" y1="18" x2="33" y2="18"/>
+                          <line x1="15" y1="24" x2="33" y2="24"/>
+                          <line x1="15" y1="30" x2="24" y2="30"/>
+                        </svg>
+                      </div>
+                      <p class="empty-state__title">No hay lotes reproductora</p>
+                      <p class="empty-state__hint">
+                        Usa el botón <strong>Registrar lote reproductora</strong> para crear uno o varios.
+                      </p>
+                      @if (canCreateMore()) {
+                        <button type="button" class="btn btn--primary empty-state__cta" (click)="openCreateModal()">
+                          Registrar lote reproductora
+                        </button>
+                      }
+                    </div>
                   </td>
                 </tr>
               }
-              @if (!loading && registros.length === 0) {
-                <tr>
-                  <td colspan="12" class="lrae-empty">No hay lotes reproductora. Use «Registrar lote reproductora» para crear uno o varios.</td>
+              <!-- Filas de datos -->
+              @for (r of registros; track r) {
+                <tr class="data-table__row">
+                  <td class="cell-code" data-label="Reproductora">{{ r.reproductoraId }}</td>
+                  <td class="cell-text" data-label="Cód. Reprod.">{{ r.codigoReproductora || '—' }}</td>
+                  <td class="cell-text" data-label="Nombre lote">{{ r.nombreLote }}</td>
+                  <td class="cell-date" data-label="Fecha encaset.">{{ formatDate(r.fechaEncasetamiento) }}</td>
+                  <td class="cell-num" data-label="H Encaset.">{{ formatNum(r.avesInicioHembras) }}</td>
+                  <td class="cell-num" data-label="M Encaset.">{{ formatNum(r.avesInicioMachos) }}</td>
+                  <td class="cell-num" data-label="H Actual">{{ formatNum(r.avesActualesHembras) }}</td>
+                  <td class="cell-num" data-label="M Actual">{{ formatNum(r.avesActualesMachos) }}</td>
+                  <td class="cell-num" data-label="Edad (días)">{{ r.edadDias ?? '—' }}</td>
+                  <td data-label="Registros">
+                    <span class="registros-badge" [class.registros-badge--completo]="(r.numRegistros ?? 0) >= 7">
+                      {{ r.numRegistros ?? 0 }}/7
+                    </span>
+                  </td>
+                  <td data-label="Estado">
+                    <span class="status-badge"
+                      [class.status-badge--open]="r.estado === 'Vigente'"
+                      [class.status-badge--closed]="r.estado === 'Cerrado'">
+                      <span class="status-badge__dot"></span>
+                      {{ r.estado }}
+                    </span>
+                  </td>
+                  <td class="cell-actions" data-label="Acciones">
+                    <div class="action-group">
+                      <button type="button" class="action-btn action-btn--view" (click)="view(r)" title="Ver detalle" aria-label="Ver detalle">
+                        <fa-icon [icon]="faEye"></fa-icon>
+                      </button>
+                      <button type="button" class="action-btn action-btn--edit" (click)="edit(r)" title="Editar" aria-label="Editar" *appHasPermission="PERM_EDITAR">
+                        <fa-icon [icon]="faPen"></fa-icon>
+                      </button>
+                      <button type="button" class="action-btn action-btn--delete" (click)="deleteRegistro(r)" title="Eliminar" aria-label="Eliminar" *appHasPermission="PERM_ELIMINAR">
+                        <fa-icon [icon]="faTrash"></fa-icon>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
+        <!-- Spinner de carga sobre la tabla -->
         @if (loading) {
-          <div class="lrae-loading"><span>Cargando…</span></div>
+          <div class="table-loading" aria-live="polite" role="status">
+            <div class="spinner" aria-hidden="true"></div>
+            <span>Cargando…</span>
+          </div>
         }
       </section>
     }

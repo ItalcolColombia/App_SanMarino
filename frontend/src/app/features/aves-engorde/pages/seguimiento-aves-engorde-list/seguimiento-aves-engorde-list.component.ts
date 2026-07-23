@@ -128,6 +128,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
 
   calcsOpen = false;
   liquidacionOpen = false;
+  /** Panel «Información del lote» plegable: colapsado por defecto para dejar espacio a la tabla. */
+  infoLoteOpen = false;
 
   constructor(
     private farmSvc: FarmService,

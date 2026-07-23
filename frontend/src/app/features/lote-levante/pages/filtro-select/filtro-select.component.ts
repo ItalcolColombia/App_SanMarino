@@ -53,6 +53,12 @@ export class FiltroSelectComponent implements OnInit {
    * cambios en los demás consumidores de este componente.
    */
   @Input() showNucleoGalpon: boolean = true;
+  /**
+   * Diseño del filtro: 'toolbar' = fila clásica de selects (default, sin cambios
+   * para los consumidores existentes); 'steps' = tarjeta «Selección de contexto»
+   * con pasos numerados en cascada (mismo comportamiento, solo presentación).
+   */
+  @Input() variant: 'toolbar' | 'steps' = 'toolbar';
 
   // ================== outputs ==================
   @Output() granjaChange = new EventEmitter<number | null>();
@@ -472,6 +478,11 @@ export class FiltroSelectComponent implements OnInit {
   get selectedLoteNombre(): string {
     const l = this.lotes.find(x => x.loteId === this.selectedLoteId);
     return this.formatLoteLabel(l);
+  }
+
+  /** Número del paso del select de Lote en la variante 'steps' (2 cuando no se muestran Núcleo/Galpón). */
+  get loteStepNum(): number {
+    return this.showNucleoGalpon ? 4 : 2;
   }
 
   formatLoteLabel(l?: LoteDto | null): string {
