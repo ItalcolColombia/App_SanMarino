@@ -38,6 +38,14 @@ public partial class MigracionService
         }
     }
 
+    /// <summary>Índice 0-based de la columna con ese título dentro del esquema (-1 si no existe).</summary>
+    private static int IndiceColumna(EsquemaMigracion esquema, string titulo)
+    {
+        for (int i = 0; i < esquema.Columnas.Count; i++)
+            if (esquema.Columnas[i].Titulo == titulo) return i;
+        return -1;
+    }
+
     /// <summary>Convierte un índice de columna 1-based (1=A, 2=B, ..., 27=AA, ...) a su letra de Excel.</summary>
     private static string ColumnaLetra(int indice1Based)
     {

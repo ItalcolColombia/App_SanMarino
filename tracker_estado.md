@@ -24,6 +24,12 @@
 - [x] Columna `Unidad Consumo` (kg default / qq) en ambos esquemas + conversión ×45.36 (3 dec) en ambos parsers (`MigracionCalculos.NormalizarUnidadConsumo`/`ConsumoAKilos`)
 - [x] Fix consumo machos reproductora: `ToDto()` ya no descarta `ConsumoMachos` escalar (total ítems vacío ⇒ null + fallback estilo levante)
 
+## Ampliación 2 — solo Seguimiento Pollo Engorde
+- [x] Columnas `Granja`/`Núcleo`/`Galpón`/`Lote` opcionales: lote por NOMBRE case/acento-insensible (multi-lote por archivo), ambigüedad detectada, fallback al lote de pantalla; idempotencia por (lote, fecha) en una consulta
+- [x] Alimentos del inventario: `Alimento 1/2 H-M` + `Consumo Alimento 1/2 H-M` resueltos contra `ItemInventario` (concepto alimento, activo, por nombre/código) → `ItemsHembras/ItemsMachos` con `itemInventarioEcuadorId` (descuenta inventario al importar); consumo directo ignorado con Advertencia si vienen ítems
+- [x] Plantilla: hoja Referencias (alimentos empresa + lotes abiertos con ubicación) + dropdowns en Tipo Alimento / Alimento 1-2 H-M / Lote; instrucciones completas
+- [x] Smoke E2E 2 (dry-run): granja+lote en minúsculas resuelve, 2 alimentos H (nombre y código) + 1 M en qq validan, "LOTE 6" solo → ambiguo (2 coincidencias reales), lote inexistente / granja sin lote / alimento inexistente / alimento sin consumo / fecha pre-encaset → 6 errores esperados; archivo limpio → Validado con 1 omitida
+
 ## Frontend
 - [x] `migracion.model.ts`: union `TipoMigracionCodigo` + `'SeguimientoReproductoraEngorde'`
 - [x] `agrupar-tipo-migracion.funcion.ts`: agregado a `TIPOS_POLLO_ENGORDE` (permiso `carga_masiva_pollo_engorde`)
