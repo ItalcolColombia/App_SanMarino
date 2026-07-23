@@ -363,40 +363,25 @@ public partial class MigracionService
         }
 
         var estado = await CargarEstadoSeguimientoReprosAsync(repros.Select(r => r.Id).ToList(), ct);
-        var (lotesUbicados, _) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var esquema = MigracionEsquemas.SeguimientoReproductoraEngorde;
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, esquema);
+        // El lote (y la reproductora, si se eligió) salen del FILTRO de pantalla: la plantilla no
+        // emite las columnas de ubicación. Siguen siendo opcionales al importar — un archivo avanzado
+        // puede agregarlas (Granja/Núcleo/Galpón/Lote) para cargar varios lotes de una vez.
+        var columnasEmitidas = PonerEncabezadosSin(ws, esquema, new HashSet<string> { "Granja", "Núcleo", "Galpón", "Lote" });
 
-        // Referencias: reproductoras del lote seleccionado (col A) + lotes abiertos ubicados (cols C..F).
+        // Referencias: reproductoras del lote seleccionado (col A).
         var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
         EscribirColumnaRef(wsRef, 1, $"Reproductoras del lote {lote.LoteNombre}", repros.Select(r => r.Nombre));
-        wsRef.Cells[1, 3].Value = "Granja"; wsRef.Cells[1, 3].Style.Font.Bold = true;
-        wsRef.Cells[1, 4].Value = "Núcleo"; wsRef.Cells[1, 4].Style.Font.Bold = true;
-        wsRef.Cells[1, 5].Value = "Galpón"; wsRef.Cells[1, 5].Style.Font.Bold = true;
-        wsRef.Cells[1, 6].Value = "Lote"; wsRef.Cells[1, 6].Style.Font.Bold = true;
-        int rr = 2;
-        foreach (var lu in lotesUbicados.OrderBy(x => x.GranjaNombre).ThenBy(x => x.LoteNombre))
-        {
-            wsRef.Cells[rr, 3].Value = lu.GranjaNombre;
-            wsRef.Cells[rr, 4].Value = lu.NucleoNombre ?? lu.NucleoCodigo;
-            wsRef.Cells[rr, 5].Value = lu.GalponNombre ?? lu.GalponCodigo;
-            wsRef.Cells[rr, 6].Value = lu.LoteNombre;
-            rr++;
-        }
-        if (repros.Count > 0)
-            DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Reproductora") + 1), $"Referencias!$A$2:$A${repros.Count + 1}");
-        if (lotesUbicados.Count > 0)
-            DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Lote") + 1), $"Referencias!$F$2:$F${lotesUbicados.Count + 1}");
+        var idxReproductora = columnasEmitidas.FindIndex(c => c.Titulo == "Reproductora");
+        if (repros.Count > 0 && idxReproductora >= 0)
+            DropdownRango(ws, ColumnaLetra(idxReproductora + 1), $"Referencias!$A$2:$A${repros.Count + 1}");
 
         var lineas = new List<string>
         {
-            "Una fila por reproductora y día en la hoja 'Datos'.",
-            "• Lote / Granja / Núcleo / Galpón: opcionales. Sin 'Lote', la fila corresponde al lote seleccionado en pantalla.",
-            "  Con 'Lote' (nombre tal como aparece en el sistema; mayúsculas/minúsculas indistintas) podés cargar varios lotes;",
-            "  usá Granja/Núcleo/Galpón para desambiguar nombres repetidos (tabla en 'Referencias').",
+            $"Una fila por reproductora y día en la hoja 'Datos'. Todas las filas corresponden al lote {lote.LoteNombre} (el que elegiste en pantalla).",
             reproCtx is null
                 ? "• Reproductora: id, código o nombre del lote reproductora (lista en 'Referencias'). Obligatoria en cada fila salvo que elijas una reproductora en pantalla."
                 : $"• Reproductora: seleccionaste '{reproCtx.Nombre}' en pantalla — podés dejar la columna vacía (las filas sin valor cargan a esa reproductora).",
@@ -405,6 +390,8 @@ public partial class MigracionService
             "• Unidad Consumo: 'kg' (default si se deja vacía) o 'qq' — con 'qq' el Consumo H/M se convierte automáticamente a kg (1 qq = 45.36 kg).",
             "• Peso (g) y CV: ≥ 0 opcionales. Uniformidad: 0 a 100 opcional.",
             $"• Máximo {MaxDias} días de seguimiento por reproductora (incluye los ya registrados en el sistema).",
+            "• Avanzado: para cargar VARIOS lotes en un solo archivo podés agregar las columnas opcionales",
+            "  Granja / Núcleo / Galpón / Lote (nombres tal como aparecen en el sistema; mayúsculas indistintas).",
             "La carga es idempotente: las fechas ya registradas de cada reproductora se omiten.",
             "IMPORTANTE: cada registro importado queda CONFIRMADO automáticamente — al completar todos los lotes",
             "reproductora de un día, ese día cruza al seguimiento del lote pollo engorde (igual que confirmar en pantalla).",

@@ -46,6 +46,25 @@ public partial class MigracionService
         return -1;
     }
 
+    /// <summary>
+    /// Variante de <see cref="PonerEncabezados(ExcelWorksheet, EsquemaMigracion)"/> que OMITE columnas
+    /// por título (p.ej. las de ubicación cuando el contexto ya fija el lote). Devuelve la lista de
+    /// columnas emitidas, en orden, para calcular letras de dropdowns sobre la hoja filtrada.
+    /// El esquema de validación NO cambia: las columnas omitidas siguen siendo opcionales al importar.
+    /// </summary>
+    private static List<ColumnaEsquema> PonerEncabezadosSin(ExcelWorksheet ws, EsquemaMigracion esquema, ISet<string> titulosExcluidos)
+    {
+        var columnas = esquema.Columnas.Where(c => !titulosExcluidos.Contains(c.Titulo)).ToList();
+        PonerEncabezados(ws, columnas.Select(c => c.Titulo).ToArray());
+        for (int i = 0; i < columnas.Count; i++)
+        {
+            var opciones = columnas[i].Opciones;
+            if (opciones is null || opciones.Length == 0) continue;
+            DropdownInline(ws, ColumnaLetra(i + 1), 1000, opciones);
+        }
+        return columnas;
+    }
+
     /// <summary>Convierte un índice de columna 1-based (1=A, 2=B, ..., 27=AA, ...) a su letra de Excel.</summary>
     private static string ColumnaLetra(int indice1Based)
     {

@@ -30,6 +30,11 @@
 - [x] Plantilla: hoja Referencias (alimentos empresa + lotes abiertos con ubicación) + dropdowns en Tipo Alimento / Alimento 1-2 H-M / Lote; instrucciones completas
 - [x] Smoke E2E 2 (dry-run): granja+lote en minúsculas resuelve, 2 alimentos H (nombre y código) + 1 M en qq validan, "LOTE 6" solo → ambiguo (2 coincidencias reales), lote inexistente / granja sin lote / alimento inexistente / alimento sin consumo / fecha pre-encaset → 6 errores esperados; archivo limpio → Validado con 1 omitida
 
+## Ajuste 4 — plantilla reproductora simplificada (flujo con filtro)
+- [x] La plantilla descargada de reproductora ya NO emite `Granja/Núcleo/Galpón/Lote` (el lote sale del filtro de pantalla); helper `PonerEncabezadosSin` conserva dropdowns con índices re-calculados
+- [x] El backend sigue aceptando esas columnas (opcionales) para el flujo avanzado multi-lote — compat verificada: formato simple y formato ancho validan con ctx repro
+- [x] Instrucciones: nota "Avanzado" para agregar las columnas si se cargan varios lotes
+
 ## Ampliación 3 — selector de lote elegible + reproductora en pantalla
 - [x] **Fix "0 lotes"**: el paso 2 ya no usa el selector de lotes genérico del filtro jerárquico (listaba lotes base/postura); el lote se elige de `/api/Migracion/elegibles` del tipo seleccionado (engorde = `lote_ave_engorde`), refrescado por la cascada granja/núcleo/galpón
 - [x] Selector "Reproductora (opcional)" (solo tipo reproductora): endpoint nuevo `GET /api/Migracion/reproductoras?loteId=` (nombre, id, encaset, cargados/confirmados); default "Todas — el Excel indica la reproductora"
