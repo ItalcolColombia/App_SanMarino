@@ -9,11 +9,15 @@ public record MigracionErrorDto(int Fila, string Columna, string? Valor, string 
 /// Contexto de selección jerárquica para la migración. La EMPRESA NO viaja aquí:
 /// se resuelve del header de empresa activa (X-Active-Company[-Id]) validado por el middleware.
 /// </summary>
+/// <param name="ReproductoraId">Solo Seguimiento Reproductora Engorde: id del lote reproductora
+/// elegido en pantalla (opcional). Con valor, las filas sin columna "Reproductora" cargan a esa;
+/// sin valor, cada fila debe identificar su reproductora en el Excel.</param>
 public record MigracionContextoDto(
     int? GranjaId,
     string? NucleoId,
     string? GalponId,
-    int? LoteId
+    int? LoteId,
+    int? ReproductoraId = null
 );
 
 /// <summary>Resultado de una corrida de validación (dry-run) o importación.</summary>
@@ -43,6 +47,20 @@ public record LoteElegibleDto(
     string? GalponId,
     string Fase,
     string? Estado
+);
+
+/// <summary>
+/// Lote reproductora de un lote engorde, para el selector opcional del módulo (endpoint /reproductoras).
+/// <paramref name="Cargados"/>/<paramref name="Confirmados"/> = días de seguimiento ya registrados/confirmados.
+/// </summary>
+public record ReproductoraElegibleDto(
+    int Id,
+    string ReproductoraId,
+    string? Codigo,
+    string Nombre,
+    DateTime? FechaEncasetamiento,
+    int Cargados,
+    int Confirmados
 );
 
 /// <summary>Item del historial de auditoría de migraciones (endpoint /historial).</summary>

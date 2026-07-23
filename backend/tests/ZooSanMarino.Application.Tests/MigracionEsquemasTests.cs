@@ -43,11 +43,15 @@ public class MigracionEsquemasTests
         => Assert.Throws<NotSupportedException>(() => MigracionEsquemas.Para(TipoMigracion.Ventas));
 
     [Fact]
-    public void SeguimientoReproductoraEngorde_RequiereReproductoraYFecha()
+    public void SeguimientoReproductoraEngorde_SoloFechaEsRequeridaEnEncabezados()
     {
+        // "Reproductora" es opcional a nivel encabezado: la obligatoriedad por CELDA la aplica el
+        // parser (salvo que se elija una reproductora en pantalla). Lote/Granja/Núcleo/Galpón idem.
         var requeridas = MigracionEsquemas.SeguimientoReproductoraEngorde.Columnas
             .Where(c => c.Requerida).Select(c => c.Titulo).ToList();
-        Assert.Equal(new[] { "Reproductora", "Fecha" }, requeridas);
+        Assert.Equal(new[] { "Fecha" }, requeridas);
+        Assert.Contains(MigracionEsquemas.SeguimientoReproductoraEngorde.Columnas, c => c.Titulo == "Reproductora");
+        Assert.Contains(MigracionEsquemas.SeguimientoReproductoraEngorde.Columnas, c => c.Titulo == "Lote");
     }
 
     [Fact]

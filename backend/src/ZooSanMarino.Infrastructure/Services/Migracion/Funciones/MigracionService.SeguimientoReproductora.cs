@@ -1,6 +1,8 @@
 // src/ZooSanMarino.Infrastructure/Services/Migracion/Funciones/MigracionService.SeguimientoReproductora.cs
-// Línea Engorde · Seguimiento reproductora (primera semana). El contexto fija el LOTE ENGORDE y la
-// columna "Reproductora" del Excel identifica el lote reproductora (id/código/nombre) dentro de él.
+// Línea Engorde · Seguimiento reproductora (primera semana). El lote engorde de cada fila sale de las
+// columnas de ubicación por NOMBRE (Granja/Núcleo/Galpón/Lote, sin mayúsculas/acentos) o del lote
+// seleccionado en pantalla; la columna "Reproductora" identifica el lote reproductora (id/código/nombre)
+// y puede quedar vacía si en pantalla se eligió una reproductora puntual (ctx.ReproductoraId).
 // La INSERCIÓN reutiliza ISeguimientoDiarioLoteReproductoraService.CreateAsync (anclaje mediodía UTC,
 // validación compañía/7 días/edad, descuento inventario si hubiera ítems) y luego ConfirmarAsync:
 // en carga masiva cada registro queda CONFIRMADO automáticamente ("aceptación de una"), que es lo que
@@ -18,7 +20,7 @@ namespace ZooSanMarino.Infrastructure.Services;
 public partial class MigracionService
 {
     /// <summary>Datos mínimos de un lote reproductora para resolver la columna "Reproductora" y validar fechas.</summary>
-    private sealed record ReproductoraElegible(int Id, string ReproductoraId, string? Codigo, string Nombre, DateTime? FechaEncasetamiento);
+    private sealed record ReproductoraInfo(int Id, string ReproductoraId, string? Codigo, string Nombre, DateTime? FechaEncasetamiento);
 
     // ── Elegibilidad ─────────────────────────────────────────────────────────
     // Mismo criterio que Engorde (lotes no cerrados de la empresa) pero solo lotes que ya tienen
@@ -38,30 +40,69 @@ public partial class MigracionService
             .ToListAsync(ct);
     }
 
-    /// <summary>Lotes reproductora del lote engorde, con índice por clave normalizada (id / código / nombre).</summary>
-    private async Task<(List<ReproductoraElegible> Repros, Dictionary<string, List<ReproductoraElegible>> PorClave)> CargarReproductorasAsync(int loteId, CancellationToken ct)
+    /// <summary>
+    /// Lotes reproductora de varios lotes engorde, agrupados por lote y con índice por clave
+    /// normalizada (id / código / nombre) para resolver la columna "Reproductora" del Excel.
+    /// </summary>
+    private async Task<Dictionary<int, (List<ReproductoraInfo> Repros, Dictionary<string, List<ReproductoraInfo>> PorClave)>> CargarReproductorasDeLotesAsync(IReadOnlyCollection<int> loteIds, CancellationToken ct)
     {
-        var repros = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
-            .Where(r => r.LoteAveEngordeId == loteId)
+        var filas = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+            .Where(r => loteIds.Contains(r.LoteAveEngordeId))
             .OrderBy(r => r.NombreLote)
-            .Select(r => new ReproductoraElegible(r.Id, r.ReproductoraId, r.CodigoReproductora, r.NombreLote, r.FechaEncasetamiento))
+            .Select(r => new { r.LoteAveEngordeId, r.Id, r.ReproductoraId, r.CodigoReproductora, r.NombreLote, r.FechaEncasetamiento })
             .ToListAsync(ct);
 
-        var porClave = new Dictionary<string, List<ReproductoraElegible>>();
-        void Indexar(string? clave, ReproductoraElegible repro)
+        var resultado = new Dictionary<int, (List<ReproductoraInfo>, Dictionary<string, List<ReproductoraInfo>>)>();
+        foreach (var grupo in filas.GroupBy(f => f.LoteAveEngordeId))
         {
-            var k = MigracionCalculos.NormalizarClave(clave);
-            if (string.IsNullOrEmpty(k)) return;
-            if (!porClave.TryGetValue(k, out var lista)) porClave[k] = lista = new List<ReproductoraElegible>();
-            if (!lista.Any(x => x.Id == repro.Id)) lista.Add(repro);
+            var repros = grupo.Select(f => new ReproductoraInfo(f.Id, f.ReproductoraId, f.CodigoReproductora, f.NombreLote, f.FechaEncasetamiento)).ToList();
+            var porClave = new Dictionary<string, List<ReproductoraInfo>>();
+            void Indexar(string? clave, ReproductoraInfo repro)
+            {
+                var k = MigracionCalculos.NormalizarClave(clave);
+                if (string.IsNullOrEmpty(k)) return;
+                if (!porClave.TryGetValue(k, out var lista)) porClave[k] = lista = new List<ReproductoraInfo>();
+                if (!lista.Any(x => x.Id == repro.Id)) lista.Add(repro);
+            }
+            foreach (var r in repros)
+            {
+                Indexar(r.ReproductoraId, r);
+                Indexar(r.Codigo, r);
+                Indexar(r.Nombre, r);
+            }
+            resultado[grupo.Key] = (repros, porClave);
         }
-        foreach (var r in repros)
+        return resultado;
+    }
+
+    /// <summary>Días cargados/confirmados por lote reproductora (para instrucciones y selector).</summary>
+    private async Task<Dictionary<int, (int Total, int Confirmados)>> CargarEstadoSeguimientoReprosAsync(IReadOnlyCollection<int> reproIds, CancellationToken ct)
+    {
+        if (reproIds.Count == 0) return new Dictionary<int, (int, int)>();
+        return (await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
+                .Where(s => reproIds.Contains(s.LoteReproductoraAveEngordeId))
+                .Select(s => new { s.LoteReproductoraAveEngordeId, s.Confirmado })
+                .ToListAsync(ct))
+            .GroupBy(x => x.LoteReproductoraAveEngordeId)
+            .ToDictionary(g => g.Key, g => (g.Count(), g.Count(x => x.Confirmado)));
+    }
+
+    /// <summary>Reproductoras del lote engorde para el selector del módulo (opcional al cargar).</summary>
+    public async Task<IReadOnlyList<ReproductoraElegibleDto>> GetReproductorasElegiblesAsync(int loteId, CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var (lote, errLote) = await ResolverLoteEngordeAsync(companyId, loteId, ct);
+        if (lote is null) throw new InvalidOperationException(errLote!);
+
+        var mapa = await CargarReproductorasDeLotesAsync(new[] { loteId }, ct);
+        var repros = mapa.TryGetValue(loteId, out var rl) ? rl.Repros : new List<ReproductoraInfo>();
+        var estado = await CargarEstadoSeguimientoReprosAsync(repros.Select(r => r.Id).ToList(), ct);
+
+        return repros.Select(r =>
         {
-            Indexar(r.ReproductoraId, r);
-            Indexar(r.Codigo, r);
-            Indexar(r.Nombre, r);
-        }
-        return (repros, porClave);
+            var (total, conf) = estado.TryGetValue(r.Id, out var st) ? st : (0, 0);
+            return new ReproductoraElegibleDto(r.Id, r.ReproductoraId, r.Codigo, r.Nombre, r.FechaEncasetamiento, total, conf);
+        }).ToList();
     }
 
     // ── Import ───────────────────────────────────────────────────────────────
@@ -70,13 +111,9 @@ public partial class MigracionService
         const TipoMigracion tipo = TipoMigracion.SeguimientoReproductoraEngorde;
         const int MaxDias = ReproductoraEngordeCalculos.DiasRecogidaReproductora;
 
-        if (ctx.LoteId is not int loteId) return ErrorContexto(tipo, dryRun, "Seleccioná un lote de engorde antes de importar.");
-        var (lote, errLote) = await ResolverLoteEngordeAsync(companyId, loteId, ct);
-        if (lote is null) return ErrorContexto(tipo, dryRun, errLote!);
-
-        var (repros, porClave) = await CargarReproductorasAsync(loteId, ct);
-        if (repros.Count == 0)
-            return ErrorContexto(tipo, dryRun, $"El lote {lote.LoteNombre} no tiene lotes reproductora asociados.");
+        if (ctx.LoteId is not int loteCtxId) return ErrorContexto(tipo, dryRun, "Seleccioná un lote de engorde antes de importar.");
+        var (loteCtx, errLote) = await ResolverLoteEngordeAsync(companyId, loteCtxId, ct);
+        if (loteCtx is null) return ErrorContexto(tipo, dryRun, errLote!);
 
         var errores = new List<MigracionErrorDto>();
         using var stream = file.OpenReadStream();
@@ -84,10 +121,30 @@ public partial class MigracionService
         if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
         if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
+        var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
+        var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
+            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, string.Empty, null, null, null, null);
+
+        var idsAbiertos = lotesUbicados.Select(l => l.LoteId).ToList();
+        if (!idsAbiertos.Contains(loteCtxId)) idsAbiertos.Add(loteCtxId);
+        var reprosPorLote = await CargarReproductorasDeLotesAsync(idsAbiertos, ct);
+
+        if (!reprosPorLote.ContainsKey(loteCtxId))
+            return ErrorContexto(tipo, dryRun, $"El lote {loteCtx.LoteNombre} no tiene lotes reproductora asociados.");
+
+        // Reproductora elegida en pantalla (opcional): debe pertenecer al lote seleccionado.
+        ReproductoraInfo? reproCtx = null;
+        if (ctx.ReproductoraId is int reproCtxId)
+        {
+            reproCtx = reprosPorLote[loteCtxId].Repros.FirstOrDefault(r => r.Id == reproCtxId);
+            if (reproCtx is null)
+                return ErrorContexto(tipo, dryRun, "La reproductora seleccionada no pertenece al lote de engorde elegido.");
+        }
+
         // Fechas ya cargadas por reproductora (idempotencia) + conteo para el tope de 7 días.
-        var reproIds = repros.Select(r => r.Id).ToList();
+        var reproIdsTodos = reprosPorLote.Values.SelectMany(v => v.Item1).Select(r => r.Id).Distinct().ToList();
         var existentesPorRepro = (await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
-                .Where(s => reproIds.Contains(s.LoteReproductoraAveEngordeId))
+                .Where(s => reproIdsTodos.Contains(s.LoteReproductoraAveEngordeId))
                 .Select(s => new { s.LoteReproductoraAveEngordeId, s.Fecha })
                 .ToListAsync(ct))
             .GroupBy(x => x.LoteReproductoraAveEngordeId)
@@ -100,16 +157,54 @@ public partial class MigracionService
 
         foreach (var fila in filas)
         {
-            // Reproductora: obligatoria y debe resolver a UN lote reproductora del lote seleccionado.
+            // ── Lote engorde de la fila: por nombres (case-insensitive) o el seleccionado en pantalla ──
+            var granjaTxt = MigracionCalculos.TextoLimpio(Celda(fila, "granja", "nombre granja"));
+            var nucleoTxt = MigracionCalculos.TextoLimpio(Celda(fila, "nucleo", "nombre nucleo"));
+            var galponTxt = MigracionCalculos.TextoLimpio(Celda(fila, "galpon", "nombre galpon"));
+            var loteTxt   = MigracionCalculos.TextoLimpio(Celda(fila, "lote", "nombre lote"));
+
+            LoteEngordeUbicado lote;
+            if (loteTxt is null)
+            {
+                if (granjaTxt is not null || nucleoTxt is not null || galponTxt is not null)
+                { errores.Add(new(fila.Numero, "Lote", null, "Indicá también el Lote cuando especificás Granja/Núcleo/Galpón (sin Lote, la fila usa el lote seleccionado en pantalla).")); continue; }
+                lote = loteCtxUbicado;
+            }
+            else
+            {
+                var candidatos = lotesPorNombre.TryGetValue(MigracionCalculos.NormalizarClave(loteTxt), out var lista)
+                    ? lista : new List<LoteEngordeUbicado>();
+                candidatos = FiltrarPorUbicacion(candidatos, granjaTxt, nucleoTxt, galponTxt);
+                if (candidatos.Count == 0)
+                { errores.Add(new(fila.Numero, "Lote", loteTxt, $"No existe un lote de engorde ABIERTO llamado '{loteTxt}' que coincida con la Granja/Núcleo/Galpón indicados.")); continue; }
+                if (candidatos.Count > 1)
+                { errores.Add(new(fila.Numero, "Lote", loteTxt, $"El lote '{loteTxt}' es ambiguo ({candidatos.Count} coincidencias); especificá Granja, Núcleo y/o Galpón.")); continue; }
+                lote = candidatos[0];
+            }
+
+            if (!reprosPorLote.TryGetValue(lote.LoteId, out var reprosLote) || reprosLote.Repros.Count == 0)
+            { errores.Add(new(fila.Numero, "Reproductora", null, $"El lote {lote.LoteNombre} no tiene lotes reproductora asociados.")); continue; }
+
+            // ── Reproductora: celda (id/código/nombre) o la elegida en pantalla ──
             var reproTexto = MigracionCalculos.TextoLimpio(Celda(fila, "reproductora", "reproductora id", "repro", "codigo reproductora"));
             var reproClave = MigracionCalculos.NormalizarClave(reproTexto);
+            ReproductoraInfo repro;
             if (string.IsNullOrEmpty(reproClave))
-            { errores.Add(new(fila.Numero, "Reproductora", null, "Reproductora: obligatoria (id, código o nombre del lote reproductora).")); continue; }
-            if (!porClave.TryGetValue(reproClave, out var candidatas))
-            { errores.Add(new(fila.Numero, "Reproductora", reproTexto, $"La reproductora '{reproTexto}' no existe en el lote {lote.LoteNombre}.")); continue; }
-            if (candidatas.Count > 1)
-            { errores.Add(new(fila.Numero, "Reproductora", reproTexto, $"'{reproTexto}' es ambigua en el lote (coincide con {candidatas.Count} reproductoras); usá el id o el código.")); continue; }
-            var repro = candidatas[0];
+            {
+                if (reproCtx is not null && lote.LoteId == loteCtxId) repro = reproCtx;
+                else
+                { errores.Add(new(fila.Numero, "Reproductora", null, $"Reproductora: obligatoria para el lote {lote.LoteNombre} (id, código o nombre; o elegí una reproductora en pantalla).")); continue; }
+            }
+            else
+            {
+                if (!reprosLote.PorClave.TryGetValue(reproClave, out var candidatas))
+                { errores.Add(new(fila.Numero, "Reproductora", reproTexto, $"La reproductora '{reproTexto}' no existe en el lote {lote.LoteNombre}.")); continue; }
+                if (candidatas.Count > 1)
+                { errores.Add(new(fila.Numero, "Reproductora", reproTexto, $"'{reproTexto}' es ambigua en el lote (coincide con {candidatas.Count} reproductoras); usá el id o el código.")); continue; }
+                repro = candidatas[0];
+                if (reproCtx is not null && lote.LoteId == loteCtxId && repro.Id != reproCtx.Id)
+                { errores.Add(new(fila.Numero, "Reproductora", reproTexto, $"La fila indica '{repro.Nombre}' pero en pantalla seleccionaste '{reproCtx.Nombre}'; dejá la columna vacía o corregí la fila.")); continue; }
+            }
 
             if (!MigracionCalculos.TryFecha(Celda(fila, "fecha"), out var fecha))
             { errores.Add(new(fila.Numero, "Fecha", null, "Fecha inválida o faltante.")); continue; }
@@ -227,7 +322,7 @@ public partial class MigracionService
                 insertados++;
             }
             catch (Exception ex)
-            { fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Error al insertar/confirmar: {ex.Message}")); }
+            { fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Error al insertar/confirmar (reproductora {dto.LoteId}): {ex.Message}")); }
         }
 
         var filasErrorValidacion = errores.Where(e => e.Severidad == "Error" && e.Fila > 0).Select(e => e.Fila).Distinct().Count();
@@ -253,27 +348,58 @@ public partial class MigracionService
         var (lote, errLote) = await ResolverLoteEngordeAsync(companyId, loteId, ct);
         if (lote is null) throw new InvalidOperationException(errLote!);
 
-        var (repros, _) = await CargarReproductorasAsync(loteId, ct);
+        var reprosMapa = await CargarReproductorasDeLotesAsync(new[] { loteId }, ct);
+        var repros = reprosMapa.TryGetValue(loteId, out var rl) ? rl.Repros : new List<ReproductoraInfo>();
         if (repros.Count == 0)
             throw new InvalidOperationException($"El lote {lote.LoteNombre} no tiene lotes reproductora asociados.");
 
-        // Estado actual por reproductora (cargados/confirmados) para orientar la carga.
-        var reproIds = repros.Select(r => r.Id).ToList();
-        var estado = (await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
-                .Where(s => reproIds.Contains(s.LoteReproductoraAveEngordeId))
-                .Select(s => new { s.LoteReproductoraAveEngordeId, s.Confirmado })
-                .ToListAsync(ct))
-            .GroupBy(x => x.LoteReproductoraAveEngordeId)
-            .ToDictionary(g => g.Key, g => (Total: g.Count(), Confirmados: g.Count(x => x.Confirmado)));
+        // Reproductora elegida en pantalla (opcional): acota la plantilla a esa.
+        ReproductoraInfo? reproCtx = null;
+        if (ctx.ReproductoraId is int reproCtxId)
+        {
+            reproCtx = repros.FirstOrDefault(r => r.Id == reproCtxId);
+            if (reproCtx is null)
+                throw new InvalidOperationException("La reproductora seleccionada no pertenece al lote de engorde elegido.");
+        }
+
+        var estado = await CargarEstadoSeguimientoReprosAsync(repros.Select(r => r.Id).ToList(), ct);
+        var (lotesUbicados, _) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
+        var esquema = MigracionEsquemas.SeguimientoReproductoraEngorde;
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
-        PonerEncabezados(ws, MigracionEsquemas.SeguimientoReproductoraEngorde);
+        PonerEncabezados(ws, esquema);
+
+        // Referencias: reproductoras del lote seleccionado (col A) + lotes abiertos ubicados (cols C..F).
+        var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
+        EscribirColumnaRef(wsRef, 1, $"Reproductoras del lote {lote.LoteNombre}", repros.Select(r => r.Nombre));
+        wsRef.Cells[1, 3].Value = "Granja"; wsRef.Cells[1, 3].Style.Font.Bold = true;
+        wsRef.Cells[1, 4].Value = "Núcleo"; wsRef.Cells[1, 4].Style.Font.Bold = true;
+        wsRef.Cells[1, 5].Value = "Galpón"; wsRef.Cells[1, 5].Style.Font.Bold = true;
+        wsRef.Cells[1, 6].Value = "Lote"; wsRef.Cells[1, 6].Style.Font.Bold = true;
+        int rr = 2;
+        foreach (var lu in lotesUbicados.OrderBy(x => x.GranjaNombre).ThenBy(x => x.LoteNombre))
+        {
+            wsRef.Cells[rr, 3].Value = lu.GranjaNombre;
+            wsRef.Cells[rr, 4].Value = lu.NucleoNombre ?? lu.NucleoCodigo;
+            wsRef.Cells[rr, 5].Value = lu.GalponNombre ?? lu.GalponCodigo;
+            wsRef.Cells[rr, 6].Value = lu.LoteNombre;
+            rr++;
+        }
+        if (repros.Count > 0)
+            DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Reproductora") + 1), $"Referencias!$A$2:$A${repros.Count + 1}");
+        if (lotesUbicados.Count > 0)
+            DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Lote") + 1), $"Referencias!$F$2:$F${lotesUbicados.Count + 1}");
 
         var lineas = new List<string>
         {
-            "Una fila por reproductora y día en la hoja 'Datos'. Todas las filas corresponden a ESTE lote de engorde.",
-            "• Reproductora: obligatoria — id, código o nombre del lote reproductora (ver lista abajo).",
+            "Una fila por reproductora y día en la hoja 'Datos'.",
+            "• Lote / Granja / Núcleo / Galpón: opcionales. Sin 'Lote', la fila corresponde al lote seleccionado en pantalla.",
+            "  Con 'Lote' (nombre tal como aparece en el sistema; mayúsculas/minúsculas indistintas) podés cargar varios lotes;",
+            "  usá Granja/Núcleo/Galpón para desambiguar nombres repetidos (tabla en 'Referencias').",
+            reproCtx is null
+                ? "• Reproductora: id, código o nombre del lote reproductora (lista en 'Referencias'). Obligatoria en cada fila salvo que elijas una reproductora en pantalla."
+                : $"• Reproductora: seleccionaste '{reproCtx.Nombre}' en pantalla — podés dejar la columna vacía (las filas sin valor cargan a esa reproductora).",
             $"• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa), dentro de la PRIMERA SEMANA: edad 1 a {MaxDias} días desde el encasetamiento de la reproductora.",
             "• Mortalidad / Selección / Error de sexaje: enteros ≥ 0 (vacío = 0). Consumo H/M: número ≥ 0 (acepta coma o punto).",
             "• Unidad Consumo: 'kg' (default si se deja vacía) o 'qq' — con 'qq' el Consumo H/M se convierte automáticamente a kg (1 qq = 45.36 kg).",
@@ -287,6 +413,7 @@ public partial class MigracionService
         };
         foreach (var r in repros)
         {
+            if (reproCtx is not null && r.Id != reproCtx.Id) continue;
             var (tot, conf) = estado.TryGetValue(r.Id, out var st) ? st : (0, 0);
             var rango = r.FechaEncasetamiento.HasValue
                 ? $"fechas válidas {r.FechaEncasetamiento.Value.Date.AddDays(1):yyyy-MM-dd} a {r.FechaEncasetamiento.Value.Date.AddDays(MaxDias):yyyy-MM-dd}"

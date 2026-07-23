@@ -64,6 +64,18 @@ export interface LoteElegible {
   estado?: string | null;
 }
 
+/** Lote reproductora de un lote engorde (endpoint `/reproductoras`; selector opcional). */
+export interface ReproductoraElegible {
+  id: number;
+  reproductoraId: string;
+  codigo?: string | null;
+  nombre: string;
+  fechaEncasetamiento?: string | null;
+  /** Días de seguimiento ya registrados / confirmados (máx 7). */
+  cargados: number;
+  confirmados: number;
+}
+
 export interface MigracionHistorial {
   id: number;
   tipo: string;
@@ -94,4 +106,6 @@ export interface MigracionContexto {
   nucleoId?: string | null;
   galponId?: string | null;
   loteId?: number | null;
+  /** Solo Seguimiento Reproductora Engorde: reproductora puntual elegida (opcional). */
+  reproductoraId?: number | null;
 }

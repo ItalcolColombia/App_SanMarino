@@ -30,10 +30,20 @@
 - [x] Plantilla: hoja Referencias (alimentos empresa + lotes abiertos con ubicación) + dropdowns en Tipo Alimento / Alimento 1-2 H-M / Lote; instrucciones completas
 - [x] Smoke E2E 2 (dry-run): granja+lote en minúsculas resuelve, 2 alimentos H (nombre y código) + 1 M en qq validan, "LOTE 6" solo → ambiguo (2 coincidencias reales), lote inexistente / granja sin lote / alimento inexistente / alimento sin consumo / fecha pre-encaset → 6 errores esperados; archivo limpio → Validado con 1 omitida
 
+## Ampliación 3 — selector de lote elegible + reproductora en pantalla
+- [x] **Fix "0 lotes"**: el paso 2 ya no usa el selector de lotes genérico del filtro jerárquico (listaba lotes base/postura); el lote se elige de `/api/Migracion/elegibles` del tipo seleccionado (engorde = `lote_ave_engorde`), refrescado por la cascada granja/núcleo/galpón
+- [x] Selector "Reproductora (opcional)" (solo tipo reproductora): endpoint nuevo `GET /api/Migracion/reproductoras?loteId=` (nombre, id, encaset, cargados/confirmados); default "Todas — el Excel indica la reproductora"
+- [x] `MigracionContextoDto.ReproductoraId` (+ form/query en controller): con reproductora elegida las filas pueden dejar la columna vacía; fila que nombra OTRA reproductora → error; sin selección la columna es obligatoria por fila
+- [x] Reproductora también acepta ubicación por nombres (`Granja`/`Núcleo`/`Galpón`/`Lote` opcionales, case/acento-insensible, multi-lote por archivo) igual que engorde; "Reproductora" pasa a opcional a nivel encabezado
+- [x] Plantilla reproductora: hoja Referencias (reproductoras del lote + lotes abiertos ubicados) + dropdowns en Reproductora y Lote; instrucciones según haya o no reproductora seleccionada
+- [x] Smoke E2E 3 (:5299, sin tocar el backend del usuario en :5002): elegibles por galpón G0455 devuelve LOTE 6 (caso del screenshot que daba 0), `/reproductoras` lista 3 con avance 0/7, dry-runs: ctx repro + columna vacía → Validado; sin ctx → error por fila; mismatch → error con ambos nombres
+
 ## Frontend
-- [x] `migracion.model.ts`: union `TipoMigracionCodigo` + `'SeguimientoReproductoraEngorde'`
+- [x] `migracion.model.ts`: union `TipoMigracionCodigo` + `'SeguimientoReproductoraEngorde'`; `MigracionContexto.reproductoraId`; interfaz `ReproductoraElegible`
 - [x] `agrupar-tipo-migracion.funcion.ts`: agregado a `TIPOS_POLLO_ENGORDE` (permiso `carga_masiva_pollo_engorde`)
 - [x] `selector-tipo-migracion`: icono 🐣 del tipo nuevo (Record tipado exigía la clave)
+- [x] `migracion.service.ts`: `getReproductoras(loteId)` + `reproductoraId` en params/form
+- [x] Página: filtro jerárquico con `showLoteSelection=false` + select de lote (elegibles) + select de reproductora opcional; signals/OnPush; estilos `.selectores`
 
 ## Tests & validación
 - [x] `MigracionEsquemasTests`: requeridas del esquema reproductora + compat engorde sin columnas QQ

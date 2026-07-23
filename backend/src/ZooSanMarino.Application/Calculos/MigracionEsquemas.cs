@@ -137,13 +137,19 @@ public static class MigracionEsquemas
     });
 
     /// <summary>
-    /// Seguimiento reproductora engorde (primera semana): el contexto fija el LOTE ENGORDE y la
-    /// columna "Reproductora" identifica el lote reproductora dentro de él (por id, código o nombre).
-    /// Mismo núcleo de campos que el modal del front (consumos en kg; el modal convierte qq→kg).
+    /// Seguimiento reproductora engorde (primera semana). El lote engorde sale de la fila (columnas de
+    /// ubicación por NOMBRE, sin mayúsculas/acentos) o del seleccionado en pantalla; la columna
+    /// "Reproductora" identifica el lote reproductora dentro de él (por id, código o nombre) y puede
+    /// quedar vacía si en pantalla se eligió una reproductora puntual. Consumos en kg (el modal
+    /// convierte qq→kg; acá lo hace la columna Unidad Consumo).
     /// </summary>
     public static EsquemaMigracion SeguimientoReproductoraEngorde { get; } = new("Datos", new ColumnaEsquema[]
     {
-        new("Reproductora",       Requerida: true,  Alias: new[] { "reproductora id", "repro", "codigo reproductora" }),
+        new("Granja",             Requerida: false, Alias: new[] { "nombre granja" }),
+        new("Núcleo",             Requerida: false, Alias: new[] { "nombre nucleo" }),
+        new("Galpón",             Requerida: false, Alias: new[] { "nombre galpon" }),
+        new("Lote",               Requerida: false, Alias: new[] { "nombre lote" }),
+        new("Reproductora",       Requerida: false, Alias: new[] { "reproductora id", "repro", "codigo reproductora" }),
         new("Fecha",              Requerida: true),
         new("Mort H",             Requerida: false, Alias: new[] { "mortalidad hembras" }),
         new("Mort M",             Requerida: false, Alias: new[] { "mortalidad machos" }),

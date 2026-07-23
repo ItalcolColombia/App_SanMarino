@@ -73,6 +73,12 @@ public class MigracionController : ControllerBase
         return await EjecutarAsync(async () => Ok(await _svc.GetElegiblesAsync(t, ctx, ct)), tipo);
     }
 
+    /// <summary>Lotes reproductora del lote engorde indicado (selector opcional de Seguimiento Reproductora Engorde).</summary>
+    [HttpGet("reproductoras")]
+    [ProducesResponseType(typeof(IEnumerable<ReproductoraElegibleDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReproductoras([FromQuery] int loteId, CancellationToken ct)
+        => await EjecutarAsync(async () => Ok(await _svc.GetReproductorasElegiblesAsync(loteId, ct)), "reproductoras");
+
     /// <summary>Descarga la plantilla .xlsx del tipo indicado (generada por el sistema).</summary>
     [HttpGet("plantilla")]
     [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
@@ -82,12 +88,13 @@ public class MigracionController : ControllerBase
         [FromQuery] string? nucleoId,
         [FromQuery] string? galponId,
         [FromQuery] int? loteId,
+        [FromQuery] int? reproductoraId,
         CancellationToken ct)
     {
         if (!TryParseTipo(tipo, out var t))
             return BadRequest(new { message = $"Tipo de migración inválido: {tipo}" });
 
-        var ctx = new MigracionContextoDto(granjaId, nucleoId, galponId, loteId);
+        var ctx = new MigracionContextoDto(granjaId, nucleoId, galponId, loteId, reproductoraId);
         return await EjecutarAsync(async () =>
         {
             var (contenido, nombre) = await _svc.GenerarPlantillaAsync(t, ctx, ct);
@@ -122,7 +129,7 @@ public class MigracionController : ControllerBase
         if (!TryParseTipo(form.Tipo, out var t))
             return BadRequest(new { message = $"Tipo de migración inválido: {form.Tipo}" });
 
-        var ctx = new MigracionContextoDto(form.GranjaId, form.NucleoId, form.GalponId, form.LoteId);
+        var ctx = new MigracionContextoDto(form.GranjaId, form.NucleoId, form.GalponId, form.LoteId, form.ReproductoraId);
         return await EjecutarAsync(async () =>
         {
             var res = dryRun
@@ -179,6 +186,8 @@ public class MigracionUploadForm
     public string? NucleoId { get; set; }
     public string? GalponId { get; set; }
     public int? LoteId { get; set; }
+    /// <summary>Solo Seguimiento Reproductora Engorde: lote reproductora elegido en pantalla (opcional).</summary>
+    public int? ReproductoraId { get; set; }
 
     /// <summary>
     /// Solo aplica a /importar. Si true y hay filas válidas junto a filas con error, inserta SOLO

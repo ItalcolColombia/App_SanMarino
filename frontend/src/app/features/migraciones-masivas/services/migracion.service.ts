@@ -9,6 +9,7 @@ import {
   MigracionResult,
   MigracionError,
   LoteElegible,
+  ReproductoraElegible,
   MigracionHistorialPaged,
   MigracionContexto
 } from '../models/migracion.model';
@@ -52,6 +53,11 @@ export class MigracionService {
     return this.http.get<LoteElegible[]>(`${this.baseUrl}/elegibles`, { params: this.ctxParams(tipo, ctx) });
   }
 
+  /** Reproductoras del lote engorde (selector opcional de Seguimiento Reproductora Engorde). */
+  getReproductoras(loteId: number): Observable<ReproductoraElegible[]> {
+    return this.http.get<ReproductoraElegible[]>(`${this.baseUrl}/reproductoras`, { params: { loteId: String(loteId) } });
+  }
+
   /** Descarga la plantilla .xlsx generada por el sistema para el tipo indicado. */
   descargarPlantilla(tipo: TipoMigracionCodigo, ctx: MigracionContexto): Observable<Blob> {
     return this.http.get(`${this.baseUrl}/plantilla`, { params: this.ctxParams(tipo, ctx), responseType: 'blob' });
@@ -78,6 +84,7 @@ export class MigracionService {
     if (ctx.nucleoId) p['nucleoId'] = ctx.nucleoId;
     if (ctx.galponId) p['galponId'] = ctx.galponId;
     if (ctx.loteId != null) p['loteId'] = String(ctx.loteId);
+    if (ctx.reproductoraId != null) p['reproductoraId'] = String(ctx.reproductoraId);
     return p;
   }
 
@@ -89,6 +96,7 @@ export class MigracionService {
     if (ctx.nucleoId) form.append('nucleoId', ctx.nucleoId);
     if (ctx.galponId) form.append('galponId', ctx.galponId);
     if (ctx.loteId != null) form.append('loteId', String(ctx.loteId));
+    if (ctx.reproductoraId != null) form.append('reproductoraId', String(ctx.reproductoraId));
     return form;
   }
 }

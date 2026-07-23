@@ -92,6 +92,51 @@
   box-shadow: 0 4px 10px rgba(245, 130, 31, 0.3);
 }
 
+/* ── Selectores de lote / reproductora (elegibles del módulo) ── */
+.selectores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(245, 130, 31, 0.25);
+}
+.selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 280px;
+  flex: 1 1 320px;
+  max-width: 480px;
+}
+.selector__label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ital-orange-dark, #C85A0E);
+}
+.selector__select {
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1.5px solid #e7e9ee;
+  background: #fff;
+  font-size: 0.9rem;
+  color: var(--ital-text, #1f2937);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.selector__select:focus {
+  outline: none;
+  border-color: rgba(245, 130, 31, 0.55);
+}
+.selector__select:disabled { opacity: 0.6; cursor: wait; }
+.selector__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--ital-muted, #6b7280);
+}
+
 /* ── Loading ── */
 .loading {
   display: flex;
