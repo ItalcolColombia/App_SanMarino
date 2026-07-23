@@ -13,6 +13,7 @@ export type TipoMigracionCodigo =
   // Línea Engorde
   | 'LotesPolloEngorde'
   | 'SeguimientoPolloEngorde'
+  | 'SeguimientoReproductoraEngorde'
   | 'VentaPolloEngorde';
 
 export interface TipoMigracionInfo {

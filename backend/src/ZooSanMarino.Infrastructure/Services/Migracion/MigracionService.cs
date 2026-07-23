@@ -20,6 +20,7 @@ public partial class MigracionService : IMigracionService
     private readonly IGalponService _galponService;
     private readonly ILoteAveEngordeService _loteAveEngordeService;
     private readonly ISeguimientoAvesEngordeService _seguimientoEngordeService;
+    private readonly ISeguimientoDiarioLoteReproductoraService _seguimientoReproductoraService;
 
     static MigracionService()
     {
@@ -36,7 +37,8 @@ public partial class MigracionService : IMigracionService
         INucleoService nucleoService,
         IGalponService galponService,
         ILoteAveEngordeService loteAveEngordeService,
-        ISeguimientoAvesEngordeService seguimientoEngordeService)
+        ISeguimientoAvesEngordeService seguimientoEngordeService,
+        ISeguimientoDiarioLoteReproductoraService seguimientoReproductoraService)
     {
         _ctx = ctx;
         _current = current;
@@ -47,6 +49,7 @@ public partial class MigracionService : IMigracionService
         _galponService = galponService;
         _loteAveEngordeService = loteAveEngordeService;
         _seguimientoEngordeService = seguimientoEngordeService;
+        _seguimientoReproductoraService = seguimientoReproductoraService;
     }
 
     /// <summary>

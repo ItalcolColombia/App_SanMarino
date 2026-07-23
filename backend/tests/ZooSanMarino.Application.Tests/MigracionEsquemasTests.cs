@@ -4,7 +4,7 @@ using ZooSanMarino.Application.DTOs.Migracion;
 namespace ZooSanMarino.Application.Tests;
 
 /// <summary>
-/// Esquema único por tipo de migración (F1): consistencia estructural de los 8 esquemas y el cálculo
+/// Esquema único por tipo de migración (F1): consistencia estructural de los 9 esquemas y el cálculo
 /// puro de validación de encabezados / cap de errores (<see cref="MigracionEsquemaCalculos"/>).
 /// </summary>
 public class MigracionEsquemasTests
@@ -41,6 +41,30 @@ public class MigracionEsquemasTests
     [Fact]
     public void Para_TipoSinEsquema_Lanza()
         => Assert.Throws<NotSupportedException>(() => MigracionEsquemas.Para(TipoMigracion.Ventas));
+
+    [Fact]
+    public void SeguimientoReproductoraEngorde_RequiereReproductoraYFecha()
+    {
+        var requeridas = MigracionEsquemas.SeguimientoReproductoraEngorde.Columnas
+            .Where(c => c.Requerida).Select(c => c.Titulo).ToList();
+        Assert.Equal(new[] { "Reproductora", "Fecha" }, requeridas);
+    }
+
+    [Fact]
+    public void SeguimientoPolloEngorde_ArchivoSinColumnasQq_SigueSiendoValido()
+    {
+        // Compatibilidad hacia atrás: las columnas QQ (Panamá) son opcionales; un archivo generado
+        // con la plantilla anterior (sin QQ) no debe reportar faltantes.
+        var esquema = MigracionEsquemas.SeguimientoPolloEngorde;
+        var headersSinQq = esquema.Columnas
+            .Where(c => !c.Titulo.StartsWith("QQ"))
+            .Select(c => MigracionCalculos.NormalizarClave(c.Titulo)).ToList();
+
+        var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(esquema, headersSinQq);
+
+        Assert.Empty(faltantes);
+        Assert.Empty(desconocidos);
+    }
 
     // ── ValidarEncabezados ────────────────────────────────────────────────────
 

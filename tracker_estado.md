@@ -1,31 +1,39 @@
-# Tracker — Código ERP de engorde por granja + avance automático al cerrar ciclo (Panamá)
+# Tracker — Migraciones Masivas: Seguimiento Reproductora Engorde (nueva línea) + alineación Seguimiento Pollo Engorde
 
-**Plan:** [fase_de_desarrollo/codigo_erp_granja_engorde_panama_plan.md](fase_de_desarrollo/codigo_erp_granja_engorde_panama_plan.md)
+**Plan:** [fase_de_desarrollo/migracion_masiva_seguimiento_engorde_reproductora_plan.md](fase_de_desarrollo/migracion_masiva_seguimiento_engorde_reproductora_plan.md)
 
-## Backend
-- [x] `Farm.cs`: propiedad `CodigoErpEngorde`
-- [x] `FarmConfiguration.cs`: mapeo `codigo_erp_engorde` (varchar 20)
-- [x] DTOs granja (`FarmDto`, `CreateFarmDto`, `UpdateFarmDto`, `FarmDetailDto`): campo al final
-- [x] `FarmService`: Create/Update normaliza + valida (solo dígitos); todas las proyecciones incluyen el campo (ToFarmDtoListAsync ×2, GetByIdAsync ×2, Create, Update, GetByZonaUsuario, ProjectToDetail)
-- [x] `GestionLotesEngordeCalculos`: `SiguienteCodigoErpGranja` + `EsCodigoErpGranjaValido` (puros)
-- [x] `LoteAveEngordeService.CreateAsync`: estampa `LoteErp` desde la granja si tiene código
-- [x] `LoteAveEngordeService.UpdateAsync`: conserva `LoteErp` almacenado si la granja tiene código
-- [x] `LoteAveEngordeService.CerrarLoteAsync`: avance automático del código de la granja (guardas: lote base, código granja, ERP coincide, ningún otro abierto) en el mismo SaveChanges
-- [x] Migración EF idempotente `20260723130810_AddCodigoErpEngordeToFarm` + snapshot regenerado
-- [x] Tests xUnit del cálculo puro (incluye 4001099→4001100)
-- [x] Build verde: Infrastructure 0 err/0 warn, API 0 err/0 warn (OutDir temporal, bin bloqueado por API corriendo) · `dotnet test` 619/619 ✔
-- [x] Migración aplicada en BD local (:5433) — columna verificada con psql
+## Backend — línea nueva SeguimientoReproductoraEngorde
+- [x] `TipoMigracion.cs`: enum `SeguimientoReproductoraEngorde` + entrada del catálogo (fase 4, requiereLote, disponible)
+- [x] `MigracionEsquemas.cs`: esquema `SeguimientoReproductoraEngorde` (Reproductora + Fecha requeridas) + `Para()` + `TiposConEsquema` (9)
+- [x] `MigracionService.cs` (ancla): inyectar `ISeguimientoDiarioLoteReproductoraService`
+- [x] Nuevo partial `Funciones/MigracionService.SeguimientoReproductora.cs`:
+  - [x] Elegibles: lotes engorde no cerrados con ≥1 lote reproductora
+  - [x] Plantilla por lote (Instrucciones lista reproductoras + rango fechas edad 1–7 + cargados/confirmados)
+  - [x] Parse/validación: reproductora existente (id/código/nombre, ambigüedad detectada), fecha única/idempotente, edad [1,7], máx 7 días, enteros ≥0, consumo ≥0, uniformidad 0–100, CV/peso ≥0
+  - [x] Runner: `CreateAsync` + `ConfirmarAsync` por fila (**confirmación automática** → dispara cruce), parcial opt-in, auditoría central
+- [x] `MigracionService.Operaciones.cs`: dispatch elegibles/plantilla/procesar del tipo nuevo
+
+## Backend — alineación SeguimientoPolloEngorde
+- [x] Uniformidad H/M ∈ [0,100] → Error · Peso H/M ≥ 0
+- [x] Fecha anterior al encaset del lote → Error; fecha futura → Advertencia
+- [x] Peso faltante en día de pesaje obligatorio (edad 1–7 o múltiplo de 7) → Advertencia
+- [x] Columnas opcionales Panamá `QQ Mixtas` / `QQ H` / `QQ M` → `QqMixtas/QqHembras/QqMachos`
+- [x] Instrucciones de plantilla actualizadas (incluye Panamá mixtas→columnas H con M=0)
+
+## Ampliación pedida en curso
+- [x] Columna `Unidad Consumo` (kg default / qq) en ambos esquemas + conversión ×45.36 (3 dec) en ambos parsers (`MigracionCalculos.NormalizarUnidadConsumo`/`ConsumoAKilos`)
+- [x] Fix consumo machos reproductora: `ToDto()` ya no descarta `ConsumoMachos` escalar (total ítems vacío ⇒ null + fallback estilo levante)
 
 ## Frontend
-- [x] `farm.service.ts`: `codigoErpEngorde` en `FarmDto`/`CreateFarmDto`
-- [x] Form granja (sección Panamá): input `codigoErpEngorde` con validación numérica (pattern `^\d*$`, max 18) + help text; payload normalizado (trim, ''→null)
-- [x] Form lote engorde: `loteErp` se autollena desde la granja (Panamá, `farmById` del form-data) y queda readonly; edición bloquea si ya capturó; granja sin código/otros países = editable como hoy
-- [x] `yarn build` verde (solo warning preexistente de bundle budget)
+- [x] `migracion.model.ts`: union `TipoMigracionCodigo` + `'SeguimientoReproductoraEngorde'`
+- [x] `agrupar-tipo-migracion.funcion.ts`: agregado a `TIPOS_POLLO_ENGORDE` (permiso `carga_masiva_pollo_engorde`)
+- [x] `selector-tipo-migracion`: icono 🐣 del tipo nuevo (Record tipado exigía la clave)
 
-## Ajuste post-revisión
-- [x] Estampado en `CreateAsync` gateado por `AutoNombrePorCorrida` (flujo interactivo Panamá): protege la idempotencia del Puente Panamá (`LoteErp="PA-{id}"`) y el ERP explícito de la migración masiva Excel, que no mandan el flag
-
-## Verificación
-- [x] Compilación: Infrastructure 0 err/0 warn · API 0 err/0 warn · tests 619/619 · front OK
-- [x] Migración `20260723130810_AddCodigoErpEngordeToFarm` aplicada en BD local (:5433); columna `farms.codigo_erp_engorde varchar(20)` verificada con psql (aplicó también las 2 pendientes de la sesión paralela: FixNombres… y SeedGuiaGenetica…)
-- [ ] Smoke manual (requiere REINICIAR el backend local — el proceso que corre tiene binarios previos al cambio): granja Panamá con `4001017` → crear lote captura el código (readonly); cerrar última corrida del lote base avanza a `4001018`; re-cerrar lote reabierto no doble-avanza; granja sin código = comportamiento actual
+## Tests & validación
+- [x] `MigracionEsquemasTests`: requeridas del esquema reproductora + compat engorde sin columnas QQ
+- [x] `MigracionCalculosTests`: `NormalizarUnidadConsumo` + `ConsumoAKilos` (factor 45.36, redondeo 3 dec)
+- [x] `CreateSeguimientoDiarioLoteReproductoraRequestTests`: fix machos (escalar, ítems, null, gramos, hembras)
+- [x] `dotnet build` 0 err/0 warn + `dotnet test` 642 verdes
+- [x] `yarn build` 0 errores (solo warning bundle budget preexistente)
+- [x] Smoke E2E local (:5002): tipos/elegibles/plantillas/validar/importar/idempotencia — importación real quedó **confirmada** con QQ convertido y consumo machos persistido; datos de prueba limpiados, backend detenido
+- [x] Plantillas .xlsx reales (generadas por el backend) entregadas al usuario

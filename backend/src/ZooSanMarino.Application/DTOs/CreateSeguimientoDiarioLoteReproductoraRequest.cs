@@ -83,7 +83,10 @@ public class CreateSeguimientoDiarioLoteReproductoraRequest
         var (alimentosMachos, otrosItemsMachos) = SepararAlimentosYOtrosItems(ItemsMachos);
 
         double consumoKgHembras = CalcularConsumoTotalAlimentos(alimentosHembras);
-        double? consumoKgMachos = CalcularConsumoTotalAlimentos(alimentosMachos);
+        // Sin ítems de machos el total debe ser NULL (no 0): CalcularConsumoTotalAlimentos devuelve 0
+        // para lista vacía y ese 0 con HasValue=true bloqueaba el fallback de ConsumoMachos — el
+        // consumo de machos enviado como escalar (sin ítems de inventario) se perdía al persistir.
+        double? consumoKgMachos = alimentosMachos.Count > 0 ? CalcularConsumoTotalAlimentos(alimentosMachos) : null;
 
         if (consumoKgHembras == 0 && ConsumoHembras.HasValue && ConsumoHembras.Value > 0)
         {
@@ -93,7 +96,7 @@ public class CreateSeguimientoDiarioLoteReproductoraRequest
                 : ConsumoHembras.Value;
         }
 
-        if (!consumoKgMachos.HasValue && ConsumoMachos.HasValue && ConsumoMachos.Value > 0)
+        if ((!consumoKgMachos.HasValue || consumoKgMachos.Value <= 0) && ConsumoMachos.HasValue && ConsumoMachos.Value > 0)
         {
             var unidadM = (UnidadConsumoMachos ?? "kg").ToLower().Trim();
             consumoKgMachos = unidadM == "g" || unidadM == "gramos" || unidadM == "gramo"

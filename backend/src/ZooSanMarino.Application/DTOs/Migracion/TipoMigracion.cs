@@ -15,6 +15,7 @@ public enum TipoMigracion
     // ── Línea Engorde ──
     LotesPolloEngorde,
     SeguimientoPolloEngorde,
+    SeguimientoReproductoraEngorde,
     VentaPolloEngorde
 }
 
@@ -50,6 +51,7 @@ public static class TipoMigracionCatalogo
         // ── Línea Engorde ──
         new(nameof(TipoMigracion.LotesPolloEngorde),       "Lotes Engorde",       "Creación masiva de lotes de pollo de engorde.",          false, "4", true),
         new(nameof(TipoMigracion.SeguimientoPolloEngorde), "Seguimiento Engorde", "Carga histórica de seguimiento diario de engorde.",      true,  "4", true),
+        new(nameof(TipoMigracion.SeguimientoReproductoraEngorde), "Seguimiento Reproductora Engorde", "Carga histórica de la primera semana por lote reproductora; cada registro queda confirmado (dispara el cruce a pollo engorde).", true, "4", true),
         new(nameof(TipoMigracion.VentaPolloEngorde),       "Venta Engorde",       "Carga histórica de ventas de pollo de engorde.",         true,  "4", true),
     };
 }

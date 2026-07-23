@@ -105,11 +105,46 @@ public static class MigracionEsquemas
         new("Error Sexaje M",     Requerida: false),
         new("Consumo H (kg)",     Requerida: false, Alias: new[] { "consumo h" }),
         new("Consumo M (kg)",     Requerida: false, Alias: new[] { "consumo m" }),
+        // Unidad del consumo H/M: "kg" (default) o "qq" — con qq la carga convierte a kg (×45.36).
+        new("Unidad Consumo",     Requerida: false, Alias: new[] { "unidad", "unidad de consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" }),
         new("Tipo Alimento",      Requerida: false),
         new("Peso H (g)",         Requerida: false, Alias: new[] { "peso h" }),
         new("Peso M (g)",         Requerida: false, Alias: new[] { "peso m" }),
         new("Uniformidad H",      Requerida: false),
         new("Uniformidad M",      Requerida: false),
+        // Panamá: alimento en quintales por categoría (persisten en qq_*; opcionales para CO/EC).
+        new("QQ Mixtas",          Requerida: false, Alias: new[] { "qq mixtas", "quintales mixtas" }),
+        new("QQ H",               Requerida: false, Alias: new[] { "qq hembras", "quintales hembras" }),
+        new("QQ M",               Requerida: false, Alias: new[] { "qq machos", "quintales machos" }),
+        new("Observaciones",      Requerida: false),
+    });
+
+    /// <summary>
+    /// Seguimiento reproductora engorde (primera semana): el contexto fija el LOTE ENGORDE y la
+    /// columna "Reproductora" identifica el lote reproductora dentro de él (por id, código o nombre).
+    /// Mismo núcleo de campos que el modal del front (consumos en kg; el modal convierte qq→kg).
+    /// </summary>
+    public static EsquemaMigracion SeguimientoReproductoraEngorde { get; } = new("Datos", new ColumnaEsquema[]
+    {
+        new("Reproductora",       Requerida: true,  Alias: new[] { "reproductora id", "repro", "codigo reproductora" }),
+        new("Fecha",              Requerida: true),
+        new("Mort H",             Requerida: false, Alias: new[] { "mortalidad hembras" }),
+        new("Mort M",             Requerida: false, Alias: new[] { "mortalidad machos" }),
+        new("Sel H",              Requerida: false),
+        new("Sel M",              Requerida: false),
+        new("Error Sexaje H",     Requerida: false),
+        new("Error Sexaje M",     Requerida: false),
+        new("Consumo H (kg)",     Requerida: false, Alias: new[] { "consumo h" }),
+        new("Consumo M (kg)",     Requerida: false, Alias: new[] { "consumo m" }),
+        // Unidad del consumo H/M: "kg" (default) o "qq" — con qq la carga convierte a kg (×45.36).
+        new("Unidad Consumo",     Requerida: false, Alias: new[] { "unidad", "unidad de consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" }),
+        new("Tipo Alimento",      Requerida: false),
+        new("Peso H (g)",         Requerida: false, Alias: new[] { "peso h" }),
+        new("Peso M (g)",         Requerida: false, Alias: new[] { "peso m" }),
+        new("Uniformidad H",      Requerida: false),
+        new("Uniformidad M",      Requerida: false),
+        new("CV H",               Requerida: false, Alias: new[] { "cv hembras" }),
+        new("CV M",               Requerida: false, Alias: new[] { "cv machos" }),
         new("Observaciones",      Requerida: false),
     });
 
@@ -138,11 +173,12 @@ public static class MigracionEsquemas
         TipoMigracion.SeguimientoProduccion => SeguimientoProduccion,
         TipoMigracion.LotesPolloEngorde => LotesPolloEngorde,
         TipoMigracion.SeguimientoPolloEngorde => SeguimientoPolloEngorde,
+        TipoMigracion.SeguimientoReproductoraEngorde => SeguimientoReproductoraEngorde,
         TipoMigracion.VentaPolloEngorde => VentaPolloEngorde,
         _ => throw new NotSupportedException($"El tipo de migración '{tipo}' no tiene esquema (Fase 3: Ventas/Movimientos, aún no implementada)."),
     };
 
-    /// <summary>Los 8 tipos con esquema implementado (para recorrer en tests).</summary>
+    /// <summary>Los 9 tipos con esquema implementado (para recorrer en tests).</summary>
     public static IReadOnlyList<TipoMigracion> TiposConEsquema { get; } = new[]
     {
         TipoMigracion.Granjas,
@@ -152,6 +188,7 @@ public static class MigracionEsquemas
         TipoMigracion.SeguimientoProduccion,
         TipoMigracion.LotesPolloEngorde,
         TipoMigracion.SeguimientoPolloEngorde,
+        TipoMigracion.SeguimientoReproductoraEngorde,
         TipoMigracion.VentaPolloEngorde,
     };
 }

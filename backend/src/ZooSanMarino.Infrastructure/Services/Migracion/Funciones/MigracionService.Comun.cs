@@ -232,6 +232,39 @@ public partial class MigracionService
         return (double)v;
     }
 
+    /// <summary>Double ≥ 0 opcional (espejo de Validators.min(0) del front): null si vacía; error si inválido o negativo.</summary>
+    private static double? DobleNoNeg(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
+    {
+        var cell = Celda(fila, headers);
+        if (MigracionCalculos.EsVacia(cell)) return null;
+        if (!MigracionCalculos.TryDecimal(cell, out var v) || v < 0)
+        { errores.Add(new(fila.Numero, etiqueta, MigracionCalculos.TextoLimpio(cell), $"{etiqueta}: se esperaba un número ≥ 0.")); return null; }
+        return (double)v;
+    }
+
+    /// <summary>Porcentaje opcional en [0,100] (espejo de Validators.min(0)+max(100) del front): null si vacía; error si está fuera de rango.</summary>
+    private static double? Porcentaje0a100(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
+    {
+        var cell = Celda(fila, headers);
+        if (MigracionCalculos.EsVacia(cell)) return null;
+        if (!MigracionCalculos.TryDecimal(cell, out var v) || v < 0 || v > 100)
+        { errores.Add(new(fila.Numero, etiqueta, MigracionCalculos.TextoLimpio(cell), $"{etiqueta}: se esperaba un porcentaje entre 0 y 100.")); return null; }
+        return (double)v;
+    }
+
+    /// <summary>
+    /// Unidad de consumo de la fila: "kg" (default con celda vacía) o "qq". Texto no reconocido
+    /// agrega error de fila y cae a "kg" (la fila igual se descarta por el corte de errores).
+    /// </summary>
+    private static string LeerUnidadConsumo(FilaCruda fila, List<MigracionErrorDto> errores)
+    {
+        var texto = MigracionCalculos.TextoLimpio(Celda(fila, "unidad consumo", "unidad", "unidad de consumo", "unidad medida"));
+        var unidad = MigracionCalculos.NormalizarUnidadConsumo(texto);
+        if (unidad is null)
+        { errores.Add(new(fila.Numero, "Unidad Consumo", texto, "Unidad Consumo: use 'kg' o 'qq' (vacío = kg).")); return "kg"; }
+        return unidad;
+    }
+
     /// <summary>Fecha opcional: null si la celda está vacía; agrega error si es inválida.</summary>
     private static DateTime? FechaOpc(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
     {

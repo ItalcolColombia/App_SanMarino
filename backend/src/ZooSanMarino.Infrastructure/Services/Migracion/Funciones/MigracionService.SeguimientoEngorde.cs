@@ -65,6 +65,7 @@ public partial class MigracionService
         var dtos = new List<SeguimientoLoteLevanteDto>();
         var fechasVistas = new HashSet<DateTime>();
         int omitidas = 0;
+        var hoyUtc = DateTime.UtcNow.Date;
 
         foreach (var fila in filas)
         {
@@ -72,6 +73,12 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Fecha", null, "Fecha inválida o faltante.")); continue; }
             if (!fechasVistas.Add(fecha.Date)) { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "Fecha repetida en el archivo.")); continue; }
             if (existentes.Contains(fecha.Date)) { omitidas++; continue; } // ya existe → idempotente, se omite
+
+            // Regla de fecha (alineada al front): nunca anterior al encaset del lote; futura solo advierte.
+            if (lote.FechaEncaset.HasValue && fecha.Date < lote.FechaEncaset.Value.Date)
+            { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), $"La fecha es anterior al encaset del lote ({lote.FechaEncaset.Value:yyyy-MM-dd}).")); continue; }
+            if (fecha.Date > hoyUtc)
+                errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "La fecha es futura; verificá que sea intencional.", "Advertencia"));
 
             int e0 = errores.Count;
             var mortH = EnteroNoNeg(fila, errores, "Mort H", "mort h", "mortalidad hembras");
@@ -82,11 +89,30 @@ public partial class MigracionService
             var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", "error sexaje m");
             var consH = DecimalNoNeg(fila, errores, "Consumo H (kg)", "consumo h (kg)", "consumo h");
             var consM = DecimalNoNeg(fila, errores, "Consumo M (kg)", "consumo m (kg)", "consumo m");
-            var pesoH = DobleOpc(fila, errores, "Peso H (g)", "peso h (g)", "peso h");
-            var pesoM = DobleOpc(fila, errores, "Peso M (g)", "peso m (g)", "peso m");
-            var unifH = DobleOpc(fila, errores, "Uniformidad H", "uniformidad h");
-            var unifM = DobleOpc(fila, errores, "Uniformidad M", "uniformidad m");
+            var unidadConsumo = LeerUnidadConsumo(fila, errores);
+            var pesoH = DobleNoNeg(fila, errores, "Peso H (g)", "peso h (g)", "peso h");
+            var pesoM = DobleNoNeg(fila, errores, "Peso M (g)", "peso m (g)", "peso m");
+            var unifH = Porcentaje0a100(fila, errores, "Uniformidad H", "uniformidad h");
+            var unifM = Porcentaje0a100(fila, errores, "Uniformidad M", "uniformidad m");
+            // Panamá: quintales por categoría (opcionales; persisten en qq_* para el informe semanal).
+            var qqMix = DecimalNoNeg(fila, errores, "QQ Mixtas", "qq mixtas", "quintales mixtas");
+            var qqH = DecimalNoNeg(fila, errores, "QQ H", "qq h", "qq hembras", "quintales hembras");
+            var qqM = DecimalNoNeg(fila, errores, "QQ M", "qq m", "qq machos", "quintales machos");
             if (errores.Count > e0) continue;
+
+            // Unidad Consumo "qq" → convertir el consumo H/M a kg (×45.36, mismo redondeo que el front).
+            consH = MigracionCalculos.ConsumoAKilos(consH, unidadConsumo);
+            consM = MigracionCalculos.ConsumoAKilos(consM, unidadConsumo);
+
+            // Día de pesaje obligatorio (espejo del modal: edad 1–7 y múltiplos de 7). En carga histórica
+            // no bloquea (Advertencia): el modal sí lo exige al capturar el día a día.
+            if (lote.FechaEncaset.HasValue && pesoH is null && pesoM is null)
+            {
+                var edad = (int)(fecha.Date - lote.FechaEncaset.Value.Date).TotalDays;
+                if ((edad >= 1 && edad <= 7) || (edad > 7 && edad % 7 == 0))
+                    errores.Add(new(fila.Numero, "Peso H (g)", fecha.ToString("yyyy-MM-dd"),
+                        $"Día {edad} (edad 1–7 o múltiplo de 7): es día de pesaje obligatorio y la fila no trae peso.", "Advertencia"));
+            }
 
             var req = new CreateSeguimientoLoteLevanteRequest
             {
@@ -106,6 +132,9 @@ public partial class MigracionService
                 PesoPromM = pesoM,
                 UniformidadH = unifH,
                 UniformidadM = unifM,
+                QqMixtas = qqMix,
+                QqHembras = qqH,
+                QqMachos = qqM,
                 Observaciones = MigracionCalculos.TextoLimpio(Celda(fila, "observaciones")),
                 Ciclo = "Normal",
                 CreatedByUserId = _current.UserId.ToString()
@@ -168,9 +197,13 @@ public partial class MigracionService
 
         HojaInstrucciones(pkg, $"Migración Seguimiento Engorde — Lote {lote.LoteNombre} (id {loteId})",
             "Una fila por día en la hoja 'Datos'. Todas las filas corresponden a ESTE lote.",
-            "• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa).",
+            "• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa), no anterior al encaset del lote. Fecha futura solo advierte.",
             "• Mortalidad / Selección / Error de sexaje: enteros ≥ 0 (vacío = 0).",
-            "• Consumo H/M: en kg (acepta coma o punto decimal). Peso/Uniformidad: opcionales.",
+            "• Consumo H/M: número ≥ 0 (acepta coma o punto decimal). Peso: ≥ 0 opcional. Uniformidad: 0 a 100 opcional.",
+            "• Unidad Consumo: 'kg' (default si se deja vacía) o 'qq' — con 'qq' el Consumo H/M se convierte automáticamente a kg (1 qq = 45.36 kg).",
+            "• Días de pesaje (edad 1–7 y múltiplos de 7): si la fila no trae peso se genera una advertencia (no bloquea).",
+            "• Lotes MIXTOS (Panamá): cargá las cantidades en las columnas H (M = 0), igual que el formulario.",
+            "• QQ Mixtas / QQ H / QQ M (Panamá): quintales de alimento por categoría, opcionales (≥ 0).",
             "La carga es idempotente: las fechas ya cargadas (incluidos los primeros días generados por cruce reproductora) se omiten.",
             "Al importar se registra el retiro de aves por mortalidad/selección y se recalcula el saldo de alimento del lote.");
 

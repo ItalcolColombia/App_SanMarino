@@ -123,6 +123,7 @@ export class SelectorTipoMigracionComponent {
     MovimientoHuevos: '📦',
     LotesPolloEngorde: '🐔',
     SeguimientoPolloEngorde: '📋',
+    SeguimientoReproductoraEngorde: '🐣',
     VentaPolloEngorde: '🧾'
   };
 
