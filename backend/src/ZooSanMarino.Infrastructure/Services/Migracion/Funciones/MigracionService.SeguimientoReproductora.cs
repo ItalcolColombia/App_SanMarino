@@ -216,16 +216,17 @@ public partial class MigracionService
             if (existentesPorRepro.TryGetValue(repro.Id, out var existentes) && existentes.Contains(fecha.Date))
             { omitidas++; continue; } // ya existe → idempotente, se omite
 
-            // Regla de fecha (espejo del servicio y del modal): edad [1, 7] respecto al encasetamiento.
+            // Regla de fecha (espejo del servicio y del modal): el día del encasetamiento es el DÍA 1
+            // de la semana (edad 0); se acepta edad [0, 7]. Lo inválido es una fecha ANTERIOR al encaset.
             if (repro.FechaEncasetamiento.HasValue)
             {
                 var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(repro.FechaEncasetamiento.Value, fecha);
                 if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDias))
                 {
                     errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
-                        edad < 1
-                            ? $"{repro.Nombre}: la fecha no puede ser anterior al día siguiente del encasetamiento ({repro.FechaEncasetamiento:yyyy-MM-dd})."
-                            : $"{repro.Nombre}: la fecha supera los {MaxDias} días de edad permitidos desde el encasetamiento ({repro.FechaEncasetamiento:yyyy-MM-dd})."));
+                        edad < 0
+                            ? $"{repro.Nombre}: la fecha no puede ser anterior a la fecha de encasetamiento ({repro.FechaEncasetamiento:yyyy-MM-dd}); el día del encasetamiento es el día 1."
+                            : $"{repro.Nombre}: la fecha supera la primera semana de recogida desde el encasetamiento ({repro.FechaEncasetamiento:yyyy-MM-dd})."));
                     continue;
                 }
             }
@@ -385,7 +386,7 @@ public partial class MigracionService
             reproCtx is null
                 ? "• Reproductora: id, código o nombre del lote reproductora (lista en 'Referencias'). Obligatoria en cada fila salvo que elijas una reproductora en pantalla."
                 : $"• Reproductora: seleccionaste '{reproCtx.Nombre}' en pantalla — podés dejar la columna vacía (las filas sin valor cargan a esa reproductora).",
-            $"• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa), dentro de la PRIMERA SEMANA: edad 1 a {MaxDias} días desde el encasetamiento de la reproductora.",
+            $"• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa), dentro de la PRIMERA SEMANA de recogida: el día del encasetamiento de la reproductora es el DÍA 1 y la semana va del día 1 al {MaxDias}. No se aceptan fechas anteriores al encasetamiento.",
             "• Mortalidad / Selección / Error de sexaje: enteros ≥ 0 (vacío = 0). Consumo H/M: número ≥ 0 (acepta coma o punto).",
             "• Unidad Consumo: 'kg' (default si se deja vacía) o 'qq' — con 'qq' el Consumo H/M se convierte automáticamente a kg (1 qq = 45.36 kg).",
             "• Peso (g) y CV: ≥ 0 opcionales. Uniformidad: 0 a 100 opcional.",
@@ -403,7 +404,7 @@ public partial class MigracionService
             if (reproCtx is not null && r.Id != reproCtx.Id) continue;
             var (tot, conf) = estado.TryGetValue(r.Id, out var st) ? st : (0, 0);
             var rango = r.FechaEncasetamiento.HasValue
-                ? $"fechas válidas {r.FechaEncasetamiento.Value.Date.AddDays(1):yyyy-MM-dd} a {r.FechaEncasetamiento.Value.Date.AddDays(MaxDias):yyyy-MM-dd}"
+                ? $"día 1 = {r.FechaEncasetamiento.Value.Date:yyyy-MM-dd} (encasetamiento), día {MaxDias} = {r.FechaEncasetamiento.Value.Date.AddDays(MaxDias - 1):yyyy-MM-dd}"
                 : "sin fecha de encasetamiento registrada";
             var codigo = string.IsNullOrWhiteSpace(r.Codigo) ? "" : $", código {r.Codigo}";
             lineas.Add($"• {r.Nombre} (id {r.ReproductoraId}{codigo}) — {rango} — cargados {tot}/{MaxDias} ({conf} confirmados).");

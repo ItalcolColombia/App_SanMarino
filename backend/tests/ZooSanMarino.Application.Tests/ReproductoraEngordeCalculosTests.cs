@@ -124,7 +124,8 @@ public class ReproductoraEngordeCalculosTests
         Assert.Equal(0, ReproductoraEngordeCalculos.CalcularEdadDias(encaset, hoy, cerrado: false, fechaCierre: null));
     }
 
-    // ── Edad de un registro de seguimiento y su validez para cruzar (edad ∈ [1, 7]) ────────────────
+    // ── Edad de un registro de seguimiento y su validez para cruzar (edad ∈ [0, 7]) ────────────────
+    // Numeración de negocio: el día del encasetamiento es el DÍA 1 de la semana (edad 0).
     [Theory]
     [InlineData("2026-07-13", 0)]   // mismo día del encaset
     [InlineData("2026-07-14", 1)]   // encaset + 1
@@ -148,13 +149,29 @@ public class ReproductoraEngordeCalculosTests
     }
 
     [Theory]
-    [InlineData(0, false)]   // edad 0 (mismo día del encaset) → no cruza
-    [InlineData(1, true)]    // primer día válido
-    [InlineData(7, true)]    // último día válido
-    [InlineData(8, false)]   // supera los 7 días
-    [InlineData(-1, false)]  // anterior al encaset
-    public void EsEdadSeguimientoValida_SoloEntre1y7(int edad, bool esperado)
+    [InlineData(0, true)]    // mismo día del encaset = DÍA 1 de la semana → válido y cruza
+    [InlineData(1, true)]    // día 2 (o día 1 de lotes con numeración previa)
+    [InlineData(6, true)]    // día 7 de la semana que arranca en el encaset
+    [InlineData(7, true)]    // tolerancia: día 7 de lotes que arrancaron al día siguiente del encaset
+    [InlineData(8, false)]   // fuera de la primera semana en cualquier numeración
+    [InlineData(-1, false)]  // anterior al encaset → inválido
+    public void EsEdadSeguimientoValida_DesdeElDiaDelEncasetHastaSiete(int edad, bool esperado)
     {
         Assert.Equal(esperado, ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad));
+    }
+
+    // ── Escenario reportado (jul-2026): encaset 16/07 → registrar el 16/07 es válido; el 15/07 no ──
+    [Fact]
+    public void RegistroDelMismoDiaDelEncaset_EsValido_YElDiaAnteriorNo()
+    {
+        var encaset = new DateTime(2026, 7, 16);
+
+        var edadMismoDia = ReproductoraEngordeCalculos.EdadSeguimientoDias(encaset, new DateTime(2026, 7, 16));
+        Assert.Equal(0, edadMismoDia);
+        Assert.True(ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadMismoDia));
+
+        var edadDiaAnterior = ReproductoraEngordeCalculos.EdadSeguimientoDias(encaset, new DateTime(2026, 7, 15));
+        Assert.Equal(-1, edadDiaAnterior);
+        Assert.False(ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadDiaAnterior));
     }
 }

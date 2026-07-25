@@ -359,7 +359,7 @@
             <thead>
               <tr>
                 <th scope="col" class="col-date" rowspan="2">Fecha</th>
-                <th scope="col" class="col-edad" rowspan="2" title="Edad del lote desde el encasetamiento al día del registro">Edad</th>
+                <th scope="col" class="col-edad" rowspan="2" title="Día de vida del lote: el día del encasetamiento es el día 1">Día</th>
                 <th scope="col" colspan="2" class="col-group">Mortalidad</th>
                 <th scope="col" colspan="2" class="col-group">Selección</th>
                 <th scope="col" colspan="2" class="col-group">Error sexaje</th>
@@ -431,13 +431,13 @@
               @for (s of seguimientos; track trackById($index, s)) {
                 <tr class="data-table__row">
                   <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy':'UTC' }}</td>
-                  <!-- Edad del lote en el registro (días desde encasetamiento) -->
-                  <td class="cell-edad" data-label="Edad">
+                  <!-- Día de vida del lote en el registro (día 1 = día del encasetamiento) -->
+                  <td class="cell-edad" data-label="Día">
                     @if (calcularEdad(s.fechaRegistro) !== null) {
-                      <span class="edad-valor" [title]="'Días desde el encasetamiento'">
+                      <span class="edad-label">día</span>
+                      <span class="edad-valor" [title]="'Día de vida: el día del encasetamiento es el día 1'">
                         {{ calcularEdad(s.fechaRegistro) }}
                       </span>
-                      <span class="edad-label">días</span>
                     } @else {
                       —
                     }

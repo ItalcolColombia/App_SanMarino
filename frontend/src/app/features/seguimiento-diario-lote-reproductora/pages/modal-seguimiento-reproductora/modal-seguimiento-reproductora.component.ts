@@ -65,7 +65,9 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   @Input() galponId: string | null = null;
   /** Fecha pre-calculada por el padre (encasetamiento + N días). Se fija como readonly al crear. */
   @Input() defaultFecha: string | null = null;
-  /** Fecha de encasetamiento del lote reproductora — acota la fecha del registro a edad [1, 7]. */
+  /** Fecha de encasetamiento del lote reproductora — acota la fecha del registro a la primera
+   *  semana de recogida: el día del encasetamiento es el DÍA 1 (edad 0) y se acepta hasta edad 7
+   *  (tolerancia para lotes que arrancaron al día siguiente del encaset, numeración previa). */
   @Input() fechaEncasetamiento: string | Date | null = null;
   /** Número de registros existentes en el lote reproductora (para mostrar el hint). */
   @Input() registrosCount: number = 0;
@@ -131,13 +133,12 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
   }
 
-  /** Fecha mínima permitida (YYYY-MM-DD) = encasetamiento + 1 día (edad 1). Null si no hay encaset. */
+  /** Fecha mínima permitida (YYYY-MM-DD) = fecha de encasetamiento (día 1 de la semana). */
   get minFechaYmd(): string | null {
-    const enc = ymdSinTz(this.fechaEncasetamiento);
-    return enc ? this.addDaysYmd(enc, 1) : null;
+    return ymdSinTz(this.fechaEncasetamiento);
   }
 
-  /** Fecha máxima permitida (YYYY-MM-DD) = encasetamiento + 7 días (edad 7). Null si no hay encaset. */
+  /** Fecha máxima permitida (YYYY-MM-DD) = encasetamiento + 7 días (tolerancia numeración previa). */
   get maxFechaYmd(): string | null {
     const enc = ymdSinTz(this.fechaEncasetamiento);
     return enc ? this.addDaysYmd(enc, 7) : null;
@@ -149,7 +150,8 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   }
 
   /**
-   * Valida que la fecha del registro caiga en edad [1, 7] respecto al encasetamiento.
+   * Valida que la fecha del registro caiga en la primera semana de recogida: desde el día del
+   * encasetamiento (día 1) hasta encaset + 7 (tolerancia para lotes con numeración previa).
    * Compara strings YYYY-MM-DD (orden lexicográfico = orden cronológico). El "requerido"
    * lo maneja Validators.required aparte, así que un valor vacío no dispara este error.
    */
