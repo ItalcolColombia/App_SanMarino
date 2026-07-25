@@ -293,7 +293,8 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.CertificadoGab,
                     f.Latitud,
                     f.Longitud,
-                    f.ManejaAlimentoPorGalpon
+                    f.ManejaAlimentoPorGalpon,
+                    f.CodigoErpEngorde
                 ))
                 .ToListAsync();
 
@@ -308,7 +309,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 {
                     if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
                     if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
-                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre, f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon);
+                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre, f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon, f.CodigoErpEngorde);
                     return f;
                 }).ToList();
             }
@@ -547,7 +548,8 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.CertificadoGab,
                     f.Latitud,
                     f.Longitud,
-                    f.ManejaAlimentoPorGalpon
+                    f.ManejaAlimentoPorGalpon,
+                    f.CodigoErpEngorde
                 ))
                 .SingleOrDefaultAsync();
 
@@ -556,7 +558,7 @@ namespace ZooSanMarino.Infrastructure.Services
             {
                 var nombreOpcion = await _ctx.MasterListOptions.AsNoTracking().Where(o => o.Id == dto.RegionalId.Value).Select(o => o.Value).FirstOrDefaultAsync();
                 if (!string.IsNullOrWhiteSpace(nombreOpcion))
-                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre, dto.ClienteId, dto.Zona, dto.CertificadoGab, dto.Latitud, dto.Longitud, dto.ManejaAlimentoPorGalpon);
+                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre, dto.ClienteId, dto.Zona, dto.CertificadoGab, dto.Latitud, dto.Longitud, dto.ManejaAlimentoPorGalpon, dto.CodigoErpEngorde);
             }
             return dto;
         }
@@ -659,6 +661,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 Latitud         = dto.Latitud,
                 Longitud        = dto.Longitud,
                 ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon,   // null = hereda empresa
+                CodigoErpEngorde = NormalizeCodigoErpEngorde(dto.CodigoErpEngorde),
                 CreatedByUserId = _current.UserId,
                 CreatedAt       = DateTime.UtcNow
             };
@@ -748,7 +751,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.CertificadoGab,
                 entity.Latitud,
                 entity.Longitud,
-                entity.ManejaAlimentoPorGalpon
+                entity.ManejaAlimentoPorGalpon,
+                entity.CodigoErpEngorde
             );
         }
 
@@ -794,6 +798,7 @@ namespace ZooSanMarino.Infrastructure.Services
             entity.Latitud        = dto.Latitud;
             entity.Longitud       = dto.Longitud;
             entity.ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon;   // null = hereda empresa
+            entity.CodigoErpEngorde = NormalizeCodigoErpEngorde(dto.CodigoErpEngorde);
             entity.UpdatedByUserId= _current.UserId;
             entity.UpdatedAt      = DateTime.UtcNow;
 
@@ -843,7 +848,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.CertificadoGab,
                 entity.Latitud,
                 entity.Longitud,
-                entity.ManejaAlimentoPorGalpon
+                entity.ManejaAlimentoPorGalpon,
+                entity.CodigoErpEngorde
             );
         }
 
@@ -962,7 +968,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 .Select(f => new FarmDto(
                     f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.MunicipioId,
                     null, null, null, null,
-                    f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon))
+                    f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon,
+                    f.CodigoErpEngorde))
                 .ToListAsync(ct);
         }
 
@@ -973,6 +980,19 @@ namespace ZooSanMarino.Infrastructure.Services
         {
             var s = (status ?? "A").Trim().ToUpperInvariant();
             return (s == "A" || s == "I") ? s : "A";
+        }
+
+        /// <summary>
+        /// Código ERP de engorde de la granja (Panamá): trim, vacío → null; si viene con algo
+        /// que no sean dígitos se rechaza (el avance +1 al cerrar el ciclo exige código numérico).
+        /// </summary>
+        private static string? NormalizeCodigoErpEngorde(string? codigo)
+        {
+            var c = (codigo ?? string.Empty).Trim();
+            if (c.Length == 0) return null;
+            if (!GestionLotesEngordeCalculos.EsCodigoErpGranjaValido(c))
+                throw new ArgumentException("El código ERP de engorde de la granja debe contener solo dígitos (máx. 18).");
+            return c;
         }
 
         private static IQueryable<FarmDetailDto> ProjectToDetail(IQueryable<Farm> q)
@@ -997,7 +1017,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 f.CertificadoGab,
                 f.Latitud,
                 f.Longitud,
-                f.ManejaAlimentoPorGalpon
+                f.ManejaAlimentoPorGalpon,
+                f.CodigoErpEngorde
             ));
         }
 

@@ -9,6 +9,7 @@ import { TipoMigracionCodigo } from '../models/migracion.model';
 const TIPOS_POLLO_ENGORDE: ReadonlySet<TipoMigracionCodigo> = new Set([
   'LotesPolloEngorde',
   'SeguimientoPolloEngorde',
+  'SeguimientoReproductoraEngorde',
   'VentaPolloEngorde'
 ]);
 

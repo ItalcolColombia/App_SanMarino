@@ -1,36 +1,22 @@
-# Tracker — Guía genética Panamá: Ross 308 AP 2022 (mixto)
+# Tracker — Seguimiento reproductora engorde: el día del encasetamiento cuenta como DÍA 1
 
-Plan: [guia_genetica_panama_ross308ap_2022_plan.md](fase_de_desarrollo/guia_genetica_panama_ross308ap_2022_plan.md)
+**Plan:** [fase_de_desarrollo/seguimiento_reproductora_engorde_edad_cero_plan.md](fase_de_desarrollo/seguimiento_reproductora_engorde_edad_cero_plan.md)
 
-Decisión confirmada: **Opción A** — guía año 2022 + repuntar los 31 lotes de Panamá (2026 → 2022).
+## Backend
+- [x] `ReproductoraEngordeCalculos.EsEdadSeguimientoValida` → edad [0,7] + doc (día 1 = encaset; edad 7 tolerada por lotes con numeración previa)
+- [x] `SeguimientoDiarioLoteReproductoraService` Create/Update: condición `edad < 0` + mensajes con "día 1 = día del encasetamiento"
+- [x] `MigracionService.SeguimientoReproductora`: condición/mensaje + plantilla (día 1 = encaset, día 7 = encaset+6)
+- [x] `backend/sql/fn_cruce_reproductora_a_engorde.sql`: consolida edades 0..7, retiros `[0, d)`, observaciones sin "(día d)"
+- [x] Migración `20260724100000_CruceReproductoraEngordeEdadCero` + Designer clonado (Up: fn nueva + recálculo dirigido de lotes con edad 0 confirmada; Down: fn previa + limpieza edad 0 + recálculo)
+- [x] Tests xUnit (0/1/6/7 válidas, 8/−1 inválidas + escenario encaset 16/07 vs 15/07)
 
-## Checklist
+## Frontend
+- [x] Modal: `minFechaYmd` = fecha de encasetamiento + mensajes/hint "día 1 = día del encasetamiento"
+- [x] Lista: fecha sugerida del primer registro = día del encaset; columna "Día" = edad + 1 (día 1 = encaset)
+- [x] `construir-bloques-reproductora.funcion.ts`: ventana días 1..7 desde edad 0 si hay registro del día del encaset (históricos idénticos)
 
-### Validación e investigación
-- [x] Validar PDF Aviagen YP × Ross 308 AP 2022 (legítimo, columnas calzan con el módulo)
-- [x] Extraer tabla Mixto (g) por coordenadas: 57 filas (día 0-56) + validación aritmética CA
-- [x] Mapear módulo guía genética Ecuador (entidades, config, servicio, indicadores)
-- [x] Diagnosticar BD: países (PA=3), guía actual Panamá (header 2, 2026, pesos en 0), 31 lotes 2026
-- [x] Confirmar linkage indicadores (raza + anoTablaGenetica del lote + sexo mixto)
-- [x] Verificar sin riesgo prod: created_by_user_id sin FK, company 5 existe, tipos ok
-
-### Workflow
-- [x] Plan (`fase_de_desarrollo/…_plan.md`)
-- [x] Tracker (este archivo)
-
-### Implementación
-- [x] Generar bloque VALUES (57 filas) desde el PDF (script, no manual)
-- [x] Crear migración `20260722220000_SeedGuiaGeneticaPanamaRoss308AP2022.cs` (DELETE + INSERT + UPDATE, idempotente)
-- [x] Crear `…Designer.cs` (clon del snapshot vigente, solo id/clase; sin tocar ModelSnapshot)
-- [x] `dotnet build` Infrastructure con .NET 10 (0 errores, 0 warnings)
-
-### Pruebas locales (sanmarinoapplocal:5433)
-- [x] Ejecutar Up() completo contra el schema real en transacción + ROLLBACK (sin persistir; backend del usuario intacto)
-- [x] Verificar: 0 headers Panamá 2026; 1 header 2022 con 57 filas mixto; día 0/7/56 correctos
-- [x] Verificar: 31 lotes Panamá repuntados a 2022; Ecuador (header 1) intacto (3 sexos × 57)
-- [x] Verificar idempotencia (segunda corrida de Up = mismo estado, sin duplicar)
-- [ ] Aplicación real local: se auto-aplica en el próximo arranque del backend (`Database:RunMigrations=true`) / deploy
-
-### Cierre
-- [x] Actualizar memoria
-- [ ] Confirmación del usuario antes de deploy a prod (incluye borrado de la guía vieja + repunte de 31 lotes)
+## Validación
+- [x] `dotnet build` Infrastructure: 0 errores, 0 warnings
+- [x] `dotnet test`: 643 pasando
+- [x] `yarn build` front: OK (solo warning bundle budget preexistente)
+- [x] Smoke SQL local (BEGIN…ROLLBACK): cruce genera edad 0 (fecha = encaset, mort 3/2) y preserva edades 1..7; BD intacta

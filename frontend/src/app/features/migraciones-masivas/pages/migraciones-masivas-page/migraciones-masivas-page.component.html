@@ -38,12 +38,43 @@
         <h2 class="card__title">Seleccioná el lote</h2>
       </div>
       <app-hierarchical-filter
-        [showLoteSelection]="true"
+        [showLoteSelection]="false"
         [filterLabel]="'Filtros de Lote'"
         [showChips]="true"
-        (filterChange)="onFilterChange($event)"
-        (loteSelected)="onLoteSelected($event)">
+        (filterChange)="onFilterChange($event)">
       </app-hierarchical-filter>
+
+      <div class="selectores">
+        <div class="selector">
+          <label class="selector__label" for="mig-lote">
+            Lote {{ esTipoReproductora() ? '(pollo engorde)' : '' }}
+          </label>
+          <select id="mig-lote" class="selector__select" (change)="onLoteChange($any($event.target).value)" [disabled]="cargandoLotes()">
+            <option value="" [selected]="contexto().loteId == null">Seleccionar lote…</option>
+            <option *ngFor="let l of lotesElegibles()" [value]="l.loteId" [selected]="contexto().loteId === l.loteId">
+              {{ etiquetaLote(l) }}
+            </option>
+          </select>
+          <span class="selector__hint" *ngIf="cargandoLotes()"><span class="spinner"></span> Cargando lotes…</span>
+          <span class="selector__hint" *ngIf="!cargandoLotes()">
+            {{ lotesElegibles().length }} lote(s) elegible(s) con los filtros aplicados
+          </span>
+        </div>
+
+        <div class="selector" *ngIf="esTipoReproductora() && contexto().loteId != null">
+          <label class="selector__label" for="mig-repro">Reproductora (opcional)</label>
+          <select id="mig-repro" class="selector__select" (change)="onReproductoraChange($any($event.target).value)" [disabled]="cargandoReproductoras()">
+            <option value="" [selected]="contexto().reproductoraId == null">Todas — el Excel indica la reproductora de cada fila</option>
+            <option *ngFor="let r of reproductoras()" [value]="r.id" [selected]="contexto().reproductoraId === r.id">
+              {{ etiquetaReproductora(r) }}
+            </option>
+          </select>
+          <span class="selector__hint" *ngIf="cargandoReproductoras()"><span class="spinner"></span> Cargando reproductoras…</span>
+          <span class="selector__hint" *ngIf="!cargandoReproductoras() && contexto().reproductoraId != null">
+            Se cargará SOLO a la reproductora elegida (las filas pueden dejar la columna "Reproductora" vacía).
+          </span>
+        </div>
+      </div>
     </section>
 
     <section class="card">

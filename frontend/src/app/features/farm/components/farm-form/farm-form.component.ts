@@ -68,6 +68,9 @@ export class FarmFormComponent implements OnInit {
       certificadoGab: [false],
       latitud:        [null],
       longitud:       [null],
+      // Código ERP para lotes de engorde: solo dígitos; los lotes lo capturan al crearse
+      // y avanza +1 automáticamente al cerrar todos los lotes del lote base en la granja
+      codigoErpEngorde: ['', [Validators.pattern(/^\d*$/), Validators.maxLength(18)]],
       // Override manejo alimento: null = hereda empresa; true = galpón; false = granja
       manejaAlimentoPorGalpon: [null]
     });
@@ -138,6 +141,7 @@ export class FarmFormComponent implements OnInit {
       certificadoGab: v.certificadoGab ?? false,
       latitud:        v.latitud === '' || v.latitud === undefined ? null : v.latitud,
       longitud:       v.longitud === '' || v.longitud === undefined ? null : v.longitud,
+      codigoErpEngorde: (v.codigoErpEngorde ?? '').trim() || null,
       // null = hereda empresa; true = galpón; false = granja (no forzar con ?? para preservar false)
       manejaAlimentoPorGalpon: v.manejaAlimentoPorGalpon === undefined ? null : v.manejaAlimentoPorGalpon
     };

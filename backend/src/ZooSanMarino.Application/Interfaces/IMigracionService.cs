@@ -25,6 +25,9 @@ public interface IMigracionService
     /// <summary>Lotes elegibles para migración de históricos según las reglas de fase.</summary>
     Task<IReadOnlyList<LoteElegibleDto>> GetElegiblesAsync(TipoMigracion tipo, MigracionContextoDto contexto, CancellationToken ct = default);
 
+    /// <summary>Lotes reproductora del lote engorde indicado (selector opcional de Seguimiento Reproductora Engorde).</summary>
+    Task<IReadOnlyList<ReproductoraElegibleDto>> GetReproductorasElegiblesAsync(int loteId, CancellationToken ct = default);
+
     /// <summary>Genera la plantilla .xlsx del tipo indicado, con datos relacionados y validaciones.</summary>
     Task<(byte[] Contenido, string NombreArchivo)> GenerarPlantillaAsync(TipoMigracion tipo, MigracionContextoDto contexto, CancellationToken ct = default);
 

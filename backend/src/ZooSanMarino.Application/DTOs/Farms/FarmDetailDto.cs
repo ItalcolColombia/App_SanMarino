@@ -25,5 +25,7 @@ public sealed record FarmDetailDto(
     decimal?   Latitud         = null,
     decimal?   Longitud        = null,
     // Override de la granja: null = hereda empresa; true = sobre GALPÓN; false = sobre GRANJA
-    bool?      ManejaAlimentoPorGalpon = null
+    bool?      ManejaAlimentoPorGalpon = null,
+    // Panamá: código ERP vigente para lotes de engorde (avanza +1 al cerrar el ciclo)
+    string?    CodigoErpEngorde = null
 );

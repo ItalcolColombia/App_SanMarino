@@ -153,6 +153,21 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
     return this.selectedGalponId ?? undefined;
   }
 
+  /** Nombre de la granja seleccionada (breadcrumb del header). */
+  get selectedGranjaName(): string {
+    return this.granjas.find(g => g.id === this.selectedGranjaId)?.name ?? '';
+  }
+
+  /** Nombre del núcleo seleccionado (breadcrumb del header). */
+  get selectedNucleoNombre(): string {
+    return this.nucleos.find(n => n.nucleoId === this.selectedNucleoId)?.nucleoNombre ?? (this.selectedNucleoId ?? '');
+  }
+
+  /** Nombre del galpón seleccionado (breadcrumb del header). */
+  get selectedGalponNombre(): string {
+    return this.galpones.find(g => g.galponId === this.selectedGalponId)?.galponNombre ?? (this.selectedGalponId ?? '');
+  }
+
   /** Total hembras (H) que se usarán en los registros del formulario actual. */
   get totalHInForm(): number {
     return this.incubadoras.controls.reduce((sum, c) => sum + (Number(c.get('h')?.value) || 0), 0);

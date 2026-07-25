@@ -39,6 +39,10 @@ export interface FarmDto {
   // Override de manejo de alimento: null = hereda empresa; true = galpón; false = granja
   manejaAlimentoPorGalpon?: boolean | null;
 
+  // Panamá: código ERP vigente para lotes de engorde (los lotes nuevos lo capturan;
+  // avanza +1 automáticamente al cerrar todos los lotes del lote base en la granja)
+  codigoErpEngorde?: string | null;
+
   createdAt?: string;
   updatedAt?: string;
   company?: { id: number; name: string };
@@ -64,6 +68,9 @@ export interface CreateFarmDto {
 
   // Override de manejo de alimento: null = hereda empresa; true = galpón; false = granja
   manejaAlimentoPorGalpon?: boolean | null;
+
+  // Panamá: código ERP vigente para lotes de engorde (solo dígitos)
+  codigoErpEngorde?: string | null;
 }
 
 export interface UpdateFarmDto extends CreateFarmDto {

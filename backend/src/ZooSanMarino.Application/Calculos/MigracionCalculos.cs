@@ -124,4 +124,27 @@ public static class MigracionCalculos
         if (k is "i" or "inactivo" or "inactiva" or "0") return "I";
         return "A";
     }
+
+    /// <summary>Factor oficial 1 quintal = 100 lb = 45.36 kg (mismo que PuentePanamaCalculos.KgPorQuintal y el QQ_TO_KG del front).</summary>
+    public const decimal KgPorQuintal = 45.36m;
+
+    /// <summary>
+    /// Unidad de consumo de la carga masiva: "kg" (default si la celda viene vacía) o "qq".
+    /// Devuelve null si el texto no corresponde a ninguna de las dos (unidad inválida → error de fila).
+    /// </summary>
+    public static string? NormalizarUnidadConsumo(string? s)
+    {
+        var k = NormalizarClave(s);
+        if (string.IsNullOrEmpty(k) || k is "kg" or "kilo" or "kilos" or "kilogramo" or "kilogramos") return "kg";
+        if (k is "qq" or "quintal" or "quintales") return "qq";
+        return null;
+    }
+
+    /// <summary>
+    /// Convierte una cantidad de consumo a kg según la unidad normalizada: "qq" multiplica por
+    /// <see cref="KgPorQuintal"/> con redondeo a 3 decimales (mismo redondeo que el toKg del front);
+    /// "kg" pasa intacta. Null se conserva.
+    /// </summary>
+    public static decimal? ConsumoAKilos(decimal? cantidad, string unidad) =>
+        cantidad.HasValue && unidad == "qq" ? Math.Round(cantidad.Value * KgPorQuintal, 3) : cantidad;
 }

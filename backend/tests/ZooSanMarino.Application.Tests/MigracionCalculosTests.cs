@@ -97,4 +97,36 @@ public class MigracionCalculosTests
     [InlineData("0", "I")]
     public void NormalizarEstado_MapeaAI(string? input, string esperado)
         => Assert.Equal(esperado, MigracionCalculos.NormalizarEstado(input));
+
+    [Theory]
+    [InlineData(null, "kg")]
+    [InlineData("", "kg")]
+    [InlineData("kg", "kg")]
+    [InlineData("KG", "kg")]
+    [InlineData("Kilos", "kg")]
+    [InlineData("qq", "qq")]
+    [InlineData("QQ", "qq")]
+    [InlineData("Quintales", "qq")]
+    [InlineData("libras", null)]
+    [InlineData("gr", null)]
+    public void NormalizarUnidadConsumo_KgDefaultQqYRechazaOtras(string? input, string? esperado)
+        => Assert.Equal(esperado, MigracionCalculos.NormalizarUnidadConsumo(input));
+
+    [Fact]
+    public void ConsumoAKilos_QqConvierteConFactor4536YRedondeo3Decimales()
+    {
+        // Mismo factor y redondeo que el front (QQ_TO_KG = 45.36, 3 decimales).
+        Assert.Equal(45.36m, MigracionCalculos.ConsumoAKilos(1m, "qq"));
+        Assert.Equal(90.72m, MigracionCalculos.ConsumoAKilos(2m, "qq"));
+        Assert.Equal(11.34m, MigracionCalculos.ConsumoAKilos(0.25m, "qq"));
+        Assert.Equal(4.99m, MigracionCalculos.ConsumoAKilos(0.11m, "qq")); // 4.9896 → 4.99 (redondeo a 3)
+    }
+
+    [Fact]
+    public void ConsumoAKilos_KgPasaIntactoYNullSeConserva()
+    {
+        Assert.Equal(12.5m, MigracionCalculos.ConsumoAKilos(12.5m, "kg"));
+        Assert.Null(MigracionCalculos.ConsumoAKilos(null, "qq"));
+        Assert.Null(MigracionCalculos.ConsumoAKilos(null, "kg"));
+    }
 }

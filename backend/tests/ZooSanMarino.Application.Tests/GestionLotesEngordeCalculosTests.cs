@@ -43,4 +43,46 @@ public class GestionLotesEngordeCalculosTests
         // Base nulo/vacío no debería ocurrir (siempre se resuelve), pero no debe lanzar NRE.
         Assert.Equal(" - 1", ConstruirNombreCorrida(null!, 1));
     }
+
+    // ── Código ERP de la granja (Panamá): avance +1 al cerrar el ciclo ───────
+    [Theory]
+    [InlineData("4001017", "4001018")]  // base 17 cierra → empieza el 18
+    [InlineData("4001018", "4001019")]
+    [InlineData("4001099", "4001100")]  // patrón del requerimiento: 99 → 100 (toma 3 dígitos)
+    [InlineData("4001100", "4001101")]  // y sigue: 100 → 101
+    [InlineData("4001999", "4002000")]  // rollover natural del +1 numérico
+    [InlineData("  4001017  ", "4001018")]  // trim
+    [InlineData("0099", "0100")]        // conserva ceros a la izquierda (misma longitud)
+    [InlineData("9", "10")]             // si el número crece, crece el código
+    public void SiguienteCodigoErpGranja_AvanzaMasUno(string actual, string esperado)
+    {
+        Assert.Equal(esperado, SiguienteCodigoErpGranja(actual));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("4001A17")]             // no numérico → no avanzar
+    [InlineData("4001-17")]
+    [InlineData("40010171234567890123")] // >18 dígitos → no cabe en long con margen
+    public void SiguienteCodigoErpGranja_InvalidoDevuelveNull(string? actual)
+    {
+        Assert.Null(SiguienteCodigoErpGranja(actual));
+    }
+
+    [Theory]
+    [InlineData(null, true)]            // sin código = granja sin la funcionalidad (válido)
+    [InlineData("", true)]
+    [InlineData("   ", true)]
+    [InlineData("4001017", true)]
+    [InlineData("0099", true)]
+    [InlineData("4001A17", false)]      // letras no
+    [InlineData("4001 17", false)]      // espacios internos no
+    [InlineData("-400117", false)]      // signo no
+    [InlineData("40010171234567890123", false)] // >18 dígitos
+    public void EsCodigoErpGranjaValido_SoloDigitosOMaxDieciocho(string? codigo, bool esperado)
+    {
+        Assert.Equal(esperado, EsCodigoErpGranjaValido(codigo));
+    }
 }

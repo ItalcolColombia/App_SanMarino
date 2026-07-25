@@ -147,16 +147,16 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   /**
-   * Fecha sugerida para el próximo registro, siempre consecutiva:
-   * - Sin registros → fecha de encasetamiento del lote reproductora (día 0).
+   * Fecha sugerida para el próximo registro:
+   * - Sin registros → fecha de encasetamiento del lote reproductora (día 1 de la semana).
    * - Con registros → último registro + 1 día.
    * Si no hay fecha de encasetamiento disponible se usa hoy.
    */
   get nextSuggestedFecha(): string {
     if (this.seguimientos.length === 0) {
-      // Primer registro: día siguiente al encasetamiento (día 1 = encasetamiento + 1)
+      // Primer registro: el MISMO día del encasetamiento (el negocio lo cuenta como día 1)
       const enc = ymdSinTz(this.selectedReproductoraDetail?.fechaEncasetamiento);
-      if (enc) return this.addDaysToYmd(enc, 1);
+      if (enc) return enc;
       return this.todayYmd();
     }
     // Registro N: último registrado + 1 día
@@ -651,8 +651,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   trackByIdx = (i: number) => i;
 
   /**
-   * Días de edad del lote en el momento de un registro.
-   * Día 1 = primer día después del encasetamiento.
+   * Día de vida del lote en el momento de un registro.
+   * Numeración de negocio: el DÍA DEL ENCASETAMIENTO es el día 1 (encaset + N = día N+1).
    * Devuelve null si alguna fecha no está disponible o la fecha es anterior al encasetamiento.
    */
   calcularEdad(fechaRegistro: string | Date | null | undefined): number | null {
@@ -665,7 +665,7 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     const registro = new Date(regYmd + 'T00:00:00');
     if (isNaN(inicio.getTime()) || isNaN(registro.getTime())) return null;
     const dias = Math.round((registro.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-    return dias > 0 ? dias : null;
+    return dias >= 0 ? dias + 1 : null;
   }
 
   private hasValue(v: unknown): boolean {

@@ -60,10 +60,14 @@ public static class ReproductoraEngordeCalculos
         => (int)(fechaRegistro.Date - fechaEncasetamiento.Date).TotalDays;
 
     /// <summary>
-    /// Un registro de seguimiento reproductora es válido solo si su edad ∈ [1, <paramref name="dias"/>]:
-    /// la función de cruce a pollo engorde (fn_cruce_reproductora_a_engorde) solo consolida edades 1..7.
-    /// Edad 0 (mismo día del encaset) o &gt; 7 nunca cruzarían → se rechazan.
+    /// Un registro de seguimiento reproductora es válido si su edad (días de calendario desde el
+    /// encasetamiento) ∈ [0, <paramref name="dias"/>]. Numeración de negocio: <b>el día del
+    /// encasetamiento es el DÍA 1</b> de la semana de recogida (edad 0), y el día 7 cae en edad 6.
+    /// Se tolera edad 7 porque los lotes previos a jul-2026 arrancaban la semana al día siguiente
+    /// del encaset (días 1..7 = edades 1..7) y deben poder completarla. Fechas anteriores al
+    /// encasetamiento (edad negativa) o más allá de edad 7 se rechazan — la función de cruce a
+    /// pollo engorde (fn_cruce_reproductora_a_engorde) consolida edades 0..7.
     /// </summary>
     public static bool EsEdadSeguimientoValida(int edad, int dias = DiasRecogidaReproductora)
-        => edad >= 1 && edad <= dias;
+        => edad >= 0 && edad <= dias;
 }

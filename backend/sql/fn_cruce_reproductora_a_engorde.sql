@@ -5,16 +5,18 @@
 -- (tabla CANÓNICA seguimiento_diario_aves_engorde) NO se digita: se genera
 -- consolidando los seguimientos de los lotes reproductora asociados.
 --
--- Reglas (Excel "requerimiento panama 2"):
---   * Cruce por EDAD de vida: edad = fecha_registro - fecha_encasetamiento (días).
---     El día siguiente al encaset = edad 1. Solo edades 1..7.
+-- Reglas (Excel "requerimiento panama 2"; edad 0 habilitada 2026-07-24):
+--   * Cruce por EDAD: edad = fecha_registro - fecha_encasetamiento (días de calendario).
+--     Numeración de negocio: el día del encasetamiento es el DÍA 1 (edad 0) y la semana
+--     va del día 1 al 7 (edades 0..6). Se consolidan edades 0..7 — la edad 7 cubre los
+--     lotes previos a jul-2026 que arrancaban la semana al día siguiente del encaset.
 --   * Sumas: consumo M/H, mortalidad M/H, selección M/H, error sexaje M/H.
---   * Aves vivas al inicio del día d = aves_inicio - Σ(mort+sel+error) de edades < d.
+--   * Aves vivas al inicio del día d = aves_inicio - Σ(mort+sel+error) de edades [0, d).
 --   * Peso promedio = PROMEDIO PONDERADO por aves vivas:
 --         peso_m = Σ(aves_m_i · peso_m_i) / Σ(aves_m_i)   (idem hembras).
 --   * Solo cuentan registros CONFIRMADOS (s.confirmado = true): el cruce se habilita
 --     por la validación manual del registro reproductora.
---   * Multi-lote: solo se genera el día d cuando TODOS los lotes reproductora
+--   * Multi-lote: solo se genera la edad d cuando TODOS los lotes reproductora
 --     tienen registro CONFIRMADO de esa edad. Si falta alguno → no se genera (y se
 --     borra el cruce previo de esa edad si existía). 1 solo lote → copia directa.
 --   * Inventario/aves NO se vuelven a descontar (espejo informativo).
@@ -29,7 +31,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_seg_engorde_cruce_lote_fecha
     WHERE origen_cruce;
 
 -- ----------------------------------------------------------------------------
--- Función principal: recalcula las edades 1..7 de un lote pollo engorde.
+-- Función principal: recalcula las edades 0..7 de un lote pollo engorde.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_cruce_reproductora_a_engorde(p_lote_ave_engorde_id int)
 RETURNS void
@@ -63,8 +65,8 @@ BEGIN
         RETURN;
     END IF;
 
-    FOR d IN 1..c_max_dias LOOP
-        -- Agregados del día d sobre todos los lotes reproductora del padre.
+    FOR d IN 0..c_max_dias LOOP
+        -- Agregados de la edad d sobre todos los lotes reproductora del padre.
         SELECT
             COUNT(DISTINCT dia.repro_id)                                   AS n_con,
             COALESCE(SUM(dia.aves_m), 0)                                   AS machos,
@@ -98,7 +100,7 @@ BEGIN
           FROM (
             SELECT
                 lr.id AS repro_id,
-                -- aves vivas al inicio del día d = inicio - retiros de edades [1, d)
+                -- aves vivas al inicio de la edad d = inicio - retiros de edades [0, d)
                 COALESCE(lr.aves_inicio_machos, lr.m, 0)
                   - COALESCE((
                         SELECT SUM(COALESCE(p.mortalidad_machos,0)
@@ -107,7 +109,7 @@ BEGIN
                           FROM seguimiento_diario_lote_reproductora_aves_engorde p
                          WHERE p.lote_reproductora_ave_engorde_id = lr.id
                            AND p.confirmado = true
-                           AND (p.fecha::date - lr.fecha_encasetamiento::date) >= 1
+                           AND (p.fecha::date - lr.fecha_encasetamiento::date) >= 0
                            AND (p.fecha::date - lr.fecha_encasetamiento::date) <  d
                     ), 0)                                                  AS aves_m,
                 COALESCE(lr.aves_inicio_hembras, lr.h, 0)
@@ -118,7 +120,7 @@ BEGIN
                           FROM seguimiento_diario_lote_reproductora_aves_engorde p
                          WHERE p.lote_reproductora_ave_engorde_id = lr.id
                            AND p.confirmado = true
-                           AND (p.fecha::date - lr.fecha_encasetamiento::date) >= 1
+                           AND (p.fecha::date - lr.fecha_encasetamiento::date) >= 0
                            AND (p.fecha::date - lr.fecha_encasetamiento::date) <  d
                     ), 0)                                                  AS aves_h,
                 s.consumo_kg_machos, s.consumo_kg_hembras,
@@ -144,6 +146,7 @@ BEGIN
            AND (metadata->>'edad')::int = d;
 
         -- Generar solo si TODOS los lotes reproductora tienen registro de la edad d.
+        -- Edad 0 → mismo día del encaset (día 1 de la semana de recogida).
         IF r.n_con = v_n_lotes AND v_n_lotes > 0 THEN
             v_fecha_dest := COALESCE(v_fecha_enc + d, r.fecha_reg);
 
@@ -170,8 +173,10 @@ BEGIN
                     ELSE r.tipo_alimento
                 END,
                 'Normal',
+                -- Sin número de día en el texto: la numeración de negocio (día 1 = encaset)
+                -- difiere de la edad técnica `d`; la fecha de la fila ya identifica el día.
                 'Generado automáticamente desde ' || v_n_lotes
-                  || ' lote(s) reproductora (día ' || d || ').',
+                  || ' lote(s) reproductora.',
                 jsonb_build_object(
                     'origenCruce', true,
                     'edad', d,

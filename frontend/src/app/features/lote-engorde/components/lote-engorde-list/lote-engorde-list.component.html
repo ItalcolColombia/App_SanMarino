@@ -394,7 +394,14 @@
                     </div>
                     <div class="le-field">
                       <label class="le-label">Lote ERP</label>
-                      <input formControlName="loteErp" class="le-input" placeholder="Código ERP"/>
+                      <input formControlName="loteErp" class="le-input" placeholder="Código ERP"
+                        [readonly]="loteErpBloqueado"
+                        [title]="loteErpBloqueado ? 'Definido por el código ERP de la granja' : ''"/>
+                      @if (esPanama && loteErpBloqueado) {
+                        <p class="le-form-hint">Se asigna automáticamente desde el código ERP de la granja; avanza al cerrar todos los lotes del lote base.</p>
+                      } @else if (esPanama && !editing && form.get('granjaId')?.value) {
+                        <p class="le-form-hint">Esta granja no tiene código ERP de engorde configurado; podés digitarlo o configurarlo en la granja.</p>
+                      }
                     </div>
                     @if (!esPanama) {
                     <ng-container *appHasPermission="permLoteBase.ver">

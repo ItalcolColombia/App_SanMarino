@@ -3,7 +3,10 @@
 // Sin `this`, sin DI, sin servicios — recibe datos, devuelve resultado.
 //
 // Reglas (Excel «LOTES DE POLLITOS PRIMERA SEMANA», validadas con negocio):
-//   · edad = fechaRegistro − fechaEncasetamiento (días, fechas UTC); solo edades 1..7.
+//   · edad = fechaRegistro − fechaEncasetamiento (días, fechas UTC); edades 0..7.
+//     El negocio cuenta el día del encasetamiento como DÍA 1 (edad 0): si el lote registró
+//     esa fecha, la ventana de 7 filas va de edad 0 a 6; si arrancó al día siguiente
+//     (numeración previa a jul-2026), de edad 1 a 7 — salida idéntica a la histórica.
 //   · saldo día d = avesInicio − Σ(mort + sel + error) de edades ≤ d.
 //   · qqReal = consumoKg ÷ 45.36 · grs/ave = consumoKg × 1000 ÷ saldo inicio del día.
 //   · ganancia = peso_d − peso_(d−1); día 1 = peso − peso de llegada.
@@ -38,7 +41,7 @@ function diasUtc(iso: string): number | null {
   return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000);
 }
 
-/** Edad en días de vida (día siguiente al encaset = 1). */
+/** Edad en días de calendario desde el encaset (mismo día del encaset = 0). */
 function edadDia(fechaRegistro: string, fechaEncaset: string | null): number | null {
   const reg = diasUtc(fechaRegistro);
   const enc = fechaEncaset ? diasUtc(fechaEncaset) : null;
@@ -104,8 +107,12 @@ function construirBloqueSexo(
   let pesoAnterior = pesoLlegada;
   let peso7Dias: number | null = null;
 
+  // Ventana de la semana: con registro en edad 0 (día del encaset) las filas 1..7 mapean a
+  // edades 0..6; sin él, a edades 1..7 (numeración previa) — `dia` es el día de negocio.
+  const edadInicial = porEdad.has(0) ? 0 : 1;
+
   for (let dia = 1; dia <= MAX_DIAS; dia++) {
-    const d = datosDelSexo(porEdad.get(dia), sexo);
+    const d = datosDelSexo(porEdad.get(edadInicial + dia - 1), sexo);
     const saldoInicio = saldo;
     saldo = saldoInicio - d.muertos - d.sel - d.error;
 
@@ -189,7 +196,7 @@ export function construirBloquesReproductora(
     const porEdad = new Map<number, SeguimientoPrimeraSemanaLike>();
     for (const s of seguimientos ?? []) {
       const edad = edadDia(s.fechaRegistro, lote.fechaEncasetamiento);
-      if (edad != null && edad >= 1 && edad <= MAX_DIAS) porEdad.set(edad, s);
+      if (edad != null && edad >= 0 && edad <= MAX_DIAS) porEdad.set(edad, s);
     }
     const titulos = titulosBloques(lote);
     bloques.push(construirBloqueSexo(lote, porEdad, 'H', titulos.h));

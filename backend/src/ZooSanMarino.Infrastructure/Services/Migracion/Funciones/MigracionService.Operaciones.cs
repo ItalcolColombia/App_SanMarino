@@ -18,6 +18,8 @@ public partial class MigracionService
                 => await ElegiblesHistoricosAsync(tipo, companyId, contexto, ct),
             TipoMigracion.SeguimientoPolloEngorde or TipoMigracion.VentaPolloEngorde
                 => await ElegiblesEngordeAsync(companyId, contexto, ct),
+            TipoMigracion.SeguimientoReproductoraEngorde
+                => await ElegiblesReproductoraEngordeAsync(companyId, contexto, ct),
             _ => throw new NotImplementedException($"Los lotes elegibles para '{tipo}' se implementan en la Fase 3.")
         };
     }
@@ -34,6 +36,7 @@ public partial class MigracionService
                 => await GenerarPlantillaSeguimientoAsync(tipo, companyId, contexto, ct),
             TipoMigracion.LotesPolloEngorde       => await GenerarPlantillaLotesPolloEngordeAsync(companyId, ct),
             TipoMigracion.SeguimientoPolloEngorde => await GenerarPlantillaSeguimientoEngordeAsync(companyId, contexto, ct),
+            TipoMigracion.SeguimientoReproductoraEngorde => await GenerarPlantillaSeguimientoReproductoraAsync(companyId, contexto, ct),
             TipoMigracion.VentaPolloEngorde       => await GenerarPlantillaVentaEngordeAsync(companyId, contexto, ct),
             _ => throw new NotImplementedException($"La plantilla de '{tipo}' se implementa en su fase correspondiente.")
         };
@@ -67,6 +70,7 @@ public partial class MigracionService
             TipoMigracion.SeguimientoProduccion => await ProcesarSeguimientoProduccionAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
             TipoMigracion.LotesPolloEngorde       => await ProcesarLotesPolloEngordeAsync(file, dryRun, permitirParcial, companyId, ct),
             TipoMigracion.SeguimientoPolloEngorde => await ProcesarSeguimientoEngordeAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
+            TipoMigracion.SeguimientoReproductoraEngorde => await ProcesarSeguimientoReproductoraAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
             TipoMigracion.VentaPolloEngorde       => await ProcesarVentaEngordeAsync(file, dryRun, permitirParcial, companyId, contexto, ct),
             _ => throw new NotImplementedException($"La migración de '{tipo}' se implementa en su fase correspondiente.")
         };
