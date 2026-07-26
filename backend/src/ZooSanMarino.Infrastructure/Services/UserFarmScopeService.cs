@@ -15,11 +15,55 @@ namespace ZooSanMarino.Infrastructure.Services;
 public class UserFarmScopeService : IUserFarmScopeService
 {
     private readonly ZooSanMarinoContext _ctx;
+    private readonly ICurrentUser _current;
 
-    public UserFarmScopeService(ZooSanMarinoContext ctx) => _ctx = ctx;
+    public UserFarmScopeService(ZooSanMarinoContext ctx, ICurrentUser current)
+    {
+        _ctx = ctx;
+        _current = current;
+    }
+
+    /// <summary>
+    /// Gate de administración (fix QA A1): solo Super Admin o un rol con permisos de administración
+    /// EN LA EMPRESA DE LA GRANJA (is_company_admin o admin/administrador) puede leer o cambiar el
+    /// alcance de otros usuarios — sin esto, un usuario restringido podía quitarse la restricción
+    /// con un PUT directo. Valida además que la granja exista (y de paso fija la empresa contra la
+    /// que se exige el rol: no sirve ser admin de OTRA empresa). Fail-closed.
+    /// </summary>
+    private async Task EnsureCallerPuedeAdministrarAlcanceAsync(int farmId)
+    {
+        var guid = _current.UserGuid;
+        if (!guid.HasValue)
+            throw new UnauthorizedAccessException("Sesión inválida. Inicie sesión de nuevo.");
+
+        var farmCompanyId = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == farmId)
+            .Select(f => (int?)f.CompanyId)
+            .FirstOrDefaultAsync();
+        if (farmCompanyId is null)
+            throw new InvalidOperationException($"Granja con ID {farmId} no encontrada.");
+
+        // Super Admin (mismo criterio vigente en FarmService/NucleoService)
+        var email = await _ctx.UserLogins.AsNoTracking()
+            .Where(ul => ul.UserId == guid.Value)
+            .Select(ul => ul.Login.email)
+            .FirstOrDefaultAsync();
+        if (email != null && email.ToLower() == "moiesbbuga@gmail.com") return;
+
+        var esAdminDeLaEmpresa = await _ctx.UserRoles.AsNoTracking()
+            .Where(ur => ur.UserId == guid.Value && ur.CompanyId == farmCompanyId.Value)
+            .AnyAsync(ur => ur.Role.IsCompanyAdmin ||
+                            ur.Role.Name.ToLower() == "admin" ||
+                            ur.Role.Name.ToLower() == "administrador");
+        if (!esAdminDeLaEmpresa)
+            throw new UnauthorizedAccessException(
+                "Solo un Administrador de Empresa o Super Admin puede administrar el alcance de granjas.");
+    }
 
     public async Task<UserFarmScopeConfigDto> GetScopeAsync(Guid userId, int farmId)
     {
+        await EnsureCallerPuedeAdministrarAlcanceAsync(farmId);
+
         var userFarm = await _ctx.UserFarms.AsNoTracking()
             .Include(uf => uf.Farm)
             .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.FarmId == farmId);
@@ -34,6 +78,8 @@ public class UserFarmScopeService : IUserFarmScopeService
     public async Task<UserFarmScopeConfigDto> ReplaceScopeAsync(
         Guid userId, int farmId, UpdateUserFarmScopeDto dto, Guid updatedByUserId)
     {
+        await EnsureCallerPuedeAdministrarAlcanceAsync(farmId);
+
         var userFarm = await _ctx.UserFarms.AsNoTracking()
             .Include(uf => uf.Farm)
             .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.FarmId == farmId);
@@ -120,6 +166,8 @@ public class UserFarmScopeService : IUserFarmScopeService
 
     public async Task<FarmLocationsTreeDto> GetFarmLocationsTreeAsync(int farmId)
     {
+        await EnsureCallerPuedeAdministrarAlcanceAsync(farmId);
+
         var farm = await _ctx.Farms.AsNoTracking()
             .Where(f => f.Id == farmId && f.DeletedAt == null)
             .Select(f => new { f.Id, f.Name })

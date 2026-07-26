@@ -68,6 +68,9 @@ public partial class MovimientoAvesService
             if (request.UsuarioMovimientoId.HasValue)
                 query = query.Where(m => m.UsuarioMovimientoId == request.UsuarioMovimientoId.Value);
 
+            // Alcance granular (fix QA A2): visible si ORIGEN o DESTINO pasan el cierre del usuario
+            query = await AplicarScopeUbicacionAsync(query);
+
             var totalCount = await query.CountAsync();
 
             // Aplicar ordenamiento
@@ -108,9 +111,14 @@ public partial class MovimientoAvesService
     {
         try
         {
-            var movimiento = await _context.MovimientoAves
+            var q = _context.MovimientoAves
                 .AsNoTracking()
-                .Where(m => m.Id == id && m.DeletedAt == null)
+                .Where(m => m.Id == id && m.DeletedAt == null);
+
+            // Alcance granular (fix QA A2): acceso directo fail-closed → null
+            q = await AplicarScopeUbicacionAsync(q);
+
+            var movimiento = await q
                 .Select(ToMovimientoCompletoDto)
                 .FirstOrDefaultAsync();
 
@@ -132,9 +140,14 @@ public partial class MovimientoAvesService
         {
             var fechaDesde = DateTime.UtcNow.AddDays(-dias);
 
-            var resumenes = await _context.MovimientoAves
+            var qResumen = _context.MovimientoAves
                 .AsNoTracking()
-                .Where(m => m.DeletedAt == null && m.FechaMovimiento >= fechaDesde)
+                .Where(m => m.DeletedAt == null && m.FechaMovimiento >= fechaDesde);
+
+            // Alcance granular (fix QA A2)
+            qResumen = await AplicarScopeUbicacionAsync(qResumen);
+
+            var resumenes = await qResumen
                 .OrderByDescending(m => m.FechaMovimiento)
                 .Take(limite)
                 .Select(m => new ResumenTrasladoDto(

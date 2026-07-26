@@ -54,6 +54,25 @@ namespace ZooSanMarino.Infrastructure.Services
         }
 
         /// <summary>
+        /// Gate de MUTACIÓN (fix QA M1): con granja restringida, el usuario solo puede crear/editar
+        /// lotes en núcleos/galpones visibles de su cierre; sin ubicación no se permite (el lote le
+        /// quedaría invisible a él mismo y el read-back post-escritura fallaría). Granja no
+        /// restringida ⇒ sin cambios.
+        /// </summary>
+        private async Task EnsureUbicacionEnScopeAsync(int granjaId, string? nucleoId, string? galponId)
+        {
+            var scope = await _scopeResolver.GetScopeAsync(granjaId);
+            if (scope.IsGlobal) return;
+
+            var ok = !string.IsNullOrWhiteSpace(galponId) ? scope.PermiteGalpon(galponId.Trim())
+                   : !string.IsNullOrWhiteSpace(nucleoId) ? scope.PermiteNucleo(nucleoId.Trim())
+                   : false;
+            if (!ok)
+                throw new InvalidOperationException(
+                    "Tu acceso a esta granja está restringido: solo podés registrar lotes en los núcleos/galpones de tu alcance asignado.");
+        }
+
+        /// <summary>
         /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible
         /// en SQL. Granjas no restringidas pasan intactas; en las restringidas solo quedan los lotes
         /// permitidos del cierre (lote_id es PK global ⇒ la unión entre granjas es exacta).
@@ -274,6 +293,9 @@ namespace ZooSanMarino.Infrastructure.Services
 
             string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
             string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
+
+            // Alcance granular (fix QA M1): validar la ubicación ANTES de persistir
+            await EnsureUbicacionEnScopeAsync(dto.GranjaId, nucleoId, galponId);
 
             // Si viene Galpón, validamos pertenencia y, si falta, derivamos NucleoId del galpón
             if (!string.IsNullOrWhiteSpace(galponId))
@@ -497,6 +519,11 @@ namespace ZooSanMarino.Infrastructure.Services
 
             if (ent is null) return null;
 
+            // Alcance granular (fix QA M1): no editar un lote fuera del cierre del usuario
+            if (ent.LoteId is int loteIdActual && !await _scopeResolver.PermiteLoteAsync(loteIdActual))
+                throw new InvalidOperationException(
+                    "Tu acceso a esta granja está restringido: el lote está fuera de tu alcance asignado.");
+
             // REQ-011a/REQ-009c: anti-encaset-futuro (mismo patrón que ProduccionService.cs:147-150)
             ValidarFechaEncasetNoFutura(dto.FechaEncaset);
 
@@ -537,6 +564,9 @@ namespace ZooSanMarino.Infrastructure.Services
 
             string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
             string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
+
+            // Alcance granular (fix QA M1): la ubicación destino del update también debe ser visible
+            await EnsureUbicacionEnScopeAsync(dto.GranjaId, nucleoId, galponId);
 
             if (!string.IsNullOrWhiteSpace(galponId))
             {
@@ -688,6 +718,9 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         public async Task<bool> DeleteAsync(int loteId)
         {
+            // Alcance granular (fix QA M1): no borrar lo que está fuera del cierre (fail-closed → 404)
+            if (!await _scopeResolver.PermiteLoteAsync(loteId)) return false;
+
             var companyId = await GetEffectiveCompanyIdAsync();
             var ent = await _ctx.Lotes
                 .SingleOrDefaultAsync(x => x.LoteId == loteId && x.CompanyId == companyId);
@@ -703,6 +736,9 @@ namespace ZooSanMarino.Infrastructure.Services
 
         public async Task<bool> HardDeleteAsync(int loteId)
         {
+            // Alcance granular (fix QA M1): fail-closed → 404
+            if (!await _scopeResolver.PermiteLoteAsync(loteId)) return false;
+
             var companyId = await GetEffectiveCompanyIdAsync();
             var ent = await _ctx.Lotes
                 .SingleOrDefaultAsync(x => x.LoteId == loteId && x.CompanyId == companyId);
@@ -872,6 +908,10 @@ namespace ZooSanMarino.Infrastructure.Services
         /// </summary>
         public async Task<LoteMortalidadResumenDto?> GetMortalidadResumenAsync(int loteId)
         {
+            // Alcance granular (fix QA M2): acceso directo por loteId respeta el scope (fail-closed → 404)
+            if (!await _scopeResolver.PermiteLoteAsync(loteId))
+                return null;
+
             var companyId = await GetEffectiveCompanyIdAsync();
             // 1) Carga del lote (tenant-safe)
             var lote = await _ctx.Lotes
@@ -1002,6 +1042,12 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         public async Task<TrasladoLoteResponseDto> TrasladarLoteAsync(TrasladoLoteRequestDto dto)
         {
+            // Alcance granular (fix QA M1): el lote ORIGEN debe estar en el cierre del usuario
+            // (el DESTINO se elige libre por diseño: paraDestino).
+            if (!await _scopeResolver.PermiteLoteAsync(dto.LoteId))
+                throw new InvalidOperationException(
+                    "Tu acceso a esta granja está restringido: el lote a trasladar está fuera de tu alcance asignado.");
+
             var companyId = await GetEffectiveCompanyIdAsync();
             // 1. Validar y obtener el lote original
             var loteOriginal = await _ctx.Lotes
@@ -1168,6 +1214,10 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         public async Task<IEnumerable<HistorialTrasladoLoteDto>> GetHistorialTrasladosAsync(int loteId)
         {
+            // Alcance granular (fix QA M2): acceso directo por loteId respeta el scope (fail-closed → vacío)
+            if (!await _scopeResolver.PermiteLoteAsync(loteId))
+                return Array.Empty<HistorialTrasladoLoteDto>();
+
             var companyId = await GetEffectiveCompanyIdAsync();
             var historiales = await _ctx.HistorialTrasladoLote
                 .AsNoTracking()

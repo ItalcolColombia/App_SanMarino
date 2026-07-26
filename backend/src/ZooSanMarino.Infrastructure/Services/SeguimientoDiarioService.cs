@@ -89,7 +89,10 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
 
     public async Task<SeguimientoDiarioDto?> GetByIdAsync(long id, CancellationToken ct = default)
     {
-        var ent = await BaseQuery().Where(s => s.Id == id).SingleOrDefaultAsync(ct);
+        // Alcance granular (fix QA M3): mismo filtro que GetFilteredAsync para que el detalle por id
+        // no exponga lo que el listado oculta (ids son secuenciales). Fail-closed → null/404.
+        var q = await AplicarScopeUbicacionAsync(BaseQuery());
+        var ent = await q.Where(s => s.Id == id).SingleOrDefaultAsync(ct);
         return ent is null ? null : ToDto(ent);
     }
 

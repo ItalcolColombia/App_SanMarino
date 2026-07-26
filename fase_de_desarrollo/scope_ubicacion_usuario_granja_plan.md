@@ -119,10 +119,24 @@ Al asignar una granja a un usuario (módulo Usuarios → asignación de granjas)
 | Lesiones, FarmInventory kardex, Dashboard (mock), LoteSeguimiento/LoteGalpon legacy, ProduccionDiaria/ProduccionLote/SeguimientoProduccion by-lote | A | ⏳ | Granja-level o CompanyId-only preexistente; UI llega vía filtros scoped. Guard granular pendiente (baja exposición) |
 | **Traslados de aves / huevos / desde seguimiento** | B | ✅ | ORIGEN: filter-data y catálogos scoped. DESTINO: `Farm/traslado-seguimiento-diario` (sin scope, por diseño) + cascada núcleo/galpón/LPL/LPP/lotes-produccion con `paraDestino=true` |
 | **Traslado de lote (mover/trasladar)** | B | ✅ | Modal destino: núcleos/galpones fresh con `paraDestino=true` |
-| **Movimiento de Aves** | B | ✅ (B1) | Listados: fila visible si origen O destino pasan el scope; destino del modal con FiltroSelect `paraDestino` |
+| **Movimiento de Aves** | B | ✅ (B1+QA) | TODAS las lecturas (GetAll/Search/pendientes/por-lote/por-usuario/recientes/por-id/por-número/navegación completa/resúmenes): fila visible si origen O destino pasan el scope; destino del modal con FiltroSelect `paraDestino` |
 | **Movimiento Pollo Engorde (+ Panamá)** | B | 🔁 | Origen vía filter-data scoped; destino = otro lote del mismo catálogo del padre; ventas a cliente sin cambio |
 | **Inventario Gestión (EC/PA)** | B | 🔁 | Ya separa FarmsOrigen (asignadas) / FarmsDestino (empresa completa); origen hereda catálogos scoped |
 | **Farm Inventory Movements (transfer)** | B | ⏳ | Sin validación user_farms en ninguna dirección (gap preexistente, documentado) |
 | Usuarios/Roles/Permisos/Menús, Empresas/País, Geografía, Clientes, Master lists, Guía genética (+raw), Catálogos alimentos/ítems, Configuration, Service tokens, DB Studio, Migraciones masivas, Excel import, Puente Panamá, Implementación, Tickets, Mapas | C | — | Exentos: administración/catálogos globales/carga masiva. `UserFarmController` es donde se ADMINISTRA el scope |
 
 **Reglas trasversales aplicadas:** el scope granular se aplica incluso a roles admin (una restricción explícita por usuario-granja gana al bypass de rol); granjas sin `restrict_locations` no pagan ningún costo (cero filtros nuevos); `paraDestino=true` solo omite el scope granular — el scoping por granja asignada/empresa se mantiene.
+
+## 8. Cierre QA (fable, post-commit d492eed) — hallazgos y estado
+
+**Corregidos en el commit de fixes:**
+- **A1** Administración del alcance gateada: GET/PUT scope y locations-tree exigen Admin de Empresa de LA empresa de la granja (rol `is_company_admin` o admin/administrador) o Super Admin — un usuario restringido ya NO puede quitarse la restricción (403 verificado) ni leer árboles de otras empresas.
+- **A2** Movimiento de Aves: filtro aplicado a las ~10 lecturas (antes solo SearchAsync).
+- **M1** LoteService: mutaciones gateadas — Create/Update validan la ubicación destino contra el cierre ANTES de persistir (adiós al "creado pero invisible"), Update/Delete/HardDelete/Trasladar validan el lote origen.
+- **M2** `resumen-mortalidad` e `historial-traslados` con guard por lote (404/vacío).
+- **M3** `SeguimientoDiario/{id}` usa el mismo filtro que el listado (ids secuenciales ya no exponen datos).
+- **B1** Getters por id de Núcleo/Galpón scoped. **B3** PUT scope responde 409 ante carrera de FK.
+
+**Follow-ups aceptados (bajos, documentados):** B2 helper de movimientos duplicado (extraer a builder común); B4 unificar semántica `UserGuid null` en LoteService Search vs GetAll; B5 proyección reducida para `paraDestino` de lotes; P1 filas de seguimiento_diario con LoteId texto no-numérico quedan fuera del blocked-set (mismo criterio listado/detalle); estadísticas de movimientos (solo counts) sin scope.
+
+**Veredicto final tras fixes:** contrato re-verificado por smoke en vivo (403 auto-des-restricción, movimientos filtrados sin errores EF, 404 en directos, revert byte-idéntico). Los dos bloqueantes del veredicto original quedaron cerrados.

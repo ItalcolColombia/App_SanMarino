@@ -369,6 +369,10 @@ public class UserFarmController : ControllerBase
             var result = await _userFarmScopeService.GetScopeAsync(userId, farmId);
             return Ok(result);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
             return NotFound(new { message = ex.Message });
@@ -396,9 +400,19 @@ public class UserFarmController : ControllerBase
             var result = await _userFarmScopeService.ReplaceScopeAsync(userId, farmId, dto, updatedByUserId.Value);
             return Ok(result);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (System.Data.Common.DbException)
+        {
+            // Carrera validación→INSERT (p. ej. borraron el núcleo en medio): la transacción ya
+            // hizo rollback; responder conflicto neutro en vez de 500.
+            return Conflict(new { message = "La granja cambió mientras se guardaba el alcance. Recargue e intente de nuevo." });
         }
     }
 
@@ -416,6 +430,10 @@ public class UserFarmController : ControllerBase
         {
             var result = await _userFarmScopeService.GetFarmLocationsTreeAsync(farmId);
             return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

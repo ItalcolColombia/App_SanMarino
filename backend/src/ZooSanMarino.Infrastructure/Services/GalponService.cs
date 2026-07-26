@@ -233,6 +233,7 @@ public partial class GalponService : AppInterfaces.IGalponService
             .Where(g => g.CompanyId == _current.CompanyId &&
                         g.GalponId   == galponId &&
                         g.DeletedAt  == null);
+        q = await AplicarScopeUbicacionAsync(q);
         return await ProjectToDetail(q).SingleOrDefaultAsync();
     }
 
@@ -276,6 +277,7 @@ public partial class GalponService : AppInterfaces.IGalponService
             .Where(g => g.CompanyId == _current.CompanyId &&
                         g.GalponId   == galponId &&
                         g.DeletedAt  == null);
+        q = await AplicarScopeUbicacionAsync(q);
         return await ProjectToDetail(q).SingleOrDefaultAsync();
     }
 
@@ -353,6 +355,7 @@ public partial class GalponService : AppInterfaces.IGalponService
             .Where(g => g.CompanyId == _current.CompanyId &&
                         g.GalponId   == galponId &&
                         g.DeletedAt  == null);
+        q = await AplicarScopeUbicacionAsync(q);
         return await ProjectToDetail(q).SingleOrDefaultAsync();
     }
 

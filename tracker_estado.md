@@ -43,5 +43,8 @@
 - [x] `yarn build` 0 errores (solo warning bundle budget preexistente)
 - [x] Back :5002 + front :4200 levantados; smoke JWT completo: global idéntico ✔ / galpón G0010 ✔ / lote 13 preciso (14 → 404, LPL 2 excluido) ✔ / fail-closed 0 items ✔ / paraDestino catálogo completo ✔ / 400 sin persistir ✔ / guard por-lote ✔
 - [x] Mapa final de módulos (A/B/C) anexado al plan §7
-- [ ] Commit (autor moisesmurillo, sin atribución)
-- [ ] QA final: code-reviewer sobre diff + validación de filtros por módulo
+- [x] Commit feature `d492eed` (autor moisesmurillo, sin atribución)
+- [x] QA final (code-reviewer fable sobre el diff): 0 críticos, 2 altos, 3 medios, 5 bajos, veredicto inicial NO APTO
+- [x] Fixes QA aplicados y verificados en vivo: A1 gate admin en endpoints de scope (403 al auto-des-restringirse), A2 filtro en TODAS las lecturas de Movimiento Aves, M1 gates de mutación en LoteService, M2 guards resumen-mortalidad/historial, M3 SeguimientoDiario por id, B1 getters catálogo, B3 409 en carrera FK — build 0/0, tests 750/750, smoke verde
+- [x] Commit de fixes QA (ver git log)
+- Follow-ups bajos documentados en plan §8 (B2/B4/B5/P1) + chip pendiente: fix SetAuditFields del contexto

@@ -299,11 +299,11 @@ namespace ZooSanMarino.Infrastructure.Services
         }
 
         public async Task<NucleoDto?> GetByIdAsync(string nucleoId, int granjaId) =>
-            await _ctx.Nucleos.AsNoTracking()
+            await (await AplicarScopeUbicacionAsync(_ctx.Nucleos.AsNoTracking()
                 .Where(n => n.CompanyId == _current.CompanyId &&
                             n.DeletedAt == null &&
                             n.NucleoId == nucleoId &&
-                            n.GranjaId == granjaId)
+                            n.GranjaId == granjaId)))
                 .Select(n => new NucleoDto(
                     n.NucleoId,
                     n.GranjaId,
