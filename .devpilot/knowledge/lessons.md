@@ -40,3 +40,11 @@
 - La mitigación ExecuteDelete/Update de UserFarmScopeService.ReplaceScopeAsync se conserva (eficiencia, no toca auditoría).
 - Archivos: backend/src/ZooSanMarino.Infrastructure/Persistence/ZooSanMarinoContext.cs, backend/src/ZooSanMarino.Infrastructure/Services/UserFarmScopeService.cs, backend/src/ZooSanMarino.Infrastructure/Persistence/Configurations/UserConfiguration.cs
 
+## 2026-07-26 — Nacimientos y pollitos NO existen en el esquema: no hay retorno de incubadora
+- Auditoria 26jul26 (3 agentes + barrido de information_schema en la BD local): no existe ninguna tabla de nacimientos/eclosion/pollitos. traslado_huevos es una tabla de SALIDA (tipo_operacion Venta|Traslado; en Traslado el front fuerza tipo_destino='Planta') sin campos de retorno.
+- Consecuencia: el bloque POLLITOS de los reportes solo puede llenar "HI Cargado" (limpio+tratado de traslados Completado a Planta, agrupado por semana de vida). % nacimiento, Pollitos Sem. y su acumulado quedan con valor de GUIA (guia_genetica_sanmarino_colombia.nacim_porcentaje / pollito_aa).
+- ReporteTecnicoProduccionService arrastra el mismo hueco desde su creacion: porcentajeNacimientos=null y pollitosVendidos=null hardcodeados, y su columna HuevosCargados en realidad expone huevo_inc del seguimiento (no los envios reales) — no copiar ese comportamiento.
+- Para completarlo haria falta capturar el retorno de incubadora (tabla nacimiento_lote: lote/LPP, fecha carga, huevos cargados, fecha nacimiento, pollitos nacidos, infertiles) por captura manual o integracion con la planta.
+- Gotcha de lectura: el % de envio semanal puede superar 100% porque un despacho arrastra huevos acumulados de dias previos; el acumulado es la lectura correcta.
+- Archivos: backend/src/ZooSanMarino.Domain/Entities/TrasladoHuevos.cs, backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoProduccionService.cs, backend/src/ZooSanMarino.Application/Calculos/ReporteTecnicoSemanalCalculos.cs, fase_de_desarrollo/reporte_tecnico_semanal_postura_plan.md
+

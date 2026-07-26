@@ -52,4 +52,4 @@
 - [x] Front: 3 columnas nuevas en el bloque Pollitos + gráfica "Incubables producidos vs cargados a planta" (7ª de producción)
 - [x] `dotnet build` 0/0 · `ng build` 0 errores · smoke API (totales 1.470.623 + 911.090 = 2.381.713 = BD) y smoke UI (tabla + 7 gráficas, 0 errores de consola)
 - [x] Servidores detenidos
-- [ ] Commit fase 2
+- [x] Commit fase 2 `0b3b79f`
