@@ -1,0 +1,229 @@
+<div class="p-4 md:p-6 space-y-4">
+  <!-- Encabezado -->
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h1 class="text-xl font-bold text-gray-800">Reporte Técnico Semanal</h1>
+      <p class="text-sm text-gray-500">
+        Resumen semanal por galpón y consolidado del lote base, comparado contra la guía genética
+        ({{ tipoReporte === 'LEVANTE' ? 'Levante · semanas 1-25' : 'Producción · semana 25 en adelante' }}).
+      </p>
+    </div>
+
+    <!-- Selector de tipo de reporte -->
+    <div class="rts-toggle" role="tablist" aria-label="Tipo de reporte">
+      <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="tipoReporte === 'LEVANTE'"
+              (click)="cambiarTipo('LEVANTE')">Levante</button>
+      <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="tipoReporte === 'PRODUCCION'"
+              (click)="cambiarTipo('PRODUCCION')">Producción</button>
+    </div>
+  </div>
+
+  <!-- Selección de contexto (clases globales de styles/filter-context.scss) -->
+  <section class="filter-card">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h3 class="filter-card__title">Selección de contexto</h3>
+        <p class="filter-card__subtitle">Selecciona en cascada para cargar el lote base</p>
+      </div>
+    </div>
+
+    @if (filtros.loading()) {
+      <div class="px-5 pt-3 text-sm text-gray-500">Cargando filtros…</div>
+    }
+    @if (filtros.errorCarga()) {
+      <div class="px-5 pt-3 text-sm text-red-600">{{ filtros.errorCarga() }}</div>
+    }
+
+    <div class="filter-steps">
+      <div class="filter-step" [class.filter-step--active]="!filtros.selectedGranjaId()"
+           [class.filter-step--done]="!!filtros.selectedGranjaId()">
+        <span class="filter-step__num">1</span>
+        <div class="filter-step__body">
+          <label class="filter-step__label">Granja *</label>
+          <select class="filter-step__select" [ngModel]="filtros.selectedGranjaId()"
+                  (ngModelChange)="filtros.setGranja($event)">
+            <option [ngValue]="null">— Seleccionar —</option>
+            @for (g of filtros.granjas(); track g.id) {
+              <option [ngValue]="g.id">{{ g.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <span class="filter-steps__connector" [class.filter-steps__connector--active]="!!filtros.selectedGranjaId()"></span>
+
+      <div class="filter-step" [class.filter-step--disabled]="!filtros.selectedGranjaId()"
+           [class.filter-step--done]="!!filtros.selectedNucleoId()">
+        <span class="filter-step__num">2</span>
+        <div class="filter-step__body">
+          <label class="filter-step__label">Núcleo</label>
+          <select class="filter-step__select" [ngModel]="filtros.selectedNucleoId()"
+                  (ngModelChange)="filtros.setNucleo($event)" [disabled]="!filtros.selectedGranjaId()">
+            <option [ngValue]="null">Todos</option>
+            @for (n of filtros.nucleosFiltrados(); track n.nucleoId) {
+              <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <span class="filter-steps__connector" [class.filter-steps__connector--active]="!!filtros.selectedNucleoId()"></span>
+
+      <div class="filter-step" [class.filter-step--disabled]="!filtros.selectedGranjaId()"
+           [class.filter-step--done]="!!filtros.selectedGalponId()">
+        <span class="filter-step__num">3</span>
+        <div class="filter-step__body">
+          <label class="filter-step__label">Galpón</label>
+          <select class="filter-step__select" [ngModel]="filtros.selectedGalponId()"
+                  (ngModelChange)="filtros.setGalpon($event)" [disabled]="!filtros.selectedGranjaId()">
+            <option [ngValue]="null">Todos</option>
+            @for (g of filtros.galponesFiltrados(); track g.galponId) {
+              <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <span class="filter-steps__connector" [class.filter-steps__connector--active]="!!filtros.selectedLoteBaseId()"></span>
+
+      <div class="filter-step filter-step--last" [class.filter-step--disabled]="!filtros.selectedGranjaId()"
+           [class.filter-step--done]="!!filtros.selectedLoteBaseId()">
+        <span class="filter-step__num filter-step__num--accent">4</span>
+        <div class="filter-step__body">
+          <label class="filter-step__label">Lote base *</label>
+          <select class="filter-step__select" [ngModel]="filtros.selectedLoteBaseId()"
+                  (ngModelChange)="filtros.setLoteBase($event)" [disabled]="!filtros.selectedGranjaId()">
+            <option [ngValue]="null">— Seleccionar —</option>
+            @for (lb of filtros.lotesPaso4(); track lb.id) {
+              <option [ngValue]="lb.id">{{ lb.nombre }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-fields">
+      <div class="filter-card__actions">
+        <button (click)="generar()" [disabled]="loading || !filtros.selectedLoteBaseId()"
+                class="px-4 py-2 rounded bg-ital-green text-white text-sm font-medium disabled:opacity-50">
+          {{ loading ? 'Generando…' : 'Generar' }}
+        </button>
+        <button (click)="limpiar()"
+                class="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm">Limpiar</button>
+        <button (click)="exportarExcel()" [disabled]="!hayResultado"
+                class="px-4 py-2 rounded border border-ital-orange text-ital-orange text-sm disabled:opacity-50">
+          Exportar Excel
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Error -->
+  @if (error) {
+    <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded p-3">{{ error }}</div>
+  }
+
+  <!-- Sin sublotes / sin datos -->
+  @if (generado && tabs.length === 0) {
+    <div class="text-sm text-gray-500">
+      El lote base no tiene sublotes visibles en esta etapa (o no tenés acceso a sus galpones).
+    </div>
+  }
+
+  @if (hayResultado) {
+    <!-- Contexto -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <span class="font-semibold text-gray-800">
+          {{ tipoReporte === 'LEVANTE' ? 'Resumen Semanal de Levante' : 'Resumen Semanal de Producción' }}
+        </span>
+        <span class="text-gray-400">·</span>
+        <span class="text-gray-600">Lote base: <strong>{{ loteBaseNombre }}</strong></span>
+        @if (!tieneGuia) {
+          <span class="rts-badge-warn">Sin guía genética cargada para esta raza/año — columnas Guía vacías</span>
+        }
+      </div>
+
+      <!-- Tabs: consolidado + un tab por galpón/sublote · toggle Tabla/Gráficas -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <nav class="rts-tabs" role="tablist">
+          @for (t of tabs; track t.nombre; let i = $index) {
+            <button type="button" class="rts-tab" role="tab"
+                    [class.rts-tab--active]="tabActiva === i"
+                    [attr.aria-selected]="tabActiva === i"
+                    (click)="seleccionarTab(i)">
+              {{ t.nombre }}
+            </button>
+          }
+        </nav>
+
+        <div class="rts-toggle rts-toggle--sm" role="tablist" aria-label="Vista">
+          <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'tabla'"
+                  (click)="vista = 'tabla'">Tabla</button>
+          <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'graficas'"
+                  (click)="vista = 'graficas'">Gráficas</button>
+        </div>
+      </div>
+
+      @if (tabView; as tab) {
+        <!-- Cabecera de la hoja (datos del galpón/lote) -->
+        <div class="flex flex-wrap gap-2">
+          @for (chip of tab.infoChips; track chip.label) {
+            <span class="rts-chip"><span class="rts-chip__label">{{ chip.label }}:</span> {{ chip.valor }}</span>
+          }
+        </div>
+
+        @if (tab.filas.length === 0) {
+          <div class="text-sm text-gray-500 pt-2">
+            Este {{ tab.esConsolidado ? 'consolidado' : 'galpón' }} aún no tiene semanas con seguimiento.
+          </div>
+        } @else if (vista === 'tabla') {
+          <div class="rts-table-wrap">
+            <table class="rts-table">
+              <thead>
+                <tr>
+                  @for (g of grupos; track $index) {
+                    <th class="rts-th rts-th--grupo" [attr.colspan]="g.span">{{ g.titulo }}</th>
+                  }
+                </tr>
+                <tr>
+                  @for (t of titulos; track $index) {
+                    <th class="rts-th">{{ t }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (fila of tab.filas; track trackFila($index, fila)) {
+                  <tr class="rts-tr">
+                    @for (celda of fila; track $index) {
+                      <td class="rts-td">{{ celda }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <!-- Vista Gráficas — réplica de las gráficas embebidas del Excel -->
+          <div class="rts-charts-grid">
+            @for (g of tab.graficas; track g.titulo) {
+              <div class="rts-chart-card">
+                <h4 class="rts-chart-card__title">{{ g.titulo }}</h4>
+                <div class="rts-chart-card__canvas">
+                  <canvas baseChart
+                          [type]="$any(g.tipo)"
+                          [data]="$any(g.data)"
+                          [options]="g.options">
+                  </canvas>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+    </div>
+  }
+</div>

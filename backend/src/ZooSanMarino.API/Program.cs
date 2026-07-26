@@ -289,6 +289,9 @@ builder.Services.AddScoped<IInformeSemanalPolloEngordeService, InformeSemanalPol
 // Reporte Diario Costos Pollo Engorde (por granja + lote base)
 builder.Services.AddScoped<IReporteDiarioCostosEngordeService, ReporteDiarioCostosEngordeService>();
 
+// Reporte Técnico Semanal (Sanmarino postura: Levante + Producción vs guía genética)
+builder.Services.AddScoped<IReporteTecnicoSemanalService, ReporteTecnicoSemanalService>();
+
 // Reporte Indicador Panamá Service (liquidación Pollo Engorde Panamá)
 builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanamaService>();
 

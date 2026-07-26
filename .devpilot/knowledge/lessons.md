@@ -32,3 +32,11 @@
 - Smoke E2E validado con JWT+X-Secret-Up minteados contra :5002: POST 201 con payload real, stock modelo B descontado y restaurado exacto tras DELETE (sin residuo).
 - Archivos: backend/src/ZooSanMarino.Infrastructure/Services/ProduccionService.cs, backend/src/ZooSanMarino.Application/Calculos/SeguimientoProduccionLoteIdCalculos.cs, backend/src/ZooSanMarino.Infrastructure/Migrations/20260726052546_BackfillLoteIdLotePosturaProduccion.cs, backend/tests/ZooSanMarino.Application.Tests/SeguimientoProduccionLoteIdCalculosTests.cs, backend/src/ZooSanMarino.Infrastructure/Services/LotePosturaLevanteService.cs
 
+## 2026-07-26 — SetAuditFields: nunca mutar el ChangeTracker dentro del foreach de Entries() — acumular ids y tocar después
+- Bug corregido (commit f68e8b9): el 2º foreach de SetAuditFields llamaba TouchUserUpdatedAt, que hace Attach(new User{Id}) cuando el User no está trackeado → InvalidOperationException "Collection was modified" y reventaba el SaveChanges completo (repro: UPDATE de user_farms sin Include(User)).
+- Fix: acumular los UserId en HashSet<Guid> durante la enumeración y llamar TouchUserUpdatedAt DESPUÉS del foreach; deduplica de paso. TouchUserUpdatedAt intacto.
+- Evidencia: repro antes/después contra BD local :5433 en transacción con rollback (antes excepción, después SaveChanges OK); build 0 warnings; 751 tests verdes.
+- Hallazgo colateral (chip pendiente): la sombra UpdatedAt de users es ValueGeneratedOnAddOrUpdate → EF ignora el valor y el "touch" nunca generó UPDATE real; además el Attach deja proxies huecos de User en el identity map.
+- La mitigación ExecuteDelete/Update de UserFarmScopeService.ReplaceScopeAsync se conserva (eficiencia, no toca auditoría).
+- Archivos: backend/src/ZooSanMarino.Infrastructure/Persistence/ZooSanMarinoContext.cs, backend/src/ZooSanMarino.Infrastructure/Services/UserFarmScopeService.cs, backend/src/ZooSanMarino.Infrastructure/Persistence/Configurations/UserConfiguration.cs
+

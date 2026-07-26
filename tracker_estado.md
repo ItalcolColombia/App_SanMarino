@@ -1,50 +1,44 @@
-# Tracker — Alcance granular usuario-granja (núcleo/galpón/lote o global) + scope en todos los filtros
+# Tracker — Reporte Técnico Semanal Postura (Sanmarino): Levante + Producción vs Guía
 
-**Plan:** [fase_de_desarrollo/scope_ubicacion_usuario_granja_plan.md](fase_de_desarrollo/scope_ubicacion_usuario_granja_plan.md)
+**Plan:** [fase_de_desarrollo/reporte_tecnico_semanal_postura_plan.md](fase_de_desarrollo/reporte_tecnico_semanal_postura_plan.md)
 
-## Fase 0 — Exploración (agentes)
-- [x] Lanzar A1 (sonnet): mapa backend scoping actual (UserFarm, catálogos, fns rekey)
-- [x] Lanzar A2 (opus): barrido 60+ controllers → categorías A/B/C + puntos de inserción
-- [x] Lanzar A3 (sonnet): front — asignación granjas, filtros cascada, pickers destino
-- [x] Recibir y consolidar reportes de los 3 agentes (mapa se anexa al plan §7 al cierre)
+## Fase 0 — Análisis
+- [x] Mapear los dos Excel (Técnico Levante A382 / TEC. PRODUCCION A346): columnas, fórmulas, consolidación Gral
+- [x] Exploración del código (workflow 6 agentes): guía genética, seguimientos, lotes, reportes existentes, multi-tenant, front
+- [x] Plan escrito en fase_de_desarrollo
 
-## Fase 1 — BD + Dominio
-- [x] Entidad `UserFarmScope` + `UserFarm.RestrictLocations` + colección `Scopes`
-- [x] `UserFarmScopeConfiguration` + DbSet en `ZooSanMarinoContext`
-- [x] Migración EF idempotente `20260726070730_UserFarmLocationScope` (columna + tabla + FKs CASCADE + CHECK + índices únicos parciales)
-- [x] Aplicar migración en BD local (:5433) sin error
+## Fase 1 — Backend: fn SQL nueva (diseño afinado: 1 fn, no 2)
+- [x] `backend/sql/fn_reporte_semanal_levante_extras.sql` (conteos/kg/peso/unif/nutrición POR SEXO; misma semántica que fn_indicadores_levante_postura; TEMP propia `_seg_sem_rx`)
+- [x] Producción SIN fn nueva: reusa `fn_indicadores_produccion_postura` + guía cruda (`ProduccionAvicolaRaw`) parseada en C# (menos superficie)
+- [x] Migración `20260726160000_AddFnReporteSemanalLevanteExtras` (Designer clonado; Up=DROP+CREATE, Down=DROP)
+- [x] Migración aplicada en BD local :5433 + sanity con lote real K345A (bases 7999H/1132M, arrastre de peso, kcal null-tolerante)
 
-## Fase 2 — Backend core
-- [x] `UserLocationScopeCalculos` (puro) en Application/Calculos
-- [ ] Tests xUnit `UserLocationScopeCalculosTests` (global idéntico / niveles / cierre / fail-closed / lote fuera de granja)
-- [x] DTOs scope + `IUserFarmScopeService` + `ILocationScopeResolver`
-- [x] `UserFarmScopeService` (admin, valida pertenencia) + `LocationScopeResolver` (query única + cache request) + DI
-- [x] Endpoints en `UserFarmController`: GET/PUT scope + GET locations-tree; `restrictLocations` en DTOs de listas (build backend OK)
+## Fase 2 — Backend: DTOs + service + controller
+- [x] `ReporteSemanalLevanteExtrasRow` + `ReporteTecnicoSemanalDtos` (request, header, semana levante/producción, tabs, responses)
+- [x] `ReporteTecnicoSemanalCalculos` (puro): % base fija (Excel), acumulados, incrementos, nutrición, masa/conversión/apareo, consolidación multi-galpón
+- [x] Tests xUnit `ReporteTecnicoSemanalCalculosTests` — 30/30 verdes
+- [x] `IReporteTecnicoSemanalService` + service (ancla + Funciones/Levante + Funciones/Produccion) con empresa efectiva + `ILocationScopeResolver` fail-closed
+- [x] `ReporteTecnicoSemanalController` (POST api/ReporteTecnicoSemanal/levante | /produccion) + DI en Program.cs
+- [x] `dotnet build` 0 errores 0 warnings + `dotnet test` verde
 
-## Fase 3 — Enforcement (choke points) — COMPLETADA (núcleo + agente B1 opus)
-- [x] `NucleoService` → NucleosVisibles (Search/GetAll/GetByGranja+paraDestino/GetByFarmIds/GetDetail)
-- [x] `GalponService` → GalponesVisibles (Search/GetAllDetail/GetAll+paraDestino/GetByGranja(+Nucleo)+paraDestino/GetByFarmIds/DetailByGranjaNucleo)
-- [x] `LoteService` → LotesPermitidos (GetAll+alineación granjas asignadas+paraDestino / GetLotesLevante / Search / GetById)
-- [x] Acceso directo por loteId (agente B1): seguimiento levante/producción/diario unificado, engorde CO+EC (por galpón), inventario aves, historial, vacunación por-lote — guards fail-closed
-- [x] Reportes granja-completa (B1): costos engorde (recalcula totales + calc puro con 3 tests), indicador Panamá por-corrida, informe semanal, reporte contable filtros (poda por lotes visibles), vacunación reportes (post-filtro filas)
-- [x] Movimiento aves Search: visible si origen O destino pasa el scope (B1)
-- [x] LPL/LPP + LoteAveEngorde por predicado LoteId-preciso / galpón-núcleo
-- [x] Excepciones destino verificadas por smoke: `paraDestino=true` devuelve catálogo completo
-- [x] FIX descubierto en smoke: PUT scope moría con "Collection was modified" (bug latente de SetAuditFields del contexto → Attach dentro del foreach); reescrito el reemplazo con ExecuteDelete/Update + INSERT parametrizado en transacción (chip creado para arreglar el contexto aparte)
+## Fase 3 — Menú solo Sanmarino
+- [x] Migración `20260726160100_AddMenuReporteTecnicoSemanal`: ítem bajo Reportes (icon chart-bar), company_menus SOLO 'Agroavicola Sanmarino', role_menus SOLO roles Sanmarino con '/reportes-tecnicos' (verificado en local: 1 empresa, 4 roles)
 
 ## Fase 4 — Frontend
-- [x] Modelos + service TS (getScope / updateScope / getLocationsTree) en `core/services/user-farm`
-- [x] Modal asignación granjas: botón + badge "Restringido (n)" + sub-modal `configurar-alcance-granja` (Global/Restringido + árbol checkboxes con cierre visual)
-- [x] paraDestino en services front (nucleo levante/producción/canónico, galpón, lote, LPL, LPP, obtenerLotesProduccion) y en los 5 flujos de DESTINO: modal-traslado-aves-seguimiento, modal-traslado-lote, traslado-form (HierarchicalFilter [paraDestino]), modal-movimiento-aves (FiltroSelect [paraDestino])
-- [x] `yarn build` OK (solo warning bundle budget preexistente)
+- [x] models + service TS (espejo DTOs); filtros reusando `ReporteTecnicoLevanteFilterService` con instancia propia (providers del componente)
+- [x] Página main: toggle Levante/Producción + filter-card cascada 1-4 + tabs Consolidado/galpones + tabla 2 niveles (vista precalculada, sin NG0103)
+- [x] funciones/: `columnas-reporte-semanal` (spec única de columnas) + `construir-aoa-reporte-semanal` (export multi-hoja: Gral + hoja por galpón) + README
+- [x] Ruta `/reporte-tecnico-semanal` en app.config.ts (loadComponent + authGuard)
+- [x] `ng build` 0 errores (solo warning budget preexistente)
 
 ## Fase 5 — Validación y cierre
-- [x] `dotnet build` 0 errores 0 warnings + `dotnet test` 751/751 verde (750 Application + 1 Domain; incluye 20 de scope + 3 de costos engorde)
-- [x] `yarn build` 0 errores (solo warning bundle budget preexistente)
-- [x] Back :5002 + front :4200 levantados; smoke JWT completo: global idéntico ✔ / galpón G0010 ✔ / lote 13 preciso (14 → 404, LPL 2 excluido) ✔ / fail-closed 0 items ✔ / paraDestino catálogo completo ✔ / 400 sin persistir ✔ / guard por-lote ✔
-- [x] Mapa final de módulos (A/B/C) anexado al plan §7
-- [x] Commit feature `d492eed` (autor moisesmurillo, sin atribución)
-- [x] QA final (code-reviewer fable sobre el diff): 0 críticos, 2 altos, 3 medios, 5 bajos, veredicto inicial NO APTO
-- [x] Fixes QA aplicados y verificados en vivo: A1 gate admin en endpoints de scope (403 al auto-des-restringirse), A2 filtro en TODAS las lecturas de Movimiento Aves, M1 gates de mutación en LoteService, M2 guards resumen-mortalidad/historial, M3 SeguimientoDiario por id, B1 getters catálogo, B3 409 en carrera FK — build 0/0, tests 750/750, smoke verde
-- [x] Commit de fixes QA (ver git log)
-- Follow-ups bajos documentados en plan §8 (B2/B4/B5/P1) + chip pendiente: fix SetAuditFields del contexto
+- [x] Smoke API local con JWT minteado (empresa 1): POST levante K345 → 200, 2 tabs × 25 semanas + consolidado, guía casa con el Excel (21 gr/a/d, 147 acum, 145 peso, 70 U%); POST produccion → 200, 2 tabs × 44 semanas, semana 25 con guía parcial (REQ-012b OK)
+- [x] Smoke UI en dev server: `/reporte-tecnico-semanal` carga y redirige a login (authGuard), 0 errores de consola
+
+## Fase 6 — Vista Gráficas (réplica de las gráficas embebidas de los Excel)
+- [x] `funciones/construir-graficas-reporte-semanal.funcion.ts` (pura): 8 gráficas Levante (Peso, Desv Peso %, Consumo, Increm H, Increm M, Retiro+Mort H, Retiro+Mort M, Uniformidad) + 6 Producción (% Producción, HTAA-HIAA-%HI, Consumo ave, Desv Peso %, Retiro+Mort H, Retiro M) — Real sólido / Guía punteada, colores del repo
+- [x] Toggle Tabla ↔ Gráficas por tab en el componente (charts precalculados por generación, NgChartsModule/Chart.js)
+- [x] `ng build` 0 errores (solo warning budget preexistente)
+- [x] Smoke UI COMPLETO en dev server con sesión dev inyectada (sessionStorage, sin credenciales): Levante K345 → tabs Consolidado/K345A/K345B, tabla 2 niveles y 8 canvas pintados; Producción → P-K345A/P-K345B y 6 canvas pintados; 0 errores de consola
+- [x] Servidores detenidos (sin procesos huérfanos)
+- [ ] Commit (autor moisesmurillo, sin atribución a Claude) — pendiente de OK del usuario

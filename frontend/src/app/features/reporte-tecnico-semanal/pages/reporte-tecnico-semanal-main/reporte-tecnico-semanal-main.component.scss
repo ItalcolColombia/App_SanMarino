@@ -1,0 +1,178 @@
+// Reporte Técnico Semanal — solo layout; colores desde tokens centralizados
+// (theme-italfoods). El filtro usa las clases GLOBALES de filter-context.scss.
+
+// Toggle Levante / Producción
+.rts-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--ital-cream, #faf8f5);
+
+  &__btn {
+    padding: 0.45rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary, #4b5563);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+
+    &--active {
+      background: var(--ital-orange, #e85c25);
+      color: #fff;
+    }
+  }
+}
+
+// Tabs por galpón + consolidado
+.rts-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  padding-bottom: 0.5rem;
+}
+
+.rts-tab {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 9999px;
+  background: #fff;
+  color: var(--text-secondary, #4b5563);
+  cursor: pointer;
+
+  &--active {
+    background: var(--ital-orange, #e85c25);
+    border-color: var(--ital-orange, #e85c25);
+    color: #fff;
+  }
+}
+
+// Chips de cabecera de hoja
+.rts-chip {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: var(--ital-cream, #faf8f5);
+  border: 1px solid var(--border-color, #e5e7eb);
+  font-size: 0.75rem;
+  color: var(--text-primary, #1f2937);
+
+  &__label {
+    font-weight: 600;
+    color: var(--text-secondary, #6b7280);
+  }
+}
+
+.rts-badge-warn {
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+// Variante compacta del toggle (selector Tabla/Gráficas dentro del resultado)
+.rts-toggle--sm .rts-toggle__btn {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.78rem;
+}
+
+// Vista Gráficas — grilla de tarjetas (réplica de las gráficas del Excel)
+.rts-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1rem;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rts-chart-card {
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 0.75rem;
+
+  &__title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary, #1f2937);
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
+
+  &__canvas {
+    position: relative;
+    height: 300px;
+  }
+}
+
+// Tabla semanal (ancha, scroll horizontal propio)
+.rts-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.rts-table {
+  border-collapse: collapse;
+  min-width: 1200px;
+  width: max-content;
+}
+
+.rts-th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--ital-cream, #faf8f5);
+  border: 1px solid var(--border-color, #e5e7eb);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary, #4b5563);
+  text-align: center;
+  white-space: nowrap;
+
+  &--grupo {
+    background: #f1ede6;
+    color: var(--text-primary, #374151);
+    border-bottom-width: 2px;
+  }
+}
+
+// La segunda fila de cabecera queda pegada debajo de la primera.
+thead tr:nth-child(2) .rts-th {
+  top: 1.9rem;
+}
+
+.rts-td {
+  border: 1px solid var(--border-color, #f3f4f6);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-primary, #1f2937);
+
+  &:first-child,
+  &:nth-child(2) {
+    text-align: center;
+    font-weight: 600;
+  }
+}
+
+.rts-tr:nth-child(even) .rts-td {
+  background: #fcfbf9;
+}
