@@ -96,13 +96,13 @@
                         <label [for]="'f-item-h-' + i">Ítem *</label>
                         <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))?.unit }}
+                            Disponible: {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.unit }}
                           </small>
                         }
                       </div>
@@ -162,13 +162,13 @@
                         <label [for]="'f-item-m-' + i">Ítem *</label>
                         <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))?.unit }}
+                            Disponible: {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.unit }}
                           </small>
                         }
                       </div>
@@ -315,7 +315,7 @@
                   <option value="Postura">Postura</option>
                   <option value="Final">Final</option>
                   @if (editingSeguimiento?.tipoAlimento && !['Standard','Premium','Inicio','Postura','Final'].includes(editingSeguimiento?.tipoAlimento ?? '')) {
-                    <option [value]="$safeNavigationMigration(editingSeguimiento?.tipoAlimento)">{{ editingSeguimiento?.tipoAlimento }}</option>
+                    <option [value]="editingSeguimiento?.tipoAlimento">{{ editingSeguimiento?.tipoAlimento }}</option>
                   }
                 </select>
                 <small class="ux-hint">Tipo de alimento utilizado</small>
