@@ -88,7 +88,8 @@ frontend/src/app/features/reporte-tecnico-semanal/
 | Peso huevo / Masa | peso_huevo pesaje / %prod*peso/100 | `peso_huevo` / `masa_huevo` |
 | Conversión gr/H.I. | (consH+consM)*1000/huevo_inc | `gr_huevo_inc` |
 | Apareo M:H | avesM/avesH*100 | `apareo` |
-| Infertilidad / Nacimiento / Pollitos | **fase 2** (traslado_huevos) — v1 solo guía | `nacim_porcentaje`, `pollito_aa` (infertilidad: no hay col guía dedicada → columna solo-real vacía v1) |
+| HI Cargado (huevos enviados a incubadora) | `traslado_huevos` Completado + destino Planta, `cantidad_limpio + cantidad_tratado`, agrupado por semana de vida | — (sin col de guía) |
+| Nacimiento / Pollitos / Infertilidad | **sin origen en BD** (ver §9) — columnas solo con guía | `nacim_porcentaje`, `pollito_aa` |
 
 ## 7. Casos de prueba (xUnit — `ReporteTecnicoSemanalCalculosTests`)
 
@@ -107,3 +108,37 @@ frontend/src/app/features/reporte-tecnico-semanal/
 - `cd frontend && yarn build` (0 errores; solo warning de bundle budget preexistente).
 - Smoke doble: empresa Sanmarino (con datos) genera ambos reportes; el menú NO aparece para Demo/Santa Reyes.
 - Sin procesos huérfanos al terminar.
+
+---
+
+## 9. Bloque POLLITOS — qué tiene origen real (auditoría 2026-07-26)
+
+Auditoría del modelo de datos (3 agentes + consultas a la BD local) sobre las 6 columnas
+del bloque POLLITOS del Excel A346:
+
+| Columna Excel | Origen real | Estado |
+|---|---|---|
+| **HI Cargado** (BC) | `traslado_huevos` con `estado='Completado'` y `tipo_destino='Planta'`, incubables = `cantidad_limpio + cantidad_tratado`, agrupado por semana de vida del lote | ✅ **IMPLEMENTADO** (+ acumulado y `% Enviado` sobre los incubables producidos) |
+| Edad HI (BD) | derivable pero solo tiene sentido junto a los nacimientos | ❌ fuera de alcance |
+| **Pollitos Sem.** (BE) | — | ❌ **no existe en BD** |
+| **% nacimiento real** (BF) | — | ❌ **no existe en BD** |
+| Guía nacimiento (BG) | `guia_genetica_sanmarino_colombia.nacim_porcentaje` | ✅ ya estaba |
+| ACUM./AVE AL. (BH) | depende de Pollitos Sem. | ❌ sin origen |
+
+**Por qué no existen los nacimientos:** no hay ninguna tabla de retorno de incubadora en el
+esquema (barrido de `information_schema`: no existen `venta_pollito`, `nacimientos`,
+`incubacion`, etc.). `traslado_huevos` es una tabla de SALIDA (venta o traslado a planta) sin
+campos de eclosión. El reporte técnico anterior arrastra el mismo hueco:
+`ReporteTecnicoProduccionService` tiene `porcentajeNacimientos = null` y
+`pollitosVendidos = null` hardcodeados con un TODO desde su creación, y su columna
+"HuevosCargados" en realidad muestra `huevo_inc` del seguimiento (no los envíos reales).
+
+**Para completar el bloque haría falta** capturar el retorno de incubadora (una tabla
+`nacimiento_lote` con: lote/LPP, fecha de carga, huevos cargados, fecha de nacimiento,
+pollitos nacidos, y opcionalmente infértiles) alimentada por un módulo de captura o por
+integración con el sistema de la planta de incubación. Decisión de negocio, fuera del alcance
+de este módulo.
+
+**Ojo con `% Enviado`:** puede superar el 100 % en una semana (envíos que arrastran huevos
+acumulados de días anteriores). No es un error de cálculo; el acumulado es la lectura correcta
+para comparar producción vs envíos.

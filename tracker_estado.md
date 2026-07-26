@@ -41,4 +41,15 @@
 - [x] `ng build` 0 errores (solo warning budget preexistente)
 - [x] Smoke UI COMPLETO en dev server con sesión dev inyectada (sessionStorage, sin credenciales): Levante K345 → tabs Consolidado/K345A/K345B, tabla 2 niveles y 8 canvas pintados; Producción → P-K345A/P-K345B y 6 canvas pintados; 0 errores de consola
 - [x] Servidores detenidos (sin procesos huérfanos)
-- [ ] Commit (autor moisesmurillo, sin atribución a Claude) — pendiente de OK del usuario
+- [x] Commit `3dd1f4a` en main (autor moisesmurillo, sin atribución)
+
+## Fase 7 — Bloque POLLITOS con datos reales (fase 2 del plan)
+- [x] Exploración BD local: `traslado_huevos` (340 filas, company 1) tiene tipo_destino='Planta' + estado='Completado' + cantidad_limpio/tratado + lote_postura_produccion_id → **HI Cargado es real y cruza por semana de vida** (verificado con P-K345A: sem 26=8.455 … sem 37=42.277)
+- [x] Auditoría (3 agentes + BD): pollitos nacidos / % nacimiento **NO existen** en el esquema (no hay retorno de incubadora); el reporte técnico viejo arrastra el mismo hueco (`porcentajeNacimientos`/`pollitosVendidos` null hardcodeados). Documentado en el plan §9
+- [x] `AgruparCargadosPorSemana` (puro, misma fórmula de semana que la fn) + consulta EF a `traslado_huevos` (Completado + destino Planta, limpio+tratado) con la misma resolución de fecha de encaset que la fn
+- [x] DTO: `HuevosCargadosPlanta`, `HuevosCargadosPlantaAcum`, `PorcentajeCargaSobreIncubables` + suma en el consolidado
+- [x] Tests xUnit: 35/35 verdes (5 nuevos: fórmula de semana, hora ignorada, acumulados/%, sin traslados, consolidado)
+- [x] Front: 3 columnas nuevas en el bloque Pollitos + gráfica "Incubables producidos vs cargados a planta" (7ª de producción)
+- [x] `dotnet build` 0/0 · `ng build` 0 errores · smoke API (totales 1.470.623 + 911.090 = 2.381.713 = BD) y smoke UI (tabla + 7 gráficas, 0 errores de consola)
+- [x] Servidores detenidos
+- [ ] Commit fase 2

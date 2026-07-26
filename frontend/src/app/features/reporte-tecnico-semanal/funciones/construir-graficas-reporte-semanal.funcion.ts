@@ -273,6 +273,20 @@ export function construirGraficasProduccion(tab: ReporteSemanalProduccionTab): G
         ]
       },
       options: opciones('%')
+    },
+    {
+      // Bloque POLLITOS: lo único con dato real es el envío a incubadora, contrastado
+      // contra los incubables producidos (los nacimientos no se capturan en el sistema).
+      titulo: 'Huevos incubables: producidos vs cargados a planta',
+      tipo: 'bar',
+      data: {
+        labels,
+        datasets: [
+          barra('Incubables producidos', v(s => s.huevosIncubables), H_GUIA, true),
+          barra('HI cargados a planta', v(s => s.huevosCargadosPlanta), H_REAL)
+        ]
+      },
+      options: opciones('Huevos')
     }
   ];
 }

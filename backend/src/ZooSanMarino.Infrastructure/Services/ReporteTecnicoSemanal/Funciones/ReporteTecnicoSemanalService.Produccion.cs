@@ -83,6 +83,18 @@ public partial class ReporteTecnicoSemanalService
         var vacio = new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaProduccion>();
         var tabs = new List<ReporteSemanalProduccionTabDto>(lpps.Count);
 
+        // Fecha de referencia de cada lote (misma prioridad que la fn: encaset del levante
+        // ligado → encaset del LPP → inicio de producción) para ubicar los traslados por semana.
+        var levanteIds = lpps.Where(p => p.LotePosturaLevanteId.HasValue)
+                             .Select(p => (int?)p.LotePosturaLevanteId!.Value).Distinct().ToList();
+        var encasetLevante = (await _ctx.LotePosturaLevante
+            .AsNoTracking()
+            .Where(l => levanteIds.Contains(l.LotePosturaLevanteId) && l.DeletedAt == null && l.FechaEncaset != null)
+            .Select(l => new { l.LotePosturaLevanteId, l.FechaEncaset })
+            .ToListAsync(ct))
+            .Where(l => l.LotePosturaLevanteId.HasValue)
+            .ToDictionary(l => l.LotePosturaLevanteId!.Value, l => l.FechaEncaset!.Value);
+
         foreach (var lpp in lpps)
         {
             var filas = await _ctx.Database
@@ -91,6 +103,8 @@ public partial class ReporteTecnicoSemanalService
                     "{0}::int, {1}::int, NULL::int, NULL::int, NULL::int, NULL::date, NULL::date)",
                     companyId, lpp.LotePosturaProduccionId!.Value)
                 .ToListAsync(ct);
+
+            var cargadosPorSemana = await CargarHuevosEnviadosPorSemanaAsync(lpp, encasetLevante, ct);
 
             var guia = (!string.IsNullOrWhiteSpace(lpp.Raza) && lpp.AnoTablaGenetica.HasValue
                         && guiaPorCombo.TryGetValue((lpp.Raza!.Trim().ToLower(), lpp.AnoTablaGenetica.Value), out var g))
@@ -120,7 +134,7 @@ public partial class ReporteTecnicoSemanalService
             tabs.Add(new ReporteSemanalProduccionTabDto
             {
                 Header = header,
-                Semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(filas, guia)
+                Semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(filas, guia, cargadosPorSemana)
             });
         }
 
@@ -149,5 +163,37 @@ public partial class ReporteTecnicoSemanalService
             TieneGuia: guiaPorCombo.Values.Any(d => d.Count > 0),
             Tabs: tabs,
             Consolidado: consolidado);
+    }
+
+    /// <summary>
+    /// "HI Cargado" del Excel: huevos incubables ENVIADOS a planta/incubadora por semana de vida.
+    /// Fuente real = traslado_huevos (Completado + destino Planta), incubables = limpio + tratado
+    /// (misma convención que TrasladoHuevosService y el reporte técnico existente).
+    /// Devuelve vacío si el lote no tiene fecha de referencia (sin ella no hay semana que asignar).
+    /// </summary>
+    private async Task<Dictionary<int, int>> CargarHuevosEnviadosPorSemanaAsync(
+        Domain.Entities.LotePosturaProduccion lpp,
+        IReadOnlyDictionary<int, DateTime> encasetLevante,
+        CancellationToken ct)
+    {
+        DateTime? fechaRef = null;
+        if (lpp.LotePosturaLevanteId.HasValue
+            && encasetLevante.TryGetValue(lpp.LotePosturaLevanteId.Value, out var encLev))
+            fechaRef = encLev;
+        fechaRef ??= lpp.FechaEncaset ?? lpp.FechaInicioProduccion;
+
+        if (!fechaRef.HasValue) return new Dictionary<int, int>();
+
+        var traslados = await _ctx.TrasladoHuevos
+            .AsNoTracking()
+            .Where(t => t.LotePosturaProduccionId == lpp.LotePosturaProduccionId
+                        && t.DeletedAt == null
+                        && t.Estado == "Completado"
+                        && t.TipoDestino == "Planta")
+            .Select(t => new { t.FechaTraslado, Incubables = t.CantidadLimpio + t.CantidadTratado })
+            .ToListAsync(ct);
+
+        return ReporteTecnicoSemanalCalculos.AgruparCargadosPorSemana(
+            traslados.Select(t => (t.FechaTraslado, t.Incubables)), fechaRef.Value);
     }
 }

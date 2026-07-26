@@ -359,6 +359,97 @@ public class ReporteTecnicoSemanalCalculosTests
         Assert.Equal(20.0 / 6000.0 * 100.0, semanas[1].MortSelHembrasAcumPct!.Value, 8);
     }
 
+    // ── "HI Cargado" (huevos incubables enviados a planta) ──
+    [Fact]
+    public void AgruparCargadosPorSemana_usa_la_misma_formula_de_semana_que_la_fn()
+    {
+        var encaset = new DateTime(2025, 1, 28);
+        // día 0 → semana 1; día 6 → semana 1; día 7 → semana 2; día 174 → semana 25 (174/7=24 +1)
+        var traslados = new (DateTime, int)[]
+        {
+            (encaset, 100),
+            (encaset.AddDays(6), 50),
+            (encaset.AddDays(7), 200),
+            (encaset.AddDays(174), 300),
+            (encaset.AddDays(-3), 999)   // anterior al encaset: se ignora
+        };
+
+        var mapa = ReporteTecnicoSemanalCalculos.AgruparCargadosPorSemana(traslados, encaset);
+
+        Assert.Equal(150, mapa[1]);
+        Assert.Equal(200, mapa[2]);
+        Assert.Equal(300, mapa[25]);
+        Assert.Equal(3, mapa.Count);   // el traslado previo al encaset no crea semana
+    }
+
+    [Fact]
+    public void AgruparCargadosPorSemana_ignora_la_hora_del_traslado()
+    {
+        var encaset = new DateTime(2025, 1, 28, 0, 0, 0);
+        var mapa = ReporteTecnicoSemanalCalculos.AgruparCargadosPorSemana(
+            new[] { (encaset.AddDays(7).AddHours(23), 10), (encaset.AddDays(8).AddHours(1), 5) }, encaset);
+
+        Assert.Equal(15, mapa[2]);
+    }
+
+    [Fact]
+    public void Produccion_huevos_cargados_se_acumulan_y_calculan_pct_sobre_incubables()
+    {
+        var filas = new[]
+        {
+            FilaProduccion(26, huevosTot: 10000, huevosInc: 8000),
+            FilaProduccion(27, huevosTot: 10000, huevosInc: 9000),
+            FilaProduccion(28, huevosTot: 10000, huevosInc: 9000)   // semana sin envíos
+        };
+        var cargados = new Dictionary<int, int> { [26] = 4000, [27] = 9000 };
+
+        var semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(
+            filas, new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaProduccion>(), cargados);
+
+        Assert.Equal(4000, semanas[0].HuevosCargadosPlanta);
+        Assert.Equal(4000, semanas[0].HuevosCargadosPlantaAcum);
+        Assert.Equal(50.0, semanas[0].PorcentajeCargaSobreIncubables!.Value, 8);   // 4000/8000
+        Assert.Equal(13000, semanas[1].HuevosCargadosPlantaAcum);
+        Assert.Equal(100.0, semanas[1].PorcentajeCargaSobreIncubables!.Value, 8);
+        Assert.Equal(0, semanas[2].HuevosCargadosPlanta);                          // sin envíos
+        Assert.Equal(13000, semanas[2].HuevosCargadosPlantaAcum);                  // acumulado se mantiene
+        Assert.Equal(0.0, semanas[2].PorcentajeCargaSobreIncubables!.Value, 8);
+    }
+
+    [Fact]
+    public void Produccion_sin_traslados_deja_cargados_en_cero_sin_romper()
+    {
+        var semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(
+            new[] { FilaProduccion(26, huevosInc: 5000) },
+            new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaProduccion>());
+
+        var s = Assert.Single(semanas);
+        Assert.Equal(0, s.HuevosCargadosPlanta);
+        Assert.Equal(0, s.HuevosCargadosPlantaAcum);
+        Assert.Equal(0.0, s.PorcentajeCargaSobreIncubables!.Value, 8);
+    }
+
+    [Fact]
+    public void ConsolidarProduccion_suma_huevos_cargados_de_todos_los_galpones()
+    {
+        ReporteSemanalProduccionTabDto tab(int inc, int cargado) => new()
+        {
+            Header = new ReporteSemanalTabHeaderDto { BaseHembras = 6000 },
+            Semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(
+                new[] { FilaProduccion(26, huevosTot: inc + 1000, huevosInc: inc) },
+                new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaProduccion>(),
+                new Dictionary<int, int> { [26] = cargado })
+        };
+
+        var consolidado = ReporteTecnicoSemanalCalculos.ConsolidarProduccion(
+            new[] { tab(8000, 6000), tab(9000, 7000) });
+
+        var s = Assert.Single(consolidado.Semanas);
+        Assert.Equal(13000, s.HuevosCargadosPlanta);
+        Assert.Equal(13000, s.HuevosCargadosPlantaAcum);
+        Assert.Equal(13000.0 / 17000.0 * 100.0, s.PorcentajeCargaSobreIncubables!.Value, 8);
+    }
+
     [Fact]
     public void ConsolidarProduccion_suma_huevos_y_recalcula_porcentajes()
     {

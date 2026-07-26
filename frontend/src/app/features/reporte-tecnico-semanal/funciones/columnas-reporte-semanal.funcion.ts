@@ -178,6 +178,11 @@ export const COLUMNAS_PRODUCCION: ColumnaReporte<ReporteSemanalProduccionSemana>
   { grupo: 'Uniformidad', titulo: 'U% Guía', dec: 1, valor: s => s.uniformidadGuia },
   { grupo: 'Uniformidad', titulo: 'C.V.%', dec: 1, valor: s => s.coeficienteVariacion },
 
+  // Bloque POLLITOS del Excel. "HI Cargado" es real (traslado_huevos a planta);
+  // nacimientos y pollitos reales no se capturan en el sistema → solo guía.
+  { grupo: 'Pollitos', titulo: 'HI Cargado', dec: 0, valor: s => s.huevosCargadosPlanta },
+  { grupo: 'Pollitos', titulo: 'HI Cargado Acum', dec: 0, valor: s => s.huevosCargadosPlantaAcum },
+  { grupo: 'Pollitos', titulo: '% Enviado', dec: 1, valor: s => s.porcentajeCargaSobreIncubables },
   { grupo: 'Pollitos', titulo: 'Nacim % Guía', dec: 1, valor: s => s.nacimientoGuiaPct },
   { grupo: 'Pollitos', titulo: 'Pollito/ave Guía', dec: 2, valor: s => s.pollitosAveGuia }
 ];

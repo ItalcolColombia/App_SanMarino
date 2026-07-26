@@ -190,6 +190,11 @@ export interface ReporteSemanalProduccionSemana {
   uniformidadGuia: number | null;
   coeficienteVariacion: number | null;
 
+  /** "HI Cargado": incubables enviados a planta en la semana (traslado_huevos). */
+  huevosCargadosPlanta: number;
+  huevosCargadosPlantaAcum: number;
+  porcentajeCargaSobreIncubables: number | null;
+  /** Nacimientos/pollitos reales no se capturan en el sistema: solo valor de guía. */
   nacimientoGuiaPct: number | null;
   pollitosAveGuia: number | null;
 }

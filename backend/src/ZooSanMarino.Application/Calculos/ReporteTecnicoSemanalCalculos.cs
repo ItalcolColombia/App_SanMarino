@@ -67,6 +67,28 @@ public static class ReporteTecnicoSemanalCalculos
         double? PesoMachos,
         double? Uniformidad);
 
+    /// <summary>
+    /// Huevos incubables ENVIADOS a planta/incubadora agrupados por semana de vida
+    /// ("HI Cargado" del Excel). Misma fórmula de semana que fn_indicadores_produccion_postura
+    /// (división entera de días entre 7, +1) para que case 1:1 con las filas del reporte.
+    /// El service pasa solo traslados Completado con destino Planta (limpio + tratado).
+    /// </summary>
+    public static Dictionary<int, int> AgruparCargadosPorSemana(
+        IEnumerable<(DateTime Fecha, int Cantidad)> traslados,
+        DateTime fechaEncaset)
+    {
+        var resultado = new Dictionary<int, int>();
+        var encaset = fechaEncaset.Date;
+        foreach (var (fecha, cantidad) in traslados)
+        {
+            var dias = (fecha.Date - encaset).Days;
+            if (dias < 0) continue;               // traslado anterior al encaset: dato inconsistente, se ignora
+            var semana = dias / 7 + 1;
+            resultado[semana] = resultado.TryGetValue(semana, out var acum) ? acum + cantidad : cantidad;
+        }
+        return resultado;
+    }
+
     public sealed record GuiaSemanaProduccion(
         double? AprovSem,
         double? AprovAc,
@@ -213,11 +235,12 @@ public static class ReporteTecnicoSemanalCalculos
     // ─────────────────────────────────────────────────────────────────────────
     public static List<ReporteSemanalProduccionSemanaDto> ConstruirSemanasProduccion(
         IReadOnlyList<IndicadorProduccionSemanalBdRow> filas,
-        IReadOnlyDictionary<int, GuiaSemanaProduccion> guia)
+        IReadOnlyDictionary<int, GuiaSemanaProduccion> guia,
+        IReadOnlyDictionary<int, int>? cargadosPorSemana = null)
     {
         var resultado = new List<ReporteSemanalProduccionSemanaDto>(filas.Count);
 
-        long cumHuevosTot = 0, cumHuevosInc = 0;
+        long cumHuevosTot = 0, cumHuevosInc = 0, cumCargados = 0;
         double cumKgH = 0, cumKgM = 0;
         double cumMortSelH = 0, cumMortSelM = 0;
         double baseH = 0, baseM = 0;               // aves iniciales (reconstruidas de la 1ª semana)
@@ -234,6 +257,9 @@ public static class ReporteTecnicoSemanalCalculos
             var iniH = f.AvesHembrasFinSemana + f.MortalidadHembras + f.SeleccionHembras;
             var iniM = f.AvesMachosFinSemana + f.MortalidadMachos;
             if (primera) { baseH = iniH; baseM = iniM; primera = false; }
+
+            var cargados = cargadosPorSemana is not null && cargadosPorSemana.TryGetValue(f.Semana, out var c) ? c : 0;
+            cumCargados += cargados;
 
             cumHuevosTot += f.HuevosTotales;
             cumHuevosInc += f.HuevosIncubables;
@@ -332,6 +358,9 @@ public static class ReporteTecnicoSemanalCalculos
                 UniformidadGuia = f.UniformidadGuia,
                 CoeficienteVariacion = f.CoeficienteVariacionPromedio,
 
+                HuevosCargadosPlanta = cargados,
+                HuevosCargadosPlantaAcum = cumCargados,
+                PorcentajeCargaSobreIncubables = Pct(cargados, f.HuevosIncubables),
                 NacimientoGuiaPct = g?.NacimPorcentaje,
                 PollitosAveGuia = g?.PollitoAa
             };
@@ -511,7 +540,7 @@ public static class ReporteTecnicoSemanalCalculos
             .ToList();
 
         var semanas = new List<ReporteSemanalProduccionSemanaDto>(porSemana.Count);
-        long cumHuevosTot = 0, cumHuevosInc = 0;
+        long cumHuevosTot = 0, cumHuevosInc = 0, cumCargados = 0;
         double cumKgH = 0, cumKgM = 0;
         double cumMortSelH = 0, cumMortSelM = 0;
         double? grAveDiaHPrev = null;
@@ -537,6 +566,9 @@ public static class ReporteTecnicoSemanalCalculos
             var iniH = avesHFin + mortH + selH;
             var iniM = avesMFin + mortM;
             if (primera) { baseH = iniH; baseM = iniM; primera = false; }
+
+            var cargados = filas.Sum(s => s.HuevosCargadosPlanta);
+            cumCargados += cargados;
 
             cumHuevosTot += huevosTot;
             cumHuevosInc += huevosInc;
@@ -629,6 +661,9 @@ public static class ReporteTecnicoSemanalCalculos
                 UniformidadGuia = PrimeraGuia(filas.Select(s => s.UniformidadGuia)),
                 CoeficienteVariacion = Prom(filas.Select(s => s.CoeficienteVariacion)),
 
+                HuevosCargadosPlanta = cargados,
+                HuevosCargadosPlantaAcum = cumCargados,
+                PorcentajeCargaSobreIncubables = Pct(cargados, huevosInc),
                 NacimientoGuiaPct = PrimeraGuia(filas.Select(s => s.NacimientoGuiaPct)),
                 PollitosAveGuia = PrimeraGuia(filas.Select(s => s.PollitosAveGuia))
             };

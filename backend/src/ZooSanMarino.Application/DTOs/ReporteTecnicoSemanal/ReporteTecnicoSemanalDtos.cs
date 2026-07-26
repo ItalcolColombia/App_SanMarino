@@ -237,7 +237,15 @@ public sealed class ReporteSemanalProduccionSemanaDto
     public double? UniformidadGuia { get; set; }
     public double? CoeficienteVariacion { get; set; }
 
-    // ── Pollitos / nacimiento (v1: solo guía; reales en fase 2) ──
+    // ── Pollitos / nacimiento ──
+    /// <summary>"HI Cargado" del Excel: huevos incubables enviados a planta/incubadora
+    /// en la semana (traslado_huevos Completado con destino Planta, limpio + tratado).</summary>
+    public int HuevosCargadosPlanta { get; set; }
+    public long HuevosCargadosPlantaAcum { get; set; }
+    /// <summary>% de los incubables producidos en la semana que se enviaron a planta.</summary>
+    public double? PorcentajeCargaSobreIncubables { get; set; }
+    /// <summary>Nacimientos y pollitos REALES no se capturan en el sistema (no hay retorno de
+    /// incubadora en BD): solo se expone el valor de guía.</summary>
     public double? NacimientoGuiaPct { get; set; }
     public double? PollitosAveGuia { get; set; }
 }
