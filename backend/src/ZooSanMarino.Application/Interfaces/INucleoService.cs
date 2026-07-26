@@ -12,10 +12,10 @@ public interface INucleoService
     /// </summary>
     Task<IEnumerable<NucleoDto>> GetByFarmIdsForCompanyAsync(IReadOnlyList<int> farmIds, int companyId, CancellationToken ct = default);
 
-    // Compat
-    Task<IEnumerable<NucleoDto>> GetAllAsync();
+    // Compat. paraDestino=true omite el alcance granular de ubicación (selección de DESTINO en traslados).
+    Task<IEnumerable<NucleoDto>> GetAllAsync(bool paraDestino = false);
     Task<NucleoDto?>             GetByIdAsync(string nucleoId, int granjaId);
-    Task<IEnumerable<NucleoDto>> GetByGranjaAsync(int granjaId);
+    Task<IEnumerable<NucleoDto>> GetByGranjaAsync(int granjaId, bool paraDestino = false);
     Task<NucleoDto>              CreateAsync(CreateNucleoDto dto);
     Task<NucleoDto?>             UpdateAsync(UpdateNucleoDto dto);
     Task<bool>                   DeleteAsync(string nucleoId, int granjaId);

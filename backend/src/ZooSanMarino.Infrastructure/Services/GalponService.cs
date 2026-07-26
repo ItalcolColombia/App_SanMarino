@@ -21,19 +21,42 @@ public partial class GalponService : AppInterfaces.IGalponService
     private readonly AppInterfaces.ICompanyResolver _companyResolver;
     private readonly AppInterfaces.IUserPermissionService _userPermissionService;
     private readonly AppInterfaces.IUserFarmService _userFarmService;
+    private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
 
     public GalponService(
-        ZooSanMarinoContext ctx, 
+        ZooSanMarinoContext ctx,
         AppInterfaces.ICurrentUser current,
         AppInterfaces.ICompanyResolver companyResolver,
         AppInterfaces.IUserPermissionService userPermissionService,
-        AppInterfaces.IUserFarmService userFarmService)
+        AppInterfaces.IUserFarmService userFarmService,
+        AppInterfaces.ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _userPermissionService = userPermissionService;
         _userFarmService = userFarmService;
+        _scopeResolver = scopeResolver;
+    }
+
+    /// <summary>
+    /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible en
+    /// SQL. Se aplica SIEMPRE (incluso admin: una restricción explícita gana al bypass de rol).
+    /// Granjas no restringidas pasan intactas; en las restringidas solo quedan los galpones visibles
+    /// del cierre (galpon_id es PK global ⇒ la unión entre granjas es exacta).
+    /// <paramref name="paraDestino"/> = true lo omite (selección de DESTINO en traslados).
+    /// </summary>
+    private async Task<IQueryable<Galpon>> AplicarScopeUbicacionAsync(IQueryable<Galpon> q, bool paraDestino = false)
+    {
+        if (paraDestino) return q;
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var galponesVisibles = restringidos.SelectMany(kv => kv.Value.GalponesVisibles).Distinct().ToList();
+
+        return q.Where(g => !granjasRestringidas.Contains(g.GranjaId) ||
+                            galponesVisibles.Contains(g.GalponId));
     }
 
     /// <summary>
@@ -182,6 +205,8 @@ public partial class GalponService : AppInterfaces.IGalponService
         if (!string.IsNullOrWhiteSpace(req.NucleoId))  q = q.Where(g => g.NucleoId == req.NucleoId);
         if (!string.IsNullOrWhiteSpace(req.TipoGalpon)) q = q.Where(g => g.TipoGalpon == req.TipoGalpon);
 
+        q = await AplicarScopeUbicacionAsync(q);
+
         q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
         var total = await q.LongCountAsync();
@@ -240,6 +265,8 @@ public partial class GalponService : AppInterfaces.IGalponService
                 q = q.Where(g => g.GranjaId == -1);
         }
 
+        q = await AplicarScopeUbicacionAsync(q);
+
         return await ProjectToDetail(q).ToListAsync();
     }
 
@@ -258,6 +285,8 @@ public partial class GalponService : AppInterfaces.IGalponService
             .Where(g => g.DeletedAt == null &&
                         g.GranjaId == granjaId &&
                         g.NucleoId == nucleoId);
+
+        q = await AplicarScopeUbicacionAsync(q);
 
         // Verificar si el usuario es admin/administrador
         var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
@@ -293,10 +322,12 @@ public partial class GalponService : AppInterfaces.IGalponService
         IQueryable<Galpon> q = _ctx.Galpones.AsNoTracking()
             .Where(g => g.DeletedAt == null && g.CompanyId == companyId && farmIds.Contains(g.GranjaId));
 
+        q = await AplicarScopeUbicacionAsync(q);
+
         return await ProjectToDetail(q).ToListAsync(ct);
     }
 
-    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetAllAsync()
+    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetAllAsync(bool paraDestino = false)
     {
         IQueryable<Galpon> q = _ctx.Galpones.AsNoTracking().Where(g => g.DeletedAt == null);
 
@@ -310,6 +341,9 @@ public partial class GalponService : AppInterfaces.IGalponService
         q = q.Where(g => assignedFarmIds.Contains(g.GranjaId)
                       && _ctx.Farms.Any(f => f.Id == g.GranjaId && f.DeletedAt == null));
 
+        // Alcance granular núcleo/galpón/lote (omitido al elegir DESTINO de traslados)
+        q = await AplicarScopeUbicacionAsync(q, paraDestino);
+
         return await ProjectToDetail(q).ToListAsync();
     }
 
@@ -322,10 +356,13 @@ public partial class GalponService : AppInterfaces.IGalponService
         return await ProjectToDetail(q).SingleOrDefaultAsync();
     }
 
-    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetByGranjaAsync(int granjaId)
+    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetByGranjaAsync(int granjaId, bool paraDestino = false)
     {
         IQueryable<Galpon> q = _ctx.Galpones.AsNoTracking()
             .Where(g => g.DeletedAt == null && g.GranjaId == granjaId);
+
+        // Alcance granular núcleo/galpón/lote (omitido al elegir DESTINO de traslados)
+        q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
         // Verificar si el usuario es admin/administrador
         var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
@@ -348,12 +385,15 @@ public partial class GalponService : AppInterfaces.IGalponService
         return await ProjectToDetail(q).ToListAsync();
     }
 
-    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId)
+    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId, bool paraDestino = false)
     {
         IQueryable<Galpon> q = _ctx.Galpones.AsNoTracking()
             .Where(g => g.DeletedAt == null &&
                         g.GranjaId == granjaId &&
                         g.NucleoId == nucleoId);
+
+        // Alcance granular núcleo/galpón/lote (omitido al elegir DESTINO de traslados)
+        q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
         // Verificar si el usuario es admin/administrador
         var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);

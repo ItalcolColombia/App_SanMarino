@@ -8,7 +8,8 @@ public interface ILoteService
 {
     // Compat existentes - ACTUALIZADO para devolver información completa de relaciones
     /// <param name="fase">Opcional: "levante" | "produccion" | null (todos, excluyendo lotes hijo de producción).</param>
-    Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null);
+    // paraDestino=true omite el alcance granular de ubicación (selección de DESTINO en traslados).
+    Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null, bool paraDestino = false);
     /// <summary>Lotes en fase Levante (semanas &lt; 26), para filtros del módulo Seguimiento Diario de Levante.</summary>
     Task<IEnumerable<LoteDetailDto>> GetLotesLevanteAsync();
     Task<bool> DeleteAsync(int loteId);

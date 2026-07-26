@@ -12,13 +12,38 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
+    private readonly ILocationScopeResolver _scopeResolver;
 
     private static readonly string[] ValidTipos = { "levante", "produccion", "reproductora" };
 
-    public SeguimientoDiarioService(ZooSanMarinoContext ctx, ICurrentUser current)
+    public SeguimientoDiarioService(ZooSanMarinoContext ctx, ICurrentUser current, ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _current = current;
+        _scopeResolver = scopeResolver;
+    }
+
+    /// <summary>
+    /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible en
+    /// SQL. seguimiento_diario guarda el lote como TEXTO ⇒ se resuelven en la BD los lotes BLOQUEADOS
+    /// (los de granjas restringidas fuera del cierre del usuario) y se excluyen las filas que los
+    /// referencian. Sin granjas restringidas devuelve la query intacta (cero cambios).
+    /// </summary>
+    private async Task<IQueryable<SeguimientoDiario>> AplicarScopeUbicacionAsync(IQueryable<SeguimientoDiario> q)
+    {
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+
+        var lotesBloqueados = _ctx.Lotes.AsNoTracking()
+            .Where(l => l.LoteId != null
+                     && granjasRestringidas.Contains(l.GranjaId)
+                     && !lotesPermitidos.Contains(l.LoteId!.Value))
+            .Select(l => l.LoteId!.Value.ToString());
+
+        return q.Where(s => !lotesBloqueados.Contains(s.LoteId));
     }
 
     /// <summary>
@@ -71,6 +96,9 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
     public async Task<PagedResultSeguimiento> GetFilteredAsync(SeguimientoDiarioFilterRequest filter, CancellationToken ct = default)
     {
         var q = BaseQuery();
+
+        // Alcance granular núcleo/galpón/lote (aplica incluso a admin; sin restricciones no filtra nada)
+        q = await AplicarScopeUbicacionAsync(q);
 
         if (!string.IsNullOrWhiteSpace(filter.TipoSeguimiento))
         {

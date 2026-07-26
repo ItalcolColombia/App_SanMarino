@@ -21,9 +21,9 @@ public class LotePosturaProduccionController : ControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LotePosturaProduccionDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<LotePosturaProduccionDetailDto>>> GetAll(CancellationToken ct = default)
+    public async Task<ActionResult<IEnumerable<LotePosturaProduccionDetailDto>>> GetAll([FromQuery] bool paraDestino = false, CancellationToken ct = default)
     {
-        var items = await _svc.GetAllAsync(ct);
+        var items = await _svc.GetAllAsync(ct, paraDestino);
         return Ok(items);
     }
 

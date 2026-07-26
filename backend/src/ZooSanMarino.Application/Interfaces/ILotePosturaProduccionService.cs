@@ -11,7 +11,8 @@ public interface ILotePosturaProduccionService
     /// Obtiene todos los registros de lote_postura_produccion de la empresa en sesión,
     /// filtrados por granjas asignadas al usuario.
     /// </summary>
-    Task<IEnumerable<LotePosturaProduccionDetailDto>> GetAllAsync(CancellationToken ct = default);
+    // paraDestino=true omite el alcance granular de ubicación (selección de DESTINO en traslados).
+    Task<IEnumerable<LotePosturaProduccionDetailDto>> GetAllAsync(CancellationToken ct = default, bool paraDestino = false);
 
     /// <summary>
     /// Obtiene los lotes producción asociados a un lote (vía lote_postura_levante.lote_id).

@@ -153,12 +153,15 @@ export class LoteService {
     return this.http.get<LoteFormDataResponse>(`${this.baseUrl}/form-data`);
   }
 
-  /** @param fase 'levante' | 'produccion' | undefined (todos, sin lotes hijo de producción) */
-  getAll(fase?: 'levante' | 'produccion'): Observable<LoteDto[]> {
-    if (fase) {
-      return this.http.get<LoteDto[]>(this.baseUrl, { params: { fase } });
-    }
-    return this.http.get<LoteDto[]>(this.baseUrl);
+  /** @param fase 'levante' | 'produccion' | undefined (todos, sin lotes hijo de producción)
+   *  @param paraDestino true = catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario) */
+  getAll(fase?: 'levante' | 'produccion', paraDestino = false): Observable<LoteDto[]> {
+    const params: Record<string, string> = {};
+    if (fase) params['fase'] = fase;
+    if (paraDestino) params['paraDestino'] = 'true';
+    return Object.keys(params).length > 0
+      ? this.http.get<LoteDto[]>(this.baseUrl, { params })
+      : this.http.get<LoteDto[]>(this.baseUrl);
   }
 
   getById(loteId: number): Observable<LoteDto> {

@@ -19,6 +19,10 @@ public partial class VacunacionCronogramaService
         if (!LineasValidas.Contains(req.LineaProductiva))
             throw new InvalidOperationException($"lineaProductiva inválida: '{req.LineaProductiva}'.");
 
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → cronograma vacío)
+        if (!await PermiteLoteDeLineaAsync(req.LineaProductiva, req.LoteId, ct))
+            return new List<VacunacionCronogramaItemDto>();
+
         var pCompany = new NpgsqlParameter("p_company_id", NpgsqlDbType.Integer) { Value = _currentUser.CompanyId };
         var pLinea = new NpgsqlParameter("p_linea_productiva", NpgsqlDbType.Text) { Value = req.LineaProductiva };
         var pLote = new NpgsqlParameter("p_lote_id", NpgsqlDbType.Integer) { Value = req.LoteId };

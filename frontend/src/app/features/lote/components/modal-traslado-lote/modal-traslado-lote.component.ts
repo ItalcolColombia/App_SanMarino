@@ -115,11 +115,19 @@ export class ModalTrasladoLoteComponent implements OnInit, OnChanges {
     this.galponDestinoId = null;
     
     if (this.granjaDestinoId) {
-      // Filtrar núcleos de la granja destino
-      this.nucleosFiltrados = this.nucleos.filter(n => n.granjaId === Number(this.granjaDestinoId));
-      
-      // Cargar galpones de la granja destino
-      this.galponService.getByGranja(Number(this.granjaDestinoId)).subscribe({
+      // Núcleos de la granja destino: fetch fresco con paraDestino=true (la cascada de DESTINO
+      // no se restringe por el alcance granular del usuario); fallback al filtro local del @Input.
+      this.nucleoService.getByGranjaParaDestino(Number(this.granjaDestinoId)).subscribe({
+        next: (nucleos: NucleoDto[]) => {
+          this.nucleosFiltrados = nucleos;
+        },
+        error: () => {
+          this.nucleosFiltrados = this.nucleos.filter(n => n.granjaId === Number(this.granjaDestinoId));
+        }
+      });
+
+      // Cargar galpones de la granja destino (paraDestino=true: sin alcance granular)
+      this.galponService.getByGranja(Number(this.granjaDestinoId), true).subscribe({
         next: (galpones: GalponDetailDto[]) => {
           this.galponesFiltrados = galpones;
         },
@@ -138,10 +146,11 @@ export class ModalTrasladoLoteComponent implements OnInit, OnChanges {
     this.galponDestinoId = null;
     
     if (this.granjaDestinoId && this.nucleoDestinoId) {
-      // Filtrar galpones por granja y núcleo
+      // Filtrar galpones por granja y núcleo (paraDestino=true: sin alcance granular)
       this.galponService.getByGranjaAndNucleo(
-        Number(this.granjaDestinoId), 
-        this.nucleoDestinoId
+        Number(this.granjaDestinoId),
+        this.nucleoDestinoId,
+        true
       ).subscribe({
         next: (galpones: GalponDetailDto[]) => {
           this.galponesFiltrados = galpones;

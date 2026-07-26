@@ -30,9 +30,9 @@ public class LoteController : ControllerBase
     // ===========================
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LoteDtos.LoteDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> GetAll([FromQuery] string? fase = null)
+    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> GetAll([FromQuery] string? fase = null, [FromQuery] bool paraDestino = false)
     {
-        var items = await _svc.GetAllAsync(fase);
+        var items = await _svc.GetAllAsync(fase, paraDestino);
         return Ok(items);
     }
 

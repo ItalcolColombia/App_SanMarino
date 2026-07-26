@@ -6,17 +6,18 @@ import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faBuilding, faCheck, faTimes, faSave, faTrash,
-  faCrown, faStar, faUser, faSearch
+  faCrown, faStar, faUser, faSearch, faLayerGroup
 } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, forkJoin } from 'rxjs';
 
-import { UserFarmService, UserFarmDto, UserFarmLiteDto } from '../../../../../core/services/user-farm/user-farm.service';
+import { UserFarmService, UserFarmDto, UserFarmLiteDto, UserFarmScopeConfigDto } from '../../../../../core/services/user-farm/user-farm.service';
 import { FarmService, FarmDto } from '../../../../../core/services/farm/farm.service';
+import { ConfigurarAlcanceGranjaComponent } from './configurar-alcance-granja.component';
 
 @Component({
   selector: 'app-asignar-usuario-granja',
   standalone: true,
-  imports: [FormsModule, FontAwesomeModule],
+  imports: [FormsModule, FontAwesomeModule, ConfigurarAlcanceGranjaComponent],
   templateUrl: './asignar-usuario-granja.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./asignar-usuario-granja.component.scss']
@@ -40,11 +41,16 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
   faStar = faStar;
   faUser = faUser;
   faSearch = faSearch;
+  faLayerGroup = faLayerGroup;
 
   // Estado
   loading = false;
   saving = false;
   searchTerm = '';
+
+  // Sub-modal de alcance (núcleo/galpón/lote o global)
+  scopeModalOpen = false;
+  scopeFarm: UserFarmDto | null = null;
 
   // Datos
   userFarms: UserFarmDto[] = [];
@@ -264,6 +270,30 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
           this.saving = false;
         }
       });
+  }
+
+  // ── Alcance dentro de la granja (núcleo/galpón/lote o global) ──
+
+  openScopeModal(userFarm: UserFarmDto): void {
+    this.scopeFarm = userFarm;
+    this.scopeModalOpen = true;
+  }
+
+  closeScopeModal(): void {
+    this.scopeModalOpen = false;
+    this.scopeFarm = null;
+  }
+
+  onScopeUpdated(config: UserFarmScopeConfigDto): void {
+    const index = this.userFarms.findIndex(uf => uf.farmId === config.farmId);
+    if (index !== -1) {
+      this.userFarms[index] = {
+        ...this.userFarms[index],
+        restrictLocations: config.restrictLocations,
+        scopeCount: config.items.length
+      };
+    }
+    this.granjasUpdated.emit();
   }
 
   closeModal(): void {

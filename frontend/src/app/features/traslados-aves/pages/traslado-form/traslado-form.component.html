@@ -77,11 +77,12 @@
               }
             </div>
 
-            <!-- Lote Destino -->
+            <!-- Lote Destino (paraDestino: catálogo sin alcance granular del usuario) -->
             <div class="lote-selection">
               <label class="ux-label">Lote Destino *</label>
               <app-hierarchical-filter
                 [showLoteSelection]="true"
+                [paraDestino]="true"
                 (loteSelected)="onLoteDestinoSelected($event)"
                 placeholder="Seleccionar lote destino...">
               </app-hierarchical-filter>

@@ -20,6 +20,7 @@ public class ProduccionService : IProduccionService
     private readonly ICurrentUser _currentUser;
     private readonly ILoteService _loteService;
     private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
+    private readonly ILocationScopeResolver _scopeResolver;
     private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;      // Fase 2: modelo A (Colombia) — sin uso tras Fase 3 paso 2
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;     // Fase 3 paso 2: modelo B nivel granja (Colombia)
 
@@ -35,6 +36,7 @@ public class ProduccionService : IProduccionService
         ICurrentUser currentUser,
         ILoteService loteService,
         IEspejoHuevoProduccionSyncService espejoHuevoSync,
+        ILocationScopeResolver scopeResolver,
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null)
     {
@@ -42,6 +44,7 @@ public class ProduccionService : IProduccionService
         _currentUser = currentUser;
         _loteService = loteService;
         _espejoHuevoSync = espejoHuevoSync;
+        _scopeResolver = scopeResolver;
         _farmInventoryConsumo = farmInventoryConsumo;
         _colombiaConsumoB = colombiaConsumoB;
     }
@@ -640,11 +643,21 @@ public class ProduccionService : IProduccionService
             // Validar pertenencia a compañía y obtener el loteId asociado
             var lpp = await _context.LotePosturaProduccion.AsNoTracking()
                 .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LotePosturaProduccionId == lotePosturaProduccionId.Value)
-                .Select(l => new { l.LoteId })
+                .Select(l => new { l.LoteId, l.GranjaId, l.NucleoId, l.GalponId })
                 .FirstOrDefaultAsync()
                 .ConfigureAwait(false);
             if (lpp == null)
                 throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
+
+            // Alcance granular: el LPP se resuelve por su lote (si lo tiene) y, si no, por su
+            // ubicación galpón/núcleo — mismo cierre que LotePosturaProduccionService (fail-closed).
+            var scopeLpp = await _scopeResolver.GetScopeAsync(lpp.GranjaId);
+            var permitido = scopeLpp.IsGlobal
+                || (lpp.LoteId.HasValue && scopeLpp.PermiteLote(lpp.LoteId.Value))
+                || (!lpp.LoteId.HasValue && !string.IsNullOrEmpty(lpp.GalponId) && scopeLpp.PermiteGalpon(lpp.GalponId))
+                || (!lpp.LoteId.HasValue && string.IsNullOrEmpty(lpp.GalponId) && !string.IsNullOrEmpty(lpp.NucleoId) && scopeLpp.PermiteNucleo(lpp.NucleoId));
+            if (!permitido)
+                return new ListaSeguimientoResponse(new List<SeguimientoItemDto>(), 0);
 
             produccionLoteId = lpp.LoteId ?? 0;
             q = q.Where(x => x.LotePosturaProduccionId == lotePosturaProduccionId.Value);
@@ -652,6 +665,11 @@ public class ProduccionService : IProduccionService
         else
         {
             var lid = loteId!.Value;
+
+            // Alcance granular: acceso directo por loteId respeta el scope (fail-closed)
+            if (!await _scopeResolver.PermiteLoteAsync(lid).ConfigureAwait(false))
+                return new ListaSeguimientoResponse(new List<SeguimientoItemDto>(), 0);
+
             Lote? loteProd = await _context.Lotes.AsNoTracking()
                 .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LotePadreId == lid)
                 .OrderBy(l => l.LoteId)
@@ -979,8 +997,10 @@ public class ProduccionService : IProduccionService
     /// con 182 días (26*7) un lote solo aparecía al iniciar la semana 27 (semanaVida = dias/7 + 1),
     /// no en la 26. Con 175 días (25*7) el lote aparece al iniciar la semana 26 y las semanas 25 ya
     /// capturadas quedan habilitadas.
+    /// <paramref name="paraDestino"/> = true omite el alcance granular de ubicación (los modales de
+    /// traslado usan este listado como catálogo de lote DESTINO), igual que ILoteService.GetAllAsync.
     /// </summary>
-    public async Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync()
+    public async Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync(bool paraDestino = false)
     {
         var fechaHoy = DateTime.Today;
 
@@ -988,7 +1008,7 @@ public class ProduccionService : IProduccionService
         var diasSemanaProduccion = 25 * 7; // 175 días
         var fechaLimiteProduccion = fechaHoy.AddDays(-diasSemanaProduccion);
 
-        var lotes = await _context.Lotes
+        IQueryable<Lote> q = _context.Lotes
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
@@ -997,7 +1017,23 @@ public class ProduccionService : IProduccionService
                 l.CompanyId == _currentUser.CompanyId &&
                 l.DeletedAt == null &&
                 l.FechaEncaset != null &&
-                l.FechaEncaset <= fechaLimiteProduccion)
+                l.FechaEncaset <= fechaLimiteProduccion);
+
+        // Alcance granular núcleo/galpón/lote (lote_id es PK global ⇒ la unión entre granjas es
+        // exacta). Sin granjas restringidas la query queda intacta.
+        if (!paraDestino)
+        {
+            var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+            if (restringidos.Count > 0)
+            {
+                var granjasRestringidas = restringidos.Keys.ToList();
+                var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+                q = q.Where(l => !granjasRestringidas.Contains(l.GranjaId) ||
+                                 (l.LoteId != null && lotesPermitidos.Contains(l.LoteId.Value)));
+            }
+        }
+
+        var lotes = await q
             .OrderBy(l => l.LoteId)
             .ToListAsync();
 

@@ -23,12 +23,53 @@ namespace ZooSanMarino.Infrastructure.Services
         private readonly ZooSanMarinoContext _ctx;
         private readonly AppInterfaces.ICurrentUser _current;
         private readonly AppInterfaces.ICompanyResolver _companyResolver;
+        private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
 
-        public LoteService(ZooSanMarinoContext ctx, AppInterfaces.ICurrentUser current, AppInterfaces.ICompanyResolver companyResolver)
+        public LoteService(
+            ZooSanMarinoContext ctx,
+            AppInterfaces.ICurrentUser current,
+            AppInterfaces.ICompanyResolver companyResolver,
+            AppInterfaces.ILocationScopeResolver scopeResolver)
         {
             _ctx = ctx;
             _current = current;
             _companyResolver = companyResolver;
+            _scopeResolver = scopeResolver;
+        }
+
+        /// <summary>
+        /// Granjas asignadas DIRECTAMENTE al usuario actual (UserFarms) — mismo criterio que
+        /// NucleoService/GalponService.GetAllAsync (tab Granjas). null = sin usuario en contexto.
+        /// </summary>
+        private async Task<List<int>?> GetAssignedFarmIdsForCurrentUserAsync()
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue) return null;
+
+            return await _ctx.UserFarms.AsNoTracking()
+                .Where(uf => uf.UserId == userIdGuid.Value)
+                .Select(uf => uf.FarmId)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible
+        /// en SQL. Granjas no restringidas pasan intactas; en las restringidas solo quedan los lotes
+        /// permitidos del cierre (lote_id es PK global ⇒ la unión entre granjas es exacta).
+        /// <paramref name="paraDestino"/> = true lo omite (selección de DESTINO en traslados).
+        /// </summary>
+        private async Task<IQueryable<Lote>> AplicarScopeUbicacionAsync(IQueryable<Lote> q, bool paraDestino = false)
+        {
+            if (paraDestino) return q;
+            var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+            if (restringidos.Count == 0) return q;
+
+            var granjasRestringidas = restringidos.Keys.ToList();
+            var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+
+            return q.Where(l => !granjasRestringidas.Contains(l.GranjaId) ||
+                                (l.LoteId != null && lotesPermitidos.Contains(l.LoteId.Value)));
         }
 
         private async Task<int> GetEffectiveCompanyIdAsync()
@@ -47,12 +88,23 @@ namespace ZooSanMarino.Infrastructure.Services
         // Excluye siempre los lotes "hijo de producción" (Fase == Produccion y LotePadreId != null)
         // para no duplicar en pantalla el lote padre y el registro creado para seguimiento diario.
         // ======================================================
-        public async Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null)
+        public async Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null, bool paraDestino = false)
         {
             var companyId = await GetEffectiveCompanyIdAsync();
             var q = _ctx.Lotes
                 .AsNoTracking()
                 .Where(l => l.CompanyId == companyId && l.DeletedAt == null);
+
+            // Scoping por granjas asignadas al usuario (UserFarms) — alineado con Núcleos/Galpones
+            // (mismo alcance que la tab Granjas, incluso super-admin). Fail-closed: sin
+            // usuario/asignaciones → vacío. Cierra el gap histórico de este servicio (solo CompanyId).
+            var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+            if (assignedFarmIds == null || assignedFarmIds.Count == 0)
+                return Array.Empty<LoteDetailDto>();
+            q = q.Where(l => assignedFarmIds.Contains(l.GranjaId));
+
+            // Alcance granular núcleo/galpón/lote (omitido al elegir DESTINO de traslados)
+            q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
             // No mostrar lotes hijo de producción (el " - Prod" creado para registro diario)
             q = q.Where(l => !(l.Fase == "Produccion" && l.LotePadreId != null));
@@ -73,8 +125,16 @@ namespace ZooSanMarino.Infrastructure.Services
             var companyId = await GetEffectiveCompanyIdAsync();
             var q = _ctx.Lotes
                 .AsNoTracking()
-                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Levante")
-                .OrderBy(l => l.LoteId);
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Levante");
+
+            // Mismo scoping que GetAllAsync (granjas asignadas + alcance granular)
+            var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+            if (assignedFarmIds == null || assignedFarmIds.Count == 0)
+                return Array.Empty<LoteDetailDto>();
+            q = q.Where(l => assignedFarmIds.Contains(l.GranjaId));
+            q = await AplicarScopeUbicacionAsync(q);
+
+            q = q.OrderBy(l => l.LoteId);
             return await ProjectToDetail(q).ToListAsync();
         }
 
@@ -114,6 +174,19 @@ namespace ZooSanMarino.Infrastructure.Services
             if (!string.IsNullOrWhiteSpace(req.Raza)) q = q.Where(l => l.Raza == req.Raza);
             if (!string.IsNullOrWhiteSpace(req.Tecnico)) q = q.Where(l => l.Tecnico == req.Tecnico);
 
+            // Scoping por granjas asignadas + alcance granular (mismo criterio que GetAllAsync)
+            var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+            if (assignedFarmIds != null)
+            {
+                if (assignedFarmIds.Count == 0)
+                    return new CommonDtos.PagedResult<LoteDetailDto>
+                    {
+                        Page = page, PageSize = pageSize, Total = 0, Items = new List<LoteDetailDto>()
+                    };
+                q = q.Where(l => assignedFarmIds.Contains(l.GranjaId));
+            }
+            q = await AplicarScopeUbicacionAsync(q);
+
             q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
             var total = await q.LongCountAsync();
@@ -142,6 +215,10 @@ namespace ZooSanMarino.Infrastructure.Services
                 .Where(l => l.CompanyId == companyId &&
                             l.LoteId == loteId &&
                             l.DeletedAt == null);
+
+            // Alcance granular: en granjas restringidas solo se puede leer un lote permitido
+            // (fail-closed → 404). Sin filtro por granjas asignadas aquí: lo usan flujos internos.
+            q = await AplicarScopeUbicacionAsync(q);
 
             return await ProjectToDetail(q).SingleOrDefaultAsync();
         }

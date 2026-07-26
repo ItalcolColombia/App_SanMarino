@@ -68,8 +68,10 @@ export class LotePosturaProduccionService {
   private readonly baseUrl = `${environment.apiUrl}/LotePosturaProduccion`;
   private readonly http = inject(HttpClient);
 
-  getAll(): Observable<LotePosturaProduccionDto[]> {
-    return this.http.get<LotePosturaProduccionDto[]>(this.baseUrl);
+  /** paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getAll(paraDestino = false): Observable<LotePosturaProduccionDto[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
+    return this.http.get<LotePosturaProduccionDto[]>(`${this.baseUrl}${qs}`);
   }
 
   getByLoteId(loteId: number): Observable<LotePosturaProduccionDto[]> {

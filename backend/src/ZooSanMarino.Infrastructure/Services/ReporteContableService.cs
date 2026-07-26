@@ -15,22 +15,25 @@ public class ReporteContableService : IReporteContableService
     private readonly IMovimientoAvesService _movimientoAvesService;
     private readonly IFarmInventoryMovementService _inventoryMovementService;
     private readonly ITrasladoHuevosService _trasladoHuevosService;
-    
+    private readonly ILocationScopeResolver _scopeResolver;
+
     // Factor de conversión: 1 bulto = 40 kg (configurable)
     private const decimal FACTOR_CONVERSION_BULTO_KG = 40m;
 
     public ReporteContableService(
-        ZooSanMarinoContext ctx, 
+        ZooSanMarinoContext ctx,
         ICurrentUser currentUser,
         IMovimientoAvesService movimientoAvesService,
         IFarmInventoryMovementService inventoryMovementService,
-        ITrasladoHuevosService trasladoHuevosService)
+        ITrasladoHuevosService trasladoHuevosService,
+        ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _currentUser = currentUser;
         _movimientoAvesService = movimientoAvesService;
         _inventoryMovementService = inventoryMovementService;
         _trasladoHuevosService = trasladoHuevosService;
+        _scopeResolver = scopeResolver;
     }
 
     public async Task<ReporteContableCompletoDto> GenerarReporteAsync(
@@ -1401,7 +1404,7 @@ public class ReporteContableService : IReporteContableService
 
     public async Task<FiltrosContablesDto> GetFiltrosDisponiblesAsync(CancellationToken ct = default)
     {
-        var lotes = await _ctx.Lotes
+        IQueryable<Lote> q = _ctx.Lotes
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
@@ -1409,7 +1412,22 @@ public class ReporteContableService : IReporteContableService
             .Include(l => l.LotePosturaBase)
             .Where(l => l.LotePadreId == null &&
                         l.CompanyId == _currentUser.CompanyId &&
-                        l.DeletedAt == null)
+                        l.DeletedAt == null);
+
+        // Alcance granular: el árbol granja→núcleo→galpón→lote base se construye a partir de los
+        // lotes, así que basta podar los lotes NO permitidos de las granjas restringidas: los
+        // núcleos/galpones sin lotes visibles (y las granjas con scope vacío) desaparecen solos.
+        // lote_id es PK global ⇒ la unión entre granjas es exacta. Sin restricciones no filtra nada.
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count > 0)
+        {
+            var granjasRestringidas = restringidos.Keys.ToList();
+            var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+            q = q.Where(l => !granjasRestringidas.Contains(l.GranjaId) ||
+                             (l.LoteId != null && lotesPermitidos.Contains(l.LoteId.Value)));
+        }
+
+        var lotes = await q
             .OrderBy(l => l.Farm.Name)
             .ThenBy(l => l.NucleoId)
             .ThenBy(l => l.GalponId)

@@ -65,6 +65,18 @@ export class NucleoService {
     );
   }
 
+  /** Núcleos por granja para elegir DESTINO de traslados: va directo al backend con
+   *  paraDestino=true (omite el alcance granular del usuario; sin caché). */
+  getByGranjaParaDestino(granjaId: number): Observable<NucleoDto[]> {
+    return this.http.get<NucleoDto[]>(`${this.baseUrl}/granja/${granjaId}?paraDestino=true`);
+  }
+
+  /** Todos los núcleos para elegir DESTINO de traslados (paraDestino=true; sin tocar la caché
+   *  compartida del getAll normal). */
+  getAllParaDestino(): Observable<NucleoDto[]> {
+    return this.http.get<NucleoDto[]>(`${this.baseUrl}?paraDestino=true`);
+  }
+
   /** Uno por clave compuesta */
   getById(nucleoId: string, granjaId: number): Observable<NucleoDto> {
     return this.http.get<NucleoDto>(`${this.baseUrl}/${encodeURIComponent(nucleoId)}/${granjaId}`);

@@ -92,8 +92,10 @@ export class LotePosturaLevanteService {
     return this.http.get<LotePosturaLevanteDto[]>(`${this.baseUrl}/por-lote/${loteId}`);
   }
 
-  getAll(): Observable<LotePosturaLevanteDto[]> {
-    return this.http.get<LotePosturaLevanteDto[]>(this.baseUrl);
+  /** paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getAll(paraDestino = false): Observable<LotePosturaLevanteDto[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
+    return this.http.get<LotePosturaLevanteDto[]>(`${this.baseUrl}${qs}`);
   }
 
   /** Detalle por ID (incluye edadMaximaSeguimiento). */

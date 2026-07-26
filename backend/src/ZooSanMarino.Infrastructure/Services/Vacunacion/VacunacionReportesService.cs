@@ -16,12 +16,67 @@ public sealed partial class VacunacionReportesService : IVacunacionReportesServi
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
+    private readonly ILocationScopeResolver _scopeResolver;
 
-    public VacunacionReportesService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    public VacunacionReportesService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser currentUser,
+        ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _currentUser = currentUser;
+        _scopeResolver = scopeResolver;
     }
+
+    /// <summary>
+    /// Alcance granular por granja RESTRINGIDA: devuelve, por granja, el conjunto de lotes VISIBLES
+    /// expresados con el id que usa el reporte (el de su línea: lote_postura_levante_id /
+    /// lote_postura_produccion_id / lote_ave_engorde_id, igual que <c>p_lote_ids</c> de las fns).
+    /// La ubicación sale del propio cronograma (vacunacion_cronograma_item ya guarda granja/núcleo/
+    /// galpón); cuando la línea tiene lote de la tabla <c>lotes</c> manda el nivel LOTE del cierre.
+    /// Diccionario vacío ⇒ ninguna granja del alcance está restringida ⇒ el reporte no se toca.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<int, HashSet<int>>> ResolverLotesVisiblesPorGranjaRestringidaAsync(
+        int[] granjasPermitidas, CancellationToken ct)
+    {
+        var restringidos = await _scopeResolver.GetRestrictedScopesAsync(granjasPermitidas);
+        if (restringidos.Count == 0) return new Dictionary<int, HashSet<int>>();
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var items = await _ctx.VacunacionCronogramaItem.AsNoTracking()
+            .Where(ci => granjasRestringidas.Contains(ci.GranjaId))
+            .Select(ci => new
+            {
+                ci.GranjaId,
+                ci.NucleoId,
+                ci.GalponId,
+                LineaLoteId = ci.LotePosturaLevanteId ?? ci.LotePosturaProduccionId ?? ci.LoteAveEngordeId,
+                LoteDeTablaLotes = ci.LotePosturaLevante != null
+                    ? ci.LotePosturaLevante.LoteId
+                    : (ci.LotePosturaProduccion != null ? ci.LotePosturaProduccion.LoteId : null)
+            })
+            .ToListAsync(ct);
+
+        var visibles = granjasRestringidas.ToDictionary(g => g, _ => new HashSet<int>());
+        foreach (var it in items)
+        {
+            if (it.LineaLoteId is not int lineaLoteId) continue;
+            var scope = restringidos[it.GranjaId];
+            var permitido = it.LoteDeTablaLotes.HasValue
+                ? scope.PermiteLote(it.LoteDeTablaLotes.Value)
+                : (!string.IsNullOrEmpty(it.GalponId) && scope.PermiteGalpon(it.GalponId))
+                  || (string.IsNullOrEmpty(it.GalponId) && !string.IsNullOrEmpty(it.NucleoId) && scope.PermiteNucleo(it.NucleoId));
+            if (permitido) visibles[it.GranjaId].Add(lineaLoteId);
+        }
+        return visibles;
+    }
+
+    /// <summary>
+    /// Fila del reporte visible: granja no restringida ⇒ pasa; granja restringida ⇒ solo si su lote
+    /// está en el conjunto visible de esa granja (fail-closed).
+    /// </summary>
+    private static bool FilaVisible(IReadOnlyDictionary<int, HashSet<int>> visiblesPorGranja, int granjaId, int loteId)
+        => !visiblesPorGranja.TryGetValue(granjaId, out var permitidos) || permitidos.Contains(loteId);
 
     /// <summary>
     /// Scoping de seguridad: interseca las granjas pedidas con las ASIGNADAS al usuario

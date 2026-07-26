@@ -72,6 +72,9 @@ public partial class MovimientoAvesService
         if (request.UsuarioMovimientoId.HasValue)
             query = query.Where(m => m.UsuarioMovimientoId == request.UsuarioMovimientoId.Value);
 
+        // Alcance granular: visible si el ORIGEN o el DESTINO pasa el cierre del usuario
+        query = await AplicarScopeUbicacionAsync(query);
+
         var totalCount = await query.CountAsync();
 
         var items = await query

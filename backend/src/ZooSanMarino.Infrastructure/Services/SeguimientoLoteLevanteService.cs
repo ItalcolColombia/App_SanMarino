@@ -32,6 +32,7 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     private readonly IGramajeProvider _gramaje;
     private readonly ICurrentUser _current;
     private readonly IMovimientoAvesService _movimientoAvesService;
+    private readonly ILocationScopeResolver _scopeResolver;
     private readonly IInventarioGestionService? _inventarioGestionService;
     private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;   // Fase 2: modelo A (Colombia) — sin uso tras Fase 3 paso 2
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;  // Fase 3 paso 2: modelo B nivel granja (Colombia)
@@ -44,6 +45,7 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         IGramajeProvider gramaje,
         ICurrentUser current,
         IMovimientoAvesService movimientoAvesService,
+        ILocationScopeResolver scopeResolver,
         IInventarioGestionService? inventarioGestionService = null,
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
@@ -55,6 +57,7 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         _gramaje = gramaje;
         _current = current;
         _movimientoAvesService = movimientoAvesService;
+        _scopeResolver = scopeResolver;
         _inventarioGestionService = inventarioGestionService;
         _farmInventoryConsumo = farmInventoryConsumo;
         _colombiaConsumoB = colombiaConsumoB;

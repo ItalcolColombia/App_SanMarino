@@ -12,6 +12,9 @@ public partial class VacunacionReportesService
     {
         var granjas = await ResolverGranjasPermitidasAsync(req.GranjaIds, ct);
 
+        // Alcance granular: solo se resuelve para granjas RESTRINGIDAS (diccionario vacío = sin cambios)
+        var visibles = await ResolverLotesVisiblesPorGranjaRestringidaAsync(granjas, ct);
+
         const string sql =
             "SELECT * FROM public.fn_vacunacion_cumplimiento_lote(" +
             "@p_company_id, @p_pais_id, @p_granja_ids, @p_nucleo_id, @p_galpon_id, @p_lote_ids, @p_linea_productiva, @p_fecha_desde, @p_fecha_hasta)";
@@ -19,6 +22,9 @@ public partial class VacunacionReportesService
         var rows = await _ctx.Database
             .SqlQueryRaw<VacunacionCumplimientoLoteRow>(sql, BuildReporteParams(req, granjas))
             .ToListAsync(ct);
+
+        if (visibles.Count > 0)
+            rows = rows.Where(r => FilaVisible(visibles, r.GranjaId, r.LoteId)).ToList();
 
         return rows.Select(r => new VacunacionCumplimientoLoteDto(
             r.LoteId, r.LoteNombre ?? "", r.LineaProductiva ?? "",
@@ -36,6 +42,9 @@ public partial class VacunacionReportesService
     {
         var granjas = await ResolverGranjasPermitidasAsync(req.GranjaIds, ct);
 
+        // Alcance granular: solo se resuelve para granjas RESTRINGIDAS (diccionario vacío = sin cambios)
+        var visibles = await ResolverLotesVisiblesPorGranjaRestringidaAsync(granjas, ct);
+
         const string sql =
             "SELECT * FROM public.fn_vacunacion_cumplimiento_detalle(" +
             "@p_company_id, @p_pais_id, @p_granja_ids, @p_nucleo_id, @p_galpon_id, @p_lote_ids, @p_linea_productiva, @p_fecha_desde, @p_fecha_hasta)";
@@ -43,6 +52,9 @@ public partial class VacunacionReportesService
         var rows = await _ctx.Database
             .SqlQueryRaw<VacunacionCumplimientoDetalleRow>(sql, BuildReporteParams(req, granjas))
             .ToListAsync(ct);
+
+        if (visibles.Count > 0)
+            rows = rows.Where(r => FilaVisible(visibles, r.GranjaId, r.LoteId)).ToList();
 
         return rows.Select(r => new VacunacionCumplimientoDetalleDto(
             r.ItemId, r.GranjaId, r.GranjaNombre,

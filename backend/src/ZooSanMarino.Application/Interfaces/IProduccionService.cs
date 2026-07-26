@@ -15,7 +15,11 @@ public interface IProduccionService
     Task<InformacionLoteResponse> ObtenerInformacionLoteAsync(int lotePosturaProduccionId);
     Task<SeguimientoItemDto?> ObtenerSeguimientoPorIdAsync(int seguimientoId);
     Task<bool> EliminarSeguimientoAsync(int seguimientoId);
-    Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync(); // Lotes con semana >= 26
+    /// <summary>
+    /// Lotes con semana &gt;= 26 (umbral real REQ-012b: 25 semanas). <paramref name="paraDestino"/> =
+    /// true omite el alcance granular de ubicación (catálogo de lote DESTINO en traslados).
+    /// </summary>
+    Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync(bool paraDestino = false);
 }
 
 

@@ -61,6 +61,9 @@ export class FiltroSelectComponent implements OnInit {
    * con pasos numerados en cascada (mismo comportamiento, solo presentación).
    */
   @Input() variant: 'toolbar' | 'steps' = 'toolbar';
+  /** true = instancia usada para elegir DESTINO de traslados: los catálogos se piden con
+   *  paraDestino=true (omiten el alcance granular núcleo/galpón/lote del usuario). */
+  @Input() paraDestino = false;
 
   // ================== outputs ==================
   @Output() granjaChange = new EventEmitter<number | null>();
@@ -160,7 +163,7 @@ export class FiltroSelectComponent implements OnInit {
     if (!this.selectedGranjaId) return;
 
     if (this.selectedNucleoId) {
-      this.galponSvc.getByGranjaAndNucleo(this.selectedGranjaId, this.selectedNucleoId).subscribe({
+      this.galponSvc.getByGranjaAndNucleo(this.selectedGranjaId, this.selectedNucleoId, this.paraDestino).subscribe({
         next: rows => this.fillGalponMap(rows),
         error: () => this.galponNameById.clear(),
       });
@@ -193,7 +196,7 @@ export class FiltroSelectComponent implements OnInit {
     }
 
     // Usar el nuevo endpoint que filtra lotes con semana >= 26 para producción
-    this.produccionSvc.obtenerLotesProduccion().subscribe({
+    this.produccionSvc.obtenerLotesProduccion(this.paraDestino).subscribe({
       next: all => {
         this.allLotes = all || [];
         this.applyFiltersToLotes();
@@ -336,7 +339,7 @@ export class FiltroSelectComponent implements OnInit {
       return;
     }
 
-    this.nucleoSvc.getByGranja(this.selectedGranjaId).subscribe({
+    this.nucleoSvc.getByGranja(this.selectedGranjaId, this.paraDestino).subscribe({
       next: rows => (this.nucleos = rows || []),
       error: () => (this.nucleos = [])
     });

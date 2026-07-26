@@ -14,17 +14,77 @@ public class InventarioAvesService : IInventarioAvesService
     private readonly ICurrentUser _currentUser;
     private readonly IHistorialInventarioService _historialService;
     private readonly ICompanyResolver _companyResolver;
+    private readonly ILocationScopeResolver _scopeResolver;
 
     public InventarioAvesService(
-        ZooSanMarinoContext context, 
+        ZooSanMarinoContext context,
         ICurrentUser currentUser,
         IHistorialInventarioService historialService,
-        ICompanyResolver companyResolver)
+        ICompanyResolver companyResolver,
+        ILocationScopeResolver scopeResolver)
     {
         _context = context;
         _currentUser = currentUser;
         _historialService = historialService;
         _companyResolver = companyResolver;
+        _scopeResolver = scopeResolver;
+    }
+
+    /// <summary>
+    /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes) sobre
+    /// inventario_aves, componible en SQL. lote_id es NOT NULL con FK a lotes ⇒ manda el nivel LOTE
+    /// del cierre (no hay caso de fila sin lote que requiera el fallback por galpón/núcleo; usar el
+    /// galpón como alternativa filtraría de más: GalponesVisibles incluye galpones visibles solo para
+    /// NAVEGACIÓN cuando el grant fue a nivel lote). Granjas no restringidas pasan intactas; sin
+    /// granjas restringidas la query queda igual (cero cambios).
+    /// </summary>
+    private async Task<IQueryable<InventarioAves>> AplicarScopeUbicacionAsync(IQueryable<InventarioAves> q)
+    {
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+
+        return q.Where(i => !granjasRestringidas.Contains(i.GranjaId) || lotesPermitidos.Contains(i.LoteId));
+    }
+
+    /// <summary>
+    /// Variante del filtro para movimiento_aves (usada por <see cref="SearchAsync"/>, que lista
+    /// movimientos, no inventarios): la fila es visible si el lado ORIGEN o el lado DESTINO pasa el
+    /// cierre del usuario. Gemela de MovimientoAvesService.AplicarScopeUbicacionAsync.
+    /// </summary>
+    private async Task<IQueryable<MovimientoAves>> AplicarScopeUbicacionMovimientosAsync(IQueryable<MovimientoAves> q)
+    {
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+        var galponesVisibles = restringidos.SelectMany(kv => kv.Value.GalponesVisibles).Distinct().ToList();
+        var clavesNucleo = restringidos
+            .SelectMany(kv => kv.Value.NucleosVisibles.Select(n => kv.Key + "|" + n))
+            .ToList();
+
+        return q.Where(m =>
+            // ── Lado ORIGEN ──
+            (m.GranjaOrigenId != null &&
+                (!granjasRestringidas.Contains(m.GranjaOrigenId.Value)
+                 || (m.LoteOrigenId != null && lotesPermitidos.Contains(m.LoteOrigenId.Value))
+                 || (m.LoteOrigenId == null && m.GalponOrigenId != null && m.GalponOrigenId != "" &&
+                     galponesVisibles.Contains(m.GalponOrigenId))
+                 || (m.LoteOrigenId == null && (m.GalponOrigenId == null || m.GalponOrigenId == "") &&
+                     m.NucleoOrigenId != null &&
+                     clavesNucleo.Contains((m.GranjaOrigenId ?? 0).ToString() + "|" + m.NucleoOrigenId))))
+            // ── Lado DESTINO ──
+            || (m.GranjaDestinoId != null &&
+                (!granjasRestringidas.Contains(m.GranjaDestinoId.Value)
+                 || (m.LoteDestinoId != null && lotesPermitidos.Contains(m.LoteDestinoId.Value))
+                 || (m.LoteDestinoId == null && m.GalponDestinoId != null && m.GalponDestinoId != "" &&
+                     galponesVisibles.Contains(m.GalponDestinoId))
+                 || (m.LoteDestinoId == null && (m.GalponDestinoId == null || m.GalponDestinoId == "") &&
+                     m.NucleoDestinoId != null &&
+                     clavesNucleo.Contains((m.GranjaDestinoId ?? 0).ToString() + "|" + m.NucleoDestinoId)))));
     }
 
     /// <summary>
@@ -108,9 +168,14 @@ public class InventarioAvesService : IInventarioAvesService
     public async Task<IEnumerable<InventarioAvesDto>> GetAllAsync()
     {
         var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
-        return await _context.InventarioAves
+        var q = _context.InventarioAves
             .AsNoTracking()
-            .Where(i => i.CompanyId == effectiveCompanyId && i.DeletedAt == null)
+            .Where(i => i.CompanyId == effectiveCompanyId && i.DeletedAt == null);
+
+        // Alcance granular núcleo/galpón/lote (sin restricciones no filtra nada)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q
             .OrderBy(i => i.LoteId)
             .ThenBy(i => i.GranjaId)
             .Select(ToDto)
@@ -231,6 +296,9 @@ public class InventarioAvesService : IInventarioAvesService
                 query = query.Where(m => m.Estado == "Pendiente" || m.Estado == "Completado");
             }
 
+            // Alcance granular: visible si el ORIGEN o el DESTINO pasa el cierre del usuario
+            query = await AplicarScopeUbicacionMovimientosAsync(query);
+
             var totalCount = await query.CountAsync();
 
             var items = await query
@@ -260,6 +328,10 @@ public class InventarioAvesService : IInventarioAvesService
 
     public async Task<IEnumerable<InventarioAvesDto>> GetByLoteIdAsync(int loteId)
     {
+        // Alcance granular: acceso directo por loteId respeta el scope (fail-closed)
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            return Array.Empty<InventarioAvesDto>();
+
         return await _context.InventarioAves
             .AsNoTracking()
             .Where(i => i.LoteId == loteId && i.CompanyId == _currentUser.CompanyId && i.DeletedAt == null)
@@ -281,6 +353,9 @@ public class InventarioAvesService : IInventarioAvesService
 
         if (galponId != null)
             query = query.Where(i => i.GalponId == galponId);
+
+        // Alcance granular núcleo/galpón/lote (sin restricciones no filtra nada)
+        query = await AplicarScopeUbicacionAsync(query);
 
         return await query
             .OrderBy(i => i.LoteId)
@@ -351,6 +426,11 @@ public class InventarioAvesService : IInventarioAvesService
 
     public async Task<EstadoLoteDto> GetEstadoLoteAsync(int loteId)
     {
+        // Alcance granular: acceso directo por loteId respeta el scope (fail-closed → mismo error que
+        // un lote inexistente, para no revelar que el lote existe fuera del alcance)
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            throw new InvalidOperationException($"Lote '{loteId}' no encontrado.");
+
         var inventarios = await GetByLoteIdAsync(loteId);
         var lote = await _context.Lotes
             .AsNoTracking()
@@ -396,6 +476,9 @@ public class InventarioAvesService : IInventarioAvesService
         if (granjaId.HasValue)
             query = query.Where(i => i.GranjaId == granjaId.Value);
 
+        // Alcance granular núcleo/galpón/lote (sin restricciones no filtra nada)
+        query = await AplicarScopeUbicacionAsync(query);
+
         // Materializar primero para poder usar expresiones lambda con cuerpo
         var grupos = await query
             .GroupBy(i => new { i.GranjaId, i.NucleoId, i.GalponId })
@@ -424,9 +507,14 @@ public class InventarioAvesService : IInventarioAvesService
 
     public async Task<IEnumerable<InventarioAvesDto>> GetInventariosActivosAsync()
     {
-        return await _context.InventarioAves
+        var q = _context.InventarioAves
             .AsNoTracking()
-            .Where(i => i.CompanyId == _currentUser.CompanyId && i.DeletedAt == null && i.Estado == "Activo")
+            .Where(i => i.CompanyId == _currentUser.CompanyId && i.DeletedAt == null && i.Estado == "Activo");
+
+        // Alcance granular núcleo/galpón/lote (mismo criterio que GetAllAsync)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q
             .OrderBy(i => i.LoteId)
             .ThenBy(i => i.GranjaId)
             .Select(ToDto)

@@ -51,6 +51,33 @@ public static class ReporteDiarioCostosEngordeCalculos
     }
 
     /// <summary>
+    /// Alcance granular de ubicación (user_farms.restrict_locations): deja en cada fila SOLO los
+    /// galpones visibles del usuario y recalcula los totales del día con la MISMA aritmética de la
+    /// fn (suma por galpón). El desglose de alimento se descarta: la fn lo agrega a nivel GRANJA
+    /// COMPLETA y no es atribuible por galpón (fail-closed). Las filas que quedan sin galpón visible
+    /// se descartan. Solo se usa cuando la granja está restringida; en el caso normal ni se llama.
+    /// </summary>
+    public static IReadOnlyList<ReporteDiarioCostosFilaDto> FiltrarPorGalponesVisibles(
+        IReadOnlyList<ReporteDiarioCostosFilaDto> filas, IReadOnlySet<string> galponesVisibles)
+    {
+        var result = new List<ReporteDiarioCostosFilaDto>();
+        foreach (var f in filas)
+        {
+            var visibles = f.Galpones.Where(g => galponesVisibles.Contains(g.GalponId)).ToList();
+            if (visibles.Count == 0) continue;
+            result.Add(f with
+            {
+                ConsumoTotalKg = RedondearKg(visibles.Sum(g => g.ConsumoKg)),
+                MortSelTotal = visibles.Sum(g => g.MortSel),
+                AvesVivasTotal = visibles.Sum(g => g.AvesVivas),
+                Alimentos = Array.Empty<ReporteDiarioCostosAlimentoDto>(),
+                Galpones = visibles
+            });
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Aves vivas "actuales" del reporte = las de la ÚLTIMA fecha (por galpón + total).
     /// Sin filas → lista vacía y total 0.
     /// </summary>

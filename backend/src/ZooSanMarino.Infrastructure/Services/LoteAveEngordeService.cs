@@ -20,17 +20,42 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     private readonly AppInterfaces.ICurrentUser _current;
     private readonly AppInterfaces.ICompanyResolver _companyResolver;
     private readonly AppInterfaces.IFarmService _farmService;
+    private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
 
     public LoteAveEngordeService(
         ZooSanMarinoContext ctx,
         AppInterfaces.ICurrentUser current,
         AppInterfaces.ICompanyResolver companyResolver,
-        AppInterfaces.IFarmService farmService)
+        AppInterfaces.IFarmService farmService,
+        AppInterfaces.ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _farmService = farmService;
+        _scopeResolver = scopeResolver;
+    }
+
+    /// <summary>
+    /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible en
+    /// SQL. Engorde no referencia la tabla lotes ⇒ el nivel LOTE del scope no aplica aquí: los lotes
+    /// de engorde se gobiernan por galpón/núcleo visibles. Granjas no restringidas pasan intactas.
+    /// </summary>
+    private async Task<IQueryable<LoteAveEngorde>> AplicarScopeUbicacionAsync(IQueryable<LoteAveEngorde> q)
+    {
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var galponesVisibles = restringidos.SelectMany(kv => kv.Value.GalponesVisibles).Distinct().ToList();
+        var clavesNucleo = restringidos
+            .SelectMany(kv => kv.Value.NucleosVisibles.Select(n => kv.Key + "|" + n))
+            .ToList();
+
+        return q.Where(l => !granjasRestringidas.Contains(l.GranjaId)
+            || (l.GalponId != null && l.GalponId != "" && galponesVisibles.Contains(l.GalponId))
+            || ((l.GalponId == null || l.GalponId == "") && l.NucleoId != null &&
+                clavesNucleo.Contains(l.GranjaId.ToString() + "|" + l.NucleoId)));
     }
 
     private async Task<int> GetEffectiveCompanyIdAsync()
@@ -61,10 +86,14 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
         if (allowed.Count == 0)
             return Array.Empty<LoteAveEngordeDetailDto>();
-        var q = _ctx.LoteAveEngorde
+        IQueryable<LoteAveEngorde> q = _ctx.LoteAveEngorde
             .AsNoTracking()
-            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && allowed.Contains(l.GranjaId))
-            .OrderBy(l => l.LoteAveEngordeId);
+            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && allowed.Contains(l.GranjaId));
+
+        // Alcance granular núcleo/galpón (el nivel lote del scope no aplica a engorde)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        q = q.OrderBy(l => l.LoteAveEngordeId);
         return await ProjectToDetail(q).ToListAsync();
     }
 
@@ -121,6 +150,9 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         if (!string.IsNullOrWhiteSpace(req.Raza)) q = q.Where(l => l.Raza == req.Raza);
         if (!string.IsNullOrWhiteSpace(req.Tecnico)) q = q.Where(l => l.Tecnico == req.Tecnico);
 
+        // Alcance granular núcleo/galpón (el nivel lote del scope no aplica a engorde)
+        q = await AplicarScopeUbicacionAsync(q);
+
         q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
         var total = await q.LongCountAsync();
@@ -143,13 +175,17 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         var companyId = await GetEffectiveCompanyIdAsync();
         var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
         if (allowed.Count == 0) return null;
-        var q = _ctx.LoteAveEngorde
+        IQueryable<LoteAveEngorde> q = _ctx.LoteAveEngorde
             .AsNoTracking()
             .Where(l =>
                 l.CompanyId == companyId &&
                 l.LoteAveEngordeId == loteAveEngordeId &&
                 l.DeletedAt == null &&
                 allowed.Contains(l.GranjaId));
+
+        // Alcance granular: acceso directo también respeta el scope (fail-closed → null/404)
+        q = await AplicarScopeUbicacionAsync(q);
+
         return await ProjectToDetail(q).SingleOrDefaultAsync();
     }
 

@@ -11,6 +11,12 @@ public partial class SeguimientoAvesEngordeService
     public async Task<SeguimientoAvesEngordePorLoteResponseDto> GetByLoteAsync(int loteId)
     {
         var companyId = _current.CompanyId;
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → misma forma vacía)
+        if (!await PermiteLoteEngordeAsync(loteId))
+            return new SeguimientoAvesEngordePorLoteResponseDto(
+                Array.Empty<SeguimientoLoteLevanteDto>(),
+                Array.Empty<LoteRegistroHistoricoUnificadoDto>());
+
         var exists = await _ctx.LoteAveEngorde.AsNoTracking()
             .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
         if (!exists)
@@ -37,6 +43,10 @@ public partial class SeguimientoAvesEngordeService
     public async Task<IEnumerable<LoteRegistroHistoricoUnificadoDto>> GetHistoricoUnificadoPorLoteAsync(int loteId)
     {
         var companyId = _current.CompanyId;
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → vacío)
+        if (!await PermiteLoteEngordeAsync(loteId))
+            return Array.Empty<LoteRegistroHistoricoUnificadoDto>();
+
         var exists = await _ctx.LoteAveEngorde.AsNoTracking()
             .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
         if (!exists) return Array.Empty<LoteRegistroHistoricoUnificadoDto>();
@@ -47,6 +57,9 @@ public partial class SeguimientoAvesEngordeService
     public async Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId)
     {
         var companyId = _current.CompanyId;
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → null/404)
+        if (!await PermiteLoteEngordeAsync(loteId)) return null;
+
         var lote = await _ctx.LoteAveEngorde.AsNoTracking()
             .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
             .Select(l => new
@@ -200,12 +213,19 @@ public partial class SeguimientoAvesEngordeService
                        join l in _ctx.LoteAveEngorde.AsNoTracking() on s.LoteAveEngordeId equals l.LoteAveEngordeId
                        where s.Id == id && l.CompanyId == companyId && l.DeletedAt == null
                        select s).SingleOrDefaultAsync();
-        return e is null ? null : MapToDto(e);
+        if (e is null) return null;
+        // Alcance granular: el registro se lee por su id, pero pertenece a un lote (fail-closed → 404)
+        if (!await PermiteLoteEngordeAsync(e.LoteAveEngordeId)) return null;
+        return MapToDto(e);
     }
 
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta)
     {
         var companyId = _current.CompanyId;
+        // Alcance granular: filtro por un lote puntual respeta el scope (fail-closed)
+        if (loteId.HasValue && !await PermiteLoteEngordeAsync(loteId.Value))
+            return Array.Empty<SeguimientoLoteLevanteDto>();
+
         // Rango por DÍA completo en UTC: las fechas van ancladas a mediodía UTC (FechasPuras),
         // así que un "hasta" a medianoche excluiría los registros de ese mismo día.
         var desdeUtc = FechasPuras.AnclarMediodiaUtc(desde)?.AddHours(-12);
@@ -218,12 +238,20 @@ public partial class SeguimientoAvesEngordeService
                    && (!hastaExcl.HasValue || s.Fecha < hastaExcl.Value)
                 orderby s.Fecha
                 select s;
-        var list = await q.ToListAsync();
+
+        // Alcance granular del listado (sin lote puntual): excluye lotes fuera del cierre del usuario
+        var qScoped = await AplicarScopeUbicacionAsync(q);
+
+        var list = await qScoped.ToListAsync();
         return list.Select(MapToDto);
     }
 
     public async Task<ResultadoLevanteResponse> GetResultadoAsync(int loteId, DateTime? desde, DateTime? hasta, bool recalcular = true)
     {
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → respuesta vacía)
+        if (!await PermiteLoteEngordeAsync(loteId))
+            return new ResultadoLevanteResponse(loteId, desde?.Date, hasta?.Date, 0, new List<ResultadoLevanteItemDto>());
+
         var lote = await _ctx.LoteAveEngorde.AsNoTracking()
             .SingleOrDefaultAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null);
         if (lote is null)

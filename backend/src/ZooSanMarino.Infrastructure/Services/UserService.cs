@@ -148,7 +148,8 @@ public class UserService : IUserService
                 uf.FarmId,
                 uf.Farm.Name,
                 uf.IsAdmin,
-                uf.IsDefault
+                uf.IsDefault,
+                uf.RestrictLocations
             ))
             .ToArrayAsync();
 
@@ -225,7 +226,8 @@ public class UserService : IUserService
                     uf.FarmId,
                     uf.Farm.Name,
                     uf.IsAdmin,
-                    uf.IsDefault
+                    uf.IsDefault,
+                    uf.RestrictLocations
                 )).ToArray(),
                 u.IsActive,
                 u.IsLocked,
@@ -350,7 +352,8 @@ public class UserService : IUserService
                 uf.FarmId,
                 uf.Farm.Name,
                 uf.IsAdmin,
-                uf.IsDefault
+                uf.IsDefault,
+                uf.RestrictLocations
             )).ToArray(),
             user.IsActive,
             user.IsLocked,
@@ -490,7 +493,8 @@ public class UserService : IUserService
                 uf.FarmId,
                 uf.Farm.Name,
                 uf.IsAdmin,
-                uf.IsDefault
+                uf.IsDefault,
+                uf.RestrictLocations
             ))
             .ToArrayAsync();
 

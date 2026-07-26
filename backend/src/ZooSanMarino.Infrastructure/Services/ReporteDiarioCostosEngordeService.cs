@@ -19,6 +19,7 @@ public class ReporteDiarioCostosEngordeService : IReporteDiarioCostosEngordeServ
     private readonly ICurrentUser _current;
     private readonly ICompanyResolver _companyResolver;
     private readonly IFarmService _farmService;
+    private readonly ILocationScopeResolver _scopeResolver;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -30,12 +31,14 @@ public class ReporteDiarioCostosEngordeService : IReporteDiarioCostosEngordeServ
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         ICompanyResolver companyResolver,
-        IFarmService farmService)
+        IFarmService farmService,
+        ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _farmService = farmService;
+        _scopeResolver = scopeResolver;
     }
 
     public async Task<ReporteDiarioCostosReporteDto> GenerarAsync(ReporteDiarioCostosRequest request, CancellationToken ct = default)
@@ -76,12 +79,25 @@ public class ReporteDiarioCostosEngordeService : IReporteDiarioCostosEngordeServ
                 GalponNombre = l.Galpon != null && l.Galpon.GalponNombre != null && l.Galpon.GalponNombre.Trim() != ""
                     ? l.Galpon.GalponNombre.Trim()
                     : ((l.GalponId ?? "").Trim() != "" ? (l.GalponId ?? "").Trim() : "Sin galpón"),
+                NucleoId = (l.NucleoId ?? "").Trim(),
                 l.FechaEncaset,
                 l.EstadoOperativoLote
             })
             .OrderBy(l => l.FechaEncaset)
             .ThenBy(l => l.LoteNombre)
             .ToListAsync(ct);
+
+        // Alcance granular: en una granja restringida el reporte se acota a los galpones/núcleos
+        // visibles del usuario (engorde se gobierna por ubicación: lote_ave_engorde no usa la tabla
+        // lotes). Granja no restringida ⇒ scope global ⇒ el reporte sale idéntico.
+        var scope = await _scopeResolver.GetScopeAsync(request.GranjaId);
+        if (!scope.IsGlobal)
+        {
+            lotes = lotes
+                .Where(l => (l.GalponId != "" && scope.PermiteGalpon(l.GalponId))
+                         || (l.GalponId == "" && l.NucleoId != "" && scope.PermiteNucleo(l.NucleoId)))
+                .ToList();
+        }
 
         var lotesDto = lotes
             .Select(l => new ReporteDiarioCostosLoteDto(l.Id, l.LoteNombre, l.GalponId, l.GalponNombre, l.FechaEncaset, l.EstadoOperativoLote))
@@ -108,7 +124,7 @@ public class ReporteDiarioCostosEngordeService : IReporteDiarioCostosEngordeServ
                 (object?)request.FechaFin?.Date ?? DBNull.Value)
             .ToListAsync(ct);
 
-        var filas = rows
+        IReadOnlyList<ReporteDiarioCostosFilaDto> filas = rows
             .OrderBy(r => r.Fecha)
             .Select(r => new ReporteDiarioCostosFilaDto(
                 r.Fecha,
@@ -118,6 +134,14 @@ public class ReporteDiarioCostosEngordeService : IReporteDiarioCostosEngordeServ
                 ParseJson<ReporteDiarioCostosAlimentoDto>(r.Alimentos),
                 ParseJson<ReporteDiarioCostosGalponDiaDto>(r.Galpones)))
             .ToList();
+
+        // La fn agrega la granja COMPLETA: en granjas restringidas se recortan las columnas de galpón
+        // no visibles y se recalculan los totales del día (misma aritmética, subconjunto de galpones).
+        if (!scope.IsGlobal)
+        {
+            var galponesVisiblesReporte = lotesDto.Select(l => l.GalponId).ToHashSet(StringComparer.Ordinal);
+            filas = ReporteDiarioCostosEngordeCalculos.FiltrarPorGalponesVisibles(filas, galponesVisiblesReporte);
+        }
 
         var totales = ReporteDiarioCostosEngordeCalculos.ConstruirTotales(filas);
         var (avesActuales, avesActualesTotal) = ReporteDiarioCostosEngordeCalculos.AvesVivasActuales(filas);

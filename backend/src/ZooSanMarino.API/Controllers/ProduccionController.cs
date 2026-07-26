@@ -286,13 +286,14 @@ public class ProduccionController : ControllerBase
     /// Obtiene los lotes que tienen semana 26 o superior (para módulo de producción)
     /// Solo incluye lotes que han alcanzado la semana 26 desde su fecha de encaset
     /// </summary>
+    /// <param name="paraDestino">true = catálogo de lote DESTINO de traslados (omite el alcance granular de ubicación)</param>
     /// <returns>Lista de lotes con semana >= 26</returns>
     [HttpGet("lotes-produccion")]
-    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> ObtenerLotesProduccion()
+    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> ObtenerLotesProduccion([FromQuery] bool paraDestino = false)
     {
         try
         {
-            var lotes = await _produccionService.ObtenerLotesProduccionAsync();
+            var lotes = await _produccionService.ObtenerLotesProduccionAsync(paraDestino);
             return Ok(lotes);
         }
         catch (Exception)

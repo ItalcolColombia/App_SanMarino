@@ -7,7 +7,8 @@ public interface ILotePosturaLevanteService
     /// <summary>
     /// Obtiene todos los registros de lote_postura_levante de la empresa en sesión.
     /// </summary>
-    Task<IEnumerable<LotePosturaLevanteDetailDto>> GetAllAsync(CancellationToken ct = default);
+    // paraDestino=true omite el alcance granular de ubicación (selección de DESTINO en traslados).
+    Task<IEnumerable<LotePosturaLevanteDetailDto>> GetAllAsync(CancellationToken ct = default, bool paraDestino = false);
 
     /// <summary>
     /// Obtiene los lotes levante asociados a un lote (lote_id).

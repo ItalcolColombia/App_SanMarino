@@ -404,8 +404,10 @@ export class ProduccionService {
    * Obtiene los lotes que tienen semana 26 o superior (para módulo de producción)
    * Solo incluye lotes que han alcanzado la semana 26 desde su fecha de encaset
    */
-  obtenerLotesProduccion(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.baseUrl}/lotes-produccion`);
+  /** paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  obtenerLotesProduccion(paraDestino = false): Observable<any[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
+    return this.http.get<any[]>(`${this.baseUrl}/lotes-produccion${qs}`);
   }
 
   // ================== INDICADORES SEMANALES ==================

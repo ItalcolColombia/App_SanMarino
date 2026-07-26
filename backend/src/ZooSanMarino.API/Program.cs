@@ -186,6 +186,8 @@ if (emailQueueEnabled)
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IUserFarmService, UserFarmService>();
+builder.Services.AddScoped<IUserFarmScopeService, UserFarmScopeService>();
+builder.Services.AddScoped<ILocationScopeResolver, LocationScopeResolver>(); // alcance granular núcleo/galpón/lote (caché por request)
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
 builder.Services.AddScoped<IFarmService, FarmService>();

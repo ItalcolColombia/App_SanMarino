@@ -26,6 +26,12 @@ public class UserFarmService : IUserFarmService
         if (user == null)
             throw new InvalidOperationException($"Usuario con ID {userId} no encontrado.");
 
+        var scopeCounts = await _ctx.UserFarmScopes.AsNoTracking()
+            .Where(s => s.UserId == userId)
+            .GroupBy(s => s.FarmId)
+            .Select(g => new { FarmId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.FarmId, x => x.Count);
+
         var farms = user.UserFarms.Select(uf => new UserFarmDto(
             uf.UserId,
             uf.FarmId,
@@ -34,7 +40,9 @@ public class UserFarmService : IUserFarmService
             uf.IsAdmin,
             uf.IsDefault,
             uf.CreatedAt,
-            uf.CreatedByUserId
+            uf.CreatedByUserId,
+            uf.RestrictLocations,
+            scopeCounts.GetValueOrDefault(uf.FarmId)
         )).ToArray();
 
         return new UserFarmsResponseDto(
@@ -55,6 +63,12 @@ public class UserFarmService : IUserFarmService
         if (farm == null)
             throw new InvalidOperationException($"Granja con ID {farmId} no encontrada.");
 
+        var scopeCounts = await _ctx.UserFarmScopes.AsNoTracking()
+            .Where(s => s.FarmId == farmId)
+            .GroupBy(s => s.UserId)
+            .Select(g => new { UserId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.UserId, x => x.Count);
+
         var users = farm.UserFarms.Select(uf => new UserFarmDto(
             uf.UserId,
             uf.FarmId,
@@ -63,7 +77,9 @@ public class UserFarmService : IUserFarmService
             uf.IsAdmin,
             uf.IsDefault,
             uf.CreatedAt,
-            uf.CreatedByUserId
+            uf.CreatedByUserId,
+            uf.RestrictLocations,
+            scopeCounts.GetValueOrDefault(uf.UserId)
         )).ToArray();
 
         return new FarmUsersResponseDto(
@@ -131,7 +147,8 @@ public class UserFarmService : IUserFarmService
             result.IsAdmin,
             result.IsDefault,
             result.CreatedAt,
-            result.CreatedByUserId
+            result.CreatedByUserId,
+            result.RestrictLocations
         );
     }
 
@@ -168,6 +185,9 @@ public class UserFarmService : IUserFarmService
 
         await _ctx.SaveChangesAsync();
 
+        var scopeCount = await _ctx.UserFarmScopes.AsNoTracking()
+            .CountAsync(s => s.UserId == userId && s.FarmId == farmId);
+
         return new UserFarmDto(
             userFarm.UserId,
             userFarm.FarmId,
@@ -176,7 +196,9 @@ public class UserFarmService : IUserFarmService
             userFarm.IsAdmin,
             userFarm.IsDefault,
             userFarm.CreatedAt,
-            userFarm.CreatedByUserId
+            userFarm.CreatedByUserId,
+            userFarm.RestrictLocations,
+            scopeCount
         );
     }
 
@@ -312,7 +334,8 @@ public class UserFarmService : IUserFarmService
                 uf.FarmId,
                 uf.Farm.Name,
                 uf.IsAdmin,
-                uf.IsDefault
+                uf.IsDefault,
+                uf.RestrictLocations
             ))
             .ToArrayAsync();
 
@@ -326,7 +349,8 @@ public class UserFarmService : IUserFarmService
                 f.Id,
                 f.Name,
                 false, // No es admin por acceso directo
-                false  // No es default por acceso directo
+                false, // No es default por acceso directo
+                false  // Sin fila user_farms ⇒ sin restricción de ubicación
             ))
             .ToArrayAsync();
 

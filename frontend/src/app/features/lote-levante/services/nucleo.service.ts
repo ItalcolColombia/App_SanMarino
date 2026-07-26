@@ -20,17 +20,21 @@ export class NucleoService {
 
   constructor(private http: HttpClient) {}
 
-  /** Lista todos los núcleos (si tu backend lo expone) */
-  getAll(): Observable<NucleoDto[]> {
+  /** Lista todos los núcleos (si tu backend lo expone).
+   *  paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getAll(paraDestino = false): Observable<NucleoDto[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
     return this.http
-      .get<NucleoDto[]>(`${this.base}/Nucleo`)
+      .get<NucleoDto[]>(`${this.base}/Nucleo${qs}`)
       .pipe(catchError(this.handleError));
   }
 
-  /** Núcleos pertenecientes a una granja (endpoint real del backend) */
-  getByGranja(granjaId: number): Observable<NucleoDto[]> {
+  /** Núcleos pertenecientes a una granja (endpoint real del backend).
+   *  paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getByGranja(granjaId: number, paraDestino = false): Observable<NucleoDto[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
     return this.http
-      .get<NucleoDto[]>(`${this.base}/Nucleo/granja/${encodeURIComponent(String(granjaId))}`)
+      .get<NucleoDto[]>(`${this.base}/Nucleo/granja/${encodeURIComponent(String(granjaId))}${qs}`)
       .pipe(catchError(this.handleError));
   }
 

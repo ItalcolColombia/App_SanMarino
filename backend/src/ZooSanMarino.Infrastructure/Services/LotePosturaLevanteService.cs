@@ -16,19 +16,49 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     private readonly ICompanyResolver _companyResolver;
     private readonly IUserPermissionService _userPermissionService;
     private readonly IUserFarmService _userFarmService;
+    private readonly ILocationScopeResolver _scopeResolver;
 
     public LotePosturaLevanteService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         ICompanyResolver companyResolver,
         IUserPermissionService userPermissionService,
-        IUserFarmService userFarmService)
+        IUserFarmService userFarmService,
+        ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _userPermissionService = userPermissionService;
         _userFarmService = userFarmService;
+        _scopeResolver = scopeResolver;
+    }
+
+    /// <summary>
+    /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible en
+    /// SQL. Filas con LoteId (FK a lotes) se deciden por lote permitido (precisión de lote); filas
+    /// legacy sin LoteId caen al galpón/núcleo visible. Granjas no restringidas pasan intactas.
+    /// <paramref name="paraDestino"/> = true lo omite (selección de DESTINO en traslados).
+    /// </summary>
+    private async Task<IQueryable<LotePosturaLevante>> AplicarScopeUbicacionAsync(
+        IQueryable<LotePosturaLevante> q, bool paraDestino = false)
+    {
+        if (paraDestino) return q;
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+        var galponesVisibles = restringidos.SelectMany(kv => kv.Value.GalponesVisibles).Distinct().ToList();
+        var clavesNucleo = restringidos
+            .SelectMany(kv => kv.Value.NucleosVisibles.Select(n => kv.Key + "|" + n))
+            .ToList();
+
+        return q.Where(l => !granjasRestringidas.Contains(l.GranjaId)
+            || (l.LoteId != null && lotesPermitidos.Contains(l.LoteId.Value))
+            || (l.LoteId == null && l.GalponId != null && l.GalponId != "" && galponesVisibles.Contains(l.GalponId))
+            || (l.LoteId == null && (l.GalponId == null || l.GalponId == "") && l.NucleoId != null &&
+                clavesNucleo.Contains(l.GranjaId.ToString() + "|" + l.NucleoId)));
     }
 
     private async Task<int> GetEffectiveCompanyIdAsync(CancellationToken ct = default)
@@ -150,7 +180,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     /// - Granjas a las que el usuario tiene permiso (UserFarms + granjas por empresa)
     /// - Excluye eliminados (DeletedAt). Muestra abiertos y cerrados.
     /// </summary>
-    public async Task<IEnumerable<LotePosturaLevanteDetailDto>> GetAllAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<LotePosturaLevanteDetailDto>> GetAllAsync(CancellationToken ct = default, bool paraDestino = false)
     {
         var companyId = await GetEffectiveCompanyIdAsync(ct);
 
@@ -173,6 +203,10 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
                 q = q.Where(_ => false); // Sin granjas asignadas → lista vacía
         }
 
+        // Alcance granular núcleo/galpón/lote — aplica incluso a admin (restricción explícita
+        // gana al bypass de rol). Omitido al elegir DESTINO de traslados.
+        q = await AplicarScopeUbicacionAsync(q, paraDestino);
+
         q = q.OrderBy(l => l.LotePosturaLevanteId);
         return await ProjectToDetail(q).ToListAsync(ct);
     }
@@ -183,8 +217,12 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         var companyId = await GetEffectiveCompanyIdAsync(ct);
         var q = _ctx.LotePosturaLevante
             .AsNoTracking()
-            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LoteId == loteId)
-            .OrderBy(l => l.LotePosturaLevanteId);
+            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LoteId == loteId);
+
+        // Alcance granular: acceso directo por loteId también respeta el scope (fail-closed → vacío)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        q = q.OrderBy(l => l.LotePosturaLevanteId);
         return await ProjectToDetail(q).ToListAsync(ct);
     }
 

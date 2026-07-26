@@ -22,19 +22,44 @@ namespace ZooSanMarino.Infrastructure.Services
         private readonly AppInterfaces.ICompanyResolver _companyResolver;
         private readonly AppInterfaces.IUserPermissionService _userPermissionService;
         private readonly AppInterfaces.IUserFarmService _userFarmService;
+        private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
 
         public NucleoService(
-            ZooSanMarinoContext ctx, 
+            ZooSanMarinoContext ctx,
             AppInterfaces.ICurrentUser current,
             AppInterfaces.ICompanyResolver companyResolver,
             AppInterfaces.IUserPermissionService userPermissionService,
-            AppInterfaces.IUserFarmService userFarmService)
+            AppInterfaces.IUserFarmService userFarmService,
+            AppInterfaces.ILocationScopeResolver scopeResolver)
         {
             _ctx = ctx;
             _current = current;
             _companyResolver = companyResolver;
             _userPermissionService = userPermissionService;
             _userFarmService = userFarmService;
+            _scopeResolver = scopeResolver;
+        }
+
+        /// <summary>
+        /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible
+        /// en SQL. Se aplica SIEMPRE (incluso admin: una restricción explícita gana al bypass de rol).
+        /// Granjas no restringidas pasan intactas; en las restringidas solo quedan los núcleos
+        /// visibles del cierre (clave granja|nucleo porque nucleo_id se repite entre granjas).
+        /// <paramref name="paraDestino"/> = true lo omite (selección de DESTINO en traslados).
+        /// </summary>
+        private async Task<IQueryable<Nucleo>> AplicarScopeUbicacionAsync(IQueryable<Nucleo> q, bool paraDestino = false)
+        {
+            if (paraDestino) return q;
+            var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+            if (restringidos.Count == 0) return q;
+
+            var granjasRestringidas = restringidos.Keys.ToList();
+            var clavesVisibles = restringidos
+                .SelectMany(kv => kv.Value.NucleosVisibles.Select(n => kv.Key + "|" + n))
+                .ToList();
+
+            return q.Where(n => !granjasRestringidas.Contains(n.GranjaId) ||
+                                clavesVisibles.Contains(n.GranjaId.ToString() + "|" + n.NucleoId));
         }
 
         /// <summary>
@@ -178,6 +203,8 @@ namespace ZooSanMarino.Infrastructure.Services
             if (req.GranjaId.HasValue)
                 q = q.Where(n => n.GranjaId == req.GranjaId.Value);
 
+            q = await AplicarScopeUbicacionAsync(q);
+
             q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
             var total = await q.LongCountAsync();
@@ -206,6 +233,8 @@ namespace ZooSanMarino.Infrastructure.Services
                             n.GranjaId == granjaId &&
                             n.DeletedAt == null);
 
+            q = await AplicarScopeUbicacionAsync(q);
+
             return await ProjectToDetail(q).SingleOrDefaultAsync();
         }
 
@@ -219,8 +248,11 @@ namespace ZooSanMarino.Infrastructure.Services
             if (farmIds == null || farmIds.Count == 0)
                 return Array.Empty<NucleoDto>();
 
-            return await _ctx.Nucleos.AsNoTracking()
-                .Where(n => n.DeletedAt == null && n.CompanyId == companyId && farmIds.Contains(n.GranjaId))
+            IQueryable<Nucleo> qf = _ctx.Nucleos.AsNoTracking()
+                .Where(n => n.DeletedAt == null && n.CompanyId == companyId && farmIds.Contains(n.GranjaId));
+            qf = await AplicarScopeUbicacionAsync(qf);
+
+            return await qf
                 .OrderBy(n => n.NucleoNombre)
                 .Select(n => new NucleoDto(
                     n.NucleoId,
@@ -235,7 +267,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 .ToListAsync(ct);
         }
 
-        public async Task<IEnumerable<NucleoDto>> GetAllAsync()
+        public async Task<IEnumerable<NucleoDto>> GetAllAsync(bool paraDestino = false)
         {
             IQueryable<Nucleo> q = _ctx.Nucleos.AsNoTracking().Where(n => n.DeletedAt == null);
 
@@ -248,6 +280,9 @@ namespace ZooSanMarino.Infrastructure.Services
 
             q = q.Where(n => assignedFarmIds.Contains(n.GranjaId)
                           && _ctx.Farms.Any(f => f.Id == n.GranjaId && f.DeletedAt == null));
+
+            // Alcance granular núcleo/galpón/lote (omitido al elegir DESTINO de traslados)
+            q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
             return await q
                 .Select(n => new NucleoDto(
@@ -281,10 +316,13 @@ namespace ZooSanMarino.Infrastructure.Services
                 ))
                 .SingleOrDefaultAsync();
 
-        public async Task<IEnumerable<NucleoDto>> GetByGranjaAsync(int granjaId)
+        public async Task<IEnumerable<NucleoDto>> GetByGranjaAsync(int granjaId, bool paraDestino = false)
         {
             IQueryable<Nucleo> q = _ctx.Nucleos.AsNoTracking()
                 .Where(n => n.DeletedAt == null && n.GranjaId == granjaId);
+
+            // Alcance granular núcleo/galpón/lote (omitido al elegir DESTINO de traslados)
+            q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
             // Verificar si el usuario es admin/administrador
             var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);

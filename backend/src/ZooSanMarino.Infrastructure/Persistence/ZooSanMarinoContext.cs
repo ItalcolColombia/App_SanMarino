@@ -48,6 +48,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<UserCompany> UserCompanies { get; set; } = null!;
         public DbSet<UserRole> UserRoles { get; set; } = null!;
         public DbSet<UserFarm> UserFarms { get; set; } = null!;
+        public DbSet<UserFarmScope> UserFarmScopes { get; set; } = null!;
         public DbSet<CompanyPais> CompanyPaises { get; set; } = null!;
         public DbSet<Permission> Permissions { get; set; } = null!;
         public DbSet<RolePermission> RolePermissions { get; set; } = null!;

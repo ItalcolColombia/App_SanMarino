@@ -181,8 +181,9 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
 
     forkJoin({
       farms:   this.farmSvc.getForTrasladoSeguimiento().pipe(catchError(() => of<FarmDto[]>([]))),
-      lpl:     tipoOrigen === 'Levante'    ? this.lplSvc.getAll().pipe(catchError(() => of<LotePosturaLevanteDto[]>([])))    : of<LotePosturaLevanteDto[]>([]),
-      lpp:     tipoOrigen === 'Produccion' ? this.lppSvc.getAll().pipe(catchError(() => of<LotePosturaProduccionDto[]>([]))) : of<LotePosturaProduccionDto[]>([]),
+      // paraDestino=true: catálogo de lotes DESTINO — no se restringe por el alcance granular del usuario
+      lpl:     tipoOrigen === 'Levante'    ? this.lplSvc.getAll(true).pipe(catchError(() => of<LotePosturaLevanteDto[]>([])))    : of<LotePosturaLevanteDto[]>([]),
+      lpp:     tipoOrigen === 'Produccion' ? this.lppSvc.getAll(true).pipe(catchError(() => of<LotePosturaProduccionDto[]>([]))) : of<LotePosturaProduccionDto[]>([]),
       resumen: resumen$
     }).subscribe(({ farms, lpl, lpp, resumen }) => {
       this.granjas   = farms;
@@ -206,7 +207,7 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
 
     if (this.etapaDestino === 'Produccion' && !this.lppCargadosCrossEtapa && this.etapaOrigen === 'Levante') {
       this.cargandoLotesEtapa = true;
-      this.lppSvc.getAll()
+      this.lppSvc.getAll(true) // paraDestino: lotes DESTINO cross-etapa sin alcance granular
         .pipe(
           catchError(() => of<LotePosturaProduccionDto[]>([])),
           finalize(() => { this.cargandoLotesEtapa = false; })
@@ -234,7 +235,8 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
 
     if (!this.granjaDestinoId) return;
 
-    this.nucleoSvc.getByGranja(Number(this.granjaDestinoId))
+    // paraDestino=true: cascada de DESTINO — no se restringe por el alcance granular del usuario
+    this.nucleoSvc.getByGranja(Number(this.granjaDestinoId), true)
       .pipe(catchError(() => of<NucleoDto[]>([])))
       .subscribe(ns => { this.nucleos = ns; });
   }
@@ -246,8 +248,9 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges 
     this.lotesDestino = [];
 
     if (this.granjaDestinoId && this.nucleoDestinoId) {
+      // paraDestino=true: cascada de DESTINO — no se restringe por el alcance granular del usuario
       this.galponSvc.getByGranjaAndNucleo(
-          Number(this.granjaDestinoId), this.nucleoDestinoId
+          Number(this.granjaDestinoId), this.nucleoDestinoId, true
         )
         .pipe(catchError(() => of<GalponDetailDto[]>([])))
         .subscribe(gs => { this.galpones = gs; });

@@ -16,10 +16,11 @@ public interface IGalponService
     /// </summary>
     Task<IEnumerable<GalponDetailDto>> GetByFarmIdsForCompanyAsync(IReadOnlyList<int> farmIds, int companyId, CancellationToken ct = default);
 
-    Task<IEnumerable<GalponDetailDto>> GetAllAsync();
+    // paraDestino=true omite el alcance granular de ubicación (selección de DESTINO en traslados).
+    Task<IEnumerable<GalponDetailDto>> GetAllAsync(bool paraDestino = false);
     Task<GalponDetailDto?>             GetByIdAsync(string galponId);
-    Task<IEnumerable<GalponDetailDto>> GetByGranjaAsync(int granjaId);
-    Task<IEnumerable<GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId);
+    Task<IEnumerable<GalponDetailDto>> GetByGranjaAsync(int granjaId, bool paraDestino = false);
+    Task<IEnumerable<GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId, bool paraDestino = false);
     Task<GalponDetailDto>              CreateAsync(CreateGalponDto dto);
     Task<GalponDetailDto?>             UpdateAsync(UpdateGalponDto dto);
     Task<bool>                         DeleteAsync(string galponId);     // Soft delete (bloquea si tiene lotes activos)

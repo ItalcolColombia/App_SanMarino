@@ -13,12 +13,55 @@ public partial class VacunacionCronogramaService : IVacunacionCronogramaService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
+    private readonly ILocationScopeResolver _scopeResolver;
 
-    public VacunacionCronogramaService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    public VacunacionCronogramaService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser currentUser,
+        ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _currentUser = currentUser;
+        _scopeResolver = scopeResolver;
     }
+
+    /// <summary>
+    /// Alcance granular de ubicación del lote pedido. OJO: el id que viaja en el cronograma NO es
+    /// <c>lotes.lote_id</c>, es el de SU línea (lote_postura_levante_id / lote_postura_produccion_id /
+    /// lote_ave_engorde_id) ⇒ no sirve <c>PermiteLoteAsync</c> directo: se resuelve la ubicación real
+    /// del registro (granja + lote de la tabla lotes cuando existe; si no, galpón/núcleo) y se evalúa
+    /// contra el cierre del usuario. Granja no restringida ⇒ true. Registro inexistente ⇒ true (el
+    /// flujo devuelve su propia lista vacía).
+    /// </summary>
+    private async Task<bool> PermiteLoteDeLineaAsync(string lineaProductiva, int loteId, CancellationToken ct)
+    {
+        var ubi = lineaProductiva switch
+        {
+            "Levante" => await _ctx.LotePosturaLevante.AsNoTracking()
+                .Where(l => l.LotePosturaLevanteId == loteId)
+                .Select(l => new UbicacionLoteLinea(l.GranjaId, l.NucleoId, l.GalponId, l.LoteId))
+                .FirstOrDefaultAsync(ct),
+            "Produccion" => await _ctx.LotePosturaProduccion.AsNoTracking()
+                .Where(l => l.LotePosturaProduccionId == loteId)
+                .Select(l => new UbicacionLoteLinea(l.GranjaId, l.NucleoId, l.GalponId, l.LoteId))
+                .FirstOrDefaultAsync(ct),
+            _ => await _ctx.LoteAveEngorde.AsNoTracking()
+                .Where(l => l.LoteAveEngordeId == loteId)
+                .Select(l => new UbicacionLoteLinea(l.GranjaId, l.NucleoId, l.GalponId, null))
+                .FirstOrDefaultAsync(ct),
+        };
+        if (ubi is null) return true;
+
+        var scope = await _scopeResolver.GetScopeAsync(ubi.GranjaId);
+        if (scope.IsGlobal) return true;
+        // Con lote de la tabla lotes manda el nivel LOTE; sin él, la ubicación (galpón, luego núcleo).
+        if (ubi.LoteId.HasValue) return scope.PermiteLote(ubi.LoteId.Value);
+        return (!string.IsNullOrEmpty(ubi.GalponId) && scope.PermiteGalpon(ubi.GalponId))
+            || (string.IsNullOrEmpty(ubi.GalponId) && !string.IsNullOrEmpty(ubi.NucleoId) && scope.PermiteNucleo(ubi.NucleoId));
+    }
+
+    /// <summary>Ubicación proyectada de un lote según su línea (lote de la tabla lotes cuando aplica).</summary>
+    private sealed record UbicacionLoteLinea(int GranjaId, string? NucleoId, string? GalponId, int? LoteId);
 
     private static readonly HashSet<string> LineasValidas = new(StringComparer.Ordinal) { "Levante", "Produccion", "Engorde" };
     private static readonly HashSet<string> UnidadesValidas = new(StringComparer.Ordinal) { "Semana", "Dia", "Fecha" };

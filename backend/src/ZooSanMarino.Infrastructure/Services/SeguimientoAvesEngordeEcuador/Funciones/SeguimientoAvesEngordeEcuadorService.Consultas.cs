@@ -15,12 +15,21 @@ public partial class SeguimientoAvesEngordeEcuadorService
     {
         var entity = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id);
-        return entity is null ? null : MapToDto(entity);
+        if (entity is null) return null;
+        // Alcance granular: el registro se lee por su id, pero pertenece a un lote (fail-closed → 404)
+        if (!await PermiteLoteEngordeAsync(entity.LoteAveEngordeId)) return null;
+        return MapToDto(entity);
     }
 
     public async Task<SeguimientoAvesEngordePorLoteResponseDto> GetByLoteAsync(int loteId)
     {
         var companyId = _current.CompanyId;
+
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → misma forma vacía)
+        if (!await PermiteLoteEngordeAsync(loteId))
+            return new SeguimientoAvesEngordePorLoteResponseDto(
+                Array.Empty<SeguimientoLoteLevanteDto>(),
+                Array.Empty<LoteRegistroHistoricoUnificadoDto>());
 
         var exists = await _ctx.LoteAveEngorde.AsNoTracking()
             .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
@@ -44,6 +53,10 @@ public partial class SeguimientoAvesEngordeEcuadorService
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(
         int? loteId, DateTime? desde, DateTime? hasta)
     {
+        // Alcance granular: filtro por un lote puntual respeta el scope (fail-closed)
+        if (loteId.HasValue && !await PermiteLoteEngordeAsync(loteId.Value))
+            return Array.Empty<SeguimientoLoteLevanteDto>();
+
         var query = _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking();
         if (loteId.HasValue) query = query.Where(x => x.LoteAveEngordeId == loteId.Value);
         // Día completo en UTC (fechas ancladas a mediodía por FechasPuras)
@@ -51,6 +64,10 @@ public partial class SeguimientoAvesEngordeEcuadorService
         var hastaExcl = FechasPuras.AnclarMediodiaUtc(hasta)?.AddHours(12);
         if (desdeUtc.HasValue)  query = query.Where(x => x.Fecha >= desdeUtc.Value);
         if (hastaExcl.HasValue) query = query.Where(x => x.Fecha < hastaExcl.Value);
+
+        // Alcance granular del listado (sin lote puntual): excluye lotes fuera del cierre del usuario
+        query = await AplicarScopeUbicacionAsync(query);
+
         var entities = await query.OrderBy(x => x.Fecha).ToListAsync();
         return entities.Select(MapToDto);
     }
@@ -60,6 +77,9 @@ public partial class SeguimientoAvesEngordeEcuadorService
     public async Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId)
     {
         var companyId = _current.CompanyId;
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → null/404)
+        if (!await PermiteLoteEngordeAsync(loteId)) return null;
+
         var lote = await _ctx.LoteAveEngorde.AsNoTracking()
             .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
             .Select(l => new
@@ -143,6 +163,10 @@ public partial class SeguimientoAvesEngordeEcuadorService
 
     public async Task<IReadOnlyList<SeguimientoDiarioTablaFilaDto>> GetTablaDiariaAsync(int loteId)
     {
+        // Alcance granular: acceso directo por lote respeta el scope (fail-closed → tabla vacía)
+        if (!await PermiteLoteEngordeAsync(loteId))
+            return Array.Empty<SeguimientoDiarioTablaFilaDto>();
+
         return await _ctx.Database
             .SqlQueryRaw<SeguimientoDiarioTablaFilaDto>(
                 "SELECT * FROM fn_seguimiento_diario_engorde({0}::int)", loteId)
