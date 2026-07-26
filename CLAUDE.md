@@ -84,6 +84,33 @@ features/<modulo>/
 - **No** conviertas getters usados en el template en getters que devuelven arrays/objetos nuevos por ciclo (rompe change detection). Mantené referencias estables.
 - Validar: `cd frontend && yarn build`.
 
+#### ⚠️ Change detection en Angular 22 — TODO componente/modal NUEVO lleva `changeDetection`
+
+> **Regla #1 al crear un componente, modal o página nueva.** Es la causa raíz del bug recurrente *"el servicio responde OK pero el modal se queda en 'Cargando…' para siempre"* (caso canónico: `configurar-alcance-granja.component.ts`, jul-2026).
+
+**En Angular 22 el default del decorador `@Component` cambió: omitir `changeDetection` = `OnPush`** (`ChangeDetectionStrategy.OnPush = 0` y el doc del framework dice literal *"OnPush is enabled by default"*; `Default` quedó **deprecado** y es alias de `Eager = 1`). Con OnPush, asignar un campo (`this.loading = false`, `this.tree = data`) desde un **callback de `HttpClient`/`subscribe`/`setTimeout`/`Promise`** NO marca la vista sucia → la plantilla nunca se repinta y el spinner queda colgado aunque la red haya devuelto 200. Zone.js dispara el tick igual, pero las vistas OnPush no dirty se saltean.
+
+**Cómo se hace (elegí UNA y sé explícito, nunca omitas la propiedad):**
+
+```ts
+// ✅ Convención del repo (≈190 componentes): estado mutable + subscribe → Eager
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+
+@Component({
+  selector: 'app-mi-modal',
+  standalone: true,
+  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,   // ← obligatorio, no lo omitas
+  templateUrl: './mi-modal.component.html'
+})
+```
+
+- **`ChangeDetectionStrategy.Eager`** (equivale al viejo `Default`) → **default del repo** para cualquier componente con estado mutable, `subscribe`, `async/await` o timers. Es el fix correcto del bug de arriba.
+- **`ChangeDetectionStrategy.OnPush`** → permitido **solo** si el componente es 100 % presentacional (se alimenta de `@Input()`/señales y eventos del template) **o** si escribís el estado con `signal()`/`markForCheck()` de forma consistente. Si tenés que llamar `cdr.detectChanges()` "para que se vea", elegiste mal: usá `Eager`.
+- ⛔ **Prohibido `ChangeDetectionStrategy.Default`** en código nuevo: está deprecado en v22 → usá `Eager`.
+- **Checklist al terminar un componente/modal nuevo:** ¿tiene `changeDetection` explícito? ¿el spinner de carga apaga en pantalla (no solo en la Network tab)? Probalo **abriendo y cerrando el modal dos veces**.
+- **Síntoma para diagnosticar rápido:** la request devuelve 200 en Network, no hay error en consola, pero la UI se queda en el estado inicial (spinner / lista vacía / botón deshabilitado) → mirá primero el `changeDetection` del componente, no el servicio ni el backend.
+
 ### Backend (.NET) — `partial class` en `Funciones/` + cálculo puro en `Application/Calculos/`
 ```
 Infrastructure/Services/<Modulo>/
@@ -115,6 +142,7 @@ Infrastructure/Services/<Modulo>/
 | Confirmar una acción (sí/no) | `ConfirmDialogService` → `if (!(await this.confirmDialog.ask({ title, message, type, confirmText }))) return;` (método pasa a `async`) | `confirm()`, `window.confirm()` nativos; retrofitear el `ConfirmationModalComponent` a mano en cada template |
 | Exportar a `.xlsx` | helpers de `shared/utils/excel/exportar-tabla-excel.funcion.ts` (`exportarTablaExcel`/`exportarMultiHojaExcel`/`exportarObjetosExcel`/`exportarAoaExcel`/`exportarAoaMultiHojaExcel`) | `import * as XLSX` + `book_new/aoa_to_sheet/writeFile` inline (salvo LECTURA/parseo de un Excel subido, que sí usa `XLSX.read`) |
 | Formatear número/fecha/nombre de archivo | `shared/utils/format.ts` (`formatearNumero`/`fechaCorta`/`dateStampCompact`/`sanitizeFileName`), importado aliaseado (`import { formatearNumero as fmtNumero }`) y el método del componente delega | Redefinir el helper inline por enésima vez |
+| Componente/modal nuevo con `subscribe` o estado mutable | `changeDetection: ChangeDetectionStrategy.Eager` **explícito** en el `@Component` (ver *Change detection en Angular 22*) | Omitir `changeDetection` (en v22 = OnPush ⇒ modal colgado en "Cargando…") o usar el deprecado `Default` |
 
 **Reglas de aplicación:**
 - **Método que hoy usa `confirm()` → `async`:** cambiá `X(): void` a `async X(): Promise<void>` y `await this.confirmDialog.ask(...)`. `ask()` resuelve `true` (confirmar) / `false` (cancelar/cerrar). Ya existe el servicio en `shared/services/confirm-dialog.service.ts` (monta el modal dinámicamente, mismo look).

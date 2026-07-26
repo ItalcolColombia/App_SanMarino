@@ -1,5 +1,5 @@
 // src/app/features/config/user-management/components/asignar-usuario-granja/configurar-alcance-granja.component.ts
-import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, OnDestroy, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -30,6 +30,10 @@ import { ConfirmDialogService } from '../../../../../shared/services/confirm-dia
   selector: 'app-configurar-alcance-granja',
   standalone: true,
   imports: [FormsModule, FontAwesomeModule],
+  // Angular 22: omitir `changeDetection` = OnPush. Este modal actualiza su estado
+  // (loading/tree) desde callbacks de HttpClient, que NO marcan la vista sucia →
+  // sin Eager el spinner se queda colgado aunque los servicios respondan.
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './configurar-alcance-granja.component.html'
 })
 export class ConfigurarAlcanceGranjaComponent implements OnChanges, OnDestroy {
