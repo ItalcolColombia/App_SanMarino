@@ -13,6 +13,18 @@ public class LotePosturaBase : AuditableEntity
 
     public string? CodigoErp { get; set; }
 
+    /// <summary>Descripción del código ERP / centro de costo (ej. "LOTE 216 BABCOK BROWN").</summary>
+    public string? DescripcionErp { get; set; }
+
+    /// <summary>Raza declarada para el lote (ej. "BABCOK BROWN", "LOHMANN LSL").</summary>
+    public string? Raza { get; set; }
+
+    /// <summary>Tipo de línea / color del ave (ej. "ROJA", "BLANCA").</summary>
+    public string? TipoLinea { get; set; }
+
+    /// <summary>Fecha de encasetamiento declarada para el lote (fecha pura, sin hora).</summary>
+    public DateTime? FechaEncaset { get; set; }
+
     public int CantidadHembras { get; set; }
     public int CantidadMachos { get; set; }
 

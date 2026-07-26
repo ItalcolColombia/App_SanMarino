@@ -523,6 +523,10 @@ export class LoteListComponent implements OnInit {
     this.baseForm = this.fb.group({
       loteNombre:      ['', [Validators.required, Validators.minLength(2)]],
       codigoErp:       [''],
+      descripcionErp:  [''],
+      raza:            [''],
+      tipoLinea:       [''],
+      fechaEncaset:    [null],   // Fecha de encasetamiento declarada
       cantidadHembras: [0, [Validators.required, Validators.min(0)]],
       cantidadMachos:  [0, [Validators.required, Validators.min(0)]],
       cantidadMixtas:  [0, [Validators.required, Validators.min(0)]],
@@ -1192,6 +1196,12 @@ export class LoteListComponent implements OnInit {
     this.baseForm.reset({
       loteNombre:      b?.loteNombre      ?? '',
       codigoErp:       b?.codigoErp       ?? '',
+      descripcionErp:  b?.descripcionErp  ?? '',
+      raza:            b?.raza            ?? '',
+      tipoLinea:       b?.tipoLinea       ?? '',
+      fechaEncaset:    b?.fechaEncaset
+        ? new Date(b.fechaEncaset).toISOString().substring(0, 10)
+        : null,
       cantidadHembras: b?.cantidadHembras ?? 0,
       cantidadMachos:  b?.cantidadMachos  ?? 0,
       cantidadMixtas:  b?.cantidadMixtas  ?? 0,
@@ -1217,6 +1227,10 @@ export class LoteListComponent implements OnInit {
     const payload = {
       loteNombre:      (v.loteNombre ?? '').toString().trim(),
       codigoErp:       (v.codigoErp ?? '').toString().trim() || null,
+      descripcionErp:  (v.descripcionErp ?? '').toString().trim() || null,
+      raza:            (v.raza ?? '').toString().trim() || null,
+      tipoLinea:       (v.tipoLinea ?? '').toString().trim() || null,
+      fechaEncaset:    v.fechaEncaset ? String(v.fechaEncaset) : null,
       cantidadHembras: Number(v.cantidadHembras) || 0,
       cantidadMachos:  Number(v.cantidadMachos)  || 0,
       cantidadMixtas:  Number(v.cantidadMixtas)  || 0,

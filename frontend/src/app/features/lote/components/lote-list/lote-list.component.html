@@ -298,6 +298,9 @@
                 <th scope="col">Granja</th>
                 <th scope="col">Empresa</th>
                 <th scope="col">País</th>
+                <th scope="col">Raza</th>
+                <th scope="col">Tipo línea</th>
+                <th scope="col">F. Encaset</th>
                 <th scope="col">Código ERP</th>
                 <th scope="col">Fecha ERP</th>
                 <th scope="col">Hembras</th>
@@ -404,6 +407,9 @@
                   <td>{{ b.farmNombre || '—' }}</td>
                   <td>{{ b.companyNombre || b.companyId }}</td>
                   <td>{{ b.paisNombre || '—' }}</td>
+                  <td>{{ b.raza || '—' }}</td>
+                  <td>{{ b.tipoLinea || '—' }}</td>
+                  <td>{{ b.fechaEncaset ? (b.fechaEncaset | date:'dd/MM/yyyy':'UTC') : '—' }}</td>
                   <td>{{ b.codigoErp || '—' }}</td>
                   <td>{{ b.erpCreate ? (b.erpCreate | date:'dd/MM/yyyy') : '—' }}</td>
                   <td>{{ formatNumber(b.cantidadHembras) }}</td>
@@ -427,7 +433,7 @@
               }
               @if (!loading && viewLotesPosturaBase.length === 0) {
                 <tr>
-                  <td colspan="11" class="empty-state">
+                  <td colspan="14" class="empty-state">
                     <div class="empty-illustration">📦</div>
                     <p>No hay lotes base asignados a tus granjas.</p>
                     <button (click)="openBaseModal()" class="btn-primary mt-2">
@@ -549,6 +555,27 @@
                 <label class="ux-label">Código ERP</label>
                 <input formControlName="codigoErp" class="ux-input" placeholder="ERP..." />
               </div>
+              <!-- Descripción ERP -->
+              <div>
+                <label class="ux-label">Descripción ERP</label>
+                <input formControlName="descripcionErp" class="ux-input" placeholder="Descripción del centro de costo..." />
+              </div>
+              <!-- Raza -->
+              <div>
+                <label class="ux-label">🐔 Raza</label>
+                <input formControlName="raza" class="ux-input" placeholder="Ej: LOHMANN LSL, BABCOK BROWN..." />
+              </div>
+              <!-- Tipo de línea -->
+              <div>
+                <label class="ux-label">Tipo de línea</label>
+                <input formControlName="tipoLinea" class="ux-input" placeholder="Ej: ROJA, BLANCA..." />
+              </div>
+              <!-- Fecha de encasetamiento -->
+              <div>
+                <label class="ux-label">📅 Fecha encasetamiento</label>
+                <input type="date" formControlName="fechaEncaset" class="ux-input" />
+                <small class="ux-hint">Fecha de encasetamiento declarada para el lote.</small>
+              </div>
               <!-- Fecha creación en ERP -->
               <div>
                 <label class="ux-label">📅 Fecha creación en ERP</label>
@@ -594,7 +621,11 @@
               <div><strong>Granja:</strong> {{ viewingBase.farmNombre || '—' }}</div>
               <div><strong>Empresa:</strong> {{ viewingBase.companyNombre || viewingBase.companyId }}</div>
               <div><strong>País:</strong> {{ viewingBase.paisNombre || '—' }}</div>
+              <div><strong>Raza:</strong> {{ viewingBase.raza || '—' }}</div>
+              <div><strong>Tipo de línea:</strong> {{ viewingBase.tipoLinea || '—' }}</div>
+              <div><strong>Fecha encasetamiento:</strong> {{ viewingBase.fechaEncaset ? (viewingBase.fechaEncaset | date:'dd/MM/yyyy':'UTC') : '—' }}</div>
               <div><strong>Código ERP:</strong> {{ viewingBase.codigoErp || '—' }}</div>
+              <div><strong>Descripción ERP:</strong> {{ viewingBase.descripcionErp || '—' }}</div>
               <div><strong>Fecha creación ERP:</strong> {{ viewingBase.erpCreate ? (viewingBase.erpCreate | date:'dd/MM/yyyy') : '—' }}</div>
               <div><strong>Hembras:</strong> {{ formatNumber(viewingBase.cantidadHembras) }}</div>
               <div><strong>Machos:</strong> {{ formatNumber(viewingBase.cantidadMachos) }}</div>

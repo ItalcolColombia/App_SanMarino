@@ -6,9 +6,14 @@ export interface LotePosturaBaseDto {
   lotePosturaBaseId: number;
   loteNombre: string;
   codigoErp: string | null;
+  descripcionErp: string | null;
   cantidadHembras: number;
   cantidadMachos: number;
   cantidadMixtas: number;
+  // Datos del lote
+  raza: string | null;
+  tipoLinea: string | null;
+  fechaEncaset: string | null;   // date ISO string (yyyy-MM-dd)
   // Empresa
   companyId: number;
   companyNombre: string | null;
@@ -29,9 +34,13 @@ export interface LotePosturaBaseDto {
 export interface CreateLotePosturaBaseDto {
   loteNombre: string;
   codigoErp: string | null;
+  descripcionErp: string | null;
   cantidadHembras: number;
   cantidadMachos: number;
   cantidadMixtas: number;
+  raza: string | null;
+  tipoLinea: string | null;
+  fechaEncaset: string | null;   // date ISO string (yyyy-MM-dd)
   farmId: number | null;
   erpCreate: string | null;   // date ISO string (yyyy-MM-dd)
 }
@@ -39,9 +48,13 @@ export interface CreateLotePosturaBaseDto {
 export interface UpdateLotePosturaBaseDto {
   loteNombre: string;
   codigoErp: string | null;
+  descripcionErp: string | null;
   cantidadHembras: number;
   cantidadMachos: number;
   cantidadMixtas: number;
+  raza: string | null;
+  tipoLinea: string | null;
+  fechaEncaset: string | null;   // date ISO string (yyyy-MM-dd)
   farmId: number | null;
   erpCreate: string | null;   // date ISO string (yyyy-MM-dd)
 }

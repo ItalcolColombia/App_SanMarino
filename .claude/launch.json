@@ -18,7 +18,7 @@
     {
       "name": "backend",
       "runtimeExecutable": "C:/Users/SAN MARINO/.dotnet/dotnet.exe",
-      "runtimeArgs": ["run", "--launch-profile", "http"],
+      "runtimeArgs": ["run", "--launch-profile", "Development"],
       "cwd": "backend/src/ZooSanMarino.API",
       "port": 5002
     },

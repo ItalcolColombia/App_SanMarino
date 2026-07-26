@@ -19,6 +19,22 @@ public class LotePosturaBaseConfiguration : IEntityTypeConfiguration<LotePostura
             .HasColumnName("codigo_erp")
             .HasMaxLength(80);
 
+        b.Property(x => x.DescripcionErp)
+            .HasColumnName("descripcion_erp")
+            .HasMaxLength(200);
+
+        b.Property(x => x.Raza)
+            .HasColumnName("raza")
+            .HasMaxLength(80);
+
+        b.Property(x => x.TipoLinea)
+            .HasColumnName("tipo_linea")
+            .HasMaxLength(80);
+
+        b.Property(x => x.FechaEncaset)
+            .HasColumnName("fecha_encaset")
+            .HasColumnType("date");
+
         b.Property(x => x.LoteNombre)
             .HasColumnName("lote_nombre")
             .HasMaxLength(200)
