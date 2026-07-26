@@ -24,3 +24,11 @@
 - Cierra lo pendiente registrado en seguimiento_pollo_engorde_ux_cascada_scroll_plan.md (que solo había arreglado aves-engorde/seguimiento-aves-engorde-list).
 - Archivos: fase_de_desarrollo/limpieza_safe_navigation_migration_plan.md, frontend/src/app/shared/components/hierarchical-filter/hierarchical-filter.component.html, frontend/src/app/features/profile/profile.component.html, frontend/src/app/features/lote-levante/pages/modal-create-edit/modal-create-edit.component.html, frontend/src/app/features/lote-produccion/pages/modal-seguimiento-diario/modal-seguimiento-diario.component.html
 
+## 2026-07-26 — Seguimiento producción 400 "no tiene LoteId": filas LPP pre-fix de herencia; backfill como migración + self-heal runtime
+- Los lote_postura_produccion nacen SOLO al cerrar un levante; los creados antes del fix de herencia quedaron con lote_id NULL aunque su levante SÍ lo tiene (Demo LPP #8→119, #9→124).
+- Un script de reparación en backend/sql/ que no se convierte en migración EF nunca llega a prod (RunMigrations aplica solo migraciones): backfill_lote_postura_produccion_lote_id.sql quedó huérfano → migración data-only 20260726052546_BackfillLoteIdLotePosturaProduccion.
+- seguimiento_diario_produccion.lote_id es NOT NULL y debe seguir así (indicadores, espejo huevo y reportes cuelgan de él); la robustez correcta es resolver/sanar el lote_id, no relajar el esquema.
+- Self-heal en ProduccionService.ResolverYSanarLoteIdAsync (Crear+Actualizar): resuelve desde el levante SIN filtrar deleted_at y persiste con ExecuteUpdate; decisión pura en SeguimientoProduccionLoteIdCalculos con 8 tests xUnit.
+- Smoke E2E validado con JWT+X-Secret-Up minteados contra :5002: POST 201 con payload real, stock modelo B descontado y restaurado exacto tras DELETE (sin residuo).
+- Archivos: backend/src/ZooSanMarino.Infrastructure/Services/ProduccionService.cs, backend/src/ZooSanMarino.Application/Calculos/SeguimientoProduccionLoteIdCalculos.cs, backend/src/ZooSanMarino.Infrastructure/Migrations/20260726052546_BackfillLoteIdLotePosturaProduccion.cs, backend/tests/ZooSanMarino.Application.Tests/SeguimientoProduccionLoteIdCalculosTests.cs, backend/src/ZooSanMarino.Infrastructure/Services/LotePosturaLevanteService.cs
+

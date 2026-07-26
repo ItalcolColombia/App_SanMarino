@@ -265,12 +265,12 @@ public class ProduccionService : IProduccionService
                     && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
             if (lpp == null)
                 throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
-            loteId = lpp.LoteId ?? 0;
-            if (loteId <= 0)
-                throw new InvalidOperationException("El lote postura producción no tiene LoteId asociado (requerido para guardar en produccion_diaria).");
+            loteId = await ResolverYSanarLoteIdAsync(lpp);
 
+            // La unicidad real en BD es (lote_id, fecha): si otro LPP comparte el mismo Lote base,
+            // sin este OR el INSERT reventaría con violación de índice único (500) en vez de 400.
             var existeSeguimientoLpp = await _context.SeguimientoProduccion.AsNoTracking()
-                .AnyAsync(s => s.LotePosturaProduccionId == lotePosturaProduccionId
+                .AnyAsync(s => (s.LotePosturaProduccionId == lotePosturaProduccionId || s.LoteId == loteId)
                     && s.Fecha.Date == request.FechaRegistro.Date);
             if (existeSeguimientoLpp)
                 throw new InvalidOperationException("Ya existe un seguimiento para esta fecha y lote.");
@@ -453,9 +453,7 @@ public class ProduccionService : IProduccionService
                     && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
             if (lpp == null)
                 throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
-            loteId = lpp.LoteId ?? 0;
-            if (loteId <= 0)
-                throw new InvalidOperationException("El lote postura producción no tiene LoteId asociado (requerido para guardar en produccion_diaria).");
+            loteId = await ResolverYSanarLoteIdAsync(lpp);
         }
         else
         {
@@ -1271,6 +1269,54 @@ public class ProduccionService : IProduccionService
             throw new InvalidOperationException($"No se pudo resolver la empresa de la granja {granjaId} para clasificar los huevos por ítems.");
 
         return companyId.Value;
+    }
+
+    /// <summary>
+    /// Devuelve el <c>LoteId</c> efectivo del lote de producción y SANA la fila si estaba rota.
+    /// Los LPP nacen al cerrar un levante; antes del fix de herencia ese cierre no copiaba
+    /// <c>LoteId</c>/<c>LotePadreId</c>, dejando filas sin lote base (guardado imposible:
+    /// <c>seguimiento_diario_produccion.lote_id</c> es NOT NULL). Si el LPP no tiene lote válido,
+    /// se resuelve desde su levante de origen (SIN filtrar <c>DeletedAt</c>: la referencia de un
+    /// levante soft-deleted sigue siendo válida) y se persiste la reparación en la fila LPP
+    /// (self-heal, <c>ExecuteUpdate</c>). Si no es resoluble, lanza un error claro.
+    /// </summary>
+    private async Task<int> ResolverYSanarLoteIdAsync(LotePosturaProduccion lpp)
+    {
+        // Camino existente: el LPP ya tiene lote base → comportamiento idéntico, sin tocar nada.
+        if (lpp.LoteId is > 0) return lpp.LoteId.Value;
+
+        int? levLoteId = null;
+        int? levPadre = null;
+        if (lpp.LotePosturaLevanteId.HasValue)
+        {
+            // Fail-closed: solo se hereda de un levante de la MISMA empresa; una referencia
+            // cruzada (solo posible por datos corruptos) cae al error claro de abajo.
+            var lev = await _context.LotePosturaLevante.AsNoTracking()
+                .Where(l => l.LotePosturaLevanteId == lpp.LotePosturaLevanteId.Value
+                    && l.CompanyId == lpp.CompanyId)
+                .Select(l => new { l.LoteId, l.LotePadreId })
+                .FirstOrDefaultAsync();
+            levLoteId = lev?.LoteId;
+            levPadre = lev?.LotePadreId;
+        }
+
+        var resuelto = SeguimientoProduccionLoteIdCalculos.ResolverLoteIdEfectivo(lpp.LoteId, levLoteId);
+        if (resuelto is not > 0)
+            throw new InvalidOperationException(
+                $"El lote de producción '{lpp.LoteNombre}' no tiene lote base asociado y su levante de origen tampoco lo tiene. " +
+                $"No es posible registrar el seguimiento; repare el lote (lote_postura_produccion #{lpp.LotePosturaProduccionId}).");
+
+        // Self-heal persistente: repara la fila LPP (lote_id y, solo si estaba null, lote_padre_id)
+        // para que indicadores, espejo huevo y reportes también la vean sana desde ahora.
+        await _context.LotePosturaProduccion
+            .Where(l => l.LotePosturaProduccionId == lpp.LotePosturaProduccionId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.LoteId, resuelto)
+                .SetProperty(x => x.LotePadreId, x => x.LotePadreId ?? levPadre)
+                .SetProperty(x => x.UpdatedAt, DateTime.UtcNow)
+                .SetProperty(x => x.UpdatedByUserId, _currentUser.UserId));
+
+        return resuelto.Value;
     }
 
     /// <summary>
