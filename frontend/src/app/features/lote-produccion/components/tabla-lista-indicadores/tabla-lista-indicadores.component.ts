@@ -5,6 +5,9 @@ import { LoteDto } from '../../../lote/services/lote.service';
 import { finalize } from 'rxjs/operators';
 import { exportarObjetosMultiHojaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { causaEmptyStateIndicadores } from '../../funciones/empty-state-causa-indicadores.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { ClasificacionHuevoSemanaAgrupada } from '../../models/huevo-clasificacion.model';
+import { agruparClasificacionHuevoPorSemana } from '../../funciones/agrupar-clasificacion-huevo-semana.funcion';
 
 @Component({
   selector: 'app-tabla-lista-indicadores',
@@ -32,36 +35,64 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   error: string | null = null;
   expanded = new Set<number>(); // semanas expandidas para detalle clasificadora
 
-  constructor(private produccionService: ProduccionService) { }
+  // ===== Clasificación de huevos por ÍTEMS (flag de empresa · Santa Reyes) =====
+  /**
+   * Flag `companies.clasificacion_huevo_por_items`: la empresa clasifica por ítem del catálogo
+   * (Primera/Pnc) y las 11 columnas fijas quedan en 0 → el detalle expandible las reemplaza.
+   * FAIL-CLOSED: si el GET de flags falla, sigue el detalle clásico de 11 columnas.
+   */
+  clasificacionHuevoPorItems = false;
+  cargandoClasificacion = false;
+  /** Error del endpoint de clasificación → línea discreta en el detalle (sin toast). */
+  errorClasificacion = false;
+  /** semana → desglose agrupado. MEMOIZADO: se recalcula solo al responder el endpoint. */
+  private clasificacionPorSemana = new Map<number, ClasificacionHuevoSemanaAgrupada>();
+
+  constructor(
+    private produccionService: ProduccionService,
+    private companyConfig: ActiveCompanyConfigService
+  ) { }
 
   ngOnInit(): void {
     this.cargarIndicadores();
+    this.cargarFlagsEmpresa();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['selectedLote'] || changes['seguimientos'] || changes['produccionLoteId'] || changes['lotePosturaProduccionId']) {
       this.cargarIndicadores();
+      if (this.clasificacionHuevoPorItems) this.cargarClasificacionHuevoItems();
     }
   }
 
-  cargarIndicadores(): void {
+  /**
+   * Flags de la empresa activa (emite una vez y completa; usa caché por empresa).
+   * El flag llega async: si ya hay lote seleccionado, dispara la carga del desglose por ítem.
+   */
+  private cargarFlagsEmpresa(): void {
+    this.companyConfig.getFlags().subscribe(flags => {
+      if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      if (this.clasificacionHuevoPorItems) this.cargarClasificacionHuevoItems();
+    });
+  }
+
+  /**
+   * Request de indicadores (flujo LPP prioritario, legacy como fallback).
+   * `null` cuando no hay lote resoluble. Misma firma que consume el endpoint hermano
+   * `clasificacion-huevo-items`.
+   */
+  private construirRequestIndicadores(): IndicadoresProduccionRequest | null {
     // Flujo LPP: priorizar lotePosturaProduccionId. Flujo legacy: produccionLoteId o selectedLote.loteId
     const lppId = this.lotePosturaProduccionId ?? null;
     const loteIdLegacy = (this.produccionLoteId && this.produccionLoteId > 0) ? this.produccionLoteId : (this.selectedLote?.loteId ?? null);
     const hasLpp = lppId != null && lppId > 0;
     const hasLegacy = loteIdLegacy != null && loteIdLegacy > 0;
-    if (!hasLpp && !hasLegacy) {
-      this.indicadoresSemanales = [];
-      this.error = null;
-      return;
-    }
-
-    this.loadingIndicadores = true;
-    this.error = null;
+    if (!hasLpp && !hasLegacy) return null;
 
     // Request al backend: LPP o legacy (misma fuente que el tab Seguimiento).
     // semanaDesde: 26 = inicio de producción (semana de vida).
-    const request: IndicadoresProduccionRequest = {
+    return {
       loteId: hasLegacy ? loteIdLegacy! : 0,
       lotePosturaProduccionId: hasLpp ? lppId! : null,
       semanaDesde: 26,
@@ -69,6 +100,53 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       fechaDesde: null,
       fechaHasta: null
     };
+  }
+
+  /**
+   * Santa Reyes: desglose por ítem (Primera/Pnc) de TODAS las semanas del lote en UNA sola
+   * petición; se agrupa en memoria por semana para que el template lea referencias estables.
+   */
+  private cargarClasificacionHuevoItems(): void {
+    const request = this.construirRequestIndicadores();
+    if (!request) {
+      this.clasificacionPorSemana = new Map<number, ClasificacionHuevoSemanaAgrupada>();
+      this.errorClasificacion = false;
+      return;
+    }
+
+    this.cargandoClasificacion = true;
+    this.errorClasificacion = false;
+
+    this.produccionService.obtenerClasificacionHuevoItems(request)
+      .pipe(finalize(() => { this.cargandoClasificacion = false; }))
+      .subscribe({
+        next: (filas) => {
+          this.clasificacionPorSemana = agruparClasificacionHuevoPorSemana(filas);
+          this.errorClasificacion = false;
+        },
+        error: () => {
+          // Sin toast: el detalle muestra una línea discreta. No bloquea los indicadores.
+          this.clasificacionPorSemana = new Map<number, ClasificacionHuevoSemanaAgrupada>();
+          this.errorClasificacion = true;
+        }
+      });
+  }
+
+  /** Desglose por ítem de una semana (referencia ESTABLE del Map memoizado; null si no hay datos). */
+  getClasificacionSemana(semana: number): ClasificacionHuevoSemanaAgrupada | null {
+    return this.clasificacionPorSemana.get(semana) ?? null;
+  }
+
+  cargarIndicadores(): void {
+    const request = this.construirRequestIndicadores();
+    if (!request) {
+      this.indicadoresSemanales = [];
+      this.error = null;
+      return;
+    }
+
+    this.loadingIndicadores = true;
+    this.error = null;
 
     // Llamar al servicio que invoca el API
     // El backend procesará:

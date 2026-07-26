@@ -235,6 +235,8 @@
                       <h3 class="section-title"><span class="section-icon">📍</span> Destino del Traslado</h3>
                       <p class="section-hint">Selecciona la jerarquía del destino: Granja → Núcleo → Galpón → Lote</p>
                       <app-filtro-select
+                        class="filtro-compact"
+                        [variant]="'steps'"
                         [selectedGranjaId]="selectedGranjaDestinoId"
                         [selectedNucleoId]="selectedNucleoDestinoId"
                         [selectedGalponId]="selectedGalponDestinoId"

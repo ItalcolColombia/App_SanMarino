@@ -16,3 +16,11 @@
 - Defaults de fecha con `new Date().toISOString()` son UTC: en Colombia después de ~19:00 el default es "mañana". Usar fecha local para defaults de eventos.
 - Los scripts SQL manuales en backend/sql/ que no se llevan a migración EF (vw_guia_genetica_por_lote_postura) NO existen en prod aunque estén commiteados: si debe existir en prod, va en migración idempotente.
 - Helpers de cálculo puro creados "para después" (`ProduccionCalculos.PorcentajeRetiro*`) quedan sin cablear si el ticket se cierra con el rename del header: verificar consumidores con grep antes de marcar un REQ como resuelto.
+## 2026-07-26 — Artefacto $safeNavigationMigration eliminado de los 25 templates restantes (93 reemplazos, front-wide)
+- La migración automática de Angular dejó llamadas a $safeNavigationMigration(expr) — función inexistente en cualquier .ts — que compilaban bajo strictTemplates pero lanzaban TypeError al renderizar la vista.
+- Limpieza mecánica: envoltura quitada tal cual (expr ya trae su optional chaining), con codemod de paréntesis balanceados consciente de comillas y multi-pasada para llamadas anidadas (regex ingenua no alcanza: había args con comas, $any(...) y anidamiento doble).
+- Los ! de non-null assertion quedaron fuera de la envoltura y se conservaron (p. ej. getFarmName(selectedLote()?.granjaId!)) — strictTemplates los aceptó sin cambios adicionales.
+- rg safeNavigationMigration frontend → 0; yarn build (Node portable 22.23.1) 0 errores, solo warning de bundle budget preexistente.
+- Cierra lo pendiente registrado en seguimiento_pollo_engorde_ux_cascada_scroll_plan.md (que solo había arreglado aves-engorde/seguimiento-aves-engorde-list).
+- Archivos: fase_de_desarrollo/limpieza_safe_navigation_migration_plan.md, frontend/src/app/shared/components/hierarchical-filter/hierarchical-filter.component.html, frontend/src/app/features/profile/profile.component.html, frontend/src/app/features/lote-levante/pages/modal-create-edit/modal-create-edit.component.html, frontend/src/app/features/lote-produccion/pages/modal-seguimiento-diario/modal-seguimiento-diario.component.html
+

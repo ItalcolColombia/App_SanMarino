@@ -208,140 +208,11 @@
   box-sizing: border-box;
 }
 
-.le-card__title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--le-slate);
-  margin: 0 0 1rem 0;
-  padding: 0;
-}
-
-.le-card__title-icon {
-  color: var(--ital-orange);
-  opacity: 0.9;
-}
-
+/* La tarjeta de filtros usa el diseño global «Selección de contexto»
+   (styles/filter-context.scss → .filter-card / .filter-steps / .filter-fields).
+   Aquí solo queda lo que depende del layout de la página. */
 .le-card--filters {
-  padding: 1rem 1.25rem;
   flex-shrink: 0;
-}
-
-.le-filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
-  gap: 0.75rem 1rem;
-  align-items: end;
-  width: 100%;
-}
-
-.le-field--cascade-block {
-  grid-column: 1 / -1;
-}
-
-@media (min-width: 640px) {
-  .le-filters-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .le-field--cascade-block {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (min-width: 1024px) {
-  .le-filters-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  }
-  .le-field--cascade-block {
-    grid-column: 1 / -1;
-  }
-  .le-field--search {
-    grid-column: span 1;
-  }
-  .le-field--action {
-    grid-column: span 1;
-  }
-}
-
-/* ——— Filtros en cascada (granja → núcleo → galpón) ——— */
-.le-cascade-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
-.le-label--section {
-  margin-bottom: 0;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ital-orange-dark);
-}
-
-.le-cascade-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-  background: var(--ital-orange-50);
-  color: var(--ital-orange-dark);
-  border: 1px solid var(--ital-orange-100);
-}
-
-.le-hint--filters {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: var(--le-warm-600);
-}
-
-.le-cascade-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.65rem 0.75rem;
-}
-
-.le-field--cascade {
-  flex: 1 1 160px;
-  min-width: min(100%, 200px);
-}
-
-.le-cascade-step {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.25rem;
-  height: 1.25rem;
-  margin-right: 0.35rem;
-  font-size: 0.7rem;
-  font-weight: 800;
-  border-radius: 50%;
-  background: var(--ital-green);
-  color: #fff;
-  vertical-align: middle;
-}
-
-.le-cascade-arrow {
-  flex: 0 0 auto;
-  align-self: center;
-  padding-bottom: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--ital-orange);
-  opacity: 0.75;
-  user-select: none;
-}
-
-@media (max-width: 639px) {
-  .le-cascade-arrow {
-    display: none;
-  }
 }
 
 .le-select:disabled,
@@ -419,7 +290,7 @@ select.le-input {
   pointer-events: none;
 }
 
-.le-search .le-input {
+.le-search .filter-step__input {
   padding-left: 2.25rem;
 }
 

@@ -127,6 +127,11 @@
                 }
               </div>
             }
+            <!-- 🎂 Edades en el lote (cohortes): aves propias + aves recibidas de otros lotes -->
+            <app-edades-lote
+              [loteId]="loteIdCohortes"
+              [refreshTrigger]="cohortesRefreshTrigger">
+            </app-edades-lote>
             <!-- Descuentos sobre el lote en Levante: hembras y machos separados -->
             @if (resumenLevante) {
               <div class="info-lote-card">

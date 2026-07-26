@@ -20,6 +20,7 @@ import { MasterListService } from '../../../../core/services/master-list/master-
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { GestionGranjasRefreshService } from '../../../farm/services/gestion-granjas-refresh.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 interface NucleoOption { id: string; label: string; granjaId: number; }
 
@@ -92,6 +93,9 @@ export class GalponListComponent implements OnInit, OnDestroy {
   nucleoOptions: NucleoOption[] = [];
   typegarponOptions: string[] = [];
 
+  /** Flag de la empresa activa: muestra los campos de ubicación ERP. Fail-closed. */
+  manejaCodigosErp = false;
+
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -102,6 +106,7 @@ export class GalponListComponent implements OnInit, OnDestroy {
     private mlSvc: MasterListService,
     private toastSvc: ToastService,
     private refreshBus: GestionGranjasRefreshService,
+    private companyConfig: ActiveCompanyConfigService,
   ) {}
 
   ngOnInit(): void {
@@ -112,8 +117,13 @@ export class GalponListComponent implements OnInit, OnDestroy {
       nucleoId:     ['', Validators.required],
       ancho:        [''],
       largo:        [''],
-      tipoGalpon:   ['']
+      tipoGalpon:   [''],
+      // Ubicación ERP (opcionales, solo visibles con el flag de empresa)
+      codigoErpUbicacion:      ['', Validators.maxLength(20)],
+      descripcionErpUbicacion: ['', Validators.maxLength(200)]
     });
+
+    this.loadCompanyFlags();
 
     this.form.get('granjaId')!.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((granjaId: number | null) => {
       const normalized = this.normalizeGranjaId(granjaId);
@@ -147,6 +157,13 @@ export class GalponListComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  /** Lee los flags de la empresa activa (fail-closed: si falla, los campos ERP quedan ocultos). */
+  private loadCompanyFlags(): void {
+    this.companyConfig.getFlags()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(flags => { this.manejaCodigosErp = flags.manejaCodigosErpAvicola; });
   }
 
   /** Solo carga galpones; filtros se derivan de estos datos. Actualiza allGalpones y viewGalpones. */
@@ -360,7 +377,9 @@ export class GalponListComponent implements OnInit, OnDestroy {
         nucleoId: g.nucleoId,
         ancho: g.ancho ?? '',
         largo: g.largo ?? '',
-        tipoGalpon: g.tipoGalpon ?? ''
+        tipoGalpon: g.tipoGalpon ?? '',
+        codigoErpUbicacion: g.codigoErpUbicacion ?? '',
+        descripcionErpUbicacion: g.descripcionErpUbicacion ?? ''
       }, { emitEvent: false });
       this.form.get('galponId')?.disable();
       // La ubicación (granja/núcleo) NO se cambia por edición: mover el galpón arrastra sus lotes
@@ -380,7 +399,9 @@ export class GalponListComponent implements OnInit, OnDestroy {
         nucleoId: '',
         ancho: '',
         largo: '',
-        tipoGalpon: ''
+        tipoGalpon: '',
+        codigoErpUbicacion: '',
+        descripcionErpUbicacion: ''
       }, { emitEvent: false });
       this.form.get('galponId')?.enable();
       this.form.get('granjaId')?.enable();
@@ -405,7 +426,11 @@ export class GalponListComponent implements OnInit, OnDestroy {
       granjaId:     raw.granjaId,
       ancho:        raw.ancho || null,
       largo:        raw.largo || null,
-      tipoGalpon:   raw.tipoGalpon || null
+      tipoGalpon:   raw.tipoGalpon || null,
+      // Ubicación ERP: viaja siempre desde el form (hidratado con lo que devuelve el backend),
+      // así una edición hecha con el flag apagado NO borra los códigos existentes.
+      codigoErpUbicacion:      this.textoOrNull(raw.codigoErpUbicacion),
+      descripcionErpUbicacion: this.textoOrNull(raw.descripcionErpUbicacion)
     };
 
     this.loading = true;
@@ -542,6 +567,12 @@ export class GalponListComponent implements OnInit, OnDestroy {
     const normalized = this.normalizeGranjaId(granjaId);
     if (normalized === null) return '–';
     return this.farms.find(f => Number(f.id) === normalized)?.name ?? `#${normalized}`;
+  }
+
+  /** Texto del form → string recortado o null (los campos opcionales no viajan como ''). */
+  private textoOrNull(value: unknown): string | null {
+    const texto = value == null ? '' : String(value).trim();
+    return texto === '' ? null : texto;
   }
 
   private normalizeGranjaId(value: unknown): number | null {

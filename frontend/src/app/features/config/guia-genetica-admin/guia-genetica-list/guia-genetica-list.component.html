@@ -23,42 +23,50 @@
       </div>
     </div>
 
-    <div class="gg-filters card mb-4">
-      <div class="grid grid-3 gap-3">
-        <div class="field">
-          <label>Año guía</label>
-          <select class="input" [(ngModel)]="filtroAnioGuia">
+    <section class="ux-card filter-card mb-4">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="filter-step__label">Año guía</label>
+          <select class="filter-step__select" [(ngModel)]="filtroAnioGuia">
             <option value="">Todos</option>
             @for (a of anioGuias; track a) {
               <option [value]="a">{{ a }}</option>
             }
           </select>
         </div>
-        <div class="field">
-          <label>Raza</label>
-          <select class="input" [(ngModel)]="filtroRaza">
+        <div class="filter-field">
+          <label class="filter-step__label">Raza</label>
+          <select class="filter-step__select" [(ngModel)]="filtroRaza">
             <option value="">Todas</option>
             @for (r of razas; track r) {
               <option [value]="r">{{ r }}</option>
             }
           </select>
         </div>
-        <div class="field">
-          <label>Edad</label>
-          <input [(ngModel)]="filtroEdad" class="input" placeholder="42" />
+        <div class="filter-field">
+          <label class="filter-step__label">Edad</label>
+          <input [(ngModel)]="filtroEdad" class="filter-step__input" placeholder="42" />
+        </div>
+        <div class="filter-card__actions">
+          <button type="button" class="btn-primary" (click)="page=1; buscar()">
+            <fa-icon [icon]="faSearch" class="mr-2"></fa-icon>
+            Buscar
+          </button>
+          <button type="button" class="btn-subtle" (click)="resetFiltros()">
+            Limpiar
+          </button>
         </div>
       </div>
-
-      <div class="filters-actions mt-3">
-        <button type="button" class="btn-primary" (click)="page=1; buscar()">
-          <fa-icon [icon]="faSearch" class="mr-2"></fa-icon>
-          Buscar
-        </button>
-        <button type="button" class="btn-subtle" (click)="resetFiltros()">
-          Limpiar
-        </button>
-      </div>
-    </div>
+    </section>
 
     <div class="card">
       @if (error) {

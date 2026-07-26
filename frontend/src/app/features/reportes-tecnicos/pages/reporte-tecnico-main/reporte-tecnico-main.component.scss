@@ -186,6 +186,10 @@
   border-left: 3px solid var(--ital-green-100);
 }
 
+/* La tarjeta de filtros usa el diseño global «Selección de contexto»
+   (styles/filter-context.scss), que trae su propio padding por bloque. */
+:host .filter-card { padding: 0; }
+
 :host .ux-form { padding: 1.25rem; display: flex; flex-direction: column; gap: .9rem; }
 :host .ux-form .grid { display: grid; gap: .9rem; }
 :host .ux-form .grid.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -207,12 +211,8 @@
   cursor: pointer;
 }
 
-/* ── Fase selector ──────────────────────────────────────────────────────────── */
-:host .filter-fase {
-  display: flex; flex-direction: column; gap: .45rem;
-  padding-bottom: .75rem; border-bottom: 1px solid var(--warm-200);
-}
-
+/* ── Fase selector ────────────────────────────────────────────────────────────
+   El contenedor del grupo lo aporta ahora .filter-card .filter-field (global). */
 :host .radio-group--fase { gap: 1rem; align-items: stretch; }
 
 :host .radio-label--fase {
@@ -237,13 +237,6 @@
   display: flex; flex-direction: column; gap: .05rem;
   strong { font-size: var(--fs-sm); color: var(--text); }
   small  { font-size: .72rem; color: var(--warm-500); font-weight: 400; }
-}
-
-/* ── Config row (pasos 5+) ──────────────────────────────────────────────────── */
-:host .filter-config {
-  display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-start;
-  .form-field { min-width: 140px; }
-  .form-field--sublote { min-width: 200px; }
 }
 
 /* ── Chips etapa ────────────────────────────────────────────────────────────── */

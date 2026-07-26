@@ -30,11 +30,14 @@ import { FarmDto, FarmService } from '../../../farm/services/farm.service';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { GestionGranjasRefreshService } from '../../../farm/services/gestion-granjas-refresh.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 type NucleoForm = {
   nucleoId: string | number;
   granjaId: number | null;
   nucleoNombre: string;
+  codigoBodega: string;
+  descripcionBodega: string;
 };
 
 @Component({
@@ -104,6 +107,9 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   // Formulario
   form!: FormGroup;
 
+  /** Flag de la empresa activa: muestra los campos de bodega ERP. Fail-closed. */
+  manejaCodigosErp = false;
+
   // lifecycle
   private readonly destroy$ = new Subject<void>();
 
@@ -114,12 +120,14 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     private readonly cdr: ChangeDetectorRef,
     private readonly toastSvc: ToastService,
     private readonly refreshBus: GestionGranjasRefreshService,
+    private readonly companyConfig: ActiveCompanyConfigService,
   ) {}
 
   // ======== Lifecycle ========
   ngOnInit(): void {
     this.buildForm();
     this.loadNucleos();
+    this.loadCompanyFlags();
 
     // Al crear/editar/eliminar una granja en la tab Granjas, los núcleos disponibles cambian
     // (cascada al eliminar; nuevo destino al crear). Recargar sin recargar la app.
@@ -143,8 +151,21 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     this.form = this.fb.group<NucleoForm>({
       nucleoId: ['', Validators.required],
       granjaId: [null, Validators.required],
-      nucleoNombre: ['', Validators.required]
+      nucleoNombre: ['', Validators.required],
+      // Códigos ERP avícolas (opcionales, solo visibles con el flag de empresa)
+      codigoBodega: ['', Validators.maxLength(20)],
+      descripcionBodega: ['', Validators.maxLength(200)]
     } as any);
+  }
+
+  /** Lee los flags de la empresa activa (fail-closed: si falla, los campos ERP quedan ocultos). */
+  private loadCompanyFlags(): void {
+    this.companyConfig.getFlags()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(flags => {
+        this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
+        this.cdr.markForCheck();
+      });
   }
 
   // ======== UI helpers ========
@@ -252,7 +273,9 @@ export class NucleoListComponent implements OnInit, OnDestroy {
       this.form.reset({
         nucleoId: n.nucleoId,
         granjaId: n.granjaId,
-        nucleoNombre: n.nucleoNombre
+        nucleoNombre: n.nucleoNombre,
+        codigoBodega: n.codigoBodega ?? '',
+        descripcionBodega: n.descripcionBodega ?? ''
       });
       // La granja es parte de la identidad del núcleo: no se cambia por edición (el backend solo
       // renombra; cambiarla aquí daba un 404 silencioso). Para moverlo de granja está "Mover".
@@ -262,7 +285,9 @@ export class NucleoListComponent implements OnInit, OnDestroy {
       this.form.reset({
         nucleoId: newId,
         granjaId: null,
-        nucleoNombre: ''
+        nucleoNombre: '',
+        codigoBodega: '',
+        descripcionBodega: ''
       });
       this.form.get('granjaId')?.enable();
     }
@@ -288,7 +313,14 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     }
 
     // getRawValue incluye la granja aunque esté deshabilitada en edición (la ruta la necesita).
-    const payload = this.form.getRawValue() as NucleoDto;
+    const raw = this.form.getRawValue();
+    // Los códigos ERP viajan siempre desde el form (hidratado con lo que devuelve el backend):
+    // así una edición hecha con el flag apagado NO borra los códigos existentes.
+    const payload = {
+      ...raw,
+      codigoBodega: this.textoOrNull(raw?.codigoBodega),
+      descripcionBodega: this.textoOrNull(raw?.descripcionBodega)
+    } as NucleoDto;
     const req$ = this.editing
       ? this.nucleoSvc.update(payload as UpdateNucleoDto)
       : this.nucleoSvc.create(payload as CreateNucleoDto);
@@ -550,6 +582,12 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   /** Nombre de compañía: del DTO o fallback. */
   getCompanyName(n: NucleoDto): string {
     return (n.companyNombre ?? '').trim() || '–';
+  }
+
+  /** Texto del form → string recortado o null (los campos opcionales no viajan como ''). */
+  private textoOrNull(value: unknown): string | null {
+    const texto = value == null ? '' : String(value).trim();
+    return texto === '' ? null : texto;
   }
 
   private normalize(s: string): string {

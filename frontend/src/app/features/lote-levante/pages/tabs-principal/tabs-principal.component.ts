@@ -8,6 +8,7 @@ import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { LoteRegistroHistoricoUnificadoDto } from '../../../aves-engorde/services/seguimiento-aves-engorde.service';
+import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
 
 /** Totales del historial unificado por una fecha (YYYY-MM-DD), alineados con el backend. */
 interface AggregadoHistoricoDia {
@@ -85,7 +86,7 @@ interface ReporteSemanaFila {
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
-  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent],
+  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent, EdadesLoteComponent],
   templateUrl: './tabs-principal.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
@@ -112,6 +113,13 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    * Despacho H/M/X y consumo bodega en la tabla principal (sin segunda tabla).
    */
   @Input() enriquecerTablaConHistoricoInventario = false;
+  /**
+   * ID del lote BASE (tabla `lotes`) para el bloque "Edades en el lote" (cohortes).
+   * Null (default) ⇒ el bloque no se muestra ni consulta — módulos que no lo pasan quedan intactos.
+   */
+  @Input() loteIdCohortes: number | null = null;
+  /** Incrementar para refrescar las cohortes sin cambiar de lote (p. ej. tras un traslado). */
+  @Input() cohortesRefreshTrigger = 0;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();

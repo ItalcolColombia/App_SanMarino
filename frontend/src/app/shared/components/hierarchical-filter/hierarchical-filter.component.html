@@ -1,13 +1,33 @@
-<div class="hierarchical-filter">
-  <!-- Header del filtro -->
-  @if (filterLabel) {
-    <div class="filter-header">
-      <h3 class="filter-title">{{ filterLabel }}</h3>
-      <button type="button" class="btn btn--ghost btn--sm" (click)="clearFilters()">
-        🗑️ Limpiar
-      </button>
+<!-- ============================================================================
+     Filtro jerárquico compartido — tarjeta «Selección de contexto».
+     Presentación alineada al diseño unificado (src/styles/filter-context.scss,
+     global vía styles.scss). Los bindings, handlers, condiciones y textos de
+     opciones son EXACTAMENTE los de antes: solo cambia el markup/las clases.
+     Nota: los <select> nunca estuvieron deshabilitados (todos ofrecen la opción
+     «Todas las …»), por eso NO se aplica `filter-step--disabled` (esa clase
+     agrega pointer-events:none y rompería el comportamiento actual).
+     ============================================================================ -->
+<section class="hierarchical-filter filter-card" aria-label="Filtros de selección">
+
+  <!-- Header de la tarjeta -->
+  <div class="filter-card__header">
+    <div class="filter-card__header-icon" aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
     </div>
-  }
+    <div>
+      <h3 class="filter-card__title">Selección de contexto</h3>
+      <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+    </div>
+    <!-- Misma condición de siempre: sin `filterLabel` no se muestra ni el rótulo ni «Limpiar». -->
+    @if (filterLabel) {
+      <div class="filter-card__actions">
+        <span class="hf-context-tag">{{ filterLabel }}</span>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="clearFilters()">
+          🗑️ Limpiar
+        </button>
+      </div>
+    }
+  </div>
 
   <!-- Chips de estado (como en seguimiento de lotes) -->
   @if (showChips) {
@@ -70,88 +90,116 @@
     </div>
   }
 
-  <!-- Filtros -->
+  <!-- Filtros en cascada -->
   @if (!loading() && !error()) {
-    <div class="filter-grid">
-      <!-- Compañía -->
-      <div class="form-field">
-        <label class="ux-label">Compañía</label>
-        <select
-          class="ux-select"
-          [ngModel]="filters().companyId"
-          (ngModelChange)="onCompanyChange($event)">
-          <option [ngValue]="null">Todas las compañías</option>
-          @for (company of companies(); track company) {
-            <option [ngValue]="company.id">
-              {{ company.name }}
-            </option>
-          }
-        </select>
-      </div>
-      <!-- Granja -->
-      <div class="form-field">
-        <label class="ux-label">Granja</label>
-        <select
-          class="ux-select"
-          [ngModel]="filters().farmId"
-          (ngModelChange)="onFarmChange($event)">
-          <option [ngValue]="null">Todas las granjas</option>
-          @for (farm of filteredFarms; track farm) {
-            <option [ngValue]="farm.id">
-              {{ farm.name }}
-            </option>
-          }
-        </select>
-      </div>
-      <!-- Núcleo -->
-      <div class="form-field">
-        <label class="ux-label">Núcleo</label>
-        <select
-          class="ux-select"
-          [ngModel]="filters().nucleoId"
-          (ngModelChange)="onNucleoChange($event)">
-          <option [ngValue]="null">Todos los núcleos</option>
-          @for (nucleo of filteredNucleos; track nucleo) {
-            <option [ngValue]="nucleo.nucleoId">
-              {{ nucleo.nucleoNombre }}
-            </option>
-          }
-        </select>
-      </div>
-      <!-- Galpón -->
-      <div class="form-field">
-        <label class="ux-label">Galpón</label>
-        <select
-          class="ux-select"
-          [ngModel]="filters().galponId"
-          (ngModelChange)="onGalponChange($event)">
-          <option [ngValue]="null">Todos los galpones</option>
-          @for (galpon of filteredGalpones; track galpon) {
-            <option [ngValue]="galpon.galponId">
-              {{ galpon.galponNombre }}
-            </option>
-          }
-        </select>
-      </div>
-      <!-- Búsqueda -->
-      <div class="form-field">
-        <label class="ux-label">Buscar</label>
-        <div class="search-input">
-          <input
-            type="text"
-            class="ux-input"
-            [ngModel]="filters().searchTerm || ''"
-            (ngModelChange)="onSearchChange($event)"
-            [placeholder]="placeholder">
-            <span class="search-icon">🔍</span>
-          </div>
+    <div class="filter-steps">
+      <!-- Paso 1: Compañía -->
+      <div class="filter-step"
+        [class.filter-step--active]="!!filters().companyId"
+        [class.filter-step--done]="!!filters().farmId">
+        <div class="filter-step__num">1</div>
+        <div class="filter-step__body">
+          <label [attr.for]="uid + '-company'" class="filter-step__label">Compañía</label>
+          <select
+            [id]="uid + '-company'"
+            class="filter-step__select"
+            [ngModel]="filters().companyId"
+            (ngModelChange)="onCompanyChange($event)">
+            <option [ngValue]="null">Todas las compañías</option>
+            @for (company of companies(); track company) {
+              <option [ngValue]="company.id">
+                {{ company.name }}
+              </option>
+            }
+          </select>
         </div>
-        <!-- Selección de Lote -->
-        @if (showLoteSelection) {
-          <div class="form-field">
-            <label class="ux-label">Lote Específico</label>
+      </div>
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!filters().companyId" aria-hidden="true"></div>
+
+      <!-- Paso 2: Granja -->
+      <div class="filter-step"
+        [class.filter-step--active]="!!filters().farmId"
+        [class.filter-step--done]="!!filters().nucleoId">
+        <div class="filter-step__num">2</div>
+        <div class="filter-step__body">
+          <label [attr.for]="uid + '-farm'" class="filter-step__label">Granja</label>
+          <select
+            [id]="uid + '-farm'"
+            class="filter-step__select"
+            [ngModel]="filters().farmId"
+            (ngModelChange)="onFarmChange($event)">
+            <option [ngValue]="null">Todas las granjas</option>
+            @for (farm of filteredFarms; track farm) {
+              <option [ngValue]="farm.id">
+                {{ farm.name }}
+              </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!filters().farmId" aria-hidden="true"></div>
+
+      <!-- Paso 3: Núcleo -->
+      <div class="filter-step"
+        [class.filter-step--active]="!!filters().nucleoId"
+        [class.filter-step--done]="!!filters().galponId">
+        <div class="filter-step__num">3</div>
+        <div class="filter-step__body">
+          <label [attr.for]="uid + '-nucleo'" class="filter-step__label">Núcleo</label>
+          <select
+            [id]="uid + '-nucleo'"
+            class="filter-step__select"
+            [ngModel]="filters().nucleoId"
+            (ngModelChange)="onNucleoChange($event)">
+            <option [ngValue]="null">Todos los núcleos</option>
+            @for (nucleo of filteredNucleos; track nucleo) {
+              <option [ngValue]="nucleo.nucleoId">
+                {{ nucleo.nucleoNombre }}
+              </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!filters().nucleoId" aria-hidden="true"></div>
+
+      <!-- Paso 4: Galpón (último paso cuando el lote no se selecciona aquí) -->
+      <div class="filter-step"
+        [class.filter-step--last]="!showLoteSelection"
+        [class.filter-step--active]="!!filters().galponId"
+        [class.filter-step--done]="!!filters().selectedLoteId">
+        <div class="filter-step__num" [class.filter-step__num--accent]="!showLoteSelection">4</div>
+        <div class="filter-step__body">
+          <label [attr.for]="uid + '-galpon'" class="filter-step__label">Galpón</label>
+          <select
+            [id]="uid + '-galpon'"
+            class="filter-step__select"
+            [ngModel]="filters().galponId"
+            (ngModelChange)="onGalponChange($event)">
+            <option [ngValue]="null">Todos los galpones</option>
+            @for (galpon of filteredGalpones; track galpon) {
+              <option [ngValue]="galpon.galponId">
+                {{ galpon.galponNombre }}
+              </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <!-- Paso 5: Lote (opcional) -->
+      @if (showLoteSelection) {
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!filters().galponId" aria-hidden="true"></div>
+
+        <div class="filter-step filter-step--last"
+          [class.filter-step--active]="!!filters().selectedLoteId">
+          <div class="filter-step__num filter-step__num--accent">5</div>
+          <div class="filter-step__body">
+            <label [attr.for]="uid + '-lote'" class="filter-step__label">Lote Específico</label>
             <select
-              class="ux-select"
+              [id]="uid + '-lote'"
+              class="filter-step__select"
               [ngModel]="filters().selectedLoteId"
               (ngModelChange)="onLoteSelect($event)">
               <option [ngValue]="null">Seleccionar lote...</option>
@@ -163,89 +211,97 @@
               }
             </select>
           </div>
-        }
-      </div>
-    }
+        </div>
+      }
+    </div>
 
-    <!-- Lote seleccionado info -->
-    @if (selectedLote()) {
-      <div class="selected-lote-info">
-        <div class="lote-card">
-          <div class="lote-header">
-            <h4>📋 Lote Seleccionado</h4>
-            <button type="button" class="btn btn--ghost btn--sm" (click)="onLoteSelect(null)">
-              ✕
-            </button>
+    <!-- Búsqueda (campo sin cascada, dentro de la misma tarjeta) -->
+    <div class="filter-fields">
+      <div class="filter-field">
+        <label [attr.for]="uid + '-search'" class="filter-step__label">Buscar</label>
+        <input
+          type="text"
+          [id]="uid + '-search'"
+          class="filter-step__input"
+          [ngModel]="filters().searchTerm || ''"
+          (ngModelChange)="onSearchChange($event)"
+          [placeholder]="placeholder">
+      </div>
+    </div>
+  }
+
+  <!-- Lote seleccionado info -->
+  @if (selectedLote()) {
+    <div class="selected-lote-info">
+      <div class="lote-card">
+        <div class="lote-header">
+          <h4>📋 Lote Seleccionado</h4>
+          <button type="button" class="btn btn--ghost btn--sm" (click)="onLoteSelect(null)">
+            ✕
+          </button>
+        </div>
+        <div class="lote-details">
+          <div class="detail-item">
+            <span class="detail-label">ID:</span>
+            <span class="detail-value">{{ selectedLote()?.loteId }}</span>
           </div>
-          <div class="lote-details">
-            <div class="detail-item">
-              <span class="detail-label">ID:</span>
-              <span class="detail-value">{{ selectedLote()?.loteId }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Nombre:</span>
-              <span class="detail-value">{{ selectedLote()?.loteNombre }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Granja:</span>
-              <span class="detail-value">{{ getFarmName($safeNavigationMigration(selectedLote()?.granjaId)!) }}</span>
-            </div>
-            @if (selectedLote()?.granjaId) {
-              <div class="detail-item">
-                <span class="detail-label">Compañía:</span>
-                <span class="detail-value">{{ getCompanyName(farmById()[selectedLote()!.granjaId].companyId) }}</span>
-              </div>
-            }
-            @if (selectedLote()?.nucleoId) {
-              <div class="detail-item">
-                <span class="detail-label">Núcleo:</span>
-                <span class="detail-value">{{ getNucleoName($safeNavigationMigration(selectedLote()?.nucleoId)!) }}</span>
-              </div>
-            }
-            @if (selectedLote()?.galponId) {
-              <div class="detail-item">
-                <span class="detail-label">Galpón:</span>
-                <span class="detail-value">{{ getGalponName($safeNavigationMigration(selectedLote()?.galponId)!) }}</span>
-              </div>
-            }
-            @if (selectedLote()?.fechaEncaset) {
-              <div class="detail-item">
-                <span class="detail-label">Edad:</span>
-                <span class="detail-value">{{ calcularEdadDias($safeNavigationMigration(selectedLote()?.fechaEncaset)) }} días</span>
-              </div>
-            }
-            @if (selectedLote()?.hembrasL || selectedLote()?.machosL) {
-              <div class="detail-item">
-                <span class="detail-label">Aves:</span>
-                <span class="detail-value">
-                  {{ (selectedLote()?.hembrasL || 0) + (selectedLote()?.machosL || 0) }}
-                  (♀{{ selectedLote()?.hembrasL || 0 }} / ♂{{ selectedLote()?.machosL || 0 }})
-                </span>
-              </div>
-            }
+          <div class="detail-item">
+            <span class="detail-label">Nombre:</span>
+            <span class="detail-value">{{ selectedLote()?.loteNombre }}</span>
           </div>
+          <div class="detail-item">
+            <span class="detail-label">Granja:</span>
+            <span class="detail-value">{{ getFarmName($safeNavigationMigration(selectedLote()?.granjaId)!) }}</span>
+          </div>
+          @if (selectedLote()?.granjaId) {
+            <div class="detail-item">
+              <span class="detail-label">Compañía:</span>
+              <span class="detail-value">{{ getCompanyName(farmById()[selectedLote()!.granjaId].companyId) }}</span>
+            </div>
+          }
+          @if (selectedLote()?.nucleoId) {
+            <div class="detail-item">
+              <span class="detail-label">Núcleo:</span>
+              <span class="detail-value">{{ getNucleoName($safeNavigationMigration(selectedLote()?.nucleoId)!) }}</span>
+            </div>
+          }
+          @if (selectedLote()?.galponId) {
+            <div class="detail-item">
+              <span class="detail-label">Galpón:</span>
+              <span class="detail-value">{{ getGalponName($safeNavigationMigration(selectedLote()?.galponId)!) }}</span>
+            </div>
+          }
+          @if (selectedLote()?.fechaEncaset) {
+            <div class="detail-item">
+              <span class="detail-label">Edad:</span>
+              <span class="detail-value">{{ calcularEdadDias($safeNavigationMigration(selectedLote()?.fechaEncaset)) }} días</span>
+            </div>
+          }
+          @if (selectedLote()?.hembrasL || selectedLote()?.machosL) {
+            <div class="detail-item">
+              <span class="detail-label">Aves:</span>
+              <span class="detail-value">
+                {{ (selectedLote()?.hembrasL || 0) + (selectedLote()?.machosL || 0) }}
+                (♀{{ selectedLote()?.hembrasL || 0 }} / ♂{{ selectedLote()?.machosL || 0 }})
+              </span>
+            </div>
+          }
         </div>
       </div>
-    }
+    </div>
+  }
 
-    <!-- Resumen de filtros aplicados -->
-    @if (!loading() && !error()) {
-      <div class="filter-summary">
-        <p class="summary-text">
-          <strong>{{ filteredLotes().length }}</strong> lote(s) encontrado(s)
-          @if (filters().companyId || filters().farmId || filters().nucleoId || filters().galponId || filters().searchTerm) {
-            <span>
-              con los filtros aplicados
-            </span>
-          }
-        </p>
-      </div>
-    }
-  </div>
-
-
-
-
-
-
-
+  <!-- Resumen de filtros aplicados -->
+  @if (!loading() && !error()) {
+    <div class="filter-summary">
+      <p class="summary-text">
+        <strong>{{ filteredLotes().length }}</strong> lote(s) encontrado(s)
+        @if (filters().companyId || filters().farmId || filters().nucleoId || filters().galponId || filters().searchTerm) {
+          <span>
+            con los filtros aplicados
+          </span>
+        }
+      </p>
+    </div>
+  }
+</section>

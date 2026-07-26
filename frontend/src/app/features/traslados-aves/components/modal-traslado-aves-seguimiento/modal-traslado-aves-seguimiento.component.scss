@@ -228,6 +228,21 @@
   }
 }
 
+/* ─── Aviso de traslado entre etapas (cohortes · Fase 3) ─── */
+.cross-etapa-aviso {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ital-orange-100);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  font-size: 0.75rem;
+  line-height: 1.45;
+
+  strong { display: block; margin-bottom: 2px; }
+  b { font-weight: 700; }
+}
+
 /* ─── Cascade grid ───────────────────────────────────────── */
 .cascade-grid {
   display: grid;

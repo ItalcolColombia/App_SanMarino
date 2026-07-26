@@ -126,6 +126,18 @@ public partial class MovimientoAvesService
                 }
             }
 
+            // Cohortes de aves creadas por este movimiento (traslados desde seguimiento diario):
+            // se dan de baja lógica junto con él para que las edades del lote receptor no queden
+            // contando aves que ya se revirtieron.
+            var cohortes = await _context.LoteAvesCohortes
+                .Where(c => c.MovimientoAvesId == movimiento.Id && c.DeletedAt == null)
+                .ToListAsync();
+            foreach (var cohorte in cohortes)
+            {
+                cohorte.DeletedAt = DateTime.UtcNow;
+                cohorte.UpdatedByUserId = _currentUser.UserId;
+            }
+
             // Eliminación lógica
             movimiento.DeletedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();

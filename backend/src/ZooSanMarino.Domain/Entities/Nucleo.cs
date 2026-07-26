@@ -8,6 +8,14 @@ public class Nucleo : AuditableEntity
     public int    GranjaId     { get; set; }
     public string NucleoNombre { get; set; } = null!;
 
+    /// <summary>
+    /// Código de bodega ERP del núcleo (ej. "B3001"); solo se captura en empresas con
+    /// <see cref="Company.ManejaCodigosErpAvicola"/> = true. Pass-through, sin lógica.
+    /// </summary>
+    public string? CodigoBodega { get; set; }
+    /// <summary>Descripción de la bodega ERP del núcleo.</summary>
+    public string? DescripcionBodega { get; set; }
+
     // Navegación
     public Farm Farm { get; set; } = null!;
 

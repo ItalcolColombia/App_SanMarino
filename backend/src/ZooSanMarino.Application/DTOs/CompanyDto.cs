@@ -18,5 +18,15 @@ public record CompanyDto(
     string? LogoDataUrl,
     bool MobileAccess,
     string[] VisualPermissions,
-    bool ManejaAlimentoPorGalpon = false
+    bool ManejaAlimentoPorGalpon = false,
+    // ¿La empresa maneja códigos ERP avícolas (bodega/C.O./instalación/ubicación/centro de costo)?
+    // El front lo usa para mostrar u ocultar esos campos en granja, núcleo, galpón y lote.
+    bool ManejaCodigosErpAvicola = false,
+    // ¿La empresa clasifica los huevos por ÍTEMS del catálogo (Primera/Pnc) en vez de las 11
+    // columnas fijas? El front lo usa para pintar filas dinámicas de ítem+cantidad en el
+    // seguimiento diario de producción.
+    bool ClasificacionHuevoPorItems = false,
+    // ¿La empresa puede trasladar aves entre etapas (Levante → Producción) desde el seguimiento
+    // diario? El front lo usa para habilitar el selector de etapa destino en el modal de traslado.
+    bool PermiteTrasladoAvesCrossEtapa = false
 );

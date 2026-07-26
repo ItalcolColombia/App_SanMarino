@@ -15,39 +15,62 @@
       </header>
 
       <!-- ── Filtros ─────────────────────────────────────────────── -->
-      <div class="gg-filters">
-        <div class="grid-3">
-          <div class="field">
-            <label for="raza">Raza</label>
-            <select
-              id="raza"
-              class="input"
-              [(ngModel)]="razaSel"
-              (ngModelChange)="onRazaChange($event)"
-              >
-              <option value="">— Seleccione raza —</option>
-              @for (r of razas; track r) {
-                <option [value]="r">{{ r }}</option>
-              }
-            </select>
+      <section class="ux-card filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
           </div>
-          <div class="field">
-            <label for="anio">Año guía</label>
-            <select id="anio" class="input" [(ngModel)]="anioSel" (ngModelChange)="onAnioChange($event)">
-              <option [ngValue]="null">— Seleccione año —</option>
-              @for (a of anos; track a) {
-                <option [ngValue]="a">{{ a }}</option>
-              }
-            </select>
+          <div>
+            <h3 class="filter-card__title">Selección de contexto</h3>
+            <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
           </div>
-          <div class="field filters-actions">
-            <label class="invisible">Acciones</label>
+        </div>
+        <div class="filter-steps">
+          <!-- Paso 1: Raza -->
+          <div class="filter-step"
+            [class.filter-step--active]="!!razaSel"
+            [class.filter-step--done]="!!anioSel">
+            <div class="filter-step__num">1</div>
+            <div class="filter-step__body">
+              <label for="raza" class="filter-step__label">Raza</label>
+              <select
+                id="raza"
+                class="filter-step__select"
+                [(ngModel)]="razaSel"
+                (ngModelChange)="onRazaChange($event)"
+                >
+                <option value="">— Seleccione raza —</option>
+                @for (r of razas; track r) {
+                  <option [value]="r">{{ r }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!razaSel" aria-hidden="true"></div>
+
+          <!-- Paso 2: Año guía -->
+          <div class="filter-step filter-step--last"
+            [class.filter-step--active]="!!anioSel">
+            <div class="filter-step__num filter-step__num--accent">2</div>
+            <div class="filter-step__body">
+              <label for="anio" class="filter-step__label">Año guía</label>
+              <select id="anio" class="filter-step__select" [(ngModel)]="anioSel" (ngModelChange)="onAnioChange($event)">
+                <option [ngValue]="null">— Seleccione año —</option>
+                @for (a of anos; track a) {
+                  <option [ngValue]="a">{{ a }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-card__actions">
             <button type="button" class="btn-primary" (click)="aplicarFiltro()" [disabled]="!puedeConsultar || loading">
               Ver datos
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
       <div class="section-divider"></div>
 

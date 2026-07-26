@@ -77,6 +77,7 @@
 
     <!-- Filtros de selección (filter-data: Granja → Núcleo → Galpón → Lote LPP desde lote_postura_produccion) -->
     <app-filtro-select
+      [variant]="'steps'"
       [filterDataUrl]="filterDataUrl"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
@@ -91,69 +92,75 @@
 
     <!-- Filtros de Reporte -->
     @if (selectedLoteId) {
-      <section class="ux-card">
-        <h3 class="sr-only">Configuración del Reporte</h3>
-        <div class="ux-form">
-          <div class="grid grid-3">
-            <!-- Tipo de Consolidación -->
-            <div class="form-field">
-              <label class="ux-label">Tipo de Consolidación</label>
-              <div class="radio-group">
-                <label class="radio-label">
-                  <input
-                    type="radio"
-                    name="tipoConsolidacion"
-                    value="sublote"
-                    [(ngModel)]="tipoConsolidacion"
-                    (change)="limpiarReporte()">
-                    Sublote
-                  </label>
-                  <label class="radio-label">
-                    <input
-                      type="radio"
-                      name="tipoConsolidacion"
-                      value="consolidado"
-                      [(ngModel)]="tipoConsolidacion"
-                      (change)="limpiarReporte()">
-                      Consolidado
-                    </label>
-                  </div>
-                </div>
-                <!-- Fecha Inicio -->
-                <div class="form-field">
-                  <label class="ux-label">Fecha Inicio (Opcional)</label>
-                  <input
-                    type="date"
-                    class="ux-input"
-                    [(ngModel)]="fechaInicio"
-                    (change)="limpiarReporte()">
-                  </div>
-                  <!-- Fecha Fin -->
-                  <div class="form-field">
-                    <label class="ux-label">Fecha Fin (Opcional)</label>
-                    <input
-                      type="date"
-                      class="ux-input"
-                      [(ngModel)]="fechaFin"
-                      (change)="limpiarReporte()">
-                    </div>
-                  </div>
-                  <!-- Nombre Base del Lote (Consolidado) -->
-                  @if (tipoConsolidacion === 'consolidado') {
-                    <div class="form-field">
-                      <label class="ux-label">Nombre del Lote Base</label>
-                      <input
-                        type="text"
-                        class="ux-input"
-                        [(ngModel)]="loteNombreBase"
-                        placeholder="Ej: K326"
-                        (blur)="cargarSublotes(loteNombreBase)">
-                        <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
-                      </div>
-                    }
-                  </div>
-                </section>
-              }
+      <section class="ux-card filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h3 class="filter-card__title">Filtros</h3>
+            <p class="filter-card__subtitle">Acota la información mostrada</p>
+          </div>
+        </div>
+        <div class="filter-fields">
+          <!-- Tipo de Consolidación -->
+          <div class="filter-field">
+            <label class="filter-step__label">Tipo de Consolidación</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input
+                  type="radio"
+                  name="tipoConsolidacion"
+                  value="sublote"
+                  [(ngModel)]="tipoConsolidacion"
+                  (change)="limpiarReporte()">
+                Sublote
+              </label>
+              <label class="radio-label">
+                <input
+                  type="radio"
+                  name="tipoConsolidacion"
+                  value="consolidado"
+                  [(ngModel)]="tipoConsolidacion"
+                  (change)="limpiarReporte()">
+                Consolidado
+              </label>
+            </div>
+          </div>
+          <!-- Fecha Inicio -->
+          <div class="filter-field">
+            <label class="filter-step__label">Fecha Inicio (Opcional)</label>
+            <input
+              type="date"
+              class="filter-step__input"
+              [(ngModel)]="fechaInicio"
+              (change)="limpiarReporte()">
+          </div>
+          <!-- Fecha Fin -->
+          <div class="filter-field">
+            <label class="filter-step__label">Fecha Fin (Opcional)</label>
+            <input
+              type="date"
+              class="filter-step__input"
+              [(ngModel)]="fechaFin"
+              (change)="limpiarReporte()">
+          </div>
+          <!-- Nombre Base del Lote (Consolidado) -->
+          @if (tipoConsolidacion === 'consolidado') {
+            <div class="filter-field">
+              <label class="filter-step__label">Nombre del Lote Base</label>
+              <input
+                type="text"
+                class="filter-step__input"
+                [(ngModel)]="loteNombreBase"
+                placeholder="Ej: K326"
+                (blur)="cargarSublotes(loteNombreBase)">
+              <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
+            </div>
+          }
+        </div>
+      </section>
+    }
 
               <!-- Mensaje de Error -->
               @if (error) {
@@ -182,13 +189,17 @@
                         [checked]="tabActivo === 'cuadro'"
                         (change)="tabActivo = 'cuadro'">
                         <label for="tab-cuadro" class="ux-tab">📊 Cuadro</label>
-                        <input
-                          type="radio"
-                          id="tab-clasificacion"
-                          name="tab-produccion"
-                          [checked]="tabActivo === 'clasificacion'"
-                          (change)="tabActivo = 'clasificacion'">
-                          <label for="tab-clasificacion" class="ux-tab">🥚 % Clasif. Huevo Comercio</label>
+                        <!-- Empresas que clasifican por ÍTEM del catálogo (flag clasificacion_huevo_por_items):
+                             las 11 columnas fijas están siempre en 0 → la pestaña no aplica. -->
+                        @if (!clasificacionHuevoPorItems) {
+                          <input
+                            type="radio"
+                            id="tab-clasificacion"
+                            name="tab-produccion"
+                            [checked]="tabActivo === 'clasificacion'"
+                            (change)="tabActivo = 'clasificacion'">
+                            <label for="tab-clasificacion" class="ux-tab">🥚 % Clasif. Huevo Comercio</label>
+                        }
                         </div>
                         <!-- Tab 1: Reporte Diario -->
                         @if (tabActivo === 'diario' && reporte()) {
@@ -228,8 +239,8 @@
                             }
                           </div>
                         }
-                        <!-- Tab 3: Clasificación Huevo Comercio -->
-                        @if (tabActivo === 'clasificacion' && reporteClasificacion()) {
+                        <!-- Tab 3: Clasificación Huevo Comercio (no aplica si la empresa clasifica por ítem) -->
+                        @if (!clasificacionHuevoPorItems && tabActivo === 'clasificacion' && reporteClasificacion()) {
                           <div class="tab-content">
                             @if (reporteClasificacion()?.datosClasificacion && reporteClasificacion()!.datosClasificacion.length > 0) {
                               <div class="datos-section">

@@ -44,6 +44,14 @@ public class Lote : AuditableEntity
     /// </summary>
     public int? LotePosturaBaseId { get; set; }
 
+    /// <summary>
+    /// Centro de costo ERP del lote (ej. "G3002216"); solo se captura en empresas con
+    /// <see cref="Company.ManejaCodigosErpAvicola"/> = true. Pass-through, sin lógica.
+    /// </summary>
+    public string? CodigoCentroCosto { get; set; }
+    /// <summary>Descripción del centro de costo ERP del lote.</summary>
+    public string? DescripcionCentroCosto { get; set; }
+
     /// <summary>Fase del lote: Levante (inicial) o Produccion (lote hijo al pasar a producción).</summary>
     public string Fase { get; set; } = "Levante";
 

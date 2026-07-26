@@ -354,6 +354,63 @@ public class ProduccionController : ControllerBase
     }
 
     /// <summary>
+    /// Desglose de la clasificación de huevos POR ÍTEM del catálogo (categorías Primera/Pnc),
+    /// agrupado por semana de vida — empresas con <c>companies.clasificacion_huevo_por_items</c>
+    /// (el desglose vive en <c>seguimiento_diario_produccion.metadata → huevoItems</c> y las 11
+    /// columnas fijas quedan en 0).
+    /// <para>Endpoint HERMANO de <c>indicadores-semanales</c>: MISMO request y misma resolución de
+    /// lote (LPP prioritario / legacy por loteId), con la misma fórmula de semana → el desglose casa
+    /// 1:1 con la grilla de indicadores. Devuelve lista vacía si el lote no tiene desglose.</para>
+    /// </summary>
+    /// <param name="request">Mismo request de indicadores semanales (lote + filtros opcionales)</param>
+    /// <returns>Una fila por semana × ítem: <c>{ semana, tipoHuevo, codigo, nombre, cantidad }</c></returns>
+    [HttpPost("clasificacion-huevo-items")]
+    public async Task<ActionResult<List<ClasificacionHuevoItemSemanaDto>>> ObtenerClasificacionHuevoItems(
+        [FromBody] IndicadoresProduccionRequest request)
+    {
+        try
+        {
+            var filas = await _indicadoresProduccionService.ObtenerClasificacionHuevoItemsAsync(request);
+            return Ok(filas);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message, code = "VALIDATION" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Clasificación huevo por ítems: operación no válida. LoteId: {LoteId}", request?.LoteId);
+            return BadRequest(new { message = ex.Message, code = "INVALID_OPERATION" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener la clasificación de huevos por ítems. LoteId: {LoteId}", request?.LoteId);
+            var detail = new
+            {
+                message = "Error interno del servidor al obtener la clasificación de huevos por ítems.",
+                detail = ex.Message,
+                exceptionType = ex.GetType().FullName,
+                step = "ObtenerClasificacionHuevoItemsAsync",
+                loteId = request?.LoteId
+            };
+            if (_env.IsDevelopment())
+            {
+                return StatusCode(500, new
+                {
+                    detail.message,
+                    detail.detail,
+                    detail.exceptionType,
+                    detail.step,
+                    detail.loteId,
+                    stackTrace = ex.StackTrace,
+                    innerMessage = ex.InnerException?.Message
+                });
+            }
+            return StatusCode(500, detail);
+        }
+    }
+
+    /// <summary>
     /// Obtiene indicadores para una semana específica
     /// </summary>
     /// <param name="loteId">ID del lote</param>

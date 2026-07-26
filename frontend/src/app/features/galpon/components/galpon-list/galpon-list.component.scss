@@ -206,44 +206,6 @@
 .ux-input--readonly { background: var(--warm-100); color: var(--warm-600); cursor: default; }
 .is-invalid { border-color: #dc2626 !important; box-shadow: 0 0 0 3px rgba(220,38,38,.15) !important; }
 
-.ux-search { position: relative; }
-.ux-search__icon { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: var(--warm-400); pointer-events: none; }
-.ux-search .ux-input { padding-left: 2.25rem; }
-
-/* ================================
-   FILTROS
-================================== */
-.filters-card {
-  background: #fff;
-  border: 1px solid var(--warm-200);
-  border-radius: var(--radius);
-  padding: 1rem;
-  margin-bottom: 1rem;
-  box-shadow: 0 1px 2px rgba(0,0,0,.04);
-}
-
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
-  gap: 0.75rem;
-  align-items: end;
-}
-
-.filter-field { display: flex; flex-direction: column; }
-.filter-field--search { grid-column: span 2; }
-.filter-field--action { justify-content: flex-end; }
-
-@media (max-width: 640px) {
-  .filters-grid { grid-template-columns: 1fr 1fr; }
-  .filter-field--search,
-  .filter-field--action { grid-column: span 2; }
-}
-@media (max-width: 479px) {
-  .filters-grid { grid-template-columns: 1fr; }
-  .filter-field--search,
-  .filter-field--action { grid-column: span 1; }
-}
-
 /* ================================
    CARD & SCROLL
 ================================== */

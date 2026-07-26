@@ -1,0 +1,137 @@
+/* ============================================================
+   Bloque "Edades en el lote" (cohortes)
+   Tabla compacta. Colores desde los tokens centrales del tema
+   (theme-italfoods.scss) — nada hardcodeado de marca acá.
+   ============================================================ */
+:host {
+  display: block;
+}
+
+.edades-lote {
+  border: 1px solid var(--ital-green-100);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.75rem 0.9rem;
+  margin: 0.75rem 0;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--ital-orange-dark);
+  }
+
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ital-muted);
+    background: var(--ital-green-50);
+
+    &--acento {
+      color: var(--ital-orange-dark);
+      background: var(--ital-orange-100);
+    }
+  }
+
+  &__scroll {
+    overflow-x: auto;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+
+    thead th {
+      text-align: left;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ital-muted);
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--ital-green-100);
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 7px 8px;
+      color: var(--ital-text);
+      border-bottom: 1px solid var(--ital-green-50);
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .is-num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .is-strong {
+      font-weight: 700;
+      color: var(--ital-orange-dark);
+    }
+  }
+
+  &__row--propia td {
+    background: var(--ital-cream);
+  }
+
+  &__tag {
+    display: inline-block;
+    padding: 1px 7px;
+    margin-right: 6px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ital-orange-dark);
+    background: var(--ital-orange-100);
+
+    &--propia {
+      color: var(--ital-muted);
+      background: var(--ital-green-100);
+    }
+  }
+
+  &__origen {
+    font-weight: 600;
+  }
+
+  &__obs {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.7rem;
+    color: var(--ital-muted);
+    white-space: normal;
+  }
+
+  &__hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    color: var(--ital-muted);
+
+    &--error {
+      color: var(--danger);
+    }
+  }
+}

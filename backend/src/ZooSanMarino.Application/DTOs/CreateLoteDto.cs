@@ -33,4 +33,8 @@ public class CreateLoteDto
     public string? LineaGenetica { get; set; }
     public int?    EdadInicial { get; set; }
     public int?    LotePadreId { get; set; } // ← NUEVO: ID del lote padre
+
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    public string? CodigoCentroCosto { get; set; }
+    public string? DescripcionCentroCosto { get; set; }
 }

@@ -29,6 +29,7 @@ import { UserService, UserDto, User } from '../../../../core/services/user/user.
 import { Company, CompanyService } from '../../../../core/services/company/company.service';
 import { GuiaGeneticaService } from '../../services/guia-genetica.service';
 import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto, UpdateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 /* ============================================================
    Directiva standalone: separador de miles (es-CO) y enteros
@@ -215,6 +216,16 @@ export class LoteListComponent implements OnInit {
   razaValida: boolean = true;
   companies: Company[]  = [];
 
+  /**
+   * La empresa NO tiene guía genética cargada (0 razas en el catálogo del form-data).
+   * En ese caso raza/año dejan de ser obligatorios y se capturan como texto libre.
+   * Arranca en `false` = comportamiento actual (selects) hasta que se confirme.
+   */
+  sinGuiaGenetica: boolean = false;
+
+  /** Flag de la empresa activa: muestra el bloque de centro de costo ERP. Fail-closed. */
+  manejaCodigosErp = false;
+
   // Opciones de letra A-F cuando hay lote base seleccionado
   letrasOptions: { nombre: string; ocupada: boolean }[] = [];
 
@@ -303,7 +314,8 @@ export class LoteListComponent implements OnInit {
     private userSvc:   UserService,
     private companySvc: CompanyService,
     private guiaGeneticaSvc: GuiaGeneticaService,
-    private toastService: ToastService
+    private toastService: ToastService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   // Método de prueba para diagnosticar problemas
@@ -324,6 +336,7 @@ export class LoteListComponent implements OnInit {
     this.initForm();
     this.initBaseForm();
     this.loadData();
+    this.loadCompanyFlags();
 
     // Lote base -> autogenerar nombre
     this.form.get('lotePosturaBaseId')!.valueChanges.subscribe((val) => {
@@ -403,18 +416,17 @@ export class LoteListComponent implements OnInit {
 
     // Chain: Raza -> Año Tabla Genética
     this.form.get('raza')!.valueChanges.subscribe(raza => {
-      
-      
-      
       this.selectedRaza = raza;
+
+      // Sin guía genética la raza es texto libre y el año se escribe a mano:
+      // no hay cascada de años ni consulta al catálogo (borraría lo tecleado).
+      if (this.sinGuiaGenetica) return;
+
       this.anosDisponibles = [];
       this.form.patchValue({ anoTablaGenetica: null });
-      
+
       if (raza) {
-        
         this.loadAnosDisponibles(raza);
-      } else {
-        
       }
     });
 
@@ -468,8 +480,43 @@ export class LoteListComponent implements OnInit {
       loteErp:            [''],
       lineaGenetica:      [''],
       esLotePadre:        [false],
-      lotePadreId:        [null]
+      lotePadreId:        [null],
+      // ── Centro de costo ERP (opcionales, solo visibles con el flag de empresa) ──
+      codigoCentroCosto:      ['', Validators.maxLength(20)],
+      descripcionCentroCosto: ['', Validators.maxLength(200)]
     });
+  }
+
+  /** Lee los flags de la empresa activa (fail-closed: si falla, los campos ERP quedan ocultos). */
+  private loadCompanyFlags(): void {
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
+    });
+  }
+
+  /**
+   * Requisito de guía genética según el catálogo de la empresa:
+   * - HAY razas → `raza` requerida y elegida del select (comportamiento actual).
+   * - NO hay razas (empresa sin guía cargada) → raza/año opcionales y de captura libre.
+   * Se re-evalúa cada vez que llegan las razas, de modo que al cargar la guía vuelve a exigirse.
+   */
+  private aplicarRequisitoGuiaGenetica(): void {
+    this.sinGuiaGenetica = (this.razasDisponibles?.length ?? 0) === 0;
+
+    const raza = this.form.get('raza');
+    if (this.sinGuiaGenetica) {
+      raza?.clearValidators();
+    } else {
+      raza?.setValidators([Validators.required]);
+    }
+    // emitEvent:false → no dispara la cascada raza→año (evita limpiar lo ya escrito).
+    raza?.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /** Texto del form → string recortado o null (los campos opcionales no viajan como ''). */
+  private textoOrNull(value: unknown): string | null {
+    const texto = value == null ? '' : String(value).trim();
+    return texto === '' ? null : texto;
   }
 
   private initBaseForm(): void {
@@ -860,6 +907,8 @@ export class LoteListComponent implements OnInit {
 
     this.companies = companies;
     this.razasDisponibles = Array.isArray(razas) ? [...razas] : [];
+    // Con razas → guía obligatoria (comportamiento actual). Sin razas → raza/año libres.
+    this.aplicarRequisitoGuiaGenetica();
 
     const granjaId = this.editing?.granjaId ?? this.form.get('granjaId')?.value;
     const nucleoId = this.editing?.nucleoId ?? this.form.get('nucleoId')?.value;
@@ -931,7 +980,9 @@ export class LoteListComponent implements OnInit {
         tecnico: '',
         avesEncasetadas: null,
         loteErp: '',
-        lineaGenetica: ''
+        lineaGenetica: '',
+        codigoCentroCosto: '',
+        descripcionCentroCosto: ''
       });
       this.nucleosFiltrados = this.filteredNucleos = [];
       this.galponesFiltrados = this.filteredGalpones = [];
@@ -988,7 +1039,11 @@ export class LoteListComponent implements OnInit {
     if (!id) {
       this.selectedBaseLote = null;
       this.letrasOptions = [];
-      this.form.patchValue({ lotePosturaBaseId: null, loteNombre: '' }, { emitEvent: false });
+      // En edición el nombre es propio del lote (no generado desde un base): conservarlo.
+      // (loadModalData patchea {...l} con eventos y este handler corría después borrándolo.)
+      this.form.patchValue(
+        this.editing ? { lotePosturaBaseId: null } : { lotePosturaBaseId: null, loteNombre: '' },
+        { emitEvent: false });
       return;
     }
 
@@ -1023,9 +1078,13 @@ export class LoteListComponent implements OnInit {
     this.sinLoteBaseEnGranja = this.filteredBaseLotesOptions.length === 0;
 
     if (this.sinLoteBaseEnGranja) {
-      // Deshabilitar + limpiar selección y nombre generado
+      // Deshabilitar + limpiar selección y nombre generado.
+      // En edición el nombre es propio del lote (no generado desde un base) → conservarlo,
+      // si no, editar un lote en una granja sin lotes base dejaba el form inválido.
       ctrl?.disable({ emitEvent: false });
-      this.form.patchValue({ lotePosturaBaseId: null, loteNombre: '' }, { emitEvent: false });
+      this.form.patchValue(
+        this.editing ? { lotePosturaBaseId: null } : { lotePosturaBaseId: null, loteNombre: '' },
+        { emitEvent: false });
       this.selectedBaseLote = null;
       this.letrasOptions = [];
     } else {
@@ -1034,7 +1093,9 @@ export class LoteListComponent implements OnInit {
       if (this.selectedBaseLote &&
           !this.filteredBaseLotesOptions.find(
             b => b.lotePosturaBaseId === this.selectedBaseLote!.lotePosturaBaseId)) {
-        this.form.patchValue({ lotePosturaBaseId: null, loteNombre: '' }, { emitEvent: false });
+        this.form.patchValue(
+          this.editing ? { lotePosturaBaseId: null } : { lotePosturaBaseId: null, loteNombre: '' },
+          { emitEvent: false });
         this.selectedBaseLote = null;
         this.letrasOptions = [];
       }
@@ -1302,8 +1363,17 @@ export class LoteListComponent implements OnInit {
 
     const raw = this.form.value;
     const formValue = this.form.value;
+    // Raza: texto recortado; vacío → se omite del payload (el backend la recibe null).
+    // Sin guía genética puede ir vacía; con guía el validator ya la exigió.
+    const razaNormalizada = String(raw.raza ?? '').trim();
     const dto: CreateLoteDto | UpdateLoteDto = {
       ...raw,
+      raza: razaNormalizada || undefined,
+      anoTablaGenetica: raw.anoTablaGenetica != null && raw.anoTablaGenetica !== ''
+        ? Number(raw.anoTablaGenetica)
+        : null,
+      codigoCentroCosto: this.textoOrNull(raw.codigoCentroCosto),
+      descripcionCentroCosto: this.textoOrNull(raw.descripcionCentroCosto),
       // Para creación: no enviar loteId (la base de datos lo generará automáticamente)
       // Para edición: enviar el loteId existente
       loteId: this.editing ? raw.loteId : undefined,

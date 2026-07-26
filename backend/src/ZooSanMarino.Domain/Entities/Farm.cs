@@ -33,6 +33,24 @@ public class Farm : AuditableEntity
     /// </summary>
     public string? CodigoErpEngorde { get; set; }
 
+    // ────────────────────────────────────────────────────────────────────────────
+    // Códigos ERP avícolas de la granja (visibles solo si la empresa tiene
+    // Company.ManejaCodigosErpAvicola = true). Pass-through: sin lógica asociada.
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Código de bodega ERP de la granja (ej. "B0601").</summary>
+    public string? CodigoBodega { get; set; }
+    /// <summary>Descripción de la bodega ERP de la granja.</summary>
+    public string? DescripcionBodega { get; set; }
+    /// <summary>Centro de operación ERP de la granja (ej. "830").</summary>
+    public string? CentroOperacion { get; set; }
+    /// <summary>Descripción del centro de operación ERP.</summary>
+    public string? DescripcionCentroOperacion { get; set; }
+    /// <summary>Código de instalación ERP de la granja (ej. "B06").</summary>
+    public string? CodigoInstalacion { get; set; }
+    /// <summary>Descripción de la instalación ERP.</summary>
+    public string? DescripcionInstalacion { get; set; }
+
     public ICollection<Nucleo> Nucleos { get; set; } = new List<Nucleo>();
     public ICollection<Lote> Lotes { get; set; } = new List<Lote>();
     public ICollection<Galpon> Galpones { get; set; } = new List<Galpon>();

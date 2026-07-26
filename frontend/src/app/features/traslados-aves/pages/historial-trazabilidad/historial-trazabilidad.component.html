@@ -40,58 +40,65 @@
     @if (vistaActual() === 'historial') {
       <section>
         <!-- Filtros -->
-        <div class="ux-card">
-          <header class="ux-card__header">
-            <h2>🔍 Filtros de Búsqueda</h2>
-            <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarFiltros()">
-              Limpiar
-            </button>
-          </header>
-          <div class="ux-card__content">
-            <div class="filter-grid">
-              <div class="form-field">
-                <label class="ux-label">Lote ID</label>
-                <input
-                  type="text"
-                  class="ux-input"
-                  [(ngModel)]="filtros.loteId"
-                  (change)="onFiltroChange()"
-                  placeholder="Ej: L001">
-                </div>
-                <div class="form-field">
-                  <label class="ux-label">Tipo de Cambio</label>
-                  <select
-                    class="ux-select"
-                    [(ngModel)]="filtros.tipoCambio"
-                    (change)="onFiltroChange()">
-                    <option value="">Todos los tipos</option>
-                    <option value="Creación">Creación</option>
-                    <option value="Movimiento">Movimiento</option>
-                    <option value="Ajuste">Ajuste</option>
-                    <option value="Venta">Venta</option>
-                    <option value="Mortalidad">Mortalidad</option>
-                    <option value="Selección">Selección</option>
-                  </select>
-                </div>
-                <div class="form-field">
-                  <label class="ux-label">Fecha Desde</label>
-                  <input
-                    type="date"
-                    class="ux-input"
-                    [(ngModel)]="filtros.fechaDesde"
-                    (change)="onFiltroChange()">
-                  </div>
-                  <div class="form-field">
-                    <label class="ux-label">Fecha Hasta</label>
-                    <input
-                      type="date"
-                      class="ux-input"
-                      [(ngModel)]="filtros.fechaHasta"
-                      (change)="onFiltroChange()">
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <section class="ux-card filter-card" aria-label="Filtros de búsqueda">
+          <div class="filter-card__header">
+            <div class="filter-card__header-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+            </div>
+            <div>
+              <h3 class="filter-card__title">Filtros</h3>
+              <p class="filter-card__subtitle">Acota la información mostrada</p>
+            </div>
+            <div class="filter-card__actions">
+              <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarFiltros()">
+                Limpiar
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-fields">
+            <div class="filter-field">
+              <label class="filter-step__label">Lote ID</label>
+              <input
+                type="text"
+                class="filter-step__input"
+                [(ngModel)]="filtros.loteId"
+                (change)="onFiltroChange()"
+                placeholder="Ej: L001">
+            </div>
+            <div class="filter-field">
+              <label class="filter-step__label">Tipo de Cambio</label>
+              <select
+                class="filter-step__select"
+                [(ngModel)]="filtros.tipoCambio"
+                (change)="onFiltroChange()">
+                <option value="">Todos los tipos</option>
+                <option value="Creación">Creación</option>
+                <option value="Movimiento">Movimiento</option>
+                <option value="Ajuste">Ajuste</option>
+                <option value="Venta">Venta</option>
+                <option value="Mortalidad">Mortalidad</option>
+                <option value="Selección">Selección</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label class="filter-step__label">Fecha Desde</label>
+              <input
+                type="date"
+                class="filter-step__input"
+                [(ngModel)]="filtros.fechaDesde"
+                (change)="onFiltroChange()">
+            </div>
+            <div class="filter-field">
+              <label class="filter-step__label">Fecha Hasta</label>
+              <input
+                type="date"
+                class="filter-step__input"
+                [(ngModel)]="filtros.fechaHasta"
+                (change)="onFiltroChange()">
+            </div>
+          </div>
+        </section>
               <!-- Tabla de Historial -->
               <div class="ux-card">
                 <header class="ux-card__header">
@@ -269,33 +276,38 @@
           @if (vistaActual() === 'trazabilidad') {
             <section>
               <!-- Búsqueda de Lote -->
-              <div class="ux-card">
-                <header class="ux-card__header">
-                  <h2>🔍 Buscar Trazabilidad</h2>
-                </header>
-                <div class="ux-card__content">
-                  <div class="search-lote">
-                    <div class="form-field">
-                      <label class="ux-label">ID del Lote</label>
-                      <div class="input-group">
-                        <input
-                          type="text"
-                          class="ux-input"
-                          [(ngModel)]="loteSeleccionado"
-                          placeholder="Ej: L001"
-                          (keyup.enter)="buscarTrazabilidad()">
-                          <button
-                            type="button"
-                            class="btn btn--primary"
-                            (click)="buscarTrazabilidad()"
-                            [disabled]="!loteSeleccionado() || isLoading()">
-                            🔍 Buscar
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+              <section class="ux-card filter-card filter-card--compact" aria-label="Buscar trazabilidad">
+                <div class="filter-card__header">
+                  <div class="filter-card__header-icon" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+                  </div>
+                  <div>
+                    <h3 class="filter-card__title">Filtros</h3>
+                    <p class="filter-card__subtitle">Acota la información mostrada</p>
                   </div>
                 </div>
+
+                <div class="filter-fields">
+                  <div class="filter-field">
+                    <label class="filter-step__label">ID del Lote</label>
+                    <input
+                      type="text"
+                      class="filter-step__input"
+                      [(ngModel)]="loteSeleccionado"
+                      placeholder="Ej: L001"
+                      (keyup.enter)="buscarTrazabilidad()">
+                  </div>
+                  <div class="filter-card__actions">
+                    <button
+                      type="button"
+                      class="btn btn--primary"
+                      (click)="buscarTrazabilidad()"
+                      [disabled]="!loteSeleccionado() || isLoading()">
+                      🔍 Buscar
+                    </button>
+                  </div>
+                </div>
+              </section>
                 <!-- Resultados de Trazabilidad -->
                 @if (hasTrazabilidad() || isLoading() || hasError()) {
                   <div class="ux-card">

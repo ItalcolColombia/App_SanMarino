@@ -8,5 +8,8 @@ public sealed record UpdateGalponDto(
     int     GranjaId,
     string? Ancho,
     string? Largo,
-    string? TipoGalpon
+    string? TipoGalpon,
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    string? CodigoErpUbicacion      = null,
+    string? DescripcionErpUbicacion = null
 );

@@ -182,21 +182,38 @@
 
   <!-- 5) Historial de sincronizaciones -->
   <section class="card">
-    <div class="card__head card__head--split">
+    <div class="card__head">
       <div class="card__head-left">
         <span class="step">4</span>
         <h2 class="card__title">Historial de sincronizaciones</h2>
       </div>
-      <div class="historial__tools">
-        <label class="field--check field--check-sm">
-          <input type="checkbox" [checked]="incluirValidaciones()"
-                 (change)="toggleValidaciones($any($event.target).checked)" />
-          <span>Incluir validaciones (dry-run)</span>
-        </label>
-        <button type="button" class="btn btn--ghost btn--sm" (click)="cargarHistorial()" [disabled]="cargandoHistorial()">
-          <span *ngIf="cargandoHistorial()" class="spinner" aria-hidden="true"></span>
-          Refrescar
-        </button>
+    </div>
+
+    <!-- Mini-filtro del historial -->
+    <div class="filter-card filter-card--compact">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Ajusta qué corridas se listan abajo</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="field--check field--check-sm">
+            <input type="checkbox" [checked]="incluirValidaciones()"
+                   (change)="toggleValidaciones($any($event.target).checked)" />
+            <span>Incluir validaciones (dry-run)</span>
+          </label>
+        </div>
+        <div class="filter-card__actions">
+          <button type="button" class="btn btn--ghost btn--sm" (click)="cargarHistorial()" [disabled]="cargandoHistorial()">
+            <span *ngIf="cargandoHistorial()" class="spinner" aria-hidden="true"></span>
+            Refrescar
+          </button>
+        </div>
       </div>
     </div>
 

@@ -19,57 +19,86 @@
   </header>
 
   <!-- Filtros -->
-  <div class="ux-card mb-4 p-4">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-      <div>
-        <label class="form-label" for="rep-granja">Granja</label>
-        <select
-          id="rep-granja"
-          class="form-input"
-          [(ngModel)]="granjaSeleccionadaId"
-          (ngModelChange)="onGranjaChange()"
-          [disabled]="cargandoFiltros"
-        >
-          <option [ngValue]="null">{{ cargandoFiltros ? 'Cargando…' : 'Todas' }}</option>
-          <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
-        </select>
+  <section class="ux-card filter-card mb-4">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
       </div>
       <div>
-        <label class="form-label" for="rep-lote">Lote (opcional)</label>
-        <select
-          id="rep-lote"
-          class="form-input"
-          [(ngModel)]="loteSeleccionado"
-          [disabled]="!granjaSeleccionadaId || cargandoFiltros"
-        >
-          <option [ngValue]="null">Todos</option>
-          <option *ngFor="let l of lotesFiltrados; trackBy: trackByLoteOpcion" [ngValue]="l">
-            {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
-          </option>
-        </select>
+        <h3 class="filter-card__title">Selección de contexto</h3>
+        <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
       </div>
-      <div>
-        <label class="form-label" for="rep-linea">Línea</label>
-        <select id="rep-linea" class="form-input" [(ngModel)]="lineaSeleccionada" [disabled]="!!loteSeleccionado">
+    </div>
+
+    <div class="filter-steps">
+      <!-- Paso 1: Granja -->
+      <div class="filter-step"
+        [class.filter-step--active]="!!granjaSeleccionadaId"
+        [class.filter-step--done]="!!loteSeleccionado"
+        [class.filter-step--disabled]="cargandoFiltros">
+        <div class="filter-step__num">1</div>
+        <div class="filter-step__body">
+          <label class="filter-step__label" for="rep-granja">Granja</label>
+          <select
+            id="rep-granja"
+            class="filter-step__select"
+            [(ngModel)]="granjaSeleccionadaId"
+            (ngModelChange)="onGranjaChange()"
+            [disabled]="cargandoFiltros"
+          >
+            <option [ngValue]="null">{{ cargandoFiltros ? 'Cargando…' : 'Todas' }}</option>
+            <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!granjaSeleccionadaId" aria-hidden="true"></div>
+
+      <!-- Paso 2: Lote (opcional) -->
+      <div class="filter-step filter-step--last"
+        [class.filter-step--active]="!!loteSeleccionado"
+        [class.filter-step--disabled]="!granjaSeleccionadaId || cargandoFiltros">
+        <div class="filter-step__num filter-step__num--accent">2</div>
+        <div class="filter-step__body">
+          <label class="filter-step__label" for="rep-lote">Lote (opcional)</label>
+          <select
+            id="rep-lote"
+            class="filter-step__select"
+            [(ngModel)]="loteSeleccionado"
+            [disabled]="!granjaSeleccionadaId || cargandoFiltros"
+          >
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let l of lotesFiltrados; trackBy: trackByLoteOpcion" [ngValue]="l">
+              {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-fields">
+      <div class="filter-field">
+        <label class="filter-step__label" for="rep-linea">Línea</label>
+        <select id="rep-linea" class="filter-step__select" [(ngModel)]="lineaSeleccionada" [disabled]="!!loteSeleccionado">
           <option [ngValue]="null">Todas</option>
           <option *ngFor="let l of lineas" [ngValue]="l">{{ lineaLabel[l] }}</option>
         </select>
       </div>
-      <div>
-        <label class="form-label" for="rep-desde">Desde</label>
-        <input id="rep-desde" type="date" class="form-input" [(ngModel)]="fechaDesde" />
+      <div class="filter-field">
+        <label class="filter-step__label" for="rep-desde">Desde</label>
+        <input id="rep-desde" type="date" class="filter-step__input" [(ngModel)]="fechaDesde" />
       </div>
-      <div>
-        <label class="form-label" for="rep-hasta">Hasta</label>
-        <input id="rep-hasta" type="date" class="form-input" [(ngModel)]="fechaHasta" />
+      <div class="filter-field">
+        <label class="filter-step__label" for="rep-hasta">Hasta</label>
+        <input id="rep-hasta" type="date" class="filter-step__input" [(ngModel)]="fechaHasta" />
       </div>
-      <div class="flex items-end">
-        <button type="button" class="btn-primary w-full justify-center text-sm" [disabled]="cargando" (click)="consultar()">
+      <div class="filter-card__actions">
+        <button type="button" class="btn-primary text-sm" [disabled]="cargando" (click)="consultar()">
           {{ cargando ? 'Consultando…' : 'Consultar' }}
         </button>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- KPIs globales -->
   <div *ngIf="kpis && consultado" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

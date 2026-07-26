@@ -61,6 +61,15 @@ public record CrearSeguimientoRequest(
     // Ecuador/Panamá: ubicación para aplicar consumo en inventario-gestion (opcional)
     int? GranjaId = null,
     string? NucleoId = null,
-    string? GalponId = null
+    string? GalponId = null,
+    // Clasificación de huevos POR ÍTEMS del catálogo (empresas con
+    // companies.clasificacion_huevo_por_items = true, ej. Santa Reyes). JSON camelCase:
+    //   "huevoItems": [{ "catalogItemId": 678, "codigo": "2520", "nombre": "HUEVO BLANCO",
+    //                    "tipoHuevo": "Primera", "cantidad": 1200, "um": "UND" }]
+    // Semántica:
+    //   null  → no tocar la clasificación por ítems (en edición conserva la ya persistida)
+    //   []    → quitar la clasificación por ítems (totales vuelven a los campos sueltos)
+    //   [..]  → reemplaza el desglose: HuevosTotales = suma, HuevosIncubables y las 11 columnas = 0
+    List<HuevoItemSeguimientoDto>? HuevoItems = null
 );
 

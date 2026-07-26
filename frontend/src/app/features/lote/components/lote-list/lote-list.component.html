@@ -72,66 +72,102 @@
     </div>
   </div>
 
-  <!-- Filtros en cascada + búsqueda + orden -->
-  <div class="ux-card p-4 mb-4">
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 items-end">
+  <!-- Filtros en cascada + búsqueda + orden (diseño «Selección de contexto») -->
+  <section class="filter-card mb-4" aria-label="Filtros de selección">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h3 class="filter-card__title">Selección de contexto</h3>
+        <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+      </div>
+    </div>
+
+    <div class="filter-steps">
       <!-- Compañía (solo si hay más de una en la tabla) -->
       @if (filterCompanyOptions.length > 1) {
-        <div class="sm:col-span-2 lg:col-span-1">
-          <label for="l-company" class="ux-label">Compañía</label>
-          <select id="l-company" class="ux-select"
-            [(ngModel)]="selectedCompanyId"
-            (ngModelChange)="onCompanyChangeList($event)">
-            <option [ngValue]="null">Todas</option>
-            @for (c of filterCompanyOptions; track c) {
-              <option [ngValue]="c.id">{{ c.label }}</option>
-            }
-          </select>
+        <div class="filter-step"
+          [class.filter-step--active]="selectedCompanyId != null"
+          [class.filter-step--done]="selectedFarmId != null">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label for="l-company" class="filter-step__label">Compañía</label>
+            <select id="l-company" class="filter-step__select"
+              [(ngModel)]="selectedCompanyId"
+              (ngModelChange)="onCompanyChangeList($event)">
+              <option [ngValue]="null">Todas</option>
+              @for (c of filterCompanyOptions; track c) {
+                <option [ngValue]="c.id">{{ c.label }}</option>
+              }
+            </select>
+          </div>
         </div>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="selectedCompanyId != null" aria-hidden="true"></div>
       }
 
       <!-- Granja -->
-      <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="filterCompanyOptions.length > 1" [class.xl:col-span-2]="filterCompanyOptions.length <= 1">
-        <label for="l-farm" class="ux-label">Granja</label>
-        <select id="l-farm" class="ux-select"
-          [(ngModel)]="selectedFarmId"
-          (ngModelChange)="onFarmChangeList($event)">
-          <option [ngValue]="null">Todas</option>
-          @for (f of filterFarmOptions; track f) {
-            <option [ngValue]="f.id">{{ f.name }}</option>
-          }
-        </select>
+      <div class="filter-step"
+        [class.filter-step--active]="selectedFarmId != null"
+        [class.filter-step--done]="selectedNucleoId != null">
+        <div class="filter-step__num">{{ filterCompanyOptions.length > 1 ? 2 : 1 }}</div>
+        <div class="filter-step__body">
+          <label for="l-farm" class="filter-step__label">Granja</label>
+          <select id="l-farm" class="filter-step__select"
+            [(ngModel)]="selectedFarmId"
+            (ngModelChange)="onFarmChangeList($event)">
+            <option [ngValue]="null">Todas</option>
+            @for (f of filterFarmOptions; track f) {
+              <option [ngValue]="f.id">{{ f.name }}</option>
+            }
+          </select>
+        </div>
       </div>
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="selectedFarmId != null" aria-hidden="true"></div>
 
       <!-- Núcleo -->
-      <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="filterCompanyOptions.length > 1" [class.xl:col-span-2]="filterCompanyOptions.length <= 1">
-        <label for="l-nucleo" class="ux-label">Núcleo</label>
-        <select id="l-nucleo" class="ux-select"
-          [(ngModel)]="selectedNucleoId"
-          (ngModelChange)="onNucleoChangeList($event)">
-          <option [ngValue]="null">Todos</option>
-          @for (n of filterNucleoOptions; track n) {
-            <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-          }
-        </select>
+      <div class="filter-step"
+        [class.filter-step--active]="selectedNucleoId != null"
+        [class.filter-step--done]="selectedGalponId != null">
+        <div class="filter-step__num">{{ filterCompanyOptions.length > 1 ? 3 : 2 }}</div>
+        <div class="filter-step__body">
+          <label for="l-nucleo" class="filter-step__label">Núcleo</label>
+          <select id="l-nucleo" class="filter-step__select"
+            [(ngModel)]="selectedNucleoId"
+            (ngModelChange)="onNucleoChangeList($event)">
+            <option [ngValue]="null">Todos</option>
+            @for (n of filterNucleoOptions; track n) {
+              <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            }
+          </select>
+        </div>
       </div>
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="selectedNucleoId != null" aria-hidden="true"></div>
 
       <!-- Galpón -->
-      <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="filterCompanyOptions.length > 1" [class.xl:col-span-2]="filterCompanyOptions.length <= 1">
-        <label for="l-galpon" class="ux-label">Galpón</label>
-        <select id="l-galpon" class="ux-select"
-          [(ngModel)]="selectedGalponId"
-          (ngModelChange)="recomputeList()">
-          <option [ngValue]="null">Todos</option>
-          @for (g of filterGalponOptions; track g) {
-            <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-          }
-        </select>
+      <div class="filter-step filter-step--last"
+        [class.filter-step--active]="selectedGalponId != null">
+        <div class="filter-step__num filter-step__num--accent">{{ filterCompanyOptions.length > 1 ? 4 : 3 }}</div>
+        <div class="filter-step__body">
+          <label for="l-galpon" class="filter-step__label">Galpón</label>
+          <select id="l-galpon" class="filter-step__select"
+            [(ngModel)]="selectedGalponId"
+            (ngModelChange)="recomputeList()">
+            <option [ngValue]="null">Todos</option>
+            @for (g of filterGalponOptions; track g) {
+              <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            }
+          </select>
+        </div>
       </div>
+    </div>
 
+    <div class="filter-fields">
       <!-- Búsqueda -->
-      <div class="sm:col-span-2 lg:col-span-2 xl:col-span-2">
-        <label for="lote-filter" class="ux-label">Buscar</label>
+      <div class="filter-field">
+        <label for="lote-filter" class="filter-step__label">Buscar</label>
         <div class="ux-search">
           <fa-icon [icon]="faMagnifyingGlass" class="ux-search__icon" aria-hidden="true"></fa-icon>
           <input
@@ -140,43 +176,43 @@
             [(ngModel)]="filtro"
             (ngModelChange)="recomputeList()"
             placeholder="Buscar por lote, ERP lot, núcleo, granja…"
-            class="ux-input"
+            class="ux-input filter-step__input"
             aria-label="Buscar lote"
             />
-          </div>
-        </div>
-
-        <!-- Ordenar por -->
-        <div class="sm:col-span-1 lg:col-span-1 xl:col-span-1">
-          <label for="l-sort-key" class="ux-label">Ordenar</label>
-          <select id="l-sort-key" class="ux-select"
-            [ngModel]="sortKey"
-            (ngModelChange)="onSortKeyChange($event)">
-            <option [ngValue]="'edad'">Edad (sem.)</option>
-            <option [ngValue]="'fecha'">Fecha</option>
-          </select>
-        </div>
-
-        <!-- Dirección -->
-        <div class="sm:col-span-1 lg:col-span-1 xl:col-span-1">
-          <label for="l-sort-dir" class="ux-label">Dirección</label>
-          <select id="l-sort-dir" class="ux-select"
-            [ngModel]="sortDir"
-            (ngModelChange)="onSortDirChange($event)">
-            <option [ngValue]="'desc'">↓</option>
-            <option [ngValue]="'asc'">↑</option>
-          </select>
-        </div>
-
-        <!-- Limpiar -->
-        <div class="sm:col-span-2 lg:col-span-2 xl:col-span-1">
-          <button class="btn-ghost w-full" (click)="resetListFilters()">
-            <fa-icon [icon]="faTimes" class="mr-1"></fa-icon>
-            Limpiar
-          </button>
         </div>
       </div>
+
+      <!-- Ordenar por -->
+      <div class="filter-field filter-field--fixed">
+        <label for="l-sort-key" class="filter-step__label">Ordenar</label>
+        <select id="l-sort-key" class="filter-step__select"
+          [ngModel]="sortKey"
+          (ngModelChange)="onSortKeyChange($event)">
+          <option [ngValue]="'edad'">Edad (sem.)</option>
+          <option [ngValue]="'fecha'">Fecha</option>
+        </select>
+      </div>
+
+      <!-- Dirección -->
+      <div class="filter-field filter-field--fixed">
+        <label for="l-sort-dir" class="filter-step__label">Dirección</label>
+        <select id="l-sort-dir" class="filter-step__select"
+          [ngModel]="sortDir"
+          (ngModelChange)="onSortDirChange($event)">
+          <option [ngValue]="'desc'">↓</option>
+          <option [ngValue]="'asc'">↑</option>
+        </select>
+      </div>
+
+      <!-- Limpiar -->
+      <div class="filter-card__actions">
+        <button class="btn-ghost" (click)="resetListFilters()">
+          <fa-icon [icon]="faTimes" class="mr-1"></fa-icon>
+          Limpiar
+        </button>
+      </div>
     </div>
+  </section>
 
     <!-- Tabla de lotes -->
     <div class="ux-card">
@@ -756,62 +792,87 @@
                         <input formControlName="loteErp" class="ux-input"/>
                       </div>
                       <!-- Raza -->
-                      <div>
-                        <label class="ux-label">🧬 Raza <span class="req">*</span></label>
-                        <select formControlName="raza" class="ux-input"
-                          [class.is-invalid]="form.get('raza')?.invalid && form.get('raza')?.touched">
-                          <option value="" disabled selected>Seleccione raza…</option>
-                          @for (raza of razasDisponibles; track raza) {
-                            <option [value]="raza">{{ raza }}</option>
+                      <!-- Con guía genética cargada: lista obligatoria (comportamiento estándar).
+                           Sin guía (0 razas): texto libre OPCIONAL hasta que la empresa cargue su guía. -->
+                      @if (!sinGuiaGenetica) {
+                        <div>
+                          <label class="ux-label">🧬 Raza <span class="req">*</span></label>
+                          <select formControlName="raza" class="ux-input"
+                            [class.is-invalid]="form.get('raza')?.invalid && form.get('raza')?.touched">
+                            <option value="" disabled selected>Seleccione raza…</option>
+                            @for (raza of razasDisponibles; track raza) {
+                              <option [value]="raza">{{ raza }}</option>
+                            }
+                          </select>
+                          @if (form.get('raza')?.invalid && form.get('raza')?.touched) {
+                            <small class="text-danger">
+                              La raza es requerida
+                            </small>
                           }
-                        </select>
-                        @if (form.get('raza')?.invalid && form.get('raza')?.touched) {
-                          <small class="text-danger">
-                            La raza es requerida
-                          </small>
-                        }
-                      </div>
+                        </div>
+                      } @else {
+                        <div>
+                          <label class="ux-label">🧬 Raza</label>
+                          <input formControlName="raza" type="text" maxlength="200" class="ux-input"
+                            placeholder="Raza (opcional — cargue la guía genética para habilitar la lista)" />
+                          <div class="ux-hint">
+                            No se encontraron razas disponibles en la guía genética. Puede escribirla a mano;
+                            al cargar la guía volverá a seleccionarse de la lista.
+                          </div>
+                        </div>
+                      }
                       <!-- Año Tabla Genética -->
-                      <div>
-                        <label class="ux-label">📅 Año Tabla Genética <span class="req">*</span></label>
-                        <select formControlName="anoTablaGenetica" class="ux-input"
-                          [class.is-invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
-                          [disabled]="!selectedRaza || loadingAnos">
-                          <option value="" disabled selected>
-                            {{ loadingAnos ? 'Cargando años...' :
-                            !selectedRaza ? 'Primero seleccione una raza' :
-                            'Seleccione un año...' }}
-                          </option>
-                          @for (ano of anosDisponibles; track ano) {
-                            <option [value]="ano">{{ ano }}</option>
+                      @if (!sinGuiaGenetica) {
+                        <div>
+                          <label class="ux-label">📅 Año Tabla Genética <span class="req">*</span></label>
+                          <select formControlName="anoTablaGenetica" class="ux-input"
+                            [class.is-invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
+                            [disabled]="!selectedRaza || loadingAnos">
+                            <option value="" disabled selected>
+                              {{ loadingAnos ? 'Cargando años...' :
+                              !selectedRaza ? 'Primero seleccione una raza' :
+                              'Seleccione un año...' }}
+                            </option>
+                            @for (ano of anosDisponibles; track ano) {
+                              <option [value]="ano">{{ ano }}</option>
+                            }
+                          </select>
+                          @if (form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched) {
+                            <div class="ux-error">
+                              Año de tabla genética es requerido
+                            </div>
                           }
-                        </select>
-                        @if (form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched) {
-                          <div class="ux-error">
-                            Año de tabla genética es requerido
-                          </div>
-                        }
-                        @if (loadingAnos) {
+                          @if (loadingAnos) {
+                            <div class="ux-hint">
+                              <span class="loading-spinner">⏳</span> Cargando años disponibles...
+                            </div>
+                          }
+                          @if (!selectedRaza) {
+                            <div class="ux-hint">
+                              Seleccione primero una raza para ver los años disponibles
+                            </div>
+                          }
+                          @if (selectedRaza && !loadingAnos && !razaValida) {
+                            <div class="ux-error">
+                              No se encontraron años disponibles para la raza "{{ selectedRaza }}"
+                            </div>
+                          }
+                          @if (selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0) {
+                            <div class="ux-warning">
+                              La raza "{{ selectedRaza }}" no tiene años de tabla genética disponibles
+                            </div>
+                          }
+                        </div>
+                      } @else {
+                        <div>
+                          <label class="ux-label">📅 Año Tabla Genética</label>
+                          <input formControlName="anoTablaGenetica" type="number" min="1900" max="2100" step="1"
+                            class="ux-input" placeholder="Año (opcional)" />
                           <div class="ux-hint">
-                            <span class="loading-spinner">⏳</span> Cargando años disponibles...
+                            Opcional mientras la empresa no tenga guía genética cargada.
                           </div>
-                        }
-                        @if (!selectedRaza) {
-                          <div class="ux-hint">
-                            Seleccione primero una raza para ver los años disponibles
-                          </div>
-                        }
-                        @if (selectedRaza && !loadingAnos && !razaValida) {
-                          <div class="ux-error">
-                            No se encontraron años disponibles para la raza "{{ selectedRaza }}"
-                          </div>
-                        }
-                        @if (selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0) {
-                          <div class="ux-warning">
-                            La raza "{{ selectedRaza }}" no tiene años de tabla genética disponibles
-                          </div>
-                        }
-                      </div>
+                        </div>
+                      }
                       <!-- ======= AVES: enteros con separador ======= -->
                       <div>
                         <label class="ux-label">🐔 # Aves Hembra</label>
@@ -882,6 +943,27 @@
                                   aria-description="Campo de solo lectura con total de aves"
                                   />
                                 </div>
+                                <!-- ══════ Centro de costo ERP (Santa Reyes) ══════ -->
+                                <!-- Visible solo si la empresa activa maneja códigos ERP avícolas -->
+                                @if (manejaCodigosErp) {
+                                  <div class="md:col-span-3">
+                                    <hr class="my-2 border-gray-200" />
+                                    <p class="text-xs font-semibold text-ital-green uppercase tracking-wide mb-1">Códigos ERP (Santa Reyes)</p>
+                                  </div>
+                                  <div>
+                                    <label class="ux-label">🏷️ Centro de Costo</label>
+                                    <input formControlName="codigoCentroCosto" type="text" maxlength="20"
+                                      class="ux-input" placeholder="Ej. G3002216" />
+                                  </div>
+                                  <div>
+                                    <label class="ux-label">📄 Descripción Centro de Costo</label>
+                                    <input formControlName="descripcionCentroCosto" type="text" maxlength="200"
+                                      class="ux-input" placeholder="Ej. Lote 216 - La Esperanza" />
+                                  </div>
+                                  <div class="md:col-span-3">
+                                    <small class="ux-help text-warm-gray-600">Campos opcionales: se usan para integrar el lote con el ERP.</small>
+                                  </div>
+                                }
                               </div>
                               <div class="ux-actions">
                                 <button type="button" (click)="modalOpen = false" class="btn-muted">Cancelar</button>

@@ -27,6 +27,27 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
 
         builder.Property(x => x.MobileAccess).HasDefaultValue(false);
 
+        // Flag tipado por comportamiento: campos ERP avícolas (bodega/C.O./instalación/ubicación/
+        // centro de costo) visibles en granja, núcleo, galpón y lote.
+        builder.Property(x => x.ManejaCodigosErpAvicola)
+            .HasColumnName("maneja_codigos_erp_avicola")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Flag tipado por comportamiento: clasificación de huevos POR ÍTEMS del catálogo
+        // (Primera/Pnc) en el seguimiento diario de producción, en vez de las 11 columnas fijas.
+        builder.Property(x => x.ClasificacionHuevoPorItems)
+            .HasColumnName("clasificacion_huevo_por_items")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Flag tipado por comportamiento: traslado de aves ENTRE ETAPAS (Levante → Producción)
+        // desde el seguimiento diario, conservando la edad de las aves recibidas (cohortes).
+        builder.Property(x => x.PermiteTrasladoAvesCrossEtapa)
+            .HasColumnName("permite_traslado_aves_cross_etapa")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

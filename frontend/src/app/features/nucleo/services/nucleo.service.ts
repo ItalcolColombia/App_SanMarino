@@ -11,18 +11,30 @@ export interface NucleoDto {
   granjaNombre?:  string | null;
   companyNombre?: string | null;
   companyId?:     number | null;
+
+  /** Códigos ERP avícolas (solo empresas con `manejaCodigosErpAvicola`). */
+  codigoBodega?:      string | null;
+  descripcionBodega?: string | null;
 }
 
 export interface CreateNucleoDto {
   nucleoId:     string;
   granjaId:     number;
   nucleoNombre: string;
+
+  /** Códigos ERP avícolas (opcionales; null cuando la empresa no los maneja). */
+  codigoBodega?:      string | null;
+  descripcionBodega?: string | null;
 }
 
 export interface UpdateNucleoDto {
   nucleoId:     string;
   granjaId:     number;
   nucleoNombre: string;
+
+  /** Códigos ERP avícolas (opcionales; null cuando la empresa no los maneja). */
+  codigoBodega?:      string | null;
+  descripcionBodega?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

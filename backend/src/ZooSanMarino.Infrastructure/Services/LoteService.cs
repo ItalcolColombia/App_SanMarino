@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
+using ZooSanMarino.Application.Calculos;       // GuiaGeneticaRequisitoCalculos (lógica pura)
 using ZooSanMarino.Application.DTOs;           // LoteDto, Create/Update
 using ZooSanMarino.Application.DTOs.Lotes;     // LoteDetailDto, LoteSearchRequest, TrasladoLoteRequestDto, TrasladoLoteResponseDto, HistorialTrasladoLoteDto
 using CommonDtos = ZooSanMarino.Application.DTOs.Common;
@@ -163,24 +164,36 @@ namespace ZooSanMarino.Infrastructure.Services
             // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos)
             await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: null);
 
-            // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
-            if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
-                throw new InvalidOperationException("Raza y Año de tabla genética son requeridos y deben existir en la guía genética cargada.");
-
-            var razaNorm = dto.Raza.Trim().ToLower();
-            var anio = dto.AnoTablaGenetica.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var existeGuia = await _ctx.ProduccionAvicolaRaw
+            // Guía genética CONDICIONAL: si la empresa todavía no cargó su guía (0 filas vivas en
+            // produccion_avicola_raw) Raza/Año son opcionales — raza de texto libre — y no se
+            // verifica existencia; apenas carga la guía vuelve a regir la validación de siempre.
+            var companyTieneGuia = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
-                .AnyAsync(p =>
-                    p.CompanyId == companyId &&
-                    p.DeletedAt == null &&
-                    p.Raza != null &&
-                    p.AnioGuia != null &&
-                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                    p.AnioGuia.Trim() == anio);
+                .AnyAsync(p => p.CompanyId == companyId && p.DeletedAt == null);
 
-            if (!existeGuia)
-                throw new InvalidOperationException($"No existe guía genética para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. Cargue la guía genética primero.");
+            var errorGuia = GuiaGeneticaRequisitoCalculos.ValidarSeleccion(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica);
+            if (errorGuia is not null)
+                throw new InvalidOperationException(errorGuia);
+
+            if (GuiaGeneticaRequisitoCalculos.DebeVerificarExistenciaEnGuia(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica))
+            {
+                // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
+                var razaNorm = dto.Raza!.Trim().ToLower();
+                var anio = dto.AnoTablaGenetica!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var existeGuia = await _ctx.ProduccionAvicolaRaw
+                    .AsNoTracking()
+                    .AnyAsync(p =>
+                        p.CompanyId == companyId &&
+                        p.DeletedAt == null &&
+                        p.Raza != null &&
+                        p.AnioGuia != null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                        p.AnioGuia.Trim() == anio);
+
+                if (!existeGuia)
+                    throw new InvalidOperationException(
+                        GuiaGeneticaRequisitoCalculos.MensajeGuiaInexistente(dto.Raza, dto.AnoTablaGenetica));
+            }
 
             string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
             string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
@@ -260,7 +273,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 MortCajaH = dto.MortCajaH,
                 MortCajaM = dto.MortCajaM,
 
-                Raza = dto.Raza,
+                // Sin guía cargada la raza es texto libre (se guarda con trim; vacía → null)
+                Raza = GuiaGeneticaRequisitoCalculos.ResolverRazaAGuardar(companyTieneGuia, dto.Raza),
                 AnoTablaGenetica = dto.AnoTablaGenetica,
                 Linea = dto.Linea,
                 TipoLinea = dto.TipoLinea,
@@ -274,6 +288,10 @@ namespace ZooSanMarino.Infrastructure.Services
                 EdadInicial = dto.EdadInicial,
                 LoteErp = dto.LoteErp,
                 LotePadreId = dto.LotePadreId,
+
+                // Códigos ERP avícolas (pass-through; visibles solo si la empresa los maneja)
+                CodigoCentroCosto = dto.CodigoCentroCosto,
+                DescripcionCentroCosto = dto.DescripcionCentroCosto,
 
                 Fase = fase,
 
@@ -410,24 +428,35 @@ namespace ZooSanMarino.Infrastructure.Services
             // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos; excluye el propio lote)
             await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: dto.LoteId);
 
-            // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
-            if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
-                throw new InvalidOperationException("Raza y Año de tabla genética son requeridos y deben existir en la guía genética cargada.");
-
-            var razaNorm = dto.Raza.Trim().ToLower();
-            var anio = dto.AnoTablaGenetica.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var existeGuia = await _ctx.ProduccionAvicolaRaw
+            // Guía genética CONDICIONAL (mismo criterio que CreateAsync): sin guía cargada en la
+            // empresa, Raza/Año son opcionales (raza libre) y no se verifica existencia.
+            var companyTieneGuia = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
-                .AnyAsync(p =>
-                    p.CompanyId == companyId &&
-                    p.DeletedAt == null &&
-                    p.Raza != null &&
-                    p.AnioGuia != null &&
-                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                    p.AnioGuia.Trim() == anio);
+                .AnyAsync(p => p.CompanyId == companyId && p.DeletedAt == null);
 
-            if (!existeGuia)
-                throw new InvalidOperationException($"No existe guía genética para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. Cargue la guía genética primero.");
+            var errorGuia = GuiaGeneticaRequisitoCalculos.ValidarSeleccion(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica);
+            if (errorGuia is not null)
+                throw new InvalidOperationException(errorGuia);
+
+            if (GuiaGeneticaRequisitoCalculos.DebeVerificarExistenciaEnGuia(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica))
+            {
+                // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
+                var razaNorm = dto.Raza!.Trim().ToLower();
+                var anio = dto.AnoTablaGenetica!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var existeGuia = await _ctx.ProduccionAvicolaRaw
+                    .AsNoTracking()
+                    .AnyAsync(p =>
+                        p.CompanyId == companyId &&
+                        p.DeletedAt == null &&
+                        p.Raza != null &&
+                        p.AnioGuia != null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                        p.AnioGuia.Trim() == anio);
+
+                if (!existeGuia)
+                    throw new InvalidOperationException(
+                        GuiaGeneticaRequisitoCalculos.MensajeGuiaInexistente(dto.Raza, dto.AnoTablaGenetica));
+            }
 
             string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
             string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
@@ -484,7 +513,8 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.MortCajaH = dto.MortCajaH;
             ent.MortCajaM = dto.MortCajaM;
 
-            ent.Raza = dto.Raza;
+            // Sin guía cargada la raza es texto libre (se guarda con trim; vacía → null)
+            ent.Raza = GuiaGeneticaRequisitoCalculos.ResolverRazaAGuardar(companyTieneGuia, dto.Raza);
             ent.AnoTablaGenetica = dto.AnoTablaGenetica;
             ent.Linea = dto.Linea;
             ent.TipoLinea = dto.TipoLinea;
@@ -499,6 +529,10 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.LoteErp = dto.LoteErp;  // ← NUEVO: Código ERP del lote
             ent.LotePadreId = dto.LotePadreId;  // ← NUEVO: ID del lote padre
             ent.LotePosturaBaseId = dto.LotePosturaBaseId;
+
+            // Códigos ERP avícolas (pass-through)
+            ent.CodigoCentroCosto = dto.CodigoCentroCosto;
+            ent.DescripcionCentroCosto = dto.DescripcionCentroCosto;
 
             // Validar que el lote padre existe y pertenece a la misma compañía
             if (dto.LotePadreId.HasValue)
@@ -548,6 +582,25 @@ namespace ZooSanMarino.Infrastructure.Services
 
             ent.UpdatedByUserId = _current.UserId;
             ent.UpdatedAt = DateTime.UtcNow;
+
+            // El espejo de levante se sincroniza por trigger, pero el de producción no: si el lote
+            // recibe núcleo/galpón después de existir su producción (p. ej. lotes sembrados sin
+            // ubicación), el filtro por galpón del seguimiento de producción nunca lo encontraría.
+            // Relleno solo-si-vacío para no pisar ubicaciones puestas a mano en la producción.
+            if (ent.LoteId.HasValue && (ent.NucleoId != null || ent.GalponId != null))
+            {
+                var lppAbiertos = await _ctx.LotePosturaProduccion
+                    .Where(p => p.LoteId == ent.LoteId.Value &&
+                                p.DeletedAt == null &&
+                                p.EstadoCierre == "Abierta" &&
+                                (p.NucleoId == null || p.GalponId == null))
+                    .ToListAsync();
+                foreach (var lpp in lppAbiertos)
+                {
+                    lpp.NucleoId ??= ent.NucleoId;
+                    lpp.GalponId ??= ent.GalponId;
+                }
+            }
 
             await _ctx.SaveChangesAsync();
             return await GetByIdAsync(ent.LoteId ?? 0);
@@ -712,7 +765,9 @@ namespace ZooSanMarino.Infrastructure.Services
                             l.Galpon.GalponNombre,
                             l.Galpon.NucleoId,
                             l.Galpon.GranjaId
-                        )
+                        ),
+                    l.CodigoCentroCosto,
+                    l.DescripcionCentroCosto
                 ));
         }
 

@@ -144,10 +144,6 @@
   min-height: 0;
   margin-bottom: 0;
 
-  .ux-card__filters {
-    flex-shrink: 0;
-  }
-
   .mpp-card__body--table {
     flex: 1 1 auto;
     display: flex;
@@ -314,30 +310,8 @@
   }
 }
 
-/* Filtros */
-.filters-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-  gap: clamp(0.5rem, 2vw, 0.85rem);
-  align-items: end;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 0;
-
-  label {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--ital-orange-dark);
-  }
-}
-
-.filter-input.filter-select {
-  min-height: 2.5rem;
-}
+/* Filtros: la presentación vive en el diseño global «Selección de contexto»
+   (styles/filter-context.scss → .filter-card / .filter-steps / .filter-fields). */
 
 /* Info lote */
 .lote-info-tipo {

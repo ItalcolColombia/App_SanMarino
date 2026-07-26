@@ -65,6 +65,7 @@
 
     <!-- Filtros de selección (igual que SeguimientoProduccion: filter-data en una sola petición) -->
     <app-filtro-select
+      [variant]="'steps'"
       [filterDataUrl]="filterDataUrl"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
@@ -184,54 +185,63 @@
       </div>
     }
     <!-- Filtros de tabla -->
-    <div class="ux-card__filters">
-      <div class="filters-row">
-        <div class="filter-group">
-          <label for="filtroBusqueda">Buscar</label>
+    <section class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label for="filtroBusqueda" class="filter-step__label">Buscar</label>
           <input
             type="text"
             id="filtroBusqueda"
             [(ngModel)]="filtroBusqueda"
             (ngModelChange)="onFiltroChange()"
             placeholder="Buscar por número, tipo, destino..."
-            class="filter-input">
-          </div>
-          <div class="filter-group">
-            <label for="filtroTipoOperacion">Tipo</label>
-            <select
-              id="filtroTipoOperacion"
-              [(ngModel)]="filtroTipoOperacion"
-              (ngModelChange)="onFiltroChange()"
-              class="filter-select">
-              <option value="">Todos</option>
-              <option value="Traslado">Traslado</option>
-              <option value="Venta">Venta</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label for="filtroEstado">Estado</label>
-            <select
-              id="filtroEstado"
-              [(ngModel)]="filtroEstado"
-              (ngModelChange)="onFiltroChange()"
-              class="filter-select">
-              <option value="">Todos</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Completado">Completado</option>
-              <option value="Cancelado">Cancelado</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <button
-              type="button"
-              class="btn btn--outline"
-              (click)="limpiarFiltros()"
-              [disabled]="!filtroBusqueda && !filtroTipoOperacion && !filtroEstado">
-              Limpiar
-            </button>
-          </div>
+            class="filter-step__input">
+        </div>
+        <div class="filter-field">
+          <label for="filtroTipoOperacion" class="filter-step__label">Tipo</label>
+          <select
+            id="filtroTipoOperacion"
+            [(ngModel)]="filtroTipoOperacion"
+            (ngModelChange)="onFiltroChange()"
+            class="filter-step__select">
+            <option value="">Todos</option>
+            <option value="Traslado">Traslado</option>
+            <option value="Venta">Venta</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filtroEstado" class="filter-step__label">Estado</label>
+          <select
+            id="filtroEstado"
+            [(ngModel)]="filtroEstado"
+            (ngModelChange)="onFiltroChange()"
+            class="filter-step__select">
+            <option value="">Todos</option>
+            <option value="Pendiente">Pendiente</option>
+            <option value="Completado">Completado</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+        <div class="filter-card__actions">
+          <button
+            type="button"
+            class="btn btn--outline"
+            (click)="limpiarFiltros()"
+            [disabled]="!filtroBusqueda && !filtroTipoOperacion && !filtroEstado">
+            Limpiar
+          </button>
         </div>
       </div>
+    </section>
       <div class="ux-card__body">
         <!-- Estado de carga -->
         @if (loading) {

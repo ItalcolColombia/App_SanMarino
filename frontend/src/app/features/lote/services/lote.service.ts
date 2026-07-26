@@ -69,6 +69,10 @@ export interface LoteDto {
   loteErp?: string;
   lineaGenetica?: string;
 
+  /** Centro de costo ERP del lote (solo empresas con `manejaCodigosErpAvicola`). */
+  codigoCentroCosto?: string | null;
+  descripcionCentroCosto?: string | null;
+
   // 🔹 Relaciones completas que trae el backend
   farm?: {
     id: number;

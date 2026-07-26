@@ -24,6 +24,7 @@ import { environment } from '../../../../../environments/environment';
 import { TablaReporteDiarioProduccionComponent } from '../../components/tabla-reporte-diario-produccion/tabla-reporte-diario-produccion.component';
 import { TablaReporteCuadroProduccionComponent } from '../../components/tabla-reporte-cuadro-produccion/tabla-reporte-cuadro-produccion.component';
 import { TablaClasificacionHuevoComercioComponent } from '../../components/tabla-clasificacion-huevo-comercio/tabla-clasificacion-huevo-comercio.component';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-reporte-tecnico-produccion-main',
@@ -78,15 +79,39 @@ export class ReporteTecnicoProduccionMainComponent implements OnInit, OnDestroy 
   
   // Tab activo interno
   tabActivo: 'diario' | 'cuadro' | 'clasificacion' = 'diario';
-  
+
+  /**
+   * Flag `companies.clasificacion_huevo_por_items` (Santa Reyes): la clasificación por las 11
+   * columnas fijas no aplica (siempre en 0) → se oculta la pestaña "% Clasif. Huevo Comercio"
+   * y no se pide su reporte. FAIL-CLOSED: si el GET de flags falla, la pantalla queda intacta.
+   */
+  clasificacionHuevoPorItems = false;
+
   // UI
   error: string | null = null;
 
   private destroy$ = new Subject<void>();
 
-  constructor(private reporteService: ReporteTecnicoProduccionService) {}
+  constructor(
+    private reporteService: ReporteTecnicoProduccionService,
+    private companyConfig: ActiveCompanyConfigService
+  ) {}
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    this.cargarFlagsEmpresa();
+  }
+
+  /** Flags de la empresa activa; si el usuario estaba en la pestaña oculta, cae a "diario". */
+  private cargarFlagsEmpresa(): void {
+    this.companyConfig.getFlags()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(flags => {
+        this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+        if (this.clasificacionHuevoPorItems && this.tabActivo === 'clasificacion') {
+          this.tabActivo = 'diario';
+        }
+      });
+  }
 
   onFilterDataLoaded(data: FilterDataResponse): void {
     this.granjas = data.farms ?? [];
@@ -246,6 +271,9 @@ export class ReporteTecnicoProduccionMainComponent implements OnInit, OnDestroy 
       });
 
     // Generar reporte de clasificación de huevos
+    // (empresas que clasifican por ítem no usan las 11 columnas fijas → pestaña oculta, no se pide)
+    if (this.clasificacionHuevoPorItems) return;
+
     const reporteClasificacion$ = this.reporteService.generarReporteClasificacionHuevoComercio(
       this.selectedLoteId,
       fechaInicio,

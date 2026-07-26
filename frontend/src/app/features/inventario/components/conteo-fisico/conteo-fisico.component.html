@@ -1,31 +1,42 @@
 <!-- src/app/features/inventario/components/conteo-fisico/conteo-fisico.component.html -->
-<div class="filters">
-  <div class="filter" style="min-width:240px;">
-    <label class="ux-label" for="farm">Granja</label>
-    <select id="farm" class="ux-select" [(ngModel)]="farmId" (change)="load()">
-      <option [ngValue]="null" disabled>Seleccione…</option>
-      @for (f of farms; track f) {
-        <option [ngValue]="f.id">{{ f.name }}</option>
-      }
-    </select>
-  </div>
-
-  <div class="filter">
-    <label class="ux-label" for="filtro">Buscar</label>
-    <div class="actions">
-      <input id="filtro" type="text" class="ux-input" [(ngModel)]="filtro" placeholder="Código o nombre…" />
-      @if (filtro) {
-        <button class="btn-ghost" type="button" (click)="filtro=''">×</button>
-      }
+<section class="ux-card filter-card">
+  <div class="filter-card__header">
+    <div class="filter-card__header-icon" aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+    </div>
+    <div>
+      <h3 class="filter-card__title">Filtros</h3>
+      <p class="filter-card__subtitle">Acota la información mostrada</p>
     </div>
   </div>
+  <div class="filter-fields">
+    <div class="filter-field">
+      <label class="filter-step__label" for="farm">Granja</label>
+      <select id="farm" class="filter-step__select" [(ngModel)]="farmId" (change)="load()">
+        <option [ngValue]="null" disabled>Seleccione…</option>
+        @for (f of farms; track f) {
+          <option [ngValue]="f.id">{{ f.name }}</option>
+        }
+      </select>
+    </div>
 
-  <div class="actions" style="margin-left:auto;">
-    <button class="btn-primary" type="button" (click)="guardarConteo()" [disabled]="!farmId || loading">
-      Guardar conteo
-    </button>
+    <div class="filter-field">
+      <label class="filter-step__label" for="filtro">Buscar</label>
+      <div class="actions">
+        <input id="filtro" type="text" class="filter-step__input" [(ngModel)]="filtro" placeholder="Código o nombre…" />
+        @if (filtro) {
+          <button class="btn-ghost" type="button" (click)="filtro=''">×</button>
+        }
+      </div>
+    </div>
+
+    <div class="filter-card__actions">
+      <button class="btn-primary" type="button" (click)="guardarConteo()" [disabled]="!farmId || loading">
+        Guardar conteo
+      </button>
+    </div>
   </div>
-</div>
+</section>
 
 <div class="ux-card" [class.is-loading]="loading">
   <div class="ux-scroll">

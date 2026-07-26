@@ -193,6 +193,10 @@
   text-align: center;
 }
 
+/* La tarjeta de filtros usa el diseño global «Selección de contexto»
+   (styles/filter-context.scss), que trae su propio padding por bloque. */
+:host .filter-card { padding: 0; }
+
 :host .ux-form { padding: 1.25rem; }
 :host .ux-form .grid { display: grid; gap: .9rem; }
 :host .ux-form .grid.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

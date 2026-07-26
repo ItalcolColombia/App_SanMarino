@@ -345,6 +345,17 @@ public class ProduccionService : IProduccionService
             );
         }
 
+        // ── Clasificación de huevos POR ÍTEMS (Santa Reyes) ───────────────────────────────
+        // null o [] en creación = comportamiento actual intacto (11 columnas fijas del DTO).
+        // Con ítems: se valida, se exige el flag de empresa, se guarda el desglose en el
+        // metadata (conservando lo que ya escribió BuildMetadata*) y los totales salen de la suma.
+        List<HuevoItemSeguimientoDto>? huevoItems = null;
+        if (request.HuevoItems is { Count: > 0 })
+        {
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+            metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
+        }
+
         var entity = new SeguimientoProduccion
         {
             LoteId = loteId,
@@ -387,6 +398,9 @@ public class ProduccionService : IProduccionService
             CreatedByUserId = _currentUser.UserId,
             CreatedAt = DateTime.UtcNow
         };
+
+        // huevo_tot = suma de los ítems; huevo_inc y las 11 columnas fijas quedan en 0.
+        if (huevoItems != null) AplicarTotalesHuevoPorItems(entity, huevoItems);
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2) ────────────
         // Descuento desde los DTOs del request (TODOS los ítems), id-mapping catalogItemId→ítem B.
@@ -517,6 +531,29 @@ public class ProduccionService : IProduccionService
             ? MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(entity.Metadata.RootElement)
             : new Dictionary<ItemConsumoKey, decimal>();
 
+        // ── Clasificación de huevos POR ÍTEMS (Santa Reyes) — edición ────────────────────
+        //   null  = "no tocar": se conserva el desglose ya persistido (y sus totales), NO se pisa
+        //           con los campos sueltos del DTO;
+        //   []    = "quitar la clasificación por ítems": se elimina la clave del metadata y los
+        //           totales vuelven a salir de los campos sueltos, como hoy;
+        //   [..]  = reemplaza el desglose (se revalida) y recalcula huevo_tot / huevo_inc / 11 columnas.
+        var huevoItemsPersistidos = entity.Metadata != null
+            ? HuevoItemsCalculos.LeerDeMetadata(entity.Metadata.RootElement)
+            : new List<HuevoItemSeguimientoDto>();
+
+        List<HuevoItemSeguimientoDto>? huevoItems = null;
+        if (request.HuevoItems is null)
+        {
+            if (huevoItemsPersistidos.Count > 0) huevoItems = huevoItemsPersistidos;
+        }
+        else if (request.HuevoItems.Count > 0)
+        {
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+        }
+
+        if (huevoItems != null)
+            metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
+
         entity.LoteId = loteId;
         entity.LotePosturaProduccionId = lotePosturaProduccionId;
         entity.Fecha = request.FechaRegistro;
@@ -555,6 +592,9 @@ public class ProduccionService : IProduccionService
         entity.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura;
         entity.UpdatedByUserId = _currentUser.UserId;
         entity.UpdatedAt = DateTime.UtcNow;
+
+        // huevo_tot = suma de los ítems; huevo_inc y las 11 columnas fijas quedan en 0.
+        if (huevoItems != null) AplicarTotalesHuevoPorItems(entity, huevoItems);
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (Fase 3 paso 2) ──
         // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.
@@ -1160,5 +1200,98 @@ public class ProduccionService : IProduccionService
         var u = (unidad ?? "kg").Trim().ToLowerInvariant();
         if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
         return (decimal)cantidad;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────
+    // Clasificación de huevos POR ÍTEMS del catálogo (Primera/Pnc) — Santa Reyes.
+    // Gateada por companies.clasificacion_huevo_por_items de la empresa DUEÑA DE LA GRANJA del
+    // lote (misma empresa efectiva que resuelve el inventario, patrón farms.company_id). Cero
+    // impacto para el resto de empresas: sin huevoItems en el request no se ejecuta nada de esto.
+    // ─────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Valida el desglose de huevos por ítems del request:
+    /// (a) reglas puras (cantidad ≥ 0, id &gt; 0, sin repetidos) — <see cref="HuevoItemsCalculos.Validar"/>;
+    /// (b) la empresa de la granja del lote debe tener <c>clasificacion_huevo_por_items = true</c>;
+    /// (c) todos los <c>catalogItemId</c> deben existir en <c>catalogo_items</c> de esa empresa con
+    ///     <c>item_type = 'huevo'</c> (una sola query, comparación de conjuntos).
+    /// Lanza <see cref="InvalidOperationException"/> (el controller la traduce a 400) con el detalle.
+    /// </summary>
+    private async Task<List<HuevoItemSeguimientoDto>> ValidarHuevoItemsAsync(int loteId, List<HuevoItemSeguimientoDto> huevoItems)
+    {
+        var error = HuevoItemsCalculos.Validar(huevoItems);
+        if (error != null) throw new InvalidOperationException(error);
+
+        var companyId = await ResolverCompanyIdDeGranjaDelLoteAsync(loteId).ConfigureAwait(false);
+
+        var permite = await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (bool?)c.ClasificacionHuevoPorItems)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+        if (permite != true)
+            throw new InvalidOperationException(
+                "La empresa de este lote no tiene habilitada la clasificación de huevos por ítems de inventario; use los campos de clasificación estándar.");
+
+        var ids = huevoItems.Select(i => i.CatalogItemId).Distinct().ToArray();
+        var existentes = await _context.CatalogItems.AsNoTracking()
+            .Where(ci => ci.CompanyId == companyId && ci.ItemType == "huevo" && ids.Contains(ci.Id))
+            .Select(ci => ci.Id)
+            .ToListAsync()
+            .ConfigureAwait(false);
+
+        var faltantes = ids.Except(existentes).ToArray();
+        if (faltantes.Length > 0)
+            throw new InvalidOperationException(
+                $"Los siguientes ítems no existen como ítem de huevo del catálogo de la empresa: {string.Join(", ", faltantes)}.");
+
+        return huevoItems;
+    }
+
+    /// <summary>
+    /// Empresa efectiva de la clasificación = empresa dueña de la GRANJA del lote (misma regla que
+    /// el descuento de inventario, <c>farms.company_id</c>), no la empresa activa del token.
+    /// </summary>
+    private async Task<int> ResolverCompanyIdDeGranjaDelLoteAsync(int loteId)
+    {
+        var granjaId = await _context.Lotes.AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.DeletedAt == null)
+            .Select(l => (int?)l.GranjaId)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+        if (granjaId is null or <= 0)
+            throw new InvalidOperationException($"No se pudo resolver la granja del lote {loteId} para clasificar los huevos por ítems.");
+
+        var companyId = await _context.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId.Value)
+            .Select(f => (int?)f.CompanyId)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+        if (companyId is null or <= 0)
+            throw new InvalidOperationException($"No se pudo resolver la empresa de la granja {granjaId} para clasificar los huevos por ítems.");
+
+        return companyId.Value;
+    }
+
+    /// <summary>
+    /// Totales del día cuando la clasificación es por ítems: <c>huevo_tot</c> = suma de cantidades
+    /// (lo que siguen leyendo espejo, trigger, saldos, indicadores y reportes), <c>huevo_inc</c> = 0
+    /// (postura comercial, no incuba) y las 11 columnas fijas en 0 (el desglose vive en el metadata).
+    /// </summary>
+    private static void AplicarTotalesHuevoPorItems(SeguimientoProduccion entity, IReadOnlyCollection<HuevoItemSeguimientoDto> huevoItems)
+    {
+        entity.HuevoTot = HuevoItemsCalculos.SumarTotal(huevoItems);
+        entity.HuevoInc = 0;
+        entity.HuevoLimpio = 0;
+        entity.HuevoTratado = 0;
+        entity.HuevoSucio = 0;
+        entity.HuevoDeforme = 0;
+        entity.HuevoBlanco = 0;
+        entity.HuevoDobleYema = 0;
+        entity.HuevoPiso = 0;
+        entity.HuevoPequeno = 0;
+        entity.HuevoRoto = 0;
+        entity.HuevoDesecho = 0;
+        entity.HuevoOtro = 0;
     }
 }

@@ -125,6 +125,22 @@ Infrastructure/Services/<Modulo>/
 
 ---
 
+## 🏢 Features por EMPRESA (multi-tenant) — patrón OBLIGATORIO
+
+> Establecido con la implementación de **Santa Reyes** (jul-2026, plan `fase_de_desarrollo/santa_reyes_implementacion_plan.md`). Referencia canónica: flags `maneja_codigos_erp_avicola`, `clasificacion_huevo_por_items`, `permite_traslado_aves_cross_etapa` + guía genética condicional (`GuiaGeneticaRequisitoCalculos`).
+
+**Reglas (comportamiento distinto para UNA empresa):**
+1. **La señal vive en BD como columna tipada en `companies`** (bool/valor, `NOT NULL DEFAULT` neutro), nombrada por el **comportamiento** (`clasificacion_huevo_por_items`), NUNCA por el tenant (`es_santa_reyes` ❌). Override por granja solo si hace falta (patrón `maneja_alimento_por_galpon`: `farm ?? company`). ⛔ Prohibido decidir por `if (pais == X)` o `if (empresa == 'Nombre')` en código — no escala y ya causó deuda (`AutoNombrePorCorrida` es el ANTI-patrón: el front decide y el back obedece).
+2. **La decisión es lógica pura** en `Application/Calculos/<Feature>Calculos.cs` (static, sin EF) **con tests xUnit por módulo — OBLIGATORIOS antes de mergear** (gate CI): con flag OFF el comportamiento previo debe quedar **byte a byte idéntico** (mensajes incluidos) y con flag ON se cubren los casos nuevos. El service solo resuelve el flag y delega.
+3. **Empresa efectiva SIEMPRE por datos, fail-closed**: resolver por `farms.company_id` de la granja del lote (patrón `ColombiaInventarioConsumoService.ResolverCompanyIdDeGranjaAsync`) o empresa activa validada por `ActiveCompanyMiddleware`; ante ambigüedad devolver vacío/error, nunca fugar datos de otra empresa (patrón `InventarioCatalogoScopeCalculos`).
+4. **Front**: el flag viaja en `CompanyDto` (agregarlo en TODAS las proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`, `CompanyResolver`, `CompanyPaisService`) y se lee con `core/services/company-config/active-company-config.service.ts` (caché 5 min, invalida con `session$`, **fail-closed**: error/ausente → `false` → UI oculta). Gating con `@if (flag)` en el form VIVO (verificar cuál es: puede haber componentes huérfanos, p. ej. el form real de lotes es `lote-list`, no `modal-create-edit-lote`).
+5. **Módulos on/off por empresa** = `company_menus` (habilita en la UI de admin de roles) + `role_menus` (menú del usuario), localizando menús por `route`, jamás por id fijo (ids difieren local↔prod).
+6. **Datos por empresa** (desgloses variables) → `metadata jsonb` existente (p. ej. `seguimiento_diario_produccion.metadata->'huevoItems'`) conservando los totales legacy (`huevo_tot`) para no romper espejos/triggers/indicadores; las claves nuevas se agregan SIN pisar las existentes.
+7. **Seeds de empresa nueva** = migración EF **data-only** (Designer clonado, sin tocar ModelSnapshot), idempotente (`WHERE NOT EXISTS` + `IS DISTINCT FROM` en updates para no ensuciar históricos), lookups por nombre/route/email. ⚠️ Toda migración posterior que haga `UPDATE companies ... WHERE name='X'` debe ordenar (timestamp) DESPUÉS del seed que crea la empresa, o en prod correrá contra una empresa inexistente.
+8. **Validación por módulo tocado**: `dotnet build` + `dotnet test` (backend) / `yarn build` (front) + smoke doble: en una empresa con flag **OFF** (Demo/Sanmarino → cero cambios visibles) y en la empresa con flag **ON**.
+
+---
+
 ## 🗄️ Base de datos & migraciones
 
 > **Estado (2026-05-26):** `__EFMigrationsHistory` en RDS prod saneado y alineado con el código (0 pendientes). `Database__RunMigrations=true` en la TaskDef ECS → **las migraciones nuevas se aplican solas al arrancar la app en cada deploy.**

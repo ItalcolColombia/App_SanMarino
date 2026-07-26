@@ -76,21 +76,30 @@
     <!-- ═══════════════════════════════════════════════════════════════════════
          FILTROS EN CASCADA
          ═══════════════════════════════════════════════════════════════════════ -->
-    <section class="ux-card">
-      <h3 class="sr-only">Filtros de Selección</h3>
+    <!-- Diseño unificado «Selección de contexto» (clases globales de styles/filter-context.scss).
+         Solo presentación: bindings, [attr.disabled] y condiciones @if quedan idénticos. -->
+    <section class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Selección de contexto</h3>
+          <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+        </div>
+      </div>
 
       @if (filterSvc.loading()) {
         <p class="ux-hint" style="text-align:center;padding:8px;">Cargando filtros…</p>
       }
       @if (filterSvc.errorCarga()) {
-        <div class="alert alert-danger" style="margin-bottom:8px;">{{ filterSvc.errorCarga() }}</div>
+        <div class="alert alert-danger" style="margin:8px 1.25rem 0;">{{ filterSvc.errorCarga() }}</div>
       }
 
-      <div class="ux-form">
-
-        <!-- Fase del Ciclo Productivo -->
-        <div class="filter-fase">
-          <span class="ux-label">Fase del Ciclo Productivo</span>
+      <!-- Fase del Ciclo Productivo (radios con su markup interno intacto) -->
+      <div class="filter-fields">
+        <div class="filter-field">
+          <span class="filter-step__label">Fase del Ciclo Productivo</span>
           <div class="radio-group radio-group--fase">
             <label class="radio-label radio-label--fase"
               [class.active]="filterSvc.selectedEtapa() === 'LEVANTE'">
@@ -114,142 +123,161 @@
             </label>
           </div>
         </div>
+      </div>
 
-        <!-- Ubicación y Lote: Granja → Núcleo → Galpón → Lote Base -->
-        <div class="grid grid-4">
+      <!-- Ubicación y Lote: Granja → Núcleo → Galpón → Lote Base -->
+      <div class="filter-steps">
 
-          <div class="form-field">
-            <label class="ux-label" for="sel-granja">Granja</label>
-            <div class="ux-select">
-              <select id="sel-granja" class="ux-input"
-                [ngModel]="filterSvc.selectedGranjaId()"
-                (ngModelChange)="onGranjaChange($event)">
-                <option [ngValue]="null">— Selecciona —</option>
-                @for (g of filterSvc.granjas(); track g.id) {
-                  <option [ngValue]="g.id">{{ g.name }}</option>
-                }
-              </select>
-            </div>
+        <!-- Paso 1: Granja -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!filterSvc.selectedGranjaId()"
+          [class.filter-step--done]="!!filterSvc.selectedNucleoId()">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-granja">Granja</label>
+            <select id="sel-granja" class="filter-step__select"
+              [ngModel]="filterSvc.selectedGranjaId()"
+              (ngModelChange)="onGranjaChange($event)">
+              <option [ngValue]="null">— Selecciona —</option>
+              @for (g of filterSvc.granjas(); track g.id) {
+                <option [ngValue]="g.id">{{ g.name }}</option>
+              }
+            </select>
           </div>
+        </div>
 
-          <div class="form-field">
-            <label class="ux-label" for="sel-nucleo">Núcleo</label>
-            <div class="ux-select">
-              <select id="sel-nucleo" class="ux-input"
-                [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
-                [ngModel]="filterSvc.selectedNucleoId()"
-                (ngModelChange)="onNucleoChange($event)">
-                <option [ngValue]="null">— Todos —</option>
-                @for (n of filterSvc.nucleosFiltrados(); track n.nucleoId) {
-                  <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                }
-              </select>
-            </div>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!filterSvc.selectedGranjaId()" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!filterSvc.selectedNucleoId()"
+          [class.filter-step--done]="!!filterSvc.selectedGalponId()"
+          [class.filter-step--disabled]="!filterSvc.selectedGranjaId()">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-nucleo">Núcleo</label>
+            <select id="sel-nucleo" class="filter-step__select"
+              [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
+              [ngModel]="filterSvc.selectedNucleoId()"
+              (ngModelChange)="onNucleoChange($event)">
+              <option [ngValue]="null">— Todos —</option>
+              @for (n of filterSvc.nucleosFiltrados(); track n.nucleoId) {
+                <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
+            </select>
           </div>
+        </div>
 
-          <div class="form-field">
-            <label class="ux-label" for="sel-galpon">Galpón</label>
-            <div class="ux-select">
-              <select id="sel-galpon" class="ux-input"
-                [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
-                [ngModel]="filterSvc.selectedGalponId()"
-                (ngModelChange)="onGalponChange($event)">
-                <option [ngValue]="null">— Todos —</option>
-                @for (g of filterSvc.galponesFiltrados(); track g.galponId) {
-                  <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                }
-              </select>
-            </div>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!filterSvc.selectedNucleoId()" aria-hidden="true"></div>
+
+        <!-- Paso 3: Galpón -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!filterSvc.selectedGalponId()"
+          [class.filter-step--done]="!!filterSvc.selectedLoteBaseId()"
+          [class.filter-step--disabled]="!filterSvc.selectedGranjaId()">
+          <div class="filter-step__num">3</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-galpon">Galpón</label>
+            <select id="sel-galpon" class="filter-step__select"
+              [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
+              [ngModel]="filterSvc.selectedGalponId()"
+              (ngModelChange)="onGalponChange($event)">
+              <option [ngValue]="null">— Todos —</option>
+              @for (g of filterSvc.galponesFiltrados(); track g.galponId) {
+                <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+              }
+            </select>
           </div>
+        </div>
 
-          <div class="form-field">
-            <label class="ux-label" for="sel-lote-base">Lote Base</label>
-            <div class="ux-select">
-              <select id="sel-lote-base" class="ux-input"
-                [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
-                [ngModel]="filterSvc.selectedLoteBaseId()"
-                (ngModelChange)="onLoteBaseChange($event)">
-                <option [ngValue]="null">— Selecciona —</option>
-                @for (item of filterSvc.lotesPaso4(); track item.id) {
-                  <option [ngValue]="item.id">{{ item.nombre }}</option>
-                }
-              </select>
-            </div>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!filterSvc.selectedGalponId()" aria-hidden="true"></div>
+
+        <!-- Paso 4: Lote Base -->
+        <div class="filter-step filter-step--last"
+          [class.filter-step--active]="!!filterSvc.selectedLoteBaseId()"
+          [class.filter-step--disabled]="!filterSvc.selectedGranjaId()">
+          <div class="filter-step__num filter-step__num--accent">4</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-lote-base">Lote Base</label>
+            <select id="sel-lote-base" class="filter-step__select"
+              [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
+              [ngModel]="filterSvc.selectedLoteBaseId()"
+              (ngModelChange)="onLoteBaseChange($event)">
+              <option [ngValue]="null">— Selecciona —</option>
+              @for (item of filterSvc.lotesPaso4(); track item.id) {
+                <option [ngValue]="item.id">{{ item.nombre }}</option>
+              }
+            </select>
             @if (filterSvc.selectedGranjaId() && filterSvc.lotesPaso4().length === 0 && !filterSvc.loading()) {
               <small class="ux-hint ux-hint--warn">Sin lotes base en esta ubicación.</small>
             }
           </div>
-
         </div>
 
-        <!-- Configuración del reporte: Tipo · Sublote/LoteProd · Periodicidad · Fechas -->
-        <div class="filter-config">
+      </div>
 
-          <!-- Tipo de Reporte — visible en ambas etapas -->
-          <div class="form-field">
-            <span class="ux-label">Tipo de Reporte</span>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" name="tipoReporte" value="consolidado"
-                  [(ngModel)]="tipoReporte" (change)="onTipoReporteChange()">
-                Consolidado
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="tipoReporte" value="sublote"
-                  [(ngModel)]="tipoReporte" (change)="onTipoReporteChange()">
-                {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'Por Sublote' : 'Por Lote' }}
-              </label>
-            </div>
+      <!-- Configuración del reporte: Tipo · Sublote/LoteProd · Periodicidad · Fechas -->
+      <div class="filter-fields">
+
+        <!-- Tipo de Reporte — visible en ambas etapas -->
+        <div class="filter-field">
+          <span class="filter-step__label">Tipo de Reporte</span>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="tipoReporte" value="consolidado"
+                [(ngModel)]="tipoReporte" (change)="onTipoReporteChange()">
+              Consolidado
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="tipoReporte" value="sublote"
+                [(ngModel)]="tipoReporte" (change)="onTipoReporteChange()">
+              {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'Por Sublote' : 'Por Lote' }}
+            </label>
           </div>
+        </div>
 
-          <!-- Sublote (LEVANTE) / Lote de Producción (PRODUCCIÓN) -->
-          @if (tipoReporte === 'sublote') {
-            <div class="form-field form-field--sublote">
-              <label class="ux-label" for="sel-sublote">
-                {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'Sublote' : 'Lote de Producción' }}
-              </label>
-              <div class="ux-select">
-                <select id="sel-sublote" class="ux-input"
-                  [attr.disabled]="!filterSvc.selectedLoteBaseId() ? '' : null"
-                  [ngModel]="filterSvc.selectedSubloteId()"
-                  (ngModelChange)="onSubloteChange($event)">
-                  <option [ngValue]="null">— Selecciona —</option>
-                  @for (s of filterSvc.sublotesFiltrados(); track s.loteId) {
-                    <option [ngValue]="s.loteId">{{ s.loteNombre }}</option>
-                  }
-                </select>
-              </div>
-              @if (filterSvc.selectedLoteBaseId() && filterSvc.sublotesFiltrados().length === 0) {
-                <small class="ux-hint ux-hint--warn">
-                  Sin {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'sublotes' : 'lotes de producción' }} para este lote base.
-                </small>
+        <!-- Sublote (LEVANTE) / Lote de Producción (PRODUCCIÓN) -->
+        @if (tipoReporte === 'sublote') {
+          <div class="filter-field">
+            <label class="filter-step__label" for="sel-sublote">
+              {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'Sublote' : 'Lote de Producción' }}
+            </label>
+            <select id="sel-sublote" class="filter-step__select"
+              [attr.disabled]="!filterSvc.selectedLoteBaseId() ? '' : null"
+              [ngModel]="filterSvc.selectedSubloteId()"
+              (ngModelChange)="onSubloteChange($event)">
+              <option [ngValue]="null">— Selecciona —</option>
+              @for (s of filterSvc.sublotesFiltrados(); track s.loteId) {
+                <option [ngValue]="s.loteId">{{ s.loteNombre }}</option>
               }
-            </div>
-          }
-
-          <!-- Periodicidad — visible en ambas etapas -->
-          <div class="form-field">
-            <label class="ux-label" for="sel-periodicidad">Periodicidad</label>
-            <div class="ux-select">
-              <select id="sel-periodicidad" class="ux-input"
-                [ngModel]="filterSvc.selectedPeriodicidad()"
-                (ngModelChange)="onPeriodicidadChange($event)">
-                <option [ngValue]="'Semanal'">Semanal</option>
-                <option [ngValue]="'Diario'">Diario</option>
-              </select>
-            </div>
+            </select>
+            @if (filterSvc.selectedLoteBaseId() && filterSvc.sublotesFiltrados().length === 0) {
+              <small class="ux-hint ux-hint--warn">
+                Sin {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'sublotes' : 'lotes de producción' }} para este lote base.
+              </small>
+            }
           </div>
+        }
 
-          <div class="form-field">
-            <label class="ux-label" for="fecha-inicio">Fecha Inicio</label>
-            <input id="fecha-inicio" type="date" class="ux-input" [(ngModel)]="fechaInicio">
-          </div>
+        <!-- Periodicidad — visible en ambas etapas -->
+        <div class="filter-field">
+          <label class="filter-step__label" for="sel-periodicidad">Periodicidad</label>
+          <select id="sel-periodicidad" class="filter-step__select"
+            [ngModel]="filterSvc.selectedPeriodicidad()"
+            (ngModelChange)="onPeriodicidadChange($event)">
+            <option [ngValue]="'Semanal'">Semanal</option>
+            <option [ngValue]="'Diario'">Diario</option>
+          </select>
+        </div>
 
-          <div class="form-field">
-            <label class="ux-label" for="fecha-fin">Fecha Fin</label>
-            <input id="fecha-fin" type="date" class="ux-input" [(ngModel)]="fechaFin">
-          </div>
+        <div class="filter-field">
+          <label class="filter-step__label" for="fecha-inicio">Fecha Inicio</label>
+          <input id="fecha-inicio" type="date" class="filter-step__input" [(ngModel)]="fechaInicio">
+        </div>
 
+        <div class="filter-field">
+          <label class="filter-step__label" for="fecha-fin">Fecha Fin</label>
+          <input id="fecha-fin" type="date" class="filter-step__input" [(ngModel)]="fechaFin">
         </div>
 
       </div>

@@ -70,7 +70,10 @@ public partial class CompanyService
             City              = dto.City,
             VisualPermissions = dto.VisualPermissions,
             MobileAccess      = dto.MobileAccess,
-            ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon
+            ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon,
+            ManejaCodigosErpAvicola = dto.ManejaCodigosErpAvicola,
+            ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems,
+            PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa
         };
 
         _ctx.Companies.Add(c);
@@ -104,6 +107,9 @@ public partial class CompanyService
         c.VisualPermissions = dto.VisualPermissions;
         c.MobileAccess      = dto.MobileAccess;
         c.ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon;
+        c.ManejaCodigosErpAvicola = dto.ManejaCodigosErpAvicola;
+        c.ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems;
+        c.PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa;
 
         await _ctx.SaveChangesAsync();
 

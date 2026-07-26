@@ -27,12 +27,16 @@
 
   @if (mapa && !ejecucionId) {
     <section class="exec-section exec-section--params">
-      <div class="exec-card exec-card--params">
-        <h2 class="exec-card__title">
-          <span class="exec-card__icon">⚙️</span>
-          Parámetros de ejecución
-        </h2>
-        <p class="exec-card__desc">Indique el rango de fechas y el formato del archivo a generar.</p>
+      <div class="ux-card filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <span class="exec-card__icon">⚙️</span>
+          </div>
+          <div>
+            <h2 class="filter-card__title">Parámetros</h2>
+            <p class="filter-card__subtitle">Define el rango y formato de ejecución</p>
+          </div>
+        </div>
 
         @if (!canExecute) {
           <div class="alert alert-warning exec-alert-config">
@@ -49,25 +53,23 @@
           </div>
         }
 
-        <div class="exec-form">
-          <div class="exec-form__row">
-            <div class="exec-form__group">
-              <label for="fechaDesde">Fecha desde</label>
-              <input id="fechaDesde" type="date" class="form-control" [(ngModel)]="fechaDesde" />
-            </div>
-            <div class="exec-form__group">
-              <label for="fechaHasta">Fecha hasta</label>
-              <input id="fechaHasta" type="date" class="form-control" [(ngModel)]="fechaHasta" />
-            </div>
+        <div class="filter-fields">
+          <div class="filter-field">
+            <label for="fechaDesde" class="filter-step__label">Fecha desde</label>
+            <input id="fechaDesde" type="date" class="filter-step__input" [(ngModel)]="fechaDesde" />
           </div>
-          <div class="exec-form__group">
-            <label for="formatoExport">Formato de exportación</label>
-            <select id="formatoExport" class="form-control" [(ngModel)]="formatoExport">
+          <div class="filter-field">
+            <label for="fechaHasta" class="filter-step__label">Fecha hasta</label>
+            <input id="fechaHasta" type="date" class="filter-step__input" [(ngModel)]="fechaHasta" />
+          </div>
+          <div class="filter-field">
+            <label for="formatoExport" class="filter-step__label">Formato de exportación</label>
+            <select id="formatoExport" class="filter-step__select" [(ngModel)]="formatoExport">
               <option value="excel">Excel</option>
               <option value="pdf">PDF (próximamente)</option>
             </select>
           </div>
-          <div class="exec-card__actions exec-card__actions--primary">
+          <div class="filter-card__actions">
             <button type="button" class="btn btn-primary btn-exec" (click)="ejecutar()" [disabled]="running || !canExecute">
               {{ running ? 'Iniciando…' : 'Ejecutar' }}
             </button>

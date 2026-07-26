@@ -416,6 +416,9 @@ public partial class GalponService : AppInterfaces.IGalponService
             Ancho           = dto.Ancho,
             Largo           = dto.Largo,
             TipoGalpon      = dto.TipoGalpon,
+            // Códigos ERP avícolas (pass-through; visibles solo si la empresa los maneja)
+            CodigoErpUbicacion      = dto.CodigoErpUbicacion,
+            DescripcionErpUbicacion = dto.DescripcionErpUbicacion,
             CompanyId       = effectiveCompanyId,
             CreatedByUserId = _current.UserId,
             CreatedAt       = DateTime.UtcNow
@@ -448,7 +451,9 @@ public partial class GalponService : AppInterfaces.IGalponService
                         ent.Company?.Name ?? "",
                         ent.Company?.VisualPermissions ?? Array.Empty<string>(),
                         ent.Company?.MobileAccess ?? false,
-                        ent.Company?.Identifier)
+                        ent.Company?.Identifier),
+                    ent.CodigoErpUbicacion,
+                    ent.DescripcionErpUbicacion
                     );
     }
 
@@ -467,6 +472,9 @@ public partial class GalponService : AppInterfaces.IGalponService
         ent.Ancho          = dto.Ancho;
         ent.Largo          = dto.Largo;
         ent.TipoGalpon     = dto.TipoGalpon;
+        // Códigos ERP avícolas (pass-through)
+        ent.CodigoErpUbicacion      = dto.CodigoErpUbicacion;
+        ent.DescripcionErpUbicacion = dto.DescripcionErpUbicacion;
         ent.UpdatedByUserId= _current.UserId;
         ent.UpdatedAt      = DateTime.UtcNow;
 
@@ -618,7 +626,9 @@ public partial class GalponService : AppInterfaces.IGalponService
                         g.Company.Name,
                         g.Company.VisualPermissions ?? Array.Empty<string>(),
                         g.Company.MobileAccess,
-                        g.Company.Identifier)
+                        g.Company.Identifier),
+                    g.CodigoErpUbicacion,
+                    g.DescripcionErpUbicacion
 
                 ));
     }

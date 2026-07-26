@@ -19,6 +19,7 @@ import { UserService, UserDto, User } from '../../../../core/services/user/user.
 import { Company, CompanyService } from '../../../../core/services/company/company.service';
 import { GuiaGeneticaService } from '../../../../services/guia-genetica.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 
 // === Validador: array requerido (>=1 ítem) ===
@@ -101,6 +102,16 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   loadingAnos: boolean = false;
   razaValida: boolean = true;
 
+  /**
+   * La empresa NO tiene guía genética cargada (0 razas tras consultar el catálogo).
+   * En ese caso raza/año dejan de ser obligatorios y se capturan como texto libre.
+   * Arranca en `false` = comportamiento actual (selects requeridos) hasta que se confirme.
+   */
+  sinGuiaGenetica: boolean = false;
+
+  /** Flag de la empresa activa: muestra el bloque de centro de costo ERP. Fail-closed. */
+  manejaCodigosErp = false;
+
   // Filtros en cascada (modal)
   nucleosFiltrados: NucleoDto[] = [];
   galponesFiltrados: GalponDetailDto[] = [];
@@ -138,17 +149,29 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
     private guiaGeneticaSvc: GuiaGeneticaService,
     private tokenStorage: TokenStorageService,
     private cdr: ChangeDetectorRef,
-    private lotePosturaLevanteSvc: LotePosturaLevanteService
+    private lotePosturaLevanteSvc: LotePosturaLevanteService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   ngOnInit(): void {
-    
-    
-    
-    
+
+
+
+
     this.initForm();
     this.loadMasterData();
     this.setupFormChains();
+    this.loadCompanyFlags();
+  }
+
+  /** Lee los flags de la empresa activa (fail-closed: si falla, los campos ERP quedan ocultos). */
+  private loadCompanyFlags(): void {
+    this.companyConfig.getFlags()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(flags => {
+        this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
+        this.cdr.markForCheck();
+      });
   }
 
   ngOnDestroy(): void {
@@ -231,7 +254,10 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
       loteErp: [''],
       lineaGenetica: [''],
       esLotePadre: [false],
-      lotePadreId: [null]
+      lotePadreId: [null],
+      // ── Centro de costo ERP (opcionales, solo visibles con el flag de empresa) ──
+      codigoCentroCosto: ['', Validators.maxLength(20)],
+      descripcionCentroCosto: ['', Validators.maxLength(200)]
     });
   }
 
@@ -274,10 +300,38 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
       this.razasDisponibles = razas;
       this.todosLotes = lotes;
 
+      // Con razas → guía obligatoria (comportamiento actual). Sin razas → raza/año libres.
+      this.aplicarRequisitoGuiaGenetica();
+
       this.loading = false;
       this.loadingRazas = false;
       this.cdr.detectChanges();
     });
+  }
+
+  /**
+   * Requisito de guía genética según el catálogo de la empresa:
+   * - HAY razas → `raza` y `anoTablaGenetica` son requeridos y se eligen de los selects (actual).
+   * - NO hay razas (empresa sin guía cargada) → ambos opcionales y de captura libre.
+   * Se re-evalúa cada vez que llegan las razas, de modo que al cargar la guía vuelve a exigirse.
+   */
+  private aplicarRequisitoGuiaGenetica(): void {
+    this.sinGuiaGenetica = (this.razasDisponibles?.length ?? 0) === 0;
+
+    const raza = this.form.get('raza');
+    const ano = this.form.get('anoTablaGenetica');
+
+    if (this.sinGuiaGenetica) {
+      raza?.clearValidators();
+      ano?.clearValidators();
+    } else {
+      raza?.setValidators([Validators.required]);
+      ano?.setValidators([Validators.required]);
+    }
+
+    // emitEvent:false → no dispara las cascadas de raza/año (evita limpiar lo ya escrito).
+    raza?.updateValueAndValidity({ emitEvent: false });
+    ano?.updateValueAndValidity({ emitEvent: false });
   }
 
   private setupFormChains(): void {
@@ -302,18 +356,17 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
 
     // Chain: Raza -> Año Tabla Genética
     this.form.get('raza')!.valueChanges.subscribe(raza => {
-      
-      
-      
       this.selectedRaza = raza;
+
+      // Sin guía genética la raza es texto libre y el año se escribe a mano:
+      // no hay cascada de años ni consulta al catálogo (borraría lo tecleado).
+      if (this.sinGuiaGenetica) return;
+
       this.anosDisponibles = [];
       this.form.patchValue({ anoTablaGenetica: null });
-      
+
       if (raza) {
-        
         this.loadAnosDisponibles(raza);
-      } else {
-        
       }
     });
 
@@ -537,9 +590,10 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
     if (!this.editingLote) return;
 
     const lote = this.editingLote;
-    
-    // Cargar años disponibles si hay raza
-    if (lote.raza) {
+
+    // Cargar años disponibles si hay raza (solo cuando la empresa tiene guía genética:
+    // sin guía la raza es texto libre y no existe catálogo de años que consultar)
+    if (lote.raza && !this.sinGuiaGenetica) {
       this.loadAnosDisponibles(lote.raza);
     }
     
@@ -568,7 +622,9 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
       loteErp: lote.loteErp,
       lineaGenetica: lote.lineaGenetica,
       esLotePadre: !lote.lotePadreId, // Si no tiene padre, es un lote padre
-      lotePadreId: lote.lotePadreId
+      lotePadreId: lote.lotePadreId,
+      codigoCentroCosto: lote.codigoCentroCosto ?? '',
+      descripcionCentroCosto: lote.descripcionCentroCosto ?? ''
     });
     
     // Cargar lotes padres si está editando
@@ -628,8 +684,15 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
     this.saving = true;
     const formValue = this.form.value;
 
+    // Raza: texto recortado; vacío → se omite del payload (el backend la recibe null).
+    // Sin guía genética puede ir vacía; con guía el validator ya la exigió.
+    const razaNormalizada = String(formValue.raza ?? '').trim();
+
     const dto: CreateLoteDto | UpdateLoteDto = {
       ...formValue,
+      raza: razaNormalizada || undefined,
+      codigoCentroCosto: this.textoOrNull(formValue.codigoCentroCosto),
+      descripcionCentroCosto: this.textoOrNull(formValue.descripcionCentroCosto),
       granjaId: Number(formValue.granjaId),
       nucleoId: formValue.nucleoId,
       galponId: formValue.galponId || null,
@@ -666,6 +729,12 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
 
   closeModal(): void {
     this.close.emit();
+  }
+
+  /** Texto del form → string recortado o null (los campos opcionales no viajan como ''). */
+  private textoOrNull(value: unknown): string | null {
+    const texto = value == null ? '' : String(value).trim();
+    return texto === '' ? null : texto;
   }
 
   // Getters para validación en template

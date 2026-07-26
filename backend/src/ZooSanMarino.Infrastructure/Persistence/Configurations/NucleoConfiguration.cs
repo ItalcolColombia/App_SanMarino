@@ -30,6 +30,17 @@ public class NucleoConfiguration : IEntityTypeConfiguration<Nucleo>
             .HasMaxLength(150)
             .IsRequired();
 
+        // Códigos ERP avícolas del núcleo (empresas con maneja_codigos_erp_avicola = true)
+        b.Property(x => x.CodigoBodega)
+            .HasColumnName("codigo_bodega")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        b.Property(x => x.DescripcionBodega)
+            .HasColumnName("descripcion_bodega")
+            .HasMaxLength(200)
+            .IsRequired(false);
+
         // Si tienes multi-tenant en Nucleo, agrega CompanyId:
         // b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
 

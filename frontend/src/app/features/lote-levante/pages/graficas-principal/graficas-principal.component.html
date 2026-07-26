@@ -14,8 +14,8 @@
     <div class="grafica-card comparativo-guia-card">
       <div class="comparativo-controls">
         <span class="comparativo-titulo">📈 Comparativo con Guía Genética (Real vs Guía) · {{ grupoSexoLabel }}</span>
-        <label class="comparativo-label">Métrica
-          <select [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
+        <label class="comparativo-label filter-step__label">Métrica
+          <select class="filter-step__select" [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
             <option value="consumo">Consumo (g/ave/día)</option>
             <option value="peso">Peso (g)</option>
             <option value="mortalidad">% Mortalidad</option>
@@ -54,11 +54,20 @@
   @if (!loading && indicadoresSemanales.length > 0) {
     <div class="graficas-content-wrapper">
       <!-- ========== FILTRO POR RANGO ========== -->
-      <div class="filtro-rango-card">
-        <h4 class="filtro-rango-title">📅 Filtrar por rango del lote</h4>
-        <p class="filtro-rango-hint">Reduce los datos mostrados en las gráficas por fecha o por edad en semanas.</p>
-        <div class="filtro-rango-controls">
-          <div class="filtro-mode-toggle">
+      <section class="ux-card filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h3 class="filter-card__title">Parámetros de la gráfica</h3>
+            <p class="filter-card__subtitle">Reduce los datos por fecha o edad, y ajusta indicadores y comparaciones del lote</p>
+          </div>
+        </div>
+        <div class="filter-fields">
+          <div class="filter-field">
+            <label class="filter-step__label">Rango</label>
+            <div class="filtro-mode-toggle">
             <button type="button" class="filtro-mode-btn"
               [class.active]="modoFiltro === 'todos'"
               (click)="modoFiltro = 'todos'; aplicarFiltro()">
@@ -75,45 +84,44 @@
               Por edad (semanas)
             </button>
           </div>
+          </div>
           @if (modoFiltro === 'fechas') {
-            <div class="filtro-rango-fields">
-              <div class="filtro-field">
-                <label>Desde</label>
-                <input type="date" [(ngModel)]="fechaDesde">
-              </div>
-              <div class="filtro-field">
-                <label>Hasta</label>
-                <input type="date" [(ngModel)]="fechaHasta">
-              </div>
+            <div class="filter-field">
+              <label class="filter-step__label">Desde</label>
+              <input type="date" class="filter-step__input" [(ngModel)]="fechaDesde">
+            </div>
+            <div class="filter-field">
+              <label class="filter-step__label">Hasta</label>
+              <input type="date" class="filter-step__input" [(ngModel)]="fechaHasta">
+            </div>
+            <div class="filter-field filter-field--fixed">
               <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
             </div>
           }
           @if (modoFiltro === 'edad') {
-            <div class="filtro-rango-fields">
-              <div class="filtro-field">
-                <label>Semana desde</label>
-                <input type="number" min="1" [(ngModel)]="semanaDesde" placeholder="1">
-              </div>
-              <div class="filtro-field">
-                <label>Semana hasta</label>
-                <input type="number" min="1" [(ngModel)]="semanaHasta" placeholder="20">
-              </div>
+            <div class="filter-field">
+              <label class="filter-step__label">Semana desde</label>
+              <input type="number" min="1" class="filter-step__input" [(ngModel)]="semanaDesde" placeholder="1">
+            </div>
+            <div class="filter-field">
+              <label class="filter-step__label">Semana hasta</label>
+              <input type="number" min="1" class="filter-step__input" [(ngModel)]="semanaHasta" placeholder="20">
+            </div>
+            <div class="filter-field filter-field--fixed">
               <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
             </div>
           }
           @if (modoFiltro !== 'todos') {
-            <div class="filtro-badge">
-              Mostrando {{ indicadoresFiltrados.length }} de {{ indicadoresSemanales.length }} semanas
-              <button type="button" class="btn-limpiar" (click)="limpiarFiltro()">Limpiar</button>
+            <div class="filter-field filter-field--fixed">
+              <div class="filtro-badge">
+                Mostrando {{ indicadoresFiltrados.length }} de {{ indicadoresSemanales.length }} semanas
+                <button type="button" class="btn-limpiar" (click)="limpiarFiltro()">Limpiar</button>
+              </div>
             </div>
           }
-        </div>
-      </div>
-      <!-- ========== CONTROLES ========== -->
-      <div class="graficas-controls">
-        <!-- Selector de tipo de gráfica (Múltiple) -->
-        <div class="control-group">
-          <label class="control-label">📈 Tipo de Indicador:</label>
+          <!-- Selector de tipo de gráfica (Múltiple) -->
+          <div class="filter-field">
+            <label class="filter-step__label">📈 Tipo de Indicador:</label>
           <div class="tipos-indicador-selector">
             <p class="tipos-hint">Selecciona uno o más indicadores para comparar en una sola gráfica:</p>
             <div class="tipos-checkboxes">
@@ -201,8 +209,8 @@
                                 </div>
                               </div>
                               <!-- Selector de visualización -->
-                              <div class="control-group">
-                                <label class="control-label">🎨 Visualización:</label>
+                              <div class="filter-field">
+                                <label class="filter-step__label">🎨 Visualización:</label>
                                 <div class="visualization-toggle">
                                   <button type="button"
                                     class="toggle-btn"
@@ -227,9 +235,9 @@
                               <!-- Selector de grupo H/M/Ambos (REQ-010b): activo. La fn de indicadores ya
                                    entrega series por sexo; al cambiar recalcula las gráficas y el comparativo
                                    con guía. 'Ambos' usa las series mixtas (comportamiento previo). -->
-                              <div class="control-group">
-                                <label class="control-label" for="grupoSexoSelect">🚻 Grupo:</label>
-                                <select id="grupoSexoSelect" class="control-select"
+                              <div class="filter-field">
+                                <label class="filter-step__label" for="grupoSexoSelect">🚻 Grupo:</label>
+                                <select id="grupoSexoSelect" class="filter-step__select"
                                   [(ngModel)]="grupoSexoSeleccionado"
                                   (ngModelChange)="onGrupoSexoChange()">
                                   <option value="ambos">Ambos (H+M)</option>
@@ -238,7 +246,7 @@
                                 </select>
                               </div>
                               <!-- Selector comparativo -->
-                              <div class="control-group control-group--comparativo comparativo-card">
+                              <div class="filter-field control-group--comparativo">
                                 <label class="control-label comparativo-label">
                                   <input type="checkbox"
                                     [(ngModel)]="mostrarComparativo"
@@ -251,8 +259,8 @@
                                   @if (mostrarComparativo) {
                                     <div class="comparativo-selectors">
                                       <div class="comparativo-select-group">
-                                        <label class="comparativo-select-label">Semana A</label>
-                                        <select class="control-select"
+                                        <label class="filter-step__label">Semana A</label>
+                                        <select class="filter-step__select"
                                           [(ngModel)]="semanaComparacion1"
                                           (ngModelChange)="onSemanaComparacionChange()">
                                           <option [ngValue]="null">Seleccione</option>
@@ -265,8 +273,8 @@
                                       </div>
                                       <span class="vs-badge">vs</span>
                                       <div class="comparativo-select-group">
-                                        <label class="comparativo-select-label">Semana B</label>
-                                        <select class="control-select"
+                                        <label class="filter-step__label">Semana B</label>
+                                        <select class="filter-step__select"
                                           [(ngModel)]="semanaComparacion2"
                                           (ngModelChange)="onSemanaComparacionChange()">
                                           <option [ngValue]="null">Seleccione</option>
@@ -281,7 +289,7 @@
                                   }
                                 </div>
                                 <!-- Comparación Personalizada de Métricas -->
-                                <div class="control-group control-group--comparativo">
+                                <div class="filter-field control-group--comparativo">
                                   <label class="control-label">
                                     <input type="checkbox"
                                       [(ngModel)]="mostrarComparacionPersonalizada"
@@ -310,7 +318,8 @@
                                       }
                                     </div>
                                   </div>
-                                  <!-- ========== GRÁFICA PRINCIPAL ========== -->
+                      </section>
+                      <!-- ========== GRÁFICA PRINCIPAL ========== -->
                                   <div class="grafica-principal-section">
                                     <div class="grafica-card">
                                       <div class="grafica-card-header">

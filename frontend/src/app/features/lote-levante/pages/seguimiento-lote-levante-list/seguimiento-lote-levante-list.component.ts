@@ -145,6 +145,9 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   trasladoAvesModalOpen = false;
   trasladoAvesOrigen: OrigenTrasladoInfo | null = null;
 
+  /** Contador que fuerza recarga del bloque "Edades en el lote" (cohortes) tras un traslado. */
+  cohortesRefreshTrigger = 0;
+
   // Confirmación de eliminación (Feature 13 refinamiento)
   deleteConfirmOpen = false;
   deleteConfirmLoading = false;
@@ -1086,5 +1089,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     if (this.selectedLoteId) {
       this.onLoteChange(this.selectedLoteId);
     }
+    // Fase 3: el lote sigue siendo el mismo, así que las cohortes se refrescan por trigger.
+    this.cohortesRefreshTrigger++;
   }
 }

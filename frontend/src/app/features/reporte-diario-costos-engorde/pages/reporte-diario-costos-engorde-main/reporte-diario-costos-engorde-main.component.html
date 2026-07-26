@@ -9,55 +9,71 @@
     </div>
   </div>
 
-  <!-- Panel de filtros -->
-  <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
-    @if (loadingFilterData) {
-      <div class="text-sm text-gray-500">Cargando filtros…</div>
-    }
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+  <!-- Panel de filtros — diseño unificado (clases globales de styles/filter-context.scss).
+       Granja y lote base son independientes (no hay cascada) → filter-fields sin numerar. -->
+  <section class="filter-card">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+      </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700">Granja *</label>
-        <select class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="granjaId">
+        <h3 class="filter-card__title">Filtros</h3>
+        <p class="filter-card__subtitle">Acota la información mostrada</p>
+      </div>
+    </div>
+
+    @if (loadingFilterData) {
+      <div class="px-5 pt-3 text-sm text-gray-500">Cargando filtros…</div>
+    }
+
+    <div class="filter-fields">
+      <div class="filter-field">
+        <label class="filter-step__label">Granja *</label>
+        <select class="filter-step__select" [(ngModel)]="granjaId">
           <option [ngValue]="null">— Seleccionar —</option>
           @for (g of granjas; track g.id) {
             <option [ngValue]="g.id">{{ g.name }}</option>
           }
         </select>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Lote base</label>
-        <select class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="loteBaseEngordeId">
+
+      <div class="filter-field">
+        <label class="filter-step__label">Lote base</label>
+        <select class="filter-step__select" [(ngModel)]="loteBaseEngordeId">
           <option [ngValue]="null">Todos los lotes</option>
           @for (b of lotesBase; track b.id) {
             <option [ngValue]="b.id">{{ b.nombre }}</option>
           }
         </select>
-        <p class="mt-0.5 text-xs text-gray-400">Sin lote base = todos los lotes de la granja.</p>
+        <p class="text-xs text-gray-400">Sin lote base = todos los lotes de la granja.</p>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Fecha inicio</label>
-        <input type="date" class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="fechaInicio" />
-        <p class="mt-0.5 text-xs text-gray-400">Vacía = encaset del lote más reciente.</p>
+
+      <div class="filter-field">
+        <label class="filter-step__label">Fecha inicio</label>
+        <input type="date" class="filter-step__input" [(ngModel)]="fechaInicio" />
+        <p class="text-xs text-gray-400">Vacía = encaset del lote más reciente.</p>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Fecha fin</label>
-        <input type="date" class="mt-1 w-full border rounded px-2 py-1.5 text-sm" [(ngModel)]="fechaFin" />
-        <p class="mt-0.5 text-xs text-gray-400">Vacía = hoy.</p>
+
+      <div class="filter-field">
+        <label class="filter-step__label">Fecha fin</label>
+        <input type="date" class="filter-step__input" [(ngModel)]="fechaFin" />
+        <p class="text-xs text-gray-400">Vacía = hoy.</p>
+      </div>
+
+      <div class="filter-card__actions">
+        <button (click)="generar()" [disabled]="loading || !granjaId"
+          class="px-4 py-2 rounded bg-ital-green text-white text-sm font-medium disabled:opacity-50">
+          {{ loading ? 'Generando…' : 'Generar' }}
+        </button>
+        <button (click)="limpiar()"
+          class="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm">Limpiar</button>
+        <button (click)="exportarExcel()" [disabled]="!reporte || reporte.filas.length === 0"
+          class="px-4 py-2 rounded border border-ital-orange text-ital-orange text-sm disabled:opacity-50">
+          Exportar Excel
+        </button>
       </div>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <button (click)="generar()" [disabled]="loading || !granjaId"
-        class="px-4 py-2 rounded bg-ital-green text-white text-sm font-medium disabled:opacity-50">
-        {{ loading ? 'Generando…' : 'Generar' }}
-      </button>
-      <button (click)="limpiar()"
-        class="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm">Limpiar</button>
-      <button (click)="exportarExcel()" [disabled]="!reporte || reporte.filas.length === 0"
-        class="px-4 py-2 rounded border border-ital-orange text-ital-orange text-sm disabled:opacity-50">
-        Exportar Excel
-      </button>
-    </div>
-  </div>
+  </section>
 
   <!-- Error / vacío -->
   @if (error) {

@@ -113,8 +113,9 @@
     </div>
   </header>
 
-  <!-- Filtros de selección -->
+  <!-- Filtros de selección (variante pasos numerados) -->
   <app-filtro-select
+    [variant]="'steps'"
     [selectedGranjaId]="selectedGranjaId"
     [selectedNucleoId]="selectedNucleoId"
     [selectedGalponId]="selectedGalponId"
@@ -137,6 +138,8 @@
     [isLoteCerrado]="isLoteCerrado"
     [showExportSeguimientoExcel]="true"
     [exportSeguimientoLoteNombre]="selectedLoteNombre"
+    [loteIdCohortes]="selectedLoteId"
+    [cohortesRefreshTrigger]="cohortesRefreshTrigger"
     (create)="create()"
     (edit)="edit($event)"
     (delete)="delete($event)"

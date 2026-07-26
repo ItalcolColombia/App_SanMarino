@@ -13,7 +13,7 @@
     <div class="flex items-center gap-2 ml-2">
       <label class="text-xs text-slate-500">Esquema</label>
       <select
-        class="text-sm border border-slate-200 rounded-md px-2 py-1.5 bg-white focus:ring-2 focus:ring-ital-green/40 outline-none"
+        class="filter-step__select"
         [ngModel]="selectedSchema()" (ngModelChange)="onSchemaChange($event)">
         @for (s of schemas(); track s.name) {
           <option [value]="s.name">{{ s.name }} ({{ s.tables }})</option>
@@ -64,7 +64,7 @@
       <aside class="w-64 shrink-0 border-r border-slate-200 bg-white flex flex-col">
         <div class="p-2 border-b border-slate-100">
           <input type="text" placeholder="Filtrar objetos…"
-            class="w-full text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-ital-green/40 outline-none"
+            class="filter-step__input"
             [ngModel]="treeFilter()" (ngModelChange)="treeFilter.set($event)" />
         </div>
         <div class="flex-1 overflow-y-auto py-2">

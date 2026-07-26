@@ -67,8 +67,9 @@
       </div>
     </header>
 
-    <!-- Filtros de selección -->
+    <!-- Filtros de selección (variante pasos numerados) -->
     <app-filtro-select
+      [variant]="'steps'"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
@@ -83,45 +84,49 @@
 
     <!-- Filtros de fecha -->
     @if (selectedLoteId) {
-      <section class="ux-card">
-        <div class="ux-card__header">
-          <h3>Filtros de Fecha</h3>
+      <section class="filter-card" aria-label="Filtros de fecha">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h3 class="filter-card__title">Filtros</h3>
+            <p class="filter-card__subtitle">Acota la información mostrada</p>
+          </div>
         </div>
-        <div class="ux-card__content">
-          <div class="filter-grid">
-            <div class="form-field">
-              <label class="ux-label" for="filtro-desde">Desde</label>
-              <input
-                id="filtro-desde"
-                type="date"
-                class="ux-input"
-                [(ngModel)]="filtroDesde"
-                (change)="onFiltroFechaChange()"
-                [disabled]="!selectedLoteId">
-              </div>
-              <div class="form-field">
-                <label class="ux-label" for="filtro-hasta">Hasta</label>
-                <input
-                  id="filtro-hasta"
-                  type="date"
-                  class="ux-input"
-                  [(ngModel)]="filtroHasta"
-                  (change)="onFiltroFechaChange()"
-                  [disabled]="!selectedLoteId">
-                </div>
-                <div class="form-field">
-                  <button
-                    type="button"
-                    class="btn btn--outline"
-                    (click)="limpiarFiltrosFecha()"
-                    [disabled]="!selectedLoteId || (!filtroDesde && !filtroHasta)">
-                    Limpiar filtros
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        }
+        <div class="filter-fields">
+          <div class="filter-field">
+            <label class="filter-step__label" for="filtro-desde">Desde</label>
+            <input
+              id="filtro-desde"
+              type="date"
+              class="filter-step__input"
+              [(ngModel)]="filtroDesde"
+              (change)="onFiltroFechaChange()"
+              [disabled]="!selectedLoteId">
+          </div>
+          <div class="filter-field">
+            <label class="filter-step__label" for="filtro-hasta">Hasta</label>
+            <input
+              id="filtro-hasta"
+              type="date"
+              class="filter-step__input"
+              [(ngModel)]="filtroHasta"
+              (change)="onFiltroFechaChange()"
+              [disabled]="!selectedLoteId">
+          </div>
+          <div class="filter-card__actions">
+            <button
+              type="button"
+              class="btn btn--outline"
+              (click)="limpiarFiltrosFecha()"
+              [disabled]="!selectedLoteId || (!filtroDesde && !filtroHasta)">
+              Limpiar filtros
+            </button>
+          </div>
+        </div>
+      </section>
+    }
 
         <!-- Tabs Principal: General, Indicadores y Gráfica -->
         <app-tabs-principal
@@ -132,6 +137,8 @@
           [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
           [selectedLoteLPP]="selectedLoteLPP"
           [informacionLote]="informacionLote"
+          [loteIdCohortes]="loteIdBaseSeleccionado"
+          [cohortesRefreshTrigger]="cohortesRefreshTrigger"
           [loading]="loading"
           (create)="openDailyTrackingModal()"
           (edit)="editDailyTracking($event)"

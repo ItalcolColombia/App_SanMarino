@@ -1,11 +1,11 @@
 import {
   Component, Input, Output, EventEmitter,
-  OnChanges, SimpleChanges, inject,
+  OnInit, OnChanges, SimpleChanges, inject,
   ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { catchError, forkJoin, of } from 'rxjs';
+import { catchError, finalize, forkJoin, of } from 'rxjs';
 
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
@@ -19,6 +19,7 @@ import {
   TrasladoAvesDesdeSegDiarioDto,
   TrasladoAvesResultSegDto
 } from '../../services/traslados-aves.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 export interface OrigenTrasladoInfo {
   loteId: number;          // ID lote_postura_levante o produccion
@@ -38,7 +39,7 @@ export interface OrigenTrasladoInfo {
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-traslado-aves-seguimiento.component.scss']
 })
-export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
+export class ModalTrasladoAvesSeguimientoComponent implements OnInit, OnChanges {
 
   @Input() isOpen = false;
   @Input() origen: OrigenTrasladoInfo | null = null;
@@ -53,15 +54,46 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
   private readonly lplSvc     = inject(LotePosturaLevanteService);
   private readonly lppSvc     = inject(LotePosturaProduccionService);
   private readonly trasladoSvc = inject(TrasladosAvesService);
+  private readonly companyConfig = inject(ActiveCompanyConfigService);
 
   // ── Estado general ─────────────────────────────────────────────
   loading = false;
   enviando = false;
   errorMsg: string | null = null;
 
-  /** Tipo destino: SIEMPRE igual a origen.tipoLote (Feature 13: no cross-phase). */
-  get tipoDestino(): 'Levante' | 'Produccion' {
+  // ── Etapa destino (Fase 3 — cross-etapa por flag de empresa) ────
+  /**
+   * Flag `companies.permite_traslado_aves_cross_etapa` (FAIL-CLOSED: false si el GET falla).
+   * Con el flag apagado el modal se comporta EXACTAMENTE como antes: destino = etapa del origen.
+   */
+  permiteCrossEtapa = false;
+
+  /** Etapa del lote destino elegida. Por defecto = la del origen. */
+  etapaDestino: 'Levante' | 'Produccion' = 'Levante';
+
+  /** True si LPP ya se cargó para elegir destino de Producción desde un origen de Levante. */
+  private lppCargadosCrossEtapa = false;
+  /** True mientras se cargan los lotes de la otra etapa. */
+  cargandoLotesEtapa = false;
+
+  /** Etapa del lote ORIGEN (normalizada). */
+  get etapaOrigen(): 'Levante' | 'Produccion' {
     return (this.origen?.tipoLote === 'Produccion' ? 'Produccion' : 'Levante');
+  }
+
+  /** Tipo destino que viaja en el payload = etapa elegida (sin flag, siempre la del origen). */
+  get tipoDestino(): 'Levante' | 'Produccion' {
+    return this.etapaDestino;
+  }
+
+  /** El selector de etapa sólo aparece con el flag activo y origen en Levante (levante → producción). */
+  get mostrarSelectorEtapaDestino(): boolean {
+    return this.permiteCrossEtapa && this.etapaOrigen === 'Levante';
+  }
+
+  /** True cuando el traslado cruza de etapa (Levante → Producción): las aves entran como cohorte. */
+  get esCrossEtapa(): boolean {
+    return this.etapaOrigen !== this.etapaDestino;
   }
 
   // ── Cascade destino ─────────────────────────────────────────────
@@ -111,7 +143,19 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
   private todosLPP: LotePosturaProduccionDto[]  = [];
 
   // ── Lifecycle ───────────────────────────────────────────────────
+  ngOnInit(): void {
+    // Flags de la empresa activa (emite una vez y completa; usa caché por empresa).
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.permiteCrossEtapa = flags.permiteTrasladoAvesCrossEtapa;
+      // Si el flag llega después de abrir el modal, el destino sigue en la etapa del origen
+      // (default) — el selector simplemente aparece.
+    });
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['origen']) {
+      this.etapaDestino = this.etapaOrigen;
+    }
     if (changes['isOpen'] && this.isOpen) {
       this.resetForm();
       // REQ-009a: si el caller no trae una fecha sugerida (último registro del lote origen),
@@ -147,6 +191,35 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
       this.resumenOrigen = resumen;
       this.loading   = false;
     });
+  }
+
+  // ── Etapa destino (cross-etapa) ─────────────────────────────────
+  /**
+   * Cambio de etapa destino (sólo visible con flag + origen Levante).
+   * Los lotes de Producción se cargan con el MISMO mecanismo que ya usa el modal
+   * cuando el origen es Producción (`LotePosturaProduccionService.getAll()`), en forma
+   * perezosa: si el flag está apagado nunca se dispara esta petición.
+   */
+  onEtapaDestinoChange(): void {
+    this.loteDestinoId = null;
+    this.lotesDestino  = [];
+
+    if (this.etapaDestino === 'Produccion' && !this.lppCargadosCrossEtapa && this.etapaOrigen === 'Levante') {
+      this.cargandoLotesEtapa = true;
+      this.lppSvc.getAll()
+        .pipe(
+          catchError(() => of<LotePosturaProduccionDto[]>([])),
+          finalize(() => { this.cargandoLotesEtapa = false; })
+        )
+        .subscribe(lpp => {
+          this.todosLPP = lpp;
+          this.lppCargadosCrossEtapa = true;
+          this.filtrarLotesDestino();
+        });
+      return;
+    }
+
+    this.filtrarLotesDestino();
   }
 
   // ── Cascade handlers ────────────────────────────────────────────
@@ -197,10 +270,14 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
     const origenId = this.origen?.loteId;
     const gId      = Number(this.granjaDestinoId);
 
+    // El lote origen sólo se auto-excluye si el destino es de SU MISMA etapa
+    // (los ids de LPL y LPP son secuencias distintas: cruzados no significan lo mismo).
+    const mismaEtapaQueOrigen = this.etapaOrigen === this.tipoDestino;
+
     if (this.tipoDestino === 'Levante') {
       this.lotesDestino = this.todosLPL.filter(l => {
         if (l.granjaId !== gId) return false;
-        if (origenId != null && l.lotePosturaLevanteId === origenId) return false;
+        if (mismaEtapaQueOrigen && origenId != null && l.lotePosturaLevanteId === origenId) return false;
         if (this.nucleoDestinoId &&
             String(l.nucleo?.nucleoId ?? l.nucleoId ?? '') !== this.nucleoDestinoId) return false;
         if (this.galponDestinoId &&
@@ -210,7 +287,7 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
     } else {
       this.lotesDestino = this.todosLPP.filter(l => {
         if (l.granjaId !== gId) return false;
-        if (origenId != null && l.lotePosturaProduccionId === origenId) return false;
+        if (mismaEtapaQueOrigen && origenId != null && l.lotePosturaProduccionId === origenId) return false;
         if (this.nucleoDestinoId &&
             String(l.nucleo?.nucleoId ?? l.nucleoId ?? '') !== this.nucleoDestinoId) return false;
         if (this.galponDestinoId &&
@@ -303,6 +380,10 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
   private resetForm(): void {
     this.errorMsg        = null;
     this.enviando        = false;
+    // Destino arranca SIEMPRE en la etapa del origen (comportamiento previo al flag).
+    this.etapaDestino    = this.etapaOrigen;
+    this.lppCargadosCrossEtapa = false;
+    this.cargandoLotesEtapa    = false;
     this.granjaDestinoId = null;
     this.nucleoDestinoId = null;
     this.galponDestinoId = null;

@@ -51,24 +51,26 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
     }
 
     /// <summary>
-    /// Obtiene indicadores semanales de producción.
-    /// Resuelve lote (LPP o legacy) para validar existencia y obtener raza/año (guía), y delega el
-    /// cálculo semana a semana en fn_indicadores_produccion_postura (misma aritmética que antes).
+    /// Contexto del lote en producción resuelto a partir del request: parámetros que se le pasan a
+    /// las funciones SQL (LPP o legacy, excluyentes) y raza/año para la comparación contra guía.
     /// </summary>
-    public async Task<IndicadoresProduccionResponse> ObtenerIndicadoresSemanalesAsync(IndicadoresProduccionRequest request)
-    {
-        // ─── 1) Resolver compañía (igual que en el resto del módulo Producción) ───
-        int companyId;
-        try
-        {
-            companyId = await ResolveCompanyIdAsync();
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw new ArgumentException(ex.Message, ex);
-        }
+    private readonly record struct LoteProduccionResuelto(
+        string Raza,
+        int? AnoTablaGenetica,
+        int? LppParam,
+        int? LoteIdParam);
 
-        // ─── 2) Resolver lote en producción (LPP o legacy) para validar y obtener raza/año ───
+    /// <summary>
+    /// Resuelve el lote en producción del request (LPP prioritario, legacy por LoteId) validando
+    /// existencia, pertenencia a la compañía y fecha de referencia, y devuelve raza/año + los
+    /// parámetros para las funciones SQL. Lanza <see cref="ArgumentException"/> con el mismo mensaje
+    /// de siempre cuando no se puede resolver.
+    /// <para>Compartido por los indicadores semanales y por el desglose de clasificación de huevos
+    /// por ítems, que deben resolver EXACTAMENTE el mismo lote.</para>
+    /// </summary>
+    private async Task<LoteProduccionResuelto> ResolverLoteProduccionAsync(
+        IndicadoresProduccionRequest request, int companyId)
+    {
         string raza;
         int? anoTablaGenetica;
         int? lppParam = null;
@@ -189,6 +191,30 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             loteIdParam = loteProd.LoteId!.Value;
         }
 
+        return new LoteProduccionResuelto(raza, anoTablaGenetica, lppParam, loteIdParam);
+    }
+
+    /// <summary>
+    /// Obtiene indicadores semanales de producción.
+    /// Resuelve lote (LPP o legacy) para validar existencia y obtener raza/año (guía), y delega el
+    /// cálculo semana a semana en fn_indicadores_produccion_postura (misma aritmética que antes).
+    /// </summary>
+    public async Task<IndicadoresProduccionResponse> ObtenerIndicadoresSemanalesAsync(IndicadoresProduccionRequest request)
+    {
+        // ─── 1) Resolver compañía (igual que en el resto del módulo Producción) ───
+        int companyId;
+        try
+        {
+            companyId = await ResolveCompanyIdAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ArgumentException(ex.Message, ex);
+        }
+
+        // ─── 2) Resolver lote en producción (LPP o legacy) para validar y obtener raza/año ───
+        var (raza, anoTablaGenetica, lppParam, loteIdParam) = await ResolverLoteProduccionAsync(request, companyId);
+
         // ─── 3) Disponibilidad de guía genética (mismo criterio que antes) ───
         var tieneGuiaGenetica = !string.IsNullOrWhiteSpace(raza) && anoTablaGenetica.HasValue;
         var hayFilasGuia = false;
@@ -224,6 +250,52 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         // ─── 5) Armar la respuesta (contrato intacto) ───
         return IndicadoresProduccionCalculos.BuildResponse(
             rows, tieneGuiaGenetica, hayFilasGuia, raza, anoTablaGenetica);
+    }
+
+    /// <summary>
+    /// Desglose de la clasificación de huevos POR ÍTEM (Primera/Pnc) por semana, para las empresas
+    /// que clasifican con <c>metadata → huevoItems</c> en lugar de las 11 columnas fijas.
+    /// <para>
+    /// Endpoint HERMANO de los indicadores semanales: MISMO request, MISMA compañía activa y MISMA
+    /// resolución de lote (<see cref="ResolverLoteProduccionAsync"/>), delegando el desglose en
+    /// <c>fn_clasificacion_huevo_items_produccion</c>, que usa la misma fórmula de semana → las
+    /// semanas casan 1:1 con la grilla de indicadores.
+    /// </para>
+    /// No exige el flag de empresa para LEER: si el lote no tiene desglose en metadata, la lista
+    /// vuelve vacía (nunca error).
+    /// </summary>
+    public async Task<List<ClasificacionHuevoItemSemanaDto>> ObtenerClasificacionHuevoItemsAsync(
+        IndicadoresProduccionRequest request)
+    {
+        // ─── 1) Resolver compañía (igual que los indicadores semanales) ───
+        int companyId;
+        try
+        {
+            companyId = await ResolveCompanyIdAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ArgumentException(ex.Message, ex);
+        }
+
+        // ─── 2) Resolver lote en producción (LPP o legacy) — mismas validaciones/mensajes ───
+        var lote = await ResolverLoteProduccionAsync(request, companyId);
+
+        // ─── 3) Delegar el desglose a la BD (fn_clasificacion_huevo_items_produccion) ───
+        var fechaDesde = request.FechaDesde?.Date;
+        var fechaHasta = request.FechaHasta?.Date;
+        return await _context.Database
+            .SqlQueryRaw<ClasificacionHuevoItemSemanaDto>(
+                "SELECT * FROM fn_clasificacion_huevo_items_produccion({0}::int, {1}::int, {2}::int, {3}::int, {4}::int, {5}::date, {6}::date)",
+                companyId,
+                (object?)lote.LppParam ?? DBNull.Value,
+                (object?)lote.LoteIdParam ?? DBNull.Value,
+                (object?)request.SemanaDesde ?? DBNull.Value,
+                (object?)request.SemanaHasta ?? DBNull.Value,
+                (object?)fechaDesde ?? DBNull.Value,
+                (object?)fechaHasta ?? DBNull.Value)
+            .ToListAsync()
+            .ConfigureAwait(false);
     }
 
     public async Task<IndicadorProduccionSemanalDto?> ObtenerIndicadorSemanaAsync(int loteId, int semana)

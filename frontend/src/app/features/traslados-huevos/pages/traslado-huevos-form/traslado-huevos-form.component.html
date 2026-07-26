@@ -30,6 +30,8 @@
         <h2>Información del Lote</h2>
 
         <app-filtro-select
+          class="filtro-compact"
+          [variant]="'steps'"
           [filterDataUrl]="filterDataUrl"
           [selectedLoteId]="selectedLotePosturaProduccionId"
           (loteChange)="onLoteChange($event)">

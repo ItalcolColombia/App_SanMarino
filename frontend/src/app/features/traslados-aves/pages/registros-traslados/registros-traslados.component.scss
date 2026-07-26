@@ -100,31 +100,8 @@
 }
 
 /* ========== 5) Form Fields ========== */
-.form-field {
-  margin-bottom: var(--space-4);
-
-  .ux-label {
-    display: block;
-    margin-bottom: var(--space-2);
-    font-weight: 600;
-    color: var(--warm-600);
-  }
-
-  .ux-select {
-    width: 100%;
-    padding: var(--space-3);
-    border: 1px solid var(--warm-200);
-    border-radius: var(--radius-md);
-    font-size: 1rem;
-    transition: border-color 0.2s;
-
-    &:focus {
-      outline: none;
-      border-color: var(--brand-red);
-    }
-  }
-}
-
+/* El filtro de granja usa la tarjeta unificada «filter-card» (global):
+   aquí solo queda la ubicación de la ficha de granja dentro de esa tarjeta. */
 .farm-info-card {
   margin-top: var(--space-4);
   padding: var(--space-4);
@@ -139,6 +116,10 @@
       color: var(--brand-red);
     }
   }
+}
+
+.filter-card .farm-info-card {
+  margin: 0 1.25rem 1.1rem;
 }
 
 /* ========== 6) Tabs ========== */

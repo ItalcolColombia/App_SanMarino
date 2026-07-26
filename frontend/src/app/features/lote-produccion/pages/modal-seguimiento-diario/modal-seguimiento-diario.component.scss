@@ -465,6 +465,68 @@
 }
 
 /* ==========================================================================
+   🥚 Clasificación de huevos por ÍTEMS (empresas con `clasificacion_huevo_por_items`)
+   ========================================================================== */
+:host .huevo-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) auto;
+  gap: .75rem;
+  align-items: start;
+  padding: .75rem;
+  margin-bottom: .6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--warm-200);
+  border-radius: var(--radius-md);
+}
+
+:host .huevo-fila .form-field { margin-bottom: 0; }
+
+:host .huevo-fila__quitar {
+  align-self: center;
+  margin-top: 1.1rem;
+}
+
+:host .huevo-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: .5rem;
+}
+
+:host .huevo-total {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  padding: .4rem .8rem;
+  background: var(--ital-orange-50);
+  border: 1px solid var(--ital-orange-100);
+  border-radius: var(--radius-md);
+}
+
+:host .huevo-total__label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+:host .huevo-total__value {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--ital-orange-dark);
+}
+
+/* `text-danger` ya existe como utilidad global (Tailwind, token `danger`) — no se redefine acá. */
+
+@media (max-width: 768px) {
+  :host .huevo-fila {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  :host .huevo-fila__item { grid-column: 1 / -1; }
+}
+
+/* ==========================================================================
    🔧 Helpers / Utilities
    ========================================================================== */
 .grid { display: grid; gap: 1rem; }

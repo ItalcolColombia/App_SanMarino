@@ -11,6 +11,14 @@ public class Galpon : AuditableEntity
     public string? Largo        { get; set; }
     public string? TipoGalpon   { get; set; }
 
+    /// <summary>
+    /// Código ERP de ubicación del galpón (ej. "BG60201"); solo se captura en empresas con
+    /// <see cref="Company.ManejaCodigosErpAvicola"/> = true. Pass-through, sin lógica.
+    /// </summary>
+    public string? CodigoErpUbicacion { get; set; }
+    /// <summary>Descripción de la ubicación ERP del galpón.</summary>
+    public string? DescripcionErpUbicacion { get; set; }
+
     public new int CompanyId { get; set; }
 
     // Navegación

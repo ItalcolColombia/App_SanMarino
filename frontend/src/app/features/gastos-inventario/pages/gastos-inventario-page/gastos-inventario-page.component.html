@@ -38,6 +38,7 @@
     </div>
     <div class="ux-card__body">
       <app-filtro-select
+        [variant]="'steps'"
         [filterDataUrl]="filterDataUrl"
         [showNucleoGalpon]="false"
         [selectedGranjaId]="selectedFarmId"
@@ -153,6 +154,8 @@
             <div class="modal-section">
               <h3 class="modal-section__title">1) Ubicación y fecha</h3>
               <app-filtro-select
+                class="filtro-compact"
+                [variant]="'steps'"
                 [filterDataUrl]="filterDataUrl"
                 [showNucleoGalpon]="false"
                 [selectedGranjaId]="formFarmId"

@@ -42,6 +42,12 @@ export class HierarchicalFilterComponent implements OnInit {
   @Output() loteSelected = new EventEmitter<LoteDto | null>();
   @Output() stateChange = new EventEmitter<HierarchicalFilterState>();
 
+  // Prefijo único por instancia para los id/for de los campos: el filtro se monta
+  // DOS veces en la misma página (traslado-form e inventario-dashboard), así que
+  // los id no pueden ser fijos o se rompería la asociación label ↔ control.
+  private static instanceSeq = 0;
+  readonly uid = `hf-${++HierarchicalFilterComponent.instanceSeq}`;
+
   // Signals para estado reactivo
   loading = signal<boolean>(false);
   error = signal<string | null>(null);

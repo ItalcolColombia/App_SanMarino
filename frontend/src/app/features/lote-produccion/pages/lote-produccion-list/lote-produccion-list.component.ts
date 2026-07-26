@@ -116,6 +116,15 @@ export class LoteProduccionListComponent implements OnInit {
   trasladoAvesModalOpen = false;
   trasladoAvesOrigen: OrigenTrasladoInfo | null = null;
 
+  /**
+   * ID del lote BASE (tabla `lotes`) del lote seleccionado — lo pide el bloque
+   * "Edades en el lote" (cohortes). En flujo LPP se resuelve desde el LPP; en el
+   * flujo legacy `selectedLoteId` YA es el id base.
+   */
+  loteIdBaseSeleccionado: number | null = null;
+  /** Contador que fuerza recarga del bloque de cohortes tras un traslado. */
+  cohortesRefreshTrigger = 0;
+
   /** Modal de confirmación de eliminación de seguimiento diario */
   showDeleteConfirmModal = false;
   deleteConfirmId: number | null = null;
@@ -265,6 +274,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.currentProduccionLoteId = null;
     this.selectedLoteLPP = null;
     this.informacionLote = null;
+    this.loteIdBaseSeleccionado = null;
     this.filtroDesde = null;
     this.filtroHasta = null;
 
@@ -278,6 +288,7 @@ export class LoteProduccionListComponent implements OnInit {
 
     if (lppFromFilter) {
       this.selectedLoteLPP = lppFromFilter;
+      this.resolverLoteIdBaseLPP(lppFromFilter.lotePosturaProduccionId);
       this.selectedLote = {
         loteId: lppFromFilter.lotePosturaProduccionId,
         loteNombre: lppFromFilter.loteNombre,
@@ -290,6 +301,9 @@ export class LoteProduccionListComponent implements OnInit {
       this.loadSeguimientos();
       return;
     }
+
+    // Flujo legacy (no LPP): el id seleccionado YA es el del lote base.
+    this.loteIdBaseSeleccionado = this.selectedLoteId;
 
     this.loteSvc.getById(this.selectedLoteId).subscribe({
       next: l => (this.selectedLote = l || null),
@@ -349,6 +363,24 @@ export class LoteProduccionListComponent implements OnInit {
     this.produccionSvc.getProduccionLote(this.selectedLoteId).subscribe({
       next: (detalle) => (this.produccionLote = detalle),
       error: () => {}
+    });
+  }
+
+  /**
+   * Resuelve el ID del lote BASE (tabla `lotes`) de un LPP para el bloque de cohortes.
+   * El filter-data sólo trae `lotePosturaProduccionId`; el id base vive en el LPP completo.
+   */
+  private resolverLoteIdBaseLPP(lotePosturaProduccionId: number): void {
+    this.lppSvc.getById(lotePosturaProduccionId).subscribe({
+      next: lpp => {
+        // Si el usuario ya cambió de lote, no pisar el valor nuevo.
+        if (this.selectedLoteLPP?.lotePosturaProduccionId !== lotePosturaProduccionId) return;
+        this.loteIdBaseSeleccionado = lpp?.loteId ?? null;
+      },
+      error: () => {
+        if (this.selectedLoteLPP?.lotePosturaProduccionId !== lotePosturaProduccionId) return;
+        this.loteIdBaseSeleccionado = null;
+      }
     });
   }
 
@@ -980,5 +1012,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el lote 
       };
     }
     this.trasladoAvesModalOpen = false;
+    // Fase 3: refrescar el bloque "Edades en el lote" (el lote sigue siendo el mismo).
+    this.cohortesRefreshTrigger++;
   }
 }

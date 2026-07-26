@@ -33,65 +33,93 @@
   @if (activeTab === 'traslados') {
 
     <!-- Filters -->
-    <div class="filters-card">
-      <div class="filters-grid">
+    <section class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Selección de contexto</h3>
+          <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+        </div>
+      </div>
 
-        <!-- Granja origen -->
-        <div class="filter-field">
-          <label class="ux-label">Granja origen</label>
-          <select class="ux-select" [(ngModel)]="trasladosFilter.farmId" (ngModelChange)="onFarmChangeTraslados()">
-            <option [ngValue]="null">Todas</option>
-            @for (f of filterData?.farmsOrigen ?? []; track f.id) {
-              <option [ngValue]="f.id">{{ f.name }}</option>
-            }
-          </select>
+      <div class="filter-steps">
+        <!-- Paso 1: Granja origen -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!trasladosFilter.farmId"
+          [class.filter-step--done]="!!trasladosFilter.nucleoId">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label">Granja origen</label>
+            <select class="filter-step__select" [(ngModel)]="trasladosFilter.farmId" (ngModelChange)="onFarmChangeTraslados()">
+              <option [ngValue]="null">Todas</option>
+              @for (f of filterData?.farmsOrigen ?? []; track f.id) {
+                <option [ngValue]="f.id">{{ f.name }}</option>
+              }
+            </select>
+          </div>
         </div>
 
-        <!-- Núcleo origen -->
-        <div class="filter-field">
-          <label class="ux-label">Núcleo</label>
-          <select class="ux-select" [(ngModel)]="trasladosFilter.nucleoId" (ngModelChange)="onNucleoChangeTraslados()" [disabled]="nucleosTrasladosFiltrados.length === 0">
-            <option value="">Todos</option>
-            @for (n of nucleosTrasladosFiltrados; track n.nucleoId) {
-              <option [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            }
-          </select>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!trasladosFilter.farmId" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo origen -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!trasladosFilter.nucleoId"
+          [class.filter-step--done]="!!trasladosFilter.galponId"
+          [class.filter-step--disabled]="nucleosTrasladosFiltrados.length === 0">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label">Núcleo</label>
+            <select class="filter-step__select" [(ngModel)]="trasladosFilter.nucleoId" (ngModelChange)="onNucleoChangeTraslados()" [disabled]="nucleosTrasladosFiltrados.length === 0">
+              <option value="">Todos</option>
+              @for (n of nucleosTrasladosFiltrados; track n.nucleoId) {
+                <option [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
+            </select>
+          </div>
         </div>
 
-        <!-- Galpón origen -->
-        <div class="filter-field">
-          <label class="ux-label">Galpón</label>
-          <select class="ux-select" [(ngModel)]="trasladosFilter.galponId" [disabled]="galponesTrasladosFiltrados.length === 0">
-            <option value="">Todos</option>
-            @for (g of galponesTrasladosFiltrados; track g.galponId) {
-              <option [value]="g.galponId">{{ g.galponNombre }}</option>
-            }
-          </select>
-        </div>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!trasladosFilter.nucleoId" aria-hidden="true"></div>
 
+        <!-- Paso 3: Galpón origen -->
+        <div class="filter-step filter-step--last"
+          [class.filter-step--active]="!!trasladosFilter.galponId"
+          [class.filter-step--disabled]="galponesTrasladosFiltrados.length === 0">
+          <div class="filter-step__num filter-step__num--accent">3</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label">Galpón</label>
+            <select class="filter-step__select" [(ngModel)]="trasladosFilter.galponId" [disabled]="galponesTrasladosFiltrados.length === 0">
+              <option value="">Todos</option>
+              @for (g of galponesTrasladosFiltrados; track g.galponId) {
+                <option [value]="g.galponId">{{ g.galponNombre }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-fields">
         <!-- Fecha desde -->
         <div class="filter-field">
-          <label class="ux-label">Desde</label>
-          <input type="date" class="ux-input" [(ngModel)]="trasladosFilter.fechaDesde" />
+          <label class="filter-step__label">Desde</label>
+          <input type="date" class="filter-step__input" [(ngModel)]="trasladosFilter.fechaDesde" />
         </div>
 
         <!-- Fecha hasta -->
         <div class="filter-field">
-          <label class="ux-label">Hasta</label>
-          <input type="date" class="ux-input" [(ngModel)]="trasladosFilter.fechaHasta" />
+          <label class="filter-step__label">Hasta</label>
+          <input type="date" class="filter-step__input" [(ngModel)]="trasladosFilter.fechaHasta" />
         </div>
 
         <!-- Búsqueda -->
-        <div class="filter-field filter-field--search">
-          <label class="ux-label">Ítem (código / nombre)</label>
-          <div class="ux-search">
-            <svg class="ux-search__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="text" class="ux-input" placeholder="Buscar…" [(ngModel)]="trasladosFilter.search" (keyup.enter)="loadTraslados()" />
-          </div>
+        <div class="filter-field">
+          <label class="filter-step__label">Ítem (código / nombre)</label>
+          <input type="text" class="filter-step__input" placeholder="Buscar…" [(ngModel)]="trasladosFilter.search" (keyup.enter)="loadTraslados()" />
         </div>
 
         <!-- Acciones -->
-        <div class="filter-field filter-field--action">
+        <div class="filter-card__actions">
           <button class="btn-primary" (click)="loadTraslados()" [disabled]="trasladosLoading">
             @if (trasladosLoading) {
               <span class="spinner-sm"></span>
@@ -102,9 +130,8 @@
           </button>
           <button class="btn-secondary" (click)="clearFiltersTraslados()" style="margin-left:.5rem">Limpiar</button>
         </div>
-
       </div>
-    </div>
+    </section>
 
     <!-- Table -->
     <div class="ux-card">
@@ -179,65 +206,93 @@
   @if (activeTab === 'ingresos') {
 
     <!-- Filters -->
-    <div class="filters-card">
-      <div class="filters-grid">
+    <section class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Selección de contexto</h3>
+          <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+        </div>
+      </div>
 
-        <!-- Granja -->
-        <div class="filter-field">
-          <label class="ux-label">Granja</label>
-          <select class="ux-select" [(ngModel)]="ingresosFilter.farmId" (ngModelChange)="onFarmChangeIngresos()">
-            <option [ngValue]="null">Todas</option>
-            @for (f of filterData?.farmsOrigen ?? []; track f.id) {
-              <option [ngValue]="f.id">{{ f.name }}</option>
-            }
-          </select>
+      <div class="filter-steps">
+        <!-- Paso 1: Granja -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!ingresosFilter.farmId"
+          [class.filter-step--done]="!!ingresosFilter.nucleoId">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label">Granja</label>
+            <select class="filter-step__select" [(ngModel)]="ingresosFilter.farmId" (ngModelChange)="onFarmChangeIngresos()">
+              <option [ngValue]="null">Todas</option>
+              @for (f of filterData?.farmsOrigen ?? []; track f.id) {
+                <option [ngValue]="f.id">{{ f.name }}</option>
+              }
+            </select>
+          </div>
         </div>
 
-        <!-- Núcleo -->
-        <div class="filter-field">
-          <label class="ux-label">Núcleo</label>
-          <select class="ux-select" [(ngModel)]="ingresosFilter.nucleoId" (ngModelChange)="onNucleoChangeIngresos()" [disabled]="nucleosIngresosFiltrados.length === 0">
-            <option value="">Todos</option>
-            @for (n of nucleosIngresosFiltrados; track n.nucleoId) {
-              <option [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
-            }
-          </select>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!ingresosFilter.farmId" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!ingresosFilter.nucleoId"
+          [class.filter-step--done]="!!ingresosFilter.galponId"
+          [class.filter-step--disabled]="nucleosIngresosFiltrados.length === 0">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label">Núcleo</label>
+            <select class="filter-step__select" [(ngModel)]="ingresosFilter.nucleoId" (ngModelChange)="onNucleoChangeIngresos()" [disabled]="nucleosIngresosFiltrados.length === 0">
+              <option value="">Todos</option>
+              @for (n of nucleosIngresosFiltrados; track n.nucleoId) {
+                <option [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
+            </select>
+          </div>
         </div>
 
-        <!-- Galpón -->
-        <div class="filter-field">
-          <label class="ux-label">Galpón</label>
-          <select class="ux-select" [(ngModel)]="ingresosFilter.galponId" [disabled]="galponesIngresosFiltrados.length === 0">
-            <option value="">Todos</option>
-            @for (g of galponesIngresosFiltrados; track g.galponId) {
-              <option [value]="g.galponId">{{ g.galponNombre }}</option>
-            }
-          </select>
-        </div>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!ingresosFilter.nucleoId" aria-hidden="true"></div>
 
+        <!-- Paso 3: Galpón -->
+        <div class="filter-step filter-step--last"
+          [class.filter-step--active]="!!ingresosFilter.galponId"
+          [class.filter-step--disabled]="galponesIngresosFiltrados.length === 0">
+          <div class="filter-step__num filter-step__num--accent">3</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label">Galpón</label>
+            <select class="filter-step__select" [(ngModel)]="ingresosFilter.galponId" [disabled]="galponesIngresosFiltrados.length === 0">
+              <option value="">Todos</option>
+              @for (g of galponesIngresosFiltrados; track g.galponId) {
+                <option [value]="g.galponId">{{ g.galponNombre }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-fields">
         <!-- Fecha desde -->
         <div class="filter-field">
-          <label class="ux-label">Desde</label>
-          <input type="date" class="ux-input" [(ngModel)]="ingresosFilter.fechaDesde" />
+          <label class="filter-step__label">Desde</label>
+          <input type="date" class="filter-step__input" [(ngModel)]="ingresosFilter.fechaDesde" />
         </div>
 
         <!-- Fecha hasta -->
         <div class="filter-field">
-          <label class="ux-label">Hasta</label>
-          <input type="date" class="ux-input" [(ngModel)]="ingresosFilter.fechaHasta" />
+          <label class="filter-step__label">Hasta</label>
+          <input type="date" class="filter-step__input" [(ngModel)]="ingresosFilter.fechaHasta" />
         </div>
 
         <!-- Búsqueda -->
-        <div class="filter-field filter-field--search">
-          <label class="ux-label">Ítem (código / nombre)</label>
-          <div class="ux-search">
-            <svg class="ux-search__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="text" class="ux-input" placeholder="Buscar…" [(ngModel)]="ingresosFilter.search" (keyup.enter)="loadIngresos()" />
-          </div>
+        <div class="filter-field">
+          <label class="filter-step__label">Ítem (código / nombre)</label>
+          <input type="text" class="filter-step__input" placeholder="Buscar…" [(ngModel)]="ingresosFilter.search" (keyup.enter)="loadIngresos()" />
         </div>
 
         <!-- Acciones -->
-        <div class="filter-field filter-field--action">
+        <div class="filter-card__actions">
           <button class="btn-primary" (click)="loadIngresos()" [disabled]="ingresosLoading">
             @if (ingresosLoading) {
               <span class="spinner-sm"></span>
@@ -248,9 +303,8 @@
           </button>
           <button class="btn-secondary" (click)="clearFiltersIngresos()" style="margin-left:.5rem">Limpiar</button>
         </div>
-
       </div>
-    </div>
+    </section>
 
     <!-- Table -->
     <div class="ux-card">

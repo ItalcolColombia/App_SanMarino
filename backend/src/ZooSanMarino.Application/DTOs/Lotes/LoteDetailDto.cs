@@ -47,5 +47,8 @@ public sealed record LoteDetailDto(
     // Relaciones (tomadas de Shared)
     FarmLiteDto    Farm,
     NucleoLiteDto? Nucleo,
-    GalponLiteDto? Galpon
+    GalponLiteDto? Galpon,
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    string?   CodigoCentroCosto      = null,
+    string?   DescripcionCentroCosto = null
 );

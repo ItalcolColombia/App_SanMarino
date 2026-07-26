@@ -55,6 +55,12 @@ export class FiltroSelectComponent implements OnInit {
   @Input() selectedLoteId: number | null = null;
   /** Si se define, se carga todo en una sola llamada GET a esta URL (filter-data). */
   @Input() filterDataUrl: string | null = null;
+  /**
+   * Diseño del filtro: 'toolbar' = fila clásica de selects (default, sin cambios
+   * para los consumidores existentes); 'steps' = tarjeta «Selección de contexto»
+   * con pasos numerados en cascada (mismo comportamiento, solo presentación).
+   */
+  @Input() variant: 'toolbar' | 'steps' = 'toolbar';
 
   // ================== outputs ==================
   @Output() granjaChange = new EventEmitter<number | null>();

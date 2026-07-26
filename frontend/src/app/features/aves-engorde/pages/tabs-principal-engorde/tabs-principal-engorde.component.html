@@ -87,51 +87,64 @@
                     }
                   </div>
                 </div>
-                <div class="registro-diario__filters" role="group" aria-label="Filtros de seguimiento diario">
-                  <div class="registro-diario__filter-field">
-                    <label for="filtro-fecha-desde">Desde</label>
-                    <input
-                      id="filtro-fecha-desde"
-                      type="date"
-                      [(ngModel)]="filtroFechaDesde"
-                      class="registro-diario__filter-input" />
+                <section class="filter-card filter-card--compact" role="group" aria-label="Filtros de seguimiento diario">
+                  <div class="filter-card__header">
+                    <div class="filter-card__header-icon" aria-hidden="true">
+                      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
                     </div>
-                    <div class="registro-diario__filter-field">
-                      <label for="filtro-fecha-hasta">Hasta</label>
+                    <div>
+                      <h5 class="filter-card__title">Filtros</h5>
+                      <p class="filter-card__subtitle">Acota la información mostrada</p>
+                    </div>
+                  </div>
+                  <div class="filter-fields">
+                    <div class="filter-field">
+                      <label for="filtro-fecha-desde" class="filter-step__label">Desde</label>
+                      <input
+                        id="filtro-fecha-desde"
+                        type="date"
+                        [(ngModel)]="filtroFechaDesde"
+                        class="filter-step__input" />
+                    </div>
+                    <div class="filter-field">
+                      <label for="filtro-fecha-hasta" class="filter-step__label">Hasta</label>
                       <input
                         id="filtro-fecha-hasta"
                         type="date"
                         [(ngModel)]="filtroFechaHasta"
-                        class="registro-diario__filter-input" />
-                      </div>
-                      <div class="registro-diario__filter-field">
-                        <label for="filtro-semana">Semana</label>
-                        <select id="filtro-semana" [(ngModel)]="filtroSemana" class="registro-diario__filter-input">
-                          <option [ngValue]="null">Todas</option>
-                          @for (n of semanasFiltroOpciones; track n) {
-                            <option [ngValue]="n">{{ n }}</option>
-                          }
-                        </select>
-                      </div>
-                      <div class="registro-diario__filter-field registro-diario__filter-field--grow">
-                        <label for="filtro-tipo-alimento">Tipo alimento</label>
-                        <select id="filtro-tipo-alimento" [(ngModel)]="filtroTipoAlimento" class="registro-diario__filter-input">
-                          <option value="">Todos</option>
-                          @for (t of opcionesTipoAlimento; track t) {
-                            <option [value]="t">{{ t }}</option>
-                          }
-                        </select>
-                      </div>
-                      @if (hayFiltrosDiarioActivos) {
+                        class="filter-step__input" />
+                    </div>
+                    <div class="filter-field">
+                      <label for="filtro-semana" class="filter-step__label">Semana</label>
+                      <select id="filtro-semana" [(ngModel)]="filtroSemana" class="filter-step__select">
+                        <option [ngValue]="null">Todas</option>
+                        @for (n of semanasFiltroOpciones; track n) {
+                          <option [ngValue]="n">{{ n }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="filter-field">
+                      <label for="filtro-tipo-alimento" class="filter-step__label">Tipo alimento</label>
+                      <select id="filtro-tipo-alimento" [(ngModel)]="filtroTipoAlimento" class="filter-step__select">
+                        <option value="">Todos</option>
+                        @for (t of opcionesTipoAlimento; track t) {
+                          <option [value]="t">{{ t }}</option>
+                        }
+                      </select>
+                    </div>
+                    @if (hayFiltrosDiarioActivos) {
+                      <div class="filter-card__actions">
                         <button
                           type="button"
-                          class="btn btn--ghost registro-diario__filter-clear"
+                          class="btn btn--ghost"
                           (click)="limpiarFiltrosDiario()">
                           Limpiar filtros
                         </button>
-                      }
-                    </div>
+                      </div>
+                    }
                   </div>
+                </section>
+              </div>
                   <div class="ux-scroll ux-scroll--diario">
                     <table class="ux-table ux-table--registro-diario">
                       <thead>

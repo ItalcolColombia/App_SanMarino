@@ -50,20 +50,31 @@
 
 
     <!-- ========== FILTROS (ARRIBA) ========== -->
-    <section class="filters-section">
-      <header class="filters-header">
-        <h3>🔍 Filtros de Búsqueda</h3>
-        <button type="button" class="btn btn--ghost btn--sm" (click)="resetFilters()">
-          🗑️ Limpiar
-        </button>
-      </header>
+    <section class="filter-card" aria-label="Filtros de búsqueda">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Selección de contexto</h3>
+          <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+        </div>
+        <div class="filter-card__actions">
+          <button type="button" class="btn btn--ghost btn--sm" (click)="resetFilters()">
+            🗑️ Limpiar
+          </button>
+        </div>
+      </div>
 
-      <div class="filters-content">
-        <div class="filter-row">
-          <!-- Granja -->
-          <div class="filter-group">
-            <label for="f-farm" class="filter-label">🏠 Granja <span class="text-red-500">*</span></label>
-            <select id="f-farm" class="filter-control"
+      <div class="filter-steps">
+        <!-- Paso 1: Granja -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedFarmId"
+          [class.filter-step--done]="!!selectedNucleoId">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label for="f-farm" class="filter-step__label">🏠 Granja <span class="text-red-500">*</span></label>
+            <select id="f-farm" class="filter-step__select"
               [(ngModel)]="selectedFarmId"
               (ngModelChange)="onFarmChange($event)">
               <option [ngValue]="null">Todas las granjas</option>
@@ -72,11 +83,19 @@
               }
             </select>
           </div>
+        </div>
 
-          <!-- Núcleo -->
-          <div class="filter-group">
-            <label for="f-nucleo" class="filter-label">🏗️ Núcleo</label>
-            <select id="f-nucleo" class="filter-control"
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedFarmId" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedNucleoId"
+          [class.filter-step--done]="!!selectedGalponId"
+          [class.filter-step--disabled]="!selectedFarmId">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label for="f-nucleo" class="filter-step__label">🏗️ Núcleo</label>
+            <select id="f-nucleo" class="filter-step__select"
               [(ngModel)]="selectedNucleoId"
               (ngModelChange)="onNucleoChange($event)"
               [disabled]="!selectedFarmId">
@@ -86,11 +105,19 @@
               }
             </select>
           </div>
+        </div>
 
-          <!-- Galpón -->
-          <div class="filter-group">
-            <label for="f-galpon" class="filter-label">🐔 Galpón</label>
-            <select id="f-galpon" class="filter-control"
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+        <!-- Paso 3: Galpón -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedGalponId"
+          [class.filter-step--done]="!!selectedLoteId"
+          [class.filter-step--disabled]="!selectedFarmId">
+          <div class="filter-step__num">3</div>
+          <div class="filter-step__body">
+            <label for="f-galpon" class="filter-step__label">🐔 Galpón</label>
+            <select id="f-galpon" class="filter-step__select"
               [(ngModel)]="selectedGalponId"
               (ngModelChange)="onGalponChange($event)"
               [disabled]="!selectedFarmId">
@@ -100,10 +127,17 @@
               }
             </select>
           </div>
+        </div>
 
-          <!-- Lote (filtrado por galpón seleccionado) -->
-          <div class="filter-group">
-            <label for="f-lote" class="filter-label">
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGalponId" aria-hidden="true"></div>
+
+        <!-- Paso 4: Lote (filtrado por galpón seleccionado) -->
+        <div class="filter-step filter-step--last"
+          [class.filter-step--active]="!!selectedLoteId"
+          [class.filter-step--disabled]="!selectedGalponId || lotesLoading() || lotesForGalpon().length === 0">
+          <div class="filter-step__num filter-step__num--accent">4</div>
+          <div class="filter-step__body">
+            <label for="f-lote" class="filter-step__label">
               📋 Lote
               @if (selectedGalponId && !lotesLoading()) {
                 <small>
@@ -114,7 +148,7 @@
 
             <select
               id="f-lote"
-              class="filter-control"
+              class="filter-step__select"
               [disabled]="!selectedGalponId || lotesLoading() || lotesForGalpon().length === 0"
               [ngModel]="selectedLoteId"
               (ngModelChange)="onLoteSelectChange($event)">
@@ -135,76 +169,78 @@
               </div>
             }
           </div>
-
-          <!-- Búsqueda -->
-          <div class="filter-group">
-            <label for="f-search" class="filter-label">🔍 Buscar</label>
-            <input id="f-search" type="text" class="filter-control"
-              placeholder="Buscar por lote, núcleo, granja…"
-              [(ngModel)]="filtro" (ngModelChange)="recomputeList()" />
-            </div>
-
-            <!-- Ordenar por -->
-            <div class="filter-group">
-              <label for="f-sort-key" class="filter-label">📊 Ordenar por</label>
-              <select id="f-sort-key" class="filter-control"
-                [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
-                <option [ngValue]="'edad'">Edad (días desde último conteo)</option>
-                <option [ngValue]="'fecha'">Fecha de último conteo</option>
-              </select>
-            </div>
-
-            <!-- Dirección -->
-            <div class="filter-group">
-              <label for="f-sort-dir" class="filter-label">↕️ Dirección</label>
-              <select id="f-sort-dir" class="filter-control"
-                [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
-                <option [ngValue]="'desc'">Descendente</option>
-                <option [ngValue]="'asc'">Ascendente</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Chips Filtros -->
-          @if (tieneFiltrosAplicados()) {
-            <div class="filters-applied">
-              <h4>Filtros Aplicados:</h4>
-              <div class="filter-chips">
-                @if (selectedFarmId) {
-                  <span class="filter-chip">
-                    Granja: {{ obtenerNombreGranja(selectedFarmId) }}
-                    <button type="button" (click)="onFarmChange(null)" aria-label="Quitar filtro granja">×</button>
-                  </span>
-                }
-                @if (selectedNucleoId) {
-                  <span class="filter-chip">
-                    Núcleo: {{ nucleoMap[selectedNucleoId] }}
-                    <button type="button" (click)="onNucleoChange(null)" aria-label="Quitar filtro núcleo">×</button>
-                  </span>
-                }
-                @if (selectedGalponId) {
-                  <span class="filter-chip">
-                    Galpón: {{ galponMap[selectedGalponId] }}
-                    <button type="button" (click)="onGalponChange(null)" aria-label="Quitar filtro galpón">×</button>
-                  </span>
-                }
-                @if (selectedLoteId) {
-                  <span class="filter-chip">
-                    Lote: {{ selectedLoteId }}
-                    <button type="button" (click)="onLoteSelectChange(null)" aria-label="Quitar filtro lote">×</button>
-                  </span>
-                }
-                @if (filtro) {
-                  <span class="filter-chip">
-                    Búsqueda: "{{ filtro }}"
-                    <button type="button" (click)="filtro=''; recomputeList()" aria-label="Limpiar búsqueda">×</button>
-                  </span>
-                }
-              </div>
-            </div>
-          }
         </div>
-      </section>
+      </div>
+
+      <div class="filter-fields">
+        <!-- Búsqueda -->
+        <div class="filter-field">
+          <label for="f-search" class="filter-step__label">🔍 Buscar</label>
+          <input id="f-search" type="text" class="filter-step__input"
+            placeholder="Buscar por lote, núcleo, granja…"
+            [(ngModel)]="filtro" (ngModelChange)="recomputeList()" />
+        </div>
+
+        <!-- Ordenar por -->
+        <div class="filter-field">
+          <label for="f-sort-key" class="filter-step__label">📊 Ordenar por</label>
+          <select id="f-sort-key" class="filter-step__select"
+            [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
+            <option [ngValue]="'edad'">Edad (días desde último conteo)</option>
+            <option [ngValue]="'fecha'">Fecha de último conteo</option>
+          </select>
+        </div>
+
+        <!-- Dirección -->
+        <div class="filter-field">
+          <label for="f-sort-dir" class="filter-step__label">↕️ Dirección</label>
+          <select id="f-sort-dir" class="filter-step__select"
+            [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
+            <option [ngValue]="'desc'">Descendente</option>
+            <option [ngValue]="'asc'">Ascendente</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Chips Filtros -->
+      @if (tieneFiltrosAplicados()) {
+        <div class="filters-applied">
+          <h4>Filtros Aplicados:</h4>
+          <div class="filter-chips">
+            @if (selectedFarmId) {
+              <span class="filter-chip">
+                Granja: {{ obtenerNombreGranja(selectedFarmId) }}
+                <button type="button" (click)="onFarmChange(null)" aria-label="Quitar filtro granja">×</button>
+              </span>
+            }
+            @if (selectedNucleoId) {
+              <span class="filter-chip">
+                Núcleo: {{ nucleoMap[selectedNucleoId] }}
+                <button type="button" (click)="onNucleoChange(null)" aria-label="Quitar filtro núcleo">×</button>
+              </span>
+            }
+            @if (selectedGalponId) {
+              <span class="filter-chip">
+                Galpón: {{ galponMap[selectedGalponId] }}
+                <button type="button" (click)="onGalponChange(null)" aria-label="Quitar filtro galpón">×</button>
+              </span>
+            }
+            @if (selectedLoteId) {
+              <span class="filter-chip">
+                Lote: {{ selectedLoteId }}
+                <button type="button" (click)="onLoteSelectChange(null)" aria-label="Quitar filtro lote">×</button>
+              </span>
+            }
+            @if (filtro) {
+              <span class="filter-chip">
+                Búsqueda: "{{ filtro }}"
+                <button type="button" (click)="filtro=''; recomputeList()" aria-label="Limpiar búsqueda">×</button>
+              </span>
+            }
+          </div>
+        </div>
+      }
+    </section>
 
       <!-- ========== MENSAJE: Selecciona un lote ========== -->
       @if (!loteSeleccionado()) {

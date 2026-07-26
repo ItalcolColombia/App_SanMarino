@@ -228,7 +228,9 @@ namespace ZooSanMarino.Infrastructure.Services
                     n.NucleoNombre,
                     _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
                     _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
-                    n.CompanyId
+                    n.CompanyId,
+                    n.CodigoBodega,
+                    n.DescripcionBodega
                 ))
                 .ToListAsync(ct);
         }
@@ -254,7 +256,9 @@ namespace ZooSanMarino.Infrastructure.Services
                     n.NucleoNombre,
                     _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
                     _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
-                    n.CompanyId
+                    n.CompanyId,
+                    n.CodigoBodega,
+                    n.DescripcionBodega
                 ))
                 .ToListAsync();
         }
@@ -271,7 +275,9 @@ namespace ZooSanMarino.Infrastructure.Services
                     n.NucleoNombre,
                     _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
                     _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
-                    n.CompanyId
+                    n.CompanyId,
+                    n.CodigoBodega,
+                    n.DescripcionBodega
                 ))
                 .SingleOrDefaultAsync();
 
@@ -305,7 +311,9 @@ namespace ZooSanMarino.Infrastructure.Services
                     n.NucleoNombre,
                     _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
                     _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
-                    n.CompanyId
+                    n.CompanyId,
+                    n.CodigoBodega,
+                    n.DescripcionBodega
                 ))
                 .ToListAsync();
         }
@@ -326,6 +334,9 @@ namespace ZooSanMarino.Infrastructure.Services
                 NucleoId        = dto.NucleoId,
                 GranjaId        = dto.GranjaId,
                 NucleoNombre    = dto.NucleoNombre,
+                // Códigos ERP avícolas (pass-through; visibles solo si la empresa los maneja)
+                CodigoBodega      = dto.CodigoBodega,
+                DescripcionBodega = dto.DescripcionBodega,
                 CompanyId       = effectiveCompanyId,
                 CreatedByUserId = _current.UserId,
                 CreatedAt       = DateTime.UtcNow
@@ -336,7 +347,7 @@ namespace ZooSanMarino.Infrastructure.Services
 
             var granjaNombre = await _ctx.Farms.AsNoTracking().Where(f => f.Id == ent.GranjaId).Select(f => f.Name).FirstOrDefaultAsync();
             var companyNombre = await _ctx.Companies.AsNoTracking().Where(c => c.Id == ent.CompanyId).Select(c => c.Name).FirstOrDefaultAsync();
-            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre, granjaNombre, companyNombre, ent.CompanyId);
+            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre, granjaNombre, companyNombre, ent.CompanyId, ent.CodigoBodega, ent.DescripcionBodega);
         }
 
         public async Task<NucleoDto?> UpdateAsync(UpdateNucleoDto dto)
@@ -349,13 +360,16 @@ namespace ZooSanMarino.Infrastructure.Services
             if (ent is null || ent.DeletedAt != null) return null;
 
             ent.NucleoNombre    = dto.NucleoNombre;
+            // Códigos ERP avícolas (pass-through)
+            ent.CodigoBodega      = dto.CodigoBodega;
+            ent.DescripcionBodega = dto.DescripcionBodega;
             ent.UpdatedByUserId = _current.UserId;
             ent.UpdatedAt       = DateTime.UtcNow;
 
             await _ctx.SaveChangesAsync();
             var granjaNombre = await _ctx.Farms.AsNoTracking().Where(f => f.Id == ent.GranjaId).Select(f => f.Name).FirstOrDefaultAsync();
             var companyNombre = await _ctx.Companies.AsNoTracking().Where(c => c.Id == ent.CompanyId).Select(c => c.Name).FirstOrDefaultAsync();
-            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre, granjaNombre, companyNombre, ent.CompanyId);
+            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre, granjaNombre, companyNombre, ent.CompanyId, ent.CodigoBodega, ent.DescripcionBodega);
         }
 
         public async Task<bool> DeleteAsync(string nucleoId, int granjaId)
@@ -430,7 +444,9 @@ namespace ZooSanMarino.Infrastructure.Services
                         l.CompanyId == n.CompanyId &&
                         l.GranjaId  == n.GranjaId  &&
                         l.NucleoId  == n.NucleoId &&
-                        l.DeletedAt == null)
+                        l.DeletedAt == null),
+                    n.CodigoBodega,
+                    n.DescripcionBodega
                 ));
         }
 

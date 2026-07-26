@@ -77,6 +77,7 @@
 
     <!-- Filtros de selección -->
     <app-filtro-select
+      [variant]="'steps'"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
@@ -89,51 +90,57 @@
 
     <!-- Filtros de Reporte -->
     @if (selectedLoteId) {
-      <section class="ux-card">
-        <h3 class="sr-only">Configuración del Reporte</h3>
-        <div class="ux-form">
-          <div class="grid grid-2">
-            <!-- Tipo de Consolidación -->
-            <div class="form-field">
-              <label class="ux-label">Tipo de Consolidación</label>
-              <div class="radio-group">
-                <label class="radio-label">
-                  <input
-                    type="radio"
-                    name="tipoConsolidacion"
-                    value="sublote"
-                    [(ngModel)]="tipoConsolidacion"
-                    (change)="limpiarReporte()">
-                    Sublote
-                  </label>
-                  <label class="radio-label">
-                    <input
-                      type="radio"
-                      name="tipoConsolidacion"
-                      value="consolidado"
-                      [(ngModel)]="tipoConsolidacion"
-                      (change)="limpiarReporte()">
-                      Consolidado
-                    </label>
-                  </div>
-                </div>
-                <!-- Nombre Base del Lote (Consolidado) -->
-                @if (tipoConsolidacion === 'consolidado') {
-                  <div class="form-field">
-                    <label class="ux-label">Nombre del Lote Base</label>
-                    <input
-                      type="text"
-                      class="ux-input"
-                      [(ngModel)]="loteNombreBase"
-                      placeholder="Ej: K326"
-                      (blur)="cargarSublotes(loteNombreBase)">
-                      <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
-                    </div>
-                  }
-                </div>
-              </div>
-            </section>
+      <section class="ux-card filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h3 class="filter-card__title">Filtros</h3>
+            <p class="filter-card__subtitle">Acota la información mostrada</p>
+          </div>
+        </div>
+        <div class="filter-fields">
+          <!-- Tipo de Consolidación -->
+          <div class="filter-field">
+            <label class="filter-step__label">Tipo de Consolidación</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input
+                  type="radio"
+                  name="tipoConsolidacion"
+                  value="sublote"
+                  [(ngModel)]="tipoConsolidacion"
+                  (change)="limpiarReporte()">
+                Sublote
+              </label>
+              <label class="radio-label">
+                <input
+                  type="radio"
+                  name="tipoConsolidacion"
+                  value="consolidado"
+                  [(ngModel)]="tipoConsolidacion"
+                  (change)="limpiarReporte()">
+                Consolidado
+              </label>
+            </div>
+          </div>
+          <!-- Nombre Base del Lote (Consolidado) -->
+          @if (tipoConsolidacion === 'consolidado') {
+            <div class="filter-field">
+              <label class="filter-step__label">Nombre del Lote Base</label>
+              <input
+                type="text"
+                class="filter-step__input"
+                [(ngModel)]="loteNombreBase"
+                placeholder="Ej: K326"
+                (blur)="cargarSublotes(loteNombreBase)">
+              <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
+            </div>
           }
+        </div>
+      </section>
+    }
 
           <!-- Mensaje de Error -->
           @if (error) {

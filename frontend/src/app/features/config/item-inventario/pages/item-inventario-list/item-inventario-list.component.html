@@ -61,30 +61,39 @@
       </div>
     }
 
-    <section class="card-italfoods filters">
-      <div class="filters-grid">
-        <div class="field">
-          <label class="form-label">Buscar</label>
-          <input class="form-input" type="search" [(ngModel)]="q" (keyup.enter)="load()" placeholder="Buscar por código o nombre…" />
+    <section class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
         </div>
-        <div class="field">
-          <label class="form-label">Tipo</label>
-          <select class="form-input" [(ngModel)]="tipoFilter" (ngModelChange)="load()">
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="filter-step__label">Buscar</label>
+          <input class="filter-step__input" type="search" [(ngModel)]="q" (keyup.enter)="load()" placeholder="Buscar por código o nombre…" />
+        </div>
+        <div class="filter-field">
+          <label class="filter-step__label">Tipo</label>
+          <select class="filter-step__select" [(ngModel)]="tipoFilter" (ngModelChange)="load()">
             <option value="">Todos los tipos</option>
             @for (t of tipos; track t) {
               <option [value]="t">{{ t }}</option>
             }
           </select>
         </div>
-        <div class="field">
-          <label class="form-label">Estado</label>
-          <select class="form-input" [(ngModel)]="activoFilter" (ngModelChange)="load()">
+        <div class="filter-field">
+          <label class="filter-step__label">Estado</label>
+          <select class="filter-step__select" [(ngModel)]="activoFilter" (ngModelChange)="load()">
             <option [ngValue]="null">Todos</option>
             <option [ngValue]="true">Activos</option>
             <option [ngValue]="false">Inactivos</option>
           </select>
         </div>
-        <div class="field actions">
+        <div class="filter-card__actions">
           <button type="button" class="btn-italfoods-secondary" (click)="load()">
             <fa-icon [icon]="faSearch"></fa-icon> Buscar
           </button>

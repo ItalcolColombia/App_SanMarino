@@ -47,46 +47,8 @@
   border-radius: 6px;
 }
 
-.registro-diario__filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
-  padding-top: var(--space-1);
-  border-top: 1px solid var(--border, #e5e0d8);
-}
-
-.registro-diario__filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 8.5rem;
-
-  label {
-    font-size: var(--fs-xs, 0.75rem);
-    color: var(--text-sub, #666);
-    font-weight: 500;
-  }
-}
-
-.registro-diario__filter-field--grow {
-  flex: 1 1 12rem;
-  min-width: 10rem;
-}
-
-.registro-diario__filter-input {
-  max-width: 100%;
-  padding: 0.5rem 0.6rem;
-  border-radius: 6px;
-  border: 1px solid var(--border, #e5e0d8);
-  font-size: 0.9rem;
-  background: var(--bg-card, #fff);
-}
-
-.registro-diario__filter-clear {
-  align-self: flex-end;
-  margin-bottom: 0.15rem;
-}
+/* Los filtros del seguimiento diario usan el diseño global «Selección de contexto»
+   (styles/filter-context.scss → .filter-card--compact / .filter-fields). */
 
 :host .btn--ghost {
   --btn-bg: var(--bg-card, #fff);

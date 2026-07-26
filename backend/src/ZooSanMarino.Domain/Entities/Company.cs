@@ -23,6 +23,33 @@ namespace ZooSanMarino.Domain.Entities
         /// </summary>
         public bool ManejaAlimentoPorGalpon { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = la empresa maneja códigos ERP avícolas (bodega, centro de operación,
+        /// instalación, ubicación y centro de costo) en granja/núcleo/galpón/lote; el front muestra
+        /// esos campos solo cuando el flag está activo. <c>false</c> (default) = comportamiento
+        /// actual, sin campos ERP.
+        /// </summary>
+        public bool ManejaCodigosErpAvicola { get; set; }
+
+        /// <summary>
+        /// <c>true</c> = la empresa clasifica los huevos del seguimiento diario de producción POR
+        /// ÍTEMS del catálogo de inventario (Primera/Pnc), no por las 11 columnas fijas
+        /// (<c>huevo_limpio</c>…<c>huevo_otro</c>). Con el flag activo el desglose viaja en
+        /// <c>seguimiento_diario_produccion.metadata → huevoItems</c>, <c>huevo_tot</c> guarda la suma
+        /// (mantiene vivos espejo/trigger/indicadores) y las 11 columnas + <c>huevo_inc</c> quedan en 0.
+        /// <c>false</c> (default) = comportamiento actual, clasificación por columnas fijas.
+        /// </summary>
+        public bool ClasificacionHuevoPorItems { get; set; }
+
+        /// <summary>
+        /// <c>true</c> = la empresa puede trasladar aves ENTRE ETAPAS (Levante → Producción) desde el
+        /// seguimiento diario, liquidando el lote de levante contra un lote de producción que ya tiene
+        /// aves de otra edad. El sentido inverso (Producción → Levante) NUNCA se permite.
+        /// <c>false</c> (default) = comportamiento actual, solo traslados dentro de la misma etapa.
+        /// Las aves recibidas conservan su edad vía <see cref="LoteAvesCohorte"/>.
+        /// </summary>
+        public bool PermiteTrasladoAvesCrossEtapa { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

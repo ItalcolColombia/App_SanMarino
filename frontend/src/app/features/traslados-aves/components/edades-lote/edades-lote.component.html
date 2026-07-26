@@ -1,0 +1,65 @@
+@if (loteId != null) {
+  <section class="edades-lote" aria-labelledby="edades-lote-title">
+    <header class="edades-lote__head">
+      <h4 id="edades-lote-title" class="edades-lote__title">🎂 Edades en el lote</h4>
+
+      @if (cargando) {
+        <span class="edades-lote__chip" role="status">Cargando…</span>
+      } @else if (cantidadCohortes > 0) {
+        <span class="edades-lote__chip edades-lote__chip--acento">
+          {{ cantidadCohortes }} grupo(s) recibido(s) de otros lotes
+        </span>
+      }
+    </header>
+
+    @if (error) {
+      <p class="edades-lote__hint edades-lote__hint--error" role="status">{{ error }}</p>
+    } @else if (filas.length) {
+      <div class="edades-lote__scroll">
+        <table class="edades-lote__table">
+          <thead>
+            <tr>
+              <th scope="col">Origen de las aves</th>
+              <th scope="col">Ingreso al lote</th>
+              <th scope="col">Encasetamiento</th>
+              <th scope="col" class="is-num">🐔 Hembras</th>
+              <th scope="col" class="is-num">🐓 Machos</th>
+              <th scope="col" class="is-num">Edad (sem)</th>
+              <th scope="col" class="is-num">Edad (días)</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of filas; track f.clave) {
+              <tr [class.edades-lote__row--propia]="f.tipo === 'propia'">
+                <td>
+                  <span class="edades-lote__tag" [class.edades-lote__tag--propia]="f.tipo === 'propia'">
+                    {{ f.tipo === 'propia' ? 'Propias' : 'Recibidas' }}
+                  </span>
+                  <span class="edades-lote__origen">{{ f.origen }}</span>
+                  @if (f.observaciones) {
+                    <small class="edades-lote__obs">{{ f.observaciones }}</small>
+                  }
+                </td>
+                <td>{{ f.fechaIngreso }}</td>
+                <td>{{ f.fechaEncaset }}</td>
+                <td class="is-num">{{ f.hembras != null ? (f.hembras | number:'1.0-0') : '—' }}</td>
+                <td class="is-num">{{ f.machos != null ? (f.machos | number:'1.0-0') : '—' }}</td>
+                <td class="is-num is-strong">{{ f.edadSemanas != null ? (f.edadSemanas | number:'1.0-0') : '—' }}</td>
+                <td class="is-num">{{ f.edadDias != null ? (f.edadDias | number:'1.0-0') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (cantidadCohortes === 0) {
+        <p class="edades-lote__hint">Sin aves recibidas de otros lotes.</p>
+      } @else {
+        <p class="edades-lote__hint">
+          Las aves recibidas por traslado conservan la edad de su lote de origen: cada grupo cuenta su
+          propia edad dentro de este lote.
+        </p>
+      }
+    }
+  </section>
+}
