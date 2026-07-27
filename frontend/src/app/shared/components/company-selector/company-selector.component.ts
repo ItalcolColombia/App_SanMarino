@@ -62,7 +62,11 @@ export class CompanySelectorComponent implements OnInit, OnDestroy {
   }
 
   private selectCompany(companyName: string): void {
-    this.activeCompanyService.setActiveCompany(companyName);
+    // El cambio es fail-closed: si no se pudo resolver la empresa (nombre desconocido o
+    // companyPaises incompleto), la sesión NO se tocó. No hay que avisar de un cambio que
+    // no ocurrió, o el resto de la app recargaría datos para una empresa equivocada.
+    if (!this.activeCompanyService.setActiveCompany(companyName)) return;
+
     this.companyChanged.emit(companyName);
   }
 

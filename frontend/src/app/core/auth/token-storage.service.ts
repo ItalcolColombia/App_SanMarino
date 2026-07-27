@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { AuthSession, MenuItem } from './auth.models';
+import { resolverEmpresaActiva } from './funciones/resolver-empresa-activa.funcion';
 
 const KEY = 'auth_session';
 
@@ -69,12 +70,33 @@ export class TokenStorageService {
     this.save(updated, persistedInLocal);
   }
 
-  setActiveCompany(name: string) {
+  /**
+   * Cambia la empresa activa moviendo **todos** los campos que la definen a la vez:
+   * nombre, id, país y logo.
+   *
+   * Antes sólo escribía el nombre. Como el interceptor manda `X-Active-Company` (nombre) y
+   * `X-Active-Company-Id` (id), y el backend **prefiere el id**, cambiar de empresa dejaba a
+   * la UI en una empresa y al backend en otra. Ver `resolverEmpresaActiva` para el detalle.
+   *
+   * Fail-closed: si el nombre no corresponde a ninguna empresa-país disponible, no cambia nada
+   * y devuelve `false`. Es preferible no cambiar de empresa a quedar en un estado híbrido.
+   *
+   * @returns `true` si la empresa activa efectivamente cambió.
+   */
+  setActiveCompany(name: string): boolean {
     const current = this.get();
-    if (!current) return;
-    const updated = { ...current, activeCompany: name };
+    if (!current) return false;
+
+    const empresa = resolverEmpresaActiva(current.companyPaises, name);
+    if (!empresa) {
+      console.warn(`No se pudo resolver la empresa "${name}" entre las disponibles del usuario.`);
+      return false;
+    }
+
+    const updated = { ...current, ...empresa };
     const persistedInLocal = !!localStorage.getItem(KEY);
     this.save(updated, persistedInLocal);
+    return true;
   }
 
   updateActiveCompanyLogo(logoDataUrl: string | null) {
