@@ -1,70 +1,62 @@
-# Frontend
+# Frontend — ItalGranja
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.17.
+Angular 22 standalone + TypeScript 6, build con `@angular/build` (esbuild/vite).
 
-## Development server
+## Desarrollo
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+```bash
+yarn start        # dev server en http://localhost:4200
+yarn start:hmr    # con HMR
+yarn build        # build de producción -> dist/browser
+yarn test         # unit tests (Karma + Jasmine)
+```
 
-## Code scaffolding
+> ⚠️ Node del PATH puede quedar corto: Angular 22 exige Node ≥ 22.22.3.
+> Si `yarn build` se queja de la versión, usar el Node portable
+> (`~/node-portable/node-v22.23.1-win-x64`).
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+## Despliegue — hay UN solo origen
 
-## Build
+El frontend de producción se sirve desde **ECS + nginx detrás del ALB**, en la cuenta AWS
+`196080479890`. Verificado contra prod: la respuesta trae `Server: nginx` y ningún header
+de CloudFront.
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+| Camino | Cómo se dispara |
+|---|---|
+| CI/CD (el normal) | push a `main-produccion` → `.github/workflows/deploy-production.yml` |
+| Manual | `make deploy-frontend` → `frontend/scripts/deploy-frontend-ecs.sh` |
 
-## Running unit tests
+El camino S3 + CloudFront que documentaba este README **ya no existe**: apuntaba a otra
+cuenta AWS. Quedó en `deploy/ARCHIVADO-s3-cloudfront/` con la explicación.
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+⚠️ **Verificación post-deploy obligatoria** — ECS hace rollback silencioso. Ver la sección
+🚀 de `CLAUDE.md` en la raíz del repo.
 
-## Running end-to-end tests
+## Sellado de versión — no mutar el output del build
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+`scripts/build-version.js` corre en **dos fases** alrededor de `ng build`:
 
-## Further help
+```bash
+node scripts/build-version.js prepare   # buildId -> src/app/core/build-info.ts (entra al bundle)
+ng build --configuration docker
+node scripts/build-version.js emit      # buildId -> dist/browser/version.json
+```
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+**Regla dura: nada puede reescribir un archivo de `dist/browser` después de `ng build`.**
+El builder del Service Worker calcula el SHA1 de cada archivo mientras genera `ngsw.json`;
+si el archivo cambia después, el hash no coincide, el SW arranca en *safe mode* y se
+desactiva solo, en silencio. Ese era exactamente el efecto del viejo `inject-version.js`,
+que reescribía `dist/browser/index.html` post-build.
 
+En un build local `BUILD_ID` queda en `'dev'` y `VersionCheckService` se apaga.
 
+## Caché en el borde
 
-Y asegúrate que la definición de tarea en ECS esté configurada con:
+`nginx.conf` define qué se cachea y qué no. Los archivos de control del SW
+(`ngsw.json`, `ngsw-worker.js`, `safety-worker.js`, `manifest.webmanifest`, `version.json`,
+`index.html`) van **siempre `no-cache`** y en bloques `location =` que tienen que quedar
+**antes** del regex de assets. Los assets con hash van `immutable` a un año.
 
-Arquitectura: Linux/X86_64
-
-Fargate (como ya lo tienes)
-
-
-
-docker buildx build \
-  --platform linux/amd64 \
-  -t 196080479890.dkr.ecr.us-east-2.amazonaws.com/sanmarino/zootecnia/granjas/frontend:latest \
-  --push .
-
-
-Después de guardar este package.json, corre:
-
-yarn build:ssr
-yarn compile:server
-
-
-## **********  Actualizar **********************
-
-# 0) Variables
-$REGION  = "us-east-2"
-$BUCKET  = "sanmarino-frontend-021891592771-us-east-2"
-$DIST_ID = "EBH3ELXXF2N7T"
-
-# 1) Build producción (Angular)
-ng build --configuration production
-
-# 2) Subir a S3 (tu distribución usa OriginPath=/browser)
-aws s3 sync ".\dist" "s3://$BUCKET" --delete
-
-# 3) Invalidar CloudFront (para que tome el nuevo build)
-aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
-
-# 4) (Opcional) Ver estado de la invalidación y la distro
-aws cloudfront get-distribution --id $DIST_ID --query "Distribution.Status" --output text
-
-
+Los headers de seguridad viven en `nginx-security-headers.conf` y **cada** `location` los
+incluye: en nginx, un `add_header` dentro de un `location` descarta todos los del bloque
+`server` padre.

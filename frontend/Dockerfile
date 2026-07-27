@@ -50,8 +50,14 @@ COPY scripts ./scripts
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-RUN yarn build --configuration docker \
-    && node scripts/inject-version.js \
+# El sellado de versión va en DOS fases alrededor del build (ver scripts/build-version.js):
+#   prepare -> compila el buildId DENTRO del bundle
+#   emit    -> publica version.json, un archivo nuevo (no una mutación de uno ya hasheado)
+# Nada puede reescribir un archivo del output después del build: invalidaría el SHA1
+# que ngsw.json guarda para ese archivo y el Service Worker entraría en safe mode.
+RUN node scripts/build-version.js prepare \
+    && yarn build --configuration docker \
+    && node scripts/build-version.js emit \
     && rm -rf node_modules \
     && yarn cache clean
 
@@ -63,7 +69,11 @@ RUN apk add --no-cache curl \
     && rm -rf /var/cache/apk/*
 
 # Configuración de nginx optimizada
+# security-headers.conf lo incluye CADA location de nginx.conf: en nginx los
+# add_header de un location descartan los del server, así que la única forma de
+# no perder CSP/HSTS es repetirlos por location desde un archivo compartido.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx-security-headers.conf /etc/nginx/security-headers.conf
 
 # Copiar artefactos del build
 COPY --from=build /app/dist/browser /usr/share/nginx/html

@@ -115,6 +115,8 @@ lerna-debug.log*
 # ============================================
 # Build artifacts
 # ============================================
+# Handoff entre las fases prepare/emit de scripts/build-version.js
+.build-version
 *.map
 *.js.map
 *.css.map

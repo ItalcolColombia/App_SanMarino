@@ -11,6 +11,13 @@
     "src/**/*.spec.ts",
     "src/**/*.d.ts"
   ],
+  // OBLIGATORIO. tsconfig.json (el que se extiende) trae
+  //   "exclude": ["**/*.spec.ts", "**/*.test.ts"]
+  // para que el build de la app no compile los tests. `exclude` se HEREDA, y en TypeScript
+  // gana sobre `include`: sin esta línea el include de arriba se anula solo, no queda ningún
+  // archivo, y `ng test` muere con TS18003 ("No inputs were found in config file").
+  // Eso es lo que tenía el gate de tests del front muerto.
+  "exclude": [],
   "angularCompilerOptions": {
     "extendedDiagnostics": {
       "checks": {

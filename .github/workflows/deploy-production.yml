@@ -53,11 +53,66 @@ env:
 
 jobs:
   # ===========================================================================
+  # JOB 0 — Gate de tests: NADA se despliega si los tests no pasan
+  # ===========================================================================
+  # CLAUDE.md afirmaba que este gate existía desde hacía tiempo; no existía. El
+  # workflow tenía 296 líneas y cero `dotnet test` / `yarn test`. Del lado del
+  # frontend además el harness estaba roto de raíz: `tsconfig.spec.json` heredaba
+  # `exclude: ["**/*.spec.ts"]` de `tsconfig.json`, así que `ng test` moría con
+  # TS18003 ("No inputs were found") sin llegar a ejecutar un solo spec.
+  #
+  # No relajar ni saltear esta compuerta para "sacar rápido": si un módulo no tiene
+  # test para lo que se tocó, se escribe antes de mergear.
+  tests:
+    name: "Tests — Backend & Frontend"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # ── Backend: xUnit ──────────────────────────────────────────────────────
+      - name: Configurar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Tests del backend
+        working-directory: backend
+        run: dotnet test --configuration Release --logger "console;verbosity=normal"
+
+      # ── Frontend: Karma + Jasmine sobre Chrome headless ─────────────────────
+      # ubuntu-latest trae Google Chrome preinstalado; karma-chrome-launcher lo
+      # localiza vía CHROME_BIN.
+      - name: Configurar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.1"
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Instalar dependencias del frontend
+        working-directory: frontend
+        run: yarn install --frozen-lockfile --non-interactive --network-timeout 100000
+
+      - name: Tests del frontend
+        working-directory: frontend
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: yarn test --watch=false --browsers=ChromeHeadless
+
+      - name: Resumen
+        if: success()
+        run: echo "### Gate de tests superado" >> "$GITHUB_STEP_SUMMARY"
+
+  # ===========================================================================
   # JOB 1 — Backend: Build → ECR → ECS
   # ===========================================================================
   deploy-backend:
     name: "Backend — Build & Deploy"
     runs-on: ubuntu-latest
+    needs: [tests]
     if: |
       github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && inputs.deploy_backend == true)
@@ -184,9 +239,22 @@ jobs:
   deploy-frontend:
     name: "Frontend — Build & Deploy"
     runs-on: ubuntu-latest
+    # El frontend se despliega DESPUÉS del backend, nunca en paralelo.
+    # Si sale primero, los clientes quedan con un bundle que le habla a un backend que
+    # todavía no tiene los endpoints nuevos. Hoy esa ventana dura minutos; con un Service
+    # Worker cacheando el bundle pasa a durar días.
+    #
+    # El `if` es explícito porque `needs` por sí solo saltearía el frontend cuando el
+    # backend se saltea a propósito (workflow_dispatch con deploy_backend=false):
+    #  - tests SIEMPRE tiene que haber pasado;
+    #  - deploy-backend puede haber pasado O haberse salteado, pero nunca fallado.
+    needs: [tests, deploy-backend]
     if: |
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true)
+      always() &&
+      needs.tests.result == 'success' &&
+      (needs['deploy-backend'].result == 'success' || needs['deploy-backend'].result == 'skipped') &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true))
     timeout-minutes: 30
 
     env:
@@ -243,6 +311,73 @@ jobs:
             --label "git.ref=${{ github.ref }}" \
             --label "build.run=${{ github.run_number }}" \
             .
+
+      # ── Guarda del borde: la imagen NO se publica si nginx no valida ────────
+      # Verifica sobre la imagen ya construida los criterios que hacen que un
+      # Service Worker pueda vivir (§9 del plan PWA). Corre ANTES del push a ECR
+      # para que una configuración rota no llegue nunca a ECS.
+      - name: Validar nginx y política de caché del borde
+        run: |
+          set -u
+          IMG="${{ steps.tags.outputs.image_sha }}"
+
+          echo "== nginx -t (sintaxis) =="
+          docker run --rm "$IMG" nginx -t
+
+          echo "== levantando el contenedor =="
+          docker rm -f front-check >/dev/null 2>&1 || true
+          docker run -d --name front-check -p 8099:80 "$IMG" >/dev/null
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:8099/health >/dev/null && break
+            sleep 1
+          done
+
+          H=http://localhost:8099
+          fallos=0
+          check() { # descripción, url, patrón esperado en los headers
+            out=$(curl -s -o /dev/null -D - --max-time 10 "$2")
+            if echo "$out" | grep -qiE "$3"; then
+              echo "  OK    $1"
+            else
+              echo "  FALLA $1 (no matchea: $3)"
+              echo "$out" | sed 's/^/        /' | head -20
+              fallos=$((fallos+1))
+            fi
+          }
+
+          echo "== C2: recursos no navegables inexistentes -> 404, NUNCA index.html =="
+          # Antes del arreglo estos devolvían 200 con Content-Type text/html y el cuerpo
+          # del index; un Service Worker recibe HTML donde espera JSON y se desactiva solo.
+          check "chunk-inexistente.js -> 404"      "$H/chunk-inexistente.js"    "^HTTP/[0-9.]+ 404"
+          check "ngsw.json ausente -> 404"         "$H/ngsw.json"               "^HTTP/[0-9.]+ 404"
+          check "manifest.webmanifest aus. -> 404" "$H/manifest.webmanifest"    "^HTTP/[0-9.]+ 404"
+          check "ruta del SPA -> 200"              "$H/lotes/detalle/9"         "^HTTP/[0-9.]+ 200"
+
+          echo "== C3: archivos de control con no-cache =="
+          check "version.json -> no-cache"         "$H/version.json"            "^Cache-Control:.*no-cache"
+          check "index.html -> no-cache"           "$H/index.html"              "^Cache-Control:.*no-cache"
+
+          echo "== C3: los assets con hash siguen immutable =="
+          JS=$(curl -s "$H/" | grep -oE 'src="[^"]+\.js"' | head -1 | sed 's/src="//;s/"//')
+          echo "  (asset de referencia: ${JS:-ninguno})"
+          [ -n "$JS" ] && check "$JS -> immutable"  "$H/$JS"                    "^Cache-Control:.*immutable"
+
+          echo "== C5: CSP y HSTS en TODAS las respuestas =="
+          check "/ -> CSP"                          "$H/"                       "^Content-Security-Policy:"
+          check "/ -> HSTS"                         "$H/"                       "^Strict-Transport-Security:"
+          check "/ -> worker-src en la CSP"         "$H/"                       "worker-src 'self'"
+          [ -n "$JS" ] && check "$JS -> CSP"         "$H/$JS"                    "^Content-Security-Policy:"
+          [ -n "$JS" ] && check "$JS -> HSTS"        "$H/$JS"                    "^Strict-Transport-Security:"
+          check "ruta del SPA -> CSP"               "$H/lotes/detalle/9"        "^Content-Security-Policy:"
+
+          docker logs front-check 2>&1 | tail -20 || true
+          docker rm -f front-check >/dev/null 2>&1 || true
+
+          if [ "$fallos" -ne 0 ]; then
+            echo "::error::La imagen del frontend no cumple $fallos criterio(s) del borde. No se publica."
+            exit 1
+          fi
+          echo "Borde OK."
 
       - name: Push imágenes a ECR
         run: |
