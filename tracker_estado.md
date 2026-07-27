@@ -130,39 +130,61 @@ con inventario a nivel granja **no cambian**.
 - [x] `dotnet test` verde — **912/912** (⚠️ el `dotnet` del PATH es 9.0.301: usar `~/.dotnet/dotnet.exe` 10.0.301)
 
 ## Fase 2 — Backend: flag de empresa
-- [ ] `Company.VentaEngordePesoDiferido` + `CompanyConfiguration` (`venta_engorde_peso_diferido`, default `false`)
-- [ ] Propagado en las proyecciones (`CompanyDto`, `CompanyService.ToDto`, `CompanyService.Crud` ×2, `CompanyResolver` ×2, `CompanyPaisService`) + Create/UpdateCompanyDto
-- [ ] Migración idempotente `AddVentaEngordePesoDiferidoCompany` (`ADD COLUMN IF NOT EXISTS`)
-- [ ] Migración data-only `SeedVentaEngordePesoDiferido` (ItalcolPanama, `IS DISTINCT FROM`, ModelSnapshot intacto)
-- [ ] Aplicadas en BD local :5433 y verificadas (ItalcolPanama = t, resto = f)
+- [x] `Company.VentaEngordePesoDiferido` + `CompanyConfiguration` (`venta_engorde_peso_diferido`, default `false`)
+- [x] Propagado en las proyecciones (`CompanyDto`, `CompanyService.ToDto`, `CompanyService.Crud` ×2, `CompanyResolver` ×2, `CompanyPaisService`) + Create/UpdateCompanyDto
+- [x] Migración idempotente `20260727003154_AddVentaEngordePesoDiferidoCompany` (`ADD COLUMN IF NOT EXISTS`)
+- [x] Migración data-only `20260727003300_SeedVentaEngordePesoDiferidoPanama` (ItalcolPanama, `IS DISTINCT FROM`, Designer clonado)
+- [x] `dotnet build` 0 errores / 0 advertencias
+- [x] Aplicadas en BD local :5433 y verificadas — ItalcolPanama = `t`, Sanmarino/Ecuador/Demo/Santa Reyes = `f`
 
 ## Fase 3 — Backend: peso diferido + registro de peso
-- [ ] Resolución fail-closed del flag por `farms.company_id` de la granja del despacho
-- [ ] `MovimientoPolloEngordePanamaService.cs:65` delega con el flag (conservando el literal `"Venta"`)
-- [ ] Núcleo reusable extraído de `ReprorratearPesoTrasEdicionAsync` (refactor sin cambio de comportamiento)
-- [ ] `MovimientoPolloEngordeService.RegistrarPeso.cs` (partial): peso por factura + `confirmar` opcional, en transacción
-- [ ] Endpoint `POST /api/MovimientoPolloEngorde/factura/{facturaId}/registrar-peso` + permisos
-- [ ] `dotnet build` 0 errores / sin advertencias nuevas
+- [x] `EmpresaPermitePesoDiferidoAsync`: resolución fail-closed por `farms.company_id` de la granja del despacho (no por país ni por la empresa del token)
+- [x] `MovimientoPolloEngordePanamaService.cs:65` delega con el flag (conservando el literal `"Venta"`)
+- [x] `MovimientoPolloEngordeService.RegistrarPeso.cs` (partial nuevo): peso por FACTURA + `Confirmar` opcional, en transacción; escribe los 9 campos con el prorrateo de la creación
+- [x] Decisión: **no** se reusa `ReprorratearPesoTrasEdicionAsync` — en despachos de 1 sola línea deja `peso_*_real` y los `*_global` en NULL (rama «movimiento simple»), lo que dejaría la venta distinta de una con peso el mismo día
+- [x] DTOs `RegistrarPesoFacturaRequest` / `RegistrarPesoFacturaResponse` + método en `IMovimientoPolloEngordeService`
+- [x] Endpoint `POST /api/MovimientoPolloEngorde/factura/{facturaId:guid}/registrar-peso`
+- [x] `dotnet build` 0 errores / 0 advertencias
 
 ## Fase 4 — Backend: carga masiva completa (multi-lote)
-- [ ] `MigracionEsquemas.VentaPolloEngorde`: 15 columnas nuevas (ubicación + despacho + `Estado` + `Venta sobre mixtas`); `Peso Bruto/Tara` a `DobleNoNeg`
-- [ ] Parser `MigracionService.VentaEngorde.cs`: resolución de lote por fila con fallback al contexto + claves nuevas + validaciones
-- [ ] Hoja de instrucciones ampliada
-- [ ] `fn_migracion_venta_engorde` v2 (migración `CREATE OR REPLACE`, **sin** tocar `20260712190000`): campos nuevos · `factura_id` + prorrateo por grupo (3 decimales) · `estado` de la fila · descuento sólo si `Completado` · `es_venta_mixta` espejando `CompleteAsync` · idempotencia por rango de día + `numero_despacho`
-- [ ] `backend/sql/fn_migracion_venta_engorde.sql` actualizado como fuente canónica
-- [ ] Test de retro-compatibilidad: archivo con las 11 columnas viejas sigue válido
+- [x] `MigracionEsquemas.VentaPolloEngorde`: 11 → 26 columnas (ubicación + despacho + `Estado` + `Venta sobre mixtas`); `Peso Bruto/Tara` de `DobleOpc` a `DobleNoNeg` (antes aceptaba negativos)
+- [x] Helpers `HoraOpc` / `BooleanoSiNo` en `MigracionService.Comun.cs`
+- [x] Parser `MigracionService.VentaEngorde.cs` reescrito: resolución de lote por fila (reusa `CargarLotesEngordeUbicadosAsync` + `FiltrarPorUbicacion`) con fallback al contexto · validaciones nuevas (Estado, mixtas, peso completo, advertencia de `Completado` sin peso)
+- [x] `ArmarDespachosVentaEngorde`: agrupa por N° Despacho + Fecha + Granja, asigna `factura_id` y **prorratea con `MovimientoPolloEngordeCalculos.ProrratearPesoPorLinea`** (la misma función pura de la venta por pantalla ⇒ aritmética idéntica, sin duplicar el redondeo en plpgsql); error si el despacho trae pesos contradictorios entre filas
+- [x] Hoja de instrucciones ampliada
+- [x] `fn_migracion_venta_engorde` v2 — migración `20260727010000_FnMigracionVentaEngordeV2Despachos` (`CREATE OR REPLACE`, **sin** tocar `20260712190000`): 20 campos nuevos en el `jsonb_to_recordset` · `estado` por fila (`Pendiente` NO descuenta) · descuento sobre mixtas si `es_venta_mixta` (espeja `CompleteAsync`) · idempotencia por **rango de día** + `numero_despacho`
+- [x] Diferencia deliberada vs `CompleteAsync`: la fn **no** pone `aves_encasetadas = 0` al vaciar el lote (es el denominador de los indicadores; hacerlo desde una carga histórica alteraría reportes ya publicados)
+- [x] `backend/sql/fn_migracion_venta_engorde.sql` actualizado como fuente canónica
+- [x] Tests de esquema: retro-compatibilidad con las 11 columnas viejas · solo `Fecha` requerida · presencia de los 15 campos del formulario · opciones de `Estado`
+- [x] `dotnet build` 0 errores / 0 advertencias · `dotnet test` **916/916**
+- [x] Migraciones aplicadas en BD local :5433
 
 ## Fase 5 — Frontend
-- [ ] `ventaEngordePesoDiferido` en `CompanyFlags` + `FLAGS_APAGADOS` (fail-closed)
-- [ ] `modal-registro-peso-venta` nuevo (`ChangeDetectionStrategy.Eager` explícito) con neto/promedio en vivo y preview de prorrateo
-- [ ] Listado: disparo del modal al confirmar sin peso, acción «registrar/corregir peso», marca «peso pendiente»
-- [ ] `modal-venta-panama`: `required` condicional + mensaje de error reescrito
-- [ ] `modal-movimiento-pollo-engorde`: `syncPesoValidators` gateado por el flag (si no, no se puede editar la venta sin peso)
-- [ ] `company-management`: flags en el payload (arregla el bug que apagaría el flag al editar la empresa)
-- [ ] `yarn build` 0 errores (sólo el warning de bundle budget preexistente)
+- [x] `ventaEngordePesoDiferido` en `CompanyFlags` + `FLAGS_APAGADOS` + atajo `$` + azúcar + `mapFlags` + `publish` (fail-closed)
+- [x] `funciones/prorateo-peso-despacho.funcion.ts` (pura): prorrateo sobre movimientos ya creados, espejo exacto del backend (3 decimales, residuo a la línea con más aves)
+- [x] `components/modal-registro-peso/` nuevo — `ChangeDetectionStrategy.Eager` **explícito**, neto/promedio en vivo, tabla de reparto por lote con totales, y el botón cambia a «Guardar peso y confirmar venta» si el despacho está Pendiente
+- [x] Listado: `completarMovimiento` y `completarGrupoDespacho` desvían al modal de peso cuando el despacho no tiene báscula · acción «⚖ Peso» para registrar/corregir · badge «⚖ Sin peso»
+- [x] `modal-venta-panama`: `required` condicional por flag, mensaje de error reescrito (antes decía «Complete la fecha» ante cualquier invalidez), validación de peso a medias y ayuda en pantalla
+- [x] `modal-movimiento-pollo-engorde`: `syncPesoValidators` gateado por el flag (sin esto no se podía **editar** la venta sin peso)
+- [x] **Fix del bug que apagaba flags en silencio**: `UpdateCompanyDto` pasa los 6 flags a `bool?` y `CompanyService.Crud` usa `?? valorActual` ⇒ el form de Config→Empresas (que sólo manda datos de contacto) deja de apagar peso diferido, huevos por ítems, ERP, etc. al guardar
+- [x] `yarn build` 0 errores (sólo el warning de bundle budget preexistente) — ⚠️ el Node del PATH es 22.15 y Angular 22 exige ≥ 22.22.3: usar `~/node-portable/node-v22.23.1-win-x64`
 
 ## Fase 6 — Validación y cierre
 - [ ] Smoke API local (JWT minteado): venta sin peso · registrar-peso + confirmar · **espejo pasa de 0 kg al neto** · corrección post-Completado · flag OFF con 400 idéntico · masiva retro-compatible · masiva multi-lote · `Pendiente` sin descuento · mixtas · idempotencia contra venta hecha por pantalla · dry-run
 - [ ] Smoke UI doble: ItalcolPanama (flag ON, modal abriendo/cerrando dos veces) y Demo/Sanmarino (flag OFF, cero cambios visibles)
 - [ ] Servidores detenidos (sin procesos huérfanos) + BD local restaurada
 - [ ] Commit acotado a los archivos de esta tarea (sin mezclar con los otros bloques)
+
+## Fase 7 — Alineación pendiente (continúa en otra sesión)
+
+**Traspaso:** [fase_de_desarrollo/CONTEXTO_TRASPASO_HUEVOS_LEVANTE.md](fase_de_desarrollo/CONTEXTO_TRASPASO_HUEVOS_LEVANTE.md) — estado, pendientes con archivo:línea, gotchas y receta de smoke. Pegar ese archivo al abrir el chat nuevo.
+
+- [ ] **P1** Columnas de huevos en la tabla diaria de levante + Excel (`tabs-principal`: `RegistroDiarioTablaFila`:26, `buildDiarioFilas`:212, `colspanRegistroDiario`:167 = `26 + (enriquecer?3:0)`, headers:683, rows:721 y 804) — el hueco más visible: hoy se registran y sólo se ven en el detalle 👁️
+- [ ] **P2** Carga masiva de levante acepta huevos (`MigracionEsquemas.SeguimientoLevante`:42 — 16 columnas hoy · `fn_migracion_seguimiento_levante` · tests) **con el mismo gate de semana 14**
+- [ ] **P3** *(fase 2 acordada)* Huevos en `fn_indicadores_levante_postura` (RETURNS TABLE:73) y `fn_reporte_semanal_levante_extras` — requiere `DROP FUNCTION` + migración + DTOs + front; sin guía genética de huevos antes de la semana 26
+- [ ] **P4** Sincronizar `backend/sql/trigger_espejo_huevo_produccion_seguimiento_diario.sql` (apunta a `public.seguimiento_diario`, inexistente; la versión viva está en la migración `20260531180558`) — ⛔ reaplicarlo tal cual rompe el trigger
+- [ ] **P5** Verificar en RDS prod el índice único `(lote_id, fecha_registro)` de `seguimiento_diario_produccion` que declara `SeguimientoProduccionConfiguration.cs:232` (en local NO existe); si se crea, revisar duplicados históricos primero
+- [ ] **P6** *(opcional)* Modo «clasificación por ítems» (Santa Reyes) en levante — hoy fail-closed a propósito
+- [ ] **P7** Confirmar la empresa del flag (hoy sólo `Agroavicola Sanmarino`, migración `20260726231200`)
+- [ ] **P8** Decidir si `ReporteContableService` debe ver el arrastre (lee sólo `seguimiento_diario_levante` con `tipo='produccion'`) — inconsistencia preexistente, no doble conteo
+- [ ] **P9** *(sólo documentar)* Pico esperado en los indicadores de producción el día del arrastre; y si se liquida antes de la semana 25 la fila no entra a `fn_indicadores_produccion_postura` (`DELETE ... sem_vida < 25`)

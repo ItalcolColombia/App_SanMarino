@@ -212,7 +212,7 @@ Restringir el merge a la fila marcada mantiene el 400 en **todos** los casos act
 - **Pico artificial** en los indicadores de producción del día del arrastre (`% postura = HuevoTot / saldoHembras`, HTAA/HIAA del Reporte Técnico Semanal): es **exactamente lo que pidió el usuario** (todos los huevos de levante al primer registro). La marca en `metadata` deja la puerta abierta a anotarlo/excluirlo si más adelante molesta.
 - Si el lote se liquida **antes de la semana 25**, `fn_indicadores_produccion_postura` (`DELETE … WHERE sem_vida < 25`) no mostrará la fila en indicadores; el dato igual queda correcto en el espejo, en la lista de seguimientos y en el Reporte Contable. Bajar ese corte es una restricción distribuida (fn + loop + clamp del front) y ya causó un incidente (REQ-012b) ⇒ fuera de alcance.
 - `ReporteContableService` lee sólo `seguimiento_diario_levante` con `tipo='produccion'` ⇒ no verá el arrastre (inconsistencia entre reportes preexistente, **no** doble conteo).
-- Carga masiva de levante (`MigracionEsquemas.SeguimientoLevante`, 15 columnas) no acepta huevos ⇒ históricos sin huevos hasta extenderla (fase 2).
+- Carga masiva de levante (`MigracionEsquemas.SeguimientoLevante`, 16 columnas) no acepta huevos ⇒ históricos sin huevos hasta extenderla (fase 2).
 - `backend/sql/trigger_espejo_huevo_produccion_seguimiento_diario.sql` está **desactualizado** (apunta a `public.seguimiento_diario`, inexistente); la versión viva está en la migración `20260531180558`. **No reaplicar ese .sql.**
 
 
