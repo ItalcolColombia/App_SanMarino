@@ -92,10 +92,12 @@ public partial class SeguimientoAvesEngordeService
         // que la pantalla aceptaba. Se alinean los dos canales.
         if (lote.FechaEncaset.HasValue)
         {
-            var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncasetamiento);
+            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
+                lote.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, lote.CompanyId));
+            var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, horaRegla);
             if (dto.FechaRegistro.Date < primerDia.Date)
             {
-                var motivo = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncasetamiento);
+                var motivo = EncasetamientoCalculos.MotivoDesplazamiento(horaRegla);
                 throw new InvalidOperationException(motivo is null
                     ? $"La fecha del registro no puede ser anterior al encasetamiento del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
                     : $"El primer registro de este lote es el {primerDia:yyyy-MM-dd}: {motivo}.");
@@ -268,10 +270,12 @@ public partial class SeguimientoAvesEngordeService
         // que la pantalla aceptaba. Se alinean los dos canales.
         if (lote.FechaEncaset.HasValue)
         {
-            var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncasetamiento);
+            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
+                lote.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, lote.CompanyId));
+            var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, horaRegla);
             if (dto.FechaRegistro.Date < primerDia.Date)
             {
-                var motivo = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncasetamiento);
+                var motivo = EncasetamientoCalculos.MotivoDesplazamiento(horaRegla);
                 throw new InvalidOperationException(motivo is null
                     ? $"La fecha del registro no puede ser anterior al encasetamiento del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
                     : $"El primer registro de este lote es el {primerDia:yyyy-MM-dd}: {motivo}.");

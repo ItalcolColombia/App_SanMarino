@@ -87,6 +87,19 @@ namespace ZooSanMarino.Domain.Entities
         /// </summary>
         public bool SeguimientoEngordeMixto { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = en esta empresa la HORA de llegada de las aves decide el primer día con
+        /// registro del lote (pollo engorde y reproductora): desde las 13:00 las aves ya no alcanzan a
+        /// consumir ese día y el primer consumo pasa al día siguiente del encasetamiento.
+        /// <c>false</c> (default) = comportamiento previo: el primer registro puede ir en el día del
+        /// encasetamiento y la hora informada se ignora.
+        /// <para>
+        /// La fecha de encasetamiento y la edad NO cambian en ningún caso: la edad se sigue contando
+        /// desde <c>fecha_encaset</c>, así que un lote tardío arranca en edad 1.
+        /// </para>
+        /// </summary>
+        public bool PrimerRegistroSegunHoraLlegada { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

@@ -61,7 +61,8 @@ public class CompanyResolver : ICompanyResolver
                 c.ClasificacionHuevoPorItems,
                 c.PermiteTrasladoAvesCrossEtapa,
                 c.CapturaHuevosEnLevante,
-                c.VentaEngordePesoDiferido
+                c.VentaEngordePesoDiferido,
+                c.PrimerRegistroSegunHoraLlegada
             ))
             .FirstOrDefaultAsync();
 
@@ -105,7 +106,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.ClasificacionHuevoPorItems,
                 uc.Company.PermiteTrasladoAvesCrossEtapa,
                 uc.Company.CapturaHuevosEnLevante,
-                uc.Company.VentaEngordePesoDiferido
+                uc.Company.VentaEngordePesoDiferido,
+                uc.Company.PrimerRegistroSegunHoraLlegada
             ))
             .ToListAsync();
 

@@ -36,5 +36,7 @@ public record UpdateCompanyDto(
     // semana 14 (con arrastre del acumulado a producción al liquidar)?
     bool?    CapturaHuevosEnLevante = null,
     // ¿El peso báscula de la venta de pollo engorde llega al día siguiente (se carga al confirmar)?
-    bool?    VentaEngordePesoDiferido = null
+    bool?    VentaEngordePesoDiferido = null,
+    /// <summary>La hora de llegada de las aves decide el primer día con registro del lote (≥13:00 ⇒ día siguiente).</summary>
+    bool?    PrimerRegistroSegunHoraLlegada = null
 );

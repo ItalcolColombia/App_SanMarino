@@ -187,12 +187,14 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var fechaAnclada = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (loteRep.FechaEncasetamiento.HasValue)
         {
-            var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(loteRep.HoraEncasetamiento);
+            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
+                loteRep.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, _current.CompanyId));
+            var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(horaRegla);
             var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(loteRep.FechaEncasetamiento.Value, fechaAnclada);
             if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDiasSeguimiento, edadMinima))
                 throw new InvalidOperationException(
                     edad < edadMinima
-                        ? MensajeFechaMuyTemprana(loteRep.FechaEncasetamiento.Value, loteRep.HoraEncasetamiento)
+                        ? MensajeFechaMuyTemprana(loteRep.FechaEncasetamiento.Value, horaRegla)
                         : "La fecha del seguimiento supera la primera semana de recogida contada desde el encasetamiento.");
         }
 
@@ -295,12 +297,14 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var fechaAncladaUpd = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (encasetUpd.HasValue)
         {
-            var edadMinimaUpd = EncasetamientoCalculos.EdadMinimaConRegistro(loteUpd!.HoraEncasetamiento);
+            var horaReglaUpd = EncasetamientoCalculos.HoraEfectiva(
+                loteUpd!.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, _current.CompanyId));
+            var edadMinimaUpd = EncasetamientoCalculos.EdadMinimaConRegistro(horaReglaUpd);
             var edadUpd = ReproductoraEngordeCalculos.EdadSeguimientoDias(encasetUpd.Value, fechaAncladaUpd);
             if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadUpd, MaxDiasSeguimiento, edadMinimaUpd))
                 throw new InvalidOperationException(
                     edadUpd < edadMinimaUpd
-                        ? MensajeFechaMuyTemprana(encasetUpd.Value, loteUpd.HoraEncasetamiento)
+                        ? MensajeFechaMuyTemprana(encasetUpd.Value, horaReglaUpd)
                         : "La fecha del seguimiento supera la primera semana de recogida contada desde el encasetamiento.");
         }
 

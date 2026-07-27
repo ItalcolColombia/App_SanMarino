@@ -524,15 +524,32 @@ del encaset ⇒ el radio real de impacto son **3 lotes** (1 engorde + 2 reproduc
       agregada en Create y Update de los DOS services de engorde
 - [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1029/1029 · `ng build` 0 errores
 
-## Fase 2 — reorganización de registros existentes — BLOQUEADA, espera decisión del usuario
+## Fase 2 — decisiones del usuario aplicadas (27-jul-2026)
 
-- [ ] Definir si «organizar» = mover fechas (+1 día) o solo corregir la numeración mostrada
-- [ ] Si se mueven fechas: endpoint `validar` + `aplicar` (patrón `aves-disponibles/validar|corregir`)
-- [ ] Requisito técnico probado: el shift debe ir **fila por fila en orden de fecha DESC**; el UPDATE
-      masivo y el orden ASC violan `uq_seg_diario_lrae_lote_fecha` (probado en local con rollback)
-- [ ] Excluir filas `origen_cruce` (se mueven regenerando el cruce, no a mano)
-- [ ] Abortar si algún registro reproductora saldría a edad 8 (`fn_cruce` solo consolida 0..7)
-- [ ] Re-fechar `BAJA_SEGUIMIENTO`, referencia de `INV_CONSUMO` y recálculo de saldo de alimento
+**Decisión 1:** «organizar» = **solo corregir la numeración en pantalla**. NO se mueve ninguna fecha
+de registro ⇒ cero riesgo sobre datos históricos, kardex, informe semanal y liquidaciones.
+**Decisión 2:** la regla de las 13:00 aplica a **una sola empresa** ⇒ flag por empresa.
+
+- [x] `companies.primer_registro_segun_hora_llegada` (bool, default false) + configuración
+- [x] Migración schema `20260727182440` (ADD COLUMN IF NOT EXISTS) + seed `20260727182540` para
+      **ItalcolPanama** (verificado: el lote 142 «13 - 1» del ejercicio es de esa empresa)
+- [x] `EncasetamientoCalculos.HoraEfectiva(hora, reglaActiva)`: con la regla apagada devuelve null ⇒
+      la hora se ignora y la empresa queda byte a byte como antes
+- [x] `PrimerRegistroPorHoraGate` (fail-closed): un único punto de resolución del flag para los 5
+      puntos de captura + los 2 PUT de lote, para que la regla no se aplique distinto según el canal
+- [x] Gate aplicado en: formulario diario reproductora (Create/Update), formulario diario engorde x2
+      (Create/Update), carga masiva reproductora, carga masiva engorde, PUT lote engorde, PUT lote repro
+- [x] El flag viaja en TODAS las proyecciones de `CompanyDto` (ToDto, Crud, Resolver, CompanyPais)
+- [x] Front: flag en `ActiveCompanyConfigService` (fail-closed) + azúcar `primerRegistroSegunHoraLlegada()`
+- [x] **Columna «Día»**: en un lote tardío la semana se numera 1..7 (antes 2..8). Es presentación pura;
+      la edad real, la guía genética, los indicadores y el informe semanal NO se tocan
+- [x] El modal de seguimiento recibe la hora solo si el flag está activo
+- [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1029/1029 · `ng build` 0 errores
+- [x] SQL de las migraciones verificado con `dotnet ef migrations script`
+
+**Descartado explícitamente:** mover las fechas de los registros (+1 día). Quedó probado que es
+técnicamente viable (solo fila por fila en orden DESC), pero cambiaría kardex de alimento, informe
+semanal y días de ciclo de lotes ya liquidados. El usuario eligió no tocar datos históricos.
 
 ## Bugs preexistentes detectados (independientes, sin tocar)
 

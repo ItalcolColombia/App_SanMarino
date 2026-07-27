@@ -432,11 +432,13 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 .Select(s => s.Fecha)
                 .ToListAsync();
 
+            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
+                dto.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, ent.CompanyId));
             var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
-                nuevaFechaEncaset, dto.HoraEncasetamiento, fechasSeguimiento);
+                nuevaFechaEncaset, horaRegla, fechasSeguimiento);
             if (!diag.Compatible)
                 throw new InvalidOperationException(
-                    EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, dto.HoraEncasetamiento));
+                    EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, horaRegla));
         }
 
         ent.FechaEncaset = nuevaFechaEncaset;

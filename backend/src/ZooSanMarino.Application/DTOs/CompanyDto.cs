@@ -34,5 +34,7 @@ public record CompanyDto(
     bool CapturaHuevosEnLevante = false,
     // ¿El peso báscula de la venta de pollo engorde llega al día siguiente? Con el flag activo el
     // front deja de exigir peso bruto/tara al registrar la venta y pide el peso al confirmarla.
-    bool VentaEngordePesoDiferido = false
+    bool VentaEngordePesoDiferido = false,
+    /// <summary>La hora de llegada de las aves decide el primer día con registro del lote (≥13:00 ⇒ día siguiente).</summary>
+    bool PrimerRegistroSegunHoraLlegada = false
 );

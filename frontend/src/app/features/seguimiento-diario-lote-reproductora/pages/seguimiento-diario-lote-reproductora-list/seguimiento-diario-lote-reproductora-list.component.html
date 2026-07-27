@@ -611,7 +611,7 @@ MODALES
   [galponId]="selectedGalponId"
   [defaultFecha]="editingModal ? null : modalDefaultFecha"
   [fechaEncasetamiento]="selectedReproductoraDetail?.fechaEncasetamiento ?? null"
-  [horaEncasetamiento]="selectedReproductoraDetail?.horaEncasetamiento ?? null"
+  [horaEncasetamiento]="reglaPrimerRegistroPorHora ? (selectedReproductoraDetail?.horaEncasetamiento ?? null) : null"
   [registrosCount]="seguimientos.length"
   [loading]="loading"
   [ctxGranja]="selectedGranjaName"

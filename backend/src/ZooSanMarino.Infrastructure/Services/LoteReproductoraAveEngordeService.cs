@@ -353,11 +353,13 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 .Select(s => s.Fecha)
                 .ToListAsync();
 
+            var horaRegla = EncasetamientoCalculos.HoraEfectiva(
+                dto.HoraEncasetamiento, await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, _current.CompanyId));
             var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
-                nuevaFechaEncaset, dto.HoraEncasetamiento, fechasSeguimiento);
+                nuevaFechaEncaset, horaRegla, fechasSeguimiento);
             if (!diag.Compatible)
                 throw new InvalidOperationException(
-                    EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, dto.HoraEncasetamiento));
+                    EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, horaRegla));
         }
 
         ent.FechaEncasetamiento = nuevaFechaEncaset;

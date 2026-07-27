@@ -230,6 +230,9 @@ public partial class MigracionService
             .Select(x => (x.LoteAveEngordeId, x.Fecha.Date))
             .ToHashSet();
 
+        // El flag de la empresa se resuelve UNA vez: dentro del loop serían N consultas iguales.
+        var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
+
         var dtos = new List<SeguimientoLoteLevanteDto>();
         var fechasVistas = new HashSet<(int LoteId, DateTime Fecha)>();
         int omitidas = 0;
@@ -273,10 +276,11 @@ public partial class MigracionService
             // solo advierte.
             if (lote.FechaEncaset.HasValue)
             {
-                var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncaset);
+                var horaRegla = EncasetamientoCalculos.HoraEfectiva(lote.HoraEncaset, reglaHoraActiva);
+                var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, horaRegla);
                 if (fecha.Date < primerDia.Date)
                 {
-                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncaset);
+                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(horaRegla);
                     errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
                         motivoHora is null
                             ? $"{lote.LoteNombre}: la fecha es anterior al encaset del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
