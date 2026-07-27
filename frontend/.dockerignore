@@ -61,8 +61,15 @@ tmp/
 temp/
 
 # Scripts de deployment (excepto el necesario para build)
+# ⚠️ Esta lista blanca es un espejo de lo que el Dockerfile ejecuta desde scripts/.
+# Si renombrás o agregás un script que corre DENTRO del build, actualizá esta línea:
+# scripts/* deja el directorio vacío en el contexto, `COPY scripts ./scripts` copia
+# una carpeta vacía sin fallar, y el error recién aparece minutos después como
+# MODULE_NOT_FOUND. Fue exactamente lo que rompió el deploy del 2026-07-27: el
+# commit 76a2903 renombró inject-version.js -> build-version.js y esta línea siguió
+# apuntando al archivo borrado.
 scripts/*
-!scripts/inject-version.js
+!scripts/build-version.js
 deploy/
 
 # Configuración local

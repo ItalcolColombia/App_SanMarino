@@ -44,7 +44,11 @@ COPY package.json yarn.lock* ./
 COPY angular.json tsconfig*.json ./
 COPY tailwind.config.js postcss.config.js ./
 COPY src ./src
-COPY scripts ./scripts
+# Se nombra el archivo en vez de copiar el directorio: si el contexto no lo trae
+# (p. ej. .dockerignore desactualizado) el build falla ACÁ, diciendo qué archivo
+# falta, en vez de copiar una carpeta vacía sin quejarse y reventar minutos
+# después dentro del RUN con un MODULE_NOT_FOUND. Ver frontend/.dockerignore.
+COPY scripts/build-version.js ./scripts/build-version.js
 
 # Build optimizado con variables de entorno
 ENV NODE_ENV=production
