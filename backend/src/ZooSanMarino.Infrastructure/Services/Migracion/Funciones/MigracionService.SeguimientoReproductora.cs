@@ -121,6 +121,9 @@ public partial class MigracionService
         if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
         if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
+        // El flag de la empresa se resuelve UNA vez: dentro del loop serían N consultas iguales.
+        var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
+
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
             ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento, string.Empty, null, null, null, null);
@@ -221,12 +224,13 @@ public partial class MigracionService
             // al primer día con registro, que se corre un día si las aves llegaron a las 13:00 o después.
             if (repro.FechaEncasetamiento.HasValue)
             {
-                var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(repro.HoraEncasetamiento);
+                var horaRegla = EncasetamientoCalculos.HoraEfectiva(repro.HoraEncasetamiento, reglaHoraActiva);
+                var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(horaRegla);
                 var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(repro.FechaEncasetamiento.Value, fecha);
                 if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDias, edadMinima))
                 {
-                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(repro.HoraEncasetamiento);
-                    var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(repro.FechaEncasetamiento.Value, repro.HoraEncasetamiento);
+                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(horaRegla);
+                    var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(repro.FechaEncasetamiento.Value, horaRegla);
                     errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
                         edad < edadMinima
                             ? (motivoHora is null

@@ -31,6 +31,12 @@ export interface CompanyFlags {
    * que re-prorratea por lote y completa el despacho en la misma transacción.
    */
   ventaEngordePesoDiferido: boolean;
+  /**
+   * La HORA de llegada de las aves decide el primer día con registro del lote (engorde y
+   * reproductora): desde las 13:00 el primer consumo pasa al día siguiente del encasetamiento.
+   * La fecha de encaset y la edad no cambian — solo se corre el primer día con registro.
+   */
+  primerRegistroSegunHoraLlegada: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -39,7 +45,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   clasificacionHuevoPorItems: false,
   permiteTrasladoAvesCrossEtapa: false,
   capturaHuevosEnLevante: false,
-  ventaEngordePesoDiferido: false
+  ventaEngordePesoDiferido: false,
+  primerRegistroSegunHoraLlegada: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -57,6 +64,7 @@ interface CompanyFlagsResponse {
   permiteTrasladoAvesCrossEtapa?: boolean | null;
   capturaHuevosEnLevante?: boolean | null;
   ventaEngordePesoDiferido?: boolean | null;
+  primerRegistroSegunHoraLlegada?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -182,6 +190,11 @@ export class ActiveCompanyConfigService {
     return this.getFlags().pipe(map(f => f.ventaEngordePesoDiferido));
   }
 
+  /** Azúcar: sólo el flag de "el primer registro lo decide la hora de llegada" de la empresa activa. */
+  primerRegistroSegunHoraLlegada(): Observable<boolean> {
+    return this.getFlags().pipe(map(f => f.primerRegistroSegunHoraLlegada));
+  }
+
   /** Descarta la caché (p. ej. tras editar la empresa en configuración). */
   invalidate(): void {
     this.cache.clear();
@@ -195,7 +208,8 @@ export class ActiveCompanyConfigService {
       clasificacionHuevoPorItems: dto?.clasificacionHuevoPorItems === true,
       permiteTrasladoAvesCrossEtapa: dto?.permiteTrasladoAvesCrossEtapa === true,
       capturaHuevosEnLevante: dto?.capturaHuevosEnLevante === true,
-      ventaEngordePesoDiferido: dto?.ventaEngordePesoDiferido === true
+      ventaEngordePesoDiferido: dto?.ventaEngordePesoDiferido === true,
+      primerRegistroSegunHoraLlegada: dto?.primerRegistroSegunHoraLlegada === true
     };
   }
 
@@ -208,7 +222,8 @@ export class ActiveCompanyConfigService {
       actual.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems &&
       actual.permiteTrasladoAvesCrossEtapa === flags.permiteTrasladoAvesCrossEtapa &&
       actual.capturaHuevosEnLevante === flags.capturaHuevosEnLevante &&
-      actual.ventaEngordePesoDiferido === flags.ventaEngordePesoDiferido
+      actual.ventaEngordePesoDiferido === flags.ventaEngordePesoDiferido &&
+      actual.primerRegistroSegunHoraLlegada === flags.primerRegistroSegunHoraLlegada
     ) return;
     this.flagsSubject.next(flags);
   }

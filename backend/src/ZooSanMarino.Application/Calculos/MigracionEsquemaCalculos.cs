@@ -37,6 +37,23 @@ public static class MigracionEsquemaCalculos
         return (faltantes, desconocidos);
     }
 
+    /// <summary>
+    /// Claves normalizadas con las que se puede leer la celda de una columna: su título y todos sus
+    /// alias. La usa el PARSEO para buscar el valor en la fila.
+    /// <para>
+    /// Existe para que el esquema sea la ÚNICA fuente de verdad. Antes cada punto de lectura repetía
+    /// a mano su lista de encabezados aceptados, así que un alias nuevo en el esquema pasaba la
+    /// validación de encabezados pero la celda NO se encontraba al leer la fila: la columna se
+    /// importaba en CERO, sin error ni advertencia. Es el bug que introdujeron los títulos mixtos.
+    /// </para>
+    /// </summary>
+    public static string[] ClavesDeColumna(EsquemaMigracion esquema, string titulo)
+    {
+        var clave = MigracionCalculos.NormalizarClave(titulo);
+        var columna = esquema.Columnas.FirstOrDefault(c => MigracionCalculos.NormalizarClave(c.Titulo) == clave);
+        return columna is null ? new[] { clave } : ClavesDe(columna).ToArray();
+    }
+
     /// <summary>Claves normalizadas aceptadas para una columna: el título y sus alias.</summary>
     private static IEnumerable<string> ClavesDe(ColumnaEsquema columna)
     {

@@ -75,7 +75,8 @@ public partial class CompanyService
             ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems,
             PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa,
             CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante,
-            VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido
+            VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido,
+            PrimerRegistroSegunHoraLlegada = dto.PrimerRegistroSegunHoraLlegada
         };
 
         _ctx.Companies.Add(c);
@@ -117,6 +118,7 @@ public partial class CompanyService
         c.PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa ?? c.PermiteTrasladoAvesCrossEtapa;
         c.CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante ?? c.CapturaHuevosEnLevante;
         c.VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido ?? c.VentaEngordePesoDiferido;
+        c.PrimerRegistroSegunHoraLlegada = dto.PrimerRegistroSegunHoraLlegada ?? c.PrimerRegistroSegunHoraLlegada;
 
         await _ctx.SaveChangesAsync();
 

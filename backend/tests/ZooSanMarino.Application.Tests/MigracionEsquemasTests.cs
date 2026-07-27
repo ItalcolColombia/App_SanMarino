@@ -297,6 +297,42 @@ public class MigracionEsquemasTests
                                          || t.Contains("H (") || t.Contains("M ("));
     }
 
+    /// <summary>
+    /// REGRESIÓN del bug de los títulos mixtos: el esquema aceptaba el encabezado (no salía como
+    /// desconocido) pero el PARSEO lo buscaba con una lista de claves hardcodeada que no lo incluía,
+    /// así que la columna entraba en CERO sin error ni advertencia. Con las claves derivadas del
+    /// esquema, todo alias declarado es además una clave de lectura válida.
+    /// </summary>
+    [Fact]
+    public void ClavesDeColumna_IncluyenElTituloYTodosLosAlias()
+    {
+        var claves = MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.SeguimientoPolloEngorde, "Consumo H (kg)");
+
+        Assert.Contains("consumo h (kg)", claves);   // el título
+        Assert.Contains("consumo h", claves);        // alias histórico
+        Assert.Contains("consumo mixto (kg)", claves); // alias mixto (el que se perdía al leer)
+    }
+
+    [Fact]
+    public void CadaTituloDeLaPlantillaMixta_EsClaveDeLecturaDeSuColumnaEnElEsquemaDeParseo()
+    {
+        // Para cada columna de la plantilla mixta buscamos la columna del esquema de parseo que la
+        // acepta y verificamos que su título mixto esté entre las claves con las que se LEE la celda.
+        var esquema = MigracionEsquemas.SeguimientoPolloEngorde;
+
+        foreach (var columnaMixta in MigracionEsquemas.SeguimientoPolloEngordeMixto.Columnas)
+        {
+            var claveMixta = MigracionCalculos.NormalizarClave(columnaMixta.Titulo);
+
+            var columnaDestino = esquema.Columnas.FirstOrDefault(c =>
+                MigracionEsquemaCalculos.ClavesDeColumna(esquema, c.Titulo).Contains(claveMixta));
+
+            Assert.True(columnaDestino is not null,
+                $"El título mixto '{columnaMixta.Titulo}' no es clave de lectura de ninguna columna: " +
+                "el archivo validaría pero esa columna se importaría en CERO.");
+        }
+    }
+
     [Fact]
     public void EncabezadosPorSexo_SiguenCargandoIgual_Regresion()
     {

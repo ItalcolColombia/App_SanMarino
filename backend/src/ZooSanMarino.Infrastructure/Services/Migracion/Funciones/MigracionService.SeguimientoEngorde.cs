@@ -200,6 +200,13 @@ public partial class MigracionService
         });
     }
 
+    /// <summary>
+    /// Claves de lectura de una columna del esquema de seguimiento engorde (título + alias). Un solo
+    /// origen para validación y lectura: si el esquema acepta un alias, la celda se encuentra.
+    /// </summary>
+    private static string[] ClavesEngorde(string titulo) =>
+        MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.SeguimientoPolloEngorde, titulo);
+
     // ── Import ───────────────────────────────────────────────────────────────
     private async Task<MigracionResultDto> ProcesarSeguimientoEngordeAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
     {
@@ -229,6 +236,9 @@ public partial class MigracionService
                 .ToListAsync(ct))
             .Select(x => (x.LoteAveEngordeId, x.Fecha.Date))
             .ToHashSet();
+
+        // El flag de la empresa se resuelve UNA vez: dentro del loop serían N consultas iguales.
+        var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
 
         var dtos = new List<SeguimientoLoteLevanteDto>();
         var fechasVistas = new HashSet<(int LoteId, DateTime Fecha)>();
@@ -273,10 +283,11 @@ public partial class MigracionService
             // solo advierte.
             if (lote.FechaEncaset.HasValue)
             {
-                var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncaset);
+                var horaRegla = EncasetamientoCalculos.HoraEfectiva(lote.HoraEncaset, reglaHoraActiva);
+                var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, horaRegla);
                 if (fecha.Date < primerDia.Date)
                 {
-                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncaset);
+                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(horaRegla);
                     errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
                         motivoHora is null
                             ? $"{lote.LoteNombre}: la fecha es anterior al encaset del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
@@ -288,39 +299,43 @@ public partial class MigracionService
                 errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "La fecha es futura; verificá que sea intencional.", "Advertencia"));
 
             int e0 = errores.Count;
-            var mortH = EnteroNoNeg(fila, errores, "Mort H", "mort h", "mortalidad hembras");
-            var mortM = EnteroNoNeg(fila, errores, "Mort M", "mort m", "mortalidad machos");
-            var selH = EnteroNoNeg(fila, errores, "Sel H", "sel h");
-            var selM = EnteroNoNeg(fila, errores, "Sel M", "sel m");
-            var errH = EnteroNoNeg(fila, errores, "Error Sexaje H", "error sexaje h");
-            var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", "error sexaje m");
-            var consH = DecimalNoNeg(fila, errores, "Consumo H (kg)", "consumo h (kg)", "consumo h");
-            var consM = DecimalNoNeg(fila, errores, "Consumo M (kg)", "consumo m (kg)", "consumo m");
+            // Las claves de lectura salen del ESQUEMA (título + alias), no de listas a mano: así una
+            // columna renombrada por alias — como los títulos mixtos de Panamá — se lee de verdad.
+            // Con listas hardcodeadas el encabezado mixto pasaba la validación pero la celda no se
+            // encontraba y el día entraba en CERO, sin error ni advertencia.
+            var mortH = EnteroNoNeg(fila, errores, "Mort H", ClavesEngorde("Mort H"));
+            var mortM = EnteroNoNeg(fila, errores, "Mort M", ClavesEngorde("Mort M"));
+            var selH = EnteroNoNeg(fila, errores, "Sel H", ClavesEngorde("Sel H"));
+            var selM = EnteroNoNeg(fila, errores, "Sel M", ClavesEngorde("Sel M"));
+            var errH = EnteroNoNeg(fila, errores, "Error Sexaje H", ClavesEngorde("Error Sexaje H"));
+            var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", ClavesEngorde("Error Sexaje M"));
+            var consH = DecimalNoNeg(fila, errores, "Consumo H (kg)", ClavesEngorde("Consumo H (kg)"));
+            var consM = DecimalNoNeg(fila, errores, "Consumo M (kg)", ClavesEngorde("Consumo M (kg)"));
             var unidadConsumo = LeerUnidadConsumo(fila, errores);
-            var pesoH = DobleNoNeg(fila, errores, "Peso H (g)", "peso h (g)", "peso h");
-            var pesoM = DobleNoNeg(fila, errores, "Peso M (g)", "peso m (g)", "peso m");
-            var unifH = Porcentaje0a100(fila, errores, "Uniformidad H", "uniformidad h");
-            var unifM = Porcentaje0a100(fila, errores, "Uniformidad M", "uniformidad m");
+            var pesoH = DobleNoNeg(fila, errores, "Peso H (g)", ClavesEngorde("Peso H (g)"));
+            var pesoM = DobleNoNeg(fila, errores, "Peso M (g)", ClavesEngorde("Peso M (g)"));
+            var unifH = Porcentaje0a100(fila, errores, "Uniformidad H", ClavesEngorde("Uniformidad H"));
+            var unifM = Porcentaje0a100(fila, errores, "Uniformidad M", ClavesEngorde("Uniformidad M"));
             // Panamá: quintales por categoría (opcionales; persisten en qq_* para el informe semanal).
-            var qqMix = DecimalNoNeg(fila, errores, "QQ Mixtas", "qq mixtas", "quintales mixtas");
-            var qqH = DecimalNoNeg(fila, errores, "QQ H", "qq h", "qq hembras", "quintales hembras");
-            var qqM = DecimalNoNeg(fila, errores, "QQ M", "qq m", "qq machos", "quintales machos");
+            var qqMix = DecimalNoNeg(fila, errores, "QQ Mixtas", ClavesEngorde("QQ Mixtas"));
+            var qqH = DecimalNoNeg(fila, errores, "QQ H", ClavesEngorde("QQ H"));
+            var qqM = DecimalNoNeg(fila, errores, "QQ M", ClavesEngorde("QQ M"));
 
             // Hasta dos alimentos del inventario por sexo (descuentan inventario al importar).
             var itemsH = new List<ItemSeguimientoDto>();
             var itemsM = new List<ItemSeguimientoDto>();
             LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsH,
-                "Alimento 1 H", new[] { "alimento 1 h", "alimento 1 hembras", "alimento uno hembras" },
-                "Consumo Alimento 1 H", new[] { "consumo alimento 1 h", "consumo 1 h", "consumo alimento uno hembras" });
+                "Alimento 1 H", ClavesEngorde("Alimento 1 H"),
+                "Consumo Alimento 1 H", ClavesEngorde("Consumo Alimento 1 H"));
             LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsH,
-                "Alimento 2 H", new[] { "alimento 2 h", "alimento 2 hembras", "alimento dos hembras" },
-                "Consumo Alimento 2 H", new[] { "consumo alimento 2 h", "consumo 2 h", "consumo alimento dos hembras" });
+                "Alimento 2 H", ClavesEngorde("Alimento 2 H"),
+                "Consumo Alimento 2 H", ClavesEngorde("Consumo Alimento 2 H"));
             LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsM,
-                "Alimento 1 M", new[] { "alimento 1 m", "alimento 1 machos", "alimento uno machos" },
-                "Consumo Alimento 1 M", new[] { "consumo alimento 1 m", "consumo 1 m", "consumo alimento uno machos" });
+                "Alimento 1 M", ClavesEngorde("Alimento 1 M"),
+                "Consumo Alimento 1 M", ClavesEngorde("Consumo Alimento 1 M"));
             LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsM,
-                "Alimento 2 M", new[] { "alimento 2 m", "alimento 2 machos", "alimento dos machos" },
-                "Consumo Alimento 2 M", new[] { "consumo alimento 2 m", "consumo 2 m", "consumo alimento dos machos" });
+                "Alimento 2 M", ClavesEngorde("Alimento 2 M"),
+                "Consumo Alimento 2 M", ClavesEngorde("Consumo Alimento 2 M"));
             if (errores.Count > e0) continue;
 
             // Unidad Consumo "qq" → convertir el consumo directo H/M a kg (los alimentos ya se convirtieron).

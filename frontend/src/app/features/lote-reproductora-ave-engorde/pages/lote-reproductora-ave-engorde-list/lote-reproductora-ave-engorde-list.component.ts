@@ -479,6 +479,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
         codigoReproductora: v.codigoReproductora?.trim() || null,
         nombreLote: (v.nombreLote ?? '').trim(),
         fechaEncasetamiento: v.fechaEncasetamiento || null, // YYYY-MM-DD crudo: el service lo ancla a mediodía UTC
+        horaEncasetamiento: v.horaEncasetamiento || null,
         m: v.m ?? null, h: v.h ?? null, mixtas: v.mixtas ?? null,
         mortCajaH: v.mortCajaH ?? null, mortCajaM: v.mortCajaM ?? null,
         unifH: v.unifH ?? null, unifM: v.unifM ?? null,
@@ -513,6 +514,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       reproductoraId: (v.reproductoraId ?? '').trim(),
       nombreLote: (v.nombreLote ?? '').trim(),
       fechaEncasetamiento: v.fechaEncasetamiento ? new Date(v.fechaEncasetamiento).toISOString() : null,
+      horaEncasetamiento: v.horaEncasetamiento || null,
       m: v.m ?? null, h: v.h ?? null, mixtas: v.mixtas ?? null,
       mortCajaH: v.mortCajaH ?? null, mortCajaM: v.mortCajaM ?? null,
       unifH: v.unifH ?? null, unifM: v.unifM ?? null,

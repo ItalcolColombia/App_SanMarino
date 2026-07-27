@@ -69,6 +69,12 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: la hora de llegada decide el primer día con registro.
+        builder.Property(x => x.PrimerRegistroSegunHoraLlegada)
+            .HasColumnName("primer_registro_segun_hora_llegada")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

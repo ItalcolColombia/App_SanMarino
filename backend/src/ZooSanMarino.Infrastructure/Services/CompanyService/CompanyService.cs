@@ -43,6 +43,7 @@ public partial class CompanyService : ICompanyService
         c.ClasificacionHuevoPorItems,
         c.PermiteTrasladoAvesCrossEtapa,
         c.CapturaHuevosEnLevante,
-        c.VentaEngordePesoDiferido
+        c.VentaEngordePesoDiferido,
+        c.PrimerRegistroSegunHoraLlegada
     );
 }

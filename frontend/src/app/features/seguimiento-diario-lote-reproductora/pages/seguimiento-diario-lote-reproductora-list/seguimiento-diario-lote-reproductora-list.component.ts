@@ -21,6 +21,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
 import { ShowIfCountryDirective } from '../../../../core/directives/show-if-country.directive';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ymdSinTz } from '../../../../shared/utils/format';
@@ -206,7 +207,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private toastService: ToastService,
     private lesionSvc: LesionService,
-    private permSvc: UserPermissionService
+    private permSvc: UserPermissionService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   /** True si el usuario puede confirmar registros. */
@@ -253,6 +255,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.companyConfig.primerRegistroSegunHoraLlegada()
+      .subscribe(activa => (this.reglaPrimerRegistroPorHora = activa));
     this.loading = true;
     this.segSvc.getFilterData().subscribe({
       next: (data: SeguimientoDiarioLoteReproductoraFilterDataDto) => {
@@ -647,13 +651,34 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     this.confirmModalOpen = false;
   }
 
+  /** Flag de empresa: la hora de llegada decide el primer día con registro. Fail-closed en false. */
+  reglaPrimerRegistroPorHora = false;
+
   trackById = (_: number, r: SeguimientoLoteLevanteDto) => r.id;
   trackByIdx = (i: number) => i;
 
+  /** Hora de corte: desde las 13:00 el primer registro del lote es el día siguiente al encaset. */
+  private static readonly HORA_CORTE = '13:00';
+
   /**
-   * Día de vida del lote en el momento de un registro.
-   * Numeración de negocio: el DÍA DEL ENCASETAMIENTO es el día 1 (encaset + N = día N+1).
-   * Devuelve null si alguna fecha no está disponible o la fecha es anterior al encasetamiento.
+   * Días que se corre el PRIMER día con registro respecto del encasetamiento: 0 o 1.
+   * Solo aplica si la empresa tiene activa la regla de la hora de llegada (flag) Y el lote llegó a
+   * las 13:00 o después. Espejo de `EncasetamientoCalculos.DiasDesplazamiento` en el backend.
+   */
+  private get desplazamientoPrimerDia(): number {
+    if (!this.reglaPrimerRegistroPorHora) return 0;
+    const h = (this.selectedReproductoraDetail?.horaEncasetamiento ?? '').toString().trim();
+    return h.length >= 5 && h.slice(0, 5) >= SeguimientoDiarioLoteReproductoraListComponent.HORA_CORTE ? 1 : 0;
+  }
+
+  /**
+   * Número de DÍA de la semana de recogida que se muestra en la tabla.
+   * <p>Numeración de negocio: el primer día CON REGISTRO del lote es el día 1. En un lote que llegó
+   * tarde ese primer día es el siguiente al encasetamiento, así que la semana se numera 1..7 igual
+   * que en uno que llegó temprano — que es lo que el usuario espera ver.</p>
+   * <p>Ojo: esto es SOLO presentación. La edad real (y con ella la guía genética, los indicadores y
+   * el informe semanal) se sigue contando desde la fecha de encasetamiento y no se toca.</p>
+   * Devuelve null si falta alguna fecha o el registro es anterior al primer día.
    */
   calcularEdad(fechaRegistro: string | Date | null | undefined): number | null {
     // Días de calendario sobre la fecha intencional: con instantes crudos, un encaset a
@@ -665,7 +690,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     const registro = new Date(regYmd + 'T00:00:00');
     if (isNaN(inicio.getTime()) || isNaN(registro.getTime())) return null;
     const dias = Math.round((registro.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-    return dias >= 0 ? dias + 1 : null;
+    const diasDesdePrimerDia = dias - this.desplazamientoPrimerDia;
+    return diasDesdePrimerDia >= 0 ? diasDesdePrimerDia + 1 : null;
   }
 
   private hasValue(v: unknown): boolean {

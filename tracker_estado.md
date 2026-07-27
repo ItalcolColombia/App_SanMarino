@@ -490,9 +490,71 @@ cadena que corre dentro de la imagen, fuera de Docker, con el Node portable 22.2
 - [x] El `BUILD_ID` quedó DENTRO de `main-*.js` (confirma que el sellado en dos fases no muta el output ya hasheado)
 - [x] `src/app/core/build-info.ts` restaurado a `'dev'`; no se commitea el timestamp
 - [x] Auditado el resto del job, que en CI nunca se ejecutó: assets salen de `src/` (copiado), no hay `public/` ni `ngsw-config.json`, y el paso "Validar nginx…" extrae su asset de referencia con un patrón que sí matchea (`polyfills-*.js`)
-- [ ] **PENDIENTE** el paso "Validar nginx y política de caché del borde" solo se puede ejercitar en CI (necesita Docker); es la primera vez que corre de verdad
+- [x] El paso "Validar nginx y política de caché del borde" corrió por primera vez en CI y pasó sus 13 chequeos (`Borde OK`), con `polyfills-5CFQRCPP.js` como asset de referencia — el patrón sí matchea
 
 ## Despliegue
 
 - [x] Commit quirúrgico en `main` (solo el fix; el árbol tenía trabajo en curso de otra sesión, no se tocó)
-- [ ] Push a `main` → PR a `main-produccion` → merge → verificar el run
+- [x] Push a `main` → PR [#50](https://github.com/ItalcolColombia/App_SanMarino/pull/50) → merge → run [30292942680](https://github.com/ItalcolColombia/App_SanMarino/actions/runs/30292942680) **verde** (tests 1m9s · backend 6m30s · frontend 5m8s)
+- [x] Verificación post-deploy en AWS: front TaskDef `sanmarino-front-task:134` y back `sanmarino-back-task:136`, ambos PRIMARY/COMPLETED 1/1, ambas imágenes con el tag `690053e0…` = SHA de `main-produccion`. Sin rollback silencioso.
+- [x] Verificación en vivo (`https://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com`): `/version.json` → 200 `application/json` `no-cache` con `buildId 2026-07-27T18:24:04.616Z` (el de este run) · `/` → 200 con CSP y HSTS · `chunk-inexistente.js` y `ngsw.json` → 404 · `/lotes` → 200
+
+---
+
+# Tracker — Hora de encasetamiento en lotes que YA tienen seguimientos (retroactivo)
+
+**Plan:** [fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md](fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md)
+**Fecha:** 2026-07-27 · Continuación del commit f5765c7
+
+Análisis exhaustivo con workflow de 56 agentes + verificación adversarial (45 hallazgos confirmados
+sobre 50). Medición sobre el dump de prod: **101 de 102** lotes engorde ya arrancan después del día
+del encaset ⇒ el radio real de impacto son **3 lotes** (1 engorde + 2 reproductoras del ejercicio).
+
+## Fase 1 — cerrar fugas (NO toca datos históricos) — HECHA
+
+- [x] **Regresión de f5765c7**: `horaEncasetamiento` no viajaba en el `save()` individual de lote
+      reproductora (alta ni edición); solo en `saveBulk()`. La hora era inalcanzable desde la UI y
+      cada edición la apagaba en silencio
+- [x] `EncasetamientoRetroactivoCalculos` (puro): diagnóstico de compatibilidad hora ↔ registros existentes
+- [x] `EncasetamientoRetroactivoCalculosTests` — 9 casos (incluye el caso real del ejercicio)
+- [x] PUT del lote engorde: diagnostica antes de escribir la hora y rechaza con detalle
+- [x] PUT del lote reproductora: idem
+- [x] **Fuga principal**: el formulario diario de engorde no validaba la fecha contra el encaset — ni
+      siquiera «no anterior al encaset». El Excel rechazaba lo que la pantalla aceptaba. Guarda
+      agregada en Create y Update de los DOS services de engorde
+- [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1029/1029 · `ng build` 0 errores
+
+## Fase 2 — decisiones del usuario aplicadas (27-jul-2026)
+
+**Decisión 1:** «organizar» = **solo corregir la numeración en pantalla**. NO se mueve ninguna fecha
+de registro ⇒ cero riesgo sobre datos históricos, kardex, informe semanal y liquidaciones.
+**Decisión 2:** la regla de las 13:00 aplica a **una sola empresa** ⇒ flag por empresa.
+
+- [x] `companies.primer_registro_segun_hora_llegada` (bool, default false) + configuración
+- [x] Migración schema `20260727182440` (ADD COLUMN IF NOT EXISTS) + seed `20260727182540` para
+      **ItalcolPanama** (verificado: el lote 142 «13 - 1» del ejercicio es de esa empresa)
+- [x] `EncasetamientoCalculos.HoraEfectiva(hora, reglaActiva)`: con la regla apagada devuelve null ⇒
+      la hora se ignora y la empresa queda byte a byte como antes
+- [x] `PrimerRegistroPorHoraGate` (fail-closed): un único punto de resolución del flag para los 5
+      puntos de captura + los 2 PUT de lote, para que la regla no se aplique distinto según el canal
+- [x] Gate aplicado en: formulario diario reproductora (Create/Update), formulario diario engorde x2
+      (Create/Update), carga masiva reproductora, carga masiva engorde, PUT lote engorde, PUT lote repro
+- [x] El flag viaja en TODAS las proyecciones de `CompanyDto` (ToDto, Crud, Resolver, CompanyPais)
+- [x] Front: flag en `ActiveCompanyConfigService` (fail-closed) + azúcar `primerRegistroSegunHoraLlegada()`
+- [x] **Columna «Día»**: en un lote tardío la semana se numera 1..7 (antes 2..8). Es presentación pura;
+      la edad real, la guía genética, los indicadores y el informe semanal NO se tocan
+- [x] El modal de seguimiento recibe la hora solo si el flag está activo
+- [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1029/1029 · `ng build` 0 errores
+- [x] SQL de las migraciones verificado con `dotnet ef migrations script`
+
+**Descartado explícitamente:** mover las fechas de los registros (+1 día). Quedó probado que es
+técnicamente viable (solo fila por fila en orden DESC), pero cambiaría kardex de alimento, informe
+semanal y días de ciclo de lotes ya liquidados. El usuario eligió no tocar datos históricos.
+
+## Bugs preexistentes detectados (independientes, sin tocar)
+
+- [ ] `min` faltante en el input de fecha del modal de seguimiento engorde
+- [ ] `SeguimientoDiarioLoteReproductoraService.DeleteAsync` no anula `INV_CONSUMO` ⇒ consumo duplicado
+- [ ] Tope `totalRegistros >= 7` cuenta filas, no edades ocupadas (hay 8 slots 0..7 y 7 cupos)
+- [ ] `UpdateLoteAveEngordeDto.HoraEncasetamiento` no distingue «no enviado» de «borrar» (clientes no-UI)
+- [ ] El PUT del lote engorde no valida `EstadoOperativoLote` ⇒ acepta editar un lote liquidado
