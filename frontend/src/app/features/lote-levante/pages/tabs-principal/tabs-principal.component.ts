@@ -7,6 +7,7 @@ import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levan
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LoteRegistroHistoricoUnificadoDto } from '../../../aves-engorde/services/seguimiento-aves-engorde.service';
 import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
 
@@ -138,12 +139,27 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    *  recalcular/alocar un array nuevo en cada ciclo de detección de cambios vía getter de template). */
   reporteSemanaFilas: ReporteSemanaFila[] = [];
 
+  /**
+   * Flag `companies.captura_huevos_en_levante`: habilita las columnas de huevos en la tabla de
+   * registros diarios y en su Excel. **Fail-closed**: arranca apagado y sólo se prende si el
+   * backend lo confirma, así las empresas que no capturan huevos en levante ven la tabla igual
+   * que antes.
+   */
+  mostrarColumnasHuevos = false;
+
   constructor(
-    private storageService: TokenStorageService
+    private storageService: TokenStorageService,
+    private companyConfig: ActiveCompanyConfigService
   ) { }
 
   ngOnInit(): void {
     this.checkAdminRole();
+    // El flag llega async (HTTP con caché de 5 min). El componente es `Eager`, así que basta con
+    // asignar el campo para que la tabla se repinte; `getFlags()` completa ⇒ no hay fuga de
+    // suscripción.
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.mostrarColumnasHuevos = flags.capturaHuevosEnLevante;
+    });
   }
 
   // Verificar si el usuario tiene rol de Admin
@@ -167,7 +183,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   get colspanRegistroDiario(): number {
     // 26 columnas base (se quitó "Día (calendario)"; la fecha ya lo cubre — REQ-007e;
     // se sumaron "Consumo acum. hembras/machos (kg)" — REQ-007c).
-    return 26 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    return 26 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0) + (this.mostrarColumnasHuevos ? 3 : 0);
   }
 
   /** Cantidad de registros cuya fecha es anterior al encasetamiento del lote (REQ-011d). */
@@ -711,6 +727,13 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Peso prom. hembras (kg)',
       'Peso prom. machos (kg)',
       'Observaciones',
+      // Huevos (levante semana 14+, empresas con captura_huevos_en_levante). En el Excel va el
+      // desglose COMPLETO (es para análisis); la grilla en pantalla muestra sólo Tot/Inc/Peso.
+      ...(this.mostrarColumnasHuevos
+        ? ['Huevos Tot.', 'Huevos Inc.', 'H. Limpio', 'H. Tratado', 'H. Sucio', 'H. Deforme',
+           'H. Blanco', 'H. Doble yema', 'H. Piso', 'H. Pequeño', 'H. Roto', 'H. Desecho',
+           'H. Otro', 'Peso huevo (g)']
+        : []),
       // Auditoría
       'Registrado por',
       'Fecha registro',
@@ -754,6 +777,13 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         s.pesoPromH != null ? s.pesoPromH : '',
         s.pesoPromM != null ? s.pesoPromM : '',
         (s.observaciones || '').trim() || '—',
+        // Huevos — MISMO orden y MISMA posición que en `headers` (si se desalinean, el Excel sale corrido).
+        ...(this.mostrarColumnasHuevos
+          ? [s.huevoTot ?? 0, s.huevoInc ?? 0, s.huevoLimpio ?? 0, s.huevoTratado ?? 0,
+             s.huevoSucio ?? 0, s.huevoDeforme ?? 0, s.huevoBlanco ?? 0, s.huevoDobleYema ?? 0,
+             s.huevoPiso ?? 0, s.huevoPequeno ?? 0, s.huevoRoto ?? 0, s.huevoDesecho ?? 0,
+             s.huevoOtro ?? 0, s.pesoHuevo != null ? s.pesoHuevo : '']
+          : []),
         s.createdByUserId ?? '—',
         s.createdAt ? this.formatDMY(s.createdAt) : '—',
         s.updatedAt ? this.formatDMY(s.updatedAt) : '—',

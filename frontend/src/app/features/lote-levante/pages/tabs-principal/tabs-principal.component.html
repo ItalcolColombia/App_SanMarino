@@ -252,6 +252,14 @@
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Hembras enviadas por traslado">↗ Sal. <span class="th-diario__sub">hembras</span></th>
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">↗ Sal. <span class="th-diario__sub">machos</span></th>
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">Venta <span class="th-diario__sub">aves</span></th>
+                      <!-- 🥚 Huevos (semana 14+) — sólo empresas con captura_huevos_en_levante.
+                           En pantalla van los 3 agregados; el desglose de las 11 categorías está en
+                           el modal de detalle (👁️) y en el Excel. -->
+                      @if (mostrarColumnasHuevos) {
+                        <th scope="col" class="th-diario th-diario--num" title="Huevos totales del día">🥚 Huevos <span class="th-diario__sub">total</span></th>
+                        <th scope="col" class="th-diario th-diario--num" title="Huevos incubables del día (limpio + tratado)">🥚 Huevos <span class="th-diario__sub">incubables</span></th>
+                        <th scope="col" class="th-diario th-diario--num" title="Peso promedio del huevo (g)">🥚 Peso <span class="th-diario__sub">huevo (g)</span></th>
+                      }
                       <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
                       <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                     </tr>
@@ -324,6 +332,11 @@
                           [title]="f.seg.ventaAvesCantidad ? 'Venta: ' + f.seg.ventaAvesCantidad + ' aves' + (f.seg.ventaAvesMotivo ? ' — ' + f.seg.ventaAvesMotivo : '') : ''">
                           {{ f.seg.ventaAvesCantidad != null && f.seg.ventaAvesCantidad > 0 ? (f.seg.ventaAvesCantidad | number:'1.0-0') : '—' }}
                         </td>
+                        @if (mostrarColumnasHuevos) {
+                          <td class="num">{{ f.seg.huevoTot != null && f.seg.huevoTot > 0 ? (f.seg.huevoTot | number:'1.0-0') : '—' }}</td>
+                          <td class="num">{{ f.seg.huevoInc != null && f.seg.huevoInc > 0 ? (f.seg.huevoInc | number:'1.0-0') : '—' }}</td>
+                          <td class="num">{{ f.seg.pesoHuevo != null && f.seg.pesoHuevo > 0 ? (f.seg.pesoHuevo | number:'1.0-2') : '—' }}</td>
+                        }
                         <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
                         <td class="text-right">
                           <div class="btn-group">

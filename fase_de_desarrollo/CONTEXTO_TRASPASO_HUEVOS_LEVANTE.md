@@ -53,8 +53,10 @@ Todo esto está implementado, validado y en `main`. **No rehacerlo.**
 
 ## 3) PENDIENTES para «dejar alineado todo» — orden recomendado
 
-### 🔴 P1 · La tabla diaria de levante NO muestra los huevos (el hueco más visible)
-El usuario registra huevos y los ve en el modal de detalle (👁️), pero **la grilla de registros diarios no tiene columnas de huevos**, ni el Excel que exporta.
+### ✅ P1 · La tabla diaria de levante NO muestra los huevos — **RESUELTO 27-jul-2026**
+**Ya implementado.** 3 columnas en pantalla (Tot / Inc / Peso, entre «Venta aves» y «Observaciones») y las 14 en el Excel (el desglose completo de las 11 categorías va sólo al Excel, que es para análisis). Gateado por el flag de empresa vía `ActiveCompanyConfigService` (fail-closed). Validado con flag ON (29 columnas, 0 filas desalineadas) y OFF (26 columnas, sin columnas de huevos).
+
+**Lo que queda OPCIONAL** (decisión de producto, no bloqueante): el tab «Reporte semana» y su Excel (`exportReporteSemanaExcel`, 2º `const rows` ~línea 804) siguen sin huevos — son agregados por semana y requieren 5 sitios en cascada (`ReporteSemanaFila`, el loop de acumulación de `buildReporteSemanaFilas`, su `out.push`, el thead/tbody del tab y el `headers`+`rows` del export).
 
 - Tabla **inline** en `frontend/.../lote-levante/pages/tabs-principal/tabs-principal.component.html` (bloque de la tabla de registros, ~líneas 220-336).
 - TS: `tabs-principal.component.ts` → `interface RegistroDiarioTablaFila` (**línea 26**), `buildDiarioFilas()` (**212**), `get colspanRegistroDiario()` (**167**, hoy `26 + (enriquecerTablaConHistoricoInventario ? 3 : 0)` ⚠️ **hay que subirlo**), export Excel `headers` (**683**) y `rows` (~**721-762**), `exportarAoaExcel` (**772**).
@@ -64,7 +66,7 @@ El usuario registra huevos y los ve en el modal de detalle (👁️), pero **la 
 
 ### 🟠 P2 · Carga masiva de levante no acepta huevos
 Los históricos cargados por Excel entran sin huevos.
-- `backend/src/ZooSanMarino.Application/Calculos/MigracionEsquemas.cs` → `SeguimientoLevante` (**línea 42**, hoy **16** columnas, ninguna de huevos).
+- `backend/src/ZooSanMarino.Application/Calculos/MigracionEsquemas.cs` → `SeguimientoLevante` (**línea 42**, hoy **15** columnas, ninguna de huevos).
 - `backend/sql/fn_migracion_seguimiento.sql` → `fn_migracion_seguimiento_levante`.
 - Tests: `backend/tests/ZooSanMarino.Application.Tests/MigracionEsquemasTests.cs`.
 - ⚠️ Aplicar el **mismo gate de semana 14** en la carga masiva, o los históricos van a meter huevos en semanas donde el CRUD los rechaza (inconsistencia).
@@ -77,15 +79,15 @@ Decisión del usuario: **no** se hizo en Fase 1. Cuando se haga:
 - ⚠️ **No hay guía genética de huevos antes de la semana 26**: `vw_guia_genetica_por_lote_postura` fuerza `NULL` en las columnas de huevos para la rama Levante y filtra `semana BETWEEN 1 AND 25`. Las columnas «guía» van a salir vacías en 14-25 — el reporte tiene que tolerarlo (ya lo hace para la semana 25).
 - ⚠️ `fn_reporte_semanal_levante_extras` tiene un filtro anti «semana fantasma» que **no evalúa huevos**: una fila con sólo huevos + traslado en semana > 25 se descartaría.
 
-### 🟡 P4 · `backend/sql/` desactualizado (trampa de deploy)
+### ✅ P4 · `backend/sql/` desactualizado (trampa de deploy) — **RESUELTO 26-jul-2026**
 `backend/sql/trigger_espejo_huevo_produccion_seguimiento_diario.sql` apunta a **`public.seguimiento_diario`** (líneas 243 y 245), una tabla que **ya no existe**. La versión viva del trigger está dentro de la migración `20260531180558`, sobre `seguimiento_diario_levante`.
-⛔ **Reaplicar ese `.sql` tal cual ROMPE el trigger del espejo.** Sincronizar el archivo con la realidad (o marcarlo como histórico).
+**Ya corregido:** apunta a `seguimiento_diario_levante` (verificado contra `pg_trigger`), con cabecera que documenta la cadena de renombres (`seguimiento_diario` → `_levante_reproductoras` → `_levante`) y la migración `20260531180558` como fuente de verdad del despliegue. El cuerpo de la función se comparó contra la migración y es **idéntico**, así que el archivo ya es fiel a lo desplegado.
 
 ### 🟡 P5 · Índice único de producción declarado pero ausente en la BD
 `Infrastructure/Persistence/Configurations/SeguimientoProduccionConfiguration.cs:232` declara
 `builder.HasIndex(x => new { x.LoteId, x.Fecha }).IsUnique();` pero **la BD local NO tiene ese índice** (verificado con `pg_indexes`). Con el fix de `RangoDiaUtc` la unicidad la garantiza el chequeo de aplicación, pero conviene:
 1. Verificar si existe en **RDS prod**.
-2. Si falta y se quiere crear: **primero** buscar duplicados históricos por `(lote_id, fecha_registro::date)` — si hay, el `CREATE UNIQUE INDEX` falla y la migración deja el historial inconsistente (ver `CLAUDE.md` §migraciones). Usar `CREATE UNIQUE INDEX IF NOT EXISTS`.
+2. Si falta y se quiere crear: **primero** buscar duplicados históricos por `(lote_id, fecha_registro::date)` — si hay, el `CREATE UNIQUE INDEX` falla y la migración deja el historial inconsistente (ver `CLAUDE.md` §migraciones). Usar `CREATE UNIQUE INDEX IF NOT EXISTS`. **Dato nuevo (26-jul-2026):** en la BD local hay **0 grupos duplicados** por `(lote_id, fecha_registro::date)`, así que crear el índice ahí sería seguro. Query de verificación para prod: `select count(*) from (select lote_id, fecha_registro::date d, count(*) c from seguimiento_diario_produccion group by 1,2 having count(*)>1) x;` — si da >0 hay que depurar ANTES de crear el índice.
 
 ### 🟢 P6 · Modo «clasificación por ítems» (Santa Reyes) — hoy fail-closed a propósito
 Si una empresa tiene `clasificacion_huevo_por_items = true`, `EmpresaCapturaHuevosEnLevanteAsync` devuelve **false**: el tab no se muestra y el backend ignora/rechaza los huevos. Es deliberado (no persistir un desglose que los reportes no sabrían leer). Hoy no molesta: Santa Reyes tiene el flag de por-ítems ON y `captura_huevos_en_levante` OFF.
