@@ -51,4 +51,66 @@ public class LotePosturaProduccionController : ControllerBase
         if (item is null) return NotFound();
         return Ok(item);
     }
+
+    /// <summary>Resumen para el modal «Cerrar/Abrir lote» de Seguimiento Diario de Producción.</summary>
+    [HttpGet("{id:int}/resumen-cierre")]
+    [ProducesResponseType(typeof(CierreLoteProduccionResumenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CierreLoteProduccionResumenDto>> GetResumenCierre(int id, CancellationToken ct = default)
+    {
+        var r = await _svc.GetResumenCierreAsync(id, ct);
+        if (r is null) return NotFound();
+        return Ok(r);
+    }
+
+    /// <summary>
+    /// Cierra el lote de producción: bloquea crear, editar y eliminar seguimiento diario de ese
+    /// lote. No borra ni modifica registros existentes y es reversible con <c>{id}/abrir</c>.
+    /// </summary>
+    [HttpPost("{id:int}/cerrar")]
+    [ProducesResponseType(typeof(LotePosturaProduccionDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotePosturaProduccionDetailDto>> Cerrar(int id, [FromBody] CerrarLoteProduccionRequest? body, CancellationToken ct = default)
+    {
+        try
+        {
+            if (body is null) return BadRequest(new { message = "Body requerido (motivo, closedByUserId)." });
+            var res = await _svc.CerrarLoteAsync(id, body, ct);
+            if (res is null) return NotFound();
+            return Ok(res);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Reabre un lote de producción cerrado y vuelve a habilitar la captura diaria.</summary>
+    [HttpPost("{id:int}/abrir")]
+    [ProducesResponseType(typeof(LotePosturaProduccionDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotePosturaProduccionDetailDto>> Abrir(int id, [FromBody] AbrirLoteProduccionRequest? body, CancellationToken ct = default)
+    {
+        try
+        {
+            if (body is null) return BadRequest(new { message = "Body requerido (motivo, openedByUserId)." });
+            var res = await _svc.AbrirLoteAsync(id, body, ct);
+            if (res is null) return NotFound();
+            return Ok(res);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

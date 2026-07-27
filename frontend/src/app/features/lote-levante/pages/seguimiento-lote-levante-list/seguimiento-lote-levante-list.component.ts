@@ -11,7 +11,8 @@ import { LoteService, LoteDto, LoteMortalidadResumenDto } from '../../../lote/se
 import {
   LotePosturaLevanteService,
   LotePosturaLevanteDto,
-  CierreLoteLevanteResumenDto
+  CierreLoteLevanteResumenDto,
+  ReaperturaLoteLevanteResumenDto
 } from '../../../lote/services/lote-postura-levante.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { firstValueFrom } from 'rxjs';
@@ -136,6 +137,13 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   motivoAbrirLote = '';
   loadingCierreLote = false;
   errorCierreLote: string | null = null;
+
+  /**
+   * Resumen de reapertura: dice si el lote se puede reabrir y qué se elimina si se confirma.
+   * null mientras carga. El backend revalida lo mismo, así que esto es solo para la UI.
+   */
+  resumenReapertura: ReaperturaLoteLevanteResumenDto | null = null;
+  loadingResumenReapertura = false;
 
   /** Liquidación técnica calculada al abrir el modal de cierre. */
   liquidacionCierre: LiquidacionCierreLoteLevanteDto | null = null;
@@ -1019,18 +1027,45 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     if (!this.isLoteCerrado || this.lotePosturaLevanteIdActual == null) return;
     this.motivoAbrirLote = '';
     this.errorCierreLote = null;
+    this.resumenReapertura = null;
     this.abrirLoteModalOpen = true;
+
+    // Se consulta al abrir (no al cargar el lote): el estado de producción pudo cambiar en otra
+    // pestaña, y este resumen es lo que decide si el botón «Abrir lote» queda habilitado.
+    this.loadingResumenReapertura = true;
+    this.lotePosturaLevanteSvc
+      .getResumenReapertura(this.lotePosturaLevanteIdActual)
+      .pipe(finalize(() => (this.loadingResumenReapertura = false)))
+      .subscribe({
+        next: r => (this.resumenReapertura = r),
+        error: err => {
+          // Sin resumen no se bloquea el intento: el backend revalida igual al confirmar.
+          this.errorCierreLote =
+            err?.error?.message ?? err?.message ?? 'No se pudo verificar el estado del lote de producción.';
+        }
+      });
   }
 
   closeAbrirLoteModal(): void {
     this.abrirLoteModalOpen = false;
     this.motivoAbrirLote = '';
     this.errorCierreLote = null;
+    this.resumenReapertura = null;
+    this.loadingResumenReapertura = false;
+  }
+
+  /** true si el resumen ya llegó y dice explícitamente que NO se puede reabrir. */
+  get reaperturaBloqueada(): boolean {
+    return this.resumenReapertura != null && !this.resumenReapertura.puedeReabrir;
   }
 
   async confirmarAbrirLote(): Promise<void> {
     const id = this.lotePosturaLevanteIdActual;
     if (id == null) return;
+    if (this.reaperturaBloqueada) {
+      this.errorCierreLote = this.resumenReapertura?.motivoBloqueo ?? 'No se puede reabrir el lote.';
+      return;
+    }
     const m = (this.motivoAbrirLote || '').trim();
     if (m.length < 3) {
       this.errorCierreLote = 'Indique el motivo (mínimo 3 caracteres).';

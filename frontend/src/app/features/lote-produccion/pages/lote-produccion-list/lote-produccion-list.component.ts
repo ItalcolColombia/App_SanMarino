@@ -1,4 +1,5 @@
 import { Component, OnInit, ViewChild, inject, ChangeDetectionStrategy } from '@angular/core';
+import { DecimalPipe, DatePipe } from '@angular/common';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 
 import { HttpClient } from '@angular/common/http';
@@ -35,12 +36,17 @@ import {
   OrigenTrasladoInfo
 } from '../../../../features/traslados-aves/components/modal-traslado-aves-seguimiento/modal-traslado-aves-seguimiento.component';
 import { TrasladoAvesResultSegDto } from '../../../../features/traslados-aves/services/traslados-aves.service';
-import { LotePosturaProduccionService } from '../../../lote/services/lote-postura-produccion.service';
+import { LotePosturaProduccionService, CierreLoteProduccionResumenDto } from '../../../lote/services/lote-postura-produccion.service';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-lote-produccion-list',
   standalone: true,
   imports: [
+    DecimalPipe,
+    DatePipe,
     FormsModule,
     ReactiveFormsModule,
     FiltroSelectComponent,
@@ -137,9 +143,20 @@ export class LoteProduccionListComponent implements OnInit {
     showCancel: true
   };
 
+  // ===== Cierre / reapertura del lote de PRODUCCIÓN =====
+  // Cerrar no borra nada: bloquea crear, editar y eliminar seguimiento diario de este lote.
+  /** 'cerrar' o 'abrir' según lo que se esté confirmando en el modal. */
+  cierreLoteAccion: 'cerrar' | 'abrir' = 'cerrar';
+  cierreLoteModalOpen = false;
+  motivoCierreLote = '';
+  loadingCierreLote = false;
+  errorCierreLote: string | null = null;
+  resumenCierreLote: CierreLoteProduccionResumenDto | null = null;
+
   private galponNameById = new Map<string, string>();
   private readonly http = inject(HttpClient);
   private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
 
   constructor(private confirmDialog: ConfirmDialogService, 
     private farmSvc: FarmService,
@@ -149,6 +166,107 @@ export class LoteProduccionListComponent implements OnInit {
     private galponSvc: GalponService,
     private lppSvc: LotePosturaProduccionService
   ) {}
+
+  // ============ Cierre / reapertura del lote de PRODUCCIÓN ============
+
+  /**
+   * true si el lote seleccionado está cerrado. Cubre "Cerrada" (género de esta tabla) y "Cerrado",
+   * igual que el guard del backend — la UI y la API no pueden discrepar en esto.
+   */
+  get loteProduccionCerrado(): boolean {
+    const estado = (this.selectedLoteLPP?.estadoCierre ?? '').trim();
+    return estado.toLowerCase().startsWith('cerrad');
+  }
+
+  /** true si se puede capturar/editar/eliminar seguimiento del lote seleccionado. */
+  get puedeEditarSeguimiento(): boolean {
+    return !!this.selectedLoteId && !this.loteProduccionCerrado;
+  }
+
+  /**
+   * Corta la acción y avisa si el lote está cerrado. La UI ya oculta los botones; esto cubre el
+   * estado desincronizado (otra pestaña cerró el lote) para no mandar un request que el backend va
+   * a rechazar igual con un 400.
+   */
+  private bloqueadoPorLoteCerrado(): boolean {
+    if (!this.loteProduccionCerrado) return false;
+    this.toast.warning('El lote de producción está cerrado. Reábralo para poder registrar, editar o eliminar información.');
+    return true;
+  }
+
+  openCierreLoteModal(accion: 'cerrar' | 'abrir'): void {
+    const id = this.selectedLoteLPP?.lotePosturaProduccionId;
+    if (id == null) return;
+
+    this.cierreLoteAccion = accion;
+    this.motivoCierreLote = '';
+    this.errorCierreLote = null;
+    this.resumenCierreLote = null;
+    this.cierreLoteModalOpen = true;
+
+    this.loadingCierreLote = true;
+    this.lppSvc.getResumenCierre(id)
+      .pipe(finalize(() => (this.loadingCierreLote = false)))
+      .subscribe({
+        next: r => (this.resumenCierreLote = r),
+        error: err => {
+          this.errorCierreLote = err?.error?.message ?? err?.message ?? 'No se pudo cargar el resumen del lote.';
+        }
+      });
+  }
+
+  closeCierreLoteModal(): void {
+    this.cierreLoteModalOpen = false;
+    this.motivoCierreLote = '';
+    this.errorCierreLote = null;
+    this.resumenCierreLote = null;
+    this.loadingCierreLote = false;
+  }
+
+  async confirmarCierreLote(): Promise<void> {
+    const id = this.selectedLoteLPP?.lotePosturaProduccionId;
+    if (id == null) return;
+
+    const motivo = (this.motivoCierreLote || '').trim();
+    if (motivo.length < 3) {
+      this.errorCierreLote = 'Indique el motivo (mínimo 3 caracteres).';
+      return;
+    }
+
+    const sesion = await firstValueFrom(this.auth.session$.pipe(take(1)));
+    const u = sesion?.user;
+    const userId = (u?.id && String(u.id)) || (u?.userId != null ? String(u.userId) : '') || '';
+    if (!userId) {
+      this.errorCierreLote = 'No hay usuario en sesión.';
+      return;
+    }
+
+    const cerrando = this.cierreLoteAccion === 'cerrar';
+    const peticion = cerrando
+      ? this.lppSvc.cerrarLote(id, { motivo, closedByUserId: userId })
+      : this.lppSvc.abrirLote(id, { motivo, openedByUserId: userId });
+
+    this.loadingCierreLote = true;
+    this.errorCierreLote = null;
+    peticion
+      .pipe(finalize(() => (this.loadingCierreLote = false)))
+      .subscribe({
+        next: lpp => {
+          // Se refleja el estado nuevo en el filtro sin recargar la pantalla entera: de él dependen
+          // los botones de crear/editar/eliminar.
+          if (this.selectedLoteLPP) {
+            this.selectedLoteLPP = { ...this.selectedLoteLPP, estadoCierre: lpp?.estadoCierre ?? (cerrando ? 'Cerrada' : 'Abierta') };
+          }
+          this.closeCierreLoteModal();
+          this.toast.success(cerrando ? 'Lote de producción cerrado.' : 'Lote de producción reabierto.');
+        },
+        error: err => {
+          this.errorCierreLote =
+            err?.error?.message ?? err?.message ??
+            (cerrando ? 'No se pudo cerrar el lote.' : 'No se pudo abrir el lote.');
+        }
+      });
+  }
 
   // ================== INIT ==================
   ngOnInit(): void {
@@ -502,6 +620,7 @@ export class LoteProduccionListComponent implements OnInit {
   // ================== CRUD modal ==================
   create(): void {
     if (!this.selectedLoteId) return;
+    if (this.bloqueadoPorLoteCerrado()) return;
 
     if (this.selectedLoteLPP) {
       this.editingSeguimiento = null;
@@ -800,6 +919,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
   // ================== MÉTODOS DE MODALES ==================
   openDailyTrackingModal(): void {
     if (!this.selectedLoteId) return;
+    if (this.bloqueadoPorLoteCerrado()) return;
     if (this.selectedLoteLPP || this.produccionLote?.id) {
       this.editingSeguimiento = null;
       this.modalSeguimientoDiarioOpen = true;
@@ -811,6 +931,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
    * para que el modal muestre todos los campos (id, tipoAlimento, metadata items, etc.).
    */
   editDailyTracking(seguimiento: SeguimientoItemDto): void {
+    if (this.bloqueadoPorLoteCerrado()) return;
     this.loading = true;
     this.produccionSvc.obtenerSeguimientoPorId(seguimiento.id)
       .pipe(finalize(() => (this.loading = false)))
@@ -840,6 +961,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
   /** Abre el modal de confirmación para eliminar. Arma mensaje detallado si la fila
    *  tiene traslado (paridad con Levante — Feature 14). */
   deleteDailyTracking(id: number): void {
+    if (this.bloqueadoPorLoteCerrado()) return;
     const seg = (this.seguimientos as any[]).find(s => s.id === id);
     this.deleteConfirmId = id;
 

@@ -276,6 +276,11 @@ public class ProduccionController : ControllerBase
             }
             return NoContent();
         }
+        catch (InvalidOperationException ex)
+        {
+            // Regla de negocio (p. ej. lote de producción cerrado): es un 400, no un fallo del servidor.
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return StatusCode(500, new { message = "Error al eliminar el registro.", error = ex.Message });

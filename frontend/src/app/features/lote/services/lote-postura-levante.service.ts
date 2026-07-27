@@ -89,6 +89,33 @@ export interface CierreLoteLevanteResumenDto {
   huevosLevanteIncubables?: number | null;
 }
 
+/**
+ * Resumen previo a REABRIR un lote de levante cerrado.
+ *
+ * Reabrir elimina el lote de producción que generó el cierre, así que el modal tiene que decir de
+ * antemano si eso se puede hacer y qué se va a perder. El backend revalida lo mismo al confirmar:
+ * esto es para la UI, no la autoridad.
+ */
+export interface ReaperturaLoteLevanteResumenDto {
+  lotePosturaLevanteId: number;
+  loteNombre: string;
+  estaCerrado: boolean;
+  /** false si hay seguimiento capturado por el usuario en producción, o si ese lote está cerrado. */
+  puedeReabrir: boolean;
+  motivoBloqueo: string | null;
+  /** Qué va a pasar al reabrir (se muestra cuando sí se puede). */
+  aviso: string;
+  lotePosturaProduccionId: number | null;
+  loteProduccionNombre: string | null;
+  loteProduccionCerrado: boolean;
+  /** Registros capturados por el usuario: son los que bloquean. */
+  registrosProduccionUsuario: number;
+  /** Registros que generó el cierre (arrastre de huevos y traslado de aves): se regeneran. */
+  registrosProduccionSistema: number;
+  primerRegistroUsuario?: string | null;
+  ultimoRegistroUsuario?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LotePosturaLevanteService {
   private readonly baseUrl = `${environment.apiUrl}/LotePosturaLevante`;
@@ -129,6 +156,13 @@ export class LotePosturaLevanteService {
     return this.http.post<LotePosturaLevanteDto>(
       `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/cerrar`,
       body
+    );
+  }
+
+  /** Resumen para el modal «Abrir lote»: si se puede reabrir, por qué no, y qué se elimina. */
+  getResumenReapertura(lotePosturaLevanteId: number): Observable<ReaperturaLoteLevanteResumenDto> {
+    return this.http.get<ReaperturaLoteLevanteResumenDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/resumen-reapertura`
     );
   }
 

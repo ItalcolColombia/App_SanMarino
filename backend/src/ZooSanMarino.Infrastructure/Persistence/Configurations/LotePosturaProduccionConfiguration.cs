@@ -91,6 +91,11 @@ public class LotePosturaProduccionConfiguration : IEntityTypeConfiguration<LoteP
         b.Property(x => x.Edad).HasColumnName("edad");
         b.Property(x => x.EstadoCierre).HasColumnName("estado_cierre").HasMaxLength(20);
 
+        // Auditoría del cierre/reapertura del lote de producción (quién, cuándo y por qué).
+        b.Property(x => x.EstadoCierreMotivo).HasColumnName("estado_cierre_motivo");
+        b.Property(x => x.EstadoCierreFecha).HasColumnName("estado_cierre_fecha");
+        b.Property(x => x.EstadoCierreUserId).HasColumnName("estado_cierre_user_id");
+
         // Feature 14 — acumulados de traslado en FASE PRODUCCIÓN
         b.Property(x => x.ProduccionTrasladoIngresoHembras).HasColumnName("produccion_traslado_ingreso_hembras").HasDefaultValue(0).IsRequired();
         b.Property(x => x.ProduccionTrasladoIngresoMachos ).HasColumnName("produccion_traslado_ingreso_machos" ).HasDefaultValue(0).IsRequired();

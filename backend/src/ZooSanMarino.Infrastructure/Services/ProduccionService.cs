@@ -250,6 +250,34 @@ public class ProduccionService : IProduccionService
         return mismo;
     }
 
+    /// <summary>
+    /// Bloquea crear, editar y eliminar seguimiento diario cuando el lote de producción está
+    /// cerrado. Mismo criterio que <c>SeguimientoProduccionService.EnsureLoteProduccionAbiertoAsync</c>
+    /// (REQ-006), que cubría el OTRO controlador: este servicio —el que atiende
+    /// <c>/api/Produccion/seguimiento</c>, el que usa el módulo— no validaba nada, así que un lote
+    /// cerrado se podía seguir tocando.
+    /// <para>
+    /// Se resuelve por el LPP cuando viene informado y, si no, por el lote base. NO se valida el
+    /// lote de LEVANTE: queda siempre "Cerrado" al pasar a producción, y mirarlo bloquearía toda la
+    /// captura. Sin LPP asociado (flujo legacy) no hay estado de cierre que validar.
+    /// </para>
+    /// </summary>
+    private async Task EnsureLoteProduccionAbiertoAsync(int loteId, int? lotePosturaProduccionId)
+    {
+        var q = _context.LotePosturaProduccion.AsNoTracking().Where(l => l.DeletedAt == null);
+
+        q = lotePosturaProduccionId.HasValue
+            ? q.Where(l => l.LotePosturaProduccionId == lotePosturaProduccionId.Value)
+            : q.Where(l => l.LoteId == loteId);
+
+        var estado = await q.Select(l => l.EstadoCierre).FirstOrDefaultAsync().ConfigureAwait(false);
+
+        if (CicloVidaPosturaCalculos.EstaCerrado(estado))
+            throw new InvalidOperationException(
+                "El lote de producción está cerrado; no se pueden crear, modificar ni eliminar registros de seguimiento diario. " +
+                "Reabra el lote desde Seguimiento Diario de Producción si necesita ajustarlo.");
+    }
+
     public async Task<int> CrearSeguimientoAsync(CrearSeguimientoRequest request)
     {
         if (!request.LotePosturaProduccionId.HasValue && !request.ProduccionLoteId.HasValue)
@@ -302,6 +330,8 @@ public class ProduccionService : IProduccionService
                 .FirstOrDefaultAsync(s => s.LoteId == loteId && s.Fecha >= diaDesde && s.Fecha < diaHasta);
             filaArrastre = ResolverFilaDuplicada(existente, "Ya existe un seguimiento para esta fecha.");
         }
+
+        await EnsureLoteProduccionAbiertoAsync(loteId, lotePosturaProduccionId);
 
         // Validar que la fecha no sea en el futuro
         if (request.FechaRegistro.Date > DateTime.Today)
@@ -591,6 +621,8 @@ public class ProduccionService : IProduccionService
                 throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
             loteId = loteProd.LoteId ?? request.ProduccionLoteId!.Value;
         }
+
+        await EnsureLoteProduccionAbiertoAsync(loteId, lotePosturaProduccionId);
 
         if (request.FechaRegistro.Date > DateTime.Today)
             throw new ArgumentException("La fecha de registro no puede ser en el futuro.");
@@ -1086,6 +1118,8 @@ public class ProduccionService : IProduccionService
 
         var lppId = e.LotePosturaProduccionId;
         var loteId = e.LoteId;
+
+        await EnsureLoteProduccionAbiertoAsync(loteId, lppId);
 
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Lotes;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -195,6 +196,126 @@ public class LotePosturaProduccionService : ILotePosturaProduccionService
             .AsNoTracking()
             .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LotePosturaProduccionId == id);
         return await ProjectToDetail(q).FirstOrDefaultAsync(ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<CierreLoteProduccionResumenDto?> GetResumenCierreAsync(int lotePosturaProduccionId, CancellationToken ct = default)
+    {
+        var lpp = await LoadTrackedOrNullAsync(lotePosturaProduccionId, ct);
+        if (lpp is null) return null;
+
+        // La agregación la resuelve la BD (COUNT/MIN/MAX), no se traen las filas a memoria.
+        var agg = await ConsultaSeguimientos(lpp)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Cantidad = g.Count(),
+                Primera = (DateTime?)g.Min(s => s.Fecha),
+                Ultima = (DateTime?)g.Max(s => s.Fecha)
+            })
+            .FirstOrDefaultAsync(ct);
+
+        return new CierreLoteProduccionResumenDto(
+            LotePosturaProduccionId: lotePosturaProduccionId,
+            LoteNombre: lpp.LoteNombre,
+            EstaCerrado: CicloVidaPosturaCalculos.EstaCerrado(lpp.EstadoCierre),
+            AvesHembrasActuales: Math.Max(0, lpp.AvesHActual ?? 0),
+            AvesMachosActuales: Math.Max(0, lpp.AvesMActual ?? 0),
+            RegistrosSeguimiento: agg?.Cantidad ?? 0,
+            PrimerRegistro: agg?.Primera,
+            UltimoRegistro: agg?.Ultima,
+            FechaInicioProduccion: lpp.FechaInicioProduccion,
+            UltimoMotivo: lpp.EstadoCierreMotivo,
+            UltimoCambioEstado: lpp.EstadoCierreFecha);
+    }
+
+    /// <inheritdoc />
+    public async Task<LotePosturaProduccionDetailDto?> CerrarLoteAsync(int lotePosturaProduccionId, CerrarLoteProduccionRequest request, CancellationToken ct = default)
+    {
+        var motivo = ValidarMotivo(request?.Motivo, request?.ClosedByUserId, "ClosedByUserId");
+
+        var lpp = await LoadTrackedOrNullAsync(lotePosturaProduccionId, ct);
+        if (lpp is null) return null;
+
+        if (CicloVidaPosturaCalculos.EstaCerrado(lpp.EstadoCierre))
+            throw new InvalidOperationException("El lote de producción ya está cerrado.");
+
+        // Género "Cerrada": es el que usa esta tabla (nace en "Abierta"). El guard de cierre acepta
+        // ambos géneros, pero no se normaliza el existente para no tocar datos históricos.
+        AplicarEstadoCierre(lpp, "Cerrada", motivo);
+        await _ctx.SaveChangesAsync(ct);
+
+        return await GetByIdAsync(lotePosturaProduccionId, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<LotePosturaProduccionDetailDto?> AbrirLoteAsync(int lotePosturaProduccionId, AbrirLoteProduccionRequest request, CancellationToken ct = default)
+    {
+        var motivo = ValidarMotivo(request?.Motivo, request?.OpenedByUserId, "OpenedByUserId");
+
+        var lpp = await LoadTrackedOrNullAsync(lotePosturaProduccionId, ct);
+        if (lpp is null) return null;
+
+        if (!CicloVidaPosturaCalculos.EstaCerrado(lpp.EstadoCierre))
+            throw new InvalidOperationException("El lote de producción no está cerrado.");
+
+        AplicarEstadoCierre(lpp, "Abierta", motivo);
+        await _ctx.SaveChangesAsync(ct);
+
+        return await GetByIdAsync(lotePosturaProduccionId, ct);
+    }
+
+    /// <summary>Motivo obligatorio (≥ 3 caracteres) y usuario informado, igual que en levante.</summary>
+    private static string ValidarMotivo(string? motivo, string? userId, string nombreCampoUsuario)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException($"{nombreCampoUsuario} es requerido.");
+
+        var limpio = (motivo ?? "").Trim();
+        if (limpio.Length < 3)
+            throw new ArgumentException("Indique el motivo (mínimo 3 caracteres).");
+
+        return limpio;
+    }
+
+    /// <summary>Cambia el estado de cierre dejando el rastro de quién, cuándo y por qué.</summary>
+    private void AplicarEstadoCierre(LotePosturaProduccion lpp, string estado, string motivo)
+    {
+        var ahora = DateTime.UtcNow;
+        lpp.EstadoCierre = estado;
+        lpp.EstadoCierreMotivo = motivo;
+        lpp.EstadoCierreFecha = ahora;
+        lpp.EstadoCierreUserId = _current.UserId;
+        lpp.UpdatedByUserId = _current.UserId;
+        lpp.UpdatedAt = ahora;
+    }
+
+    /// <summary>
+    /// Seguimientos del lote de producción. Igual que en la reapertura de levante, se toman los del
+    /// LPP más los legacy atados solo al Lote base; nunca solo por LoteId, porque otro LPP puede
+    /// compartir ese mismo lote.
+    /// </summary>
+    private IQueryable<SeguimientoProduccion> ConsultaSeguimientos(LotePosturaProduccion lpp)
+    {
+        var pid = lpp.LotePosturaProduccionId;
+        var loteId = lpp.LoteId;
+
+        return _ctx.SeguimientoProduccion.AsNoTracking()
+            .Where(s => s.LotePosturaProduccionId == pid
+                     || (s.LotePosturaProduccionId == null && loteId != null && s.LoteId == loteId));
+    }
+
+    /// <summary>LPP rastreado dentro de la empresa efectiva y del alcance del usuario (fail-closed).</summary>
+    private async Task<LotePosturaProduccion?> LoadTrackedOrNullAsync(int lotePosturaProduccionId, CancellationToken ct)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        var q = _ctx.LotePosturaProduccion
+            .Where(l => l.LotePosturaProduccionId == lotePosturaProduccionId
+                     && l.CompanyId == companyId
+                     && l.DeletedAt == null);
+
+        q = await AplicarScopeUbicacionAsync(q);
+        return await q.FirstOrDefaultAsync(ct);
     }
 
     private static IQueryable<LotePosturaProduccionDetailDto> ProjectToDetail(

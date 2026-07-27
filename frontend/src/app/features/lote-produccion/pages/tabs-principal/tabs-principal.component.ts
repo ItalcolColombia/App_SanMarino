@@ -42,6 +42,11 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() loteIdCohortes: number | null = null;
   /** Incrementar para refrescar las cohortes sin cambiar de lote (p. ej. tras un traslado). */
   @Input() cohortesRefreshTrigger = 0;
+  /**
+   * Lote de producción cerrado ⇒ se ocultan crear, editar y eliminar. El backend bloquea igual
+   * (`ProduccionService.EnsureLoteProduccionAbiertoAsync`); esto evita ofrecer acciones que fallarían.
+   */
+  @Input() loteCerrado = false;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoItemDto>();

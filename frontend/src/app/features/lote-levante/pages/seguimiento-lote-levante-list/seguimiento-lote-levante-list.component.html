@@ -87,7 +87,7 @@
           class="btn btn--outline"
           [disabled]="loadingCierreLote"
           (click)="openAbrirLoteModal()"
-          title="Reabrir el lote de levante (si el lote de producción aún no tiene seguimiento)">
+          title="Reabrir el lote de levante. Solo es posible si el lote de producción no tiene seguimiento diario registrado.">
           Abrir lote Seguimiento Diario de Levante
         </button>
       }
@@ -476,17 +476,60 @@
         <button type="button" class="icon-btn" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
       </header>
       <div class="ux-form">
+        @if (loadingResumenReapertura) {
+          <p class="chip" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span> Verificando el lote de producción…
+          </p>
+        }
+
+        <!-- BLOQUEADA: hay seguimiento del usuario en producción, o el lote de producción está cerrado. -->
+        @if (reaperturaBloqueada) {
+          <p class="chip chip--danger" role="alert">{{ resumenReapertura?.motivoBloqueo }}</p>
+          @if ((resumenReapertura?.registrosProduccionUsuario ?? 0) > 0) {
+            <ul class="ux-hint">
+              <li>
+                Lote de producción: <strong>{{ resumenReapertura?.loteProduccionNombre }}</strong>
+              </li>
+              <li>
+                Registros a eliminar: <strong>{{ resumenReapertura?.registrosProduccionUsuario }}</strong>
+                @if (resumenReapertura?.primerRegistroUsuario) {
+                  (del {{ resumenReapertura?.primerRegistroUsuario | date:'dd/MM/yyyy':'UTC' }}
+                  al {{ resumenReapertura?.ultimoRegistroUsuario | date:'dd/MM/yyyy':'UTC' }})
+                }
+              </li>
+              <li>Elimínelos desde <strong>Seguimiento Diario de Producción</strong> y vuelva a intentarlo.</li>
+            </ul>
+          }
+        }
+
+        <!-- PERMITIDA: se explica qué se elimina antes de que el usuario confirme. -->
+        @if (resumenReapertura && resumenReapertura.puedeReabrir) {
+          <p class="chip chip--warning">{{ resumenReapertura.aviso }}</p>
+          @if (resumenReapertura.registrosProduccionSistema > 0) {
+            <p class="ux-hint">
+              Se eliminarán {{ resumenReapertura.registrosProduccionSistema }} registro(s) generados por
+              el cierre (arrastre de huevos y traslado de aves). Se vuelven a generar al cerrar el
+              levante nuevamente.
+            </p>
+          }
+        }
+
         <div class="form-field">
           <label for="motivo-abrir-lote">Motivo</label>
-          <textarea id="motivo-abrir-lote" rows="3" [(ngModel)]="motivoAbrirLote" name="motivoAbrirLote" placeholder="Indique el motivo (mínimo 3 caracteres)"></textarea>
+          <textarea id="motivo-abrir-lote" rows="3" [(ngModel)]="motivoAbrirLote" name="motivoAbrirLote"
+                    [disabled]="reaperturaBloqueada"
+                    placeholder="Indique el motivo (mínimo 3 caracteres)"></textarea>
         </div>
         @if (errorCierreLote) {
           <p class="chip chip--warning" role="alert">{{ errorCierreLote }}</p>
         }
       </div>
       <footer class="ux-modal__footer">
-        <button type="button" class="btn btn--outline" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
-        <button type="button" class="btn btn--primary" (click)="confirmarAbrirLote()" [disabled]="loadingCierreLote">Abrir lote</button>
+        <button type="button" class="btn btn--outline" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote">
+          {{ reaperturaBloqueada ? 'Entendido' : 'Cancelar' }}
+        </button>
+        <button type="button" class="btn btn--primary" (click)="confirmarAbrirLote()"
+                [disabled]="loadingCierreLote || loadingResumenReapertura || reaperturaBloqueada">Abrir lote</button>
       </footer>
       @if (loadingCierreLote) {
         <div class="modal-loading" aria-live="polite">

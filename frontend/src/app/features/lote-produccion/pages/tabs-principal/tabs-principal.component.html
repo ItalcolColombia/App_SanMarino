@@ -263,9 +263,13 @@
                         <td colspan="999" class="empty-state">
                           <div class="empty-illustration" aria-hidden="true">📄</div>
                           <p>Sin registros para este lote.</p>
-                          <button type="button" class="btn btn--outline" (click)="onCreate()">
-                            Crear el primero
-                          </button>
+                          @if (!loteCerrado) {
+                            <button type="button" class="btn btn--outline" (click)="onCreate()">
+                              Crear el primero
+                            </button>
+                          } @else {
+                            <p class="ux-hint">El lote de producción está cerrado. Ábralo para registrar información.</p>
+                          }
                         </td>
                       </tr>
                     }
@@ -330,11 +334,15 @@
                         <td>{{ s.coeficienteVariacion ?? '—' }}</td>
                         <td class="truncate" [title]="s.observacionesPesaje || ''">{{ s.observacionesPesaje || '—' }}</td>
                         <td class="sticky-actions text-right">
-                          <!-- Acciones visibles y habilitadas para todos los usuarios -->
+                          <!-- Ver detalle siempre; editar y eliminar solo con el lote abierto -->
                           <div class="btn-group">
                             <button type="button" (click)="onViewDetail(s)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle del registro">👁️</button>
-                            <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
-                            <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+                            @if (!loteCerrado) {
+                              <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
+                              <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+                            } @else {
+                              <span class="icon-btn" title="El lote de producción está cerrado" aria-label="Lote cerrado">🔒</span>
+                            }
                           </div>
                         </td>
                       </tr>

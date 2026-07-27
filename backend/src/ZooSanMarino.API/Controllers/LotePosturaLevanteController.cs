@@ -105,7 +105,25 @@ public class LotePosturaLevanteController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>Reabre el lote levante (solo si el lote producción no tiene registros dependientes).</summary>
+    /// <summary>
+    /// Resumen para el modal «Abrir lote»: si se puede reabrir, por qué no, y qué se elimina si se
+    /// confirma. Es informativo para la UI — <c>POST {id}/abrir</c> revalida lo mismo.
+    /// </summary>
+    [HttpGet("{id:int}/resumen-reapertura")]
+    [ProducesResponseType(typeof(ReaperturaLoteLevanteResumenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReaperturaLoteLevanteResumenDto>> GetResumenReapertura(int id, CancellationToken ct = default)
+    {
+        var r = await _svc.GetResumenReaperturaAsync(id, ct);
+        if (r == null) return NotFound();
+        return Ok(r);
+    }
+
+    /// <summary>
+    /// Reabre el lote levante. Se rechaza si el lote de producción tiene seguimiento diario
+    /// capturado por el usuario (hay que eliminarlo antes) o si está cerrado (hay que reabrirlo
+    /// antes). Si no, el lote de producción se da de baja y se recrea al cerrar el levante de nuevo.
+    /// </summary>
     [HttpPost("{id:int}/abrir")]
     [ProducesResponseType(typeof(LotePosturaLevanteDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

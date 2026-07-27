@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Lotes;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -453,6 +454,31 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     }
 
     /// <inheritdoc />
+    public async Task<ReaperturaLoteLevanteResumenDto?> GetResumenReaperturaAsync(int lotePosturaLevanteId, CancellationToken ct = default)
+    {
+        var lev = await LoadLevanteTrackedOrNullAsync(lotePosturaLevanteId, ct);
+        if (lev is null) return null;
+
+        var estaCerrado = CicloVidaPosturaCalculos.EstaCerrado(lev.EstadoCierre);
+        var evaluacion = await EvaluarReaperturaAsync(lotePosturaLevanteId, ct);
+
+        return new ReaperturaLoteLevanteResumenDto(
+            LotePosturaLevanteId: lotePosturaLevanteId,
+            LoteNombre: lev.LoteNombre ?? "",
+            EstaCerrado: estaCerrado,
+            PuedeReabrir: estaCerrado && evaluacion.MotivoBloqueo is null,
+            MotivoBloqueo: !estaCerrado ? "El lote no está cerrado." : evaluacion.MotivoBloqueo,
+            Aviso: CicloVidaPosturaCalculos.ConstruirAvisoReaperturaPermitida(evaluacion.LoteProduccionNombre),
+            LotePosturaProduccionId: evaluacion.LotePosturaProduccionId,
+            LoteProduccionNombre: evaluacion.LoteProduccionNombre,
+            LoteProduccionCerrado: evaluacion.LoteProduccionCerrado,
+            RegistrosProduccionUsuario: evaluacion.RegistrosUsuario.Count,
+            RegistrosProduccionSistema: evaluacion.IdsRegistrosDeSistema.Count,
+            PrimerRegistroUsuario: evaluacion.RegistrosUsuario.Count > 0 ? evaluacion.RegistrosUsuario[0].Fecha : null,
+            UltimoRegistroUsuario: evaluacion.RegistrosUsuario.Count > 0 ? evaluacion.RegistrosUsuario[^1].Fecha : null);
+    }
+
+    /// <inheritdoc />
     public async Task<LotePosturaLevanteDetailDto?> AbrirLoteAsync(int lotePosturaLevanteId, AbrirLoteLevanteRequest request, CancellationToken ct = default)
     {
         if (request is null || string.IsNullOrWhiteSpace(request.OpenedByUserId))
@@ -468,20 +494,32 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         if (!string.Equals(estado, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote no está cerrado.");
 
-        var prod = await _ctx.LotePosturaProduccion
-            .FirstOrDefaultAsync(p => p.LotePosturaLevanteId == lotePosturaLevanteId && p.DeletedAt == null, ct);
+        // Reabrir elimina el lote de producción: antes hay que asegurarse de que no se lleve por
+        // delante captura del usuario. La misma evaluación que alimenta el modal del front, para que
+        // la UI y la API no puedan discrepar.
+        var evaluacion = await EvaluarReaperturaAsync(lotePosturaLevanteId, ct);
+        if (evaluacion.MotivoBloqueo is not null)
+            throw new InvalidOperationException(evaluacion.MotivoBloqueo);
 
         lev.EstadoCierre = "Abierto";
         lev.UpdatedByUserId = _current.UserId;
         lev.UpdatedAt = DateTime.UtcNow;
 
+        var prod = evaluacion.Prod;
         if (prod?.LotePosturaProduccionId is { } pid)
         {
             await using var tx = await _ctx.Database.BeginTransactionAsync(ct);
             try
             {
-                await EliminarDependientesLoteProduccionAsync(pid, ct);
-                _ctx.LotePosturaProduccion.Remove(prod);
+                await EliminarDependientesLoteProduccionAsync(pid, evaluacion.IdsRegistrosDeSistema, ct);
+
+                // Soft delete en vez de DELETE: el cierre ya filtra por DeletedAt == null (ver
+                // CerrarLoteYCrearProduccionAsync), así que el próximo cierre recrea el lote sin
+                // conflicto y queda el rastro de que este existió.
+                prod.DeletedAt = DateTime.UtcNow;
+                prod.UpdatedByUserId = _current.UserId;
+                prod.UpdatedAt = DateTime.UtcNow;
+
                 await _ctx.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
             }
@@ -500,17 +538,116 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     }
 
     /// <summary>
-    /// Quita seguimientos, espejo de huevos y desvincula traslados del LPP para poder eliminar el registro de producción al reabrir levante.
+    /// Resultado de evaluar si un levante cerrado se puede reabrir.
     /// </summary>
-    private async Task EliminarDependientesLoteProduccionAsync(int lotePosturaProduccionId, CancellationToken ct)
-    {
-        await _ctx.SeguimientoDiario
-            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId)
-            .ExecuteDeleteAsync(ct);
+    /// <param name="MotivoBloqueo">null si se puede reabrir; si no, el mensaje para el usuario.</param>
+    /// <param name="IdsRegistrosDeSistema">
+    /// Filas de <c>seguimiento_diario_produccion</c> que generó el propio cierre y por lo tanto se
+    /// pueden borrar (se regeneran al cerrar de nuevo).
+    /// </param>
+    private sealed record EvaluacionReapertura(
+        LotePosturaProduccion? Prod,
+        int? LotePosturaProduccionId,
+        string? LoteProduccionNombre,
+        bool LoteProduccionCerrado,
+        IReadOnlyList<RegistroProduccionResumen> RegistrosUsuario,
+        IReadOnlyList<int> IdsRegistrosDeSistema,
+        string? MotivoBloqueo);
 
-        await _ctx.SeguimientoProduccion
-            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId)
-            .ExecuteDeleteAsync(ct);
+    /// <summary>
+    /// Decide si el levante se puede reabrir, clasificando el seguimiento de producción en
+    /// «lo generó el cierre» vs «lo capturó el usuario» (<see cref="CicloVidaPosturaCalculos"/>).
+    /// La consulta proyecta solo las columnas que participan de la decisión.
+    /// </summary>
+    private async Task<EvaluacionReapertura> EvaluarReaperturaAsync(int lotePosturaLevanteId, CancellationToken ct)
+    {
+        var prod = await _ctx.LotePosturaProduccion
+            .FirstOrDefaultAsync(p => p.LotePosturaLevanteId == lotePosturaLevanteId && p.DeletedAt == null, ct);
+
+        if (prod?.LotePosturaProduccionId is not { } pid)
+            return new EvaluacionReapertura(null, null, null, false,
+                Array.Empty<RegistroProduccionResumen>(), Array.Empty<int>(), null);
+
+        var nombre = prod.LoteNombre;
+
+        // El lote de producción cerrado se reabre primero: si no, reabrir el levante lo eliminaría
+        // saltándose su propio cierre.
+        if (CicloVidaPosturaCalculos.EstaCerrado(prod.EstadoCierre))
+            return new EvaluacionReapertura(prod, pid, nombre, true,
+                Array.Empty<RegistroProduccionResumen>(), Array.Empty<int>(),
+                CicloVidaPosturaCalculos.ConstruirMensajeBloqueoProduccionCerrada(nombre));
+
+        // Se toman las filas del LPP y, además, las legacy que solo quedaron atadas al Lote base
+        // (LotePosturaProduccionId nulo). NO se filtra solo por LoteId: otro LPP puede compartir el
+        // mismo lote base y sus registros no tienen nada que ver con esta reapertura.
+        var loteIdProd = prod.LoteId;
+        var crudas = await _ctx.SeguimientoProduccion.AsNoTracking()
+            .Where(s => s.LotePosturaProduccionId == pid
+                     || (s.LotePosturaProduccionId == null && loteIdProd != null && s.LoteId == loteIdProd))
+            .Select(s => new
+            {
+                s.Id,
+                s.Fecha,
+                s.TipoAlimento,
+                s.ConsKgH,
+                s.ConsKgM,
+                s.MortalidadH,
+                s.SelM,
+                s.HuevoTot,
+                s.Metadata
+            })
+            .ToListAsync(ct);
+
+        var filas = crudas.Select(s => new RegistroProduccionResumen(
+            Id: s.Id,
+            Fecha: s.Fecha,
+            TipoAlimento: s.TipoAlimento,
+            ConsKgH: s.ConsKgH,
+            ConsKgM: s.ConsKgM,
+            MortalidadH: s.MortalidadH,
+            SelM: s.SelM,
+            HuevoTot: s.HuevoTot,
+            HuevoTotArrastrado: HuevosLevanteCalculos.LeerArrastreAplicado(s.Metadata).Totales)).ToList();
+
+        var deUsuario = CicloVidaPosturaCalculos.FiltrarRegistrosDeUsuario(filas);
+        var idsUsuario = deUsuario.Select(f => f.Id).ToHashSet();
+        var idsSistema = filas.Where(f => !idsUsuario.Contains(f.Id)).Select(f => f.Id).ToList();
+
+        // Filas de la tabla unificada atadas al LPP: el cierre no las crea (escribe en
+        // seguimiento_diario_produccion), así que si existen son de otro flujo y también bloquean.
+        var unificadas = await _ctx.SeguimientoDiario.AsNoTracking()
+            .CountAsync(s => s.LotePosturaProduccionId == pid, ct);
+
+        string? motivo = null;
+        if (deUsuario.Count > 0)
+            motivo = CicloVidaPosturaCalculos.ConstruirMensajeBloqueoReapertura(nombre, deUsuario);
+        else if (unificadas > 0)
+            motivo =
+                $"No se puede reabrir el lote de levante: el lote de producción «{nombre}» tiene " +
+                $"{unificadas} registro(s) de seguimiento diario. Elimínelos desde Seguimiento Diario " +
+                "de Producción y vuelva a intentarlo.";
+
+        return new EvaluacionReapertura(prod, pid, nombre, false, deUsuario, idsSistema, motivo);
+    }
+
+    /// <summary>
+    /// Borra lo que generó el cierre (las filas de sistema ya clasificadas, el espejo de huevos) y
+    /// desvincula los traslados, para poder dar de baja el lote de producción al reabrir el levante.
+    /// <para>
+    /// Solo se borran los ids recibidos: nunca se hace un DELETE por LPP a ciegas, porque en esa
+    /// tabla también viven los registros del usuario (que, si existen, ya bloquearon la reapertura
+    /// antes de llegar acá).
+    /// </para>
+    /// </summary>
+    private async Task EliminarDependientesLoteProduccionAsync(
+        int lotePosturaProduccionId, IReadOnlyList<int> idsRegistrosDeSistema, CancellationToken ct)
+    {
+        if (idsRegistrosDeSistema.Count > 0)
+        {
+            await _ctx.SeguimientoProduccion
+                .Where(s => idsRegistrosDeSistema.Contains(s.Id))
+                .ExecuteDeleteAsync(ct);
+        }
 
         await _ctx.EspejoHuevoProduccion
             .Where(e => e.LotePosturaProduccionId == lotePosturaProduccionId)

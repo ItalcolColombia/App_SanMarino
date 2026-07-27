@@ -46,7 +46,13 @@
       </div>
 
       <div class="ux-header__actions">
-        @if (selectedLoteId && selectedLoteLPP) {
+        @if (selectedLoteId && selectedLoteLPP && loteProduccionCerrado) {
+          <span class="chip chip--danger" title="Con el lote cerrado no se puede registrar, editar ni eliminar seguimiento diario">
+            🔒 Lote cerrado
+          </span>
+        }
+
+        @if (selectedLoteId && selectedLoteLPP && !loteProduccionCerrado) {
           <button
             type="button"
             class="btn btn--outline"
@@ -56,12 +62,35 @@
           </button>
         }
 
+        <!-- Cerrar / abrir lote de producción: bloquea o rehabilita la captura diaria. -->
+        @if (selectedLoteId && selectedLoteLPP) {
+          @if (loteProduccionCerrado) {
+            <button
+              type="button"
+              class="btn btn--outline"
+              [disabled]="loadingCierreLote"
+              (click)="openCierreLoteModal('abrir')"
+              title="Reabrir el lote de producción para volver a registrar información">
+              Abrir lote
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="btn btn--outline"
+              [disabled]="loadingCierreLote"
+              (click)="openCierreLoteModal('cerrar')"
+              title="Cerrar el lote de producción: bloquea registrar, editar y eliminar seguimiento diario">
+              Cerrar lote
+            </button>
+          }
+        }
+
         <button
           type="button"
           (click)="create()"
           class="btn btn--primary"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro'">
+          [disabled]="!puedeEditarSeguimiento"
+          [title]="!selectedLoteId ? 'Primero selecciona lote' : (loteProduccionCerrado ? 'El lote de producción está cerrado' : 'Crear nuevo registro')">
           Nuevo registro
         </button>
       </div>
@@ -139,6 +168,7 @@
           [informacionLote]="informacionLote"
           [loteIdCohortes]="loteIdBaseSeleccionado"
           [cohortesRefreshTrigger]="cohortesRefreshTrigger"
+          [loteCerrado]="loteProduccionCerrado"
           [loading]="loading"
           (create)="openDailyTrackingModal()"
           (edit)="editDailyTracking($event)"
@@ -209,3 +239,80 @@
       (closed)="trasladoAvesModalOpen = false"
       (trasladoCompletado)="onTrasladoAvesCompletado($event)">
     </app-modal-traslado-aves-seguimiento>
+
+    <!-- ================= MODAL: CERRAR / ABRIR LOTE DE PRODUCCIÓN ================= -->
+    @if (cierreLoteModalOpen) {
+      <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cierre-lote-prod-title">
+        <div class="ux-modal__dialog ux-modal__dialog--sm">
+          <header class="ux-modal__header">
+            <h2 id="cierre-lote-prod-title">
+              {{ cierreLoteAccion === 'cerrar' ? 'Cerrar lote' : 'Abrir lote' }} — Seguimiento Diario de Producción
+            </h2>
+            <button type="button" class="icon-btn" (click)="closeCierreLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
+          </header>
+
+          <div class="ux-form">
+            @if (resumenCierreLote) {
+              <ul class="ux-hint">
+                <li>Lote: <strong>{{ resumenCierreLote.loteNombre }}</strong></li>
+                <li>
+                  Registros de seguimiento: <strong>{{ resumenCierreLote.registrosSeguimiento }}</strong>
+                  @if (resumenCierreLote.primerRegistro) {
+                    (del {{ resumenCierreLote.primerRegistro | date:'dd/MM/yyyy':'UTC' }}
+                    al {{ resumenCierreLote.ultimoRegistro | date:'dd/MM/yyyy':'UTC' }})
+                  }
+                </li>
+                <li>
+                  Aves actuales:
+                  <strong>{{ (resumenCierreLote.avesHembrasActuales + resumenCierreLote.avesMachosActuales) | number:'1.0-0' }}</strong>
+                  (H: {{ resumenCierreLote.avesHembrasActuales | number:'1.0-0' }} |
+                  M: {{ resumenCierreLote.avesMachosActuales | number:'1.0-0' }})
+                </li>
+                @if (resumenCierreLote.ultimoMotivo) {
+                  <li>
+                    Último cambio de estado: {{ resumenCierreLote.ultimoCambioEstado | date:'dd/MM/yyyy':'UTC' }} —
+                    <em>{{ resumenCierreLote.ultimoMotivo }}</em>
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (cierreLoteAccion === 'cerrar') {
+              <p class="chip chip--warning">
+                Al cerrar el lote no se podrá registrar, editar ni eliminar seguimiento diario.
+                Ningún registro se borra ni se modifica, y el lote se puede volver a abrir.
+              </p>
+            } @else {
+              <p class="chip">
+                Al abrir el lote se vuelve a habilitar el registro, la edición y la eliminación de
+                seguimiento diario.
+              </p>
+            }
+
+            <div class="form-field">
+              <label for="motivo-cierre-lote-prod">Motivo</label>
+              <textarea id="motivo-cierre-lote-prod" rows="3" name="motivoCierreLote"
+                        [(ngModel)]="motivoCierreLote"
+                        placeholder="Indique el motivo (mínimo 3 caracteres)"></textarea>
+            </div>
+
+            @if (errorCierreLote) {
+              <p class="chip chip--danger" role="alert">{{ errorCierreLote }}</p>
+            }
+          </div>
+
+          <footer class="ux-modal__footer">
+            <button type="button" class="btn btn--outline" (click)="closeCierreLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
+            <button type="button" class="btn btn--primary" (click)="confirmarCierreLote()" [disabled]="loadingCierreLote">
+              {{ cierreLoteAccion === 'cerrar' ? 'Cerrar lote' : 'Abrir lote' }}
+            </button>
+          </footer>
+
+          @if (loadingCierreLote) {
+            <div class="modal-loading" aria-live="polite">
+              <span class="spinner" aria-hidden="true"></span> Procesando…
+            </div>
+          }
+        </div>
+      </div>
+    }
