@@ -584,3 +584,19 @@ seguimientos ya cargados) · `528b283` (encabezados MIXTOS que se leían en CERO
 - [x] Eventos del servicio backend: `deployment completed` + `has reached a steady state`, con drenaje normal de la tarea vieja. **Sin crash loop**, o sea que las dos migraciones se aplicaron bien al arrancar
 - [x] Front en vivo: `/version.json` → `buildId 2026-07-27T19:50:20.123Z` (el de este run) · `/` → 200
 - [x] Backend en vivo a través del ALB: 401 en endpoints protegidos ⇒ sirviendo y aplicando auth
+
+---
+
+# Hotfix — reCAPTCHA del login bloqueado por la CSP en producción
+
+Plan: [fase_de_desarrollo/csp_recaptcha_login_plan.md](fase_de_desarrollo/csp_recaptcha_login_plan.md)
+
+Causa: la CSP centralizada de la Fase 0.C (76a2903) empezó a aplicarse de verdad y su
+`script-src`/`frame-src` no permitían los orígenes de Google reCAPTCHA ⇒ el widget no se
+renderiza en el login de prod (el build SÍ es de producción; verificado en el bundle vivo).
+
+- [x] Diagnóstico verificado contra prod (bundle con siteKey + CSP en vivo sin google)
+- [x] `nginx-security-headers.conf`: `script-src` + google/gstatic recaptcha, `frame-src` explícito
+- [x] Validación sin Docker (no levanta local): chequeo estático de la línea + gate C5 del pipeline valida la CSP en contenedor antes de publicar (checks nuevos de recaptcha)
+- [ ] Commit
+- [ ] Deploy (push a main-produccion) + verificación post-deploy (CSP en vivo + widget visible)

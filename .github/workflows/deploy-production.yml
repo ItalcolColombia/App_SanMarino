@@ -366,6 +366,11 @@ jobs:
           check "/ -> CSP"                          "$H/"                       "^Content-Security-Policy:"
           check "/ -> HSTS"                         "$H/"                       "^Strict-Transport-Security:"
           check "/ -> worker-src en la CSP"         "$H/"                       "worker-src 'self'"
+          # El login de prod renderiza reCAPTCHA: la CSP tiene que permitir el script
+          # (script-src google/gstatic) y el iframe (frame-src). Se rompió el 2026-07-27
+          # cuando la CSP centralizada empezó a aplicarse de verdad sin estos orígenes.
+          check "/ -> recaptcha en script-src"      "$H/"                       "script-src[^;]*https://www\.google\.com/recaptcha/"
+          check "/ -> recaptcha en frame-src"       "$H/"                       "frame-src[^;]*https://www\.google\.com/recaptcha/"
           [ -n "$JS" ] && check "$JS -> CSP"         "$H/$JS"                    "^Content-Security-Policy:"
           [ -n "$JS" ] && check "$JS -> HSTS"        "$H/$JS"                    "^Strict-Transport-Security:"
           check "ruta del SPA -> CSP"               "$H/lotes/detalle/9"        "^Content-Security-Policy:"
