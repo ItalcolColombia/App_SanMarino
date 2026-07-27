@@ -496,3 +496,46 @@ cadena que corre dentro de la imagen, fuera de Docker, con el Node portable 22.2
 
 - [x] Commit quirúrgico en `main` (solo el fix; el árbol tenía trabajo en curso de otra sesión, no se tocó)
 - [ ] Push a `main` → PR a `main-produccion` → merge → verificar el run
+
+---
+
+# Tracker — Hora de encasetamiento en lotes que YA tienen seguimientos (retroactivo)
+
+**Plan:** [fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md](fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md)
+**Fecha:** 2026-07-27 · Continuación del commit f5765c7
+
+Análisis exhaustivo con workflow de 56 agentes + verificación adversarial (45 hallazgos confirmados
+sobre 50). Medición sobre el dump de prod: **101 de 102** lotes engorde ya arrancan después del día
+del encaset ⇒ el radio real de impacto son **3 lotes** (1 engorde + 2 reproductoras del ejercicio).
+
+## Fase 1 — cerrar fugas (NO toca datos históricos) — HECHA
+
+- [x] **Regresión de f5765c7**: `horaEncasetamiento` no viajaba en el `save()` individual de lote
+      reproductora (alta ni edición); solo en `saveBulk()`. La hora era inalcanzable desde la UI y
+      cada edición la apagaba en silencio
+- [x] `EncasetamientoRetroactivoCalculos` (puro): diagnóstico de compatibilidad hora ↔ registros existentes
+- [x] `EncasetamientoRetroactivoCalculosTests` — 9 casos (incluye el caso real del ejercicio)
+- [x] PUT del lote engorde: diagnostica antes de escribir la hora y rechaza con detalle
+- [x] PUT del lote reproductora: idem
+- [x] **Fuga principal**: el formulario diario de engorde no validaba la fecha contra el encaset — ni
+      siquiera «no anterior al encaset». El Excel rechazaba lo que la pantalla aceptaba. Guarda
+      agregada en Create y Update de los DOS services de engorde
+- [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1029/1029 · `ng build` 0 errores
+
+## Fase 2 — reorganización de registros existentes — BLOQUEADA, espera decisión del usuario
+
+- [ ] Definir si «organizar» = mover fechas (+1 día) o solo corregir la numeración mostrada
+- [ ] Si se mueven fechas: endpoint `validar` + `aplicar` (patrón `aves-disponibles/validar|corregir`)
+- [ ] Requisito técnico probado: el shift debe ir **fila por fila en orden de fecha DESC**; el UPDATE
+      masivo y el orden ASC violan `uq_seg_diario_lrae_lote_fecha` (probado en local con rollback)
+- [ ] Excluir filas `origen_cruce` (se mueven regenerando el cruce, no a mano)
+- [ ] Abortar si algún registro reproductora saldría a edad 8 (`fn_cruce` solo consolida 0..7)
+- [ ] Re-fechar `BAJA_SEGUIMIENTO`, referencia de `INV_CONSUMO` y recálculo de saldo de alimento
+
+## Bugs preexistentes detectados (independientes, sin tocar)
+
+- [ ] `min` faltante en el input de fecha del modal de seguimiento engorde
+- [ ] `SeguimientoDiarioLoteReproductoraService.DeleteAsync` no anula `INV_CONSUMO` ⇒ consumo duplicado
+- [ ] Tope `totalRegistros >= 7` cuenta filas, no edades ocupadas (hay 8 slots 0..7 y 7 cupos)
+- [ ] `UpdateLoteAveEngordeDto.HoraEncasetamiento` no distingue «no enviado» de «borrar» (clientes no-UI)
+- [ ] El PUT del lote engorde no valida `EstadoOperativoLote` ⇒ acepta editar un lote liquidado

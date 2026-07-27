@@ -34,6 +34,22 @@ public partial class SeguimientoAvesEngordeEcuadorService
             if (np.HasValue) { kcalAlH ??= np.Value.kcal; protAlH ??= np.Value.prot; }
         }
 
+        // El primer día con registro lo decide la hora de llegada de las aves (desde las 13:00 pasa al
+        // día siguiente del encaset). Hasta acá el formulario diario NO validaba la fecha contra el
+        // encasetamiento — ni siquiera "no anterior al encaset" — así que la carga masiva rechazaba lo
+        // que la pantalla aceptaba. Se alinean los dos canales.
+        if (lote.FechaEncaset.HasValue)
+        {
+            var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncasetamiento);
+            if (dto.FechaRegistro.Date < primerDia.Date)
+            {
+                var motivo = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncasetamiento);
+                throw new InvalidOperationException(motivo is null
+                    ? $"La fecha del registro no puede ser anterior al encasetamiento del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
+                    : $"El primer registro de este lote es el {primerDia:yyyy-MM-dd}: {motivo}.");
+            }
+        }
+
         double consumoKgH = dto.ConsumoKgHembras;
         if (consumoKgH <= 0 && !string.IsNullOrWhiteSpace(lote.GalponId) && lote.FechaEncaset.HasValue)
         {
@@ -186,6 +202,22 @@ public partial class SeguimientoAvesEngordeEcuadorService
         {
             var np = await _alimentos.GetNutrientesAsync(dto.TipoAlimento);
             if (np.HasValue) { kcalAlH ??= np.Value.kcal; protAlH ??= np.Value.prot; }
+        }
+
+        // El primer día con registro lo decide la hora de llegada de las aves (desde las 13:00 pasa al
+        // día siguiente del encaset). Hasta acá el formulario diario NO validaba la fecha contra el
+        // encasetamiento — ni siquiera "no anterior al encaset" — así que la carga masiva rechazaba lo
+        // que la pantalla aceptaba. Se alinean los dos canales.
+        if (lote.FechaEncaset.HasValue)
+        {
+            var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncasetamiento);
+            if (dto.FechaRegistro.Date < primerDia.Date)
+            {
+                var motivo = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncasetamiento);
+                throw new InvalidOperationException(motivo is null
+                    ? $"La fecha del registro no puede ser anterior al encasetamiento del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
+                    : $"El primer registro de este lote es el {primerDia:yyyy-MM-dd}: {motivo}.");
+            }
         }
 
         double consumoKgH = dto.ConsumoKgHembras;

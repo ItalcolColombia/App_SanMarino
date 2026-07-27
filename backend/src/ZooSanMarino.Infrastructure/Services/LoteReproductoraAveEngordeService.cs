@@ -341,7 +341,26 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
 
         ent.NombreLote = (dto.NombreLote ?? "").Trim();
         ent.CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim();
-        ent.FechaEncasetamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento);
+        var nuevaFechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento);
+
+        // Mismo criterio que en el lote pollo engorde: informar una hora tardía en un lote que ya tiene
+        // días de recogida cargados dejaría el registro del día del encasetamiento fuera de la ventana.
+        // Se diagnostica ANTES de escribir y se rechaza con el detalle, en vez de guardar en silencio.
+        if (dto.HoraEncasetamiento != ent.HoraEncasetamiento || nuevaFechaEncaset != ent.FechaEncasetamiento)
+        {
+            var fechasSeguimiento = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
+                .Where(s => s.LoteReproductoraAveEngordeId == ent.Id)
+                .Select(s => s.Fecha)
+                .ToListAsync();
+
+            var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
+                nuevaFechaEncaset, dto.HoraEncasetamiento, fechasSeguimiento);
+            if (!diag.Compatible)
+                throw new InvalidOperationException(
+                    EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, dto.HoraEncasetamiento));
+        }
+
+        ent.FechaEncasetamiento = nuevaFechaEncaset;
         ent.HoraEncasetamiento = dto.HoraEncasetamiento;
         ent.M = dto.M;
         ent.H = dto.H;

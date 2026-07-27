@@ -419,7 +419,27 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.NucleoId = nucleoId ?? ent.NucleoId;
         ent.GalponId = galponId ?? ent.GalponId;
         ent.Regional = dto.Regional;
-        ent.FechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncaset);
+        var nuevaFechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncaset);
+
+        // La hora de encasetamiento decide el primer día con registro. En un lote que YA tiene
+        // seguimientos (todos los de producción se crearon sin hora) informar una hora tardía dejaría
+        // registros existentes fuera de la ventana válida. Se diagnostica ANTES de escribir: mejor un
+        // 400 que explica qué registros estorban que un 200 que deja el lote inconsistente en silencio.
+        if (dto.HoraEncasetamiento != ent.HoraEncasetamiento || nuevaFechaEncaset != ent.FechaEncaset)
+        {
+            var fechasSeguimiento = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+                .Where(s => s.LoteAveEngordeId == ent.LoteAveEngordeId)
+                .Select(s => s.Fecha)
+                .ToListAsync();
+
+            var diag = EncasetamientoRetroactivoCalculos.Diagnosticar(
+                nuevaFechaEncaset, dto.HoraEncasetamiento, fechasSeguimiento);
+            if (!diag.Compatible)
+                throw new InvalidOperationException(
+                    EncasetamientoRetroactivoCalculos.MensajeIncompatible(diag, dto.HoraEncasetamiento));
+        }
+
+        ent.FechaEncaset = nuevaFechaEncaset;
         ent.HoraEncasetamiento = dto.HoraEncasetamiento;
         ent.FechaAlistamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaAlistamiento);
         ent.HembrasL = dto.HembrasL;
