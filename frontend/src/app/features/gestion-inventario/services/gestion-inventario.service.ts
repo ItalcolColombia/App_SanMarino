@@ -178,11 +178,31 @@ export interface InventarioGestionTransitoPendienteDto {
   pendienteDespachoOrigen?: boolean;
 }
 
+/** Una ubicación de la granja destino y cuánto de lo recibido entra en ella. */
+export interface InventarioGestionRecepcionDestino {
+  nucleoId: string | null;
+  galponId: string | null;
+  quantity: number;
+}
+
 export interface InventarioGestionRecepcionTransitoRequest {
   transferGroupId: string;
   toFarmId: number;
   toNucleoId: string | null;
   toGalponId: string | null;
+  /**
+   * Reparto de lo recibido entre varios galpones (solo alimento manejado por galpón).
+   * Si trae filas, reemplaza a toNucleoId/toGalponId y la suma debe igualar la cantidad en tránsito.
+   */
+  distribucion?: InventarioGestionRecepcionDestino[] | null;
+}
+
+/** Respuesta de la recepción: destino/movimiento = primera ubicación; destinos/movimientos = todas. */
+export interface InventarioGestionRecepcionTransitoResponse {
+  destino: InventarioGestionStockDto;
+  movimiento: InventarioGestionMovimientoDto;
+  destinos?: InventarioGestionStockDto[];
+  movimientos?: InventarioGestionMovimientoDto[];
 }
 
 // ─── TRASLADOS: LISTADO Y EDICIÓN ────────────────────────────────────────────
@@ -401,8 +421,8 @@ export class GestionInventarioService {
   /** Completa el ingreso en granja destino (cierra el tránsito). */
   registrarRecepcionTransito(
     payload: InventarioGestionRecepcionTransitoRequest
-  ): Observable<{ destino: InventarioGestionStockDto; movimiento: InventarioGestionMovimientoDto }> {
-    return this.http.post<{ destino: InventarioGestionStockDto; movimiento: InventarioGestionMovimientoDto }>(
+  ): Observable<InventarioGestionRecepcionTransitoResponse> {
+    return this.http.post<InventarioGestionRecepcionTransitoResponse>(
       `${this.api}/inventario-gestion/transito/recepcion`,
       payload
     );

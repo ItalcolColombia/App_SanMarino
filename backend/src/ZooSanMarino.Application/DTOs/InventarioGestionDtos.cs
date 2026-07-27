@@ -140,12 +140,34 @@ public sealed record InventarioGestionMovimientoDto(
     string? ItemTipoItem = null
 );
 
+/// <summary>Una ubicación de la granja destino y cuánto de lo recibido entra en ella (alimento por galpón).</summary>
+public sealed record InventarioGestionRecepcionDestinoDto(
+    string? NucleoId,
+    string? GalponId,
+    decimal Quantity
+);
+
 /// <summary>Recepción en granja destino de un traslado inter-granja que quedó en tránsito.</summary>
 public sealed record InventarioGestionRecepcionTransitoRequest(
     Guid TransferGroupId,
     int ToFarmId,
     string? ToNucleoId,
-    string? ToGalponId
+    string? ToGalponId,
+    /// <summary>
+    /// Reparto de lo recibido entre varios galpones de la granja destino (solo alimento manejado por galpón).
+    /// Si trae filas, reemplaza a <c>ToNucleoId</c>/<c>ToGalponId</c> y la suma debe igualar la cantidad en tránsito.
+    /// Null o vacío = recepción en una sola ubicación (comportamiento clásico).
+    /// </summary>
+    IReadOnlyList<InventarioGestionRecepcionDestinoDto>? Distribucion = null
+);
+
+/// <summary>
+/// Resultado de una recepción de tránsito: una entrada por ubicación de destino
+/// (una sola cuando no hay distribución).
+/// </summary>
+public sealed record InventarioGestionRecepcionTransitoResultDto(
+    IReadOnlyList<InventarioGestionStockDto> Destinos,
+    IReadOnlyList<InventarioGestionMovimientoDto> Movimientos
 );
 
 /// <summary>Rechazo en destino de una solicitud inter-granja pendiente (no descuenta origen).</summary>

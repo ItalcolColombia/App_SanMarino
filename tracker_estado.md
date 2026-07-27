@@ -1,4 +1,56 @@
+# Tracker — Recepción de tránsito con distribución en varios galpones
+
+**Plan:** [`fase_de_desarrollo/recepcion_transito_distribucion_galpones_plan.md`](fase_de_desarrollo/recepcion_transito_distribucion_galpones_plan.md)
+**Fecha:** 2026-07-26
+
+Objetivo: al aceptar un traslado de **alimento** en la pestaña **Tránsito**, poder **distribuir la cantidad
+recibida entre varios galpones** de la granja destino (hoy solo se recibe en uno). Ítems no alimento y granjas
+con inventario a nivel granja **no cambian**.
+
+---
+
+## Backend
+
+- [x] `InventarioGestionDtos.cs`: `InventarioGestionRecepcionDestinoDto` + `Distribucion` opcional en el request + `InventarioGestionRecepcionTransitoResultDto`
+- [x] `Application/Calculos/InventarioGestionRecepcionDistribucionCalculos.cs` (NUEVO, puro)
+- [x] `IInventarioGestionService.RegistrarRecepcionTransitoAsync` → devuelve el result DTO
+- [x] `InventarioGestionService.RegistrarRecepcionTransitoAsync`: delega al cálculo + persiste N stocks / N movimientos
+- [x] Validación de pertenencia (núcleo, galpón) a la granja destino en el camino distribuido
+- [x] **Fix** `GetTrasladosAsync`: `ToDictionaryAsync` por `TransferGroupId` revienta con N entradas → agrupar
+- [x] `InventarioGestionController`: respuesta aditiva `{ destino, movimiento, destinos, movimientos }`
+
+## Tests (backend)
+
+- [x] `InventarioGestionRecepcionDistribucionCalculosTests.cs` (NUEVO) — 24 casos
+- [x] Camino clásico (sin distribución) con mensajes byte a byte idénticos
+- [x] Suma exacta / suma incorrecta / duplicados / cantidad ≤ 0 / fila incompleta / nivel granja / filas vacías / tolerancia
+
+## Frontend
+
+- [x] `gestion-inventario.service.ts`: tipos `InventarioGestionRecepcionDestino` + `distribucion?` en el request
+- [x] Componente: estado `recepcionDistribuir` + `recepcionDestinos[]` (alta/baja de filas, núcleo→galpón en cascada)
+- [x] Componente: totales (distribuido / total / faltante) y validación espejo del backend
+- [x] Componente: envío del payload con `distribucion`
+- [x] HTML: toggle un galpón / varios galpones + tabla de destinos + contador
+- [x] SCSS: estilos de la tabla de distribución (tokens existentes)
+
+## Validación
+
+- [x] `cd backend && dotnet build` — 0 errores, 0 advertencias
+- [x] `cd backend && dotnet test` — 861/861 verdes
+- [x] `cd frontend && yarn build` — 0 errores (solo el warning preexistente de bundle budget)
+- [x] Smoke API local (JWT minteado, empresa ItalcolEcuador): traslado 1.000 kg 43→40 recibido **400/350/250** en G0040/G0041/G0042 → 3 stocks + 3 movimientos, tránsito cerrado, reintento rechazado
+- [x] Smoke API: rechazos correctos (suma que no cuadra, galpón repetido, galpón de otra granja, cantidad 0) y **recepción clásica** en un galpón sin cambios (1 destino, reason original)
+- [x] Regresión pestaña **Traslados** con N entradas por grupo → HTTP 200 (antes hubiera reventado el `ToDictionary`)
+- [x] Smoke UI en dev server (sesión inyectada): toggle, precarga del restante al agregar fila, contador «Cuadra con la cantidad en tránsito», guardado real 400/320 verificado en BD, consola sin errores
+- [x] BD local revertida al estado original y servidores detenidos (sin procesos huérfanos)
+
+---
+
 # Tracker — Tab «Huevos» en Seguimiento Diario Levante (semana 14+) y arrastre automático a Producción al liquidar
+
+> ♻️ **Bloque RESTAURADO** (2026-07-26). Otra sesión lo sobrescribió al aplicar la regla vieja de «borrar todo el tracker».
+> Su trabajo está **terminado y validado pero SIN COMMITEAR** (46 archivos en el working tree), así que su estado no se puede perder.
 
 **Plan:** [fase_de_desarrollo/huevos_levante_semana14_arrastre_produccion_plan.md](fase_de_desarrollo/huevos_levante_semana14_arrastre_produccion_plan.md)
 
@@ -51,8 +103,66 @@
 - [x] Efecto colateral (mejora): en una BD con sesión no-UTC el 400 por duplicado de producción ahora **sí** se detecta (antes se colaba una fila por día repetida)
 
 ## Fase 6 — Validación y cierre
-- [x] Smoke API local con JWT minteado: gate semana 13/14, GET de vuelta, PUT conserva, merge de fila sólo-huevos, liquidación sin/con huevos, **SUMA el mismo día (200, una sola fila)**, 400 preservado, doble liquidación, reapertura, idempotencia con edición intermedia, flag OFF sin cambios — **58/58 verdes** (20 captura en levante + 38 liquidación/arrastre)
-- [x] Smoke UI en dev server con sesión inyectada: tab oculto en semana 13 / visible en 14, totales readonly, cambio de fecha oculta el tab, modal de cierre con el total, 0 errores de consola, sin NG0103 — **verificado**: borde exacto día 90 (oculto) vs día 91 (visible); totales 900 inc + 90 = 990 (91%); guardado real desde la UI persistido (427/340/peso 59.25); modal de cierre readonly «Totales 2.092 · Incubables 1.890»; **flag OFF ⇒ tab oculto en semana 41** (cero cambios visibles); consola sin errores
-- [x] Servidores detenidos (sin procesos huérfanos) + BD local restaurada al estado original (38 filas / 0 huevos en el lote 114, lotes 6 y 7 «Abierto», sin LPP de prueba)
-- [x] Commit `34e47aa` en main (autor moisesmurillo, sin atribucion)
-- [x] Verificado contra la regla nueva de `CLAUDE.md` (Angular 22 = OnPush por defecto): los 3 componentes tocados ya declaran `ChangeDetectionStrategy.Eager` explícito
+- [x] Smoke API local con JWT minteado — **58/58 verdes** (20 captura en levante + 38 liquidación/arrastre)
+- [x] Smoke UI en dev server con sesión inyectada — borde exacto día 90/91, totales, guardado real persistido, modal de cierre readonly, flag OFF sin cambios, consola limpia
+- [x] Servidores detenidos (sin procesos huérfanos) + BD local restaurada al estado original
+- [ ] Commit — **pendiente de confirmación** (46 archivos listos, working tree sin commitear)
+- [x] Verificado contra la regla de `CLAUDE.md` (Angular 22 = OnPush por defecto): los 3 componentes tocados declaran `ChangeDetectionStrategy.Eager` explícito
+
+---
+
+# Tracker — Venta Pollo Engorde: peso diferido en Panamá + carga masiva completa
+
+**Plan:** [fase_de_desarrollo/venta_engorde_panama_peso_diferido_y_carga_masiva_plan.md](fase_de_desarrollo/venta_engorde_panama_peso_diferido_y_carga_masiva_plan.md)
+**Fecha:** 2026-07-26
+
+**Decisiones del usuario:** carga masiva **multi-lote** con despacho/factura y peso prorrateado · **corregir** la idempotencia de `fn_migracion_venta_engorde` (rango de día + `numero_despacho`) · peso diferido en **ambos sentidos** (cargar al confirmar **y** corregir venta ya `Completada`).
+
+## Fase 0 — Análisis
+- [x] Exploración exhaustiva (workflow 7 agentes, 336 lecturas) de venta Panamá, peso/prorrateo, front de ventas, carga masiva, flags por empresa y ciclo de vida en BD
+- [x] Verificación directa de los hallazgos críticos: el camino «sin peso» ya existe en el backend Panamá (`tienePeso`, sólo lo bloquea la línea 65) · el trigger del espejo **no** escucha `peso_bruto`/`peso_tara` · `ReprorratearPesoTrasEdicionAsync` ya escribe los 9 campos sobre líneas Completadas a propósito · sin NOT NULL/CHECK ⇒ (B) no requiere DDL
+- [x] Plan escrito en `fase_de_desarrollo/`
+
+## Fase 1 — Backend: cálculo puro + tests (gate CI)
+- [x] `ValidarPesoObligatorioEnVenta` con parámetro `pesoDiferidoPermitido = false` (el default deja los 6 tests actuales verdes)
+- [x] `MigracionCalculos.TryHora` (serial Excel / `DateTime` / `TimeSpan` / texto 12h y 24h) + `TryBooleanoSiNo`
+- [x] Tests: flag OFF byte a byte idéntico · default apagado · flag ON ambos null · peso parcial sigue lanzando · mismos mensajes con peso inválido · `TryHora` (24h/12h/serial/serial+fecha/borde 24:00/texto) · `TryBooleanoSiNo`
+- [x] `dotnet test` verde — **912/912** (⚠️ el `dotnet` del PATH es 9.0.301: usar `~/.dotnet/dotnet.exe` 10.0.301)
+
+## Fase 2 — Backend: flag de empresa
+- [ ] `Company.VentaEngordePesoDiferido` + `CompanyConfiguration` (`venta_engorde_peso_diferido`, default `false`)
+- [ ] Propagado en las proyecciones (`CompanyDto`, `CompanyService.ToDto`, `CompanyService.Crud` ×2, `CompanyResolver` ×2, `CompanyPaisService`) + Create/UpdateCompanyDto
+- [ ] Migración idempotente `AddVentaEngordePesoDiferidoCompany` (`ADD COLUMN IF NOT EXISTS`)
+- [ ] Migración data-only `SeedVentaEngordePesoDiferido` (ItalcolPanama, `IS DISTINCT FROM`, ModelSnapshot intacto)
+- [ ] Aplicadas en BD local :5433 y verificadas (ItalcolPanama = t, resto = f)
+
+## Fase 3 — Backend: peso diferido + registro de peso
+- [ ] Resolución fail-closed del flag por `farms.company_id` de la granja del despacho
+- [ ] `MovimientoPolloEngordePanamaService.cs:65` delega con el flag (conservando el literal `"Venta"`)
+- [ ] Núcleo reusable extraído de `ReprorratearPesoTrasEdicionAsync` (refactor sin cambio de comportamiento)
+- [ ] `MovimientoPolloEngordeService.RegistrarPeso.cs` (partial): peso por factura + `confirmar` opcional, en transacción
+- [ ] Endpoint `POST /api/MovimientoPolloEngorde/factura/{facturaId}/registrar-peso` + permisos
+- [ ] `dotnet build` 0 errores / sin advertencias nuevas
+
+## Fase 4 — Backend: carga masiva completa (multi-lote)
+- [ ] `MigracionEsquemas.VentaPolloEngorde`: 15 columnas nuevas (ubicación + despacho + `Estado` + `Venta sobre mixtas`); `Peso Bruto/Tara` a `DobleNoNeg`
+- [ ] Parser `MigracionService.VentaEngorde.cs`: resolución de lote por fila con fallback al contexto + claves nuevas + validaciones
+- [ ] Hoja de instrucciones ampliada
+- [ ] `fn_migracion_venta_engorde` v2 (migración `CREATE OR REPLACE`, **sin** tocar `20260712190000`): campos nuevos · `factura_id` + prorrateo por grupo (3 decimales) · `estado` de la fila · descuento sólo si `Completado` · `es_venta_mixta` espejando `CompleteAsync` · idempotencia por rango de día + `numero_despacho`
+- [ ] `backend/sql/fn_migracion_venta_engorde.sql` actualizado como fuente canónica
+- [ ] Test de retro-compatibilidad: archivo con las 11 columnas viejas sigue válido
+
+## Fase 5 — Frontend
+- [ ] `ventaEngordePesoDiferido` en `CompanyFlags` + `FLAGS_APAGADOS` (fail-closed)
+- [ ] `modal-registro-peso-venta` nuevo (`ChangeDetectionStrategy.Eager` explícito) con neto/promedio en vivo y preview de prorrateo
+- [ ] Listado: disparo del modal al confirmar sin peso, acción «registrar/corregir peso», marca «peso pendiente»
+- [ ] `modal-venta-panama`: `required` condicional + mensaje de error reescrito
+- [ ] `modal-movimiento-pollo-engorde`: `syncPesoValidators` gateado por el flag (si no, no se puede editar la venta sin peso)
+- [ ] `company-management`: flags en el payload (arregla el bug que apagaría el flag al editar la empresa)
+- [ ] `yarn build` 0 errores (sólo el warning de bundle budget preexistente)
+
+## Fase 6 — Validación y cierre
+- [ ] Smoke API local (JWT minteado): venta sin peso · registrar-peso + confirmar · **espejo pasa de 0 kg al neto** · corrección post-Completado · flag OFF con 400 idéntico · masiva retro-compatible · masiva multi-lote · `Pendiente` sin descuento · mixtas · idempotencia contra venta hecha por pantalla · dry-run
+- [ ] Smoke UI doble: ItalcolPanama (flag ON, modal abriendo/cerrando dos veces) y Demo/Sanmarino (flag OFF, cero cambios visibles)
+- [ ] Servidores detenidos (sin procesos huérfanos) + BD local restaurada
+- [ ] Commit acotado a los archivos de esta tarea (sin mezclar con los otros bloques)

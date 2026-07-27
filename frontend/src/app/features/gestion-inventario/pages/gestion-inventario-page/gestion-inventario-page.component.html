@@ -577,7 +577,7 @@
               <div class="card-italfoods__title">Transferencias en tránsito (pendientes de recepción)</div>
               <div class="card-italfoods__body">
                 <p class="hint field-full">
-                  Pulse <strong>Recibir en destino</strong>: el formulario de confirmación abre <strong>en la misma tarjeta</strong> (no al final de la lista). Para <strong>alimento</strong> elija núcleo y galpón en su granja destino; otros ítems solo granja. El origen ya fue descontado al enviar el traslado.
+                  Pulse <strong>Recibir en destino</strong>: el formulario de confirmación abre <strong>en la misma tarjeta</strong> (no al final de la lista). Para <strong>alimento</strong> elija núcleo y galpón en su granja destino, o use <strong>Distribuir entre varios galpones</strong> para repartir lo que llega (la suma debe igualar la cantidad en tránsito); otros ítems solo granja. El origen ya fue descontado al enviar el traslado.
                 </p>
                 @if (loadingTransito) {
                   <p>Cargando…</p>
@@ -634,27 +634,108 @@
                             }
                           </div>
                           @if (recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
-                            <div class="transito-recepcion-form__grid">
-                              <div class="field">
-                                <label class="form-label">Núcleo destino *</label>
-                                <select class="form-input" [(ngModel)]="recepcionToNucleoId" (ngModelChange)="onRecepcionNucleoChange()">
-                                  <option [ngValue]="null">Seleccione…</option>
-                                  @for (n of recepcionNucleosForFarm(t.toFarmId); track n) {
-                                    <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                                  }
-                                </select>
-                              </div>
-                              <div class="field">
-                                <label class="form-label">Galpón destino *</label>
-                                <select class="form-input" [(ngModel)]="recepcionToGalponId">
-                                  <option [ngValue]="null">Seleccione…</option>
-                                  @for (g of recepcionGalponesForFarm(t.toFarmId); track g) {
-                                    <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                                  }
-                                </select>
-                              </div>
+                            <div class="recepcion-modo">
+                              <button
+                                type="button"
+                                class="recepcion-modo__btn"
+                                [class.recepcion-modo__btn--active]="!recepcionDistribuir"
+                                (click)="setRecepcionDistribuir(false)"
+                                [disabled]="submittingRecepcion">
+                                Recibir todo en un galpón
+                              </button>
+                              <button
+                                type="button"
+                                class="recepcion-modo__btn"
+                                [class.recepcion-modo__btn--active]="recepcionDistribuir"
+                                (click)="setRecepcionDistribuir(true)"
+                                [disabled]="submittingRecepcion">
+                                Distribuir entre varios galpones
+                              </button>
                             </div>
-                            <p class="hint transito-recepcion-form__hint-alimento">Indique en qué núcleo y galpón de <strong>su granja destino</strong> ingresa el alimento.</p>
+
+                            @if (!recepcionDistribuir) {
+                              <div class="transito-recepcion-form__grid">
+                                <div class="field">
+                                  <label class="form-label">Núcleo destino *</label>
+                                  <select class="form-input" [(ngModel)]="recepcionToNucleoId" (ngModelChange)="onRecepcionNucleoChange()">
+                                    <option [ngValue]="null">Seleccione…</option>
+                                    @for (n of recepcionNucleosForFarm(t.toFarmId); track n) {
+                                      <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                                    }
+                                  </select>
+                                </div>
+                                <div class="field">
+                                  <label class="form-label">Galpón destino *</label>
+                                  <select class="form-input" [(ngModel)]="recepcionToGalponId">
+                                    <option [ngValue]="null">Seleccione…</option>
+                                    @for (g of recepcionGalponesForFarm(t.toFarmId); track g) {
+                                      <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                                    }
+                                  </select>
+                                </div>
+                              </div>
+                              <p class="hint transito-recepcion-form__hint-alimento">Indique en qué núcleo y galpón de <strong>su granja destino</strong> ingresa el alimento.</p>
+                            }
+
+                            @if (recepcionDistribuir) {
+                              <div class="recepcion-distribucion">
+                                <div class="recepcion-distribucion__rows">
+                                  @for (d of recepcionDestinos; track $index) {
+                                    <div class="recepcion-distribucion__row">
+                                      <div class="field">
+                                        <label class="form-label">Núcleo *</label>
+                                        <select class="form-input" [(ngModel)]="d.nucleoId" (ngModelChange)="onRecepcionDestinoNucleoChange($index)">
+                                          <option [ngValue]="null">Seleccione…</option>
+                                          @for (n of recepcionNucleosForFarm(t.toFarmId); track n) {
+                                            <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                      <div class="field">
+                                        <label class="form-label">Galpón *</label>
+                                        <select class="form-input" [(ngModel)]="d.galponId">
+                                          <option [ngValue]="null">Seleccione…</option>
+                                          @for (g of recepcionGalponesForNucleo(t.toFarmId, d.nucleoId); track g) {
+                                            <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                      <div class="field">
+                                        <label class="form-label">Cantidad ({{ t.unit }}) *</label>
+                                        <input class="form-input" type="number" min="0" step="0.001" [(ngModel)]="d.quantity" />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        class="recepcion-distribucion__remove"
+                                        (click)="removeRecepcionDestino($index)"
+                                        [disabled]="submittingRecepcion || recepcionDestinos.length === 1"
+                                        title="Quitar galpón">
+                                        <fa-icon [icon]="faTrash"></fa-icon>
+                                      </button>
+                                    </div>
+                                  }
+                                </div>
+
+                                <div class="recepcion-distribucion__footer">
+                                  <button type="button" class="btn-italfoods-secondary" (click)="addRecepcionDestino()" [disabled]="submittingRecepcion">
+                                    + Agregar galpón
+                                  </button>
+                                  <div class="recepcion-distribucion__totales" [class.recepcion-distribucion__totales--ok]="recepcionRestante() === 0">
+                                    <span>Distribuido: <strong>{{ recepcionDistribuido() }}</strong> de {{ t.quantity }} {{ t.unit }}</span>
+                                    @if (recepcionRestante() > 0) {
+                                      <span class="recepcion-distribucion__falta">Falta asignar {{ recepcionRestante() }} {{ t.unit }}</span>
+                                    }
+                                    @if (recepcionRestante() < 0) {
+                                      <span class="recepcion-distribucion__falta">Se pasó por {{ -recepcionRestante() }} {{ t.unit }}</span>
+                                    }
+                                    @if (recepcionRestante() === 0) {
+                                      <span class="recepcion-distribucion__ok">Cuadra con la cantidad en tránsito</span>
+                                    }
+                                  </div>
+                                </div>
+                                <p class="hint">Reparta los {{ t.quantity }} {{ t.unit }} entre los galpones de <strong>su granja destino</strong>. La suma debe ser exacta: no hay recepción parcial.</p>
+                              </div>
+                            }
                           }
                           @if (!recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
                             <p class="hint">Este ítem se recibe solo a nivel granja (la granja destino ya está indicada arriba).</p>

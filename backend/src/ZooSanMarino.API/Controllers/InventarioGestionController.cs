@@ -185,8 +185,16 @@ public class InventarioGestionController : ControllerBase
     {
         try
         {
-            var (destino, movimiento) = await _service.RegistrarRecepcionTransitoAsync(req, ct);
-            return Ok(new { destino, movimiento });
+            var resultado = await _service.RegistrarRecepcionTransitoAsync(req, ct);
+            // Respuesta aditiva: destino/movimiento (primera ubicación) conservan el contrato previo;
+            // destinos/movimientos traen todas las ubicaciones cuando la recepción se distribuye.
+            return Ok(new
+            {
+                destino = resultado.Destinos.FirstOrDefault(),
+                movimiento = resultado.Movimientos.FirstOrDefault(),
+                destinos = resultado.Destinos,
+                movimientos = resultado.Movimientos
+            });
         }
         catch (InvalidOperationException ex)
         {
