@@ -490,12 +490,14 @@ cadena que corre dentro de la imagen, fuera de Docker, con el Node portable 22.2
 - [x] El `BUILD_ID` quedó DENTRO de `main-*.js` (confirma que el sellado en dos fases no muta el output ya hasheado)
 - [x] `src/app/core/build-info.ts` restaurado a `'dev'`; no se commitea el timestamp
 - [x] Auditado el resto del job, que en CI nunca se ejecutó: assets salen de `src/` (copiado), no hay `public/` ni `ngsw-config.json`, y el paso "Validar nginx…" extrae su asset de referencia con un patrón que sí matchea (`polyfills-*.js`)
-- [ ] **PENDIENTE** el paso "Validar nginx y política de caché del borde" solo se puede ejercitar en CI (necesita Docker); es la primera vez que corre de verdad
+- [x] El paso "Validar nginx y política de caché del borde" corrió por primera vez en CI y pasó sus 13 chequeos (`Borde OK`), con `polyfills-5CFQRCPP.js` como asset de referencia — el patrón sí matchea
 
 ## Despliegue
 
 - [x] Commit quirúrgico en `main` (solo el fix; el árbol tenía trabajo en curso de otra sesión, no se tocó)
-- [ ] Push a `main` → PR a `main-produccion` → merge → verificar el run
+- [x] Push a `main` → PR [#50](https://github.com/ItalcolColombia/App_SanMarino/pull/50) → merge → run [30292942680](https://github.com/ItalcolColombia/App_SanMarino/actions/runs/30292942680) **verde** (tests 1m9s · backend 6m30s · frontend 5m8s)
+- [x] Verificación post-deploy en AWS: front TaskDef `sanmarino-front-task:134` y back `sanmarino-back-task:136`, ambos PRIMARY/COMPLETED 1/1, ambas imágenes con el tag `690053e0…` = SHA de `main-produccion`. Sin rollback silencioso.
+- [x] Verificación en vivo (`https://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com`): `/version.json` → 200 `application/json` `no-cache` con `buildId 2026-07-27T18:24:04.616Z` (el de este run) · `/` → 200 con CSP y HSTS · `chunk-inexistente.js` y `ngsw.json` → 404 · `/lotes` → 200
 
 ---
 
