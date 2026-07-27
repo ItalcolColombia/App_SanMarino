@@ -268,3 +268,66 @@ con inventario a nivel granja **no cambian**.
 - [x] BD local restaurada al estado original (0 LPP de prueba, 0 seguimientos de prueba, `estado_cierre` de los 6 lotes igual que al inicio) · `environment.ts` revertido a :5002 · dev server y backend propios detenidos (sin procesos huérfanos; el backend :5002 de la otra sesión quedó intacto)
 - [x] `dotnet build` 0 errores / 0 advertencias · `dotnet test` **949/949** · `yarn build` 0 errores
 - [x] Commit
+
+---
+
+# Tracker — PWA offline-first con sincronización diferida (ANÁLISIS)
+
+**Plan:** [fase_de_desarrollo/pwa_offline_first_plan.md](fase_de_desarrollo/pwa_offline_first_plan.md)
+**Fecha:** 2026-07-26
+
+Objetivo: que los módulos operativos funcionen sin red y sincronicen al recuperar conexión, como **PWA autoactualizable** (no app móvil nativa), dejando el desarrollo alineado para que lo nuevo nazca sirviendo a los dos modos.
+
+> ⚠️ **Estado: análisis terminado, implementación NO iniciada.** El plan requiere 7 decisiones del usuario (§7 del plan) antes de escribir código.
+
+## Fase 0 — Análisis
+- [x] Exploración exhaustiva (workflow 14 agentes, 981 lecturas): 8 áreas de inventario (postura, engorde, inventario, movimientos/ventas, granjas/catálogos, auth/sesión, plataforma backend, build/hosting) + 3 de riesgo (volumetría, reglas de negocio, precedentes batch) + 3 críticas adversariales (datos/conflictos, seguridad/tenancy, entrega/operación)
+- [x] Volumetría **medida**, no estimada, con `octet_length(row_to_json(x)::text)` contra `sanmarinoapplocal:5433` (solo lectura): 2-4 MB por operario típico · 8,2 MB peor caso medido · 15 MB sin ventana ⇒ **el tamaño no es el problema**
+- [x] Verificado que `zootecnicoapp/` (Flutter) es un scaffold vacío de mayo-2026 — la decisión PWA no descarta trabajo previo
+- [x] Confirmado punto de partida cero: sin `@angular/service-worker`, sin manifest, sin IndexedDB, sin idempotencia, sin control de concurrencia, sin tombstones
+- [x] Plan escrito en `fase_de_desarrollo/`
+
+## Decisiones pendientes del usuario (bloquean el arranque)
+- [ ] **D1** Alcance de escritura en v1 (recomendado: lista blanca de captura diaria; ventas y movimientos a v2)
+- [ ] **D2** ¿Fase 0 completa antes, o Fase 0.C + piloto de solo lectura en paralelo? (recomendado: en paralelo)
+- [ ] **D3** Dato en reposo: cifrar con PIN/WebAuthn vs no cifrar + minimizar + TTL
+- [ ] **D4** Vigencia de sesión offline: jornada vs 7 días (recomendado: jornada, con revocación real)
+- [ ] **D5** Dispositivos objetivo (Android / iOS / ambos) — define si hace falta sync explícita en primer plano
+- [ ] **D6** Modo offline global vs opt-in por rol y dispositivo (recomendado: opt-in; prohibido para alcance global)
+- [ ] **D7** Verificar con `curl -I` contra prod cuál es el origen real del front (ECS+nginx vs S3+CloudFront)
+
+## Fase 0.C — Higiene de entrega (sin tocar funcionalidad)
+- [ ] **C1** Eliminar la mutación post-build de `index.html` (`Dockerfile:53-56` + `scripts/inject-version.js`) — invalida el hash de `ngsw.json` ⇒ SW en safe mode silencioso
+- [ ] **C2** Fallback a `index.html` solo para navegaciones (nginx `try_files $uri =404` para extensiones conocidas + CloudFront sin CustomErrorResponse global)
+- [ ] **C3** `no-cache` en `ngsw.json` / `ngsw-worker.js` / `safety-worker.js` / `manifest.webmanifest` / `index.html`
+- [ ] **C4** Definir el único origen del front y borrar el camino muerto del repo
+- [ ] **C5** Arreglar la herencia de headers de nginx (hoy index.html y los .js salen **sin CSP ni HSTS**)
+- [ ] **C6** Gate de tests real en el pipeline (hoy 296 líneas de workflow, 0 `dotnet test` / `yarn test`) — arreglar antes el harness de Karma (compila 0 specs)
+- [ ] **C7** `deploy-frontend: needs: [deploy-backend]`
+- [ ] **C8** Política de rate limit propia para `/api/sync/*` por usuario/device (hoy bloquea la IP completa 3 min)
+
+## Fase 0.B — Sesión y seguridad
+- [ ] **B1** `jti` + tabla `sesiones_activas` + refresh token (hoy **no hay forma de revocar una sesión**)
+- [ ] **B2** `SessionTimeoutService`: suspender idle/heartbeat logout en offline; nunca purgar con cola pendiente
+- [ ] **B3** Distinguir 401 de autenticación vs 401 de plataforma
+- [ ] **B4** Llevar a server-side los gates de escritura hoy front-only (~46 `*appHasPermission` vs ~7 chequeos en controllers)
+- [ ] **B5** El servidor estampa el autor desde el token e ignora `dto.CreatedByUserId`
+- [ ] **B6** Eliminar el fallback silencioso de empresa y la confianza en `X-Active-Pais`
+- [ ] **B7** Corregir `setActiveCompany()` (cambia el nombre y nunca el id)
+- [ ] **B8** Rotar las 4 llaves de `environment.prod.ts` (quemadas en git)
+- [ ] **B9** Decidir política de dato en reposo (D3)
+- [ ] **B10** Super admin por email hardcodeado → a datos
+
+## Fase 0.A — Integridad de datos (varios son bugs de HOY)
+- [ ] **A1** UNIQUE en la clave natural de `inventario_gestion_stock` + `ON CONFLICT DO UPDATE` — 🔴 explotable hoy con dos pestañas
+- [ ] **A2** Descuento de stock como UPDATE atómico condicional
+- [ ] **A3** `trigger_lotes_to_lote_postura_levante`: la rama UPDATE deja de pisar `aves_*_actual`
+- [ ] **A4** Sacar el `SaveChangesAsync` de `ProduccionService.ObtenerInformacionLoteAsync` (lectura que escribe)
+- [ ] **A5** `deleted_at` + soft delete + `sync_tombstones` en las tablas operativas
+- [ ] **A6** Índice único de producción a `(lote_postura_produccion_id, fecha)`
+- [ ] **A7** Consolidar los dos services que escriben `seguimiento_diario_levante` (`Program.cs:217` vs `:232`)
+- [ ] **A8** `FechaOperacion` en el consumo + `fn_acumulado_entradas_alimento` por `(fecha_operacion, id)`
+- [ ] **A9** `lote_ave_engorde_id` explícito + `fn_lote_ave_engorde_id_desde_ubicacion` por rango de vida
+- [ ] **A10** Reemplazar el trigger acumulativo del espejo de huevos por el recálculo derivado ya existente
+
+## Fases F1-F5 — ver §8 del plan (no desglosadas hasta que se cierren las decisiones)
