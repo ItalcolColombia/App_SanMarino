@@ -463,3 +463,36 @@ edad 1 (Día 2). Solo cambia cuál es el primer día con registro válido ⇒ **
 - [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1020/1020
 - [x] `ng build` 0 errores (solo el warning preexistente de bundle budget)
 - [ ] **PENDIENTE** smoke end-to-end: requiere aplicar la migración en la BD local y reiniciar el backend, que está corriendo en otra sesión.
+
+---
+
+# Fix — deploy del frontend roto en CI (`MODULE_NOT_FOUND` en el build de Docker)
+
+Plan: [fase_de_desarrollo/fix_deploy_frontend_dockerignore_plan.md](fase_de_desarrollo/fix_deploy_frontend_dockerignore_plan.md)
+
+Run fallido **82085199647** (2026-07-27 17:46 UTC), job `Frontend — Build & Deploy`, paso 7.
+Causa: `.dockerignore` dejaba pasar `scripts/inject-version.js`, borrado por `76a2903` al renombrarlo a
+`build-version.js` ⇒ `scripts/` llegaba vacío al contexto y `COPY scripts ./scripts` no se quejaba.
+
+## Cambios
+
+- [x] `frontend/.dockerignore`: lista blanca apunta a `scripts/build-version.js` + comentario que la ata al Dockerfile
+- [x] `frontend/Dockerfile`: `COPY scripts ./scripts` → `COPY scripts/build-version.js ./scripts/build-version.js` (falla ruidoso e inmediato si el contexto no lo trae)
+
+## Validación
+
+Docker Desktop no levanta en esta máquina (el proceso muere al arrancar), así que se validó la misma
+cadena que corre dentro de la imagen, fuera de Docker, con el Node portable 22.23.1:
+
+- [x] `node scripts/build-version.js prepare` → sella `src/app/core/build-info.ts`
+- [x] `yarn build --configuration docker` → exit 0; inicial 1.94 MB contra el tope de **error** de 2.5 MB de esa configuración (solo los 2 warnings de budget preexistentes)
+- [x] `node scripts/build-version.js emit` → `dist/browser/version.json` con el buildId
+- [x] El `BUILD_ID` quedó DENTRO de `main-*.js` (confirma que el sellado en dos fases no muta el output ya hasheado)
+- [x] `src/app/core/build-info.ts` restaurado a `'dev'`; no se commitea el timestamp
+- [x] Auditado el resto del job, que en CI nunca se ejecutó: assets salen de `src/` (copiado), no hay `public/` ni `ngsw-config.json`, y el paso "Validar nginx…" extrae su asset de referencia con un patrón que sí matchea (`polyfills-*.js`)
+- [ ] **PENDIENTE** el paso "Validar nginx y política de caché del borde" solo se puede ejercitar en CI (necesita Docker); es la primera vez que corre de verdad
+
+## Despliegue
+
+- [x] Commit quirúrgico en `main` (solo el fix; el árbol tenía trabajo en curso de otra sesión, no se tocó)
+- [ ] Push a `main` → PR a `main-produccion` → merge → verificar el run
