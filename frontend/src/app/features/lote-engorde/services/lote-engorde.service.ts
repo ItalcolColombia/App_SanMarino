@@ -11,6 +11,9 @@ export interface LoteAveEngordeDto {
   galponId?: string | null;
   regional?: string;
   fechaEncaset?: string;
+  /** Hora de llegada de las aves (HH:mm). Desde las 13:00 el primer registro de seguimiento
+   *  pasa al día siguiente del encasetamiento. No mueve la fecha ni la edad. */
+  horaEncasetamiento?: string | null;
   fechaAlistamiento?: string | null;
   hembrasL?: number;
   machosL?: number;

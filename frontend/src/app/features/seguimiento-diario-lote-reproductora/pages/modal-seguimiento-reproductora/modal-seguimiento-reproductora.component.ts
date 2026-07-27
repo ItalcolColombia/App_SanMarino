@@ -69,6 +69,10 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
    *  semana de recogida: el día del encasetamiento es el DÍA 1 (edad 0) y se acepta hasta edad 7
    *  (tolerancia para lotes que arrancaron al día siguiente del encaset, numeración previa). */
   @Input() fechaEncasetamiento: string | Date | null = null;
+  /** Hora de llegada de las aves (HH:mm). Desde las 13:00 las aves ya no consumen ese día, así que el
+   *  primer registro de la semana de recogida pasa al día siguiente del encasetamiento. Espejo de
+   *  EncasetamientoCalculos en el backend: sin hora, el mínimo sigue siendo el día del encaset. */
+  @Input() horaEncasetamiento: string | null = null;
   /** Número de registros existentes en el lote reproductora (para mostrar el hint). */
   @Input() registrosCount: number = 0;
   /** Contexto de navegación mostrado en la banda superior del modal. */
@@ -133,9 +137,23 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
   }
 
-  /** Fecha mínima permitida (YYYY-MM-DD) = fecha de encasetamiento (día 1 de la semana). */
+  /** Hora de corte: desde las 13:00 el primer registro pasa al día siguiente (espejo del backend). */
+  private static readonly HORA_CORTE = '13:00';
+
+  /** True si las aves llegaron a las 13:00 o después ⇒ el día del encaset no admite registro. */
+  private get llegadaTardia(): boolean {
+    const h = (this.horaEncasetamiento ?? '').trim();
+    return h.length >= 5 && h.slice(0, 5) >= ModalSeguimientoReproductoraComponent.HORA_CORTE;
+  }
+
+  /**
+   * Fecha mínima permitida (YYYY-MM-DD) = primer día con registro: el encasetamiento, o el día
+   * siguiente si las aves llegaron a las 13:00 o después.
+   */
   get minFechaYmd(): string | null {
-    return ymdSinTz(this.fechaEncasetamiento);
+    const enc = ymdSinTz(this.fechaEncasetamiento);
+    if (!enc) return null;
+    return this.llegadaTardia ? this.addDaysYmd(enc, 1) : enc;
   }
 
   /** Fecha máxima permitida (YYYY-MM-DD) = encasetamiento + 7 días (tolerancia numeración previa). */

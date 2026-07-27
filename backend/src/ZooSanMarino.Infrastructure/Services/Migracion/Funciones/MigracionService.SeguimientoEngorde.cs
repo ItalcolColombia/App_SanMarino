@@ -47,7 +47,7 @@ public partial class MigracionService
     // ── Localización por nombres (case/acento-insensible) ────────────────────
     /// <summary>Lote engorde abierto con los nombres de su ubicación, para resolver filas por texto.</summary>
     private sealed record LoteEngordeUbicado(
-        int LoteId, string LoteNombre, DateTime? FechaEncaset, string GranjaNombre,
+        int LoteId, string LoteNombre, DateTime? FechaEncaset, TimeOnly? HoraEncaset, string GranjaNombre,
         string? NucleoCodigo, string? NucleoNombre, string? GalponCodigo, string? GalponNombre);
 
     /// <summary>
@@ -60,7 +60,7 @@ public partial class MigracionService
         var lotes = await _ctx.LoteAveEngorde.AsNoTracking()
             .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LoteAveEngordeId != null
                         && l.EstadoOperativoLote != "Cerrado")
-            .Select(l => new { Id = l.LoteAveEngordeId!.Value, l.LoteNombre, l.GranjaId, l.NucleoId, l.GalponId, l.FechaEncaset })
+            .Select(l => new { Id = l.LoteAveEngordeId!.Value, l.LoteNombre, l.GranjaId, l.NucleoId, l.GalponId, l.FechaEncaset, l.HoraEncasetamiento })
             .ToListAsync(ct);
 
         var granjaIds = lotes.Select(l => l.GranjaId).Distinct().ToList();
@@ -89,7 +89,7 @@ public partial class MigracionService
             var nucleoCodigo = string.IsNullOrWhiteSpace(l.NucleoId) ? null : l.NucleoId.Trim();
             var galponCodigo = string.IsNullOrWhiteSpace(l.GalponId) ? null : l.GalponId.Trim();
             return new LoteEngordeUbicado(
-                l.Id, l.LoteNombre, l.FechaEncaset,
+                l.Id, l.LoteNombre, l.FechaEncaset, l.HoraEncasetamiento,
                 granjaPorId.TryGetValue(l.GranjaId, out var gn) ? gn : l.GranjaId.ToString(),
                 nucleoCodigo,
                 nucleoCodigo is null ? null : nucleoPorClave.GetValueOrDefault((l.GranjaId, nucleoCodigo)),
@@ -217,7 +217,7 @@ public partial class MigracionService
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
-            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, string.Empty, null, null, null, null);
+            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento, string.Empty, null, null, null, null);
 
         // (lote, fecha) ya cargados de TODOS los lotes abiertos (idempotencia multi-lote en una consulta;
         // incluye filas origen_cruce de días 1-7).
@@ -268,9 +268,22 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), $"Fecha repetida en el archivo para el lote {lote.LoteNombre}.")); continue; }
             if (existentes.Contains((lote.LoteId, fecha.Date))) { omitidas++; continue; } // ya existe → idempotente, se omite
 
-            // Regla de fecha (alineada al front): nunca anterior al encaset del lote; futura solo advierte.
-            if (lote.FechaEncaset.HasValue && fecha.Date < lote.FechaEncaset.Value.Date)
-            { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), $"{lote.LoteNombre}: la fecha es anterior al encaset del lote ({lote.FechaEncaset.Value:yyyy-MM-dd}).")); continue; }
+            // Regla de fecha (alineada al front): nunca anterior al PRIMER DÍA CON REGISTRO del lote,
+            // que es el encaset o el día siguiente si las aves llegaron a las 13:00 o después. Futura
+            // solo advierte.
+            if (lote.FechaEncaset.HasValue)
+            {
+                var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncaset);
+                if (fecha.Date < primerDia.Date)
+                {
+                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncaset);
+                    errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
+                        motivoHora is null
+                            ? $"{lote.LoteNombre}: la fecha es anterior al encaset del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
+                            : $"{lote.LoteNombre}: el primer registro es el {primerDia:yyyy-MM-dd} porque {motivoHora}."));
+                    continue;
+                }
+            }
             if (fecha.Date > hoyUtc)
                 errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "La fecha es futura; verificá que sea intencional.", "Advertencia"));
 
@@ -420,7 +433,14 @@ public partial class MigracionService
 
         var (lotesUbicados, _) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var (alimentos, _) = await CargarAlimentosEmpresaAsync(companyId, ct);
-        var esquema = MigracionEsquemas.SeguimientoPolloEngorde;
+
+        // Empresa que no maneja el engorde por sexo (Panamá) → plantilla con columnas MIXTAS. El
+        // parseo NO cambia: SeguimientoPolloEngorde acepta esos títulos como alias de las columnas H.
+        var mixto = await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.SeguimientoEngordeMixto)
+            .FirstOrDefaultAsync(ct);
+        var esquema = mixto ? MigracionEsquemas.SeguimientoPolloEngordeMixto : MigracionEsquemas.SeguimientoPolloEngorde;
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
@@ -447,30 +467,56 @@ public partial class MigracionService
         if (alimentos.Count > 0)
         {
             var rangoAlimentos = $"Referencias!$A$2:$A${alimentos.Count + 1}";
-            foreach (var titulo in new[] { "Tipo Alimento", "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" })
+            var columnasAlimento = mixto
+                ? new[] { "Tipo Alimento", "Alimento 1 Mixto", "Alimento 2 Mixto" }
+                : new[] { "Tipo Alimento", "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" };
+            foreach (var titulo in columnasAlimento)
                 DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, titulo) + 1), rangoAlimentos);
         }
         if (lotesUbicados.Count > 0)
             DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Lote") + 1), $"Referencias!$F$2:$F${lotesUbicados.Count + 1}");
 
-        HojaInstrucciones(pkg, $"Migración Seguimiento Engorde — Lote {lote.LoteNombre} (id {loteId})",
-            "Una fila por día en la hoja 'Datos'.",
+        var comunes = new[]
+        {
             "• Lote / Granja / Núcleo / Galpón: opcionales. Sin 'Lote', la fila corresponde al lote seleccionado en pantalla.",
             "  Con 'Lote' (nombre tal como aparece en el sistema; mayúsculas/minúsculas indistintas) podés cargar VARIOS lotes",
             "  en un mismo archivo; usá Granja/Núcleo/Galpón para desambiguar nombres repetidos (tabla en 'Referencias').",
             "• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa), no anterior al encaset del lote. Fecha futura solo advierte.",
-            "• Mortalidad / Selección / Error de sexaje: enteros ≥ 0 (vacío = 0).",
-            "• Alimento 1/2 H y M: elegí el alimento del inventario (lista desplegable, hoja 'Referencias') y su consumo.",
-            "  Hasta dos alimentos por sexo por fecha; al importar se DESCUENTA el inventario de esos alimentos.",
-            "• Consumo H/M (directo): solo si NO usás Alimento 1/2 (sin descuento de inventario). Número ≥ 0.",
             "• Unidad Consumo: 'kg' (default si se deja vacía) o 'qq' — aplica al consumo directo Y a los alimentos (1 qq = 45.36 kg).",
             "• Peso: ≥ 0 opcional. Uniformidad: 0 a 100 opcional.",
             "• Días de pesaje (edad 1–7 y múltiplos de 7): si la fila no trae peso se genera una advertencia (no bloquea).",
-            "• Lotes MIXTOS (Panamá): cargá las cantidades en las columnas H (M = 0), igual que el formulario.",
-            "• QQ Mixtas / QQ H / QQ M (Panamá): quintales de alimento por categoría, opcionales (≥ 0).",
             "La carga es idempotente por lote+fecha: las fechas ya cargadas (incluidos los primeros días generados por",
-            "cruce reproductora) se omiten. Al importar se registra el retiro de aves por mortalidad/selección y se",
-            "recalcula el saldo de alimento de cada lote.");
+            "cruce reproductora) se omiten. Al importar se descuentan las aves por mortalidad/selección y se",
+            "recalcula el saldo de alimento de cada lote.",
+        };
+
+        var especificas = mixto
+            ? new[]
+            {
+                "Este lote NO se maneja por sexo: cada columna es el TOTAL MIXTO del día (una sola cifra).",
+                "• Mort Mixta / Sel Mixta: enteros ≥ 0 (vacío = 0). Se descuentan de las aves mixtas del lote.",
+                "• Consumo Mixto (kg): alimento total del día. Si ponés 'qq' en Unidad Consumo, digitá los quintales acá",
+                "  y el sistema los convierte a kg (×45.36).",
+                "• Alimento 1/2 Mixto + su consumo: alternativa al consumo directo, eligiendo el alimento del inventario",
+                "  (lista desplegable, hoja 'Referencias'). Al importar DESCUENTA el stock de ese alimento; dejá vacío",
+                "  'Consumo Mixto (kg)' si usás esta vía.",
+                "• QQ Mixtas: quintales del día, SOLO informativos para el informe semanal. NO generan consumo:",
+                "  el consumo sale de 'Consumo Mixto (kg)'.",
+            }
+            : new[]
+            {
+                "Una fila por día en la hoja 'Datos'.",
+                "• Mortalidad / Selección / Error de sexaje: enteros ≥ 0 (vacío = 0).",
+                "• Alimento 1/2 H y M: elegí el alimento del inventario (lista desplegable, hoja 'Referencias') y su consumo.",
+                "  Hasta dos alimentos por sexo por fecha; al importar se DESCUENTA el inventario de esos alimentos.",
+                "• Consumo H/M (directo): solo si NO usás Alimento 1/2 (sin descuento de inventario). Número ≥ 0.",
+                "• Lotes MIXTOS: cargá las cantidades en las columnas H (M = 0), igual que el formulario.",
+                "• QQ Mixtas / QQ H / QQ M (Panamá): quintales de alimento por categoría, opcionales (≥ 0).",
+            };
+
+        HojaInstrucciones(pkg,
+            $"Migración Seguimiento Engorde{(mixto ? " (MIXTO)" : "")} — Lote {lote.LoteNombre} (id {loteId})",
+            especificas.Concat(comunes).ToArray());
 
         return (Finalizar(pkg), $"SeguimientoEngorde_Lote{loteId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
     }

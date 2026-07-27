@@ -8,9 +8,24 @@ namespace ZooSanMarino.API.Middleware;
 /// Middleware que valida el SECRET_UP en todas las peticiones HTTP para asegurar
 /// que solo las peticiones del frontend autorizado puedan acceder a los endpoints.
 /// El SECRET_UP viene encriptado y debe ser desencriptado antes de validarlo.
+///
+/// <para>
+/// Sus rechazos son 401 igual que los de autenticación, pero <b>no significan lo mismo</b>:
+/// éste dice "no reconozco de dónde viene la petición", no "tu sesión venció". El cliente
+/// los distingue por la cabecera <see cref="AuthFailureHeader"/> = <see cref="PlatformFailureValue"/>.
+/// Sin esa distinción, el interceptor del front cierra la sesión ante cualquier 401: rotar el
+/// SECRET_UP destruiría la sesión —y, cuando exista, la cola de sincronización offline— de
+/// todos los dispositivos a la vez.
+/// </para>
 /// </summary>
 public class PlatformSecretMiddleware
 {
+    /// <summary>Cabecera que tipifica POR QUÉ se rechazó, para que el cliente no adivine.</summary>
+    public const string AuthFailureHeader = "X-Auth-Failure";
+
+    /// <summary>Valor que marca un rechazo de plataforma (origen), NO de autenticación.</summary>
+    public const string PlatformFailureValue = "platform-secret";
+
     private readonly RequestDelegate _next;
     private readonly string _expectedSecret;
     private readonly string _encryptionKey;
@@ -91,13 +106,7 @@ public class PlatformSecretMiddleware
             _logger.LogWarning("Petición rechazada: falta header X-Secret-Up desde {RemoteIpAddress}", 
                 context.Connection.RemoteIpAddress);
             
-            context.Response.StatusCode = 401;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new
-            {
-                error = "Unauthorized",
-                message = "SECRET_UP no proporcionado en el header X-Secret-Up"
-            });
+            await RechazarAsync(context, "SECRET_UP no proporcionado en el header X-Secret-Up");
             return;
         }
 
@@ -113,13 +122,7 @@ public class PlatformSecretMiddleware
                 "Petición rechazada: Error al desencriptar SECRET_UP desde {RemoteIpAddress}", 
                 context.Connection.RemoteIpAddress);
             
-            context.Response.StatusCode = 401;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new
-            {
-                error = "Unauthorized",
-                message = "Error al desencriptar SECRET_UP"
-            });
+            await RechazarAsync(context, "Error al desencriptar SECRET_UP");
             return;
         }
 
@@ -132,18 +135,31 @@ public class PlatformSecretMiddleware
                 _expectedSecret.Substring(0, Math.Min(10, _expectedSecret.Length)),
                 decryptedSecretUp.Substring(0, Math.Min(10, decryptedSecretUp.Length)));
             
-            context.Response.StatusCode = 401;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new
-            {
-                error = "Unauthorized",
-                message = "SECRET_UP inválido"
-            });
+            await RechazarAsync(context, "SECRET_UP inválido");
             return;
         }
 
         // SECRET_UP válido, continuar con la petición
         await _next(context);
+    }
+
+    /// <summary>
+    /// Rechazo de plataforma. Mantiene el 401 y el cuerpo históricos (`error` + `message`)
+    /// y agrega la tipificación: la cabecera <see cref="AuthFailureHeader"/> y `errorCode`
+    /// en el cuerpo. El cliente usa eso para NO cerrar la sesión del usuario por un
+    /// problema que no tiene nada que ver con sus credenciales.
+    /// </summary>
+    private static async Task RechazarAsync(HttpContext context, string mensaje)
+    {
+        context.Response.StatusCode = 401;
+        context.Response.ContentType = "application/json";
+        context.Response.Headers[AuthFailureHeader] = PlatformFailureValue;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = "Unauthorized",
+            errorCode = PlatformFailureValue,
+            message = mensaje
+        });
     }
 }
 

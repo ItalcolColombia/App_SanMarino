@@ -82,7 +82,8 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
         int BajasH, int BajasM, DateTime? UltimoSeg,
         int VenHistH, int VenHistM, int VenHistX, DateTime? UltimaVenta, int VentasPostSeg,
         int PendH, int PendM, int PendX, List<int> PendVencidosIds, int PendVencidosH, int PendVencidosM,
-        List<VentaCompletada> VentasCompletadas, int AjusteAudH, int AjusteAudM, int AjusteAudX);
+        List<VentaCompletada> VentasCompletadas, int AjusteAudH, int AjusteAudM, int AjusteAudX,
+        int BajasAplicadasH, int BajasAplicadasM, int BajasAplicadasX);
 
     private async Task<List<LoteBase>> LoadLotesAsync(int companyId, string? loteNombre, CancellationToken ct)
     {
@@ -167,6 +168,22 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
             .Select(g => new { H = g.Sum(x => x.AvesHembras), M = g.Sum(x => x.AvesMachos), X = g.Sum(x => x.AvesMixtas) })
             .SingleOrDefaultAsync(ct);
 
+        // Bajas de seguimiento YA APLICADAS al maestro. Se leen del histórico unificado (una fila por
+        // seguimiento, escrita por RetiroAvesEngordeAplicador) y no de la suma de mortalidad, porque
+        // los seguimientos anteriores a esa funcionalidad NUNCA descontaron el maestro: para ellos no
+        // hay filas y la conservación queda idéntica a la de antes (retrocompatible por construcción).
+        var bajasAplicadas = await _ctx.LoteRegistroHistoricoUnificados.AsNoTracking()
+            .Where(h => h.LoteAveEngordeId == lote.Id
+                     && h.TipoEvento == RetiroAvesEngordeAplicador.TipoEventoBaja && !h.Anulado)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                H = g.Sum(x => x.CantidadHembras ?? 0),
+                M = g.Sum(x => x.CantidadMachos ?? 0),
+                X = g.Sum(x => x.CantidadMixtas ?? 0)
+            })
+            .SingleOrDefaultAsync(ct);
+
         int iniH = ini?.AvesHembras ?? 0, iniM = ini?.AvesMachos ?? 0, iniX = ini?.AvesMixtas ?? 0;
         bool historialConfiable = ini != null && lote.Encaset > 0 && (iniH + iniM + iniX) == lote.Encaset;
 
@@ -179,7 +196,8 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
             pendVencidos.Select(p => p.Id).ToList(),
             pendVencidos.Sum(p => p.CantidadHembras), pendVencidos.Sum(p => p.CantidadMachos),
             ventasCompletadas,
-            ajustes?.H ?? 0, ajustes?.M ?? 0, ajustes?.X ?? 0);
+            ajustes?.H ?? 0, ajustes?.M ?? 0, ajustes?.X ?? 0,
+            bajasAplicadas?.H ?? 0, bajasAplicadas?.M ?? 0, bajasAplicadas?.X ?? 0);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -190,7 +208,10 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
 
     /// <summary>
     /// Calcula el descuento pendiente del maestro por ventas Completadas que no descontaron.
-    /// Con historial confiable: esperado = iniciales − ventasCompletadas − ajustes auditados (por género).
+    /// Con historial confiable: esperado = iniciales − ventasCompletadas − ajustes auditados − bajas de
+    /// seguimiento ya aplicadas (por género). Las bajas se cuentan por las filas BAJA_SEGUIMIENTO del
+    /// histórico, no por la mortalidad registrada: así los lotes anteriores al descuento automático
+    /// (que nunca movieron el maestro) conservan exactamente la conservación previa.
     /// Sin historial confiable: conservación total + walk determinista de ventas viejas→nuevas
     /// que debe igualar EXACTO el sobrante (el bug afectó a la cohorte más vieja); si no cierra → manual.
     /// Nunca propone aumentos (drift negativo ⇒ revisión manual).
@@ -207,8 +228,8 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
 
         if (e.HistorialConfiable)
         {
-            var driftH = l.HembrasL - (e.IniH - vcompH - e.AjusteAudH);
-            var driftM = l.MachosL - (e.IniM - vcompM - e.AjusteAudM);
+            var driftH = l.HembrasL - (e.IniH - vcompH - e.AjusteAudH - e.BajasAplicadasH);
+            var driftM = l.MachosL - (e.IniM - vcompM - e.AjusteAudM - e.BajasAplicadasM);
             if (driftH == 0 && driftM == 0) return new Resync(0, 0, true, null);
             if (driftH < 0 || driftM < 0)
                 return new Resync(0, 0, false,
@@ -218,7 +239,8 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
 
         // Historial no confiable → conservación total
         var driftTotal = (l.HembrasL + l.MachosL + l.Mixtas)
-                       - (l.Encaset - (vcompH + vcompM + vcompX) - (e.AjusteAudH + e.AjusteAudM + e.AjusteAudX));
+                       - (l.Encaset - (vcompH + vcompM + vcompX) - (e.AjusteAudH + e.AjusteAudM + e.AjusteAudX)
+                          - (e.BajasAplicadasH + e.BajasAplicadasM + e.BajasAplicadasX));
         if (driftTotal == 0) return new Resync(0, 0, true, null);
         if (driftTotal < 0)
             return new Resync(0, 0, false,

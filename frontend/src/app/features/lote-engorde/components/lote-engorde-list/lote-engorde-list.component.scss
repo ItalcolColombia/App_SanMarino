@@ -303,6 +303,13 @@ select.le-input {
   margin-top: 0.25rem;
 }
 
+.le-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+  margin-top: 0.25rem;
+}
+
 .le-warning {
   display: block;
   font-size: 0.75rem;

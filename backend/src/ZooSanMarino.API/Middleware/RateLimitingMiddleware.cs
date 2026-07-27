@@ -39,6 +39,11 @@ public class RateLimitingMiddleware
             MaxRequestsPerMinute        = configuration.GetValue("RateLimiting:MaxRequestsPerMinute", 100),
             MaxRequestsPerMinuteForAuth = configuration.GetValue("RateLimiting:MaxRequestsPerMinuteForAuth", 15),
             MaxRequestsPerMinuteForSwagger = configuration.GetValue("RateLimiting:MaxRequestsPerMinuteForSwagger", 50),
+            // Sincronización offline: se cuenta POR DISPOSITIVO, no por IP, así que el límite
+            // puede ser generoso. Un dispositivo que vuelve de un día sin señal drena su cola
+            // en lotes; ahogarlo acá solo alarga la ventana en la que el dato de campo vive
+            // únicamente en la tablet.
+            MaxRequestsPerMinuteForSync = configuration.GetValue("RateLimiting:MaxRequestsPerMinuteForSync", 300),
             BlockDurationMinutes        = configuration.GetValue("RateLimiting:BlockDurationMinutes", 3)
         };
     }
@@ -59,23 +64,29 @@ public class RateLimitingMiddleware
         }
 
         var clientIp = GetClientIpAddress(context);
-        var esRutaAuth = RateLimitingCalculos.EsRutaAuth(path);
+        var alcance = RateLimitingCalculos.AlcanceDeRuta(path);
+
+        // La identidad de sincronización sale de una cabecera y NO del JWT a propósito: este
+        // middleware corre antes de UseAuthentication(), así que context.User todavía está vacío.
+        var deviceId = context.Request.Headers[RateLimitingCalculos.DeviceIdHeader].FirstOrDefault();
+        var identidad = RateLimitingCalculos.IdentidadCliente(alcance, clientIp, deviceId);
 
         var limit = RateLimitingCalculos.LimiteParaRuta(
             path,
             _options.MaxRequestsPerMinute,
             _options.MaxRequestsPerMinuteForAuth,
-            _options.MaxRequestsPerMinuteForSwagger);
+            _options.MaxRequestsPerMinuteForSwagger,
+            _options.MaxRequestsPerMinuteForSync);
         var windowSeconds = 60; // Ventana de 1 minuto
 
-        var key = $"{clientIp}:{path}";
+        var key = $"{identidad}:{path}";
         var now = DateTime.UtcNow;
 
         // Limpiar entradas antiguas periódicamente
         CleanupOldEntries(now);
 
-        // Verificar si aplica un bloqueo vigente (global de la IP y, en rutas de auth, el acotado)
-        foreach (var blockKey in RateLimitingCalculos.ClavesAVerificar(clientIp, esRutaAuth))
+        // Verificar si aplica un bloqueo vigente según el alcance de la ruta
+        foreach (var blockKey in RateLimitingCalculos.ClavesAVerificar(identidad, alcance, clientIp))
         {
             if (!_cache.TryGetValue(blockKey, out DateTime blockUntil)) continue;
 
@@ -127,12 +138,13 @@ public class RateLimitingMiddleware
         if (RateLimitingCalculos.ExcedeLimite(rateLimitInfo.RequestCount, limit))
         {
             _logger.LogWarning(
-                "Rate limit excedido: {ClientIp} desde {Path}. Intentos: {Count}/{Limit}",
-                clientIp, path, rateLimitInfo.RequestCount, limit);
+                "Rate limit excedido: {Identidad} (ip {ClientIp}) desde {Path}. Intentos: {Count}/{Limit}",
+                identidad, clientIp, path, rateLimitInfo.RequestCount, limit);
 
-            // Bloquear por el tiempo configurado: rutas de auth solo bloquean auth para esa IP;
-            // el resto bloquea la IP completa.
-            var blockKey = RateLimitingCalculos.ClaveBloqueo(clientIp, esRutaAuth);
+            // Bloquear por el tiempo configurado, con el alcance que corresponda: auth bloquea
+            // solo auth de esa IP, sync bloquea solo la sincronización de ESE dispositivo, y el
+            // resto bloquea la IP completa.
+            var blockKey = RateLimitingCalculos.ClaveBloqueo(identidad, alcance);
             var blockUntilTime = now.AddMinutes(_options.BlockDurationMinutes);
             _cache.Set(blockKey, blockUntilTime, TimeSpan.FromMinutes(_options.BlockDurationMinutes + 1));
 
@@ -140,9 +152,12 @@ public class RateLimitingMiddleware
             context.Response.ContentType = "application/json";
             context.Response.Headers["Retry-After"] = (_options.BlockDurationMinutes * 60).ToString();
 
-            var mensaje = esRutaAuth
-                ? $"Demasiados intentos de inicio de sesión desde tu red. Podrás intentar de nuevo en {_options.BlockDurationMinutes} minutos."
-                : $"Has excedido el límite de peticiones. IP bloqueada por {_options.BlockDurationMinutes} minutos.";
+            var mensaje = alcance switch
+            {
+                AlcanceRateLimit.Auth => $"Demasiados intentos de inicio de sesión desde tu red. Podrás intentar de nuevo en {_options.BlockDurationMinutes} minutos.",
+                AlcanceRateLimit.Sync => $"Este dispositivo excedió el límite de sincronización. Reintentá en {_options.BlockDurationMinutes} minutos; la cola no se pierde.",
+                _                     => $"Has excedido el límite de peticiones. IP bloqueada por {_options.BlockDurationMinutes} minutos."
+            };
 
             await context.Response.WriteAsJsonAsync(new
             {
@@ -210,6 +225,7 @@ public class RateLimitingMiddleware
         public int MaxRequestsPerMinute { get; set; }
         public int MaxRequestsPerMinuteForAuth { get; set; }
         public int MaxRequestsPerMinuteForSwagger { get; set; }
+        public int MaxRequestsPerMinuteForSync { get; set; }
         public int BlockDurationMinutes { get; set; }
     }
 }

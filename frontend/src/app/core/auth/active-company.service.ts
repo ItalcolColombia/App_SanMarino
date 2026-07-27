@@ -21,21 +21,21 @@ export class ActiveCompanyService {
    * Establece la empresa activa
    * @param companyName Nombre de la empresa a activar
    */
-  setActiveCompany(companyName: string): void {
+  setActiveCompany(companyName: string): boolean {
     const session = this.storage.get();
     if (!session) {
       console.warn('No hay sesión activa para cambiar empresa');
-      return;
+      return false;
     }
 
     // Verificar que la empresa existe en las empresas disponibles
     if (!session.companies.includes(companyName)) {
       console.warn(`Empresa "${companyName}" no está disponible para este usuario`);
-      return;
+      return false;
     }
 
-    this.storage.setActiveCompany(companyName);
-    
+    // El storage mueve nombre + id + país + logo a la vez, o no mueve nada (fail-closed).
+    return this.storage.setActiveCompany(companyName);
   }
 
   /**

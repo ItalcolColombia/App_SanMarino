@@ -1,49 +1,90 @@
-import { Injectable, NgZone, inject } from '@angular/core';
+import { Injectable, InjectionToken, NgZone, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Subscription } from 'rxjs';
+import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { TokenStorageService } from './token-storage.service';
 import { AuthService } from './auth.service';
 import { ToastService } from '../../shared/services/toast.service';
+import { debeCerrarSesionPor401 } from './funciones/debe-cerrar-sesion-por-401.funcion';
+import {
+  EstadoSesion,
+  LIMITES_SESION_POR_DEFECTO,
+  MotivoFinDeSesion,
+  debeHacerHeartbeat,
+  evaluarFinDeSesion,
+  mensajeFinDeSesion
+} from './funciones/politica-sesion.funcion';
 
 /**
- * Sesión deslizante por inactividad (client-side).
+ * Proveedor del trabajo capturado y todavía no sincronizado.
  *
- * - Cierra la sesión tras 5 min SIN interacción del usuario (cada interacción reinicia el contador).
- * - Mientras el usuario está activo, un heartbeat verifica la conexión con el backend:
- *     · error de red sostenido (status 0) → cierra la sesión por "sin conexión" (tolerante a microcortes).
- *     · 401 → el token expiró/invalidó → cierra la sesión.
- * - No cambia el JWT (sigue de 60 min); la política de 5 min se enforca acá.
+ * Lo implementará la capa offline (`shared/offline/outbox`) cuando exista. Hasta entonces
+ * el default reporta 0 y el comportamiento es el de una app puramente online.
  *
- * Se arranca/detiene solo según haya sesión en storage. Corre fuera de la zona Angular
- * para que los listeners de mousemove no disparen change detection.
+ * Existe desde ahora porque la política de sesión **necesita** consultarlo: cerrar la sesión
+ * dispara una purga, y purgar con capturas pendientes destruye trabajo de campo.
+ */
+export interface ProveedorTrabajoPendiente {
+  /** Cantidad de operaciones capturadas sin subir al servidor. */
+  operacionesPendientes(): number;
+}
+
+export const TRABAJO_PENDIENTE_OFFLINE = new InjectionToken<ProveedorTrabajoPendiente>(
+  'TRABAJO_PENDIENTE_OFFLINE'
+);
+
+/**
+ * Sesión deslizante por inactividad, consciente del modo sin conexión.
+ *
+ * - Con red: cierra la sesión tras 5 min sin interacción (cada interacción reinicia el contador).
+ * - **Sin red: no cierra nada.** Ni por inactividad ni por heartbeats fallidos. Lo único que
+ *   cierra es el tope duro de jornada (16 h sin contacto con el servidor, decisión D4).
+ * - Con operaciones pendientes de sincronizar, no cierra por tiempo bajo ninguna circunstancia.
+ * - Un 401 de autenticación sí cierra; un 401 del gate de plataforma (SECRET_UP) no.
+ *
+ * La política vive aislada y con tests en `funciones/politica-sesion.funcion.ts`; acá solo se
+ * orquestan los timers, los listeners y el estado. No cambia el JWT (sigue de 60 min).
+ *
+ * Se arranca/detiene solo según haya sesión en storage. Corre fuera de la zona Angular para
+ * que los listeners de `mousemove` no disparen change detection.
  */
 @Injectable({ providedIn: 'root' })
 export class SessionTimeoutService {
-  private readonly IDLE_LIMIT_MS = 5 * 60 * 1000;   // 5 min sin interacción → logout
-  private readonly HEARTBEAT_MS = 90 * 1000;         // ping de conexión cada 90 s (solo si activo)
-  private readonly IDLE_CHECK_MS = 15 * 1000;        // frecuencia de chequeo de inactividad
-  private readonly MAX_HEARTBEAT_FAILS = 2;          // fallos de red seguidos para "sin conexión"
+  private readonly HEARTBEAT_MS = 90 * 1000;   // ping de conexión cada 90 s (solo si activo)
+  private readonly IDLE_CHECK_MS = 15 * 1000;  // frecuencia de evaluación de la política
+  private readonly MAX_HEARTBEAT_FAILS = 2;    // fallos de red seguidos para darse por sin conexión
+
+  private readonly limites = LIMITES_SESION_POR_DEFECTO;
 
   private readonly zone = inject(NgZone);
   private readonly router = inject(Router);
   private readonly storage = inject(TokenStorageService);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+  private readonly trabajoPendiente = inject(TRABAJO_PENDIENTE_OFFLINE, { optional: true });
 
   private readonly ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'mousemove', 'scroll', 'touchstart', 'wheel'];
 
   private running = false;
   private ending = false;
   private lastActivity = 0;
+  private ultimoContactoOk = 0;
   private heartbeatFails = 0;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatSub?: Subscription;
   private sessionSub?: Subscription;
 
+  /** Estado de conexión observable, para que la UI pueda mostrar el modo sin red. */
+  private readonly enLinea$$ = new BehaviorSubject<boolean>(true);
+  readonly enLinea$: Observable<boolean> = this.enLinea$$.asObservable();
+  get enLinea(): boolean { return this.enLinea$$.value; }
+
   private readonly onActivity = () => { this.lastActivity = Date.now(); };
   private readonly onVisibility = () => { if (document.visibilityState === 'visible') this.lastActivity = Date.now(); };
+  // El navegador avisa de los cambios de conectividad; es más rápido que esperar al heartbeat.
+  private readonly onOnline = () => { this.marcarEnLinea(true); };
+  private readonly onOffline = () => { this.marcarEnLinea(false); };
 
   /** Llamar una vez al arranque (AppComponent). Arranca/detiene según haya sesión. */
   init(): void {
@@ -54,7 +95,7 @@ export class SessionTimeoutService {
     });
   }
 
-  /** Notificado por el interceptor ante un 401 en una petición autenticada. */
+  /** Notificado por el interceptor ante un 401 de AUTENTICACIÓN (no el de plataforma). */
   onUnauthorized(): void {
     if (this.running) this.zone.run(() => this.endSession('expirada'));
   }
@@ -65,10 +106,16 @@ export class SessionTimeoutService {
     this.ending = false;
     this.heartbeatFails = 0;
     this.lastActivity = Date.now();
+    // Arrancar la jornada offline ahora: si el dispositivo nunca llega a hablar con el
+    // servidor, el tope se cuenta desde el inicio de sesión y no desde el epoch.
+    this.ultimoContactoOk = Date.now();
+    this.marcarEnLinea(navigator.onLine !== false);
     this.zone.runOutsideAngular(() => {
       this.ACTIVITY_EVENTS.forEach(ev => window.addEventListener(ev, this.onActivity, { passive: true }));
       document.addEventListener('visibilitychange', this.onVisibility);
-      this.idleTimer = setInterval(() => this.checkIdle(), this.IDLE_CHECK_MS);
+      window.addEventListener('online', this.onOnline);
+      window.addEventListener('offline', this.onOffline);
+      this.idleTimer = setInterval(() => this.evaluarPolitica(), this.IDLE_CHECK_MS);
       this.heartbeatTimer = setInterval(() => this.checkHeartbeat(), this.HEARTBEAT_MS);
     });
   }
@@ -78,52 +125,85 @@ export class SessionTimeoutService {
     this.running = false;
     this.ACTIVITY_EVENTS.forEach(ev => window.removeEventListener(ev, this.onActivity));
     document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('online', this.onOnline);
+    window.removeEventListener('offline', this.onOffline);
     if (this.idleTimer) { clearInterval(this.idleTimer); this.idleTimer = null; }
     if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
     this.heartbeatSub?.unsubscribe();
     this.heartbeatSub = undefined;
   }
 
-  private checkIdle(): void {
+  /** Foto del estado actual para alimentar la política pura. */
+  private estadoActual(): EstadoSesion {
+    return {
+      ahora: Date.now(),
+      ultimaActividad: this.lastActivity,
+      ultimoContactoOk: this.ultimoContactoOk,
+      enLinea: this.enLinea,
+      operacionesPendientes: this.trabajoPendiente?.operacionesPendientes() ?? 0
+    };
+  }
+
+  private evaluarPolitica(): void {
     if (!this.running) return;
-    if (Date.now() - this.lastActivity >= this.IDLE_LIMIT_MS) {
-      this.zone.run(() => this.endSession('inactividad'));
-    }
+    const motivo = evaluarFinDeSesion(this.estadoActual(), this.limites);
+    if (motivo) this.zone.run(() => this.endSession(motivo));
   }
 
   private checkHeartbeat(): void {
     if (!this.running) return;
-    // Solo pingear si el usuario está activo (dentro de la ventana de inactividad).
-    if (Date.now() - this.lastActivity >= this.IDLE_LIMIT_MS) return;
+    if (!debeHacerHeartbeat(this.estadoActual(), this.limites)) return;
+
     this.heartbeatSub?.unsubscribe();
     this.heartbeatSub = this.auth.heartbeat().subscribe({
-      next: () => { this.heartbeatFails = 0; },
+      next: () => {
+        this.heartbeatFails = 0;
+        this.ultimoContactoOk = Date.now();
+        this.marcarEnLinea(true);
+      },
       error: (err: HttpErrorResponse) => {
-        if (err?.status === 401) {
+        // 401 de autenticación: el token ya no vale, la sesión terminó de verdad.
+        // El 401 del gate de plataforma NO cuenta (ver debe-cerrar-sesion-por-401.funcion.ts).
+        if (debeCerrarSesionPor401(err, true)) {
           this.zone.run(() => this.endSession('expirada'));
           return;
         }
-        // status 0 = red caída/sin conexión. Otros (500, etc.) = el back respondió → no contar.
+
+        // status 0 = red caída. Antes esto cerraba la sesión a los 2 fallos (~3 min) y dejaba
+        // al operario encerrado afuera en una granja sin señal. Ahora solo marca el modo sin
+        // conexión; la política decide, y sin red no cierra por inactividad.
+        // Otros estados (500, 502…) significan que el backend respondió: seguimos en línea.
         if (err?.status === 0) {
           this.heartbeatFails++;
           if (this.heartbeatFails >= this.MAX_HEARTBEAT_FAILS) {
-            this.zone.run(() => this.endSession('sin_conexion'));
+            this.zone.run(() => this.marcarEnLinea(false));
           }
+        } else {
+          this.heartbeatFails = 0;
         }
       }
     });
   }
 
-  private endSession(reason: 'inactividad' | 'sin_conexion' | 'expirada'): void {
+  private marcarEnLinea(valor: boolean): void {
+    if (this.enLinea$$.value === valor) return;
+    this.enLinea$$.next(valor);
+    if (valor) {
+      this.heartbeatFails = 0;
+      this.ultimoContactoOk = Date.now();
+    }
+  }
+
+  private endSession(reason: MotivoFinDeSesion): void {
     if (this.ending || !this.running) return;
     this.ending = true;
     this.stop();
-    const messages: Record<typeof reason, string> = {
-      inactividad: 'Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.',
-      sin_conexion: 'Se perdió la conexión con el servidor. Vuelve a iniciar sesión.',
-      expirada: 'Tu sesión expiró. Inicia sesión nuevamente.'
-    };
-    this.toast.info(messages[reason], 'Sesión finalizada', 6000);
+
+    this.toast.info(mensajeFinDeSesion(reason), 'Sesión finalizada', 6000);
+
+    // `logout()` limpia la sesión guardada (token y datos de usuario). La cola offline vive
+    // en IndexedDB y NO se purga desde acá: esa decisión es de la capa offline, que solo debe
+    // purgar cuando no queda nada pendiente. Ver ProveedorTrabajoPendiente arriba.
     this.auth.logout();
     this.router.navigate(['/login'], { queryParams: { reason } });
   }

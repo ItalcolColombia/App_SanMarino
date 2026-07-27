@@ -15,6 +15,14 @@ public class LoteReproductoraAveEngorde
     public string? CodigoReproductora { get; set; }
     public DateTime? FechaEncasetamiento { get; set; }
 
+    /// <summary>
+    /// Hora a la que llegaron las aves. Decide si el PRIMER día de la semana de recogida es el del
+    /// encasetamiento o el siguiente: desde las 13:00 las aves ya no alcanzan a consumir ese día
+    /// (ver <c>EncasetamientoCalculos</c>). No mueve <see cref="FechaEncasetamiento"/> ni la edad —
+    /// un lote tardío arranca en edad 1. Null (lotes previos) ⇒ comportamiento anterior.
+    /// </summary>
+    public TimeOnly? HoraEncasetamiento { get; set; }
+
     public int? M { get; set; }
     public int? H { get; set; }
     public int? AvesInicioHembras { get; set; }

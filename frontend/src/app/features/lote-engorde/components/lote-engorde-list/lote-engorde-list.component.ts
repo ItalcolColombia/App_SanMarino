@@ -275,6 +275,8 @@ export class LoteEngordeListComponent implements OnInit {
       galponId: [null],
       regional: [''],
       fechaEncaset: [null, Validators.required],
+      // Hora de llegada: desde las 13:00 el primer registro pasa al día siguiente (opcional).
+      horaEncasetamiento: [null],
       fechaAlistamiento: [null],
       hembrasL: [null],
       machosL: [null],
@@ -749,6 +751,7 @@ export class LoteEngordeListComponent implements OnInit {
         galponId: l.galponId ?? null,
         regional: l.regional ?? '',
         fechaEncaset: ymdSinTz(l.fechaEncaset),
+        horaEncasetamiento: l.horaEncasetamiento ?? null,
         fechaAlistamiento: ymdSinTz(l.fechaAlistamiento),
         hembrasL: l.hembrasL ?? null,
         machosL: l.machosL ?? null,
@@ -786,6 +789,7 @@ export class LoteEngordeListComponent implements OnInit {
         galponId: null,
         regional: '',
         fechaEncaset: null,
+        horaEncasetamiento: null,
         fechaAlistamiento: null,
         hembrasL: null,
         machosL: null,
@@ -869,6 +873,7 @@ export class LoteEngordeListComponent implements OnInit {
       regional: raw.regional != null && raw.regional !== '' ? String(raw.regional).trim() : undefined,
       // Mediodía UTC: evita que la fecha "pura" cruce de día al mostrarse en UTC-5
       fechaEncaset: ymdToIsoUtcNoon(raw.fechaEncaset) ?? undefined,
+      horaEncasetamiento: raw.horaEncasetamiento || null,
       fechaAlistamiento: ymdToIsoUtcNoon(raw.fechaAlistamiento) ?? undefined,
       hembrasL: toNum(raw.hembrasL),
       machosL: toNum(raw.machosL),

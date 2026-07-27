@@ -71,7 +71,7 @@ public partial class MigracionService
         // Universo de lotes para resolver la columna "Lote" por nombre (mismo helper que seguimiento).
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
-            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, string.Empty, null, null, null, null);
+            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento, string.Empty, null, null, null, null);
 
         var ventas = new List<FilaVentaEngorde>();
 

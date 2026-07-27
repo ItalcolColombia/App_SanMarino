@@ -1,10 +1,11 @@
 // src/app/core/auth/auth.interceptor.ts
-import { HttpInterceptorFn, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
+import { HttpInterceptorFn, HttpHandlerFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { from, switchMap, catchError, throwError } from 'rxjs';
 import { TokenStorageService } from './token-storage.service';
 import { EncryptionService } from './encryption.service';
 import { SessionTimeoutService } from './session-timeout.service';
+import { debeCerrarSesionPor401 } from './funciones/debe-cerrar-sesion-por-401.funcion';
 import { environment } from '../../../environments/environment';
 
 export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => {
@@ -72,9 +73,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
 
       return next(authReq).pipe(
         catchError((err: unknown) => {
-          // 401 en una petición autenticada (había token) = token expirado/invalidado → fin de sesión.
-          // El login (sin token) queda excluido: su 401 es "credenciales inválidas".
-          if (err instanceof HttpErrorResponse && err.status === 401 && token) {
+          // No todo 401 termina la sesión: el gate de plataforma (SECRET_UP) también
+          // responde 401 y ahí el usuario y su token están perfectos. La regla vive
+          // aislada y con tests en funciones/debe-cerrar-sesion-por-401.funcion.ts.
+          if (debeCerrarSesionPor401(err, !!token)) {
             sessionTimeout.onUnauthorized();
           }
           return throwError(() => err);

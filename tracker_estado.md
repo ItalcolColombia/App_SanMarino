@@ -278,7 +278,7 @@ con inventario a nivel granja **no cambian**.
 
 Objetivo: que los módulos operativos funcionen sin red y sincronicen al recuperar conexión, como **PWA autoactualizable** (no app móvil nativa), dejando el desarrollo alineado para que lo nuevo nazca sirviendo a los dos modos.
 
-> ⚠️ **Estado: análisis terminado, implementación NO iniciada.** El plan requiere 7 decisiones del usuario (§7 del plan) antes de escribir código.
+> ✅ **Estado: decisiones cerradas, Fase 0.C EN CURSO.** (2026-07-27)
 
 ## Fase 0 — Análisis
 - [x] Exploración exhaustiva (workflow 14 agentes, 981 lecturas): 8 áreas de inventario (postura, engorde, inventario, movimientos/ventas, granjas/catálogos, auth/sesión, plataforma backend, build/hosting) + 3 de riesgo (volumetría, reglas de negocio, precedentes batch) + 3 críticas adversariales (datos/conflictos, seguridad/tenancy, entrega/operación)
@@ -287,36 +287,90 @@ Objetivo: que los módulos operativos funcionen sin red y sincronicen al recuper
 - [x] Confirmado punto de partida cero: sin `@angular/service-worker`, sin manifest, sin IndexedDB, sin idempotencia, sin control de concurrencia, sin tombstones
 - [x] Plan escrito en `fase_de_desarrollo/`
 
-## Decisiones pendientes del usuario (bloquean el arranque)
-- [ ] **D1** Alcance de escritura en v1 (recomendado: lista blanca de captura diaria; ventas y movimientos a v2)
-- [ ] **D2** ¿Fase 0 completa antes, o Fase 0.C + piloto de solo lectura en paralelo? (recomendado: en paralelo)
-- [ ] **D3** Dato en reposo: cifrar con PIN/WebAuthn vs no cifrar + minimizar + TTL
-- [ ] **D4** Vigencia de sesión offline: jornada vs 7 días (recomendado: jornada, con revocación real)
-- [ ] **D5** Dispositivos objetivo (Android / iOS / ambos) — define si hace falta sync explícita en primer plano
-- [ ] **D6** Modo offline global vs opt-in por rol y dispositivo (recomendado: opt-in; prohibido para alcance global)
-- [ ] **D7** Verificar con `curl -I` contra prod cuál es el origen real del front (ECS+nginx vs S3+CloudFront)
+## Decisiones del usuario — CERRADAS (2026-07-27)
+- [x] **D1** Alcance de escritura v1 = **lista blanca de captura diaria** (§3.2). Ventas y movimientos a v2
+- [x] **D2** **Fase 0 completa (C → B → A) primero**, PWA después. (Se descartó el piloto en paralelo)
+- [x] **D3** **No cifrar** el dato en reposo + minimizar (sin precios ni facturación) + TTL duro + purga en logout
+- [x] **D4** Sesión offline de **una jornada (12-16 h)**, condicionada a B1 (revocación real)
+- [x] **D5** **Solo Android** ⇒ Background Sync disponible, sin la eviction de 7 días de Safari iOS, sin necesidad de sync explícita en primer plano
+- [x] **D6** **Opt-in** por rol y por dispositivo registrado; prohibido para cuentas con alcance global/multiempresa
+- [x] **D7 VERIFICADO contra prod** — el origen real es **ECS + nginx tras el ALB** (`Server: nginx`, sin `Via`/`X-Cache`/`X-Amz-Cf-Id`). El `frontend/deploy/*.json` de S3+CloudFront describe **otra cuenta AWS** (`021891592771` vs `196080479890` del pipeline) ⇒ camino muerto
+
+## Hallazgos de la verificación contra prod (2026-07-27) — corrigen supuestos del plan
+| Punto | Lo que decía el plan | Lo medido |
+|---|---|---|
+| C2 | `try_files $uri $uri/ /index.html` se traga todo | `.js` inexistente **ya daba 404** (el regex de assets tiene `try_files $uri =404`). El bug real es que **`.json` y `.webmanifest` devolvían 200 `text/html`** con el index |
+| C3 | nginx marca todo `.js` como immutable | ✅ confirmado: `polyfills-*.js` sale con `max-age=31536000, immutable` ⇒ `ngsw-worker.js` habría quedado cacheado un año |
+| C5 | index.html y los .js salen sin CSP ni HSTS | ✅ confirmado: la respuesta de `/` solo trae `X-Content-Type-Options` y `X-Frame-Options` |
+| C3/C2 | Hay que tocar behaviors de CloudFront | **No aplica**: no hay CloudFront en el camino |
+| C6 | El harness de Karma "compila 0 specs" | Peor: `ng test` **fallaba** con TS18003. `tsconfig.spec.json` heredaba `exclude: ["**/*.spec.ts"]` de `tsconfig.json`, que en TS gana sobre `include` |
 
 ## Fase 0.C — Higiene de entrega (sin tocar funcionalidad)
-- [ ] **C1** Eliminar la mutación post-build de `index.html` (`Dockerfile:53-56` + `scripts/inject-version.js`) — invalida el hash de `ngsw.json` ⇒ SW en safe mode silencioso
-- [ ] **C2** Fallback a `index.html` solo para navegaciones (nginx `try_files $uri =404` para extensiones conocidas + CloudFront sin CustomErrorResponse global)
-- [ ] **C3** `no-cache` en `ngsw.json` / `ngsw-worker.js` / `safety-worker.js` / `manifest.webmanifest` / `index.html`
-- [ ] **C4** Definir el único origen del front y borrar el camino muerto del repo
-- [ ] **C5** Arreglar la herencia de headers de nginx (hoy index.html y los .js salen **sin CSP ni HSTS**)
-- [ ] **C6** Gate de tests real en el pipeline (hoy 296 líneas de workflow, 0 `dotnet test` / `yarn test`) — arreglar antes el harness de Karma (compila 0 specs)
-- [ ] **C7** `deploy-frontend: needs: [deploy-backend]`
-- [ ] **C8** Política de rate limit propia para `/api/sync/*` por usuario/device (hoy bloquea la IP completa 3 min)
+
+- [x] **C1** Eliminada la mutación post-build de `index.html`
+  - `scripts/inject-version.js` **borrado**; nace `scripts/build-version.js` con dos fases: `prepare` (antes del build, sella el buildId en `src/app/core/build-info.ts` ⇒ entra al bundle y se hashea normal) y `emit` (después, escribe `dist/browser/version.json`, archivo NUEVO que nunca entra en la tabla de hashes del SW)
+  - `src/index.html`: fuera el `<meta name="app-version" content="BUILD_TIMESTAMP_PLACEHOLDER">`
+  - `VersionCheckService` reescrito: compara `BUILD_ID` compilado contra `/version.json` (antes se bajaba el `index.html` entero cada 5 min y lo parseaba con regex). En local `BUILD_ID='dev'` ⇒ el chequeo se apaga
+  - `Dockerfile`: `prepare && yarn build && emit`
+  - ⚠️ **Gotcha**: `build-info.ts` debe declarar `BUILD_ID: string` explícito; sin el tipo, TS infiere el literal del timestamp y `BUILD_ID !== 'dev'` no compila (TS2367). Lo cazó el build
+- [x] **C2** Fallback a `index.html` **solo para navegaciones** — bloque `location ~* \.(json|webmanifest|map|txt|xml|wasm|webp|avif|mp4|webm|pdf|zip|csv|xlsx)$` con `try_files $uri =404`
+- [x] **C3** `no-cache` en los archivos de control del SW — bloques `location =` dedicados para `ngsw.json`, `ngsw-worker.js`, `safety-worker.js`, `worker-basic.min.js`, `manifest.webmanifest`, `version.json` e `index.html`, **antes** del regex de assets (si no, el worker cae en la regla `immutable` de un año). `manifest.webmanifest` además fija `application/manifest+json` (nginx no lo trae en su `mime.types`)
+- [x] **C4** Un solo origen — `nginx.conf` y `frontend/README.md` declaran ECS+nginx; los 6 archivos de S3+CloudFront movidos a `frontend/deploy/ARCHIVADO-s3-cloudfront/` con README que explica por qué están muertos y qué habría que replicar si se vuelve a poner un CDN. **NO** se tocaron `ecs-taskdef*.json` ni `ecr-policy-frontend.json` (sí están en uso)
+- [x] **C5** Herencia de headers — nace `frontend/nginx-security-headers.conf`, incluido por **cada** `location`. Se agregaron `worker-src 'self'` y `manifest-src 'self'` a la CSP. Se quitaron los `X-RateLimit-Limit: 100` / `X-RateLimit-Remaining: 99` hardcodeados de nginx (eran informativos y **mentían**: valor constante, y el rate limiter real es el del backend)
+- [x] **C6** Gate de tests real en el pipeline — job `tests` (xUnit + Karma) del que dependen ambos deploys
+  - 🔴 **Causa raíz del harness muerto**: `tsconfig.spec.json` no declaraba `exclude`, así que heredaba `exclude: ["**/*.spec.ts","**/*.test.ts"]` de `tsconfig.json`. En TypeScript `exclude` gana sobre `include` ⇒ 0 archivos ⇒ `ng test` moría con **TS18003**. Fix: `"exclude": []`
+  - Faltaba `stylePreprocessorOptions.includePaths` en el target `test` de `angular.json` (sí estaba en `build`) ⇒ `@use 'shared/styles/module-styles'` no resolvía
+  - `app.component.spec.ts` era el scaffold de Angular CLI y afirmaba un `title === 'frontend'` y un `<h1>Hello, frontend</h1>` que esta app **nunca tuvo**. Reemplazado por un smoke real (crea, toggle del sidebar, `showSidebar` en rutas públicas vs protegidas)
+  - 5 specs de detalle/formulario fallaban con **NG0201** (`ActivatedRoute` sin proveer): `city-detail`, `country-detail`, `department-detail`, `list-detail`, `farm-form`. Agregados `provideRouter([])` + `provideHttpClient()` + `provideHttpClientTesting()`
+  - Resultado: **71/71 SUCCESS**, exit 0 (de `ng test` que ni arrancaba)
+- [x] **C7** `deploy-frontend` depende de `[tests, deploy-backend]` — con `if` explícito para que un `workflow_dispatch` con `deploy_backend=false` **no** saltee también el frontend, y usando `needs['deploy-backend']` (con guión hace falta notación de índice, `needs.deploy-backend` se parsearía como resta)
+- [x] **C8** Rate limit por dispositivo para sincronización
+  - `RateLimitingCalculos`: enum `AlcanceRateLimit {General, Auth, Sync}`, `EsRutaSync`, `AlcanceDeRuta`, `IdentidadCliente` (sync cuenta por `X-Device-Id`, cae a IP si falta) y claves de bloqueo por alcance
+  - Sync queda **aislado**: no bloquea la IP ni es bloqueado por el bloqueo global ⇒ cinco tablets del mismo módem no se autobloquean ni tumban el login de la granja
+  - La identidad sale de una **cabecera** y no del JWT porque el middleware corre en `Program.cs:596`, **antes** de `UseAuthentication()` (`:698`): `context.User` todavía está vacío
+  - Límite propio `RateLimiting:MaxRequestsPerMinuteForSync` (default 300/min por dispositivo)
+  - Tests: 14 casos nuevos en `RateLimitingCalculosTests` (incluido el escenario de las 5 tablets)
+
+### Validación de Fase 0.C
+- [x] `yarn build` — 0 errores (solo el warning de bundle budget preexistente)
+- [x] Sellado de versión verificado punta a punta: el buildId aparece **dentro** de `main-*.js` y en `version.json` con el mismo valor; `dist/browser/index.html` sin placeholder ni `app-version`
+- [x] `yarn test --watch=false --browsers=ChromeHeadless` — **71/71 SUCCESS**
+- [x] `dotnet build` — 0 errores / 0 advertencias (⚠️ el backend de otra sesión bloquea los DLL: compilar con `-p:BaseOutputPath=<scratchpad>`)
+- [x] `dotnet test` — **973/973** (972 Application + 1 Domain)
+- [x] YAML del workflow parseado, dependencias de jobs verificadas (`tests` → `deploy-backend` → `deploy-frontend`) y los **17 scripts `run` pasan `bash -n`**
+- [x] `nginx.conf` y `nginx-security-headers.conf`: llaves balanceadas, 11 de 12 `location` incluyen los headers (el 12° es `location ~ /\.` → `deny all`, deliberado)
+- [x] **La validación de nginx se movió al pipeline** en vez de quedar como un chequeo local de una sola vez: nuevo step *"Validar nginx y política de caché del borde"* en `deploy-frontend`, que corre **después del build y ANTES del push a ECR** ⇒ una configuración rota no llega nunca a ECR ni a ECS. Hace `nginx -t` sobre la imagen, la levanta y verifica los criterios §9: 404 en `.js`/`.json`/`.webmanifest` inexistentes, 200 en ruta del SPA, `no-cache` en `version.json`/`index.html`, `immutable` en el asset con hash, y CSP+HSTS+`worker-src` en `/`, en el `.js` y en la ruta del SPA
+  - ⚠️ El engine de Docker **no levantó** en la máquina local en esta sesión (Docker Desktop arranca pero `docker info` cuelga), así que el smoke en contenedor no se pudo correr acá. El script quedó escrito y es el mismo que ahora corre en CI. Riesgo acotado: si el `nginx.conf` estuviera mal, el step de CI falla antes de publicar
+- [ ] Verificación post-deploy (criterios §9 del plan) contra prod, una vez desplegado:
+      `curl -i /chunk-inexistente.js` → 404 · `curl -I` sobre los archivos de control → `Cache-Control: no-cache` · `curl -I /` → con CSP y HSTS
 
 ## Fase 0.B — Sesión y seguridad
-- [ ] **B1** `jti` + tabla `sesiones_activas` + refresh token (hoy **no hay forma de revocar una sesión**)
-- [ ] **B2** `SessionTimeoutService`: suspender idle/heartbeat logout en offline; nunca purgar con cola pendiente
-- [ ] **B3** Distinguir 401 de autenticación vs 401 de plataforma
+
+- [ ] **B1** `jti` + tabla `sesiones_activas` + refresh token (hoy **no hay forma de revocar una sesión**). Prerrequisito de la decisión D4 (jornada de 16 h): el tope de jornada ya está implementado en B2, pero sin B1 no se puede revocar un dispositivo perdido antes de que venza
+- [x] **B2** `SessionTimeoutService` consciente del modo sin conexión
+  - La política se extrajo a `core/auth/funciones/politica-sesion.funcion.ts` (**pura, con 16 tests**) y el servicio quedó de orquestador
+  - 🔴 **Perder la red ya NO cierra la sesión.** Antes, 2 heartbeats con `status 0` (~3 min sin señal) llamaban a `endSession('sin_conexion')`, que purga el storage y manda al login — y sin red el usuario **no puede volver a entrar** (el login necesita el backend, y en prod además reCAPTCHA, que necesita alcanzar a Google). El motivo `'sin_conexion'` desapareció; ahora solo marca el modo sin conexión
+  - Sin red la **inactividad tampoco cierra** (mismo motivo: sería irreversible)
+  - Con **operaciones pendientes de sincronizar no se cierra por tiempo** bajo ninguna circunstancia (cerrar purga, y purgar destruye capturas de campo)
+  - Tope duro de jornada: **16 h sin contacto con el servidor** (extremo alto de D4), medido desde el último heartbeat OK y no desde la última actividad
+  - Estado de conexión expuesto (`enLinea$`) para el indicador de modo sin red de F1, y listeners `online`/`offline` del navegador
+  - Seam `TRABAJO_PENDIENTE_OFFLINE` (`InjectionToken`, `optional`, default 0) que implementará el outbox en F3. Existe desde ahora porque la política **necesita** consultarlo
+- [x] **B3** 401 de autenticación vs 401 de plataforma
+  - `PlatformSecretMiddleware` tipifica sus 3 rechazos: cabecera `X-Auth-Failure: platform-secret` + `errorCode` en el cuerpo; los tres bloques duplicados se unificaron en `RechazarAsync` conservando 401 y el cuerpo histórico
+  - `core/auth/funciones/debe-cerrar-sesion-por-401.funcion.ts` (**pura, 10 tests**) + el interceptor delega
+  - La señal se lee del **cuerpo**, no de la cabecera: en dev el front (`:4200`) y el back (`:5002`) son orígenes distintos y una cabecera custom no es legible sin `Access-Control-Expose-Headers`. La cabecera queda de respaldo para mismo origen y para `curl`/logs
+  - Sin esto, **rotar el SECRET_UP deslogueaba a todos los dispositivos a la vez** — y con la PWA se llevaría puesta la cola de sincronización
 - [ ] **B4** Llevar a server-side los gates de escritura hoy front-only (~46 `*appHasPermission` vs ~7 chequeos en controllers)
-- [ ] **B5** El servidor estampa el autor desde el token e ignora `dto.CreatedByUserId`
-- [ ] **B6** Eliminar el fallback silencioso de empresa y la confianza en `X-Active-Pais`
-- [ ] **B7** Corregir `setActiveCompany()` (cambia el nombre y nunca el id)
-- [ ] **B8** Rotar las 4 llaves de `environment.prod.ts` (quemadas en git)
-- [ ] **B9** Decidir política de dato en reposo (D3)
-- [ ] **B10** Super admin por email hardcodeado → a datos
+- [ ] **B5** El servidor estampa el autor desde el token e ignora `dto.CreatedByUserId` — **3 sitios localizados**: `SeguimientoDiarioService.cs:291` (create), `:889` (update) y `SeguimientoDiarioLoteReproductoraService.cs:228`. ⚠️ Antes de tocarlo hay que verificar que ningún camino interno (carga masiva / arrastre) dependa de mandar el autor en el DTO
+- [ ] **B6** Eliminar el fallback silencioso de empresa (`ActiveCompanyMiddleware.cs:129-136`) y la confianza en `X-Active-Pais`
+- [x] **B7** `setActiveCompany()` mueve nombre + id + país + logo a la vez
+  - 🔴 El bug: solo escribía `activeCompany` (el **nombre**). El interceptor manda también `X-Active-Company-Id` y el backend **prefiere el id** ⇒ al cambiar de empresa la UI mostraba una y el backend respondía por la del login. Del lado del cliente, todo lo que lee `activeCompanyId` (flags por empresa, listas maestras, menús de rol, listado de granjas) seguía en la anterior
+  - `core/auth/funciones/resolver-empresa-activa.funcion.ts` (**pura, 12 tests**) resuelve contra `companyPaises`, tolera camelCase y PascalCase, y es **fail-closed**: si no resuelve, no cambia nada y devuelve `false`
+  - `company-selector` deja de emitir `companyChanged` cuando el cambio no ocurrió
+  - Relevante para la PWA: el snapshot offline se particiona por `{userId, companyId}`; un id desincronizado escribiría capturas en la partición equivocada
+- [ ] **B8** Rotar las 4 llaves de `environment.prod.ts` (quemadas en git). ⚠️ Requiere que el usuario genere y cargue los valores nuevos; yo puedo dejar el mecanismo (variables de build) pero no los secretos
+- [x] **B9** Política de dato en reposo **decidida** (D3): no cifrar + minimizar (sin precios ni facturación) + TTL duro + purga en logout. Queda por *implementar* junto con el repositorio offline en F2
+- [ ] **B10** Super admin por email hardcodeado (`ActiveCompanyMiddleware.cs:52` y `:116`) → a datos, reusando el patrón `roles.is_company_admin`
 
 ## Fase 0.A — Integridad de datos (varios son bugs de HOY)
 - [ ] **A1** UNIQUE en la clave natural de `inventario_gestion_stock` + `ON CONFLICT DO UPDATE` — 🔴 explotable hoy con dos pestañas
@@ -331,3 +385,81 @@ Objetivo: que los módulos operativos funcionen sin red y sincronicen al recuper
 - [ ] **A10** Reemplazar el trigger acumulativo del espejo de huevos por el recálculo derivado ya existente
 
 ## Fases F1-F5 — ver §8 del plan (no desglosadas hasta que se cierren las decisiones)
+
+---
+
+# Tracker — Seguimiento pollo engorde MIXTO (Panamá): Excel mixto + descuento de aves mixtas
+
+**Plan:** [fase_de_desarrollo/seguimiento_engorde_mixto_panama_plan.md](fase_de_desarrollo/seguimiento_engorde_mixto_panama_plan.md)
+**Fecha:** 2026-07-27
+
+**Decisiones del usuario:** el descuento impacta **maestro del lote + movimiento auditado**, y aplica a
+**los dos caminos** (formulario diario y carga masiva). Gate del Excel = flag por empresa; gate del bucket
+de descuento = datos del lote (mixto = `mixtas > 0 && hembras_l == 0 && machos_l == 0`).
+
+## Fase A — Excel / plantilla mixta
+
+- [x] `Company.SeguimientoEngordeMixto` + `CompanyConfiguration`
+- [x] Migración schema `20260727161113_AddSeguimientoEngordeMixtoCompany` (ADD COLUMN IF NOT EXISTS)
+- [x] Migración data-only `20260727161200_SeedSeguimientoEngordeMixtoPanama` (ItalcolPanama, `IS DISTINCT FROM`)
+- [x] `MigracionEsquemas`: alias mixtos en las columnas de género (constantes `Mix*` compartidas plantilla↔parseo)
+- [x] `MigracionEsquemas.SeguimientoPolloEngordeMixto` (18 columnas, sin columnas por sexo)
+- [x] `MigracionService.SeguimientoEngorde`: plantilla, dropdowns e instrucciones según el flag
+- [x] ~~Flag en las proyecciones de `CompanyDto`~~ — NO aplica: la plantilla la arma el backend, el front no gatea nada con este flag. Se agrega el día que la UI lo necesite.
+- [x] Tests de esquema: contrato plantilla↔parseo, 9 alias mixtos, sin columnas por sexo, regresión de encabezados viejos
+
+## Fase B — Descuento de aves mixtas
+
+- [x] `Application/Calculos/RetiroAvesEngordeCalculos.cs` (puro) + `RetiroAvesEngordeAplicador` (compartido por los dos services)
+- [x] `RetiroAvesEngordeCalculosTests.cs` — 20 casos (los 8 del plan + reparto, netos y regresión por sexo)
+- [x] Create descuenta maestro + fila `BAJA_SEGUIMIENTO` — en los DOS services (carga masiva y formulario diario)
+- [x] Update compensa por delta (devuelve aves si baja la mortalidad) — en los dos services
+- [x] Delete revierte y anula la fila del histórico — en los dos services
+- [x] Doble descuento evitado SIN tocar la función SQL: el aplicador no descuenta si `aves_encasetadas = 0` (única rama donde la fn deriva la inicial del maestro). Verificado en BD: los 134 lotes tienen `aves_encasetadas > 0` ⇒ no afecta a ninguno. Se descartó re-aplicar la fn porque el repo tiene dos versiones del archivo y re-aplicarla podría regresar prod.
+- [x] `CorreccionAvesDisponiblesEngordeService`: la conservación resta las bajas YA APLICADAS (filas `BAJA_SEGUIMIENTO`), no la mortalidad registrada ⇒ los lotes viejos conservan la fórmula anterior
+
+## Entregables
+
+- [x] Excel de ejemplo final `CargaMasiva_Seguimiento_Engorde_PANAMA_MIXTO.xlsx` (18 columnas, 0 desconocidas)
+- [x] Plantilla descargable verificada por test: todos los títulos mixtos los acepta el esquema de parseo
+
+## Validación
+
+- [x] `dotnet build` (Application + Infrastructure) — 0 errores, 0 advertencias
+- [x] `dotnet test` — 1004/1004 verdes
+- [ ] **PENDIENTE** smoke de la plantilla descargada con flag ON/OFF: requiere reiniciar el backend local, que está corriendo en otra sesión (PID 38200). Migraciones sin aplicar en la BD local por el mismo motivo; el SQL generado se verificó con `dotnet ef migrations script`.
+
+---
+
+# Tracker — Hora de encasetamiento define el primer día con registro (engorde y reproductora)
+
+**Plan:** [fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md](fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md)
+**Fecha:** 2026-07-27
+
+**Decisiones del usuario:** corte **13:00** (`>= 13:00` ⇒ el primer consumo va al día siguiente) ·
+la **edad NO se recorre**: se sigue contando desde `fecha_encaset`, así que un lote tardío arranca en
+edad 1 (Día 2). Solo cambia cuál es el primer día con registro válido ⇒ **no se toca ninguna función SQL**.
+
+## Backend
+
+- [x] `TimeOnly? HoraEncasetamiento` en `LoteAveEngorde` y `LoteReproductoraAveEngorde` + configuraciones (`time`)
+- [x] Migración `20260727170032_AddHoraEncasetamientoLotesEngorde` (ADD COLUMN IF NOT EXISTS, nullable, sin backfill)
+- [x] `Application/Calculos/EncasetamientoCalculos.cs` (corte 13:00, primer día, edad mínima, motivo para el mensaje)
+- [x] `EncasetamientoCalculosTests.cs` — 16 casos (incluye 12:00 y 13:00 exactos, fin de mes, bisiesto y la ventana de la reproductora)
+- [x] `ReproductoraEngordeCalculos.EsEdadSeguimientoValida` con `edadMinima` opcional (default 0 ⇒ llamadas previas intactas)
+- [x] `SeguimientoDiarioLoteReproductoraService`: Create + Update usan la edad mínima + mensaje que explica la hora
+- [x] `MigracionService.SeguimientoReproductora`: idem en carga masiva
+- [x] `MigracionService.SeguimientoEngorde`: fecha mínima = primer día, con mensaje que explica la hora
+- [x] La hora viaja en los DTOs de lote engorde y reproductora (create/update/detail/list)
+
+## Frontend
+
+- [x] Campo "Hora de encasetamiento" (opcional) al crear/editar lote engorde
+- [x] Campo "Hora encasetamiento" (opcional) en los dos formularios de lote reproductora
+- [x] `modal-seguimiento-reproductora`: `minFechaYmd` arranca en el primer día (espejo del corte 13:00 en el front)
+
+## Validación
+
+- [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1020/1020
+- [x] `ng build` 0 errores (solo el warning preexistente de bundle budget)
+- [ ] **PENDIENTE** smoke end-to-end: requiere aplicar la migración en la BD local y reiniciar el backend, que está corriendo en otra sesión.

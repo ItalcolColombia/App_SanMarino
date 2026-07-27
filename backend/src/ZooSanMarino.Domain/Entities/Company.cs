@@ -72,6 +72,21 @@ namespace ZooSanMarino.Domain.Entities
         /// </summary>
         public bool VentaEngordePesoDiferido { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = la empresa NO maneja el pollo engorde por sexo una vez que el lote sale de
+        /// reproductora (Panamá): mortalidad, selección y consumo se digitan como un único total
+        /// MIXTO. Solo cambia la PRESENTACIÓN de la carga masiva — la plantilla descargable emite
+        /// columnas «Mixta/Mixto» en lugar del par H/M — mientras el dato sigue guardándose en los
+        /// mismos campos (el sistema suma H+M en todos sus cálculos).
+        /// <c>false</c> (default) = plantilla con columnas por sexo, comportamiento actual.
+        /// <para>
+        /// OJO: este flag NO decide de qué bucket se descuentan las aves. Eso se resuelve por DATOS
+        /// del lote (ver <c>RetiroAvesEngordeCalculos.EsLoteMixto</c>), de modo que un lote mixto
+        /// descuenta de <c>mixtas</c> en cualquier empresa.
+        /// </para>
+        /// </summary>
+        public bool SeguimientoEngordeMixto { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

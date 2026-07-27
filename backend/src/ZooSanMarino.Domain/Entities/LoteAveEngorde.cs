@@ -14,6 +14,15 @@ public class LoteAveEngorde : AuditableEntity
 
     public string? Regional { get; set; }
     public DateTime? FechaEncaset { get; set; }
+
+    /// <summary>
+    /// Hora a la que llegaron las aves. Decide si el PRIMER registro de seguimiento va el mismo día
+    /// del encasetamiento o el siguiente: desde las 13:00 las aves ya no alcanzan a consumir ese día
+    /// (ver <c>EncasetamientoCalculos</c>). No mueve <see cref="FechaEncaset"/> ni la edad — un lote
+    /// tardío simplemente arranca en edad 1. Null (lotes previos) ⇒ comportamiento anterior.
+    /// </summary>
+    public TimeOnly? HoraEncasetamiento { get; set; }
+
     public DateTime? FechaAlistamiento { get; set; }
     public int? HembrasL { get; set; }
     public int? MachosL { get; set; }

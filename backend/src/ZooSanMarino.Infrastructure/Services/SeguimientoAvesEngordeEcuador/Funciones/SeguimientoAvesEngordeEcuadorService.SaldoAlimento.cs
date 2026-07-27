@@ -1,6 +1,7 @@
 // Helpers de inventario y recálculo de saldo de alimento del lote (Ecuador), portados de
-// SeguimientoAvesEngordeService: devolución de aves, snapshot de stock por día, histórico de
-// consumo por ítem y recálculo secuencial del saldo con piso 0.
+// SeguimientoAvesEngordeService: snapshot de stock por día, histórico de consumo por ítem y
+// recálculo secuencial del saldo con piso 0. El descuento/devolución de AVES ya no vive acá:
+// lo resuelve RetiroAvesEngordeAplicador contra el maestro lote_ave_engorde.
 // Partial de SeguimientoAvesEngordeEcuadorService.
 using System.Globalization;
 using System.Text.Json;
@@ -12,24 +13,6 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public partial class SeguimientoAvesEngordeEcuadorService
 {
-    private async Task DevolverAvesAlInventarioAsync(int loteId, int hembras, int machos)
-    {
-        if (hembras <= 0 && machos <= 0) return;
-        var inv = await _ctx.InventarioAves
-            .Where(i => i.LoteId == loteId
-                && i.CompanyId == _current.CompanyId
-                && i.DeletedAt == null
-                && i.Estado == "Activo")
-            .OrderByDescending(i => i.FechaActualizacion)
-            .FirstOrDefaultAsync();
-        if (inv == null) return;
-        inv.CantidadHembras += Math.Max(0, hembras);
-        inv.CantidadMachos += Math.Max(0, machos);
-        inv.FechaActualizacion = DateTime.UtcNow;
-        inv.UpdatedAt = DateTime.UtcNow;
-        await _ctx.SaveChangesAsync();
-    }
-
     private async Task<Dictionary<string, object?>> BuildStockMetadataPatchAsync(int loteId, DateTime fecha)
     {
         var day = fecha.Date;

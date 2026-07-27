@@ -136,23 +136,21 @@ public partial class SeguimientoAvesEngordeEcuadorService
             }
         }
 
-        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos
-            + dto.SelH + dto.SelM
-            + dto.ErrorSexajeHembras + dto.ErrorSexajeMachos;
-        if (totalRetiradas > 0)
+        // Descuento de aves del lote por las bajas del día (mortalidad + selección + error de sexaje).
+        // En un lote MIXTO salen de `mixtas`; en uno con sexos, de hembras/machos como siempre.
+        var (bajasH, bajasM) = RetiroAvesEngordeCalculos.BajasDelDia(
+            dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+            dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos);
+        if (bajasH > 0 || bajasM > 0)
         {
             try
             {
-                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
-                    loteId: dto.LoteId,
-                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras,
-                    machosRetirados: dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos,
-                    mixtasRetiradas: 0,
-                    fechaMovimiento: dto.FechaRegistro,
-                    fuenteSeguimiento: "Engorde",
-                    observaciones: $"Aves de Engorde (Ecuador) - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM} | Error sexaje H: {dto.ErrorSexajeHembras}, M: {dto.ErrorSexajeMachos} | {dto.Observaciones}");
+                await RetiroAvesEngordeAplicador.SincronizarAsync(
+                    _ctx, companyId, dto.LoteId, ent.Id, dto.FechaRegistro,
+                    bajasHembrasViejas: 0, bajasMachosViejas: 0,
+                    bajasHembrasNuevas: bajasH, bajasMachosNuevas: bajasM);
             }
-            catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento engorde Ecuador: {ex.Message}"); }
+            catch (Exception ex) { Console.WriteLine($"Error al descontar aves desde seguimiento engorde Ecuador: {ex.Message}"); }
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, companyId);
@@ -321,35 +319,21 @@ public partial class SeguimientoAvesEngordeEcuadorService
             }
         }
 
-        var newHRet = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
-        var newMRet = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
-        var deltaHRet = newHRet - oldHRet;
-        var deltaMRet = newMRet - oldMRet;
-        if (deltaHRet != 0 || deltaMRet != 0)
+        // Ajuste del descuento de aves: el maestro se mueve por el DELTA, así que bajar la mortalidad
+        // de un día devuelve las aves y subirla descuenta la diferencia.
+        var (newHRet, newMRet) = RetiroAvesEngordeCalculos.BajasDelDia(
+            dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+            dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos);
+        if (newHRet != oldHRet || newMRet != oldMRet)
         {
             try
             {
-                if (deltaHRet > 0 || deltaMRet > 0)
-                {
-                    await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
-                        loteId: dto.LoteId,
-                        hembrasRetiradas: Math.Max(0, deltaHRet),
-                        machosRetirados: Math.Max(0, deltaMRet),
-                        mixtasRetiradas: 0,
-                        fechaMovimiento: dto.FechaRegistro,
-                        fuenteSeguimiento: "Engorde",
-                        observaciones: $"Aves de Engorde Ecuador (actualización) - ajuste retiro H:{deltaHRet}, M:{deltaMRet}");
-                }
-
-                if (deltaHRet < 0 || deltaMRet < 0)
-                {
-                    await DevolverAvesAlInventarioAsync(
-                        dto.LoteId,
-                        Math.Abs(Math.Min(0, deltaHRet)),
-                        Math.Abs(Math.Min(0, deltaMRet)));
-                }
+                await RetiroAvesEngordeAplicador.SincronizarAsync(
+                    _ctx, companyId, dto.LoteId, ent.Id, dto.FechaRegistro,
+                    bajasHembrasViejas: oldHRet, bajasMachosViejas: oldMRet,
+                    bajasHembrasNuevas: newHRet, bajasMachosNuevas: newMRet);
             }
-            catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento engorde Ecuador (actualización): {ex.Message}"); }
+            catch (Exception ex) { Console.WriteLine($"Error al ajustar el descuento de aves desde seguimiento engorde Ecuador: {ex.Message}"); }
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, companyId);
@@ -432,11 +416,19 @@ public partial class SeguimientoAvesEngordeEcuadorService
         }
         catch (Exception ex) { Console.WriteLine($"Error al anular INV_CONSUMO al eliminar seguimiento aves engorde Ecuador: {ex.Message}"); }
 
-        var retH = (ent.Seguimiento.MortalidadHembras ?? 0) + (ent.Seguimiento.SelH ?? 0) + (ent.Seguimiento.ErrorSexajeHembras ?? 0);
-        var retM = (ent.Seguimiento.MortalidadMachos ?? 0) + (ent.Seguimiento.SelM ?? 0) + (ent.Seguimiento.ErrorSexajeMachos ?? 0);
+        // Devolución de las aves descontadas por este registro + anulación de su fila en el histórico.
+        var (retH, retM) = RetiroAvesEngordeCalculos.BajasDelDia(
+            ent.Seguimiento.MortalidadHembras ?? 0, ent.Seguimiento.SelH ?? 0, ent.Seguimiento.ErrorSexajeHembras ?? 0,
+            ent.Seguimiento.MortalidadMachos ?? 0, ent.Seguimiento.SelM ?? 0, ent.Seguimiento.ErrorSexajeMachos ?? 0);
         if (retH > 0 || retM > 0)
         {
-            try { await DevolverAvesAlInventarioAsync(ent.Seguimiento.LoteAveEngordeId, retH, retM); }
+            try
+            {
+                await RetiroAvesEngordeAplicador.SincronizarAsync(
+                    _ctx, companyId, ent.Seguimiento.LoteAveEngordeId, ent.Seguimiento.Id, ent.Seguimiento.Fecha,
+                    bajasHembrasViejas: retH, bajasMachosViejas: retM,
+                    bajasHembrasNuevas: 0, bajasMachosNuevas: 0);
+            }
             catch (Exception ex) { Console.WriteLine($"Error al devolver aves al eliminar seguimiento engorde Ecuador: {ex.Message}"); }
         }
 

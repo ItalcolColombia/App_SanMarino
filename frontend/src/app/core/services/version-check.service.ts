@@ -1,49 +1,70 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { interval, Observable, of } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+
+import { BUILD_ID } from '../build-info';
 
 /**
- * Service to check for application updates and force reload when a new version is detected.
- * 
- * This service periodically checks if a new version of the application has been deployed
- * by fetching the index.html file with cache-busting. When a new version is detected,
- * it forces a page reload to ensure users are using the latest version.
- * 
- * This solves the problem where users with active sessions don't get updates after
- * a frontend deployment, causing communication issues with the backend.
+ * Detecta que se desplegó una versión nueva del front y recarga la página.
+ *
+ * Resuelve el problema de que un usuario con sesión activa se quede con el bundle
+ * viejo después de un despliegue y empiece a hablarle mal al backend nuevo.
+ *
+ * ## Por qué ya no lee index.html
+ *
+ * La versión anterior descargaba `/index.html` cada 5 minutos y le sacaba el
+ * timestamp a un `<meta name="app-version">` que `scripts/inject-version.js`
+ * escribía **después** de `ng build`. Esa mutación post-build invalida el SHA1 que
+ * el Service Worker guarda en `ngsw.json` para index.html, y el SW arranca en safe
+ * mode y se desactiva solo sin avisar (ver `scripts/build-version.js`).
+ *
+ * Ahora:
+ *  - la versión propia (`BUILD_ID`) viene **compilada dentro del bundle**, así que es
+ *    exactamente la del código que está corriendo;
+ *  - la versión publicada se consulta en `/version.json`, un archivo chico que nginx
+ *    sirve con `no-cache` y que **nunca** entra en la tabla de hashes del SW.
+ *
+ * En desarrollo local `BUILD_ID` vale `'dev'` y el chequeo queda apagado.
  */
 @Injectable({
   providedIn: 'root'
 })
 export class VersionCheckService {
-  private readonly CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
-  private readonly INDEX_HTML_PATH = '/index.html';
-  private currentVersion: string | null = null;
-  private checkInterval: any;
+  private readonly CHECK_INTERVAL = 5 * 60 * 1000; // Cada 5 minutos
+  private readonly VERSION_JSON_PATH = '/version.json';
 
-  constructor(private http: HttpClient) {
-    // Get initial version from the current index.html
-    this.getCurrentVersion().then(version => {
-      this.currentVersion = version;
-    });
+  private readonly http = inject(HttpClient);
+
+  /** Versión con la que se compiló este bundle. Es la referencia de comparación. */
+  private readonly currentVersion = BUILD_ID;
+
+  private checkInterval: ReturnType<typeof setInterval> | null = null;
+
+  /** En un build local no hay versión publicada contra la cual comparar. */
+  private get habilitado(): boolean {
+    return this.currentVersion !== 'dev';
   }
 
   /**
-   * Starts periodic version checking
+   * Arranca el chequeo periódico de versión.
    */
   startVersionChecking(): void {
-    // Check immediately on start
+    if (!this.habilitado) {
+      return;
+    }
+
+    // Chequeo inmediato al arrancar
     this.checkVersion();
 
-    // Then check periodically
+    // Y después, periódico
     this.checkInterval = setInterval(() => {
       this.checkVersion();
     }, this.CHECK_INTERVAL);
   }
 
   /**
-   * Stops periodic version checking
+   * Detiene el chequeo periódico.
    */
   stopVersionChecking(): void {
     if (this.checkInterval) {
@@ -53,133 +74,66 @@ export class VersionCheckService {
   }
 
   /**
-   * Checks if a new version is available by comparing the current index.html
-   * with a fresh fetch (using cache-busting)
+   * Consulta la versión publicada y recarga si difiere de la compilada.
    */
   private checkVersion(): void {
-    // Fetch index.html with cache-busting to get the latest version
-    const cacheBuster = `?v=${Date.now()}`;
-    
-    this.http.get(this.INDEX_HTML_PATH + cacheBuster, { 
-      responseType: 'text',
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
-    }).pipe(
-      map(html => this.extractVersionFromHtml(html)),
-      catchError(error => {
-        console.warn('Version check failed:', error);
-        return of(null);
-      })
-    ).subscribe(newVersion => {
-      if (newVersion && this.currentVersion && newVersion !== this.currentVersion) {
-        
+    this.fetchPublishedVersion().subscribe(publicada => {
+      if (publicada && publicada !== this.currentVersion) {
         this.handleNewVersion();
-      } else if (newVersion && !this.currentVersion) {
-        // First time, just store the version
-        this.currentVersion = newVersion;
       }
     });
   }
 
   /**
-   * Extracts version/build timestamp from HTML
-   * Looks for a meta tag or script tag with version info
+   * Baja `/version.json` con cache-busting. Devuelve `null` si no se pudo leer
+   * (sin red, 404, JSON inválido): sin dato no se toma ninguna decisión.
    */
-  private extractVersionFromHtml(html: string): string {
-    // Try to extract from meta tag first
-    const metaMatch = html.match(/<meta\s+name="app-version"\s+content="([^"]+)"/i);
-    if (metaMatch) {
-      return metaMatch[1];
-    }
-
-    // Fallback: use a hash of the main script references as version identifier
-    // This works because Angular generates hashed filenames for JS/CSS files
-    const scriptMatches = html.match(/<script[^>]+src="([^"]+\.js[^"]*)"/gi);
-    if (scriptMatches && scriptMatches.length > 0) {
-      // Create a simple hash from script URLs
-      const scriptUrls = scriptMatches.map(m => {
-        const srcMatch = m.match(/src="([^"]+)"/);
-        return srcMatch ? srcMatch[1] : '';
-      }).join('|');
-      return this.simpleHash(scriptUrls);
-    }
-
-    // Last resort: use a hash of the entire HTML (less efficient but works)
-    return this.simpleHash(html.substring(0, 1000)); // First 1000 chars should be enough
-  }
-
-  /**
-   * Simple hash function for version comparison
-   */
-  private simpleHash(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return hash.toString(36);
-  }
-
-  /**
-   * Gets the current version from the loaded index.html
-   */
-  private async getCurrentVersion(): Promise<string> {
-    try {
-      const html = document.documentElement.outerHTML;
-      return this.extractVersionFromHtml(html);
-    } catch (error) {
-      console.warn('Could not get current version:', error);
-      return '';
-    }
-  }
-
-  /**
-   * Handles detection of a new version
-   * Forces a full page reload to get the new version
-   */
-  private handleNewVersion(): void {
-    // Stop checking to avoid multiple reloads
-    this.stopVersionChecking();
-
-    // Show a message to the user (optional - you can customize this)
-    const message = 'Una nueva versión de la aplicación está disponible. La página se recargará automáticamente...';
-    
-    // Try to show a notification if you have a toast service
-    // For now, we'll just log and reload
-    
-    // Give a brief moment for any cleanup, then reload
-    setTimeout(() => {
-      // Force a hard reload to bypass cache
-      window.location.reload();
-    }, 1000);
-  }
-
-  /**
-   * Manually check for updates (useful for testing or manual refresh)
-   */
-  checkForUpdates(): Observable<boolean> {
+  private fetchPublishedVersion(): Observable<string | null> {
     const cacheBuster = `?v=${Date.now()}`;
-    
-    return this.http.get(this.INDEX_HTML_PATH + cacheBuster, { 
-      responseType: 'text',
+
+    return this.http.get<{ buildId?: string }>(this.VERSION_JSON_PATH + cacheBuster, {
       headers: {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache'
       }
     }).pipe(
-      map(html => {
-        const newVersion = this.extractVersionFromHtml(html);
-        if (newVersion && this.currentVersion && newVersion !== this.currentVersion) {
+      map(res => (res && typeof res.buildId === 'string' && res.buildId ? res.buildId : null)),
+      catchError(error => {
+        console.warn('Version check failed:', error);
+        return of(null);
+      })
+    );
+  }
+
+  /**
+   * Hay versión nueva: recarga completa para bajar el bundle actualizado.
+   */
+  private handleNewVersion(): void {
+    // Dejar de chequear para no encadenar recargas
+    this.stopVersionChecking();
+
+    // Un instante de margen para cualquier limpieza pendiente, y recarga
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  }
+
+  /**
+   * Chequeo manual (útil para pruebas o un botón de "buscar actualizaciones").
+   */
+  checkForUpdates(): Observable<boolean> {
+    if (!this.habilitado) {
+      return of(false);
+    }
+
+    return this.fetchPublishedVersion().pipe(
+      map(publicada => {
+        if (publicada && publicada !== this.currentVersion) {
           this.handleNewVersion();
           return true;
         }
         return false;
-      }),
-      catchError(() => of(false))
+      })
     );
   }
 }
-

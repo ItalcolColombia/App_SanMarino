@@ -320,6 +320,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("phone");
 
+                    b.Property<bool>("SeguimientoEngordeMixto")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("seguimiento_engorde_mixto");
+
                     b.Property<string>("State")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
@@ -3651,6 +3657,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("hembras_l");
 
+                    b.Property<TimeOnly?>("HoraEncasetamiento")
+                        .HasColumnType("time")
+                        .HasColumnName("hora_encasetamiento");
+
                     b.Property<string>("Linea")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
@@ -5124,6 +5134,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<int?>("H")
                         .HasColumnType("integer")
                         .HasColumnName("h");
+
+                    b.Property<TimeOnly?>("HoraEncasetamiento")
+                        .HasColumnType("time")
+                        .HasColumnName("hora_encasetamiento");
 
                     b.Property<int>("LoteAveEngordeId")
                         .HasColumnType("integer")
