@@ -17,6 +17,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     private readonly IUserPermissionService _userPermissionService;
     private readonly IUserFarmService _userFarmService;
     private readonly ILocationScopeResolver _scopeResolver;
+    private readonly IArrastreHuevosLevanteService? _arrastreHuevos;
 
     public LotePosturaLevanteService(
         ZooSanMarinoContext ctx,
@@ -24,7 +25,8 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         ICompanyResolver companyResolver,
         IUserPermissionService userPermissionService,
         IUserFarmService userFarmService,
-        ILocationScopeResolver scopeResolver)
+        ILocationScopeResolver scopeResolver,
+        IArrastreHuevosLevanteService? arrastreHuevos = null)
     {
         _ctx = ctx;
         _current = current;
@@ -32,6 +34,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         _userPermissionService = userPermissionService;
         _userFarmService = userFarmService;
         _scopeResolver = scopeResolver;
+        _arrastreHuevos = arrastreHuevos;
     }
 
     /// <summary>
@@ -367,12 +370,20 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         var yaProd = await _ctx.LotePosturaProduccion.AsNoTracking()
             .AnyAsync(p => p.LotePosturaLevanteId == lotePosturaLevanteId && p.DeletedAt == null, ct);
 
+        // Huevos capturados en levante (semana 14+) que se arrastrarán a producción al cerrar.
+        // El modal los muestra como readonly: son el dato real, no uno digitado a mano.
+        var (huevosTot, huevosInc) = _arrastreHuevos is null
+            ? (0, 0)
+            : await _arrastreHuevos.ObtenerTotalesParaCierreAsync(lotePosturaLevanteId, lev.LoteId, ct);
+
         return new CierreLoteLevanteResumenDto(
             lotePosturaLevanteId,
             lev.LoteNombre ?? "",
             lev.AvesHActual ?? 0,
             lev.AvesMActual ?? 0,
-            yaProd);
+            yaProd,
+            huevosTot,
+            huevosInc);
     }
 
     /// <inheritdoc />
@@ -419,7 +430,25 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         lev.UpdatedByUserId = userId;
         lev.UpdatedAt = now;
 
-        await _ctx.SaveChangesAsync(ct);
+        // El arrastre de huevos necesita el Id del LPP recién creado ⇒ dos SaveChanges dentro de UNA
+        // transacción explícita: o queda el lote de producción CON sus huevos, o no queda nada.
+        // (Antes era un único SaveChanges sin transacción; el arrastre no puede quedar a medias.)
+        await using var tx = await _ctx.Database.BeginTransactionAsync(ct);
+        try
+        {
+            await _ctx.SaveChangesAsync(ct);
+
+            if (_arrastreHuevos is not null)
+                await _arrastreHuevos.ArrastrarAsync(lev, prod, now, userId, ct);
+
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
+
         return await GetByIdAsync(lotePosturaLevanteId, ct);
     }
 

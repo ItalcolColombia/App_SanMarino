@@ -114,7 +114,8 @@ public class CompanyPaisService : ICompanyPaisService
             // huevos por ítems sí se exponen.
             ManejaCodigosErpAvicola: cp.Company.ManejaCodigosErpAvicola,
             ClasificacionHuevoPorItems: cp.Company.ClasificacionHuevoPorItems,
-            PermiteTrasladoAvesCrossEtapa: cp.Company.PermiteTrasladoAvesCrossEtapa
+            PermiteTrasladoAvesCrossEtapa: cp.Company.PermiteTrasladoAvesCrossEtapa,
+            CapturaHuevosEnLevante: cp.Company.CapturaHuevosEnLevante
         )).ToList();
     }
 

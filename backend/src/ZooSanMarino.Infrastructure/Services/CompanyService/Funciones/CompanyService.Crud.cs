@@ -73,7 +73,8 @@ public partial class CompanyService
             ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon,
             ManejaCodigosErpAvicola = dto.ManejaCodigosErpAvicola,
             ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems,
-            PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa
+            PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa,
+            CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante
         };
 
         _ctx.Companies.Add(c);
@@ -110,6 +111,7 @@ public partial class CompanyService
         c.ManejaCodigosErpAvicola = dto.ManejaCodigosErpAvicola;
         c.ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems;
         c.PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa;
+        c.CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante;
 
         await _ctx.SaveChangesAsync();
 

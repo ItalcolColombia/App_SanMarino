@@ -260,6 +260,10 @@ public class ProduccionService : IProduccionService
         int loteId;
         int? lotePosturaProduccionId = request.LotePosturaProduccionId;
 
+        // Fila del día creada por el arrastre de huevos del levante, si existe: habilita el MERGE
+        // (sumar sobre ella) en vez del 400 por duplicado. Null ⇒ alta normal.
+        SeguimientoProduccion? filaArrastre = null;
+
         if (lotePosturaProduccionId.HasValue)
         {
             var lpp = await _context.LotePosturaProduccion
@@ -272,11 +276,17 @@ public class ProduccionService : IProduccionService
 
             // La unicidad real en BD es (lote_id, fecha): si otro LPP comparte el mismo Lote base,
             // sin este OR el INSERT reventaría con violación de índice único (500) en vez de 400.
-            var existeSeguimientoLpp = await _context.SeguimientoProduccion.AsNoTracking()
-                .AnyAsync(s => (s.LotePosturaProduccionId == lotePosturaProduccionId || s.LoteId == loteId)
-                    && s.Fecha.Date == request.FechaRegistro.Date);
-            if (existeSeguimientoLpp)
-                throw new InvalidOperationException("Ya existe un seguimiento para esta fecha y lote.");
+            // Se trae la FILA (no AnyAsync) porque si es la del arrastre de huevos del levante hay
+            // que SUMARLE el seguimiento del día en vez de rechazarlo (ver ResolverFilaDuplicada).
+            // Rango de día UTC en vez de `.Fecha.Date == ...`: EF traduce eso a
+            // `date_trunc('day', fecha_registro) = @p`, y date_trunc sobre timestamptz trunca en la
+            // zona de la SESIÓN de la BD ⇒ con una sesión no-UTC nunca casaba y el duplicado pasaba
+            // sin detectarse. El rango es correcto en cualquier zona y además sargable.
+            var (diaDesde, diaHasta) = FechasPuras.RangoDiaUtc(request.FechaRegistro);
+            var existenteLpp = await _context.SeguimientoProduccion
+                .FirstOrDefaultAsync(s => (s.LotePosturaProduccionId == lotePosturaProduccionId || s.LoteId == loteId)
+                    && s.Fecha >= diaDesde && s.Fecha < diaHasta);
+            filaArrastre = ResolverFilaDuplicada(existenteLpp, "Ya existe un seguimiento para esta fecha y lote.");
         }
         else
         {
@@ -287,10 +297,10 @@ public class ProduccionService : IProduccionService
                 throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
             loteId = loteProd.LoteId ?? request.ProduccionLoteId!.Value;
 
-            var existeSeguimiento = await _context.SeguimientoProduccion.AsNoTracking()
-                .AnyAsync(s => s.LoteId == loteId && s.Fecha.Date == request.FechaRegistro.Date);
-            if (existeSeguimiento)
-                throw new InvalidOperationException("Ya existe un seguimiento para esta fecha.");
+            var (diaDesde, diaHasta) = FechasPuras.RangoDiaUtc(request.FechaRegistro);
+            var existente = await _context.SeguimientoProduccion
+                .FirstOrDefaultAsync(s => s.LoteId == loteId && s.Fecha >= diaDesde && s.Fecha < diaHasta);
+            filaArrastre = ResolverFilaDuplicada(existente, "Ya existe un seguimiento para esta fecha.");
         }
 
         // Validar que la fecha no sea en el futuro
@@ -359,7 +369,21 @@ public class ProduccionService : IProduccionService
             metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
         }
 
-        var entity = new SeguimientoProduccion
+        // -- MERGE sobre la fila del arrastre de huevos del levante ------------------------
+        // El usuario registra produccion el mismo dia en que se liquido el levante: sus huevos se
+        // SUMAN a los que ya venian de levante y el resto de los campos los define su registro.
+        // La marca se conserva para que el arrastre siga siendo idempotente.
+        if (filaArrastre is not null)
+        {
+            // Se conserva la marca (para que el arrastre siga siendo idempotente) y se CIERRA la
+            // ventana de merge: a partir de acá el día vuelve a admitir un solo registro.
+            metadata = HuevosLevanteCalculos.CopiarMarcaArrastre(metadata, filaArrastre.Metadata);
+            metadata = HuevosLevanteCalculos.MarcarSeguimientoRegistrado(metadata);
+            AplicarRequestSobreFilaArrastre(filaArrastre, request, consumoKgH, consumoKgM,
+                tipoAlimento, metadata);
+        }
+
+        var entity = filaArrastre ?? new SeguimientoProduccion
         {
             LoteId = loteId,
             LotePosturaProduccionId = lotePosturaProduccionId,
@@ -418,7 +442,7 @@ public class ProduccionService : IProduccionService
             await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
 
             await using var tx = await _context.Database.BeginTransactionAsync();
-            _context.SeguimientoProduccion.Add(entity);
+            if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
             await _context.SaveChangesAsync();
             if (positivos.Count > 0)
             {
@@ -432,11 +456,112 @@ public class ProduccionService : IProduccionService
             return entity.Id;
         }
 
-        _context.SeguimientoProduccion.Add(entity);
+        if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
         await _context.SaveChangesAsync();
         if (lotePosturaProduccionId.HasValue)
             await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
         return entity.Id;
+    }
+
+    /// <summary>
+    /// Politica de duplicado por dia. Devuelve la fila SOLO si es la que creo el arrastre de huevos
+    /// del levante Y todavia no se registro el seguimiento de ese dia, habilitando el merge
+    /// acumulativo UNA sola vez (la regla "un registro por dia" se conserva).
+    /// En cualquier otro caso lanza con el mensaje historico, es decir el 400 de siempre para todos
+    /// los casos que ya existian (filas manuales, de traslado de aves, etc.).
+    /// </summary>
+    private static SeguimientoProduccion? ResolverFilaDuplicada(SeguimientoProduccion? existente, string mensaje)
+    {
+        if (existente is null) return null;
+        if (HuevosLevanteCalculos.PermiteMergeSeguimiento(existente.Metadata)) return existente;
+        throw new InvalidOperationException(mensaje);
+    }
+
+    /// <summary>
+    /// Vuelca el request sobre la fila del arrastre: los huevos se SUMAN categoria por categoria
+    /// (recalculando <c>huevo_tot</c>/<c>huevo_inc</c> desde el resultado) y el resto de los campos
+    /// se reemplazan por lo que registro el usuario. No toca <c>traslado_*</c>, ni
+    /// <c>lote_id</c>/<c>fecha_registro</c>/auditoria de creacion.
+    /// </summary>
+    private void AplicarRequestSobreFilaArrastre(
+        SeguimientoProduccion fila,
+        CrearSeguimientoRequest request,
+        decimal consumoKgH,
+        decimal consumoKgM,
+        string tipoAlimento,
+        JsonDocument? metadata)
+    {
+        var sumado = HuevosLevanteCalculos.Sumar(
+            new HuevosClasificacion(
+                Limpio: fila.HuevoLimpio,
+                Tratado: fila.HuevoTratado,
+                Sucio: fila.HuevoSucio,
+                Deforme: fila.HuevoDeforme,
+                Blanco: fila.HuevoBlanco,
+                DobleYema: fila.HuevoDobleYema,
+                Piso: fila.HuevoPiso,
+                Pequeno: fila.HuevoPequeno,
+                Roto: fila.HuevoRoto,
+                Desecho: fila.HuevoDesecho,
+                Otro: fila.HuevoOtro),
+            new HuevosClasificacion(
+                Limpio: request.HuevoLimpio,
+                Tratado: request.HuevoTratado,
+                Sucio: request.HuevoSucio,
+                Deforme: request.HuevoDeforme,
+                Blanco: request.HuevoBlanco,
+                DobleYema: request.HuevoDobleYema,
+                Piso: request.HuevoPiso,
+                Pequeno: request.HuevoPequeno,
+                Roto: request.HuevoRoto,
+                Desecho: request.HuevoDesecho,
+                Otro: request.HuevoOtro));
+
+        fila.HuevoLimpio = sumado.Limpio;
+        fila.HuevoTratado = sumado.Tratado;
+        fila.HuevoSucio = sumado.Sucio;
+        fila.HuevoDeforme = sumado.Deforme;
+        fila.HuevoBlanco = sumado.Blanco;
+        fila.HuevoDobleYema = sumado.DobleYema;
+        fila.HuevoPiso = sumado.Piso;
+        fila.HuevoPequeno = sumado.Pequeno;
+        fila.HuevoRoto = sumado.Roto;
+        fila.HuevoDesecho = sumado.Desecho;
+        fila.HuevoOtro = sumado.Otro;
+        // Derivados desde las 11 categorias ya sumadas (no se suman los totales del request aparte,
+        // para que no puedan quedar descuadrados). Con clasificacion por items, el
+        // AplicarTotalesHuevoPorItems posterior manda.
+        fila.HuevoInc = sumado.Incubables;
+        fila.HuevoTot = sumado.Totales;
+
+        fila.MortalidadH = request.MortalidadH;
+        fila.MortalidadM = request.MortalidadM;
+        fila.SelH = request.SelH;
+        fila.SelM = request.SelM;
+        fila.ErrorSexajeHembras = request.ErrorSexajeHembras ?? 0;
+        fila.ErrorSexajeMachos = request.ErrorSexajeMachos ?? 0;
+        fila.ConsKgH = consumoKgH;
+        fila.ConsKgM = consumoKgM;
+        fila.TipoAlimento = tipoAlimento;
+        fila.Etapa = request.Etapa;
+        if (request.PesoHuevo > 0) fila.PesoHuevo = request.PesoHuevo;
+        fila.PesoH = request.PesoH ?? fila.PesoH;
+        fila.PesoM = request.PesoM ?? fila.PesoM;
+        fila.Uniformidad = request.Uniformidad ?? fila.Uniformidad;
+        fila.CoeficienteVariacion = request.CoeficienteVariacion ?? fila.CoeficienteVariacion;
+        fila.ObservacionesPesaje = request.ObservacionesPesaje ?? fila.ObservacionesPesaje;
+        fila.ConsumoAguaDiario = request.ConsumoAguaDiario ?? fila.ConsumoAguaDiario;
+        fila.ConsumoAguaPh = request.ConsumoAguaPh ?? fila.ConsumoAguaPh;
+        fila.ConsumoAguaOrp = request.ConsumoAguaOrp ?? fila.ConsumoAguaOrp;
+        fila.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura ?? fila.ConsumoAguaTemperatura;
+        fila.Observaciones = string.IsNullOrWhiteSpace(request.Observaciones)
+            ? fila.Observaciones
+            : (string.IsNullOrWhiteSpace(fila.Observaciones)
+                ? request.Observaciones
+                : $"{fila.Observaciones} | {request.Observaciones}");
+        fila.Metadata = metadata;
+        fila.UpdatedByUserId = _currentUser.UserId;
+        fila.UpdatedAt = DateTime.UtcNow;
     }
 
     public async Task ActualizarSeguimientoAsync(int id, CrearSeguimientoRequest request)

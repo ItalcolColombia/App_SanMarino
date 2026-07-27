@@ -22,5 +22,8 @@ public record CreateCompanyDto(
     // diario de producción, en vez de las 11 columnas fijas?
     bool     ClasificacionHuevoPorItems = false,
     // ¿La empresa puede trasladar aves entre etapas (Levante → Producción) desde el seguimiento diario?
-    bool     PermiteTrasladoAvesCrossEtapa = false
+    bool     PermiteTrasladoAvesCrossEtapa = false,
+    // ¿La empresa captura la clasificación de huevos en el seguimiento diario de LEVANTE desde la
+    // semana 14 (con arrastre del acumulado a producción al liquidar)?
+    bool     CapturaHuevosEnLevante = false
 );

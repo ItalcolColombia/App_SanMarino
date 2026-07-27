@@ -604,3 +604,72 @@
     font-size: var(--fs-sm);
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Tab «Huevos» (semana 14+) — mismos bloques visuales que el modal de producción
+   ══════════════════════════════════════════════════════════════════════════════ */
+:host .clasificadora-section {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem 1rem;
+  border: 1px solid var(--ital-border, #e6e1d9);
+  border-radius: 0.6rem;
+  background: var(--ital-cream, #faf8f5);
+}
+
+:host .clasificadora-title {
+  margin: 0 0 0.75rem;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ital-text-strong, #3b3833);
+}
+
+:host .huevos-resumen {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ital-orange, #e85c25);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--ital-orange, #e85c25) 7%, transparent);
+}
+
+:host .huevos-resumen__icon { font-size: 1.6rem; line-height: 1; }
+:host .huevos-resumen__body { flex: 1 1 auto; min-width: 0; }
+
+:host .huevos-resumen__body h4 {
+  margin: 0 0 0.5rem;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ital-orange, #e85c25);
+}
+
+:host .huevos-resumen__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 0.35rem;
+}
+
+:host .huevos-stat { display: flex; flex-direction: column; gap: 0.1rem; }
+
+:host .huevos-stat__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ital-text-muted, #8a8378);
+}
+
+:host .huevos-stat__value {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ital-text-strong, #3b3833);
+}
+
+:host .huevos-stat--destacado .huevos-stat__value {
+  font-size: 1.35rem;
+  color: var(--ital-orange, #e85c25);
+}

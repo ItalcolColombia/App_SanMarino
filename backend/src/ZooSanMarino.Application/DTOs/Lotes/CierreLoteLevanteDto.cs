@@ -6,7 +6,13 @@ public sealed record CierreLoteLevanteResumenDto(
     string LoteNombre,
     int AvesHembrasDisponibles,
     int AvesMachosDisponibles,
-    bool YaExisteLoteProduccion
+    bool YaExisteLoteProduccion,
+    /// <summary>
+    /// Huevos capturados en el seguimiento diario de LEVANTE (semana 14+) que se arrastrarán al
+    /// primer registro de producción al cerrar. 0 si la empresa no captura huevos en levante.
+    /// </summary>
+    int HuevosLevanteTotales = 0,
+    int HuevosLevanteIncubables = 0
 );
 
 public sealed record CerrarLoteLevanteRequest(

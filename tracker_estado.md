@@ -1,55 +1,58 @@
-# Tracker — Reporte Técnico Semanal Postura (Sanmarino): Levante + Producción vs Guía
+# Tracker — Tab «Huevos» en Seguimiento Diario Levante (semana 14+) y arrastre automático a Producción al liquidar
 
-**Plan:** [fase_de_desarrollo/reporte_tecnico_semanal_postura_plan.md](fase_de_desarrollo/reporte_tecnico_semanal_postura_plan.md)
+**Plan:** [fase_de_desarrollo/huevos_levante_semana14_arrastre_produccion_plan.md](fase_de_desarrollo/huevos_levante_semana14_arrastre_produccion_plan.md)
+
+**Decisiones del usuario:** flag por empresa (`captura_huevos_en_levante`) · sin huevos en reportes de levante en esta fase · «Huevos iniciales (al cerrar)» pasa a readonly con el total calculado.
 
 ## Fase 0 — Análisis
-- [x] Mapear los dos Excel (Técnico Levante A382 / TEC. PRODUCCION A346): columnas, fórmulas, consolidación Gral
-- [x] Exploración del código (workflow 6 agentes): guía genética, seguimientos, lotes, reportes existentes, multi-tenant, front
-- [x] Plan escrito en fase_de_desarrollo
+- [x] Exploración exhaustiva (workflow 8 agentes + síntesis) del esquema, CRUD levante/producción, liquidación, front de ambos modales, fórmulas de semana, impacto en reportes
+- [x] Verificación directa de los 4 hallazgos críticos: las 13 columnas de huevos YA existen en `seguimiento_diario_levante`; el mapper de levante manda 15 `null`; `MovimientoAvesCalculos.SemanaDesdeEncaset` es la fórmula canónica; `SeguimientoLoteLevante` es letra muerta (sin DbSet)
+- [x] Plan escrito en `fase_de_desarrollo/`
 
-## Fase 1 — Backend: fn SQL nueva (diseño afinado: 1 fn, no 2)
-- [x] `backend/sql/fn_reporte_semanal_levante_extras.sql` (conteos/kg/peso/unif/nutrición POR SEXO; misma semántica que fn_indicadores_levante_postura; TEMP propia `_seg_sem_rx`)
-- [x] Producción SIN fn nueva: reusa `fn_indicadores_produccion_postura` + guía cruda (`ProduccionAvicolaRaw`) parseada en C# (menos superficie)
-- [x] Migración `20260726160000_AddFnReporteSemanalLevanteExtras` (Designer clonado; Up=DROP+CREATE, Down=DROP)
-- [x] Migración aplicada en BD local :5433 + sanity con lote real K345A (bases 7999H/1132M, arrastre de peso, kcal null-tolerante)
+## Fase 1 — Backend: cálculo puro + tests (gate CI)
+- [x] `Application/Calculos/HuevosLevanteCalculos.cs` (semana 14, `HuevosClasificacion`, Sumar/Delta, peso ponderado, marca en metadata)
+- [x] `tests/ZooSanMarino.Application.Tests/HuevosLevanteCalculosTests.cs` — 42/42 verdes
+- [x] `dotnet test` verde — 825/825 en toda la suite
 
-## Fase 2 — Backend: DTOs + service + controller
-- [x] `ReporteSemanalLevanteExtrasRow` + `ReporteTecnicoSemanalDtos` (request, header, semana levante/producción, tabs, responses)
-- [x] `ReporteTecnicoSemanalCalculos` (puro): % base fija (Excel), acumulados, incrementos, nutrición, masa/conversión/apareo, consolidación multi-galpón
-- [x] Tests xUnit `ReporteTecnicoSemanalCalculosTests` — 30/30 verdes
-- [x] `IReporteTecnicoSemanalService` + service (ancla + Funciones/Levante + Funciones/Produccion) con empresa efectiva + `ILocationScopeResolver` fail-closed
-- [x] `ReporteTecnicoSemanalController` (POST api/ReporteTecnicoSemanal/levante | /produccion) + DI en Program.cs
-- [x] `dotnet build` 0 errores 0 warnings + `dotnet test` verde
+## Fase 2 — Backend: flag de empresa
+- [x] `Company.CapturaHuevosEnLevante` + `CompanyConfiguration` (`captura_huevos_en_levante`, default false)
+- [x] Propagado en las 5 proyecciones (`CompanyDto`, `CompanyService.ToDto`, `CompanyService.Crud`, `CompanyResolver`, `CompanyPaisService`) + CreateCompanyDto/UpdateCompanyDto
+- [x] Migración `20260726231137_AddCapturaHuevosEnLevanteCompany` (idempotente, `ADD COLUMN IF NOT EXISTS`)
+- [x] Migración data-only `20260726231200_SeedCapturaHuevosEnLevante` (Sanmarino, `IS DISTINCT FROM`)
+- [x] Aplicadas en BD local :5433 y verificadas (Sanmarino=t, resto=f)
 
-## Fase 3 — Menú solo Sanmarino
-- [x] Migración `20260726160100_AddMenuReporteTecnicoSemanal`: ítem bajo Reportes (icon chart-bar), company_menus SOLO 'Agroavicola Sanmarino', role_menus SOLO roles Sanmarino con '/reportes-tecnicos' (verificado en local: 1 empresa, 4 roles)
+## Fase 3 — Backend: captura de huevos en levante (semana 14+)
+- [x] DTOs: `CreateSeguimientoLoteLevanteRequest` + `SeguimientoLoteLevanteDto` (13 campos opcionales al final)
+- [x] `Mapeos.cs`: destapados los 15 `null` (Create + Update) y lectura en `MapToLevanteDto`
+- [x] `Crud.cs`: gate semana 14 + flag por empresa (fail-closed por `farms.company_id`), `null` = conservar en Update
+- [x] Blindaje de pérdida silenciosa en `SeguimientoDiarioService` (`teneManualExist`, `FilaSinContenido`, `MergearManualSobreTrasladoAsync`)
+- [x] `dotnet build` 0 errores / 0 warnings nuevos
 
-## Fase 4 — Frontend
-- [x] models + service TS (espejo DTOs); filtros reusando `ReporteTecnicoLevanteFilterService` con instancia propia (providers del componente)
-- [x] Página main: toggle Levante/Producción + filter-card cascada 1-4 + tabs Consolidado/galpones + tabla 2 niveles (vista precalculada, sin NG0103)
-- [x] funciones/: `columnas-reporte-semanal` (spec única de columnas) + `construir-aoa-reporte-semanal` (export multi-hoja: Gral + hoja por galpón) + README
-- [x] Ruta `/reporte-tecnico-semanal` en app.config.ts (loadComponent + authGuard)
-- [x] `ng build` 0 errores (solo warning budget preexistente)
+## Fase 4 — Backend: arrastre al liquidar + SUMA el mismo día
+- [x] `IArrastreHuevosLevanteService` + `ArrastreHuevosLevanteService` (suma en BD, upsert con delta por marca, espejo)
+- [x] Enganche transaccional en `LotePosturaLevanteService.CerrarLoteYCrearProduccionAsync`
+- [x] Total de huevos en `GetResumenCierreAsync` (`CierreLoteLevanteResumenDto`)
+- [x] Rama de merge en `ProduccionService.CrearSeguimientoAsync` (sólo filas marcadas ⇒ el 400 actual intacto)
+- [x] DI en `Program.cs`
+- [x] `dotnet build` + `dotnet test` verdes (0/0 warnings · 825/825)
 
-## Fase 5 — Validación y cierre
-- [x] Smoke API local con JWT minteado (empresa 1): POST levante K345 → 200, 2 tabs × 25 semanas + consolidado, guía casa con el Excel (21 gr/a/d, 147 acum, 145 peso, 70 U%); POST produccion → 200, 2 tabs × 44 semanas, semana 25 con guía parcial (REQ-012b OK)
-- [x] Smoke UI en dev server: `/reporte-tecnico-semanal` carga y redirige a login (authGuard), 0 errores de consola
+## Fase 5 — Frontend
+- [x] `capturaHuevosEnLevante` en `CompanyFlags` + `FLAGS_APAGADOS` (fail-closed)
+- [x] `funciones/` puras: `totales-huevos-levante`, `semana-vida-levante` + `README.md`; `models/huevo-levante.model.ts`
+- [x] `modal-create-edit`: 3er tab «Huevos», 12 controles, auto-cálculo memoizado, payload, rehidratación, reset
+- [x] `seguimiento-lote-levante-list`: `[fechaEncaset]` bindeado, total readonly en el modal de cierre, toast en el error
+- [x] `modal-detalle-seguimiento`: sección «Huevos»
+- [x] `services/seguimiento-lote-levante.service.ts`: campos de huevos en los DTOs TS
+- [x] `yarn build` 0 errores (sólo el warning de bundle budget preexistente)
 
-## Fase 6 — Vista Gráficas (réplica de las gráficas embebidas de los Excel)
-- [x] `funciones/construir-graficas-reporte-semanal.funcion.ts` (pura): 8 gráficas Levante (Peso, Desv Peso %, Consumo, Increm H, Increm M, Retiro+Mort H, Retiro+Mort M, Uniformidad) + 6 Producción (% Producción, HTAA-HIAA-%HI, Consumo ave, Desv Peso %, Retiro+Mort H, Retiro M) — Real sólido / Guía punteada, colores del repo
-- [x] Toggle Tabla ↔ Gráficas por tab en el componente (charts precalculados por generación, NgChartsModule/Chart.js)
-- [x] `ng build` 0 errores (solo warning budget preexistente)
-- [x] Smoke UI COMPLETO en dev server con sesión dev inyectada (sessionStorage, sin credenciales): Levante K345 → tabs Consolidado/K345A/K345B, tabla 2 niveles y 8 canvas pintados; Producción → P-K345A/P-K345B y 6 canvas pintados; 0 errores de consola
-- [x] Servidores detenidos (sin procesos huérfanos)
-- [x] Commit `3dd1f4a` en main (autor moisesmurillo, sin atribución)
+## Fase 6b — Bug encontrado durante la validación (bloqueaba el merge)
+- [x] `date_trunc('day', timestamptz)` trunca en la zona de la SESIÓN de la BD ⇒ `x.Fecha.Date == fecha.Date` en LINQ **nunca casaba** con una sesión no-UTC (la local es `America/Bogota`): el chequeo de duplicado de producción no encontraba la fila y el merge no se disparaba (creaba una 2ª fila del mismo día)
+- [x] `FechasPuras.RangoDiaUtc` (puro, 4 tests nuevos) + aplicado en los 2 chequeos de duplicado de `ProduccionService` y en el lookup de `ArrastreHuevosLevanteService` — rango semiabierto UTC, correcto en cualquier zona y sargable
+- [x] Efecto colateral (mejora): en una BD con sesión no-UTC el 400 por duplicado de producción ahora **sí** se detecta (antes se colaba una fila por día repetida)
 
-## Fase 7 — Bloque POLLITOS con datos reales (fase 2 del plan)
-- [x] Exploración BD local: `traslado_huevos` (340 filas, company 1) tiene tipo_destino='Planta' + estado='Completado' + cantidad_limpio/tratado + lote_postura_produccion_id → **HI Cargado es real y cruza por semana de vida** (verificado con P-K345A: sem 26=8.455 … sem 37=42.277)
-- [x] Auditoría (3 agentes + BD): pollitos nacidos / % nacimiento **NO existen** en el esquema (no hay retorno de incubadora); el reporte técnico viejo arrastra el mismo hueco (`porcentajeNacimientos`/`pollitosVendidos` null hardcodeados). Documentado en el plan §9
-- [x] `AgruparCargadosPorSemana` (puro, misma fórmula de semana que la fn) + consulta EF a `traslado_huevos` (Completado + destino Planta, limpio+tratado) con la misma resolución de fecha de encaset que la fn
-- [x] DTO: `HuevosCargadosPlanta`, `HuevosCargadosPlantaAcum`, `PorcentajeCargaSobreIncubables` + suma en el consolidado
-- [x] Tests xUnit: 35/35 verdes (5 nuevos: fórmula de semana, hora ignorada, acumulados/%, sin traslados, consolidado)
-- [x] Front: 3 columnas nuevas en el bloque Pollitos + gráfica "Incubables producidos vs cargados a planta" (7ª de producción)
-- [x] `dotnet build` 0/0 · `ng build` 0 errores · smoke API (totales 1.470.623 + 911.090 = 2.381.713 = BD) y smoke UI (tabla + 7 gráficas, 0 errores de consola)
-- [x] Servidores detenidos
-- [x] Commit fase 2 `0b3b79f`
+## Fase 6 — Validación y cierre
+- [x] Smoke API local con JWT minteado: gate semana 13/14, GET de vuelta, PUT conserva, merge de fila sólo-huevos, liquidación sin/con huevos, **SUMA el mismo día (200, una sola fila)**, 400 preservado, doble liquidación, reapertura, idempotencia con edición intermedia, flag OFF sin cambios — **58/58 verdes** (20 captura en levante + 38 liquidación/arrastre)
+- [x] Smoke UI en dev server con sesión inyectada: tab oculto en semana 13 / visible en 14, totales readonly, cambio de fecha oculta el tab, modal de cierre con el total, 0 errores de consola, sin NG0103 — **verificado**: borde exacto día 90 (oculto) vs día 91 (visible); totales 900 inc + 90 = 990 (91%); guardado real desde la UI persistido (427/340/peso 59.25); modal de cierre readonly «Totales 2.092 · Incubables 1.890»; **flag OFF ⇒ tab oculto en semana 41** (cero cambios visibles); consola sin errores
+- [x] Servidores detenidos (sin procesos huérfanos) + BD local restaurada al estado original (38 filas / 0 huevos en el lote 114, lotes 6 y 7 «Abierto», sin LPP de prueba)
+- [ ] Commit — **pendiente de tu confirmación** (46 archivos listos, working tree sin commitear; tu commit paralelo `14a8bfa` no toca ninguno de estos archivos)
+- [x] Verificado contra la regla nueva de `CLAUDE.md` (Angular 22 = OnPush por defecto): los 3 componentes tocados ya declaran `ChangeDetectionStrategy.Eager` explícito

@@ -41,6 +41,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: captura de la clasificación de huevos en el seguimiento
+        // diario de LEVANTE desde la semana 14, con arrastre del acumulado a producción al liquidar.
+        builder.Property(x => x.CapturaHuevosEnLevante)
+            .HasColumnName("captura_huevos_en_levante")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         // Flag tipado por comportamiento: traslado de aves ENTRE ETAPAS (Levante → Producción)
         // desde el seguimiento diario, conservando la edad de las aves recibidas (cohortes).
         builder.Property(x => x.PermiteTrasladoAvesCrossEtapa)

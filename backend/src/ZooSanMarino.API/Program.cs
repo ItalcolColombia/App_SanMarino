@@ -327,6 +327,8 @@ builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorServi
 // Servicios de Traslados
 builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IEspejoHuevoProduccionSyncService, ZooSanMarino.Infrastructure.Services.EspejoHuevoProduccionSyncService>();
+// Arrastre de los huevos capturados en levante (semana 14+) al primer registro de producción al liquidar.
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IArrastreHuevosLevanteService, ZooSanMarino.Infrastructure.Services.ArrastreHuevosLevanteService>();
 builder.Services.AddScoped<ITrasladoHuevosService, TrasladoHuevosService>();
 builder.Services.AddScoped<ITrasladoAvesDesdeSegService, TrasladoAvesDesdeSegService>();
 

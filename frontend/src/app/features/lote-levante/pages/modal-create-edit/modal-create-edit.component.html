@@ -65,6 +65,10 @@
           <nav class="modal-lev-tabs" role="tablist" aria-label="Secciones del registro">
             <button type="button" class="modal-lev-tabs__btn" [class.modal-lev-tabs__btn--active]="levanteTab === 'general'"
             (click)="setLevanteTab('general')" role="tab" [attr.aria-selected]="levanteTab === 'general'">General</button>
+            @if (mostrarTabHuevos) {
+              <button type="button" class="modal-lev-tabs__btn" [class.modal-lev-tabs__btn--active]="levanteTab === 'huevos'"
+              (click)="setLevanteTab('huevos')" role="tab" [attr.aria-selected]="levanteTab === 'huevos'">🥚 Huevos</button>
+            }
             <button type="button" class="modal-lev-tabs__btn" [class.modal-lev-tabs__btn--active]="levanteTab === 'stock'"
             (click)="setLevanteTab('stock')" role="tab" [attr.aria-selected]="levanteTab === 'stock'">Stock</button>
           </nav>
@@ -372,6 +376,121 @@
                   <div class="form-field">
                     <label for="f-consumo-agua-temperatura">Temperatura del Agua (°C)</label>
                     <input id="f-consumo-agua-temperatura" type="number" step="0.1" min="0" formControlName="consumoAguaTemperatura" placeholder="Ej: 25.5" />
+                  </div>
+                </div>
+              </div>
+            </section>
+          }
+          <!-- ========== HUEVOS: clasificadora (desde la semana 14 de vida del lote) ========== -->
+          @if (levanteTab === 'huevos') {
+            <section class="ux-panel-section">
+              <div class="data-group">
+                <h3 class="data-group-title">🥚 Producción de Huevos</h3>
+                <p class="ux-hint">
+                  Registro de la clasificación de huevos del día.
+                  @if (semanaVidaRegistro !== null) {
+                    Semana de vida del lote: <strong>{{ semanaVidaRegistro }}</strong>.
+                  }
+                  Al liquidar el levante, el total acumulado pasa automáticamente al primer registro de producción.
+                </p>
+
+                <div class="grid grid-3">
+                  <div class="form-field">
+                    <label for="f-lev-huevos-totales">🥚 Huevos Totales (HuevoTot)</label>
+                    <input id="f-lev-huevos-totales" type="number" [value]="totalHuevos" placeholder="0" readonly
+                           class="ux-input--readonly" />
+                    <small class="ux-hint">Automático: suma de todas las categorías de huevos</small>
+                  </div>
+                  <div class="form-field">
+                    <label for="f-lev-huevos-incubables">✅ Huevos Incubables (HuevoInc)</label>
+                    <input id="f-lev-huevos-incubables" type="number" [value]="incubablesHuevos" placeholder="0" readonly
+                           class="ux-input--readonly" />
+                    <small class="ux-hint">Automático: Limpio + Tratado</small>
+                  </div>
+                  <div class="form-field">
+                    <label for="f-lev-peso-huevo">⚖️ Peso Promedio (g)</label>
+                    <input id="f-lev-peso-huevo" type="number" min="0" step="0.01" formControlName="pesoHuevo" placeholder="0" />
+                    <small class="ux-hint">Peso promedio en gramos</small>
+                  </div>
+                </div>
+
+                <div class="clasificadora-section">
+                  <h4 class="clasificadora-title">✅ Clasificadora de Huevos - Incubables (Se suman a HuevoInc)</h4>
+                  <div class="grid grid-2">
+                    <div class="form-field">
+                      <label for="f-lev-huevo-limpio">✨ Limpio</label>
+                      <input id="f-lev-huevo-limpio" type="number" min="0" formControlName="huevoLimpio" placeholder="0" />
+                      <small class="ux-hint">Huevos limpios</small>
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-tratado">🧴 Tratado</label>
+                      <input id="f-lev-huevo-tratado" type="number" min="0" formControlName="huevoTratado" placeholder="0" />
+                      <small class="ux-hint">Huevos tratados</small>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="clasificadora-section">
+                  <h4 class="clasificadora-title">📋 Clasificadora de Huevos - No Incubables (Se suman a Huevo Total)</h4>
+                  <div class="grid grid-3">
+                    <div class="form-field">
+                      <label for="f-lev-huevo-sucio">🧹 Sucio</label>
+                      <input id="f-lev-huevo-sucio" type="number" min="0" formControlName="huevoSucio" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-deforme">🔀 Deforme</label>
+                      <input id="f-lev-huevo-deforme" type="number" min="0" formControlName="huevoDeforme" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-blanco">⚪ Blanco</label>
+                      <input id="f-lev-huevo-blanco" type="number" min="0" formControlName="huevoBlanco" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-doble-yema">🥚 Doble Yema</label>
+                      <input id="f-lev-huevo-doble-yema" type="number" min="0" formControlName="huevoDobleYema" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-piso">📦 Piso</label>
+                      <input id="f-lev-huevo-piso" type="number" min="0" formControlName="huevoPiso" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-pequeno">🔸 Pequeño</label>
+                      <input id="f-lev-huevo-pequeno" type="number" min="0" formControlName="huevoPequeno" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-roto">💔 Roto</label>
+                      <input id="f-lev-huevo-roto" type="number" min="0" formControlName="huevoRoto" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-desecho">🗑️ Desecho</label>
+                      <input id="f-lev-huevo-desecho" type="number" min="0" formControlName="huevoDesecho" placeholder="0" />
+                    </div>
+                    <div class="form-field">
+                      <label for="f-lev-huevo-otro">📌 Otro</label>
+                      <input id="f-lev-huevo-otro" type="number" min="0" formControlName="huevoOtro" placeholder="0" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="huevos-resumen">
+                  <span class="huevos-resumen__icon">🥚</span>
+                  <div class="huevos-resumen__body">
+                    <h4>Eficiencia de Producción</h4>
+                    <div class="huevos-resumen__stats">
+                      <div class="huevos-stat huevos-stat--destacado">
+                        <span class="huevos-stat__label">Eficiencia</span>
+                        <span class="huevos-stat__value">{{ eficienciaHuevos }}%</span>
+                      </div>
+                      <div class="huevos-stat">
+                        <span class="huevos-stat__label">Totales</span>
+                        <span class="huevos-stat__value">{{ totalHuevos }}</span>
+                      </div>
+                      <div class="huevos-stat">
+                        <span class="huevos-stat__label">Incubables</span>
+                        <span class="huevos-stat__value">{{ incubablesHuevos }}</span>
+                      </div>
+                    </div>
+                    <small class="ux-hint">Porcentaje de huevos incubables sobre el total</small>
                   </div>
                 </div>
               </div>

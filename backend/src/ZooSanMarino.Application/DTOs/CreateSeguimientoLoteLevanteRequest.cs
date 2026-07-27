@@ -125,6 +125,23 @@ public class CreateSeguimientoLoteLevanteRequest
     [JsonPropertyName("qqMachos")]
     public decimal? QqMachos { get; set; }
 
+    // ── Clasificación de huevos en LEVANTE (semana 14+, flag captura_huevos_en_levante) ──────
+    // Todas OPCIONALES: este request lo comparten engorde y reproductora, que nunca las envían.
+    // huevosTotales/huevosIncubables NO se aceptan del cliente: se recalculan desde las 11
+    // categorías (misma semántica "Automático" que el modal de producción).
+    [JsonPropertyName("huevoLimpio")]    public int? HuevoLimpio { get; set; }
+    [JsonPropertyName("huevoTratado")]   public int? HuevoTratado { get; set; }
+    [JsonPropertyName("huevoSucio")]     public int? HuevoSucio { get; set; }
+    [JsonPropertyName("huevoDeforme")]   public int? HuevoDeforme { get; set; }
+    [JsonPropertyName("huevoBlanco")]    public int? HuevoBlanco { get; set; }
+    [JsonPropertyName("huevoDobleYema")] public int? HuevoDobleYema { get; set; }
+    [JsonPropertyName("huevoPiso")]      public int? HuevoPiso { get; set; }
+    [JsonPropertyName("huevoPequeno")]   public int? HuevoPequeno { get; set; }
+    [JsonPropertyName("huevoRoto")]      public int? HuevoRoto { get; set; }
+    [JsonPropertyName("huevoDesecho")]   public int? HuevoDesecho { get; set; }
+    [JsonPropertyName("huevoOtro")]      public int? HuevoOtro { get; set; }
+    [JsonPropertyName("pesoHuevo")]      public double? PesoHuevo { get; set; }
+
     /// <summary>
     /// Convierte este request a SeguimientoLoteLevanteDto, haciendo la conversión de unidades si es necesario.
     /// Separa los alimentos (que van a campos tradicionales) de otros ítems (que van a ItemsAdicionales).
@@ -228,7 +245,20 @@ public class CreateSeguimientoLoteLevanteRequest
             QqHembras: QqHembras,
             QqMachos: QqMachos,
             TipoAlimentoHembrasNombre: TipoAlimentoHembrasNombre,
-            TipoAlimentoMachosNombre: TipoAlimentoMachosNombre
+            TipoAlimentoMachosNombre: TipoAlimentoMachosNombre,
+            // Huevos en levante (semana 14+). Null = el cliente no mandó el tab de huevos.
+            HuevoLimpio: HuevoLimpio,
+            HuevoTratado: HuevoTratado,
+            HuevoSucio: HuevoSucio,
+            HuevoDeforme: HuevoDeforme,
+            HuevoBlanco: HuevoBlanco,
+            HuevoDobleYema: HuevoDobleYema,
+            HuevoPiso: HuevoPiso,
+            HuevoPequeno: HuevoPequeno,
+            HuevoRoto: HuevoRoto,
+            HuevoDesecho: HuevoDesecho,
+            HuevoOtro: HuevoOtro,
+            PesoHuevo: PesoHuevo
         );
     }
     

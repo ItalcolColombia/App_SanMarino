@@ -272,6 +272,36 @@
                 </div>
               </section>
             }
+            <!-- Huevos (levante semana 14+) -->
+            @if (tieneHuevos) {
+              <section class="detail-section">
+                <h3 class="detail-section__title">Huevos</h3>
+                <div class="detail-fields">
+                  <div class="detail-field">
+                    <label class="detail-label">Total huevos</label>
+                    <input type="text" class="detail-input" [value]="formatNumber(seguimiento.huevoTot ?? 0)" readonly disabled>
+                  </div>
+                  <div class="detail-field">
+                    <label class="detail-label">Incubables</label>
+                    <input type="text" class="detail-input" [value]="formatNumber(seguimiento.huevoInc ?? 0)" readonly disabled>
+                  </div>
+                  @if (seguimiento.pesoHuevo) {
+                    <div class="detail-field">
+                      <label class="detail-label">Peso promedio</label>
+                      <input type="text" class="detail-input" [value]="formatNumber(seguimiento.pesoHuevo) + ' g'" readonly disabled>
+                    </div>
+                  }
+                  @for (c of categoriasHuevo; track c.label) {
+                    @if (c.valor) {
+                      <div class="detail-field">
+                        <label class="detail-label">{{ c.label }}</label>
+                        <input type="text" class="detail-input" [value]="formatNumber(c.valor)" readonly disabled>
+                      </div>
+                    }
+                  }
+                </div>
+              </section>
+            }
           </div>
         </div>
       }

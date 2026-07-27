@@ -710,8 +710,23 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
         this.editing = null;
         this.onLoteChange(this.selectedLoteId);
       },
-      error: () => { /* TODO: toast de error */ }
+      // El backend valida reglas que el usuario necesita ver (p. ej. el gate de huevos antes de la
+      // semana 14, o el lote cerrado). Sin toast el 400 quedaba invisible y el modal se cerraba
+      // como si hubiera guardado.
+      error: (err: unknown) => {
+        this.toast.error(this.mensajeDeError(err, 'No se pudo guardar el seguimiento.'));
+      }
     });
+  }
+
+  /** Extrae el mensaje del backend (`{ message }` o `{ error }`) con un fallback legible. */
+  private mensajeDeError(err: unknown, fallback: string): string {
+    const e = err as { error?: { message?: string; error?: string } | string; message?: string };
+    if (typeof e?.error === 'string' && e.error.trim()) return e.error;
+    const msg = (e?.error as { message?: string; error?: string } | undefined)?.message
+      ?? (e?.error as { message?: string; error?: string } | undefined)?.error;
+    if (msg && String(msg).trim()) return String(msg);
+    return fallback;
   }
 
   // ================== helpers ==================
@@ -898,7 +913,8 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     this.lotePosturaLevanteSvc.getResumenCierre(id).subscribe({
       next: r => {
         this.resumenCierre = r;
-        this.huevosCierre = 0;
+        // Total REAL de huevos capturados en levante (readonly en el modal): es el que se arrastra.
+        this.huevosCierre = r.huevosLevanteTotales ?? 0;
         this.fechaInicioProduccionYmd = this.todayYMD();
         this.editAvesProduccion = false;
         this.avesHProd = r.avesHembrasDisponibles;

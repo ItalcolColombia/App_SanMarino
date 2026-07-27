@@ -19,13 +19,20 @@ export interface CompanyFlags {
   clasificacionHuevoPorItems: boolean;
   /** Santa Reyes: se permite trasladar aves entre etapas (Levante → Producción) registrando cohorte con la edad de origen. */
   permiteTrasladoAvesCrossEtapa: boolean;
+  /**
+   * La empresa captura la clasificación de huevos en el seguimiento diario de LEVANTE a partir de
+   * la semana 14 de vida; al liquidar el levante el acumulado se arrastra al primer registro de
+   * producción.
+   */
+  capturaHuevosEnLevante: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
 const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   manejaCodigosErpAvicola: false,
   clasificacionHuevoPorItems: false,
-  permiteTrasladoAvesCrossEtapa: false
+  permiteTrasladoAvesCrossEtapa: false,
+  capturaHuevosEnLevante: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -41,6 +48,7 @@ interface CompanyFlagsResponse {
   manejaCodigosErpAvicola?: boolean | null;
   clasificacionHuevoPorItems?: boolean | null;
   permiteTrasladoAvesCrossEtapa?: boolean | null;
+  capturaHuevosEnLevante?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -70,6 +78,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa permite traslados de aves entre etapas (Levante → Producción)? */
   readonly permiteTrasladoAvesCrossEtapa$: Observable<boolean> = this.flags$.pipe(
     map(f => f.permiteTrasladoAvesCrossEtapa),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa captura huevos en el seguimiento diario de levante? */
+  readonly capturaHuevosEnLevante$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.capturaHuevosEnLevante),
     distinctUntilChanged()
   );
 
@@ -144,6 +158,11 @@ export class ActiveCompanyConfigService {
     return this.getFlags().pipe(map(f => f.permiteTrasladoAvesCrossEtapa));
   }
 
+  /** Azúcar: sólo el flag de captura de huevos en levante de la empresa activa. */
+  capturaHuevosEnLevante(): Observable<boolean> {
+    return this.getFlags().pipe(map(f => f.capturaHuevosEnLevante));
+  }
+
   /** Descarta la caché (p. ej. tras editar la empresa en configuración). */
   invalidate(): void {
     this.cache.clear();
@@ -155,7 +174,8 @@ export class ActiveCompanyConfigService {
     return {
       manejaCodigosErpAvicola: dto?.manejaCodigosErpAvicola === true,
       clasificacionHuevoPorItems: dto?.clasificacionHuevoPorItems === true,
-      permiteTrasladoAvesCrossEtapa: dto?.permiteTrasladoAvesCrossEtapa === true
+      permiteTrasladoAvesCrossEtapa: dto?.permiteTrasladoAvesCrossEtapa === true,
+      capturaHuevosEnLevante: dto?.capturaHuevosEnLevante === true
     };
   }
 
@@ -166,7 +186,8 @@ export class ActiveCompanyConfigService {
     if (
       actual.manejaCodigosErpAvicola === flags.manejaCodigosErpAvicola &&
       actual.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems &&
-      actual.permiteTrasladoAvesCrossEtapa === flags.permiteTrasladoAvesCrossEtapa
+      actual.permiteTrasladoAvesCrossEtapa === flags.permiteTrasladoAvesCrossEtapa &&
+      actual.capturaHuevosEnLevante === flags.capturaHuevosEnLevante
     ) return;
     this.flagsSubject.next(flags);
   }

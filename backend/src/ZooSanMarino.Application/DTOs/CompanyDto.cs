@@ -28,5 +28,8 @@ public record CompanyDto(
     bool ClasificacionHuevoPorItems = false,
     // ¿La empresa puede trasladar aves entre etapas (Levante → Producción) desde el seguimiento
     // diario? El front lo usa para habilitar el selector de etapa destino en el modal de traslado.
-    bool PermiteTrasladoAvesCrossEtapa = false
+    bool PermiteTrasladoAvesCrossEtapa = false,
+    // ¿La empresa captura la clasificación de huevos en el seguimiento diario de LEVANTE desde la
+    // semana 14 (con arrastre del acumulado a producción al liquidar)?
+    bool CapturaHuevosEnLevante = false
 );

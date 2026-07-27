@@ -81,6 +81,12 @@ export interface CierreLoteLevanteResumenDto {
   avesHembrasDisponibles: number;
   avesMachosDisponibles: number;
   yaExisteLoteProduccion: boolean;
+  /**
+   * Huevos capturados en el seguimiento diario de LEVANTE (semana 14+) que se arrastrarán al primer
+   * registro de producción al cerrar. 0 si la empresa no captura huevos en levante.
+   */
+  huevosLevanteTotales?: number | null;
+  huevosLevanteIncubables?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })

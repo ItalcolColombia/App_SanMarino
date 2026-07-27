@@ -33,6 +33,10 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
   itemsGenerales: ItemSeguimientoDto[] = [];
   /** catalogItemId -> nombre (o codigo - nombre) para mostrar en la tabla de ítems */
   itemNames = new Map<number, string>();
+  /** ¿El registro tiene huevos? (levante semana 14+). Memoizado en ngOnChanges. */
+  tieneHuevos = false;
+  /** Las 11 categorías de la clasificadora con su valor. Memoizado en ngOnChanges. */
+  categoriasHuevo: { label: string; valor: number }[] = [];
 
   constructor(
     private seguimientoService: SeguimientoLoteLevanteService,
@@ -52,6 +56,36 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     if (changes['isOpen']?.currentValue && this.seguimiento) {
       this.cargarDetalle();
     }
+    if (changes['isOpen'] || changes['seguimiento']) this.recalcularHuevos();
+  }
+
+  /**
+   * Sección «Huevos» (levante semana 14+). Propiedades MEMOIZADAS: el template las lee como campos,
+   * no como getters que alocan un array por ciclo de change detection (patrón NG0103 del repo).
+   */
+  private recalcularHuevos(): void {
+    const s = this.seguimiento;
+    if (!s) {
+      this.tieneHuevos = false;
+      this.categoriasHuevo = [];
+      return;
+    }
+
+    this.categoriasHuevo = [
+      { label: 'Limpio', valor: s.huevoLimpio ?? 0 },
+      { label: 'Tratado', valor: s.huevoTratado ?? 0 },
+      { label: 'Sucio', valor: s.huevoSucio ?? 0 },
+      { label: 'Deforme', valor: s.huevoDeforme ?? 0 },
+      { label: 'Blanco', valor: s.huevoBlanco ?? 0 },
+      { label: 'Doble yema', valor: s.huevoDobleYema ?? 0 },
+      { label: 'Piso', valor: s.huevoPiso ?? 0 },
+      { label: 'Pequeño', valor: s.huevoPequeno ?? 0 },
+      { label: 'Roto', valor: s.huevoRoto ?? 0 },
+      { label: 'Desecho', valor: s.huevoDesecho ?? 0 },
+      { label: 'Otro', valor: s.huevoOtro ?? 0 }
+    ];
+
+    this.tieneHuevos = (s.huevoTot ?? 0) > 0 || this.categoriasHuevo.some(c => c.valor > 0);
   }
 
   cargarDetalle(): void {

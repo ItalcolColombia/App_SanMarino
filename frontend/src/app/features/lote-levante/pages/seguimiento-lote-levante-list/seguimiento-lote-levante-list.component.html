@@ -156,6 +156,7 @@
   [selectedLoteId]="selectedLoteId"
   [selectedGranjaName]="selectedGranjaName"
   [lotePosturaLevanteId]="selectedLote?.lotePosturaLevanteId ?? null"
+  [fechaEncaset]="selectedLote?.fechaEncaset ?? null"
   [loading]="loading"
   [loadingRecord]="loadingRecord"
   (close)="cancel()"
@@ -427,8 +428,19 @@
           }
           @if (!r.yaExisteLoteProduccion) {
             <div class="form-field">
-              <label for="huevos-cierre">Huevos iniciales (al cerrar)</label>
-              <input id="huevos-cierre" type="number" min="0" step="1" [(ngModel)]="huevosCierre" name="huevosCierre" />
+              <label for="huevos-cierre">Huevos de levante que pasan a producción</label>
+              <input id="huevos-cierre" type="number" [value]="huevosCierre" name="huevosCierre" readonly
+                     class="ux-input--readonly" />
+              <small class="ux-hint">
+                @if (huevosCierre > 0) {
+                  Calculado desde los registros diarios del levante — Totales
+                  <strong>{{ huevosCierre | number }}</strong> · Incubables
+                  <strong>{{ (resumenCierre?.huevosLevanteIncubables ?? 0) | number }}</strong>.
+                  Se cargarán en el primer registro de producción ({{ fechaInicioProduccionYmd }}).
+                } @else {
+                  No hay huevos registrados en el levante de este lote.
+                }
+              </small>
             </div>
           }
         }

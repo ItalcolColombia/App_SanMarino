@@ -254,7 +254,11 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
                                       || (existente.SelH ?? 0) > 0 || (existente.SelM ?? 0) > 0
                                       || (existente.ErrorSexajeHembras ?? 0) > 0 || (existente.ErrorSexajeMachos ?? 0) > 0
                                       || (existente.ConsumoKgHembras ?? 0m) > 0m || (existente.ConsumoKgMachos ?? 0m) > 0m
-                                      || (existente.PesoPromHembras ?? 0d) > 0d || (existente.PesoPromMachos ?? 0d) > 0d;
+                                      || (existente.PesoPromHembras ?? 0d) > 0d || (existente.PesoPromMachos ?? 0d) > 0d
+                                      // Huevos en levante (semana 14+): una fila que sólo tiene huevos
+                                      // ES contenido manual. Sin esto se la trataba como vacía y el
+                                      // alta del seguimiento del día la BORRABA (perdiendo los huevos).
+                                      || (existente.HuevoTot ?? 0) > 0 || TieneHuevosCargados(existente);
 
                 if (teneTrasladoExist && !teneManualExist)
                 {
@@ -774,6 +778,16 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         }
     }
 
+    /// <summary>
+    /// TRUE si la fila tiene alguna categoría de huevos cargada (&gt; 0). Aplica tanto a las filas de
+    /// producción como a las de levante desde que levante captura huevos (semana 14+).
+    /// </summary>
+    private static bool TieneHuevosCargados(SeguimientoDiario s) =>
+        (s.HuevoLimpio ?? 0) > 0 || (s.HuevoTratado ?? 0) > 0 || (s.HuevoSucio ?? 0) > 0 ||
+        (s.HuevoDeforme ?? 0) > 0 || (s.HuevoBlanco ?? 0) > 0 || (s.HuevoDobleYema ?? 0) > 0 ||
+        (s.HuevoPiso ?? 0) > 0 || (s.HuevoPequeno ?? 0) > 0 || (s.HuevoRoto ?? 0) > 0 ||
+        (s.HuevoDesecho ?? 0) > 0 || (s.HuevoOtro ?? 0) > 0;
+
     /// <summary>TRUE si la fila ya no tiene ni mortalidad, ni traslado, ni consumo, ni peso, ni items.</summary>
     private static bool FilaSinContenido(SeguimientoDiario s)
     {
@@ -785,7 +799,8 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         var consumo   = (s.ConsumoKgHembras ?? 0m) + (s.ConsumoKgMachos ?? 0m);
         var pesos     = (s.PesoPromHembras ?? 0d) + (s.PesoPromMachos ?? 0d);
         var items     = s.ItemsAdicionales != null;
-        return mortSelErr == 0 && traslado == 0 && consumo == 0m && pesos == 0d && !items;
+        var huevos    = TieneHuevosCargados(s);
+        return mortSelErr == 0 && traslado == 0 && consumo == 0m && pesos == 0d && !items && !huevos;
     }
 
     /// <summary>Si ya no hay traslado en la fila, baja el flag y limpia los punteros.</summary>
@@ -847,6 +862,24 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         existente.ProtAlH             = dto.ProtAlH;
         existente.KcalAveH            = dto.KcalAveH;
         existente.ProtAveH            = dto.ProtAveH;
+        // Huevos (levante semana 14+ / producción): el merge sobre una fila de traslado debe
+        // TRAERLOS. Antes no se copiaban, así que registrar el día sobre una fila de traslado
+        // descartaba los huevos del request en silencio. `?? existente.X` conserva lo que ya
+        // hubiera en la fila cuando el request no los manda.
+        existente.HuevoTot            = dto.HuevoTot            ?? existente.HuevoTot;
+        existente.HuevoInc            = dto.HuevoInc            ?? existente.HuevoInc;
+        existente.HuevoLimpio         = dto.HuevoLimpio         ?? existente.HuevoLimpio;
+        existente.HuevoTratado        = dto.HuevoTratado        ?? existente.HuevoTratado;
+        existente.HuevoSucio          = dto.HuevoSucio          ?? existente.HuevoSucio;
+        existente.HuevoDeforme        = dto.HuevoDeforme        ?? existente.HuevoDeforme;
+        existente.HuevoBlanco         = dto.HuevoBlanco         ?? existente.HuevoBlanco;
+        existente.HuevoDobleYema      = dto.HuevoDobleYema      ?? existente.HuevoDobleYema;
+        existente.HuevoPiso           = dto.HuevoPiso           ?? existente.HuevoPiso;
+        existente.HuevoPequeno        = dto.HuevoPequeno        ?? existente.HuevoPequeno;
+        existente.HuevoRoto           = dto.HuevoRoto           ?? existente.HuevoRoto;
+        existente.HuevoDesecho        = dto.HuevoDesecho        ?? existente.HuevoDesecho;
+        existente.HuevoOtro           = dto.HuevoOtro           ?? existente.HuevoOtro;
+        existente.PesoHuevo           = dto.PesoHuevo           ?? existente.PesoHuevo;
         existente.Observaciones       = string.IsNullOrWhiteSpace(dto.Observaciones)
             ? existente.Observaciones
             : (string.IsNullOrWhiteSpace(existente.Observaciones)

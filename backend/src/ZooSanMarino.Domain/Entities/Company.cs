@@ -42,6 +42,17 @@ namespace ZooSanMarino.Domain.Entities
         public bool ClasificacionHuevoPorItems { get; set; }
 
         /// <summary>
+        /// <c>true</c> = la empresa captura la CLASIFICACIÓN DE HUEVOS en el seguimiento diario de
+        /// LEVANTE a partir de la semana <c>HuevosLevanteCalculos.SemanaMinimaHuevosLevante</c> (14),
+        /// con la misma clasificadora fija de producción. Al liquidar el levante, el acumulado se
+        /// arrastra al primer registro de producción (la fecha de inicio de producción) y, si ese día
+        /// el usuario registra producción, los huevos se SUMAN sobre esa fila.
+        /// <c>false</c> (default) = comportamiento actual: levante no captura huevos y la liquidación
+        /// no arrastra nada.
+        /// </summary>
+        public bool CapturaHuevosEnLevante { get; set; }
+
+        /// <summary>
         /// <c>true</c> = la empresa puede trasladar aves ENTRE ETAPAS (Levante → Producción) desde el
         /// seguimiento diario, liquidando el lote de levante contra un lote de producción que ya tiene
         /// aves de otra edad. El sentido inverso (Producción → Levante) NUNCA se permite.

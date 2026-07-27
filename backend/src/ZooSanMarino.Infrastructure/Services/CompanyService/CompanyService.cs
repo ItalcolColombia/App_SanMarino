@@ -41,6 +41,7 @@ public partial class CompanyService : ICompanyService
         c.ManejaAlimentoPorGalpon,
         c.ManejaCodigosErpAvicola,
         c.ClasificacionHuevoPorItems,
-        c.PermiteTrasladoAvesCrossEtapa
+        c.PermiteTrasladoAvesCrossEtapa,
+        c.CapturaHuevosEnLevante
     );
 }
