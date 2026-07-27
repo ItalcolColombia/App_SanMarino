@@ -558,3 +558,45 @@ semanal y días de ciclo de lotes ya liquidados. El usuario eligió no tocar dat
 - [ ] Tope `totalRegistros >= 7` cuenta filas, no edades ocupadas (hay 8 slots 0..7 y 7 cupos)
 - [ ] `UpdateLoteAveEngordeDto.HoraEncasetamiento` no distingue «no enviado» de «borrar» (clientes no-UI)
 - [ ] El PUT del lote engorde no valida `EstadoOperativoLote` ⇒ acepta editar un lote liquidado
+
+---
+
+# Despliegue a producción — 2026-07-27 19:42 UTC
+
+Run [30299439870](https://github.com/ItalcolColombia/App_SanMarino/actions/runs/30299439870) **verde**
+(tests 1m18s · backend 5m19s · frontend 4m22s), vía PR [#51](https://github.com/ItalcolColombia/App_SanMarino/pull/51).
+
+Contenido: `56edf3a` (regla de la hora de llegada por empresa) · `7639b79` (validar la hora contra los
+seguimientos ya cargados) · `528b283` (encabezados MIXTOS que se leían en CERO) · `b0e38d3` (tracker).
+
+## Gates antes de mergear
+
+- [x] `dotnet build` → 0 errores / 0 advertencias
+- [x] `dotnet test` → **1032/1032** (1031 Application + 1 Domain)
+- [x] `yarn build` → exit 0 (solo el warning de bundle budget preexistente)
+- [x] Migraciones revisadas: `20260727182440` (`ADD COLUMN IF NOT EXISTS`, `NOT NULL DEFAULT false`) y `20260727182540` (data-only, lookup por `name` + `IS DISTINCT FROM`), el seed ordenado después de la columna
+- [x] `ItalcolPanama` existe con ese nombre exacto (id 5) ⇒ el seed matchea y no queda en no-op silencioso
+- [x] Estado resultante en la BD local (derivada de dump de prod): Panamá `true`, las otras 4 empresas `false`
+
+## Verificación post-deploy
+
+- [x] `sanmarino-back-task:137` y `sanmarino-front-task:135`, ambos PRIMARY/COMPLETED 1/1, ambas imágenes con el tag `3c857860…` = SHA de `main-produccion`
+- [x] Eventos del servicio backend: `deployment completed` + `has reached a steady state`, con drenaje normal de la tarea vieja. **Sin crash loop**, o sea que las dos migraciones se aplicaron bien al arrancar
+- [x] Front en vivo: `/version.json` → `buildId 2026-07-27T19:50:20.123Z` (el de este run) · `/` → 200
+- [x] Backend en vivo a través del ALB: 401 en endpoints protegidos ⇒ sirviendo y aplicando auth
+
+---
+
+# Hotfix — reCAPTCHA del login bloqueado por la CSP en producción
+
+Plan: [fase_de_desarrollo/csp_recaptcha_login_plan.md](fase_de_desarrollo/csp_recaptcha_login_plan.md)
+
+Causa: la CSP centralizada de la Fase 0.C (76a2903) empezó a aplicarse de verdad y su
+`script-src`/`frame-src` no permitían los orígenes de Google reCAPTCHA ⇒ el widget no se
+renderiza en el login de prod (el build SÍ es de producción; verificado en el bundle vivo).
+
+- [x] Diagnóstico verificado contra prod (bundle con siteKey + CSP en vivo sin google)
+- [x] `nginx-security-headers.conf`: `script-src` + google/gstatic recaptcha, `frame-src` explícito
+- [x] Validación sin Docker (no levanta local): chequeo estático de la línea + gate C5 del pipeline valida la CSP en contenedor antes de publicar (checks nuevos de recaptcha)
+- [ ] Commit
+- [ ] Deploy (push a main-produccion) + verificación post-deploy (CSP en vivo + widget visible)
