@@ -15,6 +15,11 @@ import { ModalCuadrarSaldosEngordeComponent } from '../modal-cuadrar-saldos-engo
 import { TabReproductoraEngordeComponent } from '../../components/tab-reproductora-engorde/tab-reproductora-engorde.component';
 import { CuadrarSaldosEngordeApi } from '../../../engorde-comun/services/cuadrar-saldos-engorde.api';
 import { SeguimientoAvesEngordeService } from '../../services/seguimiento-aves-engorde.service';
+import {
+  desplazamientoPrimerDia,
+  diaDeNegocioDesdeEdad,
+  semanaDeNegocio
+} from '../../../engorde-comun/funciones/dia-negocio-engorde.funcion';
 
 /** Texto explicativo del saldo de alimento (modal de ayuda en seguimiento diario). */
 export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fecha de registro. Ingreso/traslado/documento y despachos vienen del historial unificado. El saldo de alimento (kg) parte del stock ya registrado en el histórico con fecha anterior al primer día de seguimiento; a partir de ahí se aplican ingresos, traslados de entrada, ajustes; restas por traslado de salida, eliminaciones y consumo del día en seguimiento (hembras + machos); no se duplica INV_CONSUMO del histórico. Tras cada movimiento el saldo no baja de 0 kg: si el consumo supera lo disponible, queda en 0 y los ingresos o traslados de entrada posteriores suman sobre ese saldo disponible.`;
@@ -45,6 +50,10 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Input() enriquecerTablaConHistoricoInventario = true;
   /** Controla la visibilidad del tab R. Reproductora. */
   @Input() tieneReproductoras: boolean = false;
+  /** Flag de empresa: la hora de llegada decide cuál es el primer día con registro. Fail-closed. */
+  @Input() reglaPrimerRegistroPorHora = false;
+  /** Hora de llegada de las aves del lote seleccionado (HH:mm). Solo pesa si el flag está activo. */
+  @Input() horaEncasetamiento: string | null = null;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
@@ -115,6 +124,29 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   // segId puede ser null (movs sin seguimiento, fix #14) → usar fecha como fallback único para trackBy
   trackByDiarioFila = (_: number, f: SeguimientoDiarioTablaFilaDto) => f.segId ?? `mov-${f.fecha}`;
 
+  // ─── Numeración del día (presentación) ───────────────────────────────────
+  // El backend manda la EDAD (0 el día del encaset) y sigue siendo la que usan la guía genética,
+  // los indicadores, el informe semanal y la liquidación. Acá se muestra el DÍA DE NEGOCIO: el
+  // primer día con registro del lote es el día 1, igual que en reproductora.
+
+  /** Días que se corre el primer día con registro por la hora de llegada: 0 o 1. */
+  private get desplazamientoPrimerDia(): number {
+    return desplazamientoPrimerDia(this.horaEncasetamiento, this.reglaPrimerRegistroPorHora);
+  }
+
+  /** Número de día que se muestra en la columna «Edad»: 1 el primer día con registro. */
+  diaNegocio(f: SeguimientoDiarioTablaFilaDto): number {
+    return diaDeNegocioDesdeEdad(f.edadDia, this.desplazamientoPrimerDia);
+  }
+
+  /**
+   * Semana del día de negocio (1..7 → semana 1). Sin desplazamiento da exactamente el mismo número
+   * que `f.semana` del backend, así que solo cambia algo en un lote que llegó tarde.
+   */
+  semanaNegocio(f: SeguimientoDiarioTablaFilaDto): number {
+    return semanaDeNegocio(this.diaNegocio(f));
+  }
+
   // ─── Filtros ─────────────────────────────────────────────────────────────
 
   /** Tipos de alimento distintos en los registros del lote (para el select de filtro). */
@@ -166,7 +198,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     const hasta = (this.filtroFechaHasta || '').trim();
     if (desde && ymd && ymd < desde) return false;
     if (hasta && ymd && ymd > hasta) return false;
-    if (this.filtroSemana != null && f.semana !== this.filtroSemana) return false;
+    // Filtra por la MISMA semana que ve el usuario en la tabla (día de negocio), no por la del backend.
+    if (this.filtroSemana != null && this.semanaNegocio(f) !== this.filtroSemana) return false;
     const ft = (this.filtroTipoAlimento || '').trim();
     if (ft) {
       const full = (f.tipoAlimento || '').trim().toLowerCase();
@@ -240,8 +273,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     ];
     const rows = this.diarioFilasFiltradas.map(f => [
       this.formatDMY(f.fecha),
-      f.semana,
-      f.edadDia,
+      this.semanaNegocio(f),
+      this.diaNegocio(f),
       this.formatDiaSemanaCorto(f.fecha),
       f.mortalidadHembras ?? '',
       f.mortalidadMachos ?? '',

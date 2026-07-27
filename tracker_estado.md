@@ -600,3 +600,35 @@ renderiza en el login de prod (el build SÍ es de producción; verificado en el 
 - [x] Validación sin Docker (no levanta local): chequeo estático de la línea + gate C5 del pipeline valida la CSP en contenedor antes de publicar (checks nuevos de recaptcha)
 - [ ] Commit
 - [ ] Deploy (push a main-produccion) + verificación post-deploy (CSP en vivo + widget visible)
+
+---
+
+# Pollo engorde: numeración de día 1-based y pesaje al cierre de semana
+
+Plan: [fase_de_desarrollo/dia_negocio_engorde_pesaje_plan.md](fase_de_desarrollo/dia_negocio_engorde_pesaje_plan.md)
+
+La tabla de seguimiento de engorde arranca en «Edad 0» y el pesaje semanal se pide un día tarde
+(edad 7 = primer día de la semana 2). La regla de la hora de llegada nunca se cableó en engorde.
+
+**Decisiones:** solo pantalla + validaciones (la edad técnica, la guía genética, los indicadores y el
+informe semanal NO se tocan) · la columna conserva el encabezado «Edad (días vida)» con número
+1-based · el corrimiento del pesaje aplica SOLO con `primer_registro_segun_hora_llegada` activo.
+
+## Backend
+
+- [x] `EncasetamientoCalculos`: `DiaDeNegocio` + `SemanaDeNegocio` (puros)
+- [x] `PesajeEngordeCalculos` nuevo: `EsDiaDePesajeObligatorio(dia)`
+- [x] Carga masiva engorde: la advertencia de pesaje usa el día de negocio si el flag está activo
+- [x] Tests xUnit nuevos + regresión con flag OFF
+
+## Frontend
+
+- [x] `engorde-comun/funciones/dia-negocio-engorde.funcion.ts` (espejo puro del backend)
+- [x] Lista de seguimiento engorde: lee el flag y propaga la hora del lote
+- [x] Tabla: columna Edad, columna Semana, filtro de semana y Excel sobre el día de negocio
+- [x] Modal de seguimiento: `esPrimeraSemana` / `esDiaPesoObligatorio` sobre el día de negocio
+
+## Validación
+
+- [x] `dotnet build` + `dotnet test`
+- [x] `yarn build`

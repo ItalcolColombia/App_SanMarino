@@ -36,6 +36,7 @@ import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 @Component({
   selector: 'app-seguimiento-aves-engorde-list',
@@ -87,6 +88,13 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   tablaFilas: SeguimientoDiarioTablaFilaDto[] = [];
   selectedLote: LoteDto | null = null;
   resumenSelected: LoteMortalidadResumenDto | null = null;
+  /**
+   * Hora de llegada de las aves del lote seleccionado (HH:mm). No viaja en `LoteDto`, así que se
+   * conserva aparte al mapear el `LoteAveEngordeDto`. Decide el primer día con registro del lote.
+   */
+  horaEncasetamientoLote: string | null = null;
+  /** Flag de empresa: la hora de llegada decide el primer día con registro. Fail-closed en false. */
+  reglaPrimerRegistroPorHora = false;
 
   /** Aves disponibles del lote (después de restar las asignadas a lotes reproductora). */
   avesDisponibles: AvesDisponiblesDto | null = null;
@@ -139,7 +147,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     private segSvc: SeguimientoAvesEngordeService,
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private galponSvc: GalponService,
-    private catalogSvc: CatalogoAlimentosService
+    private catalogSvc: CatalogoAlimentosService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   /** Total aves disponibles para seguimiento (hembras + machos, después de restar asignadas a reproductoras). */
@@ -173,6 +182,9 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadAlimentosCatalog();
+    // Fail-closed: si el flag no se resuelve queda en false ⇒ numeración y pesaje como hoy.
+    this.companyConfig.primerRegistroSegunHoraLlegada()
+      .subscribe(activa => (this.reglaPrimerRegistroPorHora = activa));
   }
 
   private loadAlimentosCatalog(): void {
@@ -270,6 +282,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.hasSinGalpon = false;
     this.lotes = [];
     this.selectedLote = null;
+    this.horaEncasetamientoLote = null;
     this.resumenSelected = null;
     this.nucleos = [];
     if (!this.selectedGranjaId) return;
@@ -295,6 +308,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.seguimientos = [];
     this.historicoUnificado = [];
     this.selectedLote = null;
+    this.horaEncasetamientoLote = null;
     this.resumenSelected = null;
     if (this.filterData) {
       this.applyFiltersToLotes();
@@ -311,6 +325,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.seguimientos = [];
     this.historicoUnificado = [];
     this.selectedLote = null;
+    this.horaEncasetamientoLote = null;
     this.resumenSelected = null;
     this.applyFiltersToLotes();
   }
@@ -321,6 +336,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.historicoUnificado = [];
     this.tablaFilas = [];
     this.selectedLote = null;
+    this.horaEncasetamientoLote = null;
     this.resumenSelected = null;
     this.avesDisponibles = null;
     this.lotesReproductora = [];
@@ -329,8 +345,15 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     const id = this.selectedLoteId;
     // Lote seleccionado = lote_ave_engorde. Cargar detalle, seguimientos, aves disponibles y lotes reproductora.
     this.loteEngordeSvc.getById(id).subscribe({
-      next: l => (this.selectedLote = this.mapLoteAveEngordeToLoteDto(l)),
-      error: () => (this.selectedLote = null)
+      next: l => {
+        this.selectedLote = this.mapLoteAveEngordeToLoteDto(l);
+        // LoteDto no transporta la hora: se guarda aparte para la numeración del día.
+        this.horaEncasetamientoLote = l.horaEncasetamiento ?? null;
+      },
+      error: () => {
+        this.selectedLote = null;
+        this.horaEncasetamientoLote = null;
+      }
     });
     this.loteReproductoraSvc.getAvesDisponibles(id).subscribe({
       next: aves => (this.avesDisponibles = aves),

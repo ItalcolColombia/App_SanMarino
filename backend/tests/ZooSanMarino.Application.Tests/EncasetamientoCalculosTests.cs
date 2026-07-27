@@ -109,4 +109,67 @@ public class EncasetamientoCalculosTests
         Assert.True(ReproductoraEngordeCalculos.EsEdadSeguimientoValida(7, edadMinima: edadMinima));
         Assert.False(ReproductoraEngordeCalculos.EsEdadSeguimientoValida(8, edadMinima: edadMinima));
     }
+
+    // ── Día de negocio: el primer día CON REGISTRO es el día 1 ───────────────
+    // Caso del reporte: granja DAYLAND, lote "13 - 1", encaset 2026-06-08. La tabla mostraba
+    // «Edad 0» el propio 08/06 y el usuario espera «Día 1».
+    private static readonly DateTime Dayland = new(2026, 6, 8, 12, 0, 0, DateTimeKind.Utc);
+
+    [Theory]
+    [InlineData(8, 1)]    // el día del encaset es el día 1, no el 0
+    [InlineData(9, 2)]
+    [InlineData(14, 7)]   // cierre de la primera semana
+    [InlineData(15, 8)]   // arranque de la segunda
+    public void DiaDeNegocio_SinHora_ArrancaEnUno(int diaDelMes, int esperado)
+    {
+        var fecha = new DateTime(2026, 6, diaDelMes, 0, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(esperado, EncasetamientoCalculos.DiaDeNegocio(fecha, Dayland, null));
+    }
+
+    [Theory]
+    [InlineData(8, 0)]    // el día del encaset ya no admite registro ⇒ queda fuera (≤ 0)
+    [InlineData(9, 1)]    // el primer día CON REGISTRO es el día 1 igual que en un lote temprano
+    [InlineData(15, 7)]   // y su semana 1 también son 7 días
+    public void DiaDeNegocio_LlegadaTardia_CorreElDiaUno(int diaDelMes, int esperado)
+    {
+        var fecha = new DateTime(2026, 6, diaDelMes, 0, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(esperado, EncasetamientoCalculos.DiaDeNegocio(fecha, Dayland, new TimeOnly(15, 0)));
+    }
+
+    [Fact]
+    public void DiaDeNegocio_HoraTemprana_NoCorreNada()
+    {
+        var fecha = new DateTime(2026, 6, 8, 0, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(1, EncasetamientoCalculos.DiaDeNegocio(fecha, Dayland, new TimeOnly(9, 30)));
+    }
+
+    [Theory]
+    [InlineData(0, 0)]    // anterior al primer registro
+    [InlineData(-3, 0)]
+    [InlineData(1, 1)]
+    [InlineData(7, 1)]    // la semana 1 son los días 1..7
+    [InlineData(8, 2)]
+    [InlineData(14, 2)]
+    [InlineData(15, 3)]
+    public void SemanaDeNegocio_AgrupaDeSieteEnSiete(int dia, int esperado)
+    {
+        Assert.Equal(esperado, EncasetamientoCalculos.SemanaDeNegocio(dia));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    [InlineData(13)]
+    [InlineData(41)]
+    public void SemanaDeNegocio_SinDesplazamiento_CoincideConLaDeLaFnSql_Regresion(int edad)
+    {
+        // fn_seguimiento_diario_engorde calcula la semana como ceil((edad + 1) / 7). Con la
+        // numeración 1-based (dia = edad + 1) el resultado tiene que ser el MISMO número.
+        var semanaFn = (int)Math.Ceiling((edad + 1) / 7.0);
+
+        Assert.Equal(semanaFn, EncasetamientoCalculos.SemanaDeNegocio(edad + 1));
+    }
 }

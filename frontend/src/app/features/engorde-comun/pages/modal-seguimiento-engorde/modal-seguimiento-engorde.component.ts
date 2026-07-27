@@ -17,6 +17,13 @@ import { AvesDisponiblesDto } from '../../../lote-reproductora-ave-engorde/servi
 import { InventarioUbicacion } from '../../models/inventario-ubicacion.model';
 import { computeDefaultFecha, toYMD, ymdToIsoAtNoon } from '../../funciones/fecha.funcion';
 import {
+  DIAS_PESAJE_DIARIO,
+  desplazamientoPrimerDia,
+  diaDeNegocioDesdeEdad,
+  diaParaReglaDePesaje,
+  esDiaDePesajeObligatorio
+} from '../../funciones/dia-negocio-engorde.funcion';
+import {
   toKg,
   esUnidadDesconocidaParaGramos,
   cantidadOriginalAGramos,
@@ -55,6 +62,15 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   @Input() avesDisponibles: AvesDisponiblesDto | null = null;
   /** Fechas de registros ya existentes (ISO o YYYY-MM-DD) para calcular el día siguiente como default. */
   @Input() existingFechas: string[] = [];
+  /**
+   * Flag de empresa: la hora de llegada decide cuál es el primer día con registro. Fail-closed.
+   * Con el flag activo la regla de pesaje se evalúa sobre el DÍA DE NEGOCIO (el primer día con
+   * registro es el día 1) ⇒ el pesaje semanal cae al cierre de la semana. Sin él, sobre la edad
+   * cruda, exactamente como siempre.
+   */
+  @Input() reglaPrimerRegistroPorHora = false;
+  /** Hora de llegada de las aves del lote (HH:mm). Solo pesa si el flag está activo. */
+  @Input() horaEncasetamiento: string | null = null;
 
   /** Pollo engorde: consumo solo alimento; UI simplificada (no comparte el modal de Levante). */
   readonly hembrasSoloAlimento = true;
@@ -625,26 +641,38 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   }
 
   /**
-   * True si la fecha está dentro de los primeros 7 días desde fechaEncaset (días 1–7).
-   * En este período el peso es obligatorio cada día.
+   * Número de día sobre el que se evalúa la regla de pesaje.
+   * <p>Con la regla de la hora de llegada activa es el DÍA DE NEGOCIO: el primer día con registro
+   * del lote es el día 1, así el pesaje semanal cae en el ÚLTIMO día de cada semana. Sin la regla
+   * es la edad cruda (0 el día del encaset), que es el comportamiento histórico intacto.</p>
+   * -1 si no aplica (falta lote o fecha).
+   */
+  private get diaParaPesaje(): number {
+    const edad = this.diasDesdeEncaset;
+    if (edad < 0) return -1;
+    const desplazamiento = desplazamientoPrimerDia(this.horaEncasetamiento, this.reglaPrimerRegistroPorHora);
+    return diaParaReglaDePesaje(edad, diaDeNegocioDesdeEdad(edad, desplazamiento), this.reglaPrimerRegistroPorHora);
+  }
+
+  /**
+   * True si la fecha cae dentro de la primera semana del lote, donde el peso es obligatorio
+   * todos los días.
    */
   get esPrimeraSemana(): boolean {
     if (this.editing) return false;
-    const d = this.diasDesdeEncaset;
-    return d >= 1 && d <= 7;
+    const d = this.diaParaPesaje;
+    return d >= 1 && d <= DIAS_PESAJE_DIARIO;
   }
 
   /**
    * True si la fecha del registro cae en un día de pesaje obligatorio:
-   * - Días 1–7 desde fechaEncaset: obligatorio cada día (primera semana).
+   * - Días 1–7: obligatorio cada día (primera semana).
    * - A partir del día 8: obligatorio cada múltiplo de 7 (día 14, 21, 28…).
    * Solo aplica en nuevo registro, no en edición.
    */
   get esDiaPesoObligatorio(): boolean {
     if (this.editing) return false;
-    const d = this.diasDesdeEncaset;
-    if (d < 0) return false;
-    return (d >= 1 && d <= 7) || (d > 7 && d % 7 === 0);
+    return esDiaDePesajeObligatorio(this.diaParaPesaje);
   }
 
   /** True si es día semanal de pesaje obligatorio pero falta el peso en algún sexo activo. */

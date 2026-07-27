@@ -347,14 +347,20 @@ public partial class MigracionService
             if (itemsM.Count > 0 && consM is > 0)
                 errores.Add(new(fila.Numero, "Consumo M (kg)", consM.Value.ToString("0.###"), "Se ignora el consumo directo M: la fila trae Alimento 1/2 M (el consumo sale de esos alimentos).", "Advertencia"));
 
-            // Día de pesaje obligatorio (espejo del modal: edad 1–7 y múltiplos de 7). En carga histórica
+            // Día de pesaje obligatorio (espejo del modal: días 1–7 y múltiplos de 7). En carga histórica
             // no bloquea (Advertencia): el modal sí lo exige al capturar el día a día.
+            // El número sobre el que se evalúa la regla depende de la empresa: con la regla de la hora
+            // de llegada activa es el DÍA DE NEGOCIO (el primer día con registro es el día 1, así el
+            // pesaje semanal cae al cierre de la semana); sin ella es la edad cruda, igual que siempre.
             if (lote.FechaEncaset.HasValue && pesoH is null && pesoM is null)
             {
                 var edad = (int)(fecha.Date - lote.FechaEncaset.Value.Date).TotalDays;
-                if ((edad >= 1 && edad <= 7) || (edad > 7 && edad % 7 == 0))
+                var horaRegla = EncasetamientoCalculos.HoraEfectiva(lote.HoraEncaset, reglaHoraActiva);
+                var diaNegocio = EncasetamientoCalculos.DiaDeNegocio(fecha, lote.FechaEncaset.Value, horaRegla);
+                var diaRegla = PesajeEngordeCalculos.DiaParaReglaDePesaje(edad, diaNegocio, reglaHoraActiva);
+                if (PesajeEngordeCalculos.EsDiaDePesajeObligatorio(diaRegla))
                     errores.Add(new(fila.Numero, "Peso H (g)", fecha.ToString("yyyy-MM-dd"),
-                        $"Día {edad} (edad 1–7 o múltiplo de 7): es día de pesaje obligatorio y la fila no trae peso.", "Advertencia"));
+                        $"Día {diaRegla} (días 1–7 o múltiplo de 7): es día de pesaje obligatorio y la fila no trae peso.", "Advertencia"));
             }
 
             // Tipo Alimento: el texto de la celda o, si no viene, los nombres de los alimentos usados.
