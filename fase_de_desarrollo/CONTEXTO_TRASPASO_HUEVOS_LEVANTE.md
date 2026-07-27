@@ -64,12 +64,24 @@ Todo esto está implementado, validado y en `main`. **No rehacerlo.**
 - ⚠️ Hay **dos** exports en el archivo: `rows` en **721** (tabla de registros diarios) y otro en **804** — revisar cuál corresponde antes de editar.
 - Sugerencia: 3 columnas (Huevo Tot / Incubables / Peso huevo) mostradas **sólo si el flag de empresa está ON**, para no ensuciar la grilla de las demás empresas.
 
-### 🟠 P2 · Carga masiva de levante no acepta huevos
-Los históricos cargados por Excel entran sin huevos.
-- `backend/src/ZooSanMarino.Application/Calculos/MigracionEsquemas.cs` → `SeguimientoLevante` (**línea 42**, hoy **15** columnas, ninguna de huevos).
-- `backend/sql/fn_migracion_seguimiento.sql` → `fn_migracion_seguimiento_levante`.
-- Tests: `backend/tests/ZooSanMarino.Application.Tests/MigracionEsquemasTests.cs`.
-- ⚠️ Aplicar el **mismo gate de semana 14** en la carga masiva, o los históricos van a meter huevos en semanas donde el CRUD los rechaza (inconsistencia).
+### 🟠 P2 · Carga masiva de levante no acepta huevos — **DISEÑO RESUELTO, falta ejecutar**
+
+Los históricos cargados por Excel entran sin huevos. Son **4 capas** y conviene hacerlas en una sola pasada (hay una migración EF en el medio).
+
+**Decisiones ya tomadas (no re-analizar):**
+- **Sólo 12 columnas nuevas en el Excel: las 11 categorías + «Peso Huevo (g)». NO agregar «Huevo Total» ni «Huevo Incubable»** — en el CRUD son DERIVADOS de las 11 (`Mapeos.cs`, «nunca se confía en lo que mandó el cliente»); si el Excel los trajera, los reportes quedarían descuadrados. Calcularlos con `HuevosClasificacion.Totales` / `.Incubables`.
+- Todas `Requerida: false` ⇒ **los archivos viejos siguen siendo válidos** y la plantilla `.xlsx` que descarga el usuario se actualiza sola (el esquema es a la vez plantilla y validador de encabezados).
+- Ubicarlas **antes de «Observaciones»** (el orden del array = orden de columnas de la plantilla).
+- **El gate va en C#, no en la fn**: no existe ninguna validación de edad/semana ni en `fn_migracion_seguimiento_levante` ni en el service, y la fn no tiene `fecha_encaset` a mano. Reusar `HuevosLevanteCalculos.PermiteHuevos(lote.FechaEncaset, fecha)` + resolver el flag por datos igual que `SeguimientoLoteLevanteService.EmpresaCapturaHuevosEnLevanteAsync` (fail-closed). Flag OFF ⇒ neutralizar a null sin error; flag ON + huevos en semana < 14 ⇒ `MigracionErrorDto` de fila con el **mismo mensaje literal** del CRUD.
+- **La FIRMA de la fn NO cambia** (`fn_migracion_seguimiento_levante(p_company_id integer, p_usuario text, p_rows jsonb) RETURNS integer`; las columnas viven dentro del `jsonb_to_recordset` del CUERPO) ⇒ alcanza `CREATE OR REPLACE`, **sin `DROP FUNCTION`**.
+
+**Los 4 sitios, en orden:**
+1. `backend/src/ZooSanMarino.Application/Calculos/MigracionEsquemas.cs` → `SeguimientoLevante` (línea ~42, hoy **15** columnas). Agregar las 12 antes de `new("Observaciones", …)`. Para «Peso Huevo (g)» usar `Alias: new[] { "peso huevo" }` (igual que `SeguimientoProduccion` línea ~72).
+2. `backend/src/ZooSanMarino.Infrastructure/Services/Migracion/Funciones/MigracionService.Historicos.cs` → `ProcesarSeguimientoLevanteAsync`: cargar el lote UNA vez (necesita `FechaEncaset` y `GranjaId`), resolver el flag, y por fila parsear las 12 celdas + aplicar el gate; agregar las claves al `Dictionary<string,object?>` que se serializa a jsonb (parseo de celdas ~líneas 115-131). También la hoja «Instrucciones» de `GenerarPlantillaSeguimientoAsync` (~línea 78) si documenta columnas.
+3. `backend/sql/fn_migracion_seguimiento.sql` → `fn_migracion_seguimiento_levante`, **3 puntos**: el `jsonb_to_recordset` de `tmp_filas_lev` (~37-49), el `SET` del merge sobre fila «solo traslado» (~67-71) y el `INSERT INTO public.seguimiento_diario_levante` del Paso 2 con su `SELECT` (~91-105). **+ migración EF nueva** con `CREATE OR REPLACE` (patrón exacto a copiar: `20260714022321_FixMigracionSeguimientoLevanteAvesIncremental.cs`), con timestamp posterior a `20260726231200`.
+4. `backend/tests/ZooSanMarino.Application.Tests/MigracionEsquemasTests.cs` → plantilla a copiar: el test `SeguimientoPolloEngorde_ArchivoSinColumnasQq_SigueSiendoValido` (~57-71). Casos: archivo viejo sin columnas de huevos sigue válido, y las 12 nuevas se reconocen por título y por alias.
+
+**Smoke:** cargar un Excel con huevos en una fila de semana ≥ 14 (⇒ entra con `huevo_tot`/`huevo_inc` calculados) y otra de semana < 14 (⇒ error de fila con el mensaje del gate), más un archivo sin las columnas (⇒ sigue funcionando igual que hoy).
 
 ### 🟡 P3 · Huevos en indicadores / Reporte Técnico Semanal de LEVANTE (la «fase 2» acordada)
 Decisión del usuario: **no** se hizo en Fase 1. Cuando se haga:
