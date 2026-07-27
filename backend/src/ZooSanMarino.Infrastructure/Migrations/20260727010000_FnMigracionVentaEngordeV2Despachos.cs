@@ -1,38 +1,37 @@
--- =============================================================================
--- Migración masiva de VENTAS de pollo de engorde (histórico). v2 — 2026-07-26.
---
--- Inserta el movimiento con su numero_movimiento definitivo (pre-asignando el id desde la
--- secuencia para que el trigger de histórico capture la referencia correcta) y descuenta el
--- contador del lote UNA sola vez, espejando CompleteAsync. El trigger
--- trg_movimiento_pollo_engorde_lote_hist escribe el histórico VENTA_AVES en
--- lote_registro_historico_unificado automáticamente en el INSERT (NO se toca acá).
---
--- Novedades v2 (todas retro-compatibles: las claves nuevas del jsonb son opcionales):
---   * DESPACHO MULTI-LOTE: factura_id + numero_despacho y los 9 campos de peso llegan ya
---     calculados desde C# (MovimientoPolloEngordeCalculos.ProrratearPesoPorLinea), para que la
---     aritmética sea idéntica a la de una venta hecha por pantalla. Esta función NO prorratea:
---     duplicar el redondeo en plpgsql sería duplicar la fuente de verdad.
---   * ESTADO por fila: 'Completado' (default, comportamiento histórico) descuenta el lote;
---     'Pendiente' NO descuenta — lo hará CompleteAsync cuando el usuario confirme la venta
---     (empresas con peso diferido: la báscula llega al día siguiente).
---   * es_venta_mixta (Panamá): el split H/M se asignó sobre las MIXTAS del lote ⇒ el descuento
---     espeja CompleteAsync (resta H/M y fuerza mixtas = 0). Antes esta función restaba de
---     mixtas por separado y nunca marcaba la bandera, dejando el saldo del lote distinto del
---     que produce la misma venta hecha por pantalla.
---   * Campos de despacho: total_pollos_galpon, hora_salida, guia_agrocalidad, sellos, ayuno,
---     conductor, planta_destino, descripcion.
---   * IDEMPOTENCIA por RANGO DE DÍA + numero_despacho. Antes comparaba
---     `fecha_movimiento = fecha::timestamptz` (medianoche) mientras la UI graba a MEDIODÍA UTC
---     (ymdToIsoUtcNoon) ⇒ recargar por Excel un día ya vendido por pantalla duplicaba la venta
---     y descontaba el lote dos veces. Efecto colateral consciente: dos despachos legítimos del
---     mismo lote/fecha/cantidades ya no colapsan en uno si traen N° Despacho distinto.
---
--- NOTA deliberada: a diferencia de CompleteAsync, esta función NO pone aves_encasetadas = 0
--- cuando el lote queda sin aves. aves_encasetadas es el denominador de los indicadores y
--- ponerlo en 0 desde una carga HISTÓRICA alteraría reportes ya publicados.
---
--- p_rows = jsonb array de filas ya validadas y prorrateadas por el backend.
--- =============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// v2 de <c>fn_migracion_venta_engorde</c> (carga masiva de ventas de pollo engorde).
+    /// <para>
+    /// Novedades: despacho MULTI-LOTE (<c>factura_id</c> + <c>numero_despacho</c> y los 9 campos de
+    /// peso ya prorrateados desde C# con la misma función pura de la venta por pantalla), campos de
+    /// despacho completos, <c>estado</c> por fila ('Pendiente' no descuenta el lote: lo hará
+    /// <c>CompleteAsync</c> al confirmar), descuento sobre MIXTAS cuando <c>es_venta_mixta</c>
+    /// (espeja CompleteAsync) e idempotencia por RANGO DE DÍA + <c>numero_despacho</c>.
+    /// </para>
+    /// <para>
+    /// La idempotencia vieja comparaba <c>fecha_movimiento = fecha::timestamptz</c> (medianoche)
+    /// mientras la UI graba a MEDIODÍA UTC ⇒ recargar por Excel un día ya vendido por pantalla
+    /// duplicaba la venta y descontaba el lote dos veces. Efecto colateral consciente: dos
+    /// despachos legítimos del mismo lote/fecha/cantidades ya no colapsan si traen N° Despacho
+    /// distinto.
+    /// </para>
+    /// <para>
+    /// <c>CREATE OR REPLACE</c> ⇒ idempotente. NO se edita la migración original
+    /// <c>20260712190000_AddFnMigracionVentaEngorde</c>, ya aplicada en prod.
+    /// Fuente canónica: <c>backend/sql/fn_migracion_venta_engorde.sql</c>.
+    /// </para>
+    /// </summary>
+    public partial class FnMigracionVentaEngordeV2Despachos : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION public.fn_migracion_venta_engorde(
     p_company_id integer,
     p_usuario    integer,
@@ -182,3 +181,14 @@ BEGIN
     RETURN v_insertados;
 END;
 $$;
+");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // La v1 se restaura re-aplicando 20260712190000; no se dropea la función para no
+            // romper la carga masiva si se revierte solo esta migración.
+        }
+    }
+}

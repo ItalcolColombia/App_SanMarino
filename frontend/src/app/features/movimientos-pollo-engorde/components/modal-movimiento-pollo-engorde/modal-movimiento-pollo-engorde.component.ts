@@ -44,6 +44,7 @@ import {
 } from '../../funciones/prorateo-peso.funcion';
 import { formatearNumero as fmtNumero, fechaCorta as fmtFecha } from '../../funciones/formato.funcion';
 import { marcarLotesBloqueadosVenta } from '../../funciones/detectar-lotes-bloqueados-venta.funcion';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 /** Permiso que habilita cargar cantidades en lotes cerrados o de una corrida anterior en el mismo galpón. */
 const PERMISO_VENDER_LOTES_CERRADOS = 'movimientos_pollo_engorde.vender_lotes_cerrados';
@@ -196,10 +197,18 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     private movimientoSvc: MovimientoPolloEngordeService,
     private tokenStorage: TokenStorageService,
     private permService: UserPermissionService,
+    private companyConfig: ActiveCompanyConfigService,
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
   }
+
+  /**
+   * Empresa con báscula diferida (`venta_engorde_peso_diferido`): sus ventas pueden existir sin
+   * peso, así que este modal NO debe exigirlo — si no, el usuario no podría ni siquiera EDITAR la
+   * venta que acaba de registrar. Fail-closed: arranca apagado ⇒ peso obligatorio.
+   */
+  pesoDiferido = false;
 
   /** True si el usuario puede cargar cantidades en lotes cerrados o de una corrida anterior en el mismo galpón. */
   get puedeVenderLotesCerrados(): boolean {
@@ -219,6 +228,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     }
     if (changes['isOpen'] && this.isOpen) {
       this.error = null;
+      this.resolverPesoDiferido();
       this.fechaMovimientoSub?.unsubscribe();
       if (this.editingMovimiento) {
         this.loadFormFromMovimiento(this.editingMovimiento);
@@ -320,6 +330,22 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     this.syncPesoValidators();
   }
 
+  /** Resuelve el flag de la empresa activa y re-aplica los validadores de peso. */
+  private resolverPesoDiferido(): void {
+    this.companyConfig.ventaEngordePesoDiferido().subscribe({
+      next: (activo) => {
+        this.pesoDiferido = activo;
+        this.syncPesoValidators();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.pesoDiferido = false;
+        this.syncPesoValidators();
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   /**
    * Peso báscula (bruto y tara) OBLIGATORIO cuando el movimiento es una venta.
    * Regla de negocio tras el incidente de una venta guardada sin pesos que
@@ -329,7 +355,12 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     const bruto = this.form?.get('pesoBruto');
     const tara = this.form?.get('pesoTara');
     if (!bruto || !tara) return;
-    if (this.isDespacho) {
+    if (this.isDespacho && this.pesoDiferido) {
+      // Báscula diferida: el peso es opcional (se carga al confirmar), pero si se digita se
+      // valida igual que siempre.
+      bruto.setValidators([Validators.min(0.01)]);
+      tara.setValidators([Validators.min(0)]);
+    } else if (this.isDespacho) {
       bruto.setValidators([Validators.required, Validators.min(0.01)]);
       tara.setValidators([Validators.required, Validators.min(0)]);
     } else {

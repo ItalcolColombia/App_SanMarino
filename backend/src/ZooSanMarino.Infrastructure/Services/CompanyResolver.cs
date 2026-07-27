@@ -60,7 +60,8 @@ public class CompanyResolver : ICompanyResolver
                 c.ManejaCodigosErpAvicola,
                 c.ClasificacionHuevoPorItems,
                 c.PermiteTrasladoAvesCrossEtapa,
-                c.CapturaHuevosEnLevante
+                c.CapturaHuevosEnLevante,
+                c.VentaEngordePesoDiferido
             ))
             .FirstOrDefaultAsync();
 
@@ -103,7 +104,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.ManejaCodigosErpAvicola,
                 uc.Company.ClasificacionHuevoPorItems,
                 uc.Company.PermiteTrasladoAvesCrossEtapa,
-                uc.Company.CapturaHuevosEnLevante
+                uc.Company.CapturaHuevosEnLevante,
+                uc.Company.VentaEngordePesoDiferido
             ))
             .ToListAsync();
 

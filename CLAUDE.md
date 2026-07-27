@@ -28,7 +28,14 @@ Actuás a la vez como **arquitecto, backend senior, frontend senior y DevOps sen
 
 **STEP 1 — Plan** → `./fase_de_desarrollo/<feature>_plan.md`. Debe contener: enfoque arquitectónico, archivos/componentes/servicios a crear o modificar, cambios de BD/SQL, reglas de negocio y casos de prueba.
 
-**STEP 2 — Tracker** → `./tracker_estado.md`. **Borrá TODO** el contenido previo; poné título + link al plan; desglosá en checklist granular (`- [ ]`) y marcá `- [x]` a medida que avanzás. Es la **única fuente de verdad** del estado del desarrollo.
+**STEP 2 — Tracker** → `./tracker_estado.md`. Título + link al plan; desglosá en checklist granular (`- [ ]`) y marcá `- [x]` a medida que avanzás. Es la **única fuente de verdad** del estado del desarrollo.
+
+> ⚠️ **Sesiones en paralelo — NUNCA pises el tracker de otra sesión.** El usuario suele tener **varias ventanas de Claude Code trabajando el mismo repo a la vez**. Antes de escribir el tracker, mirá lo que ya está:
+> - **Tracker con trabajo ABIERTO** (checkboxes `- [ ]` sin marcar, o marcado todo pero con el working tree sin commitear ⇒ otra sesión lo está corriendo): **NO borres nada.** Agregá tu tarea **AL FINAL del archivo**, como bloque propio separado por `---`, con su título, link al plan y su checklist. Cada sesión toca **solo su bloque**.
+> - **Tracker cerrado** (todo `- [x]` y ya commiteado): recién ahí podés limpiarlo y arrancar de cero.
+> - **Duda ⇒ agregar abajo.** Perder el estado de otra sesión es mucho más caro que un tracker largo.
+>
+> Mismo criterio para cualquier archivo compartido (`fase_de_desarrollo/`, migraciones): **agregá, no reemplaces**, y no commitees trabajo que no es tuyo.
 
 ---
 

@@ -30,8 +30,23 @@ public partial class MovimientoPolloEngordeService : IMovimientoPolloEngordeServ
         => tipoMovimiento == "Venta" || tipoMovimiento == "Despacho" || tipoMovimiento == "Retiro";
 
     /// <summary>Peso báscula obligatorio en ventas — delega en el cálculo puro compartido.</summary>
-    private static void ValidarPesoObligatorioEnVenta(string? tipoMovimiento, double? pesoBruto, double? pesoTara)
-        => MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta(tipoMovimiento, pesoBruto, pesoTara);
+    private static void ValidarPesoObligatorioEnVenta(string? tipoMovimiento, double? pesoBruto, double? pesoTara, bool pesoDiferidoPermitido = false)
+        => MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta(tipoMovimiento, pesoBruto, pesoTara, pesoDiferidoPermitido);
+
+    /// <summary>
+    /// ¿La empresa DUEÑA de la granja tiene el peso báscula diferido (<c>venta_engorde_peso_diferido</c>)?
+    /// Se resuelve por DATOS (<c>farms.company_id</c>), no por país ni por la empresa activa del token:
+    /// la granja de origen es el ancla de la venta. <b>Fail-closed</b>: sin granja, granja inexistente
+    /// o empresa sin el flag ⇒ <c>false</c> ⇒ peso obligatorio (comportamiento histórico).
+    /// </summary>
+    private async Task<bool> EmpresaPermitePesoDiferidoAsync(int? granjaId)
+    {
+        if (granjaId is not int id) return false;
+        return await _ctx.Farms
+            .Where(f => f.Id == id)
+            .Join(_ctx.Companies, f => f.CompanyId, c => c.Id, (_, c) => c.VentaEngordePesoDiferido)
+            .FirstOrDefaultAsync();
+    }
 
     /// <summary>Appends text without exceeding DB column length (keeps suffix when truncating).</summary>
     private static string AppendObservaciones(string? existing, string suffix)

@@ -61,8 +61,13 @@ public sealed class MovimientoPolloEngordePanamaService : IMovimientoPolloEngord
                     $"Asignado H+M={pedidoMixtas}; Mixtas disponibles={d.MixtasDisponibles}.");
         }
 
-        // Peso báscula obligatorio: la venta Panamá también es una venta.
-        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta("Venta", dto.PesoBruto, dto.PesoTara);
+        // Peso báscula obligatorio: la venta Panamá también es una venta. Salvo que la empresa
+        // tenga peso DIFERIDO (la báscula llega al día siguiente): ahí la venta puede nacer sin
+        // peso y queda Pendiente hasta que se carga al confirmarla.
+        var granjaCabecera = dto.GranjaOrigenId ?? lineas.Select(l => l.GranjaOrigenId).FirstOrDefault(g => g.HasValue);
+        var pesoDiferido = await EmpresaPermitePesoDiferidoAsync(granjaCabecera);
+        MovimientoPolloEngordeCalculos.ValidarPesoObligatorioEnVenta(
+            "Venta", dto.PesoBruto, dto.PesoTara, pesoDiferido);
 
         // Peso prorrateado por línea (mismo cálculo que la venta por granja).
         var pesoBrutoGlobal = dto.PesoBruto ?? 0d;
@@ -152,5 +157,22 @@ public sealed class MovimientoPolloEngordePanamaService : IMovimientoPolloEngord
             await tx.RollbackAsync();
             throw;
         }
+    }
+
+    /// <summary>
+    /// ¿La empresa DUEÑA de la granja del despacho tiene el peso báscula diferido?
+    /// Se resuelve por DATOS (<c>farms.company_id</c>), no por país ni por la empresa activa del
+    /// token: la granja es el ancla del despacho. <b>Fail-closed</b>: sin granja, granja inexistente
+    /// o empresa sin el flag ⇒ <c>false</c> ⇒ peso obligatorio (comportamiento histórico).
+    /// Gemelo del helper homónimo de <c>MovimientoPolloEngordeService</c> (este service no es partial
+    /// de aquél y sólo comparte la interfaz pública).
+    /// </summary>
+    private async Task<bool> EmpresaPermitePesoDiferidoAsync(int? granjaId)
+    {
+        if (granjaId is not int id) return false;
+        return await _ctx.Farms
+            .Where(f => f.Id == id)
+            .Join(_ctx.Companies, f => f.CompanyId, c => c.Id, (_, c) => c.VentaEngordePesoDiferido)
+            .FirstOrDefaultAsync();
     }
 }

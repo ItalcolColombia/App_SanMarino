@@ -55,6 +55,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: el peso báscula de la venta de engorde llega al día
+        // siguiente ⇒ la venta se registra sin peso y el peso se carga al confirmarla.
+        builder.Property(x => x.VentaEngordePesoDiferido)
+            .HasColumnName("venta_engorde_peso_diferido")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

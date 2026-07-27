@@ -332,6 +332,29 @@ public class MovimientoPolloEngordeController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Registra el peso báscula de un despacho completo (por FacturaId) y lo prorratea entre sus
+    /// líneas. Con <c>confirmar = true</c> (default) además completa las líneas Pendiente en la
+    /// misma transacción: es el flujo de «confirmar la venta cargando el peso» de las empresas con
+    /// peso diferido (la báscula llega al día siguiente). Con <c>confirmar = false</c> solo corrige
+    /// el peso de un despacho ya completado, sin tocar estados ni saldos de aves.
+    /// </summary>
+    [HttpPost("factura/{facturaId:guid}/registrar-peso")]
+    [ProducesResponseType(typeof(RegistrarPesoFacturaResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RegistrarPesoFactura(Guid facturaId, [FromBody] RegistrarPesoFacturaRequest request)
+    {
+        try
+        {
+            var result = await _service.RegistrarPesoFacturaAsync(facturaId, request);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
 }
 
 public record CancelarMovimientoPolloEngordeRequest(string? Motivo);

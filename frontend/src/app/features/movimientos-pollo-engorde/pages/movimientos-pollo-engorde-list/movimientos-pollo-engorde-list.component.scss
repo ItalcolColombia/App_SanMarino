@@ -291,6 +291,13 @@
   color: #9a3412;
 }
 
+/* Despacho registrado sin báscula (empresas con peso diferido): se carga al confirmar. */
+.badge--peso {
+  background: #e5e7eb;
+  color: #4b5563;
+  margin-left: 0.35rem;
+}
+
 .btn-group--despacho {
   flex-wrap: wrap;
   justify-content: flex-end;

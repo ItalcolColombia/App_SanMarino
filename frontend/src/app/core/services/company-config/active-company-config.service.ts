@@ -25,6 +25,12 @@ export interface CompanyFlags {
    * producción.
    */
   capturaHuevosEnLevante: boolean;
+  /**
+   * El peso báscula (bruto/tara) de las VENTAS de pollo engorde llega al día siguiente: la venta se
+   * registra sin peso y queda Pendiente; el peso se carga al confirmarla (modal de registro de peso),
+   * que re-prorratea por lote y completa el despacho en la misma transacción.
+   */
+  ventaEngordePesoDiferido: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -32,7 +38,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   manejaCodigosErpAvicola: false,
   clasificacionHuevoPorItems: false,
   permiteTrasladoAvesCrossEtapa: false,
-  capturaHuevosEnLevante: false
+  capturaHuevosEnLevante: false,
+  ventaEngordePesoDiferido: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -49,6 +56,7 @@ interface CompanyFlagsResponse {
   clasificacionHuevoPorItems?: boolean | null;
   permiteTrasladoAvesCrossEtapa?: boolean | null;
   capturaHuevosEnLevante?: boolean | null;
+  ventaEngordePesoDiferido?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -84,6 +92,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa captura huevos en el seguimiento diario de levante? */
   readonly capturaHuevosEnLevante$: Observable<boolean> = this.flags$.pipe(
     map(f => f.capturaHuevosEnLevante),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa carga el peso de la venta de engorde al confirmarla (báscula diferida)? */
+  readonly ventaEngordePesoDiferido$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.ventaEngordePesoDiferido),
     distinctUntilChanged()
   );
 
@@ -163,6 +177,11 @@ export class ActiveCompanyConfigService {
     return this.getFlags().pipe(map(f => f.capturaHuevosEnLevante));
   }
 
+  /** Azúcar: sólo el flag de peso diferido en la venta de pollo engorde de la empresa activa. */
+  ventaEngordePesoDiferido(): Observable<boolean> {
+    return this.getFlags().pipe(map(f => f.ventaEngordePesoDiferido));
+  }
+
   /** Descarta la caché (p. ej. tras editar la empresa en configuración). */
   invalidate(): void {
     this.cache.clear();
@@ -175,7 +194,8 @@ export class ActiveCompanyConfigService {
       manejaCodigosErpAvicola: dto?.manejaCodigosErpAvicola === true,
       clasificacionHuevoPorItems: dto?.clasificacionHuevoPorItems === true,
       permiteTrasladoAvesCrossEtapa: dto?.permiteTrasladoAvesCrossEtapa === true,
-      capturaHuevosEnLevante: dto?.capturaHuevosEnLevante === true
+      capturaHuevosEnLevante: dto?.capturaHuevosEnLevante === true,
+      ventaEngordePesoDiferido: dto?.ventaEngordePesoDiferido === true
     };
   }
 
@@ -187,7 +207,8 @@ export class ActiveCompanyConfigService {
       actual.manejaCodigosErpAvicola === flags.manejaCodigosErpAvicola &&
       actual.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems &&
       actual.permiteTrasladoAvesCrossEtapa === flags.permiteTrasladoAvesCrossEtapa &&
-      actual.capturaHuevosEnLevante === flags.capturaHuevosEnLevante
+      actual.capturaHuevosEnLevante === flags.capturaHuevosEnLevante &&
+      actual.ventaEngordePesoDiferido === flags.ventaEngordePesoDiferido
     ) return;
     this.flagsSubject.next(flags);
   }

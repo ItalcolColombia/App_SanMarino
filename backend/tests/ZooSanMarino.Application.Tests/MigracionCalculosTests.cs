@@ -129,4 +129,129 @@ public class MigracionCalculosTests
         Assert.Null(MigracionCalculos.ConsumoAKilos(null, "qq"));
         Assert.Null(MigracionCalculos.ConsumoAKilos(null, "kg"));
     }
+
+    // ── TryHora (columna «Hora Salida» de la plantilla de venta engorde) ───────────────────
+
+    [Theory]
+    [InlineData("06:30", 6, 30)]
+    [InlineData("6:30", 6, 30)]
+    [InlineData("18:45:00", 18, 45)]
+    [InlineData("23:59", 23, 59)]
+    [InlineData("00:00", 0, 0)]
+    public void TryHora_Texto24h(string input, int h, int m)
+    {
+        Assert.True(MigracionCalculos.TryHora(input, out var val));
+        Assert.Equal(new TimeOnly(h, m), val);
+    }
+
+    [Theory]
+    [InlineData("06:30 AM", 6, 30)]
+    [InlineData("6:30 PM", 18, 30)]
+    [InlineData("12:00 AM", 0, 0)]
+    [InlineData("12:00 PM", 12, 0)]
+    public void TryHora_Texto12h(string input, int h, int m)
+    {
+        Assert.True(MigracionCalculos.TryHora(input, out var val));
+        Assert.Equal(new TimeOnly(h, m), val);
+    }
+
+    /// <summary>Excel guarda la hora como fracción del día: 0.5 = mediodía.</summary>
+    [Theory]
+    [InlineData(0.5, 12, 0)]
+    [InlineData(0.25, 6, 0)]
+    [InlineData(0.0, 0, 0)]
+    [InlineData(0.270833333333333, 6, 30)]  // 6:30 exportado por Excel
+    public void TryHora_SerialFraccionario(double serial, int h, int m)
+    {
+        Assert.True(MigracionCalculos.TryHora(serial, out var val));
+        Assert.Equal(new TimeOnly(h, m), val);
+    }
+
+    /// <summary>Serial con parte entera (fecha + hora): se ignora la fecha.</summary>
+    [Fact]
+    public void TryHora_SerialConFecha_TomaSoloLaHora()
+    {
+        Assert.True(MigracionCalculos.TryHora(45000.5, out var val));
+        Assert.Equal(new TimeOnly(12, 0), val);
+    }
+
+    /// <summary>Serial que redondea a 24:00 ⇒ medianoche, nunca una hora inválida.</summary>
+    [Fact]
+    public void TryHora_SerialCasiUnDia_CaeEnMedianoche()
+    {
+        Assert.True(MigracionCalculos.TryHora(0.99999, out var val));
+        Assert.Equal(new TimeOnly(0, 0), val);
+    }
+
+    [Fact]
+    public void TryHora_DateTimeYTimeSpan()
+    {
+        Assert.True(MigracionCalculos.TryHora(new DateTime(2026, 7, 26, 14, 15, 0), out var a));
+        Assert.Equal(new TimeOnly(14, 15), a);
+
+        Assert.True(MigracionCalculos.TryHora(new TimeSpan(7, 45, 0), out var b));
+        Assert.Equal(new TimeOnly(7, 45), b);
+    }
+
+    /// <summary>Un serial exportado como texto sin formato de hora igual se interpreta.</summary>
+    [Fact]
+    public void TryHora_SerialComoTexto()
+    {
+        Assert.True(MigracionCalculos.TryHora("0.5", out var val));
+        Assert.Equal(new TimeOnly(12, 0), val);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("mañana")]
+    [InlineData("25:00")]
+    [InlineData(-0.5)]
+    public void TryHora_InvalidoDevuelveFalse(object? input)
+    {
+        Assert.False(MigracionCalculos.TryHora(input, out _));
+    }
+
+    // ── TryBooleanoSiNo (columna «Venta sobre mixtas») ─────────────────────────────────────
+
+    [Theory]
+    [InlineData("Sí", true)]
+    [InlineData("si", true)]
+    [InlineData("SI", true)]
+    [InlineData("S", true)]
+    [InlineData("x", true)]
+    [InlineData("1", true)]
+    [InlineData("true", true)]
+    [InlineData("Verdadero", true)]
+    [InlineData("No", false)]
+    [InlineData("n", false)]
+    [InlineData("0", false)]
+    [InlineData("false", false)]
+    [InlineData("Falso", false)]
+    public void TryBooleanoSiNo_ReconoceLosValoresDePlanilla(string input, bool esperado)
+    {
+        Assert.True(MigracionCalculos.TryBooleanoSiNo(input, out var val));
+        Assert.Equal(esperado, val);
+    }
+
+    [Fact]
+    public void TryBooleanoSiNo_BoolNativoDeExcel()
+    {
+        Assert.True(MigracionCalculos.TryBooleanoSiNo(true, out var v));
+        Assert.True(v);
+        Assert.True(MigracionCalculos.TryBooleanoSiNo(false, out var f));
+        Assert.False(f);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("tal vez")]
+    [InlineData("2")]
+    public void TryBooleanoSiNo_NoReconocidoDevuelveFalse(object? input)
+    {
+        Assert.False(MigracionCalculos.TryBooleanoSiNo(input, out _));
+    }
 }

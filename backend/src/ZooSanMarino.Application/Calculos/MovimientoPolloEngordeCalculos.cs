@@ -17,9 +17,18 @@ public static class MovimientoPolloEngordeCalculos
     /// y los reportes de indicadores). Aplica cuando el tipo de movimiento es "Venta";
     /// los traslados no pasan por báscula.
     /// </summary>
-    public static void ValidarPesoObligatorioEnVenta(string? tipoMovimiento, double? pesoBruto, double? pesoTara)
+    /// <param name="pesoDiferidoPermitido">
+    /// Empresas con el flag <c>venta_engorde_peso_diferido</c> (Panamá): la báscula llega al día
+    /// siguiente, así que la venta puede registrarse SIN peso y queda "Pendiente" hasta que se
+    /// carga en la confirmación. Sólo se tolera la ausencia TOTAL de peso: un peso a medias
+    /// (sólo bruto o sólo tara) sigue siendo un error de digitación en ambos modos, igual que
+    /// los valores fuera de rango. Default <c>false</c> ⇒ comportamiento histórico intacto.
+    /// </param>
+    public static void ValidarPesoObligatorioEnVenta(
+        string? tipoMovimiento, double? pesoBruto, double? pesoTara, bool pesoDiferidoPermitido = false)
     {
         if (tipoMovimiento != "Venta") return;
+        if (pesoDiferidoPermitido && !pesoBruto.HasValue && !pesoTara.HasValue) return;
         if (!pesoBruto.HasValue || !pesoTara.HasValue)
             throw new InvalidOperationException(
                 "El peso báscula es obligatorio para registrar la venta: indique peso bruto y peso tara.");

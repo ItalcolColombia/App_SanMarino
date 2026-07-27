@@ -62,4 +62,14 @@ public interface IMovimientoPolloEngordeService
     /// Agrupa por NumeroDespacho y distribuye el peso proporcional a las aves de cada movimiento.
     /// </summary>
     Task<OrganizarPesoResponse> OrganizarPesoAsync(OrganizarPesoRequest request);
+
+    /// <summary>
+    /// Carga el peso báscula de un despacho COMPLETO (por <c>FacturaId</c>) y lo prorratea entre sus
+    /// líneas, con la misma aritmética de la creación. Pensado para empresas con
+    /// <c>venta_engorde_peso_diferido</c>, donde la báscula llega al día siguiente:
+    /// con <c>Confirmar = true</c> además completa las líneas Pendiente en la misma transacción
+    /// («confirmar la venta cargando el peso»); con <c>false</c> solo corrige el peso de un despacho
+    /// ya completado, sin tocar estados ni saldos de aves.
+    /// </summary>
+    Task<RegistrarPesoFacturaResponse> RegistrarPesoFacturaAsync(Guid facturaId, RegistrarPesoFacturaRequest request);
 }

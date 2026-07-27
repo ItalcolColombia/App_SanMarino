@@ -15,6 +15,7 @@ import { MovimientoPolloEngordeService } from '../../services/movimiento-pollo-e
 import { VentaPanamaPolloEngordeService } from '../../services/venta-panama-pollo-engorde.service';
 import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { VentaPanamaLineaUI } from '../../models/venta-panama.model';
 import { buildVentaPanamaDespachoDto, VentaPanamaFormValue } from '../../funciones/mapear-venta-panama-dto.funcion';
 import { formatearNumero as fmtNumero } from '../../funciones/formato.funcion';
@@ -50,6 +51,13 @@ export class ModalVentaPanamaComponent implements OnChanges {
   loadingLineas = false;
   error: string | null = null;
 
+  /**
+   * Empresa con báscula diferida (`venta_engorde_peso_diferido`): el peso llega al día siguiente ⇒
+   * bruto/tara dejan de ser obligatorios acá y se cargan al CONFIRMAR la venta. Fail-closed:
+   * arranca en false, así que si el flag no resuelve el peso sigue siendo obligatorio.
+   */
+  pesoDiferido = false;
+
   galpones: Array<{ id: string; label: string }> = [];
   selectedGalponId: string | null = null;
   lineas: VentaPanamaLineaUI[] = [];
@@ -59,6 +67,7 @@ export class ModalVentaPanamaComponent implements OnChanges {
     private movimientoSvc: MovimientoPolloEngordeService,
     private panamaSvc: VentaPanamaPolloEngordeService,
     private tokenStorage: TokenStorageService,
+    private companyConfig: ActiveCompanyConfigService,
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
@@ -71,6 +80,7 @@ export class ModalVentaPanamaComponent implements OnChanges {
       this.lineas = [];
       this.resetForm();
       this.buildGalpones();
+      this.resolverPesoDiferido();
     }
   }
 
@@ -204,6 +214,57 @@ export class ModalVentaPanamaComponent implements OnChanges {
     return fmtNumero(n);
   }
 
+  /**
+   * Resuelve el flag de la empresa activa y ajusta los validadores de peso. Con peso diferido el
+   * peso deja de ser obligatorio (pero si se digita, sigue validando bruto > 0 y tara ≥ 0).
+   */
+  private resolverPesoDiferido(): void {
+    this.companyConfig.ventaEngordePesoDiferido().subscribe({
+      next: (activo) => {
+        this.pesoDiferido = activo;
+        this.aplicarValidadoresPeso();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        // Fail-closed: si no se puede resolver el flag, el peso queda obligatorio.
+        this.pesoDiferido = false;
+        this.aplicarValidadoresPeso();
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private aplicarValidadoresPeso(): void {
+    const bruto = this.form.get('pesoBruto');
+    const tara = this.form.get('pesoTara');
+    bruto?.setValidators(this.pesoDiferido ? [Validators.min(0.01)] : [Validators.required, Validators.min(0.01)]);
+    tara?.setValidators(this.pesoDiferido ? [Validators.min(0)] : [Validators.required, Validators.min(0)]);
+    bruto?.updateValueAndValidity({ emitEvent: false });
+    tara?.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /** Mensaje del primer control inválido (antes asumía que la única causa era el peso). */
+  private mensajeFormInvalido(): string {
+    if (this.form.get('fechaMovimiento')?.invalid) return 'Complete la fecha del despacho.';
+    const bruto = this.form.get('pesoBruto');
+    const tara = this.form.get('pesoTara');
+    if (bruto?.invalid || tara?.invalid) {
+      if (bruto?.hasError('required') || tara?.hasError('required'))
+        return 'El peso báscula es obligatorio para registrar la venta: digite peso bruto (> 0) y peso tara.';
+      return 'Revise el peso báscula: el bruto debe ser mayor a 0 y la tara no puede ser negativa.';
+    }
+    return 'Revise los datos del despacho: hay campos con valores inválidos.';
+  }
+
+  /** Con peso diferido, un peso a medias es un error de digitación (el backend lo rechaza igual). */
+  private pesoIncompleto(): boolean {
+    const bruto = this.form.get('pesoBruto')?.value;
+    const tara = this.form.get('pesoTara')?.value;
+    const tieneBruto = bruto !== null && bruto !== undefined && bruto !== '';
+    const tieneTara = tara !== null && tara !== undefined && tara !== '';
+    return tieneBruto !== tieneTara;
+  }
+
   onClose(): void {
     this.close.emit();
   }
@@ -212,13 +273,15 @@ export class ModalVentaPanamaComponent implements OnChanges {
     if (this.loading || this.loadingLineas) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.error = (this.form.get('pesoBruto')?.invalid || this.form.get('pesoTara')?.invalid)
-        ? 'El peso báscula es obligatorio para registrar la venta: digite peso bruto (> 0) y peso tara.'
-        : 'Complete la fecha del despacho.';
+      this.error = this.mensajeFormInvalido();
       return;
     }
     if (!this.hayLineasConCantidad) {
       this.error = 'Asigne hembras/machos en al menos un lote.';
+      return;
+    }
+    if (this.pesoIncompleto()) {
+      this.error = 'Indique peso bruto Y peso tara, o deje ambos vacíos para cargarlos al confirmar la venta.';
       return;
     }
     const session = this.tokenStorage.get();

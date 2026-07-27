@@ -42,6 +42,7 @@ public partial class CompanyService : ICompanyService
         c.ManejaCodigosErpAvicola,
         c.ClasificacionHuevoPorItems,
         c.PermiteTrasladoAvesCrossEtapa,
-        c.CapturaHuevosEnLevante
+        c.CapturaHuevosEnLevante,
+        c.VentaEngordePesoDiferido
     );
 }

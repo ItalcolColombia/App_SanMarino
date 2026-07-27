@@ -25,5 +25,7 @@ public record CreateCompanyDto(
     bool     PermiteTrasladoAvesCrossEtapa = false,
     // ¿La empresa captura la clasificación de huevos en el seguimiento diario de LEVANTE desde la
     // semana 14 (con arrastre del acumulado a producción al liquidar)?
-    bool     CapturaHuevosEnLevante = false
+    bool     CapturaHuevosEnLevante = false,
+    // ¿El peso báscula de la venta de pollo engorde llega al día siguiente (se carga al confirmar)?
+    bool     VentaEngordePesoDiferido = false
 );

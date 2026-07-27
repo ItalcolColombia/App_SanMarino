@@ -367,6 +367,9 @@
                                 [class.badge--partial]="estadoGrupoDespacho(fila.movimientos) === 'Parcial'">
                                 {{ estadoGrupoDespacho(fila.movimientos) }}
                               </span>
+                              @if (pesoDiferido && despachoSinPeso(fila.movimientos)) {
+                                <span class="badge badge--peso" title="La báscula todavía no se cargó: al confirmar se pedirá el peso">⚖ Sin peso</span>
+                              }
                             </td>
                             <td class="text-right">
                               <div class="btn-group btn-group--despacho">
@@ -381,6 +384,18 @@
                                     <span class="action-label">Completar despacho</span>
                                   </button>
                                 </ng-container>
+                                @if (puedeRegistrarPeso(fila.movimientos)) {
+                                  <ng-container *appHasPermission="'confirmar_despacho'">
+                                    <button
+                                      type="button"
+                                      class="action-btn"
+                                      title="Registrar o corregir el peso de báscula del despacho"
+                                      (click)="abrirRegistroPeso(fila.movimientos)">
+                                      <span class="action-icon">⚖</span>
+                                      <span class="action-label">Peso</span>
+                                    </button>
+                                  </ng-container>
+                                }
                                 <ng-container *appHasPermission="'eliminar_registro'">
                                   <button
                                     type="button"
@@ -541,6 +556,18 @@
                                   <span class="action-label">Editar</span>
                                 </button>
                               </ng-container>
+                              @if (puedeRegistrarPeso([fila.movimiento])) {
+                                <ng-container *appHasPermission="'confirmar_despacho'">
+                                  <button
+                                    type="button"
+                                    (click)="registrarPesoMovimiento(fila.movimiento)"
+                                    class="action-btn"
+                                    title="Registrar o corregir el peso de báscula del despacho">
+                                    <span class="action-icon">⚖</span>
+                                    <span class="action-label">Peso</span>
+                                  </button>
+                                </ng-container>
+                              }
                               <ng-container *appHasPermission="'confirmar_despacho'">
                                 <button
                                   type="button"
@@ -600,6 +627,13 @@
   (close)="closePanama()"
   (saved)="onVentaPanamaSaved($event)">
 </app-modal-venta-panama>
+
+<app-modal-registro-peso
+  [isOpen]="modalPesoOpen"
+  [movimientos]="movimientosParaPeso"
+  (close)="cerrarRegistroPeso()"
+  (saved)="onPesoRegistrado($event)">
+</app-modal-registro-peso>
 
 <app-auditoria-ventas-modal
   [isOpen]="auditoriaModalOpen"

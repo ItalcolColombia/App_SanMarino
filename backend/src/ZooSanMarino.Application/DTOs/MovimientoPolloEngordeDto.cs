@@ -297,3 +297,40 @@ public sealed class OrganizarPesoResponse
     /// peso bruto+placa). NO se corrigen automáticamente: requieren revisión manual.</summary>
     public List<OrganizarPesoDespachoDetalle> RevisionManual { get; set; } = new();
 }
+
+/// <summary>
+/// Carga del peso báscula de un despacho completo (empresas con <c>venta_engorde_peso_diferido</c>:
+/// la báscula llega al día siguiente). El peso es SIEMPRE el global del camión y se prorratea entre
+/// las líneas vivas de la factura, igual que al crear la venta con peso.
+/// </summary>
+public sealed class RegistrarPesoFacturaRequest
+{
+    /// <summary>Peso bruto del camión, en kg. Obligatorio (&gt; 0).</summary>
+    public double? PesoBruto { get; set; }
+    /// <summary>Peso tara del camión, en kg. Obligatorio (≥ 0 y ≤ bruto).</summary>
+    public double? PesoTara { get; set; }
+    /// <summary>
+    /// <c>true</c> (default): además de cargar el peso, completa las líneas que sigan
+    /// <c>Pendiente</c> (descuenta las aves del lote) en la MISMA transacción — es el flujo de
+    /// «confirmar la venta cargando el peso». <c>false</c>: solo corrige el peso, sin tocar estados
+    /// ni saldos de aves (báscula que llegó después de haber confirmado).
+    /// </summary>
+    public bool Confirmar { get; set; } = true;
+}
+
+/// <summary>Resultado de <see cref="RegistrarPesoFacturaRequest"/>.</summary>
+public sealed class RegistrarPesoFacturaResponse
+{
+    public Guid FacturaId { get; set; }
+    public int MovimientosActualizados { get; set; }
+    public int MovimientosCompletados { get; set; }
+    public int TotalAves { get; set; }
+    public double PesoBrutoGlobal { get; set; }
+    public double PesoTaraGlobal { get; set; }
+    public double PesoNetoGlobal { get; set; }
+    /// <summary>Peso neto por ave del despacho (null si el despacho no tiene aves).</summary>
+    public double? PromedioPesoAve { get; set; }
+    public string Mensaje { get; set; } = string.Empty;
+    /// <summary>Las líneas del despacho ya actualizadas.</summary>
+    public List<MovimientoPolloEngordeDto> Movimientos { get; set; } = new();
+}

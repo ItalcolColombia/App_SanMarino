@@ -206,6 +206,20 @@ export interface CorregirVentasCompletadasResponse {
   acciones: CorreccionCompletadoAccionDto[];
 }
 
+/** Respuesta de `POST /factura/{facturaId}/registrar-peso`. */
+export interface RegistrarPesoFacturaResponse {
+  facturaId: string;
+  movimientosActualizados: number;
+  movimientosCompletados: number;
+  totalAves: number;
+  pesoBrutoGlobal: number;
+  pesoTaraGlobal: number;
+  pesoNetoGlobal: number;
+  promedioPesoAve: number | null;
+  mensaje: string;
+  movimientos: MovimientoPolloEngordeDto[];
+}
+
 export interface VentaGranjaDespachoLineaDto {
   loteAveEngordeOrigenId: number;
   granjaOrigenId?: number | null;
@@ -470,6 +484,24 @@ export class MovimientoPolloEngordeService {
   completarBatch(movimientoIds: number[]): Observable<MovimientoPolloEngordeDto[]> {
     return this.http
       .post<MovimientoPolloEngordeDto[]>(`${this.base}/completar-batch`, { movimientoIds })
+      .pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Registra el peso báscula de un DESPACHO completo (por facturaId) y lo prorratea entre sus
+   * líneas, con la misma aritmética de la venta por pantalla.
+   *
+   * `confirmar: true` (flujo normal de las empresas con báscula diferida) completa además las
+   * líneas Pendiente en la misma transacción: cargar el peso ES confirmar la venta.
+   * `confirmar: false` sólo corrige el peso de un despacho ya completado, sin tocar estados ni
+   * saldos de aves.
+   */
+  registrarPesoFactura(
+    facturaId: string,
+    body: { pesoBruto: number; pesoTara: number; confirmar: boolean }
+  ): Observable<RegistrarPesoFacturaResponse> {
+    return this.http
+      .post<RegistrarPesoFacturaResponse>(`${this.base}/factura/${facturaId}/registrar-peso`, body)
       .pipe(catchError(this.handleError));
   }
 

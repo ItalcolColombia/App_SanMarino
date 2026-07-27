@@ -61,6 +61,17 @@ namespace ZooSanMarino.Domain.Entities
         /// </summary>
         public bool PermiteTrasladoAvesCrossEtapa { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = en las VENTAS de pollo engorde de la empresa, el peso báscula (bruto/tara)
+        /// NO es obligatorio al registrar la venta: la báscula llega al día siguiente (Panamá). La
+        /// venta nace sin peso en estado <c>Pendiente</c> y el peso se carga al CONFIRMARLA, momento
+        /// en que se re-prorratea por lote (neto, promedio por ave y pesos reales) en la misma
+        /// transacción que la pasa a <c>Completado</c>. Así nunca existe una venta <c>Completado</c>
+        /// sin peso y la liquidación queda intacta.
+        /// <c>false</c> (default) = comportamiento actual: sin peso no se registra la venta.
+        /// </summary>
+        public bool VentaEngordePesoDiferido { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

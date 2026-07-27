@@ -74,7 +74,8 @@ public partial class CompanyService
             ManejaCodigosErpAvicola = dto.ManejaCodigosErpAvicola,
             ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems,
             PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa,
-            CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante
+            CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante,
+            VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido
         };
 
         _ctx.Companies.Add(c);
@@ -107,11 +108,15 @@ public partial class CompanyService
         c.City              = dto.City;
         c.VisualPermissions = dto.VisualPermissions;
         c.MobileAccess      = dto.MobileAccess;
-        c.ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon;
-        c.ManejaCodigosErpAvicola = dto.ManejaCodigosErpAvicola;
-        c.ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems;
-        c.PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa;
-        c.CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante;
+        // Flags de comportamiento: `null` = el cliente no los mandó ⇒ se conserva el valor actual.
+        // El formulario de Configuración → Empresas sólo envía datos de contacto; antes esto los
+        // apagaba en silencio y una empresa perdía su configuración al corregirle el teléfono.
+        c.ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon ?? c.ManejaAlimentoPorGalpon;
+        c.ManejaCodigosErpAvicola = dto.ManejaCodigosErpAvicola ?? c.ManejaCodigosErpAvicola;
+        c.ClasificacionHuevoPorItems = dto.ClasificacionHuevoPorItems ?? c.ClasificacionHuevoPorItems;
+        c.PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa ?? c.PermiteTrasladoAvesCrossEtapa;
+        c.CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante ?? c.CapturaHuevosEnLevante;
+        c.VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido ?? c.VentaEngordePesoDiferido;
 
         await _ctx.SaveChangesAsync();
 

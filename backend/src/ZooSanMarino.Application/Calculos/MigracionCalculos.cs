@@ -117,6 +117,68 @@ public static class MigracionCalculos
         return false;
     }
 
+    /// <summary>
+    /// Hora del día desde <see cref="DateTime"/>/<see cref="TimeSpan"/>, serial de Excel (la parte
+    /// fraccionaria del día: 0.5 = 12:00) o texto ("HH:mm", "H:mm:ss", "hh:mm tt"). Los segundos
+    /// del serial se redondean al minuto para no arrastrar el ruido del punto flotante de Excel.
+    /// </summary>
+    public static bool TryHora(object? cell, out TimeOnly val)
+    {
+        val = default;
+        switch (cell)
+        {
+            case null: return false;
+            case DateTime dt: val = TimeOnly.FromDateTime(dt); return true;
+            case TimeSpan ts:
+                if (ts < TimeSpan.Zero || ts >= TimeSpan.FromDays(1)) return false;
+                val = TimeOnly.FromTimeSpan(ts); return true;
+            case double d: return TryHoraDesdeSerial(d, out val);
+            case int i: return TryHoraDesdeSerial(i, out val);
+        }
+
+        var s = TextoLimpio(cell);
+        if (s is null) return false;
+        // Un serial de Excel puede llegar como texto ("0.5") si la celda venía sin formato de hora.
+        if (double.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var serial)
+            && s.IndexOf(':') < 0)
+            return TryHoraDesdeSerial(serial, out val);
+
+        string[] formatos = { "HH:mm", "H:mm", "HH:mm:ss", "H:mm:ss", "hh:mm tt", "h:mm tt", "hh:mm:ss tt", "h:mm:ss tt" };
+        if (TimeOnly.TryParseExact(s, formatos, CultureInfo.InvariantCulture, DateTimeStyles.None, out val))
+            return true;
+        return TimeOnly.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out val);
+    }
+
+    /// <summary>Fracción de día de Excel → hora. Acepta seriales con parte entera (fecha+hora).</summary>
+    private static bool TryHoraDesdeSerial(double serial, out TimeOnly val)
+    {
+        val = default;
+        if (double.IsNaN(serial) || double.IsInfinity(serial) || serial < 0) return false;
+        var fraccion = serial - Math.Floor(serial);
+        var minutos = (int)Math.Round(fraccion * 24 * 60, MidpointRounding.AwayFromZero);
+        if (minutos >= 24 * 60) minutos = 0; // 23:59:59.7 → 24:00 ⇒ medianoche
+        val = new TimeOnly(minutos / 60, minutos % 60);
+        return true;
+    }
+
+    /// <summary>
+    /// Booleano de planilla: "sí/si/s/x/true/verdadero/1" ⇒ true · "no/n/false/falso/0" ⇒ false.
+    /// Devuelve false (no reconocido) para cualquier otro texto, para que el llamador reporte el error.
+    /// </summary>
+    public static bool TryBooleanoSiNo(object? cell, out bool val)
+    {
+        val = false;
+        if (cell is bool b) { val = b; return true; }
+        var k = NormalizarClave(TextoLimpio(cell));
+        if (k.Length == 0) return false;
+        switch (k)
+        {
+            case "si" or "s" or "x" or "true" or "verdadero" or "1": val = true; return true;
+            case "no" or "n" or "false" or "falso" or "0": val = false; return true;
+            default: return false;
+        }
+    }
+
     /// <summary>Estado de granja: 'A' o 'I' (default 'A').</summary>
     public static string NormalizarEstado(string? s)
     {

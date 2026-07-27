@@ -121,13 +121,20 @@
                     <input id="vp-conductor" type="text" formControlName="conductor" />
                   </div>
                   <div class="vp-field">
-                    <label for="vp-bruto">Peso bruto</label>
+                    <label for="vp-bruto">Peso bruto @if (pesoDiferido) { <span class="vp-opcional">(opcional)</span> }</label>
                     <input id="vp-bruto" type="number" step="0.001" formControlName="pesoBruto" />
                   </div>
                   <div class="vp-field">
-                    <label for="vp-tara">Peso tara</label>
+                    <label for="vp-tara">Peso tara @if (pesoDiferido) { <span class="vp-opcional">(opcional)</span> }</label>
                     <input id="vp-tara" type="number" step="0.001" formControlName="pesoTara" />
                   </div>
+                  @if (pesoDiferido) {
+                    <p class="vp-hint vp-field--wide">
+                      Si la báscula todavía no llegó, dejá el peso vacío: la venta queda
+                      <strong>Pendiente</strong> y al confirmarla se abre el registro de peso, que
+                      calcula el neto y el promedio por ave de cada lote.
+                    </p>
+                  }
                   <div class="vp-field vp-field--wide">
                     <label for="vp-obs">Observaciones</label>
                     <input id="vp-obs" type="text" formControlName="observaciones" />

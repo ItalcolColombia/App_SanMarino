@@ -115,7 +115,8 @@ public class CompanyPaisService : ICompanyPaisService
             ManejaCodigosErpAvicola: cp.Company.ManejaCodigosErpAvicola,
             ClasificacionHuevoPorItems: cp.Company.ClasificacionHuevoPorItems,
             PermiteTrasladoAvesCrossEtapa: cp.Company.PermiteTrasladoAvesCrossEtapa,
-            CapturaHuevosEnLevante: cp.Company.CapturaHuevosEnLevante
+            CapturaHuevosEnLevante: cp.Company.CapturaHuevosEnLevante,
+            VentaEngordePesoDiferido: cp.Company.VentaEngordePesoDiferido
         )).ToList();
     }
 
