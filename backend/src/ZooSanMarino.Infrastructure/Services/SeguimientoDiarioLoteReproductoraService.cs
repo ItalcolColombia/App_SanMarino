@@ -181,16 +181,18 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                 $"Este lote reproductora ya tiene {totalRegistros} días de seguimiento registrados. El máximo permitido es {MaxDiasSeguimiento}.");
 
         // Regla de fecha: el día del encasetamiento es el DÍA 1 de la semana de recogida (edad 0);
-        // se acepta edad [0, 7] — la tolerancia en edad 7 deja completar lotes que arrancaron al
-        // día siguiente del encaset (numeración previa). El cruce consolida edades 0..7.
+        // se acepta edad [edadMinima, 7] — la tolerancia en edad 7 deja completar lotes que arrancaron
+        // al día siguiente del encaset (numeración previa). El cruce consolida edades 0..7.
+        // edadMinima sube a 1 si las aves llegaron a las 13:00 o después: ese día ya no consumen.
         var fechaAnclada = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (loteRep.FechaEncasetamiento.HasValue)
         {
+            var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(loteRep.HoraEncasetamiento);
             var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(loteRep.FechaEncasetamiento.Value, fechaAnclada);
-            if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDiasSeguimiento))
+            if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDiasSeguimiento, edadMinima))
                 throw new InvalidOperationException(
-                    edad < 0
-                        ? "La fecha del seguimiento no puede ser anterior a la fecha de encasetamiento del lote reproductora (el día del encasetamiento es el día 1)."
+                    edad < edadMinima
+                        ? MensajeFechaMuyTemprana(loteRep.FechaEncasetamiento.Value, loteRep.HoraEncasetamiento)
                         : "La fecha del seguimiento supera la primera semana de recogida contada desde el encasetamiento.");
         }
 
@@ -285,18 +287,20 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         // Regla de fecha (defensa en profundidad, espejo del Create): día 1 = día del encasetamiento
         // (edad 0); se acepta edad [0, 7] respecto al encasetamiento.
         const int MaxDiasSeguimiento = 7;
-        var encasetUpd = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+        var loteUpd = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
             .Where(l => l.Id == ent.LoteReproductoraAveEngordeId)
-            .Select(l => l.FechaEncasetamiento)
+            .Select(l => new { l.FechaEncasetamiento, l.HoraEncasetamiento })
             .FirstOrDefaultAsync();
+        var encasetUpd = loteUpd?.FechaEncasetamiento;
         var fechaAncladaUpd = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro);
         if (encasetUpd.HasValue)
         {
+            var edadMinimaUpd = EncasetamientoCalculos.EdadMinimaConRegistro(loteUpd!.HoraEncasetamiento);
             var edadUpd = ReproductoraEngordeCalculos.EdadSeguimientoDias(encasetUpd.Value, fechaAncladaUpd);
-            if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadUpd, MaxDiasSeguimiento))
+            if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edadUpd, MaxDiasSeguimiento, edadMinimaUpd))
                 throw new InvalidOperationException(
-                    edadUpd < 0
-                        ? "La fecha del seguimiento no puede ser anterior a la fecha de encasetamiento del lote reproductora (el día del encasetamiento es el día 1)."
+                    edadUpd < edadMinimaUpd
+                        ? MensajeFechaMuyTemprana(encasetUpd.Value, loteUpd.HoraEncasetamiento)
                         : "La fecha del seguimiento supera la primera semana de recogida contada desde el encasetamiento.");
         }
 
@@ -489,5 +493,20 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
 
         await _ctx.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Mensaje de "fecha demasiado temprana". Cuando el lote llegó a las 13:00 o después, el día del
+    /// encasetamiento no admite registro y hay que decir POR QUÉ: si no, el usuario ve rechazada una
+    /// fecha que ayer era válida y lo lee como un bug.
+    /// </summary>
+    private static string MensajeFechaMuyTemprana(DateTime fechaEncasetamiento, TimeOnly? horaEncasetamiento)
+    {
+        var motivo = EncasetamientoCalculos.MotivoDesplazamiento(horaEncasetamiento);
+        if (motivo is null)
+            return "La fecha del seguimiento no puede ser anterior a la fecha de encasetamiento del lote reproductora (el día del encasetamiento es el día 1).";
+
+        var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(fechaEncasetamiento, horaEncasetamiento);
+        return $"El primer registro de este lote es el {primerDia:yyyy-MM-dd}: {motivo}.";
     }
 }

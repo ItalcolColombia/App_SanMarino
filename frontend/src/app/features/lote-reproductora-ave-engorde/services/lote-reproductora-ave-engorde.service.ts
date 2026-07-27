@@ -45,6 +45,8 @@ export interface LoteReproductoraAveEngordeDto {
   readonly reproductoraId: string;
   readonly nombreLote: string;
   readonly fechaEncasetamiento: string | null;
+  /** Hora de llegada de las aves (HH:mm). Desde las 13:00 el primer registro pasa al día siguiente. */
+  readonly horaEncasetamiento?: string | null;
   readonly m: number | null;
   readonly h: number | null;
   readonly mixtas: number | null;
@@ -88,6 +90,7 @@ export interface CreateLoteReproductoraAveEngordeDto {
   reproductoraId: string;
   nombreLote: string;
   fechaEncasetamiento?: string | null;
+  horaEncasetamiento?: string | null;
   m?: number | null;
   h?: number | null;
   mixtas?: number | null;

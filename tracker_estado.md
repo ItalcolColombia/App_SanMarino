@@ -428,3 +428,38 @@ de descuento = datos del lote (mixto = `mixtas > 0 && hembras_l == 0 && machos_l
 - [x] `dotnet build` (Application + Infrastructure) — 0 errores, 0 advertencias
 - [x] `dotnet test` — 1004/1004 verdes
 - [ ] **PENDIENTE** smoke de la plantilla descargada con flag ON/OFF: requiere reiniciar el backend local, que está corriendo en otra sesión (PID 38200). Migraciones sin aplicar en la BD local por el mismo motivo; el SQL generado se verificó con `dotnet ef migrations script`.
+
+---
+
+# Tracker — Hora de encasetamiento define el primer día con registro (engorde y reproductora)
+
+**Plan:** [fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md](fase_de_desarrollo/hora_encasetamiento_primer_registro_plan.md)
+**Fecha:** 2026-07-27
+
+**Decisiones del usuario:** corte **13:00** (`>= 13:00` ⇒ el primer consumo va al día siguiente) ·
+la **edad NO se recorre**: se sigue contando desde `fecha_encaset`, así que un lote tardío arranca en
+edad 1 (Día 2). Solo cambia cuál es el primer día con registro válido ⇒ **no se toca ninguna función SQL**.
+
+## Backend
+
+- [x] `TimeOnly? HoraEncasetamiento` en `LoteAveEngorde` y `LoteReproductoraAveEngorde` + configuraciones (`time`)
+- [x] Migración `20260727170032_AddHoraEncasetamientoLotesEngorde` (ADD COLUMN IF NOT EXISTS, nullable, sin backfill)
+- [x] `Application/Calculos/EncasetamientoCalculos.cs` (corte 13:00, primer día, edad mínima, motivo para el mensaje)
+- [x] `EncasetamientoCalculosTests.cs` — 16 casos (incluye 12:00 y 13:00 exactos, fin de mes, bisiesto y la ventana de la reproductora)
+- [x] `ReproductoraEngordeCalculos.EsEdadSeguimientoValida` con `edadMinima` opcional (default 0 ⇒ llamadas previas intactas)
+- [x] `SeguimientoDiarioLoteReproductoraService`: Create + Update usan la edad mínima + mensaje que explica la hora
+- [x] `MigracionService.SeguimientoReproductora`: idem en carga masiva
+- [x] `MigracionService.SeguimientoEngorde`: fecha mínima = primer día, con mensaje que explica la hora
+- [x] La hora viaja en los DTOs de lote engorde y reproductora (create/update/detail/list)
+
+## Frontend
+
+- [x] Campo "Hora de encasetamiento" (opcional) al crear/editar lote engorde
+- [x] Campo "Hora encasetamiento" (opcional) en los dos formularios de lote reproductora
+- [x] `modal-seguimiento-reproductora`: `minFechaYmd` arranca en el primer día (espejo del corte 13:00 en el front)
+
+## Validación
+
+- [x] `dotnet build` 0 errores/0 advertencias · `dotnet test` 1020/1020
+- [x] `ng build` 0 errores (solo el warning preexistente de bundle budget)
+- [ ] **PENDIENTE** smoke end-to-end: requiere aplicar la migración en la BD local y reiniciar el backend, que está corriendo en otra sesión.

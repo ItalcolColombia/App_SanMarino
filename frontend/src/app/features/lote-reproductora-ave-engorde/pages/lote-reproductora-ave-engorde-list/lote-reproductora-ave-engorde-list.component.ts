@@ -105,6 +105,8 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       reproductoraId: ['', [Validators.required, Validators.maxLength(100)]],
       codigoReproductora: [null as string | null, [Validators.maxLength(100)]],
       fechaEncasetamiento: [''],
+      // Hora de llegada: desde las 13:00 el primer día de recogida pasa al día siguiente (opcional).
+      horaEncasetamiento: [''],
       m: [0, [Validators.min(0)]],
       h: [0, [Validators.min(0)]],
       mixtas: [0, [Validators.min(0)]],
@@ -206,6 +208,8 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       reproductoraId: [initialCode, [Validators.required, Validators.maxLength(100)]],
       nombreLote: ['', [Validators.required, Validators.maxLength(200)]],
       fechaEncasetamiento: [''],
+      // Hora de llegada: desde las 13:00 el primer día de recogida pasa al día siguiente (opcional).
+      horaEncasetamiento: [''],
       m: [0, [Validators.min(0)]],
       h: [0, [Validators.min(0)]],
       mixtas: [0, [Validators.min(0)]],
@@ -291,6 +295,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
         reproductoraId: (v.reproductoraId ?? '').trim(),
         nombreLote: (v.nombreLote ?? '').trim(),
         fechaEncasetamiento: v.fechaEncasetamiento || null, // YYYY-MM-DD crudo: el service lo ancla a mediodía UTC
+        horaEncasetamiento: v.horaEncasetamiento || null,
         m: v.m ?? 0,
         h: v.h ?? 0,
         mixtas: v.mixtas ?? 0,
@@ -397,6 +402,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       reproductoraId: r.reproductoraId ?? '',
       codigoReproductora: r.codigoReproductora ?? null,
       fechaEncasetamiento: ymdSinTz(r.fechaEncasetamiento) ?? '',
+      horaEncasetamiento: r.horaEncasetamiento ?? '',
       m: r.m ?? 0, h: r.h ?? 0, mixtas: r.mixtas ?? 0,
       mortCajaH: r.mortCajaH ?? 0, mortCajaM: r.mortCajaM ?? 0,
       unifH: r.unifH ?? null, unifM: r.unifM ?? null,

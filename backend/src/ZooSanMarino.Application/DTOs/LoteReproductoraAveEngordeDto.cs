@@ -42,7 +42,10 @@ public record LoteReproductoraAveEngordeDto(
     /// <summary>True si el lote (cerrado) fue reabierto con novedad para permitir eliminar registros.</summary>
     bool Reabierto = false,
     /// <summary>Novedad/motivo con que se reabrió el lote.</summary>
-    string? NovedadApertura = null
+    string? NovedadApertura = null,
+    /// <summary>Hora de llegada de las aves: desde las 13:00 el primer registro de la semana de
+    /// recogida pasa al día siguiente del encasetamiento (ver EncasetamientoCalculos).</summary>
+    TimeOnly? HoraEncasetamiento = null
 );
 
 /// <summary>Request para reabrir un lote reproductora cerrado. La novedad es obligatoria.</summary>
@@ -63,7 +66,10 @@ public record CreateLoteReproductoraAveEngordeDto(
     decimal? PesoInicialM,
     decimal? PesoInicialH,
     decimal? PesoMixto,
-    string? CodigoReproductora = null
+    string? CodigoReproductora = null,
+    /// <summary>Hora de llegada de las aves: desde las 13:00 el primer registro de la semana de
+    /// recogida pasa al día siguiente del encasetamiento (ver EncasetamientoCalculos).</summary>
+    TimeOnly? HoraEncasetamiento = null
 );
 
 public record UpdateLoteReproductoraAveEngordeDto(
@@ -81,5 +87,8 @@ public record UpdateLoteReproductoraAveEngordeDto(
     decimal? PesoInicialM,
     decimal? PesoInicialH,
     decimal? PesoMixto,
-    string? CodigoReproductora = null
+    string? CodigoReproductora = null,
+    /// <summary>Hora de llegada de las aves: desde las 13:00 el primer registro de la semana de
+    /// recogida pasa al día siguiente del encasetamiento (ver EncasetamientoCalculos).</summary>
+    TimeOnly? HoraEncasetamiento = null
 );

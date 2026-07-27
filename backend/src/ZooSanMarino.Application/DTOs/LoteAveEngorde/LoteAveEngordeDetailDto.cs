@@ -61,5 +61,8 @@ public sealed record LoteAveEngordeDetailDto(
     int? LoteBaseEngordeId = null,
     string? LoteBaseNombre = null,
     // Referencia de corrida (solo Panamá): número dentro del mismo lote base + galpón
-    int? NumeroCorrida = null
+    int? NumeroCorrida = null,
+    /// <summary>Hora de llegada de las aves: desde las 13:00 el primer registro de seguimiento pasa al
+    /// día siguiente del encasetamiento (ver EncasetamientoCalculos). No mueve la fecha ni la edad.</summary>
+    TimeOnly? HoraEncasetamiento = null
 );

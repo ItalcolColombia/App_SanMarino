@@ -61,13 +61,19 @@ public static class ReproductoraEngordeCalculos
 
     /// <summary>
     /// Un registro de seguimiento reproductora es válido si su edad (días de calendario desde el
-    /// encasetamiento) ∈ [0, <paramref name="dias"/>]. Numeración de negocio: <b>el día del
-    /// encasetamiento es el DÍA 1</b> de la semana de recogida (edad 0), y el día 7 cae en edad 6.
-    /// Se tolera edad 7 porque los lotes previos a jul-2026 arrancaban la semana al día siguiente
-    /// del encaset (días 1..7 = edades 1..7) y deben poder completarla. Fechas anteriores al
-    /// encasetamiento (edad negativa) o más allá de edad 7 se rechazan — la función de cruce a
-    /// pollo engorde (fn_cruce_reproductora_a_engorde) consolida edades 0..7.
+    /// encasetamiento) ∈ [<paramref name="edadMinima"/>, <paramref name="dias"/>]. Numeración de
+    /// negocio: <b>el día del encasetamiento es el DÍA 1</b> de la semana de recogida (edad 0), y el
+    /// día 7 cae en edad 6. Se tolera edad 7 porque los lotes previos a jul-2026 arrancaban la semana
+    /// al día siguiente del encaset (días 1..7 = edades 1..7) y deben poder completarla. Fechas
+    /// anteriores al encasetamiento (edad negativa) o más allá de edad 7 se rechazan — la función de
+    /// cruce a pollo engorde (fn_cruce_reproductora_a_engorde) consolida edades 0..7.
+    /// <para>
+    /// <paramref name="edadMinima"/> sube a 1 cuando las aves llegaron a las 13:00 o después: ese día
+    /// ya no alcanzan a consumir, así que la semana de recogida arranca al día siguiente
+    /// (<see cref="EncasetamientoCalculos.EdadMinimaConRegistro"/>). Su default 0 conserva el
+    /// comportamiento previo para los lotes sin hora informada.
+    /// </para>
     /// </summary>
-    public static bool EsEdadSeguimientoValida(int edad, int dias = DiasRecogidaReproductora)
-        => edad >= 0 && edad <= dias;
+    public static bool EsEdadSeguimientoValida(int edad, int dias = DiasRecogidaReproductora, int edadMinima = 0)
+        => edad >= edadMinima && edad <= dias;
 }

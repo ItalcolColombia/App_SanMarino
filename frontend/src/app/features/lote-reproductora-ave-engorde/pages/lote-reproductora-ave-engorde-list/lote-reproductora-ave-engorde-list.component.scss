@@ -990,6 +990,7 @@
 .lrae-input--readonly { background: var(--ital-cream); color: var(--ital-text); font-family: ui-monospace, monospace; cursor: default; }
 .lrae-req { color: var(--ital-orange-dark); }
 .lrae-error { display: block; font-size: 0.75rem; color: var(--ital-orange-dark); margin-top: 0.25rem; }
+.lrae-hint { display: block; font-size: 0.75rem; color: var(--text-muted, #6b7280); margin-top: 0.25rem; }
 .lrae-estado {
   display: inline-block;
   padding: 0.25rem 0.6rem;

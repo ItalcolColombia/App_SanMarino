@@ -287,6 +287,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             GalponId = galponId,
             Regional = dto.Regional,
             FechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncaset),
+            HoraEncasetamiento = dto.HoraEncasetamiento,
             FechaAlistamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaAlistamiento),
             HembrasL = dto.HembrasL,
             MachosL = dto.MachosL,
@@ -419,6 +420,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.GalponId = galponId ?? ent.GalponId;
         ent.Regional = dto.Regional;
         ent.FechaEncaset = FechasPuras.AnclarMediodiaUtc(dto.FechaEncaset);
+        ent.HoraEncasetamiento = dto.HoraEncasetamiento;
         ent.FechaAlistamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaAlistamiento);
         ent.HembrasL = dto.HembrasL;
         ent.MachosL = dto.MachosL;
@@ -769,7 +771,8 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 l.Galpon == null ? null : new GalponLiteDto(l.Galpon.GalponId, l.Galpon.GalponNombre, l.Galpon.NucleoId, l.Galpon.GranjaId),
                 l.LoteBaseEngordeId,
                 l.LoteBaseEngorde == null ? null : l.LoteBaseEngorde.Nombre,
-                l.NumeroCorrida
+                l.NumeroCorrida,
+                l.HoraEncasetamiento
             ));
     }
 

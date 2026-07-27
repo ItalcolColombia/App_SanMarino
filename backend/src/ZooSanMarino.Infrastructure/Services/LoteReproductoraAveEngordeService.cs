@@ -67,7 +67,8 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             num >= DiasRecogidaReproductora,
             x.CodigoReproductora,
             x.Reabierto,
-            x.NovedadApertura
+            x.NovedadApertura,
+            x.HoraEncasetamiento
         );
     }
 
@@ -198,6 +199,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             NombreLote = (dto.NombreLote ?? "").Trim(),
             CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim(),
             FechaEncasetamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento),
+            HoraEncasetamiento = dto.HoraEncasetamiento,
             M = dto.M ?? 0,
             H = dto.H ?? 0,
             AvesInicioHembras = dto.H ?? 0,
@@ -285,6 +287,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                 NombreLote = (dto.NombreLote ?? "").Trim(),
                 CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim(),
                 FechaEncasetamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento),
+                HoraEncasetamiento = dto.HoraEncasetamiento,
                 M = dto.M ?? 0,
                 H = dto.H ?? 0,
                 AvesInicioHembras = dto.H ?? 0,
@@ -339,6 +342,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         ent.NombreLote = (dto.NombreLote ?? "").Trim();
         ent.CodigoReproductora = string.IsNullOrWhiteSpace(dto.CodigoReproductora) ? null : dto.CodigoReproductora.Trim();
         ent.FechaEncasetamiento = FechasPuras.AnclarMediodiaUtc(dto.FechaEncasetamiento);
+        ent.HoraEncasetamiento = dto.HoraEncasetamiento;
         ent.M = dto.M;
         ent.H = dto.H;
         ent.Mixtas = dto.Mixtas;

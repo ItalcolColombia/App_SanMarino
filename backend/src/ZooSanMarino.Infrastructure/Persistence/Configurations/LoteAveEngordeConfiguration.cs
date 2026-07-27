@@ -19,6 +19,8 @@ public class LoteAveEngordeConfiguration : IEntityTypeConfiguration<LoteAveEngor
         b.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(64);
         b.Property(x => x.Regional).HasColumnName("regional").HasMaxLength(100);
         b.Property(x => x.FechaEncaset).HasColumnName("fecha_encaset");
+        // Hora de llegada de las aves: decide si el primer registro va el mismo día o el siguiente.
+        b.Property(x => x.HoraEncasetamiento).HasColumnName("hora_encasetamiento").HasColumnType("time");
 
         b.Property(x => x.HembrasL).HasColumnName("hembras_l");
         b.Property(x => x.MachosL).HasColumnName("machos_l");

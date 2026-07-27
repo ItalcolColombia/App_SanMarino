@@ -47,7 +47,7 @@ public partial class MigracionService
     // ── Localización por nombres (case/acento-insensible) ────────────────────
     /// <summary>Lote engorde abierto con los nombres de su ubicación, para resolver filas por texto.</summary>
     private sealed record LoteEngordeUbicado(
-        int LoteId, string LoteNombre, DateTime? FechaEncaset, string GranjaNombre,
+        int LoteId, string LoteNombre, DateTime? FechaEncaset, TimeOnly? HoraEncaset, string GranjaNombre,
         string? NucleoCodigo, string? NucleoNombre, string? GalponCodigo, string? GalponNombre);
 
     /// <summary>
@@ -60,7 +60,7 @@ public partial class MigracionService
         var lotes = await _ctx.LoteAveEngorde.AsNoTracking()
             .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LoteAveEngordeId != null
                         && l.EstadoOperativoLote != "Cerrado")
-            .Select(l => new { Id = l.LoteAveEngordeId!.Value, l.LoteNombre, l.GranjaId, l.NucleoId, l.GalponId, l.FechaEncaset })
+            .Select(l => new { Id = l.LoteAveEngordeId!.Value, l.LoteNombre, l.GranjaId, l.NucleoId, l.GalponId, l.FechaEncaset, l.HoraEncasetamiento })
             .ToListAsync(ct);
 
         var granjaIds = lotes.Select(l => l.GranjaId).Distinct().ToList();
@@ -89,7 +89,7 @@ public partial class MigracionService
             var nucleoCodigo = string.IsNullOrWhiteSpace(l.NucleoId) ? null : l.NucleoId.Trim();
             var galponCodigo = string.IsNullOrWhiteSpace(l.GalponId) ? null : l.GalponId.Trim();
             return new LoteEngordeUbicado(
-                l.Id, l.LoteNombre, l.FechaEncaset,
+                l.Id, l.LoteNombre, l.FechaEncaset, l.HoraEncasetamiento,
                 granjaPorId.TryGetValue(l.GranjaId, out var gn) ? gn : l.GranjaId.ToString(),
                 nucleoCodigo,
                 nucleoCodigo is null ? null : nucleoPorClave.GetValueOrDefault((l.GranjaId, nucleoCodigo)),
@@ -217,7 +217,7 @@ public partial class MigracionService
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
-            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, string.Empty, null, null, null, null);
+            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento, string.Empty, null, null, null, null);
 
         // (lote, fecha) ya cargados de TODOS los lotes abiertos (idempotencia multi-lote en una consulta;
         // incluye filas origen_cruce de días 1-7).
@@ -268,9 +268,22 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), $"Fecha repetida en el archivo para el lote {lote.LoteNombre}.")); continue; }
             if (existentes.Contains((lote.LoteId, fecha.Date))) { omitidas++; continue; } // ya existe → idempotente, se omite
 
-            // Regla de fecha (alineada al front): nunca anterior al encaset del lote; futura solo advierte.
-            if (lote.FechaEncaset.HasValue && fecha.Date < lote.FechaEncaset.Value.Date)
-            { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), $"{lote.LoteNombre}: la fecha es anterior al encaset del lote ({lote.FechaEncaset.Value:yyyy-MM-dd}).")); continue; }
+            // Regla de fecha (alineada al front): nunca anterior al PRIMER DÍA CON REGISTRO del lote,
+            // que es el encaset o el día siguiente si las aves llegaron a las 13:00 o después. Futura
+            // solo advierte.
+            if (lote.FechaEncaset.HasValue)
+            {
+                var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(lote.FechaEncaset.Value, lote.HoraEncaset);
+                if (fecha.Date < primerDia.Date)
+                {
+                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(lote.HoraEncaset);
+                    errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
+                        motivoHora is null
+                            ? $"{lote.LoteNombre}: la fecha es anterior al encaset del lote ({lote.FechaEncaset.Value:yyyy-MM-dd})."
+                            : $"{lote.LoteNombre}: el primer registro es el {primerDia:yyyy-MM-dd} porque {motivoHora}."));
+                    continue;
+                }
+            }
             if (fecha.Date > hoyUtc)
                 errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), "La fecha es futura; verificá que sea intencional.", "Advertencia"));
 

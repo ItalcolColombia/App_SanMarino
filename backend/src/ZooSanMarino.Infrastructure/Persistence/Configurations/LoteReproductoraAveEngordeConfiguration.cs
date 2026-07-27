@@ -19,6 +19,8 @@ public class LoteReproductoraAveEngordeConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.NombreLote).HasColumnName("nombre_lote").HasMaxLength(200).IsRequired();
         b.Property(x => x.CodigoReproductora).HasColumnName("codigo_reproductora").HasMaxLength(100);
         b.Property(x => x.FechaEncasetamiento).HasColumnName("fecha_encasetamiento");
+        // Hora de llegada de las aves: decide si el primer día de recogida es el del encaset o el siguiente.
+        b.Property(x => x.HoraEncasetamiento).HasColumnName("hora_encasetamiento").HasColumnType("time");
 
         b.Property(x => x.M).HasColumnName("m");
         b.Property(x => x.H).HasColumnName("h");

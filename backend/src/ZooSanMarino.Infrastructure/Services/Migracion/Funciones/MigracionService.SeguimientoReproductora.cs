@@ -20,7 +20,7 @@ namespace ZooSanMarino.Infrastructure.Services;
 public partial class MigracionService
 {
     /// <summary>Datos mínimos de un lote reproductora para resolver la columna "Reproductora" y validar fechas.</summary>
-    private sealed record ReproductoraInfo(int Id, string ReproductoraId, string? Codigo, string Nombre, DateTime? FechaEncasetamiento);
+    private sealed record ReproductoraInfo(int Id, string ReproductoraId, string? Codigo, string Nombre, DateTime? FechaEncasetamiento, TimeOnly? HoraEncasetamiento);
 
     // ── Elegibilidad ─────────────────────────────────────────────────────────
     // Mismo criterio que Engorde (lotes no cerrados de la empresa) pero solo lotes que ya tienen
@@ -49,13 +49,13 @@ public partial class MigracionService
         var filas = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
             .Where(r => loteIds.Contains(r.LoteAveEngordeId))
             .OrderBy(r => r.NombreLote)
-            .Select(r => new { r.LoteAveEngordeId, r.Id, r.ReproductoraId, r.CodigoReproductora, r.NombreLote, r.FechaEncasetamiento })
+            .Select(r => new { r.LoteAveEngordeId, r.Id, r.ReproductoraId, r.CodigoReproductora, r.NombreLote, r.FechaEncasetamiento, r.HoraEncasetamiento })
             .ToListAsync(ct);
 
         var resultado = new Dictionary<int, (List<ReproductoraInfo>, Dictionary<string, List<ReproductoraInfo>>)>();
         foreach (var grupo in filas.GroupBy(f => f.LoteAveEngordeId))
         {
-            var repros = grupo.Select(f => new ReproductoraInfo(f.Id, f.ReproductoraId, f.CodigoReproductora, f.NombreLote, f.FechaEncasetamiento)).ToList();
+            var repros = grupo.Select(f => new ReproductoraInfo(f.Id, f.ReproductoraId, f.CodigoReproductora, f.NombreLote, f.FechaEncasetamiento, f.HoraEncasetamiento)).ToList();
             var porClave = new Dictionary<string, List<ReproductoraInfo>>();
             void Indexar(string? clave, ReproductoraInfo repro)
             {
@@ -123,7 +123,7 @@ public partial class MigracionService
 
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
-            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, string.Empty, null, null, null, null);
+            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento, string.Empty, null, null, null, null);
 
         var idsAbiertos = lotesUbicados.Select(l => l.LoteId).ToList();
         if (!idsAbiertos.Contains(loteCtxId)) idsAbiertos.Add(loteCtxId);
@@ -217,15 +217,21 @@ public partial class MigracionService
             { omitidas++; continue; } // ya existe → idempotente, se omite
 
             // Regla de fecha (espejo del servicio y del modal): el día del encasetamiento es el DÍA 1
-            // de la semana (edad 0); se acepta edad [0, 7]. Lo inválido es una fecha ANTERIOR al encaset.
+            // de la semana (edad 0); se acepta edad [edadMinima, 7]. Lo inválido es una fecha ANTERIOR
+            // al primer día con registro, que se corre un día si las aves llegaron a las 13:00 o después.
             if (repro.FechaEncasetamiento.HasValue)
             {
+                var edadMinima = EncasetamientoCalculos.EdadMinimaConRegistro(repro.HoraEncasetamiento);
                 var edad = ReproductoraEngordeCalculos.EdadSeguimientoDias(repro.FechaEncasetamiento.Value, fecha);
-                if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDias))
+                if (!ReproductoraEngordeCalculos.EsEdadSeguimientoValida(edad, MaxDias, edadMinima))
                 {
+                    var motivoHora = EncasetamientoCalculos.MotivoDesplazamiento(repro.HoraEncasetamiento);
+                    var primerDia = EncasetamientoCalculos.PrimerDiaConRegistro(repro.FechaEncasetamiento.Value, repro.HoraEncasetamiento);
                     errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
-                        edad < 0
-                            ? $"{repro.Nombre}: la fecha no puede ser anterior a la fecha de encasetamiento ({repro.FechaEncasetamiento:yyyy-MM-dd}); el día del encasetamiento es el día 1."
+                        edad < edadMinima
+                            ? (motivoHora is null
+                                ? $"{repro.Nombre}: la fecha no puede ser anterior a la fecha de encasetamiento ({repro.FechaEncasetamiento:yyyy-MM-dd}); el día del encasetamiento es el día 1."
+                                : $"{repro.Nombre}: el primer registro es el {primerDia:yyyy-MM-dd} porque {motivoHora}.")
                             : $"{repro.Nombre}: la fecha supera la primera semana de recogida desde el encasetamiento ({repro.FechaEncasetamiento:yyyy-MM-dd})."));
                     continue;
                 }

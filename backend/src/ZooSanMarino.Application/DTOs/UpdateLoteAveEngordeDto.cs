@@ -9,6 +9,11 @@ public class UpdateLoteAveEngordeDto
     public string? GalponId { get; set; }
     public string? Regional { get; set; }
     public DateTime? FechaEncaset { get; set; }
+    /// <summary>
+    /// Hora de llegada de las aves. Desde las 13:00, el primer registro de seguimiento pasa al día
+    /// siguiente del encasetamiento (ver <c>EncasetamientoCalculos</c>). No mueve la fecha ni la edad.
+    /// </summary>
+    public TimeOnly? HoraEncasetamiento { get; set; }
     public DateTime? FechaAlistamiento { get; set; }
     public int? HembrasL { get; set; }
     public int? MachosL { get; set; }
