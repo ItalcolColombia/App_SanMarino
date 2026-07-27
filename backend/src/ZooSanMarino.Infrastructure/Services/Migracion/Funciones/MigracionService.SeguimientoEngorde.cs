@@ -420,7 +420,14 @@ public partial class MigracionService
 
         var (lotesUbicados, _) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var (alimentos, _) = await CargarAlimentosEmpresaAsync(companyId, ct);
-        var esquema = MigracionEsquemas.SeguimientoPolloEngorde;
+
+        // Empresa que no maneja el engorde por sexo (Panamá) → plantilla con columnas MIXTAS. El
+        // parseo NO cambia: SeguimientoPolloEngorde acepta esos títulos como alias de las columnas H.
+        var mixto = await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.SeguimientoEngordeMixto)
+            .FirstOrDefaultAsync(ct);
+        var esquema = mixto ? MigracionEsquemas.SeguimientoPolloEngordeMixto : MigracionEsquemas.SeguimientoPolloEngorde;
 
         using var pkg = new ExcelPackage();
         var ws = pkg.Workbook.Worksheets.Add("Datos");
@@ -447,30 +454,56 @@ public partial class MigracionService
         if (alimentos.Count > 0)
         {
             var rangoAlimentos = $"Referencias!$A$2:$A${alimentos.Count + 1}";
-            foreach (var titulo in new[] { "Tipo Alimento", "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" })
+            var columnasAlimento = mixto
+                ? new[] { "Tipo Alimento", "Alimento 1 Mixto", "Alimento 2 Mixto" }
+                : new[] { "Tipo Alimento", "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" };
+            foreach (var titulo in columnasAlimento)
                 DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, titulo) + 1), rangoAlimentos);
         }
         if (lotesUbicados.Count > 0)
             DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Lote") + 1), $"Referencias!$F$2:$F${lotesUbicados.Count + 1}");
 
-        HojaInstrucciones(pkg, $"Migración Seguimiento Engorde — Lote {lote.LoteNombre} (id {loteId})",
-            "Una fila por día en la hoja 'Datos'.",
+        var comunes = new[]
+        {
             "• Lote / Granja / Núcleo / Galpón: opcionales. Sin 'Lote', la fila corresponde al lote seleccionado en pantalla.",
             "  Con 'Lote' (nombre tal como aparece en el sistema; mayúsculas/minúsculas indistintas) podés cargar VARIOS lotes",
             "  en un mismo archivo; usá Granja/Núcleo/Galpón para desambiguar nombres repetidos (tabla en 'Referencias').",
             "• Fecha: obligatoria (aaaa-mm-dd o dd/mm/aaaa), no anterior al encaset del lote. Fecha futura solo advierte.",
-            "• Mortalidad / Selección / Error de sexaje: enteros ≥ 0 (vacío = 0).",
-            "• Alimento 1/2 H y M: elegí el alimento del inventario (lista desplegable, hoja 'Referencias') y su consumo.",
-            "  Hasta dos alimentos por sexo por fecha; al importar se DESCUENTA el inventario de esos alimentos.",
-            "• Consumo H/M (directo): solo si NO usás Alimento 1/2 (sin descuento de inventario). Número ≥ 0.",
             "• Unidad Consumo: 'kg' (default si se deja vacía) o 'qq' — aplica al consumo directo Y a los alimentos (1 qq = 45.36 kg).",
             "• Peso: ≥ 0 opcional. Uniformidad: 0 a 100 opcional.",
             "• Días de pesaje (edad 1–7 y múltiplos de 7): si la fila no trae peso se genera una advertencia (no bloquea).",
-            "• Lotes MIXTOS (Panamá): cargá las cantidades en las columnas H (M = 0), igual que el formulario.",
-            "• QQ Mixtas / QQ H / QQ M (Panamá): quintales de alimento por categoría, opcionales (≥ 0).",
             "La carga es idempotente por lote+fecha: las fechas ya cargadas (incluidos los primeros días generados por",
-            "cruce reproductora) se omiten. Al importar se registra el retiro de aves por mortalidad/selección y se",
-            "recalcula el saldo de alimento de cada lote.");
+            "cruce reproductora) se omiten. Al importar se descuentan las aves por mortalidad/selección y se",
+            "recalcula el saldo de alimento de cada lote.",
+        };
+
+        var especificas = mixto
+            ? new[]
+            {
+                "Este lote NO se maneja por sexo: cada columna es el TOTAL MIXTO del día (una sola cifra).",
+                "• Mort Mixta / Sel Mixta: enteros ≥ 0 (vacío = 0). Se descuentan de las aves mixtas del lote.",
+                "• Consumo Mixto (kg): alimento total del día. Si ponés 'qq' en Unidad Consumo, digitá los quintales acá",
+                "  y el sistema los convierte a kg (×45.36).",
+                "• Alimento 1/2 Mixto + su consumo: alternativa al consumo directo, eligiendo el alimento del inventario",
+                "  (lista desplegable, hoja 'Referencias'). Al importar DESCUENTA el stock de ese alimento; dejá vacío",
+                "  'Consumo Mixto (kg)' si usás esta vía.",
+                "• QQ Mixtas: quintales del día, SOLO informativos para el informe semanal. NO generan consumo:",
+                "  el consumo sale de 'Consumo Mixto (kg)'.",
+            }
+            : new[]
+            {
+                "Una fila por día en la hoja 'Datos'.",
+                "• Mortalidad / Selección / Error de sexaje: enteros ≥ 0 (vacío = 0).",
+                "• Alimento 1/2 H y M: elegí el alimento del inventario (lista desplegable, hoja 'Referencias') y su consumo.",
+                "  Hasta dos alimentos por sexo por fecha; al importar se DESCUENTA el inventario de esos alimentos.",
+                "• Consumo H/M (directo): solo si NO usás Alimento 1/2 (sin descuento de inventario). Número ≥ 0.",
+                "• Lotes MIXTOS: cargá las cantidades en las columnas H (M = 0), igual que el formulario.",
+                "• QQ Mixtas / QQ H / QQ M (Panamá): quintales de alimento por categoría, opcionales (≥ 0).",
+            };
+
+        HojaInstrucciones(pkg,
+            $"Migración Seguimiento Engorde{(mixto ? " (MIXTO)" : "")} — Lote {lote.LoteNombre} (id {loteId})",
+            especificas.Concat(comunes).ToArray());
 
         return (Finalizar(pkg), $"SeguimientoEngorde_Lote{loteId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
     }

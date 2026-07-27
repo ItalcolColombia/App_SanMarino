@@ -385,3 +385,46 @@ Objetivo: que los módulos operativos funcionen sin red y sincronicen al recuper
 - [ ] **A10** Reemplazar el trigger acumulativo del espejo de huevos por el recálculo derivado ya existente
 
 ## Fases F1-F5 — ver §8 del plan (no desglosadas hasta que se cierren las decisiones)
+
+---
+
+# Tracker — Seguimiento pollo engorde MIXTO (Panamá): Excel mixto + descuento de aves mixtas
+
+**Plan:** [fase_de_desarrollo/seguimiento_engorde_mixto_panama_plan.md](fase_de_desarrollo/seguimiento_engorde_mixto_panama_plan.md)
+**Fecha:** 2026-07-27
+
+**Decisiones del usuario:** el descuento impacta **maestro del lote + movimiento auditado**, y aplica a
+**los dos caminos** (formulario diario y carga masiva). Gate del Excel = flag por empresa; gate del bucket
+de descuento = datos del lote (mixto = `mixtas > 0 && hembras_l == 0 && machos_l == 0`).
+
+## Fase A — Excel / plantilla mixta
+
+- [x] `Company.SeguimientoEngordeMixto` + `CompanyConfiguration`
+- [x] Migración schema `20260727161113_AddSeguimientoEngordeMixtoCompany` (ADD COLUMN IF NOT EXISTS)
+- [x] Migración data-only `20260727161200_SeedSeguimientoEngordeMixtoPanama` (ItalcolPanama, `IS DISTINCT FROM`)
+- [x] `MigracionEsquemas`: alias mixtos en las columnas de género (constantes `Mix*` compartidas plantilla↔parseo)
+- [x] `MigracionEsquemas.SeguimientoPolloEngordeMixto` (18 columnas, sin columnas por sexo)
+- [x] `MigracionService.SeguimientoEngorde`: plantilla, dropdowns e instrucciones según el flag
+- [x] ~~Flag en las proyecciones de `CompanyDto`~~ — NO aplica: la plantilla la arma el backend, el front no gatea nada con este flag. Se agrega el día que la UI lo necesite.
+- [x] Tests de esquema: contrato plantilla↔parseo, 9 alias mixtos, sin columnas por sexo, regresión de encabezados viejos
+
+## Fase B — Descuento de aves mixtas
+
+- [x] `Application/Calculos/RetiroAvesEngordeCalculos.cs` (puro) + `RetiroAvesEngordeAplicador` (compartido por los dos services)
+- [x] `RetiroAvesEngordeCalculosTests.cs` — 20 casos (los 8 del plan + reparto, netos y regresión por sexo)
+- [x] Create descuenta maestro + fila `BAJA_SEGUIMIENTO` — en los DOS services (carga masiva y formulario diario)
+- [x] Update compensa por delta (devuelve aves si baja la mortalidad) — en los dos services
+- [x] Delete revierte y anula la fila del histórico — en los dos services
+- [x] Doble descuento evitado SIN tocar la función SQL: el aplicador no descuenta si `aves_encasetadas = 0` (única rama donde la fn deriva la inicial del maestro). Verificado en BD: los 134 lotes tienen `aves_encasetadas > 0` ⇒ no afecta a ninguno. Se descartó re-aplicar la fn porque el repo tiene dos versiones del archivo y re-aplicarla podría regresar prod.
+- [x] `CorreccionAvesDisponiblesEngordeService`: la conservación resta las bajas YA APLICADAS (filas `BAJA_SEGUIMIENTO`), no la mortalidad registrada ⇒ los lotes viejos conservan la fórmula anterior
+
+## Entregables
+
+- [x] Excel de ejemplo final `CargaMasiva_Seguimiento_Engorde_PANAMA_MIXTO.xlsx` (18 columnas, 0 desconocidas)
+- [x] Plantilla descargable verificada por test: todos los títulos mixtos los acepta el esquema de parseo
+
+## Validación
+
+- [x] `dotnet build` (Application + Infrastructure) — 0 errores, 0 advertencias
+- [x] `dotnet test` — 1004/1004 verdes
+- [ ] **PENDIENTE** smoke de la plantilla descargada con flag ON/OFF: requiere reiniciar el backend local, que está corriendo en otra sesión (PID 38200). Migraciones sin aplicar en la BD local por el mismo motivo; el SQL generado se verificó con `dotnet ef migrations script`.

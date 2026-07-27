@@ -62,6 +62,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: el pollo engorde no se maneja por sexo tras salir de
+        // reproductora ⇒ la plantilla de carga masiva habla de «Mixta/Mixto» en vez de H/M.
+        builder.Property(x => x.SeguimientoEngordeMixto)
+            .HasColumnName("seguimiento_engorde_mixto")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

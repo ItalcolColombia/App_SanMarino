@@ -94,6 +94,20 @@ public static class MigracionEsquemas
         new("Lote ERP",              Requerida: false, Alias: new[] { "erp" }),
     });
 
+    // ── Títulos MIXTOS del seguimiento pollo engorde ─────────────────────────────────────────────
+    // Son a la vez los TÍTULOS que emite SeguimientoPolloEngordeMixto (plantilla de una empresa con
+    // seguimiento_engorde_mixto = true) y los ALIAS que acepta SeguimientoPolloEngorde al parsear.
+    // Definidos una sola vez para que plantilla y parseo no se puedan desincronizar.
+    private const string MixMortalidad        = "Mort Mixta";
+    private const string MixSeleccion         = "Sel Mixta";
+    private const string MixConsumo           = "Consumo Mixto (kg)";
+    private const string MixAlimento1         = "Alimento 1 Mixto";
+    private const string MixConsumoAlimento1  = "Consumo Alimento 1 Mixto";
+    private const string MixAlimento2         = "Alimento 2 Mixto";
+    private const string MixConsumoAlimento2  = "Consumo Alimento 2 Mixto";
+    private const string MixPeso              = "Peso Mixto (g)";
+    private const string MixUniformidad       = "Uniformidad Mixta";
+
     public static EsquemaMigracion SeguimientoPolloEngorde { get; } = new("Datos", new ColumnaEsquema[]
     {
         // Ubicación por NOMBRES (opcional): si la fila trae "Lote", se resuelve el lote engorde por
@@ -104,35 +118,71 @@ public static class MigracionEsquemas
         new("Galpón",             Requerida: false, Alias: new[] { "nombre galpon" }),
         new("Lote",               Requerida: false, Alias: new[] { "nombre lote" }),
         new("Fecha",              Requerida: true),
-        new("Mort H",             Requerida: false, Alias: new[] { "mortalidad hembras" }),
+        // Los alias "…mixta/mixto" son los títulos que emite la plantilla de una empresa con
+        // seguimiento_engorde_mixto = true (Panamá: sin manejo por sexo tras salir de reproductora).
+        // Apuntan a la MISMA columna H porque el sistema suma H+M en todos sus cálculos.
+        new("Mort H",             Requerida: false, Alias: new[] { "mortalidad hembras", MixMortalidad, "mortalidad mixta", "mortalidad mixtas" }),
         new("Mort M",             Requerida: false, Alias: new[] { "mortalidad machos" }),
-        new("Sel H",              Requerida: false),
+        new("Sel H",              Requerida: false, Alias: new[] { MixSeleccion, "seleccion mixta" }),
         new("Sel M",              Requerida: false),
-        new("Error Sexaje H",     Requerida: false),
+        new("Error Sexaje H",     Requerida: false, Alias: new[] { "error sexaje mixta" }),
         new("Error Sexaje M",     Requerida: false),
-        new("Consumo H (kg)",     Requerida: false, Alias: new[] { "consumo h" }),
+        new("Consumo H (kg)",     Requerida: false, Alias: new[] { "consumo h", MixConsumo, "consumo mixto", "consumo mixtas (kg)" }),
         new("Consumo M (kg)",     Requerida: false, Alias: new[] { "consumo m" }),
         // Unidad del consumo (directo y por alimento): "kg" (default) o "qq" — con qq se convierte a kg (×45.36).
         new("Unidad Consumo",     Requerida: false, Alias: new[] { "unidad", "unidad de consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" }),
         new("Tipo Alimento",      Requerida: false),
         // Hasta DOS alimentos del inventario por sexo y fecha: el nombre/código se busca en los ítems
         // de concepto alimento de la empresa (sin mayúsculas/acentos) y descuenta inventario al importar.
-        new("Alimento 1 H",       Requerida: false, Alias: new[] { "alimento 1 hembras", "alimento uno hembras" }),
-        new("Consumo Alimento 1 H", Requerida: false, Alias: new[] { "consumo 1 h", "consumo alimento uno hembras" }),
-        new("Alimento 2 H",       Requerida: false, Alias: new[] { "alimento 2 hembras", "alimento dos hembras" }),
-        new("Consumo Alimento 2 H", Requerida: false, Alias: new[] { "consumo 2 h", "consumo alimento dos hembras" }),
+        new("Alimento 1 H",       Requerida: false, Alias: new[] { "alimento 1 hembras", "alimento uno hembras", MixAlimento1 }),
+        new("Consumo Alimento 1 H", Requerida: false, Alias: new[] { "consumo 1 h", "consumo alimento uno hembras", MixConsumoAlimento1 }),
+        new("Alimento 2 H",       Requerida: false, Alias: new[] { "alimento 2 hembras", "alimento dos hembras", MixAlimento2 }),
+        new("Consumo Alimento 2 H", Requerida: false, Alias: new[] { "consumo 2 h", "consumo alimento dos hembras", MixConsumoAlimento2 }),
         new("Alimento 1 M",       Requerida: false, Alias: new[] { "alimento 1 machos", "alimento uno machos" }),
         new("Consumo Alimento 1 M", Requerida: false, Alias: new[] { "consumo 1 m", "consumo alimento uno machos" }),
         new("Alimento 2 M",       Requerida: false, Alias: new[] { "alimento 2 machos", "alimento dos machos" }),
         new("Consumo Alimento 2 M", Requerida: false, Alias: new[] { "consumo 2 m", "consumo alimento dos machos" }),
-        new("Peso H (g)",         Requerida: false, Alias: new[] { "peso h" }),
+        new("Peso H (g)",         Requerida: false, Alias: new[] { "peso h", MixPeso, "peso mixto" }),
         new("Peso M (g)",         Requerida: false, Alias: new[] { "peso m" }),
-        new("Uniformidad H",      Requerida: false),
+        new("Uniformidad H",      Requerida: false, Alias: new[] { MixUniformidad }),
         new("Uniformidad M",      Requerida: false),
         // Panamá: alimento en quintales por categoría (persisten en qq_*; opcionales para CO/EC).
         new("QQ Mixtas",          Requerida: false, Alias: new[] { "qq mixtas", "quintales mixtas" }),
         new("QQ H",               Requerida: false, Alias: new[] { "qq hembras", "quintales hembras" }),
         new("QQ M",               Requerida: false, Alias: new[] { "qq machos", "quintales machos" }),
+        new("Observaciones",      Requerida: false),
+    });
+
+    /// <summary>
+    /// Variante MIXTA del seguimiento pollo engorde: la usan las empresas con
+    /// <c>seguimiento_engorde_mixto = true</c> (Panamá), donde el lote deja de manejarse por sexo al
+    /// salir de reproductora. Se usa SOLO para GENERAR la plantilla — el parseo sigue corriendo con
+    /// <see cref="SeguimientoPolloEngorde"/>, que acepta estos títulos como alias de sus columnas "H".
+    /// <para>
+    /// Por eso desaparecen las columnas por sexo (Mort M, Consumo M, Peso M, QQ H, QQ M…): el dato
+    /// mixto se digita una sola vez y el sistema, que suma H+M en todos sus cálculos, obtiene el
+    /// mismo resultado que el formulario diario (un único campo de consumo).
+    /// </para>
+    /// </summary>
+    public static EsquemaMigracion SeguimientoPolloEngordeMixto { get; } = new("Datos", new ColumnaEsquema[]
+    {
+        new("Granja",             Requerida: false, Alias: new[] { "nombre granja" }),
+        new("Núcleo",             Requerida: false, Alias: new[] { "nombre nucleo" }),
+        new("Galpón",             Requerida: false, Alias: new[] { "nombre galpon" }),
+        new("Lote",               Requerida: false, Alias: new[] { "nombre lote" }),
+        new("Fecha",              Requerida: true),
+        new(MixMortalidad,        Requerida: false),
+        new(MixSeleccion,         Requerida: false),
+        new(MixConsumo,           Requerida: false),
+        new("Unidad Consumo",     Requerida: false, Alias: new[] { "unidad", "unidad de consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" }),
+        new("Tipo Alimento",      Requerida: false),
+        new(MixAlimento1,         Requerida: false),
+        new(MixConsumoAlimento1,  Requerida: false),
+        new(MixAlimento2,         Requerida: false),
+        new(MixConsumoAlimento2,  Requerida: false),
+        new(MixPeso,              Requerida: false),
+        new(MixUniformidad,       Requerida: false),
+        new("QQ Mixtas",          Requerida: false, Alias: new[] { "qq mixtas", "quintales mixtas" }),
         new("Observaciones",      Requerida: false),
     });
 

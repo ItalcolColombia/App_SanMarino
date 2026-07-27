@@ -250,4 +250,64 @@ public class MigracionEsquemasTests
         Assert.Empty(capados);
         Assert.Equal(0, totalReal);
     }
+
+    // ── Seguimiento pollo engorde MIXTO (Panamá) ─────────────────────────────
+    // La plantilla de una empresa con seguimiento_engorde_mixto = true emite títulos "Mixta/Mixto",
+    // pero el archivo se parsea SIEMPRE con el esquema por sexo. Estos tests son el contrato entre
+    // los dos: si alguien renombra un título mixto sin actualizar el alias, el archivo que el propio
+    // sistema genera dejaría de cargar su columna (en silencio, con una simple advertencia).
+
+    [Fact]
+    public void PlantillaMixta_TodosSusTitulosLosAceptaElEsquemaDeParseo()
+    {
+        var titulosMixtos = MigracionEsquemas.SeguimientoPolloEngordeMixto.Columnas
+            .Select(c => c.Titulo).ToList();
+
+        var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(
+            MigracionEsquemas.SeguimientoPolloEngorde, titulosMixtos);
+
+        Assert.Empty(desconocidos);
+        Assert.Empty(faltantes); // trae Fecha, la única requerida
+    }
+
+    [Theory]
+    [InlineData("Mort Mixta")]
+    [InlineData("mortalidad mixta")]
+    [InlineData("Sel Mixta")]
+    [InlineData("Consumo Mixto (kg)")]
+    [InlineData("consumo mixto")]
+    [InlineData("Peso Mixto (g)")]
+    [InlineData("Uniformidad Mixta")]
+    [InlineData("Alimento 1 Mixto")]
+    [InlineData("Consumo Alimento 1 Mixto")]
+    public void EncabezadoMixto_NoEsDesconocidoParaElParser(string encabezado)
+    {
+        var (_, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(
+            MigracionEsquemas.SeguimientoPolloEngorde, new[] { "Fecha", encabezado });
+
+        Assert.Empty(desconocidos);
+    }
+
+    [Fact]
+    public void PlantillaMixta_NoTieneColumnasPorSexo()
+    {
+        var titulos = MigracionEsquemas.SeguimientoPolloEngordeMixto.Columnas.Select(c => c.Titulo);
+
+        Assert.DoesNotContain(titulos, t => t.EndsWith(" H") || t.EndsWith(" M")
+                                         || t.Contains("H (") || t.Contains("M ("));
+    }
+
+    [Fact]
+    public void EncabezadosPorSexo_SiguenCargandoIgual_Regresion()
+    {
+        // Un archivo generado antes de la variante mixta no debe perder ninguna columna.
+        var titulosPorSexo = MigracionEsquemas.SeguimientoPolloEngorde.Columnas
+            .Select(c => c.Titulo).ToList();
+
+        var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(
+            MigracionEsquemas.SeguimientoPolloEngorde, titulosPorSexo);
+
+        Assert.Empty(desconocidos);
+        Assert.Empty(faltantes);
+    }
 }
