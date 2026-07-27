@@ -1,0 +1,78 @@
+// Modal de registro de peso de un despacho (báscula diferida). Mismos tokens y estructura visual
+// que modal-venta-panama para que se lean como la misma familia de pantallas.
+:host { display: contents; }
+
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(17, 24, 39, 0.55); z-index: 1000;
+}
+.modal-wrap {
+  position: fixed; inset: 0; z-index: 1001; display: flex; align-items: center; justify-content: center;
+  padding: 1rem; pointer-events: none;
+}
+.modal.rp-modal {
+  pointer-events: auto; background: #fff; border-radius: 14px; width: min(880px, 100%);
+  max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.modal__header {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1rem 1.25rem; border-bottom: 1px solid #eee;
+  background: linear-gradient(90deg, #F5821F, #256b34); color: #fff;
+}
+.modal__header-content { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.modal__header h2 { font-size: 1.05rem; font-weight: 700; margin: 0; }
+.modal__close {
+  background: transparent; border: 0; color: #fff; font-size: 1.6rem; line-height: 1; cursor: pointer;
+}
+
+.rp-badge {
+  background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 0.7rem; font-weight: 700;
+  padding: 0.15rem 0.55rem; border-radius: 999px; letter-spacing: 0.02em;
+  &--pendiente { background: #F5821F; }
+}
+
+.modal__body { padding: 1.1rem 1.25rem; overflow-y: auto; }
+
+.rp-hint { font-size: 0.85rem; color: #6b7280; margin: 0 0 1rem; line-height: 1.45; }
+.rp-subtitulo { font-size: 0.85rem; font-weight: 700; color: #F5821F; margin: 0 0 0.6rem; }
+
+.rp-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;
+}
+
+.rp-field {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  label { font-size: 0.72rem; color: #6b7280; font-weight: 600; }
+  input {
+    border: 1px solid #d8d3cb; border-radius: 8px; padding: 0.4rem 0.55rem; font-size: 0.88rem;
+    background: #fff;
+    &:focus { outline: none; border-color: #F5821F; box-shadow: 0 0 0 3px rgba(245, 130, 31, 0.12); }
+  }
+  &--readonly .rp-calc {
+    padding: 0.4rem 0.55rem; font-size: 0.88rem; font-weight: 700; color: #374151;
+    background: #faf8f5; border: 1px solid #f0ede8; border-radius: 8px;
+  }
+}
+
+.rp-section { margin-top: 1.1rem; padding-top: 1.1rem; border-top: 1px solid #f0ede8; }
+
+// La tabla scrollea sola: nunca debe empujar el ancho del modal.
+.rp-table {
+  width: 100%; border-collapse: collapse; font-size: 0.84rem; display: block; overflow-x: auto;
+  th, td { padding: 0.45rem 0.6rem; border-bottom: 1px solid #f0ede8; text-align: left; white-space: nowrap; }
+  th { font-size: 0.72rem; text-transform: uppercase; color: #9ca3af; font-weight: 700; }
+  .col-num { text-align: right; }
+  tfoot td { font-weight: 700; color: #374151; border-top: 2px solid #f0ede8; border-bottom: 0; }
+}
+
+.rp-error {
+  margin: 0.8rem 0 0; padding: 0.55rem 0.75rem; border-radius: 8px;
+  background: rgba(220, 38, 38, 0.08); color: #b91c1c; font-size: 0.85rem; font-weight: 600;
+}
+
+.modal__footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 1rem;
+  padding: 0.9rem 1.25rem; border-top: 1px solid #eee; background: #faf8f5; margin: 1.1rem -1.25rem -1.1rem;
+}
+.rp-footer-actions { display: flex; gap: 0.6rem; }

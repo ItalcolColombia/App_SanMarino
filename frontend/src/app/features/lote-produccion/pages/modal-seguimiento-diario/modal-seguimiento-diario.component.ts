@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, AbstractControl, Validators } from '@angular/forms';
-import { CrearSeguimientoRequest, SeguimientoItemDto } from '../../services/produccion.service';
+import { CrearSeguimientoRequest, SeguimientoItemDto, HuevoItemSeguimiento, leerHuevoItemsDeMetadata } from '../../services/produccion.service';
 import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
 import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
@@ -9,7 +9,16 @@ import { EMPTY, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { HuevoCatalogGrupo, HuevoCatalogOption, ITEM_TYPE_HUEVO } from '../../models/huevo-clasificacion.model';
+import {
+  agruparItemsHuevoPorTipo,
+  fusionarItemsHuevoGuardados,
+  mapearItemsHuevoACatalogo,
+  sumarCantidadesHuevo
+} from '../../funciones/items-huevo-catalogo.funcion';
 
 // Interfaz extendida localmente para incluir tipoItem y unidad
 interface CatalogItemExtended extends CatalogItemDto {
@@ -31,6 +40,21 @@ export interface MetadataSeguimientoNormalizada {
   tipoAlimentoMachos?: number | null;
   [key: string]: unknown;
 }
+
+/** Las 11 columnas fijas de la clasificadora (flujo histórico: Sanmarino / Ecuador / Panamá). */
+const CLASIFICADORA_KEYS = [
+  'huevoLimpio',
+  'huevoTratado',
+  'huevoSucio',
+  'huevoDeforme',
+  'huevoBlanco',
+  'huevoDobleYema',
+  'huevoPiso',
+  'huevoPequeno',
+  'huevoRoto',
+  'huevoDesecho',
+  'huevoOtro'
+] as const;
 
 @Component({
   selector: 'app-modal-seguimiento-diario',
@@ -98,6 +122,19 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   /** Colombia: codigo(normalizado) → catalogo_items.id (contrato de ids al descontar). */
   private catalogItemIdPorCodigo = new Map<string, number>();
 
+  // ===== Clasificación de huevos por ÍTEMS (flag de empresa · Santa Reyes) =====
+  /** Flag `companies.clasificacion_huevo_por_items`: reemplaza las 11 columnas fijas por filas ítem+cantidad. */
+  clasificacionHuevoPorItems = false;
+  /** Opciones del select agrupadas por tipo (Primera/Pnc). Referencia ESTABLE: se recalcula solo al cargar. */
+  gruposHuevoItems: HuevoCatalogGrupo[] = [];
+  /** Total de huevos clasificados (memoizado; NO getter, para no alocar en cada ciclo de CD). */
+  totalHuevosClasificados = 0;
+  cargandoItemsHuevo = false;
+  /** Ítems del catálogo por id (para completar código/nombre/tipoHuevo/um en el payload). */
+  private huevoItemsById = new Map<number, HuevoCatalogOption>();
+  /** Ítems que ya venían en `metadata.huevoItems` (fallback si salieron del catálogo). */
+  private huevoItemsGuardados = new Map<number, HuevoItemSeguimiento>();
+
   // Modal de mensaje
   showMessageModal = false;
   messageModalData: ConfirmationModalData = {
@@ -114,12 +151,32 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     private inventarioSvc: InventarioService,
     private gestionInventarioSvc: GestionInventarioService,
     private countryFilter: CountryFilterService,
-    private storage: TokenStorageService
+    private storage: TokenStorageService,
+    private companyConfig: ActiveCompanyConfigService,
+    private toast: ToastService
   ) { }
 
   ngOnInit(): void {
     this.initializeForm();
     this.checkCountry();
+    this.loadCompanyFlags();
+  }
+
+  /**
+   * Flags de la empresa activa (FAIL-CLOSED: si falla el GET, sigue el flujo de las 11 columnas fijas).
+   * `getFlags()` emite una vez y completa (usa caché por empresa).
+   */
+  private loadCompanyFlags(): void {
+    this.companyConfig.getFlags().subscribe(flags => {
+      if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      if (!this.clasificacionHuevoPorItems) return;
+      this.cargarItemsHuevo();
+      // El flag llega async: si el modal ya estaba abierto, sincronizar filas y totales.
+      if (this.editingSeguimiento) this.rehidratarHuevoItems();
+      else this.asegurarFilaHuevoInicial();
+      this.recalcularTotalesHuevos();
+    });
   }
   
   private checkCountry(): void {
@@ -193,6 +250,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       huevoRoto: [0, [Validators.min(0)]],
       huevoDesecho: [0, [Validators.min(0)]],
       huevoOtro: [0, [Validators.min(0)]],
+      // Clasificación por ítems (solo empresas con el flag activo; con el flag apagado queda vacío)
+      huevoItems: this.fb.array([]),
       tipoAlimento: ['Standard', Validators.required],
       pesoHuevo: [0, [Validators.required, Validators.min(0)]],
       etapa: [1, [Validators.required, Validators.min(1), Validators.max(3)]],
@@ -273,6 +332,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
   get itemsMachosArray(): FormArray {
     return this.form.get('itemsMachos') as FormArray;
+  }
+
+  /** Filas de la clasificación de huevos por ítems (referencia estable del FormArray). */
+  get huevoItemsArray(): FormArray {
+    return this.form.get('huevoItems') as FormArray;
   }
 
   /**
@@ -465,6 +529,187 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return `${item.codigo} — ${item.nombre}`;
   }
 
+  // ================== CLASIFICACIÓN DE HUEVOS POR ÍTEMS (flag de empresa) ==================
+
+  /**
+   * Catálogo de ítems de huevo de la EMPRESA ACTIVA (`catalogo_items` con `item_type='huevo'`).
+   * Fuente: `GET /api/catalogo-alimentos/filter?typeItem=huevo` (ya scopeado por empresa/país y
+   * solo activos en el backend). Se carga una sola vez por instancia del modal.
+   */
+  private cargarItemsHuevo(): void {
+    if (this.cargandoItemsHuevo || this.huevoItemsById.size > 0) return;
+    this.cargandoItemsHuevo = true;
+    this.inventarioSvc.getCatalogoByType(ITEM_TYPE_HUEVO).pipe(
+      catchError(err => {
+        console.error('Error al cargar ítems de huevo:', err);
+        return of([] as CatalogItemDto[]);
+      })
+    ).subscribe((items: CatalogItemDto[]) => {
+      this.cargandoItemsHuevo = false;
+      const opciones = mapearItemsHuevoACatalogo(items ?? []);
+      this.huevoItemsById.clear();
+      opciones.forEach(o => this.huevoItemsById.set(o.id, o));
+      this.refrescarGruposHuevoItems();
+    });
+  }
+
+  /** Rearma los `<optgroup>` sumando los ítems guardados que ya no estén en el catálogo. */
+  private refrescarGruposHuevoItems(): void {
+    const opciones = fusionarItemsHuevoGuardados(
+      Array.from(this.huevoItemsById.values()),
+      Array.from(this.huevoItemsGuardados.values())
+    );
+    this.gruposHuevoItems = agruparItemsHuevoPorTipo(opciones);
+  }
+
+  /** Cantidad de ítems distintos ofrecidos por el catálogo (tope de filas). */
+  private get totalItemsHuevoOfrecidos(): number {
+    let total = 0;
+    for (const g of this.gruposHuevoItems) total += g.items.length;
+    return total;
+  }
+
+  /**
+   * Crea una fila de clasificación. `catalogItemId` NO lleva `required` a propósito: una fila vacía
+   * no debe bloquear el guardado (se descarta en el payload, igual que los ítems de alimento).
+   */
+  private crearFilaHuevo(catalogItemId: number | null = null, cantidad: number = 0): FormGroup {
+    const grp = this.fb.group({
+      catalogItemId: [catalogItemId],
+      cantidad: [cantidad, [Validators.min(0)]]
+    });
+    grp.get('catalogItemId')!.valueChanges.subscribe(valor => this.onCambioItemHuevo(grp, valor));
+    return grp;
+  }
+
+  /** Evita elegir el mismo ítem en dos filas: revierte la selección y avisa por Toast. */
+  private onCambioItemHuevo(fila: FormGroup, valor: unknown): void {
+    const id = Number(valor) || 0;
+    if (!id) return;
+    const duplicado = this.huevoItemsArray.controls
+      .some(c => c !== fila && Number(c.get('catalogItemId')?.value) === id);
+    if (!duplicado) return;
+    fila.get('catalogItemId')!.setValue(null, { emitEvent: false });
+    this.toast.warning(
+      'Ese ítem de huevo ya está en otra fila. Sumá la cantidad en la fila existente.',
+      'Ítem duplicado'
+    );
+  }
+
+  /** Agrega una fila vacía (tope: un ítem por fila, sin repetir). */
+  agregarFilaHuevo(): void {
+    const tope = this.totalItemsHuevoOfrecidos;
+    if (tope > 0 && this.huevoItemsArray.length >= tope) {
+      this.toast.warning('Ya hay una fila por cada ítem de huevo del catálogo.', 'Clasificación de huevos');
+      return;
+    }
+    this.huevoItemsArray.push(this.crearFilaHuevo());
+  }
+
+  eliminarFilaHuevo(index: number): void {
+    this.huevoItemsArray.removeAt(index);
+  }
+
+  /**
+   * Template: detalle del ítem elegido ("Primera · UND"). Devuelve un string primitivo —
+   * no aloca objetos/arrays por ciclo de detección de cambios.
+   */
+  detalleItemHuevo(catalogItemId: unknown): string {
+    const id = Number(catalogItemId) || 0;
+    if (!id) return '';
+    const item = this.huevoItemsById.get(id);
+    const guardado = this.huevoItemsGuardados.get(id);
+    const tipo = item?.tipoHuevo ?? guardado?.tipoHuevo ?? '';
+    const um = item?.um ?? guardado?.um ?? '';
+    if (tipo && um) return `${tipo} · ${um}`;
+    return tipo || um || '';
+  }
+
+  /** Template: deshabilita en el select los ítems ya elegidos en otra fila (devuelve primitivo). */
+  itemHuevoUsadoEnOtraFila(catalogItemId: number, index: number): boolean {
+    const controls = this.huevoItemsArray.controls;
+    for (let i = 0; i < controls.length; i++) {
+      if (i === index) continue;
+      if (Number(controls[i].get('catalogItemId')?.value) === catalogItemId) return true;
+    }
+    return false;
+  }
+
+  /** Registro nuevo con el flag activo: arranca con una fila lista para cargar. */
+  private asegurarFilaHuevoInicial(): void {
+    if (!this.clasificacionHuevoPorItems) return;
+    if (this.huevoItemsArray.length > 0) return;
+    this.huevoItemsArray.push(this.crearFilaHuevo());
+  }
+
+  /** Edición: reconstruye las filas desde `metadata.huevoItems` (fuente de verdad del desglose). */
+  private rehidratarHuevoItems(): void {
+    const guardados = leerHuevoItemsDeMetadata(this.editingSeguimiento?.metadata);
+    this.huevoItemsGuardados.clear();
+    guardados.forEach(i => this.huevoItemsGuardados.set(i.catalogItemId, i));
+    while (this.huevoItemsArray.length) this.huevoItemsArray.removeAt(0);
+    guardados.forEach(i => this.huevoItemsArray.push(this.crearFilaHuevo(i.catalogItemId, i.cantidad)));
+    this.refrescarGruposHuevoItems();
+    if (guardados.length === 0) this.asegurarFilaHuevoInicial();
+  }
+
+  /**
+   * Payload `huevoItems`: filas con ítem elegido, completadas con los datos del catálogo.
+   * La cantidad viaja ENTERA: el contrato del backend declara `int Cantidad` (un decimal haría
+   * fallar el binding del request con 400).
+   */
+  private construirHuevoItemsPayload(): HuevoItemSeguimiento[] {
+    const filas: HuevoItemSeguimiento[] = [];
+    for (const control of this.huevoItemsArray.controls) {
+      const catalogItemId = Number(control.get('catalogItemId')?.value) || 0;
+      if (catalogItemId <= 0) continue;
+      const cantidadNum = Math.round(Number(control.get('cantidad')?.value));
+      const item = this.huevoItemsById.get(catalogItemId);
+      const guardado = this.huevoItemsGuardados.get(catalogItemId);
+      filas.push({
+        catalogItemId,
+        codigo: item?.codigo ?? guardado?.codigo ?? null,
+        nombre: item?.nombre ?? guardado?.nombre ?? null,
+        tipoHuevo: item?.tipoHuevo ?? guardado?.tipoHuevo ?? null,
+        cantidad: isFinite(cantidadNum) ? cantidadNum : 0,
+        um: item?.um ?? guardado?.um ?? null
+      });
+    }
+    return filas;
+  }
+
+  /**
+   * Validación previa al guardado (solo con el flag activo). Devuelve `false` y avisa por Toast si
+   * hay ítems repetidos o filas con cantidad pero sin ítem elegido.
+   */
+  private validarHuevoItems(): boolean {
+    if (!this.clasificacionHuevoPorItems) return true;
+
+    const vistos = new Set<number>();
+    for (const control of this.huevoItemsArray.controls) {
+      const id = Number(control.get('catalogItemId')?.value) || 0;
+      const cantidad = Number(control.get('cantidad')?.value) || 0;
+
+      if (!id) {
+        if (cantidad > 0) {
+          this.toast.error('Seleccioná el ítem de huevo en todas las filas que tengan cantidad.', 'Clasificación de huevos');
+          return false;
+        }
+        continue; // fila vacía: se descarta en el payload
+      }
+      if (vistos.has(id)) {
+        this.toast.error('Hay un ítem de huevo repetido: dejá una sola fila por ítem.', 'Clasificación de huevos');
+        return false;
+      }
+      vistos.add(id);
+      if (cantidad < 0) {
+        this.toast.error('Las cantidades de huevos no pueden ser negativas.', 'Clasificación de huevos');
+        return false;
+      }
+    }
+    return true;
+  }
+
   /**
    * Obtiene la metadata del registro normalizada: si viene como string JSON la parsea,
    * mapea snake_case a camelCase y asegura itemsHembras/itemsMachos como arrays.
@@ -550,6 +795,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private resetForm(): void {
     while (this.itemsHembrasArray.length) this.itemsHembrasArray.removeAt(0);
     while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
+    while (this.huevoItemsArray.length) this.huevoItemsArray.removeAt(0);
+    this.huevoItemsGuardados.clear();
     const fechaHoy = this.todayYMD();
     this.form.reset({
       fechaRegistro: fechaHoy,
@@ -585,6 +832,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       huevoRoto: 0,
       huevoDesecho: 0,
       huevoOtro: 0,
+      huevoItems: [],
       tipoAlimento: 'Standard',
       pesoHuevo: 0,
       etapa: this.calcularEtapa(fechaHoy),
@@ -608,6 +856,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     // Alimento fijo pre-cargado (no removible) en Hembras y Machos — sin tener que "Agregar Ítem".
     this.asegurarAlimentoFijo(this.itemsHembrasArray);
     this.asegurarAlimentoFijo(this.itemsMachosArray);
+    // Clasificación por ítems (flag activo): arranca con una fila lista para cargar.
+    this.asegurarFilaHuevoInicial();
+    this.recalcularTotalesHuevos();
   }
 
   private populateForm(): void {
@@ -616,6 +867,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
     while (this.itemsHembrasArray.length) this.itemsHembrasArray.removeAt(0);
     while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
+    // Clasificación por ítems: el desglose vive en metadata.huevoItems (no en las 11 columnas).
+    this.rehidratarHuevoItems();
 
     // Metadata completa normalizada (soporta JSON string, objeto, camelCase y snake_case)
     const metadata = this.getNormalizedMetadata();
@@ -737,6 +990,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       consumoAguaTemperatura: (seg as any).consumoAguaTemperatura ?? null
     });
 
+    // Con clasificación por ítems, el total/incubables se recalculan desde las filas (no desde el
+    // patch de las 11 columnas, que para esas empresas están en 0).
+    this.recalcularTotalesHuevos();
+
     // Cargar inventario y alimentos si hay tipo de ítem seleccionado
     // Si no hay tipoItem pero hay tipoAlimento, intentar obtener el tipoItem del inventario
     if (this.granjaId) {
@@ -821,6 +1078,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   onSave(): void {
+    // Clasificación de huevos por ítems (solo con el flag activo): mensajes específicos por Toast.
+    if (!this.validarHuevoItems()) return;
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.showErrorMessage('Por favor, complete todos los campos requeridos correctamente.');
@@ -872,6 +1132,18 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       if (nombres.length) tipoAlimentoVal = nombres.join(' / ');
     }
 
+    // Clasificación por ítems: con el flag activo manda `huevoItems` (lista vacía = quitar la
+    // clasificación) y los campos fijos viajan en 0 — el backend calcula huevoTot desde la lista.
+    const filasHuevo = this.clasificacionHuevoPorItems ? this.construirHuevoItemsPayload() : null;
+    // Excepción defensiva: un registro que NUNCA tuvo clasificación por ítems (p. ej. cargado por
+    // migración masiva con las 11 columnas) y al que no se le agregó ninguna fila NO se toca —
+    // mandar [] borraría sus totales. Se respeta su clasificación fija tal cual está.
+    const preservarClasificadoraFija =
+      filasHuevo !== null && filasHuevo.length === 0 && this.huevoItemsGuardados.size === 0 && !!this.editingSeguimiento;
+    const huevoItems = filasHuevo === null || preservarClasificadoraFija ? undefined : filasHuevo;
+    const usaHuevoItems = huevoItems !== undefined;
+    const totalesFijos = this.totalesClasificadoraFija();
+
     const useLPP = this.lotePosturaProduccionId != null;
     const request: CrearSeguimientoRequest = {
       produccionLoteId: useLPP ? undefined : this.produccionLoteId ?? undefined,
@@ -892,19 +1164,20 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       tipoItemMachos: useItems ? undefined : (raw.tipoItemMachos || undefined),
       tipoAlimentoHembras: raw.tipoAlimentoHembras ? Number(raw.tipoAlimentoHembras) : undefined,
       tipoAlimentoMachos: raw.tipoAlimentoMachos ? Number(raw.tipoAlimentoMachos) : undefined,
-      huevosTotales: Number(raw.huevosTotales) || 0,
-      huevosIncubables: Number(raw.huevosIncubables) || 0,
-      huevoLimpio: Number(raw.huevoLimpio) || 0,
-      huevoTratado: Number(raw.huevoTratado) || 0,
-      huevoSucio: Number(raw.huevoSucio) || 0,
-      huevoDeforme: Number(raw.huevoDeforme) || 0,
-      huevoBlanco: Number(raw.huevoBlanco) || 0,
-      huevoDobleYema: Number(raw.huevoDobleYema) || 0,
-      huevoPiso: Number(raw.huevoPiso) || 0,
-      huevoPequeno: Number(raw.huevoPequeno) || 0,
-      huevoRoto: Number(raw.huevoRoto) || 0,
-      huevoDesecho: Number(raw.huevoDesecho) || 0,
-      huevoOtro: Number(raw.huevoOtro) || 0,
+      huevosTotales: usaHuevoItems ? 0 : (preservarClasificadoraFija ? totalesFijos.total : Number(raw.huevosTotales) || 0),
+      huevosIncubables: usaHuevoItems ? 0 : (preservarClasificadoraFija ? totalesFijos.incubables : Number(raw.huevosIncubables) || 0),
+      huevoLimpio: usaHuevoItems ? 0 : Number(raw.huevoLimpio) || 0,
+      huevoTratado: usaHuevoItems ? 0 : Number(raw.huevoTratado) || 0,
+      huevoSucio: usaHuevoItems ? 0 : Number(raw.huevoSucio) || 0,
+      huevoDeforme: usaHuevoItems ? 0 : Number(raw.huevoDeforme) || 0,
+      huevoBlanco: usaHuevoItems ? 0 : Number(raw.huevoBlanco) || 0,
+      huevoDobleYema: usaHuevoItems ? 0 : Number(raw.huevoDobleYema) || 0,
+      huevoPiso: usaHuevoItems ? 0 : Number(raw.huevoPiso) || 0,
+      huevoPequeno: usaHuevoItems ? 0 : Number(raw.huevoPequeno) || 0,
+      huevoRoto: usaHuevoItems ? 0 : Number(raw.huevoRoto) || 0,
+      huevoDesecho: usaHuevoItems ? 0 : Number(raw.huevoDesecho) || 0,
+      huevoOtro: usaHuevoItems ? 0 : Number(raw.huevoOtro) || 0,
+      huevoItems: huevoItems,
       tipoAlimento: tipoAlimentoVal,
       itemsHembras: useItems ? itemsHembras : undefined,
       itemsMachos: useItems ? itemsMachos : undefined,
@@ -937,48 +1210,57 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   private setupHuevosAutoCalculo(): void {
-    const keys = [
-      'huevoLimpio',
-      'huevoTratado',
-      'huevoSucio',
-      'huevoDeforme',
-      'huevoBlanco',
-      'huevoDobleYema',
-      'huevoPiso',
-      'huevoPequeno',
-      'huevoRoto',
-      'huevoDesecho',
-      'huevoOtro'
-    ] as const;
+    CLASIFICADORA_KEYS.forEach(k => this.form.get(k)?.valueChanges.subscribe(() => this.recalcularTotalesHuevos()));
+    // Clasificación por ítems (flag activo): el total sale de las filas ítem+cantidad.
+    this.huevoItemsArray.valueChanges.subscribe(() => this.recalcularTotalesHuevos());
+    this.recalcularTotalesHuevos();
+  }
 
-    const recalc = () => {
-      const n = (k: typeof keys[number]) => Number(this.form.get(k)?.value) || 0;
-      const limpio = n('huevoLimpio');
-      const tratado = n('huevoTratado');
-      const incubables = limpio + tratado;
-      const total =
-        incubables +
-        n('huevoSucio') +
-        n('huevoDeforme') +
-        n('huevoBlanco') +
-        n('huevoDobleYema') +
-        n('huevoPiso') +
-        n('huevoPequeno') +
-        n('huevoRoto') +
-        n('huevoDesecho') +
-        n('huevoOtro');
+  /**
+   * Totales de huevos.
+   * - Flag `clasificacionHuevoPorItems` ACTIVO: total = suma de las filas por ítem e incubables = 0
+   *   (postura comercial: no incuba). Las 11 columnas fijas quedan fuera de juego.
+   * - Flag APAGADO: comportamiento histórico intacto (incubables = limpio + tratado; total = las 11).
+   */
+  private recalcularTotalesHuevos(): void {
+    if (this.clasificacionHuevoPorItems) {
+      const total = sumarCantidadesHuevo(this.huevoItemsArray.controls.map(c => c.get('cantidad')?.value));
+      this.totalHuevosClasificados = total;
+      this.form.patchValue({ huevosIncubables: 0, huevosTotales: total }, { emitEvent: false });
+      return;
+    }
 
-      this.form.patchValue(
-        {
-          huevosIncubables: incubables,
-          huevosTotales: total
-        },
-        { emitEvent: false }
-      );
-    };
+    const { incubables, total } = this.totalesClasificadoraFija();
+    this.form.patchValue(
+      {
+        huevosIncubables: incubables,
+        huevosTotales: total
+      },
+      { emitEvent: false }
+    );
+  }
 
-    keys.forEach(k => this.form.get(k)?.valueChanges.subscribe(recalc));
-    recalc();
+  /**
+   * Totales de la clasificadora FIJA (11 columnas): incubables = limpio + tratado; total = incubables
+   * + las 9 no incubables. Aritmética única del flujo histórico (auto-cálculo y payload la comparten).
+   */
+  private totalesClasificadoraFija(): { incubables: number; total: number } {
+    const n = (k: typeof CLASIFICADORA_KEYS[number]) => Number(this.form.get(k)?.value) || 0;
+    const limpio = n('huevoLimpio');
+    const tratado = n('huevoTratado');
+    const incubables = limpio + tratado;
+    const total =
+      incubables +
+      n('huevoSucio') +
+      n('huevoDeforme') +
+      n('huevoBlanco') +
+      n('huevoDobleYema') +
+      n('huevoPiso') +
+      n('huevoPequeno') +
+      n('huevoRoto') +
+      n('huevoDesecho') +
+      n('huevoOtro');
+    return { incubables, total };
   }
 
   // ================== HELPERS ==================

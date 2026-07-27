@@ -1,19 +1,23 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SeguimientoItemDto, ProduccionLoteDetalleDto, InformacionLoteDto } from '../../services/produccion.service';
+import { SeguimientoItemDto, ProduccionLoteDetalleDto, InformacionLoteDto, leerHuevoItemsDeMetadata } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaProduccionFilterItem } from '../filtro-select/filtro-select.component';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { ResumenHuevoPorTipo } from '../../models/huevo-clasificacion.model';
+import { resumirHuevoItemsPorTipo } from '../../funciones/resumir-huevo-items-por-tipo.funcion';
 // Usar versión "components" que trae indicadores desde backend en 1 sola petición
 import { TablaListaIndicadoresComponent } from '../../components/tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { CatalogoAlimentosService, CatalogItemDto } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { catchError, of } from 'rxjs';
 import { exportarObjetosExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
+import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
 
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
-  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent],
+  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent, EdadesLoteComponent],
   templateUrl: './tabs-principal.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
@@ -31,6 +35,18 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   /** Información general del lote (nuevo endpoint). */
   @Input() informacionLote: InformacionLoteDto | null = null;
   @Input() loading: boolean = false;
+  /**
+   * ID del lote BASE (tabla `lotes`) para el bloque "Edades en el lote" (cohortes).
+   * Null (default) ⇒ el bloque no se muestra ni consulta.
+   */
+  @Input() loteIdCohortes: number | null = null;
+  /** Incrementar para refrescar las cohortes sin cambiar de lote (p. ej. tras un traslado). */
+  @Input() cohortesRefreshTrigger = 0;
+  /**
+   * Lote de producción cerrado ⇒ se ocultan crear, editar y eliminar. El backend bloquea igual
+   * (`ProduccionService.EnsureLoteProduccionAbiertoAsync`); esto evita ofrecer acciones que fallarían.
+   */
+  @Input() loteCerrado = false;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoItemDto>();
@@ -43,15 +59,62 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   private readonly catalogNameById = new Map<number, string>();
   private readonly catalogFetchInFlight = new Set<number>();
 
+  // ===== Clasificación de huevos por ÍTEMS (flag de empresa · Santa Reyes) =====
+  private readonly companyConfig = inject(ActiveCompanyConfigService);
+  /**
+   * Flag `companies.clasificacion_huevo_por_items`: las 11 columnas fijas (H. Limpio…H. Otro) y
+   * "Huevos Inc." están siempre en 0 para estas empresas → se reemplazan por Primera / Pnc,
+   * calculadas desde `metadata.huevoItems` de cada registro. FAIL-CLOSED: sin flag, grilla clásica.
+   */
+  clasificacionHuevoPorItems = false;
+  /** seguimiento.id → totales Primera/Pnc. Se calcula UNA vez por carga de registros (no por ciclo de CD). */
+  private readonly huevoPorTipoPorRegistro = new Map<number, ResumenHuevoPorTipo>();
+
   constructor() { }
 
   ngOnInit(): void {
+    this.cargarFlagsEmpresa();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['seguimientos']) {
       this.preloadCatalogNamesFromSeguimientos();
+      this.recalcularHuevoPorTipo();
     }
+  }
+
+  /** Flags de la empresa activa (emite una vez y completa; caché por empresa). */
+  private cargarFlagsEmpresa(): void {
+    this.companyConfig.getFlags().subscribe(flags => {
+      if (this.clasificacionHuevoPorItems === flags.clasificacionHuevoPorItems) return;
+      this.clasificacionHuevoPorItems = flags.clasificacionHuevoPorItems;
+      // El flag llega async: si los registros ya estaban cargados, calcular ahora.
+      this.recalcularHuevoPorTipo();
+    });
+  }
+
+  /**
+   * Recalcula el mapa id → {primera, pnc} leyendo `metadata.huevoItems` de cada registro.
+   * Solo con el flag activo (con el flag apagado el mapa queda vacío y las columnas no se pintan).
+   */
+  private recalcularHuevoPorTipo(): void {
+    this.huevoPorTipoPorRegistro.clear();
+    if (!this.clasificacionHuevoPorItems) return;
+    for (const s of this.seguimientos || []) {
+      const items = leerHuevoItemsDeMetadata(s?.metadata);
+      if (!items.length) continue;
+      this.huevoPorTipoPorRegistro.set(s.id, resumirHuevoItemsPorTipo(items));
+    }
+  }
+
+  /** Huevos "Primera" del registro (0 si el registro no trae clasificación por ítems). */
+  getHuevoPrimera(s: SeguimientoItemDto): number {
+    return this.huevoPorTipoPorRegistro.get(s.id)?.primera ?? 0;
+  }
+
+  /** Huevos "Pnc" del registro (0 si el registro no trae clasificación por ítems). */
+  getHuevoPnc(s: SeguimientoItemDto): number {
+    return this.huevoPorTipoPorRegistro.get(s.id)?.pnc ?? 0;
   }
 
   // ================== EVENTOS ==================

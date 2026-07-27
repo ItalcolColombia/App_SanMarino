@@ -81,6 +81,39 @@ export interface CierreLoteLevanteResumenDto {
   avesHembrasDisponibles: number;
   avesMachosDisponibles: number;
   yaExisteLoteProduccion: boolean;
+  /**
+   * Huevos capturados en el seguimiento diario de LEVANTE (semana 14+) que se arrastrarán al primer
+   * registro de producción al cerrar. 0 si la empresa no captura huevos en levante.
+   */
+  huevosLevanteTotales?: number | null;
+  huevosLevanteIncubables?: number | null;
+}
+
+/**
+ * Resumen previo a REABRIR un lote de levante cerrado.
+ *
+ * Reabrir elimina el lote de producción que generó el cierre, así que el modal tiene que decir de
+ * antemano si eso se puede hacer y qué se va a perder. El backend revalida lo mismo al confirmar:
+ * esto es para la UI, no la autoridad.
+ */
+export interface ReaperturaLoteLevanteResumenDto {
+  lotePosturaLevanteId: number;
+  loteNombre: string;
+  estaCerrado: boolean;
+  /** false si hay seguimiento capturado por el usuario en producción, o si ese lote está cerrado. */
+  puedeReabrir: boolean;
+  motivoBloqueo: string | null;
+  /** Qué va a pasar al reabrir (se muestra cuando sí se puede). */
+  aviso: string;
+  lotePosturaProduccionId: number | null;
+  loteProduccionNombre: string | null;
+  loteProduccionCerrado: boolean;
+  /** Registros capturados por el usuario: son los que bloquean. */
+  registrosProduccionUsuario: number;
+  /** Registros que generó el cierre (arrastre de huevos y traslado de aves): se regeneran. */
+  registrosProduccionSistema: number;
+  primerRegistroUsuario?: string | null;
+  ultimoRegistroUsuario?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -92,8 +125,10 @@ export class LotePosturaLevanteService {
     return this.http.get<LotePosturaLevanteDto[]>(`${this.baseUrl}/por-lote/${loteId}`);
   }
 
-  getAll(): Observable<LotePosturaLevanteDto[]> {
-    return this.http.get<LotePosturaLevanteDto[]>(this.baseUrl);
+  /** paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getAll(paraDestino = false): Observable<LotePosturaLevanteDto[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
+    return this.http.get<LotePosturaLevanteDto[]>(`${this.baseUrl}${qs}`);
   }
 
   /** Detalle por ID (incluye edadMaximaSeguimiento). */
@@ -121,6 +156,13 @@ export class LotePosturaLevanteService {
     return this.http.post<LotePosturaLevanteDto>(
       `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/cerrar`,
       body
+    );
+  }
+
+  /** Resumen para el modal «Abrir lote»: si se puede reabrir, por qué no, y qué se elimina. */
+  getResumenReapertura(lotePosturaLevanteId: number): Observable<ReaperturaLoteLevanteResumenDto> {
+    return this.http.get<ReaperturaLoteLevanteResumenDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/resumen-reapertura`
     );
   }
 

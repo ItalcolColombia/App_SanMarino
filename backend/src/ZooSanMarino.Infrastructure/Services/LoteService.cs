@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
+using ZooSanMarino.Application.Calculos;       // GuiaGeneticaRequisitoCalculos (lógica pura)
 using ZooSanMarino.Application.DTOs;           // LoteDto, Create/Update
 using ZooSanMarino.Application.DTOs.Lotes;     // LoteDetailDto, LoteSearchRequest, TrasladoLoteRequestDto, TrasladoLoteResponseDto, HistorialTrasladoLoteDto
 using CommonDtos = ZooSanMarino.Application.DTOs.Common;
@@ -22,12 +23,72 @@ namespace ZooSanMarino.Infrastructure.Services
         private readonly ZooSanMarinoContext _ctx;
         private readonly AppInterfaces.ICurrentUser _current;
         private readonly AppInterfaces.ICompanyResolver _companyResolver;
+        private readonly AppInterfaces.ILocationScopeResolver _scopeResolver;
 
-        public LoteService(ZooSanMarinoContext ctx, AppInterfaces.ICurrentUser current, AppInterfaces.ICompanyResolver companyResolver)
+        public LoteService(
+            ZooSanMarinoContext ctx,
+            AppInterfaces.ICurrentUser current,
+            AppInterfaces.ICompanyResolver companyResolver,
+            AppInterfaces.ILocationScopeResolver scopeResolver)
         {
             _ctx = ctx;
             _current = current;
             _companyResolver = companyResolver;
+            _scopeResolver = scopeResolver;
+        }
+
+        /// <summary>
+        /// Granjas asignadas DIRECTAMENTE al usuario actual (UserFarms) — mismo criterio que
+        /// NucleoService/GalponService.GetAllAsync (tab Granjas). null = sin usuario en contexto.
+        /// </summary>
+        private async Task<List<int>?> GetAssignedFarmIdsForCurrentUserAsync()
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue) return null;
+
+            return await _ctx.UserFarms.AsNoTracking()
+                .Where(uf => uf.UserId == userIdGuid.Value)
+                .Select(uf => uf.FarmId)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Gate de MUTACIÓN (fix QA M1): con granja restringida, el usuario solo puede crear/editar
+        /// lotes en núcleos/galpones visibles de su cierre; sin ubicación no se permite (el lote le
+        /// quedaría invisible a él mismo y el read-back post-escritura fallaría). Granja no
+        /// restringida ⇒ sin cambios.
+        /// </summary>
+        private async Task EnsureUbicacionEnScopeAsync(int granjaId, string? nucleoId, string? galponId)
+        {
+            var scope = await _scopeResolver.GetScopeAsync(granjaId);
+            if (scope.IsGlobal) return;
+
+            var ok = !string.IsNullOrWhiteSpace(galponId) ? scope.PermiteGalpon(galponId.Trim())
+                   : !string.IsNullOrWhiteSpace(nucleoId) ? scope.PermiteNucleo(nucleoId.Trim())
+                   : false;
+            if (!ok)
+                throw new InvalidOperationException(
+                    "Tu acceso a esta granja está restringido: solo podés registrar lotes en los núcleos/galpones de tu alcance asignado.");
+        }
+
+        /// <summary>
+        /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible
+        /// en SQL. Granjas no restringidas pasan intactas; en las restringidas solo quedan los lotes
+        /// permitidos del cierre (lote_id es PK global ⇒ la unión entre granjas es exacta).
+        /// <paramref name="paraDestino"/> = true lo omite (selección de DESTINO en traslados).
+        /// </summary>
+        private async Task<IQueryable<Lote>> AplicarScopeUbicacionAsync(IQueryable<Lote> q, bool paraDestino = false)
+        {
+            if (paraDestino) return q;
+            var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+            if (restringidos.Count == 0) return q;
+
+            var granjasRestringidas = restringidos.Keys.ToList();
+            var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+
+            return q.Where(l => !granjasRestringidas.Contains(l.GranjaId) ||
+                                (l.LoteId != null && lotesPermitidos.Contains(l.LoteId.Value)));
         }
 
         private async Task<int> GetEffectiveCompanyIdAsync()
@@ -46,12 +107,23 @@ namespace ZooSanMarino.Infrastructure.Services
         // Excluye siempre los lotes "hijo de producción" (Fase == Produccion y LotePadreId != null)
         // para no duplicar en pantalla el lote padre y el registro creado para seguimiento diario.
         // ======================================================
-        public async Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null)
+        public async Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null, bool paraDestino = false)
         {
             var companyId = await GetEffectiveCompanyIdAsync();
             var q = _ctx.Lotes
                 .AsNoTracking()
                 .Where(l => l.CompanyId == companyId && l.DeletedAt == null);
+
+            // Scoping por granjas asignadas al usuario (UserFarms) — alineado con Núcleos/Galpones
+            // (mismo alcance que la tab Granjas, incluso super-admin). Fail-closed: sin
+            // usuario/asignaciones → vacío. Cierra el gap histórico de este servicio (solo CompanyId).
+            var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+            if (assignedFarmIds == null || assignedFarmIds.Count == 0)
+                return Array.Empty<LoteDetailDto>();
+            q = q.Where(l => assignedFarmIds.Contains(l.GranjaId));
+
+            // Alcance granular núcleo/galpón/lote (omitido al elegir DESTINO de traslados)
+            q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
             // No mostrar lotes hijo de producción (el " - Prod" creado para registro diario)
             q = q.Where(l => !(l.Fase == "Produccion" && l.LotePadreId != null));
@@ -72,8 +144,16 @@ namespace ZooSanMarino.Infrastructure.Services
             var companyId = await GetEffectiveCompanyIdAsync();
             var q = _ctx.Lotes
                 .AsNoTracking()
-                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Levante")
-                .OrderBy(l => l.LoteId);
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Levante");
+
+            // Mismo scoping que GetAllAsync (granjas asignadas + alcance granular)
+            var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+            if (assignedFarmIds == null || assignedFarmIds.Count == 0)
+                return Array.Empty<LoteDetailDto>();
+            q = q.Where(l => assignedFarmIds.Contains(l.GranjaId));
+            q = await AplicarScopeUbicacionAsync(q);
+
+            q = q.OrderBy(l => l.LoteId);
             return await ProjectToDetail(q).ToListAsync();
         }
 
@@ -113,6 +193,19 @@ namespace ZooSanMarino.Infrastructure.Services
             if (!string.IsNullOrWhiteSpace(req.Raza)) q = q.Where(l => l.Raza == req.Raza);
             if (!string.IsNullOrWhiteSpace(req.Tecnico)) q = q.Where(l => l.Tecnico == req.Tecnico);
 
+            // Scoping por granjas asignadas + alcance granular (mismo criterio que GetAllAsync)
+            var assignedFarmIds = await GetAssignedFarmIdsForCurrentUserAsync();
+            if (assignedFarmIds != null)
+            {
+                if (assignedFarmIds.Count == 0)
+                    return new CommonDtos.PagedResult<LoteDetailDto>
+                    {
+                        Page = page, PageSize = pageSize, Total = 0, Items = new List<LoteDetailDto>()
+                    };
+                q = q.Where(l => assignedFarmIds.Contains(l.GranjaId));
+            }
+            q = await AplicarScopeUbicacionAsync(q);
+
             q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
             var total = await q.LongCountAsync();
@@ -142,6 +235,10 @@ namespace ZooSanMarino.Infrastructure.Services
                             l.LoteId == loteId &&
                             l.DeletedAt == null);
 
+            // Alcance granular: en granjas restringidas solo se puede leer un lote permitido
+            // (fail-closed → 404). Sin filtro por granjas asignadas aquí: lo usan flujos internos.
+            q = await AplicarScopeUbicacionAsync(q);
+
             return await ProjectToDetail(q).SingleOrDefaultAsync();
         }
 
@@ -163,27 +260,42 @@ namespace ZooSanMarino.Infrastructure.Services
             // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos)
             await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: null);
 
-            // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
-            if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
-                throw new InvalidOperationException("Raza y Año de tabla genética son requeridos y deben existir en la guía genética cargada.");
-
-            var razaNorm = dto.Raza.Trim().ToLower();
-            var anio = dto.AnoTablaGenetica.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var existeGuia = await _ctx.ProduccionAvicolaRaw
+            // Guía genética CONDICIONAL: si la empresa todavía no cargó su guía (0 filas vivas en
+            // produccion_avicola_raw) Raza/Año son opcionales — raza de texto libre — y no se
+            // verifica existencia; apenas carga la guía vuelve a regir la validación de siempre.
+            var companyTieneGuia = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
-                .AnyAsync(p =>
-                    p.CompanyId == companyId &&
-                    p.DeletedAt == null &&
-                    p.Raza != null &&
-                    p.AnioGuia != null &&
-                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                    p.AnioGuia.Trim() == anio);
+                .AnyAsync(p => p.CompanyId == companyId && p.DeletedAt == null);
 
-            if (!existeGuia)
-                throw new InvalidOperationException($"No existe guía genética para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. Cargue la guía genética primero.");
+            var errorGuia = GuiaGeneticaRequisitoCalculos.ValidarSeleccion(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica);
+            if (errorGuia is not null)
+                throw new InvalidOperationException(errorGuia);
+
+            if (GuiaGeneticaRequisitoCalculos.DebeVerificarExistenciaEnGuia(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica))
+            {
+                // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
+                var razaNorm = dto.Raza!.Trim().ToLower();
+                var anio = dto.AnoTablaGenetica!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var existeGuia = await _ctx.ProduccionAvicolaRaw
+                    .AsNoTracking()
+                    .AnyAsync(p =>
+                        p.CompanyId == companyId &&
+                        p.DeletedAt == null &&
+                        p.Raza != null &&
+                        p.AnioGuia != null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                        p.AnioGuia.Trim() == anio);
+
+                if (!existeGuia)
+                    throw new InvalidOperationException(
+                        GuiaGeneticaRequisitoCalculos.MensajeGuiaInexistente(dto.Raza, dto.AnoTablaGenetica));
+            }
 
             string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
             string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
+
+            // Alcance granular (fix QA M1): validar la ubicación ANTES de persistir
+            await EnsureUbicacionEnScopeAsync(dto.GranjaId, nucleoId, galponId);
 
             // Si viene Galpón, validamos pertenencia y, si falta, derivamos NucleoId del galpón
             if (!string.IsNullOrWhiteSpace(galponId))
@@ -260,7 +372,8 @@ namespace ZooSanMarino.Infrastructure.Services
                 MortCajaH = dto.MortCajaH,
                 MortCajaM = dto.MortCajaM,
 
-                Raza = dto.Raza,
+                // Sin guía cargada la raza es texto libre (se guarda con trim; vacía → null)
+                Raza = GuiaGeneticaRequisitoCalculos.ResolverRazaAGuardar(companyTieneGuia, dto.Raza),
                 AnoTablaGenetica = dto.AnoTablaGenetica,
                 Linea = dto.Linea,
                 TipoLinea = dto.TipoLinea,
@@ -274,6 +387,10 @@ namespace ZooSanMarino.Infrastructure.Services
                 EdadInicial = dto.EdadInicial,
                 LoteErp = dto.LoteErp,
                 LotePadreId = dto.LotePadreId,
+
+                // Códigos ERP avícolas (pass-through; visibles solo si la empresa los maneja)
+                CodigoCentroCosto = dto.CodigoCentroCosto,
+                DescripcionCentroCosto = dto.DescripcionCentroCosto,
 
                 Fase = fase,
 
@@ -402,6 +519,11 @@ namespace ZooSanMarino.Infrastructure.Services
 
             if (ent is null) return null;
 
+            // Alcance granular (fix QA M1): no editar un lote fuera del cierre del usuario
+            if (ent.LoteId is int loteIdActual && !await _scopeResolver.PermiteLoteAsync(loteIdActual))
+                throw new InvalidOperationException(
+                    "Tu acceso a esta granja está restringido: el lote está fuera de tu alcance asignado.");
+
             // REQ-011a/REQ-009c: anti-encaset-futuro (mismo patrón que ProduccionService.cs:147-150)
             ValidarFechaEncasetNoFutura(dto.FechaEncaset);
 
@@ -410,27 +532,41 @@ namespace ZooSanMarino.Infrastructure.Services
             // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos; excluye el propio lote)
             await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: dto.LoteId);
 
-            // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
-            if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
-                throw new InvalidOperationException("Raza y Año de tabla genética son requeridos y deben existir en la guía genética cargada.");
-
-            var razaNorm = dto.Raza.Trim().ToLower();
-            var anio = dto.AnoTablaGenetica.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var existeGuia = await _ctx.ProduccionAvicolaRaw
+            // Guía genética CONDICIONAL (mismo criterio que CreateAsync): sin guía cargada en la
+            // empresa, Raza/Año son opcionales (raza libre) y no se verifica existencia.
+            var companyTieneGuia = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
-                .AnyAsync(p =>
-                    p.CompanyId == companyId &&
-                    p.DeletedAt == null &&
-                    p.Raza != null &&
-                    p.AnioGuia != null &&
-                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                    p.AnioGuia.Trim() == anio);
+                .AnyAsync(p => p.CompanyId == companyId && p.DeletedAt == null);
 
-            if (!existeGuia)
-                throw new InvalidOperationException($"No existe guía genética para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. Cargue la guía genética primero.");
+            var errorGuia = GuiaGeneticaRequisitoCalculos.ValidarSeleccion(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica);
+            if (errorGuia is not null)
+                throw new InvalidOperationException(errorGuia);
+
+            if (GuiaGeneticaRequisitoCalculos.DebeVerificarExistenciaEnGuia(companyTieneGuia, dto.Raza, dto.AnoTablaGenetica))
+            {
+                // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual
+                var razaNorm = dto.Raza!.Trim().ToLower();
+                var anio = dto.AnoTablaGenetica!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var existeGuia = await _ctx.ProduccionAvicolaRaw
+                    .AsNoTracking()
+                    .AnyAsync(p =>
+                        p.CompanyId == companyId &&
+                        p.DeletedAt == null &&
+                        p.Raza != null &&
+                        p.AnioGuia != null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                        p.AnioGuia.Trim() == anio);
+
+                if (!existeGuia)
+                    throw new InvalidOperationException(
+                        GuiaGeneticaRequisitoCalculos.MensajeGuiaInexistente(dto.Raza, dto.AnoTablaGenetica));
+            }
 
             string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
             string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
+
+            // Alcance granular (fix QA M1): la ubicación destino del update también debe ser visible
+            await EnsureUbicacionEnScopeAsync(dto.GranjaId, nucleoId, galponId);
 
             if (!string.IsNullOrWhiteSpace(galponId))
             {
@@ -484,7 +620,8 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.MortCajaH = dto.MortCajaH;
             ent.MortCajaM = dto.MortCajaM;
 
-            ent.Raza = dto.Raza;
+            // Sin guía cargada la raza es texto libre (se guarda con trim; vacía → null)
+            ent.Raza = GuiaGeneticaRequisitoCalculos.ResolverRazaAGuardar(companyTieneGuia, dto.Raza);
             ent.AnoTablaGenetica = dto.AnoTablaGenetica;
             ent.Linea = dto.Linea;
             ent.TipoLinea = dto.TipoLinea;
@@ -499,6 +636,10 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.LoteErp = dto.LoteErp;  // ← NUEVO: Código ERP del lote
             ent.LotePadreId = dto.LotePadreId;  // ← NUEVO: ID del lote padre
             ent.LotePosturaBaseId = dto.LotePosturaBaseId;
+
+            // Códigos ERP avícolas (pass-through)
+            ent.CodigoCentroCosto = dto.CodigoCentroCosto;
+            ent.DescripcionCentroCosto = dto.DescripcionCentroCosto;
 
             // Validar que el lote padre existe y pertenece a la misma compañía
             if (dto.LotePadreId.HasValue)
@@ -549,6 +690,25 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.UpdatedByUserId = _current.UserId;
             ent.UpdatedAt = DateTime.UtcNow;
 
+            // El espejo de levante se sincroniza por trigger, pero el de producción no: si el lote
+            // recibe núcleo/galpón después de existir su producción (p. ej. lotes sembrados sin
+            // ubicación), el filtro por galpón del seguimiento de producción nunca lo encontraría.
+            // Relleno solo-si-vacío para no pisar ubicaciones puestas a mano en la producción.
+            if (ent.LoteId.HasValue && (ent.NucleoId != null || ent.GalponId != null))
+            {
+                var lppAbiertos = await _ctx.LotePosturaProduccion
+                    .Where(p => p.LoteId == ent.LoteId.Value &&
+                                p.DeletedAt == null &&
+                                p.EstadoCierre == "Abierta" &&
+                                (p.NucleoId == null || p.GalponId == null))
+                    .ToListAsync();
+                foreach (var lpp in lppAbiertos)
+                {
+                    lpp.NucleoId ??= ent.NucleoId;
+                    lpp.GalponId ??= ent.GalponId;
+                }
+            }
+
             await _ctx.SaveChangesAsync();
             return await GetByIdAsync(ent.LoteId ?? 0);
         }
@@ -558,6 +718,9 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         public async Task<bool> DeleteAsync(int loteId)
         {
+            // Alcance granular (fix QA M1): no borrar lo que está fuera del cierre (fail-closed → 404)
+            if (!await _scopeResolver.PermiteLoteAsync(loteId)) return false;
+
             var companyId = await GetEffectiveCompanyIdAsync();
             var ent = await _ctx.Lotes
                 .SingleOrDefaultAsync(x => x.LoteId == loteId && x.CompanyId == companyId);
@@ -573,6 +736,9 @@ namespace ZooSanMarino.Infrastructure.Services
 
         public async Task<bool> HardDeleteAsync(int loteId)
         {
+            // Alcance granular (fix QA M1): fail-closed → 404
+            if (!await _scopeResolver.PermiteLoteAsync(loteId)) return false;
+
             var companyId = await GetEffectiveCompanyIdAsync();
             var ent = await _ctx.Lotes
                 .SingleOrDefaultAsync(x => x.LoteId == loteId && x.CompanyId == companyId);
@@ -712,7 +878,9 @@ namespace ZooSanMarino.Infrastructure.Services
                             l.Galpon.GalponNombre,
                             l.Galpon.NucleoId,
                             l.Galpon.GranjaId
-                        )
+                        ),
+                    l.CodigoCentroCosto,
+                    l.DescripcionCentroCosto
                 ));
         }
 
@@ -740,6 +908,10 @@ namespace ZooSanMarino.Infrastructure.Services
         /// </summary>
         public async Task<LoteMortalidadResumenDto?> GetMortalidadResumenAsync(int loteId)
         {
+            // Alcance granular (fix QA M2): acceso directo por loteId respeta el scope (fail-closed → 404)
+            if (!await _scopeResolver.PermiteLoteAsync(loteId))
+                return null;
+
             var companyId = await GetEffectiveCompanyIdAsync();
             // 1) Carga del lote (tenant-safe)
             var lote = await _ctx.Lotes
@@ -870,6 +1042,12 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         public async Task<TrasladoLoteResponseDto> TrasladarLoteAsync(TrasladoLoteRequestDto dto)
         {
+            // Alcance granular (fix QA M1): el lote ORIGEN debe estar en el cierre del usuario
+            // (el DESTINO se elige libre por diseño: paraDestino).
+            if (!await _scopeResolver.PermiteLoteAsync(dto.LoteId))
+                throw new InvalidOperationException(
+                    "Tu acceso a esta granja está restringido: el lote a trasladar está fuera de tu alcance asignado.");
+
             var companyId = await GetEffectiveCompanyIdAsync();
             // 1. Validar y obtener el lote original
             var loteOriginal = await _ctx.Lotes
@@ -1036,6 +1214,10 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         public async Task<IEnumerable<HistorialTrasladoLoteDto>> GetHistorialTrasladosAsync(int loteId)
         {
+            // Alcance granular (fix QA M2): acceso directo por loteId respeta el scope (fail-closed → vacío)
+            if (!await _scopeResolver.PermiteLoteAsync(loteId))
+                return Array.Empty<HistorialTrasladoLoteDto>();
+
             var companyId = await GetEffectiveCompanyIdAsync();
             var historiales = await _ctx.HistorialTrasladoLote
                 .AsNoTracking()

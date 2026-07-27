@@ -13,9 +13,11 @@ export class GalponService {
 
   constructor() {}
 
-  /** Listado (detalle) */
-  getAll(): Observable<GalponDetailDto[]> {
-    return this.http.get<GalponDetailDto[]>(this.baseUrl);
+  /** Listado (detalle).
+   *  paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getAll(paraDestino = false): Observable<GalponDetailDto[]> {
+    const params = paraDestino ? new HttpParams().set('paraDestino', 'true') : undefined;
+    return this.http.get<GalponDetailDto[]>(this.baseUrl, { params });
   }
 
   /** Detalle por id */
@@ -38,14 +40,18 @@ export class GalponService {
     );
   }
 
-  /** Filtrar por granja */
-  getByGranja(granjaId: number): Observable<GalponDetailDto[]> {
-    return this.http.get<GalponDetailDto[]>(`${this.baseUrl}/granja/${granjaId}`);
+  /** Filtrar por granja.
+   *  paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getByGranja(granjaId: number, paraDestino = false): Observable<GalponDetailDto[]> {
+    const params = paraDestino ? new HttpParams().set('paraDestino', 'true') : undefined;
+    return this.http.get<GalponDetailDto[]>(`${this.baseUrl}/granja/${granjaId}`, { params });
   }
 
-  /** Filtrar por granja+núcleo */
-  getByGranjaAndNucleo(granjaId: number, nucleoId: string): Observable<GalponDetailDto[]> {
-    return this.http.get<GalponDetailDto[]>(`${this.baseUrl}/granja/${granjaId}/nucleo/${nucleoId}`);
+  /** Filtrar por granja+núcleo.
+   *  paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getByGranjaAndNucleo(granjaId: number, nucleoId: string, paraDestino = false): Observable<GalponDetailDto[]> {
+    const params = paraDestino ? new HttpParams().set('paraDestino', 'true') : undefined;
+    return this.http.get<GalponDetailDto[]>(`${this.baseUrl}/granja/${granjaId}/nucleo/${nucleoId}`, { params });
   }
 
   /** Crear */

@@ -85,59 +85,63 @@
     </div>
 
     <!-- Filtros de ítems -->
-    <section *ngIf="tareas.length" class="ux-card imp-card">
-      <div class="imp-card__header">
-        <h2>Filtros del checklist</h2>
-        <span class="imp-card__meta">{{ grupos.length }} categoría(s)</span>
+    <section *ngIf="tareas.length" class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+        <span class="imp-card__meta filter-card__actions">{{ grupos.length }} categoría(s)</span>
       </div>
-      <div class="imp-card__body">
-        <div class="filters-row">
-          <div class="filter-group">
-            <label for="ft-busqueda">Buscar</label>
-            <input
-              id="ft-busqueda"
-              type="text"
-              class="input-italfoods"
-              placeholder="Ítem, responsable, participante…"
-              [(ngModel)]="filtros.busqueda"
-              (ngModelChange)="aplicarFiltros()"
-            />
-          </div>
-          <div class="filter-group">
-            <label for="ft-categoria">Categoría</label>
-            <select
-              id="ft-categoria"
-              class="input-italfoods"
-              [(ngModel)]="filtros.categoria"
-              (ngModelChange)="aplicarFiltros()"
-            >
-              <option value="">Todas</option>
-              <option *ngFor="let c of categoriasExistentes" [value]="c">{{ c }}</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label for="ft-estado">Estado</label>
-            <select
-              id="ft-estado"
-              class="input-italfoods"
-              [(ngModel)]="filtros.estado"
-              (ngModelChange)="aplicarFiltros()"
-            >
-              <option value="">Todos</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="completada">Completada</option>
-              <option value="confirmada">Confirmada</option>
-            </select>
-          </div>
-          <div class="filter-group filter-group--check">
-            <input id="ft-vencidas" type="checkbox" [(ngModel)]="filtros.soloVencidas" (ngModelChange)="aplicarFiltros()" />
-            <label for="ft-vencidas">Solo vencidas</label>
-          </div>
-          <div class="filter-actions">
-            <button type="button" class="btn-italfoods-secondary text-xs" [disabled]="!hayFiltros" (click)="limpiarFiltros()">
-              Limpiar
-            </button>
-          </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label for="ft-busqueda" class="filter-step__label">Buscar</label>
+          <input
+            id="ft-busqueda"
+            type="text"
+            class="filter-step__input"
+            placeholder="Ítem, responsable, participante…"
+            [(ngModel)]="filtros.busqueda"
+            (ngModelChange)="aplicarFiltros()"
+          />
+        </div>
+        <div class="filter-field">
+          <label for="ft-categoria" class="filter-step__label">Categoría</label>
+          <select
+            id="ft-categoria"
+            class="filter-step__select"
+            [(ngModel)]="filtros.categoria"
+            (ngModelChange)="aplicarFiltros()"
+          >
+            <option value="">Todas</option>
+            <option *ngFor="let c of categoriasExistentes" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="ft-estado" class="filter-step__label">Estado</label>
+          <select
+            id="ft-estado"
+            class="filter-step__select"
+            [(ngModel)]="filtros.estado"
+            (ngModelChange)="aplicarFiltros()"
+          >
+            <option value="">Todos</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="completada">Completada</option>
+            <option value="confirmada">Confirmada</option>
+          </select>
+        </div>
+        <div class="filter-field filter-field--fixed filter-group--check">
+          <input id="ft-vencidas" type="checkbox" [(ngModel)]="filtros.soloVencidas" (ngModelChange)="aplicarFiltros()" />
+          <label for="ft-vencidas">Solo vencidas</label>
+        </div>
+        <div class="filter-card__actions">
+          <button type="button" class="btn-italfoods-secondary text-xs" [disabled]="!hayFiltros" (click)="limpiarFiltros()">
+            Limpiar
+          </button>
         </div>
       </div>
     </section>

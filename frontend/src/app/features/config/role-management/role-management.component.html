@@ -95,38 +95,47 @@
   <!-- ═══════════════════════════════════════
   BÚSQUEDA CONTEXTUAL
   ═══════════════════════════════════════ -->
-  <div class="rm-search-wrap">
-    <div class="rm-search">
-      <fa-icon [icon]="faMagnifyingGlass" class="rm-search__icon" aria-hidden="true"></fa-icon>
-
-      @if (activeTab==='roles') {
-        <input
-          [(ngModel)]="filterRoles"
-          type="search"
-          placeholder="Buscar por nombre de rol, permiso o empresa…"
-          aria-label="Buscar roles"
-          class="rm-search__input" />
-      }
-
-      @if (activeTab==='perms') {
-        <input
-          [(ngModel)]="filterPerms"
-          type="search"
-          placeholder="Buscar permiso por key o descripción…"
-          aria-label="Buscar permisos"
-          class="rm-search__input" />
-      }
-
-      @if (activeTab==='menus') {
-        <input
-          [(ngModel)]="filterMenus"
-          type="search"
-          placeholder="Buscar menú por label, key o ruta…"
-          aria-label="Buscar menús"
-          class="rm-search__input" />
-      }
+  <section class="ux-card filter-card">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h3 class="filter-card__title">Filtros</h3>
+        <p class="filter-card__subtitle">Acota la información mostrada</p>
+      </div>
     </div>
-  </div>
+    <div class="filter-fields">
+      <div class="filter-field">
+        @if (activeTab==='roles') {
+          <input
+            [(ngModel)]="filterRoles"
+            type="search"
+            placeholder="Buscar por nombre de rol, permiso o empresa…"
+            aria-label="Buscar roles"
+            class="filter-step__input" />
+        }
+
+        @if (activeTab==='perms') {
+          <input
+            [(ngModel)]="filterPerms"
+            type="search"
+            placeholder="Buscar permiso por key o descripción…"
+            aria-label="Buscar permisos"
+            class="filter-step__input" />
+        }
+
+        @if (activeTab==='menus') {
+          <input
+            [(ngModel)]="filterMenus"
+            type="search"
+            placeholder="Buscar menú por label, key o ruta…"
+            aria-label="Buscar menús"
+            class="filter-step__input" />
+        }
+      </div>
+    </div>
+  </section>
 
   <!-- ═══════════════════════════════════════
   CONTENIDO PRINCIPAL

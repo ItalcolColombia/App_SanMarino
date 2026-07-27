@@ -79,9 +79,13 @@ public class LotePosturaBaseService : ILotePosturaBaseService
             PaisId           = _current.PaisId,
             LoteNombre       = dto.LoteNombre.Trim(),
             CodigoErp        = string.IsNullOrWhiteSpace(dto.CodigoErp) ? null : dto.CodigoErp.Trim(),
+            DescripcionErp   = string.IsNullOrWhiteSpace(dto.DescripcionErp) ? null : dto.DescripcionErp.Trim(),
             CantidadHembras  = dto.CantidadHembras,
             CantidadMachos   = dto.CantidadMachos,
             CantidadMixtas   = dto.CantidadMixtas,
+            Raza             = string.IsNullOrWhiteSpace(dto.Raza) ? null : dto.Raza.Trim(),
+            TipoLinea        = string.IsNullOrWhiteSpace(dto.TipoLinea) ? null : dto.TipoLinea.Trim(),
+            FechaEncaset     = dto.FechaEncaset,
             FarmId           = dto.FarmId,
             ErpCreate        = dto.ErpCreate,
             CreatedAt        = DateTime.UtcNow
@@ -117,9 +121,13 @@ public class LotePosturaBaseService : ILotePosturaBaseService
 
         e.LoteNombre      = dto.LoteNombre.Trim();
         e.CodigoErp       = string.IsNullOrWhiteSpace(dto.CodigoErp) ? null : dto.CodigoErp.Trim();
+        e.DescripcionErp  = string.IsNullOrWhiteSpace(dto.DescripcionErp) ? null : dto.DescripcionErp.Trim();
         e.CantidadHembras = dto.CantidadHembras;
         e.CantidadMachos  = dto.CantidadMachos;
         e.CantidadMixtas  = dto.CantidadMixtas;
+        e.Raza            = string.IsNullOrWhiteSpace(dto.Raza) ? null : dto.Raza.Trim();
+        e.TipoLinea       = string.IsNullOrWhiteSpace(dto.TipoLinea) ? null : dto.TipoLinea.Trim();
+        e.FechaEncaset    = dto.FechaEncaset;
         e.FarmId          = dto.FarmId;
         e.ErpCreate       = dto.ErpCreate;
 
@@ -159,9 +167,13 @@ public class LotePosturaBaseService : ILotePosturaBaseService
             e.LotePosturaBaseId,
             e.LoteNombre,
             e.CodigoErp,
+            e.DescripcionErp,
             e.CantidadHembras,
             e.CantidadMachos,
             e.CantidadMixtas,
+            e.Raza,
+            e.TipoLinea,
+            e.FechaEncaset,
             e.CompanyId,
             companyNombre,
             e.CreatedByUserId,

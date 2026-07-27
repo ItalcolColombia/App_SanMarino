@@ -21,5 +21,8 @@ public sealed record GalponDetailDto(
     DateTime? UpdatedAt,
     FarmLite                 Farm,    // ← Farms.FarmLiteDto (int? RegionalId)
     Shared.NucleoLiteDto     Nucleo,  // ← Shared
-    Shared.CompanyLiteDto    Company  // ← Shared
+    Shared.CompanyLiteDto    Company, // ← Shared
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    string? CodigoErpUbicacion      = null,
+    string? DescripcionErpUbicacion = null
 );

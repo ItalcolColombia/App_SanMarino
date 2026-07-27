@@ -171,4 +171,72 @@ public class ReporteDiarioCostosEngordeCalculosTests
         Assert.Equal(4, porGalpon.Single(g => g.GalponId == "G1").AvesVivas);
         Assert.Equal(136, porGalpon.Single(g => g.GalponId == "G2").AvesVivas);
     }
+
+    // ───────────────────── FiltrarPorGalponesVisibles (alcance granular) ─────────────────────
+
+    [Fact]
+    public void FiltrarPorGalponesVisibles_RecortaGalpones_YRecalculaTotalesDelDia()
+    {
+        var filas = new[]
+        {
+            Fila(new DateTime(2026, 7, 1), 39,
+                new[] { new ReporteDiarioCostosAlimentoDto("Alimento a", 2000, 34) },
+                new[]
+                {
+                    Galpon("G1", "Galpón 1", 2, 1, 0, 20.1234, 4),
+                    Galpon("G2", "Galpón 2", 3, 0, 1, 18.8766, 136)
+                })
+        };
+
+        var visibles = ReporteDiarioCostosEngordeCalculos.FiltrarPorGalponesVisibles(
+            filas, new HashSet<string> { "G2" });
+
+        var fila = Assert.Single(visibles);
+        Assert.Equal("G2", Assert.Single(fila.Galpones).GalponId);
+        // Totales del día recalculados con la MISMA aritmética de la fn (suma por galpón + RedondearKg)
+        Assert.Equal(ReporteDiarioCostosEngordeCalculos.RedondearKg(18.8766), fila.ConsumoTotalKg);
+        Assert.Equal(3, fila.MortSelTotal);   // solo G2 (mort 3 + sel 0)
+        Assert.Equal(136, fila.AvesVivasTotal);
+        // El desglose de alimento es de GRANJA COMPLETA (no atribuible por galpón) → se descarta
+        Assert.Empty(fila.Alimentos);
+    }
+
+    [Fact]
+    public void FiltrarPorGalponesVisibles_FilaSinGalponVisible_SeDescarta()
+    {
+        var filas = new[]
+        {
+            Fila(new DateTime(2026, 7, 1), 10,
+                Array.Empty<ReporteDiarioCostosAlimentoDto>(),
+                new[] { Galpon("G1", "Galpón 1", 1, 0, 0, 10, 50) })
+        };
+
+        var visibles = ReporteDiarioCostosEngordeCalculos.FiltrarPorGalponesVisibles(
+            filas, new HashSet<string> { "G9" });
+
+        Assert.Empty(visibles);
+    }
+
+    [Fact]
+    public void FiltrarPorGalponesVisibles_TodosVisibles_NoAlteraLaAritmetica()
+    {
+        var galpones = new[]
+        {
+            Galpon("G1", "Galpón 1", 2, 1, 0, 20.5, 4),
+            Galpon("G2", "Galpón 2", 3, 0, 1, 19.5, 136)
+        };
+        var filas = new[]
+        {
+            Fila(new DateTime(2026, 7, 1), 40, Array.Empty<ReporteDiarioCostosAlimentoDto>(), galpones)
+        };
+
+        var visibles = ReporteDiarioCostosEngordeCalculos.FiltrarPorGalponesVisibles(
+            filas, new HashSet<string> { "G1", "G2" });
+
+        var fila = Assert.Single(visibles);
+        Assert.Equal(2, fila.Galpones.Count);
+        Assert.Equal(40, fila.ConsumoTotalKg);          // 20.5 + 19.5
+        Assert.Equal(6, fila.MortSelTotal);             // (2+1) + (3+0)
+        Assert.Equal(140, fila.AvesVivasTotal);
+    }
 }

@@ -18,5 +18,8 @@ public sealed record NucleoDetailDto(
     FarmLiteDto Farm,
     // Métricas
     int GalponesCount,
-    int LotesCount
+    int LotesCount,
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    string? CodigoBodega      = null,
+    string? DescripcionBodega = null
 );

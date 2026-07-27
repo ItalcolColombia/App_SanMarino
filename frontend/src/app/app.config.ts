@@ -291,6 +291,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ReporteDiarioCostosEngordeMainComponent)
       },
 
+      // Reporte Técnico Semanal (Sanmarino postura: Levante + Producción vs guía genética)
+      {
+        path: 'reporte-tecnico-semanal',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/reporte-tecnico-semanal/pages/reporte-tecnico-semanal-main/reporte-tecnico-semanal-main.component')
+            .then(m => m.ReporteTecnicoSemanalMainComponent)
+      },
+
       // Inventario (fuera de config, ruta independiente)
       {
         path: 'inventario',

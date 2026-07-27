@@ -55,8 +55,10 @@ public partial class MovimientoPolloEngordeService
             }
         }
 
-        // Peso báscula obligatorio: la venta por granja siempre es una venta.
-        ValidarPesoObligatorioEnVenta("Venta", dto.PesoBruto, dto.PesoTara);
+        // Peso báscula obligatorio: la venta por granja siempre es una venta. Salvo que la empresa
+        // tenga báscula diferida (el peso llega al día siguiente y se carga al confirmar).
+        ValidarPesoObligatorioEnVenta("Venta", dto.PesoBruto, dto.PesoTara,
+            await EmpresaPermitePesoDiferidoAsync(dto.GranjaOrigenId ?? lineas[0].GranjaOrigenId));
 
         // Calcular peso global y prorrateado por ave antes de entrar a la transacción.
         var pesoBrutoGlobal = dto.PesoBruto ?? 0d;

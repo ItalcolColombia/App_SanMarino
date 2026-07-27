@@ -372,6 +372,19 @@
 }
 :host .filter-steps__connector--active { background: var(--ital-green); }
 
+/* Modificador compacto para modales/contenedores angostos:
+   <app-filtro-select class="filtro-compact" [variant]="'steps'" …> */
+:host(.filtro-compact) .filter-steps {
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+:host(.filtro-compact) .filter-steps__connector { display: none; }
+:host(.filtro-compact) .filter-step {
+  min-width: calc(50% - .75rem);
+  flex: 0 0 calc(50% - .75rem);
+}
+:host(.filtro-compact) .filter-step--last { flex: 1 0 100%; }
+
 /* Responsive de los pasos (mismo patrón que la referencia) */
 @media (max-width: 1100px) {
   :host .filter-steps {

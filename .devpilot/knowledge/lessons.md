@@ -16,3 +16,46 @@
 - Defaults de fecha con `new Date().toISOString()` son UTC: en Colombia después de ~19:00 el default es "mañana". Usar fecha local para defaults de eventos.
 - Los scripts SQL manuales en backend/sql/ que no se llevan a migración EF (vw_guia_genetica_por_lote_postura) NO existen en prod aunque estén commiteados: si debe existir en prod, va en migración idempotente.
 - Helpers de cálculo puro creados "para después" (`ProduccionCalculos.PorcentajeRetiro*`) quedan sin cablear si el ticket se cierra con el rename del header: verificar consumidores con grep antes de marcar un REQ como resuelto.
+## 2026-07-26 — Artefacto $safeNavigationMigration eliminado de los 25 templates restantes (93 reemplazos, front-wide)
+- La migración automática de Angular dejó llamadas a $safeNavigationMigration(expr) — función inexistente en cualquier .ts — que compilaban bajo strictTemplates pero lanzaban TypeError al renderizar la vista.
+- Limpieza mecánica: envoltura quitada tal cual (expr ya trae su optional chaining), con codemod de paréntesis balanceados consciente de comillas y multi-pasada para llamadas anidadas (regex ingenua no alcanza: había args con comas, $any(...) y anidamiento doble).
+- Los ! de non-null assertion quedaron fuera de la envoltura y se conservaron (p. ej. getFarmName(selectedLote()?.granjaId!)) — strictTemplates los aceptó sin cambios adicionales.
+- rg safeNavigationMigration frontend → 0; yarn build (Node portable 22.23.1) 0 errores, solo warning de bundle budget preexistente.
+- Cierra lo pendiente registrado en seguimiento_pollo_engorde_ux_cascada_scroll_plan.md (que solo había arreglado aves-engorde/seguimiento-aves-engorde-list).
+- Archivos: fase_de_desarrollo/limpieza_safe_navigation_migration_plan.md, frontend/src/app/shared/components/hierarchical-filter/hierarchical-filter.component.html, frontend/src/app/features/profile/profile.component.html, frontend/src/app/features/lote-levante/pages/modal-create-edit/modal-create-edit.component.html, frontend/src/app/features/lote-produccion/pages/modal-seguimiento-diario/modal-seguimiento-diario.component.html
+
+## 2026-07-26 — Seguimiento producción 400 "no tiene LoteId": filas LPP pre-fix de herencia; backfill como migración + self-heal runtime
+- Los lote_postura_produccion nacen SOLO al cerrar un levante; los creados antes del fix de herencia quedaron con lote_id NULL aunque su levante SÍ lo tiene (Demo LPP #8→119, #9→124).
+- Un script de reparación en backend/sql/ que no se convierte en migración EF nunca llega a prod (RunMigrations aplica solo migraciones): backfill_lote_postura_produccion_lote_id.sql quedó huérfano → migración data-only 20260726052546_BackfillLoteIdLotePosturaProduccion.
+- seguimiento_diario_produccion.lote_id es NOT NULL y debe seguir así (indicadores, espejo huevo y reportes cuelgan de él); la robustez correcta es resolver/sanar el lote_id, no relajar el esquema.
+- Self-heal en ProduccionService.ResolverYSanarLoteIdAsync (Crear+Actualizar): resuelve desde el levante SIN filtrar deleted_at y persiste con ExecuteUpdate; decisión pura en SeguimientoProduccionLoteIdCalculos con 8 tests xUnit.
+- Smoke E2E validado con JWT+X-Secret-Up minteados contra :5002: POST 201 con payload real, stock modelo B descontado y restaurado exacto tras DELETE (sin residuo).
+- Archivos: backend/src/ZooSanMarino.Infrastructure/Services/ProduccionService.cs, backend/src/ZooSanMarino.Application/Calculos/SeguimientoProduccionLoteIdCalculos.cs, backend/src/ZooSanMarino.Infrastructure/Migrations/20260726052546_BackfillLoteIdLotePosturaProduccion.cs, backend/tests/ZooSanMarino.Application.Tests/SeguimientoProduccionLoteIdCalculosTests.cs, backend/src/ZooSanMarino.Infrastructure/Services/LotePosturaLevanteService.cs
+
+## 2026-07-26 — SetAuditFields: nunca mutar el ChangeTracker dentro del foreach de Entries() — acumular ids y tocar después
+- Bug corregido (commit f68e8b9): el 2º foreach de SetAuditFields llamaba TouchUserUpdatedAt, que hace Attach(new User{Id}) cuando el User no está trackeado → InvalidOperationException "Collection was modified" y reventaba el SaveChanges completo (repro: UPDATE de user_farms sin Include(User)).
+- Fix: acumular los UserId en HashSet<Guid> durante la enumeración y llamar TouchUserUpdatedAt DESPUÉS del foreach; deduplica de paso. TouchUserUpdatedAt intacto.
+- Evidencia: repro antes/después contra BD local :5433 en transacción con rollback (antes excepción, después SaveChanges OK); build 0 warnings; 751 tests verdes.
+- Hallazgo colateral (chip pendiente): la sombra UpdatedAt de users es ValueGeneratedOnAddOrUpdate → EF ignora el valor y el "touch" nunca generó UPDATE real; además el Attach deja proxies huecos de User en el identity map.
+- La mitigación ExecuteDelete/Update de UserFarmScopeService.ReplaceScopeAsync se conserva (eficiencia, no toca auditoría).
+- Archivos: backend/src/ZooSanMarino.Infrastructure/Persistence/ZooSanMarinoContext.cs, backend/src/ZooSanMarino.Infrastructure/Services/UserFarmScopeService.cs, backend/src/ZooSanMarino.Infrastructure/Persistence/Configurations/UserConfiguration.cs
+
+## 2026-07-26 — Nacimientos y pollitos NO existen en el esquema: no hay retorno de incubadora
+- Auditoria 26jul26 (3 agentes + barrido de information_schema en la BD local): no existe ninguna tabla de nacimientos/eclosion/pollitos. traslado_huevos es una tabla de SALIDA (tipo_operacion Venta|Traslado; en Traslado el front fuerza tipo_destino='Planta') sin campos de retorno.
+- Consecuencia: el bloque POLLITOS de los reportes solo puede llenar "HI Cargado" (limpio+tratado de traslados Completado a Planta, agrupado por semana de vida). % nacimiento, Pollitos Sem. y su acumulado quedan con valor de GUIA (guia_genetica_sanmarino_colombia.nacim_porcentaje / pollito_aa).
+- ReporteTecnicoProduccionService arrastra el mismo hueco desde su creacion: porcentajeNacimientos=null y pollitosVendidos=null hardcodeados, y su columna HuevosCargados en realidad expone huevo_inc del seguimiento (no los envios reales) — no copiar ese comportamiento.
+- Para completarlo haria falta capturar el retorno de incubadora (tabla nacimiento_lote: lote/LPP, fecha carga, huevos cargados, fecha nacimiento, pollitos nacidos, infertiles) por captura manual o integracion con la planta.
+- Gotcha de lectura: el % de envio semanal puede superar 100% porque un despacho arrastra huevos acumulados de dias previos; el acumulado es la lectura correcta.
+- Archivos: backend/src/ZooSanMarino.Domain/Entities/TrasladoHuevos.cs, backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoProduccionService.cs, backend/src/ZooSanMarino.Application/Calculos/ReporteTecnicoSemanalCalculos.cs, fase_de_desarrollo/reporte_tecnico_semanal_postura_plan.md
+
+## 2026-07-26 — Angular 22: OnPush es el DEFAULT — todo componente/modal nuevo lleva changeDetection: Eager explícito
+- SÍNTOMA (recurrente al desarrollar módulos nuevos): el servicio responde 200 en Network, no hay error en consola, pero el modal se queda para siempre en "Cargando..." / la lista vacía / el botón deshabilitado.
+- CAUSA RAÍZ: en Angular 22 cambió el default del decorador @Component — omitir `changeDetection` equivale a OnPush (ChangeDetectionStrategy.OnPush = 0; el doc del framework dice "OnPush is enabled by default"; `Default` quedó deprecado como alias de `Eager = 1`). Con OnPush, asignar campos desde un callback de HttpClient/subscribe/setTimeout/Promise (this.loading = false, this.tree = data) NO marca la vista sucia: Zone.js dispara el tick pero las vistas OnPush no-dirty se saltean, así que la plantilla nunca se repinta.
+- POR QUÉ SOLO ROMPE EL CÓDIGO NUEVO: los ~190 componentes preexistentes ya traen `changeDetection: ChangeDetectionStrategy.Eager` explícito (el schematic de `ng update` reescribió Default -> Eager al subir a v22). Cualquier componente escrito a mano después queda OnPush en silencio.
+- REGLA: todo componente/modal/página NUEVO con estado mutable, subscribe, async/await o timers declara EXPLÍCITAMENTE `changeDetection: ChangeDetectionStrategy.Eager`. OnPush solo si es 100% presentacional (@Input + eventos del template) o si el estado se escribe con signal()/markForCheck(). Si hace falta cdr.detectChanges() "para que se vea", la elección correcta era Eager. Prohibido `Default` (deprecado en v22).
+- DIAGNÓSTICO RÁPIDO: request 200 + sin errores + UI congelada => revisar el changeDetection del componente ANTES de sospechar del servicio o del backend.
+- BARRIDO: `grep -L changeDetection **/*.component.ts` (los features/aves-engorde/pages/* son shims de 2 líneas que reexportan engorde-comun, no cuentan).
+- CASO CANÓNICO Y FIX (26jul26): modal "Alcance en {granja}" del alcance granular usuario-granja — configurar-alcance-granja.component.ts no declaraba changeDetection; se agregó Eager. Validado con `yarn build` (solo el warning de bundle budget preexistente).
+- DOCUMENTADO EN: CLAUDE.md, sección "Change detection en Angular 22" + fila en la tabla de primitivos obligatorios del sistema de diseño.
+- Archivos: frontend/src/app/features/config/user-management/components/asignar-usuario-granja/configurar-alcance-granja.component.ts, frontend/src/app/features/config/user-management/components/asignar-usuario-granja/asignar-usuario-granja.component.ts, CLAUDE.md
+

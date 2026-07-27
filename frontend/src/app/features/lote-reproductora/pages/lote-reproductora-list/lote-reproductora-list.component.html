@@ -45,16 +45,26 @@
     </header>
 
     <!-- Filtros -->
-    <section class="ux-card ux-card--filters" role="group" aria-labelledby="filtros-title">
-      <h2 id="filtros-title" class="ux-card__title">
-        <fa-icon [icon]="faFilter" class="ux-card__title-icon" aria-hidden="true"></fa-icon>
-        Filtros
-      </h2>
-      <div class="ux-toolbar ux-toolbar--filters">
-        <div class="ux-field">
-          <label class="ux-label" for="sel-granja">Granja</label>
-          <div class="ux-select">
-            <select id="sel-granja" [ngModel]="selectedGranjaId" (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
+    <section class="ux-card filter-card" role="group" aria-labelledby="filtros-title">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <fa-icon [icon]="faFilter"></fa-icon>
+        </div>
+        <div>
+          <h2 id="filtros-title" class="filter-card__title">Selección de contexto</h2>
+          <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+        </div>
+      </div>
+
+      <div class="filter-steps">
+        <!-- Paso 1: Granja -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedGranjaId"
+          [class.filter-step--done]="!!selectedNucleoId">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-granja">Granja</label>
+            <select id="sel-granja" class="filter-step__select" [ngModel]="selectedGranjaId" (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
               <option [ngValue]="null">— Seleccione —</option>
               @for (g of granjas; track $index) {
                 <option [ngValue]="g.id">{{ g.name }}</option>
@@ -62,10 +72,18 @@
             </select>
           </div>
         </div>
-        <div class="ux-field">
-          <label class="ux-label" for="sel-nucleo">Núcleo</label>
-          <div class="ux-select">
-            <select id="sel-nucleo" [disabled]="!selectedGranjaId" [ngModel]="selectedNucleoId" (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGranjaId" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedNucleoId"
+          [class.filter-step--done]="!!selectedGalponId"
+          [class.filter-step--disabled]="!selectedGranjaId">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-nucleo">Núcleo</label>
+            <select id="sel-nucleo" class="filter-step__select" [disabled]="!selectedGranjaId" [ngModel]="selectedNucleoId" (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
               <option [ngValue]="null">— Seleccione —</option>
               @for (n of nucleos; track $index) {
                 <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
@@ -73,10 +91,18 @@
             </select>
           </div>
         </div>
-        <div class="ux-field">
-          <label class="ux-label" for="sel-galpon">Galpón</label>
-          <div class="ux-select">
-            <select id="sel-galpon" [disabled]="!selectedNucleoId" [ngModel]="selectedGalponId" (ngModelChange)="selectedGalponId = $event; onGalponChange()">
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+        <!-- Paso 3: Galpón -->
+        <div class="filter-step"
+          [class.filter-step--active]="!!selectedGalponId"
+          [class.filter-step--done]="!!selectedLoteId"
+          [class.filter-step--disabled]="!selectedNucleoId">
+          <div class="filter-step__num">3</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-galpon">Galpón</label>
+            <select id="sel-galpon" class="filter-step__select" [disabled]="!selectedNucleoId" [ngModel]="selectedGalponId" (ngModelChange)="selectedGalponId = $event; onGalponChange()">
               <option [ngValue]="null">— Seleccione —</option>
               @for (g of galpones; track $index) {
                 <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
@@ -84,10 +110,17 @@
             </select>
           </div>
         </div>
-        <div class="ux-field">
-          <label class="ux-label" for="sel-lote">Lote</label>
-          <div class="ux-select">
-            <select id="sel-lote" [disabled]="!selectedGalponId" [ngModel]="selectedLoteId" (ngModelChange)="selectedLoteId = $event; onLoteChange()">
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGalponId" aria-hidden="true"></div>
+
+        <!-- Paso 4: Lote -->
+        <div class="filter-step filter-step--last"
+          [class.filter-step--active]="!!selectedLoteId"
+          [class.filter-step--disabled]="!selectedGalponId">
+          <div class="filter-step__num filter-step__num--accent">4</div>
+          <div class="filter-step__body">
+            <label class="filter-step__label" for="sel-lote">Lote</label>
+            <select id="sel-lote" class="filter-step__select" [disabled]="!selectedGalponId" [ngModel]="selectedLoteId" (ngModelChange)="selectedLoteId = $event; onLoteChange()">
               <option [ngValue]="null">— Seleccione —</option>
               @for (l of lotes; track $index) {
                 <option [ngValue]="l.loteId">{{ l.loteNombre }}</option>
@@ -327,7 +360,7 @@
                 @if (detalleData?.fechaEncasetamiento) {
                   <div class="detail-item">
                     <span class="detail-label">Fecha Encasetamiento</span>
-                    <span class="detail-value">{{ $safeNavigationMigration(detalleData?.fechaEncasetamiento) | date:'dd/MM/yyyy' }}</span>
+                    <span class="detail-value">{{ detalleData?.fechaEncasetamiento | date:'dd/MM/yyyy' }}</span>
                   </div>
                 }
               </div>
@@ -371,7 +404,7 @@
                 @if (detalleData?.pesoMixto) {
                   <div class="detail-item">
                     <span class="detail-label">Peso Mixto (kg)</span>
-                    <span class="detail-value">{{ $safeNavigationMigration(detalleData?.pesoMixto) | number:'1.0-3' }}</span>
+                    <span class="detail-value">{{ detalleData?.pesoMixto | number:'1.0-3' }}</span>
                   </div>
                 }
               </div>

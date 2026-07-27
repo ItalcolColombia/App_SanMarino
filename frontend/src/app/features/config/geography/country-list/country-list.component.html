@@ -62,33 +62,44 @@
     </div>
 
     <!-- Search -->
-    <div class="ux-search mb-3 max-w-lg">
-      <fa-icon [icon]="faSearch" class="ux-search__icon" aria-hidden="true"></fa-icon>
+    <section class="ux-card filter-card mb-3">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          @if (activeTab==='countries') {
+            <input
+              [(ngModel)]="filterCountries"
+              type="text"
+              placeholder="Buscar país…"
+              class="filter-step__input" />
+          }
 
-      @if (activeTab==='countries') {
-        <input
-          [(ngModel)]="filterCountries"
-          type="text"
-          placeholder="Buscar país…"
-          class="ux-search__input" />
-      }
+          @if (activeTab==='departments') {
+            <input
+              [(ngModel)]="filterDepartments"
+              type="text"
+              placeholder="Buscar departamento o país…"
+              class="filter-step__input" />
+          }
 
-      @if (activeTab==='departments') {
-        <input
-          [(ngModel)]="filterDepartments"
-          type="text"
-          placeholder="Buscar departamento o país…"
-          class="ux-search__input" />
-      }
-
-      @if (activeTab==='cities') {
-        <input
-          [(ngModel)]="filterCities"
-          type="text"
-          placeholder="Buscar ciudad, departamento o país…"
-          class="ux-search__input" />
-      }
-    </div>
+          @if (activeTab==='cities') {
+            <input
+              [(ngModel)]="filterCities"
+              type="text"
+              placeholder="Buscar ciudad, departamento o país…"
+              class="filter-step__input" />
+          }
+        </div>
+      </div>
+    </section>
 
     <!-- Tables -->
     <div class="ux-card">

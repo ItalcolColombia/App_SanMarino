@@ -27,6 +27,12 @@ export interface Company {
   mobileAccess?: boolean;
   // Default GLOBAL de la empresa: ¿el alimento se maneja a nivel GALPÓN? (cada granja puede overridear)
   manejaAlimentoPorGalpon?: boolean;
+  /** Flag por empresa: maneja códigos ERP avícolas (bodega / C.O. / instalación / centro de costo). */
+  manejaCodigosErpAvicola?: boolean;
+  /** Flag por empresa: clasifica los huevos por ÍTEM del catálogo (Primera/Pnc) en vez de las 11 columnas fijas. */
+  clasificacionHuevoPorItems?: boolean;
+  /** Flag por empresa: permite trasladar aves entre etapas (Levante → Producción) registrando cohorte con la edad de origen. */
+  permiteTrasladoAvesCrossEtapa?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

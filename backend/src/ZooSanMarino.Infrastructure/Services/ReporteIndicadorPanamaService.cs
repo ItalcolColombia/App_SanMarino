@@ -17,11 +17,16 @@ public class ReporteIndicadorPanamaService : IReporteIndicadorPanamaService
 {
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
+    private readonly ILocationScopeResolver _scopeResolver;
 
-    public ReporteIndicadorPanamaService(ZooSanMarinoContext context, ICurrentUser currentUser)
+    public ReporteIndicadorPanamaService(
+        ZooSanMarinoContext context,
+        ICurrentUser currentUser,
+        ILocationScopeResolver scopeResolver)
     {
         _context = context;
         _currentUser = currentUser;
+        _scopeResolver = scopeResolver;
     }
 
     public async Task<int> GuardarLiquidacionAsync(GuardarLiquidacionPanamaRequest request, CancellationToken ct = default)
@@ -127,6 +132,18 @@ public class ReporteIndicadorPanamaService : IReporteIndicadorPanamaService
             query = query.Where(l => l.NucleoId != null && l.NucleoId.Trim() == nucleoId.Trim());
         if (!string.IsNullOrWhiteSpace(galponId))
             query = query.Where(l => l.GalponId != null && l.GalponId.Trim() == galponId.Trim());
+
+        // Alcance granular: en una granja restringida la corrida se acota a los galpones/núcleos
+        // visibles (engorde se gobierna por ubicación, no por la tabla lotes). Fail-closed.
+        var scope = await _scopeResolver.GetScopeAsync(granjaId);
+        if (!scope.IsGlobal)
+        {
+            var galponesVisibles = scope.GalponesVisibles.ToList();
+            var nucleosVisibles = scope.NucleosVisibles.ToList();
+            query = query.Where(l =>
+                (l.GalponId != null && l.GalponId != "" && galponesVisibles.Contains(l.GalponId))
+                || ((l.GalponId == null || l.GalponId == "") && l.NucleoId != null && nucleosVisibles.Contains(l.NucleoId)));
+        }
 
         var lotes = await query
             .OrderBy(l => l.GalponId).ThenBy(l => l.LoteAveEngordeId)

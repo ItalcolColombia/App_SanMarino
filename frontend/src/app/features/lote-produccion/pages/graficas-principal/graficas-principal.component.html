@@ -14,8 +14,8 @@
     <div class="grafica-card comparativo-guia-card">
       <div class="comparativo-controls">
         <span class="comparativo-titulo">📈 Comparativo con Guía Genética (Real vs Guía)</span>
-        <label class="comparativo-label">Métrica
-          <select [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
+        <label class="comparativo-label filter-step__label">Métrica
+          <select class="filter-step__select" [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
             <option value="consumo">Consumo (g/ave/día)</option>
             <option value="peso">Peso (kg)</option>
             <option value="produccion">% Producción</option>
@@ -24,8 +24,8 @@
           </select>
         </label>
         @if (metricaComparativa==='consumo' || metricaComparativa==='peso' || metricaComparativa==='mortalidad') {
-          <label class="comparativo-label">Grupo
-            <select [(ngModel)]="sexoComparativo" (ngModelChange)="construirComparativoGuia()">
+          <label class="comparativo-label filter-step__label">Grupo
+            <select class="filter-step__select" [(ngModel)]="sexoComparativo" (ngModelChange)="construirComparativoGuia()">
               <option value="H">Hembras</option>
               <option value="M">Machos</option>
             </select>
@@ -68,11 +68,21 @@
   @if (!loading && indicadoresSemanales.length > 0) {
     <div class="graficas-content-wrapper">
       <!-- ========== CONTROLES ========== -->
-      <div class="graficas-controls">
+      <section class="ux-card filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h3 class="filter-card__title">Parámetros de la gráfica</h3>
+            <p class="filter-card__subtitle">Ajusta el indicador, la visualización y las comparaciones del lote</p>
+          </div>
+        </div>
+        <div class="filter-fields">
         <!-- Selector de tipo de gráfica -->
-        <div class="control-group">
-          <label class="control-label">📈 Tipo de Indicador:</label>
-          <select class="control-select"
+        <div class="filter-field">
+          <label class="filter-step__label">📈 Tipo de Indicador:</label>
+          <select class="filter-step__select"
             [(ngModel)]="tipoGraficaSeleccionada"
             (ngModelChange)="onTipoGraficaChange()">
             <option value="huevos">Huevos</option>
@@ -83,8 +93,8 @@
           </select>
         </div>
         <!-- Selector de visualización -->
-        <div class="control-group">
-          <label class="control-label">🎨 Visualización:</label>
+        <div class="filter-field">
+          <label class="filter-step__label">🎨 Visualización:</label>
           <div class="visualization-toggle">
             <button type="button"
               class="toggle-btn"
@@ -107,7 +117,7 @@
           </div>
         </div>
         <!-- Selector comparativo -->
-        <div class="control-group control-group--comparativo">
+        <div class="filter-field control-group--comparativo">
           <label class="control-label">
             <input type="checkbox"
               [(ngModel)]="mostrarComparativo"
@@ -116,7 +126,7 @@
             </label>
             @if (mostrarComparativo) {
               <div class="comparativo-selectors">
-                <select class="control-select"
+                <select class="filter-step__select"
                   [(ngModel)]="semanaComparacion1"
                   (ngModelChange)="onSemanaComparacionChange()">
                   <option [ngValue]="null">Seleccione semana 1</option>
@@ -127,7 +137,7 @@
                   }
                 </select>
                 <span class="vs-badge">VS</span>
-                <select class="control-select"
+                <select class="filter-step__select"
                   [(ngModel)]="semanaComparacion2"
                   (ngModelChange)="onSemanaComparacionChange()">
                   <option [ngValue]="null">Seleccione semana 2</option>
@@ -141,6 +151,7 @@
             }
           </div>
         </div>
+      </section>
         <!-- ========== GRÁFICA PRINCIPAL ========== -->
         <div class="grafica-principal-section">
           <div class="grafica-card">

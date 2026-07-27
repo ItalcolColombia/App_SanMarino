@@ -229,6 +229,36 @@
             @if (isExpanded(ind.semana)) {
               <tr class="detalle-row">
                 <td colspan="999">
+                  <!-- Empresas que clasifican por ÍTEM del catálogo (flag clasificacion_huevo_por_items):
+                       las 11 columnas fijas están siempre en 0 → se reemplazan por Primera/Pnc. -->
+                  @if (clasificacionHuevoPorItems) {
+                    <div class="clasif-items">
+                      <strong>Clasificación por ítem (Primera / Pnc) — semana {{ ind.semana }}:</strong>
+                      @if (cargandoClasificacion) {
+                        <span class="clasif-items__nota">Cargando clasificación…</span>
+                      } @else if (errorClasificacion) {
+                        <span class="clasif-items__nota">No se pudo cargar la clasificación por ítem.</span>
+                      } @else {
+                        @if (getClasificacionSemana(ind.semana); as clasif) {
+                          <div class="clasif-items__grupos">
+                            @for (tipo of clasif.tipos; track tipo.tipoHuevo) {
+                              <div class="clasif-items__grupo">
+                                <span class="clasif-items__tipo">{{ tipo.tipoHuevo }}: {{ tipo.subtotal | number:'1.0-0' }}</span>
+                                <ul class="clasif-items__lista">
+                                  @for (item of tipo.items; track item.label) {
+                                    <li>{{ item.label }}: {{ item.cantidad | number:'1.0-0' }}</li>
+                                  }
+                                </ul>
+                              </div>
+                            }
+                          </div>
+                          <div class="clasif-items__total">Total semana: {{ clasif.total | number:'1.0-0' }}</div>
+                        } @else {
+                          <span class="clasif-items__nota">Sin clasificación registrada esta semana.</span>
+                        }
+                      }
+                    </div>
+                  } @else {
                   <div>
                     <strong>Clasificadora semana {{ ind.semana }}:</strong>
                     Limpio: {{ ind.huevosLimpios }} |
@@ -243,6 +273,7 @@
                     Desecho: {{ ind.huevosDesecho }} |
                     Otro: {{ ind.huevosOtro }}
                   </div>
+                  }
                 </td>
               </tr>
             }

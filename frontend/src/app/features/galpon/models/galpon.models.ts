@@ -13,6 +13,10 @@ export interface GalponDetailDto {
   largo?: string | null;
   tipoGalpon?: string | null;
 
+  /** Ubicación ERP del galpón (solo empresas con `manejaCodigosErpAvicola`). */
+  codigoErpUbicacion?: string | null;
+  descripcionErpUbicacion?: string | null;
+
   companyId: number;
   createdByUserId?: number | null;
   createdAt?: string | null;       // ISO
@@ -33,6 +37,10 @@ export interface CreateGalponDto {
   ancho?: string | null;
   largo?: string | null;
   tipoGalpon?: string | null;
+
+  /** Ubicación ERP del galpón (opcional; null cuando la empresa no maneja códigos ERP). */
+  codigoErpUbicacion?: string | null;
+  descripcionErpUbicacion?: string | null;
 }
 
 export interface UpdateGalponDto extends CreateGalponDto {}

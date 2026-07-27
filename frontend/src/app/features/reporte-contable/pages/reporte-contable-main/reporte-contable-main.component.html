@@ -86,194 +86,222 @@
       </div>
     </header>
 
-    <!-- Filtros de selección jerárquicos -->
-    <section class="ux-card">
+    <!-- Filtros: selección jerárquica + configuración del reporte
+         (diseño unificado «Selección de contexto» — clases globales de styles/filter-context.scss).
+         Solo cambia la presentación: bindings, condiciones de disabled y la exclusión mutua
+         semana contable ↔ rango de fechas quedan idénticas. -->
+    <section class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Selección de contexto</h3>
+          <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+        </div>
+      </div>
+
       @if (loadingFiltros()) {
-        <div class="loading-state">
+        <div class="loading-state" style="padding: 1.1rem 1.25rem;">
           <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon>
           <span>Cargando filtros...</span>
         </div>
       } @else {
-        <div class="ux-form">
-          <div class="grid grid-2">
-            <!-- Granja -->
-            <div class="form-field">
-              <label class="ux-label">Granja</label>
-              <div class="ux-select">
-                <select class="ux-input"
-                  [ngModel]="selectedGranjaId"
-                  (ngModelChange)="onGranjaChange($event)">
-                  <option [ngValue]="null">Selecciona una granja</option>
-                  @for (g of granjas; track g.granjaId) {
-                    <option [ngValue]="g.granjaId">{{ g.granjaNombre }}</option>
-                  }
-                </select>
+        <div class="filter-steps">
+          <!-- Paso 1: Granja -->
+          <div class="filter-step"
+            [class.filter-step--active]="!!selectedGranjaId"
+            [class.filter-step--done]="!!selectedNucleoId">
+            <div class="filter-step__num">1</div>
+            <div class="filter-step__body">
+              <label class="filter-step__label">Granja</label>
+              <select class="filter-step__select"
+                [ngModel]="selectedGranjaId"
+                (ngModelChange)="onGranjaChange($event)">
+                <option [ngValue]="null">Selecciona una granja</option>
+                @for (g of granjas; track g.granjaId) {
+                  <option [ngValue]="g.granjaId">{{ g.granjaNombre }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGranjaId" aria-hidden="true"></div>
+
+          <!-- Paso 2: Núcleo -->
+          <div class="filter-step"
+            [class.filter-step--active]="!!selectedNucleoId"
+            [class.filter-step--done]="!!selectedGalponId"
+            [class.filter-step--disabled]="!selectedGranjaId">
+            <div class="filter-step__num">2</div>
+            <div class="filter-step__body">
+              <label class="filter-step__label">Núcleo</label>
+              <select class="filter-step__select"
+                [ngModel]="selectedNucleoId"
+                (ngModelChange)="onNucleoChange($event)"
+                [disabled]="!selectedGranjaId">
+                <option [ngValue]="null">Todos los núcleos</option>
+                @for (n of nucleos; track n.nucleoId) {
+                  <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+          <!-- Paso 3: Galpón -->
+          <div class="filter-step"
+            [class.filter-step--active]="!!selectedGalponId"
+            [class.filter-step--done]="!!selectedLoteBaseId"
+            [class.filter-step--disabled]="!selectedGranjaId">
+            <div class="filter-step__num">3</div>
+            <div class="filter-step__body">
+              <label class="filter-step__label">Galpón</label>
+              <select class="filter-step__select"
+                [ngModel]="selectedGalponId"
+                (ngModelChange)="onGalponChange($event)"
+                [disabled]="!selectedGranjaId">
+                <option [ngValue]="null">Todos los galpones</option>
+                @for (g of galpones; track g.galponId) {
+                  <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGalponId" aria-hidden="true"></div>
+
+          <!-- Paso 4: Lote Base -->
+          <div class="filter-step filter-step--last"
+            [class.filter-step--active]="!!selectedLoteBaseId"
+            [class.filter-step--disabled]="!selectedGranjaId">
+            <div class="filter-step__num filter-step__num--accent">4</div>
+            <div class="filter-step__body">
+              <label class="filter-step__label">Lote Base</label>
+              <select class="filter-step__select"
+                [ngModel]="selectedLoteBaseId"
+                (ngModelChange)="onLoteBaseChange($event)"
+                [disabled]="!selectedGranjaId">
+                <option [ngValue]="null">Selecciona un lote base</option>
+                @for (l of lotesBase; track l.loteId) {
+                  <option [ngValue]="l.loteId">
+                    {{ l.loteNombre }}{{ l.codigoErp ? ' — ' + l.codigoErp : '' }}
+                  </option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fase del lote — requerida -->
+        @if (selectedLoteBaseId) {
+          <div class="filter-fields">
+            <div class="filter-field">
+              <label class="filter-step__label">
+                Fase del Lote <span style="color: var(--color-danger, #e53e3e);">*</span>
+              </label>
+              <select class="filter-step__select"
+                [ngModel]="faseDelLote"
+                (ngModelChange)="onFaseChange($event)">
+                <option [ngValue]="null">Selecciona la fase</option>
+                <option value="Levante">Levante</option>
+                <option value="Produccion">Producción</option>
+              </select>
+              <small class="ux-hint">
+                Levante: datos desde <strong>lote_postura_levante</strong> y <strong>seguimiento_diario</strong>.
+                Producción: datos desde <strong>produccion_diaria</strong>.
+              </small>
+            </div>
+          </div>
+        }
+      }
+
+      <!-- Filtros de Reporte -->
+      @if (selectedLoteBaseId && faseDelLote) {
+        <h3 class="sr-only">Configuración del Reporte Contable</h3>
+        <div class="filter-fields">
+          <!-- Selector de Semana Contable -->
+          <div class="filter-field">
+            <label class="filter-step__label">Semana Contable</label>
+            <select
+              class="filter-step__select"
+              [(ngModel)]="semanaContable"
+              (change)="onSemanaChange()"
+              [disabled]="!!(usarRangoFechas && (fechaInicio || fechaFin))">
+              <option [ngValue]="null">Todas las semanas</option>
+              @for (semana of semanasContablesDisponibles; track semana) {
+                <option [ngValue]="semana">
+                  Semana {{ semana }}
+                </option>
+              }
+            </select>
+            <small class="ux-hint">
+              La semana contable inicia cuando llega el primer lote/sublote y dura 7 días calendario.
+              @if (usarRangoFechas && (fechaInicio || fechaFin)) {
+                <span class="text-warning">(Desactive el rango de fechas para usar semana contable)</span>
+              }
+            </small>
+          </div>
+
+          <!-- Información del Lote Base -->
+          @if (selectedLoteBase) {
+            <div class="filter-field">
+              <label class="filter-step__label">Información del Lote Base</label>
+              <div class="info-display">
+                <p><strong>Lote:</strong> {{ selectedLoteBase.loteNombre }}</p>
+                @if (selectedLoteBase.codigoErp) {
+                  <p><strong>Código ERP:</strong> {{ selectedLoteBase.codigoErp }}</p>
+                }
               </div>
             </div>
+          }
 
-            <!-- Núcleo -->
-            <div class="form-field">
-              <label class="ux-label">Núcleo</label>
-              <div class="ux-select">
-                <select class="ux-input"
-                  [ngModel]="selectedNucleoId"
-                  (ngModelChange)="onNucleoChange($event)"
-                  [disabled]="!selectedGranjaId">
-                  <option [ngValue]="null">Todos los núcleos</option>
-                  @for (n of nucleos; track n.nucleoId) {
-                    <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                  }
-                </select>
-              </div>
-            </div>
+          <!-- Filtro por Rango de Fechas -->
+          <div class="filter-field">
+            <label class="filter-step__label">Fecha Inicio</label>
+            <input
+              type="date"
+              class="filter-step__input"
+              [(ngModel)]="fechaInicio"
+              (change)="onFechaInicioChange()"
+              [max]="fechaFin || ''"
+              [disabled]="semanaContable !== null">
+            <small class="ux-hint">
+              Fecha inicial del rango para generar el reporte semanal
+              @if (semanaContable !== null) {
+                <span class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
+              }
+            </small>
+          </div>
 
-            <!-- Galpón -->
-            <div class="form-field">
-              <label class="ux-label">Galpón</label>
-              <div class="ux-select">
-                <select class="ux-input"
-                  [ngModel]="selectedGalponId"
-                  (ngModelChange)="onGalponChange($event)"
-                  [disabled]="!selectedGranjaId">
-                  <option [ngValue]="null">Todos los galpones</option>
-                  @for (g of galpones; track g.galponId) {
-                    <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                  }
-                </select>
-              </div>
-            </div>
+          <div class="filter-field">
+            <label class="filter-step__label">Fecha Fin</label>
+            <input
+              type="date"
+              class="filter-step__input"
+              [(ngModel)]="fechaFin"
+              (change)="onFechaFinChange()"
+              [min]="fechaInicio || ''"
+              [disabled]="semanaContable !== null">
+            <small class="ux-hint">
+              Fecha final del rango para generar el reporte semanal
+              @if (semanaContable !== null) {
+                <span class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
+              }
+            </small>
+          </div>
 
-            <!-- Lote Base -->
-            <div class="form-field">
-              <label class="ux-label">Lote Base</label>
-              <div class="ux-select">
-                <select class="ux-input"
-                  [ngModel]="selectedLoteBaseId"
-                  (ngModelChange)="onLoteBaseChange($event)"
-                  [disabled]="!selectedGranjaId">
-                  <option [ngValue]="null">Selecciona un lote base</option>
-                  @for (l of lotesBase; track l.loteId) {
-                    <option [ngValue]="l.loteId">
-                      {{ l.loteNombre }}{{ l.codigoErp ? ' — ' + l.codigoErp : '' }}
-                    </option>
-                  }
-                </select>
-              </div>
-            </div>
-
-            <!-- Fase del lote — requerida -->
-            @if (selectedLoteBaseId) {
-              <div class="form-field">
-                <label class="ux-label">
-                  Fase del Lote <span style="color: var(--color-danger, #e53e3e);">*</span>
-                </label>
-                <div class="ux-select">
-                  <select class="ux-input"
-                    [ngModel]="faseDelLote"
-                    (ngModelChange)="onFaseChange($event)">
-                    <option [ngValue]="null">Selecciona la fase</option>
-                    <option value="Levante">Levante</option>
-                    <option value="Produccion">Producción</option>
-                  </select>
-                </div>
-                <small class="ux-hint">
-                  Levante: datos desde <strong>lote_postura_levante</strong> y <strong>seguimiento_diario</strong>.
-                  Producción: datos desde <strong>produccion_diaria</strong>.
-                </small>
-              </div>
-            }
+          <!-- Nota (ocupa toda la fila) -->
+          <div class="filter-field" style="flex: 1 0 100%;">
+            <small class="ux-hint">
+              <strong>Nota:</strong> Puede seleccionar una semana contable específica O un rango de fechas.
+              Si selecciona un rango de fechas, se generarán reportes semanales para todas las semanas que caigan dentro del rango.
+            </small>
           </div>
         </div>
       }
     </section>
-
-    <!-- Filtros de Reporte -->
-    @if (selectedLoteBaseId && faseDelLote) {
-      <section class="ux-card">
-        <h3 class="sr-only">Configuración del Reporte Contable</h3>
-        <div class="ux-form">
-          <div class="grid grid-2">
-            <!-- Selector de Semana Contable -->
-            <div class="form-field">
-              <label class="ux-label">Semana Contable</label>
-              <div class="ux-select">
-                <select
-                  class="ux-input"
-                  [(ngModel)]="semanaContable"
-                  (change)="onSemanaChange()"
-                  [disabled]="!!(usarRangoFechas && (fechaInicio || fechaFin))">
-                  <option [ngValue]="null">Todas las semanas</option>
-                  @for (semana of semanasContablesDisponibles; track semana) {
-                    <option [ngValue]="semana">
-                      Semana {{ semana }}
-                    </option>
-                  }
-                </select>
-              </div>
-              <small class="ux-hint">
-                La semana contable inicia cuando llega el primer lote/sublote y dura 7 días calendario.
-                @if (usarRangoFechas && (fechaInicio || fechaFin)) {
-                  <span class="text-warning">(Desactive el rango de fechas para usar semana contable)</span>
-                }
-              </small>
-            </div>
-            <!-- Información del Lote Base -->
-            @if (selectedLoteBase) {
-              <div class="form-field">
-                <label class="ux-label">Información del Lote Base</label>
-                <div class="info-display">
-                  <p><strong>Lote:</strong> {{ selectedLoteBase.loteNombre }}</p>
-                  @if (selectedLoteBase.codigoErp) {
-                    <p><strong>Código ERP:</strong> {{ selectedLoteBase.codigoErp }}</p>
-                  }
-                </div>
-              </div>
-            }
-          </div>
-          <!-- Filtro por Rango de Fechas -->
-          <div class="grid grid-2" style="margin-top: 1rem;">
-            <div class="form-field">
-              <label class="ux-label">Fecha Inicio</label>
-              <input
-                type="date"
-                class="ux-input"
-                [(ngModel)]="fechaInicio"
-                (change)="onFechaInicioChange()"
-                [max]="fechaFin || ''"
-                [disabled]="semanaContable !== null">
-                <small class="ux-hint">
-                  Fecha inicial del rango para generar el reporte semanal
-                  @if (semanaContable !== null) {
-                    <span class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
-                  }
-                </small>
-              </div>
-              <div class="form-field">
-                <label class="ux-label">Fecha Fin</label>
-                <input
-                  type="date"
-                  class="ux-input"
-                  [(ngModel)]="fechaFin"
-                  (change)="onFechaFinChange()"
-                  [min]="fechaInicio || ''"
-                  [disabled]="semanaContable !== null">
-                  <small class="ux-hint">
-                    Fecha final del rango para generar el reporte semanal
-                    @if (semanaContable !== null) {
-                      <span class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
-                    }
-                  </small>
-                </div>
-              </div>
-              <div class="form-field" style="margin-top: 0.5rem;">
-                <small class="ux-hint">
-                  <strong>Nota:</strong> Puede seleccionar una semana contable específica O un rango de fechas.
-                  Si selecciona un rango de fechas, se generarán reportes semanales para todas las semanas que caigan dentro del rango.
-                </small>
-              </div>
-            </div>
-          </section>
-        }
 
         <!-- Mensaje de Error -->
         @if (error) {

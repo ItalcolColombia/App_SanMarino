@@ -29,6 +29,10 @@ import {
   buildItemPersistFields
 } from '../../funciones/lote-levante-inventario.funcion';
 import { InventarioUbicacion } from '../../models/lote-levante-inventario.model';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
+import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
+import { permiteHuevosEnLevante, semanaVidaLevante, SEMANA_MINIMA_HUEVOS_LEVANTE } from '../../funciones/semana-vida-levante.funcion';
 
 @Component({
   selector: 'app-modal-create-edit',
@@ -60,9 +64,31 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   @Input() ctxReproductoraCode: string | null = null;
   /** Fecha sugerida para el campo fechaRegistro al abrir en modo crear (YYYY-MM-DD). */
   @Input() defaultFechaRegistro: string | null = null;
+  /**
+   * Fecha de encaset del lote seleccionado. Define la EDAD del lote y con ella si corresponde el
+   * tab «Huevos» (semana 14+). Sin este dato el tab no se muestra (fail-closed).
+   */
+  @Input() fechaEncaset: string | Date | null = null;
 
-  /** Pestañas: General (incluye consumos H/M y generales) / Stock. */
-  levanteTab: 'general' | 'stock' = 'general';
+  /** Pestañas: General (incluye consumos H/M y generales) / Huevos (semana 14+) / Stock. */
+  levanteTab: 'general' | 'stock' | 'huevos' = 'general';
+
+  // ── Huevos en levante (semana 14+, flag companies.captura_huevos_en_levante) ──
+  /** Flag de empresa. Fail-closed: arranca apagado y sólo se prende si el backend lo confirma. */
+  capturaHuevosEnLevante = false;
+  /**
+   * ¿Se muestra el tab «Huevos»? = flag de empresa Y el registro cae en la semana 14 o posterior.
+   * Es una PROPIEDAD memoizada (no un getter) para no recalcular en cada ciclo de change detection.
+   */
+  mostrarTabHuevos = false;
+  /** Semana de vida del lote en la fecha del registro (para el texto de ayuda del tab). */
+  semanaVidaRegistro: number | null = null;
+  /** Totales memoizados de la clasificadora (readonly en el formulario). */
+  totalHuevos = 0;
+  incubablesHuevos = 0;
+  eficienciaHuevos = 0;
+  /** Semana mínima, para el template. */
+  readonly semanaMinimaHuevos = SEMANA_MINIMA_HUEVOS_LEVANTE;
 
   /** Listado detalle stock Inventario de productos (Ecuador/Panamá) — misma consulta que ítems Hembras/Machos. */
   stockListadoEcuador: InventarioGestionStockDto[] = [];
@@ -134,6 +160,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * (ítem migrado → catalogItemId camino-1; ítem nuevo sin espejo → itemInventarioEcuadorId camino-2). */
   private catalogItemIdPorCodigo = new Map<string, number>();
   private sessionSubscription?: Subscription;
+  private flagsSubscription?: Subscription;
+  private fechaHuevosSubscription?: Subscription;
+  private huevosSubscription?: Subscription;
 
   constructor(private toast: ToastService, 
     private fb: FormBuilder,
@@ -141,7 +170,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     private inventarioSvc: InventarioService,
     private gestionInventarioSvc: GestionInventarioService,
     private countryFilter: CountryFilterService,
-    private storage: TokenStorageService
+    private storage: TokenStorageService,
+    private companyConfig: ActiveCompanyConfigService
   ) { }
 
   /** Opciones de "Tipo de ítem": en Ecuador/Panamá son los conceptos de item_inventario_ecuador; si no, la lista fija. */
@@ -172,7 +202,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     );
   }
 
-  setLevanteTab(tab: 'general' | 'stock'): void {
+  setLevanteTab(tab: 'general' | 'stock' | 'huevos'): void {
+    if (tab === 'huevos' && !this.mostrarTabHuevos) return;
     this.levanteTab = tab;
     if (tab === 'stock') this.refrescarStockListado();
   }
@@ -241,10 +272,48 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.sessionSubscription = this.storage.session$.subscribe(() => {
       this.updateEcuadorOrPanamaStatus();
     });
+
+    // Flag de empresa (llega async; fail-closed mientras no responda).
+    this.flagsSubscription = this.companyConfig.getFlags().subscribe(flags => {
+      if (this.capturaHuevosEnLevante === flags.capturaHuevosEnLevante) return;
+      this.capturaHuevosEnLevante = flags.capturaHuevosEnLevante;
+      this.recalcularVisibilidadHuevos();
+    });
+
+    // La visibilidad del tab depende de la FECHA DEL REGISTRO (no de "hoy"): si el usuario mueve la
+    // fecha a una semana anterior a la 14, el tab desaparece.
+    this.fechaHuevosSubscription = this.form.get('fechaRegistro')?.valueChanges.subscribe(() => {
+      this.recalcularVisibilidadHuevos();
+    });
   }
 
   ngOnDestroy(): void {
     this.sessionSubscription?.unsubscribe();
+    this.flagsSubscription?.unsubscribe();
+    this.fechaHuevosSubscription?.unsubscribe();
+    this.huevosSubscription?.unsubscribe();
+  }
+
+  /**
+   * Recalcula si corresponde el tab «Huevos» y, si dejó de corresponder, vuelve a «General» para no
+   * quedar parado en un tab que ya no existe.
+   */
+  private recalcularVisibilidadHuevos(): void {
+    const fechaRegistro = this.form?.get('fechaRegistro')?.value ?? null;
+    this.semanaVidaRegistro = semanaVidaLevante(this.fechaEncaset, fechaRegistro);
+    this.mostrarTabHuevos =
+      this.capturaHuevosEnLevante && permiteHuevosEnLevante(this.fechaEncaset, fechaRegistro);
+
+    if (!this.mostrarTabHuevos && this.levanteTab === 'huevos') this.levanteTab = 'general';
+  }
+
+  /** Totales de la clasificadora (memoizados; el template lee las propiedades, no un getter). */
+  private recalcularTotalesHuevos(): void {
+    const valores = this.form.getRawValue();
+    const totales = totalesHuevosLevante(valores);
+    this.totalHuevos = totales.totales;
+    this.incubablesHuevos = totales.incubables;
+    this.eficienciaHuevos = eficienciaHuevosLevante(totales);
   }
 
   private updateEcuadorOrPanamaStatus(): void {
@@ -273,6 +342,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     } else {
       this.resetForm();
     }
+
+    // La fecha del registro y la fecha de encaset ya están resueltas ⇒ decidir el tab «Huevos».
+    this.recalcularVisibilidadHuevos();
+    this.recalcularTotalesHuevos();
   }
 
   // ================== FORMULARIO ==================
@@ -304,7 +377,29 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       consumoAguaPh: [null, [Validators.min(0)]],
       consumoAguaOrp: [null, [Validators.min(0)]],
       consumoAguaTemperatura: [null, [Validators.min(0)]],
+      // Clasificadora de huevos (tab «Huevos», semana 14+). SIN Validators.required: un registro de
+      // semana < 14 no tiene por qué quedar inválido por estos campos.
+      huevoLimpio: [0, [Validators.min(0)]],
+      huevoTratado: [0, [Validators.min(0)]],
+      huevoSucio: [0, [Validators.min(0)]],
+      huevoDeforme: [0, [Validators.min(0)]],
+      huevoBlanco: [0, [Validators.min(0)]],
+      huevoDobleYema: [0, [Validators.min(0)]],
+      huevoPiso: [0, [Validators.min(0)]],
+      huevoPequeno: [0, [Validators.min(0)]],
+      huevoRoto: [0, [Validators.min(0)]],
+      huevoDesecho: [0, [Validators.min(0)]],
+      huevoOtro: [0, [Validators.min(0)]],
+      pesoHuevo: [null, [Validators.min(0)]],
     });
+
+    // Totales de huevos: readonly en la UI, recalculados desde las 11 categorías.
+    this.huevosSubscription = new Subscription();
+    CLASIFICADORA_HUEVO_KEYS.forEach(k => {
+      const sub = this.form.get(k)?.valueChanges.subscribe(() => this.recalcularTotalesHuevos());
+      if (sub) this.huevosSubscription!.add(sub);
+    });
+    this.recalcularTotalesHuevos();
 
     // Ya no necesitamos suscripciones individuales, los ítems se manejan en el FormArray
 
@@ -378,6 +473,18 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.form.reset({
       fechaRegistro: this.defaultFechaRegistro ?? this.todayYMD(),
       loteId: this.selectedLoteId,
+      huevoLimpio: 0,
+      huevoTratado: 0,
+      huevoSucio: 0,
+      huevoDeforme: 0,
+      huevoBlanco: 0,
+      huevoDobleYema: 0,
+      huevoPiso: 0,
+      huevoPequeno: 0,
+      huevoRoto: 0,
+      huevoDesecho: 0,
+      huevoOtro: 0,
+      pesoHuevo: null,
       mortalidadHembras: 0,
       mortalidadMachos: 0,
       selH: 0,
@@ -979,6 +1086,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       consumoAguaPh: this.editing.consumoAguaPh ?? null,
       consumoAguaOrp: this.editing.consumoAguaOrp ?? null,
       consumoAguaTemperatura: this.editing.consumoAguaTemperatura ?? null,
+      // Clasificadora de huevos (rehidratación del tab «Huevos» al editar)
+      huevoLimpio: this.editing.huevoLimpio ?? 0,
+      huevoTratado: this.editing.huevoTratado ?? 0,
+      huevoSucio: this.editing.huevoSucio ?? 0,
+      huevoDeforme: this.editing.huevoDeforme ?? 0,
+      huevoBlanco: this.editing.huevoBlanco ?? 0,
+      huevoDobleYema: this.editing.huevoDobleYema ?? 0,
+      huevoPiso: this.editing.huevoPiso ?? 0,
+      huevoPequeno: this.editing.huevoPequeno ?? 0,
+      huevoRoto: this.editing.huevoRoto ?? 0,
+      huevoDesecho: this.editing.huevoDesecho ?? 0,
+      huevoOtro: this.editing.huevoOtro ?? 0,
+      pesoHuevo: this.editing.pesoHuevo ?? null,
     });
 
     // Si hay alimento seleccionado, necesitamos cargar el catálogo primero para obtener el tipo de ítem
@@ -1008,6 +1128,42 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     // Lote fijo del contexto (no editable)
     this.lockLoteField();
     this.applyEditModeFieldLocks();
+  }
+
+  /**
+   * Parte del payload correspondiente al tab «Huevos».
+   * - Tab visible  → las 11 categorías + el peso (los totales los recalcula el backend).
+   * - Tab oculto   → todo null: el backend lo interpreta como "no tocar los huevos", así que un
+   *   registro de semana < 14 (o de una empresa sin el flag) se comporta exactamente como antes.
+   */
+  private construirPayloadHuevos(raw: any): Record<string, number | null> {
+    if (!this.mostrarTabHuevos) {
+      return {
+        huevoLimpio: null, huevoTratado: null, huevoSucio: null, huevoDeforme: null,
+        huevoBlanco: null, huevoDobleYema: null, huevoPiso: null, huevoPequeno: null,
+        huevoRoto: null, huevoDesecho: null, huevoOtro: null, pesoHuevo: null
+      };
+    }
+
+    const num = (v: unknown): number => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+
+    return {
+      huevoLimpio: num(raw.huevoLimpio),
+      huevoTratado: num(raw.huevoTratado),
+      huevoSucio: num(raw.huevoSucio),
+      huevoDeforme: num(raw.huevoDeforme),
+      huevoBlanco: num(raw.huevoBlanco),
+      huevoDobleYema: num(raw.huevoDobleYema),
+      huevoPiso: num(raw.huevoPiso),
+      huevoPequeno: num(raw.huevoPequeno),
+      huevoRoto: num(raw.huevoRoto),
+      huevoDesecho: num(raw.huevoDesecho),
+      huevoOtro: num(raw.huevoOtro),
+      pesoHuevo: this.toNumOrNull(raw.pesoHuevo)
+    };
   }
 
   private setAllFormControlsEnabled(enabled: boolean): void {
@@ -2055,6 +2211,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       consumoAguaPh: this.toNumOrNull(raw.consumoAguaPh),
       consumoAguaOrp: this.toNumOrNull(raw.consumoAguaOrp),
       consumoAguaTemperatura: this.toNumOrNull(raw.consumoAguaTemperatura),
+      // Clasificadora de huevos (semana 14+). Cuando el tab no corresponde se mandan null para no
+      // tocar los huevos del registro (el backend trata null como "conservar"/"ignorar").
+      ...this.construirPayloadHuevos(raw),
       // Usuario en sesión y tipo para el servicio unificado seguimiento_diario
       createdByUserId: this.storage.get()?.user?.id ?? null,
       tipoSeguimiento: 'levante',

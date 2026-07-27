@@ -51,6 +51,17 @@ public class GalponConfiguration : IEntityTypeConfiguration<Galpon>
             .HasColumnName("tipo_galpon")
             .HasMaxLength(50);
 
+        // Códigos ERP avícolas del galpón (empresas con maneja_codigos_erp_avicola = true)
+        b.Property(x => x.CodigoErpUbicacion)
+            .HasColumnName("codigo_erp_ubicacion")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        b.Property(x => x.DescripcionErpUbicacion)
+            .HasColumnName("descripcion_erp_ubicacion")
+            .HasMaxLength(200)
+            .IsRequired(false);
+
         // (Opcional) Auditoría si tu entidad hereda de AuditableEntity
         // b.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
         // b.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamp with time zone");

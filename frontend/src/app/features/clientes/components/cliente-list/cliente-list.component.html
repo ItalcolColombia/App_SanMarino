@@ -28,55 +28,79 @@
   </div>
 
   <!-- ══ SEARCH & FILTERS ═════════════════════════════════════════════════ -->
-  <div class="search-section">
-    <div class="search-container">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input
-        type="text"
-        [ngModel]="filtro()"
-        (ngModelChange)="filtro.set($event)"
-        placeholder="Buscar por nombre, identificación o correo..."
-        class="search-input"
-        aria-label="Buscar clientes"
-      />
+  <section class="ux-card filter-card">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h3 class="filter-card__title">Filtros</h3>
+        <p class="filter-card__subtitle">Acota la información mostrada</p>
+      </div>
     </div>
 
-    <div class="filters-row">
-      <select
-        [ngModel]="filterTipoCliente()"
-        (ngModelChange)="filterTipoCliente.set($event)"
-        class="filter-select"
-        aria-label="Filtrar por tipo de cliente"
-      >
-        <option value="">Todos los tipos</option>
-        @for (tipo of tiposCliente; track tipo) {
-          <option [value]="tipo">{{ tipo }}</option>
-        }
-      </select>
+    <div class="filter-fields">
+      <div class="filter-field">
+        <label for="clienteFiltroBusqueda" class="filter-step__label">Buscar</label>
+        <div class="search-container">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            id="clienteFiltroBusqueda"
+            type="text"
+            [ngModel]="filtro()"
+            (ngModelChange)="filtro.set($event)"
+            placeholder="Buscar por nombre, identificación o correo..."
+            class="search-input filter-step__input"
+            aria-label="Buscar clientes"
+          />
+        </div>
+      </div>
 
-      <input
-        type="text"
-        [ngModel]="filterPais()"
-        (ngModelChange)="filterPais.set($event)"
-        placeholder="País..."
-        class="filter-input"
-        aria-label="Filtrar por país"
-      />
+      <div class="filter-field">
+        <label for="clienteFiltroTipo" class="filter-step__label">Tipo</label>
+        <select
+          id="clienteFiltroTipo"
+          [ngModel]="filterTipoCliente()"
+          (ngModelChange)="filterTipoCliente.set($event)"
+          class="filter-step__select"
+          aria-label="Filtrar por tipo de cliente"
+        >
+          <option value="">Todos los tipos</option>
+          @for (tipo of tiposCliente; track tipo) {
+            <option [value]="tipo">{{ tipo }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="clienteFiltroPais" class="filter-step__label">País</label>
+        <input
+          id="clienteFiltroPais"
+          type="text"
+          [ngModel]="filterPais()"
+          (ngModelChange)="filterPais.set($event)"
+          placeholder="País..."
+          class="filter-step__input"
+          aria-label="Filtrar por país"
+        />
+      </div>
 
       @if (hasActiveFilters()) {
-        <button class="btn-clear" (click)="clearFilters()" title="Limpiar filtros">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-          Limpiar
-        </button>
+        <div class="filter-card__actions">
+          <button class="btn-clear" (click)="clearFilters()" title="Limpiar filtros">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            Limpiar
+          </button>
+        </div>
       }
     </div>
-  </div>
+  </section>
 
   <!-- ══ TABLE WRAPPER ═══════════════════════════════════════════════════ -->
   <div class="table-wrapper">

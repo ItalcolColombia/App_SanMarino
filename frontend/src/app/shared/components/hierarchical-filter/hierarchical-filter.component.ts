@@ -38,9 +38,18 @@ export class HierarchicalFilterComponent implements OnInit {
   @Input() showChips = true;
   @Input() showSeguimientosCount = false;
   @Input() seguimientosCount?: number;
+  /** true = instancia usada para elegir DESTINO de traslados: los catálogos se piden con
+   *  paraDestino=true (omiten el alcance granular núcleo/galpón/lote del usuario). */
+  @Input() paraDestino = false;
   @Output() filterChange = new EventEmitter<HierarchicalFilterCriteria>();
   @Output() loteSelected = new EventEmitter<LoteDto | null>();
   @Output() stateChange = new EventEmitter<HierarchicalFilterState>();
+
+  // Prefijo único por instancia para los id/for de los campos: el filtro se monta
+  // DOS veces en la misma página (traslado-form e inventario-dashboard), así que
+  // los id no pueden ser fijos o se rompería la asociación label ↔ control.
+  private static instanceSeq = 0;
+  readonly uid = `hf-${++HierarchicalFilterComponent.instanceSeq}`;
 
   // Signals para estado reactivo
   loading = signal<boolean>(false);
@@ -200,13 +209,13 @@ export class HierarchicalFilterComponent implements OnInit {
     this.error.set(null);
 
     try {
-      // Cargar datos en paralelo
+      // Cargar datos en paralelo (instancias de DESTINO piden catálogos con paraDestino=true)
       const [companies, farms, nucleos, galpones, lotes] = await Promise.all([
         this.companyService.getAll().toPromise(),
         this.farmService.getAll().toPromise(),
-        this.nucleoService.getAll().toPromise(),
-        this.galponService.getAll().toPromise(),
-        this.loteService.getAll().toPromise()
+        (this.paraDestino ? this.nucleoService.getAllParaDestino() : this.nucleoService.getAll()).toPromise(),
+        this.galponService.getAll(this.paraDestino).toPromise(),
+        this.loteService.getAll(undefined, this.paraDestino).toPromise()
       ]);
 
       this.companies.set(companies || []);

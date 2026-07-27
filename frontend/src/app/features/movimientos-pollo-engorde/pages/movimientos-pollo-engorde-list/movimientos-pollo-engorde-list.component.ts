@@ -9,7 +9,8 @@ import {
   ResumenAvesLoteDto,
   AuditoriaVentasEngordeResponse,
   CorregirVentasCompletadasResponse,
-  OrganizarPesoResponse
+  OrganizarPesoResponse,
+  RegistrarPesoFacturaResponse
 } from '../../services/movimiento-pollo-engorde.service';
 import { FarmDto } from '../../../farm/services/farm.service';
 import { NucleoDto } from '../../../lote-produccion/services/nucleo.service';
@@ -33,7 +34,9 @@ import { construirFilasTabla } from '../../funciones/agrupar-despachos.funcion';
 import { exportarVentasExcel } from '../../funciones/exportar-ventas-excel.funcion';
 import { formatearNumero as fmtNumero, fechaCorta as fmtFecha } from '../../funciones/formato.funcion';
 import { ModalVentaPanamaComponent } from '../../components/modal-venta-panama/modal-venta-panama.component';
+import { ModalRegistroPesoComponent } from '../../components/modal-registro-peso/modal-registro-peso.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 
 // Tipos movidos a models/; se re-exportan para no romper imports externos previos.
 export type { LoteOption, FilaDespachoGrupo, FilaMovimientoSimple, FilaTablaMovimiento };
@@ -47,6 +50,7 @@ export type { LoteOption, FilaDespachoGrupo, FilaMovimientoSimple, FilaTablaMovi
     AuditoriaVentasModalComponent,
     ModalMovimientoPolloEngordeComponent,
     ModalVentaPanamaComponent,
+    ModalRegistroPesoComponent,
     HasPermissionDirective
 ],
   templateUrl: './movimientos-pollo-engorde-list.component.html',
@@ -96,6 +100,15 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   modalOpen = false;
   /** Modal de venta Panamá (solo visible/operable si el usuario activo es de Panamá). */
   modalPanamaOpen = false;
+  /**
+   * Empresa con báscula diferida (`venta_engorde_peso_diferido`): la venta se registra sin peso y
+   * el peso se carga al confirmarla. Fail-closed: arranca apagado.
+   */
+  pesoDiferido = false;
+  /** Modal de registro de peso del despacho (se abre al confirmar una venta sin peso). */
+  modalPesoOpen = false;
+  /** Líneas del despacho cuyo peso se está cargando (todas comparten facturaId). */
+  movimientosParaPeso: MovimientoPolloEngordeDto[] = [];
   /** Sin lote seleccionado: venta desde granja (varios galpones/lotes en un despacho). */
   ventaPorGranjaMode = false;
   editingMovimiento: MovimientoPolloEngordeDto | null = null;
@@ -178,7 +191,8 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     private loteEngordeSvc: LoteEngordeService,
     private movimientoSvc: MovimientoPolloEngordeService,
     private toastService: ToastService,
-    private countryFilter: CountryFilterService
+    private countryFilter: CountryFilterService,
+    private companyConfig: ActiveCompanyConfigService
   ) {}
 
   auditarVentas(dryRun: boolean, aplicarCorreccion: boolean): void {
@@ -340,6 +354,12 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Fail-closed: si el flag no resuelve, el peso sigue siendo obligatorio al vender y el
+    // confirmar se comporta como siempre.
+    this.companyConfig.ventaEngordePesoDiferido().subscribe({
+      next: (activo) => (this.pesoDiferido = activo),
+      error: () => (this.pesoDiferido = false)
+    });
     this.filteredMovimientos = [];
     this.loading = true;
     this.movimientoSvc
@@ -786,6 +806,13 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
   completarMovimiento(m: MovimientoPolloEngordeDto): void {
     if (m.estado !== 'Pendiente') return;
+    // Báscula diferida: confirmar una venta sin peso es cargar el peso. Se abre el modal de
+    // registro, que guarda el peso y completa el despacho en una sola transacción.
+    const grupo = this.lineasDelDespacho(m);
+    if (this.requierePesoAntesDeConfirmar(grupo)) {
+      this.abrirRegistroPeso(grupo);
+      return;
+    }
     this.movimientoToCompleteGroup = null;
     this.movimientoToComplete = m;
     this.confirmationModalData = {
@@ -1058,6 +1085,60 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     return movs.filter((m) => m.estado === 'Pendiente');
   }
 
+  // ── Registro de peso del despacho (báscula diferida) ─────────────────────────────────────
+
+  /** ¿El despacho todavía no tiene peso de báscula? (el peso es el del camión, común a las líneas). */
+  despachoSinPeso(movs: MovimientoPolloEngordeDto[]): boolean {
+    return movs.length > 0 && movs.every((m) => m.pesoBruto == null && m.pesoBrutoGlobal == null);
+  }
+
+  /**
+   * Confirmar exige cargar el peso primero cuando la empresa tiene báscula diferida, el despacho
+   * está identificado (facturaId) y todavía no tiene peso. Sin facturaId no se puede prorratear,
+   * así que se deja el camino clásico.
+   */
+  requierePesoAntesDeConfirmar(movs: MovimientoPolloEngordeDto[]): boolean {
+    return this.pesoDiferido && !!movs[0]?.facturaId && this.despachoSinPeso(movs);
+  }
+
+  /** ¿Mostrar la acción «registrar/corregir peso» para esta fila? */
+  puedeRegistrarPeso(movs: MovimientoPolloEngordeDto[]): boolean {
+    return this.pesoDiferido && !!movs[0]?.facturaId && movs.some((m) => m.estado !== 'Cancelado');
+  }
+
+  /** Todas las líneas vivas del despacho al que pertenece el movimiento (o él solo si no hay factura). */
+  private lineasDelDespacho(m: MovimientoPolloEngordeDto): MovimientoPolloEngordeDto[] {
+    if (!m.facturaId) return [m];
+    const hermanas = this.filteredMovimientos.filter(
+      (x) => x.facturaId === m.facturaId && x.estado !== 'Cancelado'
+    );
+    return hermanas.length ? hermanas : [m];
+  }
+
+  abrirRegistroPeso(movs: MovimientoPolloEngordeDto[]): void {
+    const vivos = movs.filter((m) => m.estado !== 'Cancelado');
+    if (vivos.length === 0) return;
+    this.movimientosParaPeso = vivos;
+    this.modalPesoOpen = true;
+  }
+
+  /** Abre el registro de peso desde una fila simple de la tabla. */
+  registrarPesoMovimiento(m: MovimientoPolloEngordeDto): void {
+    this.abrirRegistroPeso(this.lineasDelDespacho(m));
+  }
+
+  cerrarRegistroPeso(): void {
+    this.modalPesoOpen = false;
+    this.movimientosParaPeso = [];
+  }
+
+  onPesoRegistrado(res: RegistrarPesoFacturaResponse): void {
+    this.toastService.success(res.mensaje);
+    this.cerrarRegistroPeso();
+    this.loadMovimientos();
+    this.refreshResumenIfLoteSelected();
+  }
+
   puedeCompletarGrupo(movs: MovimientoPolloEngordeDto[]): boolean {
     return movs.some((m) => m.estado === 'Pendiente');
   }
@@ -1069,6 +1150,10 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   completarGrupoDespacho(fila: FilaDespachoGrupo): void {
     const pend = this.pendientesEnGrupo(fila.movimientos);
     if (pend.length === 0) return;
+    if (this.requierePesoAntesDeConfirmar(fila.movimientos)) {
+      this.abrirRegistroPeso(fila.movimientos);
+      return;
+    }
     this.movimientoToComplete = null;
     this.movimientoToCompleteGroup = pend;
     const total = pend.reduce((s, m) => s + m.totalAves, 0);

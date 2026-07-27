@@ -115,28 +115,19 @@
   color: var(--warm-500) !important;
 }
 
-/* ========== CONTROLES ========== */
-.graficas-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--warm-50);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  margin-bottom: var(--space-6);
-}
-
-.control-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  flex: 1;
-  min-width: 200px;
-}
-
+/* ========== CONTROLES ==========
+   Contenedor (.filter-card) y grid de campos (.filter-fields/.filter-field)
+   vienen del diseño unificado global (styles/filter-context.scss).
+   .control-label se conserva: lo usa el checkbox-label "Comparar Semanas"
+   (radios/checkboxes conservan su propio markup). */
 .control-group--comparativo {
-  min-width: 100%;
+  /* Fuerza fila completa dentro de .filter-fields (equivalente al viejo
+     min-width:100%), con especificidad suficiente para ganarle a
+     .filter-card .filter-field del global. */
+  &.filter-field {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
 }
 
 .control-label {
@@ -146,27 +137,6 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.control-select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-sm);
-  color: var(--text);
-  background: var(--white);
-  cursor: pointer;
-  transition: all var(--t-fast);
-}
-
-.control-select:hover {
-  border-color: var(--brand-red);
-}
-
-.control-select:focus {
-  outline: none;
-  border-color: var(--brand-red);
-  box-shadow: var(--ring);
 }
 
 .visualization-toggle {
@@ -470,14 +440,6 @@
     grid-template-columns: 1fr;
   }
 
-  .graficas-controls {
-    flex-direction: column;
-  }
-
-  .control-group {
-    min-width: 100%;
-  }
-
   .comparativo-selectors {
     flex-direction: column;
     align-items: stretch;
@@ -508,10 +470,6 @@
 
   .chart-container--small {
     height: 180px;
-  }
-
-  .graficas-controls {
-    padding: var(--space-3);
   }
 
   .visualization-toggle {

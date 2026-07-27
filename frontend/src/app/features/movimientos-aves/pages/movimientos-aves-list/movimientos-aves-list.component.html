@@ -43,8 +43,9 @@
       </div>
     </header>
 
-    <!-- ── Filtro cascade ── -->
+    <!-- ── Filtro cascade (variante pasos numerados) ── -->
     <app-filtro-select
+      [variant]="'steps'"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
@@ -111,34 +112,44 @@
         </div>
         <!-- Filtros -->
         <div class="ux-card__filters">
-          <div class="filters-grid">
-            <div class="filter-group filter-group--search">
-              <label class="filter-label" for="filtroBusqueda">Buscar</label>
-              <input type="text" id="filtroBusqueda"
-                [(ngModel)]="filtroBusqueda" (ngModelChange)="onFiltroChange()"
-                placeholder="N° mov., destino, motivo…"
-                class="filter-input">
+          <section class="filter-card filter-card--compact" aria-label="Filtros de la tabla">
+            <div class="filter-card__header">
+              <div class="filter-card__header-icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
               </div>
-              <div class="filter-group">
-                <label class="filter-label" for="filtroTipo">Tipo</label>
+              <div>
+                <h3 class="filter-card__title">Filtros</h3>
+                <p class="filter-card__subtitle">Acota la información mostrada</p>
+              </div>
+            </div>
+            <div class="filter-fields">
+              <div class="filter-field">
+                <label class="filter-step__label" for="filtroBusqueda">Buscar</label>
+                <input type="text" id="filtroBusqueda"
+                  [(ngModel)]="filtroBusqueda" (ngModelChange)="onFiltroChange()"
+                  placeholder="N° mov., destino, motivo…"
+                  class="filter-step__input">
+              </div>
+              <div class="filter-field">
+                <label class="filter-step__label" for="filtroTipo">Tipo</label>
                 <select id="filtroTipo" [(ngModel)]="filtroTipoMovimiento"
-                  (ngModelChange)="onFiltroChange()" class="filter-select">
+                  (ngModelChange)="onFiltroChange()" class="filter-step__select">
                   <option value="">Todos</option>
                   <option value="Venta">Venta</option>
                   <option value="Traslado">Traslado</option>
                 </select>
               </div>
-              <div class="filter-group">
-                <label class="filter-label" for="filtroEstado">Estado</label>
+              <div class="filter-field">
+                <label class="filter-step__label" for="filtroEstado">Estado</label>
                 <select id="filtroEstado" [(ngModel)]="filtroEstado"
-                  (ngModelChange)="onFiltroChange()" class="filter-select">
+                  (ngModelChange)="onFiltroChange()" class="filter-step__select">
                   <option value="">Todos</option>
                   <option value="Pendiente">Pendiente</option>
                   <option value="Completado">Completado</option>
                   <option value="Cancelado">Cancelado</option>
                 </select>
               </div>
-              <div class="filter-group filter-group--clear">
+              <div class="filter-card__actions">
                 <button type="button" class="btn btn--ghost btn--sm"
                   (click)="limpiarFiltros()"
                   [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
@@ -146,8 +157,9 @@
                 </button>
               </div>
             </div>
-          </div>
-          <div class="ux-card__body">
+          </section>
+        </div>
+        <div class="ux-card__body">
             <!-- Loading -->
             @if (loading) {
               <div class="loading-state">

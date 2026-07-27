@@ -1,4 +1,8 @@
 -- backfill_lote_postura_produccion_lote_id.sql
+-- ⚠️ SUPERSEDIDO (2026-07-26): este backfill ya viaja como migración EF
+--    20260726052546_BackfillLoteIdLotePosturaProduccion (se aplica sola en el deploy) con
+--    predicados endurecidos (lev.lote_id > 0 y misma empresa). NO ejecutar este script a mano;
+--    queda solo como referencia histórica del incidente.
 -- Contexto: los lotes de producción (lote_postura_produccion) se crean SOLO al cerrar un lote de
 -- levante (LotePosturaLevanteService.CerrarLoteYCrearProduccionAsync -> CrearLoteProduccion).
 -- Ese método omitía copiar LoteId/LotePadreId del levante, dejando lote_id = NULL. Al guardar un
@@ -40,8 +44,9 @@ SET lote_id       = lev.lote_id,
     lote_padre_id = COALESCE(p.lote_padre_id, lev.lote_padre_id)
 FROM public.lote_postura_levante lev
 WHERE p.lote_postura_levante_id = lev.lote_postura_levante_id
+  AND lev.company_id = p.company_id
   AND (p.lote_id IS NULL OR p.lote_id <= 0)
-  AND lev.lote_id IS NOT NULL;
+  AND lev.lote_id IS NOT NULL AND lev.lote_id > 0;
 
 COMMIT;
 

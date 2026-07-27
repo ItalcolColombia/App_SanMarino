@@ -31,5 +31,9 @@ public record LoteDto(
     int?      EdadInicial,
     string?   LoteErp,  // ← NUEVO: Código ERP del lote
 
-    string?   Tecnico
+    string?   Tecnico,
+
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    string?   CodigoCentroCosto      = null,
+    string?   DescripcionCentroCosto = null
 );

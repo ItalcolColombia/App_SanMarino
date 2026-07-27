@@ -11,36 +11,45 @@
         </h2>
         <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
       </header>
-      <section class="ux-card" role="group" aria-label="Filtros de cálculos">
-        <div class="ux-toolbar">
-          <div class="ux-field">
-            <label for="calc-desde">Desde</label>
-            <input id="calc-desde" type="date"
+      <section class="ux-card filter-card filter-card--compact" role="group" aria-label="Filtros de cálculos">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h3 class="filter-card__title">Filtros</h3>
+            <p class="filter-card__subtitle">Acota el rango de días del cálculo</p>
+          </div>
+        </div>
+        <div class="filter-fields">
+          <div class="filter-field">
+            <label for="calc-desde" class="filter-step__label">Desde</label>
+            <input id="calc-desde" type="date" class="filter-step__input"
               [ngModel]="calcsDesde"
               (ngModelChange)="calcsDesde = $event; reloadCalculos()" />
+          </div>
+          <div class="filter-field">
+            <label for="calc-hasta" class="filter-step__label">Hasta</label>
+            <input id="calc-hasta" type="date" class="filter-step__input"
+              [ngModel]="calcsHasta"
+              (ngModelChange)="calcsHasta = $event; reloadCalculos()" />
+          </div>
+          <div class="filter-card__actions">
+            <label class="sr-only">Acciones</label>
+            <div class="btn-group">
+              <button type="button" class="btn btn--outline" (click)="onLimpiarFiltros()">Limpiar</button>
+              <button type="button" class="btn btn--primary" (click)="reloadCalculos()">Actualizar</button>
             </div>
-            <div class="ux-field">
-              <label for="calc-hasta">Hasta</label>
-              <input id="calc-hasta" type="date"
-                [ngModel]="calcsHasta"
-                (ngModelChange)="calcsHasta = $event; reloadCalculos()" />
-              </div>
-              <div class="ux-field">
-                <label class="sr-only">Acciones</label>
-                <div class="btn-group">
-                  <button type="button" class="btn btn--outline" (click)="onLimpiarFiltros()">Limpiar</button>
-                  <button type="button" class="btn btn--primary" (click)="reloadCalculos()">Actualizar</button>
-                </div>
-              </div>
-              @if (calcsResp) {
-                <div class="ux-field">
-                  <span class="chip chip--muted">
-                    {{ calcsResp.total || 0 }} día(s)
-                  </span>
-                </div>
-              }
+          </div>
+          @if (calcsResp) {
+            <div class="filter-field filter-field--fixed">
+              <span class="chip chip--muted">
+                {{ calcsResp.total || 0 }} día(s)
+              </span>
             </div>
-          </section>
+          }
+        </div>
+      </section>
           <section class="ux-card" aria-label="Tabla de cálculos">
             @if (calcsLoading) {
               <div class="loading-overlay" aria-live="polite" role="status">

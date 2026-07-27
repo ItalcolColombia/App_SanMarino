@@ -4,9 +4,14 @@ public record LotePosturaBaseDto(
     int       LotePosturaBaseId,
     string    LoteNombre,
     string?   CodigoErp,
+    string?   DescripcionErp,
     int       CantidadHembras,
     int       CantidadMachos,
     int       CantidadMixtas,
+    // Datos del lote
+    string?   Raza,
+    string?   TipoLinea,
+    DateTime? FechaEncaset,
     // Empresa
     int       CompanyId,
     string?   CompanyNombre,
@@ -27,9 +32,13 @@ public record LotePosturaBaseDto(
 public record CreateLotePosturaBaseDto(
     string    LoteNombre,
     string?   CodigoErp,
+    string?   DescripcionErp,
     int       CantidadHembras,
     int       CantidadMachos,
     int       CantidadMixtas,
+    string?   Raza,
+    string?   TipoLinea,
+    DateTime? FechaEncaset,
     int?      FarmId,
     DateTime? ErpCreate
 );
@@ -37,9 +46,13 @@ public record CreateLotePosturaBaseDto(
 public record UpdateLotePosturaBaseDto(
     string    LoteNombre,
     string?   CodigoErp,
+    string?   DescripcionErp,
     int       CantidadHembras,
     int       CantidadMachos,
     int       CantidadMixtas,
+    string?   Raza,
+    string?   TipoLinea,
+    DateTime? FechaEncaset,
     int?      FarmId,
     DateTime? ErpCreate
 );

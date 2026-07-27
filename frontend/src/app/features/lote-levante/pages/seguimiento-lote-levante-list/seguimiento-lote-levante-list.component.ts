@@ -11,7 +11,8 @@ import { LoteService, LoteDto, LoteMortalidadResumenDto } from '../../../lote/se
 import {
   LotePosturaLevanteService,
   LotePosturaLevanteDto,
-  CierreLoteLevanteResumenDto
+  CierreLoteLevanteResumenDto,
+  ReaperturaLoteLevanteResumenDto
 } from '../../../lote/services/lote-postura-levante.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { firstValueFrom } from 'rxjs';
@@ -137,6 +138,13 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   loadingCierreLote = false;
   errorCierreLote: string | null = null;
 
+  /**
+   * Resumen de reapertura: dice si el lote se puede reabrir y qué se elimina si se confirma.
+   * null mientras carga. El backend revalida lo mismo, así que esto es solo para la UI.
+   */
+  resumenReapertura: ReaperturaLoteLevanteResumenDto | null = null;
+  loadingResumenReapertura = false;
+
   /** Liquidación técnica calculada al abrir el modal de cierre. */
   liquidacionCierre: LiquidacionCierreLoteLevanteDto | null = null;
   loadingLiquidacion = false;
@@ -144,6 +152,9 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   // Traslado de Aves desde Seguimiento Diario (R3)
   trasladoAvesModalOpen = false;
   trasladoAvesOrigen: OrigenTrasladoInfo | null = null;
+
+  /** Contador que fuerza recarga del bloque "Edades en el lote" (cohortes) tras un traslado. */
+  cohortesRefreshTrigger = 0;
 
   // Confirmación de eliminación (Feature 13 refinamiento)
   deleteConfirmOpen = false;
@@ -707,8 +718,23 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
         this.editing = null;
         this.onLoteChange(this.selectedLoteId);
       },
-      error: () => { /* TODO: toast de error */ }
+      // El backend valida reglas que el usuario necesita ver (p. ej. el gate de huevos antes de la
+      // semana 14, o el lote cerrado). Sin toast el 400 quedaba invisible y el modal se cerraba
+      // como si hubiera guardado.
+      error: (err: unknown) => {
+        this.toast.error(this.mensajeDeError(err, 'No se pudo guardar el seguimiento.'));
+      }
     });
+  }
+
+  /** Extrae el mensaje del backend (`{ message }` o `{ error }`) con un fallback legible. */
+  private mensajeDeError(err: unknown, fallback: string): string {
+    const e = err as { error?: { message?: string; error?: string } | string; message?: string };
+    if (typeof e?.error === 'string' && e.error.trim()) return e.error;
+    const msg = (e?.error as { message?: string; error?: string } | undefined)?.message
+      ?? (e?.error as { message?: string; error?: string } | undefined)?.error;
+    if (msg && String(msg).trim()) return String(msg);
+    return fallback;
   }
 
   // ================== helpers ==================
@@ -895,7 +921,8 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     this.lotePosturaLevanteSvc.getResumenCierre(id).subscribe({
       next: r => {
         this.resumenCierre = r;
-        this.huevosCierre = 0;
+        // Total REAL de huevos capturados en levante (readonly en el modal): es el que se arrastra.
+        this.huevosCierre = r.huevosLevanteTotales ?? 0;
         this.fechaInicioProduccionYmd = this.todayYMD();
         this.editAvesProduccion = false;
         this.avesHProd = r.avesHembrasDisponibles;
@@ -1000,18 +1027,45 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     if (!this.isLoteCerrado || this.lotePosturaLevanteIdActual == null) return;
     this.motivoAbrirLote = '';
     this.errorCierreLote = null;
+    this.resumenReapertura = null;
     this.abrirLoteModalOpen = true;
+
+    // Se consulta al abrir (no al cargar el lote): el estado de producción pudo cambiar en otra
+    // pestaña, y este resumen es lo que decide si el botón «Abrir lote» queda habilitado.
+    this.loadingResumenReapertura = true;
+    this.lotePosturaLevanteSvc
+      .getResumenReapertura(this.lotePosturaLevanteIdActual)
+      .pipe(finalize(() => (this.loadingResumenReapertura = false)))
+      .subscribe({
+        next: r => (this.resumenReapertura = r),
+        error: err => {
+          // Sin resumen no se bloquea el intento: el backend revalida igual al confirmar.
+          this.errorCierreLote =
+            err?.error?.message ?? err?.message ?? 'No se pudo verificar el estado del lote de producción.';
+        }
+      });
   }
 
   closeAbrirLoteModal(): void {
     this.abrirLoteModalOpen = false;
     this.motivoAbrirLote = '';
     this.errorCierreLote = null;
+    this.resumenReapertura = null;
+    this.loadingResumenReapertura = false;
+  }
+
+  /** true si el resumen ya llegó y dice explícitamente que NO se puede reabrir. */
+  get reaperturaBloqueada(): boolean {
+    return this.resumenReapertura != null && !this.resumenReapertura.puedeReabrir;
   }
 
   async confirmarAbrirLote(): Promise<void> {
     const id = this.lotePosturaLevanteIdActual;
     if (id == null) return;
+    if (this.reaperturaBloqueada) {
+      this.errorCierreLote = this.resumenReapertura?.motivoBloqueo ?? 'No se puede reabrir el lote.';
+      return;
+    }
     const m = (this.motivoAbrirLote || '').trim();
     if (m.length < 3) {
       this.errorCierreLote = 'Indique el motivo (mínimo 3 caracteres).';
@@ -1086,5 +1140,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     if (this.selectedLoteId) {
       this.onLoteChange(this.selectedLoteId);
     }
+    // Fase 3: el lote sigue siendo el mismo, así que las cohortes se refrescan por trigger.
+    this.cohortesRefreshTrigger++;
   }
 }

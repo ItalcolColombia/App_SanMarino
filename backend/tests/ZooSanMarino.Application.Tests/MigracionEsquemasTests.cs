@@ -70,6 +70,57 @@ public class MigracionEsquemasTests
         Assert.Empty(desconocidos);
     }
 
+    [Fact]
+    public void VentaPolloEngorde_ArchivoConLas11ColumnasViejas_SigueSiendoValido()
+    {
+        // Compatibilidad hacia atrás: la plantilla de venta pasó de 11 a 26 columnas (ubicación
+        // multi-lote + datos de despacho + Estado + Venta sobre mixtas). Un archivo generado con la
+        // plantilla anterior no debe reportar faltantes ni desconocidos.
+        var esquema = MigracionEsquemas.VentaPolloEngorde;
+        var viejas = new[]
+        {
+            "Fecha", "Cantidad H", "Cantidad M", "Cantidad Mixtas", "Motivo",
+            "Peso Bruto (kg)", "Peso Tara (kg)", "Edad Aves", "Raza", "Placa", "Observaciones"
+        }.Select(MigracionCalculos.NormalizarClave).ToList();
+
+        var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(esquema, viejas);
+
+        Assert.Empty(faltantes);
+        Assert.Empty(desconocidos);
+    }
+
+    [Fact]
+    public void VentaPolloEngorde_SoloFechaEsRequerida()
+    {
+        // El lote sale del contexto de pantalla o de la columna "Lote": nada más es obligatorio
+        // a nivel encabezado (las reglas por celda las aplica el parser).
+        var requeridas = MigracionEsquemas.VentaPolloEngorde.Columnas
+            .Where(c => c.Requerida).Select(c => c.Titulo).ToList();
+        Assert.Equal(new[] { "Fecha" }, requeridas);
+    }
+
+    [Fact]
+    public void VentaPolloEngorde_TieneLasColumnasDelFormularioDeVenta()
+    {
+        // Gate del pedido: la carga masiva debe cubrir TODOS los campos que se usan al vender.
+        var titulos = MigracionEsquemas.VentaPolloEngorde.Columnas.Select(c => c.Titulo).ToList();
+        foreach (var esperada in new[]
+        {
+            "Granja", "Núcleo", "Galpón", "Lote",
+            "N° Despacho", "Total Pollos Galpón", "Hora Salida", "Guía Agrocalidad",
+            "Sellos", "Ayuno", "Cliente / Conductor", "Planta Destino", "Descripción",
+            "Estado", "Venta sobre mixtas"
+        })
+            Assert.Contains(esperada, titulos);
+    }
+
+    [Fact]
+    public void VentaPolloEngorde_EstadoOfreceCompletadoYPendiente()
+    {
+        var estado = MigracionEsquemas.VentaPolloEngorde.Columnas.Single(c => c.Titulo == "Estado");
+        Assert.Equal(new[] { "Completado", "Pendiente" }, estado.Opciones);
+    }
+
     // ── ValidarEncabezados ────────────────────────────────────────────────────
 
     [Fact]

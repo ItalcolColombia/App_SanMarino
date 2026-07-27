@@ -1,6 +1,18 @@
 -- =============================================================================
--- TRIGGER: seguimiento_diario -> espejo_huevo_produccion
--- Al INSERT/UPDATE/DELETE en seguimiento_diario (producción con LPP):
+-- TRIGGER: seguimiento_diario_levante -> espejo_huevo_produccion
+--
+-- ⚠️ TABLA: el trigger vive sobre **public.seguimiento_diario_levante** (la tabla unificada,
+--    discriminada por tipo_seguimiento). Historia del nombre: se creó como
+--    `seguimiento_diario` → se renombró a `seguimiento_diario_levante_reproductoras`
+--    (migración 20260508030155) → hoy es `seguimiento_diario_levante`. Postgres arrastra el
+--    trigger en cada RENAME, así que el objeto desplegado es el mismo.
+-- ⚠️ FUENTE DE VERDAD DEL DESPLIEGUE: la migración
+--    `20260531180558_AddMissingDbFunctionsTriggersAndViews` (crea la función y el trigger).
+--    Este archivo se mantiene sincronizado con ella: el CUERPO de la función es idéntico
+--    (verificado 26-jul-2026); antes apuntaba a `public.seguimiento_diario`, que ya no existe,
+--    de modo que reaplicarlo dejaba el trigger SIN crear.
+--
+-- Al INSERT/UPDATE/DELETE en seguimiento_diario_levante (filas de producción con LPP):
 --   INSERT: suma huevos a historico y dinamico, actualiza historico_semanal
 --   UPDATE: resta OLD, suma NEW
 --   DELETE: resta OLD
@@ -240,8 +252,8 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS tr_espejo_huevo_produccion_aiud ON public.seguimiento_diario;
+DROP TRIGGER IF EXISTS tr_espejo_huevo_produccion_aiud ON public.seguimiento_diario_levante;
 CREATE TRIGGER tr_espejo_huevo_produccion_aiud
-    AFTER INSERT OR UPDATE OR DELETE ON public.seguimiento_diario
+    AFTER INSERT OR UPDATE OR DELETE ON public.seguimiento_diario_levante
     FOR EACH ROW
     EXECUTE FUNCTION fn_espejo_huevo_produccion_upsert();

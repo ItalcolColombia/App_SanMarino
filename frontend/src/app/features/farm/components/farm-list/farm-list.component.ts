@@ -22,6 +22,7 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { GestionGranjasRefreshService } from '../../services/gestion-granjas-refresh.service';
 
 import { DepartamentoService, DepartamentoDto } from '../../services/departamento.service';
@@ -110,6 +111,9 @@ export class FarmListComponent implements OnInit {
   // País deshabilitado en el modal (siempre viene del storage)
   paisDisabled = true;
 
+  /** Flag de la empresa activa: muestra la sección "Códigos ERP" (Santa Reyes). Fail-closed. */
+  manejaCodigosErp = false;
+
   // índices rápidos por ID
   private dptoById = new Map<number, DepartamentoDto>();
   private ciudadById = new Map<number, CiudadDto>();
@@ -129,7 +133,8 @@ export class FarmListComponent implements OnInit {
     private readonly masterListSvc: MasterListService,
     private readonly clienteSvc: ClienteService,
     private readonly countryFilter: CountryFilterService,
-    private readonly refreshBus: GestionGranjasRefreshService
+    private readonly refreshBus: GestionGranjasRefreshService,
+    private readonly companyConfig: ActiveCompanyConfigService
   ) {}
 
   // ================
@@ -138,6 +143,14 @@ export class FarmListComponent implements OnInit {
   ngOnInit(): void {
     this.buildForm();
     this.loadAll();
+    this.loadCompanyFlags();
+  }
+
+  /** Lee los flags de la empresa activa (fail-closed: si falla, los campos ERP quedan ocultos). */
+  private loadCompanyFlags(): void {
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
+    });
   }
 
   // ==================
@@ -167,6 +180,14 @@ export class FarmListComponent implements OnInit {
       certificadoGab: [false],
       latitud:        [null],
       longitud:       [null],
+      // ── Códigos ERP avícolas (solo si la empresa activa los maneja) ────
+      // Todos opcionales: el ERP se carga cuando el cliente lo tiene definido.
+      codigoBodega:               ['', [Validators.maxLength(20)]],
+      descripcionBodega:          ['', [Validators.maxLength(200)]],
+      centroOperacion:            ['', [Validators.maxLength(20)]],
+      descripcionCentroOperacion: ['', [Validators.maxLength(200)]],
+      codigoInstalacion:          ['', [Validators.maxLength(20)]],
+      descripcionInstalacion:     ['', [Validators.maxLength(200)]],
     });
 
     // Suscripción reactiva: al cambiar clienteId autopobla la zona.
@@ -445,6 +466,13 @@ export class FarmListComponent implements OnInit {
               certificadoGab: farmData.certificadoGab ?? false,
               latitud:        farmData.latitud         ?? null,
               longitud:       farmData.longitud        ?? null,
+              // Códigos ERP avícolas
+              codigoBodega:               farmData.codigoBodega               ?? '',
+              descripcionBodega:          farmData.descripcionBodega          ?? '',
+              centroOperacion:            farmData.centroOperacion            ?? '',
+              descripcionCentroOperacion: farmData.descripcionCentroOperacion ?? '',
+              codigoInstalacion:          farmData.codigoInstalacion          ?? '',
+              descripcionInstalacion:     farmData.descripcionInstalacion     ?? '',
             });
           });
           if (paisId != null) {
@@ -483,6 +511,13 @@ export class FarmListComponent implements OnInit {
         certificadoGab: false,
         latitud:        null,
         longitud:       null,
+        // Códigos ERP avícolas
+        codigoBodega:               '',
+        descripcionBodega:          '',
+        centroOperacion:            '',
+        descripcionCentroOperacion: '',
+        codigoInstalacion:          '',
+        descripcionInstalacion:     '',
       });
       this.updateRegionalesDisponibles(companyId);
       this.departamentos = [];
@@ -619,6 +654,15 @@ export class FarmListComponent implements OnInit {
       certificadoGab: raw?.certificadoGab ?? false,
       latitud:        raw?.latitud  != null && raw?.latitud  !== '' ? Number(raw.latitud)  : null,
       longitud:       raw?.longitud != null && raw?.longitud !== '' ? Number(raw.longitud) : null,
+      // ── Códigos ERP avícolas ────────────────────────────────────────
+      // Se envían siempre desde el form (hidratado con lo que devuelve el backend):
+      // así una edición hecha con el flag apagado NO borra los códigos existentes.
+      codigoBodega:               this.textoOrNull(raw?.codigoBodega),
+      descripcionBodega:          this.textoOrNull(raw?.descripcionBodega),
+      centroOperacion:            this.textoOrNull(raw?.centroOperacion),
+      descripcionCentroOperacion: this.textoOrNull(raw?.descripcionCentroOperacion),
+      codigoInstalacion:          this.textoOrNull(raw?.codigoInstalacion),
+      descripcionInstalacion:     this.textoOrNull(raw?.descripcionInstalacion),
     };
 
     this.loading = true;
@@ -746,6 +790,12 @@ export class FarmListComponent implements OnInit {
   // =============
   // Helpers
   // =============
+  /** Texto del form → string recortado o null (los campos opcionales no viajan como ''). */
+  private textoOrNull(value: unknown): string | null {
+    const texto = value == null ? '' : String(value).trim();
+    return texto === '' ? null : texto;
+  }
+
   /** Calcula el siguiente ID consecutivo a partir de la lista cargada (máximo + 1). */
   private getNextFarmId(): number {
     const ids = (this.farms ?? []).map(f => Number(f.id)).filter(n => Number.isFinite(n));

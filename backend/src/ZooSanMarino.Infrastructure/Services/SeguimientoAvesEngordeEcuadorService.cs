@@ -28,6 +28,7 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
     private readonly IAlimentoNutricionProvider _alimentos;
     private readonly IGramajeProvider _gramaje;
     private readonly IMovimientoAvesService _movimientoAvesService;
+    private readonly ILocationScopeResolver _scopeResolver;
     private readonly IInventarioGestionService? _inventarioGestionService;
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;  // Fase 3 paso 2: modelo B nivel granja (Colombia) — defensivo si un lote Colombia entra por este servicio
     private readonly ILogger<SeguimientoAvesEngordeEcuadorService>? _logger;
@@ -38,6 +39,7 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
         IAlimentoNutricionProvider alimentos,
         IGramajeProvider gramaje,
         IMovimientoAvesService movimientoAvesService,
+        ILocationScopeResolver scopeResolver,
         IInventarioGestionService? inventarioGestionService = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
         ILogger<SeguimientoAvesEngordeEcuadorService>? logger = null)
@@ -47,9 +49,58 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
         _alimentos = alimentos;
         _gramaje = gramaje;
         _movimientoAvesService = movimientoAvesService;
+        _scopeResolver = scopeResolver;
         _inventarioGestionService = inventarioGestionService;
         _colombiaConsumoB = colombiaConsumoB;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Alcance granular de ubicación para un lote de engorde. lote_ave_engorde NO referencia la tabla
+    /// lotes ⇒ el nivel LOTE del scope no aplica: la visibilidad se decide por galpón/núcleo del lote
+    /// (mismo criterio que LoteAveEngordeService). Granja no restringida ⇒ true. Lote inexistente ⇒
+    /// true (el flujo normal devuelve su propio vacío/404).
+    /// </summary>
+    private async Task<bool> PermiteLoteEngordeAsync(int loteAveEngordeId)
+    {
+        var ubi = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteAveEngordeId)
+            .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId })
+            .FirstOrDefaultAsync();
+        if (ubi is null) return true;
+
+        var scope = await _scopeResolver.GetScopeAsync(ubi.GranjaId);
+        return scope.IsGlobal
+            || (!string.IsNullOrEmpty(ubi.GalponId) && scope.PermiteGalpon(ubi.GalponId))
+            || (string.IsNullOrEmpty(ubi.GalponId) && !string.IsNullOrEmpty(ubi.NucleoId) && scope.PermiteNucleo(ubi.NucleoId));
+    }
+
+    /// <summary>
+    /// Filtro de alcance granular para LISTADOS de seguimiento (sin lote puntual), componible en SQL:
+    /// excluye los registros cuyo lote esté en una granja restringida y fuera del cierre galpón/núcleo
+    /// del usuario. Sin granjas restringidas devuelve la query intacta (cero cambios).
+    /// </summary>
+    private async Task<IQueryable<SeguimientoDiarioAvesEngorde>> AplicarScopeUbicacionAsync(
+        IQueryable<SeguimientoDiarioAvesEngorde> q)
+    {
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var galponesVisibles = restringidos.SelectMany(kv => kv.Value.GalponesVisibles).Distinct().ToList();
+        var clavesNucleo = restringidos
+            .SelectMany(kv => kv.Value.NucleosVisibles.Select(n => kv.Key + "|" + n))
+            .ToList();
+
+        var lotesBloqueados = _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId != null
+                     && granjasRestringidas.Contains(l.GranjaId)
+                     && !(l.GalponId != null && l.GalponId != "" && galponesVisibles.Contains(l.GalponId))
+                     && !((l.GalponId == null || l.GalponId == "") && l.NucleoId != null &&
+                          clavesNucleo.Contains(l.GranjaId.ToString() + "|" + l.NucleoId)))
+            .Select(l => l.LoteAveEngordeId!.Value);
+
+        return q.Where(s => !lotesBloqueados.Contains(s.LoteAveEngordeId));
     }
 
     /// <summary>

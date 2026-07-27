@@ -28,7 +28,14 @@ Actuás a la vez como **arquitecto, backend senior, frontend senior y DevOps sen
 
 **STEP 1 — Plan** → `./fase_de_desarrollo/<feature>_plan.md`. Debe contener: enfoque arquitectónico, archivos/componentes/servicios a crear o modificar, cambios de BD/SQL, reglas de negocio y casos de prueba.
 
-**STEP 2 — Tracker** → `./tracker_estado.md`. **Borrá TODO** el contenido previo; poné título + link al plan; desglosá en checklist granular (`- [ ]`) y marcá `- [x]` a medida que avanzás. Es la **única fuente de verdad** del estado del desarrollo.
+**STEP 2 — Tracker** → `./tracker_estado.md`. Título + link al plan; desglosá en checklist granular (`- [ ]`) y marcá `- [x]` a medida que avanzás. Es la **única fuente de verdad** del estado del desarrollo.
+
+> ⚠️ **Sesiones en paralelo — NUNCA pises el tracker de otra sesión.** El usuario suele tener **varias ventanas de Claude Code trabajando el mismo repo a la vez**. Antes de escribir el tracker, mirá lo que ya está:
+> - **Tracker con trabajo ABIERTO** (checkboxes `- [ ]` sin marcar, o marcado todo pero con el working tree sin commitear ⇒ otra sesión lo está corriendo): **NO borres nada.** Agregá tu tarea **AL FINAL del archivo**, como bloque propio separado por `---`, con su título, link al plan y su checklist. Cada sesión toca **solo su bloque**.
+> - **Tracker cerrado** (todo `- [x]` y ya commiteado): recién ahí podés limpiarlo y arrancar de cero.
+> - **Duda ⇒ agregar abajo.** Perder el estado de otra sesión es mucho más caro que un tracker largo.
+>
+> Mismo criterio para cualquier archivo compartido (`fase_de_desarrollo/`, migraciones): **agregá, no reemplaces**, y no commitees trabajo que no es tuyo.
 
 ---
 
@@ -84,6 +91,33 @@ features/<modulo>/
 - **No** conviertas getters usados en el template en getters que devuelven arrays/objetos nuevos por ciclo (rompe change detection). Mantené referencias estables.
 - Validar: `cd frontend && yarn build`.
 
+#### ⚠️ Change detection en Angular 22 — TODO componente/modal NUEVO lleva `changeDetection`
+
+> **Regla #1 al crear un componente, modal o página nueva.** Es la causa raíz del bug recurrente *"el servicio responde OK pero el modal se queda en 'Cargando…' para siempre"* (caso canónico: `configurar-alcance-granja.component.ts`, jul-2026).
+
+**En Angular 22 el default del decorador `@Component` cambió: omitir `changeDetection` = `OnPush`** (`ChangeDetectionStrategy.OnPush = 0` y el doc del framework dice literal *"OnPush is enabled by default"*; `Default` quedó **deprecado** y es alias de `Eager = 1`). Con OnPush, asignar un campo (`this.loading = false`, `this.tree = data`) desde un **callback de `HttpClient`/`subscribe`/`setTimeout`/`Promise`** NO marca la vista sucia → la plantilla nunca se repinta y el spinner queda colgado aunque la red haya devuelto 200. Zone.js dispara el tick igual, pero las vistas OnPush no dirty se saltean.
+
+**Cómo se hace (elegí UNA y sé explícito, nunca omitas la propiedad):**
+
+```ts
+// ✅ Convención del repo (≈190 componentes): estado mutable + subscribe → Eager
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+
+@Component({
+  selector: 'app-mi-modal',
+  standalone: true,
+  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,   // ← obligatorio, no lo omitas
+  templateUrl: './mi-modal.component.html'
+})
+```
+
+- **`ChangeDetectionStrategy.Eager`** (equivale al viejo `Default`) → **default del repo** para cualquier componente con estado mutable, `subscribe`, `async/await` o timers. Es el fix correcto del bug de arriba.
+- **`ChangeDetectionStrategy.OnPush`** → permitido **solo** si el componente es 100 % presentacional (se alimenta de `@Input()`/señales y eventos del template) **o** si escribís el estado con `signal()`/`markForCheck()` de forma consistente. Si tenés que llamar `cdr.detectChanges()` "para que se vea", elegiste mal: usá `Eager`.
+- ⛔ **Prohibido `ChangeDetectionStrategy.Default`** en código nuevo: está deprecado en v22 → usá `Eager`.
+- **Checklist al terminar un componente/modal nuevo:** ¿tiene `changeDetection` explícito? ¿el spinner de carga apaga en pantalla (no solo en la Network tab)? Probalo **abriendo y cerrando el modal dos veces**.
+- **Síntoma para diagnosticar rápido:** la request devuelve 200 en Network, no hay error en consola, pero la UI se queda en el estado inicial (spinner / lista vacía / botón deshabilitado) → mirá primero el `changeDetection` del componente, no el servicio ni el backend.
+
 ### Backend (.NET) — `partial class` en `Funciones/` + cálculo puro en `Application/Calculos/`
 ```
 Infrastructure/Services/<Modulo>/
@@ -115,6 +149,7 @@ Infrastructure/Services/<Modulo>/
 | Confirmar una acción (sí/no) | `ConfirmDialogService` → `if (!(await this.confirmDialog.ask({ title, message, type, confirmText }))) return;` (método pasa a `async`) | `confirm()`, `window.confirm()` nativos; retrofitear el `ConfirmationModalComponent` a mano en cada template |
 | Exportar a `.xlsx` | helpers de `shared/utils/excel/exportar-tabla-excel.funcion.ts` (`exportarTablaExcel`/`exportarMultiHojaExcel`/`exportarObjetosExcel`/`exportarAoaExcel`/`exportarAoaMultiHojaExcel`) | `import * as XLSX` + `book_new/aoa_to_sheet/writeFile` inline (salvo LECTURA/parseo de un Excel subido, que sí usa `XLSX.read`) |
 | Formatear número/fecha/nombre de archivo | `shared/utils/format.ts` (`formatearNumero`/`fechaCorta`/`dateStampCompact`/`sanitizeFileName`), importado aliaseado (`import { formatearNumero as fmtNumero }`) y el método del componente delega | Redefinir el helper inline por enésima vez |
+| Componente/modal nuevo con `subscribe` o estado mutable | `changeDetection: ChangeDetectionStrategy.Eager` **explícito** en el `@Component` (ver *Change detection en Angular 22*) | Omitir `changeDetection` (en v22 = OnPush ⇒ modal colgado en "Cargando…") o usar el deprecado `Default` |
 
 **Reglas de aplicación:**
 - **Método que hoy usa `confirm()` → `async`:** cambiá `X(): void` a `async X(): Promise<void>` y `await this.confirmDialog.ask(...)`. `ask()` resuelve `true` (confirmar) / `false` (cancelar/cerrar). Ya existe el servicio en `shared/services/confirm-dialog.service.ts` (monta el modal dinámicamente, mismo look).
@@ -122,6 +157,22 @@ Infrastructure/Services/<Modulo>/
 - **El método del componente se conserva** (el template lo llama por `this.`); solo su cuerpo delega a la función central. No borres el método público que usa la vista.
 - **Referencia canónica:** módulo `movimientos-pollo-engorde` (front). Copiá ese patrón.
 - Validar: `cd frontend && yarn build` (0 errores; el único warning aceptado es el de *bundle budget* preexistente).
+
+---
+
+## 🏢 Features por EMPRESA (multi-tenant) — patrón OBLIGATORIO
+
+> Establecido con la implementación de **Santa Reyes** (jul-2026, plan `fase_de_desarrollo/santa_reyes_implementacion_plan.md`). Referencia canónica: flags `maneja_codigos_erp_avicola`, `clasificacion_huevo_por_items`, `permite_traslado_aves_cross_etapa` + guía genética condicional (`GuiaGeneticaRequisitoCalculos`).
+
+**Reglas (comportamiento distinto para UNA empresa):**
+1. **La señal vive en BD como columna tipada en `companies`** (bool/valor, `NOT NULL DEFAULT` neutro), nombrada por el **comportamiento** (`clasificacion_huevo_por_items`), NUNCA por el tenant (`es_santa_reyes` ❌). Override por granja solo si hace falta (patrón `maneja_alimento_por_galpon`: `farm ?? company`). ⛔ Prohibido decidir por `if (pais == X)` o `if (empresa == 'Nombre')` en código — no escala y ya causó deuda (`AutoNombrePorCorrida` es el ANTI-patrón: el front decide y el back obedece).
+2. **La decisión es lógica pura** en `Application/Calculos/<Feature>Calculos.cs` (static, sin EF) **con tests xUnit por módulo — OBLIGATORIOS antes de mergear** (gate CI): con flag OFF el comportamiento previo debe quedar **byte a byte idéntico** (mensajes incluidos) y con flag ON se cubren los casos nuevos. El service solo resuelve el flag y delega.
+3. **Empresa efectiva SIEMPRE por datos, fail-closed**: resolver por `farms.company_id` de la granja del lote (patrón `ColombiaInventarioConsumoService.ResolverCompanyIdDeGranjaAsync`) o empresa activa validada por `ActiveCompanyMiddleware`; ante ambigüedad devolver vacío/error, nunca fugar datos de otra empresa (patrón `InventarioCatalogoScopeCalculos`).
+4. **Front**: el flag viaja en `CompanyDto` (agregarlo en TODAS las proyecciones: `CompanyService.ToDto`, `CompanyService.Crud`, `CompanyResolver`, `CompanyPaisService`) y se lee con `core/services/company-config/active-company-config.service.ts` (caché 5 min, invalida con `session$`, **fail-closed**: error/ausente → `false` → UI oculta). Gating con `@if (flag)` en el form VIVO (verificar cuál es: puede haber componentes huérfanos, p. ej. el form real de lotes es `lote-list`, no `modal-create-edit-lote`).
+5. **Módulos on/off por empresa** = `company_menus` (habilita en la UI de admin de roles) + `role_menus` (menú del usuario), localizando menús por `route`, jamás por id fijo (ids difieren local↔prod).
+6. **Datos por empresa** (desgloses variables) → `metadata jsonb` existente (p. ej. `seguimiento_diario_produccion.metadata->'huevoItems'`) conservando los totales legacy (`huevo_tot`) para no romper espejos/triggers/indicadores; las claves nuevas se agregan SIN pisar las existentes.
+7. **Seeds de empresa nueva** = migración EF **data-only** (Designer clonado, sin tocar ModelSnapshot), idempotente (`WHERE NOT EXISTS` + `IS DISTINCT FROM` en updates para no ensuciar históricos), lookups por nombre/route/email. ⚠️ Toda migración posterior que haga `UPDATE companies ... WHERE name='X'` debe ordenar (timestamp) DESPUÉS del seed que crea la empresa, o en prod correrá contra una empresa inexistente.
+8. **Validación por módulo tocado**: `dotnet build` + `dotnet test` (backend) / `yarn build` (front) + smoke doble: en una empresa con flag **OFF** (Demo/Sanmarino → cero cambios visibles) y en la empresa con flag **ON**.
 
 ---
 

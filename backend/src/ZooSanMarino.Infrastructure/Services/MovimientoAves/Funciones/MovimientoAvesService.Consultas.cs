@@ -9,27 +9,37 @@ public partial class MovimientoAvesService
 {
     public async Task<MovimientoAvesDto?> GetByIdAsync(int id)
     {
-        return await _context.MovimientoAves
+        var q = _context.MovimientoAves
             .AsNoTracking()
-            .Where(m => m.Id == id && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null)
-            .Select(ToDto)
-            .FirstOrDefaultAsync();
+            .Where(m => m.Id == id && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null);
+
+        // Alcance granular (fix QA A2): acceso directo también respeta el scope (fail-closed → null)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q.Select(ToDto).FirstOrDefaultAsync();
     }
 
     public async Task<MovimientoAvesDto?> GetByNumeroMovimientoAsync(string numeroMovimiento)
     {
-        return await _context.MovimientoAves
+        var q = _context.MovimientoAves
             .AsNoTracking()
-            .Where(m => m.NumeroMovimiento == numeroMovimiento && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null)
-            .Select(ToDto)
-            .FirstOrDefaultAsync();
+            .Where(m => m.NumeroMovimiento == numeroMovimiento && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null);
+
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q.Select(ToDto).FirstOrDefaultAsync();
     }
 
     public async Task<IEnumerable<MovimientoAvesDto>> GetAllAsync()
     {
-        return await _context.MovimientoAves
+        var q = _context.MovimientoAves
             .AsNoTracking()
-            .Where(m => m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null)
+            .Where(m => m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null);
+
+        // Alcance granular (fix QA A2): mismo criterio origen-O-destino que SearchAsync
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q
             .OrderByDescending(m => m.FechaMovimiento)
             .Select(ToDto)
             .ToListAsync();
@@ -72,6 +82,9 @@ public partial class MovimientoAvesService
         if (request.UsuarioMovimientoId.HasValue)
             query = query.Where(m => m.UsuarioMovimientoId == request.UsuarioMovimientoId.Value);
 
+        // Alcance granular: visible si el ORIGEN o el DESTINO pasa el cierre del usuario
+        query = await AplicarScopeUbicacionAsync(query);
+
         var totalCount = await query.CountAsync();
 
         var items = await query
@@ -92,9 +105,14 @@ public partial class MovimientoAvesService
 
     public async Task<IEnumerable<MovimientoAvesDto>> GetMovimientosPendientesAsync()
     {
-        return await _context.MovimientoAves
+        var q = _context.MovimientoAves
             .AsNoTracking()
-            .Where(m => m.Estado == "Pendiente" && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null)
+            .Where(m => m.Estado == "Pendiente" && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null);
+
+        // Alcance granular (fix QA A2)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q
             .OrderBy(m => m.FechaMovimiento)
             .Select(ToDto)
             .ToListAsync();
@@ -102,11 +120,16 @@ public partial class MovimientoAvesService
 
     public async Task<IEnumerable<MovimientoAvesDto>> GetMovimientosByLoteAsync(int loteId)  // Changed from string to int
     {
-        return await _context.MovimientoAves
+        var q = _context.MovimientoAves
             .AsNoTracking()
             .Where(m => (m.LoteOrigenId == loteId || m.LoteDestinoId == loteId) &&  // Changed from loteId
                        m.CompanyId == _currentUser.CompanyId &&
-                       m.DeletedAt == null)
+                       m.DeletedAt == null);
+
+        // Alcance granular (fix QA A2)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q
             .OrderByDescending(m => m.FechaMovimiento)
             .Select(ToDto)
             .ToListAsync();
@@ -114,9 +137,14 @@ public partial class MovimientoAvesService
 
     public async Task<IEnumerable<MovimientoAvesDto>> GetMovimientosByUsuarioAsync(int usuarioId)
     {
-        return await _context.MovimientoAves
+        var q = _context.MovimientoAves
             .AsNoTracking()
-            .Where(m => m.UsuarioMovimientoId == usuarioId && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null)
+            .Where(m => m.UsuarioMovimientoId == usuarioId && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null);
+
+        // Alcance granular (fix QA A2)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q
             .OrderByDescending(m => m.FechaMovimiento)
             .Select(ToDto)
             .ToListAsync();
@@ -125,9 +153,14 @@ public partial class MovimientoAvesService
     public async Task<IEnumerable<MovimientoAvesDto>> GetMovimientosRecientesAsync(int dias = 7)
     {
         var fechaDesde = DateTime.UtcNow.AddDays(-dias);
-        return await _context.MovimientoAves
+        var q = _context.MovimientoAves
             .AsNoTracking()
-            .Where(m => m.FechaMovimiento >= fechaDesde && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null)
+            .Where(m => m.FechaMovimiento >= fechaDesde && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null);
+
+        // Alcance granular (fix QA A2)
+        q = await AplicarScopeUbicacionAsync(q);
+
+        return await q
             .OrderByDescending(m => m.FechaMovimiento)
             .Take(50)
             .Select(ToDto)

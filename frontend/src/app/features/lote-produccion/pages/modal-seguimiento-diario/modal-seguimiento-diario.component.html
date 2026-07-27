@@ -96,13 +96,13 @@
                         <label [for]="'f-item-h-' + i">Ítem *</label>
                         <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))?.unit }}
+                            Disponible: {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.unit }}
                           </small>
                         }
                       </div>
@@ -162,13 +162,13 @@
                         <label [for]="'f-item-m-' + i">Ítem *</label>
                         <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ $safeNavigationMigration(getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup)))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada($safeNavigationMigration(itemGroup.get('catalogItemId')?.value), $any(itemGroup))?.unit }}
+                            Disponible: {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.quantity | number:'1.0-2' }} {{ getCantidadDisponibleAjustada(itemGroup.get('catalogItemId')?.value, $any(itemGroup))?.unit }}
                           </small>
                         }
                       </div>
@@ -282,16 +282,25 @@
               <p class="tab-description">Registro de producción, calidad y parámetros de huevos</p>
             </div>
             <div class="grid grid-4">
-              <div class="form-field">
-                <label for="f-huevos-totales"><span class="label-icon">🥚</span> Huevos Totales (HuevoTot) *</label>
-                <input id="f-huevos-totales" type="number" min="0" formControlName="huevosTotales" placeholder="0" required readonly class="ux-input--readonly" />
-                <small class="ux-hint">Automático: suma de todas las categorías de huevos</small>
-              </div>
-              <div class="form-field">
-                <label for="f-huevos-incubables"><span class="label-icon">✅</span> Huevos Incubables (HuevoInc) *</label>
-                <input id="f-huevos-incubables" type="number" min="0" formControlName="huevosIncubables" placeholder="0" required readonly class="ux-input--readonly" />
-                <small class="ux-hint">Automático: Limpio + Tratado</small>
-              </div>
+              @if (!clasificacionHuevoPorItems) {
+                <div class="form-field">
+                  <label for="f-huevos-totales"><span class="label-icon">🥚</span> Huevos Totales (HuevoTot) *</label>
+                  <input id="f-huevos-totales" type="number" min="0" formControlName="huevosTotales" placeholder="0" required readonly class="ux-input--readonly" />
+                  <small class="ux-hint">Automático: suma de todas las categorías de huevos</small>
+                </div>
+                <div class="form-field">
+                  <label for="f-huevos-incubables"><span class="label-icon">✅</span> Huevos Incubables (HuevoInc) *</label>
+                  <input id="f-huevos-incubables" type="number" min="0" formControlName="huevosIncubables" placeholder="0" required readonly class="ux-input--readonly" />
+                  <small class="ux-hint">Automático: Limpio + Tratado</small>
+                </div>
+              }
+              @if (clasificacionHuevoPorItems) {
+                <div class="form-field">
+                  <label for="f-huevos-total-items"><span class="label-icon">🥚</span> Total de Huevos</label>
+                  <input id="f-huevos-total-items" type="number" [value]="totalHuevosClasificados" placeholder="0" readonly class="ux-input--readonly" />
+                  <small class="ux-hint">Automático: suma de las cantidades por ítem</small>
+                </div>
+              }
               <div class="form-field">
                 <label for="f-peso-huevo"><span class="label-icon">⚖️</span> Peso Promedio (g) *</label>
                 <input id="f-peso-huevo" type="number" step="0.01" min="0" formControlName="pesoHuevo" placeholder="0.00" required />
@@ -306,11 +315,69 @@
                   <option value="Postura">Postura</option>
                   <option value="Final">Final</option>
                   @if (editingSeguimiento?.tipoAlimento && !['Standard','Premium','Inicio','Postura','Final'].includes(editingSeguimiento?.tipoAlimento ?? '')) {
-                    <option [value]="$safeNavigationMigration(editingSeguimiento?.tipoAlimento)">{{ editingSeguimiento?.tipoAlimento }}</option>
+                    <option [value]="editingSeguimiento?.tipoAlimento">{{ editingSeguimiento?.tipoAlimento }}</option>
                   }
                 </select>
                 <small class="ux-hint">Tipo de alimento utilizado</small>
               </div>
+              <!-- CLASIFICACIÓN POR ÍTEMS (empresas con `clasificacion_huevo_por_items`) -->
+              @if (clasificacionHuevoPorItems) {
+                <div class="form-field form-field--full">
+                  <div class="clasificadora-section">
+                    <h4 class="clasificadora-title">
+                      <span class="label-icon">🥚</span> Clasificación de huevos
+                      <span class="ux-hint">· por ítem del catálogo (Primera / Pnc)</span>
+                    </h4>
+
+                    @if (cargandoItemsHuevo) {
+                      <p class="ux-hint">Cargando ítems de huevo…</p>
+                    }
+                    @if (!cargandoItemsHuevo && gruposHuevoItems.length === 0) {
+                      <p class="ux-hint text-danger">
+                        La empresa no tiene ítems de huevo activos en el catálogo. Cargalos en Catálogo de ítems para poder clasificar.
+                      </p>
+                    }
+
+                    @for (fila of huevoItemsArray.controls; track fila; let i = $index) {
+                      <div class="huevo-fila" [formGroup]="$any(fila)">
+                        <div class="form-field huevo-fila__item">
+                          <label [for]="'f-huevo-item-' + i">Ítem de huevo</label>
+                          <select [id]="'f-huevo-item-' + i" formControlName="catalogItemId">
+                            <option [ngValue]="null">— Seleccione —</option>
+                            @for (grupo of gruposHuevoItems; track grupo.tipoHuevo) {
+                              <optgroup [label]="grupo.tipoHuevo">
+                                @for (op of grupo.items; track op.id) {
+                                  <option [ngValue]="op.id" [disabled]="itemHuevoUsadoEnOtraFila(op.id, i)">{{ op.label }}</option>
+                                }
+                              </optgroup>
+                            }
+                          </select>
+                          @if (detalleItemHuevo(fila.get('catalogItemId')?.value); as detalleHuevo) {
+                            <small class="ux-hint">{{ detalleHuevo }}</small>
+                          }
+                        </div>
+                        <div class="form-field huevo-fila__cantidad">
+                          <label [for]="'f-huevo-cantidad-' + i">Cantidad</label>
+                          <input [id]="'f-huevo-cantidad-' + i" type="number" min="0" step="1" formControlName="cantidad" placeholder="0" />
+                        </div>
+                        <button type="button" class="icon-btn icon-btn--danger huevo-fila__quitar"
+                                (click)="eliminarFilaHuevo(i)" [attr.aria-label]="'Quitar fila ' + (i + 1)">🗑️</button>
+                      </div>
+                    }
+
+                    <div class="huevo-acciones">
+                      <button type="button" class="btn btn--outline btn--sm" (click)="agregarFilaHuevo()">➕ Agregar ítem</button>
+                      <div class="huevo-total" role="status" aria-live="polite">
+                        <span class="huevo-total__label">Total de huevos</span>
+                        <span class="huevo-total__value">{{ totalHuevosClasificados | number:'1.0-2' }}</span>
+                      </div>
+                    </div>
+                    <small class="ux-hint">Sin filas cargadas el registro queda sin clasificación por ítems.</small>
+                  </div>
+                </div>
+              }
+
+              @if (!clasificacionHuevoPorItems) {
               <div class="form-field form-field--full">
                 <div class="clasificadora-section">
                   <h4 class="clasificadora-title"><span class="label-icon">✅</span> Clasificadora de Huevos - Incubables (Se suman a HuevoInc)</h4>
@@ -398,6 +465,7 @@
                   </div>
                 </div>
               </div>
+              }
             </div>
           </section>
         </div>

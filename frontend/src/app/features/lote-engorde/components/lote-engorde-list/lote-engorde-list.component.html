@@ -63,130 +63,149 @@
 
     @if (!esPanama || tabActiva === 'lotes') {
     <!-- Filtros -->
-    <section class="le-card le-card--filters" role="group" aria-labelledby="le-filtros-title">
-      <h2 id="le-filtros-title" class="le-card__title">
-        <fa-icon [icon]="faFilter" class="le-card__title-icon" aria-hidden="true"></fa-icon>
-        Filtros
-      </h2>
-      <div class="le-filters-grid">
+    <section class="le-card le-card--filters filter-card" role="group" aria-labelledby="le-filtros-title">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <fa-icon [icon]="faFilter"></fa-icon>
+        </div>
+        <div>
+          <h2 id="le-filtros-title" class="filter-card__title">Selección de contexto</h2>
+          <p class="filter-card__subtitle" id="le-cascade-hint">Selecciona en cascada para cargar los registros</p>
+        </div>
+      </div>
+
+      <div class="filter-steps">
         @if (filterCompanyOptions.length > 1) {
-          <div class="le-field">
-            <label for="le-company" class="le-label">Compañía</label>
-            <select id="le-company" class="le-select" [(ngModel)]="selectedCompanyId" (ngModelChange)="onCompanyChangeList($event)">
+          <!-- Paso 1: Compañía (solo multi-empresa) -->
+          <div class="filter-step"
+            [class.filter-step--active]="selectedCompanyId != null"
+            [class.filter-step--done]="selectedFarmId != null">
+            <div class="filter-step__num">1</div>
+            <div class="filter-step__body">
+              <label for="le-company" class="filter-step__label">Compañía</label>
+              <select id="le-company" class="filter-step__select" [(ngModel)]="selectedCompanyId" (ngModelChange)="onCompanyChangeList($event)">
+                <option [ngValue]="null">Todas</option>
+                @for (c of filterCompanyOptions; track c) {
+                  <option [ngValue]="c.id">{{ c.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="selectedCompanyId != null" aria-hidden="true"></div>
+        }
+
+        <!-- Paso: Granja -->
+        <div class="filter-step"
+          [class.filter-step--active]="selectedFarmId != null"
+          [class.filter-step--done]="selectedNucleoId != null">
+          <div class="filter-step__num">{{ filterCompanyOptions.length > 1 ? 2 : 1 }}</div>
+          <div class="filter-step__body">
+            <label for="le-farm" class="filter-step__label">Granja</label>
+            <select
+              id="le-farm"
+              class="filter-step__select"
+              [(ngModel)]="selectedFarmId"
+              (ngModelChange)="onFarmChangeList($event)"
+              aria-describedby="le-cascade-hint"
+              >
               <option [ngValue]="null">Todas</option>
-              @for (c of filterCompanyOptions; track c) {
-                <option [ngValue]="c.id">{{ c.label }}</option>
+              @for (f of filterFarmOptionsScoped; track f) {
+                <option [ngValue]="f.id">{{ f.name }}</option>
               }
             </select>
           </div>
-        }
+        </div>
 
-        <!-- Ubicación en cascada: granja → núcleo → galpón -->
-        <div class="le-field le-field--cascade-block" role="group" aria-labelledby="le-cascade-title">
-          <div class="le-cascade-header">
-            <span id="le-cascade-title" class="le-label le-label--section">Ubicación</span>
-            <span class="le-cascade-badge">Paso a paso</span>
-          </div>
-          <p class="le-hint le-hint--filters" id="le-cascade-hint">
-            Elija <strong>granja</strong>; luego el <strong>núcleo</strong> de esa granja; después el <strong>galpón</strong> ligado a ese núcleo.
-          </p>
-          <div class="le-cascade-row">
-            <div class="le-field le-field--cascade">
-              <label for="le-farm" class="le-label">
-                <span class="le-cascade-step">1</span>
-                Granja
-              </label>
-              <select
-                id="le-farm"
-                class="le-select"
-                [(ngModel)]="selectedFarmId"
-                (ngModelChange)="onFarmChangeList($event)"
-                aria-describedby="le-cascade-hint"
-                >
-                <option [ngValue]="null">Todas</option>
-                @for (f of filterFarmOptionsScoped; track f) {
-                  <option [ngValue]="f.id">{{ f.name }}</option>
-                }
-              </select>
-            </div>
-            <span class="le-cascade-arrow" aria-hidden="true" title="Luego">→</span>
-            <div class="le-field le-field--cascade">
-              <label for="le-nucleo" class="le-label">
-                <span class="le-cascade-step">2</span>
-                Núcleo
-              </label>
-              <select
-                id="le-nucleo"
-                class="le-select"
-                [(ngModel)]="selectedNucleoId"
-                (ngModelChange)="onNucleoChangeList($event)"
-                [disabled]="selectedFarmId == null"
-                [attr.aria-disabled]="selectedFarmId == null"
-                >
-                <option [ngValue]="null">{{ selectedFarmId == null ? '— Seleccione granja —' : 'Todos los núcleos' }}</option>
-                @for (n of listFilterNucleos; track n) {
-                  <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                }
-              </select>
-            </div>
-            <span class="le-cascade-arrow" aria-hidden="true">→</span>
-            <div class="le-field le-field--cascade">
-              <label for="le-galpon" class="le-label">
-                <span class="le-cascade-step">3</span>
-                Galpón
-              </label>
-              <select
-                id="le-galpon"
-                class="le-select"
-                [(ngModel)]="selectedGalponId"
-                (ngModelChange)="recomputeList()"
-                [disabled]="selectedFarmId == null || selectedNucleoId == null"
-                [attr.aria-disabled]="selectedFarmId == null || selectedNucleoId == null"
-                >
-                <option [ngValue]="null">{{
-                  selectedFarmId == null
-                  ? '— Primero granja —'
-                  : selectedNucleoId == null
-                  ? '— Seleccione núcleo —'
-                  : 'Todos los galpones'
-                }}</option>
-                @for (g of listFilterGalpones; track g) {
-                  <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                }
-              </select>
-            </div>
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="selectedFarmId != null" aria-hidden="true"></div>
+
+        <!-- Paso: Núcleo -->
+        <div class="filter-step"
+          [class.filter-step--active]="selectedNucleoId != null"
+          [class.filter-step--done]="selectedGalponId != null"
+          [class.filter-step--disabled]="selectedFarmId == null">
+          <div class="filter-step__num">{{ filterCompanyOptions.length > 1 ? 3 : 2 }}</div>
+          <div class="filter-step__body">
+            <label for="le-nucleo" class="filter-step__label">Núcleo</label>
+            <select
+              id="le-nucleo"
+              class="filter-step__select"
+              [(ngModel)]="selectedNucleoId"
+              (ngModelChange)="onNucleoChangeList($event)"
+              [disabled]="selectedFarmId == null"
+              [attr.aria-disabled]="selectedFarmId == null"
+              >
+              <option [ngValue]="null">{{ selectedFarmId == null ? '— Seleccione granja —' : 'Todos los núcleos' }}</option>
+              @for (n of listFilterNucleos; track n) {
+                <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              }
+            </select>
           </div>
         </div>
-        <div class="le-field le-field--search">
-          <label for="le-filter" class="le-label">Buscar</label>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="selectedNucleoId != null" aria-hidden="true"></div>
+
+        <!-- Paso: Galpón -->
+        <div class="filter-step filter-step--last"
+          [class.filter-step--active]="selectedGalponId != null"
+          [class.filter-step--disabled]="selectedFarmId == null || selectedNucleoId == null">
+          <div class="filter-step__num filter-step__num--accent">{{ filterCompanyOptions.length > 1 ? 4 : 3 }}</div>
+          <div class="filter-step__body">
+            <label for="le-galpon" class="filter-step__label">Galpón</label>
+            <select
+              id="le-galpon"
+              class="filter-step__select"
+              [(ngModel)]="selectedGalponId"
+              (ngModelChange)="recomputeList()"
+              [disabled]="selectedFarmId == null || selectedNucleoId == null"
+              [attr.aria-disabled]="selectedFarmId == null || selectedNucleoId == null"
+              >
+              <option [ngValue]="null">{{
+                selectedFarmId == null
+                ? '— Primero granja —'
+                : selectedNucleoId == null
+                ? '— Seleccione núcleo —'
+                : 'Todos los galpones'
+              }}</option>
+              @for (g of listFilterGalpones; track g) {
+                <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label for="le-filter" class="filter-step__label">Buscar</label>
           <div class="le-search">
             <fa-icon [icon]="faMagnifyingGlass" class="le-search__icon" aria-hidden="true"></fa-icon>
             <input id="le-filter" type="text" [(ngModel)]="filtro" (ngModelChange)="recomputeList()"
-              placeholder="Por nombre, ERP lot, granja, núcleo…" class="le-input" aria-label="Buscar lote de engorde"/>
-            </div>
-          </div>
-          <div class="le-field le-field--sort">
-            <label for="le-sort-key" class="le-label">Ordenar</label>
-            <select id="le-sort-key" class="le-select" [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
-              <option [ngValue]="'edad'">Edad</option>
-              <option [ngValue]="'fecha'">Fecha</option>
-            </select>
-          </div>
-          <div class="le-field le-field--dir">
-            <label for="le-sort-dir" class="le-label">Orden</label>
-            <select id="le-sort-dir" class="le-select" [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
-              <option [ngValue]="'desc'">Desc</option>
-              <option [ngValue]="'asc'">Asc</option>
-            </select>
-          </div>
-          <div class="le-field le-field--action">
-            <button type="button" class="le-btn le-btn--ghost" (click)="resetListFilters()">
-              <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
-              Limpiar
-            </button>
+              placeholder="Por nombre, ERP lot, granja, núcleo…" class="filter-step__input" aria-label="Buscar lote de engorde"/>
           </div>
         </div>
-      </section>
+        <div class="filter-field">
+          <label for="le-sort-key" class="filter-step__label">Ordenar</label>
+          <select id="le-sort-key" class="filter-step__select" [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
+            <option [ngValue]="'edad'">Edad</option>
+            <option [ngValue]="'fecha'">Fecha</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="le-sort-dir" class="filter-step__label">Orden</label>
+          <select id="le-sort-dir" class="filter-step__select" [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
+            <option [ngValue]="'desc'">Desc</option>
+            <option [ngValue]="'asc'">Asc</option>
+          </select>
+        </div>
+        <div class="filter-card__actions">
+          <button type="button" class="le-btn le-btn--ghost" (click)="resetListFilters()">
+            <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </section>
 
       <!-- Tabla de lotes -->
       <section class="le-card le-card--table">

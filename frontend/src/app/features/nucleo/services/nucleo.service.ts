@@ -11,18 +11,30 @@ export interface NucleoDto {
   granjaNombre?:  string | null;
   companyNombre?: string | null;
   companyId?:     number | null;
+
+  /** Códigos ERP avícolas (solo empresas con `manejaCodigosErpAvicola`). */
+  codigoBodega?:      string | null;
+  descripcionBodega?: string | null;
 }
 
 export interface CreateNucleoDto {
   nucleoId:     string;
   granjaId:     number;
   nucleoNombre: string;
+
+  /** Códigos ERP avícolas (opcionales; null cuando la empresa no los maneja). */
+  codigoBodega?:      string | null;
+  descripcionBodega?: string | null;
 }
 
 export interface UpdateNucleoDto {
   nucleoId:     string;
   granjaId:     number;
   nucleoNombre: string;
+
+  /** Códigos ERP avícolas (opcionales; null cuando la empresa no los maneja). */
+  codigoBodega?:      string | null;
+  descripcionBodega?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -51,6 +63,18 @@ export class NucleoService {
     return this.getAll().pipe(
       map(list => list.filter(n => Number(n.granjaId) === Number(granjaId)))
     );
+  }
+
+  /** Núcleos por granja para elegir DESTINO de traslados: va directo al backend con
+   *  paraDestino=true (omite el alcance granular del usuario; sin caché). */
+  getByGranjaParaDestino(granjaId: number): Observable<NucleoDto[]> {
+    return this.http.get<NucleoDto[]>(`${this.baseUrl}/granja/${granjaId}?paraDestino=true`);
+  }
+
+  /** Todos los núcleos para elegir DESTINO de traslados (paraDestino=true; sin tocar la caché
+   *  compartida del getAll normal). */
+  getAllParaDestino(): Observable<NucleoDto[]> {
+    return this.http.get<NucleoDto[]>(`${this.baseUrl}?paraDestino=true`);
   }
 
   /** Uno por clave compuesta */

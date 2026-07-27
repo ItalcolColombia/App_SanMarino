@@ -32,57 +32,77 @@
     </header>
 
     <!-- Filtros rápidos -->
-    <section class="ux-toolbar" role="group" aria-label="Filtros del catálogo">
-      <div class="ux-input-icon">
-        <fa-icon [icon]="faSearch" aria-hidden="true"></fa-icon>
-        <input
-          type="search"
-          [(ngModel)]="q"
-          (ngModelChange)="page = 1; load()"
-          placeholder="Buscar por código o nombre…"
-          aria-label="Buscar en el catálogo"
-          />
+    <section class="ux-card filter-card" role="group" aria-label="Filtros del catálogo">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="filter-step__label" for="f-search">Buscar</label>
+          <div class="ux-input-icon">
+            <fa-icon [icon]="faSearch" aria-hidden="true"></fa-icon>
+            <input
+              id="f-search"
+              type="search"
+              [(ngModel)]="q"
+              (ngModelChange)="page = 1; load()"
+              placeholder="Buscar por código o nombre…"
+              aria-label="Buscar en el catálogo"
+              class="filter-step__input"
+              />
+          </div>
         </div>
 
-        <div class="ux-toolbar__filters">
-          <!-- Tipo -->
-          <label class="sr-only" for="f-type">Tipo</label>
-          <select id="f-type" [(ngModel)]="typeFilter" (ngModelChange)="page=1; load()" title="Filtrar por tipo">
+        <div class="filter-field">
+          <label class="filter-step__label" for="f-type">Tipo</label>
+          <select id="f-type" [(ngModel)]="typeFilter" (ngModelChange)="page=1; load()" title="Filtrar por tipo" class="filter-step__select">
             <option [ngValue]="''">Todos los tipos</option>
             @for (t of tiposItem; track t) {
               <option [ngValue]="t">{{ t | titlecase }}</option>
             }
           </select>
+        </div>
 
-          <!-- Estado -->
-          <label class="sr-only" for="f-status">Estado</label>
-          <select id="f-status" [(ngModel)]="statusFilter" (ngModelChange)="page=1; load()" title="Filtrar por estado">
+        <div class="filter-field">
+          <label class="filter-step__label" for="f-status">Estado</label>
+          <select id="f-status" [(ngModel)]="statusFilter" (ngModelChange)="page=1; load()" title="Filtrar por estado" class="filter-step__select">
             <option value="all">Todos</option>
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
           </select>
+        </div>
 
-          <!-- Tamaño página -->
-          <label class="sr-only" for="f-size">Tamaño de página</label>
-          <select id="f-size" [(ngModel)]="pageSize" (ngModelChange)="page=1; load()" title="Tamaño de página">
+        <div class="filter-field">
+          <label class="filter-step__label" for="f-size">Tamaño de página</label>
+          <select id="f-size" [(ngModel)]="pageSize" (ngModelChange)="page=1; load()" title="Tamaño de página" class="filter-step__select">
             @for (s of pageSizes; track s) {
               <option [ngValue]="s">{{ s }}/pág.</option>
             }
           </select>
         </div>
+      </div>
+    </section>
 
-        <div class="spacer"></div>
+    <div class="ux-toolbar">
+      <div class="spacer"></div>
 
-        <div class="pager" role="navigation" aria-label="Paginación">
-          <button class="icon-btn" [disabled]="page<=1" (click)="prev()" title="Anterior">
-            <fa-icon [icon]="faChevronLeft" aria-hidden="true"></fa-icon>
-          </button>
-          <span class="pager__info">Página {{ page }} de {{ totalPages }}</span>
-          <button class="icon-btn" [disabled]="page * pageSize >= total" (click)="next()" title="Siguiente">
-            <fa-icon [icon]="faChevronRight" aria-hidden="true"></fa-icon>
-          </button>
-        </div>
-      </section>
+      <div class="pager" role="navigation" aria-label="Paginación">
+        <button class="icon-btn" [disabled]="page<=1" (click)="prev()" title="Anterior">
+          <fa-icon [icon]="faChevronLeft" aria-hidden="true"></fa-icon>
+        </button>
+        <span class="pager__info">Página {{ page }} de {{ totalPages }}</span>
+        <button class="icon-btn" [disabled]="page * pageSize >= total" (click)="next()" title="Siguiente">
+          <fa-icon [icon]="faChevronRight" aria-hidden="true"></fa-icon>
+        </button>
+      </div>
+    </div>
 
       <!-- Tabla -->
       <section class="ux-card">

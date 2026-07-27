@@ -11,20 +11,29 @@
     </header>
 
     <!-- Filtro de Granja -->
-    <section class="ux-card">
-      <header class="ux-card__header">
-        <h2>🔍 Selecciona una Granja</h2>
+    <section class="ux-card filter-card filter-card--compact" aria-label="Filtros de selección">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
         @if (selectedFarmId()) {
-          <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarSeleccion()">
-            Limpiar
-          </button>
+          <div class="filter-card__actions">
+            <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarSeleccion()">
+              Limpiar
+            </button>
+          </div>
         }
-      </header>
-      <div class="ux-card__content">
-        <div class="form-field">
-          <label class="ux-label">🏠 Granja <span class="text-red-500">*</span></label>
+      </div>
+
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="filter-step__label">🏠 Granja <span class="text-red-500">*</span></label>
           <select
-            class="ux-select"
+            class="filter-step__select"
             [ngModel]="selectedFarmId()"
             (ngModelChange)="onFarmSelected($event)">
             <option [ngValue]="null">Seleccione una granja...</option>
@@ -35,16 +44,16 @@
             }
           </select>
         </div>
-
-        <!-- Información de la Granja Seleccionada -->
-        @if (selectedFarmId()) {
-          <div class="farm-info-card">
-            <div class="farm-info-header">
-              <h3>🏠 Granja: {{ obtenerNombreGranja(selectedFarmId()!) }}</h3>
-            </div>
-          </div>
-        }
       </div>
+
+      <!-- Información de la Granja Seleccionada -->
+      @if (selectedFarmId()) {
+        <div class="farm-info-card">
+          <div class="farm-info-header">
+            <h3>🏠 Granja: {{ obtenerNombreGranja(selectedFarmId()!) }}</h3>
+          </div>
+        </div>
+      }
     </section>
 
     <!-- Tabs de Registros (solo cuando hay granja seleccionada) -->

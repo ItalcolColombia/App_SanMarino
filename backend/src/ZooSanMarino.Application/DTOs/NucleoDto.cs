@@ -6,5 +6,8 @@ public record NucleoDto(
     string  NucleoNombre,
     string? GranjaNombre  = null,
     string? CompanyNombre = null,
-    int?    CompanyId     = null
+    int?    CompanyId     = null,
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    string? CodigoBodega      = null,
+    string? DescripcionBodega = null
 );

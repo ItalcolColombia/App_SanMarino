@@ -40,61 +40,94 @@
     <!-- TAB STOCK -->
     @if (activeTab === 'stock') {
       <section class="tab-content">
-        <div class="card-italfoods filters">
-          <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
-          <p class="hint field-full" style="margin: 0 0 0.5rem 0">
+        <section class="filter-card" aria-label="Filtros de stock">
+          <div class="filter-card__header">
+            <div class="filter-card__header-icon" aria-hidden="true"><fa-icon [icon]="faFilter"></fa-icon></div>
+            <div>
+              <h3 class="filter-card__title">Selección de contexto</h3>
+              <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+            </div>
+          </div>
+
+          <p class="hint filters-note">
             El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
             <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
             Puede <strong>editar cantidad, unidad y fecha de registro</strong> desde Editar (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
           </p>
-          <div class="card-italfoods__body filters-grid">
-            <div class="field">
-              <label class="form-label">Concepto</label>
-              <select class="form-input" [(ngModel)]="stockConceptFilter" (ngModelChange)="onStockConceptFilterChange()">
+
+          <div class="filter-steps">
+            <!-- Paso 1: Granja -->
+            <div class="filter-step"
+              [class.filter-step--active]="!!selectedFarmId"
+              [class.filter-step--done]="!!selectedNucleoId">
+              <div class="filter-step__num">1</div>
+              <div class="filter-step__body">
+                <label class="filter-step__label">Granja</label>
+                <select class="filter-step__select" [(ngModel)]="selectedFarmId" (ngModelChange)="onFarmChange()">
+                  <option [ngValue]="null">Todas (asignadas)</option>
+                  @for (f of farmsOrigen; track f) {
+                    <option [ngValue]="f.id">{{ f.name }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            @if (stockShowNucleoGalpon) {
+              <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedFarmId" aria-hidden="true"></div>
+
+              <!-- Paso 2: Núcleo -->
+              <div class="filter-step"
+                [class.filter-step--active]="!!selectedNucleoId"
+                [class.filter-step--done]="!!selectedGalponId">
+                <div class="filter-step__num">2</div>
+                <div class="filter-step__body">
+                  <label class="filter-step__label">Núcleo</label>
+                  <select class="filter-step__select" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChange()">
+                    <option [ngValue]="null">Todos</option>
+                    @for (n of nucleosFiltered; track n) {
+                      <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+
+              <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+              <!-- Paso 3: Galpón -->
+              <div class="filter-step filter-step--last"
+                [class.filter-step--active]="!!selectedGalponId">
+                <div class="filter-step__num filter-step__num--accent">3</div>
+                <div class="filter-step__body">
+                  <label class="filter-step__label">Galpón</label>
+                  <select class="filter-step__select" [(ngModel)]="selectedGalponId">
+                    <option [ngValue]="null">Todos</option>
+                    @for (g of galponesFiltered; track g) {
+                      <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            }
+          </div>
+
+          <div class="filter-fields">
+            <div class="filter-field">
+              <label class="filter-step__label">Concepto</label>
+              <select class="filter-step__select" [(ngModel)]="stockConceptFilter" (ngModelChange)="onStockConceptFilterChange()">
                 <option [ngValue]="''">Todos los conceptos</option>
                 @for (c of conceptos; track c) {
                   <option [ngValue]="c">{{ c }}</option>
                 }
               </select>
             </div>
-            <div class="field">
-              <label class="form-label">Granja</label>
-              <select class="form-input" [(ngModel)]="selectedFarmId" (ngModelChange)="onFarmChange()">
-                <option [ngValue]="null">Todas (asignadas)</option>
-                @for (f of farmsOrigen; track f) {
-                  <option [ngValue]="f.id">{{ f.name }}</option>
-                }
-              </select>
+            <div class="filter-field">
+              <label class="filter-step__label">Buscar ítem</label>
+              <input class="filter-step__input" type="text" [(ngModel)]="searchTerm" placeholder="Código o nombre del producto (según catálogo)" />
             </div>
-            @if (stockShowNucleoGalpon) {
-              <div class="field">
-                <label class="form-label">Núcleo</label>
-                <select class="form-input" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChange()">
-                  <option [ngValue]="null">Todos</option>
-                  @for (n of nucleosFiltered; track n) {
-                    <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                  }
-                </select>
-              </div>
-              <div class="field">
-                <label class="form-label">Galpón</label>
-                <select class="form-input" [(ngModel)]="selectedGalponId">
-                  <option [ngValue]="null">Todos</option>
-                  @for (g of galponesFiltered; track g) {
-                    <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                  }
-                </select>
-              </div>
-            }
-            <div class="field field-full">
-              <label class="form-label">Buscar ítem</label>
-              <input class="form-input" type="text" [(ngModel)]="searchTerm" placeholder="Código o nombre del producto (según catálogo)" />
-            </div>
-            <div class="field actions">
+            <div class="filter-card__actions">
               <button type="button" class="btn-italfoods-secondary" (click)="loadStock()" [disabled]="loading">Consultar</button>
             </div>
           </div>
-        </div>
+        </section>
         <div class="card-italfoods">
           <div class="card-italfoods__title">Stock</div>
           <div class="card-italfoods__body">
@@ -516,28 +549,35 @@
         <!-- TAB TRÁNSITO (recepción inter-granja) -->
         @if (activeTab === 'transito') {
           <section class="tab-content">
-            <div class="card-italfoods filters">
-              <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtro</div>
-              <div class="card-italfoods__body filters-grid">
-                <div class="field">
-                  <label class="form-label">Granja destino (recepción)</label>
-                  <select class="form-input" [(ngModel)]="transitoFarmFilter">
+            <section class="filter-card" aria-label="Filtros de tránsito">
+              <div class="filter-card__header">
+                <div class="filter-card__header-icon" aria-hidden="true"><fa-icon [icon]="faFilter"></fa-icon></div>
+                <div>
+                  <h3 class="filter-card__title">Filtros</h3>
+                  <p class="filter-card__subtitle">Acota la información mostrada</p>
+                </div>
+              </div>
+
+              <div class="filter-fields">
+                <div class="filter-field">
+                  <label class="filter-step__label">Granja destino (recepción)</label>
+                  <select class="filter-step__select" [(ngModel)]="transitoFarmFilter">
                     <option [ngValue]="null">Todas</option>
                     @for (f of farmsOrigen; track f) {
                       <option [ngValue]="f.id">{{ f.name }}</option>
                     }
                   </select>
                 </div>
-                <div class="field actions">
+                <div class="filter-card__actions">
                   <button type="button" class="btn-italfoods-secondary" (click)="loadTransitos()" [disabled]="loadingTransito">Consultar</button>
                 </div>
               </div>
-            </div>
+            </section>
             <div class="card-italfoods">
               <div class="card-italfoods__title">Transferencias en tránsito (pendientes de recepción)</div>
               <div class="card-italfoods__body">
                 <p class="hint field-full">
-                  Pulse <strong>Recibir en destino</strong>: el formulario de confirmación abre <strong>en la misma tarjeta</strong> (no al final de la lista). Para <strong>alimento</strong> elija núcleo y galpón en su granja destino; otros ítems solo granja. El origen ya fue descontado al enviar el traslado.
+                  Pulse <strong>Recibir en destino</strong>: el formulario de confirmación abre <strong>en la misma tarjeta</strong> (no al final de la lista). Para <strong>alimento</strong> elija núcleo y galpón en su granja destino, o use <strong>Distribuir entre varios galpones</strong> para repartir lo que llega (la suma debe igualar la cantidad en tránsito); otros ítems solo granja. El origen ya fue descontado al enviar el traslado.
                 </p>
                 @if (loadingTransito) {
                   <p>Cargando…</p>
@@ -594,27 +634,108 @@
                             }
                           </div>
                           @if (recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
-                            <div class="transito-recepcion-form__grid">
-                              <div class="field">
-                                <label class="form-label">Núcleo destino *</label>
-                                <select class="form-input" [(ngModel)]="recepcionToNucleoId" (ngModelChange)="onRecepcionNucleoChange()">
-                                  <option [ngValue]="null">Seleccione…</option>
-                                  @for (n of recepcionNucleosForFarm(t.toFarmId); track n) {
-                                    <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                                  }
-                                </select>
-                              </div>
-                              <div class="field">
-                                <label class="form-label">Galpón destino *</label>
-                                <select class="form-input" [(ngModel)]="recepcionToGalponId">
-                                  <option [ngValue]="null">Seleccione…</option>
-                                  @for (g of recepcionGalponesForFarm(t.toFarmId); track g) {
-                                    <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                                  }
-                                </select>
-                              </div>
+                            <div class="recepcion-modo">
+                              <button
+                                type="button"
+                                class="recepcion-modo__btn"
+                                [class.recepcion-modo__btn--active]="!recepcionDistribuir"
+                                (click)="setRecepcionDistribuir(false)"
+                                [disabled]="submittingRecepcion">
+                                Recibir todo en un galpón
+                              </button>
+                              <button
+                                type="button"
+                                class="recepcion-modo__btn"
+                                [class.recepcion-modo__btn--active]="recepcionDistribuir"
+                                (click)="setRecepcionDistribuir(true)"
+                                [disabled]="submittingRecepcion">
+                                Distribuir entre varios galpones
+                              </button>
                             </div>
-                            <p class="hint transito-recepcion-form__hint-alimento">Indique en qué núcleo y galpón de <strong>su granja destino</strong> ingresa el alimento.</p>
+
+                            @if (!recepcionDistribuir) {
+                              <div class="transito-recepcion-form__grid">
+                                <div class="field">
+                                  <label class="form-label">Núcleo destino *</label>
+                                  <select class="form-input" [(ngModel)]="recepcionToNucleoId" (ngModelChange)="onRecepcionNucleoChange()">
+                                    <option [ngValue]="null">Seleccione…</option>
+                                    @for (n of recepcionNucleosForFarm(t.toFarmId); track n) {
+                                      <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                                    }
+                                  </select>
+                                </div>
+                                <div class="field">
+                                  <label class="form-label">Galpón destino *</label>
+                                  <select class="form-input" [(ngModel)]="recepcionToGalponId">
+                                    <option [ngValue]="null">Seleccione…</option>
+                                    @for (g of recepcionGalponesForFarm(t.toFarmId); track g) {
+                                      <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                                    }
+                                  </select>
+                                </div>
+                              </div>
+                              <p class="hint transito-recepcion-form__hint-alimento">Indique en qué núcleo y galpón de <strong>su granja destino</strong> ingresa el alimento.</p>
+                            }
+
+                            @if (recepcionDistribuir) {
+                              <div class="recepcion-distribucion">
+                                <div class="recepcion-distribucion__rows">
+                                  @for (d of recepcionDestinos; track $index) {
+                                    <div class="recepcion-distribucion__row">
+                                      <div class="field">
+                                        <label class="form-label">Núcleo *</label>
+                                        <select class="form-input" [(ngModel)]="d.nucleoId" (ngModelChange)="onRecepcionDestinoNucleoChange($index)">
+                                          <option [ngValue]="null">Seleccione…</option>
+                                          @for (n of recepcionNucleosForFarm(t.toFarmId); track n) {
+                                            <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                      <div class="field">
+                                        <label class="form-label">Galpón *</label>
+                                        <select class="form-input" [(ngModel)]="d.galponId">
+                                          <option [ngValue]="null">Seleccione…</option>
+                                          @for (g of recepcionGalponesForNucleo(t.toFarmId, d.nucleoId); track g) {
+                                            <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                      <div class="field">
+                                        <label class="form-label">Cantidad ({{ t.unit }}) *</label>
+                                        <input class="form-input" type="number" min="0" step="0.001" [(ngModel)]="d.quantity" />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        class="recepcion-distribucion__remove"
+                                        (click)="removeRecepcionDestino($index)"
+                                        [disabled]="submittingRecepcion || recepcionDestinos.length === 1"
+                                        title="Quitar galpón">
+                                        <fa-icon [icon]="faTrash"></fa-icon>
+                                      </button>
+                                    </div>
+                                  }
+                                </div>
+
+                                <div class="recepcion-distribucion__footer">
+                                  <button type="button" class="btn-italfoods-secondary" (click)="addRecepcionDestino()" [disabled]="submittingRecepcion">
+                                    + Agregar galpón
+                                  </button>
+                                  <div class="recepcion-distribucion__totales" [class.recepcion-distribucion__totales--ok]="recepcionRestante() === 0">
+                                    <span>Distribuido: <strong>{{ recepcionDistribuido() }}</strong> de {{ t.quantity }} {{ t.unit }}</span>
+                                    @if (recepcionRestante() > 0) {
+                                      <span class="recepcion-distribucion__falta">Falta asignar {{ recepcionRestante() }} {{ t.unit }}</span>
+                                    }
+                                    @if (recepcionRestante() < 0) {
+                                      <span class="recepcion-distribucion__falta">Se pasó por {{ -recepcionRestante() }} {{ t.unit }}</span>
+                                    }
+                                    @if (recepcionRestante() === 0) {
+                                      <span class="recepcion-distribucion__ok">Cuadra con la cantidad en tránsito</span>
+                                    }
+                                  </div>
+                                </div>
+                                <p class="hint">Reparta los {{ t.quantity }} {{ t.unit }} entre los galpones de <strong>su granja destino</strong>. La suma debe ser exacta: no hay recepción parcial.</p>
+                              </div>
+                            }
                           }
                           @if (!recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
                             <p class="hint">Este ítem se recibe solo a nivel granja (la granja destino ya está indicada arriba).</p>
@@ -650,27 +771,35 @@
       <!-- TAB HISTÓRICO (entradas y salidas con estado) -->
       @if (activeTab === 'historico') {
         <section class="tab-content">
-          <div class="card-italfoods filters">
-            <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
-            <p class="hint historico-filtros-hint">
+          <section class="filter-card" aria-label="Filtros del histórico">
+            <div class="filter-card__header">
+              <div class="filter-card__header-icon" aria-hidden="true"><fa-icon [icon]="faFilter"></fa-icon></div>
+              <div>
+                <h3 class="filter-card__title">Filtros</h3>
+                <p class="filter-card__subtitle">Acota la información mostrada</p>
+              </div>
+            </div>
+
+            <p class="hint historico-filtros-hint filters-note">
               <strong>Filtros principales:</strong> granja o lote, fechas, tipo de operación, estado y búsqueda por código o nombre de ítem.
               <strong>Más filtros:</strong> núcleo/galpón de registro, concepto y tipo de ítem del catálogo, ítem por ID, unidad, tipo de movimiento técnico, referencia/motivo, grupo de traslado y origen (traslados).
               Al abrir esta pestaña se cargan granjas, núcleos, galpones y lotes alineados a su usuario y a la empresa de la granja; con <strong>lote</strong> seleccionado no aplica núcleo/galpón manual.
             </p>
-            <div class="card-italfoods__body filters-grid historico-filtros-grid">
+
+            <div class="filter-fields">
               <!-- Prioritarios -->
-              <div class="field">
-                <label class="form-label">Granja</label>
-                <select class="form-input" [(ngModel)]="historicoFarmId" (ngModelChange)="onHistoricoFarmChange()">
+              <div class="filter-field">
+                <label class="filter-step__label">Granja</label>
+                <select class="filter-step__select" [(ngModel)]="historicoFarmId" (ngModelChange)="onHistoricoFarmChange()">
                   <option [ngValue]="null">Todas</option>
                   @for (f of farmsOrigen; track f) {
                     <option [ngValue]="f.id">{{ f.name }}</option>
                   }
                 </select>
               </div>
-              <div class="field">
-                <label class="form-label">Lote</label>
-                <select class="form-input" [(ngModel)]="historicoLoteId" (ngModelChange)="onHistoricoLoteChange()">
+              <div class="filter-field">
+                <label class="filter-step__label">Lote</label>
+                <select class="filter-step__select" [(ngModel)]="historicoLoteId" (ngModelChange)="onHistoricoLoteChange()">
                   <option [ngValue]="null">Todos</option>
                   @for (l of historicoLotesFiltered; track l) {
                     <option [ngValue]="l.loteId">{{ historicoLoteOptionLabel(l) }}</option>
@@ -680,192 +809,193 @@
                   Si en <strong>Más filtros</strong> elige núcleo/galpón, aquí solo verá lotes de esa ubicación.
                 </small>
               </div>
-              <div class="field">
-                <label class="form-label">Fecha desde</label>
-                <input class="form-input" type="date" [(ngModel)]="historicoFechaDesde" />
+              <div class="filter-field">
+                <label class="filter-step__label">Fecha desde</label>
+                <input class="filter-step__input" type="date" [(ngModel)]="historicoFechaDesde" />
               </div>
-              <div class="field">
-                <label class="form-label">Fecha hasta</label>
-                <input class="form-input" type="date" [(ngModel)]="historicoFechaHasta" />
+              <div class="filter-field">
+                <label class="filter-step__label">Fecha hasta</label>
+                <input class="filter-step__input" type="date" [(ngModel)]="historicoFechaHasta" />
               </div>
-              <div class="field">
-                <label class="form-label">Tipo de operación</label>
-                <select class="form-input" [(ngModel)]="historicoTipoOperacion">
+              <div class="filter-field">
+                <label class="filter-step__label">Tipo de operación</label>
+                <select class="filter-step__select" [(ngModel)]="historicoTipoOperacion">
                   <option value="">Todos</option>
                   @for (x of historicoTiposOperacionOptions; track x) {
                     <option [value]="x">{{ x }}</option>
                   }
                 </select>
               </div>
-              <div class="field">
-                <label class="form-label">Estado</label>
-                <select class="form-input" [(ngModel)]="historicoEstado">
+              <div class="filter-field">
+                <label class="filter-step__label">Estado</label>
+                <select class="filter-step__select" [(ngModel)]="historicoEstado">
                   <option value="">Todos</option>
                   @for (e of historicoEstadosOptions; track e) {
                     <option [value]="e">{{ e }}</option>
                   }
                 </select>
               </div>
-              <div class="field field-full">
-                <label class="form-label">Buscar ítem (código o nombre)</label>
+              <div class="filter-field">
+                <label class="filter-step__label">Buscar ítem (código o nombre)</label>
                 <input
-                  class="form-input"
+                  class="filter-step__input"
                   type="text"
                   [(ngModel)]="historicoItemSearch"
                   placeholder="Contiene en código o nombre del catálogo"
                   />
-                </div>
-                <div class="field field-full historico-filtros-actions-row">
-                  <button type="button" class="btn-italfoods-secondary" (click)="loadMovimientos()" [disabled]="loading">Consultar</button>
-                  <button
-                    type="button"
-                    class="btn-italfoods-secondary historico-filtros-mas-btn"
-                    (click)="toggleHistoricoFiltrosAvanzados()"
-                    [attr.aria-expanded]="historicoFiltrosAvanzadosAbiertos"
-                    aria-controls="historico-filtros-avanzados"
-                    >
-                    <fa-icon [icon]="historicoFiltrosAvanzadosAbiertos ? faChevronUp : faChevronDown"></fa-icon>
-                    {{ historicoFiltrosAvanzadosAbiertos ? 'Ocultar filtros avanzados' : 'Más filtros' }}
-                  </button>
-                </div>
-                <!-- Avanzados (sin duplicar tipo de operación; ítem por ID ≠ búsqueda texto) -->
-                @if (historicoFiltrosAvanzadosAbiertos) {
-                  <div
-                    id="historico-filtros-avanzados"
-                    class="historico-filtros-avanzados field-full filters-grid"
-                    >
-                    <div class="section-label field-full">Ubicación de registro (detalle)</div>
-                    <div class="field">
-                      <label class="form-label">Núcleo</label>
-                      <select
-                        class="form-input"
-                        [(ngModel)]="historicoNucleoId"
-                        (ngModelChange)="onHistoricoNucleoChange()"
-                        [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
-                        >
-                        <option [ngValue]="null">Todos</option>
-                        @for (n of historicoNucleosFiltered; track n) {
-                          <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="field">
-                      <label class="form-label">Galpón</label>
-                      <select
-                        class="form-input"
-                        [(ngModel)]="historicoGalponId"
-                        (ngModelChange)="onHistoricoGalponChange()"
-                        [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
-                        >
-                        <option [ngValue]="null">Todos</option>
-                        @for (g of historicoGalponesFiltered; track g) {
-                          <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="section-label field-full">Catálogo e ítem exacto</div>
-                    <div class="field">
-                      <label class="form-label">Concepto (catálogo)</label>
-                      <select class="form-input" [(ngModel)]="historicoConcepto">
-                        <option value="">Todos</option>
-                        @for (c of historicoConceptosOptions; track c) {
-                          <option [value]="c">{{ c }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="field">
-                      <label class="form-label">Tipo de ítem (catálogo)</label>
-                      <select class="form-input" [(ngModel)]="historicoTipoItem">
-                        <option value="">Todos</option>
-                        @for (t of historicoTiposItemOptions; track t) {
-                          <option [value]="t">{{ t }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="field field-full">
-                      <label class="form-label">Ítem por ID (catálogo)</label>
-                      <select class="form-input" [(ngModel)]="historicoItemInventarioEcuadorId">
-                        <option [ngValue]="null">Todos</option>
-                        @for (i of historicoItemsCatalogSorted; track i) {
-                          <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="field">
-                      <label class="form-label">Unidad</label>
-                      <select class="form-input" [(ngModel)]="historicoUnit">
-                        <option value="">Todas</option>
-                        @for (x of historicoUnidadesOptions; track x) {
-                          <option [value]="x">{{ x }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="field field-full hint" style="margin: 0">
-                      El <strong>ítem por ID</strong> filtra un producto concreto; <strong>Buscar ítem</strong> arriba busca por texto en código o nombre.
-                    </div>
-                    <div class="section-label field-full">Movimiento (técnico)</div>
-                    <div class="field field-full">
-                      <label class="form-label">Tipo de movimiento (valor en sistema)</label>
-                      <select class="form-input" [(ngModel)]="historicoMovementType">
-                        <option value="">Todos</option>
-                        @for (x of historicoMovementTypesOptions; track x) {
-                          <option [value]="x">{{ x }}</option>
-                        }
-                      </select>
-                      <small class="hint" style="display: block; margin-top: 0.35rem">
-                        Opcional. Para uso habitual prefiera <strong>Tipo de operación</strong> en los filtros principales; si usa ambos, el resultado debe cumplir los dos.
-                      </small>
-                    </div>
-                    <div class="section-label field-full">Texto y traslados</div>
-                    <div class="field field-full">
-                      <label class="form-label">Referencia contiene</label>
-                      <input class="form-input" type="text" [(ngModel)]="historicoReferenceContains" placeholder="Texto en referencia / guía" />
-                    </div>
-                    <div class="field field-full">
-                      <label class="form-label">Motivo contiene</label>
-                      <input class="form-input" type="text" [(ngModel)]="historicoReasonContains" placeholder="Texto en motivo o detalle" />
-                    </div>
-                    <div class="field field-full">
-                      <label class="form-label">Grupo traslado (UUID)</label>
-                      <input class="form-input" type="text" [(ngModel)]="historicoTransferGroupId" placeholder="00000000-0000-0000-0000-000000000000" />
-                    </div>
-                    <div class="section-label field-full">Origen del movimiento (traslados)</div>
-                    <div class="field">
-                      <label class="form-label">Granja origen</label>
-                      <select class="form-input" [(ngModel)]="historicoFromFarmId" (ngModelChange)="onHistoricoFromFarmChange()">
-                        <option [ngValue]="null">Todas</option>
-                        @for (f of farmsOrigen; track f) {
-                          <option [ngValue]="f.id">{{ f.name }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="field">
-                      <label class="form-label">Núcleo origen</label>
-                      <select
-                        class="form-input"
-                        [(ngModel)]="historicoFromNucleoId"
-                        (ngModelChange)="onHistoricoFromNucleoChange()"
-                        [disabled]="historicoFromFarmId == null"
-                        >
-                        <option [ngValue]="null">Todos</option>
-                        @for (n of historicoFromNucleosFiltered; track n) {
-                          <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="field">
-                      <label class="form-label">Galpón origen</label>
-                      <select class="form-input" [(ngModel)]="historicoFromGalponId" [disabled]="historicoFromFarmId == null">
-                        <option [ngValue]="null">Todos</option>
-                        @for (g of historicoFromGalponesFiltered; track g) {
-                          <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-                        }
-                      </select>
-                    </div>
-                  </div>
-                }
+              </div>
+              <div class="filter-card__actions">
+                <button type="button" class="btn-italfoods-secondary" (click)="loadMovimientos()" [disabled]="loading">Consultar</button>
+                <button
+                  type="button"
+                  class="btn-italfoods-secondary historico-filtros-mas-btn"
+                  (click)="toggleHistoricoFiltrosAvanzados()"
+                  [attr.aria-expanded]="historicoFiltrosAvanzadosAbiertos"
+                  aria-controls="historico-filtros-avanzados"
+                  >
+                  <fa-icon [icon]="historicoFiltrosAvanzadosAbiertos ? faChevronUp : faChevronDown"></fa-icon>
+                  {{ historicoFiltrosAvanzadosAbiertos ? 'Ocultar filtros avanzados' : 'Más filtros' }}
+                </button>
               </div>
             </div>
+
+            <!-- Avanzados (sin duplicar tipo de operación; ítem por ID ≠ búsqueda texto) -->
+            @if (historicoFiltrosAvanzadosAbiertos) {
+              <div
+                id="historico-filtros-avanzados"
+                class="historico-filtros-avanzados filter-fields"
+                >
+                <div class="section-label">Ubicación de registro (detalle)</div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Núcleo</label>
+                  <select
+                    class="filter-step__select"
+                    [(ngModel)]="historicoNucleoId"
+                    (ngModelChange)="onHistoricoNucleoChange()"
+                    [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+                    >
+                    <option [ngValue]="null">Todos</option>
+                    @for (n of historicoNucleosFiltered; track n) {
+                      <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Galpón</label>
+                  <select
+                    class="filter-step__select"
+                    [(ngModel)]="historicoGalponId"
+                    (ngModelChange)="onHistoricoGalponChange()"
+                    [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+                    >
+                    <option [ngValue]="null">Todos</option>
+                    @for (g of historicoGalponesFiltered; track g) {
+                      <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="section-label">Catálogo e ítem exacto</div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Concepto (catálogo)</label>
+                  <select class="filter-step__select" [(ngModel)]="historicoConcepto">
+                    <option value="">Todos</option>
+                    @for (c of historicoConceptosOptions; track c) {
+                      <option [value]="c">{{ c }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Tipo de ítem (catálogo)</label>
+                  <select class="filter-step__select" [(ngModel)]="historicoTipoItem">
+                    <option value="">Todos</option>
+                    @for (t of historicoTiposItemOptions; track t) {
+                      <option [value]="t">{{ t }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Ítem por ID (catálogo)</label>
+                  <select class="filter-step__select" [(ngModel)]="historicoItemInventarioEcuadorId">
+                    <option [ngValue]="null">Todos</option>
+                    @for (i of historicoItemsCatalogSorted; track i) {
+                      <option [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Unidad</label>
+                  <select class="filter-step__select" [(ngModel)]="historicoUnit">
+                    <option value="">Todas</option>
+                    @for (x of historicoUnidadesOptions; track x) {
+                      <option [value]="x">{{ x }}</option>
+                    }
+                  </select>
+                </div>
+                <p class="hint filters-note-inline">
+                  El <strong>ítem por ID</strong> filtra un producto concreto; <strong>Buscar ítem</strong> arriba busca por texto en código o nombre.
+                </p>
+                <div class="section-label">Movimiento (técnico)</div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Tipo de movimiento (valor en sistema)</label>
+                  <select class="filter-step__select" [(ngModel)]="historicoMovementType">
+                    <option value="">Todos</option>
+                    @for (x of historicoMovementTypesOptions; track x) {
+                      <option [value]="x">{{ x }}</option>
+                    }
+                  </select>
+                  <small class="hint" style="display: block; margin-top: 0.35rem">
+                    Opcional. Para uso habitual prefiera <strong>Tipo de operación</strong> en los filtros principales; si usa ambos, el resultado debe cumplir los dos.
+                  </small>
+                </div>
+                <div class="section-label">Texto y traslados</div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Referencia contiene</label>
+                  <input class="filter-step__input" type="text" [(ngModel)]="historicoReferenceContains" placeholder="Texto en referencia / guía" />
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Motivo contiene</label>
+                  <input class="filter-step__input" type="text" [(ngModel)]="historicoReasonContains" placeholder="Texto en motivo o detalle" />
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Grupo traslado (UUID)</label>
+                  <input class="filter-step__input" type="text" [(ngModel)]="historicoTransferGroupId" placeholder="00000000-0000-0000-0000-000000000000" />
+                </div>
+                <div class="section-label">Origen del movimiento (traslados)</div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Granja origen</label>
+                  <select class="filter-step__select" [(ngModel)]="historicoFromFarmId" (ngModelChange)="onHistoricoFromFarmChange()">
+                    <option [ngValue]="null">Todas</option>
+                    @for (f of farmsOrigen; track f) {
+                      <option [ngValue]="f.id">{{ f.name }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Núcleo origen</label>
+                  <select
+                    class="filter-step__select"
+                    [(ngModel)]="historicoFromNucleoId"
+                    (ngModelChange)="onHistoricoFromNucleoChange()"
+                    [disabled]="historicoFromFarmId == null"
+                    >
+                    <option [ngValue]="null">Todos</option>
+                    @for (n of historicoFromNucleosFiltered; track n) {
+                      <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Galpón origen</label>
+                  <select class="filter-step__select" [(ngModel)]="historicoFromGalponId" [disabled]="historicoFromFarmId == null">
+                    <option [ngValue]="null">Todos</option>
+                    @for (g of historicoFromGalponesFiltered; track g) {
+                      <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            }
+          </section>
             <div class="card-italfoods historico-movimientos-card">
               <header class="historico-movimientos-card__head">
                 <h2 class="historico-movimientos-card__title">Histórico de movimientos</h2>
@@ -981,28 +1111,38 @@
         <!-- TAB ITEMS (desde Config > Ítems inventario Ecuador) -->
         @if (activeTab === 'items') {
           <section class="tab-content">
+            <section class="filter-card" aria-label="Filtros del catálogo de ítems">
+              <div class="filter-card__header">
+                <div class="filter-card__header-icon" aria-hidden="true"><fa-icon [icon]="faFilter"></fa-icon></div>
+                <div>
+                  <h3 class="filter-card__title">Filtros</h3>
+                  <p class="filter-card__subtitle">Acota la información mostrada</p>
+                </div>
+              </div>
+
+              <div class="filter-fields">
+                <div class="filter-field">
+                  <label class="filter-step__label">Concepto</label>
+                  <select class="filter-step__select" [(ngModel)]="itemsFilterType" (ngModelChange)="loadItemsList()">
+                    <option value="">Todos</option>
+                    @for (c of conceptos; track c) {
+                      <option [value]="c">{{ c }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="filter-step__label">Buscar</label>
+                  <input class="filter-step__input" type="text" [(ngModel)]="itemsSearch" (ngModelChange)="loadItemsList()" placeholder="Buscar…" />
+                </div>
+                <div class="filter-card__actions">
+                  <button type="button" class="btn-italfoods-secondary" (click)="loadItemsList()">Buscar</button>
+                </div>
+              </div>
+            </section>
             <div class="card-italfoods">
               <div class="card-italfoods__title">Ítems de inventario (Ecuador)</div>
               <div class="card-italfoods__body">
                 <p class="hint">Estos ítems se gestionan en <strong>Configuración → Ítems inventario Ecuador</strong>.</p>
-                <div class="items-filters">
-                  <div class="field">
-                    <label class="form-label">Concepto</label>
-                    <select class="form-input" [(ngModel)]="itemsFilterType" (ngModelChange)="loadItemsList()">
-                      <option value="">Todos</option>
-                      @for (c of conceptos; track c) {
-                        <option [value]="c">{{ c }}</option>
-                      }
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label class="form-label">Buscar</label>
-                    <input class="form-input" type="text" [(ngModel)]="itemsSearch" (ngModelChange)="loadItemsList()" placeholder="Buscar…" />
-                  </div>
-                  <div class="field actions">
-                    <button type="button" class="btn-italfoods-secondary" (click)="loadItemsList()">Buscar</button>
-                  </div>
-                </div>
                 @if (itemsList.length) {
                   <div class="table-wrap">
                     <table class="table-italfoods">

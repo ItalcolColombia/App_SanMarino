@@ -63,13 +63,36 @@ export interface LotePosturaProduccionDto {
   } | null;
 }
 
+/**
+ * Resumen para el modal «Cerrar/Abrir lote» de Seguimiento Diario de Producción.
+ *
+ * Cerrar no borra nada: bloquea el alta, la edición y el borrado de seguimiento diario del lote
+ * para que nadie toque un ciclo ya liquidado. Es reversible.
+ */
+export interface CierreLoteProduccionResumenDto {
+  lotePosturaProduccionId: number;
+  loteNombre: string;
+  estaCerrado: boolean;
+  avesHembrasActuales: number;
+  avesMachosActuales: number;
+  registrosSeguimiento: number;
+  primerRegistro?: string | null;
+  ultimoRegistro?: string | null;
+  fechaInicioProduccion?: string | null;
+  /** Motivo y fecha del último cambio de estado (null si nunca se cerró). */
+  ultimoMotivo?: string | null;
+  ultimoCambioEstado?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LotePosturaProduccionService {
   private readonly baseUrl = `${environment.apiUrl}/LotePosturaProduccion`;
   private readonly http = inject(HttpClient);
 
-  getAll(): Observable<LotePosturaProduccionDto[]> {
-    return this.http.get<LotePosturaProduccionDto[]>(this.baseUrl);
+  /** paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  getAll(paraDestino = false): Observable<LotePosturaProduccionDto[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
+    return this.http.get<LotePosturaProduccionDto[]>(`${this.baseUrl}${qs}`);
   }
 
   getByLoteId(loteId: number): Observable<LotePosturaProduccionDto[]> {
@@ -79,5 +102,37 @@ export class LotePosturaProduccionService {
   /** Feature 14 — Obtiene un LPP completo (con aves actuales y acumulados de traslado). */
   getById(id: number): Observable<LotePosturaProduccionDto> {
     return this.http.get<LotePosturaProduccionDto>(`${this.baseUrl}/${id}`);
+  }
+
+  /** Resumen para el modal «Cerrar/Abrir lote» de Seguimiento Diario de Producción. */
+  getResumenCierre(lotePosturaProduccionId: number): Observable<CierreLoteProduccionResumenDto> {
+    return this.http.get<CierreLoteProduccionResumenDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaProduccionId))}/resumen-cierre`
+    );
+  }
+
+  /**
+   * Cierra el lote de producción: bloquea crear, editar y eliminar seguimiento diario.
+   * No borra ni modifica registros — es reversible con {@link abrirLote}.
+   */
+  cerrarLote(
+    lotePosturaProduccionId: number,
+    body: { motivo: string; closedByUserId: string }
+  ): Observable<LotePosturaProduccionDto> {
+    return this.http.post<LotePosturaProduccionDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaProduccionId))}/cerrar`,
+      body
+    );
+  }
+
+  /** Reabre un lote de producción cerrado y vuelve a habilitar la captura diaria. */
+  abrirLote(
+    lotePosturaProduccionId: number,
+    body: { motivo: string; openedByUserId: string }
+  ): Observable<LotePosturaProduccionDto> {
+    return this.http.post<LotePosturaProduccionDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaProduccionId))}/abrir`,
+      body
+    );
   }
 }

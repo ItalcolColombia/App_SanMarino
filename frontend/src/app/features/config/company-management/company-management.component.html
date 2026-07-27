@@ -19,28 +19,41 @@
     </header>
 
     <!-- Filtros compactos -->
-    <section class="company-filters" aria-label="Filtros de listado">
-      <div class="company-filters-inner">
-        <label class="company-filter-label">Filtrar por país</label>
-        <select
-          [value]="filterPaisId === null ? '' : filterPaisId"
-          (change)="onFilterPaisChange($any($event.target).value)"
-          class="form-input company-filter-select"
-          aria-label="Seleccionar país">
-          <option value="">Todos los países</option>
-          @for (pais of availablePaises; track pais) {
-            <option [value]="pais.paisId">
-              {{ pais.paisNombre }}
-            </option>
-          }
-        </select>
+    <section class="ux-card filter-card" aria-label="Filtros de listado">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="filter-step__label">Filtrar por país</label>
+          <select
+            [value]="filterPaisId === null ? '' : filterPaisId"
+            (change)="onFilterPaisChange($any($event.target).value)"
+            class="filter-step__select"
+            aria-label="Seleccionar país">
+            <option value="">Todos los países</option>
+            @for (pais of availablePaises; track pais) {
+              <option [value]="pais.paisId">
+                {{ pais.paisNombre }}
+              </option>
+            }
+          </select>
+        </div>
         @if (filterPaisId !== null) {
-          <button
-            type="button"
-            (click)="clearFilters()"
-            class="btn-ghost company-filter-clear">
-            Limpiar filtros
-          </button>
+          <div class="filter-card__actions">
+            <button
+              type="button"
+              (click)="clearFilters()"
+              class="btn-ghost">
+              Limpiar filtros
+            </button>
+          </div>
         }
       </div>
     </section>

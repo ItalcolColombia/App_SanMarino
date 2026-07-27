@@ -45,6 +45,10 @@ public class LoteConfiguration : IEntityTypeConfiguration<Lote>
         b.Property(x => x.EstadoTraslado).HasColumnName("estado_traslado").HasMaxLength(50);
         b.Property(x => x.LotePadreId).HasColumnName("lote_padre_id");
         b.Property(x => x.LotePosturaBaseId).HasColumnName("lote_postura_base_id");
+
+        // Códigos ERP avícolas del lote (empresas con maneja_codigos_erp_avicola = true)
+        b.Property(x => x.CodigoCentroCosto).HasColumnName("codigo_centro_costo").HasMaxLength(20);
+        b.Property(x => x.DescripcionCentroCosto).HasColumnName("descripcion_centro_costo").HasMaxLength(200);
         b.Property(x => x.Fase).HasColumnName("fase").HasMaxLength(20).IsRequired().HasDefaultValue("Levante");
         b.Property(x => x.FechaInicioProduccion).HasColumnName("fecha_inicio_produccion");
         b.Property(x => x.HembrasInicialesProd).HasColumnName("hembras_iniciales_prod");

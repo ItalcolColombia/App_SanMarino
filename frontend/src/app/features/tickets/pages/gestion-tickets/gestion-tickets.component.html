@@ -14,31 +14,39 @@
     </div>
 
     <!-- Filtros -->
-    <div class="mb-5 flex flex-wrap items-end gap-3 rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/70">
-      <div>
-        <label class="mb-1 block text-xs font-medium text-ital-muted">Año</label>
-        <select [(ngModel)]="anio" (ngModelChange)="onFilterChange()"
-                class="rounded-lg border-slate-200 py-1.5 pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm focus:border-ital-green focus:ring-ital-green">
-          @for (a of anios; track a) { <option [ngValue]="a">{{ a }}</option> }
-        </select>
+    <section class="ux-card filter-card mb-5">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
       </div>
-      <div>
-        <label class="mb-1 block text-xs font-medium text-ital-muted">Estado</label>
-        <select [(ngModel)]="estado" (ngModelChange)="onFilterChange()"
-                class="rounded-lg border-slate-200 py-1.5 pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm focus:border-ital-green focus:ring-ital-green">
-          <option value="">Todos</option>
-          @for (e of estados; track e) { <option [ngValue]="e">{{ estadoLabel[e] }}</option> }
-        </select>
+      <div class="filter-fields">
+        <div class="filter-field">
+          <label class="filter-step__label" for="gestion-tk-anio">Año</label>
+          <select id="gestion-tk-anio" [(ngModel)]="anio" (ngModelChange)="onFilterChange()" class="filter-step__select">
+            @for (a of anios; track a) { <option [ngValue]="a">{{ a }}</option> }
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-step__label" for="gestion-tk-estado">Estado</label>
+          <select id="gestion-tk-estado" [(ngModel)]="estado" (ngModelChange)="onFilterChange()" class="filter-step__select">
+            <option value="">Todos</option>
+            @for (e of estados; track e) { <option [ngValue]="e">{{ estadoLabel[e] }}</option> }
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-step__label" for="gestion-tk-tipo">Tipo</label>
+          <select id="gestion-tk-tipo" [(ngModel)]="tipo" (ngModelChange)="onFilterChange()" class="filter-step__select">
+            <option value="">Todos</option>
+            @for (t of tipos; track t.value) { <option [ngValue]="t.value">{{ t.label }}</option> }
+          </select>
+        </div>
       </div>
-      <div>
-        <label class="mb-1 block text-xs font-medium text-ital-muted">Tipo</label>
-        <select [(ngModel)]="tipo" (ngModelChange)="onFilterChange()"
-                class="rounded-lg border-slate-200 py-1.5 pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm focus:border-ital-green focus:ring-ital-green">
-          <option value="">Todos</option>
-          @for (t of tipos; track t.value) { <option [ngValue]="t.value">{{ t.label }}</option> }
-        </select>
-      </div>
-    </div>
+    </section>
 
     <app-ticket-list
       [items]="data()?.items ?? []"

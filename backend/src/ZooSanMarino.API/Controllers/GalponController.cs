@@ -19,11 +19,12 @@ public class GalponController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Listado (detalle) de galpones activos de la compañía actual.</summary>
+    /// <param name="paraDestino">true = catálogo para elegir DESTINO de traslados: omite el alcance granular núcleo/galpón/lote del usuario (el scoping por granja asignada se mantiene).</param>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<GalponDtos.GalponDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<GalponDtos.GalponDetailDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<GalponDtos.GalponDetailDto>>> GetAll([FromQuery] bool paraDestino = false)
     {
-        var items = await _svc.GetAllAsync();
+        var items = await _svc.GetAllAsync(paraDestino);
         return Ok(items);
     }
 
@@ -83,20 +84,25 @@ public class GalponController : ControllerBase
     }
 
     /// <summary>Listado por granja (detalle).</summary>
+    /// <param name="granjaId">Granja.</param>
+    /// <param name="paraDestino">true = catálogo para elegir DESTINO de traslados: omite el alcance granular núcleo/galpón/lote del usuario (el scoping por granja asignada se mantiene).</param>
     [HttpGet("granja/{granjaId:int}")]
     [ProducesResponseType(typeof(IEnumerable<GalponDtos.GalponDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<GalponDtos.GalponDetailDto>>> GetByGranja(int granjaId)
+    public async Task<ActionResult<IEnumerable<GalponDtos.GalponDetailDto>>> GetByGranja(int granjaId, [FromQuery] bool paraDestino = false)
     {
-        var items = await _svc.GetByGranjaAsync(granjaId);
+        var items = await _svc.GetByGranjaAsync(granjaId, paraDestino);
         return Ok(items);
     }
 
     /// <summary>Listado por granja y núcleo (detalle).</summary>
+    /// <param name="granjaId">Granja.</param>
+    /// <param name="nucleoId">Núcleo.</param>
+    /// <param name="paraDestino">true = catálogo para elegir DESTINO de traslados: omite el alcance granular núcleo/galpón/lote del usuario (el scoping por granja asignada se mantiene).</param>
     [HttpGet("granja/{granjaId:int}/nucleo/{nucleoId}")]
     [ProducesResponseType(typeof(IEnumerable<GalponDtos.GalponDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<GalponDtos.GalponDetailDto>>> GetByGranjaAndNucleo(int granjaId, string nucleoId)
+    public async Task<ActionResult<IEnumerable<GalponDtos.GalponDetailDto>>> GetByGranjaAndNucleo(int granjaId, string nucleoId, [FromQuery] bool paraDestino = false)
     {
-        var items = await _svc.GetByGranjaAndNucleoAsync(granjaId, nucleoId);
+        var items = await _svc.GetByGranjaAndNucleoAsync(granjaId, nucleoId, paraDestino);
         return Ok(items);
     }
 

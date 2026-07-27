@@ -171,8 +171,24 @@ public static class MigracionEsquemas
         new("Observaciones",      Requerida: false),
     });
 
+    /// <summary>
+    /// Venta de pollo engorde. Todas las columnas son opcionales salvo la fecha ⇒ un archivo con
+    /// las 11 columnas históricas (Fecha…Observaciones) sigue siendo válido.
+    /// <para>
+    /// MULTI-LOTE: si la fila trae "Lote" se resuelve por nombre acotado por Granja/Núcleo/Galpón;
+    /// sin "Lote" se usa el lote seleccionado en pantalla. Las filas que comparten
+    /// "N° Despacho" + Fecha + Granja forman UN despacho: se les asigna una misma factura y el peso
+    /// báscula (que es el del camión) se prorratea entre ellas por aves, igual que una venta hecha
+    /// por pantalla.
+    /// </para>
+    /// </summary>
     public static EsquemaMigracion VentaPolloEngorde { get; } = new("Datos", new ColumnaEsquema[]
     {
+        // Ubicación por NOMBRES (opcional): mismo mecanismo que SeguimientoPolloEngorde.
+        new("Granja",             Requerida: false, Alias: new[] { "nombre granja" }),
+        new("Núcleo",             Requerida: false, Alias: new[] { "nombre nucleo" }),
+        new("Galpón",             Requerida: false, Alias: new[] { "nombre galpon" }),
+        new("Lote",               Requerida: false, Alias: new[] { "nombre lote" }),
         new("Fecha",              Requerida: true),
         new("Cantidad H",         Requerida: false, Alias: new[] { "cant h", "hembras" }),
         new("Cantidad M",         Requerida: false, Alias: new[] { "cant m", "machos" }),
@@ -184,6 +200,23 @@ public static class MigracionEsquemas
         new("Raza",               Requerida: false),
         new("Placa",              Requerida: false),
         new("Observaciones",      Requerida: false),
+        // ── Datos del despacho (mismos campos del formulario de venta) ──
+        new("N° Despacho",        Requerida: false, Alias: new[] { "no despacho", "nro despacho", "numero despacho", "despacho" }),
+        new("Total Pollos Galpón",Requerida: false, Alias: new[] { "total pollos galpon", "total pollos" }),
+        new("Hora Salida",        Requerida: false, Alias: new[] { "hora" }),
+        new("Guía Agrocalidad",   Requerida: false, Alias: new[] { "guia agrocalidad", "guia" }),
+        new("Sellos",             Requerida: false),
+        new("Ayuno",              Requerida: false),
+        new("Cliente / Conductor",Requerida: false, Alias: new[] { "cliente / conductor", "cliente", "conductor" }),
+        new("Planta Destino",     Requerida: false, Alias: new[] { "planta" }),
+        new("Descripción",        Requerida: false, Alias: new[] { "descripcion" }),
+        // Estado con el que nace la venta. "Completado" (default) = comportamiento histórico:
+        // descuenta las aves del lote. "Pendiente" = venta a la espera de la báscula; el descuento
+        // ocurre al confirmarla desde la pantalla de movimientos.
+        new("Estado",             Requerida: false, Opciones: new[] { "Completado", "Pendiente" }),
+        // Venta sobre MIXTAS (Panamá): el split H/M se asigna sobre las mixtas del lote; el stock
+        // sale de mixtas y no de hembras_l/machos_l. Espeja EsVentaMixta de la venta por pantalla.
+        new("Venta sobre mixtas", Requerida: false, Alias: new[] { "es venta mixta", "sobre mixtas", "panama" }),
     });
 
     /// <summary>Devuelve el esquema correspondiente a un tipo de migración implementado.</summary>

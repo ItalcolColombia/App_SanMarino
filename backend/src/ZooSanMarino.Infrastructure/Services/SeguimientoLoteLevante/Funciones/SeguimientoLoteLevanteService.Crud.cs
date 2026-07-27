@@ -22,6 +22,10 @@ public partial class SeguimientoLoteLevanteService
         // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
         await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
 
+        // Huevos en levante (semana 14+): gate por flag de empresa + edad del lote. Neutraliza o
+        // lanza ANTES de tocar inventario/consumo, para no dejar efectos a medias.
+        dto = await AplicarGateHuevosLevanteAsync(dto, lote);
+
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
         {
@@ -114,6 +118,9 @@ public partial class SeguimientoLoteLevanteService
         // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
         await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
 
+        // Huevos en levante (semana 14+): mismo gate que en el alta.
+        dto = await AplicarGateHuevosLevanteAsync(dto, lote);
+
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
         {
@@ -145,6 +152,12 @@ public partial class SeguimientoLoteLevanteService
         // REQ-011b (soft-check, no bloquea): advierte si hay consumo/mortalidad de un sexo sin saldo a esa
         // fecha; excluye el propio registro (edición) para no auto-justificarse.
         await ValidarConsumoVsSaldoPorSexoAsync(dto, consumoKgH, excludeRegistroId: (long)dto.Id);
+
+        // Los huevos que el request no trae se CONSERVAN: SeguimientoDiarioService.UpdateAsync
+        // asigna las 13 columnas sin condición, así que mandar null equivale a borrarlas. Sin esto,
+        // editar un registro desde un cliente que no manda el tab «Huevos» (o con el flag apagado
+        // después de haber capturado datos) borraría los huevos en silencio.
+        dto = ConservarHuevosPrevios(dto, oldRec);
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var updateDto = MapToUpdateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);

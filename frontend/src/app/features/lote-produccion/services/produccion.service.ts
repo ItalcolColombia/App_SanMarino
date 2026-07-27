@@ -72,6 +72,15 @@ export interface CrearSeguimientoRequest {
   huevoRoto?: number;
   huevoDesecho?: number;
   huevoOtro?: number;
+  /**
+   * Santa Reyes (`companies.clasificacion_huevo_por_items`): clasificación de huevos por ÍTEM del
+   * catálogo en vez de las 11 columnas fijas. Semántica del contrato:
+   * - `undefined`/`null` → flujo actual (las 11 columnas mandan).
+   * - lista con elementos → el backend pone `huevoTot` = suma, `huevoInc` = 0 y las 11 columnas en 0,
+   *   y guarda el desglose en `metadata.huevoItems`.
+   * - `[]` (lista vacía) → quitar la clasificación por ítems del registro.
+   */
+  huevoItems?: HuevoItemSeguimiento[] | null;
   tipoAlimento: string;
   pesoHuevo: number;
   etapa: number; // 1: semana 25-33, 2: 34-50, 3: >50
@@ -105,6 +114,72 @@ export interface CrearSeguimientoRequest {
   nucleoId?: string | null;
   /** Ecuador/Panamá: galpón (obligatorio para alimento). */
   galponId?: string | null;
+}
+
+/**
+ * Fila de la clasificación de huevos por ítem del catálogo (`catalogo_items` con `item_type='huevo'`).
+ * Viaja completa en el request y el backend la persiste en `metadata.huevoItems` del seguimiento.
+ */
+export interface HuevoItemSeguimiento {
+  /** `catalogo_items.id` del ítem de huevo. */
+  catalogItemId: number;
+  codigo?: string | null;
+  nombre?: string | null;
+  /** Categoría del ítem: 'Primera' | 'Pnc' (según `metadata.tipoHuevo` del catálogo). */
+  tipoHuevo?: string | null;
+  cantidad: number;
+  /** Unidad de medida del ítem: 'UND' | 'KIL'. */
+  um?: string | null;
+}
+
+/**
+ * Lectura DEFENSIVA de `metadata.huevoItems` de un seguimiento (para rehidratar el modal al editar).
+ * Soporta metadata como objeto o como JSON string, y claves camelCase o snake_case.
+ * Devuelve `[]` ante cualquier forma inesperada (nunca lanza).
+ */
+export function leerHuevoItemsDeMetadata(metadata: unknown): HuevoItemSeguimiento[] {
+  let obj: Record<string, unknown>;
+  if (typeof metadata === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(metadata);
+      if (!parsed || typeof parsed !== 'object') return [];
+      obj = parsed as Record<string, unknown>;
+    } catch {
+      return [];
+    }
+  } else if (metadata && typeof metadata === 'object') {
+    obj = metadata as Record<string, unknown>;
+  } else {
+    return [];
+  }
+
+  const raw = obj['huevoItems'] ?? obj['huevo_items'];
+  if (!Array.isArray(raw)) return [];
+
+  const texto = (v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    return s.length ? s : null;
+  };
+
+  return raw
+    .map((x: unknown): HuevoItemSeguimiento | null => {
+      if (!x || typeof x !== 'object') return null;
+      const o = x as Record<string, unknown>;
+      const catalogItemId = Number(o['catalogItemId'] ?? o['catalog_item_id']) || 0;
+      const cantidadNum = Number(o['cantidad']);
+      const cantidad = isNaN(cantidadNum) ? 0 : cantidadNum;
+      if (catalogItemId <= 0) return null;
+      return {
+        catalogItemId,
+        codigo: texto(o['codigo']),
+        nombre: texto(o['nombre']),
+        tipoHuevo: texto(o['tipoHuevo'] ?? o['tipo_huevo']),
+        cantidad,
+        um: texto(o['um'] ?? o['unidad'] ?? o['unidadMedida'])
+      };
+    })
+    .filter((x): x is HuevoItemSeguimiento => x !== null);
 }
 
 export interface ItemSeguimientoDto {
@@ -329,8 +404,10 @@ export class ProduccionService {
    * Obtiene los lotes que tienen semana 26 o superior (para módulo de producción)
    * Solo incluye lotes que han alcanzado la semana 26 desde su fecha de encaset
    */
-  obtenerLotesProduccion(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.baseUrl}/lotes-produccion`);
+  /** paraDestino=true: catálogo para elegir DESTINO de traslados (omite el alcance granular del usuario). */
+  obtenerLotesProduccion(paraDestino = false): Observable<any[]> {
+    const qs = paraDestino ? '?paraDestino=true' : '';
+    return this.http.get<any[]>(`${this.baseUrl}/lotes-produccion${qs}`);
   }
 
   // ================== INDICADORES SEMANALES ==================
@@ -349,6 +426,35 @@ export class ProduccionService {
   obtenerIndicadorSemana(loteId: number, semana: number): Observable<IndicadorProduccionSemanalDto> {
     return this.http.get<IndicadorProduccionSemanalDto>(`${this.baseUrl}/indicadores-semanales/${loteId}/${semana}`);
   }
+
+  /**
+   * Clasificación de huevos POR ÍTEM del catálogo, por semana (empresas con
+   * `companies.clasificacion_huevo_por_items` — las 11 columnas fijas quedan en 0 y el desglose
+   * real vive en `seguimiento_diario_produccion.metadata->'huevoItems'`).
+   *
+   * Endpoint HERMANO de `indicadores-semanales`: mismo controller/ruta base y MISMO request
+   * (`IndicadoresProduccionRequest`) → `POST {apiUrl}/Produccion/clasificacion-huevo-items`.
+   * Devuelve una fila por semana × ítem; el front agrupa por semana y tipo (Primera/Pnc).
+   */
+  obtenerClasificacionHuevoItems(request: IndicadoresProduccionRequest): Observable<ClasificacionHuevoItemSemanaDto[]> {
+    return this.http.post<ClasificacionHuevoItemSemanaDto[]>(`${this.baseUrl}/clasificacion-huevo-items`, request);
+  }
+}
+
+/**
+ * Fila del desglose de clasificación de huevos por ítem y semana
+ * (`POST /api/Produccion/clasificacion-huevo-items`).
+ */
+export interface ClasificacionHuevoItemSemanaDto {
+  /** Semana de vida (misma base que los indicadores semanales). */
+  semana: number;
+  /** Categoría del ítem en el catálogo: 'Primera' | 'Pnc'. */
+  tipoHuevo: string;
+  /** `catalogo_items.codigo` del ítem de huevo. */
+  codigo: string;
+  /** `catalogo_items.nombre` del ítem de huevo. */
+  nombre: string;
+  cantidad: number;
 }
 
 // ================== DTOs INDICADORES SEMANALES ==================

@@ -298,6 +298,22 @@ public class TrasladosController : ControllerBase
     }
 
     /// <summary>
+    /// Edades presentes en un lote: la cohorte propia (por su fecha de encasetamiento) más las
+    /// cohortes de aves recibidas por traslado, cada una con su edad actual en días y semanas
+    /// contada desde el encasetamiento de su lote de origen.
+    /// </summary>
+    /// <param name="loteId">Id del lote base (<c>lotes.lote_id</c>) receptor.</param>
+    [HttpGet("cohortes/{loteId:int}")]
+    [ProducesResponseType(typeof(LoteCohortesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteCohortesDto>> GetCohortesLote(int loteId, CancellationToken ct = default)
+    {
+        var result = await _trasladoAvesDesdeSegService.GetCohortesLoteAsync(loteId, ct);
+        if (result is null) return NotFound(new { message = $"Lote {loteId} no encontrado." });
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Actualiza un traslado de huevos existente (solo si está en estado "Pendiente")
     /// </summary>
     [HttpPut("huevos/{id}")]

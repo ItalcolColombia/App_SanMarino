@@ -2,6 +2,7 @@
 // registros legacy sin JSON en BD. Partial de SeguimientoLoteLevanteService (namespace plano).
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -58,13 +59,93 @@ public partial class SeguimientoLoteLevanteService
             // Auditoría
             UpdatedByUserId: u.UpdatedByUserId,
             CreatedAt: u.CreatedAt,
-            UpdatedAt: u.UpdatedAt
+            UpdatedAt: u.UpdatedAt,
+            // Huevos en levante: se devuelven tal cual están en la tabla unificada para que el
+            // modal pueda rehidratar el tab «Huevos» al editar.
+            HuevoLimpio: u.HuevoLimpio,
+            HuevoTratado: u.HuevoTratado,
+            HuevoSucio: u.HuevoSucio,
+            HuevoDeforme: u.HuevoDeforme,
+            HuevoBlanco: u.HuevoBlanco,
+            HuevoDobleYema: u.HuevoDobleYema,
+            HuevoPiso: u.HuevoPiso,
+            HuevoPequeno: u.HuevoPequeno,
+            HuevoRoto: u.HuevoRoto,
+            HuevoDesecho: u.HuevoDesecho,
+            HuevoOtro: u.HuevoOtro,
+            PesoHuevo: u.PesoHuevo,
+            HuevoTot: u.HuevoTot,
+            HuevoInc: u.HuevoInc
         );
+    }
+
+    /// <summary>
+    /// Proyecta las 11 categorías del DTO de levante a <see cref="HuevosClasificacion"/>.
+    /// Devuelve <c>null</c> si el cliente NO mandó ninguna categoría (todas null) — es la señal de
+    /// «no tocar los huevos», distinta de «mandó ceros» (que sí los pone en 0).
+    /// </summary>
+    private static HuevosClasificacion? HuevosDeDto(SeguimientoLoteLevanteDto dto)
+    {
+        if (dto.HuevoLimpio is null && dto.HuevoTratado is null && dto.HuevoSucio is null &&
+            dto.HuevoDeforme is null && dto.HuevoBlanco is null && dto.HuevoDobleYema is null &&
+            dto.HuevoPiso is null && dto.HuevoPequeno is null && dto.HuevoRoto is null &&
+            dto.HuevoDesecho is null && dto.HuevoOtro is null)
+            return null;
+
+        return new HuevosClasificacion(
+            Limpio: dto.HuevoLimpio ?? 0,
+            Tratado: dto.HuevoTratado ?? 0,
+            Sucio: dto.HuevoSucio ?? 0,
+            Deforme: dto.HuevoDeforme ?? 0,
+            Blanco: dto.HuevoBlanco ?? 0,
+            DobleYema: dto.HuevoDobleYema ?? 0,
+            Piso: dto.HuevoPiso ?? 0,
+            Pequeno: dto.HuevoPequeno ?? 0,
+            Roto: dto.HuevoRoto ?? 0,
+            Desecho: dto.HuevoDesecho ?? 0,
+            Otro: dto.HuevoOtro ?? 0);
+    }
+
+    /// <summary>
+    /// Si el request de edición NO trae ninguna categoría de huevos (todas null) pero el registro
+    /// persistido SÍ tiene huevos, los arrastra al DTO para que el update no los borre.
+    /// Si el request trae aunque sea una categoría, manda el request (incluidos los ceros: así se
+    /// corrige/limpia un día cargado por error).
+    /// </summary>
+    private static SeguimientoLoteLevanteDto ConservarHuevosPrevios(
+        SeguimientoLoteLevanteDto dto, SeguimientoDiarioDto? previo)
+    {
+        if (previo is null) return dto;
+        if (HuevosDeDto(dto) is not null) return dto;
+
+        var teniaHuevos =
+            previo.HuevoLimpio.HasValue || previo.HuevoTratado.HasValue || previo.HuevoSucio.HasValue ||
+            previo.HuevoDeforme.HasValue || previo.HuevoBlanco.HasValue || previo.HuevoDobleYema.HasValue ||
+            previo.HuevoPiso.HasValue || previo.HuevoPequeno.HasValue || previo.HuevoRoto.HasValue ||
+            previo.HuevoDesecho.HasValue || previo.HuevoOtro.HasValue;
+        if (!teniaHuevos) return dto;
+
+        return dto with
+        {
+            HuevoLimpio = previo.HuevoLimpio,
+            HuevoTratado = previo.HuevoTratado,
+            HuevoSucio = previo.HuevoSucio,
+            HuevoDeforme = previo.HuevoDeforme,
+            HuevoBlanco = previo.HuevoBlanco,
+            HuevoDobleYema = previo.HuevoDobleYema,
+            HuevoPiso = previo.HuevoPiso,
+            HuevoPequeno = previo.HuevoPequeno,
+            HuevoRoto = previo.HuevoRoto,
+            HuevoDesecho = previo.HuevoDesecho,
+            HuevoOtro = previo.HuevoOtro,
+            PesoHuevo = dto.PesoHuevo ?? previo.PesoHuevo
+        };
     }
 
     private static CreateSeguimientoDiarioDto MapToCreateUnificado(SeguimientoLoteLevanteDto dto,
         double consumoKgHembras, double? kcalAlH, double? protAlH, double? kcalAveH, double? protAveH)
     {
+        var huevos = HuevosDeDto(dto);
         return new CreateSeguimientoDiarioDto(
             TipoSeguimiento: TipoLevante,
             LoteId: dto.LoteId.ToString(),
@@ -101,20 +182,24 @@ public partial class SeguimientoLoteLevanteService
             ProtAlH: protAlH,
             KcalAveH: kcalAveH,
             ProtAveH: protAveH,
-            HuevoTot: null,
-            HuevoInc: null,
-            HuevoLimpio: null,
-            HuevoTratado: null,
-            HuevoSucio: null,
-            HuevoDeforme: null,
-            HuevoBlanco: null,
-            HuevoDobleYema: null,
-            HuevoPiso: null,
-            HuevoPequeno: null,
-            HuevoRoto: null,
-            HuevoDesecho: null,
-            HuevoOtro: null,
-            PesoHuevo: null,
+            // Huevos en LEVANTE (semana 14+). El gate de Crud.cs ya neutralizó los valores si la
+            // empresa no tiene el flag o el registro no llega a la semana 14, así que acá se mapean
+            // tal cual. HuevoTot/HuevoInc SIEMPRE se derivan de las 11 categorías (nunca se confía
+            // en lo que mandó el cliente) ⇒ imposible que queden descuadrados.
+            HuevoTot: huevos?.Totales,
+            HuevoInc: huevos?.Incubables,
+            HuevoLimpio: dto.HuevoLimpio,
+            HuevoTratado: dto.HuevoTratado,
+            HuevoSucio: dto.HuevoSucio,
+            HuevoDeforme: dto.HuevoDeforme,
+            HuevoBlanco: dto.HuevoBlanco,
+            HuevoDobleYema: dto.HuevoDobleYema,
+            HuevoPiso: dto.HuevoPiso,
+            HuevoPequeno: dto.HuevoPequeno,
+            HuevoRoto: dto.HuevoRoto,
+            HuevoDesecho: dto.HuevoDesecho,
+            HuevoOtro: dto.HuevoOtro,
+            PesoHuevo: dto.PesoHuevo,
             Etapa: null,
             PesoH: null,
             PesoM: null,
@@ -134,6 +219,7 @@ public partial class SeguimientoLoteLevanteService
     private static UpdateSeguimientoDiarioDto MapToUpdateUnificado(SeguimientoLoteLevanteDto dto,
         double consumoKgHembras, double? kcalAlH, double? protAlH, double? kcalAveH, double? protAveH)
     {
+        var huevos = HuevosDeDto(dto);
         return new UpdateSeguimientoDiarioDto(
             Id: (long)dto.Id,
             TipoSeguimiento: TipoLevante,
@@ -171,20 +257,24 @@ public partial class SeguimientoLoteLevanteService
             ProtAlH: protAlH,
             KcalAveH: kcalAveH,
             ProtAveH: protAveH,
-            HuevoTot: null,
-            HuevoInc: null,
-            HuevoLimpio: null,
-            HuevoTratado: null,
-            HuevoSucio: null,
-            HuevoDeforme: null,
-            HuevoBlanco: null,
-            HuevoDobleYema: null,
-            HuevoPiso: null,
-            HuevoPequeno: null,
-            HuevoRoto: null,
-            HuevoDesecho: null,
-            HuevoOtro: null,
-            PesoHuevo: null,
+            // Huevos en LEVANTE (semana 14+). El gate de Crud.cs ya neutralizó los valores si la
+            // empresa no tiene el flag o el registro no llega a la semana 14, así que acá se mapean
+            // tal cual. HuevoTot/HuevoInc SIEMPRE se derivan de las 11 categorías (nunca se confía
+            // en lo que mandó el cliente) ⇒ imposible que queden descuadrados.
+            HuevoTot: huevos?.Totales,
+            HuevoInc: huevos?.Incubables,
+            HuevoLimpio: dto.HuevoLimpio,
+            HuevoTratado: dto.HuevoTratado,
+            HuevoSucio: dto.HuevoSucio,
+            HuevoDeforme: dto.HuevoDeforme,
+            HuevoBlanco: dto.HuevoBlanco,
+            HuevoDobleYema: dto.HuevoDobleYema,
+            HuevoPiso: dto.HuevoPiso,
+            HuevoPequeno: dto.HuevoPequeno,
+            HuevoRoto: dto.HuevoRoto,
+            HuevoDesecho: dto.HuevoDesecho,
+            HuevoOtro: dto.HuevoOtro,
+            PesoHuevo: dto.PesoHuevo,
             Etapa: null,
             PesoH: null,
             PesoM: null,

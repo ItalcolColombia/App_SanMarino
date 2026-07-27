@@ -38,6 +38,11 @@ public partial class CompanyService : ICompanyService
         CompanyCalculos.BuildLogoDataUrl(c.Logo?.LogoBytes, c.Logo?.LogoContentType),
         c.MobileAccess,
         c.VisualPermissions ?? Array.Empty<string>(),
-        c.ManejaAlimentoPorGalpon
+        c.ManejaAlimentoPorGalpon,
+        c.ManejaCodigosErpAvicola,
+        c.ClasificacionHuevoPorItems,
+        c.PermiteTrasladoAvesCrossEtapa,
+        c.CapturaHuevosEnLevante,
+        c.VentaEngordePesoDiferido
     );
 }

@@ -36,6 +36,12 @@ public class UserFarmConfiguration : IEntityTypeConfiguration<UserFarm>
             .HasDefaultValue(false)
             .IsRequired();
 
+        e.Property(x => x.RestrictLocations)
+            .HasColumnName("restrict_locations")
+            .HasColumnType("boolean")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         e.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
             .HasColumnType("timestamp with time zone")

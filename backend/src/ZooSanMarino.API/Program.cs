@@ -186,6 +186,8 @@ if (emailQueueEnabled)
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IUserFarmService, UserFarmService>();
+builder.Services.AddScoped<IUserFarmScopeService, UserFarmScopeService>();
+builder.Services.AddScoped<ILocationScopeResolver, LocationScopeResolver>(); // alcance granular núcleo/galpón/lote (caché por request)
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
@@ -287,6 +289,9 @@ builder.Services.AddScoped<IInformeSemanalPolloEngordeService, InformeSemanalPol
 // Reporte Diario Costos Pollo Engorde (por granja + lote base)
 builder.Services.AddScoped<IReporteDiarioCostosEngordeService, ReporteDiarioCostosEngordeService>();
 
+// Reporte Técnico Semanal (Sanmarino postura: Levante + Producción vs guía genética)
+builder.Services.AddScoped<IReporteTecnicoSemanalService, ReporteTecnicoSemanalService>();
+
 // Reporte Indicador Panamá Service (liquidación Pollo Engorde Panamá)
 builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanamaService>();
 
@@ -322,6 +327,8 @@ builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorServi
 // Servicios de Traslados
 builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IEspejoHuevoProduccionSyncService, ZooSanMarino.Infrastructure.Services.EspejoHuevoProduccionSyncService>();
+// Arrastre de los huevos capturados en levante (semana 14+) al primer registro de producción al liquidar.
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IArrastreHuevosLevanteService, ZooSanMarino.Infrastructure.Services.ArrastreHuevosLevanteService>();
 builder.Services.AddScoped<ITrasladoHuevosService, TrasladoHuevosService>();
 builder.Services.AddScoped<ITrasladoAvesDesdeSegService, TrasladoAvesDesdeSegService>();
 

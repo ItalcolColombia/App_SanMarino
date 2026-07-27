@@ -11,11 +11,34 @@ public class HistorialInventarioService : IHistorialInventarioService
 {
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
+    private readonly ILocationScopeResolver _scopeResolver;
 
-    public HistorialInventarioService(ZooSanMarinoContext context, ICurrentUser currentUser)
+    public HistorialInventarioService(
+        ZooSanMarinoContext context,
+        ICurrentUser currentUser,
+        ILocationScopeResolver scopeResolver)
     {
         _context = context;
         _currentUser = currentUser;
+        _scopeResolver = scopeResolver;
+    }
+
+    /// <summary>
+    /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes) sobre
+    /// historial_inventario, componible en SQL. lote_id es NOT NULL con FK a lotes ⇒ manda el nivel
+    /// LOTE del cierre (no hay filas sin lote que necesiten el fallback por galpón/núcleo; usarlo
+    /// abriría de más, porque GalponesVisibles incluye galpones visibles solo para NAVEGACIÓN cuando
+    /// el grant fue a nivel lote). Sin granjas restringidas la query queda intacta (cero cambios).
+    /// </summary>
+    private async Task<IQueryable<HistorialInventario>> AplicarScopeUbicacionAsync(IQueryable<HistorialInventario> q)
+    {
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count == 0) return q;
+
+        var granjasRestringidas = restringidos.Keys.ToList();
+        var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+
+        return q.Where(h => !granjasRestringidas.Contains(h.GranjaId) || lotesPermitidos.Contains(h.LoteId));
     }
 
     public async Task<ZooSanMarino.Application.DTOs.Common.PagedResult<HistorialInventarioDto>> SearchAsync(HistorialInventarioSearchRequest request)
@@ -55,6 +78,9 @@ public class HistorialInventarioService : IHistorialInventarioService
         if (request.UsuarioCambioId.HasValue)
             query = query.Where(h => h.UsuarioCambioId == request.UsuarioCambioId.Value);
 
+        // Alcance granular núcleo/galpón/lote (sin restricciones no filtra nada)
+        query = await AplicarScopeUbicacionAsync(query);
+
         var totalCount = await query.CountAsync();
 
         var items = await query
@@ -85,6 +111,10 @@ public class HistorialInventarioService : IHistorialInventarioService
 
     public async Task<IEnumerable<HistorialInventarioDto>> GetByLoteIdAsync(int loteId)
     {
+        // Alcance granular: acceso directo por loteId respeta el scope (fail-closed)
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            return Array.Empty<HistorialInventarioDto>();
+
         return await _context.HistorialInventario
             .AsNoTracking()
             .Where(h => h.LoteId == loteId && h.CompanyId == _currentUser.CompanyId && h.DeletedAt == null)
@@ -139,6 +169,10 @@ public class HistorialInventarioService : IHistorialInventarioService
 
     public async Task<IEnumerable<EventoTrazabilidadDto>> GetEventosLoteAsync(int loteId, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
     {
+        // Alcance granular: acceso directo por loteId respeta el scope (fail-closed)
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            return Array.Empty<EventoTrazabilidadDto>();
+
         var query = _context.HistorialInventario
             .AsNoTracking()
             .Where(h => h.LoteId == loteId && h.CompanyId == _currentUser.CompanyId && h.DeletedAt == null);
@@ -179,6 +213,9 @@ public class HistorialInventarioService : IHistorialInventarioService
 
         if (granjaId.HasValue)
             query = query.Where(h => h.GranjaId == granjaId.Value);
+
+        // Alcance granular núcleo/galpón/lote (sin restricciones no filtra nada)
+        query = await AplicarScopeUbicacionAsync(query);
 
         var cambios = await query.ToListAsync();
 

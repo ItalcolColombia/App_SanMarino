@@ -41,6 +41,24 @@ export interface SeguimientoLoteLevanteDto {
   consumoAguaPh?: number | null;
   consumoAguaOrp?: number | null;
   consumoAguaTemperatura?: number | null;
+  /**
+   * Clasificadora de huevos capturada en LEVANTE (semana 14+, empresas con
+   * `captura_huevos_en_levante`). `huevoTot`/`huevoInc` los deriva el backend de las 11 categorías.
+   */
+  huevoLimpio?: number | null;
+  huevoTratado?: number | null;
+  huevoSucio?: number | null;
+  huevoDeforme?: number | null;
+  huevoBlanco?: number | null;
+  huevoDobleYema?: number | null;
+  huevoPiso?: number | null;
+  huevoPequeno?: number | null;
+  huevoRoto?: number | null;
+  huevoDesecho?: number | null;
+  huevoOtro?: number | null;
+  pesoHuevo?: number | null;
+  huevoTot?: number | null;
+  huevoInc?: number | null;
 
   observaciones?: string;
   kcalAlH?: number | null;
@@ -171,6 +189,22 @@ export interface CreateSeguimientoLoteLevanteDto {
   consumoAguaPh?: number | null;
   consumoAguaOrp?: number | null;
   consumoAguaTemperatura?: number | null;
+  /**
+   * Clasificadora de huevos en LEVANTE (semana 14+). Se envían las 11 categorías y el peso; los
+   * totales los recalcula el backend. `null` = no tocar los huevos del registro.
+   */
+  huevoLimpio?: number | null;
+  huevoTratado?: number | null;
+  huevoSucio?: number | null;
+  huevoDeforme?: number | null;
+  huevoBlanco?: number | null;
+  huevoDobleYema?: number | null;
+  huevoPiso?: number | null;
+  huevoPequeno?: number | null;
+  huevoRoto?: number | null;
+  huevoDesecho?: number | null;
+  huevoOtro?: number | null;
+  pesoHuevo?: number | null;
 
   /** ID del usuario en sesión (desde storage). Se envía al backend para guardar en seguimiento_diario.created_by_user_id. */
   createdByUserId?: string | null;

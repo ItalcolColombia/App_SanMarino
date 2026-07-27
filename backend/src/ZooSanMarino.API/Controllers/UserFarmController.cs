@@ -14,10 +14,12 @@ namespace ZooSanMarino.API.Controllers;
 public class UserFarmController : ControllerBase
 {
     private readonly IUserFarmService _userFarmService;
+    private readonly IUserFarmScopeService _userFarmScopeService;
 
-    public UserFarmController(IUserFarmService userFarmService)
+    public UserFarmController(IUserFarmService userFarmService, IUserFarmScopeService userFarmScopeService)
     {
         _userFarmService = userFarmService;
+        _userFarmScopeService = userFarmScopeService;
     }
 
     /// <summary>
@@ -341,6 +343,97 @@ public class UserFarmController : ControllerBase
                 return NotFound(new { message = "Asociación usuario-granja no encontrada." });
 
             return Ok(userFarm);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Alcance granular de ubicación (núcleo/galpón/lote o global) por usuario-granja
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Obtiene el alcance de ubicación configurado para un usuario en una granja
+    /// (flag restrictLocations + grants con nombres).
+    /// </summary>
+    [HttpGet("user/{userId:guid}/farm/{farmId:int}/scope")]
+    [Authorize]
+    [ProducesResponseType(typeof(UserFarmScopeConfigDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUserFarmScope(Guid userId, int farmId)
+    {
+        try
+        {
+            var result = await _userFarmScopeService.GetScopeAsync(userId, farmId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Reemplaza el alcance de ubicación de un usuario en una granja (transaccional).
+    /// restrictLocations=false vuelve al acceso global (elimina los grants);
+    /// restrictLocations=true restringe a los items enviados (vacío = no ve nada, fail-closed).
+    /// </summary>
+    [HttpPut("user/{userId:guid}/farm/{farmId:int}/scope")]
+    [Authorize]
+    [ProducesResponseType(typeof(UserFarmScopeConfigDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ReplaceUserFarmScope(Guid userId, int farmId, [FromBody] UpdateUserFarmScopeDto dto)
+    {
+        var updatedByUserId = GetCurrentUserId();
+        if (updatedByUserId == null)
+            return Unauthorized(new { message = "No se pudo determinar el ID del usuario." });
+
+        try
+        {
+            var result = await _userFarmScopeService.ReplaceScopeAsync(userId, farmId, dto, updatedByUserId.Value);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (System.Data.Common.DbException)
+        {
+            // Carrera validación→INSERT (p. ej. borraron el núcleo en medio): la transacción ya
+            // hizo rollback; responder conflicto neutro en vez de 500.
+            return Conflict(new { message = "La granja cambió mientras se guardaba el alcance. Recargue e intente de nuevo." });
+        }
+    }
+
+    /// <summary>
+    /// Árbol de ubicaciones ACTIVAS de una granja (núcleos → galpones → lotes) para el modal
+    /// de configuración de alcance.
+    /// </summary>
+    [HttpGet("farm/{farmId:int}/locations-tree")]
+    [Authorize]
+    [ProducesResponseType(typeof(FarmLocationsTreeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFarmLocationsTree(int farmId)
+    {
+        try
+        {
+            var result = await _userFarmScopeService.GetFarmLocationsTreeAsync(farmId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

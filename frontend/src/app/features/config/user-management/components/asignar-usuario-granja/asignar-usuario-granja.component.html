@@ -133,9 +133,27 @@
                               Default
                             </span>
                           }
+                          @if (userFarm.restrictLocations) {
+                            <span
+                              class="badge badge-admin"
+                              title="Acceso restringido a {{ userFarm.scopeCount }} lugar(es) de la granja"
+                              >
+                              <fa-icon [icon]="faLayerGroup" class="mr-1"></fa-icon>
+                              Restringido ({{ userFarm.scopeCount }})
+                            </span>
+                          }
                         </div>
                       </div>
                       <div class="farm-actions">
+                        <button
+                          (click)="openScopeModal(userFarm)"
+                          class="action-btn"
+                          [class.active]="userFarm.restrictLocations"
+                          [disabled]="saving"
+                          title="Alcance dentro de la granja (núcleo/galpón/lote o global)"
+                          >
+                          <fa-icon [icon]="faLayerGroup"></fa-icon>
+                        </button>
                         <button
                           (click)="toggleAdmin(userFarm)"
                           class="action-btn"
@@ -224,4 +242,15 @@
         </button>
       </div>
     </div>
+
+    <!-- Sub-modal: alcance dentro de la granja -->
+    <app-configurar-alcance-granja
+      [userId]="userId"
+      [userName]="userName"
+      [farmId]="scopeFarm?.farmId ?? 0"
+      [farmName]="scopeFarm?.farmName ?? ''"
+      [isOpen]="scopeModalOpen"
+      (close)="closeScopeModal()"
+      (scopeUpdated)="onScopeUpdated($event)"
+    ></app-configurar-alcance-granja>
   </div>

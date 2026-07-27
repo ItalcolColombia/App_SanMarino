@@ -76,6 +76,37 @@ public class FarmConfiguration : IEntityTypeConfiguration<Farm>
             .HasMaxLength(20)
             .IsRequired(false);
 
+        // Códigos ERP avícolas de la granja (empresas con maneja_codigos_erp_avicola = true)
+        e.Property(x => x.CodigoBodega)
+            .HasColumnName("codigo_bodega")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        e.Property(x => x.DescripcionBodega)
+            .HasColumnName("descripcion_bodega")
+            .HasMaxLength(200)
+            .IsRequired(false);
+
+        e.Property(x => x.CentroOperacion)
+            .HasColumnName("centro_operacion")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        e.Property(x => x.DescripcionCentroOperacion)
+            .HasColumnName("descripcion_centro_operacion")
+            .HasMaxLength(200)
+            .IsRequired(false);
+
+        e.Property(x => x.CodigoInstalacion)
+            .HasColumnName("codigo_instalacion")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        e.Property(x => x.DescripcionInstalacion)
+            .HasColumnName("descripcion_instalacion")
+            .HasMaxLength(200)
+            .IsRequired(false);
+
         // Auditoría
         e.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id");
         e.Property(x => x.CreatedAt).HasColumnName("created_at");

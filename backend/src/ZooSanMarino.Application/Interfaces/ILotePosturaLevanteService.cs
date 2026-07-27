@@ -7,7 +7,8 @@ public interface ILotePosturaLevanteService
     /// <summary>
     /// Obtiene todos los registros de lote_postura_levante de la empresa en sesión.
     /// </summary>
-    Task<IEnumerable<LotePosturaLevanteDetailDto>> GetAllAsync(CancellationToken ct = default);
+    // paraDestino=true omite el alcance granular de ubicación (selección de DESTINO en traslados).
+    Task<IEnumerable<LotePosturaLevanteDetailDto>> GetAllAsync(CancellationToken ct = default, bool paraDestino = false);
 
     /// <summary>
     /// Obtiene los lotes levante asociados a un lote (lote_id).
@@ -25,7 +26,25 @@ public interface ILotePosturaLevanteService
     /// <summary>Cierra el lote levante y crea el lote de producción (antes automático en semana 26).</summary>
     Task<LotePosturaLevanteDetailDto?> CerrarLoteYCrearProduccionAsync(int lotePosturaLevanteId, CerrarLoteLevanteRequest request, CancellationToken ct = default);
 
-    /// <summary>Reabre el lote levante si la producción generada no tiene datos dependientes.</summary>
+    /// <summary>
+    /// Resumen previo a reabrir: si se puede, por qué no, y qué se va a eliminar si se confirma.
+    /// Para el modal del front; <see cref="AbrirLoteAsync"/> revalida lo mismo del lado del servidor.
+    /// </summary>
+    Task<ReaperturaLoteLevanteResumenDto?> GetResumenReaperturaAsync(int lotePosturaLevanteId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reabre el lote levante.
+    /// <para>
+    /// <b>Rechaza</b> la reapertura si el lote de producción generado por el cierre tiene seguimiento
+    /// diario capturado por el usuario (hay que eliminarlo antes desde Seguimiento Diario de
+    /// Producción) o si ese lote está cerrado (hay que reabrirlo antes).
+    /// </para>
+    /// <para>
+    /// Si no lo tiene, el lote de producción se marca como eliminado (soft delete) junto con las
+    /// filas que generó el propio cierre, y se vuelve a crear —actualizado— al cerrar el levante de
+    /// nuevo.
+    /// </para>
+    /// </summary>
     Task<LotePosturaLevanteDetailDto?> AbrirLoteAsync(int lotePosturaLevanteId, AbrirLoteLevanteRequest request, CancellationToken ct = default);
 
     /// <summary>

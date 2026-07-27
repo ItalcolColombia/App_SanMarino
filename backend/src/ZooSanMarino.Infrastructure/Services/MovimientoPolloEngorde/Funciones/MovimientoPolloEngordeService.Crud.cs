@@ -24,7 +24,9 @@ public partial class MovimientoPolloEngordeService
         if (dto.CantidadHembras + dto.CantidadMachos + dto.CantidadMixtas <= 0)
             throw new InvalidOperationException("Las cantidades deben ser mayores a cero.");
 
-        ValidarPesoObligatorioEnVenta(dto.TipoMovimiento, dto.PesoBruto, dto.PesoTara);
+        // Empresas con báscula diferida: la venta puede nacer sin peso (se carga al confirmarla).
+        ValidarPesoObligatorioEnVenta(dto.TipoMovimiento, dto.PesoBruto, dto.PesoTara,
+            await EmpresaPermitePesoDiferidoAsync(dto.GranjaOrigenId));
 
         var movimiento = new MovimientoPolloEngorde
         {

@@ -10,7 +10,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -32,6 +34,7 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     private readonly IGramajeProvider _gramaje;
     private readonly ICurrentUser _current;
     private readonly IMovimientoAvesService _movimientoAvesService;
+    private readonly ILocationScopeResolver _scopeResolver;
     private readonly IInventarioGestionService? _inventarioGestionService;
     private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;   // Fase 2: modelo A (Colombia) — sin uso tras Fase 3 paso 2
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;  // Fase 3 paso 2: modelo B nivel granja (Colombia)
@@ -44,6 +47,7 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         IGramajeProvider gramaje,
         ICurrentUser current,
         IMovimientoAvesService movimientoAvesService,
+        ILocationScopeResolver scopeResolver,
         IInventarioGestionService? inventarioGestionService = null,
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
@@ -55,11 +59,89 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         _gramaje = gramaje;
         _current = current;
         _movimientoAvesService = movimientoAvesService;
+        _scopeResolver = scopeResolver;
         _inventarioGestionService = inventarioGestionService;
         _farmInventoryConsumo = farmInventoryConsumo;
         _colombiaConsumoB = colombiaConsumoB;
         _logger = logger;
     }
+
+    /// <summary>
+    /// ¿La empresa del lote captura la clasificación de huevos en LEVANTE
+    /// (<c>companies.captura_huevos_en_levante</c>)?
+    /// <para>
+    /// Empresa efectiva <b>por datos</b>: <c>farms.company_id</c> de la granja del lote (no
+    /// <c>_current.CompanyId</c>), el patrón obligatorio del repo para features por empresa.
+    /// <b>Fail-closed</b>: si la granja/empresa no se resuelve devuelve <c>false</c>.
+    /// </para>
+    /// <para>
+    /// También devuelve <c>false</c> cuando la empresa clasifica los huevos POR ÍTEMS del catálogo
+    /// (<c>clasificacion_huevo_por_items</c>): ese modo no está soportado todavía en levante y es
+    /// preferible no capturar nada que persistir un desglose que los reportes no sabrían leer.
+    /// </para>
+    /// </summary>
+    private async Task<bool> EmpresaCapturaHuevosEnLevanteAsync(int granjaId, CancellationToken ct = default)
+    {
+        var flags = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId)
+            .Join(_ctx.Companies.AsNoTracking(),
+                  f => f.CompanyId,
+                  c => c.Id,
+                  (f, c) => new { c.CapturaHuevosEnLevante, c.ClasificacionHuevoPorItems })
+            .FirstOrDefaultAsync(ct);
+
+        if (flags is null) return false;                    // granja o empresa no resoluble
+        if (flags.ClasificacionHuevoPorItems) return false;  // modo por ítems: fuera de alcance
+        return flags.CapturaHuevosEnLevante;
+    }
+
+    /// <summary>
+    /// Aplica el gate de captura de huevos en levante sobre el DTO entrante y devuelve el DTO ya
+    /// saneado:
+    /// <list type="bullet">
+    ///   <item>empresa sin el flag (o modo por ítems) ⇒ los huevos se <b>neutralizan a null</b>
+    ///   (comportamiento previo byte a byte, sin error: un cliente viejo que mande el campo no
+    ///   empieza a fallar);</item>
+    ///   <item>empresa con el flag y alguna categoría <b>positiva</b> antes de la semana
+    ///   <see cref="HuevosLevanteCalculos.SemanaMinimaHuevosLevante"/> ⇒ <b>error explícito</b>
+    ///   (el usuario está cargando un dato que no corresponde a esa edad);</item>
+    ///   <item>todo en cero ⇒ pasa siempre (un seguimiento normal de semana 3 manda ceros).</item>
+    /// </list>
+    /// </summary>
+    private async Task<SeguimientoLoteLevanteDto> AplicarGateHuevosLevanteAsync(
+        SeguimientoLoteLevanteDto dto, Lote lote, CancellationToken ct = default)
+    {
+        var huevos = HuevosDeDto(dto);
+        if (huevos is null) return dto;                      // el cliente no mandó el tab de huevos
+
+        if (!await EmpresaCapturaHuevosEnLevanteAsync(lote.GranjaId, ct))
+            return SinHuevos(dto);
+
+        if (huevos.Value.AlgunoPositivo && !HuevosLevanteCalculos.PermiteHuevos(lote.FechaEncaset, dto.FechaRegistro))
+            throw new InvalidOperationException(
+                $"Los huevos solo pueden registrarse a partir de la semana {HuevosLevanteCalculos.SemanaMinimaHuevosLevante} de vida del lote.");
+
+        return dto;
+    }
+
+    /// <summary>Devuelve el DTO con las 11 categorías y el peso del huevo en null (sin tocar el resto).</summary>
+    private static SeguimientoLoteLevanteDto SinHuevos(SeguimientoLoteLevanteDto dto) => dto with
+    {
+        HuevoLimpio = null,
+        HuevoTratado = null,
+        HuevoSucio = null,
+        HuevoDeforme = null,
+        HuevoBlanco = null,
+        HuevoDobleYema = null,
+        HuevoPiso = null,
+        HuevoPequeno = null,
+        HuevoRoto = null,
+        HuevoDesecho = null,
+        HuevoOtro = null,
+        PesoHuevo = null,
+        HuevoTot = null,
+        HuevoInc = null
+    };
 
     /// <summary>
     /// País efectivo del lote para gatear el descuento del inventario modelo B.

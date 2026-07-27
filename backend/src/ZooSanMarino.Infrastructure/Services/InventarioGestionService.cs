@@ -775,7 +775,7 @@ public class InventarioGestionService : IInventarioGestionService
         }).ToList();
     }
 
-    public async Task<(InventarioGestionStockDto Destino, InventarioGestionMovimientoDto Movimiento)> RegistrarRecepcionTransitoAsync(InventarioGestionRecepcionTransitoRequest req, CancellationToken ct = default)
+    public async Task<InventarioGestionRecepcionTransitoResultDto> RegistrarRecepcionTransitoAsync(InventarioGestionRecepcionTransitoRequest req, CancellationToken ct = default)
     {
         var salida = await _db.InventarioGestionMovimientos
             .Include(x => x.ItemInventario)
@@ -797,15 +797,17 @@ public class InventarioGestionService : IInventarioGestionService
         var (companyIdTo, paisIdTo) = await GetFarmCompanyAndPaisAsync(req.ToFarmId, ct);
 
         // Colombia (nivel granja): recepción de alimento sin núcleo/galpón. EC/PA sin cambios.
+        // Con Distribucion (alimento por galpón) lo recibido se reparte entre varios galpones de la granja destino.
         var isAlimento = IsAlimento(item);
         var usaUbicacion = isAlimento && !await EsInventarioNivelGranjaAsync(req.ToFarmId, ct);
-        if (usaUbicacion && (string.IsNullOrWhiteSpace(req.ToNucleoId) || string.IsNullOrWhiteSpace(req.ToGalponId)))
-            throw new InvalidOperationException("Para alimento debe indicar Núcleo y Galpón de recepción en la granja destino.");
-        if (!usaUbicacion && (!string.IsNullOrWhiteSpace(req.ToNucleoId) || !string.IsNullOrWhiteSpace(req.ToGalponId)))
-            throw new InvalidOperationException("La recepción es solo a nivel granja (sin Núcleo/Galpón).");
+        var (destinos, errorDistribucion) = ZooSanMarino.Application.Calculos.InventarioGestionRecepcionDistribucionCalculos.Resolver(
+            req.Distribucion, req.ToNucleoId, req.ToGalponId, usaUbicacion, salida.Quantity);
+        if (errorDistribucion != null)
+            throw new InvalidOperationException(errorDistribucion);
 
-        var toNucleoId = usaUbicacion ? req.ToNucleoId!.Trim() : null;
-        var toGalponId = usaUbicacion ? req.ToGalponId!.Trim() : null;
+        // Solo el camino distribuido valida pertenencia (el de una ubicación conserva su comportamiento previo).
+        if (destinos.Count > 1)
+            await ValidarGalponesDeGranjaAsync(req.ToFarmId, destinos, ct);
 
         if (salida.CompanyId != companyIdTo)
             throw new InvalidOperationException("La granja destino no pertenece a la misma empresa que la salida.");
@@ -823,67 +825,72 @@ public class InventarioGestionService : IInventarioGestionService
             salida.Estado = "Tránsito";
         }
 
-        var qty = salida.Quantity;
-        var stockDestino = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.ToFarmId && x.ItemInventarioEcuadorId == salida.ItemInventarioEcuadorId && x.NucleoId == toNucleoId && x.GalponId == toGalponId, ct);
-        if (stockDestino == null)
+        // Un asiento (stock + movimiento) por ubicación de destino: uno solo en el camino clásico,
+        // N cuando la recepción se distribuye entre galpones.
+        var ahora = DateTimeOffset.UtcNow;
+        var stocksDestino = new List<InventarioGestionStock>(destinos.Count);
+        var movimientosEntrada = new List<InventarioGestionMovimiento>(destinos.Count);
+        var distribuida = destinos.Count > 1;
+
+        for (var i = 0; i < destinos.Count; i++)
         {
-            stockDestino = new InventarioGestionStock
+            var destino = destinos[i];
+            var stockDestino = await _db.InventarioGestionStock
+                .FirstOrDefaultAsync(x => x.FarmId == req.ToFarmId && x.ItemInventarioEcuadorId == salida.ItemInventarioEcuadorId && x.NucleoId == destino.NucleoId && x.GalponId == destino.GalponId, ct);
+            if (stockDestino == null)
+            {
+                stockDestino = new InventarioGestionStock
+                {
+                    CompanyId = companyIdTo,
+                    PaisId = paisIdTo,
+                    FarmId = req.ToFarmId,
+                    NucleoId = destino.NucleoId,
+                    GalponId = destino.GalponId,
+                    ItemInventarioEcuadorId = salida.ItemInventarioEcuadorId,
+                    Quantity = destino.Quantity,
+                    Unit = salida.Unit,
+                    CreatedAt = ahora,
+                    UpdatedAt = ahora
+                };
+                _db.InventarioGestionStock.Add(stockDestino);
+            }
+            else
+            {
+                stockDestino.Quantity += destino.Quantity;
+                stockDestino.UpdatedAt = ahora;
+            }
+            stocksDestino.Add(stockDestino);
+
+            var movEntrada = new InventarioGestionMovimiento
             {
                 CompanyId = companyIdTo,
                 PaisId = paisIdTo,
                 FarmId = req.ToFarmId,
-                NucleoId = toNucleoId,
-                GalponId = toGalponId,
+                NucleoId = destino.NucleoId,
+                GalponId = destino.GalponId,
                 ItemInventarioEcuadorId = salida.ItemInventarioEcuadorId,
-                Quantity = qty,
-                Unit = salida.Unit,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
+                Quantity = destino.Quantity,
+                Unit = stockDestino.Unit,
+                MovementType = "TrasladoInterGranjaEntrada",
+                Estado = "Recibido desde tránsito",
+                FromFarmId = salida.FarmId,
+                FromNucleoId = salida.NucleoId,
+                FromGalponId = salida.GalponId,
+                Reference = salida.Reference,
+                Reason = distribuida
+                    ? $"Recepción traslado inter-granja (distribución {i + 1}/{destinos.Count})"
+                    : "Recepción traslado inter-granja",
+                TransferGroupId = req.TransferGroupId,
+                CreatedAt = ahora,
+                CreatedByUserId = _current?.UserId.ToString()
             };
-            _db.InventarioGestionStock.Add(stockDestino);
-        }
-        else
-        {
-            stockDestino.Quantity += qty;
-            stockDestino.UpdatedAt = DateTimeOffset.UtcNow;
+            _db.InventarioGestionMovimientos.Add(movEntrada);
+            movimientosEntrada.Add(movEntrada);
         }
 
-        var movEntrada = new InventarioGestionMovimiento
-        {
-            CompanyId = companyIdTo,
-            PaisId = paisIdTo,
-            FarmId = req.ToFarmId,
-            NucleoId = toNucleoId,
-            GalponId = toGalponId,
-            ItemInventarioEcuadorId = salida.ItemInventarioEcuadorId,
-            Quantity = qty,
-            Unit = stockDestino.Unit,
-            MovementType = "TrasladoInterGranjaEntrada",
-            Estado = "Recibido desde tránsito",
-            FromFarmId = salida.FarmId,
-            FromNucleoId = salida.NucleoId,
-            FromGalponId = salida.GalponId,
-            Reference = salida.Reference,
-            Reason = "Recepción traslado inter-granja",
-            TransferGroupId = req.TransferGroupId,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatedByUserId = _current?.UserId.ToString()
-        };
-        _db.InventarioGestionMovimientos.Add(movEntrada);
         await _db.SaveChangesAsync(ct);
 
-        var list = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
-        var dtoStock = list.FirstOrDefault(x => x.ItemInventarioEcuadorId == salida.ItemInventarioEcuadorId)
-            ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.Concepto ?? item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt);
-
-        var farmDest = await _db.Farms.AsNoTracking().FirstOrDefaultAsync(f => f.Id == movEntrada.FarmId, ct);
-        string? nn = null;
-        string? gn = null;
-        if (toNucleoId != null)
-            nn = await _db.Nucleos.AsNoTracking().Where(n => n.NucleoId == toNucleoId && n.GranjaId == req.ToFarmId).Select(n => n.NucleoNombre).FirstOrDefaultAsync(ct);
-        if (toGalponId != null)
-            gn = await _db.Galpones.AsNoTracking().Where(g => g.GalponId == toGalponId && g.GranjaId == req.ToFarmId).Select(g => g.GalponNombre).FirstOrDefaultAsync(ct);
+        var farmDest = await _db.Farms.AsNoTracking().FirstOrDefaultAsync(f => f.Id == req.ToFarmId, ct);
 
         string? origenNn = null;
         string? origenGn = null;
@@ -892,37 +899,82 @@ public class InventarioGestionService : IInventarioGestionService
         if (salida.GalponId != null)
             origenGn = await _db.Galpones.AsNoTracking().Where(g => g.GalponId == salida.GalponId && g.GranjaId == salida.FarmId).Select(g => g.GalponNombre).FirstOrDefaultAsync(ct);
 
-        var dtoMov = new InventarioGestionMovimientoDto(
-            movEntrada.Id,
-            movEntrada.FarmId,
-            movEntrada.NucleoId,
-            movEntrada.GalponId,
-            movEntrada.ItemInventarioEcuadorId,
-            item.Codigo,
-            item.Nombre,
-            item.Concepto ?? item.TipoItem ?? "alimento",
-            movEntrada.Quantity,
-            movEntrada.Unit,
-            movEntrada.MovementType,
-            movEntrada.Estado,
-            movEntrada.FromFarmId,
-            movEntrada.FromNucleoId,
-            movEntrada.FromGalponId,
-            movEntrada.Reference,
-            movEntrada.Reason,
-            movEntrada.CreatedAt,
-            farmDest?.Name,
-            nn,
-            gn,
-            movEntrada.TransferGroupId,
-            salida.Farm.Name,
-            origenNn,
-            origenGn,
-            "Traslado entre granjas (recepción)",
-            item.Concepto,
-            item.TipoItem);
+        var dtosStock = new List<InventarioGestionStockDto>(destinos.Count);
+        var dtosMov = new List<InventarioGestionMovimientoDto>(destinos.Count);
 
-        return (dtoStock, dtoMov);
+        for (var i = 0; i < destinos.Count; i++)
+        {
+            var destino = destinos[i];
+            var stockDestino = stocksDestino[i];
+            var movEntrada = movimientosEntrada[i];
+
+            var list = await GetStockAsync(req.ToFarmId, destino.NucleoId, destino.GalponId, null, null, ct);
+            dtosStock.Add(list.FirstOrDefault(x => x.ItemInventarioEcuadorId == salida.ItemInventarioEcuadorId)
+                ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.Concepto ?? item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt));
+
+            string? nn = null;
+            string? gn = null;
+            if (destino.NucleoId != null)
+                nn = await _db.Nucleos.AsNoTracking().Where(n => n.NucleoId == destino.NucleoId && n.GranjaId == req.ToFarmId).Select(n => n.NucleoNombre).FirstOrDefaultAsync(ct);
+            if (destino.GalponId != null)
+                gn = await _db.Galpones.AsNoTracking().Where(g => g.GalponId == destino.GalponId && g.GranjaId == req.ToFarmId).Select(g => g.GalponNombre).FirstOrDefaultAsync(ct);
+
+            dtosMov.Add(new InventarioGestionMovimientoDto(
+                movEntrada.Id,
+                movEntrada.FarmId,
+                movEntrada.NucleoId,
+                movEntrada.GalponId,
+                movEntrada.ItemInventarioEcuadorId,
+                item.Codigo,
+                item.Nombre,
+                item.Concepto ?? item.TipoItem ?? "alimento",
+                movEntrada.Quantity,
+                movEntrada.Unit,
+                movEntrada.MovementType,
+                movEntrada.Estado,
+                movEntrada.FromFarmId,
+                movEntrada.FromNucleoId,
+                movEntrada.FromGalponId,
+                movEntrada.Reference,
+                movEntrada.Reason,
+                movEntrada.CreatedAt,
+                farmDest?.Name,
+                nn,
+                gn,
+                movEntrada.TransferGroupId,
+                salida.Farm.Name,
+                origenNn,
+                origenGn,
+                "Traslado entre granjas (recepción)",
+                item.Concepto,
+                item.TipoItem));
+        }
+
+        return new InventarioGestionRecepcionTransitoResultDto(dtosStock, dtosMov);
+    }
+
+    /// <summary>
+    /// Valida que cada (núcleo, galpón) de una recepción distribuida exista realmente en la granja destino.
+    /// Solo se aplica al camino distribuido: el de una sola ubicación conserva su comportamiento histórico.
+    /// </summary>
+    private async Task ValidarGalponesDeGranjaAsync(
+        int farmId,
+        IReadOnlyList<ZooSanMarino.Application.Calculos.InventarioGestionRecepcionDistribucionCalculos.Destino> destinos,
+        CancellationToken ct)
+    {
+        var galponesGranja = await _db.Galpones.AsNoTracking()
+            .Where(g => g.GranjaId == farmId)
+            .Select(g => new { g.GalponId, g.NucleoId })
+            .ToListAsync(ct);
+
+        foreach (var destino in destinos)
+        {
+            var existe = galponesGranja.Any(g =>
+                string.Equals(g.GalponId, destino.GalponId, StringComparison.Ordinal) &&
+                string.Equals(g.NucleoId, destino.NucleoId, StringComparison.Ordinal));
+            if (!existe)
+                throw new InvalidOperationException($"El galpón {destino.GalponId} no pertenece al núcleo {destino.NucleoId} de la granja destino.");
+        }
     }
 
     public async Task RechazarTransitoPendienteAsync(InventarioGestionRechazoTransitoRequest req, CancellationToken ct = default)
@@ -1714,11 +1766,15 @@ public class InventarioGestionService : IInventarioGestionService
             .ToList();
 
         var entradaTypes = TrasladoEntradaTypes.ToList();
+        // Un grupo puede tener VARIAS entradas (recepción de tránsito distribuida entre galpones):
+        // se agrupa y se toma la primera; la fila del traslado muestra el destino guardado en la salida.
         var entradas = groupIds.Count > 0
-            ? await _db.InventarioGestionMovimientos
-                .AsNoTracking()
-                .Where(x => x.TransferGroupId.HasValue && groupIds.Contains(x.TransferGroupId!.Value) && entradaTypes.Contains(x.MovementType))
-                .ToDictionaryAsync(x => x.TransferGroupId!.Value, ct)
+            ? (await _db.InventarioGestionMovimientos
+                    .AsNoTracking()
+                    .Where(x => x.TransferGroupId.HasValue && groupIds.Contains(x.TransferGroupId!.Value) && entradaTypes.Contains(x.MovementType))
+                    .ToListAsync(ct))
+                .GroupBy(x => x.TransferGroupId!.Value)
+                .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Id).First())
             : new Dictionary<Guid, InventarioGestionMovimiento>();
 
         // Cargar nombres de granjas (origen + destino)

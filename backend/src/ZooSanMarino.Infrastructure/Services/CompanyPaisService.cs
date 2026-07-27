@@ -108,7 +108,15 @@ public class CompanyPaisService : ICompanyPaisService
             cp.Company.City,
             CompanyCalculos.BuildLogoDataUrl(cp.Company.Logo?.LogoBytes, cp.Company.Logo?.LogoContentType),
             cp.Company.MobileAccess,
-            cp.Company.VisualPermissions
+            cp.Company.VisualPermissions,
+            // ManejaAlimentoPorGalpon se deja como estaba (no se proyectaba aquí) para no alterar
+            // el comportamiento actual de este endpoint; los flags ERP y de clasificación de
+            // huevos por ítems sí se exponen.
+            ManejaCodigosErpAvicola: cp.Company.ManejaCodigosErpAvicola,
+            ClasificacionHuevoPorItems: cp.Company.ClasificacionHuevoPorItems,
+            PermiteTrasladoAvesCrossEtapa: cp.Company.PermiteTrasladoAvesCrossEtapa,
+            CapturaHuevosEnLevante: cp.Company.CapturaHuevosEnLevante,
+            VentaEngordePesoDiferido: cp.Company.VentaEngordePesoDiferido
         )).ToList();
     }
 

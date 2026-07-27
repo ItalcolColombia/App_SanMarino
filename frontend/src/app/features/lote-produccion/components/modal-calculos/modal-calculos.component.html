@@ -14,35 +14,45 @@
           <p>Análisis detallado de métricas de producción</p>
         </div>
         <!-- Filtros -->
-        <div class="filtros-section">
-          <h4>🔍 Filtros de Análisis</h4>
-          <div class="filtros-grid">
-            <div class="filtro-item">
-              <label for="desde">Desde:</label>
+        <section class="filter-card filter-card--compact">
+          <div class="filter-card__header">
+            <div class="filter-card__header-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+            </div>
+            <div>
+              <h3 class="filter-card__title">Filtros</h3>
+              <p class="filter-card__subtitle">Acota el rango de días del cálculo</p>
+            </div>
+          </div>
+          <div class="filter-fields">
+            <div class="filter-field">
+              <label for="desde" class="filter-step__label">Desde</label>
               <input
                 id="desde"
                 type="date"
+                class="filter-step__input"
                 [(ngModel)]="calcsDesde"
                 (ngModelChange)="reloadCalculos()">
-              </div>
-              <div class="filtro-item">
-                <label for="hasta">Hasta:</label>
-                <input
-                  id="hasta"
-                  type="date"
-                  [(ngModel)]="calcsHasta"
-                  (ngModelChange)="reloadCalculos()">
-                </div>
-                <div class="filtro-item">
-                  <button
-                    type="button"
-                    class="btn btn--outline"
-                    (click)="onLimpiarFiltros()">
-                    🗑️ Limpiar Filtros
-                  </button>
-                </div>
-              </div>
             </div>
+            <div class="filter-field">
+              <label for="hasta" class="filter-step__label">Hasta</label>
+              <input
+                id="hasta"
+                type="date"
+                class="filter-step__input"
+                [(ngModel)]="calcsHasta"
+                (ngModelChange)="reloadCalculos()">
+            </div>
+            <div class="filter-card__actions">
+              <button
+                type="button"
+                class="btn btn--outline"
+                (click)="onLimpiarFiltros()">
+                🗑️ Limpiar Filtros
+              </button>
+            </div>
+          </div>
+        </section>
             <!-- Resultados -->
             @if (calcsResp) {
               <div class="resultados-section">

@@ -36,6 +36,13 @@ import {
 type TabKey = 'stock' | 'ingresos' | 'traslados' | 'transito' | 'historico' | 'items';
 type TrasladoModo = 'mismaGranja' | 'interGranja';
 
+/** Fila del reparto de una recepción de tránsito entre galpones de la granja destino. */
+interface RecepcionDestinoRow {
+  nucleoId: string | null;
+  galponId: string | null;
+  quantity: number | null;
+}
+
 @Component({
   selector: 'app-gestion-inventario-page',
   standalone: true,
@@ -148,6 +155,12 @@ export class GestionInventarioPageComponent implements OnInit {
   recepcionToNucleoId: string | null = null;
   recepcionToGalponId: string | null = null;
   submittingRecepcion = false;
+  /** true = repartir lo recibido entre varios galpones de la granja destino (solo alimento por galpón). */
+  recepcionDistribuir = false;
+  /** Filas del reparto; su suma debe igualar la cantidad en tránsito. */
+  recepcionDestinos: RecepcionDestinoRow[] = [];
+  /** Tolerancia al comparar la suma del reparto (espejo de InventarioGestionRecepcionDistribucionCalculos). */
+  private readonly recepcionToleranciaSuma = 0.0001;
 
   // Histórico tab
   historicoFarmId: number | null = null;
@@ -1422,6 +1435,8 @@ export class GestionInventarioPageComponent implements OnInit {
     this.recepcionPendiente = row;
     this.recepcionToNucleoId = row.destinoNucleoIdHint;
     this.recepcionToGalponId = row.destinoGalponIdHint;
+    this.recepcionDistribuir = false;
+    this.recepcionDestinos = [];
     // Tras pintar el formulario inline en la tarjeta, acercar la vista (listas largas).
     setTimeout(() => {
       const id = `transito-recepcion-${row.transferGroupId}`;
@@ -1433,6 +1448,92 @@ export class GestionInventarioPageComponent implements OnInit {
     this.recepcionPendiente = null;
     this.recepcionToNucleoId = null;
     this.recepcionToGalponId = null;
+    this.recepcionDistribuir = false;
+    this.recepcionDestinos = [];
+  }
+
+  // ===== Recepción distribuida entre galpones =====
+
+  /**
+   * Alterna entre recibir todo en un galpón y repartir entre varios. Al activar el reparto se
+   * precarga una fila con el destino sugerido y la cantidad completa (el usuario la ajusta).
+   */
+  setRecepcionDistribuir(distribuir: boolean): void {
+    this.recepcionDistribuir = distribuir;
+    if (!distribuir) return;
+    if (this.recepcionDestinos.length === 0) {
+      this.recepcionDestinos = [
+        {
+          nucleoId: this.recepcionToNucleoId,
+          galponId: this.recepcionToGalponId,
+          quantity: this.recepcionPendiente?.quantity ?? null
+        }
+      ];
+    }
+  }
+
+  addRecepcionDestino(): void {
+    const restante = this.recepcionRestante();
+    this.recepcionDestinos = [
+      ...this.recepcionDestinos,
+      { nucleoId: null, galponId: null, quantity: restante > 0 ? restante : null }
+    ];
+  }
+
+  removeRecepcionDestino(index: number): void {
+    this.recepcionDestinos = this.recepcionDestinos.filter((_, i) => i !== index);
+  }
+
+  onRecepcionDestinoNucleoChange(index: number): void {
+    const fila = this.recepcionDestinos[index];
+    if (fila) fila.galponId = null;
+  }
+
+  /** Cantidad ya repartida entre los galpones indicados. */
+  recepcionDistribuido(): number {
+    const total = this.recepcionDestinos.reduce((acc, d) => acc + (Number(d.quantity) || 0), 0);
+    return this.redondearCantidad(total);
+  }
+
+  /** Cantidad que falta por repartir (negativa = se pasó de la cantidad en tránsito). */
+  recepcionRestante(): number {
+    const total = this.recepcionPendiente?.quantity ?? 0;
+    return this.redondearCantidad(total - this.recepcionDistribuido());
+  }
+
+  /** Galpones de un núcleo concreto de la granja destino (lista estable por fila). */
+  recepcionGalponesForNucleo(farmId: number, nucleoId: string | null): { galponId: string; galponNombre: string }[] {
+    if (!this.filterData || !nucleoId) return GestionInventarioPageComponent._emptyList as never[];
+    const computed = this.filterData.galponesDestino
+      .filter(g => g.granjaId === farmId && g.nucleoId === nucleoId)
+      .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+    return this.listaEstable(`recGN|${farmId}|${nucleoId}`, computed, x => x.galponId);
+  }
+
+  /** Evita los residuos de coma flotante al sumar/restar cantidades. */
+  private redondearCantidad(n: number): number {
+    return Math.round(n * 10000) / 10000;
+  }
+
+  /** Valida el reparto con las mismas reglas (y mensajes) del backend. Devuelve el error o null. */
+  private validarRecepcionDistribucion(cantidadTransito: number): string | null {
+    const filas = this.recepcionDestinos.filter(d => !!d.nucleoId || !!d.galponId || (Number(d.quantity) || 0) !== 0);
+    if (filas.length === 0) return 'Agregue al menos un galpón a la distribución.';
+
+    const vistos = new Set<string>();
+    for (const fila of filas) {
+      if (!fila.nucleoId || !fila.galponId) return 'Cada destino de la distribución debe indicar Núcleo y Galpón.';
+      if (!(Number(fila.quantity) > 0)) return 'Las cantidades de la distribución deben ser mayores a cero.';
+      const clave = `${fila.nucleoId}|${fila.galponId}`;
+      if (vistos.has(clave)) return `No repita el mismo galpón en la distribución (galpón ${fila.galponId}).`;
+      vistos.add(clave);
+    }
+
+    const suma = this.recepcionDistribuido();
+    if (Math.abs(suma - cantidadTransito) > this.recepcionToleranciaSuma) {
+      return `La suma de la distribución (${suma}) debe ser igual a la cantidad en tránsito (${cantidadTransito}).`;
+    }
+    return null;
   }
 
   recepcionNeedsNucleoGalpon(itemId: number): boolean {
@@ -1447,21 +1548,35 @@ export class GestionInventarioPageComponent implements OnInit {
     const row = this.recepcionPendiente;
     if (!row) return;
     const needNg = this.recepcionNeedsNucleoGalpon(row.itemInventarioEcuadorId);
-    if (needNg && (!this.recepcionToNucleoId || !this.recepcionToGalponId)) {
-      this.openAlertModal('error', 'Validación', 'Para alimento indique Núcleo y Galpón de recepción en la granja destino.');
-      return;
+    const distribuye = needNg && this.recepcionDistribuir;
+
+    if (distribuye) {
+      const error = this.validarRecepcionDistribucion(row.quantity);
+      if (error) {
+        this.openAlertModal('error', 'Validación', error);
+        return;
+      }
+    } else {
+      if (needNg && (!this.recepcionToNucleoId || !this.recepcionToGalponId)) {
+        this.openAlertModal('error', 'Validación', 'Para alimento indique Núcleo y Galpón de recepción en la granja destino.');
+        return;
+      }
+      if (!needNg && (this.recepcionToNucleoId || this.recepcionToGalponId)) {
+        this.openAlertModal('error', 'Validación', 'Para ítems no alimento la recepción es solo a nivel granja (sin Núcleo/Galpón).');
+        return;
+      }
     }
-    if (!needNg && (this.recepcionToNucleoId || this.recepcionToGalponId)) {
-      this.openAlertModal('error', 'Validación', 'Para ítems no alimento la recepción es solo a nivel granja (sin Núcleo/Galpón).');
-      return;
-    }
+
     const detalle =
       row.pendienteDespachoOrigen === true
         ? ' (Solicitud antigua) Se descontará origen si aún no se hizo y se sumará en destino.'
         : ' El origen ya fue descontado al enviar el traslado; solo se sumará el stock en destino.';
+    const reparto = distribuye
+      ? ` Se repartirá entre ${this.recepcionDestinos.length} galpón(es).`
+      : '';
     this.openConfirmModal(
       'Confirmar recepción',
-      `¿Registrar ingreso en ${row.toGranjaNombre ?? 'granja destino'} por la cantidad indicada?${detalle}`,
+      `¿Registrar ingreso en ${row.toGranjaNombre ?? 'granja destino'} por la cantidad indicada?${reparto}${detalle}`,
       'recepcionTransito'
     );
   }
@@ -1470,19 +1585,34 @@ export class GestionInventarioPageComponent implements OnInit {
     const row = this.recepcionPendiente;
     if (!row?.transferGroupId) return;
     const needNg = this.recepcionNeedsNucleoGalpon(row.itemInventarioEcuadorId);
+    const distribuye = needNg && this.recepcionDistribuir;
     this.submittingRecepcion = true;
     this.svc
       .registrarRecepcionTransito({
         transferGroupId: row.transferGroupId,
         toFarmId: row.toFarmId,
-        toNucleoId: needNg ? this.recepcionToNucleoId : null,
-        toGalponId: needNg ? this.recepcionToGalponId : null
+        toNucleoId: distribuye ? null : needNg ? this.recepcionToNucleoId : null,
+        toGalponId: distribuye ? null : needNg ? this.recepcionToGalponId : null,
+        distribucion: distribuye
+          ? this.recepcionDestinos.map(d => ({
+              nucleoId: d.nucleoId,
+              galponId: d.galponId,
+              quantity: Number(d.quantity) || 0
+            }))
+          : null
       })
       .subscribe({
         next: () => {
           this.submittingRecepcion = false;
+          const galpones = this.recepcionDestinos.length;
           this.cancelRecepcion();
-          this.openAlertModal('success', 'Listo', 'Recepción registrada. El inventario ya figura en destino.');
+          this.openAlertModal(
+            'success',
+            'Listo',
+            distribuye
+              ? `Recepción registrada y distribuida en ${galpones} galpón(es). El inventario ya figura en destino.`
+              : 'Recepción registrada. El inventario ya figura en destino.'
+          );
           this.loadTransitos();
           this.loadStock();
         },

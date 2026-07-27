@@ -58,7 +58,13 @@
             }
           </div>
           <div class="section-divider">
-            <span class="section-divider__label">Destino del traslado (misma etapa: {{ tipoDestino }})</span>
+            <span class="section-divider__label">
+              @if (mostrarSelectorEtapaDestino) {
+                Destino del traslado
+              } @else {
+                Destino del traslado (misma etapa: {{ tipoDestino }})
+              }
+            </span>
           </div>
           <!-- Spinner de carga inicial -->
           @if (loading) {
@@ -68,6 +74,42 @@
             </div>
           }
           @if (!loading) {
+            <!-- Etapa destino (Fase 3) — sólo con flag de empresa y origen en Levante -->
+            @if (mostrarSelectorEtapaDestino) {
+              <div class="form-field">
+                <span class="field-label" id="etapa-destino-label">🔁 Etapa destino</span>
+                <div class="radio-group" role="radiogroup" aria-labelledby="etapa-destino-label">
+                  <label class="radio-option" [class.radio-option--active]="etapaDestino === 'Levante'">
+                    <input
+                      type="radio"
+                      name="etapaDestino"
+                      [value]="'Levante'"
+                      [(ngModel)]="etapaDestino"
+                      (ngModelChange)="onEtapaDestinoChange()">
+                    Levante
+                  </label>
+                  <label class="radio-option" [class.radio-option--active]="etapaDestino === 'Produccion'">
+                    <input
+                      type="radio"
+                      name="etapaDestino"
+                      [value]="'Produccion'"
+                      [(ngModel)]="etapaDestino"
+                      (ngModelChange)="onEtapaDestinoChange()">
+                    Producción
+                  </label>
+                </div>
+                @if (esCrossEtapa) {
+                  <div class="cross-etapa-aviso" role="note">
+                    <strong>Traslado entre etapas (Levante → Producción).</strong>
+                    Las aves conservan la edad de su lote de origen: ingresan al lote destino como una
+                    <b>cohorte</b> con la fecha de encasetamiento de <b>{{ origen?.loteNombre }}</b> y se ven
+                    en el bloque «Edades en el lote» del lote destino.
+                  </div>
+                } @else {
+                  <small class="field-hint">Podés enviar las aves a un lote de Producción conservando su edad de origen.</small>
+                }
+              </div>
+            }
             <!-- Cascade: Granja → Núcleo → Galpón → Lote -->
             <div class="cascade-grid">
               <!-- 1. Granja -->
@@ -122,7 +164,10 @@
                   </option>
                 }
               </select>
-              @if (granjaDestinoId && lotesDestino.length === 0) {
+              @if (cargandoLotesEtapa) {
+                <small class="field-hint">Cargando lotes de {{ tipoDestino === 'Produccion' ? 'Producción' : 'Levante' }}…</small>
+              }
+              @if (granjaDestinoId && lotesDestino.length === 0 && !cargandoLotesEtapa) {
                 <p class="field-hint warn">
                   ⚠️ No hay lotes de tipo {{ tipoDestino }} disponibles con los filtros actuales.
                 </p>

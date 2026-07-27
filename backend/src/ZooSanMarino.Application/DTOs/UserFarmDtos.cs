@@ -11,7 +11,9 @@ public record UserFarmDto(
     bool IsAdmin,
     bool IsDefault,
     DateTime CreatedAt,
-    Guid CreatedByUserId
+    Guid CreatedByUserId,
+    bool RestrictLocations = false,
+    int ScopeCount = 0
 );
 
 /// <summary>
@@ -76,5 +78,6 @@ public record UserFarmLiteDto(
     int FarmId,
     string FarmName,
     bool IsAdmin,
-    bool IsDefault
+    bool IsDefault,
+    bool RestrictLocations = false
 );

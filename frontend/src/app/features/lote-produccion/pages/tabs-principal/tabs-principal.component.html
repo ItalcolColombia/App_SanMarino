@@ -189,6 +189,11 @@
                 }
               </div>
             }
+            <!-- 🎂 Edades en el lote (cohortes): aves propias + aves recibidas de otros lotes -->
+            <app-edades-lote
+              [loteId]="loteIdCohortes"
+              [refreshTrigger]="cohortesRefreshTrigger">
+            </app-edades-lote>
             <!-- Tabla de Registros (simplificada) -->
             <div class="table-container">
               <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px;">
@@ -224,18 +229,25 @@
                       <th>Cons. orig M</th>
                       <th>U</th>
                       <th>Huevos Tot.</th>
-                      <th>Huevos Inc.</th>
-                      <th>H. Limpio</th>
-                      <th>H. Tratado</th>
-                      <th>H. Sucio</th>
-                      <th>H. Deforme</th>
-                      <th>H. Blanco</th>
-                      <th>H. DobleY</th>
-                      <th>H. Piso</th>
-                      <th>H. Peq.</th>
-                      <th>H. Roto</th>
-                      <th>H. Desecho</th>
-                      <th>H. Otro</th>
+                      <!-- Empresas que clasifican por ÍTEM del catálogo (flag clasificacion_huevo_por_items):
+                           las 11 columnas fijas y "Huevos Inc." están siempre en 0 → Primera / Pnc. -->
+                      @if (!clasificacionHuevoPorItems) {
+                        <th>Huevos Inc.</th>
+                        <th>H. Limpio</th>
+                        <th>H. Tratado</th>
+                        <th>H. Sucio</th>
+                        <th>H. Deforme</th>
+                        <th>H. Blanco</th>
+                        <th>H. DobleY</th>
+                        <th>H. Piso</th>
+                        <th>H. Peq.</th>
+                        <th>H. Roto</th>
+                        <th>H. Desecho</th>
+                        <th>H. Otro</th>
+                      } @else {
+                        <th title="Huevos de ítems categoría Primera">Primera</th>
+                        <th title="Huevos de ítems categoría Pnc">Pnc</th>
+                      }
                       <th>Peso huevo (g)</th>
                       <th>Peso H (kg)</th>
                       <th>Peso M (kg)</th>
@@ -251,9 +263,13 @@
                         <td colspan="999" class="empty-state">
                           <div class="empty-illustration" aria-hidden="true">📄</div>
                           <p>Sin registros para este lote.</p>
-                          <button type="button" class="btn btn--outline" (click)="onCreate()">
-                            Crear el primero
-                          </button>
+                          @if (!loteCerrado) {
+                            <button type="button" class="btn btn--outline" (click)="onCreate()">
+                              Crear el primero
+                            </button>
+                          } @else {
+                            <p class="ux-hint">El lote de producción está cerrado. Ábralo para registrar información.</p>
+                          }
                         </td>
                       </tr>
                     }
@@ -293,18 +309,24 @@
                         <td>{{ getConsumoOriginalM(s) | number:'1.0-2' }}</td>
                         <td class="mono">{{ getUnidadConsumoOriginalM(s) }}</td>
                         <td>{{ s.huevosTotales }}</td>
-                        <td>{{ s.huevosIncubables }}</td>
-                        <td>{{ s.huevoLimpio ?? 0 }}</td>
-                        <td>{{ s.huevoTratado ?? 0 }}</td>
-                        <td>{{ s.huevoSucio ?? 0 }}</td>
-                        <td>{{ s.huevoDeforme ?? 0 }}</td>
-                        <td>{{ s.huevoBlanco ?? 0 }}</td>
-                        <td>{{ s.huevoDobleYema ?? 0 }}</td>
-                        <td>{{ s.huevoPiso ?? 0 }}</td>
-                        <td>{{ s.huevoPequeno ?? 0 }}</td>
-                        <td>{{ s.huevoRoto ?? 0 }}</td>
-                        <td>{{ s.huevoDesecho ?? 0 }}</td>
-                        <td>{{ s.huevoOtro ?? 0 }}</td>
+                        <!-- Clasificación por ítem (flag de empresa): Primera / Pnc desde metadata.huevoItems -->
+                        @if (!clasificacionHuevoPorItems) {
+                          <td>{{ s.huevosIncubables }}</td>
+                          <td>{{ s.huevoLimpio ?? 0 }}</td>
+                          <td>{{ s.huevoTratado ?? 0 }}</td>
+                          <td>{{ s.huevoSucio ?? 0 }}</td>
+                          <td>{{ s.huevoDeforme ?? 0 }}</td>
+                          <td>{{ s.huevoBlanco ?? 0 }}</td>
+                          <td>{{ s.huevoDobleYema ?? 0 }}</td>
+                          <td>{{ s.huevoPiso ?? 0 }}</td>
+                          <td>{{ s.huevoPequeno ?? 0 }}</td>
+                          <td>{{ s.huevoRoto ?? 0 }}</td>
+                          <td>{{ s.huevoDesecho ?? 0 }}</td>
+                          <td>{{ s.huevoOtro ?? 0 }}</td>
+                        } @else {
+                          <td>{{ getHuevoPrimera(s) | number:'1.0-0' }}</td>
+                          <td>{{ getHuevoPnc(s) | number:'1.0-0' }}</td>
+                        }
                         <td>{{ s.pesoHuevo | number:'1.0-2' }}</td>
                         <td>{{ s.pesoH ?? '—' }}</td>
                         <td>{{ s.pesoM ?? '—' }}</td>
@@ -312,11 +334,15 @@
                         <td>{{ s.coeficienteVariacion ?? '—' }}</td>
                         <td class="truncate" [title]="s.observacionesPesaje || ''">{{ s.observacionesPesaje || '—' }}</td>
                         <td class="sticky-actions text-right">
-                          <!-- Acciones visibles y habilitadas para todos los usuarios -->
+                          <!-- Ver detalle siempre; editar y eliminar solo con el lote abierto -->
                           <div class="btn-group">
                             <button type="button" (click)="onViewDetail(s)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle del registro">👁️</button>
-                            <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
-                            <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+                            @if (!loteCerrado) {
+                              <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
+                              <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+                            } @else {
+                              <span class="icon-btn" title="El lote de producción está cerrado" aria-label="Lote cerrado">🔒</span>
+                            }
                           </div>
                         </td>
                       </tr>

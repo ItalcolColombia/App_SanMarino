@@ -276,6 +276,11 @@ public class ProduccionController : ControllerBase
             }
             return NoContent();
         }
+        catch (InvalidOperationException ex)
+        {
+            // Regla de negocio (p. ej. lote de producción cerrado): es un 400, no un fallo del servidor.
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return StatusCode(500, new { message = "Error al eliminar el registro.", error = ex.Message });
@@ -286,13 +291,14 @@ public class ProduccionController : ControllerBase
     /// Obtiene los lotes que tienen semana 26 o superior (para módulo de producción)
     /// Solo incluye lotes que han alcanzado la semana 26 desde su fecha de encaset
     /// </summary>
+    /// <param name="paraDestino">true = catálogo de lote DESTINO de traslados (omite el alcance granular de ubicación)</param>
     /// <returns>Lista de lotes con semana >= 26</returns>
     [HttpGet("lotes-produccion")]
-    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> ObtenerLotesProduccion()
+    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> ObtenerLotesProduccion([FromQuery] bool paraDestino = false)
     {
         try
         {
-            var lotes = await _produccionService.ObtenerLotesProduccionAsync();
+            var lotes = await _produccionService.ObtenerLotesProduccionAsync(paraDestino);
             return Ok(lotes);
         }
         catch (Exception)
@@ -334,6 +340,63 @@ public class ProduccionController : ControllerBase
                 detail = ex.Message,
                 exceptionType = ex.GetType().FullName,
                 step = "ObtenerIndicadoresSemanalesAsync",
+                loteId = request?.LoteId
+            };
+            if (_env.IsDevelopment())
+            {
+                return StatusCode(500, new
+                {
+                    detail.message,
+                    detail.detail,
+                    detail.exceptionType,
+                    detail.step,
+                    detail.loteId,
+                    stackTrace = ex.StackTrace,
+                    innerMessage = ex.InnerException?.Message
+                });
+            }
+            return StatusCode(500, detail);
+        }
+    }
+
+    /// <summary>
+    /// Desglose de la clasificación de huevos POR ÍTEM del catálogo (categorías Primera/Pnc),
+    /// agrupado por semana de vida — empresas con <c>companies.clasificacion_huevo_por_items</c>
+    /// (el desglose vive en <c>seguimiento_diario_produccion.metadata → huevoItems</c> y las 11
+    /// columnas fijas quedan en 0).
+    /// <para>Endpoint HERMANO de <c>indicadores-semanales</c>: MISMO request y misma resolución de
+    /// lote (LPP prioritario / legacy por loteId), con la misma fórmula de semana → el desglose casa
+    /// 1:1 con la grilla de indicadores. Devuelve lista vacía si el lote no tiene desglose.</para>
+    /// </summary>
+    /// <param name="request">Mismo request de indicadores semanales (lote + filtros opcionales)</param>
+    /// <returns>Una fila por semana × ítem: <c>{ semana, tipoHuevo, codigo, nombre, cantidad }</c></returns>
+    [HttpPost("clasificacion-huevo-items")]
+    public async Task<ActionResult<List<ClasificacionHuevoItemSemanaDto>>> ObtenerClasificacionHuevoItems(
+        [FromBody] IndicadoresProduccionRequest request)
+    {
+        try
+        {
+            var filas = await _indicadoresProduccionService.ObtenerClasificacionHuevoItemsAsync(request);
+            return Ok(filas);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message, code = "VALIDATION" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Clasificación huevo por ítems: operación no válida. LoteId: {LoteId}", request?.LoteId);
+            return BadRequest(new { message = ex.Message, code = "INVALID_OPERATION" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener la clasificación de huevos por ítems. LoteId: {LoteId}", request?.LoteId);
+            var detail = new
+            {
+                message = "Error interno del servidor al obtener la clasificación de huevos por ítems.",
+                detail = ex.Message,
+                exceptionType = ex.GetType().FullName,
+                step = "ObtenerClasificacionHuevoItemsAsync",
                 loteId = request?.LoteId
             };
             if (_env.IsDevelopment())

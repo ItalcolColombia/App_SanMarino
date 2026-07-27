@@ -1,0 +1,122 @@
+@if (isOpen) {
+  <div class="modal-backdrop" (click)="onClose()" role="button" tabindex="-1" aria-label="Cerrar"></div>
+}
+@if (isOpen) {
+  <div class="modal-wrap" role="dialog" aria-modal="true" aria-labelledby="rp-title">
+    <div class="modal rp-modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <div class="modal__header-content">
+          <h2 id="rp-title">Registro de peso — despacho {{ tituloDespacho }}</h2>
+          @if (hayPendientes) {
+            <span class="rp-badge rp-badge--pendiente">Pendiente de confirmar</span>
+          } @else {
+            <span class="rp-badge">Corrección de peso</span>
+          }
+        </div>
+        <button type="button" class="modal__close" (click)="onClose()" aria-label="Cerrar">&times;</button>
+      </div>
+
+      <form class="modal__body" (ngSubmit)="onSubmit()">
+        <p class="rp-hint">
+          @if (hayPendientes) {
+            Digite el peso de báscula del camión. Al guardar se reparte entre los lotes del despacho
+            en proporción a sus aves y <strong>la venta queda confirmada</strong> (se descuentan las
+            aves de cada lote).
+          } @else {
+            Este despacho ya está confirmado. Al guardar sólo se corrige el peso y su reparto por
+            lote: <strong>no</strong> se modifican estados ni saldos de aves.
+          }
+        </p>
+
+        <div class="rp-grid">
+          <div class="rp-field">
+            <label for="rp-bruto">Peso bruto (kg)</label>
+            <input id="rp-bruto" type="number" step="0.001" min="0"
+              [(ngModel)]="pesoBruto" [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="recalcular()" />
+          </div>
+          <div class="rp-field">
+            <label for="rp-tara">Peso tara (kg)</label>
+            <input id="rp-tara" type="number" step="0.001" min="0"
+              [(ngModel)]="pesoTara" [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="recalcular()" />
+          </div>
+          <div class="rp-field rp-field--readonly">
+            <label>Peso neto (kg)</label>
+            <span class="rp-calc">{{ formatearNumero(pesoNeto) }}</span>
+          </div>
+          <div class="rp-field rp-field--readonly">
+            <label>Promedio por ave (kg)</label>
+            <span class="rp-calc">{{ formatearNumero(promedioPesoAve) }}</span>
+          </div>
+        </div>
+
+        @if (prorrateo.length) {
+          <div class="rp-section">
+            <p class="rp-subtitulo">Reparto por lote ({{ formatearNumero(totalAves) }} aves)</p>
+            <table class="rp-table">
+              <thead>
+                <tr>
+                  <th>Movimiento</th>
+                  <th>Lote</th>
+                  <th class="col-num">Aves</th>
+                  <th class="col-num">%</th>
+                  <th class="col-num">Bruto</th>
+                  <th class="col-num">Tara</th>
+                  <th class="col-num">Neto</th>
+                  <th class="col-num">kg/ave</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of prorrateo; track r.id) {
+                  <tr>
+                    <td>{{ r.galponLabel }}</td>
+                    <td>{{ r.loteNombre }}</td>
+                    <td class="col-num">{{ formatearNumero(r.aves) }}</td>
+                    <td class="col-num">{{ r.pct.toFixed(1) }}%</td>
+                    <td class="col-num">{{ formatearNumero(r.bruto) }}</td>
+                    <td class="col-num">{{ formatearNumero(r.tara) }}</td>
+                    <td class="col-num">{{ formatearNumero(r.neto) }}</td>
+                    <td class="col-num">{{ formatearNumero(r.promedioPorAve) }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2">Total</td>
+                  <td class="col-num">{{ formatearNumero(totales.aves) }}</td>
+                  <td class="col-num">100%</td>
+                  <td class="col-num">{{ formatearNumero(totales.bruto) }}</td>
+                  <td class="col-num">{{ formatearNumero(totales.tara) }}</td>
+                  <td class="col-num">{{ formatearNumero(totales.neto) }}</td>
+                  <td class="col-num">—</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        }
+
+        @if (error) {
+          <p class="rp-error">{{ error }}</p>
+        }
+
+        <div class="modal__footer">
+          <div class="rp-footer-actions">
+            <button type="button" class="btn-italfoods-secondary" (click)="onClose()" [disabled]="loading">
+              Cancelar
+            </button>
+            <button type="submit" class="btn-italfoods-primary" [disabled]="!puedeGuardar">
+              @if (loading) {
+                Guardando…
+              } @else if (hayPendientes) {
+                Guardar peso y confirmar venta
+              } @else {
+                Guardar peso
+              }
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+}

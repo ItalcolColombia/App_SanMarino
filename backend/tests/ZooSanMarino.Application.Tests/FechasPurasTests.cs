@@ -96,4 +96,55 @@ public class FechasPurasTests
         Assert.True(filaLegada >= inicio && filaLegada < finExcl);
         Assert.True(filaNueva >= inicio && filaNueva < finExcl);
     }
+
+    // ── RangoDiaUtc: reemplazo de `columna.Date == fecha.Date` en LINQ ─────────────────────────
+
+    [Fact]
+    public void RangoDiaUtc_cubre_el_dia_completo_en_utc()
+    {
+        var (desde, hasta) = FechasPuras.RangoDiaUtc(
+            new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal(new DateTime(2026, 7, 20, 0, 0, 0, DateTimeKind.Utc), desde);
+        Assert.Equal(new DateTime(2026, 7, 21, 0, 0, 0, DateTimeKind.Utc), hasta);
+        Assert.Equal(DateTimeKind.Utc, desde.Kind);
+        Assert.Equal(DateTimeKind.Utc, hasta.Kind);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0, true)]      // medianoche UTC (filas legadas)
+    [InlineData(12, 0, 0, true)]     // mediodia UTC (filas nuevas)
+    [InlineData(23, 59, 59, true)]   // ultimo segundo del dia
+    public void RangoDiaUtc_incluye_cualquier_hora_del_mismo_dia(int h, int m, int seg, bool esperado)
+    {
+        var (desde, hasta) = FechasPuras.RangoDiaUtc(
+            new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc));
+        var fila = new DateTime(2026, 7, 20, h, m, seg, DateTimeKind.Utc);
+
+        Assert.Equal(esperado, fila >= desde && fila < hasta);
+    }
+
+    [Fact]
+    public void RangoDiaUtc_excluye_el_dia_anterior_y_el_siguiente()
+    {
+        var (desde, hasta) = FechasPuras.RangoDiaUtc(
+            new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc));
+
+        var anterior = new DateTime(2026, 7, 19, 23, 59, 59, DateTimeKind.Utc);
+        var siguiente = new DateTime(2026, 7, 21, 0, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(anterior >= desde && anterior < hasta);
+        Assert.False(siguiente >= desde && siguiente < hasta);
+    }
+
+    [Fact]
+    public void RangoDiaUtc_es_idempotente_respecto_de_la_hora_del_valor()
+    {
+        var a = FechasPuras.RangoDiaUtc(new DateTime(2026, 7, 20, 0, 0, 0, DateTimeKind.Utc));
+        var b = FechasPuras.RangoDiaUtc(new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc));
+        var c = FechasPuras.RangoDiaUtc(new DateTime(2026, 7, 20, 23, 30, 0, DateTimeKind.Unspecified));
+
+        Assert.Equal(a, b);
+        Assert.Equal(a, c);
+    }
 }

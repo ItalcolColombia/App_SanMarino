@@ -12,9 +12,29 @@
         </span>
       </div>
 
-      <div class="flex items-center gap-4">
-        <!-- Selector de empresa -->
-        <div class="flex items-center gap-2">
+      <button
+        (click)="openModal()"
+        class="btn-primary"
+        aria-label="Nueva granja"
+        >
+        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        Nueva Granja
+      </button>
+    </div>
+
+    <!-- Filtros -->
+    <section class="ux-card filter-card filter-card--compact mb-6">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+      <div class="filter-fields">
+        <div class="filter-field filter-field--fixed">
           <app-company-selector
             [showLabel]="true"
             size="sm"
@@ -30,17 +50,8 @@
             </div>
           }
         </div>
-
-        <button
-          (click)="openModal()"
-          class="btn-primary"
-          aria-label="Nueva granja"
-          >
-          <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-          Nueva Granja
-        </button>
       </div>
-    </div>
+    </section>
 
     <!-- Componente de prueba de integración -->
     <div class="mb-6">

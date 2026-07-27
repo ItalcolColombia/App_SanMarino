@@ -10,6 +10,10 @@ public partial class SeguimientoLoteLevanteService
 {
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId)
     {
+        // Alcance granular: acceso directo por loteId respeta el scope (fail-closed)
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            return Array.Empty<SeguimientoLoteLevanteDto>();
+
         // GetFilteredAsync limita PageSize a 100; hay que paginar para devolver todos los días del lote.
         var baseFilter = new SeguimientoDiarioFilterRequest
         {
@@ -48,6 +52,10 @@ public partial class SeguimientoLoteLevanteService
     /// <inheritdoc />
     public async Task<IReadOnlyList<IndicadorSemanalLevanteDto>> GetIndicadoresSemanalesAsync(int loteId)
     {
+        // Alcance granular: acceso directo por loteId respeta el scope (fail-closed)
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            return Array.Empty<IndicadorSemanalLevanteDto>();
+
         // Cálculo en la BD (fn_indicadores_levante_postura): el front solo pinta, no calcula.
         return await _ctx.Database
             .SqlQueryRaw<IndicadorSemanalLevanteDto>(
@@ -62,6 +70,9 @@ public partial class SeguimientoLoteLevanteService
         if (u is null || u.TipoSeguimiento != TipoLevante)
             return null;
         var dto = MapToLevanteDto(u);
+        // Alcance granular: el registro se lee por su id, pero pertenece a un lote (fail-closed → 404)
+        if (!await _scopeResolver.PermiteLoteAsync(dto.LoteId))
+            return null;
         if (dto.Metadata is not null)
             return dto;
         var synthetic = await BuildSyntheticMetadataForLegacyRowAsync(dto, default).ConfigureAwait(false);
@@ -70,6 +81,11 @@ public partial class SeguimientoLoteLevanteService
 
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta)
     {
+        // Alcance granular: filtro por un lote puntual respeta el scope (fail-closed). Sin loteId el
+        // listado se acota en SeguimientoDiarioService.GetFilteredAsync (mismo cierre de visibilidad).
+        if (loteId.HasValue && !await _scopeResolver.PermiteLoteAsync(loteId.Value))
+            return Array.Empty<SeguimientoLoteLevanteDto>();
+
         var baseFilter = new SeguimientoDiarioFilterRequest
         {
             TipoSeguimiento = TipoLevante,
@@ -89,6 +105,11 @@ public partial class SeguimientoLoteLevanteService
     /// </summary>
     public async Task<ResultadoLevanteResponse> GetResultadoAsync(int loteId, DateTime? desde, DateTime? hasta, bool recalcular = true)
     {
+        // Alcance granular: acceso directo por loteId respeta el scope (fail-closed → respuesta vacía,
+        // antes incluso de recalcular: un lote fuera del alcance no dispara el SP).
+        if (!await _scopeResolver.PermiteLoteAsync(loteId))
+            return new ResultadoLevanteResponse(loteId, desde?.Date, hasta?.Date, 0, new List<ResultadoLevanteItemDto>());
+
         var lote = await _ctx.Lotes.AsNoTracking()
             .SingleOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null);
         if (lote is null)

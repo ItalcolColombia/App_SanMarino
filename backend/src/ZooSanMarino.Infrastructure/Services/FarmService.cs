@@ -294,7 +294,13 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.Latitud,
                     f.Longitud,
                     f.ManejaAlimentoPorGalpon,
-                    f.CodigoErpEngorde
+                    f.CodigoErpEngorde,
+                    f.CodigoBodega,
+                    f.DescripcionBodega,
+                    f.CentroOperacion,
+                    f.DescripcionCentroOperacion,
+                    f.CodigoInstalacion,
+                    f.DescripcionInstalacion
                 ))
                 .ToListAsync();
 
@@ -309,7 +315,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 {
                     if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
                     if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
-                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre, f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon, f.CodigoErpEngorde);
+                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre, f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon, f.CodigoErpEngorde, f.CodigoBodega, f.DescripcionBodega, f.CentroOperacion, f.DescripcionCentroOperacion, f.CodigoInstalacion, f.DescripcionInstalacion);
                     return f;
                 }).ToList();
             }
@@ -549,7 +555,13 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.Latitud,
                     f.Longitud,
                     f.ManejaAlimentoPorGalpon,
-                    f.CodigoErpEngorde
+                    f.CodigoErpEngorde,
+                    f.CodigoBodega,
+                    f.DescripcionBodega,
+                    f.CentroOperacion,
+                    f.DescripcionCentroOperacion,
+                    f.CodigoInstalacion,
+                    f.DescripcionInstalacion
                 ))
                 .SingleOrDefaultAsync();
 
@@ -558,7 +570,7 @@ namespace ZooSanMarino.Infrastructure.Services
             {
                 var nombreOpcion = await _ctx.MasterListOptions.AsNoTracking().Where(o => o.Id == dto.RegionalId.Value).Select(o => o.Value).FirstOrDefaultAsync();
                 if (!string.IsNullOrWhiteSpace(nombreOpcion))
-                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre, dto.ClienteId, dto.Zona, dto.CertificadoGab, dto.Latitud, dto.Longitud, dto.ManejaAlimentoPorGalpon, dto.CodigoErpEngorde);
+                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre, dto.ClienteId, dto.Zona, dto.CertificadoGab, dto.Latitud, dto.Longitud, dto.ManejaAlimentoPorGalpon, dto.CodigoErpEngorde, dto.CodigoBodega, dto.DescripcionBodega, dto.CentroOperacion, dto.DescripcionCentroOperacion, dto.CodigoInstalacion, dto.DescripcionInstalacion);
             }
             return dto;
         }
@@ -662,6 +674,14 @@ namespace ZooSanMarino.Infrastructure.Services
                 Longitud        = dto.Longitud,
                 ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon,   // null = hereda empresa
                 CodigoErpEngorde = NormalizeCodigoErpEngorde(dto.CodigoErpEngorde),
+                // Códigos ERP avícolas (pass-through; el front los muestra solo si la empresa
+                // tiene maneja_codigos_erp_avicola = true)
+                CodigoBodega               = dto.CodigoBodega,
+                DescripcionBodega          = dto.DescripcionBodega,
+                CentroOperacion            = dto.CentroOperacion,
+                DescripcionCentroOperacion = dto.DescripcionCentroOperacion,
+                CodigoInstalacion          = dto.CodigoInstalacion,
+                DescripcionInstalacion     = dto.DescripcionInstalacion,
                 CreatedByUserId = _current.UserId,
                 CreatedAt       = DateTime.UtcNow
             };
@@ -752,7 +772,13 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.Latitud,
                 entity.Longitud,
                 entity.ManejaAlimentoPorGalpon,
-                entity.CodigoErpEngorde
+                entity.CodigoErpEngorde,
+                entity.CodigoBodega,
+                entity.DescripcionBodega,
+                entity.CentroOperacion,
+                entity.DescripcionCentroOperacion,
+                entity.CodigoInstalacion,
+                entity.DescripcionInstalacion
             );
         }
 
@@ -799,6 +825,13 @@ namespace ZooSanMarino.Infrastructure.Services
             entity.Longitud       = dto.Longitud;
             entity.ManejaAlimentoPorGalpon = dto.ManejaAlimentoPorGalpon;   // null = hereda empresa
             entity.CodigoErpEngorde = NormalizeCodigoErpEngorde(dto.CodigoErpEngorde);
+            // Códigos ERP avícolas (pass-through)
+            entity.CodigoBodega               = dto.CodigoBodega;
+            entity.DescripcionBodega          = dto.DescripcionBodega;
+            entity.CentroOperacion            = dto.CentroOperacion;
+            entity.DescripcionCentroOperacion = dto.DescripcionCentroOperacion;
+            entity.CodigoInstalacion          = dto.CodigoInstalacion;
+            entity.DescripcionInstalacion     = dto.DescripcionInstalacion;
             entity.UpdatedByUserId= _current.UserId;
             entity.UpdatedAt      = DateTime.UtcNow;
 
@@ -849,7 +882,13 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.Latitud,
                 entity.Longitud,
                 entity.ManejaAlimentoPorGalpon,
-                entity.CodigoErpEngorde
+                entity.CodigoErpEngorde,
+                entity.CodigoBodega,
+                entity.DescripcionBodega,
+                entity.CentroOperacion,
+                entity.DescripcionCentroOperacion,
+                entity.CodigoInstalacion,
+                entity.DescripcionInstalacion
             );
         }
 
@@ -969,7 +1008,9 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.MunicipioId,
                     null, null, null, null,
                     f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud, f.ManejaAlimentoPorGalpon,
-                    f.CodigoErpEngorde))
+                    f.CodigoErpEngorde,
+                    f.CodigoBodega, f.DescripcionBodega, f.CentroOperacion, f.DescripcionCentroOperacion,
+                    f.CodigoInstalacion, f.DescripcionInstalacion))
                 .ToListAsync(ct);
         }
 
@@ -1018,7 +1059,13 @@ namespace ZooSanMarino.Infrastructure.Services
                 f.Latitud,
                 f.Longitud,
                 f.ManejaAlimentoPorGalpon,
-                f.CodigoErpEngorde
+                f.CodigoErpEngorde,
+                f.CodigoBodega,
+                f.DescripcionBodega,
+                f.CentroOperacion,
+                f.DescripcionCentroOperacion,
+                f.CodigoInstalacion,
+                f.DescripcionInstalacion
             ));
         }
 

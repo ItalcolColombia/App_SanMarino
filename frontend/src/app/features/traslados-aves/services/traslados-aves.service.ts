@@ -3,6 +3,11 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
+import { CohortesLoteDto } from '../models/cohorte-lote.model';
+
+// Re-export por conveniencia: los consumidores del servicio pueden tipar la respuesta
+// de cohortes sin importar de dos rutas distintas.
+export type { CohorteLoteDto, CohortesLoteDto, FilaEdadLote } from '../models/cohorte-lote.model';
 
 // =====================================================
 // INTERFACES PRINCIPALES
@@ -678,6 +683,23 @@ export class TrasladosAvesService {
   ejecutarTrasladoDesdeSegDiario(dto: TrasladoAvesDesdeSegDiarioDto): Observable<TrasladoAvesResultSegDto> {
     return this.http.post<TrasladoAvesResultSegDto>(
       `${this.trasladosUrl}/aves-desde-seguimiento`, dto
+    ).pipe(catchError(this.handleError));
+  }
+
+  // =====================================================
+  // COHORTES DE AVES DEL LOTE (Fase 3 — edades por cohorte)
+  // =====================================================
+
+  /**
+   * Edades del lote: aves propias (desde su encaset) + cohortes recibidas por traslado
+   * (cada una con la fecha de encaset de su lote origen). Las edades vienen calculadas
+   * por el backend.
+   *
+   * @param loteId ID del lote BASE (tabla `lotes`), no el de `lote_postura_levante/produccion`.
+   */
+  getCohortesLote(loteId: number): Observable<CohortesLoteDto> {
+    return this.http.get<CohortesLoteDto>(
+      `${this.trasladosUrl}/cohortes/${loteId}`
     ).pipe(catchError(this.handleError));
   }
 

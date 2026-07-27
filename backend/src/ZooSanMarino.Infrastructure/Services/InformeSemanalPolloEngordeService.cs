@@ -15,11 +15,16 @@ public class InformeSemanalPolloEngordeService : IInformeSemanalPolloEngordeServ
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
+    private readonly ILocationScopeResolver _scopeResolver;
 
-    public InformeSemanalPolloEngordeService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    public InformeSemanalPolloEngordeService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser currentUser,
+        ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _currentUser = currentUser;
+        _scopeResolver = scopeResolver;
     }
 
     public async Task<InformeSemanalReporteDto> GenerarAsync(InformeSemanalRequest request, CancellationToken ct = default)
@@ -57,6 +62,22 @@ public class InformeSemanalPolloEngordeService : IInformeSemanalPolloEngordeServ
         var rows = await _ctx.Database
             .SqlQueryRaw<InformeSemanalRow>(sql, pCompany, pGranjas, pNucleo, pGalpon, pLote, pDesde, pHasta)
             .ToListAsync(ct);
+
+        // Alcance granular: la fn agrega granjas COMPLETAS (y con p_granja_ids NULL, todas las de la
+        // empresa) ⇒ se recortan en C# las filas de granjas RESTRINGIDAS cuyo galpón/núcleo no es
+        // visible. Sin granjas restringidas el diccionario va vacío y el informe queda intacto.
+        var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+        if (restringidos.Count > 0)
+        {
+            rows = rows.Where(r =>
+            {
+                if (!restringidos.TryGetValue(r.GranjaId, out var scope)) return true;
+                var galpon = (r.GalponId ?? "").Trim();
+                var nucleo = (r.NucleoId ?? "").Trim();
+                return (galpon != "" && scope.PermiteGalpon(galpon))
+                    || (galpon == "" && nucleo != "" && scope.PermiteNucleo(nucleo));
+            }).ToList();
+        }
 
         var grupos = rows
             .GroupBy(r => r.Semana)

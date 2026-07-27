@@ -1,0 +1,211 @@
+<!-- Sub-modal: alcance dentro de la granja (global o restringido a núcleos/galpones/lotes) -->
+@if (isOpen) {
+  <div
+    class="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="alcance-title"
+    (click)="closeModal()"
+    >
+    <div
+      class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+      (click)="$event.stopPropagation()"
+      [attr.aria-busy]="loading ? 'true' : null"
+      >
+      <!-- Header -->
+      <div class="flex items-center justify-between px-5 py-4 border-b border-warm-gray-200">
+        <div class="flex items-center gap-3">
+          <fa-icon [icon]="faLayerGroup" class="text-ital-orange text-lg"></fa-icon>
+          <div>
+            <h2 id="alcance-title" class="text-base font-semibold text-warm-gray-800">
+              Alcance en {{ farmName }}
+            </h2>
+            <p class="text-xs text-warm-gray-500">{{ userName }}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="text-warm-gray-400 hover:text-warm-gray-600 p-1"
+          aria-label="Cerrar"
+          (click)="closeModal()"
+          >
+          <fa-icon [icon]="faTimes"></fa-icon>
+        </button>
+      </div>
+
+      <!-- Loading -->
+      @if (loading) {
+        <div class="flex-1 flex flex-col items-center justify-center py-12 text-warm-gray-500">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-ital-orange mb-3"></div>
+          <p class="text-sm">Cargando ubicaciones de la granja...</p>
+        </div>
+      }
+
+      @if (!loading) {
+        <!-- Selector de modo -->
+        <div class="px-5 pt-4">
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm text-left transition-colors"
+              [class.border-ital-orange]="modo === 'global'"
+              [class.bg-ital-orange-50]="modo === 'global'"
+              [class.border-warm-gray-200]="modo !== 'global'"
+              (click)="modo = 'global'"
+              >
+              <fa-icon [icon]="faGlobe" class="text-ital-orange"></fa-icon>
+              <span>
+                <span class="block font-medium text-warm-gray-800">Global</span>
+                <span class="block text-xs text-warm-gray-500">Toda la granja (comportamiento clásico)</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm text-left transition-colors"
+              [class.border-ital-orange]="modo === 'restringido'"
+              [class.bg-ital-orange-50]="modo === 'restringido'"
+              [class.border-warm-gray-200]="modo !== 'restringido'"
+              (click)="modo = 'restringido'"
+              >
+              <fa-icon [icon]="faLayerGroup" class="text-ital-orange"></fa-icon>
+              <span>
+                <span class="block font-medium text-warm-gray-800">Restringido</span>
+                <span class="block text-xs text-warm-gray-500">Solo núcleos, galpones o lotes marcados</span>
+              </span>
+            </button>
+          </div>
+
+          @if (modo === 'restringido') {
+            <p class="mt-2 text-xs text-warm-gray-500">
+              Marcar un <strong>núcleo</strong> cubre todos sus galpones y lotes; un <strong>galpón</strong>, todos sus lotes.
+              Los módulos de engorde/postura se controlan por núcleo y galpón.
+              Seleccionados: <strong>{{ totalSeleccionado }}</strong>
+            </p>
+          }
+        </div>
+
+        <!-- Árbol de ubicaciones -->
+        <div class="flex-1 overflow-y-auto px-5 py-3">
+          @if (modo === 'restringido' && tree) {
+            @if (tree.nucleos.length === 0 && tree.lotesSinNucleo.length === 0) {
+              <p class="text-sm text-warm-gray-500 py-6 text-center">La granja no tiene núcleos, galpones ni lotes activos.</p>
+            }
+            <div class="space-y-2">
+              @for (n of tree.nucleos; track n.nucleoId) {
+                <div class="border border-warm-gray-200 rounded-lg">
+                  <label class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-warm-gray-50 rounded-t-lg">
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 accent-ital-orange"
+                      [checked]="isNucleoChecked(n)"
+                      (change)="toggleNucleo(n)"
+                      />
+                    <fa-icon [icon]="faKaaba" class="text-warm-gray-400 text-xs"></fa-icon>
+                    <span class="text-sm font-medium text-warm-gray-800">{{ n.nucleoNombre }}</span>
+                    <span class="text-xs text-warm-gray-400">({{ n.nucleoId }})</span>
+                  </label>
+
+                  <div class="pl-8 pb-2 space-y-1">
+                    @for (g of n.galpones; track g.galponId) {
+                      <div>
+                        <label class="flex items-center gap-2 py-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            class="h-4 w-4 accent-ital-orange"
+                            [checked]="isGalponChecked(g) || isGalponCovered(n)"
+                            [disabled]="isGalponCovered(n)"
+                            (change)="toggleGalpon(g)"
+                            />
+                          <fa-icon [icon]="faWarehouse" class="text-warm-gray-400 text-xs"></fa-icon>
+                          <span class="text-sm text-warm-gray-700">{{ g.galponNombre }}</span>
+                          <span class="text-xs text-warm-gray-400">({{ g.galponId }})</span>
+                        </label>
+                        <div class="pl-8 space-y-0.5">
+                          @for (l of g.lotes; track l.loteId) {
+                            <label class="flex items-center gap-2 py-0.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                class="h-3.5 w-3.5 accent-ital-orange"
+                                [checked]="isLoteChecked(l) || isLoteCovered(n, g)"
+                                [disabled]="isLoteCovered(n, g)"
+                                (change)="toggleLote(l)"
+                                />
+                              <fa-icon [icon]="faCubes" class="text-warm-gray-300 text-xs"></fa-icon>
+                              <span class="text-xs text-warm-gray-600">{{ l.loteNombre }}</span>
+                              @if (l.fase) {
+                                <span class="text-[10px] uppercase tracking-wide text-warm-gray-400">{{ l.fase }}</span>
+                              }
+                            </label>
+                          }
+                        </div>
+                      </div>
+                    }
+                    @for (l of n.lotesSinGalpon; track l.loteId) {
+                      <label class="flex items-center gap-2 py-0.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          class="h-3.5 w-3.5 accent-ital-orange"
+                          [checked]="isLoteChecked(l) || isLoteCovered(n, null)"
+                          [disabled]="isLoteCovered(n, null)"
+                          (change)="toggleLote(l)"
+                          />
+                        <fa-icon [icon]="faCubes" class="text-warm-gray-300 text-xs"></fa-icon>
+                        <span class="text-xs text-warm-gray-600">{{ l.loteNombre }} <span class="text-warm-gray-400">(sin galpón)</span></span>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (tree.lotesSinNucleo.length > 0) {
+                <div class="border border-warm-gray-200 rounded-lg px-3 py-2">
+                  <p class="text-xs font-medium text-warm-gray-500 mb-1">Lotes sin ubicación</p>
+                  @for (l of tree.lotesSinNucleo; track l.loteId) {
+                    <label class="flex items-center gap-2 py-0.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        class="h-3.5 w-3.5 accent-ital-orange"
+                        [checked]="isLoteChecked(l)"
+                        (change)="toggleLote(l)"
+                        />
+                      <fa-icon [icon]="faCubes" class="text-warm-gray-300 text-xs"></fa-icon>
+                      <span class="text-xs text-warm-gray-600">{{ l.loteNombre }}</span>
+                    </label>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          @if (modo === 'global') {
+            <div class="py-6 text-center text-sm text-warm-gray-500">
+              <fa-icon [icon]="faGlobe" class="text-3xl text-warm-gray-300 mb-2 block mx-auto"></fa-icon>
+              El usuario ve <strong>toda la granja</strong>, como hasta ahora.
+            </div>
+          }
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-end gap-2 px-5 py-3 border-t border-warm-gray-200">
+          <button
+            type="button"
+            class="px-4 py-2 rounded-lg text-sm text-warm-gray-600 hover:bg-warm-gray-100"
+            [disabled]="saving"
+            (click)="closeModal()"
+            >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-ital-orange hover:bg-ital-orange-dark disabled:opacity-60"
+            [disabled]="saving || loading"
+            (click)="guardar()"
+            >
+            <fa-icon [icon]="faSave" class="mr-1"></fa-icon>
+            {{ saving ? 'Guardando...' : 'Guardar alcance' }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}

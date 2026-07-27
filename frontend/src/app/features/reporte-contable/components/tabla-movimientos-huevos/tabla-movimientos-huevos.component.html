@@ -9,15 +9,19 @@
             <th rowspan="2" class="col-fecha">Día</th>
             <th rowspan="2" class="col-fecha">Fecha</th>
             <th rowspan="2" class="col-lote">Lote</th>
-            <th colspan="4" class="header-group header-group--produccion">Producción</th>
+            <th [attr.colspan]="clasificacionHuevoPorItems ? 2 : 4" class="header-group header-group--produccion">Producción</th>
             <th colspan="6" class="header-group header-group--movimientos">Movimientos</th>
           </tr>
           <tr class="header-row header-row--sub">
             <!-- Producción -->
             <th class="col-numero">POSTURA</th>
             <th class="col-numero">HVTO FERTIL</th>
-            <th class="col-numero">HVO COMERCIAL</th>
-            <th class="col-numero">HUEVO DESECHO</th>
+            <!-- Empresas que clasifican por ÍTEM del catálogo (flag clasificacion_huevo_por_items):
+                 comercial/desecho salen de las 11 columnas fijas → siempre 0, se ocultan. -->
+            @if (!clasificacionHuevoPorItems) {
+              <th class="col-numero">HVO COMERCIAL</th>
+              <th class="col-numero">HUEVO DESECHO</th>
+            }
             <!-- Movimientos -->
             <th class="col-numero">ENTRADA</th>
             <th class="col-numero">CAPTURA INFO</th>
@@ -36,8 +40,10 @@
               <!-- Producción -->
               <td class="text-right col-numero">{{ movimiento.postura | number:'1.0-0' }}</td>
               <td class="text-right col-numero">{{ movimiento.hvtoFertil | number:'1.0-0' }}</td>
-              <td class="text-right col-numero">{{ movimiento.hvoComercial | number:'1.0-0' }}</td>
-              <td class="text-right col-numero">{{ movimiento.huevoDesecho | number:'1.0-0' }}</td>
+              @if (!clasificacionHuevoPorItems) {
+                <td class="text-right col-numero">{{ movimiento.hvoComercial | number:'1.0-0' }}</td>
+                <td class="text-right col-numero">{{ movimiento.huevoDesecho | number:'1.0-0' }}</td>
+              }
               <!-- Movimientos -->
               <td class="text-right col-numero">{{ movimiento.entrada | number:'1.0-0' }}</td>
               <td class="text-right col-numero">{{ movimiento.capturaInfo | number:'1.0-0' }}</td>
@@ -54,8 +60,10 @@
             <!-- Totales Producción -->
             <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalPostura | number:'1.0-0' }}</strong></td>
             <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHvtoFertil | number:'1.0-0' }}</strong></td>
-            <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHvoComercial | number:'1.0-0' }}</strong></td>
-            <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHuevoDesecho | number:'1.0-0' }}</strong></td>
+            @if (!clasificacionHuevoPorItems) {
+              <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHvoComercial | number:'1.0-0' }}</strong></td>
+              <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHuevoDesecho | number:'1.0-0' }}</strong></td>
+            }
             <!-- Totales Movimientos -->
             <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalEntrada | number:'1.0-0' }}</strong></td>
             <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalPostura | number:'1.0-0' }}</strong></td>

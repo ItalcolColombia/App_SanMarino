@@ -22,36 +22,51 @@
   </header>
 
   <!-- Filtros -->
-  <div class="ux-card mb-4 p-4">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <div>
-        <label class="form-label" for="cron-granja">Granja</label>
-        <select
-          id="cron-granja"
-          class="form-input"
-          [(ngModel)]="granjaSeleccionadaId"
-          (ngModelChange)="onGranjaChange()"
-          [disabled]="cargandoFiltros"
-        >
-          <option [ngValue]="null">{{ cargandoFiltros ? 'Cargando granjas…' : 'Seleccione…' }}</option>
-          <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
-        </select>
+  <section class="ux-card filter-card mb-4">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
       </div>
-      <div class="sm:col-span-1 lg:col-span-2">
-        <label class="form-label" for="cron-lote">Lote</label>
-        <div class="flex flex-col gap-2 sm:flex-row">
-          <input
-            type="text"
-            class="form-input sm:max-w-[230px]"
-            placeholder="🔍 Buscar lote…"
-            [(ngModel)]="filtroLote"
-            (ngModelChange)="aplicarFiltroLotes()"
-            [disabled]="!granjaSeleccionadaId || cargandoFiltros"
-            aria-label="Buscar lote por nombre"
-          />
+      <div>
+        <h3 class="filter-card__title">Selección de contexto</h3>
+        <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+      </div>
+    </div>
+
+    <div class="filter-steps">
+      <!-- Paso 1: Granja -->
+      <div class="filter-step"
+        [class.filter-step--active]="!!granjaSeleccionadaId"
+        [class.filter-step--done]="!!loteSeleccionado"
+        [class.filter-step--disabled]="cargandoFiltros">
+        <div class="filter-step__num">1</div>
+        <div class="filter-step__body">
+          <label class="filter-step__label" for="cron-granja">Granja</label>
+          <select
+            id="cron-granja"
+            class="filter-step__select"
+            [(ngModel)]="granjaSeleccionadaId"
+            (ngModelChange)="onGranjaChange()"
+            [disabled]="cargandoFiltros"
+          >
+            <option [ngValue]="null">{{ cargandoFiltros ? 'Cargando granjas…' : 'Seleccione…' }}</option>
+            <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!granjaSeleccionadaId" aria-hidden="true"></div>
+
+      <!-- Paso 2: Lote -->
+      <div class="filter-step filter-step--last"
+        [class.filter-step--active]="!!loteSeleccionado"
+        [class.filter-step--disabled]="!granjaSeleccionadaId || cargandoFiltros">
+        <div class="filter-step__num filter-step__num--accent">2</div>
+        <div class="filter-step__body">
+          <label class="filter-step__label" for="cron-lote">Lote</label>
           <select
             id="cron-lote"
-            class="form-input"
+            class="filter-step__select"
             [ngModel]="loteSeleccionado"
             (ngModelChange)="onLoteChange($event)"
             [disabled]="!granjaSeleccionadaId || cargandoFiltros"
@@ -66,10 +81,26 @@
         </div>
       </div>
     </div>
+
+    <div class="filter-fields">
+      <div class="filter-field">
+        <label class="filter-step__label" for="cron-lote-buscar">Buscar lote</label>
+        <input
+          type="text"
+          id="cron-lote-buscar"
+          class="filter-step__input"
+          placeholder="🔍 Buscar lote…"
+          [(ngModel)]="filtroLote"
+          (ngModelChange)="aplicarFiltroLotes()"
+          [disabled]="!granjaSeleccionadaId || cargandoFiltros"
+        />
+      </div>
+    </div>
+
     <div *ngIf="cargandoFiltros" class="loading-toast mt-3" role="status">
       <span class="spinner spinner--sm"></span> Cargando granjas, lotes y vacunas…
     </div>
-  </div>
+  </section>
 
   <!-- KPIs del lote -->
   <div *ngIf="kpis && loteSeleccionado" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

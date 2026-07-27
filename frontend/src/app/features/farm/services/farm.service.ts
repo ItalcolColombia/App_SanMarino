@@ -43,6 +43,14 @@ export interface FarmDto {
   // avanza +1 automáticamente al cerrar todos los lotes del lote base en la granja)
   codigoErpEngorde?: string | null;
 
+  // ── Códigos ERP avícolas (visibles sólo si la empresa tiene `manejaCodigosErpAvicola`) ──
+  codigoBodega?: string | null;
+  descripcionBodega?: string | null;
+  centroOperacion?: string | null;
+  descripcionCentroOperacion?: string | null;
+  codigoInstalacion?: string | null;
+  descripcionInstalacion?: string | null;
+
   createdAt?: string;
   updatedAt?: string;
   company?: { id: number; name: string };
@@ -71,6 +79,14 @@ export interface CreateFarmDto {
 
   // Panamá: código ERP vigente para lotes de engorde (solo dígitos)
   codigoErpEngorde?: string | null;
+
+  // ── Códigos ERP avícolas (null cuando la empresa no los maneja) ──
+  codigoBodega?: string | null;
+  descripcionBodega?: string | null;
+  centroOperacion?: string | null;
+  descripcionCentroOperacion?: string | null;
+  codigoInstalacion?: string | null;
+  descripcionInstalacion?: string | null;
 }
 
 export interface UpdateFarmDto extends CreateFarmDto {

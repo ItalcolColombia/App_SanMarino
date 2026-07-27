@@ -16,12 +16,22 @@
     </div>
 
     <!-- Filtros -->
-    <div class="filters-card">
-      <div class="filters-grid">
+    <section class="ux-card filter-card">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+        </div>
+        <div>
+          <h3 class="filter-card__title">Filtros</h3>
+          <p class="filter-card__subtitle">Acota la información mostrada</p>
+        </div>
+      </div>
+
+      <div class="filter-fields">
         <!-- Regional -->
         <div class="filter-field">
-          <label for="f-regional" class="ux-label">Regional</label>
-          <select id="f-regional" class="ux-select"
+          <label for="f-regional" class="filter-step__label">Regional</label>
+          <select id="f-regional" class="filter-step__select"
                   [(ngModel)]="selectedRegional"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todas</option>
@@ -33,8 +43,8 @@
 
         <!-- Departamento -->
         <div class="filter-field">
-          <label for="f-departamento" class="ux-label">Departamento</label>
-          <select id="f-departamento" class="ux-select"
+          <label for="f-departamento" class="filter-step__label">Departamento</label>
+          <select id="f-departamento" class="filter-step__select"
                   [(ngModel)]="selectedDepartamento"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todos</option>
@@ -46,8 +56,8 @@
 
         <!-- Ciudad -->
         <div class="filter-field">
-          <label for="f-ciudad" class="ux-label">Ciudad</label>
-          <select id="f-ciudad" class="ux-select"
+          <label for="f-ciudad" class="filter-step__label">Ciudad</label>
+          <select id="f-ciudad" class="filter-step__select"
                   [(ngModel)]="selectedCiudad"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todas</option>
@@ -59,8 +69,8 @@
 
         <!-- Nombre -->
         <div class="filter-field">
-          <label for="f-nombre" class="ux-label">Nombre</label>
-          <input id="f-nombre" class="ux-input"
+          <label for="f-nombre" class="filter-step__label">Nombre</label>
+          <input id="f-nombre" class="filter-step__input"
                  [(ngModel)]="filtroNombre"
                  (ngModelChange)="recomputeList()"
                  placeholder="Ej: Granja San Pedro" />
@@ -68,8 +78,8 @@
 
         <!-- Estado -->
         <div class="filter-field">
-          <label for="f-estado" class="ux-label">Estado</label>
-          <select id="f-estado" class="ux-select"
+          <label for="f-estado" class="filter-step__label">Estado</label>
+          <select id="f-estado" class="filter-step__select"
                   [(ngModel)]="filtroEstado"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="''">Todos</option>
@@ -79,23 +89,20 @@
         </div>
 
         <!-- Búsqueda libre -->
-        <div class="filter-field filter-field--search">
-          <label for="f-search" class="ux-label">Buscar</label>
-          <div class="ux-search">
-            <fa-icon [icon]="faMagnifyingGlass" class="ux-search__icon" aria-hidden="true"></fa-icon>
-            <input id="f-search" type="search" class="ux-input"
-                   [(ngModel)]="filtroTexto"
-                   (ngModelChange)="recomputeList()"
-                   placeholder="Nombre, regional, compañía…" />
-          </div>
+        <div class="filter-field">
+          <label for="f-search" class="filter-step__label">Buscar</label>
+          <input id="f-search" type="search" class="filter-step__input"
+                 [(ngModel)]="filtroTexto"
+                 (ngModelChange)="recomputeList()"
+                 placeholder="Nombre, regional, compañía…" />
         </div>
 
         <!-- Limpiar -->
-        <div class="filter-field filter-field--action">
+        <div class="filter-card__actions">
           <button class="btn-ghost w-full" (click)="resetFilters()">Limpiar</button>
         </div>
       </div>
-    </div>
+    </section>
 
     <!-- Tabla -->
     <div class="ux-card">
@@ -268,6 +275,62 @@
                   </select>
                 </div>
 
+                <!-- ══════════ Sección Códigos ERP (Santa Reyes) ══════════ -->
+                <!-- Visible solo si la empresa activa maneja códigos ERP avícolas -->
+                @if (manejaCodigosErp) {
+                  <div class="col-span-2">
+                    <hr class="my-2 border-gray-200" />
+                    <p class="text-xs font-semibold text-ital-green uppercase tracking-wide mb-1">Códigos ERP (Santa Reyes)</p>
+                  </div>
+
+                  <!-- Código Bodega -->
+                  <div>
+                    <label class="ux-label" for="farm-codigo-bodega">Código Bodega</label>
+                    <input id="farm-codigo-bodega" formControlName="codigoBodega" type="text" maxlength="20"
+                           class="ux-input" placeholder="Ej. B0601" />
+                  </div>
+
+                  <!-- Descripción Bodega -->
+                  <div>
+                    <label class="ux-label" for="farm-desc-bodega">Descripción Bodega</label>
+                    <input id="farm-desc-bodega" formControlName="descripcionBodega" type="text" maxlength="200"
+                           class="ux-input" placeholder="Ej. Bodega Granja La Esperanza" />
+                  </div>
+
+                  <!-- Centro de Operación -->
+                  <div>
+                    <label class="ux-label" for="farm-co">C.O. (Centro de Operación)</label>
+                    <input id="farm-co" formControlName="centroOperacion" type="text" maxlength="20"
+                           class="ux-input" placeholder="Ej. 830" />
+                  </div>
+
+                  <!-- Descripción C.O. -->
+                  <div>
+                    <label class="ux-label" for="farm-desc-co">Descripción C.O.</label>
+                    <input id="farm-desc-co" formControlName="descripcionCentroOperacion" type="text" maxlength="200"
+                           class="ux-input" placeholder="Ej. Centro de operación Buga" />
+                  </div>
+
+                  <!-- Instalación -->
+                  <div>
+                    <label class="ux-label" for="farm-instalacion">Instalación</label>
+                    <input id="farm-instalacion" formControlName="codigoInstalacion" type="text" maxlength="20"
+                           class="ux-input" placeholder="Ej. B06" />
+                  </div>
+
+                  <!-- Descripción Instalación -->
+                  <div>
+                    <label class="ux-label" for="farm-desc-instalacion">Descripción Instalación</label>
+                    <input id="farm-desc-instalacion" formControlName="descripcionInstalacion" type="text" maxlength="200"
+                           class="ux-input" placeholder="Ej. Instalación granja" />
+                  </div>
+
+                  <div class="col-span-2">
+                    <p class="ux-help">Campos opcionales: se usan para integrar la granja con el ERP.</p>
+                  </div>
+                }
+                <!-- ══════════════════════════════════════════ -->
+
                 <!-- ══════════════ Sección Panamá ══════════════ -->
                 @if (isPanama) {
                   <!-- Divisor -->
@@ -347,10 +410,10 @@
                 @if (editing?.createdAt || editing?.updatedAt) {
                   <div class="col-span-2 ux-meta">
                     @if (editing?.createdAt) {
-                      <div class="ux-meta__item"><strong>Creado:</strong> {{ $safeNavigationMigration(editing?.createdAt) | date:'short' }}</div>
+                      <div class="ux-meta__item"><strong>Creado:</strong> {{ editing?.createdAt | date:'short' }}</div>
                     }
                     @if (editing?.updatedAt) {
-                      <div class="ux-meta__item"><strong>Actualizado:</strong> {{ $safeNavigationMigration(editing?.updatedAt) | date:'short' }}</div>
+                      <div class="ux-meta__item"><strong>Actualizado:</strong> {{ editing?.updatedAt | date:'short' }}</div>
                     }
                   </div>
                 }
@@ -437,6 +500,39 @@
                   </div>
                 </div>
               </section>
+
+              <!-- Códigos ERP (Santa Reyes) -->
+              @if (manejaCodigosErp) {
+                <section class="detail-section">
+                  <h3 class="detail-section__title">Códigos ERP</h3>
+                  <div class="detail-grid">
+                    <div class="detail-item">
+                      <span class="detail-label">Código Bodega</span>
+                      <span class="detail-value">{{ selectedDetail.codigoBodega || '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Descripción Bodega</span>
+                      <span class="detail-value">{{ selectedDetail.descripcionBodega || '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">C.O.</span>
+                      <span class="detail-value">{{ selectedDetail.centroOperacion || '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Descripción C.O.</span>
+                      <span class="detail-value">{{ selectedDetail.descripcionCentroOperacion || '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Instalación</span>
+                      <span class="detail-value">{{ selectedDetail.codigoInstalacion || '—' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Descripción Instalación</span>
+                      <span class="detail-value">{{ selectedDetail.descripcionInstalacion || '—' }}</span>
+                    </div>
+                  </div>
+                </section>
+              }
 
               <!-- Información Panamá -->
               @if (isPanama) {

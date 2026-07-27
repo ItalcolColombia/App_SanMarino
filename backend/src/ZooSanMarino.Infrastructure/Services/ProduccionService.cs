@@ -20,6 +20,7 @@ public class ProduccionService : IProduccionService
     private readonly ICurrentUser _currentUser;
     private readonly ILoteService _loteService;
     private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
+    private readonly ILocationScopeResolver _scopeResolver;
     private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;      // Fase 2: modelo A (Colombia) — sin uso tras Fase 3 paso 2
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;     // Fase 3 paso 2: modelo B nivel granja (Colombia)
 
@@ -35,6 +36,7 @@ public class ProduccionService : IProduccionService
         ICurrentUser currentUser,
         ILoteService loteService,
         IEspejoHuevoProduccionSyncService espejoHuevoSync,
+        ILocationScopeResolver scopeResolver,
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null)
     {
@@ -42,6 +44,7 @@ public class ProduccionService : IProduccionService
         _currentUser = currentUser;
         _loteService = loteService;
         _espejoHuevoSync = espejoHuevoSync;
+        _scopeResolver = scopeResolver;
         _farmInventoryConsumo = farmInventoryConsumo;
         _colombiaConsumoB = colombiaConsumoB;
     }
@@ -247,6 +250,34 @@ public class ProduccionService : IProduccionService
         return mismo;
     }
 
+    /// <summary>
+    /// Bloquea crear, editar y eliminar seguimiento diario cuando el lote de producción está
+    /// cerrado. Mismo criterio que <c>SeguimientoProduccionService.EnsureLoteProduccionAbiertoAsync</c>
+    /// (REQ-006), que cubría el OTRO controlador: este servicio —el que atiende
+    /// <c>/api/Produccion/seguimiento</c>, el que usa el módulo— no validaba nada, así que un lote
+    /// cerrado se podía seguir tocando.
+    /// <para>
+    /// Se resuelve por el LPP cuando viene informado y, si no, por el lote base. NO se valida el
+    /// lote de LEVANTE: queda siempre "Cerrado" al pasar a producción, y mirarlo bloquearía toda la
+    /// captura. Sin LPP asociado (flujo legacy) no hay estado de cierre que validar.
+    /// </para>
+    /// </summary>
+    private async Task EnsureLoteProduccionAbiertoAsync(int loteId, int? lotePosturaProduccionId)
+    {
+        var q = _context.LotePosturaProduccion.AsNoTracking().Where(l => l.DeletedAt == null);
+
+        q = lotePosturaProduccionId.HasValue
+            ? q.Where(l => l.LotePosturaProduccionId == lotePosturaProduccionId.Value)
+            : q.Where(l => l.LoteId == loteId);
+
+        var estado = await q.Select(l => l.EstadoCierre).FirstOrDefaultAsync().ConfigureAwait(false);
+
+        if (CicloVidaPosturaCalculos.EstaCerrado(estado))
+            throw new InvalidOperationException(
+                "El lote de producción está cerrado; no se pueden crear, modificar ni eliminar registros de seguimiento diario. " +
+                "Reabra el lote desde Seguimiento Diario de Producción si necesita ajustarlo.");
+    }
+
     public async Task<int> CrearSeguimientoAsync(CrearSeguimientoRequest request)
     {
         if (!request.LotePosturaProduccionId.HasValue && !request.ProduccionLoteId.HasValue)
@@ -257,6 +288,10 @@ public class ProduccionService : IProduccionService
         int loteId;
         int? lotePosturaProduccionId = request.LotePosturaProduccionId;
 
+        // Fila del día creada por el arrastre de huevos del levante, si existe: habilita el MERGE
+        // (sumar sobre ella) en vez del 400 por duplicado. Null ⇒ alta normal.
+        SeguimientoProduccion? filaArrastre = null;
+
         if (lotePosturaProduccionId.HasValue)
         {
             var lpp = await _context.LotePosturaProduccion
@@ -265,15 +300,21 @@ public class ProduccionService : IProduccionService
                     && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
             if (lpp == null)
                 throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
-            loteId = lpp.LoteId ?? 0;
-            if (loteId <= 0)
-                throw new InvalidOperationException("El lote postura producción no tiene LoteId asociado (requerido para guardar en produccion_diaria).");
+            loteId = await ResolverYSanarLoteIdAsync(lpp);
 
-            var existeSeguimientoLpp = await _context.SeguimientoProduccion.AsNoTracking()
-                .AnyAsync(s => s.LotePosturaProduccionId == lotePosturaProduccionId
-                    && s.Fecha.Date == request.FechaRegistro.Date);
-            if (existeSeguimientoLpp)
-                throw new InvalidOperationException("Ya existe un seguimiento para esta fecha y lote.");
+            // La unicidad real en BD es (lote_id, fecha): si otro LPP comparte el mismo Lote base,
+            // sin este OR el INSERT reventaría con violación de índice único (500) en vez de 400.
+            // Se trae la FILA (no AnyAsync) porque si es la del arrastre de huevos del levante hay
+            // que SUMARLE el seguimiento del día en vez de rechazarlo (ver ResolverFilaDuplicada).
+            // Rango de día UTC en vez de `.Fecha.Date == ...`: EF traduce eso a
+            // `date_trunc('day', fecha_registro) = @p`, y date_trunc sobre timestamptz trunca en la
+            // zona de la SESIÓN de la BD ⇒ con una sesión no-UTC nunca casaba y el duplicado pasaba
+            // sin detectarse. El rango es correcto en cualquier zona y además sargable.
+            var (diaDesde, diaHasta) = FechasPuras.RangoDiaUtc(request.FechaRegistro);
+            var existenteLpp = await _context.SeguimientoProduccion
+                .FirstOrDefaultAsync(s => (s.LotePosturaProduccionId == lotePosturaProduccionId || s.LoteId == loteId)
+                    && s.Fecha >= diaDesde && s.Fecha < diaHasta);
+            filaArrastre = ResolverFilaDuplicada(existenteLpp, "Ya existe un seguimiento para esta fecha y lote.");
         }
         else
         {
@@ -284,11 +325,13 @@ public class ProduccionService : IProduccionService
                 throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
             loteId = loteProd.LoteId ?? request.ProduccionLoteId!.Value;
 
-            var existeSeguimiento = await _context.SeguimientoProduccion.AsNoTracking()
-                .AnyAsync(s => s.LoteId == loteId && s.Fecha.Date == request.FechaRegistro.Date);
-            if (existeSeguimiento)
-                throw new InvalidOperationException("Ya existe un seguimiento para esta fecha.");
+            var (diaDesde, diaHasta) = FechasPuras.RangoDiaUtc(request.FechaRegistro);
+            var existente = await _context.SeguimientoProduccion
+                .FirstOrDefaultAsync(s => s.LoteId == loteId && s.Fecha >= diaDesde && s.Fecha < diaHasta);
+            filaArrastre = ResolverFilaDuplicada(existente, "Ya existe un seguimiento para esta fecha.");
         }
+
+        await EnsureLoteProduccionAbiertoAsync(loteId, lotePosturaProduccionId);
 
         // Validar que la fecha no sea en el futuro
         if (request.FechaRegistro.Date > DateTime.Today)
@@ -345,7 +388,32 @@ public class ProduccionService : IProduccionService
             );
         }
 
-        var entity = new SeguimientoProduccion
+        // ── Clasificación de huevos POR ÍTEMS (Santa Reyes) ───────────────────────────────
+        // null o [] en creación = comportamiento actual intacto (11 columnas fijas del DTO).
+        // Con ítems: se valida, se exige el flag de empresa, se guarda el desglose en el
+        // metadata (conservando lo que ya escribió BuildMetadata*) y los totales salen de la suma.
+        List<HuevoItemSeguimientoDto>? huevoItems = null;
+        if (request.HuevoItems is { Count: > 0 })
+        {
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+            metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
+        }
+
+        // -- MERGE sobre la fila del arrastre de huevos del levante ------------------------
+        // El usuario registra produccion el mismo dia en que se liquido el levante: sus huevos se
+        // SUMAN a los que ya venian de levante y el resto de los campos los define su registro.
+        // La marca se conserva para que el arrastre siga siendo idempotente.
+        if (filaArrastre is not null)
+        {
+            // Se conserva la marca (para que el arrastre siga siendo idempotente) y se CIERRA la
+            // ventana de merge: a partir de acá el día vuelve a admitir un solo registro.
+            metadata = HuevosLevanteCalculos.CopiarMarcaArrastre(metadata, filaArrastre.Metadata);
+            metadata = HuevosLevanteCalculos.MarcarSeguimientoRegistrado(metadata);
+            AplicarRequestSobreFilaArrastre(filaArrastre, request, consumoKgH, consumoKgM,
+                tipoAlimento, metadata);
+        }
+
+        var entity = filaArrastre ?? new SeguimientoProduccion
         {
             LoteId = loteId,
             LotePosturaProduccionId = lotePosturaProduccionId,
@@ -388,6 +456,9 @@ public class ProduccionService : IProduccionService
             CreatedAt = DateTime.UtcNow
         };
 
+        // huevo_tot = suma de los ítems; huevo_inc y las 11 columnas fijas quedan en 0.
+        if (huevoItems != null) AplicarTotalesHuevoPorItems(entity, huevoItems);
+
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2) ────────────
         // Descuento desde los DTOs del request (TODOS los ítems), id-mapping catalogItemId→ítem B.
         // Validación previa de stock B ANTES de persistir; guardado + consumo en UNA tx. Si falta
@@ -401,7 +472,7 @@ public class ProduccionService : IProduccionService
             await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
 
             await using var tx = await _context.Database.BeginTransactionAsync();
-            _context.SeguimientoProduccion.Add(entity);
+            if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
             await _context.SaveChangesAsync();
             if (positivos.Count > 0)
             {
@@ -415,11 +486,112 @@ public class ProduccionService : IProduccionService
             return entity.Id;
         }
 
-        _context.SeguimientoProduccion.Add(entity);
+        if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
         await _context.SaveChangesAsync();
         if (lotePosturaProduccionId.HasValue)
             await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
         return entity.Id;
+    }
+
+    /// <summary>
+    /// Politica de duplicado por dia. Devuelve la fila SOLO si es la que creo el arrastre de huevos
+    /// del levante Y todavia no se registro el seguimiento de ese dia, habilitando el merge
+    /// acumulativo UNA sola vez (la regla "un registro por dia" se conserva).
+    /// En cualquier otro caso lanza con el mensaje historico, es decir el 400 de siempre para todos
+    /// los casos que ya existian (filas manuales, de traslado de aves, etc.).
+    /// </summary>
+    private static SeguimientoProduccion? ResolverFilaDuplicada(SeguimientoProduccion? existente, string mensaje)
+    {
+        if (existente is null) return null;
+        if (HuevosLevanteCalculos.PermiteMergeSeguimiento(existente.Metadata)) return existente;
+        throw new InvalidOperationException(mensaje);
+    }
+
+    /// <summary>
+    /// Vuelca el request sobre la fila del arrastre: los huevos se SUMAN categoria por categoria
+    /// (recalculando <c>huevo_tot</c>/<c>huevo_inc</c> desde el resultado) y el resto de los campos
+    /// se reemplazan por lo que registro el usuario. No toca <c>traslado_*</c>, ni
+    /// <c>lote_id</c>/<c>fecha_registro</c>/auditoria de creacion.
+    /// </summary>
+    private void AplicarRequestSobreFilaArrastre(
+        SeguimientoProduccion fila,
+        CrearSeguimientoRequest request,
+        decimal consumoKgH,
+        decimal consumoKgM,
+        string tipoAlimento,
+        JsonDocument? metadata)
+    {
+        var sumado = HuevosLevanteCalculos.Sumar(
+            new HuevosClasificacion(
+                Limpio: fila.HuevoLimpio,
+                Tratado: fila.HuevoTratado,
+                Sucio: fila.HuevoSucio,
+                Deforme: fila.HuevoDeforme,
+                Blanco: fila.HuevoBlanco,
+                DobleYema: fila.HuevoDobleYema,
+                Piso: fila.HuevoPiso,
+                Pequeno: fila.HuevoPequeno,
+                Roto: fila.HuevoRoto,
+                Desecho: fila.HuevoDesecho,
+                Otro: fila.HuevoOtro),
+            new HuevosClasificacion(
+                Limpio: request.HuevoLimpio,
+                Tratado: request.HuevoTratado,
+                Sucio: request.HuevoSucio,
+                Deforme: request.HuevoDeforme,
+                Blanco: request.HuevoBlanco,
+                DobleYema: request.HuevoDobleYema,
+                Piso: request.HuevoPiso,
+                Pequeno: request.HuevoPequeno,
+                Roto: request.HuevoRoto,
+                Desecho: request.HuevoDesecho,
+                Otro: request.HuevoOtro));
+
+        fila.HuevoLimpio = sumado.Limpio;
+        fila.HuevoTratado = sumado.Tratado;
+        fila.HuevoSucio = sumado.Sucio;
+        fila.HuevoDeforme = sumado.Deforme;
+        fila.HuevoBlanco = sumado.Blanco;
+        fila.HuevoDobleYema = sumado.DobleYema;
+        fila.HuevoPiso = sumado.Piso;
+        fila.HuevoPequeno = sumado.Pequeno;
+        fila.HuevoRoto = sumado.Roto;
+        fila.HuevoDesecho = sumado.Desecho;
+        fila.HuevoOtro = sumado.Otro;
+        // Derivados desde las 11 categorias ya sumadas (no se suman los totales del request aparte,
+        // para que no puedan quedar descuadrados). Con clasificacion por items, el
+        // AplicarTotalesHuevoPorItems posterior manda.
+        fila.HuevoInc = sumado.Incubables;
+        fila.HuevoTot = sumado.Totales;
+
+        fila.MortalidadH = request.MortalidadH;
+        fila.MortalidadM = request.MortalidadM;
+        fila.SelH = request.SelH;
+        fila.SelM = request.SelM;
+        fila.ErrorSexajeHembras = request.ErrorSexajeHembras ?? 0;
+        fila.ErrorSexajeMachos = request.ErrorSexajeMachos ?? 0;
+        fila.ConsKgH = consumoKgH;
+        fila.ConsKgM = consumoKgM;
+        fila.TipoAlimento = tipoAlimento;
+        fila.Etapa = request.Etapa;
+        if (request.PesoHuevo > 0) fila.PesoHuevo = request.PesoHuevo;
+        fila.PesoH = request.PesoH ?? fila.PesoH;
+        fila.PesoM = request.PesoM ?? fila.PesoM;
+        fila.Uniformidad = request.Uniformidad ?? fila.Uniformidad;
+        fila.CoeficienteVariacion = request.CoeficienteVariacion ?? fila.CoeficienteVariacion;
+        fila.ObservacionesPesaje = request.ObservacionesPesaje ?? fila.ObservacionesPesaje;
+        fila.ConsumoAguaDiario = request.ConsumoAguaDiario ?? fila.ConsumoAguaDiario;
+        fila.ConsumoAguaPh = request.ConsumoAguaPh ?? fila.ConsumoAguaPh;
+        fila.ConsumoAguaOrp = request.ConsumoAguaOrp ?? fila.ConsumoAguaOrp;
+        fila.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura ?? fila.ConsumoAguaTemperatura;
+        fila.Observaciones = string.IsNullOrWhiteSpace(request.Observaciones)
+            ? fila.Observaciones
+            : (string.IsNullOrWhiteSpace(fila.Observaciones)
+                ? request.Observaciones
+                : $"{fila.Observaciones} | {request.Observaciones}");
+        fila.Metadata = metadata;
+        fila.UpdatedByUserId = _currentUser.UserId;
+        fila.UpdatedAt = DateTime.UtcNow;
     }
 
     public async Task ActualizarSeguimientoAsync(int id, CrearSeguimientoRequest request)
@@ -439,9 +611,7 @@ public class ProduccionService : IProduccionService
                     && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
             if (lpp == null)
                 throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
-            loteId = lpp.LoteId ?? 0;
-            if (loteId <= 0)
-                throw new InvalidOperationException("El lote postura producción no tiene LoteId asociado (requerido para guardar en produccion_diaria).");
+            loteId = await ResolverYSanarLoteIdAsync(lpp);
         }
         else
         {
@@ -451,6 +621,8 @@ public class ProduccionService : IProduccionService
                 throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
             loteId = loteProd.LoteId ?? request.ProduccionLoteId!.Value;
         }
+
+        await EnsureLoteProduccionAbiertoAsync(loteId, lotePosturaProduccionId);
 
         if (request.FechaRegistro.Date > DateTime.Today)
             throw new ArgumentException("La fecha de registro no puede ser en el futuro.");
@@ -517,6 +689,29 @@ public class ProduccionService : IProduccionService
             ? MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen(entity.Metadata.RootElement)
             : new Dictionary<ItemConsumoKey, decimal>();
 
+        // ── Clasificación de huevos POR ÍTEMS (Santa Reyes) — edición ────────────────────
+        //   null  = "no tocar": se conserva el desglose ya persistido (y sus totales), NO se pisa
+        //           con los campos sueltos del DTO;
+        //   []    = "quitar la clasificación por ítems": se elimina la clave del metadata y los
+        //           totales vuelven a salir de los campos sueltos, como hoy;
+        //   [..]  = reemplaza el desglose (se revalida) y recalcula huevo_tot / huevo_inc / 11 columnas.
+        var huevoItemsPersistidos = entity.Metadata != null
+            ? HuevoItemsCalculos.LeerDeMetadata(entity.Metadata.RootElement)
+            : new List<HuevoItemSeguimientoDto>();
+
+        List<HuevoItemSeguimientoDto>? huevoItems = null;
+        if (request.HuevoItems is null)
+        {
+            if (huevoItemsPersistidos.Count > 0) huevoItems = huevoItemsPersistidos;
+        }
+        else if (request.HuevoItems.Count > 0)
+        {
+            huevoItems = await ValidarHuevoItemsAsync(loteId, request.HuevoItems).ConfigureAwait(false);
+        }
+
+        if (huevoItems != null)
+            metadata = HuevoItemsCalculos.EscribirEnMetadata(metadata, huevoItems);
+
         entity.LoteId = loteId;
         entity.LotePosturaProduccionId = lotePosturaProduccionId;
         entity.Fecha = request.FechaRegistro;
@@ -555,6 +750,9 @@ public class ProduccionService : IProduccionService
         entity.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura;
         entity.UpdatedByUserId = _currentUser.UserId;
         entity.UpdatedAt = DateTime.UtcNow;
+
+        // huevo_tot = suma de los ítems; huevo_inc y las 11 columnas fijas quedan en 0.
+        if (huevoItems != null) AplicarTotalesHuevoPorItems(entity, huevoItems);
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (Fase 3 paso 2) ──
         // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.
@@ -602,11 +800,21 @@ public class ProduccionService : IProduccionService
             // Validar pertenencia a compañía y obtener el loteId asociado
             var lpp = await _context.LotePosturaProduccion.AsNoTracking()
                 .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LotePosturaProduccionId == lotePosturaProduccionId.Value)
-                .Select(l => new { l.LoteId })
+                .Select(l => new { l.LoteId, l.GranjaId, l.NucleoId, l.GalponId })
                 .FirstOrDefaultAsync()
                 .ConfigureAwait(false);
             if (lpp == null)
                 throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
+
+            // Alcance granular: el LPP se resuelve por su lote (si lo tiene) y, si no, por su
+            // ubicación galpón/núcleo — mismo cierre que LotePosturaProduccionService (fail-closed).
+            var scopeLpp = await _scopeResolver.GetScopeAsync(lpp.GranjaId);
+            var permitido = scopeLpp.IsGlobal
+                || (lpp.LoteId.HasValue && scopeLpp.PermiteLote(lpp.LoteId.Value))
+                || (!lpp.LoteId.HasValue && !string.IsNullOrEmpty(lpp.GalponId) && scopeLpp.PermiteGalpon(lpp.GalponId))
+                || (!lpp.LoteId.HasValue && string.IsNullOrEmpty(lpp.GalponId) && !string.IsNullOrEmpty(lpp.NucleoId) && scopeLpp.PermiteNucleo(lpp.NucleoId));
+            if (!permitido)
+                return new ListaSeguimientoResponse(new List<SeguimientoItemDto>(), 0);
 
             produccionLoteId = lpp.LoteId ?? 0;
             q = q.Where(x => x.LotePosturaProduccionId == lotePosturaProduccionId.Value);
@@ -614,6 +822,11 @@ public class ProduccionService : IProduccionService
         else
         {
             var lid = loteId!.Value;
+
+            // Alcance granular: acceso directo por loteId respeta el scope (fail-closed)
+            if (!await _scopeResolver.PermiteLoteAsync(lid).ConfigureAwait(false))
+                return new ListaSeguimientoResponse(new List<SeguimientoItemDto>(), 0);
+
             Lote? loteProd = await _context.Lotes.AsNoTracking()
                 .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LotePadreId == lid)
                 .OrderBy(l => l.LoteId)
@@ -906,6 +1119,8 @@ public class ProduccionService : IProduccionService
         var lppId = e.LotePosturaProduccionId;
         var loteId = e.LoteId;
 
+        await EnsureLoteProduccionAbiertoAsync(loteId, lppId);
+
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
         {
@@ -941,8 +1156,10 @@ public class ProduccionService : IProduccionService
     /// con 182 días (26*7) un lote solo aparecía al iniciar la semana 27 (semanaVida = dias/7 + 1),
     /// no en la 26. Con 175 días (25*7) el lote aparece al iniciar la semana 26 y las semanas 25 ya
     /// capturadas quedan habilitadas.
+    /// <paramref name="paraDestino"/> = true omite el alcance granular de ubicación (los modales de
+    /// traslado usan este listado como catálogo de lote DESTINO), igual que ILoteService.GetAllAsync.
     /// </summary>
-    public async Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync()
+    public async Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync(bool paraDestino = false)
     {
         var fechaHoy = DateTime.Today;
 
@@ -950,7 +1167,7 @@ public class ProduccionService : IProduccionService
         var diasSemanaProduccion = 25 * 7; // 175 días
         var fechaLimiteProduccion = fechaHoy.AddDays(-diasSemanaProduccion);
 
-        var lotes = await _context.Lotes
+        IQueryable<Lote> q = _context.Lotes
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
@@ -959,7 +1176,23 @@ public class ProduccionService : IProduccionService
                 l.CompanyId == _currentUser.CompanyId &&
                 l.DeletedAt == null &&
                 l.FechaEncaset != null &&
-                l.FechaEncaset <= fechaLimiteProduccion)
+                l.FechaEncaset <= fechaLimiteProduccion);
+
+        // Alcance granular núcleo/galpón/lote (lote_id es PK global ⇒ la unión entre granjas es
+        // exacta). Sin granjas restringidas la query queda intacta.
+        if (!paraDestino)
+        {
+            var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
+            if (restringidos.Count > 0)
+            {
+                var granjasRestringidas = restringidos.Keys.ToList();
+                var lotesPermitidos = restringidos.SelectMany(kv => kv.Value.LotesPermitidos).ToList();
+                q = q.Where(l => !granjasRestringidas.Contains(l.GranjaId) ||
+                                 (l.LoteId != null && lotesPermitidos.Contains(l.LoteId.Value)));
+            }
+        }
+
+        var lotes = await q
             .OrderBy(l => l.LoteId)
             .ToListAsync();
 
@@ -1160,5 +1393,146 @@ public class ProduccionService : IProduccionService
         var u = (unidad ?? "kg").Trim().ToLowerInvariant();
         if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
         return (decimal)cantidad;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────
+    // Clasificación de huevos POR ÍTEMS del catálogo (Primera/Pnc) — Santa Reyes.
+    // Gateada por companies.clasificacion_huevo_por_items de la empresa DUEÑA DE LA GRANJA del
+    // lote (misma empresa efectiva que resuelve el inventario, patrón farms.company_id). Cero
+    // impacto para el resto de empresas: sin huevoItems en el request no se ejecuta nada de esto.
+    // ─────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Valida el desglose de huevos por ítems del request:
+    /// (a) reglas puras (cantidad ≥ 0, id &gt; 0, sin repetidos) — <see cref="HuevoItemsCalculos.Validar"/>;
+    /// (b) la empresa de la granja del lote debe tener <c>clasificacion_huevo_por_items = true</c>;
+    /// (c) todos los <c>catalogItemId</c> deben existir en <c>catalogo_items</c> de esa empresa con
+    ///     <c>item_type = 'huevo'</c> (una sola query, comparación de conjuntos).
+    /// Lanza <see cref="InvalidOperationException"/> (el controller la traduce a 400) con el detalle.
+    /// </summary>
+    private async Task<List<HuevoItemSeguimientoDto>> ValidarHuevoItemsAsync(int loteId, List<HuevoItemSeguimientoDto> huevoItems)
+    {
+        var error = HuevoItemsCalculos.Validar(huevoItems);
+        if (error != null) throw new InvalidOperationException(error);
+
+        var companyId = await ResolverCompanyIdDeGranjaDelLoteAsync(loteId).ConfigureAwait(false);
+
+        var permite = await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (bool?)c.ClasificacionHuevoPorItems)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+        if (permite != true)
+            throw new InvalidOperationException(
+                "La empresa de este lote no tiene habilitada la clasificación de huevos por ítems de inventario; use los campos de clasificación estándar.");
+
+        var ids = huevoItems.Select(i => i.CatalogItemId).Distinct().ToArray();
+        var existentes = await _context.CatalogItems.AsNoTracking()
+            .Where(ci => ci.CompanyId == companyId && ci.ItemType == "huevo" && ids.Contains(ci.Id))
+            .Select(ci => ci.Id)
+            .ToListAsync()
+            .ConfigureAwait(false);
+
+        var faltantes = ids.Except(existentes).ToArray();
+        if (faltantes.Length > 0)
+            throw new InvalidOperationException(
+                $"Los siguientes ítems no existen como ítem de huevo del catálogo de la empresa: {string.Join(", ", faltantes)}.");
+
+        return huevoItems;
+    }
+
+    /// <summary>
+    /// Empresa efectiva de la clasificación = empresa dueña de la GRANJA del lote (misma regla que
+    /// el descuento de inventario, <c>farms.company_id</c>), no la empresa activa del token.
+    /// </summary>
+    private async Task<int> ResolverCompanyIdDeGranjaDelLoteAsync(int loteId)
+    {
+        var granjaId = await _context.Lotes.AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.DeletedAt == null)
+            .Select(l => (int?)l.GranjaId)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+        if (granjaId is null or <= 0)
+            throw new InvalidOperationException($"No se pudo resolver la granja del lote {loteId} para clasificar los huevos por ítems.");
+
+        var companyId = await _context.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId.Value)
+            .Select(f => (int?)f.CompanyId)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+        if (companyId is null or <= 0)
+            throw new InvalidOperationException($"No se pudo resolver la empresa de la granja {granjaId} para clasificar los huevos por ítems.");
+
+        return companyId.Value;
+    }
+
+    /// <summary>
+    /// Devuelve el <c>LoteId</c> efectivo del lote de producción y SANA la fila si estaba rota.
+    /// Los LPP nacen al cerrar un levante; antes del fix de herencia ese cierre no copiaba
+    /// <c>LoteId</c>/<c>LotePadreId</c>, dejando filas sin lote base (guardado imposible:
+    /// <c>seguimiento_diario_produccion.lote_id</c> es NOT NULL). Si el LPP no tiene lote válido,
+    /// se resuelve desde su levante de origen (SIN filtrar <c>DeletedAt</c>: la referencia de un
+    /// levante soft-deleted sigue siendo válida) y se persiste la reparación en la fila LPP
+    /// (self-heal, <c>ExecuteUpdate</c>). Si no es resoluble, lanza un error claro.
+    /// </summary>
+    private async Task<int> ResolverYSanarLoteIdAsync(LotePosturaProduccion lpp)
+    {
+        // Camino existente: el LPP ya tiene lote base → comportamiento idéntico, sin tocar nada.
+        if (lpp.LoteId is > 0) return lpp.LoteId.Value;
+
+        int? levLoteId = null;
+        int? levPadre = null;
+        if (lpp.LotePosturaLevanteId.HasValue)
+        {
+            // Fail-closed: solo se hereda de un levante de la MISMA empresa; una referencia
+            // cruzada (solo posible por datos corruptos) cae al error claro de abajo.
+            var lev = await _context.LotePosturaLevante.AsNoTracking()
+                .Where(l => l.LotePosturaLevanteId == lpp.LotePosturaLevanteId.Value
+                    && l.CompanyId == lpp.CompanyId)
+                .Select(l => new { l.LoteId, l.LotePadreId })
+                .FirstOrDefaultAsync();
+            levLoteId = lev?.LoteId;
+            levPadre = lev?.LotePadreId;
+        }
+
+        var resuelto = SeguimientoProduccionLoteIdCalculos.ResolverLoteIdEfectivo(lpp.LoteId, levLoteId);
+        if (resuelto is not > 0)
+            throw new InvalidOperationException(
+                $"El lote de producción '{lpp.LoteNombre}' no tiene lote base asociado y su levante de origen tampoco lo tiene. " +
+                $"No es posible registrar el seguimiento; repare el lote (lote_postura_produccion #{lpp.LotePosturaProduccionId}).");
+
+        // Self-heal persistente: repara la fila LPP (lote_id y, solo si estaba null, lote_padre_id)
+        // para que indicadores, espejo huevo y reportes también la vean sana desde ahora.
+        await _context.LotePosturaProduccion
+            .Where(l => l.LotePosturaProduccionId == lpp.LotePosturaProduccionId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.LoteId, resuelto)
+                .SetProperty(x => x.LotePadreId, x => x.LotePadreId ?? levPadre)
+                .SetProperty(x => x.UpdatedAt, DateTime.UtcNow)
+                .SetProperty(x => x.UpdatedByUserId, _currentUser.UserId));
+
+        return resuelto.Value;
+    }
+
+    /// <summary>
+    /// Totales del día cuando la clasificación es por ítems: <c>huevo_tot</c> = suma de cantidades
+    /// (lo que siguen leyendo espejo, trigger, saldos, indicadores y reportes), <c>huevo_inc</c> = 0
+    /// (postura comercial, no incuba) y las 11 columnas fijas en 0 (el desglose vive en el metadata).
+    /// </summary>
+    private static void AplicarTotalesHuevoPorItems(SeguimientoProduccion entity, IReadOnlyCollection<HuevoItemSeguimientoDto> huevoItems)
+    {
+        entity.HuevoTot = HuevoItemsCalculos.SumarTotal(huevoItems);
+        entity.HuevoInc = 0;
+        entity.HuevoLimpio = 0;
+        entity.HuevoTratado = 0;
+        entity.HuevoSucio = 0;
+        entity.HuevoDeforme = 0;
+        entity.HuevoBlanco = 0;
+        entity.HuevoDobleYema = 0;
+        entity.HuevoPiso = 0;
+        entity.HuevoPequeno = 0;
+        entity.HuevoRoto = 0;
+        entity.HuevoDesecho = 0;
+        entity.HuevoOtro = 0;
     }
 }

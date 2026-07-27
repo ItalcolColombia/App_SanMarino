@@ -11,6 +11,10 @@
 --
 -- Idempotente: CREATE OR REPLACE. Reaplicar no altera datos.
 --
+-- Aplicación: la migración 20260725210000_FnMoverUbicacionCopiaBodegaNucleo re-crea las 3
+-- funciones (la versión original se aplicó fuera de banda, sin migración). Si editás este
+-- archivo, creá una migración nueva que lo re-aplique — la BD no se toca a mano.
+--
 -- Fuente de verdad del alcance (information_schema, BD real 2026-07-22):
 --   Tablas con granja_id+nucleo_id+galpon_id: lotes, galpones, historial_inventario,
 --     inventario_aves, lote_ave_engorde, lote_postura_levante, lote_postura_produccion,
@@ -140,10 +144,12 @@ BEGIN
     END IF;
 
     -- 2) Insertar el núcleo destino (copia; conserva auditoría de creación)
+    --    ⚠ Lista explícita: toda columna nueva de `nucleos` DEBE sumarse aquí (y re-crearse
+    --    la función vía migración) o su valor se pierde en silencio al mover el núcleo.
     INSERT INTO public.nucleos
-        (nucleo_id, granja_id, nucleo_nombre, company_id,
+        (nucleo_id, granja_id, nucleo_nombre, company_id, codigo_bodega, descripcion_bodega,
          created_by_user_id, created_at, updated_by_user_id, updated_at, deleted_at)
-    SELECT nucleo_id, p_granja_dest, nucleo_nombre, company_id,
+    SELECT nucleo_id, p_granja_dest, nucleo_nombre, company_id, codigo_bodega, descripcion_bodega,
            created_by_user_id, created_at, p_user_id, now(), deleted_at
       FROM public.nucleos
      WHERE nucleo_id = p_nucleo_id AND granja_id = p_granja_origen;

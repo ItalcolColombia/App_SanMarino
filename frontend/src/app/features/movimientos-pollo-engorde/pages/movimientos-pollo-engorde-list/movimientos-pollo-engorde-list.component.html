@@ -112,17 +112,28 @@
 
     <!-- Filtro principal: solo Granja (la tabla muestra todo lo de la granja) -->
     @if (granjas.length) {
-      <section class="ux-card mpp-card mpp-card--filtros">
-        <div class="ux-card__header">
-          <h2>Filtros</h2>
+      <section class="ux-card mpp-card mpp-card--filtros filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h2 class="filter-card__title">Selección de contexto</h2>
+            <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
+          </div>
         </div>
-        <div class="ux-card__body">
-          <div class="filters-row">
-            <div class="filter-group">
-              <label for="selGranja">Granja</label>
+
+        <div class="filter-steps">
+          <!-- Paso 1: Granja -->
+          <div class="filter-step"
+            [class.filter-step--active]="!!selectedGranjaId"
+            [class.filter-step--done]="!!selectedGalponId">
+            <div class="filter-step__num">1</div>
+            <div class="filter-step__body">
+              <label for="selGranja" class="filter-step__label">Granja</label>
               <select
                 id="selGranja"
-                class="filter-select input-italfoods"
+                class="filter-step__select"
                 [ngModel]="selectedGranjaId"
                 (ngModelChange)="onGranjaChange($event)">
                 <option [ngValue]="null">— Seleccione granja —</option>
@@ -131,11 +142,21 @@
                 }
               </select>
             </div>
-            <div class="filter-group">
-              <label for="selGalpon">Galpón</label>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGranjaId" aria-hidden="true"></div>
+
+          <!-- Paso 2: Galpón -->
+          <div class="filter-step"
+            [class.filter-step--active]="!!selectedGalponId"
+            [class.filter-step--done]="!!selectedLoteValue"
+            [class.filter-step--disabled]="!selectedGranjaId || galpones.length === 0">
+            <div class="filter-step__num">2</div>
+            <div class="filter-step__body">
+              <label for="selGalpon" class="filter-step__label">Galpón</label>
               <select
                 id="selGalpon"
-                class="filter-select input-italfoods"
+                class="filter-step__select"
                 [ngModel]="selectedGalponId"
                 (ngModelChange)="onGalponChange($event)"
                 [disabled]="!selectedGranjaId || galpones.length === 0">
@@ -150,11 +171,20 @@
                 </small>
               }
             </div>
-            <div class="filter-group">
-              <label for="selLote">Lote</label>
+          </div>
+
+          <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGalponId" aria-hidden="true"></div>
+
+          <!-- Paso 3: Lote -->
+          <div class="filter-step filter-step--last"
+            [class.filter-step--active]="!!selectedLoteValue"
+            [class.filter-step--disabled]="!selectedGranjaId || lotesOpciones.length === 0">
+            <div class="filter-step__num filter-step__num--accent">3</div>
+            <div class="filter-step__body">
+              <label for="selLote" class="filter-step__label">Lote</label>
               <select
                 id="selLote"
-                class="filter-select input-italfoods"
+                class="filter-step__select"
                 [ngModel]="selectedLoteValue"
                 (ngModelChange)="onLoteChange($event)"
                 [disabled]="!selectedGranjaId || lotesOpciones.length === 0">
@@ -179,6 +209,69 @@
     }
 
     @if (selectedGranjaId) {
+      <!-- Filtros de la tabla: búsqueda / tipo / estado -->
+      <section class="ux-card mpp-card filter-card">
+        <div class="filter-card__header">
+          <div class="filter-card__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+          </div>
+          <div>
+            <h2 class="filter-card__title">Filtros</h2>
+            <p class="filter-card__subtitle">Acota la información mostrada</p>
+          </div>
+        </div>
+        <div class="filter-fields">
+          <div class="filter-field">
+            <label for="filtroBusqueda" class="filter-step__label">Buscar</label>
+            <input
+              type="text"
+              id="filtroBusqueda"
+              [(ngModel)]="filtroBusqueda"
+              (ngModelChange)="onFiltroChange()"
+              placeholder="Número, despacho, tipo, origen, destino..."
+              class="filter-step__input"
+              />
+          </div>
+          <div class="filter-field">
+            <label for="filtroTipoMovimiento" class="filter-step__label">Tipo</label>
+            <select
+              id="filtroTipoMovimiento"
+              [(ngModel)]="filtroTipoMovimiento"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-step__select">
+              <option value="">Todos</option>
+              <option value="Traslado">Traslado</option>
+              <option value="Ajuste">Ajuste</option>
+              <option value="Liquidacion">Liquidación</option>
+              <option value="Venta">Venta</option>
+              <option value="Retiro">Retiro</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filtroEstado" class="filter-step__label">Estado</label>
+            <select
+              id="filtroEstado"
+              [(ngModel)]="filtroEstado"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-step__select">
+              <option value="">Todos</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Completado">Completado</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="filter-card__actions">
+            <button
+              type="button"
+              class="btn-italfoods-secondary"
+              (click)="limpiarFiltros()"
+              [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
+              Limpiar
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section class="ux-card mpp-card mpp-card--registros">
         <div class="ux-card__header">
           <h2>Registros de Venta de Pollo Engorde</h2>
@@ -188,58 +281,6 @@
             </p>
           }
         </div>
-        <div class="ux-card__filters">
-          <div class="filters-row">
-            <div class="filter-group">
-              <label for="filtroBusqueda">Buscar</label>
-              <input
-                type="text"
-                id="filtroBusqueda"
-                [(ngModel)]="filtroBusqueda"
-                (ngModelChange)="onFiltroChange()"
-                placeholder="Número, despacho, tipo, origen, destino..."
-                class="filter-input input-italfoods"
-                />
-              </div>
-              <div class="filter-group">
-                <label for="filtroTipoMovimiento">Tipo</label>
-                <select
-                  id="filtroTipoMovimiento"
-                  [(ngModel)]="filtroTipoMovimiento"
-                  (ngModelChange)="onFiltroChange()"
-                  class="filter-select input-italfoods">
-                  <option value="">Todos</option>
-                  <option value="Traslado">Traslado</option>
-                  <option value="Ajuste">Ajuste</option>
-                  <option value="Liquidacion">Liquidación</option>
-                  <option value="Venta">Venta</option>
-                  <option value="Retiro">Retiro</option>
-                </select>
-              </div>
-              <div class="filter-group">
-                <label for="filtroEstado">Estado</label>
-                <select
-                  id="filtroEstado"
-                  [(ngModel)]="filtroEstado"
-                  (ngModelChange)="onFiltroChange()"
-                  class="filter-select input-italfoods">
-                  <option value="">Todos</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Completado">Completado</option>
-                  <option value="Cancelado">Cancelado</option>
-                </select>
-              </div>
-              <div class="filter-group">
-                <button
-                  type="button"
-                  class="btn-italfoods-secondary"
-                  (click)="limpiarFiltros()"
-                  [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
-                  Limpiar
-                </button>
-              </div>
-            </div>
-          </div>
           <div class="ux-card__body mpp-card__body--table">
             @if (loading) {
               <div class="loading-state">
@@ -326,6 +367,9 @@
                                 [class.badge--partial]="estadoGrupoDespacho(fila.movimientos) === 'Parcial'">
                                 {{ estadoGrupoDespacho(fila.movimientos) }}
                               </span>
+                              @if (pesoDiferido && despachoSinPeso(fila.movimientos)) {
+                                <span class="badge badge--peso" title="La báscula todavía no se cargó: al confirmar se pedirá el peso">⚖ Sin peso</span>
+                              }
                             </td>
                             <td class="text-right">
                               <div class="btn-group btn-group--despacho">
@@ -340,6 +384,18 @@
                                     <span class="action-label">Completar despacho</span>
                                   </button>
                                 </ng-container>
+                                @if (puedeRegistrarPeso(fila.movimientos)) {
+                                  <ng-container *appHasPermission="'confirmar_despacho'">
+                                    <button
+                                      type="button"
+                                      class="action-btn"
+                                      title="Registrar o corregir el peso de báscula del despacho"
+                                      (click)="abrirRegistroPeso(fila.movimientos)">
+                                      <span class="action-icon">⚖</span>
+                                      <span class="action-label">Peso</span>
+                                    </button>
+                                  </ng-container>
+                                }
                                 <ng-container *appHasPermission="'eliminar_registro'">
                                   <button
                                     type="button"
@@ -500,6 +556,18 @@
                                   <span class="action-label">Editar</span>
                                 </button>
                               </ng-container>
+                              @if (puedeRegistrarPeso([fila.movimiento])) {
+                                <ng-container *appHasPermission="'confirmar_despacho'">
+                                  <button
+                                    type="button"
+                                    (click)="registrarPesoMovimiento(fila.movimiento)"
+                                    class="action-btn"
+                                    title="Registrar o corregir el peso de báscula del despacho">
+                                    <span class="action-icon">⚖</span>
+                                    <span class="action-label">Peso</span>
+                                  </button>
+                                </ng-container>
+                              }
                               <ng-container *appHasPermission="'confirmar_despacho'">
                                 <button
                                   type="button"
@@ -559,6 +627,13 @@
   (close)="closePanama()"
   (saved)="onVentaPanamaSaved($event)">
 </app-modal-venta-panama>
+
+<app-modal-registro-peso
+  [isOpen]="modalPesoOpen"
+  [movimientos]="movimientosParaPeso"
+  (close)="cerrarRegistroPeso()"
+  (saved)="onPesoRegistrado($event)">
+</app-modal-registro-peso>
 
 <app-auditoria-ventas-modal
   [isOpen]="auditoriaModalOpen"

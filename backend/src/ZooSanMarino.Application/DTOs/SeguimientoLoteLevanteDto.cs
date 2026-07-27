@@ -54,5 +54,25 @@ public record SeguimientoLoteLevanteDto(
     // Confirmado ⇒ read-only en UI (solo eliminar). Otros servicios dejan el default (false/null).
     bool Confirmado = false,
     DateTime? ConfirmadoAt = null,
-    string? ConfirmadoPor = null
+    string? ConfirmadoPor = null,
+    // ── Clasificación de huevos en LEVANTE (semana 14+, empresas con
+    //    companies.captura_huevos_en_levante = true) ────────────────────────────────────────────
+    // Las 11 categorías de la clasificadora fija, idénticas a producción. Sólo el módulo Levante
+    // las usa; engorde/reproductora/Puente Panamá dejan el default null (= sin huevos).
+    // En ESCRITURA, HuevoTot/HuevoInc se RECALCULAN desde las 11 (no se confía en lo que llegue):
+    // Inc = Limpio + Tratado; Tot = Inc + las 9 no incubables. En LECTURA vienen informados.
+    int? HuevoLimpio = null,
+    int? HuevoTratado = null,
+    int? HuevoSucio = null,
+    int? HuevoDeforme = null,
+    int? HuevoBlanco = null,
+    int? HuevoDobleYema = null,
+    int? HuevoPiso = null,
+    int? HuevoPequeno = null,
+    int? HuevoRoto = null,
+    int? HuevoDesecho = null,
+    int? HuevoOtro = null,
+    double? PesoHuevo = null,
+    int? HuevoTot = null,
+    int? HuevoInc = null
 );

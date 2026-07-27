@@ -266,3 +266,21 @@
     padding: 0.25rem 0.5rem;
   }
 }
+
+/* ==========================================================================
+   🪜 Variante 'steps' — modificador compacto (modales/contenedores angostos)
+   Las clases base (.filter-card, .filter-steps, .filter-step, …) son globales
+   (frontend/src/styles/filter-context.scss); acá solo el override :host(.filtro-compact),
+   que por ser scoped al host no puede vivir en el stylesheet global.
+   Uso: <app-filtro-select class="filtro-compact" [variant]="'steps'" …>
+   ========================================================================== */
+:host(.filtro-compact) .filter-steps {
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+:host(.filtro-compact) .filter-steps__connector { display: none; }
+:host(.filtro-compact) .filter-step {
+  min-width: calc(50% - .75rem);
+  flex: 0 0 calc(50% - .75rem);
+}
+:host(.filtro-compact) .filter-step--last { flex: 1 0 100%; }

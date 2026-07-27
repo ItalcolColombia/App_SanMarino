@@ -57,9 +57,9 @@
             <span class="text-sm font-semibold text-slate-700">Filtros:</span>
             <div class="flex flex-wrap items-center gap-2 sm:gap-4">
               <label class="flex items-center gap-2">
-                <span class="text-sm text-slate-600 whitespace-nowrap">Empresa</span>
+                <span class="filter-step__label whitespace-nowrap">Empresa</span>
                 <select
-                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red min-w-[180px]"
+                  class="filter-step__select min-w-[180px]"
                   [value]="filterCompanyId() ?? ''"
                   (change)="onCompanyFilterChange($any($event.target).value ? +$any($event.target).value : null)"
                   >
@@ -70,9 +70,9 @@
                 </select>
               </label>
               <label class="flex items-center gap-2">
-                <span class="text-sm text-slate-600 whitespace-nowrap">Granja</span>
+                <span class="filter-step__label whitespace-nowrap">Granja</span>
                 <select
-                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red min-w-[180px]"
+                  class="filter-step__select min-w-[180px]"
                   [value]="filterFarmId() ?? ''"
                   (change)="onFarmFilterChange($any($event.target).value ? +$any($event.target).value : null)"
                   >

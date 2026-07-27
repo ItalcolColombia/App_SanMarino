@@ -242,6 +242,26 @@ public partial class MigracionService
         return (double)v;
     }
 
+    /// <summary>Hora del día opcional: null si la celda está vacía; agrega error si es inválida.</summary>
+    private static TimeOnly? HoraOpc(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
+    {
+        var cell = Celda(fila, headers);
+        if (MigracionCalculos.EsVacia(cell)) return null;
+        if (!MigracionCalculos.TryHora(cell, out var v))
+        { errores.Add(new(fila.Numero, etiqueta, MigracionCalculos.TextoLimpio(cell), $"{etiqueta}: hora inválida (use HH:mm, por ejemplo 06:30).")); return null; }
+        return v;
+    }
+
+    /// <summary>Booleano Sí/No opcional: <paramref name="porDefecto"/> si la celda está vacía; error si el texto no se reconoce.</summary>
+    private static bool BooleanoSiNo(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, bool porDefecto, params string[] headers)
+    {
+        var cell = Celda(fila, headers);
+        if (MigracionCalculos.EsVacia(cell)) return porDefecto;
+        if (!MigracionCalculos.TryBooleanoSiNo(cell, out var v))
+        { errores.Add(new(fila.Numero, etiqueta, MigracionCalculos.TextoLimpio(cell), $"{etiqueta}: se esperaba Sí o No.")); return porDefecto; }
+        return v;
+    }
+
     /// <summary>Porcentaje opcional en [0,100] (espejo de Validators.min(0)+max(100) del front): null si vacía; error si está fuera de rango.</summary>
     private static double? Porcentaje0a100(FilaCruda fila, List<MigracionErrorDto> errores, string etiqueta, params string[] headers)
     {

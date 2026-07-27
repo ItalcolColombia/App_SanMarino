@@ -20,6 +20,8 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<Company> Companies { get; set; } = null!;
         public DbSet<CompanyLogo> CompanyLogos { get; set; } = null!;
         public DbSet<Farm> Farms { get; set; } = null!;
+        /// <summary>Catálogo de silos de alimento / bodegas de insumos por granja (no son galpones).</summary>
+        public DbSet<FarmSilo> FarmSilos => Set<FarmSilo>();
         public DbSet<Nucleo> Nucleos { get; set; } = null!;
         public DbSet<Galpon> Galpones { get; set; } = null!;
         public DbSet<Lote> Lotes { get; set; } = null!;
@@ -46,6 +48,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<UserCompany> UserCompanies { get; set; } = null!;
         public DbSet<UserRole> UserRoles { get; set; } = null!;
         public DbSet<UserFarm> UserFarms { get; set; } = null!;
+        public DbSet<UserFarmScope> UserFarmScopes { get; set; } = null!;
         public DbSet<CompanyPais> CompanyPaises { get; set; } = null!;
         public DbSet<Permission> Permissions { get; set; } = null!;
         public DbSet<RolePermission> RolePermissions { get; set; } = null!;
@@ -100,6 +103,8 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<VacunacionRegistroAplicacion> VacunacionRegistroAplicacion => Set<VacunacionRegistroAplicacion>();
         public DbSet<VacunacionConfiguracion> VacunacionConfiguracion => Set<VacunacionConfiguracion>();
         public DbSet<LoteRegistroHistoricoUnificado> LoteRegistroHistoricoUnificados => Set<LoteRegistroHistoricoUnificado>();
+        /// <summary>Cohortes de aves recibidas por traslado (cada grupo conserva la edad de su lote origen).</summary>
+        public DbSet<LoteAvesCohorte> LoteAvesCohortes => Set<LoteAvesCohorte>();
         public DbSet<LotePosturaLevante> LotePosturaLevante => Set<LotePosturaLevante>();
         public DbSet<LotePosturaProduccion> LotePosturaProduccion => Set<LotePosturaProduccion>();
         public DbSet<LotePosturaBase> LotePosturaBases => Set<LotePosturaBase>();

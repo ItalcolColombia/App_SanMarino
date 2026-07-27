@@ -15,4 +15,11 @@ public interface ITrasladoAvesDesdeSegService
         TrasladoAvesDesdeSegDiarioDto dto,
         int usuarioId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Edades presentes en un lote base: la cohorte propia (por <c>lotes.fecha_encaset</c>) más las
+    /// cohortes recibidas por traslado, con su edad actual en días y semanas.
+    /// Devuelve <c>null</c> si el lote no existe o no pertenece a la empresa efectiva.
+    /// </summary>
+    Task<LoteCohortesDto?> GetCohortesLoteAsync(int loteId, CancellationToken ct = default);
 }

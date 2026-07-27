@@ -17,10 +17,11 @@ public class NucleoController : ControllerBase
     // ===========================
     // LISTADO SIMPLE (compat)
     // ===========================
+    /// <param name="paraDestino">true = catálogo para elegir DESTINO de traslados: omite el alcance granular núcleo/galpón/lote del usuario (el scoping por granja asignada se mantiene).</param>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<NucleoDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<NucleoDto>>> GetAll([FromQuery] bool paraDestino = false)
     {
-        var items = await _svc.GetAllAsync();
+        var items = await _svc.GetAllAsync(paraDestino);
         return Ok(items);
     }
 
@@ -38,10 +39,12 @@ public class NucleoController : ControllerBase
     // ===========================
     // LISTAR POR GRANJA (compat)
     // ===========================
+    /// <param name="granjaId">Granja.</param>
+    /// <param name="paraDestino">true = catálogo para elegir DESTINO de traslados: omite el alcance granular núcleo/galpón/lote del usuario (el scoping por granja asignada se mantiene).</param>
     [HttpGet("granja/{granjaId:int}")]
-    public async Task<ActionResult<IEnumerable<NucleoDto>>> GetByGranja(int granjaId)
+    public async Task<ActionResult<IEnumerable<NucleoDto>>> GetByGranja(int granjaId, [FromQuery] bool paraDestino = false)
     {
-        var items = await _svc.GetByGranjaAsync(granjaId);
+        var items = await _svc.GetByGranjaAsync(granjaId, paraDestino);
         return Ok(items);
     }
 

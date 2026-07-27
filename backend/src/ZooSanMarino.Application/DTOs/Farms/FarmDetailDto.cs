@@ -27,5 +27,14 @@ public sealed record FarmDetailDto(
     // Override de la granja: null = hereda empresa; true = sobre GALPÓN; false = sobre GRANJA
     bool?      ManejaAlimentoPorGalpon = null,
     // Panamá: código ERP vigente para lotes de engorde (avanza +1 al cerrar el ciclo)
-    string?    CodigoErpEngorde = null
+    string?    CodigoErpEngorde = null,
+    // ────────────────────────────────────────────────────────────────
+    // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
+    // ────────────────────────────────────────────────────────────────
+    string?    CodigoBodega               = null,
+    string?    DescripcionBodega          = null,
+    string?    CentroOperacion            = null,
+    string?    DescripcionCentroOperacion = null,
+    string?    CodigoInstalacion          = null,
+    string?    DescripcionInstalacion     = null
 );

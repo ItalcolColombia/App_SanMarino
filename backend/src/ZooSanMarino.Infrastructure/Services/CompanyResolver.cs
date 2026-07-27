@@ -56,7 +56,12 @@ public class CompanyResolver : ICompanyResolver
                 null,
                 c.MobileAccess,
                 c.VisualPermissions,
-                c.ManejaAlimentoPorGalpon
+                c.ManejaAlimentoPorGalpon,
+                c.ManejaCodigosErpAvicola,
+                c.ClasificacionHuevoPorItems,
+                c.PermiteTrasladoAvesCrossEtapa,
+                c.CapturaHuevosEnLevante,
+                c.VentaEngordePesoDiferido
             ))
             .FirstOrDefaultAsync();
 
@@ -95,7 +100,12 @@ public class CompanyResolver : ICompanyResolver
                 null,
                 uc.Company.MobileAccess,
                 uc.Company.VisualPermissions,
-                uc.Company.ManejaAlimentoPorGalpon
+                uc.Company.ManejaAlimentoPorGalpon,
+                uc.Company.ManejaCodigosErpAvicola,
+                uc.Company.ClasificacionHuevoPorItems,
+                uc.Company.PermiteTrasladoAvesCrossEtapa,
+                uc.Company.CapturaHuevosEnLevante,
+                uc.Company.VentaEngordePesoDiferido
             ))
             .ToListAsync();
 
