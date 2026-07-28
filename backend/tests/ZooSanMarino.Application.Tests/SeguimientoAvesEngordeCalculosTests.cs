@@ -151,11 +151,17 @@ public class SeguimientoAvesEngordeCalculosTests
         var hist = new[] { previoAlEncaset, salida, ingreso };
 
         var sinEncaset = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate);
+        // diasAlimentoPrevio: 0 = corte seco en el encaset (comportamiento previo a la ventana).
         var conEncaset = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
+            hist, firstSegDate, fechaEncaset: new DateTime(2026, 1, 15), diasAlimentoPrevio: 0);
+        // Con la ventana por defecto (10 días) el corte cae el 05/01 y el ingreso del 10/01 SÍ entra:
+        // es justo el caso del preiniciador que llega antes que los pollitos.
+        var conVentana = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
             hist, firstSegDate, fechaEncaset: new DateTime(2026, 1, 15));
 
-        Assert.Equal(969m, sinEncaset); // 999 - 80 + 50
-        Assert.Equal(-30m, conEncaset); // previoAlEncaset descartado por anterior al encaset: -80 + 50
+        Assert.Equal(969m, sinEncaset);  // 999 - 80 + 50
+        Assert.Equal(-30m, conEncaset);  // previoAlEncaset descartado: -80 + 50
+        Assert.Equal(969m, conVentana);  // 999 (10/01, dentro de la ventana) - 80 + 50
     }
 
     [Fact]
@@ -224,11 +230,33 @@ public class SeguimientoAvesEngordeCalculosTests
         var (saldoPorSegId, saldoFinal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
             new[] { antesDelEncaset, despuesDelEncaset },
             new[] { seg },
-            fechaEncaset: new DateTime(2026, 1, 20));
+            fechaEncaset: new DateTime(2026, 1, 20),
+            diasAlimentoPrevio: 0); // corte seco en el encaset
 
         // Solo despuesDelEncaset entra a la apertura: 20 - 5 = 15
         Assert.Equal(15m, saldoPorSegId[10]);
         Assert.Equal(15m, saldoFinal);
+    }
+
+    [Fact]
+    public void CalcularSaldoAlimentoPorSeguimiento_VentanaPrevia_IncluyeElAlimentoAnteriorAlEncaset()
+    {
+        // Caso galpón 6: el preiniciador llega 5 días antes del encaset. Con la ventana por defecto
+        // (10 días) entra al saldo; con corte seco quedaba afuera y el reporte no cuadraba contra el
+        // inventario justo en esos kilos.
+        var preiniciador = Hist("INV_INGRESO", new DateTime(2026, 1, 15), 50m);
+        var despuesDelEncaset = Hist("INV_INGRESO", new DateTime(2026, 1, 25), 20m);
+        var seg = Seg(10, new DateTime(2026, 2, 1), consumoH: 5m, consumoM: 0m);
+        var hist = new[] { preiniciador, despuesDelEncaset };
+        var encaset = new DateTime(2026, 1, 20);
+
+        var (_, conVentana) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            hist, new[] { seg }, encaset);
+        var (_, corteSeco) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            hist, new[] { seg }, encaset, diasAlimentoPrevio: 0);
+
+        Assert.Equal(65m, conVentana);  // 50 + 20 - 5 = todo el alimento del galpón
+        Assert.Equal(15m, corteSeco);   // 20 - 5, los 50 del preiniciador perdidos
     }
 
     [Fact]

@@ -53,16 +53,21 @@ public static class SeguimientoAvesEngordeCalculos
     /// Stock (kg) antes del primer día de seguimiento: solo movimientos histórico con fecha efectiva &lt; primer seguimiento.
     /// Tras cada movimiento piso en 0 (misma regla que el front).
     /// ⚠️ FIX #12 (2026-05-28): si <paramref name="fechaEncaset"/> se proporciona, los movimientos
-    /// anteriores al encaset se ignoran. Antes la apertura heredaba el inventario residual del lote
-    /// previo que ocupó el galpón (ej. lote 75/2602: 132,277 kg → saldo día 1 137,557 vs esperado 5,280).
+    /// anteriores se ignoran. Antes la apertura heredaba el inventario residual del lote previo que
+    /// ocupó el galpón (ej. lote 75/2602: 132,277 kg → saldo día 1 137,557 vs esperado 5,280).
+    /// El corte NO es la fecha de encaset sino la ventana previa de
+    /// <see cref="VentanaAlimentoPrevioCalculos"/>: en engorde el preiniciador llega antes que los
+    /// pollitos y cortar seco en el encaset dejaba fuera alimento propio del lote.
     /// </summary>
     public static decimal ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
         DateTime firstSegDate,
-        DateTime? fechaEncaset = null)
+        DateTime? fechaEncaset = null,
+        int? diasAlimentoPrevio = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
-        var encasetYmd = fechaEncaset.HasValue ? FormatYmd(fechaEncaset.Value.Date) : null;
+        var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
+        var encasetYmd = corte.HasValue ? FormatYmd(corte.Value) : null;
         var rows = new List<(string ymd, long ts, decimal delta)>();
         foreach (var h in hist)
         {
@@ -102,15 +107,15 @@ public static class SeguimientoAvesEngordeCalculos
     public static (IReadOnlyDictionary<long, decimal> SaldoPorSegId, decimal SaldoFinal) CalcularSaldoAlimentoPorSeguimiento(
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
         IReadOnlyList<SeguimientoDiarioAvesEngorde> segs,
-        DateTime? fechaEncaset)
+        DateTime? fechaEncaset,
+        int? diasAlimentoPrevio = null)
     {
         var firstSegDate = segs.Min(s => s.Fecha.Date);
-        var encYmd = fechaEncaset.HasValue
-            ? FormatYmd(fechaEncaset.Value.Date)
-            : null;
+        var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
+        var encYmd = corte.HasValue ? FormatYmd(corte.Value) : null;
         var firstYmd = FormatYmd(firstSegDate);
 
-        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate, fechaEncaset);
+        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate, fechaEncaset, diasAlimentoPrevio);
 
         var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
 

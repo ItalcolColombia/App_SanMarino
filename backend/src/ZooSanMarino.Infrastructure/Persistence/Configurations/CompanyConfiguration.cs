@@ -69,6 +69,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Parámetro operativo: ventana previa al encaset cuyo alimento cuenta como del lote. Cortar
+        // exactamente en el encaset dejaba fuera el preiniciador, que siempre llega antes.
+        builder.Property(x => x.DiasAlimentoPrevioEncaset)
+            .HasColumnName("dias_alimento_previo_encaset")
+            .HasDefaultValue(10)
+            .IsRequired();
+
         // Flag tipado por comportamiento: la hora de llegada decide el primer día con registro.
         builder.Property(x => x.PrimerRegistroSegunHoraLlegada)
             .HasColumnName("primer_registro_segun_hora_llegada")

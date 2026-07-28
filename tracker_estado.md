@@ -879,9 +879,9 @@ despues del consumo, cada recorte regalaba alimento inexistente.
       diagnostico inicial solo vio el de C#; sin esto quedaban desalineados
 - [x] Tests actualizados + 2 nuevos con el caso real (llegadas fechadas despues del consumo)
 - [x] Los dos motores ahora coinciden: -9.894,306 en ambos
-- [ ] **PENDIENTE**: sigue sin cuadrar contra el inventario por un TERCER factor, no por el piso
+- [x] Corregido tambien el tercer factor (ver abajo) -> el reporte cierra contra el inventario
 
-### Hallazgo 3 - alimento anterior al encasetamiento (SIN RESOLVER, requiere decision)
+### Hallazgo 3 - alimento anterior al encasetamiento (CORREGIDO)
 
 El calculo descarta los movimientos anteriores a la fecha de encaset (para no arrastrar alimento de
 ciclos previos del galpon). Pero en engorde el PREINICIADOR llega antes que los pollitos:
@@ -894,7 +894,32 @@ Stock real                                                2.235,332 kg
 Diferencia                                               12.129,638 kg  = el ingreso descartado
 ```
 
-Con ese ingreso incluido el reporte cerraria exacto en 2.235,332.
+**Decision del usuario: ventana previa configurable.**
+
+- [x] `Application/Calculos/VentanaAlimentoPrevioCalculos.cs` (puro): default 10 dias, tope 30,
+      normalizacion fail-safe. 10 queda por debajo del vacio sanitario tipico (10-14) para que la
+      ventana no alcance el cierre del ciclo anterior
+- [x] `companies.dias_alimento_previo_encaset` (int NOT NULL DEFAULT 10) - parametro operativo, no
+      flag de comportamiento: cada empresa lo ajusta a su vacio sanitario
+- [x] Aplicado en el C# (`SeguimientoAvesEngordeCalculos`, el service lee el valor de la empresa) y
+      en la fn SQL v9 (`lote_info.fecha_corte_alimento`, join a `companies`)
+- [x] Migracion `20260728045739_AddVentanaAlimentoPrevioEncaset` (columna + fn v9, idempotente),
+      generada con EF tools 10 y verificada aplicandose sola al arrancar
+- [x] `VentanaAlimentoPrevioCalculosTests` (12 casos) + 1 test nuevo del saldo con ventana
+
+### CUADRE FINAL DEL LOTE 142 (verificado punta a punta)
+
+| | reporte | referencia | |
+|---|---|---|---|
+| Dia del primer registro | 1 | edad 0 | OK |
+| Dia del ultimo registro | 41 | edad 40 | OK |
+| Aves ultimo dia | 46.600 | maestro 46.600 = encasetadas - bajas | **OK** |
+| Alimento ultimo dia | 2.235,332 kg | stock real 2.235,332 kg | **OK** |
+
+El saldo diario ahora es honesto: el 17/07 marca -1.133,080 kg (ese dia el consumo supero lo
+recibido) y el 18/07 se recupera a 2.235,332 con la ultima llegada.
+
+- [x] `dotnet build` 0/0 - `dotnet test` **1185/1185** - `yarn build` OK
 
 ### Validacion
 
