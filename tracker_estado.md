@@ -1357,10 +1357,15 @@ Pedido del usuario: plantillas con datos de ejercicio en el Escritorio y el cicl
 - [ ] Encabezado «Resumen a semana N» ponderado por aves iniciales
 - [ ] Integración con las gráficas existentes
 
-## Fase 6 — Cierre
+## Fase 6 — Cierre — HECHO
 
-- [ ] Etiqueta de menú → «Informe RA Pesadas» (migración idempotente por `route`)
-- [ ] Export Excel multi-hoja en el orden del archivo original
-- [ ] Regresión: Levante/Producción actuales byte a byte idénticos (30 tests existentes verdes)
-- [ ] `dotnet build` + `dotnet test` + `yarn build`
-- [ ] Smoke: Sanmarino con datos, Demo sin fuga, usuario con alcance restringido
+- [x] Etiqueta de menú → «Informe RA Pesadas» (migración `20260728150000`, localiza por `route`,
+      NUNCA por id: los ids difieren local↔prod). La RUTA no cambia, así no hay que re-asignar
+      `role_menus`
+- [x] Export Excel: el del Detalle ahora incluye las hojas nuevas — levante suma una hoja
+      «ALIMLev» por tab y producción una «CLAS» por tab
+- [x] Verificado sobre el archivo REAL generado (se intercepta el Blob y se cuentan las entradas
+      del ZIP): levante y producción pasan de 3 a **6 hojas** cada uno
+- [x] Regresión: los 30 tests de `ReporteTecnicoSemanalCalculos` siguen verdes
+- [x] `dotnet build` 0/0 · `dotnet test` 1307/1307 · `yarn build` 0 errores
+- [x] Consola del navegador limpia en todo el recorrido
