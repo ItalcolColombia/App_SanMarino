@@ -1012,3 +1012,73 @@ archivo estuviera OK.
       2.735,332" y al importar el stock queda exactamente en 2.735,332
 - [x] Restaurado con el archivo definitivo: 41 dias (1 al 41), 46.600 aves, 2.235,332 kg
 - [x] `dotnet build` 0/0 - `dotnet test` **1186/1186** - `yarn build` OK
+
+---
+
+# Tracker — Informe RA Pesadas (Parámetros + Gráficos)
+
+**Plan:** [`fase_de_desarrollo/informe_ra_pesadas_parametros_plan.md`](fase_de_desarrollo/informe_ra_pesadas_parametros_plan.md)
+**Fecha:** 2026-07-28
+**Fuente:** `Requerimiento sanmarino 2026/Informe RA Pesadas Parámetros - Gráficos 2025 v1.xlsb`
+
+Decisión de arquitectura: **NO es un módulo nuevo ni varios reportes sueltos** — se extiende
+`reporte-tecnico-semanal` (que ya cubre 80-85 % de las hojas 2/3/4/6/7) con dos modos:
+Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuevos).
+
+## Fase 0 — Validación (CERRADA)
+
+- [x] Lectura y volcado de las 10 hojas del `.xlsb` (pyxlsb)
+- [x] Mapeo hoja por hoja contra lo ya implementado (`ReporteTecnicoSemanal`, fns SQL, front)
+- [x] Granularidad verificada: clave `(lote, edad)` única en LEV (1.825) y PROD (2.960) ⇒ nivel lote
+- [x] `GRANJA` del Excel = granja + núcleo (`Niza 3 mod 1` = NIZA III / Modulo I)
+- [x] Guía genética: app tiene 2021/2022/2023/**2026**/G21; el Excel compara contra 2024/2025/2025EC
+- [x] Completitud de la guía 2026 AP auditada (77 filas: mort 77, apareo 77, alim 77, unif 25, masa 52)
+- [x] Huecos H1-H8 documentados con evidencia (§4 del plan)
+- [x] Llenado real de columnas dudosas medido: GrasaH 0 %, PechugaM 0 %, Fertilidad 0 %, Venta 3 %
+- [x] Regional `ECUADOR` inexistente en `master_lists`; PIMAN/PARAISO mal clasificadas
+- [x] `catalogo_items.metadata` sin energía/proteína ⇒ nutrición de machos no calculable hoy
+- [x] Plan escrito con decisiones D1-D5
+
+## Fase 1 — Decisiones (BLOQUEA implementación)
+
+- [ ] **D1** guía de lotes reciclados / 2.º ciclo > semana 76
+- [ ] **D2** bloque de bonificación (12 columnas) dentro o fuera de la fase 1
+- [ ] **D3** crear regional `Ecuador` y reasignar granjas
+- [ ] **D4** `VentaH`/`VentaM` de producción
+- [ ] **D5** energía/proteína por alimento en `catalogo_items.metadata`
+
+## Fase 2 — Resumen semanal (hoja 1) — NUEVO
+
+- [ ] `backend/sql/fn_resumen_semanal_ra_pesadas.sql` (una consulta, filtra en BD, NO iterar lotes en C#)
+- [ ] Migración EF idempotente que aplica la fn
+- [ ] DTO `ResumenSemanalRaPesadasDto` (21 col. levante + 23 col. producción + `part`)
+- [ ] `ReporteTecnicoSemanalService.Resumen.cs` (partial) + endpoint `POST /resumen`
+- [ ] Derivadas y ponderados en `ReporteTecnicoSemanalCalculos` (puro)
+- [ ] Tests xUnit `ResumenSemanalRaPesadasCalculosTests`
+- [ ] Front: modo Resumen + `columnas-resumen-ra-pesadas.funcion.ts` + filtros año/semana/etapa/ciclo/traslado
+
+## Fase 3 — Alimento por fase (hoja 5) — NUEVO
+
+- [ ] `AlimentoPorFaseCalculos.cs` (puro) + tests
+- [ ] `ReporteTecnicoSemanalService.AlimentoFase.cs` + endpoint
+- [ ] Front: tab + 2 gráficas (energía/proteína acumuladas H y M)
+- [ ] Lado «real» de machos según D5
+
+## Fase 4 — Clasificación de huevo (hoja 8) — NUEVO
+
+- [ ] Service partial + endpoint (reusa `fn_clasificacion_huevo_items_produccion` con flag ON)
+- [ ] Mapeo `Deforme Blanco` = `huevo_deforme + huevo_blanco` documentado en el encabezado
+- [ ] Tests puros + front (tabla + gráfica)
+
+## Fase 5 — Consolidado multi-lote de gráficas (hojas 3/4/7)
+
+- [ ] Encabezado «Resumen a semana N» ponderado por aves iniciales
+- [ ] Integración con las gráficas existentes
+
+## Fase 6 — Cierre
+
+- [ ] Etiqueta de menú → «Informe RA Pesadas» (migración idempotente por `route`)
+- [ ] Export Excel multi-hoja en el orden del archivo original
+- [ ] Regresión: Levante/Producción actuales byte a byte idénticos (30 tests existentes verdes)
+- [ ] `dotnet build` + `dotnet test` + `yarn build`
+- [ ] Smoke: Sanmarino con datos, Demo sin fuga, usuario con alcance restringido
