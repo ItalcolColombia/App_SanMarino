@@ -966,3 +966,49 @@ en prod: **virgen** — 0 seguimientos de engorde, 0 de reproductora, 0 stock, a
 - [x] Restaurado con el archivo definitivo: todo vuelve a 46.600 aves y 2.235,332 kg
 
 - [x] `dotnet build` 0/0 - `dotnet test` **1185/1185**
+
+## Fase 14 - Fix del saldo proyectado al recargar un archivo ya importado
+
+Reportado desde la pantalla: al validar el archivo con el lote YA cargado, el reporte anunciaba
+"Saldo proyectado de AV. SUPER POLLO ENGORDE: 2.235,332 inicial + 122.923,435 entradas − 120.688,103
+consumo = **4.470,664 kg**" — el doble del real. Importar no habria hecho eso (la idempotencia omite
+los movimientos), pero el numero asustaba y era falso.
+
+### Causa
+
+La simulacion de balance sumaba TODO lo del archivo, sin descontar lo que se iba a omitir:
+
+- las 24 entradas de la hoja `Alimento` ya estaban aplicadas -> se omiten, pero se contaban
+- los 34 dias de la hoja `Datos` se ACTUALIZAN, o sea que su salida neta es el DELTA contra lo ya
+  descontado, no el consumo entero
+- los 14 dias de reproductora omitidos no aportaban su consumo, y las entradas si -> descuadre
+
+### Correcciones
+
+- [x] `ClavesMovimientosExistentesAsync` se consulta ANTES de la simulacion; los movimientos ya
+      aplicados no entran como entradas
+- [x] Para los dias que se actualizan, la salida es `consumo nuevo − consumo ya descontado`
+      (se lee del `metadata` del registro existente). Un alimento que el dia tenia y el archivo ya no
+      trae se devuelve al galpon
+- [x] El reporte filtra por `!= 0` y no por `> 0`: bajar el consumo de un dia da movimiento NEGATIVO
+      y con `> 0` no se informaba
+- [x] Mensaje legible cuando el movimiento es negativo: "+ 500,000 devueltos (el archivo baja el
+      consumo ya cargado)" en vez de "− -500,000"
+
+### Front: solo-advertencias ya no se ve como un fallo
+
+El panel decia "4 registro(s) — no se inserto ninguna fila con error" aunque los 4 fueran avisos y el
+archivo estuviera OK.
+
+- [x] `hayErroresReales()` / `conteoErrores()`: con solo advertencias el panel es AMBAR y dice
+      "✅ Sin errores — N aviso(s) para revisar antes de importar"
+- [x] Con errores reales se conserva el panel rojo y el texto original
+
+### Verificacion (BD de produccion)
+
+- [x] Revalidar el archivo con el lote ya cargado: **ya no proyecta saldo** (no hay movimiento neto)
+- [x] Reimportarlo: stock 2.235,332 y aves 46.600 **sin moverse**
+- [x] Archivo con 500 kg MENOS de consumo el 18/07: proyecta "2.235,332 + 500,000 devueltos =
+      2.735,332" y al importar el stock queda exactamente en 2.735,332
+- [x] Restaurado con el archivo definitivo: 41 dias (1 al 41), 46.600 aves, 2.235,332 kg
+- [x] `dotnet build` 0/0 - `dotnet test` **1186/1186** - `yarn build` OK
