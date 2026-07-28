@@ -19,10 +19,19 @@ const PAGINA = 200;
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div *ngIf="errores().length" class="mt-4 rounded-lg border border-red-200 bg-red-50/60 overflow-hidden">
-      <div class="px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-red-700 border-b border-red-200">
-        <span>{{ errores().length }} registro(s) — no se insertó ninguna fila con error</span>
-        <button type="button" class="export-btn" (click)="exportar()">⬇️ Exportar errores (.xlsx)</button>
+    <div *ngIf="errores().length" class="mt-4 rounded-lg border overflow-hidden"
+         [ngClass]="hayErroresReales() ? 'border-red-200 bg-red-50/60' : 'border-amber-200 bg-amber-50/60'">
+      <!-- Solo-advertencias NO es un fallo: el archivo pasó la validación. Decir "no se insertó
+           ninguna fila con error" en ese caso hacía leer como rechazada una carga que está OK. -->
+      <div class="px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-sm font-semibold border-b"
+           [ngClass]="hayErroresReales() ? 'text-red-700 border-red-200' : 'text-amber-800 border-amber-200'">
+        <span *ngIf="hayErroresReales()">
+          {{ conteoErrores() }} error(es) — no se insertó ninguna fila con error
+        </span>
+        <span *ngIf="!hayErroresReales()">
+          ✅ Sin errores — {{ errores().length }} aviso(s) para revisar antes de importar
+        </span>
+        <button type="button" class="export-btn" (click)="exportar()">⬇️ Exportar detalle (.xlsx)</button>
       </div>
 
       <p *ngIf="excedeCap()" class="px-4 py-1.5 text-xs text-red-600 bg-red-50 border-b border-red-100">
@@ -41,13 +50,15 @@ const PAGINA = 200;
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let e of erroresVisibles()" class="border-t border-red-100/70">
+            <tr *ngFor="let e of erroresVisibles()" class="border-t"
+                [ngClass]="hayErroresReales() ? 'border-red-100/70' : 'border-amber-100/70'">
               <!-- Fila 0 = mensaje del ARCHIVO, no de una fila (encabezados, saldo de inventario
                    proyectado, stock insuficiente). Mostrar "0" hacía buscar una fila que no existe. -->
               <td class="px-3 py-1.5 tabular-nums text-gray-700">{{ e.fila > 0 ? e.fila : '—' }}</td>
               <td class="px-3 py-1.5 text-gray-700">{{ e.columna }}</td>
               <td class="px-3 py-1.5 text-gray-500">{{ e.valor }}</td>
-              <td class="px-3 py-1.5 text-red-700">{{ e.mensaje }}</td>
+              <td class="px-3 py-1.5" [class.text-red-700]="e.severidad !== 'Advertencia'"
+                  [class.text-gray-700]="e.severidad === 'Advertencia'">{{ e.mensaje }}</td>
               <td class="px-3 py-1.5">
                 <span
                   class="px-2 py-0.5 rounded-full text-xs font-semibold"
@@ -63,7 +74,8 @@ const PAGINA = 200;
         </table>
       </div>
 
-      <div *ngIf="hayMas()" class="px-4 py-2 border-t border-red-100 text-center">
+      <div *ngIf="hayMas()" class="px-4 py-2 border-t text-center"
+           [ngClass]="hayErroresReales() ? 'border-red-100' : 'border-amber-100'">
         <button type="button" class="mostrar-mas-btn" (click)="mostrarMas()">
           Mostrar más ({{ errores().length - erroresVisibles().length }} restante(s))
         </button>
@@ -96,6 +108,17 @@ export class ReporteErroresMigracionComponent {
   readonly hayMas = computed(() => this.errores().length > this.limite());
   readonly totalReportado = computed(() => this.totalErrores() ?? this.errores().length);
   readonly excedeCap = computed(() => this.totalReportado() > this.errores().length);
+
+  /** Cuántos registros son errores de verdad (el resto son avisos que NO impiden importar). */
+  readonly conteoErrores = computed(() =>
+    this.errores().filter((e) => e.severidad !== 'Advertencia').length
+  );
+  /**
+   * Un reporte de SOLO advertencias no es un fallo: el archivo pasó la validación y se puede
+   * importar. Mientras el panel decía "no se insertó ninguna fila con error" en ese caso, una carga
+   * correcta se leía como rechazada.
+   */
+  readonly hayErroresReales = computed(() => this.conteoErrores() > 0);
 
   constructor() {
     // Cada vez que llega un arreglo de errores nuevo (nueva corrida) se reinicia la paginación local.

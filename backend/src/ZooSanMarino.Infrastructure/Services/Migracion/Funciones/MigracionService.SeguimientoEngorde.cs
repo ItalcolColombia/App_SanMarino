@@ -267,7 +267,7 @@ public partial class MigracionService
         if (!idsAbiertos.Contains(loteCtxId)) idsAbiertos.Add(loteCtxId);
         var existentes = (await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                 .Where(s => idsAbiertos.Contains(s.LoteAveEngordeId))
-                .Select(s => new { s.Id, s.LoteAveEngordeId, s.Fecha, s.OrigenCruce })
+                .Select(s => new { s.Id, s.LoteAveEngordeId, s.Fecha, s.OrigenCruce, s.Metadata })
                 .ToListAsync(ct))
             .GroupBy(x => (x.LoteAveEngordeId, x.Fecha.Date))
             .ToDictionary(g => g.Key, g => g.First());
@@ -449,20 +449,49 @@ public partial class MigracionService
             if (yaCargado is not null) actualizables.Add(req.ToDto((int)yaCargado.Id));
             else dtos.Add(req.ToDto());
 
-            // Lo que esta fila va a sacar del inventario del galpón del lote.
+            // Lo que esta fila va a sacar del inventario del galpón del lote. Si el día YA estaba
+            // cargado no sale su consumo entero: sale la DIFERENCIA contra lo que ya se había
+            // descontado (es lo que hace UpdateAsync). Contar el total volvía a restar un consumo ya
+            // aplicado y la proyección daba un faltante inventado.
+            var yaDescontado = yaCargado?.Metadata is null
+                ? new Dictionary<int, decimal>()
+                : MetadataEngordeCalculos.ParseMetadataItemsToKg(yaCargado.Metadata.RootElement);
+
             foreach (var item in itemsH.Concat(itemsM))
                 if (item.ItemInventarioEcuadorId is int itemId && item.Cantidad > 0)
-                    MigracionAlimentoCalculos.Acumular(
-                        salidasAlimento, new PosicionAlimento(lote.Ubicacion, itemId), (decimal)item.Cantidad);
+                {
+                    var delta = (decimal)item.Cantidad - yaDescontado.GetValueOrDefault(itemId, 0m);
+                    yaDescontado.Remove(itemId);
+                    if (delta != 0)
+                        MigracionAlimentoCalculos.Acumular(
+                            salidasAlimento, new PosicionAlimento(lote.Ubicacion, itemId), delta);
+                }
+
+            // Alimentos que el día TENÍA y el archivo ya no trae: se devuelven al galpón.
+            foreach (var kv in yaDescontado.Where(x => x.Value > 0))
+                MigracionAlimentoCalculos.Acumular(
+                    salidasAlimento, new PosicionAlimento(lote.Ubicacion, kv.Key), -kv.Value);
         }
 
         // Balance: stock actual + entradas de la hoja "Alimento" − consumos del seguimiento. Si alguna
         // posición queda negativa el archivo se rechaza ENTERO con el faltante exacto. Sin esto, el
         // descuento fallaba dentro de un catch que solo loguea: el día se guardaba y el galpón quedaba
         // descuadrado sin ninguna señal.
+        // Solo cuentan los movimientos que REALMENTE se van a aplicar. Los que ya están en el
+        // histórico se omiten al importar, y sumarlos acá proyectaba un saldo que nunca iba a pasar:
+        // al recargar un archivo ya importado, el reporte anunciaba el doble de entradas (galpón 6:
+        // 4.470,664 kg proyectados contra los 2.235,332 que en realidad quedan).
+        var clavesYaAplicadas = movimientosAlimento.Count > 0
+            ? await ClavesMovimientosExistentesAsync(movimientosAlimento, ct)
+            : new HashSet<string>();
+
         var entradasAlimento = new Dictionary<PosicionAlimento, decimal>();
         foreach (var m in movimientosAlimento)
         {
+            if (clavesYaAplicadas.Contains(MigracionAlimentoCalculos.ClaveIdempotencia(
+                    m.Movimiento, m.Destino, m.ItemId, m.Fecha, m.CantidadKg, m.Referencia)))
+                continue;
+
             var posDestino = new PosicionAlimento(m.Destino.Normalizada(), m.ItemId);
             if (m.Movimiento is MovimientoAlimento.Ingreso or MovimientoAlimento.Recepcion)
                 MigracionAlimentoCalculos.Acumular(entradasAlimento, posDestino, m.CantidadKg);
@@ -533,10 +562,20 @@ public partial class MigracionService
                     $"{(actualizables.Count > 12 ? ", …" : "")}). Las aves y el inventario se ajustan por la diferencia.",
                     "Advertencia"));
 
-            foreach (var s in saldos.Where(x => x.Entradas > 0 || x.Salidas > 0))
-                errores.Add(new(0, "Alimento", await NombreAlimentoAsync(s.Posicion.ItemId, ct),
-                    $"Saldo proyectado de {await NombreAlimentoAsync(s.Posicion.ItemId, ct)}: {s.SaldoInicial:N3} inicial + {s.Entradas:N3} entradas − {s.Salidas:N3} consumo = {s.SaldoFinal:N3} kg.",
+            // != 0, no > 0: al reemplazar un día con MENOS consumo el movimiento es negativo (se
+            // devuelve alimento al galpón) y con "> 0" ese caso no se informaba.
+            foreach (var s in saldos.Where(x => x.Entradas != 0 || x.Salidas != 0))
+            {
+                var nombre = await NombreAlimentoAsync(s.Posicion.ItemId, ct);
+                // Un consumo negativo es alimento que VUELVE al galpón (el archivo reemplaza un día
+                // con menos consumo). Escribirlo como "− -500" es ilegible: se dice lo que pasa.
+                var movimiento = s.Salidas >= 0
+                    ? $"+ {s.Entradas:N3} entradas − {s.Salidas:N3} consumo"
+                    : $"+ {s.Entradas:N3} entradas + {-s.Salidas:N3} devueltos (el archivo baja el consumo ya cargado)";
+                errores.Add(new(0, "Alimento", nombre,
+                    $"Saldo proyectado de {nombre}: {s.SaldoInicial:N3} inicial {movimiento} = {s.SaldoFinal:N3} kg.",
                     "Advertencia"));
+            }
             return ResultadoOk(tipo, dryRun, total, errores) with { FilasOmitidas = omitidas };
         }
 
