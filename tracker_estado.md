@@ -1057,10 +1057,35 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 
 ## Fase 2 — Resumen semanal (hoja 1) — NUEVO
 
-- [ ] Migración EF **solo-datos** idempotente: semanas 77-97 de la guía 2026 AP (company 1) con la curva
-      de reciclaje del Excel — `INSERT ... WHERE NOT EXISTS`, sin tocar el ModelSnapshot (D1)
-- [ ] `backend/sql/fn_resumen_semanal_ra_pesadas.sql` (una consulta, filtra en BD, NO iterar lotes en C#)
-- [ ] Migración EF idempotente que aplica la fn
+### SQL (HECHO)
+
+- [x] `backend/sql/fn_resumen_semanal_ra_pesadas_levante.sql` — set-based (CTEs + ventanas), NO itera lotes
+- [x] `backend/sql/fn_resumen_semanal_ra_pesadas_produccion.sql` — sobre el flujo **LPP**, no el de `lotes`
+      (el Detalle llama la fn base con `LotePosturaProduccionId`; usar `lotes.fecha_inicio_produccion`
+      daría otra semana de vida y no cuadraría)
+- [x] Semana del año = **WEEKNUM de Excel** (US, arranca domingo), no ISO — verificado 1825/1825 filas
+      contra el archivo (ISO solo coincide en 1736)
+- [x] `PART` = saldo hembras del lote / Σ saldo hembras de la selección
+- [x] Arrastre (LOCF) del peso por sexo con ventanas, sin bucle
+- [x] **Bug encontrado y corregido**: la edad de la guía se compara distinto en cada etapa —
+      levante usa TEXTO EXACTO (`btrim(edad) = sem::text`) y producción PARSEA a número
+      (`fn_parse_edad_numerica`). La semana 25 tiene dos filas (`'25'` cierre de levante,
+      `'25P'` arranque de producción) y un `regexp` genérico tomaba la equivocada. El desempate
+      quedó EXPLÍCITO en la fn de producción para no depender del plan de ejecución
+- [x] Migración EF `20260728120000_AddFnResumenSemanalRaPesadas` (data-only, Designer clonado, idempotente)
+- [x] Migración EF **solo-datos** `20260728120100_ExtenderGuia2026ApSemanas77a97` (D1): 21 filas,
+      semanas 77-97, `INSERT ... WHERE NOT EXISTS`. Los errores `#DIV/0!` del Excel entran NULL
+- [x] `dotnet build` 0 errores / 0 advertencias · migraciones aplicadas en local sin error
+
+### Equivalencia Resumen ↔ Detalle (requisito duro) — VERIFICADA
+
+- [x] Levante: 4 lotes × todas sus semanas = **79 filas, 0 diferencias** en 17 columnas contra
+      `fn_reporte_semanal_levante_extras` + `fn_indicadores_levante_postura`
+- [x] Producción: lote sintético (sembrado y revertido con ROLLBACK) = **8 semanas, 0 diferencias**
+      en 16 columnas contra `fn_indicadores_produccion_postura`
+
+### Backend C# + front (PENDIENTE)
+
 - [ ] Columna `Venta H/M` desde movimientos de aves (D4, tras definir el criterio)
 - [ ] DTO `ResumenSemanalRaPesadasDto` (21 col. levante + 23 col. producción + `part`)
 - [ ] `ReporteTecnicoSemanalService.Resumen.cs` (partial) + endpoint `POST /resumen`

@@ -191,7 +191,8 @@ El ítem `/reporte-tecnico-semanal` ya está sembrado solo para Sanmarino (migra
 2. **Guía** = `lote.raza + lote.ano_tabla_genetica + company_id`. Guía ausente ⇒ celda vacía, **nunca** fallback a otro año.
 3. **Empresa efectiva** por dato (`farms.company_id` / `X-Active-Company`), fail-closed. Sin empresa ⇒ vacío, jamás datos de otra empresa.
 4. **Alcance de granjas** por `ILocationScopeResolver` (restrict_locations + user_farm_scopes).
-5. **`PART`** = aves iniciales del lote ÷ total de aves de la selección; los consolidados de las hojas 3/4/7 son **promedio ponderado por aves iniciales**, no promedio simple. (El consolidado por galpón del Detalle sigue siendo suma de conteos + promedio simple de pesos, como hoy — no se toca.)
+5. **`PART`** = **saldo de hembras del lote ÷ Σ saldo de hembras de la selección filtrada** (verificado contra el archivo: EC33-G 9.312 / 630.702 = 0,014764500508956686, idéntico al Excel). No es sobre aves iniciales ni incluye machos. Los consolidados de las hojas 3/4/7 sí ponderan por `HEMBRAINI` de cada edad — son dos ponderaciones distintas, no confundirlas. (El consolidado por galpón del Detalle sigue siendo suma de conteos + promedio simple de pesos, como hoy — no se toca.)
+5.b **El RESUMEN es un pivot directo**, sin recálculo: cada fila es la fila `(lote, edad)` de la hoja de datos cuya semana calendario coincide con el filtro. Verificado valor por valor en A358, K359 y EC33-G para `SemAño = 50`. ⇒ el Resumen debe emitir **exactamente** los mismos números que el Detalle para ese lote y esa semana; cualquier diferencia es un bug.
 6. **Ubicación** en el Resumen = `granja + núcleo` (para reproducir `Niza 3 mod 1`).
 7. Refactor ≠ cambio de comportamiento: los tabs Levante/Producción existentes conservan columnas, redondeos y consolidación actuales.
 
