@@ -1039,18 +1039,29 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 - [x] `catalogo_items.metadata` sin energía/proteína ⇒ nutrición de machos no calculable hoy
 - [x] Plan escrito con decisiones D1-D5
 
-## Fase 1 — Decisiones (BLOQUEA implementación)
+## Fase 1 — Decisiones (CERRADA 2026-07-28)
 
-- [ ] **D1** guía de lotes reciclados / 2.º ciclo > semana 76
-- [ ] **D2** bloque de bonificación (12 columnas) dentro o fuera de la fase 1
-- [ ] **D3** crear regional `Ecuador` y reasignar granjas
-- [ ] **D4** `VentaH`/`VentaM` de producción
-- [ ] **D5** energía/proteína por alimento en `catalogo_items.metadata`
+- [x] **D1** → **extender la guía 2026 AP hasta la semana 97** con la curva de reciclaje del Excel
+- [x] **D2** → bonificación **fuera** de la fase 1
+- [x] **D3** → **no** se crea la regional `Ecuador` (era pseudo-regional del Excel; Ecuador aún no tiene postura)
+- [x] **D4** → `VentaH`/`VentaM` **sí**, mapeados a movimientos de aves
+- [x] **D5** → **sí**, energía/proteína en `catalogo_items.metadata`
+- [x] Hallazgo: las 5 guías `*R` del Excel son **una sola curva de 28 semanas relativas**, desplazada por
+      lote (arranques en edad 65/68/70/71) → la extensión fija deja hasta 6 semanas de desfase (§4.1 del plan)
+
+### Bloqueantes previos a codificar (no son decisiones de diseño)
+
+- [ ] Definir con negocio **qué movimiento cuenta como venta de aves** (D4) antes de tocar la columna
+- [ ] Confirmar si se implementa la variante anclada de la curva de reciclaje o la extensión fija (§4.1)
+- [ ] Verificar en prod el `regional_id = 5` huérfano de la granja PIMAN
 
 ## Fase 2 — Resumen semanal (hoja 1) — NUEVO
 
+- [ ] Migración EF **solo-datos** idempotente: semanas 77-97 de la guía 2026 AP (company 1) con la curva
+      de reciclaje del Excel — `INSERT ... WHERE NOT EXISTS`, sin tocar el ModelSnapshot (D1)
 - [ ] `backend/sql/fn_resumen_semanal_ra_pesadas.sql` (una consulta, filtra en BD, NO iterar lotes en C#)
 - [ ] Migración EF idempotente que aplica la fn
+- [ ] Columna `Venta H/M` desde movimientos de aves (D4, tras definir el criterio)
 - [ ] DTO `ResumenSemanalRaPesadasDto` (21 col. levante + 23 col. producción + `part`)
 - [ ] `ReporteTecnicoSemanalService.Resumen.cs` (partial) + endpoint `POST /resumen`
 - [ ] Derivadas y ponderados en `ReporteTecnicoSemanalCalculos` (puro)
@@ -1059,10 +1070,13 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 
 ## Fase 3 — Alimento por fase (hoja 5) — NUEVO
 
+- [ ] `energia_kcal` + `proteina_pct` en `catalogo_items.metadata` de los ítems de alimento, con los
+      valores de la hoja AUX 2026 (INI 2900/19 · LEV 2750/13 · PP 2870/13 · F1 2930/13,5 · F2 2930/13 ·
+      F3 2930/12,5 · Macho 2900/10) — aditivo, sin migración de schema (D5)
 - [ ] `AlimentoPorFaseCalculos.cs` (puro) + tests
 - [ ] `ReporteTecnicoSemanalService.AlimentoFase.cs` + endpoint
 - [ ] Front: tab + 2 gráficas (energía/proteína acumuladas H y M)
-- [ ] Lado «real» de machos según D5
+- [ ] Lado «real» de machos derivado de `tipo_alimento` × consumo (habilitado por D5)
 
 ## Fase 4 — Clasificación de huevo (hoja 8) — NUEVO
 

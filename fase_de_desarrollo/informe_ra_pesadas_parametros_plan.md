@@ -74,14 +74,33 @@ Y `backend/sql/alinear_ano_genetico_postura_colombia_2023_2026.sql` ya movió lo
 
 | # | Hueco | Evidencia | Impacto | Salida propuesta |
 |---|---|---|---|---|
-| H1 | **Sin guía para lotes reciclados / 2.º ciclo más allá de la semana 76** | El Excel trae 5 guías `*R` (edades 65-97); la 2026 AP llega a 76. En PROD el Excel tiene `CICLO` = 1 / 2 / D | Lotes de 2.º ciclo mostrarían guía vacía > sem 76 | **D1**: cargar guías de reciclaje por lote, o extender 2026 AP, o aceptar guía vacía |
+| H1 | **Sin guía para lotes reciclados / 2.º ciclo más allá de la semana 76** | El Excel trae 5 guías `*R` (edades 65-97); la 2026 AP llega a 76. En PROD el Excel tiene `CICLO` = 1 / 2 / D | Lotes de 2.º ciclo mostrarían guía vacía > sem 76 | **D1 = extender la guía 2026 AP hasta la semana 97** (ver §4.1) |
 | H2 | **`%Grasa` de la guía vacía** (0/77 filas) | `grasa_porcentaje` NULL en 2026 | Columna vacía | No usarla (tampoco hay dato real — ver H3) |
 | H3 | **Pechuga / Grasa / Fertilidad no se capturan** | No existe ninguna columna `pechuga*`/`grasa*`/`fertil*` en `seguimiento_diario_*`. **Y en el propio Excel: GrasaH 0 %, PechugaM 0 %, Fertilidad 0 %, Otro 0 %, InfertilidadBon 0 % de llenado** | Ninguno si se excluyen | **Excluir del alcance** — son columnas muertas también en el Excel |
-| H4 | **Bonificación sin origen** | 12 columnas `*Bon` llenas al 100 % (`PesoBonH`, `RetiroBonH`, `UnifHBon`…) y bandas `DifPesoHMinB/MaxB` que varían por semana. Ni las bandas ni los objetivos `PechugaHBon/GrasaHBon/PechugaMBon` existen en `guia_genetica_sanmarino_colombia` | Bloque completo no replicable | **D2**: fuera de alcance en fase 1, o modelar `guia_bonificacion` (semana → banda mín/máx por indicador) |
-| H5 | **Nutrición de MACHOS sin dato real** | `seguimiento_diario_levante` tiene `kcal_al_h`/`prot_al_h` pero **no** el equivalente macho (ya documentado en `fn_reporte_semanal_levante_extras.sql`) | Media hoja ALIMLev sin lado «real» | Ver §5 — derivar del catálogo de alimento |
-| H6 | **Regional `ECUADOR` no existe en la app** | `master_lists.region_option_key` de Sanmarino = Oriente / Occidente / Centro / Abuelas / División Pollita. Las granjas `PIMAN` (regional_id 5 → huérfano) y `PARAISO` (regional_id 59 = *Occidente*) están mal clasificadas; el Excel las agrupa en `ECUADOR` (300 filas LEV + 451 PROD) | El filtro Regional del Resumen agruparía mal ~15 % de los lotes | **D3**: crear la opción `Ecuador` y reasignar esas granjas (dato, no schema) |
+| H4 | **Bonificación sin origen** | 12 columnas `*Bon` llenas al 100 % (`PesoBonH`, `RetiroBonH`, `UnifHBon`…) y bandas `DifPesoHMinB/MaxB` que varían por semana. Ni las bandas ni los objetivos `PechugaHBon/GrasaHBon/PechugaMBon` existen en `guia_genetica_sanmarino_colombia` | Bloque completo no replicable | **D2 = fuera de alcance en la fase 1** |
+| H5 | **Nutrición de MACHOS sin dato real** | `seguimiento_diario_levante` tiene `kcal_al_h`/`prot_al_h` pero **no** el equivalente macho (ya documentado en `fn_reporte_semanal_levante_extras.sql`) | Media hoja ALIMLev sin lado «real» | **D5 = agregar energía/proteína al catálogo de alimento** y derivar (§5) |
+| H6 | ~~Regional `ECUADOR` no existe en la app~~ **NO APLICA** | El `ECUADOR` del Excel era una **pseudo-regional de reporte**: Ecuador todavía **no tiene postura implementada** en la app. Esos lotes (300 filas LEV + 451 PROD) no existen en el sistema | Ninguno | **D3 = no crear la regional.** El Resumen usa las regionales reales de Sanmarino (Oriente / Occidente / Centro / Abuelas / División Pollita) y muestra menos lotes que el Excel — esperado |
 | H7 | **Nacimientos / pollitos reales** | Ya auditado y documentado en `reporte_tecnico_semanal_postura_plan.md` §9: no hay tabla de retorno de incubadora | El bloque Pollitos queda con guía + «HI Cargado» real | Sin cambio — se mantiene como está |
-| H8 | **`VentaH`/`VentaM` de producción** | Columnas del Excel llenas solo al 3 % · en la app las salidas van por `traslado_salida_*` / movimientos de aves | Bajo | **D4**: mapear a movimientos de aves o excluir |
+| H8 | **`VentaH`/`VentaM` de producción** | Columnas del Excel llenas solo al 3 % · en la app las salidas van por `traslado_salida_*` / movimientos de aves | Bajo | **D4 = mapear a movimientos de aves** (definir qué movimiento cuenta como venta antes de codificar) |
+
+### 4.1 Guía de reciclaje: las 5 curvas del Excel son UNA SOLA, desplazada
+
+Alineadas por **semana relativa** (`edad − primera edad de la guía`), `A289R`, `A299R`, `K291R`, `K307R` y `K309R` dan valores **idénticos**:
+
+```
+rel  8 →  2,0 % / 3800 g      rel 14 → 65,0 % / 4000 g      rel 20 → 59,5 % / 4200 g
+rel  9 →  7,0 % / 3800 g      rel 15 → 64,5 % / 4000 g      rel 21 → 58,5 % / 4200 g
+rel 10 → 15,0 % / 3900 g      rel 16 → 63,5 % / 4200 g       …
+rel 11 → 40,0 % / 3900 g      rel 17 → 62,5 % / 4200 g      rel 27 → 52,5 % / 4200 g
+rel 12 → 55,0 % / 4000 g      rel 18 → 61,5 % / 4200 g
+rel 13 → 61,0 % / 4000 g      rel 19 → 60,5 % / 4200 g
+```
+
+Es una curva de **28 semanas relativas**: 8 de muda/descanso sin producción, luego el repique hasta 65 % y el declive. Lo único que cambia por lote es **en qué edad arranca** (65, 68, 70, 71 en los 5 lotes del archivo).
+
+⚠️ **Consecuencia de D1 (extender la 2026 AP a la semana 97):** al pegar la curva en edades fijas 77-97, un lote reciclado en la semana 65 y otro en la 71 se comparan contra el mismo punto de guía ⇒ **desfase de hasta 6 semanas** en `%Prod`, `PesoH` y `ConsAcH` para esos lotes. Sigue siendo mejor que la guía vacía y no cuesta cambio de modelo.
+
+**Variante barata (a confirmar):** como es UNA curva, guardarla una sola vez (28 semanas relativas, `anio_guia = 'RECICLAJE'`) y anclarla en la edad de reciclaje de cada lote elimina el desfase. Costo extra ≈ resolver esa edad por lote (`lote_postura_produccion.ciclo_produccion` = 2 + su `fecha_inicio_produccion`). Si no se confirma, se implementa la extensión fija tal como está decidido.
 
 ---
 
@@ -178,15 +197,17 @@ El ítem `/reporte-tecnico-semanal` ya está sembrado solo para Sanmarino (migra
 
 ---
 
-## 8. Decisiones pendientes del usuario
+## 8. Decisiones — TOMADAS (2026-07-28)
 
-| ID | Decisión | Opciones |
-|---|---|---|
-| **D1** | Guía para lotes reciclados / 2.º ciclo > semana 76 | (a) cargar las 5 guías `*R` del Excel · (b) extender 2026 AP · (c) dejar guía vacía |
-| **D2** | Bloque de **bonificación** (12 columnas) | (a) fuera de alcance fase 1 *(recomendado)* · (b) modelar `guia_bonificacion` con bandas por semana |
-| **D3** | Regional **ECUADOR** | (a) crear opción + reasignar `PIMAN`, `PARAISO`, `SACACHUM`, `AZUCAR` *(recomendado)* · (b) dejarlas como están |
-| **D4** | `VentaH`/`VentaM` en producción | (a) excluir *(3 % de llenado)* · (b) mapear a movimientos de aves |
-| **D5** | Energía/proteína por alimento (hoja AUX) | (a) agregar `energia_kcal`/`proteina_pct` al metadata de `catalogo_items` y cerrar ALIMLev completo *(recomendado)* · (b) ALIMLev solo hembras |
+| ID | Decisión | Resuelto | Efecto en el alcance |
+|---|---|---|---|
+| **D1** | Guía > semana 76 (lotes reciclados / 2.º ciclo) | **Extender la guía 2026 AP hasta la semana 97** | Migración de datos que agrega las semanas 77-97 a `guia_genetica_sanmarino_colombia` (2026, AP) con la curva de reciclaje del Excel. Sin cambio de modelo. Ver el desfase documentado en §4.1 |
+| **D2** | Bloque de bonificación (12 columnas) | **Fuera de la fase 1** | No se modela `guia_bonificacion`; las columnas `*Bon` no se implementan |
+| **D3** | Regional `ECUADOR` | **No se crea** — era una pseudo-regional del Excel; Ecuador aún no tiene postura en la app | El Resumen usa las regionales reales de Sanmarino. El reporte muestra **menos lotes que el Excel** (faltan los 751 registros de Ecuador) y eso es correcto |
+| **D4** | `VentaH`/`VentaM` en producción | **Se mapean a movimientos de aves** | Tarea previa: definir con negocio **qué movimiento cuenta como venta** (`traslado_salida_*` vs. movimiento de aves con destino externo). Sin esa definición la columna no se codifica |
+| **D5** | Energía/proteína por alimento (hoja AUX) | **Se agrega al catálogo** | `energia_kcal` y `proteina_pct` en `catalogo_items.metadata` (aditivo, sin migración de schema) con los valores de AUX 2026. Habilita ALIMLev completo (hembras **y** machos) |
+
+**Pendiente menor (no bloquea):** `PIMAN` tiene `regional_id = 5`, que **no existe** en `master_lists.region_option_key` → esa granja queda fuera de cualquier agrupación por regional. Verificar en prod si sigue así y asignarle una regional válida de Sanmarino.
 
 ---
 
@@ -211,8 +232,9 @@ El ítem `/reporte-tecnico-semanal` ya está sembrado solo para Sanmarino (migra
 
 ## 10. Fuera de alcance (explícito)
 
-- Importar la hoja `Guías RAP` como datos (la app manda con 2026).
+- Importar la hoja `Guías RAP` como guía activa (la app manda con 2026). **Excepción D1:** de esa hoja se toma únicamente la curva de reciclaje para extender la 2026 AP a las semanas 77-97.
 - Pechuga, Grasa, Fertilidad, `Otro`, `InfertilidadBon` — sin captura y vacías en el propio Excel.
 - Nacimientos y pollitos reales (H7) — requiere capturar el retorno de incubadora; decisión de negocio ya documentada.
-- Bonificación, salvo que D2 = (b).
+- **Bloque de bonificación** (D2).
+- **Regional `Ecuador` y los lotes de Ecuador** (D3) — Ecuador no tiene postura implementada.
 - Cualquier reporte cross-empresa: el Resumen es **por empresa activa**.
