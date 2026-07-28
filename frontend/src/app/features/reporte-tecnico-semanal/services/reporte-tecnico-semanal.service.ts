@@ -11,6 +11,8 @@ import {
   ReporteTecnicoSemanalRequest
 } from '../models/reporte-tecnico-semanal.model';
 import {
+  CurvaConsolidadaRequest,
+  CurvaConsolidadaResponse,
   ResumenSemanalRaPesadasLevanteResponse,
   ResumenSemanalRaPesadasProduccionResponse,
   ResumenSemanalRaPesadasRequest
@@ -45,5 +47,10 @@ export class ReporteTecnicoSemanalService {
   ): Observable<ResumenSemanalRaPesadasProduccionResponse> {
     return this.http.post<ResumenSemanalRaPesadasProduccionResponse>(
       `${this.baseUrl}/resumen`, { ...request, etapa: 'produccion' });
+  }
+
+  /** Curva consolidada del año: todos los lotes a lo largo de todas las edades. */
+  generarCurva(request: CurvaConsolidadaRequest): Observable<CurvaConsolidadaResponse> {
+    return this.http.post<CurvaConsolidadaResponse>(`${this.baseUrl}/curva`, request);
   }
 }

@@ -164,4 +164,101 @@ public static class ResumenSemanalRaPesadasCalculos
             }
         };
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Curva consolidada por EDAD (bloque «Resumen a semana N» de las gráficas)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Pliega las filas por-lote-por-semana en UN punto por EDAD: la curva de
+    /// toda la operación contra la guía.
+    ///
+    /// Un lote aparece una vez por semana calendario, así que agrupar por
+    /// <c>EdadSemana</c> junta a todos los lotes que pasaron por esa edad —
+    /// aunque lo hayan hecho en fechas distintas, que es justo la gracia de
+    /// mirar la curva por edad y no por calendario.
+    ///
+    /// Los saldos SUMAN y los indicadores se PONDERAN por saldo de hembras.
+    /// </summary>
+    public static List<CurvaConsolidadaPuntoDto> ConsolidarPorEdadLevante(
+        IReadOnlyList<ResumenSemanalLevanteRow> filas)
+    {
+        double Peso(ResumenSemanalLevanteRow f) => f.SaldoHembras;
+        return filas
+            .GroupBy(f => f.EdadSemana)
+            .OrderBy(g => g.Key)
+            .Select(g =>
+            {
+                var xs = g.ToList();
+                return new CurvaConsolidadaPuntoDto
+                {
+                    EdadSemana = g.Key,
+                    // Un mismo lote puede caer dos veces en la misma edad si el
+                    // año tiene dos semanas calendario que le corresponden: se
+                    // cuentan LOTES distintos, no filas.
+                    Lotes = xs.Select(f => f.LoteId).Distinct().Count(),
+                    SaldoHembras = xs.Sum(f => f.SaldoHembras),
+                    SaldoMachos = xs.Sum(f => f.SaldoMachos),
+                    Indicadores = new Dictionary<string, double?>
+                    {
+                        ["mortHembrasPct"]        = PromedioPonderado(xs, f => f.MortHembrasPct, Peso),
+                        ["retiroAcumHembrasPct"]  = PromedioPonderado(xs, f => f.RetiroAcumHembrasPct, Peso),
+                        ["retiroAcumHembrasGuia"] = PromedioPonderado(xs, f => f.RetiroAcumHembrasGuia, Peso),
+                        ["difConsumoHembrasPct"]  = PromedioPonderado(xs, f => f.DifConsumoHembrasPct, Peso),
+                        ["difPesoHembrasPct"]     = PromedioPonderado(xs, f => f.DifPesoHembrasPct, Peso),
+                        ["uniformidadHembras"]    = PromedioPonderado(xs, f => f.UniformidadHembras, Peso),
+                        ["cvHembras"]             = PromedioPonderado(xs, f => f.CvHembras, Peso),
+                        ["mortMachosPct"]         = PromedioPonderado(xs, f => f.MortMachosPct, Peso),
+                        ["retiroAcumMachosPct"]   = PromedioPonderado(xs, f => f.RetiroAcumMachosPct, Peso),
+                        ["retiroAcumMachosGuia"]  = PromedioPonderado(xs, f => f.RetiroAcumMachosGuia, Peso),
+                        ["difConsumoMachosPct"]   = PromedioPonderado(xs, f => f.DifConsumoMachosPct, Peso),
+                        ["difPesoMachosPct"]      = PromedioPonderado(xs, f => f.DifPesoMachosPct, Peso),
+                        ["uniformidadMachos"]     = PromedioPonderado(xs, f => f.UniformidadMachos, Peso),
+                        ["cvMachos"]              = PromedioPonderado(xs, f => f.CvMachos, Peso)
+                    }
+                };
+            })
+            .ToList();
+    }
+
+    /// <inheritdoc cref="ConsolidarPorEdadLevante"/>
+    public static List<CurvaConsolidadaPuntoDto> ConsolidarPorEdadProduccion(
+        IReadOnlyList<ResumenSemanalProduccionRow> filas)
+    {
+        double Peso(ResumenSemanalProduccionRow f) => f.SaldoHembras;
+        return filas
+            .GroupBy(f => f.EdadSemana)
+            .OrderBy(g => g.Key)
+            .Select(g =>
+            {
+                var xs = g.ToList();
+                return new CurvaConsolidadaPuntoDto
+                {
+                    EdadSemana = g.Key,
+                    Lotes = xs.Select(f => f.LotePosturaProduccionId).Distinct().Count(),
+                    SaldoHembras = xs.Sum(f => f.SaldoHembras),
+                    SaldoMachos = xs.Sum(f => f.SaldoMachos),
+                    Indicadores = new Dictionary<string, double?>
+                    {
+                        ["produccionPct"]         = PromedioPonderado(xs, f => f.ProduccionPct, Peso),
+                        ["produccionPctGuia"]     = PromedioPonderado(xs, f => f.ProduccionPctGuia, Peso),
+                        ["htaa"]                  = PromedioPonderado(xs, f => f.Htaa, Peso),
+                        ["htaaGuia"]              = PromedioPonderado(xs, f => f.HtaaGuia, Peso),
+                        ["hiaa"]                  = PromedioPonderado(xs, f => f.Hiaa, Peso),
+                        ["hiaaGuia"]              = PromedioPonderado(xs, f => f.HiaaGuia, Peso),
+                        ["aprovSemPct"]           = PromedioPonderado(xs, f => f.AprovSemPct, Peso),
+                        ["aprovSemPctGuia"]       = PromedioPonderado(xs, f => f.AprovSemPctGuia, Peso),
+                        ["grHuevoInc"]            = PromedioPonderado(xs, f => f.GrHuevoInc, Peso),
+                        ["mortHembrasPct"]        = PromedioPonderado(xs, f => f.MortHembrasPct, Peso),
+                        ["retiroAcumHembrasPct"]  = PromedioPonderado(xs, f => f.RetiroAcumHembrasPct, Peso),
+                        ["retiroAcumHembrasGuia"] = PromedioPonderado(xs, f => f.RetiroAcumHembrasGuia, Peso),
+                        ["mortMachosPct"]         = PromedioPonderado(xs, f => f.MortMachosPct, Peso),
+                        ["retiroAcumMachosPct"]   = PromedioPonderado(xs, f => f.RetiroAcumMachosPct, Peso),
+                        ["retiroAcumMachosGuia"]  = PromedioPonderado(xs, f => f.RetiroAcumMachosGuia, Peso),
+                        ["pesoMachoSobreHembra"]  = PromedioPonderado(xs, f => f.PesoMachoSobreHembra, Peso)
+                    }
+                };
+            })
+            .ToList();
+    }
 }

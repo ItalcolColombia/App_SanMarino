@@ -1352,10 +1352,30 @@ Pedido del usuario: plantillas con datos de ejercicio en el Escritorio y el cicl
 - [x] Front: vista «Clasificación» (solo producción) con cabeceras agrupadas
 - [x] Tests: `ClasificacionHuevoSemanalTests` (7 casos, incluido el consolidado 86 % vs 70 %)
 
-## Fase 5 — Consolidado multi-lote de gráficas (hojas 3/4/7)
+## Fase 5 — Consolidado multi-lote de gráficas (hojas 3/4/7) — HECHO
 
-- [ ] Encabezado «Resumen a semana N» ponderado por aves iniciales
-- [ ] Integración con las gráficas existentes
+> **Hallazgo que ajusta la especificación:** los números de las hojas de gráficas del archivo
+> **no son reproducibles**. Igual que ALIMLev, están filtradas por una selección de lotes guardada
+> en el Excel (un slicer): la hoja dice 1.129.682 aves iniciales cuando el dato completo son
+> 1.773.976, y ningún filtro por año, regional, guía ni traslado reproduce ese subconjunto.
+> Acá la selección son los **filtros que elige el usuario**, que además puede auditar.
+
+- [x] Sin fn SQL nueva: las dos fns del Resumen aceptan `p_sem_anio = NULL` (= todas las semanas)
+      y el pliegue por edad queda en cálculo puro sobre un conjunto ya recortado por la BD
+- [x] `part` pasa a calcularse **particionado por semana calendario** — con todas las semanas, la
+      ventana global habría mezclado las 52 del año
+- [x] **Regresión verificada**: el modo de una sola semana sigue dando 79 filas / 0 diferencias
+      contra el Detalle, igual que antes del cambio
+- [x] `ConsolidarPorEdadLevante` / `...Produccion` (puro): agrupa por EDAD —no por fecha—, suma
+      saldos y pondera indicadores; cuenta LOTES distintos, no filas
+- [x] `POST api/ReporteTecnicoSemanal/curva` + vista «Curva del año» en el modo Resumen
+- [x] 6 gráficas por etapa con la convención del repo (Real sólido, Guía punteada, hembras naranja
+      y machos azul), eje X en edad
+- [x] Tests: 6 casos nuevos en `ResumenSemanalRaPesadasCalculosTests`
+- [x] Smoke API: levante 25 puntos / 4 lotes · producción 24 puntos / 2 lotes con %Prod siguiendo
+      la guía (30,0 vs 31,25 · 69,6 vs 63,25 · 82,5 vs 80,75) · etapa inválida 400 · Demo 0 puntos
+- [x] Smoke UI: las 6 gráficas de cada etapa montan, el toggle vuelve a la tabla y consola limpia
+- [x] `dotnet build` 0/0 · `dotnet test` 1313/1313 · `yarn build` 0 errores
 
 ## Fase 6 — Cierre — HECHO
 

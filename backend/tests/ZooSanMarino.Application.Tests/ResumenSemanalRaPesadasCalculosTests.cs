@@ -293,4 +293,98 @@ public class ResumenSemanalRaPesadasCalculosTests
         Assert.Equal(0, t.SaldoHembras);
         Assert.All(t.Ponderados.Values, v => Assert.Null(v));
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Curva consolidada por edad
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static ResumenSemanalLevanteRow Curva(
+        int loteId, int edad, double saldoH, double? unif = null, double saldoM = 0) =>
+        new() { LoteId = loteId, EdadSemana = edad, SaldoHembras = saldoH, SaldoMachos = saldoM, UniformidadHembras = unif };
+
+    [Fact]
+    public void Curva_AgrupaPorEdad_AunqueLosLotesEstenEnFechasDistintas()
+    {
+        // Justo la gracia de mirar por EDAD: dos lotes encasetados en meses
+        // distintos comparten el punto de la curva cuando llegan a la misma edad.
+        var filas = new List<ResumenSemanalLevanteRow>
+        {
+            Curva(1, 5, 1000), Curva(2, 5, 3000), Curva(1, 6, 990)
+        };
+
+        var curva = ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadLevante(filas);
+
+        Assert.Equal(new[] { 5, 6 }, curva.Select(p => p.EdadSemana).ToArray());
+        Assert.Equal(2, curva[0].Lotes);
+        Assert.Equal(4000, curva[0].SaldoHembras);
+        Assert.Equal(1, curva[1].Lotes);
+    }
+
+    [Fact]
+    public void Curva_PonderaPorSaldoDeHembras()
+    {
+        var filas = new List<ResumenSemanalLevanteRow>
+        {
+            Curva(1, 5, 9000, unif: 90),
+            Curva(2, 5, 1000, unif: 80)
+        };
+
+        var curva = ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadLevante(filas);
+
+        Assert.Equal(89.0, curva[0].Indicadores["uniformidadHembras"]!.Value, 10);
+    }
+
+    [Fact]
+    public void Curva_CuentaLOTES_NoFilas()
+    {
+        // Un mismo lote puede caer dos veces en la misma edad si el año tiene dos
+        // semanas calendario que le corresponden: sigue siendo UN lote.
+        var filas = new List<ResumenSemanalLevanteRow>
+        {
+            Curva(1, 5, 1000), Curva(1, 5, 1000), Curva(2, 5, 1000)
+        };
+
+        var curva = ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadLevante(filas);
+
+        Assert.Equal(2, curva[0].Lotes);
+        Assert.Equal(3000, curva[0].SaldoHembras);   // los saldos sí suman todas las filas
+    }
+
+    [Fact]
+    public void Curva_SaleOrdenadaPorEdad()
+    {
+        var filas = new List<ResumenSemanalLevanteRow>
+        {
+            Curva(1, 20, 100), Curva(1, 3, 100), Curva(1, 11, 100)
+        };
+
+        var curva = ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadLevante(filas);
+
+        Assert.Equal(new[] { 3, 11, 20 }, curva.Select(p => p.EdadSemana).ToArray());
+    }
+
+    [Fact]
+    public void Curva_SinFilasDaCurvaVacia()
+    {
+        Assert.Empty(ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadLevante(
+            new List<ResumenSemanalLevanteRow>()));
+        Assert.Empty(ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadProduccion(
+            new List<ResumenSemanalProduccionRow>()));
+    }
+
+    [Fact]
+    public void CurvaProduccion_PonderaYSumaIgual()
+    {
+        var filas = new List<ResumenSemanalProduccionRow>
+        {
+            new() { LotePosturaProduccionId = 1, EdadSemana = 30, SaldoHembras = 20000, ProduccionPct = 80 },
+            new() { LotePosturaProduccionId = 2, EdadSemana = 30, SaldoHembras = 5000,  ProduccionPct = 60 }
+        };
+
+        var curva = ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadProduccion(filas);
+
+        Assert.Equal(2, curva[0].Lotes);
+        Assert.Equal(25000, curva[0].SaldoHembras);
+        Assert.Equal(76.0, curva[0].Indicadores["produccionPct"]!.Value, 10);
+    }
 }

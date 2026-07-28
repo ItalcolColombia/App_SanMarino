@@ -25,4 +25,12 @@ public interface IReporteTecnicoSemanalService
     /// <inheritdoc cref="GenerarResumenLevanteAsync"/>
     Task<ResumenSemanalRaPesadasProduccionResponse> GenerarResumenProduccionAsync(
         ResumenSemanalRaPesadasRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Curva consolidada del año (bloque «Resumen a semana N» de las hojas de
+    /// gráficas): todos los lotes a lo largo de todas las edades, ponderado por
+    /// saldo de hembras.
+    /// </summary>
+    Task<CurvaConsolidadaResponse> GenerarCurvaConsolidadaAsync(
+        CurvaConsolidadaRequest request, CancellationToken ct = default);
 }

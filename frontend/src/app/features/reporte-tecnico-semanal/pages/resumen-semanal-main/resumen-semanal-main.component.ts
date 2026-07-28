@@ -4,6 +4,7 @@
 // HTTP y armado de la vista.
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgChartsModule } from 'ng2-charts';
 import { firstValueFrom } from 'rxjs';
 
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -22,11 +23,13 @@ import {
   construirHojaResumenProduccion
 } from '../../funciones/construir-aoa-resumen-ra-pesadas.funcion';
 import {
+  CurvaConsolidadaPunto,
   EtapaResumen,
   ResumenSemanalRaPesadasLevanteResponse,
   ResumenSemanalRaPesadasProduccionResponse,
   ResumenSemanalTotales
 } from '../../models/resumen-semanal-ra-pesadas.model';
+import { construirGraficasCurva, GraficaCurva } from '../../funciones/construir-graficas-curva.funcion';
 import { semanaExcel } from '../../funciones/semana-excel.funcion';
 
 /** Celda ya formateada; `texto` alinea a la izquierda. */
@@ -38,7 +41,7 @@ interface CeldaView {
 @Component({
   selector: 'app-resumen-semanal-main',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, NgChartsModule],
   templateUrl: './resumen-semanal-main.component.html',
   styleUrls: ['./resumen-semanal-main.component.scss'],
   // Angular 22: omitir esto = OnPush ⇒ la tabla se quedaría en «Cargando…»
@@ -63,6 +66,13 @@ export class ResumenSemanalMainComponent implements OnInit {
   loading = false;
   error: string | null = null;
   generado = false;
+
+  /** `semana` = la hoja RESUMEN SEMANAL; `curva` = el consolidado por edad. */
+  vista: 'semana' | 'curva' = 'semana';
+  curvaCargada = false;
+  curvaLotes = 0;
+  graficasCurva: GraficaCurva[] = [];
+  private curvaPuntos: CurvaConsolidadaPunto[] = [];
 
   anios: number[] = [];
   semanas: number[] = Array.from({ length: 53 }, (_, i) => i + 1);
@@ -100,10 +110,57 @@ export class ResumenSemanalMainComponent implements OnInit {
     this.excluirTrasladados = false;
     this.opcionesRegional = [];
     this.opcionesCiclo = [];
+    this.limpiarCurva();
     void this.generar();
+    if (this.vista === 'curva') void this.cargarCurva();
+  }
+
+  cambiarVista(vista: 'semana' | 'curva'): void {
+    if (this.vista === vista) return;
+    this.vista = vista;
+    if (vista === 'curva' && !this.curvaCargada) void this.cargarCurva();
+  }
+
+  /**
+   * La curva recorre TODO el año, así que se pide aparte y solo cuando el
+   * usuario la abre: no tiene sentido traerla en cada cambio de semana.
+   */
+  async cargarCurva(): Promise<void> {
+    this.loading = true;
+    this.error = null;
+    try {
+      const resp = await firstValueFrom(this.service.generarCurva({
+        anio: this.anio,
+        etapa: this.etapa,
+        regional: this.regional || null,
+        ciclo: this.ciclo || null,
+        excluirTrasladados: this.excluirTrasladados
+      }));
+      this.curvaPuntos = resp.puntos;
+      this.curvaLotes = resp.lotes;
+      this.graficasCurva = construirGraficasCurva(resp.puntos, this.etapa);
+      this.curvaCargada = true;
+      if (resp.puntos.length === 0) {
+        this.toast.info('No hay lotes con seguimiento en ese año.');
+      }
+    } catch (err: any) {
+      this.error = err?.error?.message || err?.message || 'Error al generar la curva del año.';
+      this.limpiarCurva();
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private limpiarCurva(): void {
+    this.curvaCargada = false;
+    this.curvaLotes = 0;
+    this.curvaPuntos = [];
+    this.graficasCurva = [];
   }
 
   async generar(): Promise<void> {
+    // Los filtros que comparte con la curva la invalidan; se recarga al abrirla.
+    this.limpiarCurva();
     this.loading = true;
     this.error = null;
     try {
@@ -226,4 +283,5 @@ export class ResumenSemanalMainComponent implements OnInit {
   }
 
   trackFila = (i: number, _f: CeldaView[]) => i;
+  trackGrafica = (_i: number, g: GraficaCurva) => g.titulo;
 }

@@ -54,7 +54,7 @@ DROP FUNCTION IF EXISTS fn_resumen_semanal_ra_pesadas_produccion(integer, intege
 CREATE OR REPLACE FUNCTION fn_resumen_semanal_ra_pesadas_produccion(
     p_company_id  integer,
     p_anio        integer,
-    p_sem_anio    integer,
+    p_sem_anio    integer,   -- NULL = todas las semanas del año
     p_granja_ids  integer[] DEFAULT NULL,
     p_regional    text      DEFAULT NULL,
     p_ciclo       text      DEFAULT NULL
@@ -246,14 +246,16 @@ sem_objetivo AS (
       FROM acum a
       JOIN lote_ok lo ON lo.lote_postura_produccion_id = a.lpp_id
      WHERE EXTRACT(YEAR FROM (lo.ref_date + ((a.sem - 1) * 7) + 6))::int = p_anio
-       AND (
+       -- p_sem_anio NULL = TODAS las semanas del año (curva del año completo);
+       -- con valor, una sola semana calendario.
+       AND (p_sem_anio IS NULL OR (
              floor(
                ( (lo.ref_date + ((a.sem - 1) * 7) + 6)
                  - date_trunc('year', (lo.ref_date + ((a.sem - 1) * 7) + 6)::timestamp)::date
                  + EXTRACT(DOW FROM date_trunc('year', (lo.ref_date + ((a.sem - 1) * 7) + 6)::timestamp))::int
                ) / 7.0
              )::int + 1
-           ) = p_sem_anio
+           ) = p_sem_anio)
        AND (p_regional IS NULL OR lo.regional = p_regional)
 ),
 -- ── 8) Guía ────────────────────────────────────────────────────────────────
@@ -327,8 +329,10 @@ SELECT
     f.sem                                                          AS edad_semana,
     f.fin_sem                                                      AS fecha_fin_semana,
     f.dias                                                         AS dias_con_registro,
-    CASE WHEN SUM(f.fin_h) OVER () > 0
-         THEN f.fin_h / SUM(f.fin_h) OVER () END                   AS part,
+    -- Participación SIEMPRE dentro de su propia semana calendario: con
+    -- p_sem_anio NULL la ventana global mezclaría las 52 semanas del año.
+    CASE WHEN SUM(f.fin_h) OVER (PARTITION BY f.fin_sem) > 0
+         THEN f.fin_h / SUM(f.fin_h) OVER (PARTITION BY f.fin_sem) END                   AS part,
     f.fin_h                                                        AS saldo_hembras,
     f.fin_m                                                        AS saldo_machos,
     f.prod_pct                                                     AS produccion_pct,

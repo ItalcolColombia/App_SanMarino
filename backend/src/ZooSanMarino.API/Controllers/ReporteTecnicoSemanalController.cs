@@ -103,4 +103,31 @@ public class ReporteTecnicoSemanalController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Curva consolidada del año: todos los lotes a lo largo de todas las edades,
+    /// ponderado por saldo de hembras (bloque «Resumen a semana N» de las hojas
+    /// de gráficas del Informe RA Pesadas).
+    /// </summary>
+    [HttpPost("curva")]
+    [ProducesResponseType(typeof(CurvaConsolidadaResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CurvaConsolidadaResponse>> GenerarCurva(
+        [FromBody] CurvaConsolidadaRequest request, CancellationToken ct)
+    {
+        if (request is null)
+            return BadRequest(new { message = "El cuerpo de la solicitud es requerido." });
+
+        try
+        {
+            return Ok(await _service.GenerarCurvaConsolidadaAsync(request, ct));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

@@ -81,6 +81,63 @@ public partial class ReporteTecnicoSemanalService
             Totales: ResumenSemanalRaPesadasCalculos.TotalesProduccion(filas));
     }
 
+    /// <summary>
+    /// Curva consolidada del año: TODOS los lotes a lo largo de todas las edades.
+    /// Reusa las MISMAS fns del Resumen con la semana en NULL (= todas) y pliega
+    /// por edad en cálculo puro. El filtrado por empresa/granja/regional sigue
+    /// haciéndose en la BD; en memoria solo queda el group-by final, que trabaja
+    /// sobre un conjunto ya recortado.
+    /// </summary>
+    public async Task<CurvaConsolidadaResponse> GenerarCurvaConsolidadaAsync(
+        CurvaConsolidadaRequest request, CancellationToken ct = default)
+    {
+        var companyId = await ResolveCompanyIdAsync();
+        if (request.Anio is < 2000 or > 2100)
+            throw new ArgumentException($"Año fuera de rango: {request.Anio}.");
+
+        var etapa = ResumenSemanalRaPesadasCalculos.NormalizarEtapa(request.Etapa)
+            ?? throw new ArgumentException("Etapa inválida. Use 'levante' o 'produccion'.");
+
+        var granjaIds = request.GranjaIds is { Count: > 0 } ? request.GranjaIds.ToArray() : null;
+
+        if (etapa == ResumenSemanalRaPesadasCalculos.EtapaLevante)
+        {
+            var filas = await _ctx.Database
+                .SqlQueryRaw<ResumenSemanalLevanteRow>(
+                    "SELECT * FROM public.fn_resumen_semanal_ra_pesadas_levante(" +
+                    "{0}::int, {1}::int, NULL::int, {2}::int[], {3}::text, {4}::boolean)",
+                    companyId, request.Anio,
+                    (object?)granjaIds ?? DBNull.Value,
+                    (object?)request.Regional ?? DBNull.Value,
+                    request.ExcluirTrasladados)
+                .ToListAsync(ct);
+
+            filas = await RecortarPorAlcanceAsync(filas, f => f.GranjaId, f => f.LoteId);
+
+            return new CurvaConsolidadaResponse(
+                request.Anio, etapa,
+                filas.Select(f => f.LoteId).Distinct().Count(),
+                ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadLevante(filas));
+        }
+
+        var filasProd = await _ctx.Database
+            .SqlQueryRaw<ResumenSemanalProduccionRow>(
+                "SELECT * FROM public.fn_resumen_semanal_ra_pesadas_produccion(" +
+                "{0}::int, {1}::int, NULL::int, {2}::int[], {3}::text, {4}::text)",
+                companyId, request.Anio,
+                (object?)granjaIds ?? DBNull.Value,
+                (object?)request.Regional ?? DBNull.Value,
+                (object?)request.Ciclo ?? DBNull.Value)
+            .ToListAsync(ct);
+
+        filasProd = await RecortarPorAlcanceAsync(filasProd, f => f.GranjaId, f => f.LoteId);
+
+        return new CurvaConsolidadaResponse(
+            request.Anio, etapa,
+            filasProd.Select(f => f.LotePosturaProduccionId).Distinct().Count(),
+            ResumenSemanalRaPesadasCalculos.ConsolidarPorEdadProduccion(filasProd));
+    }
+
     private static void ValidarSemana(ResumenSemanalRaPesadasRequest request)
     {
         if (request.Anio is < 2000 or > 2100)

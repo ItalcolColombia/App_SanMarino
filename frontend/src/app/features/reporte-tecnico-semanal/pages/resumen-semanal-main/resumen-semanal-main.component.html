@@ -9,11 +9,19 @@
       </p>
     </div>
 
-    <div class="rsm-toggle" role="tablist" aria-label="Etapa">
-      <button type="button" class="rsm-toggle__btn" [class.rsm-toggle__btn--active]="etapa === 'levante'"
-              (click)="cambiarEtapa('levante')">Levante</button>
-      <button type="button" class="rsm-toggle__btn" [class.rsm-toggle__btn--active]="etapa === 'produccion'"
-              (click)="cambiarEtapa('produccion')">Producción</button>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="rsm-toggle" role="tablist" aria-label="Etapa">
+        <button type="button" class="rsm-toggle__btn" [class.rsm-toggle__btn--active]="etapa === 'levante'"
+                (click)="cambiarEtapa('levante')">Levante</button>
+        <button type="button" class="rsm-toggle__btn" [class.rsm-toggle__btn--active]="etapa === 'produccion'"
+                (click)="cambiarEtapa('produccion')">Producción</button>
+      </div>
+      <div class="rsm-toggle" role="tablist" aria-label="Vista">
+        <button type="button" class="rsm-toggle__btn" [class.rsm-toggle__btn--active]="vista === 'semana'"
+                (click)="cambiarVista('semana')">Una semana</button>
+        <button type="button" class="rsm-toggle__btn" [class.rsm-toggle__btn--active]="vista === 'curva'"
+                (click)="cambiarVista('curva')">Curva del año</button>
+      </div>
     </div>
   </div>
 
@@ -39,6 +47,7 @@
         </select>
       </div>
 
+      @if (vista === 'semana') {
       <div class="rsm-filtro">
         <label class="rsm-filtro__label" for="rsm-semana">Semana del año *</label>
         <select id="rsm-semana" class="rsm-filtro__control" [(ngModel)]="semanaAnio" (ngModelChange)="generar()">
@@ -47,6 +56,7 @@
           }
         </select>
       </div>
+      }
 
       @if (opcionesRegional.length > 0) {
         <div class="rsm-filtro">
@@ -100,14 +110,14 @@
     <div class="text-sm text-gray-500">Cargando resumen…</div>
   }
 
-  @if (generado && !loading && filas.length === 0) {
+  @if (vista === 'semana' && generado && !loading && filas.length === 0) {
     <div class="text-sm text-gray-500">
       No hay lotes con seguimiento en la semana {{ semanaAnio }} de {{ anio }}
       @if (rangoSemana) { <span>({{ rangoSemana }})</span> }.
     </div>
   }
 
-  @if (hayResultado && !loading) {
+  @if (vista === 'semana' && hayResultado && !loading) {
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <span class="font-semibold text-gray-800">
@@ -163,5 +173,40 @@
         de cada lote (no es un promedio simple). Las columnas de diferencia contra guía no se totalizan.
       </p>
     </div>
+  }
+
+  @if (vista === 'curva' && !loading) {
+    @if (graficasCurva.length === 0) {
+      <div class="text-sm text-gray-500">No hay lotes con seguimiento en {{ anio }}.</div>
+    } @else {
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+          <span class="font-semibold text-gray-800">
+            Curva del año — {{ etapa === 'levante' ? 'Levante' : 'Producción' }}
+          </span>
+          <span class="text-gray-400">·</span>
+          <span class="text-gray-600"><strong>{{ anio }}</strong></span>
+          <span class="text-gray-400">·</span>
+          <span class="text-gray-600"><strong>{{ curvaLotes }}</strong> lote(s)</span>
+        </div>
+
+        <div class="rsm-charts-grid">
+          @for (g of graficasCurva; track trackGrafica($index, g)) {
+            <div class="rsm-chart-card">
+              <h4 class="rsm-chart-card__title">{{ g.titulo }}</h4>
+              <div class="rsm-chart-card__canvas">
+                <canvas baseChart type="line" [data]="$any(g.data)" [options]="$any(g.options)"></canvas>
+              </div>
+            </div>
+          }
+        </div>
+
+        <p class="text-xs text-gray-500">
+          El eje X es la <strong>edad en semanas</strong>, no la fecha: así lotes encasetados en meses
+          distintos se comparan contra el mismo punto de la guía. Cada punto pondera los lotes por su
+          <strong>saldo de hembras</strong>.
+        </p>
+      </div>
+    }
   }
 </div>

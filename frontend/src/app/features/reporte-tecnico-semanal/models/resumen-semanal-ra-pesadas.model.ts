@@ -109,3 +109,34 @@ export interface ResumenSemanalRaPesadasProduccionResponse {
   filas: ResumenSemanalProduccionFila[];
   totales: ResumenSemanalTotales;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CURVA CONSOLIDADA — todos los lotes a lo largo de todas las EDADES.
+// Tercera granularidad: el Resumen es «todos los lotes en una semana» y el
+// Detalle «un lote en todas sus semanas»; ésta es la curva de la operación.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CurvaConsolidadaRequest {
+  anio: number;
+  etapa: EtapaResumen;
+  granjaIds?: number[] | null;
+  regional?: string | null;
+  ciclo?: string | null;
+  excluirTrasladados?: boolean;
+}
+
+export interface CurvaConsolidadaPunto {
+  edadSemana: number;
+  lotes: number;
+  saldoHembras: number;
+  saldoMachos: number;
+  /** Indicador → promedio ponderado por saldo de hembras. */
+  indicadores: Record<string, number | null>;
+}
+
+export interface CurvaConsolidadaResponse {
+  anio: number;
+  etapa: EtapaResumen;
+  lotes: number;
+  puntos: CurvaConsolidadaPunto[];
+}

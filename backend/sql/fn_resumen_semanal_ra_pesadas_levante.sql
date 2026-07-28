@@ -52,7 +52,7 @@ DROP FUNCTION IF EXISTS fn_resumen_semanal_ra_pesadas_levante(integer, integer, 
 CREATE OR REPLACE FUNCTION fn_resumen_semanal_ra_pesadas_levante(
     p_company_id           integer,
     p_anio                 integer,
-    p_sem_anio             integer,
+    p_sem_anio             integer,   -- NULL = todas las semanas del año
     p_granja_ids           integer[] DEFAULT NULL,
     p_regional             text      DEFAULT NULL,
     p_excluir_trasladados  boolean   DEFAULT false
@@ -306,14 +306,16 @@ sem_objetivo AS (
       FROM locf x
       JOIN lote_ok lo ON lo.lote_id = x.lote_id
      WHERE EXTRACT(YEAR FROM (lo.enc_date + ((x.sem - 1) * 7) + 6))::int = p_anio
-       AND (
+       -- p_sem_anio NULL = TODAS las semanas del año (curva del año completo);
+       -- con valor, una sola semana calendario.
+       AND (p_sem_anio IS NULL OR (
              floor(
                ( (lo.enc_date + ((x.sem - 1) * 7) + 6)
                  - date_trunc('year', (lo.enc_date + ((x.sem - 1) * 7) + 6)::timestamp)::date
                  + EXTRACT(DOW FROM date_trunc('year', (lo.enc_date + ((x.sem - 1) * 7) + 6)::timestamp))::int
                ) / 7.0
              )::int + 1
-           ) = p_sem_anio
+           ) = p_sem_anio)
        AND (p_regional IS NULL OR lo.regional = p_regional)
        AND (NOT p_excluir_trasladados OR NOT lo.tuvo_traslado)
 ),
@@ -382,8 +384,10 @@ SELECT
     f.fin_sem                                                    AS fecha_fin_semana,
     f.dias                                                       AS dias_con_registro,
     f.tuvo_traslado,
-    CASE WHEN SUM(f.saldo_h) OVER () > 0
-         THEN f.saldo_h / SUM(f.saldo_h) OVER ()
+    -- Participación SIEMPRE dentro de su propia semana calendario: con
+    -- p_sem_anio NULL la ventana global mezclaría las 52 semanas del año.
+    CASE WHEN SUM(f.saldo_h) OVER (PARTITION BY f.fin_sem) > 0
+         THEN f.saldo_h / SUM(f.saldo_h) OVER (PARTITION BY f.fin_sem)
     END                                                          AS part,
     f.saldo_h                                                    AS saldo_hembras,
     f.saldo_m                                                    AS saldo_machos,

@@ -144,3 +144,47 @@ public sealed record ResumenSemanalRaPesadasProduccionResponse(
     DateTime? FechaFinSemana,
     IReadOnlyList<ResumenSemanalProduccionRow> Filas,
     ResumenSemanalTotalesDto Totales);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CURVA CONSOLIDADA — bloque «Resumen a semana N» de las hojas de gráficas
+// (Gráf LEV Hembras / Gráf LEV Machos / Gráf Producción).
+//
+// Tercera granularidad del informe: TODOS los lotes a lo LARGO de todas las
+// edades (la curva de la operación contra la guía), frente al Resumen —todos
+// los lotes en UNA semana— y al Detalle —un lote en todas sus semanas—.
+//
+// ⚠️ Los números del archivo original NO son reproducibles: sus hojas de
+// gráficas y ALIMLev están filtradas por una selección de lotes guardada en el
+// Excel (un slicer) que no se deduce de ninguna columna — comprobado, ningún
+// filtro por año, regional, guía ni traslado la reproduce. Acá la selección son
+// los filtros que elige el usuario, que es lo que además puede auditar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+public sealed record CurvaConsolidadaRequest(
+    int Anio,
+    string Etapa,                       // "levante" | "produccion"
+    IReadOnlyList<int>? GranjaIds = null,
+    string? Regional = null,
+    string? Ciclo = null,
+    bool ExcluirTrasladados = false);
+
+/// <summary>
+/// Un punto de la curva: una EDAD con todos los lotes que la transitaron.
+/// Los saldos SUMAN; los indicadores son promedio PONDERADO por saldo de
+/// hembras (un lote de 56.000 aves no puede pesar igual que uno de 7.000).
+/// </summary>
+public sealed class CurvaConsolidadaPuntoDto
+{
+    public int EdadSemana { get; set; }
+    public int Lotes { get; set; }
+    public double SaldoHembras { get; set; }
+    public double SaldoMachos { get; set; }
+    /// <summary>Indicador → promedio ponderado (null si ningún lote aporta valor).</summary>
+    public Dictionary<string, double?> Indicadores { get; set; } = new();
+}
+
+public sealed record CurvaConsolidadaResponse(
+    int Anio,
+    string Etapa,
+    int Lotes,
+    IReadOnlyList<CurvaConsolidadaPuntoDto> Puntos);
