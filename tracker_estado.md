@@ -1319,21 +1319,38 @@ Pedido del usuario: plantillas con datos de ejercicio en el Escritorio y el cicl
 - [ ] Al cambiar de modo el componente se remonta y pierde el año/semana elegidos (el `@if` del
       shell lo destruye). Molesto pero no rompe nada; se resuelve levantando el estado al shell
 
-## Fase 3 — Alimento por fase (hoja 5) — NUEVO
+## Fase 3 — Alimento por fase (hoja 5) — HECHO
 
-- [ ] `energia_kcal` + `proteina_pct` en `catalogo_items.metadata` de los ítems de alimento, con los
-      valores de la hoja AUX 2026 (INI 2900/19 · LEV 2750/13 · PP 2870/13 · F1 2930/13,5 · F2 2930/13 ·
-      F3 2930/12,5 · Macho 2900/10) — aditivo, sin migración de schema (D5)
-- [ ] `AlimentoPorFaseCalculos.cs` (puro) + tests
-- [ ] `ReporteTecnicoSemanalService.AlimentoFase.cs` + endpoint
-- [ ] Front: tab + 2 gráficas (energía/proteína acumuladas H y M)
-- [ ] Lado «real» de machos derivado de `tipo_alimento` × consumo (habilitado por D5)
+> **D5 quedó SIN NECESIDAD de tocar el catálogo.** La energía/proteína de cada fase ya vive en la
+> guía genética (`kcal_h`/`prot_h`/`kcal_m`/`prot_m`, los mismos valores que la hoja AUX), así que
+> no hay que sembrar `catalogo_items.metadata` ni mapear nombres de ítem a fases —que era el
+> paso frágil—. Si algún día se captura el alimento real, tiene precedencia automática.
 
-## Fase 4 — Clasificación de huevo (hoja 8) — NUEVO
+- [x] `AlimentoPorFaseCalculos.cs` (PURO) — agrupa por fase, suma real y guía, DIF y %DIF, Total general
+- [x] La FASE la fija la guía (`alim_h`/`alim_m`), no la edad: el corte depende de línea y año
+- [x] Nutrición semanal por sexo en `ConstruirSemanasLevante` + guía extendida (`GuiaSemanaLevante`)
+- [x] **Hallazgo**: `kcal_al_h`/`prot_al_h` NO se cargan en ningún registro (0 de 599) ⇒ sin respaldo
+      la mitad hembra salía vacía. Regla uniforme: energía capturada si existe, si no la NOMINAL de
+      la fase según la guía. En machos es la única fuente (su alimento no se captura)
+- [x] **Bug encontrado**: el tab Consolidado salía vacío — no le pasaba la fase ni la nutrición.
+      Los valores son POR AVE ⇒ se promedian (sumarlos multiplicaba la energía por nº de galpones)
+- [x] Sin endpoint nuevo ni SQL nuevo: viaja en la respuesta de levante que ya existía
+- [x] Front: vista «Alimento» (solo levante) con las 4 tablas + nota del criterio de machos
+- [x] Tests: `AlimentoPorFaseCalculosTests` (16 casos)
 
-- [ ] Service partial + endpoint (reusa `fn_clasificacion_huevo_items_produccion` con flag ON)
-- [ ] Mapeo `Deforme Blanco` = `huevo_deforme + huevo_blanco` documentado en el encabezado
-- [ ] Tests puros + front (tabla + gráfica)
+## Fase 4 — Clasificación de huevo (hoja 8) — HECHO
+
+> No hizo falta endpoint, SQL ni el flag de items: `fn_indicadores_produccion_postura` **ya devolvía
+> los 11 conteos por semana** y nadie los estaba exponiendo. Solo había que sacarlos al DTO y
+> calcular el % sobre el huevo total.
+
+- [x] Conteos + % en `ReporteSemanalProduccionSemanaDto`, calculados en `ConstruirSemanasProduccion`
+- [x] Mapeo `Deforme Blanco` = `huevo_deforme + huevo_blanco` (el Excel los trae juntos y la BD
+      los guarda separados; sin sumar, el reporte mostraría la mitad)
+- [x] Consolidado: los CONTEOS suman y los % se RECALCULAN sobre el total (promediar los % de cada
+      galpón haría pesar igual al galpón chico que al grande)
+- [x] Front: vista «Clasificación» (solo producción) con cabeceras agrupadas
+- [x] Tests: `ClasificacionHuevoSemanalTests` (7 casos, incluido el consolidado 86 % vs 70 %)
 
 ## Fase 5 — Consolidado multi-lote de gráficas (hojas 3/4/7)
 

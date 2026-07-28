@@ -75,6 +75,29 @@ export interface ReporteSemanalLevanteSemana {
   kcalAveAcumHembras: number | null;
   protAveAcumHembras: number | null;
 
+  // ── Hoja «ALIMLev»: nutrición semanal por sexo ──
+  // En machos el alimento real NO se captura: el valor usa la energía/proteína
+  // nominal de la fase que fija la guía (la desviación refleja consumo, no
+  // formulación).
+  faseAlimentoHembras: string | null;
+  faseAlimentoMachos: string | null;
+  kcalSemanaHembras: number | null;
+  kcalSemanaHembrasGuia: number | null;
+  protSemanaHembras: number | null;
+  protSemanaHembrasGuia: number | null;
+  kcalSemanaMachos: number | null;
+  kcalSemanaMachosGuia: number | null;
+  protSemanaMachos: number | null;
+  protSemanaMachosGuia: number | null;
+  kcalAcumHembras: number | null;
+  kcalAcumHembrasGuia: number | null;
+  kcalAcumMachos: number | null;
+  kcalAcumMachosGuia: number | null;
+  protAcumHembras: number | null;
+  protAcumHembrasGuia: number | null;
+  protAcumMachos: number | null;
+  protAcumMachosGuia: number | null;
+
   mortalidadMachos: number;
   mortalidadMachosPct: number | null;
   mortalidadMachosAcumPct: number | null;
@@ -103,9 +126,28 @@ export interface ReporteSemanalLevanteSemana {
   desviacionPesoMachosPct: number | null;
 }
 
+/** Una fila de la hoja «ALIMLev»: energía o proteína de una fase de alimento. */
+export interface ReporteSemanalAlimentoFase {
+  fase: string;
+  semanas: number;
+  real: number | null;
+  guia: number | null;
+  diferencia: number | null;
+  diferenciaPct: number | null;
+}
+
+/** Las cuatro tablas de la hoja «ALIMLev» (energía y proteína × sexo). */
+export interface ReporteSemanalAlimentoPorFase {
+  energiaHembras: ReporteSemanalAlimentoFase[];
+  energiaMachos: ReporteSemanalAlimentoFase[];
+  proteinaHembras: ReporteSemanalAlimentoFase[];
+  proteinaMachos: ReporteSemanalAlimentoFase[];
+}
+
 export interface ReporteSemanalLevanteTab {
   header: ReporteSemanalTabHeader;
   semanas: ReporteSemanalLevanteSemana[];
+  alimentoPorFase: ReporteSemanalAlimentoPorFase;
 }
 
 export interface ReporteTecnicoSemanalLevanteResponse {
@@ -197,6 +239,29 @@ export interface ReporteSemanalProduccionSemana {
   /** Nacimientos/pollitos reales no se capturan en el sistema: solo valor de guía. */
   nacimientoGuiaPct: number | null;
   pollitosAveGuia: number | null;
+
+  // ── Hoja «CLAS Huevo» ──
+  // «Deforme Blanco» = huevo_deforme + huevo_blanco (el Excel los trae juntos).
+  huevosLimpios: number;
+  huevosTratados: number;
+  huevosSucios: number;
+  huevosDeformeBlanco: number;
+  huevosDobleYema: number;
+  huevosPiso: number;
+  huevosPequenos: number;
+  huevosRotos: number;
+  huevosDesecho: number;
+  huevosOtro: number;
+  pctLimpio: number | null;
+  pctTratado: number | null;
+  pctSucio: number | null;
+  pctDeformeBlanco: number | null;
+  pctDobleYema: number | null;
+  pctPiso: number | null;
+  pctPequeno: number | null;
+  pctRoto: number | null;
+  pctDesecho: number | null;
+  pctOtro: number | null;
 }
 
 export interface ReporteSemanalProduccionTab {

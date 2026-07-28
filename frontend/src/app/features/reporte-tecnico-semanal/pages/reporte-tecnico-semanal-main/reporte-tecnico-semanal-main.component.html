@@ -165,6 +165,14 @@
                   (click)="vista = 'tabla'">Tabla</button>
           <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'graficas'"
                   (click)="vista = 'graficas'">Gráficas</button>
+          @if (tipoReporte === 'LEVANTE') {
+            <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'alimento'"
+                    (click)="vista = 'alimento'">Alimento</button>
+          }
+          @if (tipoReporte === 'PRODUCCION') {
+            <button type="button" class="rts-toggle__btn" [class.rts-toggle__btn--active]="vista === 'clasificacion'"
+                    (click)="vista = 'clasificacion'">Clasificación</button>
+          }
         </div>
       </div>
 
@@ -206,6 +214,77 @@
               </tbody>
             </table>
           </div>
+        } @else if (vista === 'alimento') {
+          <!-- Hoja «ALIMLev»: energía y proteína agrupadas por fase de alimento -->
+          @if (tab.alimento.length === 0) {
+            <div class="text-sm text-gray-500 pt-2">
+              La guía genética de este lote no trae la fase de alimento por semana, así que no se puede agrupar.
+            </div>
+          } @else {
+            <div class="rts-fase-grid">
+              @for (bloque of tab.alimento; track bloque.titulo) {
+                <div class="rts-fase-card">
+                  <h4 class="rts-fase-card__title">{{ bloque.titulo }}</h4>
+                  <div class="rts-table-wrap">
+                    <table class="rts-table">
+                      <thead>
+                        <tr>
+                          @for (t of titulosAlimento; track $index) {
+                            <th class="rts-th">{{ t }}</th>
+                          }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (fila of bloque.filas; track trackFila($index, fila)) {
+                          <tr class="rts-tr">
+                            @for (celda of fila; track $index) {
+                              <td class="rts-td">{{ celda }}</td>
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              }
+            </div>
+            <p class="text-xs text-gray-500">
+              La fase de cada semana la fija la guía genética. En <strong>machos</strong> el alimento real no se
+              captura en el seguimiento diario: se usa la energía/proteína nominal de la fase, así que su desviación
+              refleja <strong>consumo</strong>, no formulación.
+            </p>
+          }
+        } @else if (vista === 'clasificacion') {
+          <!-- Hoja «CLAS Huevo»: % de clasificación por semana -->
+          <div class="rts-table-wrap">
+            <table class="rts-table">
+              <thead>
+                <tr>
+                  @for (g of gruposClasificacion; track $index) {
+                    <th class="rts-th rts-th--grupo" [attr.colspan]="g.span">{{ g.titulo }}</th>
+                  }
+                </tr>
+                <tr>
+                  @for (t of titulosClasificacion; track $index) {
+                    <th class="rts-th">{{ t }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (fila of tab.clasificacion; track trackFila($index, fila)) {
+                  <tr class="rts-tr">
+                    @for (celda of fila; track $index) {
+                      <td class="rts-td">{{ celda }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="text-xs text-gray-500">
+            Los porcentajes van sobre el huevo <strong>total</strong> de la semana.
+            «Deforme Blanco» suma las dos categorías que la base guarda por separado.
+          </p>
         } @else {
           <!-- Vista Gráficas — réplica de las gráficas embebidas del Excel -->
           <div class="rts-charts-grid">

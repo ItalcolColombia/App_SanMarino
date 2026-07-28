@@ -176,3 +176,29 @@ thead tr:nth-child(2) .rts-th {
 .rts-tr:nth-child(even) .rts-td {
   background: #fcfbf9;
 }
+
+// Hoja «ALIMLev»: las cuatro tablas por fase, dos por fila en pantalla ancha.
+.rts-fase-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.rts-fase-card {
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: #fff;
+  min-width: 0;                 // deja que la tabla haga su propio scroll
+
+  &__title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary, #4b5563);
+    margin-bottom: 0.5rem;
+  }
+}

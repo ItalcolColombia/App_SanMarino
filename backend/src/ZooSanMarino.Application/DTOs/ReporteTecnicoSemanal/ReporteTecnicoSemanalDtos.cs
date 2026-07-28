@@ -102,6 +102,33 @@ public sealed class ReporteSemanalLevanteSemanaDto
     public double? KcalAveAcumHembras { get; set; }
     public double? ProtAveAcumHembras { get; set; }
 
+    // ── Nutrición SEMANAL por sexo (hoja «ALIMLev» del Informe RA Pesadas) ──
+    // Energía/proteína consumidas POR AVE en la semana = gramos consumidos por
+    // ave × energía (o proteína) del alimento. En hembras el alimento real se
+    // captura (kcal_al_h / prot_al_h del seguimiento diario); en machos NO se
+    // captura, así que se usa la energía/proteína NOMINAL del alimento que la
+    // guía asigna a esa semana (kcal_m / prot_m). Documentado para que nadie
+    // lea la desviación de machos como si incluyera cambios de formulación.
+    /// <summary>Fase de alimento de la guía para la semana (INI / LEV / PP / F1…).</summary>
+    public string? FaseAlimentoHembras { get; set; }
+    public string? FaseAlimentoMachos { get; set; }
+    public double? KcalSemanaHembras { get; set; }
+    public double? KcalSemanaHembrasGuia { get; set; }
+    public double? ProtSemanaHembras { get; set; }
+    public double? ProtSemanaHembrasGuia { get; set; }
+    public double? KcalSemanaMachos { get; set; }
+    public double? KcalSemanaMachosGuia { get; set; }
+    public double? ProtSemanaMachos { get; set; }
+    public double? ProtSemanaMachosGuia { get; set; }
+    public double? KcalAcumHembras { get; set; }
+    public double? KcalAcumHembrasGuia { get; set; }
+    public double? KcalAcumMachos { get; set; }
+    public double? KcalAcumMachosGuia { get; set; }
+    public double? ProtAcumHembras { get; set; }
+    public double? ProtAcumHembrasGuia { get; set; }
+    public double? ProtAcumMachos { get; set; }
+    public double? ProtAcumMachosGuia { get; set; }
+
     // ── Machos · retiro de aves ──
     public int MortalidadMachos { get; set; }
     public double? MortalidadMachosPct { get; set; }
@@ -138,6 +165,8 @@ public sealed class ReporteSemanalLevanteTabDto
 {
     public ReporteSemanalTabHeaderDto Header { get; set; } = new();
     public List<ReporteSemanalLevanteSemanaDto> Semanas { get; set; } = new();
+    /// <summary>Hoja «ALIMLev»: energía y proteína agrupadas por fase de alimento.</summary>
+    public ReporteSemanalAlimentoPorFaseDto AlimentoPorFase { get; set; } = new();
 }
 
 public sealed record ReporteTecnicoSemanalLevanteResponse(
@@ -248,6 +277,55 @@ public sealed class ReporteSemanalProduccionSemanaDto
     /// incubadora en BD): solo se expone el valor de guía.</summary>
     public double? NacimientoGuiaPct { get; set; }
     public double? PollitosAveGuia { get; set; }
+
+    // ── Clasificación de huevo (hoja «CLAS Huevo» del Informe RA Pesadas) ──
+    // Conteos de la semana y su % sobre el huevo TOTAL de la semana.
+    // ⚠️ El Excel trae UNA columna «Deforme Blanco»; la BD guarda huevo_deforme
+    //    y huevo_blanco por separado ⇒ acá se SUMAN para casar con el archivo.
+    public int HuevosLimpios { get; set; }
+    public int HuevosTratados { get; set; }
+    public int HuevosSucios { get; set; }
+    public int HuevosDeformeBlanco { get; set; }
+    public int HuevosDobleYema { get; set; }
+    public int HuevosPiso { get; set; }
+    public int HuevosPequenos { get; set; }
+    public int HuevosRotos { get; set; }
+    public int HuevosDesecho { get; set; }
+    public int HuevosOtro { get; set; }
+    public double? PctLimpio { get; set; }
+    public double? PctTratado { get; set; }
+    public double? PctSucio { get; set; }
+    public double? PctDeformeBlanco { get; set; }
+    public double? PctDobleYema { get; set; }
+    public double? PctPiso { get; set; }
+    public double? PctPequeno { get; set; }
+    public double? PctRoto { get; set; }
+    public double? PctDesecho { get; set; }
+    public double? PctOtro { get; set; }
+}
+
+/// <summary>
+/// Fila de la hoja «ALIMLev»: energía o proteína AGRUPADA por fase de alimento
+/// (INI / LEV / PP / F1 en hembras; INI / LEV / M en machos), real vs guía.
+/// La fase de cada semana la fija la guía genética (alim_h / alim_m).
+/// </summary>
+public sealed class ReporteSemanalAlimentoFaseDto
+{
+    public string Fase { get; set; } = string.Empty;
+    public int Semanas { get; set; }
+    public double? Real { get; set; }
+    public double? Guia { get; set; }
+    public double? Diferencia { get; set; }
+    public double? DiferenciaPct { get; set; }
+}
+
+/// <summary>Las cuatro tablas de la hoja «ALIMLev» (energía y proteína × sexo).</summary>
+public sealed class ReporteSemanalAlimentoPorFaseDto
+{
+    public List<ReporteSemanalAlimentoFaseDto> EnergiaHembras { get; set; } = new();
+    public List<ReporteSemanalAlimentoFaseDto> EnergiaMachos { get; set; } = new();
+    public List<ReporteSemanalAlimentoFaseDto> ProteinaHembras { get; set; } = new();
+    public List<ReporteSemanalAlimentoFaseDto> ProteinaMachos { get; set; } = new();
 }
 
 public sealed class ReporteSemanalProduccionTabDto
