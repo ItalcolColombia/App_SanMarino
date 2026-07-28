@@ -163,15 +163,30 @@ Namespace **plano** `ZooSanMarino.Infrastructure.Services`; interfaz `IReporteTe
 
 ```
 features/reporte-tecnico-semanal/
-├── models/reporte-tecnico-semanal.model.ts          (+ tipos del resumen / fase / clasificación)
+├── models/
+│   ├── reporte-tecnico-semanal.model.ts             (existente, Detalle)
+│   └── resumen-semanal-ra-pesadas.model.ts          ✅ HECHO
 ├── funciones/
-│   ├── columnas-reporte-semanal.funcion.ts          (existente — 2 specs nuevas)
-│   ├── columnas-resumen-ra-pesadas.funcion.ts       (NUEVO — specs Levante y Producción de la hoja 1)
+│   ├── columnas-reporte-semanal.funcion.ts          (existente, Detalle)
+│   ├── columnas-resumen-ra-pesadas.funcion.ts       ✅ HECHO (spec única: tabla + Excel)
+│   ├── construir-aoa-resumen-ra-pesadas.funcion.ts  ✅ HECHO
+│   ├── semana-excel.funcion.ts                      ✅ HECHO (WEEKNUM puro)
 │   ├── construir-graficas-reporte-semanal.funcion.ts(existente — + gráficas de fase y clasificación)
 │   └── construir-aoa-reporte-semanal.funcion.ts     (existente — + hojas nuevas al Excel)
-├── pages/reporte-tecnico-semanal-main/              (orquestador: agrega selector de modo)
-└── services/reporte-tecnico-semanal.service.ts      (+ 3 métodos)
+├── pages/
+│   ├── informe-ra-pesadas-main/                     ✅ HECHO — shell con los dos modos
+│   ├── resumen-semanal-main/                        ✅ HECHO — hoja 1
+│   └── reporte-tecnico-semanal-main/                (existente, INTACTO)
+└── services/reporte-tecnico-semanal.service.ts      ✅ + 2 métodos de resumen
 ```
+
+**El shell no es un tab más:** el Detalle quedó sin tocar y la ruta `/reporte-tecnico-semanal` se
+conserva (es la que ya está sembrada en `menus`/`role_menus`); solo pasa a cargar el shell. Así el
+modo nuevo entra sin migración de menú y sin riesgo de regresión en lo que ya funcionaba.
+
+⚠️ **Regional y Ciclo se filtran en el BACKEND** (son parámetros de la fn), no en el cliente:
+si se filtraran en memoria, la fila de TOTAL —que el backend calcula sobre el conjunto completo—
+quedaría peleada con las filas visibles.
 
 - Funciones **puras** en `funciones/` (sin `this`, sin DI) — patrón `movimientos-pollo-engorde`.
 - `changeDetection: ChangeDetectionStrategy.Eager` **explícito** en todo componente nuevo (Angular 22: omitirlo = OnPush ⇒ spinner colgado).

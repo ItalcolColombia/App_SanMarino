@@ -1,0 +1,24 @@
+<div class="irp-shell">
+  <nav class="irp-modos" role="tablist" aria-label="Modo del informe">
+    <button type="button" class="irp-modo" role="tab"
+            [class.irp-modo--active]="modo === 'resumen'"
+            [attr.aria-selected]="modo === 'resumen'"
+            (click)="cambiarModo('resumen')">
+      <span class="irp-modo__titulo">Resumen semanal</span>
+      <span class="irp-modo__sub">Todos los lotes · una semana</span>
+    </button>
+    <button type="button" class="irp-modo" role="tab"
+            [class.irp-modo--active]="modo === 'detalle'"
+            [attr.aria-selected]="modo === 'detalle'"
+            (click)="cambiarModo('detalle')">
+      <span class="irp-modo__titulo">Detalle de lote</span>
+      <span class="irp-modo__sub">Un lote · todas sus semanas</span>
+    </button>
+  </nav>
+
+  @if (modo === 'resumen') {
+    <app-resumen-semanal-main />
+  } @else {
+    <app-reporte-tecnico-semanal-main />
+  }
+</div>

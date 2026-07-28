@@ -1108,11 +1108,43 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 - [x] Empresa Demo → 0 filas (sin fuga cross-empresa)
 - [x] Semilla de prueba eliminada (0 filas ZZTEST, 4 LPP originales) y backend detenido (:5002 libre)
 
-### Front (PENDIENTE)
+### Front (HECHO)
 
-- [ ] Columna `Venta H/M` desde movimientos de aves (D4, tras definir el criterio)
-- [ ] Front: modo Resumen + `columnas-resumen-ra-pesadas.funcion.ts` + filtros año/semana/etapa/ciclo/traslado
-- [ ] Export a Excel de la hoja Resumen
+- [x] `models/resumen-semanal-ra-pesadas.model.ts` — espejo 1:1 de los DTOs
+- [x] `funciones/columnas-resumen-ra-pesadas.funcion.ts` — spec ÚNICA de columnas: alimenta la
+      tabla EN PANTALLA y el Excel (una columna nueva aparece en los dos lados)
+- [x] `funciones/construir-aoa-resumen-ra-pesadas.funcion.ts` — hoja AOA del export
+- [x] `funciones/semana-excel.funcion.ts` — WEEKNUM puro (solo para preseleccionar la semana)
+- [x] `pages/resumen-semanal-main/` — filtros año/semana/etapa + regional/ciclo/traslado,
+      tabla con cabeceras agrupadas y fila de TOTAL, export a Excel
+- [x] `pages/informe-ra-pesadas-main/` — shell con los dos modos (Resumen / Detalle).
+      La página del Detalle queda INTACTA; la ruta `/reporte-tecnico-semanal` se conserva
+      (es la sembrada en `menus`/`role_menus`), solo apunta al shell
+- [x] `changeDetection: ChangeDetectionStrategy.Eager` explícito en los dos componentes nuevos
+- [x] Vista precalculada (celdas y totales) — el template no aloca por ciclo (NG0103)
+- [x] Regional/Ciclo se resuelven en el BACKEND (son parámetros de la fn), no filtrando en cliente:
+      filtrar en cliente dejaría la fila de totales peleada con las filas visibles
+- [x] Arranca en la semana ANTERIOR, no en la actual: la semana en curso está incompleta y el
+      reporte abría vacío, que se lee como si estuviera roto
+- [x] `yarn build` — 0 errores (solo el warning preexistente de bundle budget)
+
+### Smoke UI (HECHO — dev server + backend local, sesión inyectada)
+
+- [x] Levante sem 20/2025 → 2 lotes con las MISMAS cifras que la fn SQL y el endpoint
+      (K345A 41,95 % · 7.726 · unif 90,9 · %DifPeso −6,89)
+- [x] Fila TOTAL: saldos suman (18.418 / 2.253) y los indicadores ponderan — unif 93,0
+      (el promedio simple daría 92,7, así que la ponderación se ve)
+- [x] Producción sem 30/2025 → 2 lotes, cabeceras agrupadas correctas, `% Guía` vacío en la
+      semana 25 (comportamiento REQ-012b ya conocido, igual que el Detalle)
+- [x] Semana sin datos → mensaje con el rango de fechas, no error
+- [x] Cambio de modo Resumen → Detalle → Resumen dos veces, sin quedarse colgado
+- [x] Consola del navegador sin errores
+
+### Pendiente
+
+- [ ] Columna `Venta H/M` desde movimientos de aves (D4, tras definir el criterio con negocio)
+- [ ] Al cambiar de modo el componente se remonta y pierde el año/semana elegidos (el `@if` del
+      shell lo destruye). Molesto pero no rompe nada; se resuelve levantando el estado al shell
 
 ## Fase 3 — Alimento por fase (hoja 5) — NUEVO
 
