@@ -211,8 +211,12 @@ public partial class SeguimientoAvesEngordeService
                     var refStr = $"Seguimiento aves engorde #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
                     foreach (var kv in byItem)
                         if (kv.Value > 0)
+                            // El movimiento se fecha en el DÍA del seguimiento, no en el de la carga:
+                            // en una carga histórica de 41 días todos caían el mismo día y el kardex
+                            // del galpón quedaba ilegible.
                             await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                                lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null));
+                                lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null,
+                                FechaMovimiento: dto.FechaRegistro.Date));
                 }
                 catch (Exception ex) { _logger?.LogError(ex, "Error al registrar consumo inventario (aves engorde)"); }
             }

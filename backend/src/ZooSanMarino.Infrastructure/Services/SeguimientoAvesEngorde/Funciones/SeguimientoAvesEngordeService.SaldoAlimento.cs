@@ -59,8 +59,15 @@ public partial class SeguimientoAvesEngordeService
         if (segs.Count == 0)
             return;
 
+        // Ventana previa al encaset configurada por la empresa: el preiniciador llega antes que los
+        // pollitos y sin esto sus kilos quedaban fuera del saldo aunque estuvieran en el galpón.
+        var diasPrevios = await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
+            .FirstOrDefaultAsync(ct);
+
         var (saldoPorSegId, bal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
-            hist, segs, lote.FechaEncaset);
+            hist, segs, lote.FechaEncaset, diasPrevios);
 
         foreach (var s in segs)
         {

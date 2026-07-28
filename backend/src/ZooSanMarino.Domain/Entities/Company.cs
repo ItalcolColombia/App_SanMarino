@@ -88,6 +88,23 @@ namespace ZooSanMarino.Domain.Entities
         public bool SeguimientoEngordeMixto { get; set; }
 
         /// <summary>
+        /// Días ANTES del encasetamiento cuyo alimento ya cuenta como del lote en el saldo del reporte
+        /// diario de engorde. Default 10.
+        /// <para>
+        /// El saldo descarta lo anterior al lote para no heredar el sobrante del ciclo previo del
+        /// galpón (FIX #12), pero en engorde el preiniciador llega ANTES que los pollitos: cortar en
+        /// la fecha de encaset dejaba fuera alimento propio — en el galpón 6 de DAYLAND, 12.129,638 kg
+        /// recibidos 4 días antes, justo lo que separaba el reporte del inventario real.
+        /// </para>
+        /// <para>
+        /// Es un parámetro operativo, no un flag de comportamiento: cada empresa lo ajusta a su vacío
+        /// sanitario. El default (10) queda por debajo del típico (10-14 días), así que la ventana no
+        /// puede alcanzar el cierre del lote anterior.
+        /// </para>
+        /// </summary>
+        public int DiasAlimentoPrevioEncaset { get; set; } = 10;
+
+        /// <summary>
         /// <c>true</c> = en esta empresa la HORA de llegada de las aves decide el primer día con
         /// registro del lote (pollo engorde y reproductora): desde las 13:00 las aves ya no alcanzan a
         /// consumir ese día y el primer consumo pasa al día siguiente del encasetamiento.

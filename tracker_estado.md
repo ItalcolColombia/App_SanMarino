@@ -600,3 +600,369 @@ renderiza en el login de prod (el build SÍ es de producción; verificado en el 
 - [x] Validación sin Docker (no levanta local): chequeo estático de la línea + gate C5 del pipeline valida la CSP en contenedor antes de publicar (checks nuevos de recaptcha)
 - [ ] Commit
 - [ ] Deploy (push a main-produccion) + verificación post-deploy (CSP en vivo + widget visible)
+
+---
+
+# Pollo engorde: numeración de día 1-based y pesaje al cierre de semana
+
+Plan: [fase_de_desarrollo/dia_negocio_engorde_pesaje_plan.md](fase_de_desarrollo/dia_negocio_engorde_pesaje_plan.md)
+
+La tabla de seguimiento de engorde arranca en «Edad 0» y el pesaje semanal se pide un día tarde
+(edad 7 = primer día de la semana 2). La regla de la hora de llegada nunca se cableó en engorde.
+
+**Decisiones:** solo pantalla + validaciones (la edad técnica, la guía genética, los indicadores y el
+informe semanal NO se tocan) · la columna conserva el encabezado «Edad (días vida)» con número
+1-based · el corrimiento del pesaje aplica SOLO con `primer_registro_segun_hora_llegada` activo.
+
+## Backend
+
+- [x] `EncasetamientoCalculos`: `DiaDeNegocio` + `SemanaDeNegocio` (puros)
+- [x] `PesajeEngordeCalculos` nuevo: `EsDiaDePesajeObligatorio(dia)`
+- [x] Carga masiva engorde: la advertencia de pesaje usa el día de negocio si el flag está activo
+- [x] Tests xUnit nuevos + regresión con flag OFF
+
+## Frontend
+
+- [x] `engorde-comun/funciones/dia-negocio-engorde.funcion.ts` (espejo puro del backend)
+- [x] Lista de seguimiento engorde: lee el flag y propaga la hora del lote
+- [x] Tabla: columna Edad, columna Semana, filtro de semana y Excel sobre el día de negocio
+- [x] Modal de seguimiento: `esPrimeraSemana` / `esDiaPesoObligatorio` sobre el día de negocio
+
+## Validación
+
+- [x] `dotnet build` + `dotnet test`
+- [x] `yarn build`
+
+---
+
+# Alimento (ingresos/traslados) en el mismo archivo de carga masiva de engorde
+
+Plan: [fase_de_desarrollo/carga_masiva_alimento_engorde_plan.md](fase_de_desarrollo/carga_masiva_alimento_engorde_plan.md)
+
+Caso testigo: galpon 6 (`G0471`) de DAYLAND (granja 107, ItalcolPanama), lote `13 - 1` (id 142).
+**Meta: dejar 2.235,33 kg en el inventario del galpon.**
+
+**Decisiones del usuario:** hoja `Alimento` nueva en el mismo .xlsx - el consumo diario descuenta SOLO
+por la via `Alimento 1/2 Mixto` (no se toca el backend del consumo directo) - la primera semana
+(reproductora) tambien debe descontar.
+
+## Fase 0 - Diagnostico
+
+- [x] Balance verificado al kilo: 155.188,243 ingresado - 7.166,829 (semana 1) - 145.786,084 (dias 8-41) = **2.235,330**
+- [x] Dry-run real contra `POST /api/Migracion/validar`: 2 filas con error (`PREINICIO`/`INICIO`/`ENGORDE` no son alimentos del catalogo)
+- [x] Inventario de la granja 107 confirmado **vacio** (0 stock, 0 movimientos)
+- [x] Confirmado que el consumo directo NO descuenta inventario (metadata null en las 34 filas)
+- [x] Kardex cronologico: el saldo se va a negativo del 28/06 al 12/07 (fondo -10.634,13 el 05/07) => el orden de proceso (alimento primero) es parte del contrato
+- [x] Verificado que el desglose por fases del usuario coincide al kilo con el agotamiento real (residuo 0,069 kg ajustado el 23/06)
+
+## Fase 1 - Fix de usabilidad: mensajes con el titulo mixto
+
+- [x] `FilaCruda.Encabezados` (clave normalizada -> texto original del Excel) + helper `EtiquetaColumna`
+- [x] `LeerAlimentoSlot`, aviso de consumo ignorado y aviso de pesaje citan la columna real del archivo
+- [x] Verificado en vivo: los errores ahora dicen `Alimento 1 Mixto` / `Peso Mixto (g)` (antes `Alimento 1 H`, columna inexistente en la plantilla mixta)
+
+## Fase 2 - Hoja `Alimento`
+
+- [x] `MigracionEsquemas.AlimentoEngorde` (14 columnas; solo Fecha/Alimento/Cantidad obligatorias)
+- [x] `Application/Calculos/MigracionAlimentoCalculos.cs` (puro: movimiento, origen, simulacion, proyeccion, clave de idempotencia)
+- [x] `MigracionService.AlimentoEngorde.cs` (partial nuevo: leer/validar/aplicar, delegando en `IInventarioGestionService`)
+- [x] `LeerHojaOpcionalConEsquema`: hoja ausente = sin error (archivos previos intactos)
+- [x] Orquestacion en `ProcesarSeguimientoEngordeAsync` (alimento -> simulacion -> seguimiento)
+- [x] Simulacion fail-closed con el faltante exacto en kg; nada se inserta
+- [x] Idempotencia por (movimiento, ubicacion, item, fecha, cantidad, referencia)
+- [x] **Fix**: `decimal` conserva la escala; `2717.5` (Excel) y `2717.500` (numeric) daban claves distintas y el reintento duplicaba 2 ingresos. Formato fijo `0.000`
+- [x] **Fix**: archivo con SOLO ingresos (hoja Datos vacia) cortaba como "archivo vacio" antes de leer la hoja
+- [x] Plantilla: hoja `Alimento` + dropdown de alimentos + instrucciones
+- [x] `MigracionAlimentoCalculosTests.cs` (49 casos)
+
+## Fase 3 - Reproductora engorde descuenta la primera semana
+
+- [x] `Alimento 1/2 H-M` en `MigracionEsquemas.SeguimientoReproductoraEngorde` (opcionales, aditivas)
+- [x] Lectura en `MigracionService.SeguimientoReproductora.cs` (reusa `LeerAlimentoSlot`)
+- [x] **Fix**: `CreateSeguimientoDiarioLoteReproductoraRequest.BuildMetadata` no persistia `itemInventarioEcuadorId` => el consumo NUNCA descontaba (registro guardado, inventario intacto)
+- [x] Verificado en vivo: 300 + 450,5 kg descontados del galpon, movimientos fechados 12/06 y 13/06
+
+## Fase 4 - Kardex ordenado
+
+- [x] `FechaMovimiento` en `InventarioGestionConsumoRequest` (default null = comportamiento previo)
+- [x] `RegistrarConsumoAsync` usa `ResolveMovimientoCreatedAt` (simetria con `RegistrarIngresoAsync`)
+- [x] Seguimiento engorde y reproductora pasan la fecha del registro
+- [x] Verificado: 24 ingresos 04/06-18/07 y 36 consumos 15/06-18/07 (antes todos caian el dia de la carga)
+
+## Fase 5 - Front
+
+- [x] El saldo proyectado por alimento viaja como advertencia y el reporte existente ya lo renderiza (sin cambio de flujo)
+- [x] Columna "Fila" muestra "-" en los mensajes de archivo (fila 0), no un "0" que manda a buscar una fila inexistente
+
+## Fase 6 - Verificacion punta a punta (backend de prueba en :5011, copia aislada)
+
+- [x] Archivo real armado: `CargaMasiva_Engorde_GALPON6_con_ALIMENTO.xlsx` (Datos 34 filas + Alimento 24 filas)
+- [x] Dry-run limpio: `Validado`, 0 errores, saldo proyectado **2.235,331 kg**
+- [x] Import real: 58 filas procesadas, stock del galpon **2.235,331 kg** en AV. SUPER POLLO ENGORDE (INICIACION en 0)
+- [x] Reintento idempotente: 0 procesadas / 58 omitidas, stock sin cambios
+- [x] Fail-closed: quitando un ingreso de 14.239,771 kg => rechazo con "faltan 12.004,440 kg" y **cero** filas insertadas
+- [x] Regresion: archivo sin hoja `Alimento` se comporta igual que antes (mismos 2 errores de fila)
+- [x] Archivo con solo ingresos (hoja Datos vacia): 24 movimientos aplicados
+- [x] `dotnet build` 0 errores / 0 advertencias - `dotnet test` **1153/1153** - `yarn build` OK (solo el warning de bundle budget preexistente)
+- [x] BD local restaurada al estado previo (galpon 6 intacto: 41 seguimientos + 14 de reproductora) y sin procesos huerfanos
+
+## Fase 7 - Movimiento `Consumo` en la hoja `Alimento`
+
+Necesario para reparar lotes ya cargados: los 7 dias de la primera semana viven en reproductora y estan
+CONFIRMADOS -> `UpdateAsync` los rechaza ("El registro esta confirmado y no puede editarse") y
+`DeleteAsync` exige reabrir el lote con novedad. Sin una salida manual, ese alimento queda como sobrante
+fantasma para siempre. Espeja `POST /inventario-gestion/consumo`, que ya existe en la pantalla.
+
+- [x] `MovimientoAlimento.Consumo` + alias en `TryMovimiento`
+- [x] Opcion "Consumo" en la columna Movimiento del esquema
+- [x] Se aplica con `RegistrarConsumoAsync` (fecha del movimiento = fecha de la fila)
+- [x] Cuenta como SALIDA en la simulacion de balance
+- [x] Idempotencia: solo los consumos con referencia propia entran (los del seguimiento llevan
+      "Seguimiento aves engorde #..." y no deben taparse entre si)
+- [x] Advertencia si un Consumo viene sin Referencia (dos salidas iguales del mismo dia se tomarian por repetidas)
+- [x] Tests + instrucciones de la plantilla
+
+## Fase 8 - REPARACION DEL GALPON 6 (lote 142, ejecutada)
+
+Archivo: `REPARACION_GALPON6_DAYLAND_lote13-1.xlsx` (Datos 34 filas + Alimento 24 ingresos + 7 consumos).
+
+- [x] Backup completo en `backup_g6/` (8 tablas: seguimientos, lote, reproductoras, inventario, historial)
+- [x] Borrados los 34 seguimientos de los dias 8-41 via `DELETE /api/SeguimientoAvesEngorde/{id}` (34/34 OK).
+      Aves devueltas correctamente: hembras 22.816 -> 24.265 (+1.449 = mortalidad de esos dias)
+- [x] Los 7 dias de cruce (origen_cruce) NO se tocaron
+- [x] Dry-run: `Validado`, 0 errores, saldo proyectado 2.235,332
+- [x] Import: 65 filas procesadas (34 seguimientos + 24 ingresos + 7 consumos)
+- [x] **Inventario del galpon 6 = 2.235,332 kg** (PREINICIADOR 0,000 - INICIACION 0,000 - ENGORDE 2.235,332)
+- [x] Kardex: 24 ingresos 04/06-18/07 + 43 consumos 08/06-18/07, con referencias `SEM1-*` (primera semana)
+      y `Seguimiento aves engorde #...` (dias 8-41)
+- [x] Aves del lote de vuelta en 22.816 / 24.165 / 0 (identico al estado previo)
+- [x] Consumo total del lote 152.952,912 kg - identico al backup
+- [x] Reintento idempotente: 0 procesadas / 65 omitidas
+- [x] Unico dato distinto (y es una CORRECCION): el backup traia peso 572,04 repetido en 15/06, 22/06,
+      29/06, 06/07 y 13/07 - restos del archivo `MIXTO 1`. Ahora los pesos quedan solo en los dias de
+      pesaje reales (21/06 572,04 - 28/06 1.135 - 05/07 1.816 - 12/07 2.238,22), como en `MIXTO 2`
+- [x] `dotnet build` 0/0 - `dotnet test` **1158/1158**
+
+## Fase 9 - Hoja `Reproductora`: un solo cargue para todo el lote
+
+Pedido: centralizar en un unico archivo. Cada hoja se identifica por NOMBRE y va a su modulo,
+reutilizando las funciones que ya existen (no se duplica logica de validacion).
+
+```
+Excel  ├── Alimento       -> inventario (ingresos / traslados / recepciones / consumos)
+       ├── Reproductora   -> seguimiento reproductora (dias 1-7, cruza solo a engorde)
+       └── Datos          -> seguimiento engorde (dias 8+)
+```
+
+- [x] **Refactor sin cambio de comportamiento**: el parseo de reproductora sale de
+      `ProcesarSeguimientoReproductoraAsync` a `ParsearFilasReproductoraAsync` (mismas reglas, mismos
+      mensajes). La linea de migracion dedicada lo sigue usando igual
+- [x] `MigracionEsquemas.ReproductoraEnHoja` = `SeguimientoReproductoraEngorde with { Hoja = "Reproductora" }`
+      (mismas columnas, alias y orden: validar por una via u otra da identico resultado)
+- [x] Lectura opcional de la hoja en `ProcesarSeguimientoEngordeAsync`
+- [x] Orden de proceso: **Alimento -> Reproductora -> Datos** (el galpon tiene stock antes de que la
+      primera semana y los dias 8+ lo consuman; la reproductora se confirma, que es lo que gatea el cruce)
+- [x] El consumo de la primera semana entra en la simulacion de balance
+- [x] Plantilla: la hoja se genera junto a Datos y Alimento + instrucciones del orden
+- [x] Tests: nombres de hoja distintos, equivalencia columna a columna con la linea dedicada,
+      claves de lectura identicas
+- [x] **Smoke con las 3 hojas en un archivo** (lote 149): 36 filas procesadas
+      - 28 registros de reproductora, todos CONFIRMADOS (3.080 kg)
+      - 7 dias 1-7 de engorde generados por el CRUCE automatico (11/06-17/06)
+      - 5 dias 8+ de engorde de la hoja Datos (19/06-23/06)
+      - 3 ingresos de alimento (13.000 kg)
+      - Inventario: PRE 1.920 / INI 550 / ENG 300 - exactamente lo proyectado en el dry-run
+- [x] Fail-closed verificado en el mismo smoke: con ENGORDE en 3.000 kg y consumo de 3.700 rechaza
+      con "faltan 700,000 kg"
+- [x] Reintento idempotente: 0 procesadas / 36 omitidas, stock sin cambios
+- [x] Regresion: la linea dedicada `SeguimientoReproductoraEngorde` (hoja "Datos") sigue funcionando
+- [x] `dotnet build` 0/0 - `dotnet test` **1165/1165**
+- [x] BD local limpia; galpon 6 sigue en **2.235,332 kg** y el lote 142 intacto (41 + 14 registros)
+
+## Fase 10 - Recarga completa del galpon 6 con UN SOLO archivo (ejecutada)
+
+Se limpio el seguimiento de reproductora y se recargo TODO el lote desde
+`LOTE_13-1_GALPON6_COMPLETO_3HOJAS.xlsx` (Reproductora 14 + Datos 34 + Alimento 24).
+Diferencia con la Fase 8: la primera semana ya NO entra como movimiento manual "Consumo" sino por su
+propio camino -- el seguimiento de reproductora con `Alimento 1 H/M` -- asi que el kardex queda
+trazable registro por registro.
+
+### Limpieza (por los endpoints oficiales, no por SQL)
+
+- [x] Backup v2 del estado post-reparacion (`backup_g6_v2/`, 6 tablas)
+- [x] `POST /api/LoteReproductoraAveEngorde/{61,62}/reabrir` con novedad -> HTTP 200
+- [x] 14 seguimientos de reproductora borrados por endpoint (permisos
+      `seguimiento_reproductora_engorde.eliminar`; sin el, 403)
+- [x] El trigger de cruce borro SOLO los 7 dias 1-7 de engorde (41 -> 34), como debe
+- [x] 34 seguimientos de engorde borrados por endpoint (aves devueltas)
+- [x] Inventario del galpon a cero
+
+### Carga y resultado
+
+- [x] Dry-run: `Validado`, 0 errores, saldo proyectado 2.235,332 (los 3 alimentos)
+- [x] Import: **72 filas** (14 reproductora + 34 engorde + 24 ingresos), 0 errores
+- [x] Reproductora: 14 registros, **los 14 confirmados**, 7.166,832 kg
+- [x] Engorde dias 1-7: 7 registros generados por el CRUCE automatico (08/06-14/06)
+- [x] Engorde dias 8-41: 34 registros (15/06-18/07)
+- [x] **Inventario del galpon 6 = 2.235,332 kg** (PREINICIADOR 0,000 - INICIACION 0,000)
+- [x] Kardex 100% trazable: 24 ingresos `LLEG-*` + 14 consumos `Seguimiento reproductora #...`
+      + 36 consumos `Seguimiento aves engorde #...` = 152.952,912 kg. Ningun movimiento manual
+- [x] Reintento idempotente: 0 procesadas / 72 omitidas
+- [x] Contra el backup: 41 seguimientos, consumo 152.952,912, mortalidad 1.830, aves 22.816 / 24.165,
+      14 de reproductora y stock 2.235,332 -- todo identico
+- [x] Lotes reproductora sin cambios salvo el rastro de la reapertura (`novedad_apertura` +
+      `reabierto_at`), que es auditoria legitima
+- [x] `dotnet build` 0/0 - `dotnet test` **1165/1165** - sin procesos huerfanos
+
+## Fase 11 - Archivo unico definitivo con guia y ejemplos
+
+`CARGA_UNICA_LOTE_13-1_GALPON6.xlsx` — fusion de los 3 archivos del usuario en uno solo, con seis hojas:
+
+| Hoja | Filas | Se carga |
+|---|---|---|
+| GUIA | 32 lineas | no (explicacion + cuadre del lote) |
+| Reproductora | 14 | SI - dias 1-7 (con `Alimento 1 H/M`) |
+| Datos | 34 | SI - dias 8-41 (con `Alimento 1/2 Mixto`) |
+| Alimento | 24 | SI - llegadas al galpon |
+| EJEMPLOS | 7 casos | no (traslado, recepcion, consumo, quintales, bodega) |
+| REFERENCIAS | catalogo | no (8 alimentos, ubicacion, reproductoras, movimientos) |
+
+- [x] 17 comentarios de celda explicando cada columna sensible sobre el propio encabezado
+- [x] Hoja GUIA con el cuadre del lote y la regla clave (solo `Alimento 1/2` descuenta inventario)
+- [x] Hoja EJEMPLOS con los casos que este lote no tiene, listos para copiar
+- [x] **Bug propio detectado por el sistema**: una nota explicativa en la celda de la columna
+      "Reproductora" se leyo como el nombre de una reproductora -> `ConErrores`. Las explicaciones se
+      movieron a comentarios de celda (que el importador nunca lee). El fail-closed hizo su trabajo
+- [x] **Fix de redondeo**: los kg reservados para la semana 1 se calculan sumando las CELDAS ya
+      redondeadas a 3 decimales, no los decimales completos; con la suma original el PREINICIADOR
+      quedaba con 1 g de sobrante inexistente
+- [x] Validado e importado contra el backend: `Validado` 0 errores -> `Procesado` 72 filas
+- [x] **Inventario: PREINICIADOR 0,000 · INICIACION 0,000 · ENGORDE 2.235,332 = 2.235,332 kg**
+- [x] Reintento idempotente: 0 procesadas / 72 omitidas, stock sin cambios
+- [x] Estado final del lote 142: 41 seguimientos + 14 de reproductora, aves 22.816 / 24.165
+
+## Fase 12 - Validacion de edad, descuento de aves y cuadre (lote 142)
+
+### Resultado de la validacion
+
+| Punto | Estado |
+|---|---|
+| Numeracion desde dia 1 (engorde) | **OK** - edad backend 0..40 -> pantalla dia 1..41 |
+| Numeracion desde dia 1 (reproductora) | **OK** - edad 0..6 -> dia 1..7, ambas reproductoras |
+| Descuento de aves en el REPORTE | **OK** - 48.430 - 1.830 = 46.600 |
+| Descuento de aves en el MAESTRO | **BUG** - 46.981 (+381, las bajas de los dias 1-7) |
+| Inventario de alimento | **OK** - kardex y stock coinciden en 2.235,332 |
+| Saldo de alimento del REPORTE | **BUG** - 12.869,459 (+10.634,13) |
+
+### Bug 1 - las bajas de los dias 1-7 no llegaban al maestro (CORREGIDO)
+
+Los dias 1-7 los inserta el trigger SQL del cruce, sin pasar por el service, asi que su mortalidad
+nunca movia `hembras_l/machos_l`. El maestro es el stock que valida ventas y traslados: el sistema
+habria dejado despachar 381 aves ya muertas.
+
+- [x] `RetiroAvesEngordeAplicador.SincronizarCruceAsync`: aplica las bajas del cruce con la MISMA
+      logica idempotente de los dias 8+; revierte las filas de historico cuyo seguimiento ya no existe
+      (el cruce borra y recrea sus registros al regenerarse)
+- [x] Llamado desde `ConfirmarAsync` (tambien en el camino idempotente, que es la via de backfill de
+      lotes ya cargados) y desde `DeleteAsync` de reproductora
+- [x] Verificado en el lote 142: maestro 46.981 -> **46.600**, hembras -197 y machos -184
+- [x] Idempotente: 4 confirmaciones seguidas dejan el maestro en 46.600
+
+### Bug 2 - el saldo de alimento del reporte se inflaba (CORREGIDO A MEDIAS)
+
+El piso en 0 recortaba el saldo cada dia que se iba negativo; como las llegadas estan fechadas
+despues del consumo, cada recorte regalaba alimento inexistente.
+
+- [x] `SeguimientoAvesEngordeCalculos`: quitados los dos pisos (apertura y bucle principal)
+- [x] `fn_seguimiento_diario_engorde` **v9**: quitado el reseteo de base de Lindley (deshace el M1 de
+      v6, may-2026) en la apertura y en la columna final. **Habia DOS motores del mismo saldo** y el
+      diagnostico inicial solo vio el de C#; sin esto quedaban desalineados
+- [x] Tests actualizados + 2 nuevos con el caso real (llegadas fechadas despues del consumo)
+- [x] Los dos motores ahora coinciden: -9.894,306 en ambos
+- [x] Corregido tambien el tercer factor (ver abajo) -> el reporte cierra contra el inventario
+
+### Hallazgo 3 - alimento anterior al encasetamiento (CORREGIDO)
+
+El calculo descarta los movimientos anteriores a la fecha de encaset (para no arrastrar alimento de
+ciclos previos del galpon). Pero en engorde el PREINICIADOR llega antes que los pollitos:
+
+```
+Ingreso 04/06 (PREINICIADOR, 4 dias antes del encaset)   12.129,638 kg  <- descartado
+Ingresos desde el encaset (25 movimientos)              147.231,698 kg
+Saldo del reporte                                        -9.894,306 kg
+Stock real                                                2.235,332 kg
+Diferencia                                               12.129,638 kg  = el ingreso descartado
+```
+
+**Decision del usuario: ventana previa configurable.**
+
+- [x] `Application/Calculos/VentanaAlimentoPrevioCalculos.cs` (puro): default 10 dias, tope 30,
+      normalizacion fail-safe. 10 queda por debajo del vacio sanitario tipico (10-14) para que la
+      ventana no alcance el cierre del ciclo anterior
+- [x] `companies.dias_alimento_previo_encaset` (int NOT NULL DEFAULT 10) - parametro operativo, no
+      flag de comportamiento: cada empresa lo ajusta a su vacio sanitario
+- [x] Aplicado en el C# (`SeguimientoAvesEngordeCalculos`, el service lee el valor de la empresa) y
+      en la fn SQL v9 (`lote_info.fecha_corte_alimento`, join a `companies`)
+- [x] Migracion `20260728045739_AddVentanaAlimentoPrevioEncaset` (columna + fn v9, idempotente),
+      generada con EF tools 10 y verificada aplicandose sola al arrancar
+- [x] `VentanaAlimentoPrevioCalculosTests` (12 casos) + 1 test nuevo del saldo con ventana
+
+### CUADRE FINAL DEL LOTE 142 (verificado punta a punta)
+
+| | reporte | referencia | |
+|---|---|---|---|
+| Dia del primer registro | 1 | edad 0 | OK |
+| Dia del ultimo registro | 41 | edad 40 | OK |
+| Aves ultimo dia | 46.600 | maestro 46.600 = encasetadas - bajas | **OK** |
+| Alimento ultimo dia | 2.235,332 kg | stock real 2.235,332 kg | **OK** |
+
+El saldo diario ahora es honesto: el 17/07 marca -1.133,080 kg (ese dia el consumo supero lo
+recibido) y el 18/07 se recupera a 2.235,332 con la ultima llegada.
+
+- [x] `dotnet build` 0/0 - `dotnet test` **1185/1185** - `yarn build` OK
+
+### Validacion
+
+- [x] `dotnet build` 0/0 - `dotnet test` **1167/1167**
+- [x] `fn_seguimiento_diario_engorde` v9 aplicada en la BD local
+- [ ] Migracion EF para publicar la fn v9 (pendiente de la decision del hallazgo 3)
+
+## Fase 13 - Validacion sobre la BD de PRODUCCION + reemplazo de dias ya cargados
+
+BD local reemplazada por el dump de produccion (183 migraciones, sin la nuestra). Estado del lote 142
+en prod: **virgen** — 0 seguimientos de engorde, 0 de reproductora, 0 stock, aves intactas
+(24.265 H + 24.165 M = 48.430).
+
+### Migracion aplicada sola al arrancar
+
+- [x] `20260728045739_AddVentanaAlimentoPrevioEncaset` (columna + fn v9) se aplico al bootear
+- [x] Las 5 empresas quedaron con `dias_alimento_previo_encaset = 10`
+
+### Carga del archivo unico sobre datos de produccion
+
+- [x] Dry-run: `Validado`, 0 errores, saldo proyectado 2.235,332
+- [x] Import: **72 filas** (14 reproductora + 34 engorde + 24 ingresos), 0 errores
+- [x] 41 dias del **1 al 41**, 14 registros de reproductora confirmados
+- [x] AVES: encasetadas 48.430 - bajas 1.830 = **46.600**, y el maestro tambien 46.600
+- [x] ALIMENTO: reporte **2.235,332 kg** = stock real 2.235,332 kg
+      (PREINICIADOR 0,000 - INICIACION 0,000 - ENGORDE 2.235,332)
+
+### Cambio pedido: una fecha ya cargada se REEMPLAZA, ya no se omite
+
+- [x] `existentes` pasa de HashSet a diccionario con el id del registro
+- [x] Las filas ya cargadas van a `actualizables` -> `UpdateAsync`, que ajusta aves e inventario por
+      la DIFERENCIA contra lo que habia (reemplazar con los mismos valores no mueve nada)
+- [x] **Los dias 1-7 del cruce siguen omitiendose**: su fuente es reproductora y pisarlos desde la
+      hoja Datos los dejaria peleados con su origen
+- [x] El dry-run AVISA cuantos dias se van a reemplazar y con que fechas
+- [x] **Bug encontrado y corregido**: EF reventaba con `Unexpected entry.EntityState: Detached` en la
+      segunda actualizacion. El DbContext es scoped y arrastra todo el import; `UpdateAsync` recalcula
+      el saldo de TODO el lote y deja los 41 seguimientos en el tracker. Se limpia el ChangeTracker
+      antes de cada actualizacion
+- [x] Probado con 2 dias modificados: mort 29->50 y 20->5, consumo 2.086,546->2.500 y ->1.673,092
+      - dias: siguen 41 (no duplica)
+      - aves: 46.600 -> **46.594** (-6, exactamente el delta de mortalidad)
+      - stock: **2.235,332 sin cambios** (el consumo total no vario)
+- [x] Restaurado con el archivo definitivo: todo vuelve a 46.600 aves y 2.235,332 kg
+
+- [x] `dotnet build` 0/0 - `dotnet test` **1185/1185**

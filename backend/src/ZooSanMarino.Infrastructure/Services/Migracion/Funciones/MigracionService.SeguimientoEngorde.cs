@@ -48,7 +48,12 @@ public partial class MigracionService
     /// <summary>Lote engorde abierto con los nombres de su ubicación, para resolver filas por texto.</summary>
     private sealed record LoteEngordeUbicado(
         int LoteId, string LoteNombre, DateTime? FechaEncaset, TimeOnly? HoraEncaset, string GranjaNombre,
-        string? NucleoCodigo, string? NucleoNombre, string? GalponCodigo, string? GalponNombre);
+        string? NucleoCodigo, string? NucleoNombre, string? GalponCodigo, string? GalponNombre,
+        int GranjaId = 0)
+    {
+        /// <summary>Ubicación de stock del lote: es de donde sale el alimento que consume.</summary>
+        public UbicacionAlimento Ubicacion => new UbicacionAlimento(GranjaId, NucleoCodigo, GalponCodigo).Normalizada();
+    }
 
     /// <summary>
     /// Lotes engorde ABIERTOS de la empresa con granja/núcleo/galpón resueltos a nombre, más un índice
@@ -94,7 +99,8 @@ public partial class MigracionService
                 nucleoCodigo,
                 nucleoCodigo is null ? null : nucleoPorClave.GetValueOrDefault((l.GranjaId, nucleoCodigo)),
                 galponCodigo,
-                galponCodigo is null ? null : galponPorClave.GetValueOrDefault((l.GranjaId, galponCodigo)));
+                galponCodigo is null ? null : galponPorClave.GetValueOrDefault((l.GranjaId, galponCodigo)),
+                l.GranjaId);
         }).ToList();
 
         var porNombre = ubicados.GroupBy(l => MigracionCalculos.NormalizarClave(l.LoteNombre))
@@ -166,8 +172,14 @@ public partial class MigracionService
         FilaCruda fila, List<MigracionErrorDto> errores,
         Dictionary<string, List<(int Id, string Nombre)>> alimentos, string unidadConsumo,
         List<ItemSeguimientoDto> destino,
-        string colAlimento, string[] headersAlimento, string colConsumo, string[] headersConsumo)
+        string colAlimentoCanonico, string[] headersAlimento, string colConsumoCanonico, string[] headersConsumo)
     {
+        // Los mensajes citan la columna TAL COMO figura en el archivo del usuario. En la plantilla
+        // MIXTA de Panamá las columnas se llaman "Alimento 1 Mixto"/"Consumo Alimento 1 Mixto" (alias
+        // de las canónicas "… H"): nombrar la canónica mandaba a buscar una columna que no existe.
+        var colAlimento = EtiquetaColumna(fila, colAlimentoCanonico, headersAlimento);
+        var colConsumo = EtiquetaColumna(fila, colConsumoCanonico, headersConsumo);
+
         var nombreTxt = MigracionCalculos.TextoLimpio(Celda(fila, headersAlimento));
         int e0 = errores.Count;
         var cantidad = DecimalNoNeg(fila, errores, colConsumo, headersConsumo);
@@ -216,34 +228,61 @@ public partial class MigracionService
         if (loteCtx is null) return ErrorContexto(tipo, dryRun, errLote!);
 
         var errores = new List<MigracionErrorDto>();
-        using var stream = file.OpenReadStream();
-        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        List<FilaCruda> filas;
+        using (var stream = file.OpenReadStream())
+            filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
         if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
-        if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
 
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
-            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento, string.Empty, null, null, null, null);
+            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento,
+                string.Empty, loteCtx.NucleoId, null, loteCtx.GalponId, null, loteCtx.GranjaId);
 
-        // (lote, fecha) ya cargados de TODOS los lotes abiertos (idempotencia multi-lote en una consulta;
-        // incluye filas origen_cruce de días 1-7).
+        // Hoja "Alimento" (OPCIONAL): movimientos de inventario que deben existir ANTES de que el
+        // consumo del seguimiento los descuente. Un archivo sin la hoja sigue el camino de siempre.
+        // Se lee ANTES del corte por "archivo vacío": un archivo que trae SOLO entradas de alimento
+        // (hoja Datos en blanco) es un caso válido — cargar el inventario del galpón antes de digitar
+        // el seguimiento — y cortar antes lo rechazaba como si estuviera vacío.
+        var movimientosAlimento = await LeerHojaAlimentoAsync(file, companyId, loteCtxUbicado, errores, ct);
+
+        // Hoja "Reproductora" (OPCIONAL): la PRIMERA SEMANA del lote. Se digita en reproductora y el
+        // trigger de cruce la vuelca a los días 1-7 de engorde. Reutiliza el mismo parseo que la línea
+        // de migración dedicada, así que un archivo unificado valida idéntico a cargarla por separado.
+        var filasRepro = LeerHojaOpcionalConEsquema(file, MigracionEsquemas.ReproductoraEnHoja, errores);
+        var parseoRepro = filasRepro.Count > 0
+            ? await ParsearFilasReproductoraAsync(filasRepro, companyId, ctx, loteCtxId, loteCtx, errores, ct)
+            : null;
+        if (parseoRepro?.ErrorContexto is string errRepro)
+            errores.Add(new(0, "Reproductora", null, $"Hoja 'Reproductora': {errRepro}"));
+
+        if (filas.Count == 0 && movimientosAlimento.Count == 0 && filasRepro.Count == 0 && errores.Count == 0)
+            return ResultadoVacio(tipo, dryRun);
+
+        // (lote, fecha) ya cargados de TODOS los lotes abiertos, con su id: una fecha repetida ya no se
+        // omite, se ACTUALIZA con lo que trae el archivo (el archivo es la version vigente del dia).
+        // Las filas de origen_cruce (dias 1-7) son la excepcion: las escribe el trigger de reproductora
+        // y pisarlas desde aca las dejaria peleadas con su origen.
         var idsAbiertos = lotesUbicados.Select(l => l.LoteId).ToList();
         if (!idsAbiertos.Contains(loteCtxId)) idsAbiertos.Add(loteCtxId);
         var existentes = (await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                 .Where(s => idsAbiertos.Contains(s.LoteAveEngordeId))
-                .Select(s => new { s.LoteAveEngordeId, s.Fecha })
+                .Select(s => new { s.Id, s.LoteAveEngordeId, s.Fecha, s.OrigenCruce })
                 .ToListAsync(ct))
-            .Select(x => (x.LoteAveEngordeId, x.Fecha.Date))
-            .ToHashSet();
+            .GroupBy(x => (x.LoteAveEngordeId, x.Fecha.Date))
+            .ToDictionary(g => g.Key, g => g.First());
 
         // El flag de la empresa se resuelve UNA vez: dentro del loop serían N consultas iguales.
         var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
 
         var dtos = new List<SeguimientoLoteLevanteDto>();
+        var actualizables = new List<SeguimientoLoteLevanteDto>();   // dias ya cargados que el archivo reemplaza
         var fechasVistas = new HashSet<(int LoteId, DateTime Fecha)>();
         int omitidas = 0;
         var hoyUtc = DateTime.UtcNow.Date;
+        // Consumo de alimento que el archivo va a descontar, por (ubicación, ítem): entra en la
+        // simulación de balance junto con las entradas de la hoja "Alimento".
+        var salidasAlimento = new Dictionary<PosicionAlimento, decimal>();
 
         foreach (var fila in filas)
         {
@@ -276,7 +315,10 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Fecha", null, "Fecha inválida o faltante.")); continue; }
             if (!fechasVistas.Add((lote.LoteId, fecha.Date)))
             { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), $"Fecha repetida en el archivo para el lote {lote.LoteNombre}.")); continue; }
-            if (existentes.Contains((lote.LoteId, fecha.Date))) { omitidas++; continue; } // ya existe → idempotente, se omite
+            // Ya cargado: los dias del cruce se respetan (su fuente es reproductora); el resto se
+            // marca para actualizar con los valores del archivo.
+            existentes.TryGetValue((lote.LoteId, fecha.Date), out var yaCargado);
+            if (yaCargado is not null && yaCargado.OrigenCruce) { omitidas++; continue; }
 
             // Regla de fecha (alineada al front): nunca anterior al PRIMER DÍA CON REGISTRO del lote,
             // que es el encaset o el día siguiente si las aves llegaron a las 13:00 o después. Futura
@@ -343,18 +385,28 @@ public partial class MigracionService
             consM = MigracionCalculos.ConsumoAKilos(consM, unidadConsumo);
 
             if (itemsH.Count > 0 && consH is > 0)
-                errores.Add(new(fila.Numero, "Consumo H (kg)", consH.Value.ToString("0.###"), "Se ignora el consumo directo H: la fila trae Alimento 1/2 H (el consumo sale de esos alimentos).", "Advertencia"));
+            {
+                var colConsumoH = EtiquetaColumna(fila, "Consumo H (kg)", ClavesEngorde("Consumo H (kg)"));
+                var colAlim1 = EtiquetaColumna(fila, "Alimento 1 H", ClavesEngorde("Alimento 1 H"));
+                errores.Add(new(fila.Numero, colConsumoH, consH.Value.ToString("0.###"), $"Se ignora el consumo directo de '{colConsumoH}': la fila trae '{colAlim1}' (el consumo sale de esos alimentos).", "Advertencia"));
+            }
             if (itemsM.Count > 0 && consM is > 0)
                 errores.Add(new(fila.Numero, "Consumo M (kg)", consM.Value.ToString("0.###"), "Se ignora el consumo directo M: la fila trae Alimento 1/2 M (el consumo sale de esos alimentos).", "Advertencia"));
 
-            // Día de pesaje obligatorio (espejo del modal: edad 1–7 y múltiplos de 7). En carga histórica
+            // Día de pesaje obligatorio (espejo del modal: días 1–7 y múltiplos de 7). En carga histórica
             // no bloquea (Advertencia): el modal sí lo exige al capturar el día a día.
+            // El número sobre el que se evalúa la regla depende de la empresa: con la regla de la hora
+            // de llegada activa es el DÍA DE NEGOCIO (el primer día con registro es el día 1, así el
+            // pesaje semanal cae al cierre de la semana); sin ella es la edad cruda, igual que siempre.
             if (lote.FechaEncaset.HasValue && pesoH is null && pesoM is null)
             {
                 var edad = (int)(fecha.Date - lote.FechaEncaset.Value.Date).TotalDays;
-                if ((edad >= 1 && edad <= 7) || (edad > 7 && edad % 7 == 0))
-                    errores.Add(new(fila.Numero, "Peso H (g)", fecha.ToString("yyyy-MM-dd"),
-                        $"Día {edad} (edad 1–7 o múltiplo de 7): es día de pesaje obligatorio y la fila no trae peso.", "Advertencia"));
+                var horaRegla = EncasetamientoCalculos.HoraEfectiva(lote.HoraEncaset, reglaHoraActiva);
+                var diaNegocio = EncasetamientoCalculos.DiaDeNegocio(fecha, lote.FechaEncaset.Value, horaRegla);
+                var diaRegla = PesajeEngordeCalculos.DiaParaReglaDePesaje(edad, diaNegocio, reglaHoraActiva);
+                if (PesajeEngordeCalculos.EsDiaDePesajeObligatorio(diaRegla))
+                    errores.Add(new(fila.Numero, EtiquetaColumna(fila, "Peso H (g)", ClavesEngorde("Peso H (g)")), fecha.ToString("yyyy-MM-dd"),
+                        $"Día {diaRegla} (días 1–7 o múltiplo de 7): es día de pesaje obligatorio y la fila no trae peso.", "Advertencia"));
             }
 
             // Tipo Alimento: el texto de la celda o, si no viene, los nombres de los alimentos usados.
@@ -394,35 +446,152 @@ public partial class MigracionService
                 Ciclo = "Normal",
                 CreatedByUserId = _current.UserId.ToString()
             };
-            dtos.Add(req.ToDto());
+            if (yaCargado is not null) actualizables.Add(req.ToDto((int)yaCargado.Id));
+            else dtos.Add(req.ToDto());
+
+            // Lo que esta fila va a sacar del inventario del galpón del lote.
+            foreach (var item in itemsH.Concat(itemsM))
+                if (item.ItemInventarioEcuadorId is int itemId && item.Cantidad > 0)
+                    MigracionAlimentoCalculos.Acumular(
+                        salidasAlimento, new PosicionAlimento(lote.Ubicacion, itemId), (decimal)item.Cantidad);
         }
 
-        return await EjecutarSeguimientoEngordeAsync(tipo, dryRun, permitirParcial, file.FileName, filas.Count, omitidas, errores, dtos, ct);
+        // Balance: stock actual + entradas de la hoja "Alimento" − consumos del seguimiento. Si alguna
+        // posición queda negativa el archivo se rechaza ENTERO con el faltante exacto. Sin esto, el
+        // descuento fallaba dentro de un catch que solo loguea: el día se guardaba y el galpón quedaba
+        // descuadrado sin ninguna señal.
+        var entradasAlimento = new Dictionary<PosicionAlimento, decimal>();
+        foreach (var m in movimientosAlimento)
+        {
+            var posDestino = new PosicionAlimento(m.Destino.Normalizada(), m.ItemId);
+            if (m.Movimiento is MovimientoAlimento.Ingreso or MovimientoAlimento.Recepcion)
+                MigracionAlimentoCalculos.Acumular(entradasAlimento, posDestino, m.CantidadKg);
+            else if (m.Movimiento is MovimientoAlimento.Consumo)
+                MigracionAlimentoCalculos.Acumular(salidasAlimento, posDestino, m.CantidadKg);
+            else if (m.Movimiento is MovimientoAlimento.Traslado && m.Origen is UbicacionAlimento origen)
+            {
+                MigracionAlimentoCalculos.Acumular(entradasAlimento, posDestino, m.CantidadKg);
+                MigracionAlimentoCalculos.Acumular(salidasAlimento, new PosicionAlimento(origen.Normalizada(), m.ItemId), m.CantidadKg);
+            }
+        }
+
+        // La primera semana consume del MISMO galpón: entra en el balance como cualquier otra salida.
+        foreach (var dto in parseoRepro?.Dtos ?? new List<SeguimientoLoteLevanteDto>())
+        {
+            if (dto.Metadata is null) continue;
+            foreach (var kv in MetadataEngordeCalculos.ParseMetadataItemsToKg(dto.Metadata.RootElement))
+                if (kv.Value > 0)
+                    MigracionAlimentoCalculos.Acumular(
+                        salidasAlimento, new PosicionAlimento(loteCtxUbicado.Ubicacion, kv.Key), kv.Value);
+        }
+
+        var posiciones = new HashSet<PosicionAlimento>(entradasAlimento.Keys);
+        foreach (var p in salidasAlimento.Keys) posiciones.Add(p);
+        var stockActual = await CargarStockPosicionesAsync(posiciones, ct);
+
+        foreach (var f in MigracionAlimentoCalculos.Simular(stockActual, entradasAlimento, salidasAlimento))
+        {
+            var nombre = await NombreAlimentoAsync(f.Posicion.ItemId, ct);
+            errores.Add(new(0, "Alimento", nombre,
+                $"No alcanza el stock de {nombre} en el galpón: el archivo consume {f.Requerido:N3} kg y solo hay {f.Disponible:N3} kg " +
+                $"(faltan {f.Faltante:N3} kg). Cargá la entrada que falta en la hoja 'Alimento' o corregí el consumo."));
+        }
+
+        var saldos = MigracionAlimentoCalculos.Proyectar(stockActual, entradasAlimento, salidasAlimento);
+
+        return await EjecutarSeguimientoEngordeAsync(
+            tipo, dryRun, permitirParcial, file.FileName, filas.Count, omitidas, errores, dtos,
+            movimientosAlimento, saldos, parseoRepro, actualizables, ct);
     }
 
     // ── Runner (valida → dry-run corta → CreateAsync fila por fila, sin TX externa, parcial opt-in) ─
     private async Task<MigracionResultDto> EjecutarSeguimientoEngordeAsync(
         TipoMigracion tipo, bool dryRun, bool permitirParcial, string nombreArchivo,
-        int total, int omitidas, List<MigracionErrorDto> errores, List<SeguimientoLoteLevanteDto> dtos, CancellationToken ct)
+        int total, int omitidas, List<MigracionErrorDto> errores, List<SeguimientoLoteLevanteDto> dtos,
+        List<MovimientoAlimentoFila> movimientosAlimento, IReadOnlyList<SaldoAlimentoProyectado> saldos,
+        ParseoReproductora? parseoRepro, List<SeguimientoLoteLevanteDto> actualizables, CancellationToken ct)
     {
-        if (total == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var dtosRepro = parseoRepro?.Dtos ?? new List<SeguimientoLoteLevanteDto>();
+        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0
+            && dtosRepro.Count == 0 && actualizables.Count == 0)
+            return ResultadoVacio(tipo, dryRun);
 
         var hayErroresReales = errores.Any(e => e.Severidad == "Error");
-        var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && dtos.Count > 0;
+        var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && (dtos.Count > 0 || actualizables.Count > 0);
 
         if (hayErroresReales && !puedeInsertarParcial)
             return ResultadoConErrores(tipo, dryRun, total, errores) with { FilasOmitidas = omitidas };
 
-        if (dryRun) return ResultadoOk(tipo, dryRun, total, errores) with { FilasOmitidas = omitidas };
+        if (dryRun)
+        {
+            // El dry-run informa el saldo que quedaría por alimento: es la cifra que el usuario compara
+            // contra su planilla de inventario ANTES de importar de verdad.
+            if (actualizables.Count > 0)
+                errores.Add(new(0, "Fecha", actualizables.Count.ToString(),
+                    $"{actualizables.Count} día(s) del archivo YA están cargados: al importar se REEMPLAZAN con estos valores " +
+                    $"({string.Join(", ", actualizables.OrderBy(d => d.FechaRegistro).Select(d => d.FechaRegistro.ToString("dd/MM")).Take(12))}" +
+                    $"{(actualizables.Count > 12 ? ", …" : "")}). Las aves y el inventario se ajustan por la diferencia.",
+                    "Advertencia"));
+
+            foreach (var s in saldos.Where(x => x.Entradas > 0 || x.Salidas > 0))
+                errores.Add(new(0, "Alimento", await NombreAlimentoAsync(s.Posicion.ItemId, ct),
+                    $"Saldo proyectado de {await NombreAlimentoAsync(s.Posicion.ItemId, ct)}: {s.SaldoInicial:N3} inicial + {s.Entradas:N3} entradas − {s.Salidas:N3} consumo = {s.SaldoFinal:N3} kg.",
+                    "Advertencia"));
+            return ResultadoOk(tipo, dryRun, total, errores) with { FilasOmitidas = omitidas };
+        }
+
+        var fallos = new List<MigracionErrorDto>();
+
+        // El alimento ENTRA primero: el consumo de cada día descuenta de un stock que ya tiene que
+        // existir. Invertir el orden es el bug que dejaba el galpón en cero.
+        var (movAplicados, movOmitidos) = await AplicarMovimientosAlimentoAsync(movimientosAlimento, fallos, ct);
+        omitidas += movOmitidos;
 
         int insertados = 0;
-        var fallos = new List<MigracionErrorDto>();
+
+        // Después del alimento y ANTES de la hoja Datos: la reproductora es la primera semana del lote
+        // y su trigger de cruce escribe los días 1-7 de engorde. Cada registro queda CONFIRMADO, que es
+        // lo que gatea ese cruce (idéntico a la línea de migración dedicada).
+        foreach (var dto in dtosRepro)
+        {
+            try
+            {
+                var creado = await _seguimientoReproductoraService.CreateAsync(dto);
+                await _seguimientoReproductoraService.ConfirmarAsync(creado.Id);
+                insertados++;
+            }
+            catch (Exception ex)
+            { fallos.Add(new(0, "Reproductora", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Hoja 'Reproductora': error al insertar/confirmar (reproductora {dto.LoteId}): {ex.Message}")); }
+        }
+        omitidas += parseoRepro?.Omitidas ?? 0;
+
         foreach (var dto in dtos)
         {
             try { await _seguimientoEngordeService.CreateAsync(dto); insertados++; }
             catch (Exception ex)
             { fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Error al insertar (lote {dto.LoteId}): {ex.Message}")); }
         }
+
+        // Días que ya estaban: el archivo manda. UpdateAsync ajusta aves e inventario por la DIFERENCIA
+        // contra lo que había, así que reemplazar un día con los mismos valores no mueve nada.
+        int actualizados = 0;
+        foreach (var dto in actualizables)
+        {
+            try
+            {
+                // El DbContext es scoped y viene de arrastrar todo el import (movimientos de alimento,
+                // reproductora, inserts). UpdateAsync recalcula el saldo de TODO el lote y deja los 41
+                // seguimientos en el tracker; en la vuelta siguiente EF encuentra entradas Detached en
+                // el mismo batch y revienta con "Unexpected entry.EntityState". Cada actualización
+                // arranca con el tracker limpio: carga lo suyo y guarda solo eso.
+                _ctx.ChangeTracker.Clear();
+                if (await _seguimientoEngordeService.UpdateAsync(dto) is not null) actualizados++;
+                else fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"No se encontró el registro a reemplazar (lote {dto.LoteId})."));
+            }
+            catch (Exception ex)
+            { fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Error al reemplazar el día ya cargado (lote {dto.LoteId}): {ex.Message}")); }
+        }
+        insertados += movAplicados + actualizados;
 
         var filasErrorValidacion = errores.Where(e => e.Severidad == "Error" && e.Fila > 0).Select(e => e.Fila).Distinct().Count();
 
@@ -461,6 +630,16 @@ public partial class MigracionService
         var ws = pkg.Workbook.Worksheets.Add("Datos");
         PonerEncabezados(ws, esquema);
 
+        // Hoja "Alimento": movimientos de inventario (entradas al galpón, traslados, recepciones) que
+        // se aplican antes del consumo. Opcional — se puede dejar vacía y el archivo funciona igual.
+        var wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoEngorde.Hoja);
+        PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoEngorde);
+
+        // Hoja "Reproductora": la primera semana del lote (días 1-7), que cruza sola a engorde.
+        // También opcional — el lote entero (semana 1 + días 8+ + inventario) cabe en UN archivo.
+        var wsRepro = pkg.Workbook.Worksheets.Add(MigracionEsquemas.ReproductoraEnHoja.Hoja);
+        PonerEncabezados(wsRepro, MigracionEsquemas.ReproductoraEnHoja);
+
         // Referencias: alimentos de la empresa (col A) + lotes abiertos con su ubicación (cols C..F).
         var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
         EscribirColumnaRef(wsRef, 1, "Alimentos (inventario de la empresa)", alimentos.Select(a => a.Nombre));
@@ -487,6 +666,7 @@ public partial class MigracionService
                 : new[] { "Tipo Alimento", "Alimento 1 H", "Alimento 2 H", "Alimento 1 M", "Alimento 2 M" };
             foreach (var titulo in columnasAlimento)
                 DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, titulo) + 1), rangoAlimentos);
+            DropdownRango(wsAlim, ColumnaLetra(IndiceColumna(MigracionEsquemas.AlimentoEngorde, "Alimento") + 1), rangoAlimentos);
         }
         if (lotesUbicados.Count > 0)
             DropdownRango(ws, ColumnaLetra(IndiceColumna(esquema, "Lote") + 1), $"Referencias!$F$2:$F${lotesUbicados.Count + 1}");
@@ -503,6 +683,34 @@ public partial class MigracionService
             "La carga es idempotente por lote+fecha: las fechas ya cargadas (incluidos los primeros días generados por",
             "cruce reproductora) se omiten. Al importar se descuentan las aves por mortalidad/selección y se",
             "recalcula el saldo de alimento de cada lote.",
+            "",
+            "HOJA 'Alimento' (opcional) — entradas de alimento al inventario, en el MISMO archivo:",
+            "• Una fila por movimiento: Fecha · Movimiento · Alimento · Cantidad. El resto es opcional.",
+            "• Movimiento: 'Ingreso' (default, alimento que llega de planta/bodega/otra granja), 'Traslado'",
+            "  (sale de una ubicación hacia otra), 'Recepción' (acepta un traslado que quedó en tránsito)",
+            "  o 'Consumo' (alimento que salió del galpón pero que ningún día de seguimiento descontó:",
+            "  la primera semana del lote, ya confirmada en reproductora, o un histórico viejo). El",
+            "  'Consumo' pide Referencia para poder distinguir dos salidas iguales del mismo día.",
+            "• Granja/Núcleo/Galpón vacíos ⇒ el movimiento va al galpón del lote elegido en pantalla.",
+            "  Para Traslado y Recepción indicá además Granja/Núcleo/Galpón Origen.",
+            "• Unidad: 'kg' (default) o 'qq' (×45.36), igual que en la hoja Datos.",
+            "• Referencia: número de remisión o factura. Sirve para distinguir DOS entradas del mismo",
+            "  alimento, el mismo día y por la misma cantidad (sin ella, la segunda se toma por repetida).",
+            "• Estos movimientos se aplican ANTES del consumo de la hoja Datos, para que el galpón tenga",
+            "  stock cuando el seguimiento lo descuenta. Si el consumo supera lo disponible, el archivo",
+            "  se rechaza indicando cuántos kg faltan (no se importa nada).",
+            "",
+            "HOJA 'Reproductora' (opcional) — la PRIMERA SEMANA del lote, en el MISMO archivo:",
+            "• Mismas columnas y reglas que la línea 'Seguimiento Reproductora Engorde': si preferís,",
+            "  podés seguir cargándola por separado desde ese menú y dejar esta hoja vacía.",
+            "• Los días 1 al 7 se digitan acá (por reproductora); el sistema los cruza solo a los días",
+            "  1-7 de pollo engorde. La hoja 'Datos' arranca en el día 8.",
+            "• Cada registro queda CONFIRMADO al importar (es lo que dispara ese cruce).",
+            "• Con 'Alimento 1/2 H-M' el consumo de esa semana DESCUENTA el stock del galpón.",
+            "",
+            "ORDEN DE PROCESO (una sola pasada): Alimento → Reproductora → Datos. Así el galpón tiene",
+            "stock antes de que la primera semana y los días 8+ lo consuman. Cada hoja se reconoce por",
+            "su NOMBRE y las que falten simplemente se omiten.",
         };
 
         var especificas = mixto

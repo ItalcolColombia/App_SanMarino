@@ -187,6 +187,40 @@ public static class MigracionEsquemas
     });
 
     /// <summary>
+    /// Hoja <c>Alimento</c> del archivo de seguimiento pollo engorde: movimientos de INVENTARIO de
+    /// alimento (ingresos a la granja/galpón, traslados y recepción de traslados en tránsito) que se
+    /// aplican ANTES de las filas de consumo de la hoja <c>Datos</c>, para que el galpón tenga stock
+    /// cuando el seguimiento lo descuenta.
+    /// <para>
+    /// Es una hoja OPCIONAL: un archivo sin ella se procesa exactamente como siempre. La ubicación
+    /// (Granja/Núcleo/Galpón) también es opcional — vacía, el movimiento va a la ubicación del lote
+    /// elegido en pantalla, que es el caso normal de "todo el alimento entró a este galpón".
+    /// </para>
+    /// </summary>
+    public static EsquemaMigracion AlimentoEngorde { get; } = new("Alimento", new ColumnaEsquema[]
+    {
+        new("Fecha",           Requerida: true),
+        new("Movimiento",      Requerida: false, Alias: new[] { "tipo movimiento", "tipo" },
+                               Opciones: new[] { "Ingreso", "Traslado", "Recepción", "Consumo" }),
+        new("Alimento",        Requerida: true,  Alias: new[] { "item", "producto", "tipo alimento" }),
+        new("Cantidad",        Requerida: true,  Alias: new[] { "cantidad kg", "kg", "cantidad (kg)" }),
+        new("Unidad",          Requerida: false, Alias: new[] { "unidad consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" }),
+        // Destino del movimiento. Vacío ⇒ ubicación del lote seleccionado en pantalla.
+        new("Granja",          Requerida: false, Alias: new[] { "nombre granja", "granja destino" }),
+        new("Núcleo",          Requerida: false, Alias: new[] { "nombre nucleo", "nucleo destino" }),
+        new("Galpón",          Requerida: false, Alias: new[] { "nombre galpon", "galpon destino" }),
+        // Origen: solo para Traslado / Recepción.
+        new("Granja Origen",   Requerida: false, Alias: new[] { "granja de origen", "desde granja" }),
+        new("Núcleo Origen",   Requerida: false, Alias: new[] { "nucleo de origen", "desde nucleo" }),
+        new("Galpón Origen",   Requerida: false, Alias: new[] { "galpon de origen", "desde galpon" }),
+        // Solo para Ingreso: de dónde viene (define el estado del movimiento en el histórico).
+        new("Origen",          Requerida: false, Alias: new[] { "origen tipo", "procedencia" },
+                               Opciones: new[] { "planta", "bodega", "granja" }),
+        new("Referencia",      Requerida: false, Alias: new[] { "remision", "factura", "documento" }),
+        new("Observaciones",   Requerida: false),
+    });
+
+    /// <summary>
     /// Seguimiento reproductora engorde (primera semana). El lote engorde sale de la fila (columnas de
     /// ubicación por NOMBRE, sin mayúsculas/acentos) o del seleccionado en pantalla; la columna
     /// "Reproductora" identifica el lote reproductora dentro de él (por id, código o nombre) y puede
@@ -212,6 +246,19 @@ public static class MigracionEsquemas
         // Unidad del consumo H/M: "kg" (default) o "qq" — con qq la carga convierte a kg (×45.36).
         new("Unidad Consumo",     Requerida: false, Alias: new[] { "unidad", "unidad de consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" }),
         new("Tipo Alimento",      Requerida: false),
+        // Hasta DOS alimentos del inventario por sexo, igual que en SeguimientoPolloEngorde: cuando la
+        // fila los trae, el consumo DESCUENTA el stock del galpón. Sin ellos, "Consumo H/M (kg)" sigue
+        // siendo el consumo directo de siempre (sin tocar inventario) — columnas opcionales, aditivas.
+        // Necesario para que la PRIMERA SEMANA del lote engorde (que se digita en reproductora y luego
+        // cruza) descuente el alimento realmente consumido en el galpón.
+        new("Alimento 1 H",       Requerida: false, Alias: new[] { "alimento 1 hembras", "alimento uno hembras", MixAlimento1 }),
+        new("Consumo Alimento 1 H", Requerida: false, Alias: new[] { "consumo 1 h", "consumo alimento uno hembras", MixConsumoAlimento1 }),
+        new("Alimento 2 H",       Requerida: false, Alias: new[] { "alimento 2 hembras", "alimento dos hembras", MixAlimento2 }),
+        new("Consumo Alimento 2 H", Requerida: false, Alias: new[] { "consumo 2 h", "consumo alimento dos hembras", MixConsumoAlimento2 }),
+        new("Alimento 1 M",       Requerida: false, Alias: new[] { "alimento 1 machos", "alimento uno machos" }),
+        new("Consumo Alimento 1 M", Requerida: false, Alias: new[] { "consumo 1 m", "consumo alimento uno machos" }),
+        new("Alimento 2 M",       Requerida: false, Alias: new[] { "alimento 2 machos", "alimento dos machos" }),
+        new("Consumo Alimento 2 M", Requerida: false, Alias: new[] { "consumo 2 m", "consumo alimento dos machos" }),
         new("Peso H (g)",         Requerida: false, Alias: new[] { "peso h" }),
         new("Peso M (g)",         Requerida: false, Alias: new[] { "peso m" }),
         new("Uniformidad H",      Requerida: false),
@@ -220,6 +267,19 @@ public static class MigracionEsquemas
         new("CV M",               Requerida: false, Alias: new[] { "cv machos" }),
         new("Observaciones",      Requerida: false),
     });
+
+    /// <summary>
+    /// Hoja <c>Reproductora</c> del archivo de seguimiento pollo engorde: MISMAS columnas y reglas que
+    /// <see cref="SeguimientoReproductoraEngorde"/>, solo cambia el nombre de la hoja.
+    /// <para>
+    /// Existe para poder cargar TODO el lote en un archivo: la primera semana (que se digita en
+    /// reproductora y luego cruza a engorde) en la hoja <c>Reproductora</c>, los días 8 en adelante en
+    /// <c>Datos</c> y el inventario en <c>Alimento</c>. El parseo es literalmente el mismo código
+    /// (<c>ParsearFilasReproductoraAsync</c>), así que validar por una vía u otra da idéntico resultado.
+    /// </para>
+    /// </summary>
+    public static EsquemaMigracion ReproductoraEnHoja { get; } =
+        SeguimientoReproductoraEngorde with { Hoja = "Reproductora" };
 
     /// <summary>
     /// Venta de pollo engorde. Todas las columnas son opcionales salvo la fecha ⇒ un archivo con

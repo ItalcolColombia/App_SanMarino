@@ -241,8 +241,8 @@
                         @for (f of diarioFilasFiltradas; track trackByDiarioFila($index, f)) {
                           <tr class="ux-row">
                             <td>{{ formatDMY(f.fecha) }}</td>
-                            <td>{{ f.semana }}</td>
-                            <td>{{ f.edadDia }}</td>
+                            <td>{{ semanaNegocio(f) }}</td>
+                            <td>{{ diaNegocio(f) }}</td>
                             <td>{{ formatDiaSemanaCorto(f.fecha) }}</td>
                             <!-- Panamá: Mortalidad mixto + Selección mixto (H+M combinados) -->
                             @if (isPanama) {

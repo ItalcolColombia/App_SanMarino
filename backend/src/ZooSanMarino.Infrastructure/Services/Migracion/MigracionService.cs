@@ -21,6 +21,12 @@ public partial class MigracionService : IMigracionService
     private readonly ILoteAveEngordeService _loteAveEngordeService;
     private readonly ISeguimientoAvesEngordeService _seguimientoEngordeService;
     private readonly ISeguimientoDiarioLoteReproductoraService _seguimientoReproductoraService;
+    /// <summary>
+    /// Inventario de alimento (hoja "Alimento" del archivo de seguimiento engorde). Opcional para no
+    /// romper los tests/composiciones que construyen el servicio sin él: sin esta dependencia la hoja
+    /// simplemente no se aplica.
+    /// </summary>
+    private readonly IInventarioGestionService? _inventarioGestion;
 
     static MigracionService()
     {
@@ -38,8 +44,10 @@ public partial class MigracionService : IMigracionService
         IGalponService galponService,
         ILoteAveEngordeService loteAveEngordeService,
         ISeguimientoAvesEngordeService seguimientoEngordeService,
-        ISeguimientoDiarioLoteReproductoraService seguimientoReproductoraService)
+        ISeguimientoDiarioLoteReproductoraService seguimientoReproductoraService,
+        IInventarioGestionService? inventarioGestion = null)
     {
+        _inventarioGestion = inventarioGestion;
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;

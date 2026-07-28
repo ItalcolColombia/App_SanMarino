@@ -218,10 +218,14 @@ public class CreateSeguimientoDiarioLoteReproductoraRequest
         double? cantidadUnidadesHembras, double? cantidadUnidadesMachos)
     {
         var metadata = new Dictionary<string, object?>();
+        // itemInventarioEcuadorId + nombre viajan igual que en el request de levante/engorde: sin el id
+        // del inventario unificado, ParseMetadataItemsToKg no encuentra el ítem y el consumo NUNCA
+        // descuenta el stock del galpón (el registro se guarda, el inventario queda intacto). Los
+        // clientes que no los envían siguen escribiendo null, así que el metadata previo no cambia.
         if (itemsHembras != null && itemsHembras.Count > 0)
-            metadata["itemsHembras"] = itemsHembras.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+            metadata["itemsHembras"] = itemsHembras.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, itemInventarioEcuadorId = i.ItemInventarioEcuadorId, nombre = i.Nombre, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
         if (itemsMachos != null && itemsMachos.Count > 0)
-            metadata["itemsMachos"] = itemsMachos.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+            metadata["itemsMachos"] = itemsMachos.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, itemInventarioEcuadorId = i.ItemInventarioEcuadorId, nombre = i.Nombre, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
         if ((itemsHembras == null || itemsHembras.Count == 0) && consumoHembras.HasValue)
         {
             metadata["consumoOriginalHembras"] = consumoHembras.Value;

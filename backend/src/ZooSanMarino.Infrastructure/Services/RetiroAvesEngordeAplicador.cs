@@ -81,6 +81,85 @@ internal static class RetiroAvesEngordeAplicador
     }
 
     /// <summary>
+    /// Sincroniza con el maestro las bajas de los días 1-7, los que genera el TRIGGER del cruce de
+    /// reproductora.
+    /// <para>
+    /// Esos días entran por SQL directo (<c>fn_cruce_reproductora_a_engorde</c>), sin pasar por el
+    /// service, así que su mortalidad nunca llegaba a <c>hembras_l/machos_l</c>: el maestro quedaba por
+    /// encima del real —en el lote testigo, 381 aves— y el sistema habría dejado despachar aves ya
+    /// muertas. El reporte diario nunca tuvo el problema porque calcula
+    /// <c>aves_encasetadas − bajas</c> en vez de leer el maestro.
+    /// </para>
+    /// <para>
+    /// Idempotente por la fila del histórico unificado: un día ya sincronizado tiene su
+    /// <c>BAJA_SEGUIMIENTO</c> viva y se saltea. El cruce BORRA y RECREA sus registros cada vez que
+    /// cambia la reproductora, así que las filas que quedan apuntando a un seguimiento inexistente se
+    /// revierten (devuelven las aves) antes de aplicar las nuevas.
+    /// </para>
+    /// </summary>
+    public static async Task SincronizarCruceAsync(ZooSanMarinoContext ctx, int companyId, int loteAveEngordeId)
+    {
+        var lote = await ctx.LoteAveEngorde.AsNoTracking()
+            .SingleOrDefaultAsync(l => l.LoteAveEngordeId == loteAveEngordeId
+                                    && l.CompanyId == companyId
+                                    && l.DeletedAt == null);
+        if (lote is null) return;
+
+        var vivos = await ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteAveEngordeId && s.OrigenCruce)
+            .Select(s => new
+            {
+                s.Id, s.Fecha,
+                s.MortalidadHembras, s.MortalidadMachos,
+                s.SelH, s.SelM, s.ErrorSexajeHembras, s.ErrorSexajeMachos
+            })
+            .ToListAsync();
+        var idsVivos = vivos.Select(s => (int)s.Id).ToHashSet();
+
+        var aplicadas = await ctx.LoteRegistroHistoricoUnificados
+            .Where(h => h.OrigenTabla == OrigenTabla
+                     && h.TipoEvento == TipoEventoBaja
+                     && !h.Anulado
+                     && h.LoteAveEngordeId == loteAveEngordeId)
+            .ToListAsync();
+
+        // 1) Filas cuyo seguimiento ya no existe (el cruce lo borró al regenerarse): devolver las aves.
+        var idsSeguimientosDelLote = await ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteAveEngordeId)
+            .Select(s => (int)s.Id)
+            .ToListAsync();
+        var existentes = idsSeguimientosDelLote.ToHashSet();
+
+        foreach (var h in aplicadas.Where(x => !existentes.Contains(x.OrigenId)))
+        {
+            await SincronizarAsync(
+                ctx, companyId, loteAveEngordeId, h.OrigenId, h.FechaOperacion,
+                bajasHembrasViejas: h.CantidadHembras ?? 0,
+                bajasMachosViejas: (h.CantidadMachos ?? 0) + (h.CantidadMixtas ?? 0),
+                bajasHembrasNuevas: 0, bajasMachosNuevas: 0);
+        }
+
+        // 2) Días de cruce todavía sin aplicar: descontarlos.
+        var yaAplicados = aplicadas
+            .Where(x => idsVivos.Contains(x.OrigenId))
+            .Select(x => x.OrigenId)
+            .ToHashSet();
+
+        foreach (var s in vivos.Where(x => !yaAplicados.Contains((int)x.Id)))
+        {
+            var (bajasH, bajasM) = BajasDelDia(
+                s.MortalidadHembras ?? 0, s.SelH ?? 0, s.ErrorSexajeHembras ?? 0,
+                s.MortalidadMachos ?? 0, s.SelM ?? 0, s.ErrorSexajeMachos ?? 0);
+            if (bajasH == 0 && bajasM == 0) continue;
+
+            await SincronizarAsync(
+                ctx, companyId, loteAveEngordeId, s.Id, s.Fecha,
+                bajasHembrasViejas: 0, bajasMachosViejas: 0,
+                bajasHembrasNuevas: bajasH, bajasMachosNuevas: bajasM);
+        }
+    }
+
+    /// <summary>
     /// Crea, actualiza o anula la fila del histórico unificado del seguimiento. No hace SaveChanges:
     /// lo hace <see cref="SincronizarAsync"/> junto con el maestro, para que ambos efectos viajen en
     /// la misma unidad de trabajo.
