@@ -778,3 +778,38 @@ Excel  ├── Alimento       -> inventario (ingresos / traslados / recepcione
 - [x] Regresion: la linea dedicada `SeguimientoReproductoraEngorde` (hoja "Datos") sigue funcionando
 - [x] `dotnet build` 0/0 - `dotnet test` **1165/1165**
 - [x] BD local limpia; galpon 6 sigue en **2.235,332 kg** y el lote 142 intacto (41 + 14 registros)
+
+## Fase 10 - Recarga completa del galpon 6 con UN SOLO archivo (ejecutada)
+
+Se limpio el seguimiento de reproductora y se recargo TODO el lote desde
+`LOTE_13-1_GALPON6_COMPLETO_3HOJAS.xlsx` (Reproductora 14 + Datos 34 + Alimento 24).
+Diferencia con la Fase 8: la primera semana ya NO entra como movimiento manual "Consumo" sino por su
+propio camino -- el seguimiento de reproductora con `Alimento 1 H/M` -- asi que el kardex queda
+trazable registro por registro.
+
+### Limpieza (por los endpoints oficiales, no por SQL)
+
+- [x] Backup v2 del estado post-reparacion (`backup_g6_v2/`, 6 tablas)
+- [x] `POST /api/LoteReproductoraAveEngorde/{61,62}/reabrir` con novedad -> HTTP 200
+- [x] 14 seguimientos de reproductora borrados por endpoint (permisos
+      `seguimiento_reproductora_engorde.eliminar`; sin el, 403)
+- [x] El trigger de cruce borro SOLO los 7 dias 1-7 de engorde (41 -> 34), como debe
+- [x] 34 seguimientos de engorde borrados por endpoint (aves devueltas)
+- [x] Inventario del galpon a cero
+
+### Carga y resultado
+
+- [x] Dry-run: `Validado`, 0 errores, saldo proyectado 2.235,332 (los 3 alimentos)
+- [x] Import: **72 filas** (14 reproductora + 34 engorde + 24 ingresos), 0 errores
+- [x] Reproductora: 14 registros, **los 14 confirmados**, 7.166,832 kg
+- [x] Engorde dias 1-7: 7 registros generados por el CRUCE automatico (08/06-14/06)
+- [x] Engorde dias 8-41: 34 registros (15/06-18/07)
+- [x] **Inventario del galpon 6 = 2.235,332 kg** (PREINICIADOR 0,000 - INICIACION 0,000)
+- [x] Kardex 100% trazable: 24 ingresos `LLEG-*` + 14 consumos `Seguimiento reproductora #...`
+      + 36 consumos `Seguimiento aves engorde #...` = 152.952,912 kg. Ningun movimiento manual
+- [x] Reintento idempotente: 0 procesadas / 72 omitidas
+- [x] Contra el backup: 41 seguimientos, consumo 152.952,912, mortalidad 1.830, aves 22.816 / 24.165,
+      14 de reproductora y stock 2.235,332 -- todo identico
+- [x] Lotes reproductora sin cambios salvo el rastro de la reapertura (`novedad_apertura` +
+      `reabierto_at`), que es auditoria legitima
+- [x] `dotnet build` 0/0 - `dotnet test` **1165/1165** - sin procesos huerfanos
