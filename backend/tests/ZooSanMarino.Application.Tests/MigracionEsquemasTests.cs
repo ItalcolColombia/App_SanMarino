@@ -121,6 +121,145 @@ public class MigracionEsquemasTests
         Assert.Equal(new[] { "Completado", "Pendiente" }, estado.Opciones);
     }
 
+    // ── POSTURA: retro-compatibilidad de los archivos ya en uso ───────────────
+    // Es el criterio de aceptación #1 del plan: un Excel con los encabezados históricos tiene que
+    // seguir validando sin faltantes ni desconocidos después de ampliar el esquema.
+
+    /// <summary>Las 15 columnas de la plantilla de Levante anterior a la ampliación (alimento + huevos).</summary>
+    private static readonly string[] LevanteViejas =
+    {
+        "Fecha", "Mort H", "Mort M", "Sel H", "Sel M", "Error Sexaje H", "Error Sexaje M",
+        "Consumo H (kg)", "Consumo M (kg)", "Tipo Alimento", "Peso H (g)", "Peso M (g)",
+        "Uniformidad H", "Uniformidad M", "Observaciones"
+    };
+
+    /// <summary>Las 12 columnas de la plantilla de Producción anterior a la ampliación.</summary>
+    private static readonly string[] ProduccionViejas =
+    {
+        "Fecha", "Mort H", "Mort M", "Sel H", "Sel M", "Consumo H (kg)", "Consumo M (kg)",
+        "Huevo Total", "Huevo Incubable", "Peso Huevo (g)", "Etapa", "Observaciones"
+    };
+
+    [Fact]
+    public void SeguimientoLevante_ArchivoConLas15ColumnasViejas_SigueSiendoValido()
+    {
+        var headers = LevanteViejas.Select(MigracionCalculos.NormalizarClave).ToList();
+
+        var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(
+            MigracionEsquemas.SeguimientoLevante, headers);
+
+        Assert.Empty(faltantes);
+        Assert.Empty(desconocidos);
+    }
+
+    [Fact]
+    public void SeguimientoProduccion_ArchivoConLas12ColumnasViejas_SigueSiendoValido()
+    {
+        var headers = ProduccionViejas.Select(MigracionCalculos.NormalizarClave).ToList();
+
+        var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(
+            MigracionEsquemas.SeguimientoProduccion, headers);
+
+        Assert.Empty(faltantes);
+        Assert.Empty(desconocidos);
+    }
+
+    [Theory]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoLevante))]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoProduccion))]
+    public void Postura_ConservaElOrdenDeLasColumnasHistoricas(string cual)
+    {
+        // El orden importa: los operarios copian y pegan bloques enteros de sus planillas sobre la
+        // plantilla. Las columnas nuevas van SIEMPRE al final.
+        var (esquema, viejas) = cual == nameof(MigracionEsquemas.SeguimientoLevante)
+            ? (MigracionEsquemas.SeguimientoLevante, LevanteViejas)
+            : (MigracionEsquemas.SeguimientoProduccion, ProduccionViejas);
+
+        var prefijo = esquema.Columnas.Take(viejas.Length).Select(c => c.Titulo).ToArray();
+        Assert.Equal(viejas, prefijo);
+    }
+
+    [Theory]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoLevante))]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoProduccion))]
+    public void Postura_SoloFechaEsRequerida(string cual)
+    {
+        // Todo lo agregado (unidad, alimentos del inventario, categorías de huevo) es opcional.
+        var esquema = cual == nameof(MigracionEsquemas.SeguimientoLevante)
+            ? MigracionEsquemas.SeguimientoLevante
+            : MigracionEsquemas.SeguimientoProduccion;
+
+        var requeridas = esquema.Columnas.Where(c => c.Requerida).Select(c => c.Titulo).ToList();
+        Assert.Equal(new[] { "Fecha" }, requeridas);
+    }
+
+    [Theory]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoLevante))]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoProduccion))]
+    public void Postura_TieneLosOchoSlotsDeAlimentoDelInventario(string cual)
+    {
+        var esquema = cual == nameof(MigracionEsquemas.SeguimientoLevante)
+            ? MigracionEsquemas.SeguimientoLevante
+            : MigracionEsquemas.SeguimientoProduccion;
+        var titulos = esquema.Columnas.Select(c => c.Titulo).ToList();
+
+        foreach (var sexo in new[] { "H", "M" })
+            foreach (var n in new[] { 1, 2 })
+            {
+                Assert.Contains($"Alimento {n} {sexo}", titulos);
+                Assert.Contains($"Consumo Alimento {n} {sexo}", titulos);
+            }
+
+        var unidad = esquema.Columnas.Single(c => c.Titulo == "Unidad Consumo");
+        Assert.Equal(new[] { "kg", "qq" }, unidad.Opciones);
+    }
+
+    [Theory]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoLevante))]
+    [InlineData(nameof(MigracionEsquemas.SeguimientoProduccion))]
+    public void Postura_TieneLas11CategoriasDeHuevo(string cual)
+    {
+        var esquema = cual == nameof(MigracionEsquemas.SeguimientoLevante)
+            ? MigracionEsquemas.SeguimientoLevante
+            : MigracionEsquemas.SeguimientoProduccion;
+        var titulos = esquema.Columnas.Select(c => c.Titulo).ToList();
+
+        foreach (var categoria in new[]
+        {
+            "Huevo Limpio", "Huevo Tratado", "Huevo Sucio", "Huevo Deforme", "Huevo Blanco",
+            "Huevo Doble Yema", "Huevo Piso", "Huevo Pequeño", "Huevo Roto", "Huevo Desecho", "Huevo Otro"
+        })
+            Assert.Contains(categoria, titulos);
+    }
+
+    [Fact]
+    public void SeguimientoLevante_TieneLasColumnasDeHuevoParaSemana14()
+    {
+        // Cierra el pendiente P2: las 11 categorías + peso. Total e incubables NO son columnas: se
+        // derivan del desglose (HuevosClasificacion), como en el modal.
+        var titulos = MigracionEsquemas.SeguimientoLevante.Columnas.Select(c => c.Titulo).ToList();
+        Assert.Contains("Peso Huevo (g)", titulos);
+        Assert.DoesNotContain("Huevo Total", titulos);
+        Assert.DoesNotContain("Huevo Incubable", titulos);
+    }
+
+    [Fact]
+    public void AlimentoPostura_EsElMismoEsquemaQueEngorde()
+    {
+        // Una sola definición de la hoja "Alimento": si engorde gana una columna, postura la recibe.
+        Assert.Same(MigracionEsquemas.AlimentoEngorde, MigracionEsquemas.AlimentoPostura);
+        Assert.Equal("Alimento", MigracionEsquemas.AlimentoPostura.Hoja);
+    }
+
+    [Fact]
+    public void HuevosPostura_ExigeFechaItemYCantidad()
+    {
+        var esquema = MigracionEsquemas.HuevosPostura;
+        Assert.Equal("Huevos", esquema.Hoja);
+        Assert.Equal(new[] { "Fecha", "Ítem", "Cantidad" },
+            esquema.Columnas.Where(c => c.Requerida).Select(c => c.Titulo).ToArray());
+    }
+
     // ── ValidarEncabezados ────────────────────────────────────────────────────
 
     [Fact]

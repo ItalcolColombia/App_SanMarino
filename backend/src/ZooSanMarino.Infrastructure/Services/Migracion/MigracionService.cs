@@ -27,6 +27,12 @@ public partial class MigracionService : IMigracionService
     /// simplemente no se aplica.
     /// </summary>
     private readonly IInventarioGestionService? _inventarioGestion;
+    /// <summary>
+    /// Consumo de alimento a NIVEL GRANJA (Colombia: Sanmarino, Santa Reyes). Es el mismo servicio
+    /// que usa el alta manual de levante y producción, para que un día migrado descuente exactamente
+    /// igual que uno digitado. Opcional por el mismo motivo que <see cref="_inventarioGestion"/>.
+    /// </summary>
+    private readonly IColombiaInventarioConsumoService? _colombiaConsumo;
 
     static MigracionService()
     {
@@ -45,9 +51,11 @@ public partial class MigracionService : IMigracionService
         ILoteAveEngordeService loteAveEngordeService,
         ISeguimientoAvesEngordeService seguimientoEngordeService,
         ISeguimientoDiarioLoteReproductoraService seguimientoReproductoraService,
-        IInventarioGestionService? inventarioGestion = null)
+        IInventarioGestionService? inventarioGestion = null,
+        IColombiaInventarioConsumoService? colombiaConsumo = null)
     {
         _inventarioGestion = inventarioGestion;
+        _colombiaConsumo = colombiaConsumo;
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;

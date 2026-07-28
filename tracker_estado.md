@@ -1143,6 +1143,134 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 ### Pendiente
 
 - [ ] Columna `Venta H/M` desde movimientos de aves (D4, tras definir el criterio con negocio)
+
+---
+
+# Tracker — Carga masiva de Postura: alimento con inventario real, huevos completos y validaciones
+
+**Plan:** [fase_de_desarrollo/migracion_masiva_postura_alimento_inventario_plan.md](fase_de_desarrollo/migracion_masiva_postura_alimento_inventario_plan.md)
+**Fecha:** 2026-07-28
+
+**Decisiones del usuario:** paridad total con Engorde (hoja `Alimento` + consumo por ítem que **descuenta**
+stock + simulación de balance) · nivel de stock por el **flag efectivo `granja ?? empresa`** · huevos de
+Producción **completos ahora**: las 11 categorías (Sanmarino) **y** `huevoItems` por flag (Santa Reyes) ·
+**un lote por archivo**.
+
+**Hallazgos que condicionan el diseño:** la carga masiva de postura hoy **no toca inventario** (la fn SQL lo
+declara en su cabecera) mientras el alta manual sí valida stock y descuenta · `RegistrarIngresoAsync` **lanza**
+si le mandan núcleo/galpón a una granja de nivel granja (Sanmarino y Santa Reyes lo son) ⇒ la ubicación por
+defecto no puede ser la del lote tal cual · ambas tablas ya tienen `metadata jsonb` y las 11 columnas
+`huevo_*` ⇒ **cero migraciones de schema** · `FilasOmitidas` de postura hoy siempre reporta 0.
+
+## Fase 0 — Análisis
+- [x] Mapa del flujo vigente (elegibilidad, parseo, fn plpgsql, idempotencia, merge, descuento de aves)
+- [x] Comparación efecto por efecto contra el alta manual (`SeguimientoLoteLevanteService.Crud` / `ProduccionService`)
+- [x] Verificación en BD local de los flags por empresa y del nivel real del stock (Sanmarino/SR = granja)
+- [x] Verificación de que `metadata` y las 11 columnas `huevo_*` ya existen en las dos tablas
+- [x] Plan escrito en `fase_de_desarrollo/`
+
+## Fase 1 — Backend: cálculo puro + esquemas + tests (gate CI)
+- [x] `Application/Calculos/MigracionPosturaCalculos.cs` (NUEVO, puro): posición de stock por nivel,
+      normalización de ubicación, etapa [1,3], consumo directo vs por ítems, referencias de inventario,
+      resolución de totales de huevos entre sus tres fuentes
+- [x] `MigracionEsquemas`: `SeguimientoLevante` 15 → 36 columnas · `SeguimientoProduccion` 12 → 32
+      (columnas compartidas definidas UNA vez para que las dos líneas no se desincronicen)
+- [x] `MigracionEsquemas`: `AlimentoPostura` (reusa la hoja `Alimento` de engorde) y `HuevosPostura` (hoja `Huevos`)
+- [x] `MigracionPosturaCalculosTests.cs` (NUEVO) — 45 casos
+- [x] Test de **retro-compatibilidad**: encabezados viejos (15 y 12) validan sin faltantes ni desconocidos,
+      y las columnas históricas conservan su ORDEN como prefijo (los operarios pegan bloques enteros)
+- [x] `dotnet test` verde — **1284/1284** (973 previos + 311)
+- [x] ⚠️ Gotcha xUnit: `[InlineData(…, 0, …)]` sobre un parámetro `double?` explota con
+      `ArgumentException` (Int32 no convierte a Nullable&lt;Double&gt;) — hay que escribir `0d`
+
+## Fase 2 — Backend: funciones SQL v2
+- [x] `backend/sql/fn_migracion_seguimiento.sql`: `metadata`, las 11 categorías + `peso_huevo` (levante) y
+      `tipo_alimento` + `cons_separado` (producción) en las dos fns
+- [x] Contrato del consumo de Producción: `cons_separado` ausente/false ⇒ total en `cons_kg_h` y
+      `cons_kg_m = 0` (histórico intacto); `true` ⇒ separado por sexo como `ProduccionService`
+- [x] Firma **intacta** (`CREATE OR REPLACE`, sin `DROP FUNCTION`) — patrón `20260714022321`
+- [x] Migración `20260728130000_FnMigracionSeguimientoPosturaAlimentoYHuevos` (sin DDL: `metadata` y las
+      11 columnas `huevo_*` ya existían en ambas tablas)
+- [x] Aplicada en BD local :5433 (⚠️ el `dotnet-ef` de `tools-ef10` necesita `DOTNET_ROOT=~/.dotnet`,
+      si no busca .NET 10 en `C:\Program Files\dotnet` y falla con exit 150)
+- [x] **Smoke SQL con ROLLBACK** (lote 116 levante · lote 114 producción con LPP temporal):
+      - JSON **viejo** ⇒ idéntico a antes: levante con `metadata` NULL y huevos en 0; producción con
+        `cons_kg_h = 920` (800+120), `cons_kg_m = 0` y `tipo_alimento = ''`
+      - JSON **nuevo** ⇒ `metadata.itemsHembras` y `metadata.huevoItems` persistidos, las 11 categorías,
+        `peso_huevo`, y producción con `cons_kg_h = 700` / `cons_kg_m = 95` separados
+      - reimportar ⇒ **0 filas** (idempotencia intacta) · aves descontadas de forma incremental
+        (7405→7399 H, 738→737 M en levante; 7575→7564 H, 1003→1002 M en producción)
+
+## Fase 3 — Backend: alimento e inventario
+- [x] `MigracionService.AlimentoPostura.cs` (NUEVO): contexto de inventario del lote (nivel efectivo
+      `granja ?? empresa` + modelo de consumo por país), hoja `Alimento` y descuento del consumo
+- [x] `LeerHojaAlimentoAsync` de engorde **refactorizada** para recibir `(destinoDefault, manejaPorGalpon)`
+      en vez del lote de engorde ⇒ una sola implementación sirve a las dos líneas
+- [x] Ubicación normalizada según nivel con **Advertencia, no excepción** (`AjustarUbicacionAlNivel`).
+      🔴 Sin esto `RegistrarIngresoAsync` LANZA en Sanmarino/Santa Reyes ("no use Núcleo/Galpón") y la
+      fila se perdía con un mensaje de infraestructura. De paso arregla el mismo caso en engorde Colombia
+- [x] El consumo suelto de la hoja usa `RegistrarConsumoNivelGranjaAsync` cuando la granja es nivel
+      granja (`RegistrarConsumoAsync` exige galpón **sin mirar el flag**) + `SaveChanges` explícito
+- [x] `RegistrarConsumoNivelGranjaAsync` ahora respeta `FechaMovimiento` (antes fijaba `UtcNow`, lo que
+      rompía la idempotencia por fecha). Aditivo: ningún llamador actual la pasa ⇒ sin cambio de conducta
+- [x] Simulación de balance (`SimularBalancePosturaAsync`) + **rechazo del archivo entero** con el
+      faltante exacto + saldo proyectado por posición como Advertencia (también en dry-run)
+- [x] Descuento del consumo delegando en el MISMO camino del alta manual
+      (`IColombiaInventarioConsumoService` nivel granja / `IInventarioGestionService` nivel galpón)
+- [x] Referencia del movimiento byte a byte igual a la del alta manual, resuelta por query posterior
+      `(lote, fecha)` — sin cambiar la firma de la fn
+- [x] **Fix**: `FilasOmitidas` real (postura reportaba 0 siempre) y exclusión de las fechas ya existentes
+      del descuento ⇒ reimportar no descuenta dos veces. Las filas "solo traslado" NO cuentan como
+      existentes (la fn las mergea, así que ese día sí se procesa)
+- [x] Las consultas de fechas evitan `.Date` en el WHERE (EF lo traduce a `date_trunc`, que trunca en la
+      zona de la sesión y pierde bordes): rango ±1 día y recorte fino en memoria
+- [x] `IColombiaInventarioConsumoService?` inyectado en el ancla de `MigracionService`
+- [x] Runner genérico `EjecutarHistoricoAsync` conservado intacto para **venta engorde**; postura usa
+      `EjecutarHistoricoPosturaAsync`
+- [x] `dotnet build` (solución completa) 0 errores / 0 advertencias · `dotnet test` **1285/1285**
+
+## Fase 4 — Backend: huevos y plantillas
+- [x] `MigracionService.HuevosPostura.cs` (NUEVO): hoja `Huevos` (fecha + ítem + cantidad) validada
+      contra `catalogo_items` `item_type='huevo'` de la empresa dueña de la GRANJA, con gate
+      `clasificacion_huevo_por_items` **fail-closed** (flag OFF + hoja presente ⇒ Error explícito)
+- [x] Las 11 categorías en la hoja `Datos` de Producción; con hoja `Huevos` quedan en 0 y el total sale
+      de los ítems (regla de `HuevoItemsCalculos`); mezclar ambas fuentes ⇒ Error
+- [x] Huevos de Levante (semana ≥ 14 + `captura_huevos_en_levante`) — cierra el **P2** del bloque de huevos.
+      Total e incubables se DERIVAN del desglose, como en el modal
+- [x] Plantillas: hojas `Alimento` y `Huevos` + `Referencias` (alimentos e ítems de huevo con su código)
+      + dropdowns + `Instrucciones` que explican el nivel de stock del lote y el rechazo por faltante
+- [x] Validaciones R8: fecha &lt; encaset (Error), fecha futura (Advertencia), `Etapa ∈ [1,3]` (Error),
+      unidad kg/qq, alimento inexistente/ambiguo, consumo directo ignorado por traer ítems (Advertencia),
+      total explícito que discrepa del desglose (Advertencia), fecha de la hoja `Huevos` sin fila en `Datos` (Error)
+
+## Fase 5 — Validación
+- [x] **Smoke API local — 23/23 verdes** (backend propio en :5399 para no tocar el del usuario; JWT +
+      X-Secret-Up minteados; lote 116 A374A de la granja 20, alimento a nivel granja, ítem 199 con 320 kg)
+- [x] 🔴 **Excel viejo (15 columnas)** ⇒ fila idéntica a la de siempre: consumo directo 250,5/30,
+      `tipo_alimento='PRE'`, `metadata` NULL, huevos en 0, inventario **sin tocar**
+- [x] Consumo por ítem ⇒ stock descontado de verdad y movimiento con la referencia **byte a byte** del
+      alta manual (`Seguimiento lote levante #1102 2026-07-06`)
+- [x] 🔴 **Stock insuficiente** ⇒ dry-run e import rechazan el archivo ENTERO, 0 filas insertadas, con el
+      faltante exacto y diciendo "en la granja" (no "en el galpón")
+- [x] Hoja `Alimento` ⇒ el ingreso de 6.000 kg habilita el consumo de 5.000 que antes se rechazaba;
+      el movimiento queda en su **fecha real** (2026-07-08), no en la de la corrida
+- [x] 🔴 **Reimportar** ⇒ 0 filas nuevas, `FilasOmitidas ≥ 1` (antes siempre 0) y **sin doble descuento**
+- [x] Núcleo/Galpón en granja de nivel granja ⇒ Advertencia + movimiento aplicado a nivel granja
+      (con el código anterior `RegistrarIngresoAsync` habría lanzado)
+- [x] Validaciones: fecha < encaset · alimento inexistente · unidad inválida · lote no elegible para producción
+- [x] Huevos en levante (Sanmarino, semana ≥ 14) ⇒ `huevo_tot=990` y `huevo_inc=950` **derivados** del
+      desglose 800/150/40, `peso_huevo=57.8`
+- [x] **Balance verificado en BD**: stock 320 − 100 + 6.000 − 5.000 + 50 = **1.270 kg exactos**
+- [x] `dotnet build` (solución) 0 errores / 0 advertencias · `dotnet test` **1285/1285**
+- [x] `yarn build` **no aplica**: cero archivos del front tocados. Verificado que
+      `construir-resumen-resultado.funcion.ts` ya pinta `filasOmitidas` y las advertencias del saldo
+- [x] BD local **restaurada al estado exacto** (0 filas de smoke, stock 320,000, aves 7405/738,
+      0 registros de auditoría) y backend de smoke detenido — sin procesos huérfanos
+- [ ] Smoke UI en dev server — **pendiente**: en la BD local no hay ningún lote elegible para
+      Producción (requiere levante cerrado + liquidado + LPP) y el de Levante se validó por API
+
+## Fase 6 — Cierre
+- [ ] Commit acotado a esta tarea (sin mezclar con los otros bloques del tracker)
 - [ ] Al cambiar de modo el componente se remonta y pierde el año/semana elegidos (el `@if` del
       shell lo destruye). Molesto pero no rompe nada; se resuelve levantando el estado al shell
 

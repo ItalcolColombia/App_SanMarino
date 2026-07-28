@@ -1291,7 +1291,11 @@ public class InventarioGestionService : IInventarioGestionService
             Estado = "Consumo",
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
-            CreatedAt = DateTimeOffset.UtcNow,
+            // Simetría con RegistrarConsumoAsync: sin fecha explícita se usa "ahora" (lo que hacen
+            // todos los llamadores históricos, así que su comportamiento no cambia); con fecha, el
+            // movimiento queda en el día real del consumo — lo necesita la carga masiva, cuya
+            // idempotencia se apoya en la fecha del movimiento.
+            CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento),
             CreatedByUserId = _current?.UserId.ToString()
         });
         // NO SaveChanges/tx aquí: el orquestador externo commitea (bloqueo atómico).
