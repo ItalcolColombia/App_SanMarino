@@ -1232,7 +1232,9 @@ public class InventarioGestionService : IInventarioGestionService
             Estado = "Consumo",
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
-            CreatedAt = DateTimeOffset.UtcNow,
+            // Simetría con RegistrarIngresoAsync: sin fecha explícita se usa "ahora" (comportamiento
+            // histórico); con fecha, el movimiento queda en el día real del consumo.
+            CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento),
             CreatedByUserId = _current?.UserId.ToString()
         });
         await _db.SaveChangesAsync(ct);

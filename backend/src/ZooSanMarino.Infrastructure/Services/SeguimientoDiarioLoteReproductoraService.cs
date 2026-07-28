@@ -256,8 +256,12 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                     var refStr = $"Seguimiento reproductora #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
                     foreach (var kv in byItem)
                         if (kv.Value > 0)
+                            // Fecha del movimiento = día del seguimiento (no el de la carga): en una
+                            // carga histórica de la primera semana, todos caían el mismo día y el
+                            // kardex del galpón quedaba ilegible.
                             await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
-                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null));
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null,
+                                FechaMovimiento: dto.FechaRegistro.Date));
                 }
             }
             catch (Exception ex)

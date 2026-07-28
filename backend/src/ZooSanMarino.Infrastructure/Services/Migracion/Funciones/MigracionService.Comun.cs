@@ -22,6 +22,13 @@ public partial class MigracionService
     {
         public int Numero { get; init; }
         public IReadOnlyDictionary<string, object?> Valores { get; init; } = new Dictionary<string, object?>();
+        /// <summary>
+        /// Encabezado normalizado → texto TAL CUAL lo escribió el usuario en la primera fila del Excel.
+        /// Permite que los mensajes de error citen la columna con el nombre que la persona ve en su
+        /// archivo (p. ej. "Alimento 1 Mixto") y no el título canónico del esquema ("Alimento 1 H"),
+        /// que en las plantillas por alias no existe y deja al usuario buscando una columna fantasma.
+        /// </summary>
+        public IReadOnlyDictionary<string, string> Encabezados { get; init; } = new Dictionary<string, string>();
         public object? this[string headerNormalizado] =>
             Valores.TryGetValue(headerNormalizado, out var v) ? v : null;
     }
@@ -35,6 +42,19 @@ public partial class MigracionService
             if (!MigracionCalculos.EsVacia(v)) return v;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Nombre de columna a MOSTRAR en un error: el encabezado real del archivo entre los aceptados
+    /// (título + alias del esquema) o, si el archivo no trae ninguno, el título canónico. Solo afecta
+    /// el texto del mensaje: la lectura de la celda sigue siendo por clave normalizada.
+    /// </summary>
+    private static string EtiquetaColumna(FilaCruda fila, string tituloCanonico, params string[] headersNormalizados)
+    {
+        foreach (var h in headersNormalizados)
+            if (fila.Encabezados.TryGetValue(h, out var original) && !string.IsNullOrWhiteSpace(original))
+                return original.Trim();
+        return tituloCanonico;
     }
 
     /// <summary>
@@ -52,6 +72,39 @@ public partial class MigracionService
         int leidos = stream.Read(firma);
         if (leidos < 2 || firma[0] != 0x50 || firma[1] != 0x4B) // "PK" = firma de archivo ZIP (xlsx es un ZIP)
             throw new InvalidOperationException("El archivo debe ser un Excel .xlsx válido (el contenido no corresponde a un archivo .xlsx).");
+    }
+
+    /// <summary>
+    /// Lee una hoja OPCIONAL del archivo: si la hoja del esquema no existe, devuelve vacío SIN error
+    /// (a diferencia de <see cref="LeerDatosConEsquema"/>, que la exige). Se usa para hojas que amplían
+    /// una plantilla ya publicada — como "Alimento" en el seguimiento de engorde — de modo que los
+    /// archivos anteriores, sin esa hoja, se sigan procesando exactamente igual.
+    /// </summary>
+    private static List<FilaCruda> LeerHojaOpcionalConEsquema(IFormFile file, EsquemaMigracion esquema, List<MigracionErrorDto> errores)
+    {
+        // Un stream propio por hoja: EPPlus consume el stream entero y no todos los IFormFile son
+        // rebobinables. Abrirlo dos veces es barato (el archivo ya está bufferado por ASP.NET Core).
+        using (var sonda = file.OpenReadStream())
+        {
+            ExcelPackage? package = null;
+            try { package = new ExcelPackage(sonda); }
+            catch (Exception)
+            {
+                // El archivo dañado ya lo reporta la lectura de la hoja de datos obligatoria.
+                return new List<FilaCruda>();
+            }
+
+            using (package)
+            {
+                var hojaNormalizada = MigracionCalculos.NormalizarClave(esquema.Hoja);
+                var existe = package.Workbook.Worksheets
+                    .Any(w => MigracionCalculos.NormalizarClave(w.Name) == hojaNormalizada);
+                if (!existe) return new List<FilaCruda>();
+            }
+        }
+
+        using var stream = file.OpenReadStream();
+        return LeerDatosConEsquema(stream, esquema, errores);
     }
 
     /// <summary>
@@ -99,9 +152,13 @@ public partial class MigracionService
 
             var headers = new Dictionary<int, string>();
             var headersVistos = new HashSet<string>();
+            // Clave normalizada → texto original del encabezado, para que los errores citen la columna
+            // con el nombre que el usuario tiene en su archivo (ver FilaCruda.Encabezados).
+            var headersOriginales = new Dictionary<string, string>();
             for (int c = c0; c <= c1; c++)
             {
-                var h = MigracionCalculos.NormalizarClave(ws.Cells[r0, c].Text);
+                var textoOriginal = ws.Cells[r0, c].Text;
+                var h = MigracionCalculos.NormalizarClave(textoOriginal);
                 if (string.IsNullOrEmpty(h)) continue;
                 if (!headersVistos.Add(h))
                 {
@@ -109,6 +166,7 @@ public partial class MigracionService
                     continue;
                 }
                 headers[c] = h;
+                headersOriginales[h] = textoOriginal;
             }
 
             var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(esquema, headers.Values.ToList());
@@ -137,7 +195,7 @@ public partial class MigracionService
                     celdas[kv.Value] = val;
                     if (!MigracionCalculos.EsVacia(val)) algo = true;
                 }
-                if (algo) filas.Add(new FilaCruda { Numero = r, Valores = celdas });
+                if (algo) filas.Add(new FilaCruda { Numero = r, Valores = celdas, Encabezados = headersOriginales });
             }
             return filas;
         }

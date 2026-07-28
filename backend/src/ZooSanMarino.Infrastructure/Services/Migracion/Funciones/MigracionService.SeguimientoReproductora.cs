@@ -22,6 +22,10 @@ public partial class MigracionService
     /// <summary>Datos mínimos de un lote reproductora para resolver la columna "Reproductora" y validar fechas.</summary>
     private sealed record ReproductoraInfo(int Id, string ReproductoraId, string? Codigo, string Nombre, DateTime? FechaEncasetamiento, TimeOnly? HoraEncasetamiento);
 
+    /// <summary>Claves de lectura (título + alias) de una columna del esquema de reproductora engorde.</summary>
+    private static string[] ClavesReproductora(string titulo) =>
+        MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.SeguimientoReproductoraEngorde, titulo);
+
     // ── Elegibilidad ─────────────────────────────────────────────────────────
     // Mismo criterio que Engorde (lotes no cerrados de la empresa) pero solo lotes que ya tienen
     // al menos un lote reproductora asociado (sin reproductoras no hay nada que cargar).
@@ -125,8 +129,10 @@ public partial class MigracionService
         var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
 
         var (lotesUbicados, lotesPorNombre) = await CargarLotesEngordeUbicadosAsync(companyId, ct);
+        var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var loteCtxUbicado = lotesUbicados.FirstOrDefault(l => l.LoteId == loteCtxId)
-            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento, string.Empty, null, null, null, null);
+            ?? new LoteEngordeUbicado(loteCtxId, loteCtx.LoteNombre, loteCtx.FechaEncaset, loteCtx.HoraEncasetamiento,
+                string.Empty, loteCtx.NucleoId, null, loteCtx.GalponId, null, loteCtx.GranjaId);
 
         var idsAbiertos = lotesUbicados.Select(l => l.LoteId).ToList();
         if (!idsAbiertos.Contains(loteCtxId)) idsAbiertos.Add(loteCtxId);
@@ -263,11 +269,38 @@ public partial class MigracionService
             var unifM = Porcentaje0a100(fila, errores, "Uniformidad M", "uniformidad m");
             var cvH = DobleNoNeg(fila, errores, "CV H", "cv h", "cv hembras");
             var cvM = DobleNoNeg(fila, errores, "CV M", "cv m", "cv machos");
+
+            // Hasta dos alimentos del inventario por sexo, igual que en seguimiento engorde. Es lo que
+            // hace que la PRIMERA SEMANA del lote (que se digita acá y después cruza a engorde)
+            // descuente de verdad el alimento del galpón: sin ítems, el consumo directo queda como un
+            // número suelto y el inventario nunca baja.
+            var itemsH = new List<ItemSeguimientoDto>();
+            var itemsM = new List<ItemSeguimientoDto>();
+            LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsH,
+                "Alimento 1 H", ClavesReproductora("Alimento 1 H"),
+                "Consumo Alimento 1 H", ClavesReproductora("Consumo Alimento 1 H"));
+            LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsH,
+                "Alimento 2 H", ClavesReproductora("Alimento 2 H"),
+                "Consumo Alimento 2 H", ClavesReproductora("Consumo Alimento 2 H"));
+            LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsM,
+                "Alimento 1 M", ClavesReproductora("Alimento 1 M"),
+                "Consumo Alimento 1 M", ClavesReproductora("Consumo Alimento 1 M"));
+            LeerAlimentoSlot(fila, errores, alimentosPorClave, unidadConsumo, itemsM,
+                "Alimento 2 M", ClavesReproductora("Alimento 2 M"),
+                "Consumo Alimento 2 M", ClavesReproductora("Consumo Alimento 2 M"));
             if (errores.Count > e0) continue;
 
             // Unidad Consumo "qq" → convertir el consumo H/M a kg (×45.36, mismo redondeo que el front).
             consH = MigracionCalculos.ConsumoAKilos(consH, unidadConsumo);
             consM = MigracionCalculos.ConsumoAKilos(consM, unidadConsumo);
+
+            // Con alimentos del inventario el consumo sale de ellos (misma semántica que engorde).
+            if (itemsH.Count > 0 && consH is > 0)
+                errores.Add(new(fila.Numero, EtiquetaColumna(fila, "Consumo H (kg)", "consumo h (kg)", "consumo h"), consH.Value.ToString("0.###"),
+                    "Se ignora el consumo directo H: la fila trae Alimento 1/2 H (el consumo sale de esos alimentos).", "Advertencia"));
+            if (itemsM.Count > 0 && consM is > 0)
+                errores.Add(new(fila.Numero, EtiquetaColumna(fila, "Consumo M (kg)", "consumo m (kg)", "consumo m"), consM.Value.ToString("0.###"),
+                    "Se ignora el consumo directo M: la fila trae Alimento 1/2 M (el consumo sale de esos alimentos).", "Advertencia"));
 
             nuevosPorRepro[repro.Id] = nuevos + 1;
 
@@ -282,10 +315,14 @@ public partial class MigracionService
                 SelM = selM,
                 ErrorSexajeHembras = errH,
                 ErrorSexajeMachos = errM,
-                TipoAlimento = MigracionCalculos.TextoLimpio(Celda(fila, "tipo alimento")) ?? string.Empty,
-                ConsumoHembras = (double?)consH,
+                TipoAlimento = MigracionCalculos.TextoLimpio(Celda(fila, "tipo alimento"))
+                               ?? string.Join(" / ", itemsH.Concat(itemsM).Select(i => i.Nombre).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct()),
+                ItemsHembras = itemsH.Count > 0 ? itemsH : null,
+                ItemsMachos = itemsM.Count > 0 ? itemsM : null,
+                // Con ítems el total sale de ellos; el consumo directo solo aplica sin alimentos.
+                ConsumoHembras = itemsH.Count > 0 ? null : (double?)consH,
                 UnidadConsumoHembras = "kg",
-                ConsumoMachos = (double?)consM,
+                ConsumoMachos = itemsM.Count > 0 ? null : (double?)consM,
                 UnidadConsumoMachos = "kg",
                 PesoPromH = pesoH,
                 PesoPromM = pesoM,

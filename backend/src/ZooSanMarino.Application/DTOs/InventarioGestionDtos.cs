@@ -207,7 +207,13 @@ public sealed record InventarioGestionConsumoRequest(
     decimal Quantity,
     string Unit,
     string? Reference,
-    string? Reason
+    string? Reason,
+    /// <summary>
+    /// Fecha del consumo en el histórico (solo día). Null = fecha/hora actual del servidor, que es el
+    /// comportamiento de siempre. Se usa en cargas históricas: sin esto, el kardex fecha TODOS los
+    /// consumos de un lote de 41 días el día en que se importó el archivo.
+    /// </summary>
+    DateTime? FechaMovimiento = null
 );
 
 /// <summary>Ajuste directo de cantidad/unidad en un registro de stock (misma ubicación e ítem).</summary>

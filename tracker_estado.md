@@ -632,3 +632,82 @@ informe semanal NO se tocan) · la columna conserva el encabezado «Edad (días 
 
 - [x] `dotnet build` + `dotnet test`
 - [x] `yarn build`
+
+---
+
+# Alimento (ingresos/traslados) en el mismo archivo de carga masiva de engorde
+
+Plan: [fase_de_desarrollo/carga_masiva_alimento_engorde_plan.md](fase_de_desarrollo/carga_masiva_alimento_engorde_plan.md)
+
+Caso testigo: galpon 6 (`G0471`) de DAYLAND (granja 107, ItalcolPanama), lote `13 - 1` (id 142).
+**Meta: dejar 2.235,33 kg en el inventario del galpon.**
+
+**Decisiones del usuario:** hoja `Alimento` nueva en el mismo .xlsx - el consumo diario descuenta SOLO
+por la via `Alimento 1/2 Mixto` (no se toca el backend del consumo directo) - la primera semana
+(reproductora) tambien debe descontar.
+
+## Fase 0 - Diagnostico
+
+- [x] Balance verificado al kilo: 155.188,243 ingresado - 7.166,829 (semana 1) - 145.786,084 (dias 8-41) = **2.235,330**
+- [x] Dry-run real contra `POST /api/Migracion/validar`: 2 filas con error (`PREINICIO`/`INICIO`/`ENGORDE` no son alimentos del catalogo)
+- [x] Inventario de la granja 107 confirmado **vacio** (0 stock, 0 movimientos)
+- [x] Confirmado que el consumo directo NO descuenta inventario (metadata null en las 34 filas)
+- [x] Kardex cronologico: el saldo se va a negativo del 28/06 al 12/07 (fondo -10.634,13 el 05/07) => el orden de proceso (alimento primero) es parte del contrato
+- [x] Verificado que el desglose por fases del usuario coincide al kilo con el agotamiento real (residuo 0,069 kg ajustado el 23/06)
+
+## Fase 1 - Fix de usabilidad: mensajes con el titulo mixto
+
+- [x] `FilaCruda.Encabezados` (clave normalizada -> texto original del Excel) + helper `EtiquetaColumna`
+- [x] `LeerAlimentoSlot`, aviso de consumo ignorado y aviso de pesaje citan la columna real del archivo
+- [x] Verificado en vivo: los errores ahora dicen `Alimento 1 Mixto` / `Peso Mixto (g)` (antes `Alimento 1 H`, columna inexistente en la plantilla mixta)
+
+## Fase 2 - Hoja `Alimento`
+
+- [x] `MigracionEsquemas.AlimentoEngorde` (14 columnas; solo Fecha/Alimento/Cantidad obligatorias)
+- [x] `Application/Calculos/MigracionAlimentoCalculos.cs` (puro: movimiento, origen, simulacion, proyeccion, clave de idempotencia)
+- [x] `MigracionService.AlimentoEngorde.cs` (partial nuevo: leer/validar/aplicar, delegando en `IInventarioGestionService`)
+- [x] `LeerHojaOpcionalConEsquema`: hoja ausente = sin error (archivos previos intactos)
+- [x] Orquestacion en `ProcesarSeguimientoEngordeAsync` (alimento -> simulacion -> seguimiento)
+- [x] Simulacion fail-closed con el faltante exacto en kg; nada se inserta
+- [x] Idempotencia por (movimiento, ubicacion, item, fecha, cantidad, referencia)
+- [x] **Fix**: `decimal` conserva la escala; `2717.5` (Excel) y `2717.500` (numeric) daban claves distintas y el reintento duplicaba 2 ingresos. Formato fijo `0.000`
+- [x] **Fix**: archivo con SOLO ingresos (hoja Datos vacia) cortaba como "archivo vacio" antes de leer la hoja
+- [x] Plantilla: hoja `Alimento` + dropdown de alimentos + instrucciones
+- [x] `MigracionAlimentoCalculosTests.cs` (49 casos)
+
+## Fase 3 - Reproductora engorde descuenta la primera semana
+
+- [x] `Alimento 1/2 H-M` en `MigracionEsquemas.SeguimientoReproductoraEngorde` (opcionales, aditivas)
+- [x] Lectura en `MigracionService.SeguimientoReproductora.cs` (reusa `LeerAlimentoSlot`)
+- [x] **Fix**: `CreateSeguimientoDiarioLoteReproductoraRequest.BuildMetadata` no persistia `itemInventarioEcuadorId` => el consumo NUNCA descontaba (registro guardado, inventario intacto)
+- [x] Verificado en vivo: 300 + 450,5 kg descontados del galpon, movimientos fechados 12/06 y 13/06
+
+## Fase 4 - Kardex ordenado
+
+- [x] `FechaMovimiento` en `InventarioGestionConsumoRequest` (default null = comportamiento previo)
+- [x] `RegistrarConsumoAsync` usa `ResolveMovimientoCreatedAt` (simetria con `RegistrarIngresoAsync`)
+- [x] Seguimiento engorde y reproductora pasan la fecha del registro
+- [x] Verificado: 24 ingresos 04/06-18/07 y 36 consumos 15/06-18/07 (antes todos caian el dia de la carga)
+
+## Fase 5 - Front
+
+- [x] El saldo proyectado por alimento viaja como advertencia y el reporte existente ya lo renderiza (sin cambio de flujo)
+- [x] Columna "Fila" muestra "-" en los mensajes de archivo (fila 0), no un "0" que manda a buscar una fila inexistente
+
+## Fase 6 - Verificacion punta a punta (backend de prueba en :5011, copia aislada)
+
+- [x] Archivo real armado: `CargaMasiva_Engorde_GALPON6_con_ALIMENTO.xlsx` (Datos 34 filas + Alimento 24 filas)
+- [x] Dry-run limpio: `Validado`, 0 errores, saldo proyectado **2.235,331 kg**
+- [x] Import real: 58 filas procesadas, stock del galpon **2.235,331 kg** en AV. SUPER POLLO ENGORDE (INICIACION en 0)
+- [x] Reintento idempotente: 0 procesadas / 58 omitidas, stock sin cambios
+- [x] Fail-closed: quitando un ingreso de 14.239,771 kg => rechazo con "faltan 12.004,440 kg" y **cero** filas insertadas
+- [x] Regresion: archivo sin hoja `Alimento` se comporta igual que antes (mismos 2 errores de fila)
+- [x] Archivo con solo ingresos (hoja Datos vacia): 24 movimientos aplicados
+- [x] `dotnet build` 0 errores / 0 advertencias - `dotnet test` **1153/1153** - `yarn build` OK (solo el warning de bundle budget preexistente)
+- [x] BD local restaurada al estado previo (galpon 6 intacto: 41 seguimientos + 14 de reproductora) y sin procesos huerfanos
+
+## Pendiente (decision del usuario)
+
+- [ ] Aplicar al galpon 6 REAL: hoy tiene el seguimiento cargado SIN descuento de inventario. Para que
+      quede en 2.235,33 hay que borrar y recargar los 34 dias (dias 8-41) con el archivo nuevo, y
+      recargar los 7 dias de reproductora con la columna `Alimento 1 H`.

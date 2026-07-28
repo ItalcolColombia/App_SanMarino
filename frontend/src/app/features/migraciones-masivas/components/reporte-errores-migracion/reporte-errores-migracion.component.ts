@@ -42,7 +42,9 @@ const PAGINA = 200;
           </thead>
           <tbody>
             <tr *ngFor="let e of erroresVisibles()" class="border-t border-red-100/70">
-              <td class="px-3 py-1.5 tabular-nums text-gray-700">{{ e.fila }}</td>
+              <!-- Fila 0 = mensaje del ARCHIVO, no de una fila (encabezados, saldo de inventario
+                   proyectado, stock insuficiente). Mostrar "0" hacía buscar una fila que no existe. -->
+              <td class="px-3 py-1.5 tabular-nums text-gray-700">{{ e.fila > 0 ? e.fila : '—' }}</td>
               <td class="px-3 py-1.5 text-gray-700">{{ e.columna }}</td>
               <td class="px-3 py-1.5 text-gray-500">{{ e.valor }}</td>
               <td class="px-3 py-1.5 text-red-700">{{ e.mensaje }}</td>
