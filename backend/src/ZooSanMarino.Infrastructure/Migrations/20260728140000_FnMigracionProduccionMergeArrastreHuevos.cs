@@ -1,3 +1,33 @@
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <inheritdoc />
+    public partial class FnMigracionProduccionMergeArrastreHuevos : Migration
+    {
+        // Carga masiva de POSTURA a paridad con el alta manual: las dos funciones de migracion de
+        // seguimiento aceptan ahora (todo OPCIONAL — un archivo sin estas claves se comporta byte a
+        // byte como antes):
+        //   - metadata jsonb: desglose por alimento (itemsHembras/itemsMachos) y, en produccion,
+        //     huevoItems de la clasificacion por items (Santa Reyes). Es lo que lee el front para
+        //     pintar el detalle: sin esto un dia migrado se veia sin desglose por alimento.
+        //   - las 11 categorias de huevo + peso_huevo (levante): el modal ya las capturaba y el
+        //     Excel no las pedia.
+        //   - tipo_alimento y cons_separado (produccion): con items de alimento por sexo el consumo
+        //     se persiste separado H/M igual que ProduccionService; sin ellos se conserva el
+        //     contrato historico (total en cons_kg_h, cons_kg_m = 0).
+        // El INVENTARIO lo sigue moviendo C# (MigracionService.AlimentoPostura.cs) delegando en los
+        // mismos servicios del alta manual: estas funciones no lo tocan.
+        // Firma INTACTA => CREATE OR REPLACE, sin DROP FUNCTION y sin DDL de tablas (metadata y las
+        // 11 columnas huevo_* ya existen en ambas tablas).
+        // Fuente canonica: backend/sql/fn_migracion_seguimiento.sql
+
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"
 -- =============================================================================
 -- Funciones de migración masiva de SEGUIMIENTOS históricos (Postura).
 -- Insertan el estado final (set-based, idempotente por índice único) y recomputan
@@ -28,9 +58,9 @@
 -- traslados entre lotes (TrasladoAvesDesdeSegService) y el módulo Movimiento de
 -- Aves (MovimientoAvesService), que no dejan mortalidad/sel/error en esta tabla.
 -- Un recálculo total pisaría esos ajustes. Además, si la fecha ya tiene una fila
--- "solo traslado" (es_traslado=true, sin datos manuales) se completa (merge) en
+-- ""solo traslado"" (es_traslado=true, sin datos manuales) se completa (merge) en
 -- vez de saltear la fila del Excel en silencio — mismo criterio que el merge
--- manual ("Feature 13").
+-- manual (""Feature 13"").
 --
 -- Huevos (semana 14+): las 11 categorías viajan solo cuando la empresa tiene
 -- captura_huevos_en_levante y la fila está en semana ≥ 14. El GATE vive en C#
@@ -73,7 +103,7 @@ BEGIN
 
     CREATE TEMP TABLE tmp_delta_lev (lote_postura_levante_id integer, h integer, m integer) ON COMMIT DROP;
 
-    -- Paso 1: completar filas "solo traslado" existentes con los datos históricos (merge).
+    -- Paso 1: completar filas ""solo traslado"" existentes con los datos históricos (merge).
     WITH upd AS (
         UPDATE public.seguimiento_diario_levante sd
         SET mortalidad_hembras   = COALESCE(f.mort_h,0),
@@ -198,16 +228,16 @@ $$;
 --     lo que ya está cargado en los históricos: se conserva byte a byte.
 --   cons_separado = true → cons_kg_h y cons_kg_m se persisten POR SEXO, igual que
 --     ProduccionService.CrearSeguimientoAsync cuando el día trae ítems de alimento por sexo. C# lo
---     manda en true solo cuando la fila del Excel trae "Alimento 1/2 H-M", que es justo el caso en
+--     manda en true solo cuando la fila del Excel trae ""Alimento 1/2 H-M"", que es justo el caso en
 --     que el desglose por sexo existe de verdad.
 -- Fix (aves-fix, paridad con Levante): descuento INCREMENTAL igual semántica que el alta manual
 -- (SeguimientoProduccionService.AplicarDescuentoLppAsync) — NO se recalcula aves_h_actual/aves_m_actual
 -- desde cero, porque ese campo también lo tocan los traslados entre lotes de Producción
 -- (TrasladoAvesDesdeSegService, rama Producción↔Producción) y el módulo Movimiento de Aves
 -- (MovimientoAvesService.Postura.cs), que no dejan mortalidad/sel/error en esta tabla. Un
--- recálculo total pisaría esos ajustes. Además, si la fecha ya tiene una fila "solo traslado"
+-- recálculo total pisaría esos ajustes. Además, si la fecha ya tiene una fila ""solo traslado""
 -- (es_traslado=true, sin datos manuales) se completa (merge) en vez de saltear la fila del Excel
--- en silencio — mismo criterio que el merge manual ("Feature 14" en SeguimientoProduccionService).
+-- en silencio — mismo criterio que el merge manual (""Feature 14"" en SeguimientoProduccionService).
 -- Importante: las filas de traslado NO setean lote_postura_produccion_id (ver
 -- TrasladoAvesDesdeSegService), así que el matching es por lote_id crudo + fecha calendario, no
 -- por lote_postura_produccion_id (el dedup original por ese FK nunca encontraba esas filas).
@@ -302,7 +332,7 @@ BEGIN
     INSERT INTO tmp_delta_prod SELECT lote_postura_produccion_id, h, m FROM upd_arr;
     GET DIAGNOSTICS v_arrastre = ROW_COUNT;
 
-    -- Paso 1: completar filas "solo traslado" existentes con los datos históricos (merge).
+    -- Paso 1: completar filas ""solo traslado"" existentes con los datos históricos (merge).
     WITH upd AS (
         UPDATE public.seguimiento_diario_produccion sd
         SET mortalidad_hembras   = COALESCE(f.mort_h,0),
@@ -417,3 +447,16 @@ BEGIN
     RETURN v_arrastre + v_actualizados + v_insertados;
 END;
 $$;
+
+");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Sin Down: revertir dejaria las funciones sin las columnas nuevas mientras el codigo C#
+            // se las sigue mandando. La version anterior vive en la migracion 20260714022321
+            // (levante) y en el commit 4e49369 (produccion) si hiciera falta restaurarla a mano.
+        }
+    }
+}

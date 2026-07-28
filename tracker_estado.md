@@ -1273,6 +1273,49 @@ defecto no puede ser la del lote tal cual · ambas tablas ya tienen `metadata js
 - [x] Commit `7846200` acotado a esta tarea (16 archivos; el working tree ya no tenía trabajo de otras
       sesiones — el bloque del Resumen Semanal RA Pesadas se commiteó en `1b236bb`)
 - [ ] Push y deploy — **pendientes de pedido explícito**
+
+## Fase 7 — Ejercicio E2E del ciclo completo (levante → cierre → producción)
+
+Pedido del usuario: plantillas con datos de ejercicio en el Escritorio y el ciclo real de punta a punta.
+
+- [x] Lote de prueba **`ZZPRUEBA-MIG`** (id **130**, LPL 30) en granja 20 / núcleo 591408 / galpón G0319,
+      encaset 2025-09-01, 5.000 H + 550 M, raza AP 2023
+- [x] **Plantillas oficiales descargadas del endpoint y llenadas con los datos del ejercicio**, dejadas en
+      el Escritorio: `Carga_Masiva_LEVANTE_ejemplo.xlsx` y `Carga_Masiva_PRODUCCION_ejemplo.xlsx`
+      (4 hojas cada una: Datos · Alimento · Referencias · Instrucciones)
+- [x] **Levante**: 14 días (2026-02-16 → 03-01, semanas 25-26) con alimento del inventario y huevos en los
+      últimos 3 días · entrada de 8.000 kg en la hoja Alimento · dry-run con saldo proyectado · 14/14 importadas
+- [x] **Liquidación + cierre**: aves disponibles 4.952 H / 536 M (descontadas por la carga masiva) y
+      **804 huevos de levante** detectados para arrastrar · LPP creado · lote a fase Producción
+- [x] El lote pasó a ser **elegible para carga masiva de producción** (antes de cerrar no lo era)
+- [x] **Producción**: 7 días (2026-03-02 → 03-08) con las 11 categorías y alimento propio · 7/7 importadas ·
+      reimportar ⇒ 0 filas
+- [x] **Cuadre final verificado en BD**: levante 6.874 kg ⇒ stock 320 + 8.000 − 6.874 = **1.446 kg** ·
+      producción 4.522 kg ⇒ stock 9.360 + 6.000 − 4.522 = **10.838 kg** · aves 5.000 → 4.952 (levante) →
+      4.928 (producción) · 16.729 huevos de producción
+
+### 🔴 Bug encontrado por el ejercicio y corregido
+
+- [x] **El día del cierre se omitía en silencio.** El cierre de levante crea una fila de producción con los
+      huevos arrastrados; cuando el Excel traía ESE día (el caso normal: es el primer día de producción),
+      la carga lo contaba como "ya cargado" y **descartaba mortalidad, consumo y clasificación**. El alta
+      manual, en cambio, hace **merge** (`ProduccionService.AplicarRequestSobreFilaArrastre`)
+- [x] Fix: `ArrastresPendientesAsync` + suma con `HuevosLevanteCalculos.Sumar` en C# (que sabe leer la marca
+      del metadata) y paso de merge nuevo en `fn_migracion_seguimiento_produccion` (`es_merge_arrastre`).
+      La marca del arrastre se conserva y se cierra la ventana (`seguimientoRegistrado`), igual que el modal
+- [x] Migración `20260728140000_FnMigracionProduccionMergeArrastreHuevos` aplicada en local
+- [x] Advertencia explícita en el reporte: *"Es el día del cierre del levante: los N huevos arrastrados se
+      SUMAN a los de esta fila…"*
+- [x] **Verificado**: día 2026-03-02 con `huevo_tot = 2.674` (804 arrastrados + 1.870 del Excel),
+      `huevo_limpio = 2.220` (720+1.500), `huevo_inc = 2.540` derivado, mortalidad/consumo/observaciones del
+      archivo, y la marca con `seguimientoRegistrado = true`
+- [x] 2 tests puros nuevos que fijan el contrato del merge · `dotnet test` **1304/1304**
+
+- [ ] El lote `ZZPRUEBA-MIG` (id 130) **queda cargado en la BD local** para poder revisarlo por pantalla.
+      Para borrarlo: `DELETE FROM seguimiento_diario_produccion WHERE lote_id=130; DELETE FROM
+      seguimiento_diario_levante WHERE lote_id='130'; DELETE FROM lote_postura_produccion WHERE lote_id=130;
+      DELETE FROM liquidacion_cierre_lote_levante WHERE lote_postura_levante_id=30; DELETE FROM
+      lote_postura_levante WHERE lote_id=130; DELETE FROM lotes WHERE lote_id=130;`
 - [ ] Al cambiar de modo el componente se remonta y pierde el año/semana elegidos (el `@if` del
       shell lo destruye). Molesto pero no rompe nada; se resuelve levantando el estado al shell
 

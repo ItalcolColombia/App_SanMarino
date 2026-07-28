@@ -10,6 +10,7 @@
 // servicios del alta manual (IColombiaInventarioConsumoService a nivel granja para Colombia,
 // IInventarioGestionService con núcleo/galpón para Ecuador/Panamá) y la hoja "Alimento" reusa el
 // partial de engorde, que a su vez delega en la pantalla de gestión de inventario.
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
@@ -196,7 +197,7 @@ public partial class MigracionService
         var filasProd = await _ctx.SeguimientoProduccion.AsNoTracking()
             .Where(s => s.LoteId == loteId && s.Fecha >= rangoDesde && s.Fecha < rangoHasta)
             .Select(s => new { s.Fecha, s.EsTraslado, s.MortalidadH, s.MortalidadM, s.SelH, s.SelM,
-                               s.ConsKgH, s.ConsKgM, s.HuevoTot })
+                               s.ConsKgH, s.ConsKgM, s.HuevoTot, s.Metadata })
             .ToListAsync(ct);
 
         foreach (var f in filasProd)
@@ -204,9 +205,50 @@ public partial class MigracionService
             var esSoloTraslado = f.EsTraslado
                 && f.MortalidadH == 0 && f.MortalidadM == 0 && f.SelH == 0 && f.SelM == 0
                 && f.ConsKgH == 0 && f.ConsKgM == 0 && f.HuevoTot == 0;
-            if (!esSoloTraslado) vacio.Add(f.Fecha.Date);
+            // La fila del ARRASTRE de huevos del levante tampoco cuenta como "ya cargada": el Excel de
+            // ese día se FUSIONA con ella (los huevos se suman), igual que en el alta manual. Contarla
+            // hacía que el primer día de producción — que es justo el día del cierre — se omitiera en
+            // silencio y se perdieran mortalidad, consumo y clasificación.
+            if (!esSoloTraslado && !HuevosLevanteCalculos.PermiteMergeSeguimiento(f.Metadata))
+                vacio.Add(f.Fecha.Date);
         }
         return vacio;
+    }
+
+    /// <summary>
+    /// Filas de producción del lote que están a la espera del merge con el seguimiento del día: las
+    /// creó el cierre del levante con los huevos arrastrados y todavía nadie registró ese día.
+    /// Devuelve, por fecha, la clasificación ya arrastrada y su metadata (que trae la marca).
+    /// </summary>
+    private async Task<Dictionary<DateTime, (HuevosClasificacion Huevos, JsonDocument? Metadata)>> ArrastresPendientesAsync(
+        int loteId, IReadOnlyCollection<DateTime> fechas, CancellationToken ct)
+    {
+        var mapa = new Dictionary<DateTime, (HuevosClasificacion, JsonDocument?)>();
+        if (fechas.Count == 0) return mapa;
+
+        var rangoDesde = fechas.Min().Date.AddDays(-1);
+        var rangoHasta = fechas.Max().Date.AddDays(2);
+
+        var filas = await _ctx.SeguimientoProduccion.AsNoTracking()
+            .Where(s => s.LoteId == loteId && s.Fecha >= rangoDesde && s.Fecha < rangoHasta && s.Metadata != null)
+            .Select(s => new
+            {
+                s.Fecha, s.Metadata,
+                s.HuevoLimpio, s.HuevoTratado, s.HuevoSucio, s.HuevoDeforme, s.HuevoBlanco,
+                s.HuevoDobleYema, s.HuevoPiso, s.HuevoPequeno, s.HuevoRoto, s.HuevoDesecho, s.HuevoOtro
+            })
+            .ToListAsync(ct);
+
+        foreach (var f in filas)
+        {
+            if (!HuevosLevanteCalculos.PermiteMergeSeguimiento(f.Metadata)) continue;
+            mapa[f.Fecha.Date] = (new HuevosClasificacion(
+                Limpio: f.HuevoLimpio, Tratado: f.HuevoTratado, Sucio: f.HuevoSucio,
+                Deforme: f.HuevoDeforme, Blanco: f.HuevoBlanco, DobleYema: f.HuevoDobleYema,
+                Piso: f.HuevoPiso, Pequeno: f.HuevoPequeno, Roto: f.HuevoRoto,
+                Desecho: f.HuevoDesecho, Otro: f.HuevoOtro), f.Metadata);
+        }
+        return mapa;
     }
 
     /// <summary>

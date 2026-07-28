@@ -343,6 +343,15 @@ public partial class MigracionService
         var fechasVistas = new HashSet<DateTime>();
         var hoyUtc = DateTime.UtcNow.Date;
 
+        // Arrastre de huevos del levante: el cierre deja una fila de producción con los huevos
+        // arrastrados y nada más. Si el Excel trae ese día — el caso normal, porque es el PRIMER día de
+        // producción — se FUSIONA en vez de omitirse (los huevos se suman, el resto lo define el Excel),
+        // exactamente como hace el alta manual.
+        var fechasDelArchivo = new List<DateTime>();
+        foreach (var f in filas)
+            if (MigracionCalculos.TryFecha(Celda(f, "fecha"), out var fx)) fechasDelArchivo.Add(fx.Date);
+        var arrastres = await ArrastresPendientesAsync(loteId, fechasDelArchivo, ct);
+
         foreach (var fila in filas)
         {
             if (!MigracionCalculos.TryFecha(Celda(fila, "fecha"), out var fecha))
@@ -385,9 +394,20 @@ public partial class MigracionService
 
             if (errores.Count > e0) continue;
 
+            // Día del cierre del levante: los huevos del Excel se SUMAN a los arrastrados y los totales
+            // se derivan del resultado (mismo criterio que AplicarRequestSobreFilaArrastre).
+            var esMergeArrastre = arrastres.TryGetValue(fecha.Date, out var arrastre);
+            if (esMergeArrastre)
+            {
+                categorias = HuevosLevanteCalculos.Sumar(arrastre.Huevos, categorias);
+                errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"),
+                    $"Es el día del cierre del levante: los {arrastre.Huevos.Totales} huevos arrastrados se SUMAN a los de esta fila (total {categorias.Totales}); el resto de los datos los define el archivo.",
+                    "Advertencia"));
+            }
+
             var (totalFinal, incFinal) = itemsHuevoDelDia is { Count: > 0 }
                 ? (itemsHuevoDelDia.Sum(i => i.Cantidad), 0)
-                : MigracionPosturaCalculos.TotalesHuevoEfectivos(categorias, huevoTot, huevoInc);
+                : MigracionPosturaCalculos.TotalesHuevoEfectivos(categorias, esMergeArrastre ? null : huevoTot, esMergeArrastre ? null : huevoInc);
 
             var jsonFila = new Dictionary<string, object?>
             {
@@ -399,12 +419,16 @@ public partial class MigracionService
                 // Con ítems de alimento por sexo el consumo se persiste separado H/M, igual que
                 // ProduccionService; sin ellos se conserva el contrato histórico (todo en cons_kg_h).
                 ["cons_separado"] = itemsH.Count + itemsM.Count > 0,
+                ["es_merge_arrastre"] = esMergeArrastre,
                 ["tipo_alimento"] = ResolverTipoAlimento(fila, itemsH, itemsM),
                 ["huevo_tot"] = totalFinal, ["huevo_inc"] = incFinal, ["peso_huevo"] = pesoHuevo,
                 ["etapa"] = MigracionPosturaCalculos.EtapaEfectiva(etapa),
                 ["observaciones"] = MigracionCalculos.TextoLimpio(Celda(fila, "observaciones"))
             };
             AgregarMetadataItems(jsonFila, itemsH, itemsM, itemsHuevoDelDia);
+            // La marca del arrastre se conserva (para que siga siendo idempotente) y se cierra la
+            // ventana de merge: a partir de acá ese día vuelve a admitir un solo registro.
+            if (esMergeArrastre) ConservarMarcaArrastre(jsonFila, arrastre.Metadata);
             // Con clasificación por ítems las 11 columnas quedan en cero (regla de HuevoItemsCalculos).
             AgregarHuevosClasificacion(jsonFila,
                 itemsHuevoDelDia is { Count: > 0 } ? HuevosClasificacion.Cero : categorias,
@@ -555,6 +579,24 @@ public partial class MigracionService
             ["cantidad"] = i.Cantidad,
             ["unidad"] = i.Unidad
         };
+    }
+
+    /// <summary>
+    /// Copia al metadata de la fila la marca de arrastre que ya tenía la fila de producción y CIERRA la
+    /// ventana de merge (<c>seguimientoRegistrado</c>), igual que el alta manual. Sin esto, el arrastre
+    /// perdería su referencia (dejaría de ser idempotente) o el día admitiría un segundo merge.
+    /// </summary>
+    private static void ConservarMarcaArrastre(Dictionary<string, object?> jsonFila, JsonDocument? metadataArrastre)
+    {
+        var actual = jsonFila.TryGetValue("metadata", out var m) && m is Dictionary<string, object?> dict
+            ? JsonDocument.Parse(JsonSerializer.Serialize(dict))
+            : null;
+
+        var conMarca = HuevosLevanteCalculos.MarcarSeguimientoRegistrado(
+            HuevosLevanteCalculos.CopiarMarcaArrastre(actual, metadataArrastre));
+
+        if (conMarca is null) { jsonFila.Remove("metadata"); return; }
+        jsonFila["metadata"] = JsonSerializer.Deserialize<JsonElement>(conMarca.RootElement.GetRawText());
     }
 
     /// <summary>Vuelca las 11 categorías (y, en levante, los totales derivados) al json de la fila.</summary>

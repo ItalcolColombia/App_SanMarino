@@ -211,6 +211,39 @@ public class MigracionPosturaCalculosTests
         Assert.Equal(esperado, MigracionPosturaCalculos.MezclaFuentesDeHuevos(hayItems, c, incubables));
     }
 
+    // ── Merge con el arrastre de huevos del levante (día del cierre) ─────────
+    // Es el primer día de producción en toda migración: el cierre deja una fila con los huevos
+    // arrastrados y el Excel trae ese mismo día. Contrato: se SUMAN categoría por categoría y los
+    // totales se derivan del resultado — idéntico a ProduccionService.AplicarRequestSobreFilaArrastre.
+
+    [Fact]
+    public void MergeArrastre_SumaCategoriasYDerivaLosTotales()
+    {
+        var arrastrado = new HuevosClasificacion(Limpio: 720, Tratado: 60, Sucio: 24);
+        var delExcel = new HuevosClasificacion(Limpio: 1500, Tratado: 260, Sucio: 45, Roto: 9);
+
+        var sumado = HuevosLevanteCalculos.Sumar(arrastrado, delExcel);
+        // Con merge, los totales explícitos del Excel NO se usan: manda el desglose sumado.
+        var (total, inc) = MigracionPosturaCalculos.TotalesHuevoEfectivos(sumado, null, null);
+
+        Assert.Equal(2220, sumado.Limpio);
+        Assert.Equal(320, sumado.Tratado);
+        Assert.Equal(2618, total);   // 2220 + 320 + 69 + 9
+        Assert.Equal(2540, inc);     // Limpio + Tratado
+    }
+
+    [Fact]
+    public void MergeArrastre_SinHuevosEnElExcel_ConservaLosArrastrados()
+    {
+        var arrastrado = new HuevosClasificacion(Limpio: 720, Tratado: 60, Sucio: 24);
+
+        var sumado = HuevosLevanteCalculos.Sumar(arrastrado, HuevosClasificacion.Cero);
+        var (total, inc) = MigracionPosturaCalculos.TotalesHuevoEfectivos(sumado, null, null);
+
+        Assert.Equal(804, total);
+        Assert.Equal(780, inc);
+    }
+
     [Theory]
     [InlineData(0, null, null, null, false)]
     [InlineData(10, null, null, null, true)]
