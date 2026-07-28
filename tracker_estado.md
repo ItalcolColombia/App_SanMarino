@@ -813,3 +813,30 @@ trazable registro por registro.
 - [x] Lotes reproductora sin cambios salvo el rastro de la reapertura (`novedad_apertura` +
       `reabierto_at`), que es auditoria legitima
 - [x] `dotnet build` 0/0 - `dotnet test` **1165/1165** - sin procesos huerfanos
+
+## Fase 11 - Archivo unico definitivo con guia y ejemplos
+
+`CARGA_UNICA_LOTE_13-1_GALPON6.xlsx` — fusion de los 3 archivos del usuario en uno solo, con seis hojas:
+
+| Hoja | Filas | Se carga |
+|---|---|---|
+| GUIA | 32 lineas | no (explicacion + cuadre del lote) |
+| Reproductora | 14 | SI - dias 1-7 (con `Alimento 1 H/M`) |
+| Datos | 34 | SI - dias 8-41 (con `Alimento 1/2 Mixto`) |
+| Alimento | 24 | SI - llegadas al galpon |
+| EJEMPLOS | 7 casos | no (traslado, recepcion, consumo, quintales, bodega) |
+| REFERENCIAS | catalogo | no (8 alimentos, ubicacion, reproductoras, movimientos) |
+
+- [x] 17 comentarios de celda explicando cada columna sensible sobre el propio encabezado
+- [x] Hoja GUIA con el cuadre del lote y la regla clave (solo `Alimento 1/2` descuenta inventario)
+- [x] Hoja EJEMPLOS con los casos que este lote no tiene, listos para copiar
+- [x] **Bug propio detectado por el sistema**: una nota explicativa en la celda de la columna
+      "Reproductora" se leyo como el nombre de una reproductora -> `ConErrores`. Las explicaciones se
+      movieron a comentarios de celda (que el importador nunca lee). El fail-closed hizo su trabajo
+- [x] **Fix de redondeo**: los kg reservados para la semana 1 se calculan sumando las CELDAS ya
+      redondeadas a 3 decimales, no los decimales completos; con la suma original el PREINICIADOR
+      quedaba con 1 g de sobrante inexistente
+- [x] Validado e importado contra el backend: `Validado` 0 errores -> `Procesado` 72 filas
+- [x] **Inventario: PREINICIADOR 0,000 · INICIACION 0,000 · ENGORDE 2.235,332 = 2.235,332 kg**
+- [x] Reintento idempotente: 0 procesadas / 72 omitidas, stock sin cambios
+- [x] Estado final del lote 142: 41 seguimientos + 14 de reproductora, aves 22.816 / 24.165
