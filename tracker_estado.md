@@ -742,3 +742,39 @@ Archivo: `REPARACION_GALPON6_DAYLAND_lote13-1.xlsx` (Datos 34 filas + Alimento 2
       29/06, 06/07 y 13/07 - restos del archivo `MIXTO 1`. Ahora los pesos quedan solo en los dias de
       pesaje reales (21/06 572,04 - 28/06 1.135 - 05/07 1.816 - 12/07 2.238,22), como en `MIXTO 2`
 - [x] `dotnet build` 0/0 - `dotnet test` **1158/1158**
+
+## Fase 9 - Hoja `Reproductora`: un solo cargue para todo el lote
+
+Pedido: centralizar en un unico archivo. Cada hoja se identifica por NOMBRE y va a su modulo,
+reutilizando las funciones que ya existen (no se duplica logica de validacion).
+
+```
+Excel  ├── Alimento       -> inventario (ingresos / traslados / recepciones / consumos)
+       ├── Reproductora   -> seguimiento reproductora (dias 1-7, cruza solo a engorde)
+       └── Datos          -> seguimiento engorde (dias 8+)
+```
+
+- [x] **Refactor sin cambio de comportamiento**: el parseo de reproductora sale de
+      `ProcesarSeguimientoReproductoraAsync` a `ParsearFilasReproductoraAsync` (mismas reglas, mismos
+      mensajes). La linea de migracion dedicada lo sigue usando igual
+- [x] `MigracionEsquemas.ReproductoraEnHoja` = `SeguimientoReproductoraEngorde with { Hoja = "Reproductora" }`
+      (mismas columnas, alias y orden: validar por una via u otra da identico resultado)
+- [x] Lectura opcional de la hoja en `ProcesarSeguimientoEngordeAsync`
+- [x] Orden de proceso: **Alimento -> Reproductora -> Datos** (el galpon tiene stock antes de que la
+      primera semana y los dias 8+ lo consuman; la reproductora se confirma, que es lo que gatea el cruce)
+- [x] El consumo de la primera semana entra en la simulacion de balance
+- [x] Plantilla: la hoja se genera junto a Datos y Alimento + instrucciones del orden
+- [x] Tests: nombres de hoja distintos, equivalencia columna a columna con la linea dedicada,
+      claves de lectura identicas
+- [x] **Smoke con las 3 hojas en un archivo** (lote 149): 36 filas procesadas
+      - 28 registros de reproductora, todos CONFIRMADOS (3.080 kg)
+      - 7 dias 1-7 de engorde generados por el CRUCE automatico (11/06-17/06)
+      - 5 dias 8+ de engorde de la hoja Datos (19/06-23/06)
+      - 3 ingresos de alimento (13.000 kg)
+      - Inventario: PRE 1.920 / INI 550 / ENG 300 - exactamente lo proyectado en el dry-run
+- [x] Fail-closed verificado en el mismo smoke: con ENGORDE en 3.000 kg y consumo de 3.700 rechaza
+      con "faltan 700,000 kg"
+- [x] Reintento idempotente: 0 procesadas / 36 omitidas, stock sin cambios
+- [x] Regresion: la linea dedicada `SeguimientoReproductoraEngorde` (hoja "Datos") sigue funcionando
+- [x] `dotnet build` 0/0 - `dotnet test` **1165/1165**
+- [x] BD local limpia; galpon 6 sigue en **2.235,332 kg** y el lote 142 intacto (41 + 14 registros)

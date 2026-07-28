@@ -14,6 +14,7 @@ using OfficeOpenXml;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Migracion;
+using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
@@ -113,17 +114,43 @@ public partial class MigracionService
     private async Task<MigracionResultDto> ProcesarSeguimientoReproductoraAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
     {
         const TipoMigracion tipo = TipoMigracion.SeguimientoReproductoraEngorde;
-        const int MaxDias = ReproductoraEngordeCalculos.DiasRecogidaReproductora;
 
         if (ctx.LoteId is not int loteCtxId) return ErrorContexto(tipo, dryRun, "Seleccioná un lote de engorde antes de importar.");
         var (loteCtx, errLote) = await ResolverLoteEngordeAsync(companyId, loteCtxId, ct);
         if (loteCtx is null) return ErrorContexto(tipo, dryRun, errLote!);
 
         var errores = new List<MigracionErrorDto>();
-        using var stream = file.OpenReadStream();
-        var filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
+        List<FilaCruda> filas;
+        using (var stream = file.OpenReadStream())
+            filas = LeerDatosConEsquema(stream, MigracionEsquemas.Para(tipo), errores);
         if (errores.Any(e => e.Severidad == "Error")) return ResultadoConErrores(tipo, dryRun, filas.Count, errores);
         if (filas.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+
+        var parseo = await ParsearFilasReproductoraAsync(filas, companyId, ctx, loteCtxId, loteCtx, errores, ct);
+        if (parseo.ErrorContexto is string errCtx) return ErrorContexto(tipo, dryRun, errCtx);
+
+        return await EjecutarSeguimientoReproductoraAsync(tipo, dryRun, permitirParcial, filas.Count, parseo.Omitidas, errores, parseo.Dtos);
+    }
+
+    /// <summary>Resultado del parseo de filas de reproductora: DTOs listos, omitidas y, si aplica, el error de contexto.</summary>
+    private sealed record ParseoReproductora(List<SeguimientoLoteLevanteDto> Dtos, int Omitidas, string? ErrorContexto)
+    {
+        public static ParseoReproductora Error(string mensaje) => new(new List<SeguimientoLoteLevanteDto>(), 0, mensaje);
+    }
+
+    /// <summary>
+    /// Valida las filas de seguimiento reproductora y las convierte en DTOs listos para insertar.
+    /// <para>
+    /// Extraído de <see cref="ProcesarSeguimientoReproductoraAsync"/> SIN cambiar una sola regla: lo
+    /// comparte la hoja "Reproductora" del archivo unificado de seguimiento engorde, para que cargar
+    /// la primera semana desde ahí valide exactamente igual que la línea de migración dedicada.
+    /// </para>
+    /// </summary>
+    private async Task<ParseoReproductora> ParsearFilasReproductoraAsync(
+        List<FilaCruda> filas, int companyId, MigracionContextoDto ctx, int loteCtxId,
+        LoteAveEngorde loteCtx, List<MigracionErrorDto> errores, CancellationToken ct)
+    {
+        const int MaxDias = ReproductoraEngordeCalculos.DiasRecogidaReproductora;
 
         // El flag de la empresa se resuelve UNA vez: dentro del loop serían N consultas iguales.
         var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
@@ -139,7 +166,7 @@ public partial class MigracionService
         var reprosPorLote = await CargarReproductorasDeLotesAsync(idsAbiertos, ct);
 
         if (!reprosPorLote.ContainsKey(loteCtxId))
-            return ErrorContexto(tipo, dryRun, $"El lote {loteCtx.LoteNombre} no tiene lotes reproductora asociados.");
+            return ParseoReproductora.Error($"El lote {loteCtx.LoteNombre} no tiene lotes reproductora asociados.");
 
         // Reproductora elegida en pantalla (opcional): debe pertenecer al lote seleccionado.
         ReproductoraInfo? reproCtx = null;
@@ -147,7 +174,7 @@ public partial class MigracionService
         {
             reproCtx = reprosPorLote[loteCtxId].Repros.FirstOrDefault(r => r.Id == reproCtxId);
             if (reproCtx is null)
-                return ErrorContexto(tipo, dryRun, "La reproductora seleccionada no pertenece al lote de engorde elegido.");
+                return ParseoReproductora.Error("La reproductora seleccionada no pertenece al lote de engorde elegido.");
         }
 
         // Fechas ya cargadas por reproductora (idempotencia) + conteo para el tope de 7 días.
@@ -338,8 +365,7 @@ public partial class MigracionService
         }
 
         // Orden estable: por reproductora y fecha ascendente (el cruce consolida por edad).
-        var ordenados = dtos.OrderBy(d => d.LoteId).ThenBy(d => d.FechaRegistro).ToList();
-        return await EjecutarSeguimientoReproductoraAsync(tipo, dryRun, permitirParcial, filas.Count, omitidas, errores, ordenados);
+        return new ParseoReproductora(dtos.OrderBy(d => d.LoteId).ThenBy(d => d.FechaRegistro).ToList(), omitidas, null);
     }
 
     // ── Runner (valida → dry-run corta → CreateAsync + ConfirmarAsync fila por fila, parcial opt-in) ─

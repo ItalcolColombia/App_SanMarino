@@ -246,7 +246,18 @@ public partial class MigracionService
         // el seguimiento — y cortar antes lo rechazaba como si estuviera vacío.
         var movimientosAlimento = await LeerHojaAlimentoAsync(file, companyId, loteCtxUbicado, errores, ct);
 
-        if (filas.Count == 0 && movimientosAlimento.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+        // Hoja "Reproductora" (OPCIONAL): la PRIMERA SEMANA del lote. Se digita en reproductora y el
+        // trigger de cruce la vuelca a los días 1-7 de engorde. Reutiliza el mismo parseo que la línea
+        // de migración dedicada, así que un archivo unificado valida idéntico a cargarla por separado.
+        var filasRepro = LeerHojaOpcionalConEsquema(file, MigracionEsquemas.ReproductoraEnHoja, errores);
+        var parseoRepro = filasRepro.Count > 0
+            ? await ParsearFilasReproductoraAsync(filasRepro, companyId, ctx, loteCtxId, loteCtx, errores, ct)
+            : null;
+        if (parseoRepro?.ErrorContexto is string errRepro)
+            errores.Add(new(0, "Reproductora", null, $"Hoja 'Reproductora': {errRepro}"));
+
+        if (filas.Count == 0 && movimientosAlimento.Count == 0 && filasRepro.Count == 0 && errores.Count == 0)
+            return ResultadoVacio(tipo, dryRun);
 
         // (lote, fecha) ya cargados de TODOS los lotes abiertos (idempotencia multi-lote en una consulta;
         // incluye filas origen_cruce de días 1-7).
@@ -457,6 +468,16 @@ public partial class MigracionService
             }
         }
 
+        // La primera semana consume del MISMO galpón: entra en el balance como cualquier otra salida.
+        foreach (var dto in parseoRepro?.Dtos ?? new List<SeguimientoLoteLevanteDto>())
+        {
+            if (dto.Metadata is null) continue;
+            foreach (var kv in MetadataEngordeCalculos.ParseMetadataItemsToKg(dto.Metadata.RootElement))
+                if (kv.Value > 0)
+                    MigracionAlimentoCalculos.Acumular(
+                        salidasAlimento, new PosicionAlimento(loteCtxUbicado.Ubicacion, kv.Key), kv.Value);
+        }
+
         var posiciones = new HashSet<PosicionAlimento>(entradasAlimento.Keys);
         foreach (var p in salidasAlimento.Keys) posiciones.Add(p);
         var stockActual = await CargarStockPosicionesAsync(posiciones, ct);
@@ -473,7 +494,7 @@ public partial class MigracionService
 
         return await EjecutarSeguimientoEngordeAsync(
             tipo, dryRun, permitirParcial, file.FileName, filas.Count, omitidas, errores, dtos,
-            movimientosAlimento, saldos, ct);
+            movimientosAlimento, saldos, parseoRepro, ct);
     }
 
     // ── Runner (valida → dry-run corta → CreateAsync fila por fila, sin TX externa, parcial opt-in) ─
@@ -481,9 +502,11 @@ public partial class MigracionService
         TipoMigracion tipo, bool dryRun, bool permitirParcial, string nombreArchivo,
         int total, int omitidas, List<MigracionErrorDto> errores, List<SeguimientoLoteLevanteDto> dtos,
         List<MovimientoAlimentoFila> movimientosAlimento, IReadOnlyList<SaldoAlimentoProyectado> saldos,
-        CancellationToken ct)
+        ParseoReproductora? parseoRepro, CancellationToken ct)
     {
-        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var dtosRepro = parseoRepro?.Dtos ?? new List<SeguimientoLoteLevanteDto>();
+        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0 && dtosRepro.Count == 0)
+            return ResultadoVacio(tipo, dryRun);
 
         var hayErroresReales = errores.Any(e => e.Severidad == "Error");
         var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && dtos.Count > 0;
@@ -510,6 +533,23 @@ public partial class MigracionService
         omitidas += movOmitidos;
 
         int insertados = 0;
+
+        // Después del alimento y ANTES de la hoja Datos: la reproductora es la primera semana del lote
+        // y su trigger de cruce escribe los días 1-7 de engorde. Cada registro queda CONFIRMADO, que es
+        // lo que gatea ese cruce (idéntico a la línea de migración dedicada).
+        foreach (var dto in dtosRepro)
+        {
+            try
+            {
+                var creado = await _seguimientoReproductoraService.CreateAsync(dto);
+                await _seguimientoReproductoraService.ConfirmarAsync(creado.Id);
+                insertados++;
+            }
+            catch (Exception ex)
+            { fallos.Add(new(0, "Reproductora", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Hoja 'Reproductora': error al insertar/confirmar (reproductora {dto.LoteId}): {ex.Message}")); }
+        }
+        omitidas += parseoRepro?.Omitidas ?? 0;
+
         foreach (var dto in dtos)
         {
             try { await _seguimientoEngordeService.CreateAsync(dto); insertados++; }
@@ -559,6 +599,11 @@ public partial class MigracionService
         // se aplican antes del consumo. Opcional — se puede dejar vacía y el archivo funciona igual.
         var wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoEngorde.Hoja);
         PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoEngorde);
+
+        // Hoja "Reproductora": la primera semana del lote (días 1-7), que cruza sola a engorde.
+        // También opcional — el lote entero (semana 1 + días 8+ + inventario) cabe en UN archivo.
+        var wsRepro = pkg.Workbook.Worksheets.Add(MigracionEsquemas.ReproductoraEnHoja.Hoja);
+        PonerEncabezados(wsRepro, MigracionEsquemas.ReproductoraEnHoja);
 
         // Referencias: alimentos de la empresa (col A) + lotes abiertos con su ubicación (cols C..F).
         var wsRef = pkg.Workbook.Worksheets.Add("Referencias");
@@ -619,6 +664,18 @@ public partial class MigracionService
             "• Estos movimientos se aplican ANTES del consumo de la hoja Datos, para que el galpón tenga",
             "  stock cuando el seguimiento lo descuenta. Si el consumo supera lo disponible, el archivo",
             "  se rechaza indicando cuántos kg faltan (no se importa nada).",
+            "",
+            "HOJA 'Reproductora' (opcional) — la PRIMERA SEMANA del lote, en el MISMO archivo:",
+            "• Mismas columnas y reglas que la línea 'Seguimiento Reproductora Engorde': si preferís,",
+            "  podés seguir cargándola por separado desde ese menú y dejar esta hoja vacía.",
+            "• Los días 1 al 7 se digitan acá (por reproductora); el sistema los cruza solo a los días",
+            "  1-7 de pollo engorde. La hoja 'Datos' arranca en el día 8.",
+            "• Cada registro queda CONFIRMADO al importar (es lo que dispara ese cruce).",
+            "• Con 'Alimento 1/2 H-M' el consumo de esa semana DESCUENTA el stock del galpón.",
+            "",
+            "ORDEN DE PROCESO (una sola pasada): Alimento → Reproductora → Datos. Así el galpón tiene",
+            "stock antes de que la primera semana y los días 8+ lo consuman. Cada hoja se reconoce por",
+            "su NOMBRE y las que falten simplemente se omiten.",
         };
 
         var especificas = mixto

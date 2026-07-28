@@ -269,6 +269,19 @@ public static class MigracionEsquemas
     });
 
     /// <summary>
+    /// Hoja <c>Reproductora</c> del archivo de seguimiento pollo engorde: MISMAS columnas y reglas que
+    /// <see cref="SeguimientoReproductoraEngorde"/>, solo cambia el nombre de la hoja.
+    /// <para>
+    /// Existe para poder cargar TODO el lote en un archivo: la primera semana (que se digita en
+    /// reproductora y luego cruza a engorde) en la hoja <c>Reproductora</c>, los días 8 en adelante en
+    /// <c>Datos</c> y el inventario en <c>Alimento</c>. El parseo es literalmente el mismo código
+    /// (<c>ParsearFilasReproductoraAsync</c>), así que validar por una vía u otra da idéntico resultado.
+    /// </para>
+    /// </summary>
+    public static EsquemaMigracion ReproductoraEnHoja { get; } =
+        SeguimientoReproductoraEngorde with { Hoja = "Reproductora" };
+
+    /// <summary>
     /// Venta de pollo engorde. Todas las columnas son opcionales salvo la fecha ⇒ un archivo con
     /// las 11 columnas históricas (Fecha…Observaciones) sigue siendo válido.
     /// <para>

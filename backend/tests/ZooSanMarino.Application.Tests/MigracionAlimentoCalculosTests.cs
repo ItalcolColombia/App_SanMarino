@@ -493,6 +493,58 @@ public class MigracionAlimentoCalculosTests
         Assert.DoesNotContain(MigracionEsquemas.TiposConEsquema,
             t => MigracionEsquemas.Para(t).Hoja == MigracionEsquemas.AlimentoEngorde.Hoja);
 
+    // ── Archivo unificado: una hoja por módulo, identificada por NOMBRE ──────
+
+    [Fact]
+    public void HojasDelArchivoUnificado_TienenNombresDistintos()
+    {
+        // "Datos" (días 8+), "Alimento" (inventario) y "Reproductora" (primera semana) conviven en el
+        // mismo .xlsx; si dos compartieran nombre, el lector tomaría una por la otra.
+        var hojas = new[]
+        {
+            MigracionEsquemas.SeguimientoPolloEngorde.Hoja,
+            MigracionEsquemas.AlimentoEngorde.Hoja,
+            MigracionEsquemas.ReproductoraEnHoja.Hoja,
+        };
+        Assert.Equal(hojas.Length, hojas.Select(MigracionCalculos.NormalizarClave).Distinct().Count());
+    }
+
+    [Fact]
+    public void ReproductoraEnHoja_SoloCambiaElNombreDeLaHoja()
+    {
+        // Mismas columnas, mismos alias, mismo orden: cargar la primera semana desde el archivo
+        // unificado tiene que validar EXACTAMENTE igual que la línea de migración dedicada.
+        var dedicada = MigracionEsquemas.SeguimientoReproductoraEngorde;
+        var enHoja = MigracionEsquemas.ReproductoraEnHoja;
+
+        Assert.Equal("Reproductora", enHoja.Hoja);
+        Assert.Equal("Datos", dedicada.Hoja);
+        Assert.Equal(dedicada.MaxFilas, enHoja.MaxFilas);
+        Assert.Equal(dedicada.Columnas.Count, enHoja.Columnas.Count);
+        Assert.Equal(
+            dedicada.Columnas.Select(c => c.Titulo),
+            enHoja.Columnas.Select(c => c.Titulo));
+        Assert.Equal(
+            dedicada.Columnas.Select(c => (c.Requerida, string.Join('|', c.Alias ?? Array.Empty<string>()))),
+            enHoja.Columnas.Select(c => (c.Requerida, string.Join('|', c.Alias ?? Array.Empty<string>()))));
+    }
+
+    [Theory]
+    [InlineData("Alimento 1 H")]
+    [InlineData("Consumo Alimento 1 H")]
+    [InlineData("Reproductora")]
+    [InlineData("Fecha")]
+    public void ReproductoraEnHoja_ResuelveLasMismasClaves(string titulo) =>
+        Assert.Equal(
+            MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.SeguimientoReproductoraEngorde, titulo),
+            MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.ReproductoraEnHoja, titulo));
+
+    [Fact]
+    public void ReproductoraEnHoja_NoEsUnTipoDeMigracionPropio() =>
+        // Es una hoja del archivo de engorde; la línea dedicada sigue existiendo y usando "Datos".
+        Assert.DoesNotContain(MigracionEsquemas.TiposConEsquema,
+            t => MigracionEsquemas.Para(t).Hoja == MigracionEsquemas.ReproductoraEnHoja.Hoja);
+
     // ── Reproductora: columnas de alimento (primera semana descuenta) ────────
 
     [Theory]
