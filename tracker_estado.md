@@ -840,3 +840,64 @@ trazable registro por registro.
 - [x] **Inventario: PREINICIADOR 0,000 · INICIACION 0,000 · ENGORDE 2.235,332 = 2.235,332 kg**
 - [x] Reintento idempotente: 0 procesadas / 72 omitidas, stock sin cambios
 - [x] Estado final del lote 142: 41 seguimientos + 14 de reproductora, aves 22.816 / 24.165
+
+## Fase 12 - Validacion de edad, descuento de aves y cuadre (lote 142)
+
+### Resultado de la validacion
+
+| Punto | Estado |
+|---|---|
+| Numeracion desde dia 1 (engorde) | **OK** - edad backend 0..40 -> pantalla dia 1..41 |
+| Numeracion desde dia 1 (reproductora) | **OK** - edad 0..6 -> dia 1..7, ambas reproductoras |
+| Descuento de aves en el REPORTE | **OK** - 48.430 - 1.830 = 46.600 |
+| Descuento de aves en el MAESTRO | **BUG** - 46.981 (+381, las bajas de los dias 1-7) |
+| Inventario de alimento | **OK** - kardex y stock coinciden en 2.235,332 |
+| Saldo de alimento del REPORTE | **BUG** - 12.869,459 (+10.634,13) |
+
+### Bug 1 - las bajas de los dias 1-7 no llegaban al maestro (CORREGIDO)
+
+Los dias 1-7 los inserta el trigger SQL del cruce, sin pasar por el service, asi que su mortalidad
+nunca movia `hembras_l/machos_l`. El maestro es el stock que valida ventas y traslados: el sistema
+habria dejado despachar 381 aves ya muertas.
+
+- [x] `RetiroAvesEngordeAplicador.SincronizarCruceAsync`: aplica las bajas del cruce con la MISMA
+      logica idempotente de los dias 8+; revierte las filas de historico cuyo seguimiento ya no existe
+      (el cruce borra y recrea sus registros al regenerarse)
+- [x] Llamado desde `ConfirmarAsync` (tambien en el camino idempotente, que es la via de backfill de
+      lotes ya cargados) y desde `DeleteAsync` de reproductora
+- [x] Verificado en el lote 142: maestro 46.981 -> **46.600**, hembras -197 y machos -184
+- [x] Idempotente: 4 confirmaciones seguidas dejan el maestro en 46.600
+
+### Bug 2 - el saldo de alimento del reporte se inflaba (CORREGIDO A MEDIAS)
+
+El piso en 0 recortaba el saldo cada dia que se iba negativo; como las llegadas estan fechadas
+despues del consumo, cada recorte regalaba alimento inexistente.
+
+- [x] `SeguimientoAvesEngordeCalculos`: quitados los dos pisos (apertura y bucle principal)
+- [x] `fn_seguimiento_diario_engorde` **v9**: quitado el reseteo de base de Lindley (deshace el M1 de
+      v6, may-2026) en la apertura y en la columna final. **Habia DOS motores del mismo saldo** y el
+      diagnostico inicial solo vio el de C#; sin esto quedaban desalineados
+- [x] Tests actualizados + 2 nuevos con el caso real (llegadas fechadas despues del consumo)
+- [x] Los dos motores ahora coinciden: -9.894,306 en ambos
+- [ ] **PENDIENTE**: sigue sin cuadrar contra el inventario por un TERCER factor, no por el piso
+
+### Hallazgo 3 - alimento anterior al encasetamiento (SIN RESOLVER, requiere decision)
+
+El calculo descarta los movimientos anteriores a la fecha de encaset (para no arrastrar alimento de
+ciclos previos del galpon). Pero en engorde el PREINICIADOR llega antes que los pollitos:
+
+```
+Ingreso 04/06 (PREINICIADOR, 4 dias antes del encaset)   12.129,638 kg  <- descartado
+Ingresos desde el encaset (25 movimientos)              147.231,698 kg
+Saldo del reporte                                        -9.894,306 kg
+Stock real                                                2.235,332 kg
+Diferencia                                               12.129,638 kg  = el ingreso descartado
+```
+
+Con ese ingreso incluido el reporte cerraria exacto en 2.235,332.
+
+### Validacion
+
+- [x] `dotnet build` 0/0 - `dotnet test` **1167/1167**
+- [x] `fn_seguimiento_diario_engorde` v9 aplicada en la BD local
+- [ ] Migracion EF para publicar la fn v9 (pendiente de la decision del hallazgo 3)

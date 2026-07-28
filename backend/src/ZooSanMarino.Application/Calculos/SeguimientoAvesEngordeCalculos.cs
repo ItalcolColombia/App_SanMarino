@@ -83,10 +83,7 @@ public static class SeguimientoAvesEngordeCalculos
         });
         decimal bal = 0;
         foreach (var r in rows)
-        {
             bal += r.delta;
-            if (bal < 0) bal = 0;
-        }
         return bal;
     }
 
@@ -95,8 +92,10 @@ public static class SeguimientoAvesEngordeCalculos
     /// <summary>
     /// Reducción PURA del saldo de alimento (kg) por registro de seguimiento del lote.
     /// Misma lógica que el front (computeSaldoAlimentoKgPorSeguimiento): apertura de galpón +
-    /// eventos de histórico (INV_INGRESO/TRASLADO), menos consumo del seguimiento, orden estable,
-    /// piso en 0 tras cada paso. Devuelve el saldo por Id de seguimiento y el saldo final acumulado
+    /// eventos de histórico (INV_INGRESO/TRASLADO), menos consumo del seguimiento, orden estable.
+    /// El saldo puede quedar NEGATIVO cuando el consumo va por delante de las llegadas registradas:
+    /// es información real de la operación, y recortarlo a 0 descuadraba el acumulado contra el
+    /// inventario. Devuelve el saldo por Id de seguimiento y el saldo final acumulado
     /// (fallback para seguimientos sin evento propio). El llamador (EF) persiste el resultado.
     /// Requiere <paramref name="segs"/> no vacío.
     /// </summary>
@@ -149,8 +148,12 @@ public static class SeguimientoAvesEngordeCalculos
         decimal bal = opening;
         foreach (var e in events)
         {
+            // SIN piso en 0. El piso evitaba mostrar negativos, pero cada recorte regalaba alimento que
+            // no existe y el acumulado terminaba por encima del inventario: en el lote testigo el saldo
+            // tocaba −10.634,13 kg (las llegadas están fechadas después del consumo que las gasta) y el
+            // reporte cerraba en 12.869,46 contra 2.235,33 reales. Un saldo negativo no es un error de
+            // cálculo: dice que el alimento se consumió antes de que su llegada quedara registrada.
             bal += e.Delta;
-            if (bal < 0) bal = 0;
             if (e.SegId.HasValue)
                 saldoPorSegId[e.SegId.Value] = bal;
         }

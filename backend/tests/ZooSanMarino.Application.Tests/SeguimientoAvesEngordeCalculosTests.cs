@@ -121,10 +121,12 @@ public class SeguimientoAvesEngordeCalculosTests
     // ---------- ComputeSaldoAperturaGalponAntesPrimerSeguimiento ----------
 
     [Fact]
-    public void ComputeSaldoApertura_OrdenaPorTsYPisaEnCeroTrasCadaMovimiento()
+    public void ComputeSaldoApertura_OrdenaPorTs_SinPisoEnCero()
     {
         var firstSegDate = new DateTime(2026, 2, 1);
-        // Misma fecha (2026-01-20): salida procesada primero (ts menor) deja el saldo en 0 antes del ingreso.
+        // Misma fecha (2026-01-20): la salida se procesa primero (ts menor) y deja el saldo en −80.
+        // Ya NO se recorta a 0: recortar regalaba alimento inexistente y descuadraba el acumulado
+        // contra el inventario del galpón.
         var salida = Hist("INV_TRASLADO_SALIDA", new DateTime(2026, 1, 20), 80m,
             createdAt: new DateTimeOffset(2026, 1, 20, 8, 0, 0, TimeSpan.Zero));
         var ingreso = Hist("INV_INGRESO", new DateTime(2026, 1, 20), 50m,
@@ -133,7 +135,7 @@ public class SeguimientoAvesEngordeCalculosTests
         var opening = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
             new[] { salida, ingreso }, firstSegDate);
 
-        Assert.Equal(50m, opening);
+        Assert.Equal(-30m, opening); // -80 + 50
     }
 
     [Fact]
@@ -152,8 +154,8 @@ public class SeguimientoAvesEngordeCalculosTests
         var conEncaset = SeguimientoAvesEngordeCalculos.ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
             hist, firstSegDate, fechaEncaset: new DateTime(2026, 1, 15));
 
-        Assert.Equal(969m, sinEncaset); // 999 - 80 + 50 (sin floor, nunca queda negativo)
-        Assert.Equal(50m, conEncaset);  // previoAlEncaset descartado por ser anterior al encaset: 0 -80 (floor 0) +50
+        Assert.Equal(969m, sinEncaset); // 999 - 80 + 50
+        Assert.Equal(-30m, conEncaset); // previoAlEncaset descartado por anterior al encaset: -80 + 50
     }
 
     [Fact]
@@ -186,7 +188,7 @@ public class SeguimientoAvesEngordeCalculosTests
     // ---------- CalcularSaldoAlimentoPorSeguimiento ----------
 
     [Fact]
-    public void CalcularSaldoAlimentoPorSeguimiento_AperturaMasEventosDelDiaOrdenadosPorOrd_PisaEnCero()
+    public void CalcularSaldoAlimentoPorSeguimiento_AperturaMasEventosDelDiaOrdenadosPorOrd_SinPisoEnCero()
     {
         var apertura = Hist("INV_INGRESO", new DateTime(2026, 1, 15), 50m);
         // Mismo día del primer seguimiento: ord decide el orden, no el ts (h3 tiene ts anterior a h2 mas igual gana ord2 > ord0).
@@ -205,9 +207,10 @@ public class SeguimientoAvesEngordeCalculosTests
 
         // 50 (apertura) + 30 (ingreso) - 10 (salida) - 10 (consumo seg1) = 60
         Assert.Equal(60m, saldoPorSegId[1]);
-        // 60 - 100 = -40 -> piso en 0
-        Assert.Equal(0m, saldoPorSegId[2]);
-        Assert.Equal(0m, saldoFinal);
+        // 60 - 100 = -40. El saldo negativo se conserva: significa que ese día se consumió más de lo
+        // que había ENTRADO hasta la fecha, no que el galpón esté vacío.
+        Assert.Equal(-40m, saldoPorSegId[2]);
+        Assert.Equal(-40m, saldoFinal);
         Assert.Equal(2, saldoPorSegId.Count);
     }
 
@@ -378,5 +381,43 @@ public class SeguimientoAvesEngordeCalculosTests
     {
         using var doc = JsonDocument.Parse(json);
         Assert.Equal(esperado, SeguimientoAvesEngordeCalculos.MetadataYaTieneCamposKardex(doc));
+    }
+
+    [Fact]
+    public void CalcularSaldoAlimentoPorSeguimiento_LlegadasFechadasDespuesDelConsumo_CierraContraElInventario()
+    {
+        // Caso real del galpón 6 (DAYLAND, jul-2026), en pequeño: el alimento se registra DESPUÉS del
+        // día en que se consumió, así que el saldo pasa por negativo antes de recuperarse. Con el piso
+        // en 0 el acumulado terminaba por encima del inventario real exactamente en el peor negativo;
+        // sin piso, el saldo final es entradas − consumos, que es lo que hay en el galpón.
+        var ingresoTardio = Hist("INV_INGRESO", new DateTime(2026, 2, 3), 1000m,
+            createdAt: new DateTimeOffset(2026, 2, 3, 8, 0, 0, TimeSpan.Zero));
+
+        var seg1 = Seg(1, new DateTime(2026, 2, 1), consumoH: 300m, consumoM: 0m);
+        var seg2 = Seg(2, new DateTime(2026, 2, 2), consumoH: 400m, consumoM: 0m);
+        var seg3 = Seg(3, new DateTime(2026, 2, 3), consumoH: 200m, consumoM: 0m);
+
+        var (saldoPorSegId, saldoFinal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            new[] { ingresoTardio }, new[] { seg1, seg2, seg3 }, fechaEncaset: null);
+
+        Assert.Equal(-300m, saldoPorSegId[1]);  // consumo sin entrada registrada todavía
+        Assert.Equal(-700m, saldoPorSegId[2]);  // peor momento
+        Assert.Equal(100m, saldoPorSegId[3]);   // -700 + 1000 - 200
+        Assert.Equal(100m, saldoFinal);         // = 1000 entradas - 900 consumos, igual al inventario
+    }
+
+    [Fact]
+    public void CalcularSaldoAlimentoPorSeguimiento_ConsumoMayorAlTotalDeEntradas_QuedaNegativo()
+    {
+        // Un saldo negativo al CIERRE no es un redondeo: dice que falta registrar alimento que ya se
+        // consumió. Recortarlo a 0 escondía justo el dato que hay que corregir.
+        var ingreso = Hist("INV_INGRESO", new DateTime(2026, 2, 1), 100m);
+        var seg = Seg(1, new DateTime(2026, 2, 2), consumoH: 250m, consumoM: 0m);
+
+        var (saldoPorSegId, saldoFinal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            new[] { ingreso }, new[] { seg }, fechaEncaset: null);
+
+        Assert.Equal(-150m, saldoPorSegId[1]);
+        Assert.Equal(-150m, saldoFinal);
     }
 }

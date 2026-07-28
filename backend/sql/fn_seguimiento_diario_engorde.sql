@@ -3,6 +3,13 @@
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
+-- v9 (2026-07-28) — Fix: saldo_alimento_kg SIN piso ni reseteo de base (deshace el M1 de v6).
+--   * Problema: el reseteo de Lindley evitaba mostrar negativos, pero cada recorte descartaba
+--     déficit real y el acumulado quedaba por encima del inventario. Galpón 6 DAYLAND: reporte
+--     12.869,46 kg vs 2.235,33 kg reales (+10.634,13 = el peor negativo del ciclo).
+--   * Solución: el saldo es P_t crudo. Un negativo señala alimento consumido antes de registrar su
+--     llegada — información de la operación, no un defecto del cálculo. Alineado con el C#.
+--
 -- v8 (2026-07-14) — Fix: aves_iniciales no restaba mort_caja_h/mort_caja_m.
 --   * Problema: "Mort. caja H/M" (aves que llegaron muertas en la caja de transporte, campo
 --     capturado una sola vez al crear/editar el lote, fuera del seguimiento diario) NO se
@@ -188,11 +195,8 @@ apert_run AS (
     FROM apert_mov
 ),
 apertura_alimento AS (
-    -- saldo de apertura pisado = P final − LEAST(0, MIN(P))  (forma cerrada de Lindley).
-    SELECT COALESCE(
-        (SELECT p FROM apert_run WHERE rn_desc = 1)
-        - LEAST(0, (SELECT MIN(p) FROM apert_run))
-    , 0)::FLOAT8 AS apertura_kg
+    -- v9: saldo de apertura CRUDO (P final), sin el reseteo de base de Lindley.
+    SELECT COALESCE((SELECT p FROM apert_run WHERE rn_desc = 1), 0)::FLOAT8 AS apertura_kg
 ),
 
 -- 3b. ⭐ v5: movimientos de alimento del galpón por fecha, SIN tope superior
@@ -537,11 +541,14 @@ SELECT
         WHEN se.total_mort_sel_dia > 0 THEN 100.0::FLOAT8
         ELSE NULL
     END                                                                                AS pct_perdidas_dia,
-    -- ⭐ v6 (M1): piso 0 con reseteo de base (Lindley). Alinea la fn con la lógica canónica
-    -- del frontend (computeSaldoAlimentoKgPorSeguimiento) y del backend C#
-    -- (RecalcularSaldoAlimentoPorLoteAsync): saldo_t = max(0, saldo_{t-1} + ingreso − consumo).
-    -- Forma cerrada: P_t − LEAST(0, MIN(P_t) acumulado). "Olvida" el déficit transitorio de timing.
-    (se.pt - LEAST(0, MIN(se.pt) OVER w_ord))::FLOAT8                                  AS saldo_alimento_kg,
+    -- ⭐ v9 (M2): saldo CRUDO, sin piso ni reseteo de base.
+    -- El reseteo de Lindley "olvidaba" el déficit transitorio para no mostrar negativos, pero cada
+    -- olvido regalaba alimento inexistente y el acumulado terminaba por encima del inventario: en el
+    -- galpón 6 de DAYLAND (jul-2026) el reporte cerraba en 12.869,46 kg contra 2.235,33 reales,
+    -- inflado exactamente en el peor negativo (−10.634,13 del 05/07). Un saldo negativo no es un
+    -- error de cálculo: dice que el alimento se consumió antes de que su llegada quedara registrada.
+    -- Espeja a RecalcularSaldoAlimentoPorLoteAsync / SeguimientoAvesEngordeCalculos, que ya no pisan.
+    se.pt::FLOAT8                                                                      AS saldo_alimento_kg,
     se.ingreso_alimento_kg,
     se.traslado_entrada_kg,
     se.traslado_salida_kg,

@@ -422,8 +422,14 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             .SingleOrDefaultAsync(s => s.Id == id);
         if (ent is null) return null;
 
-        // Idempotente.
-        if (ent.Confirmado) return MapToDto(ent);
+        // Idempotente en cuanto al registro, pero igual se sincronizan las bajas del cruce: es la vía
+        // de reparación de los lotes que se confirmaron antes de que esto existiera (re-confirmar un
+        // día pone al día el maestro de aves sin tocar nada más).
+        if (ent.Confirmado)
+        {
+            await SincronizarBajasCruceAsync(ent.LoteReproductoraAveEngordeId);
+            return MapToDto(ent);
+        }
 
         ent.Confirmado = true;
         ent.ConfirmadoAt = DateTime.UtcNow;
@@ -432,7 +438,35 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         // Entidad rastreada por PK → EF emite UPDATE de las columnas cambiadas → dispara el trigger de cruce.
         await _ctx.SaveChangesAsync();
 
+        // El cruce ya escribió (o rehízo) los días 1-7 de engorde por SQL. Sus bajas tienen que llegar
+        // al maestro de aves del lote igual que las de los días 8+: si no, `hembras_l/machos_l` queda
+        // por encima del real y el sistema deja despachar aves que ya murieron.
+        await SincronizarBajasCruceAsync(ent.LoteReproductoraAveEngordeId);
+
         return MapToDto(ent);
+    }
+
+    /// <summary>
+    /// Lleva al maestro del lote de engorde las bajas de los días que generó el cruce. Idempotente; los
+    /// fallos se registran sin tumbar la confirmación (el cruce ya ocurrió y el reporte diario, que
+    /// calcula desde <c>aves_encasetadas</c>, sigue mostrando el saldo correcto).
+    /// </summary>
+    private async Task SincronizarBajasCruceAsync(int loteReproductoraId)
+    {
+        try
+        {
+            var loteEngordeId = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                .Where(l => l.Id == loteReproductoraId)
+                .Select(l => l.LoteAveEngordeId)
+                .FirstOrDefaultAsync();
+            if (loteEngordeId <= 0) return;
+
+            await RetiroAvesEngordeAplicador.SincronizarCruceAsync(_ctx, _current.CompanyId, loteEngordeId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al sincronizar las bajas del cruce con el maestro de aves: {ex.Message}");
+        }
     }
 
     // ─── Delete ───────────────────────────────────────────────────────────────
@@ -500,6 +534,11 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         }
 
         await _ctx.SaveChangesAsync();
+
+        // El trigger acaba de rehacer (o borrar) los días 1-7 de engorde: hay que devolver al maestro
+        // las aves de los días que desaparecieron y descontar las de los que se regeneraron.
+        await SincronizarBajasCruceAsync(ent.LoteReproductoraAveEngordeId);
+
         return true;
     }
 
