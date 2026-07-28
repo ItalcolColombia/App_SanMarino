@@ -14,4 +14,15 @@ public interface IReporteTecnicoSemanalService
 
     Task<ReporteTecnicoSemanalProduccionResponse> GenerarProduccionAsync(
         ReporteTecnicoSemanalRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Hoja «RESUMEN SEMANAL» del Informe RA Pesadas — bloque Levante:
+    /// una fila por lote para UNA semana calendario (WEEKNUM de Excel).
+    /// </summary>
+    Task<ResumenSemanalRaPesadasLevanteResponse> GenerarResumenLevanteAsync(
+        ResumenSemanalRaPesadasRequest request, CancellationToken ct = default);
+
+    /// <inheritdoc cref="GenerarResumenLevanteAsync"/>
+    Task<ResumenSemanalRaPesadasProduccionResponse> GenerarResumenProduccionAsync(
+        ResumenSemanalRaPesadasRequest request, CancellationToken ct = default);
 }

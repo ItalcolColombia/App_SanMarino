@@ -1084,14 +1084,35 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 - [x] Producción: lote sintético (sembrado y revertido con ROLLBACK) = **8 semanas, 0 diferencias**
       en 16 columnas contra `fn_indicadores_produccion_postura`
 
-### Backend C# + front (PENDIENTE)
+### Backend C# (HECHO)
+
+- [x] `ResumenSemanalRaPesadasDtos.cs`: request + filas levante/producción + totales + respuestas
+- [x] `ResumenSemanalRaPesadasCalculos.cs` (PURO): semana WEEKNUM, rango de la semana,
+      normalización de etapa, participación y promedios ponderados
+- [x] **Participación recalculada tras el recorte por alcance** — la fn SQL la computa con una
+      ventana sobre TODAS sus filas; si el backend quita lotes que el usuario no ve, las
+      participaciones dejan de sumar 1 y los ponderados salen mal
+- [x] `ReporteTecnicoSemanalService.Resumen.cs` (partial) + interfaz + `POST api/ReporteTecnicoSemanal/resumen`
+- [x] Ponderado por saldo de hembras, NO promedio simple; los lotes sin valor no cuentan como 0
+- [x] `dotnet build` 0 errores / 0 advertencias
+- [x] `dotnet test` **1219/1219** (+33 nuevos en `ResumenSemanalRaPesadasCalculosTests`)
+
+### Smoke del endpoint (HECHO — backend dev local, JWT minteado)
+
+- [x] Levante Sanmarino sem 20/2025 → 2 filas, cifras idénticas a las de la fn SQL
+      (K345A part 0,41948 saldo 7.726 · K345B part 0,58052 saldo 10.692)
+- [x] Producción con datos → mapeo EF correcto en las 23 columnas (`htaa`, `hiaa`, `grHuevoInc`,
+      `pesoMachoSobreHembra`, `lotePosturaProduccionId`…). Salieron 3 lotes en una semana
+      (el sintético + los 2 LPP reales de local): una fila por lote, como debe ser
+- [x] Etapa inválida → 400 · semana 99 → 400 · semana sin datos → 200 con lista vacía (no error)
+- [x] Empresa Demo → 0 filas (sin fuga cross-empresa)
+- [x] Semilla de prueba eliminada (0 filas ZZTEST, 4 LPP originales) y backend detenido (:5002 libre)
+
+### Front (PENDIENTE)
 
 - [ ] Columna `Venta H/M` desde movimientos de aves (D4, tras definir el criterio)
-- [ ] DTO `ResumenSemanalRaPesadasDto` (21 col. levante + 23 col. producción + `part`)
-- [ ] `ReporteTecnicoSemanalService.Resumen.cs` (partial) + endpoint `POST /resumen`
-- [ ] Derivadas y ponderados en `ReporteTecnicoSemanalCalculos` (puro)
-- [ ] Tests xUnit `ResumenSemanalRaPesadasCalculosTests`
 - [ ] Front: modo Resumen + `columnas-resumen-ra-pesadas.funcion.ts` + filtros año/semana/etapa/ciclo/traslado
+- [ ] Export a Excel de la hoja Resumen
 
 ## Fase 3 — Alimento por fase (hoja 5) — NUEVO
 
