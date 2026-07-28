@@ -448,6 +448,8 @@ public partial class MigracionService
             var posDestino = new PosicionAlimento(m.Destino.Normalizada(), m.ItemId);
             if (m.Movimiento is MovimientoAlimento.Ingreso or MovimientoAlimento.Recepcion)
                 MigracionAlimentoCalculos.Acumular(entradasAlimento, posDestino, m.CantidadKg);
+            else if (m.Movimiento is MovimientoAlimento.Consumo)
+                MigracionAlimentoCalculos.Acumular(salidasAlimento, posDestino, m.CantidadKg);
             else if (m.Movimiento is MovimientoAlimento.Traslado && m.Origen is UbicacionAlimento origen)
             {
                 MigracionAlimentoCalculos.Acumular(entradasAlimento, posDestino, m.CantidadKg);
@@ -605,7 +607,10 @@ public partial class MigracionService
             "HOJA 'Alimento' (opcional) — entradas de alimento al inventario, en el MISMO archivo:",
             "• Una fila por movimiento: Fecha · Movimiento · Alimento · Cantidad. El resto es opcional.",
             "• Movimiento: 'Ingreso' (default, alimento que llega de planta/bodega/otra granja), 'Traslado'",
-            "  (sale de una ubicación hacia otra) o 'Recepción' (acepta un traslado que quedó en tránsito).",
+            "  (sale de una ubicación hacia otra), 'Recepción' (acepta un traslado que quedó en tránsito)",
+            "  o 'Consumo' (alimento que salió del galpón pero que ningún día de seguimiento descontó:",
+            "  la primera semana del lote, ya confirmada en reproductora, o un histórico viejo). El",
+            "  'Consumo' pide Referencia para poder distinguir dos salidas iguales del mismo día.",
             "• Granja/Núcleo/Galpón vacíos ⇒ el movimiento va al galpón del lote elegido en pantalla.",
             "  Para Traslado y Recepción indicá además Granja/Núcleo/Galpón Origen.",
             "• Unidad: 'kg' (default) o 'qq' (×45.36), igual que en la hoja Datos.",

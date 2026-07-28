@@ -13,7 +13,18 @@ public enum MovimientoAlimento
     /// <summary>Salida de una ubicación hacia otra (galpón→galpón en la misma granja, o granja→granja vía tránsito).</summary>
     Traslado,
     /// <summary>Aceptación de un traslado inter-granja que quedó en tránsito.</summary>
-    Recepcion
+    Recepcion,
+    /// <summary>
+    /// Salida de alimento del galpón que NO nace de un día de seguimiento. Espeja el consumo manual
+    /// que ya existe en la pantalla de gestión de inventario (<c>POST /inventario-gestion/consumo</c>).
+    /// <para>
+    /// Su caso es el alimento que salió de verdad pero cuyo registro diario no lo descontó: la primera
+    /// semana del lote, que se digita en reproductora y queda CONFIRMADA (inmutable — corregirla exige
+    /// reabrir el lote), y en general cualquier histórico cargado antes de que el consumo descontara
+    /// inventario. Sin esto el galpón arrastra para siempre un sobrante que no existe.
+    /// </para>
+    /// </summary>
+    Consumo
 }
 
 /// <summary>
@@ -88,6 +99,11 @@ public static class MigracionAlimentoCalculos
             case "ingreso por traslado":
             case "entrada por traslado":
                 movimiento = MovimientoAlimento.Recepcion;
+                return true;
+            case "consumo":
+            case "consumos":
+            case "consumido":
+                movimiento = MovimientoAlimento.Consumo;
                 return true;
             default:
                 return false;

@@ -706,8 +706,39 @@ por la via `Alimento 1/2 Mixto` (no se toca el backend del consumo directo) - la
 - [x] `dotnet build` 0 errores / 0 advertencias - `dotnet test` **1153/1153** - `yarn build` OK (solo el warning de bundle budget preexistente)
 - [x] BD local restaurada al estado previo (galpon 6 intacto: 41 seguimientos + 14 de reproductora) y sin procesos huerfanos
 
-## Pendiente (decision del usuario)
+## Fase 7 - Movimiento `Consumo` en la hoja `Alimento`
 
-- [ ] Aplicar al galpon 6 REAL: hoy tiene el seguimiento cargado SIN descuento de inventario. Para que
-      quede en 2.235,33 hay que borrar y recargar los 34 dias (dias 8-41) con el archivo nuevo, y
-      recargar los 7 dias de reproductora con la columna `Alimento 1 H`.
+Necesario para reparar lotes ya cargados: los 7 dias de la primera semana viven en reproductora y estan
+CONFIRMADOS -> `UpdateAsync` los rechaza ("El registro esta confirmado y no puede editarse") y
+`DeleteAsync` exige reabrir el lote con novedad. Sin una salida manual, ese alimento queda como sobrante
+fantasma para siempre. Espeja `POST /inventario-gestion/consumo`, que ya existe en la pantalla.
+
+- [x] `MovimientoAlimento.Consumo` + alias en `TryMovimiento`
+- [x] Opcion "Consumo" en la columna Movimiento del esquema
+- [x] Se aplica con `RegistrarConsumoAsync` (fecha del movimiento = fecha de la fila)
+- [x] Cuenta como SALIDA en la simulacion de balance
+- [x] Idempotencia: solo los consumos con referencia propia entran (los del seguimiento llevan
+      "Seguimiento aves engorde #..." y no deben taparse entre si)
+- [x] Advertencia si un Consumo viene sin Referencia (dos salidas iguales del mismo dia se tomarian por repetidas)
+- [x] Tests + instrucciones de la plantilla
+
+## Fase 8 - REPARACION DEL GALPON 6 (lote 142, ejecutada)
+
+Archivo: `REPARACION_GALPON6_DAYLAND_lote13-1.xlsx` (Datos 34 filas + Alimento 24 ingresos + 7 consumos).
+
+- [x] Backup completo en `backup_g6/` (8 tablas: seguimientos, lote, reproductoras, inventario, historial)
+- [x] Borrados los 34 seguimientos de los dias 8-41 via `DELETE /api/SeguimientoAvesEngorde/{id}` (34/34 OK).
+      Aves devueltas correctamente: hembras 22.816 -> 24.265 (+1.449 = mortalidad de esos dias)
+- [x] Los 7 dias de cruce (origen_cruce) NO se tocaron
+- [x] Dry-run: `Validado`, 0 errores, saldo proyectado 2.235,332
+- [x] Import: 65 filas procesadas (34 seguimientos + 24 ingresos + 7 consumos)
+- [x] **Inventario del galpon 6 = 2.235,332 kg** (PREINICIADOR 0,000 - INICIACION 0,000 - ENGORDE 2.235,332)
+- [x] Kardex: 24 ingresos 04/06-18/07 + 43 consumos 08/06-18/07, con referencias `SEM1-*` (primera semana)
+      y `Seguimiento aves engorde #...` (dias 8-41)
+- [x] Aves del lote de vuelta en 22.816 / 24.165 / 0 (identico al estado previo)
+- [x] Consumo total del lote 152.952,912 kg - identico al backup
+- [x] Reintento idempotente: 0 procesadas / 65 omitidas
+- [x] Unico dato distinto (y es una CORRECCION): el backup traia peso 572,04 repetido en 15/06, 22/06,
+      29/06, 06/07 y 13/07 - restos del archivo `MIXTO 1`. Ahora los pesos quedan solo en los dias de
+      pesaje reales (21/06 572,04 - 28/06 1.135 - 05/07 1.816 - 12/07 2.238,22), como en `MIXTO 2`
+- [x] `dotnet build` 0/0 - `dotnet test` **1158/1158**

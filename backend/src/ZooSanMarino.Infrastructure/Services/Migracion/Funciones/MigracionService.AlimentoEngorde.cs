@@ -149,6 +149,13 @@ public partial class MigracionService
                 "Granja", "Núcleo", "Galpón", esOrigen: false);
             if (errores.Count > e0) continue;
 
+            // Un Consumo sin referencia no se puede distinguir de otro igual del mismo día: la
+            // idempotencia lo tomaría por repetido y la segunda salida no se aplicaría.
+            if (movimiento is MovimientoAlimento.Consumo
+                && MigracionCalculos.TextoLimpio(Celda(fila, ClavesAlimento("Referencia"))) is null)
+                errores.Add(new(fila.Numero, "Referencia", null,
+                    "Alimento: un movimiento 'Consumo' necesita Referencia (de dónde sale ese consumo: lote, día, documento). Sin ella, dos consumos iguales del mismo día se toman por repetidos.", "Advertencia"));
+
             UbicacionAlimento? origen = null;
             if (movimiento is MovimientoAlimento.Traslado or MovimientoAlimento.Recepcion)
             {
@@ -320,6 +327,13 @@ public partial class MigracionService
                     case MovimientoAlimento.Recepcion:
                         await RecibirTransitoAlimentoAsync(m, ct);
                         break;
+
+                    case MovimientoAlimento.Consumo:
+                        await _inventarioGestion.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                            m.Destino.FarmId, m.Destino.NucleoId, m.Destino.GalponId, m.ItemId, m.CantidadKg, "kg",
+                            m.Referencia, m.Observaciones ?? "Carga masiva de seguimiento engorde",
+                            FechaMovimiento: m.Fecha), ct);
+                        break;
                 }
                 aplicados++;
             }
@@ -384,6 +398,11 @@ public partial class MigracionService
             {
                 "Ingreso" => MovimientoAlimento.Ingreso,
                 "Traslado" => MovimientoAlimento.Traslado,
+                // Solo el consumo con REFERENCIA propia entra en la idempotencia de la hoja: los
+                // consumos que genera el seguimiento diario llevan "Seguimiento aves engorde #…" y no
+                // deben tapar una fila de Consumo del archivo.
+                "Consumo" when !(e.Reference ?? "").StartsWith("Seguimiento ", StringComparison.OrdinalIgnoreCase)
+                    => MovimientoAlimento.Consumo,
                 _ => (MovimientoAlimento?)null
             };
             if (mov is null) continue;

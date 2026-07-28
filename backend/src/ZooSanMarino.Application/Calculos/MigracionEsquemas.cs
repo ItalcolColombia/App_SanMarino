@@ -201,7 +201,7 @@ public static class MigracionEsquemas
     {
         new("Fecha",           Requerida: true),
         new("Movimiento",      Requerida: false, Alias: new[] { "tipo movimiento", "tipo" },
-                               Opciones: new[] { "Ingreso", "Traslado", "Recepción" }),
+                               Opciones: new[] { "Ingreso", "Traslado", "Recepción", "Consumo" }),
         new("Alimento",        Requerida: true,  Alias: new[] { "item", "producto", "tipo alimento" }),
         new("Cantidad",        Requerida: true,  Alias: new[] { "cantidad kg", "kg", "cantidad (kg)" }),
         new("Unidad",          Requerida: false, Alias: new[] { "unidad consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" }),

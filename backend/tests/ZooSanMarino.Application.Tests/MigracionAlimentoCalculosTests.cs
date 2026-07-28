@@ -58,6 +58,18 @@ public class MigracionAlimentoCalculosTests
     }
 
     [Theory]
+    [InlineData("Consumo")]
+    [InlineData("consumo")]
+    [InlineData("CONSUMIDO")]
+    public void TryMovimiento_Consumo(string texto)
+    {
+        // Salida de alimento que ningún día de seguimiento descontó: la primera semana del lote (que
+        // se digita en reproductora y queda confirmada) o un histórico cargado antes del descuento.
+        Assert.True(MigracionAlimentoCalculos.TryMovimiento(texto, out var m));
+        Assert.Equal(MovimientoAlimento.Consumo, m);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -259,6 +271,41 @@ public class MigracionAlimentoCalculosTests
         Assert.Equal(2_235.330m, saldos.Single(s => s.Posicion.ItemId == Engorde).SaldoFinal);
         Assert.Equal(2_235.330m, saldos.Sum(s => s.SaldoFinal));
     }
+
+    [Fact]
+    public void Proyectar_CasoGalpon6Completo_CierraEn2235()
+    {
+        // El galpón 6 real: los 7 días de la primera semana entran como movimiento "Consumo" de la
+        // hoja (los seguimientos de reproductora ya están CONFIRMADOS y no se pueden corregir), y los
+        // días 8-41 como consumo del seguimiento. El PREINICIADOR tiene que cerrar en cero.
+        var entradas = new Dictionary<PosicionAlimento, decimal>
+        {
+            [Pos(Galpon6, Preiniciador)] = 12_129.638m,
+            [Pos(Galpon6, Iniciacion)] = 20_135.171m,
+            [Pos(Galpon6, Engorde)] = 122_923.435m,
+        };
+        var salidas = new Dictionary<PosicionAlimento, decimal>
+        {
+            [Pos(Galpon6, Preiniciador)] = 7_166.832m + 4_962.805m, // semana 1 (Consumo) + días 8-41
+            [Pos(Galpon6, Iniciacion)] = 20_135.171m,
+            [Pos(Galpon6, Engorde)] = 120_688.104m,
+        };
+
+        var saldos = MigracionAlimentoCalculos.Proyectar(new Dictionary<PosicionAlimento, decimal>(), entradas, salidas);
+
+        Assert.Equal(0.001m, saldos.Single(s => s.Posicion.ItemId == Preiniciador).SaldoFinal);
+        Assert.Equal(0m, saldos.Single(s => s.Posicion.ItemId == Iniciacion).SaldoFinal);
+        Assert.Equal(2_235.331m, saldos.Single(s => s.Posicion.ItemId == Engorde).SaldoFinal);
+        Assert.Empty(MigracionAlimentoCalculos.Simular(new Dictionary<PosicionAlimento, decimal>(), entradas, salidas));
+    }
+
+    [Fact]
+    public void ClaveIdempotencia_ConsumoYIngresoIgualesSonDistintos() =>
+        // Un ingreso y un consumo del mismo alimento, día y cantidad son movimientos opuestos: si
+        // compartieran clave, cargar uno haría omitir el otro.
+        Assert.NotEqual(
+            MigracionAlimentoCalculos.ClaveIdempotencia(MovimientoAlimento.Ingreso, Galpon6, Preiniciador, new DateTime(2026, 6, 8), 635.036m, "R1"),
+            MigracionAlimentoCalculos.ClaveIdempotencia(MovimientoAlimento.Consumo, Galpon6, Preiniciador, new DateTime(2026, 6, 8), 635.036m, "R1"));
 
     [Fact]
     public void Proyectar_IncluyeElSaldoInicialDeLaBD()
