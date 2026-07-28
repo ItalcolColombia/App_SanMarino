@@ -259,21 +259,24 @@ public partial class MigracionService
         if (filas.Count == 0 && movimientosAlimento.Count == 0 && filasRepro.Count == 0 && errores.Count == 0)
             return ResultadoVacio(tipo, dryRun);
 
-        // (lote, fecha) ya cargados de TODOS los lotes abiertos (idempotencia multi-lote en una consulta;
-        // incluye filas origen_cruce de días 1-7).
+        // (lote, fecha) ya cargados de TODOS los lotes abiertos, con su id: una fecha repetida ya no se
+        // omite, se ACTUALIZA con lo que trae el archivo (el archivo es la version vigente del dia).
+        // Las filas de origen_cruce (dias 1-7) son la excepcion: las escribe el trigger de reproductora
+        // y pisarlas desde aca las dejaria peleadas con su origen.
         var idsAbiertos = lotesUbicados.Select(l => l.LoteId).ToList();
         if (!idsAbiertos.Contains(loteCtxId)) idsAbiertos.Add(loteCtxId);
         var existentes = (await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                 .Where(s => idsAbiertos.Contains(s.LoteAveEngordeId))
-                .Select(s => new { s.LoteAveEngordeId, s.Fecha })
+                .Select(s => new { s.Id, s.LoteAveEngordeId, s.Fecha, s.OrigenCruce })
                 .ToListAsync(ct))
-            .Select(x => (x.LoteAveEngordeId, x.Fecha.Date))
-            .ToHashSet();
+            .GroupBy(x => (x.LoteAveEngordeId, x.Fecha.Date))
+            .ToDictionary(g => g.Key, g => g.First());
 
         // El flag de la empresa se resuelve UNA vez: dentro del loop serían N consultas iguales.
         var reglaHoraActiva = await PrimerRegistroPorHoraGate.ActivaAsync(_ctx, companyId, ct);
 
         var dtos = new List<SeguimientoLoteLevanteDto>();
+        var actualizables = new List<SeguimientoLoteLevanteDto>();   // dias ya cargados que el archivo reemplaza
         var fechasVistas = new HashSet<(int LoteId, DateTime Fecha)>();
         int omitidas = 0;
         var hoyUtc = DateTime.UtcNow.Date;
@@ -312,7 +315,10 @@ public partial class MigracionService
             { errores.Add(new(fila.Numero, "Fecha", null, "Fecha inválida o faltante.")); continue; }
             if (!fechasVistas.Add((lote.LoteId, fecha.Date)))
             { errores.Add(new(fila.Numero, "Fecha", fecha.ToString("yyyy-MM-dd"), $"Fecha repetida en el archivo para el lote {lote.LoteNombre}.")); continue; }
-            if (existentes.Contains((lote.LoteId, fecha.Date))) { omitidas++; continue; } // ya existe → idempotente, se omite
+            // Ya cargado: los dias del cruce se respetan (su fuente es reproductora); el resto se
+            // marca para actualizar con los valores del archivo.
+            existentes.TryGetValue((lote.LoteId, fecha.Date), out var yaCargado);
+            if (yaCargado is not null && yaCargado.OrigenCruce) { omitidas++; continue; }
 
             // Regla de fecha (alineada al front): nunca anterior al PRIMER DÍA CON REGISTRO del lote,
             // que es el encaset o el día siguiente si las aves llegaron a las 13:00 o después. Futura
@@ -440,7 +446,8 @@ public partial class MigracionService
                 Ciclo = "Normal",
                 CreatedByUserId = _current.UserId.ToString()
             };
-            dtos.Add(req.ToDto());
+            if (yaCargado is not null) actualizables.Add(req.ToDto((int)yaCargado.Id));
+            else dtos.Add(req.ToDto());
 
             // Lo que esta fila va a sacar del inventario del galpón del lote.
             foreach (var item in itemsH.Concat(itemsM))
@@ -494,7 +501,7 @@ public partial class MigracionService
 
         return await EjecutarSeguimientoEngordeAsync(
             tipo, dryRun, permitirParcial, file.FileName, filas.Count, omitidas, errores, dtos,
-            movimientosAlimento, saldos, parseoRepro, ct);
+            movimientosAlimento, saldos, parseoRepro, actualizables, ct);
     }
 
     // ── Runner (valida → dry-run corta → CreateAsync fila por fila, sin TX externa, parcial opt-in) ─
@@ -502,14 +509,15 @@ public partial class MigracionService
         TipoMigracion tipo, bool dryRun, bool permitirParcial, string nombreArchivo,
         int total, int omitidas, List<MigracionErrorDto> errores, List<SeguimientoLoteLevanteDto> dtos,
         List<MovimientoAlimentoFila> movimientosAlimento, IReadOnlyList<SaldoAlimentoProyectado> saldos,
-        ParseoReproductora? parseoRepro, CancellationToken ct)
+        ParseoReproductora? parseoRepro, List<SeguimientoLoteLevanteDto> actualizables, CancellationToken ct)
     {
         var dtosRepro = parseoRepro?.Dtos ?? new List<SeguimientoLoteLevanteDto>();
-        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0 && dtosRepro.Count == 0)
+        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0
+            && dtosRepro.Count == 0 && actualizables.Count == 0)
             return ResultadoVacio(tipo, dryRun);
 
         var hayErroresReales = errores.Any(e => e.Severidad == "Error");
-        var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && dtos.Count > 0;
+        var puedeInsertarParcial = hayErroresReales && !dryRun && permitirParcial && (dtos.Count > 0 || actualizables.Count > 0);
 
         if (hayErroresReales && !puedeInsertarParcial)
             return ResultadoConErrores(tipo, dryRun, total, errores) with { FilasOmitidas = omitidas };
@@ -518,6 +526,13 @@ public partial class MigracionService
         {
             // El dry-run informa el saldo que quedaría por alimento: es la cifra que el usuario compara
             // contra su planilla de inventario ANTES de importar de verdad.
+            if (actualizables.Count > 0)
+                errores.Add(new(0, "Fecha", actualizables.Count.ToString(),
+                    $"{actualizables.Count} día(s) del archivo YA están cargados: al importar se REEMPLAZAN con estos valores " +
+                    $"({string.Join(", ", actualizables.OrderBy(d => d.FechaRegistro).Select(d => d.FechaRegistro.ToString("dd/MM")).Take(12))}" +
+                    $"{(actualizables.Count > 12 ? ", …" : "")}). Las aves y el inventario se ajustan por la diferencia.",
+                    "Advertencia"));
+
             foreach (var s in saldos.Where(x => x.Entradas > 0 || x.Salidas > 0))
                 errores.Add(new(0, "Alimento", await NombreAlimentoAsync(s.Posicion.ItemId, ct),
                     $"Saldo proyectado de {await NombreAlimentoAsync(s.Posicion.ItemId, ct)}: {s.SaldoInicial:N3} inicial + {s.Entradas:N3} entradas − {s.Salidas:N3} consumo = {s.SaldoFinal:N3} kg.",
@@ -556,7 +571,27 @@ public partial class MigracionService
             catch (Exception ex)
             { fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Error al insertar (lote {dto.LoteId}): {ex.Message}")); }
         }
-        insertados += movAplicados;
+
+        // Días que ya estaban: el archivo manda. UpdateAsync ajusta aves e inventario por la DIFERENCIA
+        // contra lo que había, así que reemplazar un día con los mismos valores no mueve nada.
+        int actualizados = 0;
+        foreach (var dto in actualizables)
+        {
+            try
+            {
+                // El DbContext es scoped y viene de arrastrar todo el import (movimientos de alimento,
+                // reproductora, inserts). UpdateAsync recalcula el saldo de TODO el lote y deja los 41
+                // seguimientos en el tracker; en la vuelta siguiente EF encuentra entradas Detached en
+                // el mismo batch y revienta con "Unexpected entry.EntityState". Cada actualización
+                // arranca con el tracker limpio: carga lo suyo y guarda solo eso.
+                _ctx.ChangeTracker.Clear();
+                if (await _seguimientoEngordeService.UpdateAsync(dto) is not null) actualizados++;
+                else fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"No se encontró el registro a reemplazar (lote {dto.LoteId})."));
+            }
+            catch (Exception ex)
+            { fallos.Add(new(0, "Fecha", dto.FechaRegistro.ToString("yyyy-MM-dd"), $"Error al reemplazar el día ya cargado (lote {dto.LoteId}): {ex.Message}")); }
+        }
+        insertados += movAplicados + actualizados;
 
         var filasErrorValidacion = errores.Where(e => e.Severidad == "Error" && e.Fila > 0).Select(e => e.Fila).Distinct().Count();
 

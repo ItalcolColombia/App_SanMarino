@@ -926,3 +926,43 @@ recibido) y el 18/07 se recupera a 2.235,332 con la ultima llegada.
 - [x] `dotnet build` 0/0 - `dotnet test` **1167/1167**
 - [x] `fn_seguimiento_diario_engorde` v9 aplicada en la BD local
 - [ ] Migracion EF para publicar la fn v9 (pendiente de la decision del hallazgo 3)
+
+## Fase 13 - Validacion sobre la BD de PRODUCCION + reemplazo de dias ya cargados
+
+BD local reemplazada por el dump de produccion (183 migraciones, sin la nuestra). Estado del lote 142
+en prod: **virgen** — 0 seguimientos de engorde, 0 de reproductora, 0 stock, aves intactas
+(24.265 H + 24.165 M = 48.430).
+
+### Migracion aplicada sola al arrancar
+
+- [x] `20260728045739_AddVentanaAlimentoPrevioEncaset` (columna + fn v9) se aplico al bootear
+- [x] Las 5 empresas quedaron con `dias_alimento_previo_encaset = 10`
+
+### Carga del archivo unico sobre datos de produccion
+
+- [x] Dry-run: `Validado`, 0 errores, saldo proyectado 2.235,332
+- [x] Import: **72 filas** (14 reproductora + 34 engorde + 24 ingresos), 0 errores
+- [x] 41 dias del **1 al 41**, 14 registros de reproductora confirmados
+- [x] AVES: encasetadas 48.430 - bajas 1.830 = **46.600**, y el maestro tambien 46.600
+- [x] ALIMENTO: reporte **2.235,332 kg** = stock real 2.235,332 kg
+      (PREINICIADOR 0,000 - INICIACION 0,000 - ENGORDE 2.235,332)
+
+### Cambio pedido: una fecha ya cargada se REEMPLAZA, ya no se omite
+
+- [x] `existentes` pasa de HashSet a diccionario con el id del registro
+- [x] Las filas ya cargadas van a `actualizables` -> `UpdateAsync`, que ajusta aves e inventario por
+      la DIFERENCIA contra lo que habia (reemplazar con los mismos valores no mueve nada)
+- [x] **Los dias 1-7 del cruce siguen omitiendose**: su fuente es reproductora y pisarlos desde la
+      hoja Datos los dejaria peleados con su origen
+- [x] El dry-run AVISA cuantos dias se van a reemplazar y con que fechas
+- [x] **Bug encontrado y corregido**: EF reventaba con `Unexpected entry.EntityState: Detached` en la
+      segunda actualizacion. El DbContext es scoped y arrastra todo el import; `UpdateAsync` recalcula
+      el saldo de TODO el lote y deja los 41 seguimientos en el tracker. Se limpia el ChangeTracker
+      antes de cada actualizacion
+- [x] Probado con 2 dias modificados: mort 29->50 y 20->5, consumo 2.086,546->2.500 y ->1.673,092
+      - dias: siguen 41 (no duplica)
+      - aves: 46.600 -> **46.594** (-6, exactamente el delta de mortalidad)
+      - stock: **2.235,332 sin cambios** (el consumo total no vario)
+- [x] Restaurado con el archivo definitivo: todo vuelve a 46.600 aves y 2.235,332 kg
+
+- [x] `dotnet build` 0/0 - `dotnet test` **1185/1185**
