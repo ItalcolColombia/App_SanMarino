@@ -1270,7 +1270,9 @@ defecto no puede ser la del lote tal cual · ambas tablas ya tienen `metadata js
       Producción (requiere levante cerrado + liquidado + LPP) y el de Levante se validó por API
 
 ## Fase 6 — Cierre
-- [ ] Commit acotado a esta tarea (sin mezclar con los otros bloques del tracker)
+- [x] Commit `7846200` acotado a esta tarea (16 archivos; el working tree ya no tenía trabajo de otras
+      sesiones — el bloque del Resumen Semanal RA Pesadas se commiteó en `1b236bb`)
+- [ ] Push y deploy — **pendientes de pedido explícito**
 - [ ] Al cambiar de modo el componente se remonta y pierde el año/semana elegidos (el `@if` del
       shell lo destruye). Molesto pero no rompe nada; se resuelve levantando el estado al shell
 
