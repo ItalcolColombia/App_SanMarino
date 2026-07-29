@@ -1051,7 +1051,10 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 
 ### Bloqueantes previos a codificar (no son decisiones de diseño)
 
-- [ ] Definir con negocio **qué movimiento cuenta como venta de aves** (D4) antes de tocar la columna
+- [x] **D4 RESUELTO por el usuario**: venta = salidas del módulo **Movimientos de Aves** con tipo
+      «Venta». El tipo sale de la lista maestra `movimiento_de_aves_tipo_movimiento` (hoy `Traslado`
+      y `Venta`), NO de una constante ⇒ se compara por CONTENIDO en minúsculas, igual que el front
+      (`esTipoVenta`), para que no se rompa con «Venta de aves» ni con un cambio de mayúsculas
 - [ ] Confirmar si se implementa la variante anclada de la curva de reciclaje o la extensión fija (§4.1)
 - [ ] Verificar en prod el `regional_id = 5` huérfano de la granja PIMAN
 
@@ -1142,7 +1145,14 @@ Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuev
 
 ### Pendiente
 
-- [ ] Columna `Venta H/M` desde movimientos de aves (D4, tras definir el criterio con negocio)
+- [x] Columnas `Venta H/M` en el Detalle de producción (grupo «Venta aves»)
+      - [x] Solo cuentan las **Completadas**: una venta pendiente o cancelada no sacó aves
+      - [x] Lote de **origen** (una venta es una salida) y agrupadas por semana de vida con la misma
+            fórmula que «HI Cargado», para que caigan en la misma fila
+      - [x] Las anteriores al encaset se ignoran (dato inconsistente, no una «semana 0»)
+      - [x] En el consolidado SUMAN entre galpones (son conteos de aves)
+      - [x] 5 tests nuevos · smoke con datos sembrados: 1.500 H / 100 M en la semana 28 sumando dos
+            ventas completadas, dejando fuera una pendiente y un traslado; semilla eliminada
 
 ---
 

@@ -240,6 +240,11 @@ export interface ReporteSemanalProduccionSemana {
   nacimientoGuiaPct: number | null;
   pollitosAveGuia: number | null;
 
+  // ── Venta de aves ──
+  // Salidas del módulo de Movimientos de Aves con tipo «Venta» (completadas).
+  ventaHembras: number;
+  ventaMachos: number;
+
   // ── Hoja «CLAS Huevo» ──
   // «Deforme Blanco» = huevo_deforme + huevo_blanco (el Excel los trae juntos).
   huevosLimpios: number;

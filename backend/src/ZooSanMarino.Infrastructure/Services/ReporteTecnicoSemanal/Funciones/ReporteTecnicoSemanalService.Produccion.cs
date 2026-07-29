@@ -105,6 +105,7 @@ public partial class ReporteTecnicoSemanalService
                 .ToListAsync(ct);
 
             var cargadosPorSemana = await CargarHuevosEnviadosPorSemanaAsync(lpp, encasetLevante, ct);
+            var ventasPorSemana = await CargarVentasAvesPorSemanaAsync(lpp, encasetLevante, ct);
 
             var guia = (!string.IsNullOrWhiteSpace(lpp.Raza) && lpp.AnoTablaGenetica.HasValue
                         && guiaPorCombo.TryGetValue((lpp.Raza!.Trim().ToLower(), lpp.AnoTablaGenetica.Value), out var g))
@@ -134,7 +135,8 @@ public partial class ReporteTecnicoSemanalService
             tabs.Add(new ReporteSemanalProduccionTabDto
             {
                 Header = header,
-                Semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(filas, guia, cargadosPorSemana)
+                Semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(
+                    filas, guia, cargadosPorSemana, ventasPorSemana)
             });
         }
 
@@ -195,5 +197,48 @@ public partial class ReporteTecnicoSemanalService
 
         return ReporteTecnicoSemanalCalculos.AgruparCargadosPorSemana(
             traslados.Select(t => (t.FechaTraslado, t.Incubables)), fechaRef.Value);
+    }
+
+    /// <summary>
+    /// Columnas «VentaH / VentaM» del archivo: salidas de aves registradas en el
+    /// módulo de Movimientos de Aves con tipo «Venta».
+    ///
+    /// El tipo NO es una constante del código: sale de la lista maestra
+    /// `movimiento_de_aves_tipo_movimiento` (hoy «Traslado» y «Venta»), así que
+    /// se compara por CONTENIDO en minúsculas — el mismo criterio que usa el
+    /// front (`esTipoVenta`) — y no por igualdad exacta, que se rompería con
+    /// «Venta de aves» o un cambio de mayúsculas en la lista.
+    ///
+    /// Solo cuentan las COMPLETADAS: una venta pendiente o cancelada no sacó
+    /// aves. Se toma el lote de ORIGEN, porque una venta es una salida.
+    /// </summary>
+    private async Task<Dictionary<int, (int Hembras, int Machos)>> CargarVentasAvesPorSemanaAsync(
+        Domain.Entities.LotePosturaProduccion lpp,
+        IReadOnlyDictionary<int, DateTime> encasetLevante,
+        CancellationToken ct)
+    {
+        var vacio = new Dictionary<int, (int Hembras, int Machos)>();
+        if (!lpp.LoteId.HasValue) return vacio;
+
+        DateTime? fechaRef = null;
+        if (lpp.LotePosturaLevanteId.HasValue
+            && encasetLevante.TryGetValue(lpp.LotePosturaLevanteId.Value, out var encLev))
+            fechaRef = encLev;
+        fechaRef ??= lpp.FechaEncaset ?? lpp.FechaInicioProduccion;
+
+        if (!fechaRef.HasValue) return vacio;
+
+        var ventas = await _ctx.MovimientoAves
+            .AsNoTracking()
+            .Where(m => m.LoteOrigenId == lpp.LoteId
+                        && m.DeletedAt == null
+                        && m.Estado == "Completado"
+                        && m.TipoMovimiento != null
+                        && m.TipoMovimiento.ToLower().Contains("venta"))
+            .Select(m => new { m.FechaMovimiento, m.CantidadHembras, m.CantidadMachos })
+            .ToListAsync(ct);
+
+        return ReporteTecnicoSemanalCalculos.AgruparVentasPorSemana(
+            ventas.Select(v => (v.FechaMovimiento, v.CantidadHembras, v.CantidadMachos)), fechaRef.Value);
     }
 }

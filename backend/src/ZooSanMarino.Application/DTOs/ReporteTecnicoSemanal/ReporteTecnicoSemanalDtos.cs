@@ -278,6 +278,12 @@ public sealed class ReporteSemanalProduccionSemanaDto
     public double? NacimientoGuiaPct { get; set; }
     public double? PollitosAveGuia { get; set; }
 
+    // ── Venta de aves (columnas VentaH / VentaM del archivo) ──
+    // Salidas registradas en el módulo de Movimientos de Aves con tipo «Venta».
+    // NO salen del seguimiento diario: allí no existe el concepto de venta.
+    public int VentaHembras { get; set; }
+    public int VentaMachos { get; set; }
+
     // ── Clasificación de huevo (hoja «CLAS Huevo» del Informe RA Pesadas) ──
     // Conteos de la semana y su % sobre el huevo TOTAL de la semana.
     // ⚠️ El Excel trae UNA columna «Deforme Blanco»; la BD guarda huevo_deforme

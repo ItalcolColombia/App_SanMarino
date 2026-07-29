@@ -133,6 +133,9 @@ export const COLUMNAS_PRODUCCION: ColumnaReporte<ReporteSemanalProduccionSemana>
   { grupo: 'M · Mort-Descarte', titulo: '% M+D Ac', dec: 3, valor: s => s.mortSelMachosAcumPct },
   { grupo: 'M · Mort-Descarte', titulo: 'Guía Ac', dec: 3, valor: s => s.retiroAcumMachosGuiaPct },
 
+  { grupo: 'Venta aves', titulo: 'Hembras', dec: 0, valor: s => s.ventaHembras },
+  { grupo: 'Venta aves', titulo: 'Machos', dec: 0, valor: s => s.ventaMachos },
+
   { grupo: 'Producción huevos', titulo: 'Semana', dec: 0, valor: s => s.huevosTotales },
   { grupo: 'Producción huevos', titulo: 'Acum', dec: 0, valor: s => s.huevosTotalesAcum },
   { grupo: 'Producción huevos', titulo: 'H.T.A.A', dec: 2, valor: s => s.htaa },

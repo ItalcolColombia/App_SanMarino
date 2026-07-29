@@ -146,4 +146,80 @@ public class ClasificacionHuevoSemanalTests
         Assert.Equal(86.0, sem.PctLimpio!.Value, 10);
         Assert.NotEqual(70.0, sem.PctLimpio!.Value, 10);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Venta de aves (columnas VentaH / VentaM)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Ventas_SeAgrupanPorSemanaDeVida_YSeparanSexos()
+    {
+        var encaset = new DateTime(2025, 1, 6);
+        var ventas = new[]
+        {
+            (encaset.AddDays(0),   100, 10),   // semana 1
+            (encaset.AddDays(6),    50,  5),   // semana 1 también
+            (encaset.AddDays(7),   200, 20)    // semana 2
+        };
+
+        var r = ReporteTecnicoSemanalCalculos.AgruparVentasPorSemana(ventas, encaset);
+
+        Assert.Equal((150, 15), r[1]);
+        Assert.Equal((200, 20), r[2]);
+    }
+
+    [Fact]
+    public void Ventas_AnterioresAlEncaset_SeIgnoran()
+    {
+        // Dato inconsistente: no puede haber una venta antes de que existan aves.
+        // Se descarta en vez de caer en una «semana 0» que el reporte no tiene.
+        var encaset = new DateTime(2025, 1, 6);
+        var r = ReporteTecnicoSemanalCalculos.AgruparVentasPorSemana(
+            new[] { (encaset.AddDays(-3), 100, 10) }, encaset);
+
+        Assert.Empty(r);
+    }
+
+    [Fact]
+    public void Ventas_SinMovimientos_DaSemanasEnCero()
+    {
+        var dto = Construir(Fila(30, total: 1000));
+        Assert.Equal(0, dto.VentaHembras);
+        Assert.Equal(0, dto.VentaMachos);
+    }
+
+    [Fact]
+    public void Ventas_LleganALaSemanaCorrespondiente()
+    {
+        var ventas = new Dictionary<int, (int Hembras, int Machos)> { [30] = (500, 40) };
+
+        var semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(
+            new[] { Fila(29, total: 1000), Fila(30, total: 1000) },
+            new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaProduccion>(),
+            cargadosPorSemana: null,
+            ventasPorSemana: ventas);
+
+        Assert.Equal(0, semanas.Single(s => s.Semana == 29).VentaHembras);
+        Assert.Equal(500, semanas.Single(s => s.Semana == 30).VentaHembras);
+        Assert.Equal(40, semanas.Single(s => s.Semana == 30).VentaMachos);
+    }
+
+    [Fact]
+    public void Ventas_EnElConsolidado_Suman()
+    {
+        // Son conteos de aves, no valores por ave: suman entre galpones.
+        ReporteSemanalProduccionTabDto Tab(string nombre, int ventaH) => new()
+        {
+            Header = new ReporteSemanalTabHeaderDto { LoteNombre = nombre },
+            Semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasProduccion(
+                new[] { Fila(30, total: 1000) },
+                new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaProduccion>(),
+                cargadosPorSemana: null,
+                ventasPorSemana: new Dictionary<int, (int, int)> { [30] = (ventaH, 0) })
+        };
+
+        var cons = ReporteTecnicoSemanalCalculos.ConsolidarProduccion(new[] { Tab("G1", 300), Tab("G2", 200) });
+
+        Assert.Equal(500, cons.Semanas.Single(s => s.Semana == 30).VentaHembras);
+    }
 }

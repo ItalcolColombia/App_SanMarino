@@ -105,6 +105,30 @@ public static class ReporteTecnicoSemanalCalculos
         return resultado;
     }
 
+    /// <summary>
+    /// Agrupa las VENTAS de aves por semana de vida, separando sexos.
+    /// Misma fórmula de semana que <see cref="AgruparCargadosPorSemana"/>
+    /// (días desde el encaset / 7 + 1) para que caiga en la misma fila del
+    /// reporte. Las ventas anteriores al encaset se ignoran: son dato
+    /// inconsistente, no una venta de semana 0.
+    /// </summary>
+    public static Dictionary<int, (int Hembras, int Machos)> AgruparVentasPorSemana(
+        IEnumerable<(DateTime Fecha, int Hembras, int Machos)> ventas,
+        DateTime fechaEncaset)
+    {
+        var resultado = new Dictionary<int, (int Hembras, int Machos)>();
+        var encaset = fechaEncaset.Date;
+        foreach (var (fecha, h, m) in ventas)
+        {
+            var dias = (fecha.Date - encaset).Days;
+            if (dias < 0) continue;
+            var semana = dias / 7 + 1;
+            var (ah, am) = resultado.TryGetValue(semana, out var acum) ? acum : (0, 0);
+            resultado[semana] = (ah + h, am + m);
+        }
+        return resultado;
+    }
+
     public sealed record GuiaSemanaProduccion(
         double? AprovSem,
         double? AprovAc,
@@ -302,7 +326,8 @@ public static class ReporteTecnicoSemanalCalculos
     public static List<ReporteSemanalProduccionSemanaDto> ConstruirSemanasProduccion(
         IReadOnlyList<IndicadorProduccionSemanalBdRow> filas,
         IReadOnlyDictionary<int, GuiaSemanaProduccion> guia,
-        IReadOnlyDictionary<int, int>? cargadosPorSemana = null)
+        IReadOnlyDictionary<int, int>? cargadosPorSemana = null,
+        IReadOnlyDictionary<int, (int Hembras, int Machos)>? ventasPorSemana = null)
     {
         var resultado = new List<ReporteSemanalProduccionSemanaDto>(filas.Count);
 
@@ -325,6 +350,8 @@ public static class ReporteTecnicoSemanalCalculos
             if (primera) { baseH = iniH; baseM = iniM; primera = false; }
 
             var cargados = cargadosPorSemana is not null && cargadosPorSemana.TryGetValue(f.Semana, out var c) ? c : 0;
+            var venta = ventasPorSemana is not null && ventasPorSemana.TryGetValue(f.Semana, out var v)
+                ? v : (Hembras: 0, Machos: 0);
             cumCargados += cargados;
 
             cumHuevosTot += f.HuevosTotales;
@@ -429,6 +456,9 @@ public static class ReporteTecnicoSemanalCalculos
                 PorcentajeCargaSobreIncubables = Pct(cargados, f.HuevosIncubables),
                 NacimientoGuiaPct = g?.NacimPorcentaje,
                 PollitosAveGuia = g?.PollitoAa,
+
+                VentaHembras = venta.Hembras,
+                VentaMachos = venta.Machos,
 
                 // ── Hoja «CLAS Huevo»: conteos de la semana y % sobre el huevo TOTAL ──
                 // «Deforme Blanco» del Excel = huevo_deforme + huevo_blanco de la BD.
@@ -789,6 +819,10 @@ public static class ReporteTecnicoSemanalCalculos
                 PorcentajeCargaSobreIncubables = Pct(cargados, huevosInc),
                 NacimientoGuiaPct = PrimeraGuia(filas.Select(s => s.NacimientoGuiaPct)),
                 PollitosAveGuia = PrimeraGuia(filas.Select(s => s.PollitosAveGuia)),
+
+                // Las ventas son CONTEOS de aves: suman entre galpones.
+                VentaHembras = filas.Sum(s => s.VentaHembras),
+                VentaMachos = filas.Sum(s => s.VentaMachos),
 
                 // ── Hoja «CLAS Huevo» consolidada: los CONTEOS suman entre galpones y
                 //    los % se RECALCULAN sobre el total consolidado. Promediar los %
