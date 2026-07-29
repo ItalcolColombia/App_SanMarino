@@ -1478,3 +1478,26 @@ Sí: el archivo usa bases DISTINTAS para mortalidad y para descarte. No es error
       con `part` negativa o ponderados en null
 - [ ] Nota de diseño confirmada: los indicadores de MACHOS se ponderan por saldo de HEMBRAS (es la
       definición de `part` del archivo), así que un lote sin hembras vivas pierde sus métricas de machos
+
+## Despliegue a PRODUCCIÓN — 2026-07-29 (autorizado por el usuario)
+
+- [x] `git push origin main` (15 commits) y merge a `main-produccion` → `7aef1f3`
+- [x] Workflow **Deploy to Production** run `30420336431`: los 3 jobs en success
+      (compuerta de tests · backend · frontend)
+- [x] **Verificación post-deploy contra ECS** (obligatoria: el CLI reporta éxito aunque haya rollback):
+      - TaskDef **140 → 141**, rollout `COMPLETED`, Running 1 / Pending 0 / Desired 1
+      - Imagen desplegada = `…backend:7aef1f374ab07a7bd761d7ff20e86b07e50b355b`, **idéntica** al SHA que se quiso desplegar
+      - Task `RUNNING` + `HEALTHY`, eventos con «has reached a steady state», sin ciclo de reinicios
+      - Front `/version.json`: `2026-07-29T03:51:40.327Z` (antes `2026-07-28T06:56:49.076Z`)
+- [x] Las 6 migraciones se aplicaron solas al arrancar (`Database__RunMigrations=true`). Que el
+      contenedor levantara y llegara a steady state es la prueba: una migración fallida mata el
+      proceso con SIGSEGV y ECS revierte
+- [ ] **Aviso pendiente a los usuarios del Reporte Técnico Semanal**: los % semanales de mortalidad,
+      descarte y error de sexaje cambiaron de denominador y sus números se movieron respecto de ayer
+      (hembras ~2,8 % de desvío medio, machos ~13 %). Es intencional — antes no reproducían el
+      archivo oficial— pero conviene decirlo para que no se lea como un error de datos
+- [ ] No se pudo consultar `DescribeTargetHealth` (el usuario IAM no tiene ese permiso); la salud se
+      confirmó por `healthStatus: HEALTHY` de la task y los eventos del servicio
+
+⚠️ El paquete incluyó 3 commits de otra sesión (carga masiva que mueve inventario de alimento), con
+su smoke de UI marcado como pendiente por ellos. Se desplegó por decisión explícita del usuario.
