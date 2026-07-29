@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Migracion;
+using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
@@ -97,11 +98,36 @@ public partial class MigracionService
     }
 
     /// <summary>
+    /// ¿La granja maneja el alimento a NIVEL GALPÓN? Flag configurable por empresa/granja
+    /// (<see cref="AlimentoNivelResolver"/>). Sin datos de la granja se asume nivel granja, el
+    /// comportamiento seguro (no exige galpón), igual que <c>InventarioGestionService</c>.
+    /// </summary>
+    private async Task<bool> ManejaAlimentoPorGalponAsync(int farmId, CancellationToken ct)
+    {
+        var flags = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == farmId)
+            .Join(_ctx.Set<Company>().AsNoTracking(), f => f.CompanyId, c => c.Id,
+                (f, c) => new { Farm = f.ManejaAlimentoPorGalpon, Company = c.ManejaAlimentoPorGalpon })
+            .FirstOrDefaultAsync(ct);
+        return flags is not null && AlimentoNivelResolver.ManejaPorGalpon(flags.Farm, flags.Company);
+    }
+
+    /// <summary>
     /// Lee y valida la hoja "Alimento". Devuelve las filas resueltas a ids; los problemas se acumulan
     /// en <paramref name="errores"/>. Si el archivo no trae la hoja, devuelve lista vacía sin error.
     /// </summary>
+    /// <param name="destinoDefault">
+    /// Ubicación que toman las filas sin Granja/Núcleo/Galpón: la del lote elegido en pantalla (el
+    /// caso normal — "todo este alimento entró acá").
+    /// </param>
+    /// <param name="manejaPorGalpon">
+    /// Nivel efectivo del alimento en esa granja. En nivel GRANJA (Colombia: Sanmarino, Santa Reyes)
+    /// núcleo y galpón se descartan con Advertencia: es donde vive el stock y es lo que exige
+    /// <c>InventarioGestionService</c>, que LANZA si le mandan ubicación a una granja de nivel granja.
+    /// </param>
     private async Task<List<MovimientoAlimentoFila>> LeerHojaAlimentoAsync(
-        IFormFile file, int companyId, LoteEngordeUbicado loteCtx, List<MigracionErrorDto> errores, CancellationToken ct)
+        IFormFile file, int companyId, UbicacionAlimento destinoDefault, bool manejaPorGalpon,
+        List<MigracionErrorDto> errores, CancellationToken ct)
     {
         var filas = LeerHojaOpcionalConEsquema(file, MigracionEsquemas.AlimentoEngorde, errores);
         if (filas.Count == 0) return new List<MovimientoAlimentoFila>();
@@ -109,10 +135,7 @@ public partial class MigracionService
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var granjasPorNombre = await CargarUbicacionesEmpresaAsync(companyId, ct);
 
-        // Ubicación por defecto: la del lote elegido en pantalla (el caso normal — "todo este alimento
-        // entró a este galpón").
-        var destinoDefault = new UbicacionAlimento(
-            await GranjaIdDeLoteAsync(loteCtx.LoteId, ct), loteCtx.NucleoCodigo, loteCtx.GalponCodigo);
+        destinoDefault = MigracionPosturaCalculos.NormalizarUbicacionSegunNivel(destinoDefault, manejaPorGalpon);
 
         var resultado = new List<MovimientoAlimentoFila>();
         var clavesVistas = new HashSet<string>();
@@ -148,6 +171,7 @@ public partial class MigracionService
             var destino = ResolverUbicacion(fila, errores, granjasPorNombre, destinoDefault,
                 "Granja", "Núcleo", "Galpón", esOrigen: false);
             if (errores.Count > e0) continue;
+            destino = AjustarUbicacionAlNivel(destino, manejaPorGalpon, fila, errores, "Galpón");
 
             // Un Consumo sin referencia no se puede distinguir de otro igual del mismo día: la
             // idempotencia lo tomaría por repetido y la segunda salida no se aplicaría.
@@ -168,6 +192,7 @@ public partial class MigracionService
                 origen = ResolverUbicacion(fila, errores, granjasPorNombre, destinoDefault,
                     "Granja Origen", "Núcleo Origen", "Galpón Origen", esOrigen: true);
                 if (errores.Count > e0) continue;
+                origen = AjustarUbicacionAlNivel(origen.Value, manejaPorGalpon, fila, errores, "Galpón Origen");
             }
 
             var origenTxt = MigracionCalculos.TextoLimpio(Celda(fila, ClavesAlimento("Origen")));
@@ -192,6 +217,26 @@ public partial class MigracionService
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Ajusta una ubicación de la hoja al NIVEL efectivo de la granja. En nivel granja el núcleo y el
+    /// galpón se descartan y se avisa (Advertencia, no error): el movimiento se aplica igual, pero el
+    /// usuario tiene que saber que su columna no tuvo efecto. Propagarlos haría que
+    /// <c>RegistrarIngresoAsync</c> lance y la fila se perdiera con un mensaje de infraestructura.
+    /// </summary>
+    private static UbicacionAlimento AjustarUbicacionAlNivel(
+        UbicacionAlimento ubicacion, bool manejaPorGalpon, FilaCruda fila,
+        List<MigracionErrorDto> errores, string columna)
+    {
+        if (!MigracionPosturaCalculos.UbicacionTraeDetalleIgnorado(ubicacion, manejaPorGalpon))
+            return MigracionPosturaCalculos.NormalizarUbicacionSegunNivel(ubicacion, manejaPorGalpon);
+
+        var n = ubicacion.Normalizada();
+        errores.Add(new(fila.Numero, columna, n.GalponId ?? n.NucleoId,
+            "Alimento: esta granja maneja el alimento a NIVEL GRANJA; se ignoran Núcleo/Galpón y el movimiento se registra sobre la granja (es donde vive el stock que consume el seguimiento).",
+            "Advertencia"));
+        return MigracionPosturaCalculos.NormalizarUbicacionSegunNivel(ubicacion, manejaPorGalpon);
     }
 
     /// <summary>Claves de lectura (título + alias) de una columna de la hoja "Alimento".</summary>
@@ -295,6 +340,17 @@ public partial class MigracionService
         var yaAplicados = await ClavesMovimientosExistentesAsync(movimientos, ct);
         int aplicados = 0, omitidos = 0;
 
+        // El nivel se resuelve por GRANJA (un traslado puede cruzar dos granjas con niveles distintos)
+        // y se cachea: son N filas contra un puñado de granjas.
+        var nivelPorGranja = new Dictionary<int, bool>();
+        async Task<bool> PorGalponAsync(int farmId)
+        {
+            if (nivelPorGranja.TryGetValue(farmId, out var v)) return v;
+            v = await ManejaAlimentoPorGalponAsync(farmId, ct);
+            nivelPorGranja[farmId] = v;
+            return v;
+        }
+
         // En orden de fecha: el histórico queda cronológico y una recepción nunca precede a su traslado.
         foreach (var m in movimientos.OrderBy(x => x.Fecha).ThenBy(x => x.Numero))
         {
@@ -329,10 +385,20 @@ public partial class MigracionService
                         break;
 
                     case MovimientoAlimento.Consumo:
-                        await _inventarioGestion.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                        var pedido = new InventarioGestionConsumoRequest(
                             m.Destino.FarmId, m.Destino.NucleoId, m.Destino.GalponId, m.ItemId, m.CantidadKg, "kg",
                             m.Referencia, m.Observaciones ?? "Carga masiva de seguimiento engorde",
-                            FechaMovimiento: m.Fecha), ct);
+                            FechaMovimiento: m.Fecha);
+                        // RegistrarConsumoAsync EXIGE núcleo+galpón para alimento, sin mirar el flag: en
+                        // una granja de nivel granja hay que ir por la variante dedicada (la misma que
+                        // usa ColombiaInventarioConsumoService), que además no commitea sola.
+                        if (await PorGalponAsync(m.Destino.FarmId))
+                            await _inventarioGestion.RegistrarConsumoAsync(pedido, ct);
+                        else
+                        {
+                            await _inventarioGestion.RegistrarConsumoNivelGranjaAsync(pedido, ct);
+                            await _ctx.SaveChangesAsync(ct);
+                        }
                         break;
                 }
                 aplicados++;

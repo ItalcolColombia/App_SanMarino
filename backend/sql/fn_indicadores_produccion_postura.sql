@@ -528,6 +528,14 @@ BEGIN
            AND btrim(lower(g.raza)) = btrim(lower(v_raza))
            AND btrim(g.anio_guia) = v_ano
            AND fn_parse_edad_numerica(g.edad) = s
+         -- La semana 25 tiene DOS filas que parsean a 25: '25' (cierre de
+         -- levante) y '25P' (arranque de producción), con valores muy distintos
+         -- (retiro_ac_h 4,03 vs 0,10). Sin ORDER BY la que gana depende del
+         -- plan y del orden físico de la tabla: hoy sale '25P' por el ctid, no
+         -- por contrato. Se fija el desempate en la variante con sufijo —la de
+         -- producción, que es la correcta acá y la que ya venía devolviendo—
+         -- para que un VACUUM o un re-seed no cambien el reporte en silencio.
+         ORDER BY (CASE WHEN btrim(g.edad) = s::text THEN 1 ELSE 0 END), g.id
          LIMIT 1;
         g_found := COALESCE(g_found, false);
 

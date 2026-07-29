@@ -1012,3 +1012,469 @@ archivo estuviera OK.
       2.735,332" y al importar el stock queda exactamente en 2.735,332
 - [x] Restaurado con el archivo definitivo: 41 dias (1 al 41), 46.600 aves, 2.235,332 kg
 - [x] `dotnet build` 0/0 - `dotnet test` **1186/1186** - `yarn build` OK
+
+---
+
+# Tracker — Informe RA Pesadas (Parámetros + Gráficos)
+
+**Plan:** [`fase_de_desarrollo/informe_ra_pesadas_parametros_plan.md`](fase_de_desarrollo/informe_ra_pesadas_parametros_plan.md)
+**Fecha:** 2026-07-28
+**Fuente:** `Requerimiento sanmarino 2026/Informe RA Pesadas Parámetros - Gráficos 2025 v1.xlsb`
+
+Decisión de arquitectura: **NO es un módulo nuevo ni varios reportes sueltos** — se extiende
+`reporte-tecnico-semanal` (que ya cubre 80-85 % de las hojas 2/3/4/6/7) con dos modos:
+Resumen (todos los lotes × 1 semana) y Detalle de lote (el actual + 2 tabs nuevos).
+
+## Fase 0 — Validación (CERRADA)
+
+- [x] Lectura y volcado de las 10 hojas del `.xlsb` (pyxlsb)
+- [x] Mapeo hoja por hoja contra lo ya implementado (`ReporteTecnicoSemanal`, fns SQL, front)
+- [x] Granularidad verificada: clave `(lote, edad)` única en LEV (1.825) y PROD (2.960) ⇒ nivel lote
+- [x] `GRANJA` del Excel = granja + núcleo (`Niza 3 mod 1` = NIZA III / Modulo I)
+- [x] Guía genética: app tiene 2021/2022/2023/**2026**/G21; el Excel compara contra 2024/2025/2025EC
+- [x] Completitud de la guía 2026 AP auditada (77 filas: mort 77, apareo 77, alim 77, unif 25, masa 52)
+- [x] Huecos H1-H8 documentados con evidencia (§4 del plan)
+- [x] Llenado real de columnas dudosas medido: GrasaH 0 %, PechugaM 0 %, Fertilidad 0 %, Venta 3 %
+- [x] Regional `ECUADOR` inexistente en `master_lists`; PIMAN/PARAISO mal clasificadas
+- [x] `catalogo_items.metadata` sin energía/proteína ⇒ nutrición de machos no calculable hoy
+- [x] Plan escrito con decisiones D1-D5
+
+## Fase 1 — Decisiones (CERRADA 2026-07-28)
+
+- [x] **D1** → **extender la guía 2026 AP hasta la semana 97** con la curva de reciclaje del Excel
+- [x] **D2** → bonificación **fuera** de la fase 1
+- [x] **D3** → **no** se crea la regional `Ecuador` (era pseudo-regional del Excel; Ecuador aún no tiene postura)
+- [x] **D4** → `VentaH`/`VentaM` **sí**, mapeados a movimientos de aves
+- [x] **D5** → **sí**, energía/proteína en `catalogo_items.metadata`
+- [x] Hallazgo: las 5 guías `*R` del Excel son **una sola curva de 28 semanas relativas**, desplazada por
+      lote (arranques en edad 65/68/70/71) → la extensión fija deja hasta 6 semanas de desfase (§4.1 del plan)
+
+### Bloqueantes previos a codificar (no son decisiones de diseño)
+
+- [x] **D4 RESUELTO por el usuario**: venta = salidas del módulo **Movimientos de Aves** con tipo
+      «Venta». El tipo sale de la lista maestra `movimiento_de_aves_tipo_movimiento` (hoy `Traslado`
+      y `Venta`), NO de una constante ⇒ se compara por CONTENIDO en minúsculas, igual que el front
+      (`esTipoVenta`), para que no se rompa con «Venta de aves» ni con un cambio de mayúsculas
+- [ ] Confirmar si se implementa la variante anclada de la curva de reciclaje o la extensión fija (§4.1)
+- [ ] Verificar en prod el `regional_id = 5` huérfano de la granja PIMAN
+
+## Fase 2 — Resumen semanal (hoja 1) — NUEVO
+
+### SQL (HECHO)
+
+- [x] `backend/sql/fn_resumen_semanal_ra_pesadas_levante.sql` — set-based (CTEs + ventanas), NO itera lotes
+- [x] `backend/sql/fn_resumen_semanal_ra_pesadas_produccion.sql` — sobre el flujo **LPP**, no el de `lotes`
+      (el Detalle llama la fn base con `LotePosturaProduccionId`; usar `lotes.fecha_inicio_produccion`
+      daría otra semana de vida y no cuadraría)
+- [x] Semana del año = **WEEKNUM de Excel** (US, arranca domingo), no ISO — verificado 1825/1825 filas
+      contra el archivo (ISO solo coincide en 1736)
+- [x] `PART` = saldo hembras del lote / Σ saldo hembras de la selección
+- [x] Arrastre (LOCF) del peso por sexo con ventanas, sin bucle
+- [x] **Bug encontrado y corregido**: la edad de la guía se compara distinto en cada etapa —
+      levante usa TEXTO EXACTO (`btrim(edad) = sem::text`) y producción PARSEA a número
+      (`fn_parse_edad_numerica`). La semana 25 tiene dos filas (`'25'` cierre de levante,
+      `'25P'` arranque de producción) y un `regexp` genérico tomaba la equivocada. El desempate
+      quedó EXPLÍCITO en la fn de producción para no depender del plan de ejecución
+- [x] Migración EF `20260728120000_AddFnResumenSemanalRaPesadas` (data-only, Designer clonado, idempotente)
+- [x] Migración EF **solo-datos** `20260728120100_ExtenderGuia2026ApSemanas77a97` (D1): 21 filas,
+      semanas 77-97, `INSERT ... WHERE NOT EXISTS`. Los errores `#DIV/0!` del Excel entran NULL
+- [x] `dotnet build` 0 errores / 0 advertencias · migraciones aplicadas en local sin error
+
+### Equivalencia Resumen ↔ Detalle (requisito duro) — VERIFICADA
+
+- [x] Levante: 4 lotes × todas sus semanas = **79 filas, 0 diferencias** en 17 columnas contra
+      `fn_reporte_semanal_levante_extras` + `fn_indicadores_levante_postura`
+- [x] Producción: lote sintético (sembrado y revertido con ROLLBACK) = **8 semanas, 0 diferencias**
+      en 16 columnas contra `fn_indicadores_produccion_postura`
+
+### Backend C# (HECHO)
+
+- [x] `ResumenSemanalRaPesadasDtos.cs`: request + filas levante/producción + totales + respuestas
+- [x] `ResumenSemanalRaPesadasCalculos.cs` (PURO): semana WEEKNUM, rango de la semana,
+      normalización de etapa, participación y promedios ponderados
+- [x] **Participación recalculada tras el recorte por alcance** — la fn SQL la computa con una
+      ventana sobre TODAS sus filas; si el backend quita lotes que el usuario no ve, las
+      participaciones dejan de sumar 1 y los ponderados salen mal
+- [x] `ReporteTecnicoSemanalService.Resumen.cs` (partial) + interfaz + `POST api/ReporteTecnicoSemanal/resumen`
+- [x] Ponderado por saldo de hembras, NO promedio simple; los lotes sin valor no cuentan como 0
+- [x] `dotnet build` 0 errores / 0 advertencias
+- [x] `dotnet test` **1219/1219** (+33 nuevos en `ResumenSemanalRaPesadasCalculosTests`)
+
+### Smoke del endpoint (HECHO — backend dev local, JWT minteado)
+
+- [x] Levante Sanmarino sem 20/2025 → 2 filas, cifras idénticas a las de la fn SQL
+      (K345A part 0,41948 saldo 7.726 · K345B part 0,58052 saldo 10.692)
+- [x] Producción con datos → mapeo EF correcto en las 23 columnas (`htaa`, `hiaa`, `grHuevoInc`,
+      `pesoMachoSobreHembra`, `lotePosturaProduccionId`…). Salieron 3 lotes en una semana
+      (el sintético + los 2 LPP reales de local): una fila por lote, como debe ser
+- [x] Etapa inválida → 400 · semana 99 → 400 · semana sin datos → 200 con lista vacía (no error)
+- [x] Empresa Demo → 0 filas (sin fuga cross-empresa)
+- [x] Semilla de prueba eliminada (0 filas ZZTEST, 4 LPP originales) y backend detenido (:5002 libre)
+
+### Front (HECHO)
+
+- [x] `models/resumen-semanal-ra-pesadas.model.ts` — espejo 1:1 de los DTOs
+- [x] `funciones/columnas-resumen-ra-pesadas.funcion.ts` — spec ÚNICA de columnas: alimenta la
+      tabla EN PANTALLA y el Excel (una columna nueva aparece en los dos lados)
+- [x] `funciones/construir-aoa-resumen-ra-pesadas.funcion.ts` — hoja AOA del export
+- [x] `funciones/semana-excel.funcion.ts` — WEEKNUM puro (solo para preseleccionar la semana)
+- [x] `pages/resumen-semanal-main/` — filtros año/semana/etapa + regional/ciclo/traslado,
+      tabla con cabeceras agrupadas y fila de TOTAL, export a Excel
+- [x] `pages/informe-ra-pesadas-main/` — shell con los dos modos (Resumen / Detalle).
+      La página del Detalle queda INTACTA; la ruta `/reporte-tecnico-semanal` se conserva
+      (es la sembrada en `menus`/`role_menus`), solo apunta al shell
+- [x] `changeDetection: ChangeDetectionStrategy.Eager` explícito en los dos componentes nuevos
+- [x] Vista precalculada (celdas y totales) — el template no aloca por ciclo (NG0103)
+- [x] Regional/Ciclo se resuelven en el BACKEND (son parámetros de la fn), no filtrando en cliente:
+      filtrar en cliente dejaría la fila de totales peleada con las filas visibles
+- [x] Arranca en la semana ANTERIOR, no en la actual: la semana en curso está incompleta y el
+      reporte abría vacío, que se lee como si estuviera roto
+- [x] `yarn build` — 0 errores (solo el warning preexistente de bundle budget)
+
+### Smoke UI (HECHO — dev server + backend local, sesión inyectada)
+
+- [x] Levante sem 20/2025 → 2 lotes con las MISMAS cifras que la fn SQL y el endpoint
+      (K345A 41,95 % · 7.726 · unif 90,9 · %DifPeso −6,89)
+- [x] Fila TOTAL: saldos suman (18.418 / 2.253) y los indicadores ponderan — unif 93,0
+      (el promedio simple daría 92,7, así que la ponderación se ve)
+- [x] Producción sem 30/2025 → 2 lotes, cabeceras agrupadas correctas, `% Guía` vacío en la
+      semana 25 (comportamiento REQ-012b ya conocido, igual que el Detalle)
+- [x] Semana sin datos → mensaje con el rango de fechas, no error
+- [x] Cambio de modo Resumen → Detalle → Resumen dos veces, sin quedarse colgado
+- [x] Consola del navegador sin errores
+
+### Pendiente
+
+- [x] Columnas `Venta H/M` en el Detalle de producción (grupo «Venta aves»)
+      - [x] Solo cuentan las **Completadas**: una venta pendiente o cancelada no sacó aves
+      - [x] Lote de **origen** (una venta es una salida) y agrupadas por semana de vida con la misma
+            fórmula que «HI Cargado», para que caigan en la misma fila
+      - [x] Las anteriores al encaset se ignoran (dato inconsistente, no una «semana 0»)
+      - [x] En el consolidado SUMAN entre galpones (son conteos de aves)
+      - [x] 5 tests nuevos · smoke con datos sembrados: 1.500 H / 100 M en la semana 28 sumando dos
+            ventas completadas, dejando fuera una pendiente y un traslado; semilla eliminada
+
+---
+
+# Tracker — Carga masiva de Postura: alimento con inventario real, huevos completos y validaciones
+
+**Plan:** [fase_de_desarrollo/migracion_masiva_postura_alimento_inventario_plan.md](fase_de_desarrollo/migracion_masiva_postura_alimento_inventario_plan.md)
+**Fecha:** 2026-07-28
+
+**Decisiones del usuario:** paridad total con Engorde (hoja `Alimento` + consumo por ítem que **descuenta**
+stock + simulación de balance) · nivel de stock por el **flag efectivo `granja ?? empresa`** · huevos de
+Producción **completos ahora**: las 11 categorías (Sanmarino) **y** `huevoItems` por flag (Santa Reyes) ·
+**un lote por archivo**.
+
+**Hallazgos que condicionan el diseño:** la carga masiva de postura hoy **no toca inventario** (la fn SQL lo
+declara en su cabecera) mientras el alta manual sí valida stock y descuenta · `RegistrarIngresoAsync` **lanza**
+si le mandan núcleo/galpón a una granja de nivel granja (Sanmarino y Santa Reyes lo son) ⇒ la ubicación por
+defecto no puede ser la del lote tal cual · ambas tablas ya tienen `metadata jsonb` y las 11 columnas
+`huevo_*` ⇒ **cero migraciones de schema** · `FilasOmitidas` de postura hoy siempre reporta 0.
+
+## Fase 0 — Análisis
+- [x] Mapa del flujo vigente (elegibilidad, parseo, fn plpgsql, idempotencia, merge, descuento de aves)
+- [x] Comparación efecto por efecto contra el alta manual (`SeguimientoLoteLevanteService.Crud` / `ProduccionService`)
+- [x] Verificación en BD local de los flags por empresa y del nivel real del stock (Sanmarino/SR = granja)
+- [x] Verificación de que `metadata` y las 11 columnas `huevo_*` ya existen en las dos tablas
+- [x] Plan escrito en `fase_de_desarrollo/`
+
+## Fase 1 — Backend: cálculo puro + esquemas + tests (gate CI)
+- [x] `Application/Calculos/MigracionPosturaCalculos.cs` (NUEVO, puro): posición de stock por nivel,
+      normalización de ubicación, etapa [1,3], consumo directo vs por ítems, referencias de inventario,
+      resolución de totales de huevos entre sus tres fuentes
+- [x] `MigracionEsquemas`: `SeguimientoLevante` 15 → 36 columnas · `SeguimientoProduccion` 12 → 32
+      (columnas compartidas definidas UNA vez para que las dos líneas no se desincronicen)
+- [x] `MigracionEsquemas`: `AlimentoPostura` (reusa la hoja `Alimento` de engorde) y `HuevosPostura` (hoja `Huevos`)
+- [x] `MigracionPosturaCalculosTests.cs` (NUEVO) — 45 casos
+- [x] Test de **retro-compatibilidad**: encabezados viejos (15 y 12) validan sin faltantes ni desconocidos,
+      y las columnas históricas conservan su ORDEN como prefijo (los operarios pegan bloques enteros)
+- [x] `dotnet test` verde — **1284/1284** (973 previos + 311)
+- [x] ⚠️ Gotcha xUnit: `[InlineData(…, 0, …)]` sobre un parámetro `double?` explota con
+      `ArgumentException` (Int32 no convierte a Nullable&lt;Double&gt;) — hay que escribir `0d`
+
+## Fase 2 — Backend: funciones SQL v2
+- [x] `backend/sql/fn_migracion_seguimiento.sql`: `metadata`, las 11 categorías + `peso_huevo` (levante) y
+      `tipo_alimento` + `cons_separado` (producción) en las dos fns
+- [x] Contrato del consumo de Producción: `cons_separado` ausente/false ⇒ total en `cons_kg_h` y
+      `cons_kg_m = 0` (histórico intacto); `true` ⇒ separado por sexo como `ProduccionService`
+- [x] Firma **intacta** (`CREATE OR REPLACE`, sin `DROP FUNCTION`) — patrón `20260714022321`
+- [x] Migración `20260728130000_FnMigracionSeguimientoPosturaAlimentoYHuevos` (sin DDL: `metadata` y las
+      11 columnas `huevo_*` ya existían en ambas tablas)
+- [x] Aplicada en BD local :5433 (⚠️ el `dotnet-ef` de `tools-ef10` necesita `DOTNET_ROOT=~/.dotnet`,
+      si no busca .NET 10 en `C:\Program Files\dotnet` y falla con exit 150)
+- [x] **Smoke SQL con ROLLBACK** (lote 116 levante · lote 114 producción con LPP temporal):
+      - JSON **viejo** ⇒ idéntico a antes: levante con `metadata` NULL y huevos en 0; producción con
+        `cons_kg_h = 920` (800+120), `cons_kg_m = 0` y `tipo_alimento = ''`
+      - JSON **nuevo** ⇒ `metadata.itemsHembras` y `metadata.huevoItems` persistidos, las 11 categorías,
+        `peso_huevo`, y producción con `cons_kg_h = 700` / `cons_kg_m = 95` separados
+      - reimportar ⇒ **0 filas** (idempotencia intacta) · aves descontadas de forma incremental
+        (7405→7399 H, 738→737 M en levante; 7575→7564 H, 1003→1002 M en producción)
+
+## Fase 3 — Backend: alimento e inventario
+- [x] `MigracionService.AlimentoPostura.cs` (NUEVO): contexto de inventario del lote (nivel efectivo
+      `granja ?? empresa` + modelo de consumo por país), hoja `Alimento` y descuento del consumo
+- [x] `LeerHojaAlimentoAsync` de engorde **refactorizada** para recibir `(destinoDefault, manejaPorGalpon)`
+      en vez del lote de engorde ⇒ una sola implementación sirve a las dos líneas
+- [x] Ubicación normalizada según nivel con **Advertencia, no excepción** (`AjustarUbicacionAlNivel`).
+      🔴 Sin esto `RegistrarIngresoAsync` LANZA en Sanmarino/Santa Reyes ("no use Núcleo/Galpón") y la
+      fila se perdía con un mensaje de infraestructura. De paso arregla el mismo caso en engorde Colombia
+- [x] El consumo suelto de la hoja usa `RegistrarConsumoNivelGranjaAsync` cuando la granja es nivel
+      granja (`RegistrarConsumoAsync` exige galpón **sin mirar el flag**) + `SaveChanges` explícito
+- [x] `RegistrarConsumoNivelGranjaAsync` ahora respeta `FechaMovimiento` (antes fijaba `UtcNow`, lo que
+      rompía la idempotencia por fecha). Aditivo: ningún llamador actual la pasa ⇒ sin cambio de conducta
+- [x] Simulación de balance (`SimularBalancePosturaAsync`) + **rechazo del archivo entero** con el
+      faltante exacto + saldo proyectado por posición como Advertencia (también en dry-run)
+- [x] Descuento del consumo delegando en el MISMO camino del alta manual
+      (`IColombiaInventarioConsumoService` nivel granja / `IInventarioGestionService` nivel galpón)
+- [x] Referencia del movimiento byte a byte igual a la del alta manual, resuelta por query posterior
+      `(lote, fecha)` — sin cambiar la firma de la fn
+- [x] **Fix**: `FilasOmitidas` real (postura reportaba 0 siempre) y exclusión de las fechas ya existentes
+      del descuento ⇒ reimportar no descuenta dos veces. Las filas "solo traslado" NO cuentan como
+      existentes (la fn las mergea, así que ese día sí se procesa)
+- [x] Las consultas de fechas evitan `.Date` en el WHERE (EF lo traduce a `date_trunc`, que trunca en la
+      zona de la sesión y pierde bordes): rango ±1 día y recorte fino en memoria
+- [x] `IColombiaInventarioConsumoService?` inyectado en el ancla de `MigracionService`
+- [x] Runner genérico `EjecutarHistoricoAsync` conservado intacto para **venta engorde**; postura usa
+      `EjecutarHistoricoPosturaAsync`
+- [x] `dotnet build` (solución completa) 0 errores / 0 advertencias · `dotnet test` **1285/1285**
+
+## Fase 4 — Backend: huevos y plantillas
+- [x] `MigracionService.HuevosPostura.cs` (NUEVO): hoja `Huevos` (fecha + ítem + cantidad) validada
+      contra `catalogo_items` `item_type='huevo'` de la empresa dueña de la GRANJA, con gate
+      `clasificacion_huevo_por_items` **fail-closed** (flag OFF + hoja presente ⇒ Error explícito)
+- [x] Las 11 categorías en la hoja `Datos` de Producción; con hoja `Huevos` quedan en 0 y el total sale
+      de los ítems (regla de `HuevoItemsCalculos`); mezclar ambas fuentes ⇒ Error
+- [x] Huevos de Levante (semana ≥ 14 + `captura_huevos_en_levante`) — cierra el **P2** del bloque de huevos.
+      Total e incubables se DERIVAN del desglose, como en el modal
+- [x] Plantillas: hojas `Alimento` y `Huevos` + `Referencias` (alimentos e ítems de huevo con su código)
+      + dropdowns + `Instrucciones` que explican el nivel de stock del lote y el rechazo por faltante
+- [x] Validaciones R8: fecha &lt; encaset (Error), fecha futura (Advertencia), `Etapa ∈ [1,3]` (Error),
+      unidad kg/qq, alimento inexistente/ambiguo, consumo directo ignorado por traer ítems (Advertencia),
+      total explícito que discrepa del desglose (Advertencia), fecha de la hoja `Huevos` sin fila en `Datos` (Error)
+
+## Fase 5 — Validación
+- [x] **Smoke API local — 23/23 verdes** (backend propio en :5399 para no tocar el del usuario; JWT +
+      X-Secret-Up minteados; lote 116 A374A de la granja 20, alimento a nivel granja, ítem 199 con 320 kg)
+- [x] 🔴 **Excel viejo (15 columnas)** ⇒ fila idéntica a la de siempre: consumo directo 250,5/30,
+      `tipo_alimento='PRE'`, `metadata` NULL, huevos en 0, inventario **sin tocar**
+- [x] Consumo por ítem ⇒ stock descontado de verdad y movimiento con la referencia **byte a byte** del
+      alta manual (`Seguimiento lote levante #1102 2026-07-06`)
+- [x] 🔴 **Stock insuficiente** ⇒ dry-run e import rechazan el archivo ENTERO, 0 filas insertadas, con el
+      faltante exacto y diciendo "en la granja" (no "en el galpón")
+- [x] Hoja `Alimento` ⇒ el ingreso de 6.000 kg habilita el consumo de 5.000 que antes se rechazaba;
+      el movimiento queda en su **fecha real** (2026-07-08), no en la de la corrida
+- [x] 🔴 **Reimportar** ⇒ 0 filas nuevas, `FilasOmitidas ≥ 1` (antes siempre 0) y **sin doble descuento**
+- [x] Núcleo/Galpón en granja de nivel granja ⇒ Advertencia + movimiento aplicado a nivel granja
+      (con el código anterior `RegistrarIngresoAsync` habría lanzado)
+- [x] Validaciones: fecha < encaset · alimento inexistente · unidad inválida · lote no elegible para producción
+- [x] Huevos en levante (Sanmarino, semana ≥ 14) ⇒ `huevo_tot=990` y `huevo_inc=950` **derivados** del
+      desglose 800/150/40, `peso_huevo=57.8`
+- [x] **Balance verificado en BD**: stock 320 − 100 + 6.000 − 5.000 + 50 = **1.270 kg exactos**
+- [x] `dotnet build` (solución) 0 errores / 0 advertencias · `dotnet test` **1285/1285**
+- [x] `yarn build` **no aplica**: cero archivos del front tocados. Verificado que
+      `construir-resumen-resultado.funcion.ts` ya pinta `filasOmitidas` y las advertencias del saldo
+- [x] BD local **restaurada al estado exacto** (0 filas de smoke, stock 320,000, aves 7405/738,
+      0 registros de auditoría) y backend de smoke detenido — sin procesos huérfanos
+- [ ] Smoke UI en dev server — **pendiente**: en la BD local no hay ningún lote elegible para
+      Producción (requiere levante cerrado + liquidado + LPP) y el de Levante se validó por API
+
+## Fase 6 — Cierre
+- [x] Commit `7846200` acotado a esta tarea (16 archivos; el working tree ya no tenía trabajo de otras
+      sesiones — el bloque del Resumen Semanal RA Pesadas se commiteó en `1b236bb`)
+- [ ] Push y deploy — **pendientes de pedido explícito**
+
+## Fase 7 — Ejercicio E2E del ciclo completo (levante → cierre → producción)
+
+Pedido del usuario: plantillas con datos de ejercicio en el Escritorio y el ciclo real de punta a punta.
+
+- [x] Lote de prueba **`ZZPRUEBA-MIG`** (id **130**, LPL 30) en granja 20 / núcleo 591408 / galpón G0319,
+      encaset 2025-09-01, 5.000 H + 550 M, raza AP 2023
+- [x] **Plantillas oficiales descargadas del endpoint y llenadas con los datos del ejercicio**, dejadas en
+      el Escritorio: `Carga_Masiva_LEVANTE_ejemplo.xlsx` y `Carga_Masiva_PRODUCCION_ejemplo.xlsx`
+      (4 hojas cada una: Datos · Alimento · Referencias · Instrucciones)
+- [x] **Levante**: 14 días (2026-02-16 → 03-01, semanas 25-26) con alimento del inventario y huevos en los
+      últimos 3 días · entrada de 8.000 kg en la hoja Alimento · dry-run con saldo proyectado · 14/14 importadas
+- [x] **Liquidación + cierre**: aves disponibles 4.952 H / 536 M (descontadas por la carga masiva) y
+      **804 huevos de levante** detectados para arrastrar · LPP creado · lote a fase Producción
+- [x] El lote pasó a ser **elegible para carga masiva de producción** (antes de cerrar no lo era)
+- [x] **Producción**: 7 días (2026-03-02 → 03-08) con las 11 categorías y alimento propio · 7/7 importadas ·
+      reimportar ⇒ 0 filas
+- [x] **Cuadre final verificado en BD**: levante 6.874 kg ⇒ stock 320 + 8.000 − 6.874 = **1.446 kg** ·
+      producción 4.522 kg ⇒ stock 9.360 + 6.000 − 4.522 = **10.838 kg** · aves 5.000 → 4.952 (levante) →
+      4.928 (producción) · 16.729 huevos de producción
+
+### 🔴 Bug encontrado por el ejercicio y corregido
+
+- [x] **El día del cierre se omitía en silencio.** El cierre de levante crea una fila de producción con los
+      huevos arrastrados; cuando el Excel traía ESE día (el caso normal: es el primer día de producción),
+      la carga lo contaba como "ya cargado" y **descartaba mortalidad, consumo y clasificación**. El alta
+      manual, en cambio, hace **merge** (`ProduccionService.AplicarRequestSobreFilaArrastre`)
+- [x] Fix: `ArrastresPendientesAsync` + suma con `HuevosLevanteCalculos.Sumar` en C# (que sabe leer la marca
+      del metadata) y paso de merge nuevo en `fn_migracion_seguimiento_produccion` (`es_merge_arrastre`).
+      La marca del arrastre se conserva y se cierra la ventana (`seguimientoRegistrado`), igual que el modal
+- [x] Migración `20260728140000_FnMigracionProduccionMergeArrastreHuevos` aplicada en local
+- [x] Advertencia explícita en el reporte: *"Es el día del cierre del levante: los N huevos arrastrados se
+      SUMAN a los de esta fila…"*
+- [x] **Verificado**: día 2026-03-02 con `huevo_tot = 2.674` (804 arrastrados + 1.870 del Excel),
+      `huevo_limpio = 2.220` (720+1.500), `huevo_inc = 2.540` derivado, mortalidad/consumo/observaciones del
+      archivo, y la marca con `seguimientoRegistrado = true`
+- [x] 2 tests puros nuevos que fijan el contrato del merge · `dotnet test` **1304/1304**
+
+- [ ] El lote `ZZPRUEBA-MIG` (id 130) **queda cargado en la BD local** para poder revisarlo por pantalla.
+      Para borrarlo: `DELETE FROM seguimiento_diario_produccion WHERE lote_id=130; DELETE FROM
+      seguimiento_diario_levante WHERE lote_id='130'; DELETE FROM lote_postura_produccion WHERE lote_id=130;
+      DELETE FROM liquidacion_cierre_lote_levante WHERE lote_postura_levante_id=30; DELETE FROM
+      lote_postura_levante WHERE lote_id=130; DELETE FROM lotes WHERE lote_id=130;`
+- [x] **Corregido**: al cambiar de modo se perdían el año/semana del Resumen y el lote base del
+      Detalle. Los dos modos ahora se OCULTAN en vez de destruirse (`[hidden]` en lugar de `@if`).
+      Las gráficas siguen creándose solo cuando su propia vista está activa, así que no se montan
+      canvas invisibles. Verificado ida y vuelta: el Resumen mantiene 2025/Semana 20 con sus 2
+      filas y el Detalle mantiene K345 con sus 3 tabs y 25 semanas
+
+## Fase 3 — Alimento por fase (hoja 5) — HECHO
+
+> **D5 quedó SIN NECESIDAD de tocar el catálogo.** La energía/proteína de cada fase ya vive en la
+> guía genética (`kcal_h`/`prot_h`/`kcal_m`/`prot_m`, los mismos valores que la hoja AUX), así que
+> no hay que sembrar `catalogo_items.metadata` ni mapear nombres de ítem a fases —que era el
+> paso frágil—. Si algún día se captura el alimento real, tiene precedencia automática.
+
+- [x] `AlimentoPorFaseCalculos.cs` (PURO) — agrupa por fase, suma real y guía, DIF y %DIF, Total general
+- [x] La FASE la fija la guía (`alim_h`/`alim_m`), no la edad: el corte depende de línea y año
+- [x] Nutrición semanal por sexo en `ConstruirSemanasLevante` + guía extendida (`GuiaSemanaLevante`)
+- [x] **Hallazgo**: `kcal_al_h`/`prot_al_h` NO se cargan en ningún registro (0 de 599) ⇒ sin respaldo
+      la mitad hembra salía vacía. Regla uniforme: energía capturada si existe, si no la NOMINAL de
+      la fase según la guía. En machos es la única fuente (su alimento no se captura)
+- [x] **Bug encontrado**: el tab Consolidado salía vacío — no le pasaba la fase ni la nutrición.
+      Los valores son POR AVE ⇒ se promedian (sumarlos multiplicaba la energía por nº de galpones)
+- [x] Sin endpoint nuevo ni SQL nuevo: viaja en la respuesta de levante que ya existía
+- [x] Front: vista «Alimento» (solo levante) con las 4 tablas + nota del criterio de machos
+- [x] Tests: `AlimentoPorFaseCalculosTests` (16 casos)
+
+## Fase 4 — Clasificación de huevo (hoja 8) — HECHO
+
+> No hizo falta endpoint, SQL ni el flag de items: `fn_indicadores_produccion_postura` **ya devolvía
+> los 11 conteos por semana** y nadie los estaba exponiendo. Solo había que sacarlos al DTO y
+> calcular el % sobre el huevo total.
+
+- [x] Conteos + % en `ReporteSemanalProduccionSemanaDto`, calculados en `ConstruirSemanasProduccion`
+- [x] Mapeo `Deforme Blanco` = `huevo_deforme + huevo_blanco` (el Excel los trae juntos y la BD
+      los guarda separados; sin sumar, el reporte mostraría la mitad)
+- [x] Consolidado: los CONTEOS suman y los % se RECALCULAN sobre el total (promediar los % de cada
+      galpón haría pesar igual al galpón chico que al grande)
+- [x] Front: vista «Clasificación» (solo producción) con cabeceras agrupadas
+- [x] Tests: `ClasificacionHuevoSemanalTests` (7 casos, incluido el consolidado 86 % vs 70 %)
+
+## Fase 5 — Consolidado multi-lote de gráficas (hojas 3/4/7) — HECHO
+
+> **Hallazgo que ajusta la especificación:** los números de las hojas de gráficas del archivo
+> **no son reproducibles**. Igual que ALIMLev, están filtradas por una selección de lotes guardada
+> en el Excel (un slicer): la hoja dice 1.129.682 aves iniciales cuando el dato completo son
+> 1.773.976, y ningún filtro por año, regional, guía ni traslado reproduce ese subconjunto.
+> Acá la selección son los **filtros que elige el usuario**, que además puede auditar.
+
+- [x] Sin fn SQL nueva: las dos fns del Resumen aceptan `p_sem_anio = NULL` (= todas las semanas)
+      y el pliegue por edad queda en cálculo puro sobre un conjunto ya recortado por la BD
+- [x] `part` pasa a calcularse **particionado por semana calendario** — con todas las semanas, la
+      ventana global habría mezclado las 52 del año
+- [x] **Regresión verificada**: el modo de una sola semana sigue dando 79 filas / 0 diferencias
+      contra el Detalle, igual que antes del cambio
+- [x] `ConsolidarPorEdadLevante` / `...Produccion` (puro): agrupa por EDAD —no por fecha—, suma
+      saldos y pondera indicadores; cuenta LOTES distintos, no filas
+- [x] `POST api/ReporteTecnicoSemanal/curva` + vista «Curva del año» en el modo Resumen
+- [x] 6 gráficas por etapa con la convención del repo (Real sólido, Guía punteada, hembras naranja
+      y machos azul), eje X en edad
+- [x] Tests: 6 casos nuevos en `ResumenSemanalRaPesadasCalculosTests`
+- [x] Smoke API: levante 25 puntos / 4 lotes · producción 24 puntos / 2 lotes con %Prod siguiendo
+      la guía (30,0 vs 31,25 · 69,6 vs 63,25 · 82,5 vs 80,75) · etapa inválida 400 · Demo 0 puntos
+- [x] Smoke UI: las 6 gráficas de cada etapa montan, el toggle vuelve a la tabla y consola limpia
+- [x] `dotnet build` 0/0 · `dotnet test` 1313/1313 · `yarn build` 0 errores
+
+## Fase 6 — Cierre — HECHO
+
+- [x] Etiqueta de menú → «Informe RA Pesadas» (migración `20260728150000`, localiza por `route`,
+      NUNCA por id: los ids difieren local↔prod). La RUTA no cambia, así no hay que re-asignar
+      `role_menus`
+- [x] Export Excel: el del Detalle ahora incluye las hojas nuevas — levante suma una hoja
+      «ALIMLev» por tab y producción una «CLAS» por tab
+- [x] Verificado sobre el archivo REAL generado (se intercepta el Blob y se cuentan las entradas
+      del ZIP): levante y producción pasan de 3 a **6 hojas** cada uno
+- [x] Regresión: los 30 tests de `ReporteTecnicoSemanalCalculos` siguen verdes
+- [x] `dotnet build` 0/0 · `dotnet test` 1307/1307 · `yarn build` 0 errores
+- [x] Consola del navegador limpia en todo el recorrido
+
+## Validación independiente por agentes (2026-07-28) — granja real NIZA III / lote base K345
+
+Dos validadores en paralelo, solo lectura, sobre la única granja de Sanmarino con datos en las dos
+etapas (K345A/K345B en levante, P-K345A/P-K345B en producción, raza AP guía 2026).
+
+### Resultados
+
+- [x] **Levante**: los 7 puntos OK. Equivalencia Detalle↔Resumen **250 comparaciones / 0 diferencias**.
+      ALIMLev sin fallas en 3 tabs × 4 tablas. Curva: 0 desviaciones en 14 indicadores × 25 edades.
+      Ponderado confirmado (sem 20: 92,9899 ponderado vs 92,70 simple)
+- [x] **Producción**: los 6 puntos OK. Equivalencia **1.584 comparaciones / 0 diferencias**
+      (1.056 de campos núcleo + 528 de columnas de guía) sobre 45 semanas calendario, incluyendo el
+      cruce de año y la semana 53. Clasificación: 968 conteos contrastados contra BD, 0 diferencias;
+      consolidado con % recalculados y **0 casos** coincidiendo con el promedio simple. Venta: 264
+      celdas en 0, sin falsos positivos. Curva ponderada confirmada (edad 35: 72,8876 vs 74,6570)
+- [x] Ambos verificaron que las fns del Resumen **no llaman** a las del Detalle: son implementaciones
+      independientes que coinciden valor por valor
+
+### Bug encontrado y CORREGIDO — guía de la semana 25 en el Detalle
+
+El loader en C# `CargarGuiaPorSemanaAsync` consultaba **sin `ORDER BY`** y se quedaba con la primera
+fila; `ParseEdadSemana("25P")` devuelve 25, así que en la semana 25 ganaba `'25P'`.
+
+- En **levante** eso era incorrecto: mostraba retiro acumulado **0,10** en vez de 4,03, rompiendo la
+  monotonía de la guía (sem 24 = 3,93 → sem 25 = 0,10) y contradiciendo al Resumen, que sí desempata
+- El mismo loader lo usan las dos etapas, con la preferencia **invertida**
+
+- [x] El loader recibe `preferirVarianteProduccion`: levante toma la puramente numérica, producción
+      la del sufijo; y ordena explícitamente para no depender del plan
+- [x] Verificado: levante sem 25 pasa de 0,10 a **4,0269** y la monotonía se restaura
+      (3,8347 → 3,9308 → 4,0269); unifGuía de null a 90; consumo acum de 847 a 11.501,23
+- [x] Producción **sin cambios**: sigue en 0,10, que es su fila correcta
+- [x] Detalle y Resumen ahora coinciden en las dos etapas en la semana 25
+
+### Endurecimiento — `fn_indicadores_produccion_postura`
+
+- [x] La misma colisión existía en la fn SQL (`LIMIT 1` sin `ORDER BY`). Hoy devolvía `'25P'` por el
+      **ctid**, no por contrato: un `VACUUM FULL` o un re-seed la habrían cambiado en silencio
+- [x] Migración `20260728160000` fija el desempate en la variante con sufijo — el valor que ya
+      devolvía, ahora garantizado. Verificado post-migración: sigue en 0,10
+
+### Denominadores de los % semanales — CORREGIDO (autorizado por el usuario aun estando en prod)
+
+Antes de tocar nada se despejó la regla REAL contrastando fila a fila el archivo fuente sobre los
+73 lotes. El resultado desmiente tanto lo que hacía el Detalle como la suposición inicial:
+
+| Columna | Denominador | Filas que lo confirman |
+|---|---|---|
+| `%Mort` H/M | saldo al **INICIO** de la semana | 1401 H + 1311 M (ninguna con el final ni con base fija) |
+| `%Sel` H/M | saldo al **FINAL** de la semana | 248 H + 488 M (ninguna con el inicial) |
+| `%Err` H/M | saldo al **FINAL** de la semana | 142 H + 48 M |
+
+Sí: el archivo usa bases DISTINTAS para mortalidad y para descarte. No es error de lectura.
+
+- [x] El Detalle usaba la **base fija** en las seis columnas ⇒ no reproducía ninguna
+- [x] Corregidas las 6, en la fila por lote y en el consolidado
+- [x] `AvesHembrasInicio`/`AvesMachosInicio` expuestos en el DTO: el consolidado los SUMA en vez de
+      reconstruirlos como fin + bajas, que ignoraría los traslados
+- [x] Los ACUMULADOS siguen sobre base fija — ésos ya coincidían con el archivo y no se tocaron
+- [x] El único test que fijaba la convención vieja (`…usan_base_fija_de_aves_iniciales`) se reescribió
+      en 3 tests con los casos REALES del archivo (A320 edad 2 y A322 edad 13)
+- [x] Verificado end-to-end: **100 comparaciones de `%Mort` Detalle vs Resumen, 0 diferencias**
+- [x] `dotnet build` 0/0 · `dotnet test` **1320/1320** · `yarn build` 0 errores
+- ⚠️ **Cambia el Reporte Técnico Semanal que ya está en producción** (comparte `ConstruirSemanasLevante`).
+      Es intencional y autorizado: los números anteriores no reproducían el archivo oficial
+
+### Hallazgos menores (no se tocaron)
+
+- [ ] `uniformidadGuia` devuelve 0 donde la guía es NULL en producción: viene de un `COALESCE(...,0)`
+      de la fn base, declarado deliberado para replicar el parseo legacy. Cosmético y preexistente
+- [ ] Lote 116 (A374A, LA ESMERALDA) tiene `hembras_l` NULL con 212 retiros ⇒ saldo NEGATIVO. Es dato
+      sucio de la BD local; el código se comporta bien (los pesos ≤ 0 se descartan), pero deja filas
+      con `part` negativa o ponderados en null
+- [ ] Nota de diseño confirmada: los indicadores de MACHOS se ponderan por saldo de HEMBRAS (es la
+      definición de `part` del archivo), así que un lote sin hembras vivas pierde sus métricas de machos

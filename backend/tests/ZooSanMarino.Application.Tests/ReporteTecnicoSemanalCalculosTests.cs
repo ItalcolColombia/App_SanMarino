@@ -76,10 +76,51 @@ public class ReporteTecnicoSemanalCalculosTests
         ProtAlimentoHembras = prot
     };
 
+    /// <summary>
+    /// Denominadores de los % SEMANALES, verificados fila a fila contra la hoja
+    /// «Datos semanal LEV» del archivo fuente sobre los 73 lotes:
+    ///   %Mort → saldo al INICIO de la semana (1401 filas H + 1311 M lo confirman,
+    ///           ninguna cuadra con el saldo final ni con la base fija)
+    ///   %Sel  → saldo al FINAL de la semana (248 H + 488 M)
+    ///   %Err  → saldo al FINAL de la semana (142 H + 48 M)
+    /// El archivo usa bases distintas para mortalidad y para descarte a propósito.
+    /// </summary>
     [Fact]
-    public void Levante_porcentajes_usan_base_fija_de_aves_iniciales()
+    public void Levante_mortalidad_semanal_va_sobre_el_saldo_de_INICIO()
     {
-        // Excel: F7 = mort / $C$7 (base fija), no sobre el saldo decreciente.
+        // Caso REAL del archivo (lote A320, edad 2): MortH=62, saldo inicio=27461
+        // ⇒ %MortH = 0,2257747. Con base fija (27566) daría 0,2249148.
+        var filas = new[] { FilaLevante(1, baseH: 27566, mortH: 62, avesHFin: 27399) };
+        // AvesHembrasInicio lo arma el helper como fin + bajas = 27399 + 62 = 27461.
+
+        var semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasLevante(
+            filas, new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaLevante>());
+
+        Assert.Equal(62.0 / 27461.0 * 100, semanas[0].MortalidadHembrasPct!.Value, 10);
+        Assert.NotEqual(62.0 / 27566.0 * 100, semanas[0].MortalidadHembrasPct!.Value, 10);
+    }
+
+    [Fact]
+    public void Levante_descarte_y_error_van_sobre_el_saldo_FINAL()
+    {
+        // Caso REAL del archivo (lote A322, edad 13): SelH=69, saldo fin=26844
+        // ⇒ %SelH = 0,257040679.
+        var filas = new[] { FilaLevante(1, baseH: 27401, mortH: 25, selH: 69, errH: 10, avesHFin: 26844) };
+
+        var semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasLevante(
+            filas, new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaLevante>());
+
+        Assert.Equal(69.0 / 26844.0 * 100, semanas[0].SeleccionHembrasPct!.Value, 10);
+        Assert.Equal(10.0 / 26844.0 * 100, semanas[0].ErrorHembrasPct!.Value, 10);
+        // …y NO sobre el saldo de inicio, que es el de mortalidad.
+        Assert.NotEqual(69.0 / (26844.0 + 25 + 69 + 10) * 100, semanas[0].SeleccionHembrasPct!.Value, 10);
+    }
+
+    [Fact]
+    public void Levante_los_ACUMULADOS_siguen_sobre_la_base_fija()
+    {
+        // El Excel sí usa la base fija en los acumulados (%RetiroH = RetAcH/$C$7)
+        // y eso ya coincidía: no se tocó al alinear los semanales.
         var filas = new[]
         {
             FilaLevante(1, baseH: 1000, mortH: 10, avesHFin: 990),
@@ -88,9 +129,7 @@ public class ReporteTecnicoSemanalCalculosTests
         var semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasLevante(
             filas, new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaLevante>());
 
-        Assert.Equal(1.0, semanas[0].MortalidadHembrasPct!.Value, 10);
-        Assert.Equal(1.0, semanas[1].MortalidadHembrasPct!.Value, 10); // 10/1000, NO 10/990
-        Assert.Equal(2.0, semanas[1].MortalidadHembrasAcumPct!.Value, 10);
+        Assert.Equal(2.0, semanas[1].MortalidadHembrasAcumPct!.Value, 10);   // 20/1000
     }
 
     [Fact]

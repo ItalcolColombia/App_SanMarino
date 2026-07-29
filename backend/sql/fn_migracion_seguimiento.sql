@@ -1,12 +1,24 @@
 -- =============================================================================
 -- Funciones de migración masiva de SEGUIMIENTOS históricos (Postura).
 -- Insertan el estado final (set-based, idempotente por índice único) y recomputan
--- los agregados de aves UNA sola vez al final (no re-disparan efectos incrementales
--- ni tocan inventario de alimento — la carga histórica no asume stock).
+-- los agregados de aves UNA sola vez al final (no re-disparan efectos incrementales).
 -- Construidas contra el esquema REAL post-rename:
 --   levante    → seguimiento_diario_levante   (uq: tipo_seguimiento, lote_id, coalesce(rep,''), fecha)
---   produccion → seguimiento_diario_produccion (dedup en fn por lote_postura_produccion_id + fecha_registro)
+--   produccion → seguimiento_diario_produccion (dedup en fn por lote_id + fecha_registro)
 -- p_rows = jsonb array de filas ya validadas por el backend.
+--
+-- INVENTARIO DE ALIMENTO: estas funciones siguen SIN tocarlo. El descuento lo hace C#
+-- (MigracionService.AlimentoPostura.cs) delegando en los MISMOS servicios que usa el alta manual
+-- (IColombiaInventarioConsumoService a nivel granja / IInventarioGestionService a nivel galpón),
+-- antes y después de invocar estas funciones. Acá solo se PERSISTE el desglose que el front lee
+-- (metadata.itemsHembras / itemsMachos), para que un día migrado se vea igual que uno digitado.
+--
+-- Claves NUEVAS del jsonb (todas opcionales — un archivo sin ellas se comporta exactamente como
+-- antes, byte a byte):
+--   metadata        jsonb   desglose por alimento (y huevoItems en producción)
+--   huevo_limpio … huevo_otro, peso_huevo    las 11 categorías de la clasificadora + peso
+--   cons_separado   boolean (solo producción) ver nota de contrato más abajo
+--   tipo_alimento   text    (solo producción) antes se forzaba a ''
 -- =============================================================================
 
 -- ── LEVANTE ──────────────────────────────────────────────────────────────────
@@ -19,6 +31,10 @@
 -- "solo traslado" (es_traslado=true, sin datos manuales) se completa (merge) en
 -- vez de saltear la fila del Excel en silencio — mismo criterio que el merge
 -- manual ("Feature 13").
+--
+-- Huevos (semana 14+): las 11 categorías viajan solo cuando la empresa tiene
+-- captura_huevos_en_levante y la fila está en semana ≥ 14. El GATE vive en C#
+-- (HuevosLevanteCalculos.PermiteHuevos) porque esta función no conoce fecha_encaset.
 CREATE OR REPLACE FUNCTION public.fn_migracion_seguimiento_levante(
     p_company_id integer,
     p_usuario    text,
@@ -45,7 +61,14 @@ BEGIN
         tipo_alimento text,
         peso_h double precision, peso_m double precision,
         unif_h double precision, unif_m double precision,
-        observaciones text
+        observaciones text,
+        -- ── aditivo ──
+        metadata jsonb,
+        huevo_tot integer, huevo_inc integer, peso_huevo double precision,
+        huevo_limpio integer, huevo_tratado integer, huevo_sucio integer,
+        huevo_deforme integer, huevo_blanco integer, huevo_doble_yema integer,
+        huevo_piso integer, huevo_pequeno integer, huevo_roto integer,
+        huevo_desecho integer, huevo_otro integer
     );
 
     CREATE TEMP TABLE tmp_delta_lev (lote_postura_levante_id integer, h integer, m integer) ON COMMIT DROP;
@@ -67,6 +90,23 @@ BEGIN
             uniformidad_hembras  = f.unif_h,
             uniformidad_machos   = f.unif_m,
             observaciones        = f.observaciones,
+            -- Aditivo: COALESCE con lo que ya tenía la fila ⇒ una fila de traslado sin estos datos
+            -- (el caso real) queda igual que antes cuando el archivo tampoco los trae.
+            metadata             = COALESCE(f.metadata, sd.metadata),
+            huevo_tot            = COALESCE(f.huevo_tot, sd.huevo_tot),
+            huevo_inc            = COALESCE(f.huevo_inc, sd.huevo_inc),
+            peso_huevo           = COALESCE(f.peso_huevo, sd.peso_huevo),
+            huevo_limpio         = COALESCE(f.huevo_limpio, sd.huevo_limpio),
+            huevo_tratado        = COALESCE(f.huevo_tratado, sd.huevo_tratado),
+            huevo_sucio          = COALESCE(f.huevo_sucio, sd.huevo_sucio),
+            huevo_deforme        = COALESCE(f.huevo_deforme, sd.huevo_deforme),
+            huevo_blanco         = COALESCE(f.huevo_blanco, sd.huevo_blanco),
+            huevo_doble_yema     = COALESCE(f.huevo_doble_yema, sd.huevo_doble_yema),
+            huevo_piso           = COALESCE(f.huevo_piso, sd.huevo_piso),
+            huevo_pequeno        = COALESCE(f.huevo_pequeno, sd.huevo_pequeno),
+            huevo_roto           = COALESCE(f.huevo_roto, sd.huevo_roto),
+            huevo_desecho        = COALESCE(f.huevo_desecho, sd.huevo_desecho),
+            huevo_otro           = COALESCE(f.huevo_otro, sd.huevo_otro),
             updated_by_user_id   = p_usuario,
             updated_at           = (NOW() AT TIME ZONE 'utc')
         FROM tmp_filas_lev f
@@ -94,7 +134,11 @@ BEGIN
             error_sexaje_hembras, error_sexaje_machos,
             consumo_kg_hembras, consumo_kg_machos, tipo_alimento,
             peso_prom_hembras, peso_prom_machos, uniformidad_hembras, uniformidad_machos,
-            observaciones, ciclo, created_by_user_id, created_at
+            observaciones, ciclo, created_by_user_id, created_at,
+            metadata,
+            huevo_tot, huevo_inc, peso_huevo,
+            huevo_limpio, huevo_tratado, huevo_sucio, huevo_deforme, huevo_blanco,
+            huevo_doble_yema, huevo_piso, huevo_pequeno, huevo_roto, huevo_desecho, huevo_otro
         )
         SELECT
             'levante', f.lote_id::text, f.lote_id, lpl.lote_postura_levante_id, f.fecha::timestamptz,
@@ -102,7 +146,13 @@ BEGIN
             COALESCE(f.err_h,0), COALESCE(f.err_m,0),
             f.cons_h, f.cons_m, f.tipo_alimento,
             f.peso_h, f.peso_m, f.unif_h, f.unif_m,
-            f.observaciones, 'Normal', p_usuario, (NOW() AT TIME ZONE 'utc')
+            f.observaciones, 'Normal', p_usuario, (NOW() AT TIME ZONE 'utc'),
+            f.metadata,
+            COALESCE(f.huevo_tot,0), COALESCE(f.huevo_inc,0), f.peso_huevo,
+            COALESCE(f.huevo_limpio,0), COALESCE(f.huevo_tratado,0), COALESCE(f.huevo_sucio,0),
+            COALESCE(f.huevo_deforme,0), COALESCE(f.huevo_blanco,0), COALESCE(f.huevo_doble_yema,0),
+            COALESCE(f.huevo_piso,0), COALESCE(f.huevo_pequeno,0), COALESCE(f.huevo_roto,0),
+            COALESCE(f.huevo_desecho,0), COALESCE(f.huevo_otro,0)
         FROM tmp_filas_lev f
         JOIN public.lotes l
           ON l.lote_id = f.lote_id AND l.company_id = p_company_id AND l.deleted_at IS NULL
@@ -142,9 +192,14 @@ END;
 $$;
 
 -- ── PRODUCCIÓN ───────────────────────────────────────────────────────────────
--- Nota de contrato: el módulo de producción almacena el consumo TOTAL en cons_kg_h
--- (cons_kg_m = 0) y tipo_alimento = ''. La migración replica ese contrato para que la
--- data histórica sea idéntica a la creada por el módulo.
+-- Nota de contrato del CONSUMO:
+--   cons_separado IS NOT TRUE (default, y lo único que existía antes) → el consumo TOTAL va en
+--     cons_kg_h y cons_kg_m queda en 0. Es lo que hacía la carga masiva desde su primera versión y
+--     lo que ya está cargado en los históricos: se conserva byte a byte.
+--   cons_separado = true → cons_kg_h y cons_kg_m se persisten POR SEXO, igual que
+--     ProduccionService.CrearSeguimientoAsync cuando el día trae ítems de alimento por sexo. C# lo
+--     manda en true solo cuando la fila del Excel trae "Alimento 1/2 H-M", que es justo el caso en
+--     que el desglose por sexo existe de verdad.
 -- Fix (aves-fix, paridad con Levante): descuento INCREMENTAL igual semántica que el alta manual
 -- (SeguimientoProduccionService.AplicarDescuentoLppAsync) — NO se recalcula aves_h_actual/aves_m_actual
 -- desde cero, porque ese campo también lo tocan los traslados entre lotes de Producción
@@ -164,6 +219,7 @@ CREATE OR REPLACE FUNCTION public.fn_migracion_seguimiento_produccion(
 LANGUAGE plpgsql AS $$
 DECLARE
     v_actualizados integer := 0;
+    v_arrastre     integer := 0;
     v_insertados   integer := 0;
 BEGIN
     DROP TABLE IF EXISTS tmp_filas_prod;
@@ -178,10 +234,73 @@ BEGIN
         err_h  integer, err_m  integer,
         cons_h numeric, cons_m numeric,
         huevo_tot integer, huevo_inc integer, peso_huevo double precision,
-        etapa integer, observaciones text
+        etapa integer, observaciones text,
+        -- ── aditivo ──
+        metadata jsonb,
+        tipo_alimento text,
+        cons_separado boolean,
+        es_merge_arrastre boolean,
+        huevo_limpio integer, huevo_tratado integer, huevo_sucio integer,
+        huevo_deforme integer, huevo_blanco integer, huevo_doble_yema integer,
+        huevo_piso integer, huevo_pequeno integer, huevo_roto integer,
+        huevo_desecho integer, huevo_otro integer
     );
 
     CREATE TEMP TABLE tmp_delta_prod (lote_postura_produccion_id integer, h integer, m integer) ON COMMIT DROP;
+
+    -- Paso 0: MERGE sobre la fila del ARRASTRE DE HUEVOS DEL LEVANTE.
+    -- Al cerrar el levante se crea una fila de producción con los huevos arrastrados (y nada más). Si
+    -- el Excel trae ESE MISMO día — el caso normal, porque es el primer día de producción — hay que
+    -- fusionarlo, igual que hace el alta manual (ProduccionService.AplicarRequestSobreFilaArrastre):
+    -- los huevos se SUMAN y el resto de los campos los define el registro. Sin este paso el día se
+    -- omitía en silencio y se perdían mortalidad, consumo y clasificación de la carga.
+    -- Los huevos llegan YA SUMADOS desde C# (que es quien sabe leer la marca del metadata), así que
+    -- acá es un UPDATE directo; el metadata también viene con la marca conservada y la ventana de
+    -- merge ya cerrada (seguimientoRegistrado), para que el arrastre siga siendo idempotente.
+    WITH upd_arr AS (
+        UPDATE public.seguimiento_diario_produccion sd
+        SET mortalidad_hembras   = COALESCE(f.mort_h,0),
+            mortalidad_machos    = COALESCE(f.mort_m,0),
+            sel_h                = COALESCE(f.sel_h,0),
+            sel_m                = COALESCE(f.sel_m,0),
+            error_sexaje_hembras = COALESCE(f.err_h,0),
+            error_sexaje_machos  = COALESCE(f.err_m,0),
+            cons_kg_h            = CASE WHEN f.cons_separado IS TRUE
+                                        THEN COALESCE(f.cons_h,0)
+                                        ELSE (COALESCE(f.cons_h,0) + COALESCE(f.cons_m,0)) END,
+            cons_kg_m            = CASE WHEN f.cons_separado IS TRUE THEN COALESCE(f.cons_m,0) ELSE 0 END,
+            tipo_alimento        = COALESCE(f.tipo_alimento, sd.tipo_alimento),
+            huevo_tot            = COALESCE(f.huevo_tot,0),
+            huevo_inc            = COALESCE(f.huevo_inc,0),
+            peso_huevo           = COALESCE(f.peso_huevo, sd.peso_huevo),
+            etapa                = COALESCE(f.etapa,1),
+            observaciones        = f.observaciones,
+            metadata             = COALESCE(f.metadata, sd.metadata),
+            huevo_limpio         = COALESCE(f.huevo_limpio,0),
+            huevo_tratado        = COALESCE(f.huevo_tratado,0),
+            huevo_sucio          = COALESCE(f.huevo_sucio,0),
+            huevo_deforme        = COALESCE(f.huevo_deforme,0),
+            huevo_blanco         = COALESCE(f.huevo_blanco,0),
+            huevo_doble_yema     = COALESCE(f.huevo_doble_yema,0),
+            huevo_piso           = COALESCE(f.huevo_piso,0),
+            huevo_pequeno        = COALESCE(f.huevo_pequeno,0),
+            huevo_roto           = COALESCE(f.huevo_roto,0),
+            huevo_desecho        = COALESCE(f.huevo_desecho,0),
+            huevo_otro           = COALESCE(f.huevo_otro,0),
+            updated_by_user_id   = p_usuario,
+            updated_at           = (NOW() AT TIME ZONE 'utc')
+        FROM tmp_filas_prod f
+        JOIN public.lote_postura_produccion lpp0
+          ON lpp0.lote_id = f.lote_id AND lpp0.deleted_at IS NULL AND lpp0.company_id = p_company_id
+        WHERE f.es_merge_arrastre IS TRUE
+          AND sd.lote_id = f.lote_id
+          AND sd.fecha_registro::date = f.fecha
+        RETURNING lpp0.lote_postura_produccion_id,
+                  COALESCE(f.mort_h,0) + COALESCE(f.sel_h,0) + COALESCE(f.err_h,0) AS h,
+                  COALESCE(f.mort_m,0) + COALESCE(f.sel_m,0) + COALESCE(f.err_m,0) AS m
+    )
+    INSERT INTO tmp_delta_prod SELECT lote_postura_produccion_id, h, m FROM upd_arr;
+    GET DIAGNOSTICS v_arrastre = ROW_COUNT;
 
     -- Paso 1: completar filas "solo traslado" existentes con los datos históricos (merge).
     WITH upd AS (
@@ -192,13 +311,28 @@ BEGIN
             sel_m                = COALESCE(f.sel_m,0),
             error_sexaje_hembras = COALESCE(f.err_h,0),
             error_sexaje_machos  = COALESCE(f.err_m,0),
-            cons_kg_h            = (COALESCE(f.cons_h,0) + COALESCE(f.cons_m,0)),
-            cons_kg_m            = 0,
+            cons_kg_h            = CASE WHEN f.cons_separado IS TRUE
+                                        THEN COALESCE(f.cons_h,0)
+                                        ELSE (COALESCE(f.cons_h,0) + COALESCE(f.cons_m,0)) END,
+            cons_kg_m            = CASE WHEN f.cons_separado IS TRUE THEN COALESCE(f.cons_m,0) ELSE 0 END,
+            tipo_alimento        = COALESCE(f.tipo_alimento, sd.tipo_alimento),
             huevo_tot            = COALESCE(f.huevo_tot,0),
             huevo_inc            = COALESCE(f.huevo_inc,0),
             peso_huevo           = f.peso_huevo,
             etapa                = COALESCE(f.etapa,1),
             observaciones        = f.observaciones,
+            metadata             = COALESCE(f.metadata, sd.metadata),
+            huevo_limpio         = COALESCE(f.huevo_limpio, sd.huevo_limpio),
+            huevo_tratado        = COALESCE(f.huevo_tratado, sd.huevo_tratado),
+            huevo_sucio          = COALESCE(f.huevo_sucio, sd.huevo_sucio),
+            huevo_deforme        = COALESCE(f.huevo_deforme, sd.huevo_deforme),
+            huevo_blanco         = COALESCE(f.huevo_blanco, sd.huevo_blanco),
+            huevo_doble_yema     = COALESCE(f.huevo_doble_yema, sd.huevo_doble_yema),
+            huevo_piso           = COALESCE(f.huevo_piso, sd.huevo_piso),
+            huevo_pequeno        = COALESCE(f.huevo_pequeno, sd.huevo_pequeno),
+            huevo_roto           = COALESCE(f.huevo_roto, sd.huevo_roto),
+            huevo_desecho        = COALESCE(f.huevo_desecho, sd.huevo_desecho),
+            huevo_otro           = COALESCE(f.huevo_otro, sd.huevo_otro),
             updated_by_user_id   = p_usuario,
             updated_at           = (NOW() AT TIME ZONE 'utc')
         FROM tmp_filas_prod f
@@ -227,15 +361,27 @@ BEGIN
             error_sexaje_hembras, error_sexaje_machos,
             cons_kg_h, cons_kg_m, tipo_alimento,
             huevo_tot, huevo_inc, peso_huevo, etapa, observaciones,
-            company_id, created_by_user_id, created_at
+            company_id, created_by_user_id, created_at,
+            metadata,
+            huevo_limpio, huevo_tratado, huevo_sucio, huevo_deforme, huevo_blanco,
+            huevo_doble_yema, huevo_piso, huevo_pequeno, huevo_roto, huevo_desecho, huevo_otro
         )
         SELECT
             f.lote_id, lpp.lote_postura_produccion_id, f.fecha::timestamptz,
             COALESCE(f.mort_h,0), COALESCE(f.mort_m,0), COALESCE(f.sel_h,0), COALESCE(f.sel_m,0),
             COALESCE(f.err_h,0), COALESCE(f.err_m,0),
-            (COALESCE(f.cons_h,0) + COALESCE(f.cons_m,0)), 0, '',
+            CASE WHEN f.cons_separado IS TRUE
+                 THEN COALESCE(f.cons_h,0)
+                 ELSE (COALESCE(f.cons_h,0) + COALESCE(f.cons_m,0)) END,
+            CASE WHEN f.cons_separado IS TRUE THEN COALESCE(f.cons_m,0) ELSE 0 END,
+            COALESCE(f.tipo_alimento,''),
             COALESCE(f.huevo_tot,0), COALESCE(f.huevo_inc,0), f.peso_huevo, COALESCE(f.etapa,1), f.observaciones,
-            p_company_id, p_usuario, (NOW() AT TIME ZONE 'utc')
+            p_company_id, p_usuario, (NOW() AT TIME ZONE 'utc'),
+            f.metadata,
+            COALESCE(f.huevo_limpio,0), COALESCE(f.huevo_tratado,0), COALESCE(f.huevo_sucio,0),
+            COALESCE(f.huevo_deforme,0), COALESCE(f.huevo_blanco,0), COALESCE(f.huevo_doble_yema,0),
+            COALESCE(f.huevo_piso,0), COALESCE(f.huevo_pequeno,0), COALESCE(f.huevo_roto,0),
+            COALESCE(f.huevo_desecho,0), COALESCE(f.huevo_otro,0)
         FROM tmp_filas_prod f
         JOIN public.lotes l
           ON l.lote_id = f.lote_id AND l.company_id = p_company_id AND l.deleted_at IS NULL AND l.fase = 'Produccion'
@@ -268,6 +414,6 @@ BEGIN
     WHERE lpp.lote_postura_produccion_id = sub.lote_postura_produccion_id
       AND (sub.h <> 0 OR sub.m <> 0);
 
-    RETURN v_actualizados + v_insertados;
+    RETURN v_arrastre + v_actualizados + v_insertados;
 END;
 $$;

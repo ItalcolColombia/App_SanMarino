@@ -3,6 +3,8 @@
 // única de columnas (columnas-reporte-semanal.funcion.ts). Sin this/DI/toast.
 import { ExcelCell, HojaAoaExcel } from '../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import {
+  ReporteSemanalAlimentoFase,
+  ReporteSemanalAlimentoPorFase,
   ReporteSemanalTabHeader,
   ReporteTecnicoSemanalLevanteResponse,
   ReporteTecnicoSemanalProduccionResponse
@@ -10,6 +12,8 @@ import {
 import {
   agruparColumnas,
   ColumnaReporte,
+  COLUMNAS_ALIMENTO_FASE,
+  COLUMNAS_CLASIFICACION_HUEVO,
   COLUMNAS_LEVANTE,
   COLUMNAS_PRODUCCION
 } from './columnas-reporte-semanal.funcion';
@@ -86,6 +90,51 @@ function nombreHoja(base: string, usados: Set<string>): string {
   return candidato;
 }
 
+/**
+ * Hoja «ALIMLev»: las cuatro tablas de energía/proteína por fase, una debajo de
+ * otra en la MISMA hoja (igual que el archivo original, que no las reparte).
+ */
+function construirHojaAlimento(
+  sheetName: string,
+  titulo: string,
+  header: ReporteSemanalTabHeader,
+  bloque: ReporteSemanalAlimentoPorFase | undefined
+): HojaAoaExcel | null {
+  if (!bloque) return null;
+
+  const tablas: { nombre: string; filas: ReporteSemanalAlimentoFase[] }[] = [
+    { nombre: 'ENERGÍA POR FASE ALIMENTO - HEMBRAS (kcal/ave)', filas: bloque.energiaHembras },
+    { nombre: 'ENERGÍA POR FASE ALIMENTO - MACHOS (kcal/ave)', filas: bloque.energiaMachos },
+    { nombre: 'PROTEÍNA POR FASE ALIMENTO - HEMBRAS (g/ave)', filas: bloque.proteinaHembras },
+    { nombre: 'PROTEÍNA POR FASE ALIMENTO - MACHOS (g/ave)', filas: bloque.proteinaMachos }
+  ].filter(t => t.filas && t.filas.length > 0);
+
+  if (tablas.length === 0) return null;
+
+  const aoa: ExcelCell[][] = [...filaCabeceraInfo(header, titulo)];
+  for (const tabla of tablas) {
+    aoa.push([tabla.nombre]);
+    aoa.push(COLUMNAS_ALIMENTO_FASE.map(c => c.titulo));
+    for (const f of tabla.filas) {
+      aoa.push(COLUMNAS_ALIMENTO_FASE.map(c => {
+        const v = c.valor(f);
+        if (v == null) return '';
+        return typeof v === 'number' ? redondear(v, c.dec) : v;
+      }));
+    }
+    aoa.push([]);
+  }
+  aoa.push(['La fase de cada semana la fija la guía genética. En machos el alimento real no se ' +
+            'captura: se usa la energía/proteína nominal de la fase, así que su desviación ' +
+            'refleja consumo, no formulación.']);
+
+  return {
+    sheetName,
+    aoa,
+    colWidths: COLUMNAS_ALIMENTO_FASE.map(c => Math.max(12, c.titulo.length + 2))
+  };
+}
+
 export function construirHojasLevante(
   respuesta: ReporteTecnicoSemanalLevanteResponse
 ): HojaAoaExcel[] {
@@ -102,6 +151,18 @@ export function construirHojasLevante(
     hojas.push(construirHoja(
       nombreHoja(tab.header.loteNombre, usados),
       titulo, tab.header, tab.semanas, COLUMNAS_LEVANTE));
+  }
+
+  // Hoja «ALIMLev»: una por tab, después de las de semanas, igual que el archivo.
+  const alimentoConsolidado = respuesta.consolidado
+    ? construirHojaAlimento(nombreHoja(`ALIMLev Gral`, usados), titulo,
+        respuesta.consolidado.header, respuesta.consolidado.alimentoPorFase)
+    : null;
+  if (alimentoConsolidado) hojas.push(alimentoConsolidado);
+  for (const tab of respuesta.tabs) {
+    const hoja = construirHojaAlimento(
+      nombreHoja(`ALIMLev ${tab.header.loteNombre}`, usados), titulo, tab.header, tab.alimentoPorFase);
+    if (hoja) hojas.push(hoja);
   }
   return hojas;
 }
@@ -122,6 +183,19 @@ export function construirHojasProduccion(
     hojas.push(construirHoja(
       nombreHoja(tab.header.loteNombre, usados),
       titulo, tab.header, tab.semanas, COLUMNAS_PRODUCCION));
+  }
+
+  // Hoja «CLAS Huevo»: los mismos tabs con las columnas de clasificación.
+  const tituloClas = `Clasificación de huevo — ${respuesta.loteBaseNombre}`;
+  if (respuesta.consolidado) {
+    hojas.push(construirHoja(
+      nombreHoja(`CLAS Gral`, usados), tituloClas,
+      respuesta.consolidado.header, respuesta.consolidado.semanas, COLUMNAS_CLASIFICACION_HUEVO));
+  }
+  for (const tab of respuesta.tabs) {
+    hojas.push(construirHoja(
+      nombreHoja(`CLAS ${tab.header.loteNombre}`, usados), tituloClas,
+      tab.header, tab.semanas, COLUMNAS_CLASIFICACION_HUEVO));
   }
   return hojas;
 }

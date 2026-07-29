@@ -15,6 +15,8 @@ import { ReporteTecnicoSemanalService } from '../../services/reporte-tecnico-sem
 import {
   agruparColumnas,
   ColumnaReporte,
+  COLUMNAS_ALIMENTO_FASE,
+  COLUMNAS_CLASIFICACION_HUEVO,
   COLUMNAS_LEVANTE,
   COLUMNAS_PRODUCCION,
   GrupoCabecera
@@ -29,12 +31,28 @@ import {
   GraficaReporteSemanal
 } from '../../funciones/construir-graficas-reporte-semanal.funcion';
 import {
+  ReporteSemanalAlimentoFase,
+  ReporteSemanalAlimentoPorFase,
+  ReporteSemanalLevanteTab,
+  ReporteSemanalProduccionSemana,
   ReporteSemanalTabHeader,
   ReporteTecnicoSemanalLevanteResponse,
   ReporteTecnicoSemanalProduccionResponse
 } from '../../models/reporte-tecnico-semanal.model';
 
 type TipoReporte = 'LEVANTE' | 'PRODUCCION';
+/**
+ * Vistas del tab. `alimento` es la hoja «ALIMLev» (solo levante) y
+ * `clasificacion` la hoja «CLAS Huevo» (solo producción): no se ofrecen en la
+ * etapa donde no aplican.
+ */
+type VistaTab = 'tabla' | 'graficas' | 'alimento' | 'clasificacion';
+
+/** Una de las cuatro tablas de la hoja ALIMLev, ya formateada. */
+interface BloqueAlimentoView {
+  titulo: string;
+  filas: string[][];
+}
 
 /** Tab de vista precalculada (referencias estables — evita NG0103). */
 interface TabView {
@@ -44,6 +62,10 @@ interface TabView {
   infoChips: { label: string; valor: string }[];
   filas: string[][];
   graficas: GraficaReporteSemanal[];
+  /** Hoja ALIMLev (levante) — vacío en producción. */
+  alimento: BloqueAlimentoView[];
+  /** Hoja CLAS Huevo (producción) — vacío en levante. */
+  clasificacion: string[][];
 }
 
 @Component({
@@ -63,7 +85,7 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
   private readonly toast = inject(ToastService);
 
   tipoReporte: TipoReporte = 'LEVANTE';
-  vista: 'tabla' | 'graficas' = 'tabla';
+  vista: VistaTab = 'tabla';
 
   loading = false;
   error: string | null = null;
@@ -77,6 +99,9 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
   tieneGuia = true;
   grupos: GrupoCabecera[] = [];
   titulos: string[] = [];
+  gruposClasificacion: GrupoCabecera[] = [];
+  titulosClasificacion: string[] = [];
+  titulosAlimento: string[] = [];
   tabs: TabView[] = [];
   tabActiva = 0;
 
@@ -95,6 +120,9 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
   cambiarTipo(tipo: TipoReporte): void {
     if (this.tipoReporte === tipo) return;
     this.tipoReporte = tipo;
+    // `alimento` y `clasificacion` son propias de una etapa: al cambiar se
+    // vuelve a Tabla para no dejar seleccionada una vista que ya no existe.
+    this.vista = 'tabla';
     this.limpiarResultado();
     this.filtros.setEtapa(tipo);
   }
@@ -136,26 +164,38 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
   }
 
   /** Precalcula TODA la vista una sola vez por generación (referencias estables). */
-  private aplicarResultado<T>(
+  private aplicarResultado<T, TTab extends { header: ReporteSemanalTabHeader; semanas: T[] }>(
     loteBaseNombre: string,
     tieneGuia: boolean,
-    consolidado: { header: ReporteSemanalTabHeader; semanas: T[] } | null,
-    tabs: { header: ReporteSemanalTabHeader; semanas: T[] }[],
+    consolidado: TTab | null,
+    tabs: TTab[],
     columnas: ColumnaReporte<T>[],
-    graficasDe: (tab: { header: ReporteSemanalTabHeader; semanas: T[] }) => GraficaReporteSemanal[]
+    graficasDe: (tab: TTab) => GraficaReporteSemanal[]
   ): void {
     this.loteBaseNombre = loteBaseNombre;
     this.tieneGuia = tieneGuia;
     this.grupos = agruparColumnas(columnas);
     this.titulos = columnas.map(c => c.titulo);
+    this.gruposClasificacion = agruparColumnas(COLUMNAS_CLASIFICACION_HUEVO);
+    this.titulosClasificacion = COLUMNAS_CLASIFICACION_HUEVO.map(c => c.titulo);
+    this.titulosAlimento = COLUMNAS_ALIMENTO_FASE.map(c => c.titulo);
 
-    const construirTab = (tab: { header: ReporteSemanalTabHeader; semanas: T[] }, nombre: string, esConsolidado: boolean): TabView => ({
+    const construirTab = (tab: TTab, nombre: string, esConsolidado: boolean): TabView => ({
       nombre,
       esConsolidado,
       header: tab.header,
       infoChips: this.armarChips(tab.header),
       filas: tab.semanas.map(s => columnas.map(c => this.fmtCelda(c.valor(s), c.dec))),
-      graficas: graficasDe(tab)
+      graficas: graficasDe(tab),
+      // `alimentoPorFase` solo viene en levante y la clasificación solo en
+      // producción: cada bloque se arma únicamente en la etapa que lo trae.
+      alimento: this.tipoReporte === 'LEVANTE'
+        ? this.armarAlimento((tab as unknown as ReporteSemanalLevanteTab).alimentoPorFase)
+        : [],
+      clasificacion: this.tipoReporte === 'PRODUCCION'
+        ? (tab.semanas as unknown as ReporteSemanalProduccionSemana[])
+            .map(s => COLUMNAS_CLASIFICACION_HUEVO.map(c => this.fmtCelda(c.valor(s), c.dec)))
+        : []
     });
 
     const vistas: TabView[] = [];
@@ -163,6 +203,27 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
     for (const tab of tabs) vistas.push(construirTab(tab, tab.header.loteNombre, false));
     this.tabs = vistas;
     this.tabActiva = 0;
+  }
+
+  /**
+   * Las cuatro tablas de la hoja ALIMLev, ya formateadas. Se precalculan acá
+   * (no en el template) para no alocar por ciclo de change detection.
+   */
+  private armarAlimento(bloque: ReporteSemanalAlimentoPorFase | undefined): BloqueAlimentoView[] {
+    if (!bloque) return [];
+    const tabla = (titulo: string, filas: ReporteSemanalAlimentoFase[] | undefined): BloqueAlimentoView | null => {
+      if (!filas || filas.length === 0) return null;
+      return {
+        titulo,
+        filas: filas.map(f => COLUMNAS_ALIMENTO_FASE.map(c => this.fmtCelda(c.valor(f), c.dec)))
+      };
+    };
+    return [
+      tabla('Energía por fase — Hembras (kcal/ave)', bloque.energiaHembras),
+      tabla('Energía por fase — Machos (kcal/ave)', bloque.energiaMachos),
+      tabla('Proteína por fase — Hembras (g/ave)', bloque.proteinaHembras),
+      tabla('Proteína por fase — Machos (g/ave)', bloque.proteinaMachos)
+    ].filter((x): x is BloqueAlimentoView => x !== null);
   }
 
   private armarChips(h: ReporteSemanalTabHeader): { label: string; valor: string }[] {
@@ -203,6 +264,9 @@ export class ReporteTecnicoSemanalMainComponent implements OnInit {
     this.tieneGuia = true;
     this.grupos = [];
     this.titulos = [];
+    this.gruposClasificacion = [];
+    this.titulosClasificacion = [];
+    this.titulosAlimento = [];
     this.tabs = [];
     this.tabActiva = 0;
   }

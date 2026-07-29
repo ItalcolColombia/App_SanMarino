@@ -1,0 +1,204 @@
+// Resumen Semanal RA Pesadas — solo layout; los colores salen de los tokens
+// centralizados (theme-italfoods). El filtro usa las clases GLOBALES de
+// styles/filter-context.scss (.filter-card, .filter-card__header, …).
+
+// Toggle Levante / Producción
+.rsm-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--ital-cream, #faf8f5);
+
+  &__btn {
+    padding: 0.45rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary, #4b5563);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+
+    &--active {
+      background: var(--ital-orange, #e85c25);
+      color: #fff;
+    }
+  }
+}
+
+// Barra de filtros
+.rsm-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.9rem;
+  padding: 0.75rem 1.25rem 1.1rem;
+}
+
+.rsm-filtro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 9.5rem;
+
+  &__label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary, #6b7280);
+  }
+
+  &__control {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.85rem;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 0.5rem;
+    background: #fff;
+    color: var(--text-primary, #111827);
+
+    &:focus {
+      outline: none;
+      border-color: var(--ital-orange, #e85c25);
+      box-shadow: 0 0 0 2px rgba(232, 92, 37, 0.15);
+    }
+  }
+
+  &--check {
+    justify-content: flex-end;
+    min-width: auto;
+  }
+
+  &--acciones {
+    flex-direction: row;
+    gap: 0.5rem;
+    margin-left: auto;
+    min-width: auto;
+  }
+}
+
+.rsm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #4b5563);
+  cursor: pointer;
+  padding-bottom: 0.45rem;
+
+  input { accent-color: var(--ital-orange, #e85c25); }
+}
+
+.rsm-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: var(--text-secondary, #4b5563);
+  cursor: pointer;
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  &--primary {
+    background: var(--ital-orange, #e85c25);
+    border-color: var(--ital-orange, #e85c25);
+    color: #fff;
+  }
+}
+
+.rsm-alert {
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+
+  &--error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+  }
+}
+
+// Tabla: ancha a propósito ⇒ scroll horizontal PROPIO, la página no se desborda
+.rsm-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+}
+
+.rsm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.rsm-th {
+  position: sticky;
+  top: 0;
+  padding: 0.4rem 0.55rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-secondary, #4b5563);
+  background: var(--ital-cream, #faf8f5);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-right: 1px solid var(--border-color, #e5e7eb);
+
+  &--grupo {
+    background: #f3f4f6;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.7rem;
+  }
+}
+
+.rsm-tr:nth-child(even) { background: #fafafa; }
+
+.rsm-td {
+  padding: 0.35rem 0.55rem;
+  text-align: right;
+  color: var(--text-primary, #111827);
+  border-bottom: 1px solid #f3f4f6;
+  border-right: 1px solid #f3f4f6;
+
+  &--texto { text-align: left; }
+
+  &--total {
+    font-weight: 700;
+    background: var(--ital-cream, #faf8f5);
+    border-top: 2px solid var(--ital-orange, #e85c25);
+  }
+}
+
+// Curva del año: grilla de gráficas
+.rsm-charts-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.rsm-chart-card {
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: #fff;
+  min-width: 0;
+
+  &__title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary, #4b5563);
+    margin-bottom: 0.5rem;
+  }
+
+  &__canvas {
+    position: relative;
+    height: 240px;
+  }
+}

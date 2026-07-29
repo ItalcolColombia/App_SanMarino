@@ -244,7 +244,14 @@ public partial class MigracionService
         // Se lee ANTES del corte por "archivo vacío": un archivo que trae SOLO entradas de alimento
         // (hoja Datos en blanco) es un caso válido — cargar el inventario del galpón antes de digitar
         // el seguimiento — y cortar antes lo rechazaba como si estuviera vacío.
-        var movimientosAlimento = await LeerHojaAlimentoAsync(file, companyId, loteCtxUbicado, errores, ct);
+        // El NIVEL del alimento sale del flag por empresa/granja, no se asume galpón: una granja
+        // Colombia (nivel granja) hacía que RegistrarIngresoAsync lanzara "no use Núcleo/Galpón" y la
+        // fila se perdiera. Con el flag, Ecuador/Panamá (galpón) se comportan exactamente igual.
+        var granjaLoteEngorde = await GranjaIdDeLoteAsync(loteCtxUbicado.LoteId, ct);
+        var alimentoPorGalponEngorde = await ManejaAlimentoPorGalponAsync(granjaLoteEngorde, ct);
+        var movimientosAlimento = await LeerHojaAlimentoAsync(file, companyId,
+            new UbicacionAlimento(granjaLoteEngorde, loteCtxUbicado.NucleoCodigo, loteCtxUbicado.GalponCodigo),
+            alimentoPorGalponEngorde, errores, ct);
 
         // Hoja "Reproductora" (OPCIONAL): la PRIMERA SEMANA del lote. Se digita en reproductora y el
         // trigger de cruce la vuelca a los días 1-7 de engorde. Reutiliza el mismo parseo que la línea

@@ -43,7 +43,9 @@ public partial class ReporteTecnicoSemanalService
                      .Select(l => (Raza: l.Raza!.Trim().ToLower(), Anio: l.AnoTablaGenetica!.Value))
                      .Distinct())
         {
-            var cruda = await CargarGuiaPorSemanaAsync(companyId, combo.Raza, combo.Anio, ct);
+            // Desempate de la semana 25: levante ⇒ la fila '25', no la '25P' de arranque de producción.
+            var cruda = await CargarGuiaPorSemanaAsync(
+                companyId, combo.Raza, combo.Anio, preferirVarianteProduccion: false, ct);
             guiaPorCombo[combo] = cruda
                 .Where(kv => kv.Key is >= 1 and <= 25)
                 .ToDictionary(kv => kv.Key, kv => new ReporteTecnicoSemanalCalculos.GuiaSemanaLevante(
@@ -57,7 +59,18 @@ public partial class ReporteTecnicoSemanalService
                     ConsAcMachos: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.ConsAcM),
                     PesoHembras: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.PesoH),
                     PesoMachos: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.PesoM),
-                    Uniformidad: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.Uniformidad)));
+                    Uniformidad: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.Uniformidad),
+                    // ── Hoja «ALIMLev» ──
+                    AlimentoHembras: string.IsNullOrWhiteSpace(kv.Value.AlimH) ? null : kv.Value.AlimH!.Trim(),
+                    AlimentoMachos: string.IsNullOrWhiteSpace(kv.Value.AlimM) ? null : kv.Value.AlimM!.Trim(),
+                    KcalSemHembras: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.KcalSemH),
+                    ProtSemHembras: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.ProtHSem),
+                    KcalSemMachos: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.KcalSemM),
+                    ProtSemMachos: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.ProtSemM),
+                    KcalAlimentoMachos: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.KcalM),
+                    ProtAlimentoMachos: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.ProtM),
+                    KcalAlimentoHembras: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.KcalH),
+                    ProtAlimentoHembras: ReporteTecnicoSemanalCalculos.ParseGuia(kv.Value.ProtH)));
         }
 
         var vacio = new Dictionary<int, ReporteTecnicoSemanalCalculos.GuiaSemanaLevante>();
@@ -93,10 +106,12 @@ public partial class ReporteTecnicoSemanalService
                 MortCajasMachos = lote.MortCajaM
             };
 
+            var semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasLevante(filas, guia);
             tabs.Add(new ReporteSemanalLevanteTabDto
             {
                 Header = header,
-                Semanas = ReporteTecnicoSemanalCalculos.ConstruirSemanasLevante(filas, guia)
+                Semanas = semanas,
+                AlimentoPorFase = AlimentoPorFaseCalculos.Construir(semanas)
             });
         }
 

@@ -65,7 +65,23 @@ public static class ReporteTecnicoSemanalCalculos
         double? ConsAcMachos,
         double? PesoHembras,
         double? PesoMachos,
-        double? Uniformidad);
+        double? Uniformidad,
+        // ── Hoja «ALIMLev» ──
+        /// <summary>Fase de alimento de la semana (INI / LEV / PP / F1 · INI / LEV / M).</summary>
+        string? AlimentoHembras = null,
+        string? AlimentoMachos = null,
+        /// <summary>Energía y proteína SEMANALES por ave que fija la guía.</summary>
+        double? KcalSemHembras = null,
+        double? ProtSemHembras = null,
+        double? KcalSemMachos = null,
+        double? ProtSemMachos = null,
+        /// <summary>Energía/proteína del ALIMENTO de esa fase (kcal/kg y %), nominal.
+        /// En machos es la ÚNICA fuente (el seguimiento no captura su alimento) y en
+        /// hembras es el respaldo cuando el seguimiento no trae kcal_al_h/prot_al_h.</summary>
+        double? KcalAlimentoMachos = null,
+        double? ProtAlimentoMachos = null,
+        double? KcalAlimentoHembras = null,
+        double? ProtAlimentoHembras = null);
 
     /// <summary>
     /// Huevos incubables ENVIADOS a planta/incubadora agrupados por semana de vida
@@ -89,6 +105,30 @@ public static class ReporteTecnicoSemanalCalculos
         return resultado;
     }
 
+    /// <summary>
+    /// Agrupa las VENTAS de aves por semana de vida, separando sexos.
+    /// Misma fórmula de semana que <see cref="AgruparCargadosPorSemana"/>
+    /// (días desde el encaset / 7 + 1) para que caiga en la misma fila del
+    /// reporte. Las ventas anteriores al encaset se ignoran: son dato
+    /// inconsistente, no una venta de semana 0.
+    /// </summary>
+    public static Dictionary<int, (int Hembras, int Machos)> AgruparVentasPorSemana(
+        IEnumerable<(DateTime Fecha, int Hembras, int Machos)> ventas,
+        DateTime fechaEncaset)
+    {
+        var resultado = new Dictionary<int, (int Hembras, int Machos)>();
+        var encaset = fechaEncaset.Date;
+        foreach (var (fecha, h, m) in ventas)
+        {
+            var dias = (fecha.Date - encaset).Days;
+            if (dias < 0) continue;
+            var semana = dias / 7 + 1;
+            var (ah, am) = resultado.TryGetValue(semana, out var acum) ? acum : (0, 0);
+            resultado[semana] = (ah + h, am + m);
+        }
+        return resultado;
+    }
+
     public sealed record GuiaSemanaProduccion(
         double? AprovSem,
         double? AprovAc,
@@ -102,9 +142,21 @@ public static class ReporteTecnicoSemanalCalculos
 
     // ─────────────────────────────────────────────────────────────────────────
     // LEVANTE — filas del Excel a partir de la fn de extras + guía.
-    // % con base FIJA de aves iniciales (Excel: F7 = E7/$C$7), acumulados =
-    // conteos acumulados / base * 100, nutrición acumulada por ave
-    // (Excel: AH = kcal*0.001*(gr_ave_semana) + AH_prev).
+    //
+    // DENOMINADORES de los % SEMANALES (verificado fila a fila contra la hoja
+    // «Datos semanal LEV» del archivo fuente, sobre los 73 lotes):
+    //   * %Mort  → saldo al INICIO de la semana   (1401 filas H + 1311 M lo confirman,
+    //              ninguna cuadra con el saldo final ni con la base fija)
+    //   * %Sel   → saldo al FINAL de la semana    (248 H + 488 M)
+    //   * %Err   → saldo al FINAL de la semana    (142 H + 48 M)
+    // Sí, el archivo usa bases distintas para mortalidad y para descarte; no es
+    // un error de lectura, es su convención. Antes acá se usaba la base FIJA de
+    // aves iniciales para las tres, lo que no reproducía ninguna de las columnas
+    // y además hacía que el Detalle se contradijera con el Resumen.
+    //
+    // Los ACUMULADOS sí van sobre la base FIJA (Excel: %RetiroH = RetAcH/$C$7) y
+    // no se tocan: ésos ya coincidían con el archivo.
+    // Nutrición acumulada por ave (Excel: AH = kcal*0.001*(gr_ave_semana) + AH_prev).
     // ─────────────────────────────────────────────────────────────────────────
     public static List<ReporteSemanalLevanteSemanaDto> ConstruirSemanasLevante(
         IReadOnlyList<ReporteSemanalLevanteExtrasRow> filas,
@@ -115,6 +167,9 @@ public static class ReporteTecnicoSemanalCalculos
         double cumMortH = 0, cumMortM = 0, cumSelH = 0, cumSelM = 0, cumErrH = 0, cumErrM = 0;
         double cumKgH = 0, cumKgM = 0;
         double kcalAcum = 0, protAcum = 0;
+        // Acumulados de la hoja «ALIMLev» (real y guía, por sexo).
+        double kcalAcH = 0, protAcH = 0, kcalAcM = 0, protAcM = 0;
+        double kcalAcHGuia = 0, protAcHGuia = 0, kcalAcMGuia = 0, protAcMGuia = 0;
         double? grAveDiaHPrev = null, grAveDiaMPrev = null;
         double? grAveDiaHGuiaPrev = null, grAveDiaMGuiaPrev = null;
         double? pesoHPrev = null, pesoMPrev = null;
@@ -137,6 +192,34 @@ public static class ReporteTecnicoSemanalCalculos
             if (f.KcalAlimentoHembras is > 0) kcalAcum += f.KcalAlimentoHembras.Value * 0.001 * grAveSemanaH;
             if (f.ProtAlimentoHembras is > 0) protAcum += f.ProtAlimentoHembras.Value * 0.01 * grAveSemanaH;
 
+            // ── Hoja «ALIMLev»: energía/proteína SEMANAL por ave y por sexo ──
+            // gramos consumidos por ave × energía (kcal/kg → *0.001) o proteína (% → *0.01).
+            // Hembras: alimento REAL del seguimiento diario. Machos: el seguimiento no
+            // captura su alimento ⇒ energía/proteína NOMINAL de la fase que fija la guía
+            // (la desviación de machos refleja consumo, no formulación).
+            var grAveSemanaM = f.AvesMachosFin > 0 ? f.ConsumoKgMachosSem * 1000.0 / f.AvesMachosFin : 0;
+            // Energía/proteína del alimento: la CAPTURADA manda; si el seguimiento no
+            // la trae se usa la NOMINAL de la fase según la guía. Misma regla en los
+            // dos sexos. Sin este respaldo la mitad hembra de la hoja sale vacía:
+            // kcal_al_h / prot_al_h no se cargan en ningún registro.
+            var kcalAlH = f.KcalAlimentoHembras is > 0 ? f.KcalAlimentoHembras : g?.KcalAlimentoHembras;
+            var protAlH = f.ProtAlimentoHembras is > 0 ? f.ProtAlimentoHembras : g?.ProtAlimentoHembras;
+            double? kcalSemH = kcalAlH is > 0 && grAveSemanaH > 0 ? kcalAlH!.Value * 0.001 * grAveSemanaH : null;
+            double? protSemH = protAlH is > 0 && grAveSemanaH > 0 ? protAlH!.Value * 0.01 * grAveSemanaH : null;
+            double? kcalSemM = g?.KcalAlimentoMachos is > 0 && grAveSemanaM > 0
+                ? g!.KcalAlimentoMachos!.Value * 0.001 * grAveSemanaM : null;
+            double? protSemM = g?.ProtAlimentoMachos is > 0 && grAveSemanaM > 0
+                ? g!.ProtAlimentoMachos!.Value * 0.01 * grAveSemanaM : null;
+
+            if (kcalSemH.HasValue) { kcalAcH += kcalSemH.Value; }
+            if (protSemH.HasValue) { protAcH += protSemH.Value; }
+            if (kcalSemM.HasValue) { kcalAcM += kcalSemM.Value; }
+            if (protSemM.HasValue) { protAcM += protSemM.Value; }
+            if (g?.KcalSemHembras is not null) { kcalAcHGuia += g.KcalSemHembras.Value; }
+            if (g?.ProtSemHembras is not null) { protAcHGuia += g.ProtSemHembras.Value; }
+            if (g?.KcalSemMachos is not null) { kcalAcMGuia += g.KcalSemMachos.Value; }
+            if (g?.ProtSemMachos is not null) { protAcMGuia += g.ProtSemMachos.Value; }
+
             var dto = new ReporteSemanalLevanteSemanaDto
             {
                 Semana = f.Semana,
@@ -144,17 +227,19 @@ public static class ReporteTecnicoSemanalCalculos
                 DiasConRegistro = f.DiasConRegistro,
                 AvesHembrasFin = f.AvesHembrasFin,
                 AvesMachosFin = f.AvesMachosFin,
+                AvesHembrasInicio = f.AvesHembrasInicio,
+                AvesMachosInicio = f.AvesMachosInicio,
                 RelacionMachosHembrasPct = Pct(f.AvesMachosFin, f.AvesHembrasFin),
 
                 MortalidadHembras = f.MortalidadHembrasSem,
-                MortalidadHembrasPct = Pct(f.MortalidadHembrasSem, f.BaseHembras),
+                MortalidadHembrasPct = Pct(f.MortalidadHembrasSem, f.AvesHembrasInicio),
                 MortalidadHembrasAcumPct = Pct(cumMortH, f.BaseHembras),
                 SeleccionHembras = f.SeleccionHembrasSem,
-                SeleccionHembrasPct = Pct(f.SeleccionHembrasSem, f.BaseHembras),
+                SeleccionHembrasPct = Pct(f.SeleccionHembrasSem, f.AvesHembrasFin),
                 SeleccionHembrasAcumPct = Pct(cumSelH, f.BaseHembras),
                 MortSelHembrasGuiaPct = g?.MortSemHembras,
                 ErrorHembras = f.ErrorHembrasSem,
-                ErrorHembrasPct = Pct(f.ErrorHembrasSem, f.BaseHembras),
+                ErrorHembrasPct = Pct(f.ErrorHembrasSem, f.AvesHembrasFin),
                 ErrorHembrasAcumPct = Pct(cumErrH, f.BaseHembras),
                 RetiroAcumHembrasPct = Pct(cumMortH + cumSelH + cumErrH, f.BaseHembras),
                 RetiroAcumHembrasGuiaPct = g?.RetiroAcHembras,
@@ -183,16 +268,35 @@ public static class ReporteTecnicoSemanalCalculos
                 ProtAlimentoHembras = f.ProtAlimentoHembras,
                 KcalAveAcumHembras = kcalAcum > 0 ? kcalAcum : null,
                 ProtAveAcumHembras = protAcum > 0 ? protAcum : null,
+                // ── Hoja «ALIMLev» ──
+                FaseAlimentoHembras = g?.AlimentoHembras,
+                FaseAlimentoMachos = g?.AlimentoMachos,
+                KcalSemanaHembras = kcalSemH,
+                KcalSemanaHembrasGuia = g?.KcalSemHembras,
+                ProtSemanaHembras = protSemH,
+                ProtSemanaHembrasGuia = g?.ProtSemHembras,
+                KcalSemanaMachos = kcalSemM,
+                KcalSemanaMachosGuia = g?.KcalSemMachos,
+                ProtSemanaMachos = protSemM,
+                ProtSemanaMachosGuia = g?.ProtSemMachos,
+                KcalAcumHembras = kcalAcH > 0 ? kcalAcH : null,
+                KcalAcumHembrasGuia = kcalAcHGuia > 0 ? kcalAcHGuia : null,
+                KcalAcumMachos = kcalAcM > 0 ? kcalAcM : null,
+                KcalAcumMachosGuia = kcalAcMGuia > 0 ? kcalAcMGuia : null,
+                ProtAcumHembras = protAcH > 0 ? protAcH : null,
+                ProtAcumHembrasGuia = protAcHGuia > 0 ? protAcHGuia : null,
+                ProtAcumMachos = protAcM > 0 ? protAcM : null,
+                ProtAcumMachosGuia = protAcMGuia > 0 ? protAcMGuia : null,
 
                 MortalidadMachos = f.MortalidadMachosSem,
-                MortalidadMachosPct = Pct(f.MortalidadMachosSem, f.BaseMachos),
+                MortalidadMachosPct = Pct(f.MortalidadMachosSem, f.AvesMachosInicio),
                 MortalidadMachosAcumPct = Pct(cumMortM, f.BaseMachos),
                 SeleccionMachos = f.SeleccionMachosSem,
-                SeleccionMachosPct = Pct(f.SeleccionMachosSem, f.BaseMachos),
+                SeleccionMachosPct = Pct(f.SeleccionMachosSem, f.AvesMachosFin),
                 SeleccionMachosAcumPct = Pct(cumSelM, f.BaseMachos),
                 MortSelMachosGuiaPct = g?.MortSemMachos,
                 ErrorMachos = f.ErrorMachosSem,
-                ErrorMachosPct = Pct(f.ErrorMachosSem, f.BaseMachos),
+                ErrorMachosPct = Pct(f.ErrorMachosSem, f.AvesMachosFin),
                 ErrorMachosAcumPct = Pct(cumErrM, f.BaseMachos),
                 RetiroAcumMachosPct = Pct(cumMortM + cumSelM + cumErrM, f.BaseMachos),
                 RetiroAcumMachosGuiaPct = g?.RetiroAcMachos,
@@ -236,7 +340,8 @@ public static class ReporteTecnicoSemanalCalculos
     public static List<ReporteSemanalProduccionSemanaDto> ConstruirSemanasProduccion(
         IReadOnlyList<IndicadorProduccionSemanalBdRow> filas,
         IReadOnlyDictionary<int, GuiaSemanaProduccion> guia,
-        IReadOnlyDictionary<int, int>? cargadosPorSemana = null)
+        IReadOnlyDictionary<int, int>? cargadosPorSemana = null,
+        IReadOnlyDictionary<int, (int Hembras, int Machos)>? ventasPorSemana = null)
     {
         var resultado = new List<ReporteSemanalProduccionSemanaDto>(filas.Count);
 
@@ -259,6 +364,8 @@ public static class ReporteTecnicoSemanalCalculos
             if (primera) { baseH = iniH; baseM = iniM; primera = false; }
 
             var cargados = cargadosPorSemana is not null && cargadosPorSemana.TryGetValue(f.Semana, out var c) ? c : 0;
+            var venta = ventasPorSemana is not null && ventasPorSemana.TryGetValue(f.Semana, out var v)
+                ? v : (Hembras: 0, Machos: 0);
             cumCargados += cargados;
 
             cumHuevosTot += f.HuevosTotales;
@@ -362,7 +469,33 @@ public static class ReporteTecnicoSemanalCalculos
                 HuevosCargadosPlantaAcum = cumCargados,
                 PorcentajeCargaSobreIncubables = Pct(cargados, f.HuevosIncubables),
                 NacimientoGuiaPct = g?.NacimPorcentaje,
-                PollitosAveGuia = g?.PollitoAa
+                PollitosAveGuia = g?.PollitoAa,
+
+                VentaHembras = venta.Hembras,
+                VentaMachos = venta.Machos,
+
+                // ── Hoja «CLAS Huevo»: conteos de la semana y % sobre el huevo TOTAL ──
+                // «Deforme Blanco» del Excel = huevo_deforme + huevo_blanco de la BD.
+                HuevosLimpios = f.HuevosLimpios,
+                HuevosTratados = f.HuevosTratados,
+                HuevosSucios = f.HuevosSucios,
+                HuevosDeformeBlanco = f.HuevosDeformes + f.HuevosBlancos,
+                HuevosDobleYema = f.HuevosDobleYema,
+                HuevosPiso = f.HuevosPiso,
+                HuevosPequenos = f.HuevosPequenos,
+                HuevosRotos = f.HuevosRotos,
+                HuevosDesecho = f.HuevosDesecho,
+                HuevosOtro = f.HuevosOtro,
+                PctLimpio = Pct(f.HuevosLimpios, f.HuevosTotales),
+                PctTratado = Pct(f.HuevosTratados, f.HuevosTotales),
+                PctSucio = Pct(f.HuevosSucios, f.HuevosTotales),
+                PctDeformeBlanco = Pct(f.HuevosDeformes + f.HuevosBlancos, f.HuevosTotales),
+                PctDobleYema = Pct(f.HuevosDobleYema, f.HuevosTotales),
+                PctPiso = Pct(f.HuevosPiso, f.HuevosTotales),
+                PctPequeno = Pct(f.HuevosPequenos, f.HuevosTotales),
+                PctRoto = Pct(f.HuevosRotos, f.HuevosTotales),
+                PctDesecho = Pct(f.HuevosDesecho, f.HuevosTotales),
+                PctOtro = Pct(f.HuevosOtro, f.HuevosTotales)
             };
 
             resultado.Add(dto);
@@ -410,6 +543,10 @@ public static class ReporteTecnicoSemanalCalculos
             var baseM = header.BaseMachos;
             var avesHFin = filas.Sum(s => s.AvesHembrasFin);
             var avesMFin = filas.Sum(s => s.AvesMachosFin);
+            // Saldo de inicio consolidado: SUMA de los de cada galpón. Reconstruirlo
+            // como fin + bajas ignoraría los traslados y daría otro número.
+            var avesHIni = filas.Sum(s => s.AvesHembrasInicio);
+            var avesMIni = filas.Sum(s => s.AvesMachosInicio);
             var mortH = filas.Sum(s => s.MortalidadHembras);
             var mortM = filas.Sum(s => s.MortalidadMachos);
             var selH = filas.Sum(s => s.SeleccionHembras);
@@ -438,17 +575,19 @@ public static class ReporteTecnicoSemanalCalculos
                 DiasConRegistro = dias,
                 AvesHembrasFin = avesHFin,
                 AvesMachosFin = avesMFin,
+                AvesHembrasInicio = avesHIni,
+                AvesMachosInicio = avesMIni,
                 RelacionMachosHembrasPct = Pct(avesMFin, avesHFin),
 
                 MortalidadHembras = mortH,
-                MortalidadHembrasPct = Pct(mortH, baseH),
+                MortalidadHembrasPct = Pct(mortH, avesHIni),
                 MortalidadHembrasAcumPct = Pct(cumMortH, baseH),
                 SeleccionHembras = selH,
-                SeleccionHembrasPct = Pct(selH, baseH),
+                SeleccionHembrasPct = Pct(selH, avesHFin),
                 SeleccionHembrasAcumPct = Pct(cumSelH, baseH),
                 MortSelHembrasGuiaPct = PrimeraGuia(filas.Select(s => s.MortSelHembrasGuiaPct)),
                 ErrorHembras = errH,
-                ErrorHembrasPct = Pct(errH, baseH),
+                ErrorHembrasPct = Pct(errH, avesHFin),
                 ErrorHembrasAcumPct = Pct(cumErrH, baseH),
                 RetiroAcumHembrasPct = Pct(cumMortH + cumSelH + cumErrH, baseH),
                 RetiroAcumHembrasGuiaPct = PrimeraGuia(filas.Select(s => s.RetiroAcumHembrasGuiaPct)),
@@ -476,15 +615,41 @@ public static class ReporteTecnicoSemanalCalculos
                 KcalAveAcumHembras = Prom(filas.Select(s => s.KcalAveAcumHembras)),
                 ProtAveAcumHembras = Prom(filas.Select(s => s.ProtAveAcumHembras)),
 
+                // ── Hoja «ALIMLev» en el consolidado ──
+                // La FASE viene de la guía, así que es la misma en todos los galpones
+                // del lote base: se toma la primera con dato. Los valores son POR AVE,
+                // no conteos, así que se promedian igual que peso o uniformidad —
+                // sumarlos multiplicaría la energía por el número de galpones.
+                FaseAlimentoHembras = filas.Select(s => s.FaseAlimentoHembras)
+                                           .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+                FaseAlimentoMachos = filas.Select(s => s.FaseAlimentoMachos)
+                                          .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+                KcalSemanaHembras = Prom(filas.Select(s => s.KcalSemanaHembras)),
+                KcalSemanaHembrasGuia = PrimeraGuia(filas.Select(s => s.KcalSemanaHembrasGuia)),
+                ProtSemanaHembras = Prom(filas.Select(s => s.ProtSemanaHembras)),
+                ProtSemanaHembrasGuia = PrimeraGuia(filas.Select(s => s.ProtSemanaHembrasGuia)),
+                KcalSemanaMachos = Prom(filas.Select(s => s.KcalSemanaMachos)),
+                KcalSemanaMachosGuia = PrimeraGuia(filas.Select(s => s.KcalSemanaMachosGuia)),
+                ProtSemanaMachos = Prom(filas.Select(s => s.ProtSemanaMachos)),
+                ProtSemanaMachosGuia = PrimeraGuia(filas.Select(s => s.ProtSemanaMachosGuia)),
+                KcalAcumHembras = Prom(filas.Select(s => s.KcalAcumHembras)),
+                KcalAcumHembrasGuia = PrimeraGuia(filas.Select(s => s.KcalAcumHembrasGuia)),
+                KcalAcumMachos = Prom(filas.Select(s => s.KcalAcumMachos)),
+                KcalAcumMachosGuia = PrimeraGuia(filas.Select(s => s.KcalAcumMachosGuia)),
+                ProtAcumHembras = Prom(filas.Select(s => s.ProtAcumHembras)),
+                ProtAcumHembrasGuia = PrimeraGuia(filas.Select(s => s.ProtAcumHembrasGuia)),
+                ProtAcumMachos = Prom(filas.Select(s => s.ProtAcumMachos)),
+                ProtAcumMachosGuia = PrimeraGuia(filas.Select(s => s.ProtAcumMachosGuia)),
+
                 MortalidadMachos = mortM,
-                MortalidadMachosPct = Pct(mortM, baseM),
+                MortalidadMachosPct = Pct(mortM, avesMIni),
                 MortalidadMachosAcumPct = Pct(cumMortM, baseM),
                 SeleccionMachos = selM,
-                SeleccionMachosPct = Pct(selM, baseM),
+                SeleccionMachosPct = Pct(selM, avesMFin),
                 SeleccionMachosAcumPct = Pct(cumSelM, baseM),
                 MortSelMachosGuiaPct = PrimeraGuia(filas.Select(s => s.MortSelMachosGuiaPct)),
                 ErrorMachos = errM,
-                ErrorMachosPct = Pct(errM, baseM),
+                ErrorMachosPct = Pct(errM, avesMFin),
                 ErrorMachosAcumPct = Pct(cumErrM, baseM),
                 RetiroAcumMachosPct = Pct(cumMortM + cumSelM + cumErrM, baseM),
                 RetiroAcumMachosGuiaPct = PrimeraGuia(filas.Select(s => s.RetiroAcumMachosGuiaPct)),
@@ -512,7 +677,15 @@ public static class ReporteTecnicoSemanalCalculos
             if (pesoM.HasValue) pesoMPrev = pesoM;
         }
 
-        return new ReporteSemanalLevanteTabDto { Header = header, Semanas = semanas };
+        // El consolidado también trae su hoja ALIMLev: se construye sobre las
+        // semanas YA consolidadas, así la energía por fase cuadra con las
+        // columnas de nutrición que muestra ese mismo tab.
+        return new ReporteSemanalLevanteTabDto
+        {
+            Header = header,
+            Semanas = semanas,
+            AlimentoPorFase = AlimentoPorFaseCalculos.Construir(semanas)
+        };
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -665,7 +838,36 @@ public static class ReporteTecnicoSemanalCalculos
                 HuevosCargadosPlantaAcum = cumCargados,
                 PorcentajeCargaSobreIncubables = Pct(cargados, huevosInc),
                 NacimientoGuiaPct = PrimeraGuia(filas.Select(s => s.NacimientoGuiaPct)),
-                PollitosAveGuia = PrimeraGuia(filas.Select(s => s.PollitosAveGuia))
+                PollitosAveGuia = PrimeraGuia(filas.Select(s => s.PollitosAveGuia)),
+
+                // Las ventas son CONTEOS de aves: suman entre galpones.
+                VentaHembras = filas.Sum(s => s.VentaHembras),
+                VentaMachos = filas.Sum(s => s.VentaMachos),
+
+                // ── Hoja «CLAS Huevo» consolidada: los CONTEOS suman entre galpones y
+                //    los % se RECALCULAN sobre el total consolidado. Promediar los %
+                //    de cada galpón daría un número que no cuadra con sus propios
+                //    conteos (el galpón chico pesaría igual que el grande).
+                HuevosLimpios = filas.Sum(s => s.HuevosLimpios),
+                HuevosTratados = filas.Sum(s => s.HuevosTratados),
+                HuevosSucios = filas.Sum(s => s.HuevosSucios),
+                HuevosDeformeBlanco = filas.Sum(s => s.HuevosDeformeBlanco),
+                HuevosDobleYema = filas.Sum(s => s.HuevosDobleYema),
+                HuevosPiso = filas.Sum(s => s.HuevosPiso),
+                HuevosPequenos = filas.Sum(s => s.HuevosPequenos),
+                HuevosRotos = filas.Sum(s => s.HuevosRotos),
+                HuevosDesecho = filas.Sum(s => s.HuevosDesecho),
+                HuevosOtro = filas.Sum(s => s.HuevosOtro),
+                PctLimpio = Pct(filas.Sum(s => s.HuevosLimpios), huevosTot),
+                PctTratado = Pct(filas.Sum(s => s.HuevosTratados), huevosTot),
+                PctSucio = Pct(filas.Sum(s => s.HuevosSucios), huevosTot),
+                PctDeformeBlanco = Pct(filas.Sum(s => s.HuevosDeformeBlanco), huevosTot),
+                PctDobleYema = Pct(filas.Sum(s => s.HuevosDobleYema), huevosTot),
+                PctPiso = Pct(filas.Sum(s => s.HuevosPiso), huevosTot),
+                PctPequeno = Pct(filas.Sum(s => s.HuevosPequenos), huevosTot),
+                PctRoto = Pct(filas.Sum(s => s.HuevosRotos), huevosTot),
+                PctDesecho = Pct(filas.Sum(s => s.HuevosDesecho), huevosTot),
+                PctOtro = Pct(filas.Sum(s => s.HuevosOtro), huevosTot)
             };
 
             semanas.Add(dto);

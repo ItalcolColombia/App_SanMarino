@@ -3,6 +3,7 @@
 // cada columna define grupo (cabecera nivel 1), título (nivel 2), extractor
 // del valor crudo y decimales de presentación.
 import {
+  ReporteSemanalAlimentoFase,
   ReporteSemanalLevanteSemana,
   ReporteSemanalProduccionSemana
 } from '../models/reporte-tecnico-semanal.model';
@@ -132,6 +133,9 @@ export const COLUMNAS_PRODUCCION: ColumnaReporte<ReporteSemanalProduccionSemana>
   { grupo: 'M · Mort-Descarte', titulo: '% M+D Ac', dec: 3, valor: s => s.mortSelMachosAcumPct },
   { grupo: 'M · Mort-Descarte', titulo: 'Guía Ac', dec: 3, valor: s => s.retiroAcumMachosGuiaPct },
 
+  { grupo: 'Venta aves', titulo: 'Hembras', dec: 0, valor: s => s.ventaHembras },
+  { grupo: 'Venta aves', titulo: 'Machos', dec: 0, valor: s => s.ventaMachos },
+
   { grupo: 'Producción huevos', titulo: 'Semana', dec: 0, valor: s => s.huevosTotales },
   { grupo: 'Producción huevos', titulo: 'Acum', dec: 0, valor: s => s.huevosTotalesAcum },
   { grupo: 'Producción huevos', titulo: 'H.T.A.A', dec: 2, valor: s => s.htaa },
@@ -185,4 +189,43 @@ export const COLUMNAS_PRODUCCION: ColumnaReporte<ReporteSemanalProduccionSemana>
   { grupo: 'Pollitos', titulo: '% Enviado', dec: 1, valor: s => s.porcentajeCargaSobreIncubables },
   { grupo: 'Pollitos', titulo: 'Nacim % Guía', dec: 1, valor: s => s.nacimientoGuiaPct },
   { grupo: 'Pollitos', titulo: 'Pollito/ave Guía', dec: 2, valor: s => s.pollitosAveGuia }
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hoja «CLAS Huevo» — % de clasificación por semana sobre el huevo TOTAL.
+// «Deforme Blanco» sale ya sumado del backend (la BD lo guarda en dos columnas).
+// ─────────────────────────────────────────────────────────────────────────────
+export const COLUMNAS_CLASIFICACION_HUEVO: ColumnaReporte<ReporteSemanalProduccionSemana>[] = [
+  { grupo: 'Semana', titulo: 'Sem', dec: 0, valor: s => s.semana },
+  { grupo: 'Semana', titulo: 'Fecha fin', dec: 0, valor: s => fechaYmd(s.fechaFinSemana) },
+
+  { grupo: 'Huevos', titulo: 'Total', dec: 0, valor: s => s.huevosTotales },
+  { grupo: 'Huevos', titulo: 'Incubables', dec: 0, valor: s => s.huevosIncubables },
+  { grupo: 'Huevos', titulo: '% Aprov', dec: 2, valor: s => s.porcentajeIncubables },
+
+  { grupo: 'Incubables', titulo: 'Limpio', dec: 0, valor: s => s.huevosLimpios },
+  { grupo: 'Incubables', titulo: '% Limpio', dec: 2, valor: s => s.pctLimpio },
+  { grupo: 'Incubables', titulo: 'Tratado', dec: 0, valor: s => s.huevosTratados },
+  { grupo: 'Incubables', titulo: '% Tratado', dec: 2, valor: s => s.pctTratado },
+
+  { grupo: 'No incubables', titulo: '% Sucio', dec: 2, valor: s => s.pctSucio },
+  { grupo: 'No incubables', titulo: '% Deforme Blanco', dec: 2, valor: s => s.pctDeformeBlanco },
+  { grupo: 'No incubables', titulo: '% Doble Yema', dec: 2, valor: s => s.pctDobleYema },
+  { grupo: 'No incubables', titulo: '% Piso', dec: 2, valor: s => s.pctPiso },
+  { grupo: 'No incubables', titulo: '% Pequeño', dec: 2, valor: s => s.pctPequeno },
+  { grupo: 'No incubables', titulo: '% Roto', dec: 2, valor: s => s.pctRoto },
+  { grupo: 'No incubables', titulo: '% Desecho', dec: 2, valor: s => s.pctDesecho },
+  { grupo: 'No incubables', titulo: '% Otro', dec: 2, valor: s => s.pctOtro }
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hoja «ALIMLev» — una tabla por (nutriente × sexo), agrupada por fase.
+// ─────────────────────────────────────────────────────────────────────────────
+export const COLUMNAS_ALIMENTO_FASE: ColumnaReporte<ReporteSemanalAlimentoFase>[] = [
+  { grupo: 'Fase', titulo: 'Fase', dec: 0, valor: f => f.fase },
+  { grupo: 'Fase', titulo: 'Semanas', dec: 0, valor: f => f.semanas },
+  { grupo: 'Valores', titulo: 'Real', dec: 2, valor: f => f.real },
+  { grupo: 'Valores', titulo: 'Guía', dec: 2, valor: f => f.guia },
+  { grupo: 'Valores', titulo: 'Dif', dec: 2, valor: f => f.diferencia },
+  { grupo: 'Valores', titulo: '% Dif', dec: 3, valor: f => f.diferenciaPct }
 ];

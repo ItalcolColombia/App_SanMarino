@@ -69,8 +69,19 @@ public partial class ReporteTecnicoSemanalService : IReporteTecnicoSemanalServic
     /// indexadas por semana (edad parseada con tolerancia). Devuelve vacío si
     /// falta raza/año o no hay guía cargada.
     /// </summary>
+    /// <param name="preferirVarianteProduccion">
+    /// Desempate para las semanas que tienen DOS filas en la guía.
+    /// La semana 25 aparece dos veces: <c>'25'</c> (cierre de LEVANTE) y
+    /// <c>'25P'</c> (arranque de PRODUCCIÓN), y ambas parsean a 25. Traen
+    /// valores muy distintos —retiro acumulado hembras 4,03 vs 0,10— así que
+    /// tomar la equivocada rompe la monotonía de la guía (la semana 24 va en
+    /// 3,93 y la 25 caería a 0,10) y hace que el Detalle se contradiga con el
+    /// Resumen, que sí desempata.
+    /// <c>false</c> en levante ⇒ gana la puramente numérica;
+    /// <c>true</c> en producción ⇒ gana la del sufijo.
+    /// </param>
     private async Task<Dictionary<int, ProduccionAvicolaRaw>> CargarGuiaPorSemanaAsync(
-        int companyId, string? raza, int? anioGuia, CancellationToken ct)
+        int companyId, string? raza, int? anioGuia, bool preferirVarianteProduccion, CancellationToken ct)
     {
         var resultado = new Dictionary<int, ProduccionAvicolaRaw>();
         if (string.IsNullOrWhiteSpace(raza) || !anioGuia.HasValue) return resultado;
@@ -86,7 +97,13 @@ public partial class ReporteTecnicoSemanalService : IReporteTecnicoSemanalServic
                         && g.AnioGuia != null && g.AnioGuia.Trim() == anioNorm)
             .ToListAsync(ct);
 
-        foreach (var fila in filas)
+        // El orden de la consulta NO está garantizado: sin este desempate la
+        // fila que gana depende del plan y del orden físico de la tabla.
+        var ordenadas = filas
+            .OrderBy(f => EsEdadPuramenteNumerica(f.Edad) != preferirVarianteProduccion ? 0 : 1)
+            .ThenBy(f => f.Id);
+
+        foreach (var fila in ordenadas)
         {
             var semana = ReporteTecnicoSemanalCalculos.ParseEdadSemana(fila.Edad);
             if (semana.HasValue && !resultado.ContainsKey(semana.Value))
@@ -94,6 +111,10 @@ public partial class ReporteTecnicoSemanalService : IReporteTecnicoSemanalServic
         }
         return resultado;
     }
+
+    /// <summary>true si la edad de la guía son solo dígitos ('25'), false si trae sufijo ('25P').</summary>
+    private static bool EsEdadPuramenteNumerica(string? edad)
+        => !string.IsNullOrWhiteSpace(edad) && edad.Trim().All(char.IsDigit);
 
     private sealed record NombresUbicacion(
         Dictionary<int, (string Nombre, string? Municipio)> Granjas,

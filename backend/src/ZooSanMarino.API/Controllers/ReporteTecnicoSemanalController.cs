@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.ReporteTecnicoSemanal;
 using ZooSanMarino.Application.Interfaces;
 
@@ -58,6 +59,67 @@ public class ReporteTecnicoSemanalController : ControllerBase
         try
         {
             return Ok(await _service.GenerarProduccionAsync(request, ct));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Hoja «RESUMEN SEMANAL» del Informe RA Pesadas: una fila por lote para UNA
+    /// semana calendario, en la etapa pedida ("levante" | "produccion").
+    /// La semana del año usa la convención WEEKNUM de Excel (arranca en domingo),
+    /// no la semana ISO.
+    /// </summary>
+    [HttpPost("resumen")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GenerarResumen(
+        [FromBody] ResumenSemanalRaPesadasRequest request, CancellationToken ct)
+    {
+        if (request is null)
+            return BadRequest(new { message = "El cuerpo de la solicitud es requerido." });
+
+        var etapa = ResumenSemanalRaPesadasCalculos.NormalizarEtapa(request.Etapa);
+        if (etapa is null)
+            return BadRequest(new { message = "Etapa inválida. Use 'levante' o 'produccion'." });
+
+        try
+        {
+            return etapa == ResumenSemanalRaPesadasCalculos.EtapaLevante
+                ? Ok(await _service.GenerarResumenLevanteAsync(request, ct))
+                : Ok(await _service.GenerarResumenProduccionAsync(request, ct));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Curva consolidada del año: todos los lotes a lo largo de todas las edades,
+    /// ponderado por saldo de hembras (bloque «Resumen a semana N» de las hojas
+    /// de gráficas del Informe RA Pesadas).
+    /// </summary>
+    [HttpPost("curva")]
+    [ProducesResponseType(typeof(CurvaConsolidadaResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CurvaConsolidadaResponse>> GenerarCurva(
+        [FromBody] CurvaConsolidadaRequest request, CancellationToken ct)
+    {
+        if (request is null)
+            return BadRequest(new { message = "El cuerpo de la solicitud es requerido." });
+
+        try
+        {
+            return Ok(await _service.GenerarCurvaConsolidadaAsync(request, ct));
         }
         catch (ArgumentException ex)
         {

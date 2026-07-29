@@ -10,6 +10,13 @@ import {
   ReporteTecnicoSemanalProduccionResponse,
   ReporteTecnicoSemanalRequest
 } from '../models/reporte-tecnico-semanal.model';
+import {
+  CurvaConsolidadaRequest,
+  CurvaConsolidadaResponse,
+  ResumenSemanalRaPesadasLevanteResponse,
+  ResumenSemanalRaPesadasProduccionResponse,
+  ResumenSemanalRaPesadasRequest
+} from '../models/resumen-semanal-ra-pesadas.model';
 
 @Injectable({ providedIn: 'root' })
 export class ReporteTecnicoSemanalService {
@@ -22,5 +29,28 @@ export class ReporteTecnicoSemanalService {
 
   generarProduccion(request: ReporteTecnicoSemanalRequest): Observable<ReporteTecnicoSemanalProduccionResponse> {
     return this.http.post<ReporteTecnicoSemanalProduccionResponse>(`${this.baseUrl}/produccion`, request);
+  }
+
+  /**
+   * Hoja «RESUMEN SEMANAL»: N lotes de UNA semana calendario. El mismo endpoint
+   * sirve las dos etapas; el tipo de respuesta lo fija `request.etapa`.
+   */
+  generarResumenLevante(
+    request: ResumenSemanalRaPesadasRequest
+  ): Observable<ResumenSemanalRaPesadasLevanteResponse> {
+    return this.http.post<ResumenSemanalRaPesadasLevanteResponse>(
+      `${this.baseUrl}/resumen`, { ...request, etapa: 'levante' });
+  }
+
+  generarResumenProduccion(
+    request: ResumenSemanalRaPesadasRequest
+  ): Observable<ResumenSemanalRaPesadasProduccionResponse> {
+    return this.http.post<ResumenSemanalRaPesadasProduccionResponse>(
+      `${this.baseUrl}/resumen`, { ...request, etapa: 'produccion' });
+  }
+
+  /** Curva consolidada del año: todos los lotes a lo largo de todas las edades. */
+  generarCurva(request: CurvaConsolidadaRequest): Observable<CurvaConsolidadaResponse> {
+    return this.http.post<CurvaConsolidadaResponse>(`${this.baseUrl}/curva`, request);
   }
 }

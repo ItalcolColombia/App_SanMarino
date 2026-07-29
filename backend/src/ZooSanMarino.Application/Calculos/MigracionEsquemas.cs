@@ -39,6 +39,57 @@ public static class MigracionEsquemas
         new("Tipo Galpón",    Requerida: false, Alias: new[] { "tipo" }),
     });
 
+    // ── Columnas compartidas por las dos líneas de POSTURA ────────────────────────────────────────
+    // Definidas una sola vez para que Levante y Producción no se puedan desincronizar (mismo criterio
+    // que los títulos mixtos de engorde).
+
+    /// <summary>Unidad del consumo (directo y por alimento): "kg" (default) o "qq" (×45.36).</summary>
+    private static ColumnaEsquema UnidadConsumoPostura() =>
+        new("Unidad Consumo", Requerida: false, Alias: new[] { "unidad", "unidad de consumo", "unidad medida" }, Opciones: new[] { "kg", "qq" });
+
+    /// <summary>
+    /// Hasta DOS alimentos del INVENTARIO por sexo: el nombre/código se busca entre los ítems de
+    /// concepto alimento de la empresa y, cuando la fila los trae, el consumo DESCUENTA stock real
+    /// (a nivel granja o galpón según <c>maneja_alimento_por_galpon</c>). Sin ellos, "Consumo H/M (kg)"
+    /// sigue siendo el consumo directo de siempre, que no toca inventario.
+    /// </summary>
+    private static IEnumerable<ColumnaEsquema> AlimentosPorSexoPostura()
+    {
+        yield return new("Alimento 1 H",         Requerida: false, Alias: new[] { "alimento 1 hembras", "alimento uno hembras" });
+        yield return new("Consumo Alimento 1 H", Requerida: false, Alias: new[] { "consumo 1 h", "consumo alimento uno hembras" });
+        yield return new("Alimento 2 H",         Requerida: false, Alias: new[] { "alimento 2 hembras", "alimento dos hembras" });
+        yield return new("Consumo Alimento 2 H", Requerida: false, Alias: new[] { "consumo 2 h", "consumo alimento dos hembras" });
+        yield return new("Alimento 1 M",         Requerida: false, Alias: new[] { "alimento 1 machos", "alimento uno machos" });
+        yield return new("Consumo Alimento 1 M", Requerida: false, Alias: new[] { "consumo 1 m", "consumo alimento uno machos" });
+        yield return new("Alimento 2 M",         Requerida: false, Alias: new[] { "alimento 2 machos", "alimento dos machos" });
+        yield return new("Consumo Alimento 2 M", Requerida: false, Alias: new[] { "consumo 2 m", "consumo alimento dos machos" });
+    }
+
+    /// <summary>
+    /// Las 11 categorías de la clasificadora fija, en el MISMO orden del modal. Incubables y total se
+    /// DERIVAN de ellas cuando la fila las trae (<c>HuevosClasificacion</c>), igual que en pantalla.
+    /// </summary>
+    private static IEnumerable<ColumnaEsquema> CategoriasHuevo()
+    {
+        yield return new("Huevo Limpio",     Requerida: false, Alias: new[] { "limpio" });
+        yield return new("Huevo Tratado",    Requerida: false, Alias: new[] { "tratado" });
+        yield return new("Huevo Sucio",      Requerida: false, Alias: new[] { "sucio" });
+        yield return new("Huevo Deforme",    Requerida: false, Alias: new[] { "deforme" });
+        yield return new("Huevo Blanco",     Requerida: false, Alias: new[] { "blanco" });
+        yield return new("Huevo Doble Yema", Requerida: false, Alias: new[] { "doble yema", "huevo doble" });
+        yield return new("Huevo Piso",       Requerida: false, Alias: new[] { "piso" });
+        yield return new("Huevo Pequeño",    Requerida: false, Alias: new[] { "huevo pequeno", "pequeño", "pequeno" });
+        yield return new("Huevo Roto",       Requerida: false, Alias: new[] { "roto" });
+        yield return new("Huevo Desecho",    Requerida: false, Alias: new[] { "desecho" });
+        yield return new("Huevo Otro",       Requerida: false, Alias: new[] { "otro", "otros" });
+    }
+
+    /// <summary>
+    /// Seguimiento diario de LEVANTE (postura). Las 15 primeras columnas son las históricas — mismo
+    /// título y mismo orden — de modo que un archivo anterior sigue siendo válido sin tocarlo. Lo
+    /// agregado es opcional: unidad de consumo, alimentos del inventario (que descuentan stock) y los
+    /// huevos de la semana 14 en adelante (empresas con <c>captura_huevos_en_levante</c>).
+    /// </summary>
     public static EsquemaMigracion SeguimientoLevante { get; } = new("Datos", new ColumnaEsquema[]
     {
         new("Fecha",              Requerida: true),
@@ -56,8 +107,23 @@ public static class MigracionEsquemas
         new("Uniformidad H",      Requerida: false),
         new("Uniformidad M",      Requerida: false),
         new("Observaciones",      Requerida: false),
-    });
+    }
+        .Append(UnidadConsumoPostura())
+        .Concat(AlimentosPorSexoPostura())
+        .Concat(CategoriasHuevo())
+        .Append(new ColumnaEsquema("Peso Huevo (g)", Requerida: false, Alias: new[] { "peso huevo" }))
+        .ToArray());
 
+    /// <summary>
+    /// Seguimiento diario de PRODUCCIÓN (postura). Las 12 primeras columnas son las históricas. Lo
+    /// agregado es opcional: unidad de consumo, alimentos del inventario y las 11 categorías de la
+    /// clasificadora que el modal ya captura y el Excel no pedía.
+    /// <para>
+    /// La clasificación POR ÍTEMS del catálogo (empresas con <c>clasificacion_huevo_por_items</c>, ej.
+    /// Santa Reyes) NO va en columnas fijas — el desglose es variable por empresa — sino en la hoja
+    /// <see cref="HuevosPostura"/>.
+    /// </para>
+    /// </summary>
     public static EsquemaMigracion SeguimientoProduccion { get; } = new("Datos", new ColumnaEsquema[]
     {
         new("Fecha",              Requerida: true),
@@ -72,6 +138,44 @@ public static class MigracionEsquemas
         new("Peso Huevo (g)",     Requerida: false, Alias: new[] { "peso huevo" }),
         new("Etapa",              Requerida: false),
         new("Observaciones",      Requerida: false),
+    }
+        .Append(UnidadConsumoPostura())
+        .Concat(AlimentosPorSexoPostura())
+        .Concat(CategoriasHuevo())
+        .ToArray());
+
+    /// <summary>
+    /// Hoja <c>Alimento</c> de los archivos de POSTURA: movimientos de INVENTARIO que se aplican ANTES
+    /// de las filas de consumo de la hoja <c>Datos</c>, para que la granja/galpón tenga stock cuando el
+    /// seguimiento lo descuenta. Mismas columnas y reglas que <see cref="AlimentoEngorde"/>.
+    /// <para>
+    /// Diferencia con engorde: en una granja que maneja el alimento a NIVEL GRANJA (Sanmarino, Santa
+    /// Reyes) las columnas Núcleo/Galpón se ignoran con Advertencia — es donde vive el stock y donde el
+    /// alta manual descuenta.
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// Expression-bodied a propósito: <see cref="AlimentoEngorde"/> se declara más abajo en el archivo
+    /// y los inicializadores de propiedades estáticas corren en orden textual — con <c>{ get; } =</c>
+    /// esta propiedad quedaría en null.
+    /// </remarks>
+    public static EsquemaMigracion AlimentoPostura => AlimentoEngorde;
+
+    /// <summary>
+    /// Hoja <c>Huevos</c> del archivo de PRODUCCIÓN: clasificación por ÍTEM del catálogo de huevo de la
+    /// empresa (empresas con <c>clasificacion_huevo_por_items = true</c>, ej. Santa Reyes). Varias filas
+    /// por fecha, una por ítem.
+    /// <para>
+    /// Va en hoja aparte y no en columnas fijas porque el desglose es VARIABLE por empresa (Santa Reyes
+    /// tiene 21 ítems) y <see cref="MigracionEsquemas"/> es un esquema estático que debe seguir siendo
+    /// la fuente única de plantilla y validación.
+    /// </para>
+    /// </summary>
+    public static EsquemaMigracion HuevosPostura { get; } = new("Huevos", new ColumnaEsquema[]
+    {
+        new("Fecha",    Requerida: true),
+        new("Ítem",     Requerida: true, Alias: new[] { "item", "huevo", "producto", "codigo", "código" }),
+        new("Cantidad", Requerida: true, Alias: new[] { "cantidad huevos", "unidades" }),
     });
 
     public static EsquemaMigracion LotesPolloEngorde { get; } = new("Datos", new ColumnaEsquema[]
