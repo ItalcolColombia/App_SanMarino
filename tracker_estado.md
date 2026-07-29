@@ -1604,3 +1604,15 @@ entraron pendientes, como pasaría en el arranque de ECS.
 - [x] **NO-REGRESIÓN: Ecuador 0 lotes con saldo de alimento cambiado (delta 0,0) y 0 con saldo de aves cambiado**; Panamá 14 lotes de alimento y 0 de aves (la tabla de aves siempre estuvo bien)
 - [x] **IDEMPOTENCIA verificada**: re-ejecutando los bloques de datos → `UPDATE 0`, `UPDATE 0`, `INSERT 0 0`; 0 maestros y 0 bajas modificadas
 - [x] Objetos temporales de validación eliminados; los dos respaldos de las migraciones quedan en pie (los usa el `Down`)
+
+## Validación cruzada con el Reporte Diario de Costos Engorde (2026-07-29)
+
+El reporte consume `fn_seguimiento_diario_engorde` por LATERAL, así que es el mejor test de que el
+cambio de scope (v10) no rompió nada aguas abajo.
+
+- [x] **DAYLAND (granja 107)**, 9 días: `consumo_total_kg`, `mort_sel_total` y `aves_vivas_total` con **0 diferencias** contra la suma de los lotes uno por uno
+- [x] **DOÑA MARIA (granja 106)**, 8 días — la que tiene los galpones compartidos G0490 y G0479: **0 diferencias** en las 3 métricas
+- [x] **Sin doble conteo en galpón compartido**: el reporte da 7.529,7 kg para G0490 el 27/07 y la suma directa de los lotes 168+169 da exactamente 7.529,7
+- [x] **Lote 142** (el de más registros, 41): encaset 48.430 − bajas 1.830 = **46.600** = saldo final · ingresos 155.188,2 − consumo 152.952,9 = **2.235,3** = saldo final = **stock del inventario de G0471**
+- [x] `saldo_alimento_kg` persistido coincide con el que calcula la fn (G0464: 66.565,813)
+- [ ] ⚠️ **Hallazgo PREEXISTENTE (no introducido por estos cambios)**: el `stock_kg` que muestra el reporte sale del jsonb `historico_consumo_alimento`, que guarda el saldo **por alimento consumido ese día**, no el total del galpón. G0464 al 22/07: reporte 46.229,2 (solo SUPER POLLO ENGORDE) vs 66.565,8 del galpón (3 ítems). Se confirma preexistente porque **Ecuador, que no se tocó, tiene 738 de 2.103 registros divergentes**; en Panamá son 451 de 470. Queda fuera del alcance de este trabajo
