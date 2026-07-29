@@ -1549,17 +1549,21 @@ galpón** cuando hay dos lotes en el mismo galpón.
 - [x] Verificado en G0490: los lotes 168 y 169 muestran **el mismo saldo en cada fecha** (19.393,6 al 27/07)
 - [ ] Menor: `seguimiento_diario_aves_engorde.saldo_alimento_kg` **persistido** queda con el valor viejo hasta que se toque un registro del lote (la tabla NO lo usa: la fn devuelve `pt` calculado en vivo)
 
-## Fase 3 — Alimento, datos (requiere OK explícito del usuario)
+## Fase 3 — Alimento, datos (autorizada por el usuario el 2026-07-29)
 
-- [ ] Migración: anular las 18 filas de la corrida espuria de G0486
-- [ ] Migración: ajuste datado del residuo por galpón, auditable y reversible
-- [ ] DAYLAND excluido hasta que la operación confirme el stock físico
+Migración `20260729120000_CuadreAlimentoEngordePanama`, con respaldo y `Down` probado.
+
+- [x] **G0486**: anuladas las **18 filas** de la corrida espuria (128.302,2 kg — idénticas en filas y kg al total de G0485). Guarda fail-safe: solo anula si el conjunto es exactamente ese, si no no toca nada. El galpón pasa de **+127.168,2 a −1.134,0**
+- [x] **DAYLAND**: ingreso de cuadre datado en los **5 galpones** (23.677,8 kg), calculado contra los datos del momento, no contra constantes → los 5 quedan en **0,0 exacto**
+- [x] **Grupo C intacto** por decisión del usuario: el `NOT EXISTS` sobre `AjusteStock` excluye por construcción los 11 galpones que ya ajustaste a mano
+- [x] El inventario NO se toca en ningún caso: solo el histórico que alimenta el seguimiento
+- [x] `Down` **probado**: restaura los 218.183,3 kg de G0486, borra los 5 ajustes y elimina el respaldo
 
 ## Validación
 
 - [x] `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1341/1341 verdes** (21 nuevos)
 - [x] `yarn build` no aplica: no se tocó ningún archivo del front
 - [x] Cuadre **aves**: 26/26 lotes con los 7 días completos en dif = 0
-- [x] Cuadre **alimento**: 8/25 galpones cuadran; los 17 restantes son datos sucios de la Fase 3
+- [x] Cuadre **alimento**: **13/25 galpones en 0** (antes 8). Descuadre total **158.374 → 8.662 kg (−94,5 %)**. Los 12 restantes son el grupo C que el usuario decidió dejar (máx. 1.860 kg) más G0486 en −1.134
 - [x] Objetos temporales de diagnóstico eliminados (`fn_seg_engorde_v9_tmp`, `_snap_antes_cruce`); sin procesos huérfanos
 - [ ] Smoke UI en G0490 (pendiente: requiere levantar back+front)
