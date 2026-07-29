@@ -105,6 +105,25 @@ namespace ZooSanMarino.Domain.Entities
         public int DiasAlimentoPrevioEncaset { get; set; } = 10;
 
         /// <summary>
+        /// <c>true</c> = en el Reporte Diario de Costos de engorde, el stock y el consumo por tipo de
+        /// alimento se toman de las fuentes REALES (ingresos del histórico y consumo del seguimiento
+        /// diario) en vez del snapshot jsonb <c>historico_consumo_alimento</c>.
+        /// <para>
+        /// Ese snapshot está incompleto: suma 1.554.181,4 kg contra los 1.706.089,8 kg de consumo real,
+        /// y su <c>saldo_final</c> solo existe para los alimentos consumidos ESE día, así que el stock
+        /// mostrado era una fracción del real (G0464 al 22/07: 46.229,2 kg de un galpón que tenía
+        /// 66.565,8 en tres ítems) y no se movía al recalcularse el saldo.
+        /// </para>
+        /// <para>
+        /// Es un flag y no un cambio global porque el desglose depende de la calidad de
+        /// <c>tipo_alimento</c>: en Panamá es el nombre limpio del ítem, pero en Ecuador viene con
+        /// prefijo de sexo (<c>"H: AV. SUPER POLLO ENGORDE"</c>) y no cruza con el inventario. Con el
+        /// flag en OFF el reporte se comporta exactamente como antes.
+        /// </para>
+        /// </summary>
+        public bool ReporteCostosAlimentoDesdeFuentesReales { get; set; }
+
+        /// <summary>
         /// <c>true</c> = en esta empresa la HORA de llegada de las aves decide el primer día con
         /// registro del lote (pollo engorde y reproductora): desde las 13:00 las aves ya no alcanzan a
         /// consumir ese día y el primer consumo pasa al día siguiente del encasetamiento.

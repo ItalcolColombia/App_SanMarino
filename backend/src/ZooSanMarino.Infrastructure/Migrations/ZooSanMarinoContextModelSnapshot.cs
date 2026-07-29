@@ -332,6 +332,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("primer_registro_segun_hora_llegada");
 
+                    b.Property<bool>("ReporteCostosAlimentoDesdeFuentesReales")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("reporte_costos_alimento_desde_fuentes_reales");
+
                     b.Property<bool>("SeguimientoEngordeMixto")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")

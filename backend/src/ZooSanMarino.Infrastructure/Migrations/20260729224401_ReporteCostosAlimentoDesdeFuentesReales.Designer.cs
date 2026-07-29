@@ -13,8 +13,8 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    [Migration("20260729130000_FnReporteCostosEngordeV2StockDerivado")]
-    partial class FnReporteCostosEngordeV2StockDerivado
+    [Migration("20260729224401_ReporteCostosAlimentoDesdeFuentesReales")]
+    partial class ReporteCostosAlimentoDesdeFuentesReales
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -334,6 +334,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("primer_registro_segun_hora_llegada");
+
+                    b.Property<bool>("ReporteCostosAlimentoDesdeFuentesReales")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("reporte_costos_alimento_desde_fuentes_reales");
 
                     b.Property<bool>("SeguimientoEngordeMixto")
                         .ValueGeneratedOnAdd()

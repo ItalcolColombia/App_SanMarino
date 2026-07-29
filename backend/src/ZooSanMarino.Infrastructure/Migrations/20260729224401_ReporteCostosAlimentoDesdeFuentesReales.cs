@@ -1,3 +1,57 @@
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// El Reporte Diario de Costos de engorde deja de leer el alimento del snapshot jsonb y pasa a
+    /// cruzar las fuentes REALES: consumo del SEGUIMIENTO DIARIO y stock de los INGRESOS del
+    /// historico (lo mismo que alimenta Gestion de inventario).
+    ///
+    /// <b>Problema.</b> El <c>stock_kg</c> salia del <c>saldo_final</c> de
+    /// <c>historico_consumo_alimento</c>, un snapshot escrito al cargar el registro que solo existe
+    /// para los alimentos consumidos ESE dia. El reporte mostraba una fraccion del stock real
+    /// —G0464 (DAYLAND) al 22/07: 46.229,2 kg de un galpon que tenia 66.565,8 en tres items— y no se
+    /// movia cuando el saldo se recalculaba. Ademas el snapshot esta INCOMPLETO: suma 1.554.181,4 kg
+    /// contra los 1.706.089,8 kg de consumo real del seguimiento.
+    ///
+    /// <b>Flag por empresa</b> (<c>companies.reporte_costos_alimento_desde_fuentes_reales</c>,
+    /// default FALSE) porque el desglose necesita que <c>tipo_alimento</c> sea el nombre del item:
+    /// en Panama lo es, pero en Ecuador viene con prefijo de sexo ("H: AV. SUPER POLLO ENGORDE") y
+    /// no cruzaria con el inventario. Se activa SOLO en ItalcolPanama; con el flag en OFF el reporte
+    /// se comporta como antes.
+    ///
+    /// El jsonb queda con un unico uso: repartir los dias con dos o mas alimentos, donde
+    /// <c>tipo_alimento</c> los concatena con " / " y el reparto real solo esta ahi. NUNCA decide un
+    /// total: el total del dia siempre es el <c>consumo_dia_kg</c> del seguimiento.
+    ///
+    /// Verificado con el flag ON en Panama: el desglose suma EXACTO el consumo del dia en las 351
+    /// filas del reporte, el consumo por alimento coincide 0,00 con el seguimiento (122
+    /// comparaciones) y el stock cierra 0,0 contra Gestion de inventario en DAYLAND, MENDOZA y
+    /// TROFARELLO. <c>consumo_total_kg</c>, <c>mort_sel_total</c> y <c>aves_vivas_total</c> no cambian.
+    ///
+    /// SQL sincronizado con backend/sql/fn_reporte_diario_costos_engorde.sql.
+    /// Plan: fase_de_desarrollo/cuadre_engorde_panama_aves_alimento_plan.md
+    /// </summary>
+    public partial class ReporteCostosAlimentoDesdeFuentesReales : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            // Idempotente: si el deploy se reintenta, la columna ya esta y no falla.
+            migrationBuilder.Sql(@"
+ALTER TABLE companies
+  ADD COLUMN IF NOT EXISTS reporte_costos_alimento_desde_fuentes_reales boolean NOT NULL DEFAULT false;");
+
+            // Solo Panama: es donde tipo_alimento es el nombre limpio del item de inventario.
+            migrationBuilder.Sql(@"
+UPDATE companies
+   SET reporte_costos_alimento_desde_fuentes_reales = true
+ WHERE name = 'ItalcolPanama'
+   AND reporte_costos_alimento_desde_fuentes_reales IS DISTINCT FROM true;");
+
+            migrationBuilder.Sql(@"
 -- =============================================================================
 -- fn_reporte_diario_costos_engorde(p_company_id, p_granja_id, p_lote_base_id,
 --                                  p_fecha_inicio, p_fecha_fin)
@@ -15,7 +69,7 @@
 --   Motivo: el jsonb esta INCOMPLETO (1.554.181,4 kg contra 1.706.089,8 kg de consumo real) y su
 --   saldo_final solo cubre los alimentos consumidos ESE dia. Es flag y no cambio global porque el
 --   desglose necesita que tipo_alimento sea el nombre del item: en Panama lo es, en Ecuador viene
---   con prefijo de sexo ("H: AV. SUPER POLLO ENGORDE") y no cruzaria con el inventario.
+--   con prefijo de sexo (""H: AV. SUPER POLLO ENGORDE"") y no cruzaria con el inventario.
 --   * consumo por alimento → SEGUIMIENTO DIARIO (tipo_alimento + consumo_dia_kg)
 --   * stock por alimento    → INGRESOS del historico (lo que alimenta Gestion de inventario) − consumo
 --   * Motivo: el jsonb esta INCOMPLETO — suma 1.554.181,4 kg contra los 1.706.089,8 kg de consumo
@@ -36,7 +90,7 @@
 --     pantalla de seguimiento por lote.
 --   * Alcance: company + granja + deleted_at IS NULL + (p_lote_base_id NULL =
 --     TODOS los lotes | valor = solo lotes amarrados a ese lote base global).
---   * Regla del "segundo lote": si p_fecha_inicio es NULL, el reporte arranca
+--   * Regla del ""segundo lote"": si p_fecha_inicio es NULL, el reporte arranca
 --     en MAX(fecha_encaset) del alcance (la llegada del lote más reciente).
 --     p_fecha_fin NULL → hoy.
 --   * Alimentos del día: explode de historico_consumo_alimento jsonb
@@ -69,7 +123,7 @@ RETURNS TABLE (
 ) LANGUAGE sql STABLE AS $$
 
 WITH
--- 1. Lotes del alcance (granja + lote base opcional). Galpón "" = sin galpón.
+-- 1. Lotes del alcance (granja + lote base opcional). Galpón """" = sin galpón.
 lotes_scope AS (
     SELECT
         l.lote_ave_engorde_id                       AS lote_id,
@@ -185,11 +239,11 @@ aves_galpon_fecha AS (
 --        * consumo → SEGUIMIENTO DIARIO (`consumo_dia_kg`, el mismo total que la pantalla)
 --        * stock   → INGRESOS del histórico (lo que alimenta Gestión de inventario) − consumo
 --        El jsonb solo se usa para REPARTIR los días con dos o más alimentos (`tipo_alimento`
---        los concatena con " / " y el reparto real únicamente está ahí); nunca decide un total.
+--        los concatena con "" / "" y el reparto real únicamente está ahí); nunca decide un total.
 --
 --    Por qué es un flag y no un cambio global: el desglose depende de que `tipo_alimento` sea el
 --    nombre del ítem. En Panamá lo es; en Ecuador viene con prefijo de sexo
---    ("H: AV. SUPER POLLO ENGORDE") y no cruzaría con el inventario.
+--    (""H: AV. SUPER POLLO ENGORDE"") y no cruzaría con el inventario.
 --
 --    Motivo del cambio: el snapshot está INCOMPLETO — suma 1.554.181,4 kg contra los 1.706.089,8 kg
 --    de consumo real, y su `saldo_final` solo existe para los alimentos consumidos ESE día, así que
@@ -266,7 +320,7 @@ alim_dia_legacy AS (
 
 -- ── Rama ON: fuentes reales ──────────────────────────────────────────────────
 -- Cada seguimiento aporta su consumo REAL (`consumo_dia_kg`). El nombre sale de `tipo_alimento`;
--- si es compuesto ("A / B") y hay jsonb con reparto utilizable, se reparte con esas proporciones.
+-- si es compuesto (""A / B"") y hay jsonb con reparto utilizable, se reparte con esas proporciones.
 alim_base AS (
     SELECT df.fecha, COALESCE(df.seg_id, 0) AS seg_id, df.consumo_kg, df.tipo_alimento,
            CASE WHEN jsonb_typeof(df.historico_consumo_alimento) = 'array'
@@ -425,3 +479,291 @@ LEFT JOIN alim_json aj ON aj.fecha = fx.fecha
 LEFT JOIN galp_json gj ON gj.fecha = fx.fecha
 ORDER BY fx.fecha;
 $$;
+");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // La fn v3 lee la columna, asi que hay que devolverla a la v1 ANTES de eliminarla.
+            migrationBuilder.Sql(@"
+-- =============================================================================
+-- fn_reporte_diario_costos_engorde(p_company_id, p_granja_id, p_lote_base_id,
+--                                  p_fecha_inicio, p_fecha_fin)
+--
+-- Reporte Diario Costos de pollo engorde a nivel GRANJA: unifica POR FECHA todos
+-- los lotes del alcance (granja + lote base opcional) y devuelve, por día:
+--   * resumen global de alimento (kg): consumo y stock por tipo de alimento,
+--   * mortalidad + selección por galpón,
+--   * aves vivas por galpón (carry-forward del último saldo conocido por lote).
+--
+-- v1 (2026-07-20) — Diseño:
+--   * NO reimplementa aritmética: cada lote se resuelve con LATERAL
+--     fn_seguimiento_diario_engorde(lote_id) (v8: apertura, cierre efectivo,
+--     ventas, mort caja, saldo Lindley) → los números cuadran 1:1 con la
+--     pantalla de seguimiento por lote.
+--   * Alcance: company + granja + deleted_at IS NULL + (p_lote_base_id NULL =
+--     TODOS los lotes | valor = solo lotes amarrados a ese lote base global).
+--   * Regla del ""segundo lote"": si p_fecha_inicio es NULL, el reporte arranca
+--     en MAX(fecha_encaset) del alcance (la llegada del lote más reciente).
+--     p_fecha_fin NULL → hoy.
+--   * Alimentos del día: explode de historico_consumo_alimento jsonb
+--     ([{nombre_alimento, saldo_inicial, consumo, saldo_final, unidad_medida}]).
+--     consumo = SUM por alimento; stock = SUM por galpón del ÚLTIMO saldo_final
+--     de esa fecha (último snapshot por galpón+alimento, evita doble conteo de
+--     lotes que comparten bodega). Fallback filas sin histórico: tipo_alimento
+--     + consumo_dia_kg con stock NULL (no se inventa dato).
+--   * Aves vivas por fecha = estado (no evento): último saldo_aves del lote con
+--     fecha <= d SIN recortar por p_fecha_inicio (el saldo es acumulado), y 0 si
+--     el lote aún no tiene filas. Los eventos del día (mort/sel/consumo) sí se
+--     recortan al rango.
+--   * jsonb agregado se devuelve como TEXT para mapeo directo con SqlQueryRaw.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION fn_reporte_diario_costos_engorde(
+    p_company_id   INT,
+    p_granja_id    INT,
+    p_lote_base_id INT  DEFAULT NULL,
+    p_fecha_inicio DATE DEFAULT NULL,
+    p_fecha_fin    DATE DEFAULT NULL
+)
+RETURNS TABLE (
+    fecha            DATE,
+    consumo_total_kg FLOAT8,
+    mort_sel_total   INT,
+    aves_vivas_total INT,
+    alimentos        TEXT,   -- [{nombre_alimento, stock_kg, consumo_kg}]
+    galpones         TEXT    -- [{galpon_id, galpon_nombre, mortalidad, seleccion, err_sexaje, mort_sel, consumo_kg, aves_vivas}]
+) LANGUAGE sql STABLE AS $$
+
+WITH
+-- 1. Lotes del alcance (granja + lote base opcional). Galpón """" = sin galpón.
+lotes_scope AS (
+    SELECT
+        l.lote_ave_engorde_id                       AS lote_id,
+        l.lote_nombre,
+        COALESCE(TRIM(l.galpon_id), '')             AS galpon_id,
+        COALESCE(
+            NULLIF(TRIM(g.galpon_nombre), ''),
+            NULLIF(TRIM(l.galpon_id), ''),
+            'Sin galpón')                           AS galpon_nombre,
+        l.fecha_encaset
+    FROM lote_ave_engorde l
+    LEFT JOIN galpones g ON g.galpon_id = TRIM(l.galpon_id)
+    WHERE l.company_id = p_company_id
+      AND l.granja_id  = p_granja_id
+      AND l.deleted_at IS NULL
+      AND (p_lote_base_id IS NULL OR l.lote_base_engorde_id = p_lote_base_id)
+),
+
+-- 2. Rango efectivo. Inicio por defecto = encaset del lote MÁS RECIENTE del alcance.
+rango AS (
+    SELECT
+        COALESCE(p_fecha_inicio, (SELECT MAX(ls.fecha_encaset)::DATE FROM lotes_scope ls)) AS f_ini,
+        COALESCE(p_fecha_fin, CURRENT_DATE)                                                AS f_fin
+),
+
+-- 3. Serie diaria completa por lote (SIN recorte inferior: el saldo de aves es
+--    acumulado y necesita el histórico previo al rango). MATERIALIZED: la fn
+--    LATERAL se evalúa una sola vez por lote.
+diario_full AS MATERIALIZED (
+    SELECT
+        ls.lote_id,
+        ls.lote_nombre,
+        ls.galpon_id,
+        ls.galpon_nombre,
+        f.fecha,
+        f.seg_id,
+        COALESCE(f.mortalidad_hembras, 0) + COALESCE(f.mortalidad_machos, 0)         AS mortalidad,
+        COALESCE(f.sel_h, 0) + COALESCE(f.sel_m, 0)                                  AS seleccion,
+        COALESCE(f.error_sexaje_hembras, 0) + COALESCE(f.error_sexaje_machos, 0)     AS err_sexaje,
+        COALESCE(f.consumo_dia_kg, 0)::FLOAT8                                        AS consumo_kg,
+        COALESCE(f.saldo_aves, 0)                                                    AS saldo_aves,
+        f.historico_consumo_alimento,
+        f.tipo_alimento
+    FROM lotes_scope ls
+    CROSS JOIN LATERAL fn_seguimiento_diario_engorde(ls.lote_id) f
+    CROSS JOIN rango r
+    WHERE f.fecha <= r.f_fin
+),
+
+-- 4. Eventos del día dentro del rango (mort/sel/consumo/alimentos).
+diario AS (
+    SELECT df.*
+    FROM diario_full df
+    CROSS JOIN rango r
+    WHERE r.f_ini IS NULL OR df.fecha >= r.f_ini
+),
+
+-- 5. Universo de fechas del reporte = fechas con actividad dentro del rango.
+fechas AS (
+    SELECT DISTINCT d.fecha FROM diario d
+),
+
+-- 6. Galpones del alcance (columnas dinámicas del front).
+galpones_scope AS (
+    SELECT ls.galpon_id, MAX(ls.galpon_nombre) AS galpon_nombre
+    FROM lotes_scope ls
+    GROUP BY ls.galpon_id
+),
+
+-- 7. Eventos agregados por fecha × galpón.
+galpon_fecha AS (
+    SELECT
+        d.fecha,
+        d.galpon_id,
+        SUM(d.mortalidad)         AS mortalidad,
+        SUM(d.seleccion)          AS seleccion,
+        SUM(d.err_sexaje)         AS err_sexaje,
+        SUM(d.consumo_kg)::FLOAT8 AS consumo_kg
+    FROM diario d
+    GROUP BY d.fecha, d.galpon_id
+),
+
+-- 8. Aves vivas por fecha × lote: último saldo conocido (<= fecha) del lote.
+aves_lote_fecha AS (
+    SELECT
+        fx.fecha,
+        ls.lote_id,
+        ls.galpon_id,
+        COALESCE((
+            SELECT df.saldo_aves
+            FROM diario_full df
+            WHERE df.lote_id = ls.lote_id
+              AND df.fecha  <= fx.fecha
+            ORDER BY df.fecha DESC, COALESCE(df.seg_id, 0) DESC
+            LIMIT 1
+        ), 0) AS aves_vivas
+    FROM fechas fx
+    CROSS JOIN lotes_scope ls
+),
+aves_galpon_fecha AS (
+    SELECT alf.fecha, alf.galpon_id, SUM(alf.aves_vivas)::INT AS aves_vivas
+    FROM aves_lote_fecha alf
+    GROUP BY alf.fecha, alf.galpon_id
+),
+
+-- 9. Alimentos: explode del histórico jsonb por ítem. El CASE dentro del LATERAL
+--    protege contra históricos no-array (NULL/objeto): jsonb_array_elements sobre
+--    '[]' no emite filas y nunca lanza error (el WHERE no garantiza el orden de
+--    evaluación frente al LATERAL).
+alim_items AS (
+    SELECT
+        d.fecha,
+        d.galpon_id,
+        COALESCE(d.seg_id, 0)                                          AS seg_id,
+        COALESCE(NULLIF(TRIM(item->>'nombre_alimento'), ''), 'Sin especificar') AS nombre,
+        COALESCE(NULLIF(item->>'consumo', '')::NUMERIC, 0)::FLOAT8     AS consumo,
+        NULLIF(item->>'saldo_final', '')::NUMERIC::FLOAT8              AS saldo_final
+    FROM diario d
+    CROSS JOIN LATERAL jsonb_array_elements(
+        CASE WHEN jsonb_typeof(d.historico_consumo_alimento) = 'array'
+             THEN d.historico_consumo_alimento
+             ELSE '[]'::jsonb END
+    ) AS item
+),
+-- Stock del día por galpón+alimento = saldo_final del ÚLTIMO snapshot de esa fecha.
+alim_stock AS (
+    SELECT DISTINCT ON (ai.fecha, ai.galpon_id, ai.nombre)
+        ai.fecha, ai.galpon_id, ai.nombre, ai.saldo_final
+    FROM alim_items ai
+    ORDER BY ai.fecha, ai.galpon_id, ai.nombre, ai.seg_id DESC
+),
+alim_consumo AS (
+    SELECT ai.fecha, ai.nombre, SUM(ai.consumo)::FLOAT8 AS consumo_kg
+    FROM alim_items ai
+    GROUP BY ai.fecha, ai.nombre
+),
+alim_stock_dia AS (
+    SELECT ast.fecha, ast.nombre, SUM(ast.saldo_final)::FLOAT8 AS stock_kg
+    FROM alim_stock ast
+    GROUP BY ast.fecha, ast.nombre
+),
+-- Fallback: filas con consumo pero sin histórico por ítem → tipo_alimento, stock NULL.
+alim_fallback AS (
+    SELECT
+        d.fecha,
+        COALESCE(NULLIF(TRIM(d.tipo_alimento), ''), 'Sin especificar') AS nombre,
+        SUM(d.consumo_kg)::FLOAT8                                      AS consumo_kg
+    FROM diario d
+    WHERE d.consumo_kg > 0
+      AND (CASE
+               WHEN d.historico_consumo_alimento IS NULL                    THEN TRUE
+               WHEN jsonb_typeof(d.historico_consumo_alimento) <> 'array'  THEN TRUE
+               ELSE jsonb_array_length(d.historico_consumo_alimento) = 0
+           END)
+    GROUP BY d.fecha, COALESCE(NULLIF(TRIM(d.tipo_alimento), ''), 'Sin especificar')
+),
+alim_dia AS (
+    SELECT u.fecha, u.nombre,
+           SUM(u.consumo_kg)::FLOAT8 AS consumo_kg,
+           SUM(u.stock_kg)::FLOAT8   AS stock_kg     -- SUM ignora NULL; todo NULL → NULL
+    FROM (
+        SELECT ac.fecha, ac.nombre, ac.consumo_kg, asd.stock_kg
+        FROM alim_consumo ac
+        LEFT JOIN alim_stock_dia asd ON asd.fecha = ac.fecha AND asd.nombre = ac.nombre
+        UNION ALL
+        SELECT af.fecha, af.nombre, af.consumo_kg, NULL::FLOAT8
+        FROM alim_fallback af
+    ) u
+    GROUP BY u.fecha, u.nombre
+),
+
+-- 10. JSON por fecha.
+alim_json AS (
+    SELECT ad.fecha,
+           jsonb_agg(jsonb_build_object(
+               'nombre_alimento', ad.nombre,
+               'stock_kg',        ad.stock_kg,
+               'consumo_kg',      ad.consumo_kg
+           ) ORDER BY ad.nombre)::TEXT AS alimentos_json
+    FROM alim_dia ad
+    GROUP BY ad.fecha
+),
+galp_json AS (
+    SELECT
+        fx.fecha,
+        jsonb_agg(jsonb_build_object(
+            'galpon_id',     gs.galpon_id,
+            'galpon_nombre', gs.galpon_nombre,
+            'mortalidad',    COALESCE(gf.mortalidad, 0),
+            'seleccion',     COALESCE(gf.seleccion, 0),
+            'err_sexaje',    COALESCE(gf.err_sexaje, 0),
+            'mort_sel',      COALESCE(gf.mortalidad, 0) + COALESCE(gf.seleccion, 0),
+            'consumo_kg',    COALESCE(gf.consumo_kg, 0),
+            'aves_vivas',    COALESCE(agf.aves_vivas, 0)
+        ) ORDER BY gs.galpon_nombre, gs.galpon_id)::TEXT             AS galpones_json,
+        SUM(COALESCE(gf.mortalidad, 0) + COALESCE(gf.seleccion, 0))  AS mort_sel_total,
+        SUM(COALESCE(agf.aves_vivas, 0))                             AS aves_vivas_total
+    FROM fechas fx
+    CROSS JOIN galpones_scope gs
+    LEFT JOIN galpon_fecha      gf  ON gf.fecha  = fx.fecha AND gf.galpon_id  = gs.galpon_id
+    LEFT JOIN aves_galpon_fecha agf ON agf.fecha = fx.fecha AND agf.galpon_id = gs.galpon_id
+    GROUP BY fx.fecha
+)
+
+-- 11. Salida final: una fila por fecha.
+SELECT
+    fx.fecha,
+    COALESCE(tot.consumo_total_kg, 0)::FLOAT8 AS consumo_total_kg,
+    COALESCE(gj.mort_sel_total, 0)::INT       AS mort_sel_total,
+    COALESCE(gj.aves_vivas_total, 0)::INT     AS aves_vivas_total,
+    COALESCE(aj.alimentos_json, '[]')         AS alimentos,
+    COALESCE(gj.galpones_json, '[]')          AS galpones
+FROM fechas fx
+LEFT JOIN (
+    SELECT d.fecha, SUM(d.consumo_kg)::FLOAT8 AS consumo_total_kg
+    FROM diario d
+    GROUP BY d.fecha
+) tot ON tot.fecha = fx.fecha
+LEFT JOIN alim_json aj ON aj.fecha = fx.fecha
+LEFT JOIN galp_json gj ON gj.fecha = fx.fecha
+ORDER BY fx.fecha;
+$$;
+");
+
+            migrationBuilder.Sql(@"
+ALTER TABLE companies DROP COLUMN IF EXISTS reporte_costos_alimento_desde_fuentes_reales;");
+        }
+    }
+}
