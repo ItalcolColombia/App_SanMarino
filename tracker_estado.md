@@ -1615,4 +1615,15 @@ cambio de scope (v10) no rompió nada aguas abajo.
 - [x] **Sin doble conteo en galpón compartido**: el reporte da 7.529,7 kg para G0490 el 27/07 y la suma directa de los lotes 168+169 da exactamente 7.529,7
 - [x] **Lote 142** (el de más registros, 41): encaset 48.430 − bajas 1.830 = **46.600** = saldo final · ingresos 155.188,2 − consumo 152.952,9 = **2.235,3** = saldo final = **stock del inventario de G0471**
 - [x] `saldo_alimento_kg` persistido coincide con el que calcula la fn (G0464: 66.565,813)
-- [ ] ⚠️ **Hallazgo PREEXISTENTE (no introducido por estos cambios)**: el `stock_kg` que muestra el reporte sale del jsonb `historico_consumo_alimento`, que guarda el saldo **por alimento consumido ese día**, no el total del galpón. G0464 al 22/07: reporte 46.229,2 (solo SUPER POLLO ENGORDE) vs 66.565,8 del galpón (3 ítems). Se confirma preexistente porque **Ecuador, que no se tocó, tiene 738 de 2.103 registros divergentes**; en Panamá son 451 de 470. Queda fuera del alcance de este trabajo
+- [x] ⚠️ **Hallazgo preexistente CORREGIDO** (`fn_reporte_diario_costos_engorde` **v2**): el `stock_kg` salía del jsonb `historico_consumo_alimento`, que guarda el saldo **por alimento consumido ese día**, no el total del galpón. G0464 al 22/07: reporte 46.229,2 (solo SUPER POLLO ENGORDE) vs 66.565,8 del galpón (3 ítems). Era estructural: 738 de 2.103 registros divergentes en Ecuador y 451 de 470 en Panamá
+
+## Corrección del Reporte de Costos — `fn_reporte_diario_costos_engorde` v2
+
+- [x] El `stock_kg` ahora se **deriva** de `ingresos(≤fecha) − consumo(≤fecha)` por alimento, con los mismos filtros que la fn de seguimiento (excluye INV_INGRESO del propio seguimiento y devoluciones por eliminación), acumulado sobre todo el histórico
+- [x] Un alimento con stock **aparece aunque ese día no se consuma** (FULL JOIN) — sin eso el total nunca cerraría
+- [x] **Verificado 0,0 exacto en las 12 granjas de las DOS empresas** contra `ingresos − consumo` del alcance
+- [x] En Panamá cuadra además contra Gestión de inventario: **DAYLAND, MENDOZA y TROFARELLO en 0,0**
+- [x] `consumo_total_kg`, `mort_sel_total` y `aves_vivas_total` **NO cambian** (0 diferencias en 9 días)
+- [x] Migración `20260729130000_FnReporteCostosEngordeV2StockDerivado` (idempotente, `CREATE OR REPLACE`) + `backend/sql/` sincronizado
+- [ ] ⚠️ **DOÑA MARIA queda con 544,0 kg** contra inventario: es **G0477**, cuyo lote (182) todavía no tiene ningún seguimiento, así que la migración de cuadre no lo cubrió (filtra por lotes con registros). Su stock lo ajustaste a mano de 12.413,58 a 11.869,59 y no hay consumo registrado que lo justifique — **necesita tu decisión**
+- [ ] ⚠️ **Ecuador NO cuadra contra su inventario** (SAN GUILLERMO 206.318 kg, Kilometro 86 172.984 kg…): descuadres de datos preexistentes, nunca se cuadró esa empresa. Además tiene ingresos **sin galpón** (CAROLINA: 211.361,8 kg en bodega de granja) que el reporte no incluye porque su alcance son los galpones de los lotes

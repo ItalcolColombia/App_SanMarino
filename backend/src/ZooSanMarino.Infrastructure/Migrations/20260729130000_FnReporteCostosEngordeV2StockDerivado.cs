@@ -1,3 +1,45 @@
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// <c>fn_reporte_diario_costos_engorde</c> v2: el <c>stock_kg</c> por alimento se DERIVA de
+    /// ingresos − consumo, en vez de leer el <c>saldo_final</c> del snapshot jsonb
+    /// <c>historico_consumo_alimento</c>.
+    /// <para>
+    /// El snapshot solo existe para los alimentos que se consumieron ESE dia, asi que el reporte
+    /// mostraba una fraccion del stock real y no se movia cuando el saldo se recalculaba. Caso
+    /// testigo G0464 (DAYLAND) al 22/07: el reporte daba 46.229,2 kg —solo AV. SUPER POLLO
+    /// ENGORDE— cuando el galpon tenia 66.565,8 repartidos en tres items.
+    /// </para>
+    /// <para>
+    /// La divergencia era estructural y previa a este trabajo: 738 de 2.103 registros en Ecuador
+    /// y 451 de 470 en Panama tienen el jsonb desalineado del <c>saldo_alimento_kg</c>.
+    /// </para>
+    /// <para>
+    /// Ahora el stock es <c>ingresos(≤fecha) − consumo(≤fecha)</c> por alimento, con los mismos
+    /// filtros que <c>fn_seguimiento_diario_engorde</c> (se excluyen los INV_INGRESO del propio
+    /// seguimiento y las devoluciones por eliminacion), acumulado sobre TODO el historico porque
+    /// el stock no se recorta al rango. Un alimento con stock aparece aunque ese dia no se consuma.
+    /// </para>
+    /// <para>
+    /// Verificado: la suma de <c>stock_kg</c> coincide EXACTO (0,0) con
+    /// <c>ingresos − consumo</c> del alcance en las 12 granjas de las dos empresas, y en Panama
+    /// cuadra ademas contra Gestion de inventario (DAYLAND, MENDOZA y TROFARELLO en 0,0).
+    /// <c>consumo_total_kg</c>, <c>mort_sel_total</c> y <c>aves_vivas_total</c> NO cambian.
+    /// </para>
+    /// Idempotente (CREATE OR REPLACE). SQL sincronizado con
+    /// backend/sql/fn_reporte_diario_costos_engorde.sql.
+    /// Plan: fase_de_desarrollo/cuadre_engorde_panama_aves_alimento_plan.md
+    /// </summary>
+    public partial class FnReporteCostosEngordeV2StockDerivado : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"
 -- =============================================================================
 -- fn_reporte_diario_costos_engorde(p_company_id, p_granja_id, p_lote_base_id,
 --                                  p_fecha_inicio, p_fecha_fin)
@@ -22,7 +64,7 @@
 --     pantalla de seguimiento por lote.
 --   * Alcance: company + granja + deleted_at IS NULL + (p_lote_base_id NULL =
 --     TODOS los lotes | valor = solo lotes amarrados a ese lote base global).
---   * Regla del "segundo lote": si p_fecha_inicio es NULL, el reporte arranca
+--   * Regla del ""segundo lote"": si p_fecha_inicio es NULL, el reporte arranca
 --     en MAX(fecha_encaset) del alcance (la llegada del lote más reciente).
 --     p_fecha_fin NULL → hoy.
 --   * Alimentos del día: explode de historico_consumo_alimento jsonb
@@ -55,7 +97,7 @@ RETURNS TABLE (
 ) LANGUAGE sql STABLE AS $$
 
 WITH
--- 1. Lotes del alcance (granja + lote base opcional). Galpón "" = sin galpón.
+-- 1. Lotes del alcance (granja + lote base opcional). Galpón """" = sin galpón.
 lotes_scope AS (
     SELECT
         l.lote_ave_engorde_id                       AS lote_id,
@@ -352,3 +394,14 @@ LEFT JOIN alim_json aj ON aj.fecha = fx.fecha
 LEFT JOIN galp_json gj ON gj.fecha = fx.fecha
 ORDER BY fx.fecha;
 $$;
+");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Sin Down: volver a la v1 reintroduciria el stock parcial leido del snapshot jsonb.
+            // La funcion es CREATE OR REPLACE, asi que una migracion posterior la reemplaza limpio.
+        }
+    }
+}
