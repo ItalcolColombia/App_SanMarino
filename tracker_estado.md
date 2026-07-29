@@ -1647,3 +1647,29 @@ El usuario pidió que el reporte no cruce con el jsonb sino con **inventario y s
 - [x] `Down` restaura la fn v1 **antes** de eliminar la columna (la v3 la lee)
 - [x] `dotnet build` 0/0 · `dotnet test` **1341/1341**
 - [ ] ℹ️ 36 filas con stock negativo por alimento, todas en AV. POLLITO PREINICIADOR (MENDOZA −2.143,7 · TROFARELLO hasta −10.767,4): se consumió más de lo que se registró como ingreso. Mismo criterio sin piso que la fn de seguimiento; el TOTAL del galpón cuadra igual
+
+## Despliegue a PRODUCCIÓN — 2026-07-29 (autorizado por el usuario)
+
+### Tanda 1 — cuadre de aves y alimento (ya estaba desplegada al retomar)
+
+- [x] `main` → `main-produccion` vía **PR #56** → merge `6f23d06` · workflow run `30492866352` **success**
+- [x] Imagen en ECS `backend:6f23d06273b1…` **idéntica** al SHA de `main-produccion`; TaskDef **143**, rollout `COMPLETED`
+- [x] Verificado que la migración `20260729120000` que quedó en prod es la **versión corregida** (la que ajusta el inventario), no la primera que subía el seguimiento al stock inflado — el diff contra local está vacío. Importaba porque una migración ya registrada en `__EFMigrationsHistory` **no se vuelve a aplicar**
+- [x] Las 3 migraciones se aplicaron solas al arrancar (`Database__RunMigrations=true`); que el contenedor llegara a steady state es la prueba (una migración fallida mata el proceso con SIGSEGV y ECS revierte)
+
+### Tanda 2 — Reporte de Costos desde fuentes reales
+
+- [x] `git push origin main` (`2f58e22..9a753ea`) → **PR #57** → merge `9f1d374`
+- [x] Workflow run `30498125763`: los **3 jobs en success** (Tests · Backend · Frontend)
+- [x] **Verificación post-deploy contra ECS** (obligatoria: el CLI reporta éxito aunque haya rollback):
+      - TaskDef **143 → 144**, rollout `COMPLETED`, Running 1 / Pending 0 / Desired 1
+      - Imagen `backend:9f1d374fdb78e600626a7890448de20c97d53b8a`, **idéntica** al SHA que se quiso desplegar
+      - Task `RUNNING` + **`HEALTHY`**; eventos «deployment completed» y «has reached a steady state», sin ciclo de reinicios
+      - Front `/version.json`: `2026-07-29T23:09:36.168Z`
+      - `/api/health` responde 401 (protegido por JWT) — la salud la confirma el health check de ECS
+- [x] La migración del flag `reporte_costos_alimento_desde_fuentes_reales` se aplicó al arrancar; el flag queda ON solo en ItalcolPanama y OFF en las otras 4 empresas
+
+### Pendiente operativo
+
+- [ ] **G0477 (DOÑA MARIA): editar los 544 kg a mano** en Gestión de inventario — decisión del usuario. Su lote (182) se encasetó el 27/07 y todavía no tiene seguimiento cargado, así que la migración de cuadre no lo cubrió. Ingresos 12.413,6 · stock 11.869,6
+- [ ] **Ecuador sigue sin cuadrar** contra su inventario (SAN GUILLERMO 206.318 kg, Kilometro 86 172.984 kg): mismo bug del consumo del cruce sin descontar, más ingresos sin galpón. Trabajo aparte, del tamaño del de Panamá
