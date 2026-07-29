@@ -506,6 +506,23 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             })
             .SingleOrDefaultAsync();
 
+        // Bajas de seguimiento YA DESCONTADAS del maestro por RetiroAvesEngordeAplicador (una fila
+        // BAJA_SEGUIMIENTO por registro). El maestro que se usa como base más abajo ya las tiene
+        // restadas, así que volver a restar la mortalidad acumulada las contaría DOS VECES.
+        // Misma fuente que CorreccionAvesDisponiblesEngordeService: los lotes anteriores al descuento
+        // automático no tienen filas y conservan la fórmula previa.
+        var bajasAplicadas = await _ctx.LoteRegistroHistoricoUnificados.AsNoTracking()
+            .Where(h => h.LoteAveEngordeId == loteAveEngordeId
+                     && h.TipoEvento == "BAJA_SEGUIMIENTO" && !h.Anulado)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                H = g.Sum(x => x.CantidadHembras ?? 0),
+                M = g.Sum(x => x.CantidadMachos ?? 0),
+                X = g.Sum(x => x.CantidadMixtas ?? 0)
+            })
+            .SingleOrDefaultAsync();
+
         // Encaset real (mostrar): historial Inicio. La fórmula de disponibles usa el saldo actual del maestro como base de restas (no cambiar sin revisar ventas).
         var inicioHist = await _ctx.HistorialLotePolloEngorde.AsNoTracking()
             .Where(h => h.CompanyId == companyId && h.LoteAveEngordeId == loteAveEngordeId
@@ -539,20 +556,29 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         int pendH = pend?.H ?? 0;
         int pendM = pend?.M ?? 0;
 
+        // Solo se restan las bajas que el maestro TODAVÍA no tiene descontadas: el resto ya está
+        // reflejado en hembrasIniciales/machosIniciales y restarlo otra vez las duplicaría.
+        var (bajasPendH, bajasPendM) = AvesDisponiblesEngordeCalculos.BajasPendientesDeAplicar(
+            registradasHembras: mortSegH + selH + errH,
+            registradasMachos: mortSegM + selM + errM,
+            aplicadasHembras: bajasAplicadas?.H ?? 0,
+            aplicadasMachos: bajasAplicadas?.M ?? 0,
+            aplicadasMixtas: bajasAplicadas?.X ?? 0);
+
         int hembrasDisponibles, machosDisponibles;
         if (sieteDiasCompletos)
         {
             // Aves devueltas al lote: NO se restan las asignadas (las aves regresan).
             // Las bajas diarias de los reproductora (días 1-7) ya están en los registros
-            // de cruce de seguimiento_diario_aves_engorde → se restan vía mortSeg/sel/err.
-            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - mortCajaReproH - mortSegH - selH - errH - pendH);
-            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - mortCajaReproM - mortSegM - selM - errM - pendM);
+            // de cruce de seguimiento_diario_aves_engorde → se restan vía bajasPend.
+            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - mortCajaReproH - bajasPendH - pendH);
+            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - mortCajaReproM - bajasPendM - pendM);
         }
         else
         {
             // Aves aún distribuidas en los reproductora (no se devuelven hasta completar 7 días).
-            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - asignadasH - mortSegH - selH - errH - pendH);
-            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - asignadasM - mortSegM - selM - errM - pendM);
+            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - asignadasH - bajasPendH - pendH);
+            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - asignadasM - bajasPendM - pendM);
         }
 
         return new AvesDisponiblesDto

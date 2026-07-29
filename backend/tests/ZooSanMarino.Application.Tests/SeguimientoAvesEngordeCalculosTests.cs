@@ -220,6 +220,61 @@ public class SeguimientoAvesEngordeCalculosTests
         Assert.Equal(2, saldoPorSegId.Count);
     }
 
+    // ---------- Inventario COMPARTIDO por galpón (v10) ----------
+
+    [Fact]
+    public void CalcularSaldoAlimentoPorSeguimiento_DosLotesEnElMismoGalpon_CompartenElSaldo()
+    {
+        // Caso G0490 (DOÑA MARIA) reducido: el galpón recibe 1.000 kg y los consumen DOS lotes.
+        // Los ingresos siempre se leyeron con scope galpón; pasando también el consumo de los dos
+        // lotes, el saldo de una fecha es el mismo para ambos (una sola bodega, un solo saldo).
+        var ingreso = Hist("INV_INGRESO", new DateTime(2026, 7, 3), 1000m);
+
+        var loteA = Seg(1, new DateTime(2026, 7, 4), consumoH: 100m, consumoM: 0m);
+        var loteB = Seg(2, new DateTime(2026, 7, 5), consumoH: 300m, consumoM: 0m);
+
+        var (saldos, saldoFinal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            new[] { ingreso },
+            new[] { loteA, loteB },     // consumo de AMBOS lotes del galpón
+            fechaEncaset: null);
+
+        Assert.Equal(900m, saldos[1]);   // 1000 − 100
+        Assert.Equal(600m, saldos[2]);   // 900 − 300  ← el lote B ve lo que el lote A ya gastó
+        Assert.Equal(600m, saldoFinal);
+    }
+
+    [Fact]
+    public void CalcularSaldoAlimentoPorSeguimiento_SinConvivientes_NoCambiaRespectoDeUnSoloLote()
+    {
+        // Retrocompatibilidad: con un único lote en el galpón el resultado es idéntico al previo,
+        // que es el caso de la inmensa mayoría (Ecuador y Colombia no tienen lotes solapados).
+        var ingreso = Hist("INV_INGRESO", new DateTime(2026, 7, 3), 1000m);
+        var soloLote = Seg(1, new DateTime(2026, 7, 4), consumoH: 100m, consumoM: 0m);
+
+        var (saldos, saldoFinal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            new[] { ingreso }, new[] { soloLote }, fechaEncaset: null);
+
+        Assert.Equal(900m, saldos[1]);
+        Assert.Equal(900m, saldoFinal);
+    }
+
+    [Fact]
+    public void CalcularSaldoAlimentoPorSeguimiento_ConvivientesElMismoDia_RestanLosDosConsumos()
+    {
+        // Dos lotes que registran el MISMO día: el saldo de la fecha descuenta ambos consumos.
+        // El orden intra-día lo fija (ord=3, ts, segId), así que el resultado es determinista.
+        var ingreso = Hist("INV_INGRESO", new DateTime(2026, 7, 3), 1000m);
+        var loteA = Seg(1, new DateTime(2026, 7, 4), consumoH: 100m, consumoM: 0m);
+        var loteB = Seg(2, new DateTime(2026, 7, 4), consumoH: 250m, consumoM: 0m);
+
+        var (saldos, saldoFinal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
+            new[] { ingreso }, new[] { loteA, loteB }, fechaEncaset: null);
+
+        Assert.Equal(900m, saldos[1]);   // 1000 − 100
+        Assert.Equal(650m, saldos[2]);   // 900 − 250
+        Assert.Equal(650m, saldoFinal);  // la bodega queda con 650, no con 900 ni con 750
+    }
+
     [Fact]
     public void CalcularSaldoAlimentoPorSeguimiento_FechaEncaset_ExcluyeHistoricoAnterior()
     {

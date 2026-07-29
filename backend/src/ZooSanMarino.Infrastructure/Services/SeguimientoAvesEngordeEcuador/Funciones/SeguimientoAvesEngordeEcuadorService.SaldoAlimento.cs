@@ -242,6 +242,31 @@ public partial class SeguimientoAvesEngordeEcuadorService
             .ToListAsync(ct);
         if (segs.Count == 0) return;
 
+        // El histórico de arriba se lee con scope GALPÓN, así que el consumo debe leerse igual o el
+        // saldo queda inflado en lo que gastó el otro lote de la misma bodega. Solo cuentan los que
+        // CONVIVEN (rangos de seguimiento solapados): un galpón con ciclos sucesivos no comparte.
+        // Espeja el CTE `consumo_galpon_por_fecha` de fn_seguimiento_diario_engorde (v10).
+        var desdeSeg = segs[0].Fecha.Date;
+        var hastaSeg = segs[^1].Fecha.Date;
+
+        var segsGalpon = await _ctx.SeguimientoDiarioAvesEngorde
+            .AsNoTracking()   // solo aportan consumo; los que se persisten son los de `segs`
+            .Where(s => s.LoteAveEngordeId != loteId
+                     && _ctx.LoteAveEngorde.Any(l2 =>
+                            l2.LoteAveEngordeId == s.LoteAveEngordeId
+                         && l2.CompanyId == companyId
+                         && l2.DeletedAt == null
+                         && l2.GranjaId == farmId
+                         && (l2.NucleoId == null ? "" : l2.NucleoId.Trim()) == nucleoId
+                         && (l2.GalponId == null ? "" : l2.GalponId.Trim()) == galponId)
+                     && _ctx.SeguimientoDiarioAvesEngorde
+                            .Where(s2 => s2.LoteAveEngordeId == s.LoteAveEngordeId)
+                            .Min(s2 => s2.Fecha) <= hastaSeg
+                     && _ctx.SeguimientoDiarioAvesEngorde
+                            .Where(s2 => s2.LoteAveEngordeId == s.LoteAveEngordeId)
+                            .Max(s2 => s2.Fecha) >= desdeSeg)
+            .ToListAsync(ct);
+
         var firstSegDate = segs.Min(s => s.Fecha.Date);
         var encYmd = lote.FechaEncaset.HasValue ? FormatYmd(lote.FechaEncaset.Value.Date) : null;
         var firstYmd = FormatYmd(firstSegDate);
@@ -256,7 +281,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
             if (!TryGetHistDeltaAndOrd(h, out var delta, out var ord)) continue;
             events.Add(new SaldoAlimentoEvent(ymd, ord, TsHistorico(h), null, delta));
         }
-        foreach (var s in segs)
+        foreach (var s in segs.Concat(segsGalpon))
         {
             var ymd = FormatYmd(s.Fecha.Date);
             var ch = s.ConsumoKgHembras ?? 0;

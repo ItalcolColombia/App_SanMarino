@@ -59,6 +59,38 @@ public partial class SeguimientoAvesEngordeService
         if (segs.Count == 0)
             return;
 
+        // El alimento vive en la bodega del GALPÓN, no del lote: el histórico de arriba ya se lee con
+        // scope galpón, así que el consumo tiene que leerse igual o el saldo queda inflado en lo que
+        // gastó el otro lote. Solo cuentan los lotes que CONVIVEN (rangos de seguimiento solapados):
+        // un galpón que encadena ciclos sucesivos no comparte bodega, cada ciclo gasta lo suyo.
+        // Espeja el CTE `consumo_galpon_por_fecha` de fn_seguimiento_diario_engorde (v10).
+        var desde = segs[0].Fecha.Date;
+        var hasta = segs[^1].Fecha.Date;
+
+        var segsGalpon = await _ctx.SeguimientoDiarioAvesEngorde
+            .AsNoTracking()   // solo aportan su consumo al saldo; los que se persisten son los de `segs`
+            .Where(s => s.LoteAveEngordeId != loteId
+                     && _ctx.LoteAveEngorde.Any(l2 =>
+                            l2.LoteAveEngordeId == s.LoteAveEngordeId
+                         && l2.CompanyId == companyId
+                         && l2.DeletedAt == null
+                         && l2.GranjaId == farmId
+                         && (l2.NucleoId == null ? "" : l2.NucleoId.Trim()) == nucleoId
+                         && (l2.GalponId == null ? "" : l2.GalponId.Trim()) == galponId)
+                     && _ctx.SeguimientoDiarioAvesEngorde
+                            .Where(s2 => s2.LoteAveEngordeId == s.LoteAveEngordeId)
+                            .Min(s2 => s2.Fecha) <= hasta
+                     && _ctx.SeguimientoDiarioAvesEngorde
+                            .Where(s2 => s2.LoteAveEngordeId == s.LoteAveEngordeId)
+                            .Max(s2 => s2.Fecha) >= desde)
+            .ToListAsync(ct);
+
+        // El cálculo consume la lista completa (propios + convivientes) para que el saldo por fecha
+        // sea el del galpón; abajo solo se persisten los registros de ESTE lote.
+        var segsParaSaldo = segsGalpon.Count == 0
+            ? segs
+            : segs.Concat(segsGalpon).OrderBy(s => s.Fecha).ThenBy(s => s.Id).ToList();
+
         // Ventana previa al encaset configurada por la empresa: el preiniciador llega antes que los
         // pollitos y sin esto sus kilos quedaban fuera del saldo aunque estuvieran en el galpón.
         var diasPrevios = await _ctx.Companies.AsNoTracking()
@@ -67,7 +99,7 @@ public partial class SeguimientoAvesEngordeService
             .FirstOrDefaultAsync(ct);
 
         var (saldoPorSegId, bal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
-            hist, segs, lote.FechaEncaset, diasPrevios);
+            hist, segsParaSaldo, lote.FechaEncaset, diasPrevios);
 
         foreach (var s in segs)
         {
