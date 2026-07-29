@@ -1402,3 +1402,64 @@ Pedido del usuario: plantillas con datos de ejercicio en el Escritorio y el cicl
 - [x] Regresión: los 30 tests de `ReporteTecnicoSemanalCalculos` siguen verdes
 - [x] `dotnet build` 0/0 · `dotnet test` 1307/1307 · `yarn build` 0 errores
 - [x] Consola del navegador limpia en todo el recorrido
+
+## Validación independiente por agentes (2026-07-28) — granja real NIZA III / lote base K345
+
+Dos validadores en paralelo, solo lectura, sobre la única granja de Sanmarino con datos en las dos
+etapas (K345A/K345B en levante, P-K345A/P-K345B en producción, raza AP guía 2026).
+
+### Resultados
+
+- [x] **Levante**: los 7 puntos OK. Equivalencia Detalle↔Resumen **250 comparaciones / 0 diferencias**.
+      ALIMLev sin fallas en 3 tabs × 4 tablas. Curva: 0 desviaciones en 14 indicadores × 25 edades.
+      Ponderado confirmado (sem 20: 92,9899 ponderado vs 92,70 simple)
+- [x] **Producción**: los 6 puntos OK. Equivalencia **1.584 comparaciones / 0 diferencias**
+      (1.056 de campos núcleo + 528 de columnas de guía) sobre 45 semanas calendario, incluyendo el
+      cruce de año y la semana 53. Clasificación: 968 conteos contrastados contra BD, 0 diferencias;
+      consolidado con % recalculados y **0 casos** coincidiendo con el promedio simple. Venta: 264
+      celdas en 0, sin falsos positivos. Curva ponderada confirmada (edad 35: 72,8876 vs 74,6570)
+- [x] Ambos verificaron que las fns del Resumen **no llaman** a las del Detalle: son implementaciones
+      independientes que coinciden valor por valor
+
+### Bug encontrado y CORREGIDO — guía de la semana 25 en el Detalle
+
+El loader en C# `CargarGuiaPorSemanaAsync` consultaba **sin `ORDER BY`** y se quedaba con la primera
+fila; `ParseEdadSemana("25P")` devuelve 25, así que en la semana 25 ganaba `'25P'`.
+
+- En **levante** eso era incorrecto: mostraba retiro acumulado **0,10** en vez de 4,03, rompiendo la
+  monotonía de la guía (sem 24 = 3,93 → sem 25 = 0,10) y contradiciendo al Resumen, que sí desempata
+- El mismo loader lo usan las dos etapas, con la preferencia **invertida**
+
+- [x] El loader recibe `preferirVarianteProduccion`: levante toma la puramente numérica, producción
+      la del sufijo; y ordena explícitamente para no depender del plan
+- [x] Verificado: levante sem 25 pasa de 0,10 a **4,0269** y la monotonía se restaura
+      (3,8347 → 3,9308 → 4,0269); unifGuía de null a 90; consumo acum de 847 a 11.501,23
+- [x] Producción **sin cambios**: sigue en 0,10, que es su fila correcta
+- [x] Detalle y Resumen ahora coinciden en las dos etapas en la semana 25
+
+### Endurecimiento — `fn_indicadores_produccion_postura`
+
+- [x] La misma colisión existía en la fn SQL (`LIMIT 1` sin `ORDER BY`). Hoy devolvía `'25P'` por el
+      **ctid**, no por contrato: un `VACUUM FULL` o un re-seed la habrían cambiado en silencio
+- [x] Migración `20260728160000` fija el desempate en la variante con sufijo — el valor que ya
+      devolvía, ahora garantizado. Verificado post-migración: sigue en 0,10
+
+### Decisión pendiente del usuario — denominador de `%Mort` semanal
+
+- [ ] El Detalle divide la mortalidad de la semana por la **base fija** de aves iniciales y el Resumen
+      por el **saldo al inicio de la semana**. El validador contrastó contra el archivo fuente
+      (hoja «Datos semanal LEV», lote A320 edad 2): `%MortH` = 0,2257747 = 62 / 27.461 → el Excel usa
+      el **saldo al inicio**, o sea el criterio del Resumen; el Detalle no coincide.
+      Magnitud: hembras 46/48 filas difieren (desvío medio 2,78 %), machos 41/43 (medio 13,08 %).
+      ⚠️ Alinear el Detalle cambia también el **Reporte Técnico Semanal preexistente**, que comparte
+      `ConstruirSemanasLevante` y documenta la otra convención — por eso NO se tocó
+
+### Hallazgos menores (no se tocaron)
+
+- [ ] `uniformidadGuia` devuelve 0 donde la guía es NULL en producción: viene de un `COALESCE(...,0)`
+      de la fn base, declarado deliberado para replicar el parseo legacy. Cosmético y preexistente
+- [ ] Lote 116 (A374A, LA ESMERALDA) tiene `hembras_l` NULL con 212 retiros ⇒ saldo NEGATIVO. Es dato
+      sucio de la BD local; el código se comporta bien (los pesos ≤ 0 se descartan), pero deja filas
+      con `part` negativa o ponderados en null
+- [ ] Nota de diseño confirmada: los indicadores de MACHOS se ponderan por saldo de HEMBRAS (es la
+      definición de `part` del archivo), así que un lote sin hembras vivas pierde sus métricas de machos

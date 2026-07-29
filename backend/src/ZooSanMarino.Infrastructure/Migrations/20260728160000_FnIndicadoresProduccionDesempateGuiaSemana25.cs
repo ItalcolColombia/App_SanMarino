@@ -1,4 +1,34 @@
--- ============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// Redespliega fn_indicadores_produccion_postura fijando el DESEMPATE de la
+    /// guia en la semana 25.
+    ///
+    /// La guia tiene DOS filas que parsean a 25: '25' (cierre de LEVANTE,
+    /// retiro_ac_h 4,03) y '25P' (arranque de PRODUCCION, 0,10). La consulta
+    /// resolvia con LIMIT 1 SIN ORDER BY, asi que la fila ganadora dependia del
+    /// plan y del orden fisico de la tabla: hoy sale '25P' por su ctid, no por
+    /// contrato. Un VACUUM FULL, un re-seed o un orden de insercion distinto en
+    /// produccion la habrian cambiado en silencio, y el Detalle habria dejado de
+    /// cuadrar con el Resumen justo en la semana de arranque.
+    ///
+    /// El desempate se fija en la variante con sufijo ('25P'), que es la
+    /// correcta para produccion y la que la funcion ya venia devolviendo: no
+    /// cambia el comportamiento observable, lo garantiza.
+    ///
+    /// Data-only (Designer clonado, ModelSnapshot intacto). Idempotente
+    /// (DROP + CREATE OR REPLACE).
+    /// </summary>
+    public partial class FnIndicadoresProduccionDesempateGuiaSemana25 : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"-- ============================================================================
 -- fn_indicadores_produccion_postura(...)
 -- Indicadores semanales de PRODUCCIÓN (postura) calculados en la BD.
 -- Reemplaza el cómputo en memoria de IndicadoresProduccionService.CalcularIndicadoresAsync
@@ -15,7 +45,7 @@
 --   REQ-004c  H.T.A.A / H.I.A.A reales (acumulados por ave alojada) se comparan contra
 --             h_total_aa / h_inc_aa de la guía (que son acumulados), no contra huevos/día.
 --   REQ-004d  Mortalidad de guía es % (decimal), no entero (no se trunca a 0).
---   REQ-004e  (Verenice rev 6-jul-26) La tabla "% Retiro (Real vs Guía)" del front mostraba el
+--   REQ-004e  (Verenice rev 6-jul-26) La tabla ""% Retiro (Real vs Guía)"" del front mostraba el
 --             REAL pero la GUÍA quedaba vacía: la fn calculaba retiro_ac_h/m REAL pero nunca
 --             exponía la guía. Se agregan retiro_ac_h_guia/retiro_ac_m_guia leyendo
 --             guia_genetica_sanmarino_colombia.retiro_ac_h/retiro_ac_m (mismo parseo NULLIF/btrim
@@ -541,7 +571,7 @@ BEGIN
 
         IF g_found THEN
             -- ParseDouble => 0 cuando el string es vacío/no numérico (no NULL). Las columnas de la
-            -- guía "obtenerGuiaGeneticaProduccion" pasan por ParseDouble (0 si vacío); las del raw
+            -- guía ""obtenerGuiaGeneticaProduccion"" pasan por ParseDouble (0 si vacío); las del raw
             -- (huevos/%prod/pesoHuevo) por ParseDecimal (NULL si vacío). Se respeta esa diferencia:
             g_cons_h := COALESCE(g_cons_h, 0);
             g_cons_m := COALESCE(g_cons_m, 0);
@@ -649,3 +679,14 @@ BEGIN
     RETURN;
 END;
 $fn$;
+");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Sin marcha atras: volver al LIMIT 1 sin ORDER BY reintroduciria el
+            // no determinismo. La version anterior sigue en el historial de git.
+        }
+    }
+}

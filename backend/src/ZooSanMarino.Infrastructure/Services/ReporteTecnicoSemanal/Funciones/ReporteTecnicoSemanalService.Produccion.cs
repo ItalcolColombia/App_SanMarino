@@ -65,7 +65,9 @@ public partial class ReporteTecnicoSemanalService
                      .Select(p => (Raza: p.Raza!.Trim().ToLower(), Anio: p.AnoTablaGenetica!.Value))
                      .Distinct())
         {
-            var cruda = await CargarGuiaPorSemanaAsync(companyId, combo.Raza, combo.Anio, ct);
+            // Desempate de la semana 25: producción ⇒ la fila '25P', no la '25' de cierre de levante.
+            var cruda = await CargarGuiaPorSemanaAsync(
+                companyId, combo.Raza, combo.Anio, preferirVarianteProduccion: true, ct);
             guiaPorCombo[combo] = cruda
                 .Where(kv => kv.Key >= 25)
                 .ToDictionary(kv => kv.Key, kv => new ReporteTecnicoSemanalCalculos.GuiaSemanaProduccion(
