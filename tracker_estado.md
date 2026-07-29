@@ -1567,3 +1567,19 @@ Migración `20260729120000_CuadreAlimentoEngordePanama`, con respaldo y `Down` p
 - [x] Cuadre **alimento**: **13/25 galpones en 0** (antes 8). Descuadre total **158.374 → 8.662 kg (−94,5 %)**. Los 12 restantes son el grupo C que el usuario decidió dejar (máx. 1.860 kg) más G0486 en −1.134
 - [x] Objetos temporales de diagnóstico eliminados (`fn_seg_engorde_v9_tmp`, `_snap_antes_cruce`); sin procesos huérfanos
 - [ ] Smoke UI en G0490 (pendiente: requiere levantar back+front)
+
+## Validación sobre el dump de PRODUCCIÓN actual (2026-07-29)
+
+BD recargada desde producción (190 migraciones aplicadas, la última `20260728160000`); las 3 nuevas
+entraron pendientes, como pasaría en el arranque de ECS.
+
+- [x] **Las 3 migraciones aplican sin error** en secuencia sobre el dump limpio (si una fallara, en prod mataría el contenedor con SIGSEGV)
+- [x] Estado inicial reproducido: **8.411** bajas del cruce sin aplicar, conservación del maestro **intacta** (0 rotas), 22 de 26 lotes descuadrados, alimento **237.752,7 kg** de descuadre
+- [x] **AVES: 26/26** lotes con los 7 días completos en dif 0 · 0 bajas sin aplicar · 0 conservaciones rotas · respaldo con 167 filas / 8.411 aves / 24 lotes (idéntico a la corrida anterior)
+- [x] **ALIMENTO: 13/25** galpones en 0 (antes 8) · descuadre **237.752,7 → 8.663,8 kg (−96,4 %)**
+- [x] **0 galpones con saldo distinto entre sus lotes** ⇒ el inventario compartido por galpón funciona
+- [x] La guarda fail-safe de G0486 encontró exactamente las **18 filas / 128.302,2 kg** y anuló solo esas: 135.339,1 → 7.036,9
+- [x] DAYLAND: 5 ajustes por **23.677,8 kg** recalculados contra los datos del dump → los 5 galpones en **0,0 exacto**
+- [x] **NO-REGRESIÓN: Ecuador 0 lotes con saldo de alimento cambiado (delta 0,0) y 0 con saldo de aves cambiado**; Panamá 14 lotes de alimento y 0 de aves (la tabla de aves siempre estuvo bien)
+- [x] **IDEMPOTENCIA verificada**: re-ejecutando los bloques de datos → `UPDATE 0`, `UPDATE 0`, `INSERT 0 0`; 0 maestros y 0 bajas modificadas
+- [x] Objetos temporales de validación eliminados; los dos respaldos de las migraciones quedan en pie (los usa el `Down`)
