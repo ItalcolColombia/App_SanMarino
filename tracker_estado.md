@@ -1604,3 +1604,46 @@ entraron pendientes, como pasaría en el arranque de ECS.
 - [x] **NO-REGRESIÓN: Ecuador 0 lotes con saldo de alimento cambiado (delta 0,0) y 0 con saldo de aves cambiado**; Panamá 14 lotes de alimento y 0 de aves (la tabla de aves siempre estuvo bien)
 - [x] **IDEMPOTENCIA verificada**: re-ejecutando los bloques de datos → `UPDATE 0`, `UPDATE 0`, `INSERT 0 0`; 0 maestros y 0 bajas modificadas
 - [x] Objetos temporales de validación eliminados; los dos respaldos de las migraciones quedan en pie (los usa el `Down`)
+
+## Validación cruzada con el Reporte Diario de Costos Engorde (2026-07-29)
+
+El reporte consume `fn_seguimiento_diario_engorde` por LATERAL, así que es el mejor test de que el
+cambio de scope (v10) no rompió nada aguas abajo.
+
+- [x] **DAYLAND (granja 107)**, 9 días: `consumo_total_kg`, `mort_sel_total` y `aves_vivas_total` con **0 diferencias** contra la suma de los lotes uno por uno
+- [x] **DOÑA MARIA (granja 106)**, 8 días — la que tiene los galpones compartidos G0490 y G0479: **0 diferencias** en las 3 métricas
+- [x] **Sin doble conteo en galpón compartido**: el reporte da 7.529,7 kg para G0490 el 27/07 y la suma directa de los lotes 168+169 da exactamente 7.529,7
+- [x] **Lote 142** (el de más registros, 41): encaset 48.430 − bajas 1.830 = **46.600** = saldo final · ingresos 155.188,2 − consumo 152.952,9 = **2.235,3** = saldo final = **stock del inventario de G0471**
+- [x] `saldo_alimento_kg` persistido coincide con el que calcula la fn (G0464: 66.565,813)
+- [x] ⚠️ **Hallazgo preexistente CORREGIDO** (`fn_reporte_diario_costos_engorde` **v2**): el `stock_kg` salía del jsonb `historico_consumo_alimento`, que guarda el saldo **por alimento consumido ese día**, no el total del galpón. G0464 al 22/07: reporte 46.229,2 (solo SUPER POLLO ENGORDE) vs 66.565,8 del galpón (3 ítems). Era estructural: 738 de 2.103 registros divergentes en Ecuador y 451 de 470 en Panamá
+
+## Corrección del Reporte de Costos — `fn_reporte_diario_costos_engorde` v2
+
+- [x] El `stock_kg` ahora se **deriva** de `ingresos(≤fecha) − consumo(≤fecha)` por alimento, con los mismos filtros que la fn de seguimiento (excluye INV_INGRESO del propio seguimiento y devoluciones por eliminación), acumulado sobre todo el histórico
+- [x] Un alimento con stock **aparece aunque ese día no se consuma** (FULL JOIN) — sin eso el total nunca cerraría
+- [x] **Verificado 0,0 exacto en las 12 granjas de las DOS empresas** contra `ingresos − consumo` del alcance
+- [x] En Panamá cuadra además contra Gestión de inventario: **DAYLAND, MENDOZA y TROFARELLO en 0,0**
+- [x] `consumo_total_kg`, `mort_sel_total` y `aves_vivas_total` **NO cambian** (0 diferencias en 9 días)
+- [x] Migración `20260729130000_FnReporteCostosEngordeV2StockDerivado` (idempotente, `CREATE OR REPLACE`) + `backend/sql/` sincronizado
+- [ ] ⚠️ **DOÑA MARIA queda con 544,0 kg** contra inventario: es **G0477**, cuyo lote (182) todavía no tiene ningún seguimiento, así que la migración de cuadre no lo cubrió (filtra por lotes con registros). Su stock lo ajustaste a mano de 12.413,58 a 11.869,59 y no hay consumo registrado que lo justifique — **necesita tu decisión**
+- [ ] ⚠️ **Ecuador NO cuadra contra su inventario** (SAN GUILLERMO 206.318 kg, Kilometro 86 172.984 kg…): descuadres de datos preexistentes, nunca se cuadró esa empresa. Además tiene ingresos **sin galpón** (CAROLINA: 211.361,8 kg en bodega de granja) que el reporte no incluye porque su alcance son los galpones de los lotes
+
+## Reporte de Costos: alimento desde las FUENTES REALES (flag por empresa)
+
+Migración `20260729224401_ReporteCostosAlimentoDesdeFuentesReales` + fn v3.
+El usuario pidió que el reporte no cruce con el jsonb sino con **inventario y seguimiento diario**.
+
+- [x] Flag tipado `companies.reporte_costos_alimento_desde_fuentes_reales` (default FALSE), ON solo en **ItalcolPanama** — no un `if (empresa == X)`, según la regla de features por empresa
+- [x] Con el flag **ON**: consumo del **seguimiento diario** (`consumo_dia_kg`) + stock de **ingresos del histórico − consumo**
+- [x] El jsonb queda con **un único uso**: repartir los días con 2+ alimentos, donde `tipo_alimento` los concatena con " / " y el reparto real solo está ahí. **Nunca decide un total**
+- [x] **Por qué es flag y no cambio global**: el desglose necesita que `tipo_alimento` sea el nombre del ítem. En Panamá lo es; en **Ecuador viene con prefijo de sexo** («H: AV. SUPER POLLO ENGORDE») en los 4.638 registros y no cruzaría con el inventario
+- [x] Motivo de fondo: el jsonb está **INCOMPLETO** — suma 1.554.181,4 kg contra los **1.706.089,8 kg** de consumo real del seguimiento
+- [x] **NO-REGRESIÓN byte a byte**: v1 vs v3 en Ecuador (flag OFF) → **0 diferencias en las 267 filas**, incluido el JSON de alimentos
+- [x] En Panamá (flag ON) cambia **solo** el JSON de alimentos (84 filas); `consumo_total_kg`, `mort_sel_total` y `aves_vivas_total` con **0 diferencias**
+- [x] **0 nombres compuestos** en el desglose (el reparto los resolvió) y solo los **3 ítems reales** de Panamá
+- [x] El desglose **suma exacto el consumo del día** en las 84 filas (con el jsonb esto no cerraba)
+- [x] Consumo por alimento coincide **0,00** con el seguimiento (122 comparaciones)
+- [x] Stock cierra **0,0** contra Gestión de inventario en DAYLAND, MENDOZA y TROFARELLO
+- [x] `Down` restaura la fn v1 **antes** de eliminar la columna (la v3 la lee)
+- [x] `dotnet build` 0/0 · `dotnet test` **1341/1341**
+- [ ] ℹ️ 36 filas con stock negativo por alimento, todas en AV. POLLITO PREINICIADOR (MENDOZA −2.143,7 · TROFARELLO hasta −10.767,4): se consumió más de lo que se registró como ingreso. Mismo criterio sin piso que la fn de seguimiento; el TOTAL del galpón cuadra igual

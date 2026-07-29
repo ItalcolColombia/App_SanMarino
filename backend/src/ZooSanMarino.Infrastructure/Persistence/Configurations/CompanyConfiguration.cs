@@ -82,6 +82,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: el Reporte de Costos toma alimento de las fuentes reales
+        // (ingresos del histórico + consumo del seguimiento) en vez del snapshot jsonb incompleto.
+        builder.Property(x => x.ReporteCostosAlimentoDesdeFuentesReales)
+            .HasColumnName("reporte_costos_alimento_desde_fuentes_reales")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }
