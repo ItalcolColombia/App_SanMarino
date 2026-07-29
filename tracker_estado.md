@@ -1444,15 +1444,30 @@ fila; `ParseEdadSemana("25P")` devuelve 25, así que en la semana 25 ganaba `'25
 - [x] Migración `20260728160000` fija el desempate en la variante con sufijo — el valor que ya
       devolvía, ahora garantizado. Verificado post-migración: sigue en 0,10
 
-### Decisión pendiente del usuario — denominador de `%Mort` semanal
+### Denominadores de los % semanales — CORREGIDO (autorizado por el usuario aun estando en prod)
 
-- [ ] El Detalle divide la mortalidad de la semana por la **base fija** de aves iniciales y el Resumen
-      por el **saldo al inicio de la semana**. El validador contrastó contra el archivo fuente
-      (hoja «Datos semanal LEV», lote A320 edad 2): `%MortH` = 0,2257747 = 62 / 27.461 → el Excel usa
-      el **saldo al inicio**, o sea el criterio del Resumen; el Detalle no coincide.
-      Magnitud: hembras 46/48 filas difieren (desvío medio 2,78 %), machos 41/43 (medio 13,08 %).
-      ⚠️ Alinear el Detalle cambia también el **Reporte Técnico Semanal preexistente**, que comparte
-      `ConstruirSemanasLevante` y documenta la otra convención — por eso NO se tocó
+Antes de tocar nada se despejó la regla REAL contrastando fila a fila el archivo fuente sobre los
+73 lotes. El resultado desmiente tanto lo que hacía el Detalle como la suposición inicial:
+
+| Columna | Denominador | Filas que lo confirman |
+|---|---|---|
+| `%Mort` H/M | saldo al **INICIO** de la semana | 1401 H + 1311 M (ninguna con el final ni con base fija) |
+| `%Sel` H/M | saldo al **FINAL** de la semana | 248 H + 488 M (ninguna con el inicial) |
+| `%Err` H/M | saldo al **FINAL** de la semana | 142 H + 48 M |
+
+Sí: el archivo usa bases DISTINTAS para mortalidad y para descarte. No es error de lectura.
+
+- [x] El Detalle usaba la **base fija** en las seis columnas ⇒ no reproducía ninguna
+- [x] Corregidas las 6, en la fila por lote y en el consolidado
+- [x] `AvesHembrasInicio`/`AvesMachosInicio` expuestos en el DTO: el consolidado los SUMA en vez de
+      reconstruirlos como fin + bajas, que ignoraría los traslados
+- [x] Los ACUMULADOS siguen sobre base fija — ésos ya coincidían con el archivo y no se tocaron
+- [x] El único test que fijaba la convención vieja (`…usan_base_fija_de_aves_iniciales`) se reescribió
+      en 3 tests con los casos REALES del archivo (A320 edad 2 y A322 edad 13)
+- [x] Verificado end-to-end: **100 comparaciones de `%Mort` Detalle vs Resumen, 0 diferencias**
+- [x] `dotnet build` 0/0 · `dotnet test` **1320/1320** · `yarn build` 0 errores
+- ⚠️ **Cambia el Reporte Técnico Semanal que ya está en producción** (comparte `ConstruirSemanasLevante`).
+      Es intencional y autorizado: los números anteriores no reproducían el archivo oficial
 
 ### Hallazgos menores (no se tocaron)
 

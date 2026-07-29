@@ -142,9 +142,21 @@ public static class ReporteTecnicoSemanalCalculos
 
     // ─────────────────────────────────────────────────────────────────────────
     // LEVANTE — filas del Excel a partir de la fn de extras + guía.
-    // % con base FIJA de aves iniciales (Excel: F7 = E7/$C$7), acumulados =
-    // conteos acumulados / base * 100, nutrición acumulada por ave
-    // (Excel: AH = kcal*0.001*(gr_ave_semana) + AH_prev).
+    //
+    // DENOMINADORES de los % SEMANALES (verificado fila a fila contra la hoja
+    // «Datos semanal LEV» del archivo fuente, sobre los 73 lotes):
+    //   * %Mort  → saldo al INICIO de la semana   (1401 filas H + 1311 M lo confirman,
+    //              ninguna cuadra con el saldo final ni con la base fija)
+    //   * %Sel   → saldo al FINAL de la semana    (248 H + 488 M)
+    //   * %Err   → saldo al FINAL de la semana    (142 H + 48 M)
+    // Sí, el archivo usa bases distintas para mortalidad y para descarte; no es
+    // un error de lectura, es su convención. Antes acá se usaba la base FIJA de
+    // aves iniciales para las tres, lo que no reproducía ninguna de las columnas
+    // y además hacía que el Detalle se contradijera con el Resumen.
+    //
+    // Los ACUMULADOS sí van sobre la base FIJA (Excel: %RetiroH = RetAcH/$C$7) y
+    // no se tocan: ésos ya coincidían con el archivo.
+    // Nutrición acumulada por ave (Excel: AH = kcal*0.001*(gr_ave_semana) + AH_prev).
     // ─────────────────────────────────────────────────────────────────────────
     public static List<ReporteSemanalLevanteSemanaDto> ConstruirSemanasLevante(
         IReadOnlyList<ReporteSemanalLevanteExtrasRow> filas,
@@ -215,17 +227,19 @@ public static class ReporteTecnicoSemanalCalculos
                 DiasConRegistro = f.DiasConRegistro,
                 AvesHembrasFin = f.AvesHembrasFin,
                 AvesMachosFin = f.AvesMachosFin,
+                AvesHembrasInicio = f.AvesHembrasInicio,
+                AvesMachosInicio = f.AvesMachosInicio,
                 RelacionMachosHembrasPct = Pct(f.AvesMachosFin, f.AvesHembrasFin),
 
                 MortalidadHembras = f.MortalidadHembrasSem,
-                MortalidadHembrasPct = Pct(f.MortalidadHembrasSem, f.BaseHembras),
+                MortalidadHembrasPct = Pct(f.MortalidadHembrasSem, f.AvesHembrasInicio),
                 MortalidadHembrasAcumPct = Pct(cumMortH, f.BaseHembras),
                 SeleccionHembras = f.SeleccionHembrasSem,
-                SeleccionHembrasPct = Pct(f.SeleccionHembrasSem, f.BaseHembras),
+                SeleccionHembrasPct = Pct(f.SeleccionHembrasSem, f.AvesHembrasFin),
                 SeleccionHembrasAcumPct = Pct(cumSelH, f.BaseHembras),
                 MortSelHembrasGuiaPct = g?.MortSemHembras,
                 ErrorHembras = f.ErrorHembrasSem,
-                ErrorHembrasPct = Pct(f.ErrorHembrasSem, f.BaseHembras),
+                ErrorHembrasPct = Pct(f.ErrorHembrasSem, f.AvesHembrasFin),
                 ErrorHembrasAcumPct = Pct(cumErrH, f.BaseHembras),
                 RetiroAcumHembrasPct = Pct(cumMortH + cumSelH + cumErrH, f.BaseHembras),
                 RetiroAcumHembrasGuiaPct = g?.RetiroAcHembras,
@@ -275,14 +289,14 @@ public static class ReporteTecnicoSemanalCalculos
                 ProtAcumMachosGuia = protAcMGuia > 0 ? protAcMGuia : null,
 
                 MortalidadMachos = f.MortalidadMachosSem,
-                MortalidadMachosPct = Pct(f.MortalidadMachosSem, f.BaseMachos),
+                MortalidadMachosPct = Pct(f.MortalidadMachosSem, f.AvesMachosInicio),
                 MortalidadMachosAcumPct = Pct(cumMortM, f.BaseMachos),
                 SeleccionMachos = f.SeleccionMachosSem,
-                SeleccionMachosPct = Pct(f.SeleccionMachosSem, f.BaseMachos),
+                SeleccionMachosPct = Pct(f.SeleccionMachosSem, f.AvesMachosFin),
                 SeleccionMachosAcumPct = Pct(cumSelM, f.BaseMachos),
                 MortSelMachosGuiaPct = g?.MortSemMachos,
                 ErrorMachos = f.ErrorMachosSem,
-                ErrorMachosPct = Pct(f.ErrorMachosSem, f.BaseMachos),
+                ErrorMachosPct = Pct(f.ErrorMachosSem, f.AvesMachosFin),
                 ErrorMachosAcumPct = Pct(cumErrM, f.BaseMachos),
                 RetiroAcumMachosPct = Pct(cumMortM + cumSelM + cumErrM, f.BaseMachos),
                 RetiroAcumMachosGuiaPct = g?.RetiroAcMachos,
@@ -529,6 +543,10 @@ public static class ReporteTecnicoSemanalCalculos
             var baseM = header.BaseMachos;
             var avesHFin = filas.Sum(s => s.AvesHembrasFin);
             var avesMFin = filas.Sum(s => s.AvesMachosFin);
+            // Saldo de inicio consolidado: SUMA de los de cada galpón. Reconstruirlo
+            // como fin + bajas ignoraría los traslados y daría otro número.
+            var avesHIni = filas.Sum(s => s.AvesHembrasInicio);
+            var avesMIni = filas.Sum(s => s.AvesMachosInicio);
             var mortH = filas.Sum(s => s.MortalidadHembras);
             var mortM = filas.Sum(s => s.MortalidadMachos);
             var selH = filas.Sum(s => s.SeleccionHembras);
@@ -557,17 +575,19 @@ public static class ReporteTecnicoSemanalCalculos
                 DiasConRegistro = dias,
                 AvesHembrasFin = avesHFin,
                 AvesMachosFin = avesMFin,
+                AvesHembrasInicio = avesHIni,
+                AvesMachosInicio = avesMIni,
                 RelacionMachosHembrasPct = Pct(avesMFin, avesHFin),
 
                 MortalidadHembras = mortH,
-                MortalidadHembrasPct = Pct(mortH, baseH),
+                MortalidadHembrasPct = Pct(mortH, avesHIni),
                 MortalidadHembrasAcumPct = Pct(cumMortH, baseH),
                 SeleccionHembras = selH,
-                SeleccionHembrasPct = Pct(selH, baseH),
+                SeleccionHembrasPct = Pct(selH, avesHFin),
                 SeleccionHembrasAcumPct = Pct(cumSelH, baseH),
                 MortSelHembrasGuiaPct = PrimeraGuia(filas.Select(s => s.MortSelHembrasGuiaPct)),
                 ErrorHembras = errH,
-                ErrorHembrasPct = Pct(errH, baseH),
+                ErrorHembrasPct = Pct(errH, avesHFin),
                 ErrorHembrasAcumPct = Pct(cumErrH, baseH),
                 RetiroAcumHembrasPct = Pct(cumMortH + cumSelH + cumErrH, baseH),
                 RetiroAcumHembrasGuiaPct = PrimeraGuia(filas.Select(s => s.RetiroAcumHembrasGuiaPct)),
@@ -622,14 +642,14 @@ public static class ReporteTecnicoSemanalCalculos
                 ProtAcumMachosGuia = PrimeraGuia(filas.Select(s => s.ProtAcumMachosGuia)),
 
                 MortalidadMachos = mortM,
-                MortalidadMachosPct = Pct(mortM, baseM),
+                MortalidadMachosPct = Pct(mortM, avesMIni),
                 MortalidadMachosAcumPct = Pct(cumMortM, baseM),
                 SeleccionMachos = selM,
-                SeleccionMachosPct = Pct(selM, baseM),
+                SeleccionMachosPct = Pct(selM, avesMFin),
                 SeleccionMachosAcumPct = Pct(cumSelM, baseM),
                 MortSelMachosGuiaPct = PrimeraGuia(filas.Select(s => s.MortSelMachosGuiaPct)),
                 ErrorMachos = errM,
-                ErrorMachosPct = Pct(errM, baseM),
+                ErrorMachosPct = Pct(errM, avesMFin),
                 ErrorMachosAcumPct = Pct(cumErrM, baseM),
                 RetiroAcumMachosPct = Pct(cumMortM + cumSelM + cumErrM, baseM),
                 RetiroAcumMachosGuiaPct = PrimeraGuia(filas.Select(s => s.RetiroAcumMachosGuiaPct)),

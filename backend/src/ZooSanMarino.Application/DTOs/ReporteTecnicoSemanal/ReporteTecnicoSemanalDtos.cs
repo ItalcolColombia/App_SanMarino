@@ -56,6 +56,13 @@ public sealed class ReporteSemanalLevanteSemanaDto
 
     public double AvesHembrasFin { get; set; }
     public double AvesMachosFin { get; set; }
+    /// <summary>
+    /// Saldo al INICIO de la semana. Es el denominador de %Mort según el archivo
+    /// fuente (%Sel y %Err van sobre el saldo final), y lo necesita el
+    /// consolidado para no reconstruirlo mal ignorando traslados.
+    /// </summary>
+    public double AvesHembrasInicio { get; set; }
+    public double AvesMachosInicio { get; set; }
     /// <summary>Relación M:H % = aves machos fin / aves hembras fin * 100.</summary>
     public double? RelacionMachosHembrasPct { get; set; }
 

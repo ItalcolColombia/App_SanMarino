@@ -37,6 +37,9 @@ export interface ReporteSemanalLevanteSemana {
   diasConRegistro: number;
   avesHembrasFin: number;
   avesMachosFin: number;
+  /** Saldo al inicio de la semana: denominador de %Mort (%Sel y %Err van sobre el final). */
+  avesHembrasInicio: number;
+  avesMachosInicio: number;
   relacionMachosHembrasPct: number | null;
 
   mortalidadHembras: number;
