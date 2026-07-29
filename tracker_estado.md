@@ -1326,8 +1326,11 @@ Pedido del usuario: plantillas con datos de ejercicio en el Escritorio y el cicl
       seguimiento_diario_levante WHERE lote_id='130'; DELETE FROM lote_postura_produccion WHERE lote_id=130;
       DELETE FROM liquidacion_cierre_lote_levante WHERE lote_postura_levante_id=30; DELETE FROM
       lote_postura_levante WHERE lote_id=130; DELETE FROM lotes WHERE lote_id=130;`
-- [ ] Al cambiar de modo el componente se remonta y pierde el año/semana elegidos (el `@if` del
-      shell lo destruye). Molesto pero no rompe nada; se resuelve levantando el estado al shell
+- [x] **Corregido**: al cambiar de modo se perdían el año/semana del Resumen y el lote base del
+      Detalle. Los dos modos ahora se OCULTAN en vez de destruirse (`[hidden]` en lugar de `@if`).
+      Las gráficas siguen creándose solo cuando su propia vista está activa, así que no se montan
+      canvas invisibles. Verificado ida y vuelta: el Resumen mantiene 2025/Semana 20 con sus 2
+      filas y el Detalle mantiene K345 con sus 3 tabs y 25 semanas
 
 ## Fase 3 — Alimento por fase (hoja 5) — HECHO
 
