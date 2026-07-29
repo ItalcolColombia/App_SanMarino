@@ -1,3 +1,45 @@
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// <c>fn_seguimiento_diario_engorde</c> v10: el consumo pasa a scope GALPON (inventario
+    /// compartido entre los lotes que comparten bodega).
+    /// <para>
+    /// Los ingresos y traslados de alimento SIEMPRE se leyeron con scope galpon, pero el consumo se
+    /// restaba unicamente del lote consultado. Con dos lotes solapados en el mismo galpon cada uno
+    /// veia el 100 % de los ingresos y nada mas que su propio consumo, asi que LOS DOS inflaban el
+    /// saldo y ninguno cuadraba contra Gestion de inventario.
+    /// </para>
+    /// <para>
+    /// Caso testigo G0490 (DOÑA MARIA, jul-2026): ingresos del galpon 97.729,6 kg. El lote 168
+    /// mostraba 82.806,4 (= todo menos sus 14.923,3) y el lote 169 mostraba 34.316,9 (= todo menos
+    /// sus 63.412,8), cuando el saldo real compartido era 19.393,5 contra 18.939,9 de inventario.
+    /// Con la v10 los dos lotes muestran el MISMO saldo en cada fecha.
+    /// </para>
+    /// <para>
+    /// El CTE nuevo <c>consumo_galpon_por_fecha</c> lo usan la apertura, la deteccion de cierre y
+    /// <c>pt_calc</c>, de modo que saldo(f) = ingresos(≤f) − consumo_del_galpon(≤f). La apertura
+    /// resta ademas el consumo anterior al primer seguimiento del lote, para que el segundo lote de
+    /// un galpon no abra con el alimento que el primero ya se comio.
+    /// </para>
+    /// <para>
+    /// <b>NO-OP donde hay un solo lote por galpon</b> (la inmensa mayoria). Verificado sobre la base:
+    /// solo Panama tiene lotes solapados (4 galpones); Ecuador y Colombia no tienen ninguno, asi que
+    /// sus reportes no cambian.
+    /// </para>
+    /// Idempotente (CREATE OR REPLACE). SQL sincronizado con
+    /// backend/sql/fn_seguimiento_diario_engorde.sql.
+    /// Plan: fase_de_desarrollo/cuadre_engorde_panama_aves_alimento_plan.md
+    /// </summary>
+    public partial class FnSeguimientoEngordeV10ConsumoScopeGalpon : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"
 -- =============================================================================
 -- fn_seguimiento_diario_engorde(p_lote_id INT)
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
@@ -27,14 +69,14 @@
 --     llegada — información de la operación, no un defecto del cálculo. Alineado con el C#.
 --
 -- v8 (2026-07-14) — Fix: aves_iniciales no restaba mort_caja_h/mort_caja_m.
---   * Problema: "Mort. caja H/M" (aves que llegaron muertas en la caja de transporte, campo
+--   * Problema: ""Mort. caja H/M"" (aves que llegaron muertas en la caja de transporte, campo
 --     capturado una sola vez al crear/editar el lote, fuera del seguimiento diario) NO se
 --     restaba de `aves_iniciales`, así saldo_aves quedaba inflado exactamente en ese monto vs.
---     el widget "Aves disponibles" (GetAvesDisponiblesAsync) y la validación de creación de
---     registros (CalcularHembrasVivasAsync), que SÍ la restan del maestro. Caso lote 77 "2603"
+--     el widget ""Aves disponibles"" (GetAvesDisponiblesAsync) y la validación de creación de
+--     registros (CalcularHembrasVivasAsync), que SÍ la restan del maestro. Caso lote 77 ""2603""
 --     (Sacachun 3b, galpón G0049): mort_caja_h=17 → tabla diaria mostraba 17 aves vivas mientras
---     "Aves disponibles" mostraba 0/0 y bloqueaba nuevos registros ("no se puede hacer
---     seguimiento"), generando un descuadre visible entre ambas pantallas.
+--     ""Aves disponibles"" mostraba 0/0 y bloqueaba nuevos registros (""no se puede hacer
+--     seguimiento""), generando un descuadre visible entre ambas pantallas.
 --   * Solución: `lote_info` expone `mort_caja_total` (mort_caja_h + mort_caja_m); `aves_iniciales`
 --     lo resta (con piso 0) en toda rama que parte de aves_encasetadas/suma_hm. La rama 'cerrado'
 --     no cambia: ya fuerza el cierre en 0 por construcción propia (bajas + ventas), sin depender
@@ -44,9 +86,9 @@
 --   * Problema: en lotes CERRADOS `aves_iniciales = bajas + ventas_totales` (cierre en 0
 --     por construcción) y `ventas_totales` NO tiene tope de fecha, pero `fechas_universo`
 --     SÍ acotaba por fecha_max (cierre por alimento=0, v5). Una venta posterior al corte
---     (ej. lote 23: venta de 8 machos el 2026-05-13, reapertura "PARA TRASLADO", con corte
+--     (ej. lote 23: venta de 8 machos el 2026-05-13, reapertura ""PARA TRASLADO"", con corte
 --     2026-03-18) inflaba `inicial` sin fila que la restara → saldo_aves residual fantasma
---     (el lote "cerrado" mostraba saldo 8 en vez de 0).
+--     (el lote ""cerrado"" mostraba saldo 8 en vez de 0).
 --   * Solución: en `fechas_universo` y `docs_por_fecha` las VENTA_AVES del lote NO se
 --     acotan por fecha_min/fecha_max (solo por fecha_encaset). Las ventas pertenecen al
 --     lote (no al galpón), no hay riesgo de contaminación de otro ciclo. Los eventos de
@@ -57,7 +99,7 @@
 --   * Problema: la fn calculaba el saldo como GREATEST(0, acumulado) sobre el cumulativo
 --     desde apertura (modelo M0). Eso ARRASTRABA el déficit transitorio: cuando el consumo
 --     se adelantaba a un ingreso registrado tarde, el acumulado se volvía negativo, se
---     mostraba 0, y al llegar el ingreso "rebotaba" → el usuario lo veía como "no cuadra"
+--     mostraba 0, y al llegar el ingreso ""rebotaba"" → el usuario lo veía como ""no cuadra""
 --     (caso lote 75, 29→30 may-2026). Además, M0 NO coincidía con la lógica canónica del
 --     frontend (computeSaldoAlimentoKgPorSeguimiento) ni del backend C#
 --     (RecalcularSaldoAlimentoPorLoteAsync), que SÍ usan piso 0 con reseteo.
@@ -621,7 +663,7 @@ SELECT
         ELSE NULL
     END                                                                                AS pct_perdidas_dia,
     -- ⭐ v9 (M2): saldo CRUDO, sin piso ni reseteo de base.
-    -- El reseteo de Lindley "olvidaba" el déficit transitorio para no mostrar negativos, pero cada
+    -- El reseteo de Lindley ""olvidaba"" el déficit transitorio para no mostrar negativos, pero cada
     -- olvido regalaba alimento inexistente y el acumulado terminaba por encima del inventario: en el
     -- galpón 6 de DAYLAND (jul-2026) el reporte cerraba en 12.869,46 kg contra 2.235,33 reales,
     -- inflado exactamente en el peor negativo (−10.634,13 del 05/07). Un saldo negativo no es un
@@ -665,3 +707,14 @@ WINDOW
     w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
 ORDER BY se.fecha, COALESCE(se.seg_id, 0);
 $$;
+");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Sin Down: revertir a la v9 reintroduciria el descuadre de los galpones compartidos.
+            // La funcion es CREATE OR REPLACE, asi que una migracion posterior la reemplaza limpio.
+        }
+    }
+}

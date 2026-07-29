@@ -1501,3 +1501,65 @@ Sí: el archivo usa bases DISTINTAS para mortalidad y para descarte. No es error
 
 ⚠️ El paquete incluyó 3 commits de otra sesión (carga masiva que mueve inventario de alimento), con
 su smoke de UI marcado como pendiente por ellos. Se desplegó por decisión explícita del usuario.
+
+---
+
+# Tracker — Cuadre de aves y alimento en pollo engorde (Panamá)
+
+**Plan:** [`fase_de_desarrollo/cuadre_engorde_panama_aves_alimento_plan.md`](fase_de_desarrollo/cuadre_engorde_panama_aves_alimento_plan.md)
+**Fecha:** 2026-07-29 · **Empresa:** ItalcolPanama (id 5) · BD: dump de producción restaurado en local
+
+Objetivo: que el saldo de **aves** de la tabla de seguimiento coincida con el widget «Aves disponibles», y
+que el saldo de **alimento** coincida con el stock de Gestión de inventario, con **inventario compartido por
+galpón** cuando hay dos lotes en el mismo galpón.
+
+## Fase 0 — Diagnóstico (cerrada)
+
+- [x] Panorama de los 55 lotes de engorde de Panamá (29 con seguimiento)
+- [x] **Aves A1**: `GetAvesDisponiblesAsync` doble-descuenta — el descuadre es *exactamente* `bajas_aplicadas` en los 26 lotes con 7 días completos
+- [x] **Aves A2**: en 25 de 29 lotes las bajas de los 7 días del cruce nunca llegaron al maestro (0 filas `BAJA_SEGUIMIENTO` de cruce; faltante = bajas del cruce, exacto)
+- [x] Maestro verificado SANO: `hembras_l+machos_l = aves_encasetadas − bajas_aplicadas` exacto en los 29 lotes
+- [x] **Alimento F1**: ingresos con scope galpón + consumo con scope lote (verificado exacto en G0490)
+- [x] **Alimento F2**: G0486 tiene encima los ingresos de G0485 (corrida B: 18 filas / 128.302,2 kg ≡ total de G0485)
+- [x] **Alimento F3**: los 44 `AjusteStock` entran como `INV_OTRO` y ningún camino del saldo los mira
+- [x] Identidad del stock verificada (error 0,0 en los 24 galpones): `stock = Σ Ingreso − Σ Consumo_inv + Σ Ajuste`
+- [x] **Alimento F4**: DAYLAND (5 galpones) sin ningún `AjusteStock` → requiere confirmación operativa
+- [x] Simulación de estrategias (`scratchpad/sim_final.sql`): Op1 8/25 · Op3 8/25 y empeora G0464 · Op3b 8/25 · Op4 2/25 · **Op2 25/25**
+
+## Fase 1 — Aves (código + datos)
+
+- [x] `Application/Calculos/AvesDisponiblesEngordeCalculos.cs` (NUEVO, puro) + **18 tests xUnit verdes**
+- [x] `GetAvesDisponiblesAsync` deja de restar las bajas ya aplicadas al maestro (retrocompatible: sin filas `BAJA_SEGUIMIENTO` el pendiente es el total ⇒ fórmula previa intacta)
+- [x] Migración `20260729100000_AplicarBajasCruceReproductoraAlMaestroEngorde`: **24 lotes, 167 días, 8.411 aves**; respaldo `_backup_bajas_cruce_engorde_20260729` para que el `Down` no toque las 17 filas preexistentes
+- [x] `Down` **probado**: revierte exacto y respeta las 17 filas de los lotes 142/179/180/181; `mixtas` NULL ya no se convierte en 0
+- [x] **Cuadre verificado: 26/26 lotes con los 7 días completos en dif = 0**; `bajas_sin_aplicar = 0` y conservación `encaset − bajas = maestro` intacta en los 29
+- [ ] ⚠️ Lotes 179/180/181 aún dentro de los 7 días de reproductora: el widget resta las asignadas y muestra 0 / 12.195 (diseño vigente `AvesDevueltas = false`) — **decisión del usuario** si debe cambiar
+- [ ] ⚠️ Lote 179: asignadas a reproductora 36.135 vs encaset 48.595 → 12.460 aves sin asignar (posible dato incompleto de la carga)
+
+## Fase 2 — Alimento, scope de galpón (código)
+
+- [x] `fn_seguimiento_diario_engorde` **v10**: nuevo CTE `consumo_galpon_por_fecha` usado por la apertura y `pt_calc` ⇒ `saldo(f) = ingresos(≤f) − consumo_del_galpón(≤f)`
+- [x] **Solo cuentan los lotes que CONVIVEN** (rangos de seguimiento solapados). Primer intento sin ese filtro rompió Ecuador (1.037 filas / 22 lotes) porque sus galpones encadenan 3-4 ciclos sucesivos y los lotes viejos quedan en `Abierto` (`fecha_max` NULL)
+- [x] `consumo_por_fecha` (el que alimenta `saldo_close`) se deja en scope LOTE: fija `fecha_max` y usar el consumo del galpón sería circular
+- [x] Migración `20260729110000_FnSeguimientoEngordeV10ConsumoScopeGalpon` (idempotente, `CREATE OR REPLACE`) + `backend/sql/` sincronizado
+- [x] `RecalcularSaldoAlimentoPorLoteAsync`: consumo a scope galpón en **los dos** services (carga masiva y formulario Ecuador), con `AsNoTracking()` para no persistir los ajenos
+- [x] ~~Front~~ **no aplica**: el front solo consume `saldoAlimentoKg` del backend, no lo calcula (no quedan cálculos de saldo en TS)
+- [x] 3 tests nuevos del cálculo puro (saldo compartido, retrocompatibilidad con un solo lote, dos lotes el mismo día)
+- [x] **No-regresión verificada v9 vs v10 fila a fila**: Ecuador **0 filas distintas / 0 lotes**; Panamá 83 filas / 8 lotes (exactamente los 4 galpones compartidos); **aves 0 diferencias**; mismo número de filas por lote
+- [x] Verificado en G0490: los lotes 168 y 169 muestran **el mismo saldo en cada fecha** (19.393,6 al 27/07)
+- [ ] Menor: `seguimiento_diario_aves_engorde.saldo_alimento_kg` **persistido** queda con el valor viejo hasta que se toque un registro del lote (la tabla NO lo usa: la fn devuelve `pt` calculado en vivo)
+
+## Fase 3 — Alimento, datos (requiere OK explícito del usuario)
+
+- [ ] Migración: anular las 18 filas de la corrida espuria de G0486
+- [ ] Migración: ajuste datado del residuo por galpón, auditable y reversible
+- [ ] DAYLAND excluido hasta que la operación confirme el stock físico
+
+## Validación
+
+- [x] `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1341/1341 verdes** (21 nuevos)
+- [x] `yarn build` no aplica: no se tocó ningún archivo del front
+- [x] Cuadre **aves**: 26/26 lotes con los 7 días completos en dif = 0
+- [x] Cuadre **alimento**: 8/25 galpones cuadran; los 17 restantes son datos sucios de la Fase 3
+- [x] Objetos temporales de diagnóstico eliminados (`fn_seg_engorde_v9_tmp`, `_snap_antes_cruce`); sin procesos huérfanos
+- [ ] Smoke UI en G0490 (pendiente: requiere levantar back+front)
