@@ -1568,6 +1568,27 @@ Migración `20260729120000_CuadreAlimentoEngordePanama`, con respaldo y `Down` p
 - [x] Objetos temporales de diagnóstico eliminados (`fn_seg_engorde_v9_tmp`, `_snap_antes_cruce`); sin procesos huérfanos
 - [ ] Smoke UI en G0490 (pendiente: requiere levantar back+front)
 
+## ⚠️ Fase 3 REESCRITA — el inventario era el que estaba mal, no el seguimiento
+
+Hallazgo al analizar los 12 galpones de diferencia pequeña: **el inventario nunca descontó el consumo de
+los 7 días del cruce de reproductora** (mismo bug que las aves — el cruce escribe por SQL directo).
+Verificado al decimal en **19 de 25 galpones**: `cons_seguimiento − cons_inventario = cons_de_los_días_de_cruce`.
+Todo ese consumo es **AV. POLLITO PREINICIADOR (ítem 223)**.
+
+- [x] Caso testigo G0460: el desfase de 7.484,4 kg son los 7 primeros días (10-16 jun) sin descontar; del 18 jun en adelante coinciden exacto
+- [x] ⇒ **El stock estaba inflado, no el seguimiento**. El saldo correcto es el lógico: `ingresos − consumo real`
+- [x] Los ajustes manuales de la operación iban en la dirección correcta y en varios galpones dieron **exacto** (G0490 llevó el 223 de 8.935,862 a 0 = el consumo del cruce 8.935,9; ídem G0469, G0470, G0472, GALPON)
+- [x] **Esto invalidó la Fase 3 original para DAYLAND** (subía el seguimiento al stock inflado: G0460 a 14.151,5 en vez de 6.667,2) → migración `20260729120000` **reescrita** antes de desplegar
+- [x] Decisión del usuario: manda el **saldo lógico** y se ajusta el **inventario**; en G0461 se registra el ingreso faltante de 6.622,5 kg
+- [x] Migración reescrita aplicada sobre el dump de producción: **25/25 galpones en 0,0 exacto** (descuadre total 237.752,7 → **0,0 kg**)
+- [x] Bug propio detectado y corregido: el saldo objetivo no excluía las «devoluciones por eliminación» como sí hace la fn → G0479 quedaba con 590 kg
+- [x] Sin impacto cross-empresa: 0 movimientos y 0 stocks de Ecuador/Colombia tocados
+- [x] Aves siguen en **26/26**, 0 bajas sin aplicar, conservación intacta
+- [x] **Idempotencia**: una 2ª corrida tocaría 0 galpones (delta máx 0,005 kg)
+- [x] `Down` probado: restaura los stocks (G0460 vuelve a 14.151,5), borra los 24 movimientos de ajuste y el ingreso de G0461, y desanula G0486
+- [x] **Determinismo**: `Down` + `Up` deja los 66 stocks idénticos
+- [x] `dotnet build` 0/0 · `dotnet test` **1341/1341** verdes
+
 ## Validación sobre el dump de PRODUCCIÓN actual (2026-07-29)
 
 BD recargada desde producción (190 migraciones aplicadas, la última `20260728160000`); las 3 nuevas

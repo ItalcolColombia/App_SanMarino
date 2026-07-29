@@ -98,6 +98,34 @@ con el ajuste registrado como **movimiento auditable y reversible**, nunca como 
 
 ---
 
+## ⚠️ Corrección del diagnóstico (2026-07-29, tras validar sobre el dump de producción)
+
+**La premisa «el stock del inventario es la verdad» resultó FALSA.** El inventario **nunca descontó el
+consumo de los 7 días del cruce de reproductora** — el mismo bug que afectaba a las aves: esos días los
+escribe `fn_cruce_reproductora_a_engorde` por SQL directo, sin pasar por el service.
+
+Verificado al decimal en **19 de 25 galpones**:
+`consumo_seguimiento − consumo_inventario = consumo de los días de cruce`
+
+Todo ese consumo es **AV. POLLITO PREINICIADOR (ítem 223)**, lo que comen los pollitos la primera semana.
+Caso testigo G0460: el desfase de 7.484,4 kg son exactamente los 7 primeros días (10-16 jun), donde el
+seguimiento registró consumo y el inventario no descontó nada; del 18 jun en adelante coinciden exacto.
+
+**Consecuencia:** el **stock quedó inflado**, no el seguimiento. El saldo correcto es el **lógico**:
+`ingresos − consumo real del seguimiento`.
+
+La operación venía compensándolo a mano y en varios galpones dio **exacto** (G0490: llevó el ítem 223 de
+8.935,862 a 0, y el consumo del cruce es 8.935,9; ídem G0469, G0470, G0472, GALPON). En otros el número
+no cerró, y en DAYLAND no se ajustó nada.
+
+**Esto invalida la Fase 3 original para DAYLAND**, que subía el seguimiento hasta el stock inflado
+(G0460 a 14.151,5 cuando lo correcto es 6.667,2). Se reescribió: ahora se ajusta el **inventario**.
+
+Decisiones del usuario: manda el **saldo lógico** y se ajusta el inventario · en G0461 se **registra el
+ingreso faltante** de 6.622,5 kg (consumió sin ninguna llegada cargada).
+
+---
+
 ## Implementación
 
 ### Fase 1 — Aves (código + datos)
