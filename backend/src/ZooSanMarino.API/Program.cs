@@ -256,6 +256,7 @@ builder.Services.AddScoped<IFarmInventoryConsumoService, FarmInventoryConsumoSer
 builder.Services.AddScoped<IColombiaInventarioConsumoService, ColombiaInventarioConsumoService>();
 builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
 builder.Services.AddScoped<IInventarioGestionService, InventarioGestionService>();
+builder.Services.AddScoped<ICuadreAlimentoEngordeService, CuadreAlimentoEngordeService>();
 builder.Services.AddScoped<IItemInventarioService, ItemInventarioService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>(); 
 

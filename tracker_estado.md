@@ -1647,3 +1647,233 @@ El usuario pidió que el reporte no cruce con el jsonb sino con **inventario y s
 - [x] `Down` restaura la fn v1 **antes** de eliminar la columna (la v3 la lee)
 - [x] `dotnet build` 0/0 · `dotnet test` **1341/1341**
 - [ ] ℹ️ 36 filas con stock negativo por alimento, todas en AV. POLLITO PREINICIADOR (MENDOZA −2.143,7 · TROFARELLO hasta −10.767,4): se consumió más de lo que se registró como ingreso. Mismo criterio sin piso que la fn de seguimiento; el TOTAL del galpón cuadra igual
+
+## Despliegue a PRODUCCIÓN — 2026-07-29 (autorizado por el usuario)
+
+### Tanda 1 — cuadre de aves y alimento (ya estaba desplegada al retomar)
+
+- [x] `main` → `main-produccion` vía **PR #56** → merge `6f23d06` · workflow run `30492866352` **success**
+- [x] Imagen en ECS `backend:6f23d06273b1…` **idéntica** al SHA de `main-produccion`; TaskDef **143**, rollout `COMPLETED`
+- [x] Verificado que la migración `20260729120000` que quedó en prod es la **versión corregida** (la que ajusta el inventario), no la primera que subía el seguimiento al stock inflado — el diff contra local está vacío. Importaba porque una migración ya registrada en `__EFMigrationsHistory` **no se vuelve a aplicar**
+- [x] Las 3 migraciones se aplicaron solas al arrancar (`Database__RunMigrations=true`); que el contenedor llegara a steady state es la prueba (una migración fallida mata el proceso con SIGSEGV y ECS revierte)
+
+### Tanda 2 — Reporte de Costos desde fuentes reales
+
+- [x] `git push origin main` (`2f58e22..9a753ea`) → **PR #57** → merge `9f1d374`
+- [x] Workflow run `30498125763`: los **3 jobs en success** (Tests · Backend · Frontend)
+- [x] **Verificación post-deploy contra ECS** (obligatoria: el CLI reporta éxito aunque haya rollback):
+      - TaskDef **143 → 144**, rollout `COMPLETED`, Running 1 / Pending 0 / Desired 1
+      - Imagen `backend:9f1d374fdb78e600626a7890448de20c97d53b8a`, **idéntica** al SHA que se quiso desplegar
+      - Task `RUNNING` + **`HEALTHY`**; eventos «deployment completed» y «has reached a steady state», sin ciclo de reinicios
+      - Front `/version.json`: `2026-07-29T23:09:36.168Z`
+      - `/api/health` responde 401 (protegido por JWT) — la salud la confirma el health check de ECS
+- [x] La migración del flag `reporte_costos_alimento_desde_fuentes_reales` se aplicó al arrancar; el flag queda ON solo en ItalcolPanama y OFF en las otras 4 empresas
+
+### Pendiente operativo
+
+- [ ] **G0477 (DOÑA MARIA): editar los 544 kg a mano** en Gestión de inventario — decisión del usuario. Su lote (182) se encasetó el 27/07 y todavía no tiene seguimiento cargado, así que la migración de cuadre no lo cubrió. Ingresos 12.413,6 · stock 11.869,6
+- [ ] **Ecuador sigue sin cuadrar** contra su inventario (SAN GUILLERMO 206.318 kg, Kilometro 86 172.984 kg): mismo bug del consumo del cruce sin descontar, más ingresos sin galpón. Trabajo aparte, del tamaño del de Panamá
+
+---
+
+# Tracker — Diagnóstico: saldo de alimento de la grilla ≠ stock (ItalcolEcuador)
+
+**Diagnóstico:** [`fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md`](fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md)
+**Requerimiento marco:** [`fase_de_desarrollo/cuadre_engorde_ecuador_requerimiento.md`](fase_de_desarrollo/cuadre_engorde_ecuador_requerimiento.md)
+**Fecha:** 2026-07-29 · **Alcance de este bloque:** SOLO diagnóstico. No se tocó código, ni SQL, ni datos.
+
+Reporte de operación: en Kilometro 22 / N1 / Galpon-2 / lote 2603, la grilla muestra saldo **3.560 kg** el
+primer día cuando el ingreso fue 12.000 y el consumo 480 (esperado 11.520). El usuario aclara que *«solo es en
+lo visual porque en el stock sí tenemos lo correcto»*.
+
+## Diagnóstico
+- [x] Identificado el lote testigo: `lote_ave_engorde_id = 98` (Kilometro 22, G0036 = «Galpon-2», encaset 14-jun)
+- [x] Reproducido en la BD local (dump de prod): `fn_seguimiento_diario_engorde(98)` devuelve 3.560, igual que la pantalla
+- [x] Verificado que la fn local es **v10 con ventana v9**, la misma de producción (`pg_proc`)
+- [x] **Causa raíz**: la apertura da **−7.960 kg** con 4 movimientos del **ciclo anterior** (lote 65, «2602»), no del 2603
+- [x] Mecanismo: la ventana v9 (`fecha_encaset − 10 d` = 04-jun) entra en el ciclo anterior, que cerró el 01-jun
+- [x] Asimetría confirmada: se excluyen los 9.000 kg de `(devolución por eliminación)` pero se cuentan los 8.120 kg de traslados de salida
+- [x] **El dato persistido está SANO**: `seguimiento_diario_aves_engorde.saldo_alimento_kg` = 11.520 día 1 y 11.380 el 28-jul
+- [x] **Cuadra al kilo con el inventario**: stock de G0036 = 10.180 + 1.200 = **11.380 kg** = saldo persistido
+- [x] Desvío **constante de −7.960 kg en las 43 filas** ⇒ corrimiento de apertura, no error acumulativo
+- [x] Localizada la divergencia: `SeguimientoAvesEngordeEcuadorService.SaldoAlimento.cs:273` llama a la apertura **sin** `diasAlimentoPrevio` (corte viejo, correcto), mientras la fn y `SeguimientoAvesEngordeService` sí aplican la ventana
+- [x] Confirmado que es **regresión del 28-jul** (commit `36a8bab`), no deuda histórica
+
+## Alcance medido (dump de prod, 2026-07-29)
+- [x] Ecuador, 103 lotes con seguimiento: **63 coinciden · 26 la grilla muestra de MENOS (98.506 kg) · 14 de más (78.501 kg)**
+- [x] Aperturas negativas fantasma: **Ecuador 26 lotes / −98.692 kg** · **Panamá 0** (sus 9 aperturas positivas son el caso legítimo de v9)
+- [x] Explicado por qué Panamá salió limpio: no encadena ciclos sucesivos por galpón (diferencia D4 del requerimiento)
+
+## Pendiente de decisión del usuario (NADA aplicado)
+- [ ] Elegir corrección: (1) acotar la ventana al ciclo propio · (2) simetrizar el filtro de devoluciones (insuficiente por sí sola) · (3) que la grilla lea la columna persistida
+- [ ] Auditar los **14 lotes donde la grilla muestra de más** (el lote 20 arrastra +37.880 desde una apertura positiva de 19.880 kg)
+- [ ] Al corregir: regresión fila a fila de **Panamá con 0 diferencias** + `dotnet build` + `dotnet test` (1.341)
+
+## Parte 2 — Validación de cierre lote/ciclo/galpón en Ecuador (2026-07-29)
+
+- [x] Estructura: 103 lotes · 35 galpones · 4 corridas (2601=ciclo 1 … 2604=ciclo 4); `numero_corrida` está NULL, la corrida vive en `lote_nombre`
+- [x] Verificada la atribución del histórico: 0 ingresos y 0 salidas sin lote, 0 movimientos apuntando a un lote de otro galpón
+- [x] ⚠️ Pero `lote_ave_engorde_id` **NO sirve como clave de ciclo**: 14 ciclos tienen su alimento cargado contra el ciclo vecino (890.465 kg). La app usa galpón+fecha, así que no la afecta
+- [x] **Nivel galpón (ancla: stock físico): 29/35 cierran EXACTO**; 6 descuadran, 36.799 kg (muy por debajo de los ~490.000 kg que sugería el requerimiento, que mezclaba la bodega de granja)
+- [x] **Traspaso entre ciclos (por fecha, sin atribución): 68 traspasos · 54 cuadran · 14 no**; los grandes son del 2601→2602 (carga retroactiva)
+- [x] **Ciclo activo (lo que ve la operación): 25 OK · 7 solo la grilla mal · 2 ambos mal · 1 solo el guardado**
+- [x] Identificados los **7 galpones del bug de ventana** (28.330 kg): Km22 G0036, Km86 G0039, Km61 G0038, S3b G0048, S2 G0051, S3b G0047, S2 G0052
+- [x] Identificados los **3 errores PERSISTENTES de datos**: Km61 G0037 (−10.000), Km86 G0040 (−2.400), CAROLINA G0058 (+480)
+- [x] **Hallazgo nuevo**: `RecalcularSaldoAlimentoPorLoteAsync` solo corre al crear/editar un seguimiento ⇒ un ingreso posterior al último día cargado nunca actualiza `saldo_alimento_kg` (S3b G0047 8.470 kg, G0048 10.000 kg el 29-jul)
+- [x] ⇒ **Descartada la opción 3** (que la grilla lea el persistido): dejaría la pantalla congelada. La corrección va por acotar la ventana
+- [x] **Confirmada la hipótesis de Costos**: los 10 galpones con problema son 6 de corrida 2603 y 4 de corrida 2604; **cero en 2601 y 2602**. Es estructural: la ventana solo alcanza la limpieza del ciclo anterior si ese ciclo existe ⇒ el bug no puede aparecer antes del tercer ciclo
+
+### Pendiente de decisión
+- [ ] Corregir la ventana (opción 1) → arregla los 7 galpones sin tocar datos
+- [ ] Corregir los 3 descuadres de datos (Km61 G0037, Km86 G0040, CAROLINA G0058)
+- [ ] Decidir si el saldo persistido debe recalcularse también al registrar un movimiento de inventario
+- [ ] Decidir si se sanean los 6 galpones con descuadre histórico (no afectan lo que ve la operación hoy)
+
+---
+
+# Tracker — Fix: la apertura de alimento deja de heredar el ciclo anterior del galpón
+
+**Plan:** [`fase_de_desarrollo/fix_apertura_alimento_ciclo_anterior_plan.md`](fase_de_desarrollo/fix_apertura_alimento_ciclo_anterior_plan.md)
+**Diagnóstico:** [`fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md`](fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md)
+**Fecha:** 2026-07-29 · Ecuador (activo) + Panamá (preventivo)
+
+Criterio: un lote cuyo ciclo NO se solapa con el mío es **ajeno** y sus movimientos no entran en mi
+saldo. Mismo predicado «conviven» que v10 ya usa para el consumo.
+
+## Fase 0 — Simulación previa
+- [x] Simulado sobre el dump de prod: Ecuador 30 lotes tocados, negativas 26 → 6, fantasma −98.692 → −13.800
+- [x] **Panamá: 0 lotes tocados** (no-op exacto)
+- [x] Lote testigo 98: apertura −7.960 → 0
+
+## Fase 1 — SQL
+- [x] `fn_seguimiento_diario_engorde.sql` → **v11**: CTE `lotes_ajenos` + filtro en `apert_mov`
+- [x] ⚠️ **Corregido en el camino**: el primer intento filtraba además `hist_full`, `hist_alimento`, `fechas_universo` y `docs_por_fecha` y **rompía 4 galpones de CAROLINA** (−2.800 kg c/u). Causa: `lote_ave_engorde_id` NO distingue ciclos — el sistema etiqueta el movimiento con el lote VIGENTE, así que el preiniciador del ciclo nuevo queda con el id del viejo (G0059: 2.800 kg de SM0175 del 16/06 atribuidos al lote 63 siendo del 96). La propiedad solo vale ANTES del primer seguimiento
+- [x] Aplicada en BD local y verificada contra el caso testigo
+
+## Fase 2 — Cálculo puro + tests
+- [x] `SaldoAlimentoEngordeCalculos.EsDeCicloAjeno` + `ResolverLotesAjenos` (espejo del CTE)
+- [x] `SeguimientoAvesEngordeCalculos`: parámetro opcional `lotesAjenos` (default null ⇒ comportamiento idéntico)
+- [x] `AperturaAlimentoCicloAnteriorCalculosTests.cs` (NUEVO) — 16 casos (los 8 del plan + bordes y `ResolverLotesAjenos`)
+
+## Fase 3 — Services (unificar los tres caminos)
+- [x] `SeguimientoAvesEngordeService.SaldoAlimento.cs` (carga masiva): resuelve y pasa `lotesAjenos`
+- [x] `SeguimientoAvesEngordeEcuadorService.SaldoAlimento.cs` (form diario): `lotesAjenos` + **adopta la ventana** + **quita los dos pisos en 0** (v9). Los tres caminos quedan con la misma fórmula
+
+## Fase 4 — Migraciones
+- [x] `20260730090000_FnSeguimientoEngordeV11AperturaSinCicloAnterior` (CREATE OR REPLACE, `Down` restaura la v10 completa)
+- [x] `20260730091000_RecalcularSaldoAlimentoEngordeV11` (datos, idempotente, backup en `_backup_saldo_alimento_engorde_v11`)
+- [x] Designer clonado del último (sin tocar ModelSnapshot: ninguna cambia el modelo)
+
+## Fase 5 — Validación
+- [x] `dotnet build` **0 errores / 0 advertencias**
+- [x] `dotnet test` **1.357 verdes** (1.341 + 16 nuevos)
+- [x] **Panamá fila a fila: 0 diferencias** en saldo, aves, ingreso y documento (5.619 filas / 134 lotes comparadas v10 vs v11)
+- [x] Ecuador: 1.425 filas de saldo corregidas · **ninguna fila de seguimiento perdida** (5.495 antes y después); las 24 filas que desaparecen no tenían seguimiento
+- [x] **Lote 98: 11.520 el día 1 · 11.380 al cierre = stock físico** ✅
+- [x] **Ecuador: 35/35 galpones OK** contra el stock (era 25/35). Superó el objetivo de ≥32
+- [x] **Panamá: 25/25 galpones OK** (era 19/25). Su dato guardado arrastraba 176.761 kg de error desde antes del cuadre del 29-jul y el recálculo lo dejó en **0,0**
+- [x] Dato guardado == grilla en las **5.495 filas** (0 discrepancias): se acaba la doble verdad
+- [x] Migración de datos **idempotente**: 2ª corrida `UPDATE 0`
+- [x] **`Down` probado**: fn v10 restaurada y los 5.543 saldos vueltos al original (0 distintos)
+- [x] **Up→Down→Up determinista**: las mismas 818 filas (651 Ecuador + 167 Panamá)
+- [x] BD local queda con las migraciones aplicadas; tablas de snapshot temporales eliminadas
+
+### Efecto colateral resuelto sin proponérselo
+El recálculo también corrige los **3 descuadres persistentes** del diagnóstico (Kilometro 61 G0037 −10.000 kg,
+Kilometro 86 G0040 −2.400, CAROLINA G0058 +480) y el **dato guardado que se quedaba viejo**: al reescribirse
+desde la fn, el saldo persistido incorpora los ingresos posteriores al último seguimiento.
+⚠️ Sigue pendiente que se recalcule **en caliente** al registrar un movimiento de inventario: hoy
+`RecalcularSaldoAlimentoPorLoteAsync` solo corre al crear/editar un seguimiento, así que volverá a desfasarse
+hasta el próximo registro diario. La grilla, que recalcula en vivo, ya no se ve afectada.
+
+## Fase 6 — Enganche del recálculo a los movimientos de inventario (2026-07-30)
+
+> Cierra el pendiente de la Fase 5. Plan: Parte 2 de `fix_apertura_alimento_ciclo_anterior_plan.md`.
+
+- [x] Verificado el mecanismo: `lote_registro_historico_unificado` es **tabla física** poblada por el trigger `trg_inventario_gestion_movimiento_lote_hist` (`AFTER INSERT` sobre `inventario_gestion_movimiento`) ⇒ la fila existe en el mismo `SaveChanges` y un recálculo posterior ya la ve
+- [x] Confirmado por qué la atribución no sirve como clave de ciclo: `fn_lote_ave_engorde_id_desde_ubicacion` devuelve **el lote de id más alto del galpón al momento de insertar** (respalda la decisión de la Parte 1 de filtrar solo en la apertura)
+- [x] `SaldoAlimentoEngordeAplicador` (NUEVO, estático con `DbContext`, patrón `RetiroAvesEngordeAplicador`): recalcula **desde la fn**, no en C#, para que el dato guardado sea idéntico a la grilla por construcción
+- [x] `TipoEventoInventarioCalculos` (NUEVO, puro): espejo de `fn_tipo_evento_inventario` + la regla de qué movimientos afectan el saldo, **fail-closed** ante un tipo nuevo sin mapear
+- [x] `TipoEventoInventarioCalculosTests.cs` (NUEVO) — 29 casos
+- [x] **12 llamadas en 10 métodos** de `InventarioGestionService`: ingreso, traslado misma granja (los 2 galpones), traslado inter-granja (origen), recepción de tránsito (N galpones), actualizar fecha de ingreso y de traslado, eliminar ingreso (+ rama huérfana) y eliminar traslado
+- [x] NO enganchados a propósito: consumo (lo aporta el seguimiento, se duplicaría), ajuste/eliminación de stock (`INV_OTRO`, invisible al saldo) y nivel granja (sin galpón no hay lote)
+- [x] Política de error: **no tumba la operación de inventario** (la proyección se puede reconstruir; la grilla ya muestra bien). Se registra con `ILogger` y un lote corrupto no bloquea el galpón
+- [x] `dotnet build` 0/0 · `dotnet test` **1.386 verdes** (1.357 + 29)
+- [x] Smoke en BD (transacción revertida): ingreso de 5.000 kg el 28-jul → el trigger escribe el histórico en el acto, la grilla pasa a 16.380 y el aplicador lleva el persistido de 11.380 a **16.380 = grilla** (`UPDATE 1`); 2ª pasada `UPDATE 0`
+
+### ⚠️ Límite estructural medido (no es defecto del enganche)
+Un movimiento fechado **estrictamente después del último seguimiento** no puede reflejarse en la columna:
+`saldo_alimento_kg` tiene una fila por día de seguimiento y ese día no existe. Comprobado: ingreso el
+30-jul con último seguimiento el 28-jul ⇒ la grilla pasa a 16.380 (fila propia de movimiento) y el
+`UPDATE` toca 0 filas. Se resuelve solo al cargar el seguimiento siguiente. El caso que rompió
+Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cubierto.
+
+### Huecos PREEXISTENTES encontrados de paso (NO corregidos, descuadran grilla y dato guardado por igual)
+- [ ] `AnularMovimientoHistoricoAsync` borra el movimiento pero **deja huérfana** su fila del histórico ⇒ el saldo sigue contando el ingreso anulado
+- [ ] `RechazarTransitoPendienteAsync` cambia el `movement_type` del movimiento, pero como el trigger es solo `AFTER INSERT` el histórico conserva el tipo viejo y sigue viendo la salida
+
+### Confirmaciones y extra (mapeo con workflow, 2026-07-30)
+- [x] **El ciclo de DI era real**: `SeguimientoAvesEngordeService:32` y `…EcuadorService:32` YA inyectan `IInventarioGestionService?` y los cuatro son `Scoped` ⇒ inyectar al revés daba `circular dependency`. El aplicador estático con `DbContext` era la única salida limpia (mismo motivo que `RetiroAvesEngordeAplicador`)
+- [x] **`InventarioGestionService` es el ÚNICO escritor EF de `InventarioGestionMovimiento`** ⇒ MigracionService, InventarioGasto, ColombiaInventarioConsumo, SeguimientoLoteLevante y el Puente Panamá **heredan el enganche sin código nuevo**. No hay un segundo camino que se escape
+- [x] Conteo corregido: son **12 llamadas en 10 métodos** (no 11 en 8)
+- [x] `RegistrarIngresoNivelGranjaAsync` NO se engancha también porque **no hace `SaveChanges`** (commitea el orquestador): un hook ahí leería datos no persistidos
+- [x] **Índice nuevo** `20260730120000_IndiceHistoricoUnificadoPorGranjaFecha`: la tabla no tenía ninguno por granja. Medido con EXPLAIN ANALYZE: fn completa **10,3 → 2,7 ms**; consulta del histórico por ubicación **Seq Scan 4,3 ms → Bitmap Index Scan 0,55 ms**. Solo `(farm_id, fecha_operacion)` porque núcleo/galpón se comparan con `COALESCE(TRIM(...))`, que no es sargable
+- [x] Migración aplicada en local y **idempotente** (2ª corrida: `already exists, skipping`)
+
+
+## Fase 7 - Ticket seguimientos de engorde en negativo (2026-07-30)
+
+> Plan: Parte 3 de `fix_apertura_alimento_ciclo_anterior_plan.md`.
+
+- [x] Acotado: solo el **saldo de alimento**; cero aves negativas y cero consumos negativos
+- [x] Estado **hoy en produccion** (v10): Ecuador **330 filas / 27 lotes / -1.175.479 kg** (2601:22 · 2602:213 · 2603:89 · 2604:6); Panama 43 / 19
+- [x] **Causa**: la v11 tapaba medio agujero. El trigger atribuye el movimiento al lote de id **mas alto al momento de INSERTAR**, asi que la limpieza del ciclo anterior queda con el id del lote VIEJO (la caza `lotes_ajenos`) **o del NUEVO** (no la cazaba nadie). Testigo: SAN GUILLERMO G0033, dos salidas del 13/03 por 5.160 kg - el mismo dia en que cerro el ciclo previo - etiquetadas con el lote nuevo
+- [x] **fn v12**: `corte_apertura = GREATEST(encaset - N, fin_ciclo_anterior + 1)`. Los dos criterios son complementarios
+- [x] Espejo en C#: `ResolverFinCicloAnterior` + `ResolverCorteApertura` (puros) y los dos services
+- [x] 9 tests nuevos (incluido el caso SAN GUILLERMO y el no-toca-el-preiniciador)
+- [x] Migraciones `20260730140000_FnSeguimientoEngordeV12AperturaCorteCicloAnterior` + `20260730141000_RecalcularSaldoAlimentoEngordeV12`
+- [x] **Resultado: Ecuador 330 -> 25 filas (27 -> 5 lotes); corridas ACTIVAS 2603+2604 de 95 filas a CERO**; Panama sin cambio
+- [x] `dotnet build` 0/0 · `dotnet test` **1.395 verdes** · Panama 0 diferencias fila a fila · Down probado · recalculo idempotente · persistido == grilla
+
+### Los 25 que quedan NO son defecto de formula (no se tocan)
+- **Lote 12** (Km86 G0040, -9.020): alimento **registrado tarde** - el galpon recibio 182.630 kg fechados despues de que el ciclo cerro
+- **Lotes 16, 7, 15** (Sacachun 2, 1 fila c/u): **fila de limpieza** posterior al ultimo seguimiento; el traslado de cierre saca mas de lo calculado
+- **Lote 14**: -1 kg de redondeo
+- **Panama (43 filas / 19 lotes)**: mismo tipo. Es el deficit real que **v9 decidio mostrar tal cual**
+
+
+## Fase 8 - Cierre de los dos huecos preexistentes del historico (2026-07-30)
+
+> Plan: Parte 4 de `fix_apertura_alimento_ciclo_anterior_plan.md`.
+
+- [x] Causa comun: el trigger del historico es **solo AFTER INSERT**, asi que ningun UPDATE/DELETE del movimiento se propaga. Cada camino que deshace un movimiento tiene que anular su fila a mano
+- [x] Nuevo helper `AnularHistoricoDelMovimientoAsync` (clave `origen_tabla`+`origen_id`, con fallback por ubicacion+item+cantidad, igual que `EliminarIngresoAsync`)
+- [x] `AnularMovimientoHistoricoAsync`: anula el historico ANTES de borrar el movimiento (ya no deja huerfana)
+- [x] `RechazarTransitoPendienteAsync`: anula el historico al rechazar (antes la salida seguia descontando)
+- [x] **Medido: 93 filas huerfanas en la BD**, de las cuales solo **6 (43.640 kg)** inflan el saldo; el resto son devoluciones por eliminacion, INV_CONSUMO o INV_OTRO, que el saldo ya descarta
+- [x] **Simulado anularlas: EMPEORA.** Manda 5 ciclos cerrados de saldo 0 a negativo (-11.940 / -5.970 / -4.000 / -1.140 / -790) y el cuadre contra el stock no mejora (35/35 y 25/25 antes y despues)
+- [x] ⇒ **NO hay migracion de datos**: esas 6 filas son alimento real que el lote consumio y son las que hacen cerrar esos ciclos en 0
+- [x] No se puede repetir: la anulacion ya exige que el stock alcance para revertir, asi que solo puede anular alimento que sigue en bodega
+- [x] Rechazo de transito: **0 movimientos rechazados en la BD**, el hueco era real en codigo pero sin datos afectados
+- [x] `dotnet build` 0/0 · `dotnet test` **1.395 verdes**
+- [x] Smoke en BD con contraste del comportamiento viejo: anulado 16.380 -> 11.380 correcto; borrado sin anular se quedaba en 16.380 con fila huerfana; rechazo 14.380 -> 16.380
+- [x] Sin test unitario: el arreglo es Infrastructure (EF+SQL) y el proyecto de tests solo referencia Application. La regla pura ya esta cubierta por `TipoEventoInventarioCalculosTests`
+
+
+## Fase 9 - Prevencion: los 5 puntos (2026-07-30)
+
+> Plan: `fase_de_desarrollo/prevencion_descuadres_alimento_engorde_plan.md`
+
+- [x] **P1 — La BD garantiza el invariante.** Dos triggers en `inventario_gestion_movimiento` (`_del` AFTER DELETE, `_cancel` AFTER UPDATE del movement_type), copiando el patron que `movimiento_pollo_engorde` ya usaba. **Probado con un DELETE por SQL crudo que nunca pasa por el C#**: el historico queda anulado y el saldo vuelve de 16.380 a 11.380
+- [x] P1 — NO se paso a borrado logico a proposito: obligaria a auditar todas las lecturas y una omitida resucita movimientos. El AFTER DELETE cierra el agujero igual para la correctitud, con mucho menos riesgo
+- [x] **P2 — `fn_cuadre_alimento_engorde`** + `CuadreAlimentoEngordeCalculos` (puro, 9 tests) + `GET /api/CuadreAlimentoEngorde` (empresa activa, fail-closed, loguea Warning). **Hoy: Ecuador 35/35, Panama 25/25, 0,0 kg**
+- [x] P2 — ⚠️ Bug propio detectado al estrenarla: tomaba el saldo de la ULTIMA fila y ademas restaba los movimientos posteriores (doble conteo, 24/35 falsos). Tiene que ser el saldo en el ultimo dia de seguimiento. Corregido
+- [x] **P3 — Una sola implementacion.** Los dos services delegan en `SaldoAlimentoEngordeAplicador`, que escribe desde la fn. El service de Ecuador paso de **363 a 187 lineas**. Verificado: persistido == grilla en las 5.495 filas
+- [x] **P4 — Gate multipais.** `verificar_paridad_saldo_engorde.sql`, mismo comando dos veces. **Probado que detecta** 3 diferencias inyectadas e identifica el galpon exacto. Regla vinculante agregada a `CLAUDE.md` (seccion nueva «Invariantes que NO se pueden romper»)
+- [x] **P5 — Aviso fuera de ciclo.** `AvisoFechaFueraDeCicloCalculos` (puro, 8 tests) + campo aditivo en `InventarioGestionStockDto`, cableado en ingreso y traslado (los dos galpones). Avisa, no bloquea
+- [x] Migracion `20260730160000_PrevencionDescuadresAlimentoEngorde` (idempotente, con `Down`)
+- [x] `dotnet build` 0/0 · `dotnet test` **1.417 verdes** (1.395 + 22)
+
+### Pendiente anotado (no bloquea)
+- [ ] Borrado logico de `inventario_gestion_movimiento` para trazabilidad (auditar todas las lecturas antes)
+- [ ] Pantalla de front para el cuadre: hoy solo existe el endpoint

@@ -1,5 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/InventarioGestionService.cs
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Shared;
 using ZooSanMarino.Application.DTOs.Galpones;
@@ -32,6 +34,7 @@ public class InventarioGestionService : IInventarioGestionService
     private readonly IFarmService _farmService;
     private readonly INucleoService _nucleoService;
     private readonly IGalponService _galponService;
+    private readonly ILogger<InventarioGestionService>? _logger;
 
     public InventarioGestionService(
         ZooSanMarinoContext db,
@@ -39,7 +42,8 @@ public class InventarioGestionService : IInventarioGestionService
         ICompanyResolver companyResolver,
         IFarmService farmService,
         INucleoService nucleoService,
-        IGalponService galponService)
+        IGalponService galponService,
+        ILogger<InventarioGestionService>? logger = null)
     {
         _db = db;
         _current = current;
@@ -47,7 +51,41 @@ public class InventarioGestionService : IInventarioGestionService
         _farmService = farmService;
         _nucleoService = nucleoService;
         _galponService = galponService;
+        _logger = logger;
     }
+
+    /// <summary>
+    /// Refresca <c>seguimiento_diario_aves_engorde.saldo_alimento_kg</c> de los lotes de pollo engorde
+    /// del galpón después de un movimiento de alimento.
+    /// <para>
+    /// Sin esto la columna solo se recalculaba al crear o editar un seguimiento diario, así que un
+    /// ingreso o traslado posterior al último día cargado quedaba invisible para la liquidación y para
+    /// «Cuadrar Saldos» (la grilla no, porque recalcula en vivo con la fn). Ver
+    /// <see cref="SaldoAlimentoEngordeAplicador"/>.
+    /// </para>
+    /// <para>
+    /// Se llama SIEMPRE después del <c>SaveChangesAsync</c>: la fila del histórico —que es la que lee
+    /// el saldo— la escribe el trigger <c>trg_inventario_gestion_movimiento_lote_hist</c> en el INSERT.
+    /// </para>
+    /// </summary>
+    /// <param name="movementType">
+    /// Tipo del movimiento que motivó el refresco. Solo entradas y salidas de alimento mueven el
+    /// saldo: el consumo lo aporta el seguimiento diario y los ajustes manuales entran como
+    /// <c>INV_OTRO</c>, que ningún cálculo del saldo mira
+    /// (<see cref="TipoEventoInventarioCalculos.AfectaSaldoAlimentoEngorde"/>).
+    /// </param>
+    private Task RefrescarSaldoAlimentoEngordeAsync(
+        int companyId, int farmId, string? nucleoId, string? galponId, string? movementType, CancellationToken ct)
+        => !TipoEventoInventarioCalculos.AfectaSaldoAlimentoEngorde(movementType)
+        ? Task.CompletedTask
+        : SaldoAlimentoEngordeAplicador.RecalcularPorUbicacionAsync(
+            _db, companyId, farmId, nucleoId, galponId,
+            ex => _logger?.LogError(ex,
+                "No se pudo refrescar el saldo de alimento de engorde tras un movimiento de inventario " +
+                "(granja {FarmId}, núcleo {NucleoId}, galpón {GalponId}). El movimiento SÍ quedó guardado y " +
+                "la tabla diaria lo muestra bien; solo la columna persistida queda vieja hasta el próximo " +
+                "recálculo.", farmId, nucleoId, galponId),
+            ct);
 
     /// <summary>Fecha en histórico: día elegido a mediodía UTC; si no hay fecha, hora actual del servidor (mismo criterio que ingresos).</summary>
     private static DateTimeOffset ResolveMovimientoCreatedAt(DateTime? fechaMovimiento)
@@ -486,10 +524,16 @@ public class InventarioGestionService : IInventarioGestionService
         };
         _db.InventarioGestionMovimientos.Add(mov);
         await _db.SaveChangesAsync(ct);
+        await RefrescarSaldoAlimentoEngordeAsync(companyId, req.FarmId, nucleoId, galponId, mov.MovementType, ct);
 
-        return (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
+        // Avisa —sin bloquear— si el ingreso quedó fechado fuera del ciclo vigente del galpón.
+        var aviso = await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
+
+        var dto = (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
             .FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId)
             ?? new InventarioGestionStockDto(existing.Id, existing.FarmId, existing.NucleoId, existing.GalponId, existing.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", existing.Quantity, existing.Unit, null, null, null);
+
+        return aviso is null ? dto : dto with { AvisoFechaFueraDeCiclo = aviso };
     }
 
     public async Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoAsync(InventarioGestionTrasladoRequest req, CancellationToken ct = default)
@@ -622,11 +666,21 @@ public class InventarioGestionService : IInventarioGestionService
         });
 
         await _db.SaveChangesAsync(ct);
+        // Traslado dentro de la misma granja: se movió alimento en DOS galpones.
+        await RefrescarSaldoAlimentoEngordeAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, "TrasladoSalida", ct);
+        await RefrescarSaldoAlimentoEngordeAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, "TrasladoEntrada", ct);
 
         var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
         var listDestino = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
         var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
         var dtoDestino = listDestino.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt);
+
+        // Un traslado toca DOS galpones: cada uno tiene su propio ciclo vigente.
+        var avisoOrigen  = await EvaluarAvisoFechaFueraDeCicloAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, movAt, ct);
+        var avisoDestino = await EvaluarAvisoFechaFueraDeCicloAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, movAt, ct);
+        if (avisoOrigen  is not null) dtoOrigen  = dtoOrigen  with { AvisoFechaFueraDeCiclo = avisoOrigen };
+        if (avisoDestino is not null) dtoDestino = dtoDestino with { AvisoFechaFueraDeCiclo = avisoDestino };
+
         return (dtoOrigen, dtoDestino);
     }
 
@@ -696,6 +750,8 @@ public class InventarioGestionService : IInventarioGestionService
         });
 
         await _db.SaveChangesAsync(ct);
+        // Solo el galpón ORIGEN pierde alimento acá; el destino recién suma al recibir el tránsito.
+        await RefrescarSaldoAlimentoEngordeAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, "TrasladoInterGranjaSalida", ct);
 
         var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
         var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId)
@@ -890,6 +946,12 @@ public class InventarioGestionService : IInventarioGestionService
 
         await _db.SaveChangesAsync(ct);
 
+        // La recepción puede repartirse entre VARIOS galpones del destino: refrescar todos.
+        foreach (var ubic in movimientosEntrada
+                     .Select(m => (m.NucleoId, m.GalponId, m.MovementType))
+                     .Distinct())
+            await RefrescarSaldoAlimentoEngordeAsync(companyIdTo, req.ToFarmId, ubic.NucleoId, ubic.GalponId, ubic.MovementType, ct);
+
         var farmDest = await _db.Farms.AsNoTracking().FirstOrDefaultAsync(f => f.Id == req.ToFarmId, ct);
 
         string? origenNn = null;
@@ -995,7 +1057,17 @@ public class InventarioGestionService : IInventarioGestionService
         pendiente.Reason = extra != null
             ? $"{pendiente.Reason ?? ""} | Rechazo destino: {extra}".Trim()
             : (pendiente.Reason ?? "Rechazado destino");
+
+        // El rechazo cancela la salida, así que su fila del histórico tiene que quedar ANULADA.
+        // Cambiarle el `movement_type` al movimiento NO alcanza: el trigger que llena el histórico es
+        // solo AFTER INSERT, así que la fila conserva su `tipo_evento` original —
+        // `TrasladoInterGranjaPendiente` mapea a INV_TRASLADO_SALIDA— y el saldo del galpón de origen
+        // seguiría descontando un alimento que nunca salió.
+        await AnularHistoricoDelMovimientoAsync(pendiente, ct);
+
         await _db.SaveChangesAsync(ct);
+        await RefrescarSaldoAlimentoEngordeAsync(
+            pendiente.CompanyId, pendiente.FarmId, pendiente.NucleoId, pendiente.GalponId, "TrasladoSalida", ct);
     }
 
     /// <summary>Valida empresa, país y granjas asignadas; carga ítem de catálogo.</summary>
@@ -1188,8 +1260,98 @@ public class InventarioGestionService : IInventarioGestionService
             throw new InvalidOperationException(
                 "Solo se pueden anular movimientos de tipo Consumo o Ingreso. Use los flujos de traslado/tránsito para corregir otros casos.");
 
+        // El movimiento se borra, así que su fila del histórico tiene que quedar ANULADA o se
+        // convierte en huérfana: el saldo de alimento seguiría contando un ingreso que ya salió del
+        // stock, y la tabla diaria mostraría kilos que no existen. Misma convención de auditoría que
+        // EliminarIngresoAsync y EliminarTrasladoAsync (marcar, no borrar).
+        await AnularHistoricoDelMovimientoAsync(mov, ct);
+
         _db.InventarioGestionMovimientos.Remove(mov);
         await _db.SaveChangesAsync(ct);
+        await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
+    }
+
+    /// <summary>
+    /// Marca como anulada la fila del histórico unificado que refleja un movimiento de inventario.
+    /// <para>
+    /// El histórico lo escribe el trigger <c>trg_inventario_gestion_movimiento_lote_hist</c>, que es
+    /// <b>solo AFTER INSERT</b>: nada propaga los UPDATE ni los DELETE del movimiento. Cada camino que
+    /// deshace un movimiento tiene que anular su fila a mano o el saldo de alimento se separa del stock.
+    /// </para>
+    /// <para>
+    /// Busca por la clave del histórico (<c>origen_tabla</c> + <c>origen_id</c>, única) y cae a un
+    /// fallback por ubicación + ítem + cantidad, igual que <c>EliminarIngresoAsync</c>: hay filas
+    /// antiguas cargadas antes de que existiera esa clave.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// Evalúa si el movimiento quedó fechado FUERA del ciclo vigente del galpón y devuelve el aviso a
+    /// mostrar, o <c>null</c> si la fecha es normal. <b>Avisa, no bloquea:</b> retrofechar es legítimo
+    /// —la operación a veces registra el lunes lo que llegó el viernes— y bloquearlo tendría un costo
+    /// real. Lo que no puede pasar es que lo haga sin enterarse.
+    /// <para>
+    /// Ver <see cref="AvisoFechaFueraDeCicloCalculos"/> para el caso que lo originó.
+    /// </para>
+    /// </summary>
+    private async Task<string?> EvaluarAvisoFechaFueraDeCicloAsync(
+        int companyId, int farmId, string? nucleoId, string? galponId, DateTimeOffset fechaMovimiento,
+        CancellationToken ct)
+    {
+        var nucleo = (nucleoId ?? "").Trim();
+        var galpon = (galponId ?? "").Trim();
+        if (galpon.Length == 0)
+            return null;   // nivel granja: no pertenece al ciclo de ningún galpón
+
+        var ciclos = await _db.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.CompanyId == companyId
+                     && l.DeletedAt == null
+                     && l.GranjaId == farmId
+                     && (l.NucleoId == null ? "" : l.NucleoId.Trim()) == nucleo
+                     && (l.GalponId == null ? "" : l.GalponId.Trim()) == galpon
+                     && l.LoteAveEngordeId != null)
+            .Select(l => new
+            {
+                l.LoteAveEngordeId,
+                l.LoteNombre,
+                SegMin = _db.SeguimientoDiarioAvesEngorde
+                    .Where(s => s.LoteAveEngordeId == l.LoteAveEngordeId).Min(s => (DateTime?)s.Fecha),
+                SegMax = _db.SeguimientoDiarioAvesEngorde
+                    .Where(s => s.LoteAveEngordeId == l.LoteAveEngordeId).Max(s => (DateTime?)s.Fecha)
+            })
+            .ToListAsync(ct);
+
+        var diasPrevios = await _db.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
+            .FirstOrDefaultAsync(ct);
+
+        return AvisoFechaFueraDeCicloCalculos.Evaluar(
+            fechaMovimiento.UtcDateTime.Date,
+            ciclos.Where(c => c.SegMin.HasValue && c.SegMax.HasValue)
+                  .Select(c => new CicloGalpon(
+                      c.LoteAveEngordeId!.Value,
+                      c.LoteNombre ?? $"#{c.LoteAveEngordeId}",
+                      c.SegMin!.Value,
+                      c.SegMax!.Value)),
+            diasPrevios ?? 10);
+    }
+
+    private async Task AnularHistoricoDelMovimientoAsync(InventarioGestionMovimiento mov, CancellationToken ct)
+    {
+        var hist = await _db.LoteRegistroHistoricoUnificados
+            .FirstOrDefaultAsync(h => h.OrigenTabla == "inventario_gestion_movimiento"
+                                   && h.OrigenId == mov.Id, ct);
+        hist ??= await _db.LoteRegistroHistoricoUnificados
+            .FirstOrDefaultAsync(h =>
+                h.FarmId == mov.FarmId &&
+                h.NucleoId == mov.NucleoId &&
+                h.GalponId == mov.GalponId &&
+                h.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
+                h.CantidadKg == mov.Quantity &&
+                !h.Anulado, ct);
+
+        if (hist != null)
+            hist.Anulado = true;
     }
 
     public async Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
@@ -1905,6 +2067,13 @@ public class InventarioGestionService : IInventarioGestionService
             await _db.SaveChangesAsync(ct);
         }
 
+        // Correr la fecha de un traslado mueve el alimento de día: refrescar los galpones tocados
+        // (salida y entrada pueden ser distintos, y el grupo puede repartirse en varios).
+        foreach (var ubic in movimientos
+                     .Select(m => (m.CompanyId, m.FarmId, m.NucleoId, m.GalponId, m.MovementType))
+                     .Distinct())
+            await RefrescarSaldoAlimentoEngordeAsync(ubic.CompanyId, ubic.FarmId, ubic.NucleoId, ubic.GalponId, ubic.MovementType, ct);
+
         // Recargar y retornar el DTO actualizado
         var result = await GetTrasladosAsync(farmId: salida.FarmId, ct: ct);
         return result.FirstOrDefault(x => x.TransferGroupId == transferGroupId)
@@ -2209,6 +2378,9 @@ public class InventarioGestionService : IInventarioGestionService
         }
         await _db.SaveChangesAsync(ct);
 
+        // Correr la fecha de un ingreso lo mueve de día dentro del saldo del galpón.
+        await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
+
         string? nucleoNombre = null;
         string? galponNombre = null;
         if (mov.NucleoId != null)
@@ -2281,6 +2453,8 @@ public class InventarioGestionService : IInventarioGestionService
 
             histHuerfano.Anulado = true;
             await _db.SaveChangesAsync(ct);
+            await RefrescarSaldoAlimentoEngordeAsync(
+                histHuerfano.CompanyId, histHuerfano.FarmId, histHuerfano.NucleoId, histHuerfano.GalponId, "Ingreso", ct);
             return;
         }
 
@@ -2313,6 +2487,8 @@ public class InventarioGestionService : IInventarioGestionService
 
         _db.InventarioGestionMovimientos.Remove(mov);
         await _db.SaveChangesAsync(ct);
+        // El histórico queda `anulado`, que el saldo sí filtra: el alimento eliminado debe desaparecer.
+        await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
     }
 
     // ─── ELIMINAR TRASLADO ────────────────────────────────────────────────────
@@ -2354,5 +2530,11 @@ public class InventarioGestionService : IInventarioGestionService
 
         _db.InventarioGestionMovimientos.RemoveRange(movimientos);
         await _db.SaveChangesAsync(ct);
+
+        // Un grupo de traslado toca salida y entrada, y puede repartirse en varios galpones.
+        foreach (var ubic in movimientos
+                     .Select(m => (m.CompanyId, m.FarmId, m.NucleoId, m.GalponId, m.MovementType))
+                     .Distinct())
+            await RefrescarSaldoAlimentoEngordeAsync(ubic.CompanyId, ubic.FarmId, ubic.NucleoId, ubic.GalponId, ubic.MovementType, ct);
     }
 }
