@@ -132,3 +132,100 @@ La rama `VENTA_AVES` ya está acotada a `h.lote_ave_engorde_id = p_lote_id` → 
   (`RecalcularSaldoAlimentoPorLoteAsync` solo corre al crear/editar seguimiento). Se mide después del fix;
   con la grilla recalculando en vivo, deja de ser visible para la operación.
 - Los **6 galpones con descuadre histórico** (§2 del diagnóstico): no afectan lo que ve la operación hoy.
+
+---
+
+# Parte 2 — El saldo persistido se refresca al mover el inventario
+
+**Fecha:** 2026-07-30. Cierra el pendiente que había quedado abierto: `RecalcularSaldoAlimentoPorLoteAsync`
+solo corría al crear o editar un seguimiento diario, así que un ingreso o traslado registrado después
+nunca actualizaba `seguimiento_diario_aves_engorde.saldo_alimento_kg`.
+
+## 1. Cómo funciona la cadena (verificado en la BD)
+
+`lote_registro_historico_unificado` —de donde el saldo lee los movimientos— es una **tabla física** que
+llena el trigger **`trg_inventario_gestion_movimiento_lote_hist`**, `AFTER INSERT` sobre
+`inventario_gestion_movimiento`. Consecuencias:
+
+- La fila del histórico existe **en el mismo `SaveChanges`**, así que un recálculo llamado justo después
+  ya la ve. Por eso el refresco va **siempre después del `SaveChangesAsync`**.
+- El trigger resuelve el lote con `fn_lote_ave_engorde_id_desde_ubicacion`, que devuelve **el lote de id
+  más alto del galpón en el momento de insertar**. Confirma por qué `lote_ave_engorde_id` no sirve como
+  clave de ciclo (Parte 1) y por qué el filtro `lotes_ajenos` solo puede usarse en la apertura.
+- El trigger es **solo `AFTER INSERT`**: los `UPDATE` y `DELETE` del histórico los hace el service a mano.
+
+## 2. Qué se enganchó
+
+Nuevo [`SaldoAlimentoEngordeAplicador`](../backend/src/ZooSanMarino.Infrastructure/Services/SaldoAlimentoEngordeAplicador.cs),
+estático y recibiendo el `DbContext` — mismo patrón que `RetiroAvesEngordeAplicador`, que existe
+justamente para que dos módulos que no se pueden inyectar entre sí compartan una regla.
+
+**Recalcula desde `fn_seguimiento_diario_engorde`, no en C#.** Había tres implementaciones del saldo y su
+divergencia fue la causa del descuadre; la fn es la fuente validada contra el stock físico, así que la
+columna se escribe desde ella y queda idéntica a la pantalla por construcción. Es el mismo SQL de la
+migración `20260730091000`.
+
+11 llamadas en 8 métodos de `InventarioGestionService`:
+
+| Método | Por qué |
+|---|---|
+| `RegistrarIngresoAsync` | INSERT → trigger |
+| `RegistrarTrasladoMismaGranjaAsync` | INSERT ×2 — refresca **los dos** galpones |
+| `RegistrarTrasladoInterGranjaTransitoAsync` | INSERT — solo el galpón origen |
+| `RegistrarRecepcionTransitoAsync` | INSERT ×N — refresca **cada** galpón destino |
+| `ActualizarFechaIngresoAsync` | mueve el ingreso de día |
+| `ActualizarFechaTrasladoAsync` | ídem, sobre todo el grupo |
+| `EliminarIngresoAsync` (+ rama huérfana) | marca `anulado`, que el saldo sí filtra |
+| `EliminarTrasladoAsync` | ídem, todo el grupo |
+
+**Qué NO se enganchó, a propósito:** `RegistrarConsumoAsync` (el saldo resta el consumo del
+*seguimiento*, no el del inventario: contarlo lo duplicaría), `ActualizarStockAsync` y
+`EliminarStockAsync` (entran como `INV_OTRO`, que ningún cálculo del saldo mira) y los métodos de
+**nivel granja** (sin galpón no hay lote al que afectar; el aplicador corta en seco).
+
+Esa regla no quedó implícita en «qué métodos llamé»: vive en
+[`TipoEventoInventarioCalculos`](../backend/src/ZooSanMarino.Application/Calculos/TipoEventoInventarioCalculos.cs),
+espejo de `fn_tipo_evento_inventario`, con **29 tests**. Un `movement_type` nuevo sin mapear cae en
+`INV_OTRO` y **no** dispara el refresco (fail-closed), y el test lo delata.
+
+## 3. Qué pasa si el refresco falla
+
+**No tumba la operación de inventario.** El saldo persistido es una proyección de la fn: si el recálculo
+falla, la pantalla sigue mostrando el número correcto porque recalcula en vivo, y lo único que pasa es
+que la columna queda vieja — exactamente el estado previo a este aplicador. Hacer fallar un ingreso ya
+guardado por no poder refrescar una proyección sería peor. El error se registra con `ILogger` y un lote
+con datos corruptos no bloquea el galpón entero.
+
+## 4. ⚠️ Límite estructural (medido, no teórico)
+
+Un movimiento fechado **estrictamente después del último seguimiento cargado** no puede reflejarse en la
+columna: `saldo_alimento_kg` tiene una fila por día de seguimiento y ese día no existe. El smoke lo
+mostró — ingreso de 5.000 kg el 30-jul con último seguimiento el 28-jul: la grilla pasa a 16.380 (fila
+propia de movimiento) y el `UPDATE` toca 0 filas.
+
+**No es un defecto del enganche, es la forma de la columna.** Se resuelve solo cuando se carga el
+seguimiento siguiente. El caso que sí importaba —el que rompió Kilometro 61 G0037— es el de un ingreso
+fechado **en** un día que ya tiene seguimiento, y ese quedó cubierto.
+
+## 5. Huecos preexistentes encontrados de paso (NO corregidos acá)
+
+Los dos afectan al histórico mismo, así que descuadran **la grilla y el dato guardado por igual** — no
+son divergencias entre fuentes y su arreglo es otro trabajo:
+
+1. **`AnularMovimientoHistoricoAsync`** borra el movimiento pero **no** su fila del histórico: queda
+   huérfana y el saldo sigue contando el ingreso anulado.
+2. **`RechazarTransitoPendienteAsync`** le cambia el `movement_type` al movimiento, pero como el trigger
+   es solo `AFTER INSERT` el histórico conserva el tipo viejo y sigue viendo la salida.
+
+En los dos se dejó igual la llamada al refresco, para que el dato guardado nunca se separe de la grilla
+cuando se corrijan.
+
+## 6. Validación
+
+- [x] `dotnet build` 0 errores / 0 advertencias
+- [x] `dotnet test` **1.386 verdes** (1.357 + 29 de `TipoEventoInventarioCalculos`)
+- [x] Smoke en BD: ingreso de 5.000 kg el 28-jul → trigger escribe el histórico en el acto, la grilla
+      pasa a 16.380 y el aplicador lleva el persistido de 11.380 a **16.380 = grilla** (`UPDATE 1`)
+- [x] Idempotente: segunda pasada `UPDATE 0`
+- [x] Caso «después del último seguimiento» medido y documentado (§4)
+- [x] Todo el smoke dentro de una transacción revertida: la BD local queda intacta

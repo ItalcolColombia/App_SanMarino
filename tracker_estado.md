@@ -1785,3 +1785,29 @@ desde la fn, el saldo persistido incorpora los ingresos posteriores al último s
 ⚠️ Sigue pendiente que se recalcule **en caliente** al registrar un movimiento de inventario: hoy
 `RecalcularSaldoAlimentoPorLoteAsync` solo corre al crear/editar un seguimiento, así que volverá a desfasarse
 hasta el próximo registro diario. La grilla, que recalcula en vivo, ya no se ve afectada.
+
+## Fase 6 — Enganche del recálculo a los movimientos de inventario (2026-07-30)
+
+> Cierra el pendiente de la Fase 5. Plan: Parte 2 de `fix_apertura_alimento_ciclo_anterior_plan.md`.
+
+- [x] Verificado el mecanismo: `lote_registro_historico_unificado` es **tabla física** poblada por el trigger `trg_inventario_gestion_movimiento_lote_hist` (`AFTER INSERT` sobre `inventario_gestion_movimiento`) ⇒ la fila existe en el mismo `SaveChanges` y un recálculo posterior ya la ve
+- [x] Confirmado por qué la atribución no sirve como clave de ciclo: `fn_lote_ave_engorde_id_desde_ubicacion` devuelve **el lote de id más alto del galpón al momento de insertar** (respalda la decisión de la Parte 1 de filtrar solo en la apertura)
+- [x] `SaldoAlimentoEngordeAplicador` (NUEVO, estático con `DbContext`, patrón `RetiroAvesEngordeAplicador`): recalcula **desde la fn**, no en C#, para que el dato guardado sea idéntico a la grilla por construcción
+- [x] `TipoEventoInventarioCalculos` (NUEVO, puro): espejo de `fn_tipo_evento_inventario` + la regla de qué movimientos afectan el saldo, **fail-closed** ante un tipo nuevo sin mapear
+- [x] `TipoEventoInventarioCalculosTests.cs` (NUEVO) — 29 casos
+- [x] 11 llamadas en 8 métodos de `InventarioGestionService`: ingreso, traslado misma granja (los 2 galpones), traslado inter-granja (origen), recepción de tránsito (N galpones), actualizar fecha de ingreso y de traslado, eliminar ingreso (+ rama huérfana) y eliminar traslado
+- [x] NO enganchados a propósito: consumo (lo aporta el seguimiento, se duplicaría), ajuste/eliminación de stock (`INV_OTRO`, invisible al saldo) y nivel granja (sin galpón no hay lote)
+- [x] Política de error: **no tumba la operación de inventario** (la proyección se puede reconstruir; la grilla ya muestra bien). Se registra con `ILogger` y un lote corrupto no bloquea el galpón
+- [x] `dotnet build` 0/0 · `dotnet test` **1.386 verdes** (1.357 + 29)
+- [x] Smoke en BD (transacción revertida): ingreso de 5.000 kg el 28-jul → el trigger escribe el histórico en el acto, la grilla pasa a 16.380 y el aplicador lleva el persistido de 11.380 a **16.380 = grilla** (`UPDATE 1`); 2ª pasada `UPDATE 0`
+
+### ⚠️ Límite estructural medido (no es defecto del enganche)
+Un movimiento fechado **estrictamente después del último seguimiento** no puede reflejarse en la columna:
+`saldo_alimento_kg` tiene una fila por día de seguimiento y ese día no existe. Comprobado: ingreso el
+30-jul con último seguimiento el 28-jul ⇒ la grilla pasa a 16.380 (fila propia de movimiento) y el
+`UPDATE` toca 0 filas. Se resuelve solo al cargar el seguimiento siguiente. El caso que rompió
+Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cubierto.
+
+### Huecos PREEXISTENTES encontrados de paso (NO corregidos, descuadran grilla y dato guardado por igual)
+- [ ] `AnularMovimientoHistoricoAsync` borra el movimiento pero **deja huérfana** su fila del histórico ⇒ el saldo sigue contando el ingreso anulado
+- [ ] `RechazarTransitoPendienteAsync` cambia el `movement_type` del movimiento, pero como el trigger es solo `AFTER INSERT` el histórico conserva el tipo viejo y sigue viendo la salida
