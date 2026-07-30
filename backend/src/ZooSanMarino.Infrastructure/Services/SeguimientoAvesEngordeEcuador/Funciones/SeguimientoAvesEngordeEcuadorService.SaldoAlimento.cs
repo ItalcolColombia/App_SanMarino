@@ -174,22 +174,36 @@ public partial class SeguimientoAvesEngordeEcuadorService
 
     /// <summary>
     /// ⚠️ FIX #12 (2026-05-28): si <paramref name="fechaEncaset"/> se proporciona, los movimientos
-    /// anteriores al encaset se ignoran (galpón se considera "limpio"). Antes la apertura heredaba
+    /// anteriores al corte se ignoran (galpón se considera "limpio"). Antes la apertura heredaba
     /// inventario residual del lote previo del mismo galpón.
+    /// <para>
+    /// ⭐ v11 (2026-07-29): este camino quedó ALINEADO con <c>fn_seguimiento_diario_engorde</c> y con
+    /// <c>SeguimientoAvesEngordeCalculos</c>, que hasta ahora divergían en tres puntos y por eso el
+    /// dato guardado y la grilla mostraban números distintos:
+    /// <list type="number">
+    /// <item>el corte es la ventana previa al encaset (v9), no la fecha de encaset a secas;</item>
+    /// <item><paramref name="lotesAjenos"/> descarta el alimento del ciclo anterior del galpón;</item>
+    /// <item>sin piso en 0 (v9): un saldo negativo es consumo registrado antes que su llegada.</item>
+    /// </list>
+    /// </para>
     /// </summary>
     private static decimal ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
         DateTime firstSegDate,
-        DateTime? fechaEncaset = null)
+        DateTime? fechaEncaset = null,
+        int? diasAlimentoPrevio = null,
+        IReadOnlySet<int>? lotesAjenos = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
-        var encasetYmd = fechaEncaset.HasValue ? FormatYmd(fechaEncaset.Value.Date) : null;
+        var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
+        var encasetYmd = corte.HasValue ? FormatYmd(corte.Value) : null;
         var rows = new List<(string ymd, long ts, decimal delta)>();
         foreach (var h in hist)
         {
             var ymd = YmdHistoricoEfectivo(h);
             if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) >= 0) continue;
             if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0) continue;
+            if (SaldoAlimentoEngordeCalculos.EsDeCicloAjeno(h, lotesAjenos)) continue;
             if (!TryGetHistDeltaAndOrd(h, out var d, out _)) continue;
             rows.Add((ymd, TsHistorico(h), d));
         }
@@ -201,10 +215,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
         });
         decimal bal = 0;
         foreach (var r in rows)
-        {
             bal += r.delta;
-            if (bal < 0) bal = 0;
-        }
         return bal;
     }
 
@@ -267,10 +278,44 @@ public partial class SeguimientoAvesEngordeEcuadorService
                             .Max(s2 => s2.Fecha) >= desdeSeg)
             .ToListAsync(ct);
 
+        // ⭐ v11: lotes del galpón que NO conviven conmigo (ciclos sucesivos) → su alimento no entra
+        // en mi apertura. Espeja el CTE `lotes_ajenos` de fn_seguimiento_diario_engorde (v11).
+        var ciclosGalpon = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l2 => l2.LoteAveEngordeId != loteId
+                      && l2.CompanyId == companyId
+                      && l2.DeletedAt == null
+                      && l2.GranjaId == farmId
+                      && (l2.NucleoId == null ? "" : l2.NucleoId.Trim()) == nucleoId
+                      && (l2.GalponId == null ? "" : l2.GalponId.Trim()) == galponId)
+            .Select(l2 => new
+            {
+                l2.LoteAveEngordeId,
+                SegMin = _ctx.SeguimientoDiarioAvesEngorde
+                    .Where(s2 => s2.LoteAveEngordeId == l2.LoteAveEngordeId).Min(s2 => (DateTime?)s2.Fecha),
+                SegMax = _ctx.SeguimientoDiarioAvesEngorde
+                    .Where(s2 => s2.LoteAveEngordeId == l2.LoteAveEngordeId).Max(s2 => (DateTime?)s2.Fecha)
+            })
+            .ToListAsync(ct);
+
+        var lotesAjenos = SaldoAlimentoEngordeCalculos.ResolverLotesAjenos(
+            ciclosGalpon.Where(c => c.LoteAveEngordeId.HasValue)
+                        .Select(c => (c.LoteAveEngordeId!.Value, c.SegMin, c.SegMax)),
+            desdeSeg, hastaSeg);
+
+        // ⭐ v11: la ventana previa al encaset la configura la empresa (igual que la fn y el camino
+        // de carga masiva). Antes este service cortaba en la fecha de encaset a secas, y esa
+        // divergencia era justamente lo que hacía que el dato guardado y la grilla no coincidieran.
+        var diasPrevios = await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
+            .FirstOrDefaultAsync(ct);
+
         var firstSegDate = segs.Min(s => s.Fecha.Date);
-        var encYmd = lote.FechaEncaset.HasValue ? FormatYmd(lote.FechaEncaset.Value.Date) : null;
+        var corteVentana = VentanaAlimentoPrevioCalculos.FechaCorte(lote.FechaEncaset, diasPrevios);
+        var encYmd = corteVentana.HasValue ? FormatYmd(corteVentana.Value) : null;
         var firstYmd = FormatYmd(firstSegDate);
-        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate, lote.FechaEncaset);
+        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
+            hist, firstSegDate, lote.FechaEncaset, diasPrevios, lotesAjenos);
 
         var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
         foreach (var h in hist)
@@ -301,8 +346,9 @@ public partial class SeguimientoAvesEngordeEcuadorService
         decimal bal = opening;
         foreach (var e in events)
         {
+            // ⭐ v11: SIN piso en 0, igual que la fn y el camino de carga masiva (decisión v9). El
+            // piso regalaba alimento inexistente y dejaba el acumulado por encima del inventario.
             bal += e.Delta;
-            if (bal < 0) bal = 0;
             if (e.SegId.HasValue) saldoPorSegId[e.SegId.Value] = bal;
         }
         foreach (var s in segs)

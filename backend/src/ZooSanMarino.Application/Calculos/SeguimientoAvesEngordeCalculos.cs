@@ -58,12 +58,17 @@ public static class SeguimientoAvesEngordeCalculos
     /// El corte NO es la fecha de encaset sino la ventana previa de
     /// <see cref="VentanaAlimentoPrevioCalculos"/>: en engorde el preiniciador llega antes que los
     /// pollitos y cortar seco en el encaset dejaba fuera alimento propio del lote.
+    /// ⚠️ FIX v11 (2026-07-29): <paramref name="lotesAjenos"/> descarta los movimientos del CICLO
+    /// ANTERIOR del galpón. La ventana previa al encaset caía dentro de ese ciclo justo cuando se
+    /// vacía su bodega y, como las devoluciones se excluyen pero los traslados de salida no, la
+    /// apertura salía negativa (lote 98 Kilometro 22/G0036: −7.960 kg corridos en las 43 filas).
     /// </summary>
     public static decimal ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
         DateTime firstSegDate,
         DateTime? fechaEncaset = null,
-        int? diasAlimentoPrevio = null)
+        int? diasAlimentoPrevio = null,
+        IReadOnlySet<int>? lotesAjenos = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
         var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
@@ -75,6 +80,8 @@ public static class SeguimientoAvesEngordeCalculos
             if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) >= 0)
                 continue;
             if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0)
+                continue;
+            if (SaldoAlimentoEngordeCalculos.EsDeCicloAjeno(h, lotesAjenos))
                 continue;
             if (!SaldoAlimentoEngordeCalculos.TryGetHistDeltaAndOrd(h, out var d, out _))
                 continue;
@@ -108,14 +115,19 @@ public static class SeguimientoAvesEngordeCalculos
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
         IReadOnlyList<SeguimientoDiarioAvesEngorde> segs,
         DateTime? fechaEncaset,
-        int? diasAlimentoPrevio = null)
+        int? diasAlimentoPrevio = null,
+        IReadOnlySet<int>? lotesAjenos = null)
     {
         var firstSegDate = segs.Min(s => s.Fecha.Date);
         var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
         var encYmd = corte.HasValue ? FormatYmd(corte.Value) : null;
         var firstYmd = FormatYmd(firstSegDate);
 
-        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate, fechaEncaset, diasAlimentoPrevio);
+        // ⭐ v11: `lotesAjenos` SOLO en la apertura. Desde el primer seguimiento el galpón es de
+        // este lote y todo lo que entra es suyo, aunque el movimiento haya quedado etiquetado con
+        // el id del ciclo anterior (ver SaldoAlimentoEngordeCalculos.EsDeCicloAjeno).
+        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
+            hist, firstSegDate, fechaEncaset, diasAlimentoPrevio, lotesAjenos);
 
         var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
 

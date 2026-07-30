@@ -91,6 +91,32 @@ public partial class SeguimientoAvesEngordeService
             ? segs
             : segs.Concat(segsGalpon).OrderBy(s => s.Fecha).ThenBy(s => s.Id).ToList();
 
+        // ⭐ v11: los lotes del galpón que NO conviven conmigo (ciclos sucesivos) son AJENOS: su
+        // alimento no entra en mi apertura. Sin esto, la ventana previa al encaset se comía la
+        // limpieza de cierre del ciclo anterior y la apertura salía negativa. Espeja el CTE
+        // `lotes_ajenos` de fn_seguimiento_diario_engorde (v11).
+        var ciclosGalpon = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l2 => l2.LoteAveEngordeId != loteId
+                      && l2.CompanyId == companyId
+                      && l2.DeletedAt == null
+                      && l2.GranjaId == farmId
+                      && (l2.NucleoId == null ? "" : l2.NucleoId.Trim()) == nucleoId
+                      && (l2.GalponId == null ? "" : l2.GalponId.Trim()) == galponId)
+            .Select(l2 => new
+            {
+                l2.LoteAveEngordeId,
+                SegMin = _ctx.SeguimientoDiarioAvesEngorde
+                    .Where(s2 => s2.LoteAveEngordeId == l2.LoteAveEngordeId).Min(s2 => (DateTime?)s2.Fecha),
+                SegMax = _ctx.SeguimientoDiarioAvesEngorde
+                    .Where(s2 => s2.LoteAveEngordeId == l2.LoteAveEngordeId).Max(s2 => (DateTime?)s2.Fecha)
+            })
+            .ToListAsync(ct);
+
+        var lotesAjenos = SaldoAlimentoEngordeCalculos.ResolverLotesAjenos(
+            ciclosGalpon.Where(c => c.LoteAveEngordeId.HasValue)
+                        .Select(c => (c.LoteAveEngordeId!.Value, c.SegMin, c.SegMax)),
+            desde, hasta);
+
         // Ventana previa al encaset configurada por la empresa: el preiniciador llega antes que los
         // pollitos y sin esto sus kilos quedaban fuera del saldo aunque estuvieran en el galpón.
         var diasPrevios = await _ctx.Companies.AsNoTracking()
@@ -99,7 +125,7 @@ public partial class SeguimientoAvesEngordeService
             .FirstOrDefaultAsync(ct);
 
         var (saldoPorSegId, bal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
-            hist, segsParaSaldo, lote.FechaEncaset, diasPrevios);
+            hist, segsParaSaldo, lote.FechaEncaset, diasPrevios, lotesAjenos);
 
         foreach (var s in segs)
         {

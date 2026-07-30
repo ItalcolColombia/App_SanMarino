@@ -3,6 +3,30 @@
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
+-- v11 (2026-07-29) — Fix: la apertura dejaba de ser propia y heredaba el CICLO ANTERIOR del galpón.
+--   * Problema: la ventana de alimento previo al encaset (v9) retrocede `dias_alimento_previo_encaset`
+--     días. En Ecuador cada galpón encadena 3-4 ciclos sucesivos, así que esa ventana cae DENTRO del
+--     ciclo anterior, justo cuando se vacía su bodega. Y como el filtro de devoluciones descarta las
+--     entradas (`devolución por eliminación`) pero conserva las salidas, la apertura quedaba NEGATIVA.
+--     Kilometro 22 / G0036 / lote 98 (2603): apertura −7.960 kg (+160 −7.520 −440 −160, los cuatro del
+--     lote 65 «2602», que cerró el 01/06 y se vació entre el 05 y el 07/06). La grilla mostraba 3.420
+--     contra 11.380 kg de stock real, con el MISMO desvío en las 43 filas.
+--   * Es estructural y recurrente: la ventana solo alcanza la limpieza del ciclo anterior si ese ciclo
+--     existe ⇒ aparece desde el TERCER ciclo de cada galpón. Ecuador va por la corrida 4 (26 lotes con
+--     apertura negativa, −98.692 kg); Panamá hoy tiene 0 casos pero le pasaría al encadenar ciclos.
+--   * Solución: nuevo CTE `lotes_ajenos` — el COMPLEMENTO exacto del predicado que v10 ya usa para el
+--     consumo. Un lote del mismo galpón cuyo rango de seguimiento NO se solapa con el mío no comparte
+--     bodega conmigo, así que su alimento no entra en MI APERTURA. Los movimientos SIN atribución
+--     (`lote_ave_engorde_id IS NULL`) se conservan: no se pierde alimento.
+--   * ⚠️ El filtro va SOLO en `apert_mov`, y es a propósito. `lote_ave_engorde_id` NO distingue ciclos:
+--     el sistema etiqueta el movimiento con el lote VIGENTE del galpón, así que el preiniciador del
+--     ciclo nuevo queda con el id del viejo mientras el nuevo no tenga seguimiento (CAROLINA G0059:
+--     2.800 kg de SM0175 del 16/06 atribuidos al lote 63 siendo del 96). Por eso la propiedad solo
+--     puede usarse ANTES del primer seguimiento; dentro de [fecha_min, fecha_max] el galpón es del
+--     lote y todo lo que entra es suyo. Filtrar también `hist_alimento` rompía esos 4 galpones.
+--   * Verificado sobre el dump de producción: Ecuador 26 lotes con apertura negativa → 6 (déficit real),
+--     Panamá NO-OP exacto (0 filas distintas). La rama VENTA_AVES ya estaba acotada al lote: no se toca.
+--
 -- v10 (2026-07-29) — Fix: el consumo pasa a scope GALPÓN (inventario compartido entre lotes).
 --   * Problema: los ingresos/traslados SIEMPRE se leyeron con scope galpón, pero el consumo se
 --     restaba solo del lote consultado. Con dos lotes solapados en el mismo galpón cada uno veía
@@ -179,6 +203,30 @@ rango_seg AS (
     WHERE s.lote_ave_engorde_id = p_lote_id
 ),
 
+-- 2c. ⭐ v11: lotes AJENOS = otros lotes del mismo galpón cuyo ciclo NO se solapa con el mío.
+--     Es el COMPLEMENTO exacto del predicado de `consumo_galpon_por_fecha` (v10): si a un lote no le
+--     cuento el consumo porque no convive conmigo, tampoco puedo contarle los ingresos ni los
+--     traslados. Sin esto la ventana de alimento previo al encaset (v9) se comía la limpieza de
+--     cierre del ciclo anterior y la apertura salía negativa (ver cabecera v11).
+--     Un lote sin seguimiento cae acá por construcción (igual que en v10): todavía no tiene ciclo.
+lotes_ajenos AS (
+    SELECT l2.lote_ave_engorde_id AS id
+    FROM lote_ave_engorde l2
+    JOIN lote_info li ON TRUE
+    JOIN rango_seg  rs ON rs.fecha_min IS NOT NULL
+    WHERE l2.deleted_at IS NULL
+      AND l2.lote_ave_engorde_id <> p_lote_id
+      AND l2.granja_id = li.granja_id
+      AND COALESCE(TRIM(l2.nucleo_id), '') = li.nucleo_id
+      AND COALESCE(TRIM(l2.galpon_id), '') = li.galpon_id
+      AND NOT EXISTS (
+            SELECT 1
+              FROM seguimiento_diario_aves_engorde s2
+             WHERE s2.lote_ave_engorde_id = l2.lote_ave_engorde_id
+            HAVING MIN(DATE(s2.fecha)) <= rs.last_seg
+               AND MAX(DATE(s2.fecha)) >= rs.fecha_min)
+),
+
 -- 2b. ⭐ v10: consumo diario de TODOS los lotes del galpón (inventario COMPARTIDO).
 --     El alimento vive en la bodega del galpón, no del lote: los ingresos siempre se leyeron con
 --     scope galpón, pero el consumo se restaba solo del lote consultado. Con dos lotes solapados en
@@ -245,6 +293,10 @@ apert_mov AS (
       AND DATE(h.fecha_operacion) < rs.fecha_min
       AND (li.fecha_corte_alimento IS NULL
            OR DATE(h.fecha_operacion) >= li.fecha_corte_alimento)
+      -- ⭐ v11: nada del ciclo anterior. Sin este filtro la ventana previa al encaset se comía
+      -- la limpieza de cierre del lote que ocupaba el galpón y la apertura salía negativa.
+      AND (h.lote_ave_engorde_id IS NULL
+           OR NOT EXISTS (SELECT 1 FROM lotes_ajenos la WHERE la.id = h.lote_ave_engorde_id))
 ),
 apert_run AS (
     SELECT

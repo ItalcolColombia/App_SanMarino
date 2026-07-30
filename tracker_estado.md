@@ -1728,3 +1728,60 @@ lo visual porque en el stock sí tenemos lo correcto»*.
 - [ ] Corregir los 3 descuadres de datos (Km61 G0037, Km86 G0040, CAROLINA G0058)
 - [ ] Decidir si el saldo persistido debe recalcularse también al registrar un movimiento de inventario
 - [ ] Decidir si se sanean los 6 galpones con descuadre histórico (no afectan lo que ve la operación hoy)
+
+---
+
+# Tracker — Fix: la apertura de alimento deja de heredar el ciclo anterior del galpón
+
+**Plan:** [`fase_de_desarrollo/fix_apertura_alimento_ciclo_anterior_plan.md`](fase_de_desarrollo/fix_apertura_alimento_ciclo_anterior_plan.md)
+**Diagnóstico:** [`fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md`](fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md)
+**Fecha:** 2026-07-29 · Ecuador (activo) + Panamá (preventivo)
+
+Criterio: un lote cuyo ciclo NO se solapa con el mío es **ajeno** y sus movimientos no entran en mi
+saldo. Mismo predicado «conviven» que v10 ya usa para el consumo.
+
+## Fase 0 — Simulación previa
+- [x] Simulado sobre el dump de prod: Ecuador 30 lotes tocados, negativas 26 → 6, fantasma −98.692 → −13.800
+- [x] **Panamá: 0 lotes tocados** (no-op exacto)
+- [x] Lote testigo 98: apertura −7.960 → 0
+
+## Fase 1 — SQL
+- [x] `fn_seguimiento_diario_engorde.sql` → **v11**: CTE `lotes_ajenos` + filtro en `apert_mov`
+- [x] ⚠️ **Corregido en el camino**: el primer intento filtraba además `hist_full`, `hist_alimento`, `fechas_universo` y `docs_por_fecha` y **rompía 4 galpones de CAROLINA** (−2.800 kg c/u). Causa: `lote_ave_engorde_id` NO distingue ciclos — el sistema etiqueta el movimiento con el lote VIGENTE, así que el preiniciador del ciclo nuevo queda con el id del viejo (G0059: 2.800 kg de SM0175 del 16/06 atribuidos al lote 63 siendo del 96). La propiedad solo vale ANTES del primer seguimiento
+- [x] Aplicada en BD local y verificada contra el caso testigo
+
+## Fase 2 — Cálculo puro + tests
+- [x] `SaldoAlimentoEngordeCalculos.EsDeCicloAjeno` + `ResolverLotesAjenos` (espejo del CTE)
+- [x] `SeguimientoAvesEngordeCalculos`: parámetro opcional `lotesAjenos` (default null ⇒ comportamiento idéntico)
+- [x] `AperturaAlimentoCicloAnteriorCalculosTests.cs` (NUEVO) — 16 casos (los 8 del plan + bordes y `ResolverLotesAjenos`)
+
+## Fase 3 — Services (unificar los tres caminos)
+- [x] `SeguimientoAvesEngordeService.SaldoAlimento.cs` (carga masiva): resuelve y pasa `lotesAjenos`
+- [x] `SeguimientoAvesEngordeEcuadorService.SaldoAlimento.cs` (form diario): `lotesAjenos` + **adopta la ventana** + **quita los dos pisos en 0** (v9). Los tres caminos quedan con la misma fórmula
+
+## Fase 4 — Migraciones
+- [x] `20260730090000_FnSeguimientoEngordeV11AperturaSinCicloAnterior` (CREATE OR REPLACE, `Down` restaura la v10 completa)
+- [x] `20260730091000_RecalcularSaldoAlimentoEngordeV11` (datos, idempotente, backup en `_backup_saldo_alimento_engorde_v11`)
+- [x] Designer clonado del último (sin tocar ModelSnapshot: ninguna cambia el modelo)
+
+## Fase 5 — Validación
+- [x] `dotnet build` **0 errores / 0 advertencias**
+- [x] `dotnet test` **1.357 verdes** (1.341 + 16 nuevos)
+- [x] **Panamá fila a fila: 0 diferencias** en saldo, aves, ingreso y documento (5.619 filas / 134 lotes comparadas v10 vs v11)
+- [x] Ecuador: 1.425 filas de saldo corregidas · **ninguna fila de seguimiento perdida** (5.495 antes y después); las 24 filas que desaparecen no tenían seguimiento
+- [x] **Lote 98: 11.520 el día 1 · 11.380 al cierre = stock físico** ✅
+- [x] **Ecuador: 35/35 galpones OK** contra el stock (era 25/35). Superó el objetivo de ≥32
+- [x] **Panamá: 25/25 galpones OK** (era 19/25). Su dato guardado arrastraba 176.761 kg de error desde antes del cuadre del 29-jul y el recálculo lo dejó en **0,0**
+- [x] Dato guardado == grilla en las **5.495 filas** (0 discrepancias): se acaba la doble verdad
+- [x] Migración de datos **idempotente**: 2ª corrida `UPDATE 0`
+- [x] **`Down` probado**: fn v10 restaurada y los 5.543 saldos vueltos al original (0 distintos)
+- [x] **Up→Down→Up determinista**: las mismas 818 filas (651 Ecuador + 167 Panamá)
+- [x] BD local queda con las migraciones aplicadas; tablas de snapshot temporales eliminadas
+
+### Efecto colateral resuelto sin proponérselo
+El recálculo también corrige los **3 descuadres persistentes** del diagnóstico (Kilometro 61 G0037 −10.000 kg,
+Kilometro 86 G0040 −2.400, CAROLINA G0058 +480) y el **dato guardado que se quedaba viejo**: al reescribirse
+desde la fn, el saldo persistido incorpora los ingresos posteriores al último seguimiento.
+⚠️ Sigue pendiente que se recalcule **en caliente** al registrar un movimiento de inventario: hoy
+`RecalcularSaldoAlimentoPorLoteAsync` solo corre al crear/editar un seguimiento, así que volverá a desfasarse
+hasta el próximo registro diario. La grilla, que recalcula en vivo, ya no se ve afectada.
