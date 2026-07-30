@@ -1708,3 +1708,23 @@ lo visual porque en el stock sí tenemos lo correcto»*.
 - [ ] Elegir corrección: (1) acotar la ventana al ciclo propio · (2) simetrizar el filtro de devoluciones (insuficiente por sí sola) · (3) que la grilla lea la columna persistida
 - [ ] Auditar los **14 lotes donde la grilla muestra de más** (el lote 20 arrastra +37.880 desde una apertura positiva de 19.880 kg)
 - [ ] Al corregir: regresión fila a fila de **Panamá con 0 diferencias** + `dotnet build` + `dotnet test` (1.341)
+
+## Parte 2 — Validación de cierre lote/ciclo/galpón en Ecuador (2026-07-29)
+
+- [x] Estructura: 103 lotes · 35 galpones · 4 corridas (2601=ciclo 1 … 2604=ciclo 4); `numero_corrida` está NULL, la corrida vive en `lote_nombre`
+- [x] Verificada la atribución del histórico: 0 ingresos y 0 salidas sin lote, 0 movimientos apuntando a un lote de otro galpón
+- [x] ⚠️ Pero `lote_ave_engorde_id` **NO sirve como clave de ciclo**: 14 ciclos tienen su alimento cargado contra el ciclo vecino (890.465 kg). La app usa galpón+fecha, así que no la afecta
+- [x] **Nivel galpón (ancla: stock físico): 29/35 cierran EXACTO**; 6 descuadran, 36.799 kg (muy por debajo de los ~490.000 kg que sugería el requerimiento, que mezclaba la bodega de granja)
+- [x] **Traspaso entre ciclos (por fecha, sin atribución): 68 traspasos · 54 cuadran · 14 no**; los grandes son del 2601→2602 (carga retroactiva)
+- [x] **Ciclo activo (lo que ve la operación): 25 OK · 7 solo la grilla mal · 2 ambos mal · 1 solo el guardado**
+- [x] Identificados los **7 galpones del bug de ventana** (28.330 kg): Km22 G0036, Km86 G0039, Km61 G0038, S3b G0048, S2 G0051, S3b G0047, S2 G0052
+- [x] Identificados los **3 errores PERSISTENTES de datos**: Km61 G0037 (−10.000), Km86 G0040 (−2.400), CAROLINA G0058 (+480)
+- [x] **Hallazgo nuevo**: `RecalcularSaldoAlimentoPorLoteAsync` solo corre al crear/editar un seguimiento ⇒ un ingreso posterior al último día cargado nunca actualiza `saldo_alimento_kg` (S3b G0047 8.470 kg, G0048 10.000 kg el 29-jul)
+- [x] ⇒ **Descartada la opción 3** (que la grilla lea el persistido): dejaría la pantalla congelada. La corrección va por acotar la ventana
+- [x] **Confirmada la hipótesis de Costos**: los 10 galpones con problema son 6 de corrida 2603 y 4 de corrida 2604; **cero en 2601 y 2602**. Es estructural: la ventana solo alcanza la limpieza del ciclo anterior si ese ciclo existe ⇒ el bug no puede aparecer antes del tercer ciclo
+
+### Pendiente de decisión
+- [ ] Corregir la ventana (opción 1) → arregla los 7 galpones sin tocar datos
+- [ ] Corregir los 3 descuadres de datos (Km61 G0037, Km86 G0040, CAROLINA G0058)
+- [ ] Decidir si el saldo persistido debe recalcularse también al registrar un movimiento de inventario
+- [ ] Decidir si se sanean los 6 galpones con descuadre histórico (no afectan lo que ve la operación hoy)

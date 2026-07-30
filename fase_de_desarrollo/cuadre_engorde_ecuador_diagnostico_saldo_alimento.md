@@ -156,3 +156,139 @@ Direcciones posibles, en orden de menor a mayor riesgo:
 aceptación vigente) y volver a correr los 1.341 tests. Y hay que decidir qué pasa con los **14 lotes donde la
 grilla muestra de más** — no todos tienen la misma causa (el lote 20 arrastra +37.880 de una apertura positiva de
 19.880 kg que también hay que auditar).
+
+---
+
+# Parte 2 — Validación de cierre lote por lote, ciclo por ciclo, galpón por galpón
+
+**Fecha:** 2026-07-29 · **Alcance:** los 103 lotes de engorde de ItalcolEcuador con seguimiento,
+repartidos en **35 galpones** y **4 corridas** (2601=ciclo 1 … 2604=ciclo 4). Sigue sin tocarse nada.
+
+## 1. Método
+
+La bodega de alimento vive en el **galpón** y es continua entre ciclos, así que se validó en tres niveles,
+cada uno anclado en un hecho duro distinto:
+
+| Nivel | Prueba | Ancla |
+|---|---|---|
+| Galpón (toda su historia) | `ingresos + entradas − salidas − consumo == stock de inventario` | stock físico |
+| Traspaso entre ciclos | `apertura(i+1) == cierre(i) + movimientos del galpón en el hueco` | fechas, sin atribución |
+| Ciclo activo | `saldo de la última fila == stock de hoy − movimientos posteriores al último seguimiento` | stock físico |
+
+Filtros espejo de la fn en los tres (`'Seguimiento aves engorde #%'` **y** `'%devolución por eliminación%'`).
+
+> ⚠️ **`lote_ave_engorde_id` del histórico NO sirve como clave de ciclo.** Es internamente consistente
+> (0 movimientos apuntando a un lote de otro galpón) pero hay movimientos **atribuidos a un lote y
+> fechados dentro del ciclo siguiente**: 10 ciclos de la corrida 1 (469.760 kg, CAROLINA y SAN GUILLERMO)
+> y 4 de la corrida 2 (420.705 kg, Kilometro 61, Sacachun 2, Sacachun 3b) no tienen ingresos propios
+> porque su alimento quedó cargado contra el ciclo vecino. La app usa **galpón + fecha**, así que esto
+> no la afecta; pero cualquier auditoría que agrupe por `lote_ave_engorde_id` va a medir mal.
+
+## 2. Resultado — cierre del galpón (toda su historia)
+
+**29 de 35 galpones cierran EXACTO (0,0 kg) contra el stock de inventario.** Los 6 con descuadre:
+
+| Granja | Galpón | Saldo lógico | Stock | Descuadre |
+|---|---|---:|---:|---:|
+| Kilometro 22 | G0035 | 52.230 | 14.350 | **+37.880** |
+| Kilometro 86 | G0040 | −320 | 8.700 | **−9.020** |
+| CAROLINA | G0060 | 3.680 | 0 | +3.680 |
+| CAROLINA | G0057 | 3.240 | 0 | +3.240 |
+| Kilometro 86 | G0039 | 7.420 | 5.820 | +1.600 |
+| Sacachun 2 | G0051 | −580 | 0 | −580 |
+
+Total **36.799 kg** — muy lejos de los ~490.000 kg que sugería el requerimiento a nivel granja. La
+diferencia es que aquel número incluía la **bodega de granja** (ingresos sin galpón), que no pertenece
+al libro mayor de ningún galpón. **El inventario por galpón de Ecuador está mucho más sano de lo que se
+creía.**
+
+## 3. Resultado — traspaso entre ciclos consecutivos
+
+**68 traspasos · 54 cuadran · 14 no** (61.139 kg). Por corrida que abre:
+
+| Abre corrida | Traspasos | Cuadran | Descuadran | Kg |
+|---|---:|---:|---:|---:|
+| 2602 | 33 | 25 | 8 | 34.419 |
+| 2603 | 29 | 24 | 5 | 25.500 |
+| 2604 | 6 | 5 | 1 | 1.220 |
+
+Los descuadres grandes son del traspaso **2601→2602** (Sacachun 2 G0051 +6.580, G0055 +6.000,
+Sacachun 3b G0050 +5.000, Kilometro 61 G0037 +4.800, Sacachun 3b G0049 +4.000) y corresponden a la
+carga retroactiva del §1, no a la operación de hoy.
+
+## 4. Resultado — CICLO ACTIVO (lo que la operación ve hoy) ⭐
+
+Descontando los movimientos posteriores al último seguimiento —que la grilla no puede mostrar y **no son
+un error**—, los 35 galpones quedan así:
+
+| Veredicto | Galpones | Kg error grilla |
+|---|---:|---:|
+| ✅ **OK** (dato guardado y grilla cuadran con el stock) | **25** | 0 |
+| 🔴 **Solo la GRILLA mal** — bug de la ventana v9 | **7** | 28.330 |
+| 🔴 **AMBOS mal** — descuadre real de datos | **2** | 10.840 |
+| ⚠️ Solo el dato guardado | 1 | 0 |
+
+### 4.1 Los 7 del bug de la ventana (el dato guardado está bien, se arregla con código)
+
+| Granja | Galpón | Corrida | Stock | Guardado | Grilla | Error grilla |
+|---|---|---|---:|---:|---:|---:|
+| Kilometro 22 | G0036 | 2603 | 11.380 | 11.380 ✅ | 3.420 | **−7.960** |
+| Kilometro 86 | G0039 | 2603 | 5.820 | 5.820 ✅ | −1.590 | **−7.410** |
+| Kilometro 61 | G0038 | 2604 | 12.760 | 12.760 ✅ | 16.960 | **+4.200** |
+| Sacachun 3b | G0048 | 2604 | 13.960 | 3.960 ✅ | 800 | **−3.160** |
+| Sacachun 2 | G0051 | 2603 | 0 | 720 ✅ | 3.360 | **+2.640** |
+| Sacachun 3b | G0047 | 2604 | 14.030 | 5.560 ✅ | 3.200 | **−2.360** |
+| Sacachun 2 | G0052 | 2603 | 0 | 560 ✅ | 1.160 | **+600** |
+
+### 4.2 Los 3 con error PERSISTENTE de datos (hay que corregir la BD, no el código)
+
+| Granja | Galpón | Corrida | Stock | Esperado | Guardado | Grilla | Err. guardado | Err. grilla |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| Kilometro 61 | G0037 | 2604 | 12.360 | 12.360 | 2.360 | 7.320 | **−10.000** | −5.040 |
+| Kilometro 86 | G0040 | 2603 | 8.700 | 8.700 | 6.300 | 2.900 | **−2.400** | −5.800 |
+| CAROLINA | G0058 | 2603 | 0 | 0 | 480 | 0 | **+480** | 0 |
+
+**Kilometro 61 G0037** es el más claro: los 10.000 kg del documento 63020 (28-jul, `SM0178`) entraron el
+mismo día del último seguimiento y **el saldo guardado nunca los recogió**.
+
+## 5. Hallazgo nuevo — el dato guardado se queda VIEJO
+
+`RecalcularSaldoAlimentoPorLoteAsync` solo corre al **crear o editar un seguimiento**. Un ingreso
+registrado *después* del último día cargado no actualiza `saldo_alimento_kg`. Casos vivos:
+Sacachun 3b **G0047** (8.470 kg el 29-jul) y **G0048** (10.000 kg el 29-jul), ambos con último
+seguimiento el 28-jul.
+
+⇒ **Las dos fuentes están rotas por lados opuestos, y por eso ninguna sirve sola:**
+
+| Fuente | Fortaleza | Debilidad |
+|---|---|---|
+| Columna persistida | Sin apertura fantasma (usa el corte viejo) | Se congela: no ve el alimento que entra después del último seguimiento |
+| Grilla (`fn`, recalcula) | Siempre al día | Arrastra la apertura fantasma de la ventana v9 |
+
+Esto **descarta la opción 3** de la Parte 1 («que la grilla lea la columna persistida»): dejaría la
+pantalla congelada. La corrección tiene que ir por **acotar la ventana al ciclo propio** (opción 1),
+que conserva el recálculo en vivo y elimina la apertura fantasma.
+
+## 6. Sobre la hipótesis de Costos — confirmada
+
+> *«costos validó los reportes y predijo que está correcto los lotes de la corrida 01 y 02, y esto de la
+> corrida 3 o 4 tiene esta falla»*
+
+**Correcto, y se puede afirmar con números.** Los 10 galpones con problema en el ciclo activo son:
+
+- **corrida 2603:** Kilometro 22 G0036 · Kilometro 86 G0039 · Kilometro 86 G0040 · Sacachun 2 G0051 · Sacachun 2 G0052 · CAROLINA G0058 → **6**
+- **corrida 2604:** Kilometro 61 G0037 · Kilometro 61 G0038 · Sacachun 3b G0047 · Sacachun 3b G0048 → **4**
+- **corridas 2601 y 2602: CERO.**
+
+La razón es estructural, no casual: para que la ventana de 10 días alcance a la limpieza del ciclo
+anterior **tiene que existir un ciclo anterior en ese galpón**. La corrida 1 no lo tiene, y la corrida 2
+en su mayoría heredó galpones que quedaron vacíos sin traslados en la ventana. **El bug solo puede
+manifestarse desde el tercer ciclo en adelante** — exactamente lo que reportó Costos.
+
+## 7. Qué queda por decidir
+
+- [ ] Corregir la **ventana** (opción 1) → arregla los 7 galpones de §4.1 sin tocar datos
+- [ ] Corregir los **3 descuadres de datos** de §4.2 (Kilometro 61 G0037, Kilometro 86 G0040, CAROLINA G0058)
+- [ ] Decidir si el **saldo persistido debe recalcularse al registrar un movimiento de inventario** (§5)
+- [ ] Los 6 galpones con descuadre histórico (§2) **no afectan lo que ve la operación hoy** — Kilometro 22
+      G0035 arrastra +37.880 en su historia pero su ciclo activo cuadra exacto. Decidir si se sanean o se dejan
