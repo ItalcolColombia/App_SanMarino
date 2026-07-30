@@ -526,9 +526,14 @@ public class InventarioGestionService : IInventarioGestionService
         await _db.SaveChangesAsync(ct);
         await RefrescarSaldoAlimentoEngordeAsync(companyId, req.FarmId, nucleoId, galponId, mov.MovementType, ct);
 
-        return (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
+        // Avisa —sin bloquear— si el ingreso quedó fechado fuera del ciclo vigente del galpón.
+        var aviso = await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
+
+        var dto = (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
             .FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId)
             ?? new InventarioGestionStockDto(existing.Id, existing.FarmId, existing.NucleoId, existing.GalponId, existing.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", existing.Quantity, existing.Unit, null, null, null);
+
+        return aviso is null ? dto : dto with { AvisoFechaFueraDeCiclo = aviso };
     }
 
     public async Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoAsync(InventarioGestionTrasladoRequest req, CancellationToken ct = default)
@@ -669,6 +674,13 @@ public class InventarioGestionService : IInventarioGestionService
         var listDestino = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
         var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
         var dtoDestino = listDestino.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt);
+
+        // Un traslado toca DOS galpones: cada uno tiene su propio ciclo vigente.
+        var avisoOrigen  = await EvaluarAvisoFechaFueraDeCicloAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, movAt, ct);
+        var avisoDestino = await EvaluarAvisoFechaFueraDeCicloAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, movAt, ct);
+        if (avisoOrigen  is not null) dtoOrigen  = dtoOrigen  with { AvisoFechaFueraDeCiclo = avisoOrigen };
+        if (avisoDestino is not null) dtoDestino = dtoDestino with { AvisoFechaFueraDeCiclo = avisoDestino };
+
         return (dtoOrigen, dtoDestino);
     }
 
@@ -1272,6 +1284,58 @@ public class InventarioGestionService : IInventarioGestionService
     /// antiguas cargadas antes de que existiera esa clave.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Evalúa si el movimiento quedó fechado FUERA del ciclo vigente del galpón y devuelve el aviso a
+    /// mostrar, o <c>null</c> si la fecha es normal. <b>Avisa, no bloquea:</b> retrofechar es legítimo
+    /// —la operación a veces registra el lunes lo que llegó el viernes— y bloquearlo tendría un costo
+    /// real. Lo que no puede pasar es que lo haga sin enterarse.
+    /// <para>
+    /// Ver <see cref="AvisoFechaFueraDeCicloCalculos"/> para el caso que lo originó.
+    /// </para>
+    /// </summary>
+    private async Task<string?> EvaluarAvisoFechaFueraDeCicloAsync(
+        int companyId, int farmId, string? nucleoId, string? galponId, DateTimeOffset fechaMovimiento,
+        CancellationToken ct)
+    {
+        var nucleo = (nucleoId ?? "").Trim();
+        var galpon = (galponId ?? "").Trim();
+        if (galpon.Length == 0)
+            return null;   // nivel granja: no pertenece al ciclo de ningún galpón
+
+        var ciclos = await _db.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.CompanyId == companyId
+                     && l.DeletedAt == null
+                     && l.GranjaId == farmId
+                     && (l.NucleoId == null ? "" : l.NucleoId.Trim()) == nucleo
+                     && (l.GalponId == null ? "" : l.GalponId.Trim()) == galpon
+                     && l.LoteAveEngordeId != null)
+            .Select(l => new
+            {
+                l.LoteAveEngordeId,
+                l.LoteNombre,
+                SegMin = _db.SeguimientoDiarioAvesEngorde
+                    .Where(s => s.LoteAveEngordeId == l.LoteAveEngordeId).Min(s => (DateTime?)s.Fecha),
+                SegMax = _db.SeguimientoDiarioAvesEngorde
+                    .Where(s => s.LoteAveEngordeId == l.LoteAveEngordeId).Max(s => (DateTime?)s.Fecha)
+            })
+            .ToListAsync(ct);
+
+        var diasPrevios = await _db.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
+            .FirstOrDefaultAsync(ct);
+
+        return AvisoFechaFueraDeCicloCalculos.Evaluar(
+            fechaMovimiento.UtcDateTime.Date,
+            ciclos.Where(c => c.SegMin.HasValue && c.SegMax.HasValue)
+                  .Select(c => new CicloGalpon(
+                      c.LoteAveEngordeId!.Value,
+                      c.LoteNombre ?? $"#{c.LoteAveEngordeId}",
+                      c.SegMin!.Value,
+                      c.SegMax!.Value)),
+            diasPrevios ?? 10);
+    }
+
     private async Task AnularHistoricoDelMovimientoAsync(InventarioGestionMovimiento mov, CancellationToken ct)
     {
         var hist = await _db.LoteRegistroHistoricoUnificados

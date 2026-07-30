@@ -63,7 +63,19 @@ public sealed record InventarioGestionStockDto(
     string? NucleoNombre = null,
     string? GalponNombre = null,
     /// <summary>Fecha en que se creó el registro de stock en esta ubicación (primera vez que hubo existencia).</summary>
-    DateTimeOffset? FechaIngreso = null
+    DateTimeOffset? FechaIngreso = null,
+    /// <summary>
+    /// Aviso —no error— cuando el movimiento recién registrado quedó fechado FUERA del ciclo vigente
+    /// del galpón, así que ningún lote de engorde lo va a reflejar en su tabla diaria.
+    /// <para>
+    /// Nace del caso Kilometro 86 / G0040 (jul-2026): recibió 182.630 kg fechados después de que su
+    /// ciclo cerró y el sistema los aceptó en silencio. El lote se había comido ese alimento, así que
+    /// la tabla diaria mostró 9.020 kg de déficit que parecían un error del aplicativo. Fue la única
+    /// causa de saldos negativos que NO se pudo arreglar con código: el dato ya estaba mal.
+    /// </para>
+    /// <para><c>null</c> cuando la fecha es normal. Ver <c>AvisoFechaFueraDeCicloCalculos</c>.</para>
+    /// </summary>
+    string? AvisoFechaFueraDeCiclo = null
 );
 
 /// <summary>Request para registrar un ingreso. ItemInventarioEcuadorId referencia a config/item-inventario-ecuador.</summary>

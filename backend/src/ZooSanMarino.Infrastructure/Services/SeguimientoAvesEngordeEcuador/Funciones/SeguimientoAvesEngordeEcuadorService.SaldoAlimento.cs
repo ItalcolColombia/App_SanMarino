@@ -145,219 +145,42 @@ public partial class SeguimientoAvesEngordeEcuadorService
         if (historico.Count == 0) return null;
         return JsonDocument.Parse(JsonSerializer.Serialize(historico));
     }
-
-    // ─── Recálculo de saldo de alimento del lote ───────────────────────────────
-    // Replica RecalcularSaldoAlimentoPorLoteAsync de SeguimientoAvesEngordeService.
-    // No duplica INV_CONSUMO del histórico (ya descontado en seguimiento); aplica
-    // piso 0 después de cada evento. La función SQL fn_seguimiento_diario_engorde
-    // ahora calcula el saldo dinámicamente (fix #10), pero seguimos persistiendo
-    // para consumidores que leen la columna directamente.
-
-    private readonly record struct SaldoAlimentoEvent(string Ymd, int Ord, long Tie, long? SegId, decimal Delta);
-
-    private static string FormatYmd(DateTime d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-
-    private static long TsSeguimiento(SeguimientoDiarioAvesEngorde s)
-    {
-        var t = new DateTimeOffset(s.Fecha.Year, s.Fecha.Month, s.Fecha.Day, 12, 0, 0, TimeSpan.Zero);
-        return t.ToUnixTimeMilliseconds();
-    }
-
-    private static long TsHistorico(LoteRegistroHistoricoUnificado h) =>
-        h.CreatedAt.ToUnixTimeMilliseconds();
-
-    private static string? YmdHistoricoEfectivo(LoteRegistroHistoricoUnificado h)
-        => FormatYmd(h.FechaOperacion);
-
-    private static bool TryGetHistDeltaAndOrd(LoteRegistroHistoricoUnificado h, out decimal delta, out int ord)
-        => SaldoAlimentoEngordeCalculos.TryGetHistDeltaAndOrd(h, out delta, out ord);
+    // ─── Recálculo del saldo de alimento del lote ─────────────────────────────
+    //
+    // UNA SOLA IMPLEMENTACIÓN (jul-2026)
+    // Este archivo tenía su propia aritmética del saldo, distinta de la de
+    // SeguimientoAvesEngordeService y de la de `fn_seguimiento_diario_engorde` en tres puntos: el
+    // corte de la ventana previa al encaset, el piso en 0 y la exclusión del ciclo anterior. Esa
+    // divergencia fue la causa directa de que el dato guardado y la pantalla mostraran números
+    // distintos — Kilometro 22 / G0036: 11.380 kg guardados contra 3.420 en pantalla.
+    //
+    // Ahora delega en SaldoAlimentoEngordeAplicador, que escribe la columna DESDE la fn. Se borraron
+    // los helpers que solo servían a la vieja aritmética (SaldoAlimentoEvent, FormatYmd,
+    // TsSeguimiento, TsHistorico, YmdHistoricoEfectivo, TryGetHistDeltaAndOrd y
+    // ComputeSaldoAperturaGalponAntesPrimerSeguimiento).
+    //
+    // La fórmula en C# sigue existiendo como ESPECIFICACIÓN EJECUTABLE en
+    // SeguimientoAvesEngordeCalculos: sus tests son el contrato que la fn tiene que cumplir.
 
     /// <summary>
-    /// ⚠️ FIX #12 (2026-05-28): si <paramref name="fechaEncaset"/> se proporciona, los movimientos
-    /// anteriores al corte se ignoran (galpón se considera "limpio"). Antes la apertura heredaba
-    /// inventario residual del lote previo del mismo galpón.
+    /// Recalcula y persiste <see cref="Domain.Entities.SeguimientoDiarioAvesEngorde.SaldoAlimentoKg"/>
+    /// de todos los registros diarios del lote, tomando el valor de
+    /// <c>fn_seguimiento_diario_engorde</c> — la misma fuente que pinta la tabla diaria.
     /// <para>
-    /// ⭐ v11 (2026-07-29): este camino quedó ALINEADO con <c>fn_seguimiento_diario_engorde</c> y con
-    /// <c>SeguimientoAvesEngordeCalculos</c>, que hasta ahora divergían en tres puntos y por eso el
-    /// dato guardado y la grilla mostraban números distintos:
-    /// <list type="number">
-    /// <item>el corte es la ventana previa al encaset (v9), no la fecha de encaset a secas;</item>
-    /// <item><paramref name="lotesAjenos"/> descarta el alimento del ciclo anterior del galpón;</item>
-    /// <item>sin piso en 0 (v9): un saldo negativo es consumo registrado antes que su llegada.</item>
-    /// </list>
+    /// Escribe por SQL, no por entidades rastreadas. Los llamadores ya hacen
+    /// <c>Entry(ent).ReloadAsync()</c> antes de mapear la respuesta, así que el DTO sale actualizado.
     /// </para>
     /// </summary>
-    private static decimal ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-        IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
-        DateTime firstSegDate,
-        DateTime? fechaEncaset = null,
-        int? diasAlimentoPrevio = null,
-        IReadOnlySet<int>? lotesAjenos = null,
-        DateTime? finCicloAnterior = null)
-    {
-        var firstYmd = FormatYmd(firstSegDate.Date);
-        var corte = SaldoAlimentoEngordeCalculos.ResolverCorteApertura(
-            VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio), finCicloAnterior);
-        var encasetYmd = corte.HasValue ? FormatYmd(corte.Value) : null;
-        var rows = new List<(string ymd, long ts, decimal delta)>();
-        foreach (var h in hist)
-        {
-            var ymd = YmdHistoricoEfectivo(h);
-            if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) >= 0) continue;
-            if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0) continue;
-            if (SaldoAlimentoEngordeCalculos.EsDeCicloAjeno(h, lotesAjenos)) continue;
-            if (!TryGetHistDeltaAndOrd(h, out var d, out _)) continue;
-            rows.Add((ymd, TsHistorico(h), d));
-        }
-        rows.Sort((a, b) =>
-        {
-            var c = string.Compare(a.ymd, b.ymd, StringComparison.Ordinal);
-            if (c != 0) return c;
-            return a.ts.CompareTo(b.ts);
-        });
-        decimal bal = 0;
-        foreach (var r in rows)
-            bal += r.delta;
-        return bal;
-    }
-
     private async Task RecalcularSaldoAlimentoPorLoteAsync(int loteId, int companyId, CancellationToken ct = default)
     {
-        var lote = await _ctx.LoteAveEngorde.AsNoTracking()
-            .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
-            .Select(l => new { l.FechaEncaset, l.GranjaId, l.NucleoId, l.GalponId })
-            .FirstOrDefaultAsync(ct);
-        if (lote is null) return;
+        // Se conserva el alcance por empresa: un lote de otra empresa no se toca.
+        var propio = await _ctx.LoteAveEngorde.AsNoTracking()
+            .AnyAsync(l => l.LoteAveEngordeId == loteId
+                        && l.CompanyId == companyId
+                        && l.DeletedAt == null, ct);
+        if (!propio)
+            return;
 
-        var farmId = lote.GranjaId;
-        var nucleoId = (lote.NucleoId ?? "").Trim();
-        var galponId = (lote.GalponId ?? "").Trim();
-
-        var hist = await _ctx.LoteRegistroHistoricoUnificados.AsNoTracking()
-            .Where(h =>
-                h.CompanyId == companyId
-                && !h.Anulado
-                && h.TipoEvento != "VENTA_AVES"
-                && !(h.TipoEvento == "INV_INGRESO"
-                     && h.Referencia != null
-                     && h.Referencia.StartsWith("Seguimiento aves engorde #"))
-                && h.FarmId == farmId
-                && (h.NucleoId == null ? "" : h.NucleoId.Trim()) == nucleoId
-                && (h.GalponId == null ? "" : h.GalponId.Trim()) == galponId)
-            .OrderBy(h => h.FechaOperacion)
-            .ThenBy(h => h.Id)
-            .ToListAsync(ct);
-
-        var segs = await _ctx.SeguimientoDiarioAvesEngorde
-            .Where(s => s.LoteAveEngordeId == loteId)
-            .OrderBy(s => s.Fecha)
-            .ThenBy(s => s.Id)
-            .ToListAsync(ct);
-        if (segs.Count == 0) return;
-
-        // El histórico de arriba se lee con scope GALPÓN, así que el consumo debe leerse igual o el
-        // saldo queda inflado en lo que gastó el otro lote de la misma bodega. Solo cuentan los que
-        // CONVIVEN (rangos de seguimiento solapados): un galpón con ciclos sucesivos no comparte.
-        // Espeja el CTE `consumo_galpon_por_fecha` de fn_seguimiento_diario_engorde (v10).
-        var desdeSeg = segs[0].Fecha.Date;
-        var hastaSeg = segs[^1].Fecha.Date;
-
-        var segsGalpon = await _ctx.SeguimientoDiarioAvesEngorde
-            .AsNoTracking()   // solo aportan consumo; los que se persisten son los de `segs`
-            .Where(s => s.LoteAveEngordeId != loteId
-                     && _ctx.LoteAveEngorde.Any(l2 =>
-                            l2.LoteAveEngordeId == s.LoteAveEngordeId
-                         && l2.CompanyId == companyId
-                         && l2.DeletedAt == null
-                         && l2.GranjaId == farmId
-                         && (l2.NucleoId == null ? "" : l2.NucleoId.Trim()) == nucleoId
-                         && (l2.GalponId == null ? "" : l2.GalponId.Trim()) == galponId)
-                     && _ctx.SeguimientoDiarioAvesEngorde
-                            .Where(s2 => s2.LoteAveEngordeId == s.LoteAveEngordeId)
-                            .Min(s2 => s2.Fecha) <= hastaSeg
-                     && _ctx.SeguimientoDiarioAvesEngorde
-                            .Where(s2 => s2.LoteAveEngordeId == s.LoteAveEngordeId)
-                            .Max(s2 => s2.Fecha) >= desdeSeg)
-            .ToListAsync(ct);
-
-        // ⭐ v11: lotes del galpón que NO conviven conmigo (ciclos sucesivos) → su alimento no entra
-        // en mi apertura. Espeja el CTE `lotes_ajenos` de fn_seguimiento_diario_engorde (v11).
-        var ciclosGalpon = await _ctx.LoteAveEngorde.AsNoTracking()
-            .Where(l2 => l2.LoteAveEngordeId != loteId
-                      && l2.CompanyId == companyId
-                      && l2.DeletedAt == null
-                      && l2.GranjaId == farmId
-                      && (l2.NucleoId == null ? "" : l2.NucleoId.Trim()) == nucleoId
-                      && (l2.GalponId == null ? "" : l2.GalponId.Trim()) == galponId)
-            .Select(l2 => new
-            {
-                l2.LoteAveEngordeId,
-                SegMin = _ctx.SeguimientoDiarioAvesEngorde
-                    .Where(s2 => s2.LoteAveEngordeId == l2.LoteAveEngordeId).Min(s2 => (DateTime?)s2.Fecha),
-                SegMax = _ctx.SeguimientoDiarioAvesEngorde
-                    .Where(s2 => s2.LoteAveEngordeId == l2.LoteAveEngordeId).Max(s2 => (DateTime?)s2.Fecha)
-            })
-            .ToListAsync(ct);
-
-        var ciclos = ciclosGalpon.Where(c => c.LoteAveEngordeId.HasValue)
-                                 .Select(c => (c.LoteAveEngordeId!.Value, c.SegMin, c.SegMax))
-                                 .ToList();
-        var lotesAjenos = SaldoAlimentoEngordeCalculos.ResolverLotesAjenos(ciclos, desdeSeg, hastaSeg);
-        // ⭐ v12: la ventana tampoco puede retroceder más allá del fin del ciclo anterior.
-        var finCicloAnterior = SaldoAlimentoEngordeCalculos.ResolverFinCicloAnterior(ciclos, desdeSeg);
-
-        // ⭐ v11: la ventana previa al encaset la configura la empresa (igual que la fn y el camino
-        // de carga masiva). Antes este service cortaba en la fecha de encaset a secas, y esa
-        // divergencia era justamente lo que hacía que el dato guardado y la grilla no coincidieran.
-        var diasPrevios = await _ctx.Companies.AsNoTracking()
-            .Where(c => c.Id == companyId)
-            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
-            .FirstOrDefaultAsync(ct);
-
-        var firstSegDate = segs.Min(s => s.Fecha.Date);
-        var corteVentana = SaldoAlimentoEngordeCalculos.ResolverCorteApertura(
-            VentanaAlimentoPrevioCalculos.FechaCorte(lote.FechaEncaset, diasPrevios), finCicloAnterior);
-        var encYmd = corteVentana.HasValue ? FormatYmd(corteVentana.Value) : null;
-        var firstYmd = FormatYmd(firstSegDate);
-        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            hist, firstSegDate, lote.FechaEncaset, diasPrevios, lotesAjenos, finCicloAnterior);
-
-        var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
-        foreach (var h in hist)
-        {
-            var ymd = YmdHistoricoEfectivo(h);
-            if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) < 0) continue;
-            if (encYmd is not null && string.Compare(ymd, encYmd, StringComparison.Ordinal) < 0) continue;
-            if (!TryGetHistDeltaAndOrd(h, out var delta, out var ord)) continue;
-            events.Add(new SaldoAlimentoEvent(ymd, ord, TsHistorico(h), null, delta));
-        }
-        foreach (var s in segs.Concat(segsGalpon))
-        {
-            var ymd = FormatYmd(s.Fecha.Date);
-            var ch = s.ConsumoKgHembras ?? 0;
-            var cm = s.ConsumoKgMachos ?? 0;
-            events.Add(new SaldoAlimentoEvent(ymd, 3, TsSeguimiento(s), s.Id, -(ch + cm)));
-        }
-        events.Sort((a, b) =>
-        {
-            var c = string.Compare(a.Ymd, b.Ymd, StringComparison.Ordinal);
-            if (c != 0) return c;
-            if (a.Ord != b.Ord) return a.Ord.CompareTo(b.Ord);
-            if (a.Tie != b.Tie) return a.Tie.CompareTo(b.Tie);
-            return (a.SegId ?? 0L).CompareTo(b.SegId ?? 0L);
-        });
-
-        var saldoPorSegId = new Dictionary<long, decimal>();
-        decimal bal = opening;
-        foreach (var e in events)
-        {
-            // ⭐ v11: SIN piso en 0, igual que la fn y el camino de carga masiva (decisión v9). El
-            // piso regalaba alimento inexistente y dejaba el acumulado por encima del inventario.
-            bal += e.Delta;
-            if (e.SegId.HasValue) saldoPorSegId[e.SegId.Value] = bal;
-        }
-        foreach (var s in segs)
-            s.SaldoAlimentoKg = saldoPorSegId.TryGetValue(s.Id, out var sal) ? sal : bal;
-        await _ctx.SaveChangesAsync(ct);
+        await SaldoAlimentoEngordeAplicador.RecalcularPorLoteAsync(_ctx, loteId, ct);
     }
 }

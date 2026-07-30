@@ -234,6 +234,58 @@ aws ecs describe-task-definition --task-definition <arn-de-arriba> --region us-e
 
 ---
 
+## 🛡️ Invariantes que NO se pueden romper (aprendidos a los golpes)
+
+> Reglas **vinculantes** nacidas de incidentes reales. Cada una existe porque ya falló.
+
+### Gate multipaís al tocar cálculo compartido
+
+Si el cambio toca `fn_seguimiento_diario_engorde`, `fn_cuadre_alimento_engorde` o cualquier
+`*SaldoAlimento*`, la validación obligatoria es **comparación fila a fila en TODAS las empresas**, no
+solo en la que motivó el fix:
+
+```bash
+psql ... -f backend/sql/verificar_paridad_saldo_engorde.sql   # antes del cambio (congela)
+psql ... -f backend/sql/verificar_paridad_saldo_engorde.sql   # después (compara)
+```
+
+Toda empresa que no sea el objetivo tiene que salir con **0 en todas las columnas**; cualquier otra
+cosa se justifica por escrito antes de mergear. **Por qué:** la ventana de alimento previo al encaset
+(jul-2026) se midió contra Panamá y se desplegó; Ecuador encadena 3-4 ciclos por galpón —topología que
+Panamá no tiene— y la ventana se comió la limpieza del ciclo anterior. 26 lotes con apertura negativa,
+330 filas de la tabla diaria en rojo, detectado a las 24 h por un ticket de operación.
+
+### El histórico unificado se ANULA, nunca se abandona
+
+`lote_registro_historico_unificado` la llena un trigger **AFTER INSERT**: ningún `UPDATE` ni `DELETE`
+del origen se propaga solo. Todo camino que deshaga un movimiento debe dejar su fila con
+`anulado = true` — **nunca borrarla ni dejarla huérfana**, porque el saldo seguiría contándola.
+En `inventario_gestion_movimiento` eso ya lo garantizan los triggers
+`trg_inventario_gestion_movimiento_lote_hist_del` y `_cancel`; **si agregás otra tabla espejo, replicá
+el patrón** en vez de confiar en que cada service se acuerde.
+
+### Una sola fórmula por número
+
+El saldo de alimento llegó a tener **tres** implementaciones (la fn SQL y dos services) que divergieron
+y mostraron números distintos para el mismo lote. Hoy los services delegan en
+`SaldoAlimentoEngordeAplicador`, que escribe **desde la fn**. `SeguimientoAvesEngordeCalculos` se
+conserva como **especificación ejecutable**: sus tests son el contrato que la fn debe cumplir.
+**Regla:** si un número se calcula en SQL y en C#, uno de los dos es el dueño y el otro es el test.
+
+### Verificar antes de "limpiar" datos
+
+Antes de anular, borrar o corregir filas para «cuadrar», **simulá el efecto en una transacción y
+revertila**. Anular las 93 filas huérfanas del histórico parecía obvio y habría mandado **5 ciclos
+cerrados de saldo 0 a negativo** sin mejorar el cuadre: eran alimento real ya consumido.
+
+### El cuadre se mira, no se espera
+
+`GET /api/CuadreAlimentoEngorde` responde el invariante por galpón
+(`saldo del ciclo activo == stock − movimientos posteriores`). Si un cambio lo mueve de **0
+descuadrados**, es una regresión.
+
+---
+
 ## 🧪 Testing & ciclo de vida de servicios
 
 - **Tests por módulo + gate en CI/CD:** cada módulo tiene sus pruebas y el pipeline **bloquea el despliegue si no pasan** (ver sección 🚀). Al tocar un módulo, dejá su test verde antes de mergear; los despliegues críticos se hacen **controlados por fases** en horario de baja operación y con verificación post-deploy.

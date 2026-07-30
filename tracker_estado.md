@@ -1858,3 +1858,22 @@ Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cu
 - [x] `dotnet build` 0/0 · `dotnet test` **1.395 verdes**
 - [x] Smoke en BD con contraste del comportamiento viejo: anulado 16.380 -> 11.380 correcto; borrado sin anular se quedaba en 16.380 con fila huerfana; rechazo 14.380 -> 16.380
 - [x] Sin test unitario: el arreglo es Infrastructure (EF+SQL) y el proyecto de tests solo referencia Application. La regla pura ya esta cubierta por `TipoEventoInventarioCalculosTests`
+
+
+## Fase 9 - Prevencion: los 5 puntos (2026-07-30)
+
+> Plan: `fase_de_desarrollo/prevencion_descuadres_alimento_engorde_plan.md`
+
+- [x] **P1 — La BD garantiza el invariante.** Dos triggers en `inventario_gestion_movimiento` (`_del` AFTER DELETE, `_cancel` AFTER UPDATE del movement_type), copiando el patron que `movimiento_pollo_engorde` ya usaba. **Probado con un DELETE por SQL crudo que nunca pasa por el C#**: el historico queda anulado y el saldo vuelve de 16.380 a 11.380
+- [x] P1 — NO se paso a borrado logico a proposito: obligaria a auditar todas las lecturas y una omitida resucita movimientos. El AFTER DELETE cierra el agujero igual para la correctitud, con mucho menos riesgo
+- [x] **P2 — `fn_cuadre_alimento_engorde`** + `CuadreAlimentoEngordeCalculos` (puro, 9 tests) + `GET /api/CuadreAlimentoEngorde` (empresa activa, fail-closed, loguea Warning). **Hoy: Ecuador 35/35, Panama 25/25, 0,0 kg**
+- [x] P2 — ⚠️ Bug propio detectado al estrenarla: tomaba el saldo de la ULTIMA fila y ademas restaba los movimientos posteriores (doble conteo, 24/35 falsos). Tiene que ser el saldo en el ultimo dia de seguimiento. Corregido
+- [x] **P3 — Una sola implementacion.** Los dos services delegan en `SaldoAlimentoEngordeAplicador`, que escribe desde la fn. El service de Ecuador paso de **363 a 187 lineas**. Verificado: persistido == grilla en las 5.495 filas
+- [x] **P4 — Gate multipais.** `verificar_paridad_saldo_engorde.sql`, mismo comando dos veces. **Probado que detecta** 3 diferencias inyectadas e identifica el galpon exacto. Regla vinculante agregada a `CLAUDE.md` (seccion nueva «Invariantes que NO se pueden romper»)
+- [x] **P5 — Aviso fuera de ciclo.** `AvisoFechaFueraDeCicloCalculos` (puro, 8 tests) + campo aditivo en `InventarioGestionStockDto`, cableado en ingreso y traslado (los dos galpones). Avisa, no bloquea
+- [x] Migracion `20260730160000_PrevencionDescuadresAlimentoEngorde` (idempotente, con `Down`)
+- [x] `dotnet build` 0/0 · `dotnet test` **1.417 verdes** (1.395 + 22)
+
+### Pendiente anotado (no bloquea)
+- [ ] Borrado logico de `inventario_gestion_movimiento` para trazabilidad (auditar todas las lecturas antes)
+- [ ] Pantalla de front para el cuadre: hoy solo existe el endpoint
