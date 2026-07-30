@@ -1673,3 +1673,38 @@ El usuario pidió que el reporte no cruce con el jsonb sino con **inventario y s
 
 - [ ] **G0477 (DOÑA MARIA): editar los 544 kg a mano** en Gestión de inventario — decisión del usuario. Su lote (182) se encasetó el 27/07 y todavía no tiene seguimiento cargado, así que la migración de cuadre no lo cubrió. Ingresos 12.413,6 · stock 11.869,6
 - [ ] **Ecuador sigue sin cuadrar** contra su inventario (SAN GUILLERMO 206.318 kg, Kilometro 86 172.984 kg): mismo bug del consumo del cruce sin descontar, más ingresos sin galpón. Trabajo aparte, del tamaño del de Panamá
+
+---
+
+# Tracker — Diagnóstico: saldo de alimento de la grilla ≠ stock (ItalcolEcuador)
+
+**Diagnóstico:** [`fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md`](fase_de_desarrollo/cuadre_engorde_ecuador_diagnostico_saldo_alimento.md)
+**Requerimiento marco:** [`fase_de_desarrollo/cuadre_engorde_ecuador_requerimiento.md`](fase_de_desarrollo/cuadre_engorde_ecuador_requerimiento.md)
+**Fecha:** 2026-07-29 · **Alcance de este bloque:** SOLO diagnóstico. No se tocó código, ni SQL, ni datos.
+
+Reporte de operación: en Kilometro 22 / N1 / Galpon-2 / lote 2603, la grilla muestra saldo **3.560 kg** el
+primer día cuando el ingreso fue 12.000 y el consumo 480 (esperado 11.520). El usuario aclara que *«solo es en
+lo visual porque en el stock sí tenemos lo correcto»*.
+
+## Diagnóstico
+- [x] Identificado el lote testigo: `lote_ave_engorde_id = 98` (Kilometro 22, G0036 = «Galpon-2», encaset 14-jun)
+- [x] Reproducido en la BD local (dump de prod): `fn_seguimiento_diario_engorde(98)` devuelve 3.560, igual que la pantalla
+- [x] Verificado que la fn local es **v10 con ventana v9**, la misma de producción (`pg_proc`)
+- [x] **Causa raíz**: la apertura da **−7.960 kg** con 4 movimientos del **ciclo anterior** (lote 65, «2602»), no del 2603
+- [x] Mecanismo: la ventana v9 (`fecha_encaset − 10 d` = 04-jun) entra en el ciclo anterior, que cerró el 01-jun
+- [x] Asimetría confirmada: se excluyen los 9.000 kg de `(devolución por eliminación)` pero se cuentan los 8.120 kg de traslados de salida
+- [x] **El dato persistido está SANO**: `seguimiento_diario_aves_engorde.saldo_alimento_kg` = 11.520 día 1 y 11.380 el 28-jul
+- [x] **Cuadra al kilo con el inventario**: stock de G0036 = 10.180 + 1.200 = **11.380 kg** = saldo persistido
+- [x] Desvío **constante de −7.960 kg en las 43 filas** ⇒ corrimiento de apertura, no error acumulativo
+- [x] Localizada la divergencia: `SeguimientoAvesEngordeEcuadorService.SaldoAlimento.cs:273` llama a la apertura **sin** `diasAlimentoPrevio` (corte viejo, correcto), mientras la fn y `SeguimientoAvesEngordeService` sí aplican la ventana
+- [x] Confirmado que es **regresión del 28-jul** (commit `36a8bab`), no deuda histórica
+
+## Alcance medido (dump de prod, 2026-07-29)
+- [x] Ecuador, 103 lotes con seguimiento: **63 coinciden · 26 la grilla muestra de MENOS (98.506 kg) · 14 de más (78.501 kg)**
+- [x] Aperturas negativas fantasma: **Ecuador 26 lotes / −98.692 kg** · **Panamá 0** (sus 9 aperturas positivas son el caso legítimo de v9)
+- [x] Explicado por qué Panamá salió limpio: no encadena ciclos sucesivos por galpón (diferencia D4 del requerimiento)
+
+## Pendiente de decisión del usuario (NADA aplicado)
+- [ ] Elegir corrección: (1) acotar la ventana al ciclo propio · (2) simetrizar el filtro de devoluciones (insuficiente por sí sola) · (3) que la grilla lea la columna persistida
+- [ ] Auditar los **14 lotes donde la grilla muestra de más** (el lote 20 arrastra +37.880 desde una apertura positiva de 19.880 kg)
+- [ ] Al corregir: regresión fila a fila de **Panamá con 0 diferencias** + `dotnet build` + `dotnet test` (1.341)
