@@ -1840,3 +1840,21 @@ Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cu
 - **Lotes 16, 7, 15** (Sacachun 2, 1 fila c/u): **fila de limpieza** posterior al ultimo seguimiento; el traslado de cierre saca mas de lo calculado
 - **Lote 14**: -1 kg de redondeo
 - **Panama (43 filas / 19 lotes)**: mismo tipo. Es el deficit real que **v9 decidio mostrar tal cual**
+
+
+## Fase 8 - Cierre de los dos huecos preexistentes del historico (2026-07-30)
+
+> Plan: Parte 4 de `fix_apertura_alimento_ciclo_anterior_plan.md`.
+
+- [x] Causa comun: el trigger del historico es **solo AFTER INSERT**, asi que ningun UPDATE/DELETE del movimiento se propaga. Cada camino que deshace un movimiento tiene que anular su fila a mano
+- [x] Nuevo helper `AnularHistoricoDelMovimientoAsync` (clave `origen_tabla`+`origen_id`, con fallback por ubicacion+item+cantidad, igual que `EliminarIngresoAsync`)
+- [x] `AnularMovimientoHistoricoAsync`: anula el historico ANTES de borrar el movimiento (ya no deja huerfana)
+- [x] `RechazarTransitoPendienteAsync`: anula el historico al rechazar (antes la salida seguia descontando)
+- [x] **Medido: 93 filas huerfanas en la BD**, de las cuales solo **6 (43.640 kg)** inflan el saldo; el resto son devoluciones por eliminacion, INV_CONSUMO o INV_OTRO, que el saldo ya descarta
+- [x] **Simulado anularlas: EMPEORA.** Manda 5 ciclos cerrados de saldo 0 a negativo (-11.940 / -5.970 / -4.000 / -1.140 / -790) y el cuadre contra el stock no mejora (35/35 y 25/25 antes y despues)
+- [x] ⇒ **NO hay migracion de datos**: esas 6 filas son alimento real que el lote consumio y son las que hacen cerrar esos ciclos en 0
+- [x] No se puede repetir: la anulacion ya exige que el stock alcance para revertir, asi que solo puede anular alimento que sigue en bodega
+- [x] Rechazo de transito: **0 movimientos rechazados en la BD**, el hueco era real en codigo pero sin datos afectados
+- [x] `dotnet build` 0/0 · `dotnet test` **1.395 verdes**
+- [x] Smoke en BD con contraste del comportamiento viejo: anulado 16.380 -> 11.380 correcto; borrado sin anular se quedaba en 16.380 con fila huerfana; rechazo 14.380 -> 16.380
+- [x] Sin test unitario: el arreglo es Infrastructure (EF+SQL) y el proyecto de tests solo referencia Application. La regla pura ya esta cubierta por `TipoEventoInventarioCalculosTests`

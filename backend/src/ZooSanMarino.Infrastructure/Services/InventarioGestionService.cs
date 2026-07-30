@@ -1045,12 +1045,15 @@ public class InventarioGestionService : IInventarioGestionService
         pendiente.Reason = extra != null
             ? $"{pendiente.Reason ?? ""} | Rechazo destino: {extra}".Trim()
             : (pendiente.Reason ?? "Rechazado destino");
+
+        // El rechazo cancela la salida, así que su fila del histórico tiene que quedar ANULADA.
+        // Cambiarle el `movement_type` al movimiento NO alcanza: el trigger que llena el histórico es
+        // solo AFTER INSERT, así que la fila conserva su `tipo_evento` original —
+        // `TrasladoInterGranjaPendiente` mapea a INV_TRASLADO_SALIDA— y el saldo del galpón de origen
+        // seguiría descontando un alimento que nunca salió.
+        await AnularHistoricoDelMovimientoAsync(pendiente, ct);
+
         await _db.SaveChangesAsync(ct);
-        // El alimento vuelve al galpón de origen.
-        // ⚠️ Hoy esto NO cambia el saldo: el trigger del histórico es AFTER INSERT, así que cambiarle
-        // el `movement_type` al movimiento no reescribe su fila y el histórico sigue viendo la salida.
-        // El refresco se deja igual para que el dato guardado nunca se separe de la grilla cuando se
-        // corrija ese hueco (ver «Huecos preexistentes» en el plan).
         await RefrescarSaldoAlimentoEngordeAsync(
             pendiente.CompanyId, pendiente.FarmId, pendiente.NucleoId, pendiente.GalponId, "TrasladoSalida", ct);
     }
@@ -1245,13 +1248,46 @@ public class InventarioGestionService : IInventarioGestionService
             throw new InvalidOperationException(
                 "Solo se pueden anular movimientos de tipo Consumo o Ingreso. Use los flujos de traslado/tránsito para corregir otros casos.");
 
+        // El movimiento se borra, así que su fila del histórico tiene que quedar ANULADA o se
+        // convierte en huérfana: el saldo de alimento seguiría contando un ingreso que ya salió del
+        // stock, y la tabla diaria mostraría kilos que no existen. Misma convención de auditoría que
+        // EliminarIngresoAsync y EliminarTrasladoAsync (marcar, no borrar).
+        await AnularHistoricoDelMovimientoAsync(mov, ct);
+
         _db.InventarioGestionMovimientos.Remove(mov);
         await _db.SaveChangesAsync(ct);
-        // ⚠️ Este método borra el movimiento pero NO su fila del histórico unificado (queda huérfana),
-        // así que el saldo sigue contando el ingreso anulado. Es un hueco PREEXISTENTE que afecta por
-        // igual a la grilla y al dato guardado; el refresco se deja para que los dos digan lo mismo
-        // (ver «Huecos preexistentes» en el plan).
         await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
+    }
+
+    /// <summary>
+    /// Marca como anulada la fila del histórico unificado que refleja un movimiento de inventario.
+    /// <para>
+    /// El histórico lo escribe el trigger <c>trg_inventario_gestion_movimiento_lote_hist</c>, que es
+    /// <b>solo AFTER INSERT</b>: nada propaga los UPDATE ni los DELETE del movimiento. Cada camino que
+    /// deshace un movimiento tiene que anular su fila a mano o el saldo de alimento se separa del stock.
+    /// </para>
+    /// <para>
+    /// Busca por la clave del histórico (<c>origen_tabla</c> + <c>origen_id</c>, única) y cae a un
+    /// fallback por ubicación + ítem + cantidad, igual que <c>EliminarIngresoAsync</c>: hay filas
+    /// antiguas cargadas antes de que existiera esa clave.
+    /// </para>
+    /// </summary>
+    private async Task AnularHistoricoDelMovimientoAsync(InventarioGestionMovimiento mov, CancellationToken ct)
+    {
+        var hist = await _db.LoteRegistroHistoricoUnificados
+            .FirstOrDefaultAsync(h => h.OrigenTabla == "inventario_gestion_movimiento"
+                                   && h.OrigenId == mov.Id, ct);
+        hist ??= await _db.LoteRegistroHistoricoUnificados
+            .FirstOrDefaultAsync(h =>
+                h.FarmId == mov.FarmId &&
+                h.NucleoId == mov.NucleoId &&
+                h.GalponId == mov.GalponId &&
+                h.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
+                h.CantidadKg == mov.Quantity &&
+                !h.Anulado, ct);
+
+        if (hist != null)
+            hist.Anulado = true;
     }
 
     public async Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)

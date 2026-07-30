@@ -341,3 +341,87 @@ del inventario.
 - [x] Migraciones aplicadas desde v11 y **Down probado**: fn v11 restaurada y los 5.543 saldos al original
 - [x] Recalculo **idempotente**: 2a corrida `UPDATE 0`
 - [x] **Persistido == grilla: 0 discrepancias** en las dos empresas
+
+
+---
+
+# Parte 4 - Los dos huecos preexistentes del historico
+
+**Fecha:** 2026-07-30. Cierra los dos huecos que aparecieron al enganchar el refresco (Parte 2 §5).
+
+## 1. El mecanismo comun
+
+El trigger `trg_inventario_gestion_movimiento_lote_hist` es **solo AFTER INSERT**: nada propaga al
+historico los UPDATE ni los DELETE del movimiento. Cada camino que deshace un movimiento tiene que
+anular su fila a mano, o el saldo de alimento se separa del stock. `EliminarIngresoAsync` y
+`EliminarTrasladoAsync` ya lo hacian (marcan `anulado = true`); estos dos no.
+
+Nuevo helper privado `AnularHistoricoDelMovimientoAsync(mov, ct)`: busca por la clave del historico
+(`origen_tabla` + `origen_id`, unica) con fallback por ubicacion + item + cantidad, igual que
+`EliminarIngresoAsync`.
+
+| Metodo | Que hacia mal | Que hace ahora |
+|---|---|---|
+| `AnularMovimientoHistoricoAsync` | borraba el movimiento y dejaba la fila del historico **huerfana**; el saldo seguia contando un ingreso que ya habia salido del stock | anula el historico y despues borra el movimiento |
+| `RechazarTransitoPendienteAsync` | cambiaba el `movement_type` a `TrasladoInterGranjaRechazado`, pero la fila conservaba su `tipo_evento` (`TrasladoInterGranjaPendiente` mapea a `INV_TRASLADO_SALIDA`), asi que el origen seguia descontando una salida que nunca ocurrio | anula el historico al rechazar |
+
+## 2. Los datos existentes NO se tocan - y esto se midio
+
+Hay **93 filas huerfanas** en la BD (movimiento borrado, historico sin anular):
+
+| Empresa | tipo_evento | Filas | Kg | ¿Afecta el saldo? |
+|---|---|---:|---:|---|
+| ItalcolEcuador | INV_INGRESO | 35 | 83.106 | solo 6 de ellas |
+| ItalcolEcuador | INV_CONSUMO | 10 | 9.061 | no (el saldo lee el consumo del seguimiento) |
+| ItalcolPanama | INV_OTRO | 48 | 52.028 | no (ningun calculo mira INV_OTRO) |
+
+De las 35 de Ecuador, **29 son `(devolucion por eliminacion)`**, que los dos filtros del saldo ya
+descartan. Quedan **6 filas / 43.640 kg** que si inflan el saldo.
+
+**Simulacion de anularlas (transaccion revertida):**
+
+| Lote | Granja / galpon | Corrida | Saldo antes | Saldo despues |
+|---|---|---|---:|---:|
+| 57 | Sacachun 2 / G0055 | 2601 | 0 | **-11.940** |
+| 66 | Kilometro 22 / G0035 | 2602 | 0 | **-5.970** |
+| 34 | CAROLINA / G0057 | 2601 | 0 | **-4.000** |
+| 65 | Kilometro 22 / G0036 | 2602 | 0 | **-1.140** |
+| 21 | Kilometro 61 / G0037 | 2602 | 0 | **-790** |
+
+Y el cuadre del ciclo activo contra el stock fisico **no mejora**: Ecuador 35/35 y Panama 25/25 antes
+y despues, error 0,0 en ambos casos.
+
+⇒ **Esas 6 filas son alimento REAL que el lote consumio.** Su movimiento se borro (por la anulacion
+vieja o por otro camino), pero los kilos existieron y se gastaron: son justamente las que hacen que
+esos 5 ciclos cerrados terminen en 0. Anularlas romperia cinco cierres sanos sin arreglar nada.
+**No hay migracion de datos.**
+
+De ahora en adelante el problema no se puede repetir: `AnularMovimientoHistoricoAsync` ya exigia que
+el stock alcance para revertir (`stock.Quantity < mov.Quantity` lanza), asi que solo puede anular un
+ingreso cuyos kilos siguen en bodega — y en ese caso sacarlo del saldo es exactamente lo correcto.
+
+## 3. Rechazo de transito: 0 casos en la BD
+
+`SELECT count(*) FROM inventario_gestion_movimiento WHERE movement_type='TrasladoInterGranjaRechazado'`
+devuelve **0**. El hueco era real en el codigo pero todavia no habia producido datos malos.
+
+## 4. Validacion
+
+- [x] `dotnet build` 0/0 · `dotnet test` **1.395 verdes**
+- [x] Smoke en BD (transaccion revertida) sobre el lote 98, con el contraste del comportamiento viejo:
+
+| Paso | Saldo |
+|---|---:|
+| Base | 11.380 |
+| + ingreso de 5.000 kg | 16.380 |
+| **anulado (codigo nuevo)** | **11.380** |
+| borrado sin anular (comportamiento viejo) | 16.380 + 1 fila huerfana |
+| + solicitud de traslado de 2.000 kg | 14.380 |
+| **rechazado (codigo nuevo)** | **16.380** |
+
+- [x] BD local intacta tras el rollback
+
+> **Nota de cobertura:** el arreglo vive en Infrastructure (EF + SQL) y el proyecto de tests solo
+> referencia Application, asi que no hay test unitario. La regla pura que gobierna cuando refrescar ya
+> esta cubierta por `TipoEventoInventarioCalculosTests` (29 casos) y el comportamiento se valido con el
+> smoke de arriba.
