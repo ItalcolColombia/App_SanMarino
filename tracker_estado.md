@@ -1795,7 +1795,7 @@ hasta el próximo registro diario. La grilla, que recalcula en vivo, ya no se ve
 - [x] `SaldoAlimentoEngordeAplicador` (NUEVO, estático con `DbContext`, patrón `RetiroAvesEngordeAplicador`): recalcula **desde la fn**, no en C#, para que el dato guardado sea idéntico a la grilla por construcción
 - [x] `TipoEventoInventarioCalculos` (NUEVO, puro): espejo de `fn_tipo_evento_inventario` + la regla de qué movimientos afectan el saldo, **fail-closed** ante un tipo nuevo sin mapear
 - [x] `TipoEventoInventarioCalculosTests.cs` (NUEVO) — 29 casos
-- [x] 11 llamadas en 8 métodos de `InventarioGestionService`: ingreso, traslado misma granja (los 2 galpones), traslado inter-granja (origen), recepción de tránsito (N galpones), actualizar fecha de ingreso y de traslado, eliminar ingreso (+ rama huérfana) y eliminar traslado
+- [x] **12 llamadas en 10 métodos** de `InventarioGestionService`: ingreso, traslado misma granja (los 2 galpones), traslado inter-granja (origen), recepción de tránsito (N galpones), actualizar fecha de ingreso y de traslado, eliminar ingreso (+ rama huérfana) y eliminar traslado
 - [x] NO enganchados a propósito: consumo (lo aporta el seguimiento, se duplicaría), ajuste/eliminación de stock (`INV_OTRO`, invisible al saldo) y nivel granja (sin galpón no hay lote)
 - [x] Política de error: **no tumba la operación de inventario** (la proyección se puede reconstruir; la grilla ya muestra bien). Se registra con `ILogger` y un lote corrupto no bloquea el galpón
 - [x] `dotnet build` 0/0 · `dotnet test` **1.386 verdes** (1.357 + 29)
@@ -1811,3 +1811,11 @@ Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cu
 ### Huecos PREEXISTENTES encontrados de paso (NO corregidos, descuadran grilla y dato guardado por igual)
 - [ ] `AnularMovimientoHistoricoAsync` borra el movimiento pero **deja huérfana** su fila del histórico ⇒ el saldo sigue contando el ingreso anulado
 - [ ] `RechazarTransitoPendienteAsync` cambia el `movement_type` del movimiento, pero como el trigger es solo `AFTER INSERT` el histórico conserva el tipo viejo y sigue viendo la salida
+
+### Confirmaciones y extra (mapeo con workflow, 2026-07-30)
+- [x] **El ciclo de DI era real**: `SeguimientoAvesEngordeService:32` y `…EcuadorService:32` YA inyectan `IInventarioGestionService?` y los cuatro son `Scoped` ⇒ inyectar al revés daba `circular dependency`. El aplicador estático con `DbContext` era la única salida limpia (mismo motivo que `RetiroAvesEngordeAplicador`)
+- [x] **`InventarioGestionService` es el ÚNICO escritor EF de `InventarioGestionMovimiento`** ⇒ MigracionService, InventarioGasto, ColombiaInventarioConsumo, SeguimientoLoteLevante y el Puente Panamá **heredan el enganche sin código nuevo**. No hay un segundo camino que se escape
+- [x] Conteo corregido: son **12 llamadas en 10 métodos** (no 11 en 8)
+- [x] `RegistrarIngresoNivelGranjaAsync` NO se engancha también porque **no hace `SaveChanges`** (commitea el orquestador): un hook ahí leería datos no persistidos
+- [x] **Índice nuevo** `20260730120000_IndiceHistoricoUnificadoPorGranjaFecha`: la tabla no tenía ninguno por granja. Medido con EXPLAIN ANALYZE: fn completa **10,3 → 2,7 ms**; consulta del histórico por ubicación **Seq Scan 4,3 ms → Bitmap Index Scan 0,55 ms**. Solo `(farm_id, fecha_operacion)` porque núcleo/galpón se comparan con `COALESCE(TRIM(...))`, que no es sargable
+- [x] Migración aplicada en local y **idempotente** (2ª corrida: `already exists, skipping`)

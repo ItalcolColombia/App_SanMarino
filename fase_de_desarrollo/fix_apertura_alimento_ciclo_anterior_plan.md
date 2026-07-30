@@ -165,7 +165,7 @@ divergencia fue la causa del descuadre; la fn es la fuente validada contra el st
 columna se escribe desde ella y queda idéntica a la pantalla por construcción. Es el mismo SQL de la
 migración `20260730091000`.
 
-11 llamadas en 8 métodos de `InventarioGestionService`:
+**12 llamadas en 10 métodos** de `InventarioGestionService`:
 
 | Método | Por qué |
 |---|---|
@@ -229,3 +229,37 @@ cuando se corrijan.
 - [x] Idempotente: segunda pasada `UPDATE 0`
 - [x] Caso «después del último seguimiento» medido y documentado (§4)
 - [x] Todo el smoke dentro de una transacción revertida: la BD local queda intacta
+
+## 7. Dos cosas que confirmaron el diseño (verificadas en el código, no supuestas)
+
+**El ciclo de DI era real, no una precaución.** `SeguimientoAvesEngordeService:32` y
+`SeguimientoAvesEngordeEcuadorService:32` **ya inyectan `IInventarioGestionService?`**, y los cuatro
+services son `Scoped`. Inyectar al revés habría dado `A circular dependency was detected` al arrancar.
+El `= null` del parámetro no salva: el servicio está registrado, así que MS.DI intenta resolverlo. Por eso
+el aplicador es `internal static` recibiendo el `DbContext` — el patrón que ya usa
+`RetiroAvesEngordeAplicador` exactamente por lo mismo.
+
+**`InventarioGestionService` es el ÚNICO escritor EF de `InventarioGestionMovimiento`** (grep de
+`new InventarioGestionMovimiento` sobre `backend/src` sin `Migrations` devuelve solo ese archivo).
+`MigracionService.AlimentoEngorde`, `InventarioGastoService`, `ColombiaInventarioConsumoService`,
+`SeguimientoLoteLevanteService` y el Puente Panamá entran por `IInventarioGestionService`, así que
+**heredan el enganche sin una línea de código nueva**. No hay un segundo camino que se escape.
+
+## 8. Índice `(farm_id, fecha_operacion)`
+
+Migración `20260730120000_IndiceHistoricoUnificadoPorGranjaFecha`. La tabla tenía índices por `id`,
+`(origen_tabla, origen_id)`, `(lote_ave_engorde_id, fecha_operacion)`, `(company_id, fecha_operacion)` y
+`tipo_evento`, pero **ninguno por granja** — y todo el cálculo del saldo lee con scope de ubicación.
+Se vuelve necesario porque el saldo ahora se refresca en cada movimiento, disparando la fn una vez por
+lote del galpón (hasta 4).
+
+Medido con `EXPLAIN ANALYZE` sobre el dump de producción en local (12.247 filas):
+
+| Consulta | Antes | Después |
+|---|---:|---:|
+| `fn_seguimiento_diario_engorde(98)` completa | 10,3 ms | **2,7 ms** |
+| Histórico por ubicación (`…Service.SaldoAlimento.cs`) | **Seq Scan** 4,3 ms | **Bitmap Index Scan** 0,55 ms |
+
+Solo `(farm_id, fecha_operacion)`: el núcleo y el galpón se comparan con `COALESCE(TRIM(...), '')`, que
+**no es sargable**, así que en un índice de 4 columnas quedarían en `Filter` como peso muerto. Indexarlos
+exigiría un índice de EXPRESIÓN, que hoy no se justifica.
