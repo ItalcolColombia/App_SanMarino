@@ -1819,3 +1819,24 @@ Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cu
 - [x] `RegistrarIngresoNivelGranjaAsync` NO se engancha también porque **no hace `SaveChanges`** (commitea el orquestador): un hook ahí leería datos no persistidos
 - [x] **Índice nuevo** `20260730120000_IndiceHistoricoUnificadoPorGranjaFecha`: la tabla no tenía ninguno por granja. Medido con EXPLAIN ANALYZE: fn completa **10,3 → 2,7 ms**; consulta del histórico por ubicación **Seq Scan 4,3 ms → Bitmap Index Scan 0,55 ms**. Solo `(farm_id, fecha_operacion)` porque núcleo/galpón se comparan con `COALESCE(TRIM(...))`, que no es sargable
 - [x] Migración aplicada en local y **idempotente** (2ª corrida: `already exists, skipping`)
+
+
+## Fase 7 - Ticket seguimientos de engorde en negativo (2026-07-30)
+
+> Plan: Parte 3 de `fix_apertura_alimento_ciclo_anterior_plan.md`.
+
+- [x] Acotado: solo el **saldo de alimento**; cero aves negativas y cero consumos negativos
+- [x] Estado **hoy en produccion** (v10): Ecuador **330 filas / 27 lotes / -1.175.479 kg** (2601:22 · 2602:213 · 2603:89 · 2604:6); Panama 43 / 19
+- [x] **Causa**: la v11 tapaba medio agujero. El trigger atribuye el movimiento al lote de id **mas alto al momento de INSERTAR**, asi que la limpieza del ciclo anterior queda con el id del lote VIEJO (la caza `lotes_ajenos`) **o del NUEVO** (no la cazaba nadie). Testigo: SAN GUILLERMO G0033, dos salidas del 13/03 por 5.160 kg - el mismo dia en que cerro el ciclo previo - etiquetadas con el lote nuevo
+- [x] **fn v12**: `corte_apertura = GREATEST(encaset - N, fin_ciclo_anterior + 1)`. Los dos criterios son complementarios
+- [x] Espejo en C#: `ResolverFinCicloAnterior` + `ResolverCorteApertura` (puros) y los dos services
+- [x] 9 tests nuevos (incluido el caso SAN GUILLERMO y el no-toca-el-preiniciador)
+- [x] Migraciones `20260730140000_FnSeguimientoEngordeV12AperturaCorteCicloAnterior` + `20260730141000_RecalcularSaldoAlimentoEngordeV12`
+- [x] **Resultado: Ecuador 330 -> 25 filas (27 -> 5 lotes); corridas ACTIVAS 2603+2604 de 95 filas a CERO**; Panama sin cambio
+- [x] `dotnet build` 0/0 · `dotnet test` **1.395 verdes** · Panama 0 diferencias fila a fila · Down probado · recalculo idempotente · persistido == grilla
+
+### Los 25 que quedan NO son defecto de formula (no se tocan)
+- **Lote 12** (Km86 G0040, -9.020): alimento **registrado tarde** - el galpon recibio 182.630 kg fechados despues de que el ciclo cerro
+- **Lotes 16, 7, 15** (Sacachun 2, 1 fila c/u): **fila de limpieza** posterior al ultimo seguimiento; el traslado de cierre saca mas de lo calculado
+- **Lote 14**: -1 kg de redondeo
+- **Panama (43 filas / 19 lotes)**: mismo tipo. Es el deficit real que **v9 decidio mostrar tal cual**

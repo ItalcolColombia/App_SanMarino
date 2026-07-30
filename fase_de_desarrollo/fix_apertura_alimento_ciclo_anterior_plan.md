@@ -263,3 +263,81 @@ Medido con `EXPLAIN ANALYZE` sobre el dump de producción en local (12.247 filas
 Solo `(farm_id, fecha_operacion)`: el núcleo y el galpón se comparan con `COALESCE(TRIM(...), '')`, que
 **no es sargable**, así que en un índice de 4 columnas quedarían en `Filter` como peso muerto. Indexarlos
 exigiría un índice de EXPRESIÓN, que hoy no se justifica.
+
+
+---
+
+# Parte 3 - Ticket: seguimientos diarios de engorde en Ecuador en negativo
+
+**Fecha:** 2026-07-30. Investigacion del ticket de operacion y fix v12.
+
+## 1. Que esta en negativo
+
+Solo el **saldo de alimento**. Cero aves negativas y cero consumos negativos en toda la BD.
+
+Estado **hoy en produccion** (fn v10), medido sobre el dump:
+
+| Empresa | Filas negativas | Lotes | Kg |
+|---|---:|---:|---:|
+| ItalcolEcuador | **330** | 27 | -1.175.479 |
+| ItalcolPanama | 43 | 19 | -116.771 |
+
+Ecuador por corrida: 2601 = 22 · **2602 = 213** · **2603 = 89** · **2604 = 6**.
+
+## 2. Por que - la v11 tapaba solo la mitad del agujero
+
+La v11 excluye los movimientos atribuidos a un lote AJENO. Pero `lote_ave_engorde_id` lo pone el trigger
+con `fn_lote_ave_engorde_id_desde_ubicacion`, que devuelve **el lote de id mas alto del galpon en el
+momento de INSERTAR**. Asi que la atribucion falla en los **dos** sentidos:
+
+| Cuando se registro la limpieza del ciclo anterior | Con que id quedo | Quien la caza |
+|---|---|---|
+| Antes de crear el lote nuevo | el lote **VIEJO** | `lotes_ajenos` (v11) - caso Kilometro 22 / G0036 |
+| Despues de crear el lote nuevo | el lote **NUEVO** | **el corte por fin de ciclo (v12)** |
+
+Caso testigo del segundo: **SAN GUILLERMO / G0033**. Dos `INV_TRASLADO_SALIDA` del **13/03** por
+960 + 4.200 = **5.160 kg** son el vaciado del ciclo 2601, cuyo ultimo seguimiento fue **ese mismo 13/03**.
+Quedaron con el id del lote 2602, asi que para la v11 son propios y entraban en su apertura.
+
+## 3. Fix v12
+
+```
+corte_apertura = GREATEST(fecha_encaset - dias_alimento_previo_encaset,
+                          fin_del_ciclo_anterior + 1 dia)
+```
+
+Nada anterior al ultimo dia de seguimiento del lote que ocupaba el galpon antes que yo puede ser
+alimento mio. Los dos criterios son **complementarios**, no alternativos.
+
+No toca el caso legitimo de v9 -el preiniciador que llega dias antes del encaset- porque ese llega
+mucho despues de que cerro el ciclo previo, no el mismo dia.
+
+## 4. Resultado
+
+| | Produccion hoy (v10) | Con v11 + v12 |
+|---|---:|---:|
+| Ecuador, filas negativas | 330 (27 lotes) | **25 (5 lotes)** |
+| Ecuador, kg | -1.175.479 | **-146.991** |
+| **Corridas activas 2603 + 2604** | **95 filas** | **0** |
+| ItalcolPanama | 43 (19 lotes) | 43 - **sin cambio** |
+
+## 5. Los 25 que quedan NO son defecto de formula
+
+| Lote | Granja / galpon | Filas | Peor | Que es |
+|---|---|---:|---:|---|
+| 12 | Kilometro 86 / G0040 (2601) | 21 | -9.020 | **Alimento registrado tarde.** Consumio 8.020 kg mas de lo registrado en su ventana, y el galpon recibio 182.630 kg **fechados despues** de que cerro. El ingreso se cargo contra el ciclo siguiente. |
+| 16, 7, 15 | Sacachun 2 / G0055, G0051, G0052 (2602) | 1 c/u | -3.920 / -3.220 / -600 | **Fila de limpieza:** el traslado que vacia el galpon al cerrar es posterior al ultimo seguimiento y saca mas de lo que la fn calcula que quedaba. |
+| 14 | Kilometro 86 / G0042 (2601) | 1 | -1 | Redondeo. |
+
+Los 43 de Panama son el mismo tipo de caso y quedaron intactos: son el deficit real que **v9 decidio
+mostrar tal cual**, porque recortarlo a 0 regalaba alimento inexistente y dejaba el acumulado por encima
+del inventario.
+
+## 6. Validacion
+
+- [x] `dotnet build` 0/0 · `dotnet test` **1.395 verdes** (1.386 + 9 de v12)
+- [x] **Panama fila a fila: 0 diferencias** v11 vs v12 (saldo, aves, ingreso, documento)
+- [x] Ecuador: 330 filas de saldo corregidas, **ninguna fila de seguimiento perdida** (5.495)
+- [x] Migraciones aplicadas desde v11 y **Down probado**: fn v11 restaurada y los 5.543 saldos al original
+- [x] Recalculo **idempotente**: 2a corrida `UPDATE 0`
+- [x] **Persistido == grilla: 0 discrepancias** en las dos empresas

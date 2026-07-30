@@ -112,10 +112,12 @@ public partial class SeguimientoAvesEngordeService
             })
             .ToListAsync(ct);
 
-        var lotesAjenos = SaldoAlimentoEngordeCalculos.ResolverLotesAjenos(
-            ciclosGalpon.Where(c => c.LoteAveEngordeId.HasValue)
-                        .Select(c => (c.LoteAveEngordeId!.Value, c.SegMin, c.SegMax)),
-            desde, hasta);
+        var ciclos = ciclosGalpon.Where(c => c.LoteAveEngordeId.HasValue)
+                                 .Select(c => (c.LoteAveEngordeId!.Value, c.SegMin, c.SegMax))
+                                 .ToList();
+        var lotesAjenos = SaldoAlimentoEngordeCalculos.ResolverLotesAjenos(ciclos, desde, hasta);
+        // ⭐ v12: la ventana tampoco puede retroceder más allá del fin del ciclo anterior.
+        var finCicloAnterior = SaldoAlimentoEngordeCalculos.ResolverFinCicloAnterior(ciclos, desde);
 
         // Ventana previa al encaset configurada por la empresa: el preiniciador llega antes que los
         // pollitos y sin esto sus kilos quedaban fuera del saldo aunque estuvieran en el galpón.
@@ -125,7 +127,7 @@ public partial class SeguimientoAvesEngordeService
             .FirstOrDefaultAsync(ct);
 
         var (saldoPorSegId, bal) = SeguimientoAvesEngordeCalculos.CalcularSaldoAlimentoPorSeguimiento(
-            hist, segsParaSaldo, lote.FechaEncaset, diasPrevios, lotesAjenos);
+            hist, segsParaSaldo, lote.FechaEncaset, diasPrevios, lotesAjenos, finCicloAnterior);
 
         foreach (var s in segs)
         {

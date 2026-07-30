@@ -68,10 +68,13 @@ public static class SeguimientoAvesEngordeCalculos
         DateTime firstSegDate,
         DateTime? fechaEncaset = null,
         int? diasAlimentoPrevio = null,
-        IReadOnlySet<int>? lotesAjenos = null)
+        IReadOnlySet<int>? lotesAjenos = null,
+        DateTime? finCicloAnterior = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
-        var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
+        // ⭐ v12: la ventana no puede retroceder más allá del fin del ciclo anterior del galpón.
+        var corte = SaldoAlimentoEngordeCalculos.ResolverCorteApertura(
+            VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio), finCicloAnterior);
         var encasetYmd = corte.HasValue ? FormatYmd(corte.Value) : null;
         var rows = new List<(string ymd, long ts, decimal delta)>();
         foreach (var h in hist)
@@ -116,7 +119,8 @@ public static class SeguimientoAvesEngordeCalculos
         IReadOnlyList<SeguimientoDiarioAvesEngorde> segs,
         DateTime? fechaEncaset,
         int? diasAlimentoPrevio = null,
-        IReadOnlySet<int>? lotesAjenos = null)
+        IReadOnlySet<int>? lotesAjenos = null,
+        DateTime? finCicloAnterior = null)
     {
         var firstSegDate = segs.Min(s => s.Fecha.Date);
         var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
@@ -127,7 +131,7 @@ public static class SeguimientoAvesEngordeCalculos
         // este lote y todo lo que entra es suyo, aunque el movimiento haya quedado etiquetado con
         // el id del ciclo anterior (ver SaldoAlimentoEngordeCalculos.EsDeCicloAjeno).
         var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            hist, firstSegDate, fechaEncaset, diasAlimentoPrevio, lotesAjenos);
+            hist, firstSegDate, fechaEncaset, diasAlimentoPrevio, lotesAjenos, finCicloAnterior);
 
         var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
 

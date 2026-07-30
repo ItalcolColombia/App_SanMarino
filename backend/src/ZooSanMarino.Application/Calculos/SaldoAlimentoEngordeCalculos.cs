@@ -86,4 +86,47 @@ public static class SaldoAlimentoEngordeCalculos
         }
         return ajenos;
     }
+
+    /// <summary>
+    /// Último día de seguimiento del ciclo que ocupaba el galpón ANTES que este (v12).
+    /// <c>null</c> si es el primer ciclo del galpón.
+    /// <para>
+    /// Complementa a <see cref="ResolverLotesAjenos"/>. Hacen falta los dos porque la atribución del
+    /// histórico falla en ambos sentidos: <c>lote_ave_engorde_id</c> lo pone el trigger con
+    /// <c>fn_lote_ave_engorde_id_desde_ubicacion</c>, que devuelve el lote de id MÁS ALTO del galpón
+    /// al momento de insertar. La limpieza del ciclo anterior queda con el id del lote viejo si se
+    /// registró antes de crear el nuevo (la caza <c>ResolverLotesAjenos</c>) o con el id del NUEVO si
+    /// se registró después (la caza este corte). Caso SAN GUILLERMO G0033: dos traslados de salida del
+    /// 13/03 por 5.160 kg, el mismo día en que cerró el ciclo previo, etiquetados con el lote nuevo.
+    /// </para>
+    /// </summary>
+    /// <param name="ciclosDelGalpon">Los otros lotes del mismo (granja, núcleo, galpón).</param>
+    /// <param name="desde">Primer día de seguimiento del lote consultado.</param>
+    public static DateTime? ResolverFinCicloAnterior(
+        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)> ciclosDelGalpon,
+        DateTime desde)
+    {
+        DateTime? fin = null;
+        foreach (var c in ciclosDelGalpon)
+        {
+            if (!c.SegMax.HasValue) continue;
+            var max = c.SegMax.Value.Date;
+            if (max >= desde.Date) continue;              // no cerró antes de que yo empezara
+            if (fin is null || max > fin.Value) fin = max;
+        }
+        return fin;
+    }
+
+    /// <summary>
+    /// Día en que arranca de verdad la ventana de apertura: el corte de la ventana previa al encaset
+    /// (v9) o el día siguiente al fin del ciclo anterior, <b>el que sea más tarde</b>. Espejo del CTE
+    /// <c>corte_apertura</c> de <c>fn_seguimiento_diario_engorde</c> (v12).
+    /// </summary>
+    public static DateTime? ResolverCorteApertura(DateTime? corteVentana, DateTime? finCicloAnterior)
+    {
+        if (finCicloAnterior is null) return corteVentana;
+        var trasElCicloAnterior = finCicloAnterior.Value.Date.AddDays(1);
+        if (corteVentana is null) return trasElCicloAnterior;
+        return corteVentana.Value.Date >= trasElCicloAnterior ? corteVentana.Value.Date : trasElCicloAnterior;
+    }
 }

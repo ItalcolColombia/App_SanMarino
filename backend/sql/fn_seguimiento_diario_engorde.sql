@@ -3,6 +3,25 @@
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
+-- v12 (2026-07-30) — Fix: la apertura tampoco puede retroceder más allá del FIN del ciclo anterior.
+--   * La v11 excluye los movimientos atribuidos a un lote AJENO, pero eso solo tapa la mitad del
+--     agujero: `lote_ave_engorde_id` lo pone el trigger con `fn_lote_ave_engorde_id_desde_ubicacion`,
+--     que devuelve el lote de id MÁS ALTO del galpón al momento de INSERTAR. Así que la atribución
+--     falla en los DOS sentidos, y hacen falta los dos criterios:
+--       - limpieza etiquetada con el lote VIEJO  → la caza `lotes_ajenos` (v11). Caso Km22 / G0036.
+--       - limpieza etiquetada con el lote NUEVO  → la caza este corte.       Caso SAN GUILLERMO / G0033:
+--         dos INV_TRASLADO_SALIDA del 13/03 (960 + 4.200 = 5.160 kg) son el vaciado del ciclo 2601,
+--         cuyo último seguimiento fue ESE MISMO 13/03, pero quedaron con el id del lote 2602 porque
+--         se insertaron cuando ese lote ya existía. La v11 no los ve: para ella son «propios».
+--   * Solución: la ventana de apertura arranca en
+--         GREATEST(fecha_encaset − dias_alimento_previo_encaset, fin_del_ciclo_anterior + 1)
+--     donde `fin_del_ciclo_anterior` es el último día de seguimiento del lote del galpón que cerró
+--     antes de que este empezara. Nada anterior a ese día puede ser alimento mío.
+--   * Verificado sobre el dump de producción: Ecuador pasa de 6 aperturas negativas (−13.800 kg) a 1
+--     (−580 kg); Panamá NO-OP exacto (0 lotes tocados). No toca el caso legítimo de v9 —el
+--     preiniciador que llega antes del encaset— porque ese llega mucho después de que cerró el ciclo
+--     previo, no el mismo día.
+--
 -- v11 (2026-07-29) — Fix: la apertura dejaba de ser propia y heredaba el CICLO ANTERIOR del galpón.
 --   * Problema: la ventana de alimento previo al encaset (v9) retrocede `dias_alimento_previo_encaset`
 --     días. En Ecuador cada galpón encadena 3-4 ciclos sucesivos, así que esa ventana cae DENTRO del
@@ -203,6 +222,33 @@ rango_seg AS (
     WHERE s.lote_ave_engorde_id = p_lote_id
 ),
 
+-- 2d. ⭐ v12: día en que arranca de verdad la ventana de apertura.
+--     La ventana previa al encaset (v9) no puede meterse en el ciclo anterior: nada anterior al
+--     último día de seguimiento del lote que ocupaba el galpón antes que yo es alimento mío.
+--     Complementa a `lotes_ajenos` (v11), que solo caza la limpieza etiquetada con el lote VIEJO;
+--     ésta caza la que quedó etiquetada con el lote NUEVO (ver cabecera v12).
+corte_apertura AS (
+    SELECT GREATEST(
+               li.fecha_corte_alimento,
+               COALESCE(
+                   (SELECT MAX(DATE(s2.fecha)) + 1
+                      FROM seguimiento_diario_aves_engorde s2
+                      JOIN lote_ave_engorde l2 ON l2.lote_ave_engorde_id = s2.lote_ave_engorde_id
+                                              AND l2.deleted_at IS NULL
+                     WHERE l2.granja_id = li.granja_id
+                       AND COALESCE(TRIM(l2.nucleo_id), '') = li.nucleo_id
+                       AND COALESCE(TRIM(l2.galpon_id), '') = li.galpon_id
+                       AND l2.lote_ave_engorde_id <> p_lote_id
+                       -- solo ciclos que YA habían cerrado cuando este empezó
+                       AND (SELECT MAX(DATE(s3.fecha))
+                              FROM seguimiento_diario_aves_engorde s3
+                             WHERE s3.lote_ave_engorde_id = l2.lote_ave_engorde_id) < rs.fecha_min),
+                   li.fecha_corte_alimento)
+           ) AS desde
+    FROM lote_info li, rango_seg rs
+    WHERE rs.fecha_min IS NOT NULL
+),
+
 -- 2c. ⭐ v11: lotes AJENOS = otros lotes del mismo galpón cuyo ciclo NO se solapa con el mío.
 --     Es el COMPLEMENTO exacto del predicado de `consumo_galpon_por_fecha` (v10): si a un lote no le
 --     cuento el consumo porque no convive conmigo, tampoco puedo contarle los ingresos ni los
@@ -291,10 +337,13 @@ apert_mov AS (
       AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
       AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
       AND DATE(h.fecha_operacion) < rs.fecha_min
+      -- ⭐ v12: la ventana arranca en el corte de v9 o el día siguiente al fin del ciclo anterior,
+      -- el que sea más tarde. Caza la limpieza que quedó etiquetada con el lote NUEVO.
       AND (li.fecha_corte_alimento IS NULL
-           OR DATE(h.fecha_operacion) >= li.fecha_corte_alimento)
+           OR DATE(h.fecha_operacion) >= (SELECT desde FROM corte_apertura))
       -- ⭐ v11: nada del ciclo anterior. Sin este filtro la ventana previa al encaset se comía
       -- la limpieza de cierre del lote que ocupaba el galpón y la apertura salía negativa.
+      -- Caza la limpieza etiquetada con el lote VIEJO; la del NUEVO la caza el corte de arriba.
       AND (h.lote_ave_engorde_id IS NULL
            OR NOT EXISTS (SELECT 1 FROM lotes_ajenos la WHERE la.id = h.lote_ave_engorde_id))
 ),

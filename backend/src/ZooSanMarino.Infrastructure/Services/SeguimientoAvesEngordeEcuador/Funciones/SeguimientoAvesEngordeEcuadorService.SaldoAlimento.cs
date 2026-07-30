@@ -192,10 +192,12 @@ public partial class SeguimientoAvesEngordeEcuadorService
         DateTime firstSegDate,
         DateTime? fechaEncaset = null,
         int? diasAlimentoPrevio = null,
-        IReadOnlySet<int>? lotesAjenos = null)
+        IReadOnlySet<int>? lotesAjenos = null,
+        DateTime? finCicloAnterior = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
-        var corte = VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio);
+        var corte = SaldoAlimentoEngordeCalculos.ResolverCorteApertura(
+            VentanaAlimentoPrevioCalculos.FechaCorte(fechaEncaset, diasAlimentoPrevio), finCicloAnterior);
         var encasetYmd = corte.HasValue ? FormatYmd(corte.Value) : null;
         var rows = new List<(string ymd, long ts, decimal delta)>();
         foreach (var h in hist)
@@ -297,10 +299,12 @@ public partial class SeguimientoAvesEngordeEcuadorService
             })
             .ToListAsync(ct);
 
-        var lotesAjenos = SaldoAlimentoEngordeCalculos.ResolverLotesAjenos(
-            ciclosGalpon.Where(c => c.LoteAveEngordeId.HasValue)
-                        .Select(c => (c.LoteAveEngordeId!.Value, c.SegMin, c.SegMax)),
-            desdeSeg, hastaSeg);
+        var ciclos = ciclosGalpon.Where(c => c.LoteAveEngordeId.HasValue)
+                                 .Select(c => (c.LoteAveEngordeId!.Value, c.SegMin, c.SegMax))
+                                 .ToList();
+        var lotesAjenos = SaldoAlimentoEngordeCalculos.ResolverLotesAjenos(ciclos, desdeSeg, hastaSeg);
+        // ⭐ v12: la ventana tampoco puede retroceder más allá del fin del ciclo anterior.
+        var finCicloAnterior = SaldoAlimentoEngordeCalculos.ResolverFinCicloAnterior(ciclos, desdeSeg);
 
         // ⭐ v11: la ventana previa al encaset la configura la empresa (igual que la fn y el camino
         // de carga masiva). Antes este service cortaba en la fecha de encaset a secas, y esa
@@ -311,11 +315,12 @@ public partial class SeguimientoAvesEngordeEcuadorService
             .FirstOrDefaultAsync(ct);
 
         var firstSegDate = segs.Min(s => s.Fecha.Date);
-        var corteVentana = VentanaAlimentoPrevioCalculos.FechaCorte(lote.FechaEncaset, diasPrevios);
+        var corteVentana = SaldoAlimentoEngordeCalculos.ResolverCorteApertura(
+            VentanaAlimentoPrevioCalculos.FechaCorte(lote.FechaEncaset, diasPrevios), finCicloAnterior);
         var encYmd = corteVentana.HasValue ? FormatYmd(corteVentana.Value) : null;
         var firstYmd = FormatYmd(firstSegDate);
         var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
-            hist, firstSegDate, lote.FechaEncaset, diasPrevios, lotesAjenos);
+            hist, firstSegDate, lote.FechaEncaset, diasPrevios, lotesAjenos, finCicloAnterior);
 
         var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
         foreach (var h in hist)
