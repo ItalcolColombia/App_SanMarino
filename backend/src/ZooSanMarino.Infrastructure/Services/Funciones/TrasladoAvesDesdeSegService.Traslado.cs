@@ -2,6 +2,9 @@
 // Ejecución del traslado de aves desde el seguimiento diario: validación de etapa (con soporte
 // cross-etapa Levante→Producción por empresa), patas de origen y destino por etapa, auditoría en
 // MovimientoAves y registro de la cohorte en el lote destino. Todo en una sola transacción.
+// Fechas puras ancladas a MEDIODÍA UTC (FechasPuras) y fila diaria ubicada por DÍA CALENDARIO:
+// mismo contrato que la hoja "Movimientos Aves" de la carga masiva, para que ambos caminos se
+// detecten mutuamente pese al releído corrido de Npgsql legacy.
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Traslados;
@@ -28,7 +31,10 @@ public partial class TrasladoAvesDesdeSegService
         try
         {
             var companyId = await GetEffectiveCompanyIdAsync(ct);
-            var fechaDate = dto.FechaSeguimiento.Date;
+            // Fecha pura ANCLADA A MEDIODÍA UTC: escrita a medianoche, Npgsql (modo legacy) la guarda
+            // como 00:00 UTC y la RELEE convertida a hora local (19:00 del día ANTERIOR en Bogotá),
+            // corriendo el día calendario de la fila y de la idempotencia de la carga masiva.
+            var fechaAncla = FechasPuras.AnclarMediodiaUtc(dto.FechaSeguimiento);
             var fechaUtc  = DateTime.UtcNow;
 
             int? granjaDestinoIdOut = dto.GranjaDestinoId;
@@ -71,21 +77,21 @@ public partial class TrasladoAvesDesdeSegService
 
             // ── 4/5. Pata ORIGEN: acumulados de salida + registro SALIDA ──
             if (origenEsLevante)
-                await AplicarSalidaLevanteAsync(lplOrigen!, destino, dto, fechaDate, fechaUtc, usuarioId, ct);
+                await AplicarSalidaLevanteAsync(lplOrigen!, destino, dto, fechaAncla, fechaUtc, usuarioId, ct);
             else
-                await AplicarSalidaProduccionAsync(lppOrigen!, destino, dto, fechaDate, fechaUtc, usuarioId, companyId, ct);
+                await AplicarSalidaProduccionAsync(lppOrigen!, destino, dto, fechaAncla, fechaUtc, usuarioId, companyId, ct);
 
             // ── 6. Pata DESTINO: acumulados de ingreso + registro INGRESO ─
             if (destinoEsLevante)
-                await AplicarIngresoLevanteAsync(lplDestino!, origen, dto, fechaDate, fechaUtc, usuarioId, ct);
+                await AplicarIngresoLevanteAsync(lplDestino!, origen, dto, fechaAncla, fechaUtc, usuarioId, ct);
             else
-                await AplicarIngresoProduccionAsync(lppDestino!, origen, dto, fechaDate, fechaUtc, usuarioId, companyId, ct);
+                await AplicarIngresoProduccionAsync(lppDestino!, origen, dto, fechaAncla, fechaUtc, usuarioId, companyId, ct);
 
             // ── 7. Auditoría — MovimientoAves ─────────────────────────────
             var movimiento = new MovimientoAves
             {
                 NumeroMovimiento = $"TSD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..24],
-                FechaMovimiento = dto.FechaSeguimiento,
+                FechaMovimiento = fechaAncla,
                 TipoMovimiento = "Traslado",
                 CantidadHembras = dto.TrasladoHembras,
                 CantidadMachos = dto.TrasladoMachos,
@@ -306,13 +312,27 @@ public partial class TrasladoAvesDesdeSegService
     // ─────────────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Día calendario de la fecha anclada y rango ampliado <c>[día−1, día+2)</c> para ubicar la fila
+    /// diaria existente. Las filas reales del día pueden estar a medianoche (históricas), a mediodía
+    /// (ancladas) o a la hora que mandó el front (alta manual), y Npgsql legacy además relee los
+    /// instantes corridos a hora local ⇒ se consulta el rango y se recorta en memoria por
+    /// <c>Fecha.Date</c> (patrón FechasYaCargadasAsync de la carga masiva).
+    /// </summary>
+    private static (DateTime Dia, DateTime Desde, DateTime Hasta) RangoDiaCalendario(DateTime fechaAncla)
+    {
+        var dia = fechaAncla.Date;
+        return (dia, dia.AddDays(-1), dia.AddDays(2));
+    }
+
+    /// <summary>
     /// Pata SALIDA en Levante: acumulados de traslado del LPL origen + UPSERT del registro SALIDA en
-    /// seguimiento_diario. Si ya existe un SD manual para esa fecha+lote se extiende con los campos de
-    /// traslado (no se tocan mortalidad/selección: el traslado vive en sus propias columnas).
+    /// seguimiento_diario. Si ya existe un SD para ese día+lote (manual, de carga masiva o de otro
+    /// traslado) se extiende con los campos de traslado (no se tocan mortalidad/selección: el traslado
+    /// vive en sus propias columnas).
     /// </summary>
     private async Task AplicarSalidaLevanteAsync(
         LotePosturaLevante lplOrigen, LadoTraslado destino, TrasladoAvesDesdeSegDiarioDto dto,
-        DateTime fechaDate, DateTime fechaUtc, int usuarioId, CancellationToken ct)
+        DateTime fechaAncla, DateTime fechaUtc, int usuarioId, CancellationToken ct)
     {
         lplOrigen.LevanteTrasladoSalidaHembras += dto.TrasladoHembras;
         lplOrigen.LevanteTrasladoSalidaMachos  += dto.TrasladoMachos;
@@ -321,11 +341,13 @@ public partial class TrasladoAvesDesdeSegService
 
         var totalAves = dto.TrasladoHembras + dto.TrasladoMachos;
 
-        var segSalida = await _ctx.SeguimientoDiario
-            .Where(s => s.TipoSeguimiento == "levante"
-                     && s.LoteId == lplOrigen.LoteId!.Value.ToString()
-                     && s.Fecha == fechaDate)
-            .FirstOrDefaultAsync(ct);
+        var (fechaDia, rangoDesde, rangoHasta) = RangoDiaCalendario(fechaAncla);
+        var segSalida = (await _ctx.SeguimientoDiario
+                .Where(s => s.TipoSeguimiento == "levante"
+                         && s.LoteId == lplOrigen.LoteId!.Value.ToString()
+                         && s.Fecha >= rangoDesde && s.Fecha < rangoHasta)
+                .ToListAsync(ct))
+            .FirstOrDefault(s => s.Fecha.Date == fechaDia);
 
         if (segSalida is null)
         {
@@ -334,7 +356,7 @@ public partial class TrasladoAvesDesdeSegService
                 TipoSeguimiento = "levante",
                 LoteId = lplOrigen.LoteId!.Value.ToString(),
                 LotePosturaLevanteId = lplOrigen.LotePosturaLevanteId,
-                Fecha = fechaDate,
+                Fecha = fechaAncla,
                 MortalidadHembras = 0, MortalidadMachos = 0,
                 SelH = 0, SelM = 0,
                 ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
@@ -363,7 +385,7 @@ public partial class TrasladoAvesDesdeSegService
     /// <summary>Pata INGRESO en Levante: acumulados del LPL destino + UPSERT del registro INGRESO.</summary>
     private async Task AplicarIngresoLevanteAsync(
         LotePosturaLevante lplDestino, LadoTraslado origen, TrasladoAvesDesdeSegDiarioDto dto,
-        DateTime fechaDate, DateTime fechaUtc, int usuarioId, CancellationToken ct)
+        DateTime fechaAncla, DateTime fechaUtc, int usuarioId, CancellationToken ct)
     {
         lplDestino.LevanteTrasladoIngresoHembras += dto.TrasladoHembras;
         lplDestino.LevanteTrasladoIngresoMachos  += dto.TrasladoMachos;
@@ -372,11 +394,13 @@ public partial class TrasladoAvesDesdeSegService
 
         var totalAves = dto.TrasladoHembras + dto.TrasladoMachos;
 
-        var segIngreso = await _ctx.SeguimientoDiario
-            .Where(s => s.TipoSeguimiento == "levante"
-                     && s.LoteId == lplDestino.LoteId!.Value.ToString()
-                     && s.Fecha == fechaDate)
-            .FirstOrDefaultAsync(ct);
+        var (fechaDia, rangoDesde, rangoHasta) = RangoDiaCalendario(fechaAncla);
+        var segIngreso = (await _ctx.SeguimientoDiario
+                .Where(s => s.TipoSeguimiento == "levante"
+                         && s.LoteId == lplDestino.LoteId!.Value.ToString()
+                         && s.Fecha >= rangoDesde && s.Fecha < rangoHasta)
+                .ToListAsync(ct))
+            .FirstOrDefault(s => s.Fecha.Date == fechaDia);
 
         if (segIngreso is null)
         {
@@ -385,7 +409,7 @@ public partial class TrasladoAvesDesdeSegService
                 TipoSeguimiento = "levante",
                 LoteId = lplDestino.LoteId!.Value.ToString(),
                 LotePosturaLevanteId = lplDestino.LotePosturaLevanteId,
-                Fecha = fechaDate,
+                Fecha = fechaAncla,
                 MortalidadHembras = 0, MortalidadMachos = 0,
                 SelH = 0, SelM = 0,
                 ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
@@ -416,7 +440,7 @@ public partial class TrasladoAvesDesdeSegService
     /// </summary>
     private async Task AplicarSalidaProduccionAsync(
         LotePosturaProduccion lppOrigen, LadoTraslado destino, TrasladoAvesDesdeSegDiarioDto dto,
-        DateTime fechaDate, DateTime fechaUtc, int usuarioId, int companyId, CancellationToken ct)
+        DateTime fechaAncla, DateTime fechaUtc, int usuarioId, int companyId, CancellationToken ct)
     {
         lppOrigen.ProduccionTrasladoSalidaHembras += dto.TrasladoHembras;
         lppOrigen.ProduccionTrasladoSalidaMachos  += dto.TrasladoMachos;
@@ -425,16 +449,19 @@ public partial class TrasladoAvesDesdeSegService
 
         int createdByIdP = usuarioId; // AuditableEntity.CreatedByUserId es int
 
-        var segSalidaP = await _ctx.SeguimientoProduccion
-            .Where(s => s.LoteId == lppOrigen.LoteId!.Value && s.Fecha == fechaDate)
-            .FirstOrDefaultAsync(ct);
+        var (fechaDia, rangoDesde, rangoHasta) = RangoDiaCalendario(fechaAncla);
+        var segSalidaP = (await _ctx.SeguimientoProduccion
+                .Where(s => s.LoteId == lppOrigen.LoteId!.Value
+                         && s.Fecha >= rangoDesde && s.Fecha < rangoHasta)
+                .ToListAsync(ct))
+            .FirstOrDefault(s => s.Fecha.Date == fechaDia);
 
         if (segSalidaP is null)
         {
             segSalidaP = new SeguimientoProduccion
             {
                 LoteId = lppOrigen.LoteId!.Value,
-                Fecha = fechaDate,
+                Fecha = fechaAncla,
                 MortalidadH = 0, MortalidadM = 0,
                 SelH = 0, SelM = 0,
                 ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
@@ -452,7 +479,7 @@ public partial class TrasladoAvesDesdeSegService
         segSalidaP.TrasladoMachos        = (segSalidaP.TrasladoMachos  ?? 0) + dto.TrasladoMachos;
         segSalidaP.LoteDestinoId         = destino.EspejoId;
         segSalidaP.GranjaDestinoId       = destino.GranjaId;
-        segSalidaP.FechaTraslado         = fechaDate;
+        segSalidaP.FechaTraslado         = fechaAncla;
         segSalidaP.EsTraslado            = true;
         segSalidaP.TrasladoDireccion     = "SALIDA";
         segSalidaP.TrasladoLoteContraparteId   = destino.EspejoId;
@@ -467,7 +494,7 @@ public partial class TrasladoAvesDesdeSegService
     /// <summary>Pata INGRESO en Producción: acumulados del LPP destino + UPSERT del registro INGRESO.</summary>
     private async Task AplicarIngresoProduccionAsync(
         LotePosturaProduccion lppDestino, LadoTraslado origen, TrasladoAvesDesdeSegDiarioDto dto,
-        DateTime fechaDate, DateTime fechaUtc, int usuarioId, int companyId, CancellationToken ct)
+        DateTime fechaAncla, DateTime fechaUtc, int usuarioId, int companyId, CancellationToken ct)
     {
         lppDestino.ProduccionTrasladoIngresoHembras += dto.TrasladoHembras;
         lppDestino.ProduccionTrasladoIngresoMachos  += dto.TrasladoMachos;
@@ -476,16 +503,19 @@ public partial class TrasladoAvesDesdeSegService
 
         int createdByIdP = usuarioId;
 
-        var segIngresoP = await _ctx.SeguimientoProduccion
-            .Where(s => s.LoteId == lppDestino.LoteId!.Value && s.Fecha == fechaDate)
-            .FirstOrDefaultAsync(ct);
+        var (fechaDia, rangoDesde, rangoHasta) = RangoDiaCalendario(fechaAncla);
+        var segIngresoP = (await _ctx.SeguimientoProduccion
+                .Where(s => s.LoteId == lppDestino.LoteId!.Value
+                         && s.Fecha >= rangoDesde && s.Fecha < rangoHasta)
+                .ToListAsync(ct))
+            .FirstOrDefault(s => s.Fecha.Date == fechaDia);
 
         if (segIngresoP is null)
         {
             segIngresoP = new SeguimientoProduccion
             {
                 LoteId = lppDestino.LoteId!.Value,
-                Fecha = fechaDate,
+                Fecha = fechaAncla,
                 MortalidadH = 0, MortalidadM = 0,
                 SelH = 0, SelM = 0,
                 ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
