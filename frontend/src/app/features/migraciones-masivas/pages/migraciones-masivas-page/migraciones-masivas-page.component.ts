@@ -12,6 +12,7 @@ import { HistorialMigracionesComponent } from '../../components/historial-migrac
 import { MigracionService } from '../../services/migracion.service';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { TipoMigracionInfo, MigracionContexto, LoteElegible, ReproductoraElegible } from '../../models/migracion.model';
+import { esTipoEstructura } from '../../funciones/agrupar-tipo-migracion.funcion';
 
 /**
  * Página orquestadora del módulo de Migraciones Masivas (Postura).
@@ -57,6 +58,12 @@ export class MigracionesMasivasPageComponent implements OnInit {
   readonly cargandoReproductoras = signal(false);
 
   readonly esTipoReproductora = computed(() => this.seleccionado()?.codigo === 'SeguimientoReproductoraEngorde');
+
+  /**
+   * Tipos que se ofrecen en el paso 1: los de estructura (Granjas/Núcleos/Galpones) se ocultan.
+   * El historial sigue recibiendo `tipos()` completo para traducir corridas viejas por nombre.
+   */
+  readonly tiposVisibles = computed(() => this.tipos().filter(t => !esTipoEstructura(t.codigo)));
 
   ngOnInit(): void {
     this.svc.getTipos().subscribe({

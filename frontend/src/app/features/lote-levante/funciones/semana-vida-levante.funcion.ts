@@ -9,11 +9,9 @@
  * semana = floor((fecha - fechaEncaset) / 7) + 1     // el día del encaset es la SEMANA 1
  * ```
  *
- * El backend es el autoritativo: acá el cálculo sólo decide si mostrar el tab «Huevos».
+ * El backend es el autoritativo: acá el cálculo sólo decide si mostrar el tab «Huevos» (fijo desde
+ * jul-2026; sólo se oculta con la fecha del registro anterior al encaset).
  */
-
-/** Semana 14 ⟺ 91 días (13 × 7) desde el encaset. Debe coincidir con el backend. */
-export const SEMANA_MINIMA_HUEVOS_LEVANTE = 14;
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
@@ -58,8 +56,9 @@ export function semanaVidaLevante(
 /**
  * ¿Se puede capturar huevos en levante para este registro?
  *
- * FAIL-CLOSED: sin fecha de encaset, sin fecha de registro, o con el registro antes del encaset,
- * devuelve `false` (mismo criterio que el backend, que es el que realmente valida).
+ * El tab «Huevos» es FIJO (decisión jul-2026: sin gate de semana de vida). La única condición que
+ * queda es que la fecha del registro no sea ANTERIOR al encaset; si falta alguna de las dos fechas
+ * no hay condición evaluable y se permite (mismo criterio que el backend, que es el que valida).
  */
 export function permiteHuevosEnLevante(
   fechaEncaset: string | Date | null | undefined,
@@ -67,9 +66,6 @@ export function permiteHuevosEnLevante(
 ): boolean {
   const encaset = aFechaMediodiaLocal(fechaEncaset);
   const registro = aFechaMediodiaLocal(fechaRegistro);
-  if (!encaset || !registro) return false;
-  if (registro.getTime() < encaset.getTime()) return false;
-
-  const semana = semanaVidaLevante(fechaEncaset, fechaRegistro);
-  return semana !== null && semana >= SEMANA_MINIMA_HUEVOS_LEVANTE;
+  if (!encaset || !registro) return true;
+  return registro.getTime() >= encaset.getTime();
 }

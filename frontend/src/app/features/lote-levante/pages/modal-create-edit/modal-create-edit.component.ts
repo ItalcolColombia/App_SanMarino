@@ -32,7 +32,7 @@ import { InventarioUbicacion } from '../../models/lote-levante-inventario.model'
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
-import { permiteHuevosEnLevante, semanaVidaLevante, SEMANA_MINIMA_HUEVOS_LEVANTE } from '../../funciones/semana-vida-levante.funcion';
+import { permiteHuevosEnLevante, semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
 
 @Component({
   selector: 'app-modal-create-edit',
@@ -65,19 +65,20 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   /** Fecha sugerida para el campo fechaRegistro al abrir en modo crear (YYYY-MM-DD). */
   @Input() defaultFechaRegistro: string | null = null;
   /**
-   * Fecha de encaset del lote seleccionado. Define la EDAD del lote y con ella si corresponde el
-   * tab «Huevos» (semana 14+). Sin este dato el tab no se muestra (fail-closed).
+   * Fecha de encaset del lote seleccionado. Define la EDAD del lote (texto de ayuda del tab
+   * «Huevos») y la única condición que oculta el tab: una fecha de registro anterior al encaset.
    */
   @Input() fechaEncaset: string | Date | null = null;
 
-  /** Pestañas: General (incluye consumos H/M y generales) / Huevos (semana 14+) / Stock. */
+  /** Pestañas: General (incluye consumos H/M y generales) / Huevos (tab fijo) / Stock. */
   levanteTab: 'general' | 'stock' | 'huevos' = 'general';
 
-  // ── Huevos en levante (semana 14+, flag companies.captura_huevos_en_levante) ──
+  // ── Huevos en levante (tab fijo, flag companies.captura_huevos_en_levante) ──
   /** Flag de empresa. Fail-closed: arranca apagado y sólo se prende si el backend lo confirma. */
   capturaHuevosEnLevante = false;
   /**
-   * ¿Se muestra el tab «Huevos»? = flag de empresa Y el registro cae en la semana 14 o posterior.
+   * ¿Se muestra el tab «Huevos»? = flag de empresa Y fecha de registro no anterior al encaset
+   * (el tab es fijo desde jul-2026: ya no hay gate de semana de vida).
    * Es una PROPIEDAD memoizada (no un getter) para no recalcular en cada ciclo de change detection.
    */
   mostrarTabHuevos = false;
@@ -87,8 +88,6 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   totalHuevos = 0;
   incubablesHuevos = 0;
   eficienciaHuevos = 0;
-  /** Semana mínima, para el template. */
-  readonly semanaMinimaHuevos = SEMANA_MINIMA_HUEVOS_LEVANTE;
 
   /** Listado detalle stock Inventario de productos (Ecuador/Panamá) — misma consulta que ítems Hembras/Machos. */
   stockListadoEcuador: InventarioGestionStockDto[] = [];
@@ -1133,8 +1132,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   /**
    * Parte del payload correspondiente al tab «Huevos».
    * - Tab visible  → las 11 categorías + el peso (los totales los recalcula el backend).
-   * - Tab oculto   → todo null: el backend lo interpreta como "no tocar los huevos", así que un
-   *   registro de semana < 14 (o de una empresa sin el flag) se comporta exactamente como antes.
+   * - Tab oculto (empresa sin el flag, o fecha anterior al encaset) → todo null: el backend lo
+   *   interpreta como "no tocar los huevos" y el registro se comporta exactamente como antes.
    */
   private construirPayloadHuevos(raw: any): Record<string, number | null> {
     if (!this.mostrarTabHuevos) {

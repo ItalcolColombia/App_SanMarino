@@ -71,12 +71,6 @@ public readonly record struct HuevosClasificacion(
 /// </summary>
 public static class HuevosLevanteCalculos
 {
-    /// <summary>
-    /// Semana de vida (1-based) a partir de la cual el levante puede registrar huevos.
-    /// Semana 14 ⟺ <c>dias >= 91</c> (13 × 7), porque el día del encaset es la semana 1.
-    /// </summary>
-    public const int SemanaMinimaHuevosLevante = 14;
-
     /// <summary>Clave de la marca de arrastre dentro del jsonb <c>metadata</c> del seguimiento de producción.</summary>
     public const string MetadataKeyArrastre = "arrastreHuevosLevante";
 
@@ -102,16 +96,16 @@ public static class HuevosLevanteCalculos
     }
 
     /// <summary>
-    /// Gate de captura: true solo si el lote tiene fecha de encaset conocida y el registro cae en la
-    /// semana <see cref="SemanaMinimaHuevosLevante"/> o posterior.
-    /// <b>Fail-closed</b>: sin fecha de encaset (o con fecha de registro anterior al encaset) no se
-    /// permiten huevos — es preferible bloquear que aceptar un dato que ningún reporte podrá ubicar.
+    /// Gate de captura: el tab de huevos es <b>fijo</b> en levante (decisión jul-2026 — el operario
+    /// captura cuando llegue el momento, sin gate de semana de vida). Solo se rechaza una fecha de
+    /// registro <b>anterior al encaset</b> (un dato que ningún reporte podría ubicar). Sin fecha de
+    /// encaset no queda condición evaluable y se permite: bloquear ahí dejaría un 400 sin remedio
+    /// con el tab siempre visible.
     /// </summary>
     public static bool PermiteHuevos(DateTime? fechaEncaset, DateTime fechaRegistro)
     {
-        if (!fechaEncaset.HasValue) return false;
-        if ((fechaRegistro.Date - fechaEncaset.Value.Date).Days < 0) return false;
-        return SemanaVida(fechaRegistro, fechaEncaset.Value) >= SemanaMinimaHuevosLevante;
+        if (!fechaEncaset.HasValue) return true;
+        return (fechaRegistro.Date - fechaEncaset.Value.Date).Days >= 0;
     }
 
     /// <summary>Suma dos clasificaciones categoría por categoría.</summary>

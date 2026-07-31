@@ -178,6 +178,24 @@ public static class MigracionEsquemas
         new("Cantidad", Requerida: true, Alias: new[] { "cantidad huevos", "unidades" }),
     });
 
+    /// <summary>
+    /// Hoja <c>Movimientos Aves</c> del archivo de LEVANTE: traslados de aves UNILATERALES sobre el
+    /// lote del archivo. <c>Salida</c> descuenta a este lote y exige que el "Lote Contraparte" exista
+    /// en la empresa (NO lo acredita: ese lote carga su propio Ingreso en su propio archivo);
+    /// <c>Ingreso</c> acredita a este lote las aves recibidas en tránsito sin tocar al lote origen
+    /// (contraparte opcional, informativa/cohorte). Producción ignora esta hoja.
+    /// </summary>
+    public static EsquemaMigracion MovimientosAvesLevante { get; } = new("Movimientos Aves", new ColumnaEsquema[]
+    {
+        new("Fecha",              Requerida: true),
+        new("Tipo",               Requerida: true,  Alias: new[] { "movimiento", "tipo movimiento" }, Opciones: new[] { "Salida", "Ingreso" }),
+        new("Hembras",            Requerida: false, Alias: new[] { "cantidad hembras", "traslado hembras" }),
+        new("Machos",             Requerida: false, Alias: new[] { "cantidad machos", "traslado machos" }),
+        new("Lote Contraparte",   Requerida: false, Alias: new[] { "lote destino", "lote origen", "lote" }),
+        new("Granja Contraparte", Requerida: false, Alias: new[] { "granja destino", "granja origen" }),
+        new("Observaciones",      Requerida: false),
+    });
+
     public static EsquemaMigracion LotesPolloEngorde { get; } = new("Datos", new ColumnaEsquema[]
     {
         new("Lote",                  Requerida: true,  Alias: new[] { "nombre lote", "nombre" }),

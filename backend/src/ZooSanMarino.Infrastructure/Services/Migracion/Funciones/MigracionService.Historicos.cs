@@ -132,6 +132,15 @@ public partial class MigracionService
         var wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoPostura.Hoja);
         PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoPostura);
 
+        // Hoja "Movimientos Aves" (solo levante): traslados UNILATERALES del lote — Salida valida el
+        // destino sin acreditarlo; Ingreso acredita las aves en tránsito sin tocar al origen.
+        ExcelWorksheet? wsMovAves = null;
+        if (esLevante)
+        {
+            wsMovAves = pkg.Workbook.Worksheets.Add(MigracionEsquemas.MovimientosAvesLevante.Hoja);
+            PonerEncabezados(wsMovAves, MigracionEsquemas.MovimientosAvesLevante);
+        }
+
         ExcelWorksheet? wsHuevos = null;
         if (huevoItems.Count > 0)
         {
@@ -161,6 +170,33 @@ public partial class MigracionService
                 wsRef.Cells[i + 2, 6].Value = huevoItems[i].TipoHuevo;
             }
         }
+
+        // Lotes de levante de la empresa: los valores que acepta "Lote Contraparte" (Movimientos Aves).
+        var lotesLevanteRef = new List<(int LoteId, string Nombre, string Granja)>();
+        if (esLevante)
+        {
+            lotesLevanteRef = (await _ctx.Set<LotePosturaLevante>().AsNoTracking()
+                    .Where(x => x.CompanyId == companyId && x.DeletedAt == null && x.LoteId != null)
+                    .Join(_ctx.Lotes.AsNoTracking().Where(l => l.DeletedAt == null),
+                        x => x.LoteId, l => l.LoteId, (x, l) => new { LoteId = l.LoteId!.Value, l.LoteNombre, x.GranjaId })
+                    .Join(_ctx.Farms.AsNoTracking(), xl => xl.GranjaId, f => f.Id,
+                        (xl, f) => new { xl.LoteId, xl.LoteNombre, Granja = f.Name })
+                    .ToListAsync(ct))
+                .DistinctBy(x => x.LoteId)
+                .OrderBy(x => x.LoteNombre)
+                .Select(x => (x.LoteId, x.LoteNombre, x.Granja))
+                .ToList();
+
+            wsRef.Cells[1, 8].Value = "Lote levante (nombre)";
+            wsRef.Cells[1, 9].Value = "Id lote";
+            wsRef.Cells[1, 10].Value = "Granja";
+            for (int i = 0; i < lotesLevanteRef.Count; i++)
+            {
+                wsRef.Cells[i + 2, 8].Value = lotesLevanteRef[i].Nombre;
+                wsRef.Cells[i + 2, 9].Value = lotesLevanteRef[i].LoteId;
+                wsRef.Cells[i + 2, 10].Value = lotesLevanteRef[i].Granja;
+            }
+        }
         wsRef.Cells[wsRef.Dimension?.Address ?? "A1"].AutoFitColumns();
 
         if (alimentos.Count > 0)
@@ -170,6 +206,9 @@ public partial class MigracionService
                 DropdownRango(ws, ColumnaLetra(IndiceColumna(MigracionEsquemas.Para(tipo), titulo) + 1), rango);
             DropdownRango(wsAlim, ColumnaLetra(IndiceColumna(MigracionEsquemas.AlimentoPostura, "Alimento") + 1), rango);
         }
+        if (wsMovAves is not null && lotesLevanteRef.Count > 0)
+            DropdownRango(wsMovAves, ColumnaLetra(IndiceColumna(MigracionEsquemas.MovimientosAvesLevante, "Lote Contraparte") + 1),
+                $"Referencias!$H$2:$H${lotesLevanteRef.Count + 1}");
         if (wsHuevos is not null && huevoItems.Count > 0)
             DropdownRango(wsHuevos, ColumnaLetra(IndiceColumna(MigracionEsquemas.HuevosPostura, "Ítem") + 1),
                 $"Referencias!$D$2:$D${huevoItems.Count + 1}");
@@ -199,7 +238,12 @@ public partial class MigracionService
                 : "• Huevos: podés cargar Total/Incubable o las 11 categorías (si cargás categorías, el total y los incubables se calculan de ellas). Etapa: 1, 2 o 3.",
         };
         if (esLevante && lotePosturaCtx?.CapturaHuevosLevante == true)
-            instrucciones.Add($"• Huevos en levante: se aceptan desde la semana {HuevosLevanteCalculos.SemanaMinimaHuevosLevante} de vida (fecha de encaset {lotePosturaCtx.FechaEncaset:yyyy-MM-dd}); antes de esa semana se ignoran.");
+            instrucciones.Add("• Huevos en levante: podés cargar las 11 categorías (+ peso) en cualquier semana; el total y los incubables se calculan del desglose.");
+        if (esLevante)
+        {
+            instrucciones.Add("• Hoja 'Movimientos Aves': traslados de aves de ESTE lote. 'Salida' descuenta acá y exige que el 'Lote Contraparte' exista (NO se le acreditan las aves: ese lote carga su propio Ingreso en su archivo). 'Ingreso' suma acá las aves recibidas en tránsito, sin tocar al lote origen.");
+            instrucciones.Add("• No cargues en 'Movimientos Aves' traslados que ya se registraron por pantalla, ni repitas la misma fila: los ingresos se duplicarían. Dos viajes iguales el mismo día van como una sola fila sumada.");
+        }
         if (wsHuevos is not null)
             instrucciones.Add("• Hoja 'Huevos': clasificación por ítem del catálogo (una fila por fecha e ítem). No la combines con las 11 categorías de la hoja 'Datos'.");
         instrucciones.Add("La carga es idempotente: reimportar el mismo archivo no duplica filas ni vuelve a descontar inventario.");
@@ -230,7 +274,10 @@ public partial class MigracionService
             ? new List<MovimientoAlimentoFila>()
             : await LeerHojaAlimentoPosturaAsync(file, companyId, ctxInv, errores, ct);
 
-        if (filas.Count == 0 && movimientosAlimento.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var movimientosAves = await LeerHojaMovimientosAvesAsync(file, companyId, loteId, loteCtx, errores, ct);
+
+        if (filas.Count == 0 && movimientosAlimento.Count == 0 && movimientosAves.Count == 0 && errores.Count == 0)
+            return ResultadoVacio(tipo, dryRun);
 
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var filasJson = new List<Dictionary<string, object?>>();
@@ -267,22 +314,15 @@ public partial class MigracionService
             var (huevos, pesoHuevo) = LeerHuevosPostura(tipo, fila, errores);
             if (errores.Count > e0) continue;
 
-            // Levante solo captura huevos si la empresa lo tiene habilitado Y el lote ya está en la
-            // semana 14 (misma regla del modal, HuevosLevanteCalculos). Fuera de eso se ignoran.
-            if (MigracionPosturaCalculos.TraeHuevos(huevos, null, null, pesoHuevo))
+            // Levante captura huevos si la empresa lo tiene habilitado (misma regla del modal,
+            // HuevosLevanteCalculos: el tab es fijo, sin gate de semana; una fecha anterior al
+            // encaset ya la rechazó ValidarFechaContraLote para toda la fila).
+            if (MigracionPosturaCalculos.TraeHuevos(huevos, null, null, pesoHuevo) &&
+                loteCtx?.CapturaHuevosLevante != true)
             {
-                if (loteCtx?.CapturaHuevosLevante != true)
-                {
-                    errores.Add(new(fila.Numero, "Huevo Limpio", null,
-                        "Esta empresa no captura huevos en levante: las columnas de huevo se ignoran.", "Advertencia"));
-                    huevos = HuevosClasificacion.Cero; pesoHuevo = null;
-                }
-                else if (!HuevosLevanteCalculos.PermiteHuevos(loteCtx.FechaEncaset, fecha))
-                {
-                    errores.Add(new(fila.Numero, "Huevo Limpio", fecha.ToString("yyyy-MM-dd"),
-                        $"El lote todavía no llega a la semana {HuevosLevanteCalculos.SemanaMinimaHuevosLevante} de vida: las columnas de huevo se ignoran.", "Advertencia"));
-                    huevos = HuevosClasificacion.Cero; pesoHuevo = null;
-                }
+                errores.Add(new(fila.Numero, "Huevo Limpio", null,
+                    "Esta empresa no captura huevos en levante: las columnas de huevo se ignoran.", "Advertencia"));
+                huevos = HuevosClasificacion.Cero; pesoHuevo = null;
             }
 
             var jsonFila = new Dictionary<string, object?>
@@ -304,12 +344,17 @@ public partial class MigracionService
                 consumos.Add(new ConsumoDiaPostura(fecha, itemsH.Concat(itemsM).ToList()));
         }
 
+        // Aviso (no bloquea) si el archivo dejaría el saldo de aves en negativo — solo con la hoja
+        // "Movimientos Aves" presente, para no cambiar el reporte de los archivos históricos.
+        await AdvertirSaldoAvesProyectadoAsync(loteId, filasJson, movimientosAves, errores, ct);
+
         return await EjecutarHistoricoPosturaAsync(tipo, dryRun, permitirParcial, filas.Count, errores, filasJson,
             consumos, movimientosAlimento, ctxInv, loteId,
             MigracionPosturaCalculos.ReferenciaConsumoLevante,
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_levante({0}, {1}, {2}::jsonb) AS \"Value\"",
-                companyId, _current.UserId.ToString(), json).FirstAsync(ct), ct);
+                companyId, _current.UserId.ToString(), json).FirstAsync(ct), ct,
+            movimientosAves);
     }
 
     private async Task<MigracionResultDto> ProcesarSeguimientoProduccionAsync(IFormFile file, bool dryRun, bool permitirParcial, int companyId, MigracionContextoDto ctx, CancellationToken ct)
@@ -666,15 +711,17 @@ public partial class MigracionService
         return ResultadoOk(tipo, dryRun, total, errores, procesadas: insertados);
     }
 
-    // ── Runner de POSTURA (valida → simula inventario → dry-run corta → alimento → fn BD → descuento) ──
+    // ── Runner de POSTURA (valida → simula inventario → dry-run corta → alimento → fn BD → descuento → aves) ──
     private async Task<MigracionResultDto> EjecutarHistoricoPosturaAsync(
         TipoMigracion tipo, bool dryRun, bool permitirParcial,
         int total, List<MigracionErrorDto> errores, List<Dictionary<string, object?>> filasJson,
         List<ConsumoDiaPostura> consumos, List<MovimientoAlimentoFila> movimientosAlimento,
         ContextoInventarioPostura? ctxInv, int loteId, Func<long, DateTime, string> referencia,
-        Func<string, Task<int>> invocarFn, CancellationToken ct)
+        Func<string, Task<int>> invocarFn, CancellationToken ct,
+        IReadOnlyList<MovimientoAvesMigFila>? movimientosAves = null)
     {
-        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0) return ResultadoVacio(tipo, dryRun);
+        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0 && (movimientosAves?.Count ?? 0) == 0)
+            return ResultadoVacio(tipo, dryRun);
 
         // Fechas ya cargadas: la función SQL las omite, así que su consumo NO debe descontarse otra
         // vez (reimportar el mismo archivo descontaba el inventario dos veces) y además son las que
@@ -734,6 +781,14 @@ public partial class MigracionService
                 .Select(c => (c.Fecha, SeguimientoId: ids[c.Fecha.Date], c.Items))
                 .ToList();
             await DescontarConsumoSeguimientoAsync(ctxInv, conId, referencia, fallos, ct);
+        }
+
+        // Movimientos de aves DESPUÉS de la fn: las filas diarias del archivo ya existen y solo se
+        // extienden con sus columnas de traslado (levante; producción siempre pasa null).
+        if (movimientosAves is { Count: > 0 })
+        {
+            var (_, avesOmitidos) = await AplicarMovimientosAvesLevanteAsync(movimientosAves, loteId, fallos, ct);
+            omitidas += avesOmitidos;
         }
 
         errores.AddRange(fallos);

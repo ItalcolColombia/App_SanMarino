@@ -5,9 +5,10 @@ using ZooSanMarino.Application.Calculos;
 namespace ZooSanMarino.Application.Tests;
 
 /// <summary>
-/// Tests del cálculo puro de huevos en levante (semana 14+) y de su arrastre a producción.
-/// Cubren: fórmula de semana (equivalencia con la canónica), gate fail-closed, aritmética de la
-/// clasificadora, suma/delta (idempotencia), peso ponderado y round-trip de la marca en metadata.
+/// Tests del cálculo puro de huevos en levante (tab fijo desde jul-2026) y de su arrastre a
+/// producción. Cubren: fórmula de semana (equivalencia con la canónica), gate por fecha de encaset,
+/// aritmética de la clasificadora, suma/delta (idempotencia), peso ponderado y round-trip de la
+/// marca en metadata.
 /// </summary>
 public class HuevosLevanteCalculosTests
 {
@@ -52,26 +53,24 @@ public class HuevosLevanteCalculosTests
         Assert.Equal(14, HuevosLevanteCalculos.SemanaVida(fecha, Encaset));
     }
 
-    // ── Gate de captura ───────────────────────────────────────────────────────────────────────
+    // ── Gate de captura (tab FIJO desde jul-2026: sin gate de semana) ─────────────────────────
 
-    [Fact]
-    public void PermiteHuevos_false_en_semana_13_y_true_en_semana_14()
+    [Theory]
+    [InlineData(0)]    // el mismo día del encaset
+    [InlineData(6)]    // semana 1
+    [InlineData(90)]   // semana 13 (antes se bloqueaba)
+    [InlineData(91)]   // semana 14
+    [InlineData(400)]  // muy adelante
+    public void PermiteHuevos_true_en_cualquier_semana_desde_el_encaset(int dias)
     {
-        Assert.False(HuevosLevanteCalculos.PermiteHuevos(Encaset, Encaset.AddDays(90)));
-        Assert.True(HuevosLevanteCalculos.PermiteHuevos(Encaset, Encaset.AddDays(91)));
+        Assert.True(HuevosLevanteCalculos.PermiteHuevos(Encaset, Encaset.AddDays(dias)));
     }
 
     [Fact]
-    public void PermiteHuevos_true_en_cualquier_semana_posterior_a_la_14()
+    public void PermiteHuevos_true_sin_fecha_de_encaset()
     {
-        Assert.True(HuevosLevanteCalculos.PermiteHuevos(Encaset, Encaset.AddDays(175)));
-        Assert.True(HuevosLevanteCalculos.PermiteHuevos(Encaset, Encaset.AddDays(400)));
-    }
-
-    [Fact]
-    public void PermiteHuevos_es_fail_closed_sin_fecha_de_encaset()
-    {
-        Assert.False(HuevosLevanteCalculos.PermiteHuevos(null, Encaset.AddDays(200)));
+        // Sin encaset no queda condición evaluable: con el tab fijo, bloquear dejaría un 400 sin remedio.
+        Assert.True(HuevosLevanteCalculos.PermiteHuevos(null, Encaset.AddDays(200)));
     }
 
     [Fact]
@@ -79,12 +78,6 @@ public class HuevosLevanteCalculosTests
     {
         Assert.False(HuevosLevanteCalculos.PermiteHuevos(Encaset, Encaset.AddDays(-1)));
         Assert.False(HuevosLevanteCalculos.PermiteHuevos(Encaset, Encaset.AddDays(-100)));
-    }
-
-    [Fact]
-    public void SemanaMinima_es_14()
-    {
-        Assert.Equal(14, HuevosLevanteCalculos.SemanaMinimaHuevosLevante);
     }
 
     // ── Aritmética de la clasificadora ────────────────────────────────────────────────────────

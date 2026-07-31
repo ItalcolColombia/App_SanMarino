@@ -43,8 +43,8 @@ namespace ZooSanMarino.Domain.Entities
 
         /// <summary>
         /// <c>true</c> = la empresa captura la CLASIFICACIÓN DE HUEVOS en el seguimiento diario de
-        /// LEVANTE a partir de la semana <c>HuevosLevanteCalculos.SemanaMinimaHuevosLevante</c> (14),
-        /// con la misma clasificadora fija de producción. Al liquidar el levante, el acumulado se
+        /// LEVANTE (tab fijo, sin gate de semana desde jul-2026; solo se rechaza una fecha anterior
+        /// al encaset), con la misma clasificadora fija de producción. Al liquidar el levante, el acumulado se
         /// arrastra al primer registro de producción (la fecha de inicio de producción) y, si ese día
         /// el usuario registra producción, los huevos se SUMAN sobre esa fila.
         /// <c>false</c> (default) = comportamiento actual: levante no captura huevos y la liquidación

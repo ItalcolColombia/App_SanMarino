@@ -1877,3 +1877,86 @@ Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cu
 ### Pendiente anotado (no bloquea)
 - [ ] Borrado logico de `inventario_gestion_movimiento` para trazabilidad (auditar todas las lecturas antes)
 - [ ] Pantalla de front para el cuadre: hoy solo existe el endpoint
+
+---
+
+## Congelar la liquidacion de un lote de pollo engorde (2026-07-30)
+
+> Plan: `fase_de_desarrollo/congelar_liquidacion_lote_engorde_plan.md`
+> Estado: **PLANIFICADO — sin codigo todavia**. El plan cierra las decisiones (alcance, estructura, ciclo de
+> vida, lista cerrada de gates, conmutacion de lectura, backfill, riesgos y tests) sobre el mapeo de 4
+> dimensiones. Motivo: la tabla diaria se recalcula en cada request, y el cambio de formula del 28-jul movio
+> solas corridas cerradas hacia meses.
+
+### Decisiones tomadas (no reabrir sin motivo)
+- [x] El `if` de lectura va **dentro de `fn_seguimiento_diario_engorde`** (v13, `LANGUAGE sql` -> `plpgsql`), no en C#: 4 reportes entran por `CROSS JOIN LATERAL` a la misma fn
+- [x] Estructura **mixta**: cabecera relacional (`liquidacion_lote_engorde_congelada`, con los 13 campos del resumen tipados + `metadata jsonb`) + detalle **relacional** (`..._fila`, las 47 columnas del `RETURNS TABLE`). El detalle NO se mapea en EF
+- [x] La senal de gate sigue siendo `estado_operativo_lote='Cerrado'`; la copia es un derivado y el invariante lo garantiza un `UNIQUE` parcial + trigger
+- [x] Reapertura = **anular** la copia (no DELETE), en la misma transaccion. Re-liquidar crea copia nueva
+- [x] **NO se bloquea el inventario** (bodega por galpon, 1-4 lotes conviviendo). El saldo persistido queda auto-reparable porque el aplicador lee de la fn ya congelada
+- [x] Fuera de alcance y **sigue moviendose**: pestanas Indicadores/Graficas de Ecuador (calculan en el navegador), Liquidacion Tecnica Ecuador, vista Power BI `vw_seguimiento_pollo_engorde`
+- [x] Sin flag por empresa: es integridad transversal, no una variante de tenant
+
+### Implementacion (pendiente)
+- [ ] Migracion `AddLiquidacionLoteEngordeCongelada`: tablas + indices + `fn_congelar/anular/recongelar` + trigger + fn v13 + backfill (un archivo, idempotente, con `Down`)
+- [ ] `backend/sql/fn_seguimiento_diario_engorde.sql` a v13
+- [ ] Entidad + Configuration + `DbSet` de la cabecera
+- [ ] `LiquidacionCongeladaGateCalculos` + `LiquidacionCongeladaGateCalculosTests` (~22 casos)
+- [ ] Cierre y reapertura transaccionales en `LoteAveEngordeService`
+- [ ] Resumen desde la copia en los DOS services de seguimiento
+- [ ] Los 10 gates nuevos (B1-B10 del plan), con bypass para la correccion de aves
+- [ ] Cerrar de paso la fuga multiempresa de `ReporteIndicadorPanamaService` (sin filtro de empresa ni alcance)
+- [ ] Endpoint admin de re-congelado
+- [ ] Front: badge de "datos congelados" + rotulos stock vivo vs saldo liquidado
+- [ ] `verificar_congelado_engorde.sql` + `verificar_paridad_saldo_engorde.sql` antes/despues + smoke de 10 casos
+
+### A verificar antes de arrancar (no verificado en la sesion de planeacion)
+- [ ] Conteo real de lotes liquidados por empresa (el borrador decia EC 23 / 20 Cerrado / 3 reabiertos, PA 0)
+- [ ] Donde esta definida `fn_reporte_indicadores_panama` y si pasa por la fn de seguimiento
+- [ ] `EXPLAIN ANALYZE` del Reporte de Costos antes/despues del cambio a plpgsql (umbral +15%)
+
+---
+
+# Tracker — Carga masiva Seguimiento Levante: movimientos de aves + tab huevos fijo + ocultar estructura
+
+**Plan:** [fase_de_desarrollo/carga_masiva_levante_movimientos_aves_plan.md](fase_de_desarrollo/carga_masiva_levante_movimientos_aves_plan.md)
+**Fecha:** 2026-07-31
+
+**Decisiones del usuario:** ocultar visualmente los tipos de estructura (Granjas/Núcleos/Galpones) · movimientos de aves en la carga de levante con **Salida** (valida que el lote destino exista, NO lo acredita) e **Ingreso** en tránsito (NO descuenta al origen) · tab de huevos de levante **fijo** (cae el gate de semana 14; el flag por empresa se conserva).
+
+**Hallazgo clave del análisis:** la carga masiva de levante YA tiene hoja Alimento con inventario real (ingresos/traslados/consumos + balance que rechaza), huevos por 11 categorías e idempotencia — el trabajo nuevo es solo lo de arriba.
+
+## Fase 0 — Análisis
+- [x] Exploración exhaustiva (workflow 6 agentes, 192 lecturas): front tipos, backend migración levante, fn SQL vigente, movimientos/traslados de aves, gates de huevos, inventario alimento
+- [x] Plan escrito en `fase_de_desarrollo/`
+
+## Fase A — Front: ocultar tipos de estructura
+- [x] `funciones/agrupar-tipo-migracion.funcion.ts`: `TIPOS_ESTRUCTURA` + `esTipoEstructura()`
+- [x] `migraciones-masivas-page.component.ts`: computed `tiposVisibles` (el historial conserva la lista completa)
+- [x] Template paso 1 usa `tiposVisibles()`
+
+## Fase B — Backend: tab huevos fijo (gate de semana 14 cae)
+- [x] `HuevosLevanteCalculos`: nueva regla `PermiteHuevos` (solo bloquea fecha anterior al encaset; sin encaset ⇒ permitido); cae `SemanaMinimaHuevosLevante`
+- [x] `SeguimientoLoteLevanteService.AplicarGateHuevosLevanteAsync`: mensaje nuevo («fecha anterior al encasetamiento»)
+- [x] `MigracionService.Historicos.cs`: cae la rama de semana del gate de la carga masiva + texto de Instrucciones
+- [x] Tests `HuevosLevanteCalculosTests` reescritos (gate nuevo: cualquier semana desde el encaset; sin encaset ⇒ permitido)
+
+## Fase C — Front: tab huevos fijo
+- [x] `semana-vida-levante.funcion.ts`: `permiteHuevosEnLevante` nueva regla; cae `SEMANA_MINIMA_HUEVOS_LEVANTE`
+- [x] `modal-create-edit`: `mostrarTabHuevos` = flag && nueva regla; payload conserva «tab oculto ⇒ null» (atado al flag)
+
+## Fase D — Backend: hoja «Movimientos Aves» en la carga de levante
+- [x] `MigracionEsquemas.MovimientosAvesLevante` (7 columnas) + tests de esquema (orden fijado, solo Fecha+Tipo requeridas)
+- [x] `MigracionMovimientosAvesCalculos.cs` (NUEVO, puro): `TryMovimiento` (sinónimos), `ClaveArchivo`, `ProyectarSaldoAves` + 8 tests
+- [x] Partial `MigracionService.MovimientosAves.cs`: `LeerHojaMovimientosAvesAsync` (contraparte por id/nombre + granja desambiguadora; Salida exige que exista, Ingreso opcional con Advertencia) + `AplicarMovimientosAvesLevanteAsync` (fila diaria extendida + acumulados LPL + clamp 0 + auditoría `movimiento_aves` `MGA-…` Completada + cohorte del ingreso) — espejo unilateral de `TrasladoAvesDesdeSegService`, sin tocar `inventario_aves` ni `MovimientoAvesService.CreateAsync`
+- [x] `ProcesarSeguimientoLevanteAsync` lee la hoja; `EjecutarHistoricoPosturaAsync` aplica DESPUÉS de la fn; dry-run no aplica; `FilasOmitidas` suma los ya aplicados; advertencia de saldo de aves proyectado en negativo
+- [x] Plantilla: hoja nueva solo levante + lotes en Referencias col H-J (con dropdown de contraparte) + 2 líneas de Instrucciones
+- [x] 🔴 **Bug cazado por el smoke y corregido**: `FechaMovimiento`/`Fecha` a MEDIANOCHE se escribe como 00:00 UTC y Npgsql (legacy) la relee en hora local (19:00 del día ANTERIOR) ⇒ la clave de idempotencia comparaba otro día y el reimport DUPLICABA los movimientos. Fix: anclar a MEDIODÍA (patrón `ResolveMovimientoCreatedAt` del inventario)
+
+## Fase E — Validación y cierre
+- [x] `dotnet build` 0 errores / 0 advertencias
+- [x] `dotnet test` verde — **1.481** (1.480 Application + 1 Domain; incluye los nuevos)
+- [x] `yarn build` 0 errores (solo el warning de bundle budget preexistente)
+- [x] Smoke API local **15/15** (backend propio :5499, JWT + X-Secret-Up minteados, lote 115/LPL 7 empresa Sanmarino): plantilla con 5 hojas y lotes en Referencias · import → fila diaria del día 1 con mort 10 + SALIDA 200/20 (espejo 6) y día 2 con mort 5/1 + **huevos en semana 2** (80 tot/50 limpio/peso 55.5, flag ON — tab fijo verificado) + INGRESO 300 (espejo 8) · LPL 7 = 15346−15−200+300 = 15431 H / 2293−1−20 = 2272 M con acumulados 300/200/20 · **LPL 6 y 8 intactos** (unilateral) · cohorte única ligada al MGA del ingreso con encaset del origen · reimport = 0 procesadas y 4 omitidas sin duplicar · rechazos: destino inexistente, nombre ambiguo (2 «A374A» reales), salida sin contraparte, tipo inválido, mismo lote
+- [x] BD local restaurada al snapshot (0 segs lote 115, 0 MGA, 0 cohortes, LPL 7 = 15346/2293, migracion_masiva max id 164) y backend de smoke detenido — sin procesos huérfanos
+- [x] Commit acotado a los archivos de esta tarea (sin footer de atribución)

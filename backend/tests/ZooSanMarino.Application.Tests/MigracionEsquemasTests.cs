@@ -244,6 +244,25 @@ public class MigracionEsquemasTests
     }
 
     [Fact]
+    public void MovimientosAvesLevante_HojaColumnasYRequeridas()
+    {
+        // La hoja de traslados unilaterales de levante: el ORDEN es contrato (los operarios pegan
+        // bloques enteros) y solo Fecha + Tipo son requeridas — "Lote Contraparte" se exige POR FILA
+        // cuando el tipo es Salida, no a nivel de encabezado.
+        var esquema = MigracionEsquemas.MovimientosAvesLevante;
+        Assert.Equal("Movimientos Aves", esquema.Hoja);
+        Assert.Equal(
+            new[] { "Fecha", "Tipo", "Hembras", "Machos", "Lote Contraparte", "Granja Contraparte", "Observaciones" },
+            esquema.Columnas.Select(c => c.Titulo).ToArray());
+        Assert.Equal(
+            new[] { "Fecha", "Tipo" },
+            esquema.Columnas.Where(c => c.Requerida).Select(c => c.Titulo).ToArray());
+
+        var tipo = esquema.Columnas.Single(c => c.Titulo == "Tipo");
+        Assert.Equal(new[] { "Salida", "Ingreso" }, tipo.Opciones);
+    }
+
+    [Fact]
     public void AlimentoPostura_EsElMismoEsquemaQueEngorde()
     {
         // Una sola definición de la hoja "Alimento": si engorde gana una columna, postura la recibe.
