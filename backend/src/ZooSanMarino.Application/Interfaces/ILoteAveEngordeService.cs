@@ -29,4 +29,10 @@ public interface ILoteAveEngordeService
 
     /// <summary>Reabre un lote cerrado (motivo y usuario obligatorios).</summary>
     Task<LoteAveEngordeDetailDto?> AbrirLoteAsync(int loteAveEngordeId, AbrirLoteAveEngordeRequest request);
+
+    /// <summary>
+    /// Regenera la copia congelada de la liquidación con la fórmula vigente SIN reabrir el lote
+    /// (admin). La copia anterior queda anulada en el historial.
+    /// </summary>
+    Task<LoteAveEngordeDetailDto?> RecongelarLiquidacionAsync(int loteAveEngordeId, string userId);
 }

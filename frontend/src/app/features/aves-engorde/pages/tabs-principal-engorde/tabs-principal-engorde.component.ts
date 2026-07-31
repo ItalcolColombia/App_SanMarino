@@ -63,6 +63,16 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Output() saldosCuadrados = new EventEmitter<void>();
 
   activeTab: 'general' | 'reproductora' | 'indicadores' | 'grafica' = 'general';
+
+  /**
+   * Lote LIQUIDADO ⇒ la tabla diaria que llega en `tablaFilas` es la COPIA CONGELADA
+   * (fn_seguimiento_diario_engorde v13 devuelve la foto guardada al liquidar, no un recálculo).
+   * La señal es la misma de los gates del backend: estado_operativo_lote === 'Cerrado'.
+   */
+  get loteLiquidado(): boolean {
+    return (this.selectedLote?.estadoOperativoLote ?? '').trim().toLowerCase() === 'cerrado';
+  }
+
   isAdmin: boolean = false;
   /** País activo: condiciona qué set de gráficas se muestra en la pestaña Gráficas. */
   isEcuador: boolean = false;

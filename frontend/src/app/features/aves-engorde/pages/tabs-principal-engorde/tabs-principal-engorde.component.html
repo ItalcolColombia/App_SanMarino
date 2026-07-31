@@ -43,6 +43,12 @@
           aria-controls="grafica-panel">
           📊 Gráficas
         </button>
+        @if (loteLiquidado) {
+          <span class="tabs-congelado-badge" role="status"
+                title="El lote está liquidado: la tabla diaria muestra la copia guardada al liquidar (no se recalcula). Reabrir el lote vuelve al cálculo en vivo.">
+            🧊 Liquidado · datos congelados
+          </span>
+        }
       </nav>
       <div class="tabs-content">
         <!-- TAB GENERAL -->
@@ -378,6 +384,13 @@
             <!-- TAB INDICADORES: SOLO DIARIO -->
             @if (activeTab === 'indicadores') {
               <div id="indicadores-panel" class="tab-panel tab-panel--indicadores" role="tabpanel">
+                @if (loteLiquidado) {
+                  <p class="tab-panel__nota-congelado" role="note">
+                    ℹ️ Indicadores calculados <strong>en vivo</strong> contra la guía genética vigente
+                    (no forman parte de la copia congelada de la liquidación: si la guía se corrige,
+                    estos valores pueden moverse).
+                  </p>
+                }
                 <app-tabla-indicadores-diarios-engorde
                   [seguimientos]="seguimientos"
                   [selectedLote]="selectedLote"
@@ -388,6 +401,12 @@
             <!-- TAB GRÁFICAS -->
             @if (activeTab === 'grafica') {
               <div id="grafica-panel" class="tab-panel" role="tabpanel">
+                @if (loteLiquidado) {
+                  <p class="tab-panel__nota-congelado" role="note">
+                    ℹ️ Gráficas calculadas <strong>en vivo</strong> contra la guía genética vigente
+                    (no forman parte de la copia congelada de la liquidación).
+                  </p>
+                }
                 <!-- Ecuador: 4 gráficas vs guía genética -->
                 @if (isEcuador) {
                   <app-graficas-indicadores-diarios-engorde

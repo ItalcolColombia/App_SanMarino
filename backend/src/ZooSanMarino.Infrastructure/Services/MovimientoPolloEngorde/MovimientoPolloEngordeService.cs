@@ -57,6 +57,36 @@ public partial class MovimientoPolloEngordeService : IMovimientoPolloEngordeServ
     }
 
     /// <summary>
+    /// Gate B8 — liquidación congelada: ningún movimiento/venta puede tocar un lote LIQUIDADO
+    /// (crear, editar, cancelar, eliminar o completar mutan <c>lote_ave_engorde</c> y el histórico
+    /// que alimenta la copia). Recibe los lotes involucrados (origen y/o destino) y lanza con el
+    /// PRIMER lote cerrado que encuentre, identificándolo por nombre.
+    /// <para>
+    /// <paramref name="omitirGateLiquidado"/> es el bypass EXPLÍCITO de la corrección de aves
+    /// disponibles (<c>CorreccionAvesDisponiblesEngordeService</c>), que existe justamente para
+    /// reparar lotes liquidados y re-congela la copia al terminar.
+    /// </para>
+    /// </summary>
+    private async Task ValidarLotesNoLiquidadosAsync(IEnumerable<int?> loteIds, bool omitirGateLiquidado = false)
+    {
+        if (omitirGateLiquidado) return;
+        var ids = loteIds.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList();
+        if (ids.Count == 0) return;
+
+        var cerrado = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId.HasValue && ids.Contains(l.LoteAveEngordeId.Value)
+                     && l.DeletedAt == null
+                     && l.EstadoOperativoLote.ToLower() == "cerrado")
+            .Select(l => l.LoteNombre)
+            .FirstOrDefaultAsync();
+        if (cerrado is not null)
+            LiquidacionCongeladaGateCalculos.ValidarEscritura(
+                LiquidacionCongeladaGateCalculos.EstadoCerrado,
+                OperacionLoteEngordeLiquidado.MovimientoAves,
+                loteNombre: cerrado);
+    }
+
+    /// <summary>
     /// Cantidades que realmente afectan el stock del lote (descuento/crédito/reserva). En ventas
     /// Panamá (<see cref="MovimientoPolloEngorde.EsVentaMixta"/>) las aves viven en HembrasL/MachosL,
     /// así que el efecto es (H, M, 0) — se descuenta de cada columna directamente; Mixtas no cambia.

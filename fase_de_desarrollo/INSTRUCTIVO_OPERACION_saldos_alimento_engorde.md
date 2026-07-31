@@ -206,6 +206,41 @@ tomar la costumbre para que no se sigan generando.
 
 ---
 
+## 6b. NUEVO (31-jul): las liquidaciones quedan CONGELADAS — una corrida cerrada ya no puede cambiar sola
+
+La pregunta del punto 2 («¿por qué cambió una corrida cerrada sin que nadie la tocara?») ya no puede
+volver a pasar. Desde el 31 de julio:
+
+**Al liquidar un lote, el sistema guarda una copia exacta de la tabla de Registros Diarios** — la misma
+que se está viendo en el momento de liquidar — y desde entonces **muestra esa copia**, no un recálculo.
+Aunque mañana se corrija la fórmula o llegue un movimiento con fecha vieja, el lote liquidado sigue
+mostrando lo que se aprobó. Esto congela a la vez la tabla diaria, el **Reporte Diario de Costos**, el
+**Informe Semanal (Panamá)** y el cuadre de alimento, porque todos leen de la misma fuente.
+
+Cómo se ve y cómo se opera:
+
+- El lote liquidado muestra el distintivo **«🧊 Liquidado · datos congelados»** en la pantalla de
+  seguimiento, y el modal de liquidación indica la fecha del congelado.
+- **Un lote liquidado no se puede tocar**: ni editar el lote, ni agregar/editar seguimiento, ni
+  registrar ventas o movimientos, ni tocar sus reproductoras. El sistema responde:
+  *«El lote está liquidado. Reabra el lote para modificarlo.»*
+- **¿Llegó algo tarde (un peso de báscula, un documento)?** Reabrir el lote → hacer la corrección →
+  volver a liquidar. La copia vieja queda guardada como historial y se genera una nueva con los datos
+  corregidos. La **merma** es la excepción: Costos puede digitarla después de liquidar y queda
+  registrada en la copia sin reabrir nada.
+- **La bodega del galpón sigue viva**: recibir o trasladar alimento para el ciclo siguiente NO toca al
+  lote liquidado (por eso en el modal ahora se rotulan aparte «Stock actual de bodega» y «Saldo de
+  alimento liquidado»).
+- Las pestañas **Indicadores** y **Gráficas** siguen calculando en vivo contra la guía genética
+  vigente (lo dicen en pantalla): no forman parte de la copia.
+- Los **20 lotes de Ecuador ya cerrados** quedaron congelados con los valores corregidos de este
+  instructivo (post-corrección del 30-jul). Los 3 reabiertos siguen en vivo hasta que se liquiden.
+
+> Regla práctica para Costos: **liquidar cuando el peso y los documentos ya están completos.** Lo que
+> se congela es lo que está en pantalla en ese momento.
+
+---
+
 ## 7. Cómo evitar que se repita — lo que depende de la operación
 
 **1. Registrar el ingreso el día que llega el alimento.** Es la causa de fondo de casi todos los rojos

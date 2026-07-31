@@ -1,6 +1,13 @@
 namespace ZooSanMarino.Application.DTOs;
 
-/// <summary>Resumen para el modal "Liquidar lote" (pollo de engorde).</summary>
+/// <summary>
+/// Resumen para el modal "Liquidar lote" (pollo de engorde).
+/// <para>
+/// Con el lote liquidado, el resumen sale de la COPIA CONGELADA
+/// (<c>liquidacion_lote_engorde_congelada</c>) y <see cref="CongeladaAt"/>/<see cref="FnVersion"/>
+/// vienen pobladas — el front las usa para el badge «datos congelados». En vivo llegan null.
+/// </para>
+/// </summary>
 public sealed record LiquidacionLoteEngordeResumenDto(
     int LoteAveEngordeId,
     string LoteNombre,
@@ -16,7 +23,9 @@ public sealed record LiquidacionLoteEngordeResumenDto(
     int MovimientosVentaCount,
     decimal? SaldoAlimentoKg,
     int? MermaUnidades = null,
-    decimal? MermaKilos = null
+    decimal? MermaKilos = null,
+    DateTime? CongeladaAt = null,
+    string? FnVersion = null
 );
 
 public sealed record CerrarLoteAveEngordeRequest(

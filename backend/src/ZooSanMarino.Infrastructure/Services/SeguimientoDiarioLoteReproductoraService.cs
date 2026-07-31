@@ -165,12 +165,19 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     public async Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto)
     {
         var companyId = _current.CompanyId;
-        var loteRep = await (from l in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+        var filaCreate = await (from l in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
                              join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
                              where l.Id == dto.LoteId && lae.CompanyId == companyId && lae.DeletedAt == null
-                             select l).SingleOrDefaultAsync();
-        if (loteRep is null)
+                             select new { Lote = l, lae.EstadoOperativoLote }).SingleOrDefaultAsync();
+        if (filaCreate is null)
             throw new InvalidOperationException($"Lote reproductora aves de engorde '{dto.LoteId}' no existe o no pertenece a la compañía.");
+
+        // Gate B6 — el trigger de cruce (trg_cruce_reproductora_engorde) hace DELETE+INSERT de los
+        // días 1-7 del seguimiento del LOTE DE ENGORDE desde la BD, donde ningún gate de C# lo
+        // alcanza: con el lote liquidado se corta acá, antes de escribir la reproductora.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            filaCreate.EstadoOperativoLote, OperacionLoteEngordeLiquidado.SeguimientoReproductora);
+        var loteRep = filaCreate.Lote;
 
         // Regla: máximo 7 días de seguimiento por lote reproductora
         const int MaxDiasSeguimiento = 7;
@@ -278,12 +285,17 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     public async Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto)
     {
         var companyId = _current.CompanyId;
-        var ent = await (from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+        var filaUpd = await (from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
                          join l in _ctx.LoteReproductoraAveEngorde.AsNoTracking() on s.LoteReproductoraAveEngordeId equals l.Id
                          join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
                          where s.Id == dto.Id && lae.CompanyId == companyId && lae.DeletedAt == null
-                         select s).SingleOrDefaultAsync();
-        if (ent is null) return null;
+                         select new { Ent = s, lae.EstadoOperativoLote }).SingleOrDefaultAsync();
+        if (filaUpd is null) return null;
+
+        // Gate B6 — editar reproductora re-dispara el cruce sobre los días 1-7 del lote de engorde.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            filaUpd.EstadoOperativoLote, OperacionLoteEngordeLiquidado.SeguimientoReproductora);
+        var ent = filaUpd.Ent;
 
         // Un registro confirmado es de solo lectura: para corregirlo se elimina (retorna aves/consumo) y se recrea.
         if (ent.Confirmado)
@@ -411,12 +423,16 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     {
         var companyId = _current.CompanyId;
         // Scoping por compañía sin arrastrar la entidad al tracker por el join.
-        var pertenece = await (from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
+        var gateConfirmar = await (from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
                                join l in _ctx.LoteReproductoraAveEngorde.AsNoTracking() on s.LoteReproductoraAveEngordeId equals l.Id
                                join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
                                where s.Id == id && lae.CompanyId == companyId && lae.DeletedAt == null
-                               select s.Id).AnyAsync();
-        if (!pertenece) return null;
+                               select new { lae.EstadoOperativoLote }).FirstOrDefaultAsync();
+        if (gateConfirmar is null) return null;
+
+        // Gate B6 — confirmar dispara el cruce: DELETE+INSERT de los días 1-7 del lote de engorde.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            gateConfirmar.EstadoOperativoLote, OperacionLoteEngordeLiquidado.SeguimientoReproductora);
 
         var ent = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
             .SingleOrDefaultAsync(s => s.Id == id);
@@ -474,12 +490,17 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
     public async Task<bool> DeleteAsync(int id)
     {
         var companyId = _current.CompanyId;
-        var ent = await (from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+        var filaDel = await (from s in _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
                          join l in _ctx.LoteReproductoraAveEngorde.AsNoTracking() on s.LoteReproductoraAveEngordeId equals l.Id
                          join lae in _ctx.LoteAveEngorde.AsNoTracking() on l.LoteAveEngordeId equals lae.LoteAveEngordeId
                          where s.Id == id && lae.CompanyId == companyId && lae.DeletedAt == null
-                         select s).SingleOrDefaultAsync();
-        if (ent is null) return false;
+                         select new { Ent = s, lae.EstadoOperativoLote }).SingleOrDefaultAsync();
+        if (filaDel is null) return false;
+
+        // Gate B6 — eliminar reproductora re-dispara el cruce sobre los días 1-7 del lote de engorde.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            filaDel.EstadoOperativoLote, OperacionLoteEngordeLiquidado.SeguimientoReproductora);
+        var ent = filaDel.Ent;
 
         // ── Guard de cierre: un lote cerrado solo permite eliminar si fue reabierto con novedad ──
         const int MaxDiasSeguimiento = 7;

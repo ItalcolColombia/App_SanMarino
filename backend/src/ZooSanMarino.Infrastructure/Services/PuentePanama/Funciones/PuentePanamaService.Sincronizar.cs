@@ -510,6 +510,21 @@ public partial class PuentePanamaService
         {
             loteId = existente;
             r.LotesOmitidos++;
+
+            // Gate B10 — destino LIQUIDADO: su historia está congelada. Sin este corte el flujo
+            // seguía hacia reproductora + seguimiento, que re-dispararían el cruce (días 1-7)
+            // sobre un lote cuya copia congelada dejaría de reflejar la realidad.
+            var estadoDestino = await _ctx.LoteAveEngorde.AsNoTracking()
+                .Where(l => l.LoteAveEngordeId == loteId && l.DeletedAt == null)
+                .Select(l => l.EstadoOperativoLote)
+                .FirstOrDefaultAsync(ct);
+            if (LiquidacionCongeladaGateCalculos.EstaLiquidado(estadoDestino))
+            {
+                prev.Estado = "Liquidado";
+                prev.Mensaje = "El lote destino está liquidado (copia congelada); no se sincroniza. Reabra el lote si necesita actualizarlo.";
+                return;
+            }
+
             prev.Estado = "YaExiste";
         }
         else

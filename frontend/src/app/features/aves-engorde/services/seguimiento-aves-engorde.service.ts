@@ -49,6 +49,13 @@ export interface LiquidacionLoteEngordeResumenDto {
   /** Merma ya registrada por Costos (para pre-poblar el modal). */
   mermaUnidades: number | null;
   mermaKilos: number | null;
+  /**
+   * Pobladas SOLO cuando el lote está liquidado y el resumen sale de la COPIA CONGELADA
+   * (`liquidacion_lote_engorde_congelada`): momento del congelado y versión de la fórmula.
+   * En vivo llegan null/ausentes — el badge «datos congelados» se muestra si `congeladaAt` viene.
+   */
+  congeladaAt?: string | null;
+  fnVersion?: string | null;
 }
 
 export interface LoteRegistroHistoricoUnificadoDto {

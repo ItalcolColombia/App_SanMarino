@@ -24,6 +24,9 @@ public partial class MovimientoPolloEngordeService
         if (dto.CantidadHembras + dto.CantidadMachos + dto.CantidadMixtas <= 0)
             throw new InvalidOperationException("Las cantidades deben ser mayores a cero.");
 
+        // Gate B8 — un lote liquidado no participa en movimientos (ni como origen ni como destino).
+        await ValidarLotesNoLiquidadosAsync(new[] { dto.LoteAveEngordeOrigenId, dto.LoteAveEngordeDestinoId });
+
         // Empresas con báscula diferida: la venta puede nacer sin peso (se carga al confirmarla).
         ValidarPesoObligatorioEnVenta(dto.TipoMovimiento, dto.PesoBruto, dto.PesoTara,
             await EmpresaPermitePesoDiferidoAsync(dto.GranjaOrigenId));
@@ -397,6 +400,9 @@ public partial class MovimientoPolloEngordeService
         if (m.Estado != "Pendiente")
             throw new InvalidOperationException("Solo se pueden editar movimientos en estado Pendiente.");
 
+        // Gate B8 — la venta de un lote liquidado no se edita (reserva/peso alimentan la copia).
+        await ValidarLotesNoLiquidadosAsync(new[] { m.LoteAveEngordeOrigenId, m.LoteAveEngordeDestinoId });
+
         if (dto.FechaMovimiento.HasValue) m.FechaMovimiento = dto.FechaMovimiento.Value;
         if (dto.TipoMovimiento != null) m.TipoMovimiento = dto.TipoMovimiento;
         if (dto.GranjaOrigenId.HasValue) m.GranjaOrigenId = dto.GranjaOrigenId;
@@ -512,6 +518,10 @@ public partial class MovimientoPolloEngordeService
         if (m == null) return false;
         if (m.Estado != "Pendiente")
             throw new InvalidOperationException("Solo se pueden cancelar movimientos en estado Pendiente.");
+
+        // Gate B8 — cancelar libera la reserva de aves de un lote liquidado (AvesSobrante mutaría).
+        await ValidarLotesNoLiquidadosAsync(new[] { m.LoteAveEngordeOrigenId, m.LoteAveEngordeDestinoId });
+
         m.Estado = "Cancelado";
         m.FechaCancelacion = DateTime.UtcNow;
         m.Observaciones = AppendObservaciones(m.Observaciones, " | Cancelado: " + (motivo ?? ""));
@@ -538,6 +548,9 @@ public partial class MovimientoPolloEngordeService
                 await tx.RollbackAsync();
                 return false;
             }
+
+            // Gate B8 — eliminar revierte aves sobre el maestro del lote: liquidado = intocable.
+            await ValidarLotesNoLiquidadosAsync(new[] { m.LoteAveEngordeOrigenId, m.LoteAveEngordeDestinoId });
 
             if (m.Estado == "Completado")
             {
@@ -703,7 +716,7 @@ public partial class MovimientoPolloEngordeService
         }
     }
 
-    public async Task<MovimientoPolloEngordeDto?> CompleteAsync(int id)
+    public async Task<MovimientoPolloEngordeDto?> CompleteAsync(int id, bool omitirGateLiquidado = false)
     {
         var m = await _ctx.MovimientoPolloEngorde
             .Include(x => x.LoteAveEngordeOrigen)
@@ -714,6 +727,11 @@ public partial class MovimientoPolloEngordeService
         if (m == null) return null;
         if (m.Estado != "Pendiente")
             throw new InvalidOperationException("Solo se pueden completar movimientos en estado Pendiente.");
+
+        // Gate B8 — completar DESCUENTA aves del maestro del lote. Bypass solo para la corrección
+        // de aves disponibles (repara liquidados y re-congela al terminar).
+        await ValidarLotesNoLiquidadosAsync(
+            new[] { m.LoteAveEngordeOrigenId, m.LoteAveEngordeDestinoId }, omitirGateLiquidado);
 
         // Descontar del lote origen
         if (m.LoteAveEngordeOrigenId.HasValue && m.LoteAveEngordeOrigen != null)

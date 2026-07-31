@@ -115,10 +115,17 @@ public partial class SeguimientoAvesEngordeService
     {
         var companyId = _current.CompanyId;
 
-        var exists = await _ctx.LoteAveEngorde.AsNoTracking()
-            .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
-        if (!exists)
+        var loteGate = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
+            .Select(l => new { l.EstadoOperativoLote })
+            .SingleOrDefaultAsync();
+        if (loteGate is null)
             throw new InvalidOperationException($"Lote aves de engorde '{loteId}' no existe o no pertenece a la compañía.");
+
+        // Gate B5 — segundo hueco que escribe seguimiento_diario_aves_engorde esquivando el CRUD;
+        // con onlyIfMissing=false pisa la metadata completa de un lote liquidado.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            loteGate.EstadoOperativoLote, OperacionLoteEngordeLiquidado.BackfillMetadata);
 
         var q = _ctx.SeguimientoDiarioAvesEngorde
             .Where(s => s.LoteAveEngordeId == loteId);

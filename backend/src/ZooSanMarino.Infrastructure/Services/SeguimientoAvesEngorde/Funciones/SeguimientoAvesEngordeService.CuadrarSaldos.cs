@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Domain.Entities;
 
@@ -313,9 +314,15 @@ public partial class SeguimientoAvesEngordeService
 
         var loteInfo = await _ctx.LoteAveEngorde.AsNoTracking()
             .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
-            .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId })
+            .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId, l.EstadoOperativoLote })
             .SingleOrDefaultAsync()
             ?? throw new InvalidOperationException($"Lote {loteId} no encontrado.");
+
+        // Gate B4 — «aplicar» escribe seguimiento y anula/inserta movimientos del histórico
+        // esquivando el CRUD: con el lote liquidado invalidaría la copia congelada. El PREVIEW
+        // (ValidarCuadrarSaldosAsync) no se bloquea: mirar no rompe nada.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            loteInfo.EstadoOperativoLote, OperacionLoteEngordeLiquidado.AplicarCuadrarSaldos);
 
         int fechasAjustadas = 0, registrosAnulados = 0, registrosInsertados = 0;
         var nuevosParaFixOrigenId = new List<LoteRegistroHistoricoUnificado>();

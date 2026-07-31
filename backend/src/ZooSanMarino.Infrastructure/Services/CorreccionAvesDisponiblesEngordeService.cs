@@ -432,7 +432,9 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
                 var nConfirmados = 0;
                 foreach (var movId in estadoInicial.PendVencidosIds)
                 {
-                    var dto = await _movimientoSvc.CompleteAsync(movId)
+                    // Bypass EXPLÍCITO del gate de liquidación congelada: esta herramienta existe
+                    // para reparar lotes liquidados (FantasmaCerrado) y re-congela al terminar.
+                    var dto = await _movimientoSvc.CompleteAsync(movId, omitirGateLiquidado: true)
                         ?? throw new InvalidOperationException($"Movimiento pendiente {movId} no encontrado al confirmar (lote {v.LoteAveEngordeId}).");
                     nConfirmados++;
                 }
@@ -511,6 +513,17 @@ public class CorreccionAvesDisponiblesEngordeService : ICorreccionAvesDisponible
                     corregidos++;
                 }
                 await _ctx.SaveChangesAsync(ct);
+
+                // Si el lote liquidado tenía copia congelada vigente, la corrección la dejaría
+                // MINTIENDO: se re-congela en la misma transacción (origen='correccion'; la copia
+                // anterior queda anulada en el historial) y se refresca el resumen aprobado.
+                if (esCerrado && (acciones.Count > 0 || nConfirmados > 0))
+                {
+                    await LiquidacionCongeladaAplicador.RecongelarYRefrescarResumenAsync(
+                        _ctx, v.LoteAveEngordeId, companyId,
+                        _current.UserId > 0 ? _current.UserId.ToString() : "correccion",
+                        "correccion", ct);
+                }
 
                 items.Add(new CorreccionAvesDisponiblesLoteDto
                 {

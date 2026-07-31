@@ -41,6 +41,20 @@ public sealed class MovimientoPolloEngordePanamaService : IMovimientoPolloEngord
         if (idsLote.Count != idsLote.Distinct().Count())
             throw new InvalidOperationException("No puede repetirse el mismo lote en más de una línea.");
 
+        // Gate B8 — ningún lote liquidado puede entrar en el despacho (la copia congelada
+        // dejaría de reflejar las ventas). Mismo criterio que la venta por granja.
+        var loteCerrado = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId.HasValue && idsLote.Contains(l.LoteAveEngordeId.Value)
+                     && l.DeletedAt == null
+                     && l.EstadoOperativoLote.ToLower() == "cerrado")
+            .Select(l => l.LoteNombre)
+            .FirstOrDefaultAsync();
+        if (loteCerrado is not null)
+            LiquidacionCongeladaGateCalculos.ValidarEscritura(
+                LiquidacionCongeladaGateCalculos.EstadoCerrado,
+                OperacionLoteEngordeLiquidado.MovimientoAves,
+                loteNombre: loteCerrado);
+
         // Disponibilidad: en venta Panamá, H+M se asignan SOBRE las mixtas del lote.
         var disp = await _shared.GetAvesDisponiblesLotesAsync(new AvesDisponiblesLotesRequest
         {

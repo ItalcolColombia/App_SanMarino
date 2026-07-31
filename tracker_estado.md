@@ -1880,40 +1880,65 @@ Kilometro 61 G0037 —ingreso fechado EN un día con seguimiento— sí queda cu
 
 ---
 
-## Congelar la liquidacion de un lote de pollo engorde (2026-07-30)
+## Congelar la liquidacion de un lote de pollo engorde (2026-07-30 → CERRADO 2026-07-31)
 
 > Plan: `fase_de_desarrollo/congelar_liquidacion_lote_engorde_plan.md`
-> Estado: **PLANIFICADO — sin codigo todavia**. El plan cierra las decisiones (alcance, estructura, ciclo de
-> vida, lista cerrada de gates, conmutacion de lectura, backfill, riesgos y tests) sobre el mapeo de 4
-> dimensiones. Motivo: la tabla diaria se recalcula en cada request, y el cambio de formula del 28-jul movio
-> solas corridas cerradas hacia meses.
+> Estado: **IMPLEMENTADO Y VALIDADO** (2026-07-31). Motivo: la tabla diaria se recalcula en cada
+> request, y el cambio de formula del 28-jul movio solas corridas cerradas hacia meses.
 
 ### Decisiones tomadas (no reabrir sin motivo)
-- [x] El `if` de lectura va **dentro de `fn_seguimiento_diario_engorde`** (v13, `LANGUAGE sql` -> `plpgsql`), no en C#: 4 reportes entran por `CROSS JOIN LATERAL` a la misma fn
-- [x] Estructura **mixta**: cabecera relacional (`liquidacion_lote_engorde_congelada`, con los 13 campos del resumen tipados + `metadata jsonb`) + detalle **relacional** (`..._fila`, las 47 columnas del `RETURNS TABLE`). El detalle NO se mapea en EF
-- [x] La senal de gate sigue siendo `estado_operativo_lote='Cerrado'`; la copia es un derivado y el invariante lo garantiza un `UNIQUE` parcial + trigger
-- [x] Reapertura = **anular** la copia (no DELETE), en la misma transaccion. Re-liquidar crea copia nueva
-- [x] **NO se bloquea el inventario** (bodega por galpon, 1-4 lotes conviviendo). El saldo persistido queda auto-reparable porque el aplicador lee de la fn ya congelada
-- [x] Fuera de alcance y **sigue moviendose**: pestanas Indicadores/Graficas de Ecuador (calculan en el navegador), Liquidacion Tecnica Ecuador, vista Power BI `vw_seguimiento_pollo_engorde`
-- [x] Sin flag por empresa: es integridad transversal, no una variante de tenant
+- [x] El `if` de lectura va **dentro de `fn_seguimiento_diario_engorde`** (v13), no en C#: 4 reportes entran por `CROSS JOIN LATERAL` a la misma fn
+- [x] ⚠️ **CAMBIO sobre el plan, justificado por medicion**: la v13 **SIGUE en `LANGUAGE sql`** (no plpgsql). El supuesto del plan («hoy tampoco la inlinea») era FALSO: la v12 SI se inlineaba en los LATERAL (verificado con EXPLAIN — Subquery Scan vs Function Scan) y la variante plpgsql multiplico ×2.8 el Reporte de Costos (min 264 vs 95 ms). La conmutacion quedo como **UNION ALL con quals excluyentes + One-Time Filter** (la alternativa §2.2 que el plan descarto por legibilidad): con copia vigente la rama viva NO se ejecuta (verificado en el plan de ejecucion), la rama congelada lee 2.7× mas rapido que el recalculo (3.0 vs 8.3 ms/lote), y en la medicion menos ruidosa (EXPLAIN ANALYZE de una llamada) la v13 ejecuta MAS rapido que v12 (15.2 vs 18.2 ms) — el ruido de la maquina local (±3× entre corridas identicas) supera cualquier diferencia entre versiones
+- [x] Estructura **mixta**: cabecera relacional (con el resumen tipado + `metadata` jsonb con raza/guia/ventana) + detalle **relacional** (`..._fila`, las 47 columnas del `RETURNS TABLE` con tipos VERBATIM). El detalle NO se mapea en EF
+- [x] La senal de gate sigue siendo `estado_operativo_lote='Cerrado'`; la copia es un derivado y el invariante lo garantiza el `UNIQUE` parcial (`WHERE anulada_at IS NULL`) + trigger `trg_lote_ave_engorde_anula_congelada`
+- [x] Reapertura = **anular** la copia (no DELETE), en la misma transaccion. Re-liquidar crea copia nueva (historial completo de versiones)
+- [x] **NO se bloquea el inventario** (bodega por galpon). El saldo persistido queda auto-reparable: el aplicador lee de la fn ya congelada
+- [x] Fuera de alcance y **sigue moviendose** (rotulado en pantalla): pestanas Indicadores/Graficas (calculan en el navegador contra la guia viva), Liquidacion Tecnica Ecuador, vista Power BI
+- [x] Sin flag por empresa: integridad transversal
 
-### Implementacion (pendiente)
-- [ ] Migracion `AddLiquidacionLoteEngordeCongelada`: tablas + indices + `fn_congelar/anular/recongelar` + trigger + fn v13 + backfill (un archivo, idempotente, con `Down`)
-- [ ] `backend/sql/fn_seguimiento_diario_engorde.sql` a v13
-- [ ] Entidad + Configuration + `DbSet` de la cabecera
-- [ ] `LiquidacionCongeladaGateCalculos` + `LiquidacionCongeladaGateCalculosTests` (~22 casos)
-- [ ] Cierre y reapertura transaccionales en `LoteAveEngordeService`
-- [ ] Resumen desde la copia en los DOS services de seguimiento
-- [ ] Los 10 gates nuevos (B1-B10 del plan), con bypass para la correccion de aves
-- [ ] Cerrar de paso la fuga multiempresa de `ReporteIndicadorPanamaService` (sin filtro de empresa ni alcance)
-- [ ] Endpoint admin de re-congelado
-- [ ] Front: badge de "datos congelados" + rotulos stock vivo vs saldo liquidado
-- [ ] `verificar_congelado_engorde.sql` + `verificar_paridad_saldo_engorde.sql` antes/despues + smoke de 10 casos
+### Verificaciones previas (cerradas)
+- [x] Conteo real: **EC 20 `Cerrado` (todos con liquidado_at) / 3 reabiertos / PA 0** — coincide con el borrador
+- [x] `fn_reporte_indicadores_panama`: definida en la migracion `20260601190727`, **SI pasa por `fn_seguimiento_diario_engorde`** ⇒ queda congelada gratis (era el NO VERIFICADO §12 del plan)
+- [x] `EXPLAIN ANALYZE` antes/despues — ver decision de arriba (la medicion CAMBIO el diseno: sql, no plpgsql)
 
-### A verificar antes de arrancar (no verificado en la sesion de planeacion)
-- [ ] Conteo real de lotes liquidados por empresa (el borrador decia EC 23 / 20 Cerrado / 3 reabiertos, PA 0)
-- [ ] Donde esta definida `fn_reporte_indicadores_panama` y si pasa por la fn de seguimiento
-- [ ] `EXPLAIN ANALYZE` del Reporte de Costos antes/despues del cambio a plpgsql (umbral +15%)
+### Implementacion
+- [x] Migracion `20260731185300_AddLiquidacionLoteEngordeCongelada` (+ partial `.Fn.cs` con las fns v13/v12): 2 tablas + 3 indices + FK + `fn_congelar/anular/recongelar_liquidacion_engorde` + trigger + fn v13 + backfill — idempotente, con `Down()` que restaura la v12 VERBATIM
+- [x] El cuerpo v12 dentro de la migracion se extrajo del `.sql` **por script** (byte a byte, no retipeado)
+- [x] `backend/sql/fn_seguimiento_diario_engorde.sql` a v13 (header con la historia completa)
+- [x] Entidad + Configuration + `DbSet` de la cabecera — **reescritos** (el borrador previo del working tree usaba jsonb + «la copia es la senal» + DELETE al reabrir: los 3 enfoques que el plan descarto)
+- [x] `LiquidacionCongeladaGateCalculos` (lista cerrada de 10 operaciones, mensaje canonico, bypass explicito, variante con nombre de lote) + **24 tests** nuevos
+- [x] `LiquidacionCongeladaAplicador` reescrito: Congelar/Anular/RecongelarYRefrescarResumen + **resumen centralizado** (`CalcularResumenVivoAsync` — el cuerpo que estaba DUPLICADO byte a byte en los dos services de seguimiento ahora vive una sola vez; `LeerResumenCongeladoAsync` con fallback a vivo si `total_aves_inicio IS NULL` = copia de backfill)
+- [x] `CerrarLoteAsync` **transaccional**: estado → congelar (la foto se toma DESPUES de aplicar 'Cerrado') → realinear saldo persistido → resumen tipado sobre la cabecera. Si el congelado falla, la liquidacion falla entera
+- [x] `AbrirLoteAsync` transaccional: anula con usuario+motivo reales ANTES del cambio de estado (el trigger queda de red y no pisa el motivo)
+- [x] `ActualizarMermaAsync` actualiza los 2 campos de merma de la cabecera vigente (la merma post-liquidacion es la excepcion permitida)
+- [x] Resumen desde la copia en los DOS services (`congeladaAt`/`fnVersion` aditivos en el DTO para el badge)
+- [x] Gates B1-B10: editar/eliminar/hard-delete lote · aplicar CuadrarSaldos (el preview NO) · BackfillMetadata · seguimiento reproductora ×4 (corta el camino del trigger de cruce) · lotes reproductora ×5 (helper con `bloquearSiLiquidado`, el generador de codigo NO bloquea) · movimientos ×8 caminos (helper en el ancla, mensaje con nombre de lote, `CompleteAsync` con bypass) · venta Panama · insumos liquidacion Panama · puente Panama (rama YaExiste corta con estado "Liquidado")
+- [x] `CorreccionAvesDisponiblesEngordeService`: bypass explicito en `CompleteAsync` + **re-congela** (`origen='correccion'`) y refresca el resumen si aplico cambios sobre un lote con copia vigente
+- [x] Fuga multiempresa de `ReporteIndicadorPanamaService` CERRADA: `GuardarLiquidacionAsync` (throw) y `GetReporteAsync` (null/404) resuelven empresa activa + alcance granular fail-closed; + gate B9 (insumos bloqueados post-cierre)
+- [x] Endpoint admin `POST /api/LoteAveEngorde/{id}/recongelar` (+ interfaz + service con scoping)
+- [x] **Fix encontrado en el smoke**: `DELETE /api/LoteAveEngorde/{id}` y `/hard` devolvian **500** ante regla de negocio (sin catch de `InvalidOperationException`) → ahora 400 (mismo defecto clase que el 4b de produccion)
+- [x] Front: badge «🧊 Liquidado · datos congelados» en la barra de tabs + badge con fecha y version en el modal + rotulos «Stock actual de bodega (vivo)» vs «Saldo de alimento liquidado (congelado)» + nota «calculado en vivo contra la guia vigente» en Indicadores y Graficas + campos opcionales en la interfaz TS
+- [x] `backend/sql/verificar_congelado_engorde.sql`: chequeos 1-5 de invariantes (todos 0) + auditoria 6 copia-vs-vivo por **anulacion simulada en transaccion con ROLLBACK** (sin duplicar la formula)
+
+### Validacion
+- [x] **Gate multipais**: `verificar_paridad_saldo_engorde.sql` antes (linea base 5.600 filas) y despues — **0 diferencias en TODAS las columnas, EC (4.926) y PA (674)**, 5.495/5.495 filas presentes
+- [x] Migracion aplicada en BD local :5433 — **backfill: 20 copias EC** (1.097 filas de detalle, 0 descuadres cabecera/detalle), reabiertos sin copia, PA 0; re-ejecucion no duplica
+- [x] **Smoke SQL que define la feature**: +1.000 kg crudos a un lote congelado ⇒ hash IDENTICO (no se mueve); mismo experimento en un lote abierto ⇒ hash cambia. UPDATE crudo del estado ⇒ el trigger anula la copia y vuelve el vivo. Doble congelado rechazado. Re-congelado: 2 cabeceras / 1 vigente / checksum estable
+- [x] `verificar_congelado_engorde.sql`: 1-5 en cero; auditoria 6: los 20 congelados «OK: el vivo no se ha movido»
+- [x] **Smoke API** (backend :5002 Development, JWT + X-Secret-Up minteados — OJO: el X-Secret-Up NO es el formato OpenSSL de crypto-js sino PBKDF2('sanmarino-salt', 10k iter) + AES-CBC con IV prepuesto, replicando `encryptWithCryptoJS` del front):
+  - tabla diaria de congelado devuelve la copia (64 filas) · resumen de backfill cae a vivo (`congeladaAt` null)
+  - cerrar lote 46 ⇒ copia `origen='cierre'` con resumen tipado (13.500 aves, merma 3/12,5) · resumen desde la copia con `congeladaAt` + `fnVersion=v13` (datos del badge)
+  - gates HTTP: editar 400 · seguimiento 400 (mensaje historico byte a byte) · venta 400 **con el nombre del lote** · eliminar 400 (era 500, corregido)
+  - recongelar 200 · abrir ⇒ copia anulada con motivo real · re-cerrar ⇒ historial de 3 copias (cierre→recongelado→cierre), 1 sola vigente
+  - fuga PA cerrada: GET reporte de lote PA con token EC ⇒ 404 · POST liquidar ⇒ 400
+  - lote 46 **restaurado byte a byte** desde snapshot y copias de smoke borradas (quedan las 20 de backfill)
+- [x] `dotnet build` 0 errores / 0 advertencias · `dotnet test` **1.481/1.481** (1.457 previos + 24 nuevos) · `yarn build` 0 errores (solo el warning de bundle budget preexistente)
+- [x] Instructivo de operacion actualizado (seccion 6b: que significa «congelado» para Costos y como operar reapertura/merma/peso tardio)
+- [x] Backend detenido, sin procesos huerfanos; BD local con el estado final correcto (20 copias backfill vigentes)
+
+### Pendiente anotado (no bloquea)
+- [ ] Smoke UI en dev server (badge/rotulos): los cambios de front son cosmeticos y compilan; validar visualmente en el proximo arranque de dev
+- [ ] Al desplegar: correr `verificar_congelado_engorde.sql` contra RDS despues de la migracion (esperado: copias = lotes Cerrado de prod) y `verificar_paridad_saldo_engorde.sql` antes/despues
 
 ---
 
