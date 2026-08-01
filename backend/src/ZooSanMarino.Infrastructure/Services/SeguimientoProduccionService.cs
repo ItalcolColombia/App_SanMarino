@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -86,8 +87,13 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         int currentUserId = _current?.UserId ?? 0;
 
         // ── Feature 14: MERGE con fila existente sólo-traslado (canónica) ──
+        // Rango de día calendario, no igualdad exacta: el módulo vivo, TSD y la carga masiva
+        // anclan a MEDIODÍA — con `== fechaDate` (medianoche) este writer no las veía y creaba
+        // una segunda fila del día, que hoy además viola el índice único por día (500 en vez
+        // del 400 histórico).
+        var (diaDesde, diaHasta) = FechasPuras.RangoDiaUtc(fechaDate);
         var existente = await _ctx.SeguimientoProduccion
-            .FirstOrDefaultAsync(s => s.LoteId == dto.LoteId && s.Fecha == fechaDate, ct);
+            .FirstOrDefaultAsync(s => s.LoteId == dto.LoteId && s.Fecha >= diaDesde && s.Fecha < diaHasta, ct);
 
         if (existente != null)
         {
@@ -117,7 +123,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         var entity = new SeguimientoProduccion
         {
             LoteId = dto.LoteId,
-            Fecha = fechaDate,
+            // Anclada a MEDIODÍA (gotcha Npgsql legacy / FechasPuras); antes quedaba a medianoche
+            Fecha = FechasPuras.AnclarMediodiaUtc(fechaDate),
             MortalidadH = dto.MortalidadH,
             MortalidadM = dto.MortalidadM,
             ConsKgH = dto.ConsKgH + dto.ConsKgM,   // total en ConsKgH (ConsKgM=0), como la deprecada guardaba en consumo_kg
@@ -157,7 +164,17 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         int oldMortH = entity.MortalidadH, oldMortM = entity.MortalidadM;
         int oldSelH = entity.SelH, oldSelM = entity.SelM;
 
-        entity.Fecha = dto.Fecha.Date;
+        // La edición puede mover fecha/lote: re-validar que no quede OTRO registro el mismo día
+        // calendario (400 claro en vez del 500 por el índice único por día).
+        var (updDesde, updHasta) = FechasPuras.RangoDiaUtc(dto.Fecha.Date);
+        var duplicadoDia = await _ctx.SeguimientoProduccion.AsNoTracking()
+            .AnyAsync(s => s.Id != entity.Id && s.LoteId == dto.LoteId
+                && s.Fecha >= updDesde && s.Fecha < updHasta);
+        if (duplicadoDia)
+            throw new InvalidOperationException("Ya existe un seguimiento manual para ese lote en esa fecha.");
+
+        // Anclada a MEDIODÍA (gotcha Npgsql legacy / FechasPuras); antes quedaba a medianoche
+        entity.Fecha = FechasPuras.AnclarMediodiaUtc(dto.Fecha.Date);
         entity.LoteId = dto.LoteId;
         entity.MortalidadH = dto.MortalidadH;
         entity.MortalidadM = dto.MortalidadM;

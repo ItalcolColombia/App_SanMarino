@@ -1,6 +1,17 @@
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- fn_seguimiento_diario_produccion — grilla diaria CANÓNICA de producción (postura)
 -- ═══════════════════════════════════════════════════════════════════════════════════════
+-- v2 (2026-08-01) — filas TSD visibles en la rama LPP (migración 20260801110000)
+--   Problema: las filas de traslado creadas por TrasladoAvesDesdeSegService nacen con
+--   lote_postura_produccion_id NULL (matching por lote_id + fecha, documentado en
+--   fn_migracion_seguimiento.sql) ⇒ la rama LPP (filtro por lpp_id) no las devolvía y el
+--   traslado hecho desde la pantalla era INVISIBLE en la grilla del LPP.
+--   Solución: la rama LPP suma las filas de la tabla canónica con lpp NULL y el MISMO
+--   lote base (marcadas con la columna nueva fila_sin_lpp = true). Las 3 fns semanales
+--   las EXCLUYEN explícitamente (AND NOT fila_sin_lpp) — su salida no cambia ni un byte:
+--   un día solo-traslado no es un «día con registro» para los indicadores (paridad con el
+--   comportamiento previo). El saldo tampoco cambia: esas filas traen mort/sel/err = 0 y
+--   el movimiento ya entra por movimiento_aves.
 -- v1 (2026-08-01) — creación (plan fase_de_desarrollo/seguimiento_produccion_fn_canonica_plan.md)
 --
 --   Patrón fn_seguimiento_diario_engorde (v13): LANGUAGE sql STABLE a PROPÓSITO — el
@@ -67,6 +78,7 @@ RETURNS TABLE (
     fecha                       DATE,
     fecha_ts                    TIMESTAMPTZ,  -- timestamp original del registro (NULL en movimiento-only)
     fuente                      TEXT,         -- 'sdp' | 'sdl' (legacy) | 'mov'
+    fila_sin_lpp                BOOLEAN,      -- v2: fila TSD del lote base con lpp NULL en rama LPP (las fns semanales la excluyen)
     lote_id                     INT,
     lote_postura_produccion_id  INT,
     company_id                  INT,
@@ -313,6 +325,12 @@ crudos AS (
       FROM seguimiento_diario_produccion sp
      WHERE ( (p_lote_postura_produccion_id IS NOT NULL
                 AND sp.lote_postura_produccion_id = p_lote_postura_produccion_id)
+          -- v2: filas TSD del MISMO lote base con lpp NULL (traslados desde la pantalla de
+          -- seguimiento no setean la FK; matching por lote crudo, igual que fn_migracion)
+          OR (p_lote_postura_produccion_id IS NOT NULL
+                AND sp.lote_postura_produccion_id IS NULL
+                AND sp.lote_id IN (SELECT c2.ctx_lote_id FROM ctx c2
+                                    WHERE c2.es_lpp AND c2.ctx_lote_id IS NOT NULL))
           OR (p_lote_postura_produccion_id IS NULL
                 AND sp.lote_id = p_lote_id) )
 ),
@@ -396,6 +414,7 @@ SELECT
     u.u_fecha                                                         AS fecha,
     u.c_ts                                                            AS fecha_ts,
     COALESCE(u.c_fuente, 'mov')                                       AS fuente,
+    (u.c_seg_id IS NOT NULL AND u.c_lpp IS NULL AND c.es_lpp)         AS fila_sin_lpp,
     c.ctx_lote_id                                                     AS lote_id,
     COALESCE(u.c_lpp, c.ctx_lpp_id)                                   AS lote_postura_produccion_id,
     COALESCE(u.c_company_id, c.ctx_company)                           AS company_id,

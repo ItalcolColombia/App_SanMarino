@@ -1198,53 +1198,89 @@ public class ReporteContableService : IReporteContableService
                 .Select(id => id!.Value)
                 .ToListAsync(ct);
 
+            // Fuente DUAL: la producción vive en la tabla canónica seguimiento_diario_produccion;
+            // la legacy (seguimiento_diario_levante tipo='produccion') solo conserva filas viejas.
             var lotesIdsStr = lotesIds.Select(id => id.ToString()).ToList();
-            var primeraFecha = await _ctx.SeguimientoDiario
+            var primeraLegacy = await _ctx.SeguimientoDiario
                 .AsNoTracking()
                 .Where(s => s.TipoSeguimiento == "produccion" && lotesIdsStr.Contains(s.LoteId))
-                .Select(s => s.Fecha)
+                .Select(s => (DateTime?)s.Fecha)
+                .OrderBy(f => f)
+                .FirstOrDefaultAsync(ct);
+            var primeraCanonica = await _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => lotesIds.Contains(s.LoteId))
+                .Select(s => (DateTime?)s.Fecha)
                 .OrderBy(f => f)
                 .FirstOrDefaultAsync(ct);
 
-            if (primeraFecha == default)
+            var primeraFecha = new[] { primeraLegacy, primeraCanonica }
+                .Where(f => f.HasValue)
+                .OrderBy(f => f)
+                .FirstOrDefault();
+            if (primeraFecha is null)
                 throw new InvalidOperationException("No se encontraron registros de producción para calcular fechas");
 
-            fechaInicio = primeraFecha.Date.AddDays((semana - 1) * 7);
+            fechaInicio = primeraFecha.Value.Date.AddDays((semana - 1) * 7);
             fechaFin = fechaInicio.AddDays(6);
         }
         else
         {
-            // Usar todas las fechas disponibles desde tabla unificada seguimiento_diario (producción)
+            // Fechas disponibles de las DOS fuentes (canónica + legacy): antes solo miraba la
+            // legacy y los lotes nuevos tiraban "No se encontraron registros de producción".
             var loteIdsStrProd = loteIdsInt.Select(id => id.ToString()).ToList();
-            var primeraFecha = await _ctx.SeguimientoDiario
+            var primeraLegacy = await _ctx.SeguimientoDiario
                 .AsNoTracking()
                 .Where(s => s.TipoSeguimiento == "produccion" && loteIdsStrProd.Contains(s.LoteId))
-                .Select(s => s.Fecha)
+                .Select(s => (DateTime?)s.Fecha)
                 .OrderBy(f => f)
                 .FirstOrDefaultAsync(ct);
-
-            var ultimaFecha = await _ctx.SeguimientoDiario
+            var ultimaLegacy = await _ctx.SeguimientoDiario
                 .AsNoTracking()
                 .Where(s => s.TipoSeguimiento == "produccion" && loteIdsStrProd.Contains(s.LoteId))
-                .Select(s => s.Fecha)
+                .Select(s => (DateTime?)s.Fecha)
+                .OrderByDescending(f => f)
+                .FirstOrDefaultAsync(ct);
+            var primeraCanonica = await _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => loteIdsInt.Contains(s.LoteId))
+                .Select(s => (DateTime?)s.Fecha)
+                .OrderBy(f => f)
+                .FirstOrDefaultAsync(ct);
+            var ultimaCanonica = await _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => loteIdsInt.Contains(s.LoteId))
+                .Select(s => (DateTime?)s.Fecha)
                 .OrderByDescending(f => f)
                 .FirstOrDefaultAsync(ct);
 
-            if (primeraFecha == default)
+            var primeraFecha = new[] { primeraLegacy, primeraCanonica }
+                .Where(f => f.HasValue).OrderBy(f => f).FirstOrDefault();
+            var ultimaFecha = new[] { ultimaLegacy, ultimaCanonica }
+                .Where(f => f.HasValue).OrderByDescending(f => f).FirstOrDefault();
+
+            if (primeraFecha is null || ultimaFecha is null)
                 throw new InvalidOperationException("No se encontraron registros de producción");
 
-            fechaInicio = primeraFecha.Date;
-            fechaFin = ultimaFecha.Date;
+            fechaInicio = primeraFecha.Value.Date;
+            fechaFin = ultimaFecha.Value.Date;
         }
 
-        // Obtener seguimientos diarios de producción desde tabla unificada seguimiento_diario
+        // Fuente DUAL con dedup por (lote, día): la producción vive en la tabla canónica
+        // seguimiento_diario_produccion; la legacy (seguimiento_diario_levante tipo='produccion')
+        // solo conserva filas viejas. Antes esta sección leía SOLO la legacy y los lotes nuevos no
+        // aparecían en Movimientos de Huevos. Criterio de dedup = «gana el timestamp más temprano»
+        // (el de fn_seguimiento_diario_produccion y las fns semanales). Rango superior EXCLUSIVO al
+        // día siguiente: las filas canónicas van ancladas a MEDIODÍA y el `<= fechaFin`
+        // (medianoche) cortaba el último día.
+        var finExclusivo = fechaFin.Date.AddDays(1);
         var loteIdsStrSeguimientos = loteIdsInt.Select(id => id.ToString()).ToList();
         var seguimientosRaw = await _ctx.SeguimientoDiario
             .AsNoTracking()
             .Where(s => s.TipoSeguimiento == "produccion" &&
                         loteIdsStrSeguimientos.Contains(s.LoteId) &&
                         s.Fecha >= fechaInicio &&
-                        s.Fecha <= fechaFin)
+                        s.Fecha < finExclusivo)
             .OrderBy(s => s.Fecha)
             .ThenBy(s => s.LoteId)
             .Select(s => new
@@ -1267,9 +1303,39 @@ public class ReporteContableService : IReporteContableService
             })
             .ToListAsync(ct);
 
+        var seguimientosCanonicos = await _ctx.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => loteIdsInt.Contains(s.LoteId) &&
+                        s.Fecha >= fechaInicio &&
+                        s.Fecha < finExclusivo)
+            .Select(s => new
+            {
+                s.LoteId,
+                s.Fecha,
+                s.HuevoTot,
+                s.HuevoInc,
+                s.HuevoLimpio,
+                s.HuevoTratado,
+                s.HuevoSucio,
+                s.HuevoDeforme,
+                s.HuevoBlanco,
+                s.HuevoDobleYema,
+                s.HuevoPiso,
+                s.HuevoPequeno,
+                s.HuevoRoto,
+                s.HuevoDesecho,
+                s.HuevoOtro
+            })
+            .ToListAsync(ct);
+
         var seguimientos = seguimientosRaw
             .Where(s => int.TryParse(s.LoteId, out var lid) && lid > 0)
             .Select(s => new { LoteId = int.Parse(s.LoteId), s.Fecha, s.HuevoTot, s.HuevoInc, s.HuevoLimpio, s.HuevoTratado, s.HuevoSucio, s.HuevoDeforme, s.HuevoBlanco, s.HuevoDobleYema, s.HuevoPiso, s.HuevoPequeno, s.HuevoRoto, s.HuevoDesecho, s.HuevoOtro })
+            .Concat(seguimientosCanonicos)
+            .GroupBy(s => new { s.LoteId, Dia = s.Fecha.Date })
+            .Select(g => g.OrderBy(x => x.Fecha).First())
+            .OrderBy(s => s.Fecha)
+            .ThenBy(s => s.LoteId)
             .ToList();
 
         // Obtener traslados de huevos (API espera string)

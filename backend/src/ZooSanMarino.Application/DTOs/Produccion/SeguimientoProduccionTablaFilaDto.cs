@@ -19,6 +19,8 @@ public class SeguimientoProduccionTablaFilaDto
     public DateTime Fecha { get; set; }
     public DateTime? FechaTs { get; set; }
     public string Fuente { get; set; } = "";
+    /// <summary>v2: fila TSD del lote base con lpp NULL en rama LPP (visible en la grilla; las fns semanales la excluyen).</summary>
+    public bool FilaSinLpp { get; set; }
     public int? LoteId { get; set; }
     public int? LotePosturaProduccionId { get; set; }
     public int? CompanyId { get; set; }

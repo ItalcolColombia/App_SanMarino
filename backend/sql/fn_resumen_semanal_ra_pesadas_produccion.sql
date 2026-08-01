@@ -156,6 +156,7 @@ dedup AS (
       FROM lote_ok lo
       CROSS JOIN LATERAL fn_seguimiento_diario_produccion(lo.lote_postura_produccion_id, NULL) f
      WHERE f.seg_id IS NOT NULL
+       AND NOT f.fila_sin_lpp   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
 ),
 -- ── 4) Semana de vida (división entera, arranque en 25) ─────────────────────
 reg AS (

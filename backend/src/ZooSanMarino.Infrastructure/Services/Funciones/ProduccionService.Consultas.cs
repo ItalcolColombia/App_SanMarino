@@ -117,9 +117,14 @@ public partial class ProduccionService
         if (loteEntity == null || (loteEntity.LotePosturaProduccionId ?? 0) <= 0)
             throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
 
+        // Mismo universo que la grilla/fn v2: filas del LPP + filas TSD del lote base con lpp NULL
+        // (aportan 0 a mort/sel/consumo; solo mueven Registros y MinFecha para que el header y la
+        // grilla cuenten los mismos dias)
+        var loteBaseId = loteEntity.LoteId;
         var agg = await _context.SeguimientoProduccion
             .AsNoTracking()
-            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId)
+            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId
+                     || (s.LotePosturaProduccionId == null && loteBaseId != null && s.LoteId == loteBaseId))
             .GroupBy(_ => 1)
             .Select(g => new
             {

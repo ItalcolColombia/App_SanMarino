@@ -150,6 +150,7 @@ BEGIN
                    CASE WHEN v_flujo_lpp THEN p_lote_postura_produccion_id END,
                    CASE WHEN NOT v_flujo_lpp THEN v_lote_id_int END) f
          WHERE f.seg_id IS NOT NULL
+       AND NOT f.fila_sin_lpp   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
     ),
     filtrados AS (
         SELECT ((dd.reg_date - v_enc_date) / 7) + 1 AS sem,   -- división entera == C# (dias/7)+1

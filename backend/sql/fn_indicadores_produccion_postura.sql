@@ -288,7 +288,8 @@ BEGIN
                f.peso_h::double precision AS peso_h, f.peso_m::double precision AS peso_m,
                f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv
           FROM fn_seguimiento_diario_produccion(p_lote_postura_produccion_id, NULL) f
-         WHERE f.seg_id IS NOT NULL;
+         WHERE f.seg_id IS NOT NULL
+           AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
 
     ELSIF p_lote_id IS NOT NULL AND p_lote_id > 0 THEN
         -- ── Flujo legacy: Lote en fase Producción ──
@@ -367,7 +368,8 @@ BEGIN
                f.peso_h::double precision AS peso_h, f.peso_m::double precision AS peso_m,
                f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv
           FROM fn_seguimiento_diario_produccion(NULL, v_lote_id_int) f
-         WHERE f.seg_id IS NOT NULL;
+         WHERE f.seg_id IS NOT NULL
+           AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
 
     ELSE
         RETURN;  -- ni LPP ni loteId válido
