@@ -142,6 +142,22 @@ public static class MigracionEsquemas
         .Append(UnidadConsumoPostura())
         .Concat(AlimentosPorSexoPostura())
         .Concat(CategoriasHuevo())
+        // Campos del modal de producción que la carga no aceptaba (todos opcionales, al final):
+        // error de sexaje, pesaje corporal y los 4 de AGUA (consumo_agua_* de la tabla).
+        .Concat(new ColumnaEsquema[]
+        {
+            new("Error Sexaje H",         Requerida: false, Alias: new[] { "error sexaje hembras" }),
+            new("Error Sexaje M",         Requerida: false, Alias: new[] { "error sexaje machos" }),
+            new("Peso H (g)",             Requerida: false, Alias: new[] { "peso h", "peso corporal h" }),
+            new("Peso M (g)",             Requerida: false, Alias: new[] { "peso m", "peso corporal m" }),
+            new("Uniformidad",            Requerida: false, Alias: new[] { "uniformidad lote" }),
+            new("Coef. Variación",        Requerida: false, Alias: new[] { "coeficiente de variacion", "cv" }),
+            new("Observaciones Pesaje",   Requerida: false, Alias: new[] { "obs pesaje" }),
+            new("Consumo Agua (L)",       Requerida: false, Alias: new[] { "consumo agua", "agua", "litros agua" }),
+            new("pH Agua",                Requerida: false, Alias: new[] { "ph", "ph agua" }),
+            new("ORP Agua (mV)",          Requerida: false, Alias: new[] { "orp", "orp agua" }),
+            new("Temperatura Agua (°C)",  Requerida: false, Alias: new[] { "temperatura agua", "temp agua" }),
+        })
         .ToArray());
 
     /// <summary>
@@ -179,13 +195,34 @@ public static class MigracionEsquemas
     });
 
     /// <summary>
-    /// Hoja <c>Movimientos Aves</c> del archivo de LEVANTE: movimientos de aves UNILATERALES sobre el
-    /// lote del archivo. <c>Salida</c> descuenta a este lote y exige que el "Lote Contraparte" exista
-    /// en la empresa (NO lo acredita: ese lote carga su propio Ingreso en su propio archivo);
-    /// <c>Ingreso</c> acredita a este lote las aves recibidas en tránsito sin tocar al lote origen
-    /// (contraparte opcional, informativa/cohorte); <c>Venta</c> descuenta y queda en
-    /// <c>venta_aves_cantidad</c>/<c>venta_aves_motivo</c> de la fila diaria (sin contraparte).
-    /// Producción ignora esta hoja.
+    /// Hoja <c>Movimientos Huevos</c> del archivo de PRODUCCIÓN: salidas de huevos del lote hacia
+    /// PLANTA (<c>Traslado</c>) o por <c>Venta</c>, contra <c>traslado_huevos</c> en estado
+    /// Completado + un recálculo del espejo al final. Levante ignora esta hoja.
+    /// </summary>
+    public static EsquemaMigracion MovimientosHuevosProduccion { get; } = new("Movimientos Huevos", new ColumnaEsquema[]
+    {
+        new("Fecha",        Requerida: true),
+        new("Tipo",         Requerida: true, Alias: new[] { "movimiento", "tipo operacion", "operacion" }, Opciones: new[] { "Traslado", "Venta" }),
+    }
+        .Concat(CategoriasHuevo())
+        .Concat(new ColumnaEsquema[]
+        {
+            new("Tipo Destino",  Requerida: false, Opciones: new[] { "Planta", "Cliente", "Empresa" }),
+            new("Destino",       Requerida: false, Alias: new[] { "planta", "cliente", "lote destino" }),
+            new("Motivo",        Requerida: false, Alias: new[] { "motivo venta" }),
+            new("Descripción",   Requerida: false, Alias: new[] { "descripcion" }),
+            new("Observaciones", Requerida: false),
+        })
+        .ToArray());
+
+    /// <summary>
+    /// Hoja <c>Movimientos Aves</c> de los archivos de LEVANTE y PRODUCCIÓN: movimientos de aves
+    /// UNILATERALES sobre el lote del archivo. <c>Salida</c> descuenta a este lote y exige que el
+    /// "Lote Contraparte" exista en la MISMA fase en la empresa (NO lo acredita: ese lote carga su
+    /// propio Ingreso en su propio archivo); <c>Ingreso</c> acredita a este lote las aves recibidas
+    /// en tránsito sin tocar al lote origen (contraparte opcional, informativa/cohorte);
+    /// <c>Venta</c> descuenta las aves (en levante queda además en <c>venta_aves_*</c> de la fila
+    /// diaria; producción no tiene esas columnas y la venta queda en la auditoría + observaciones).
     /// </summary>
     public static EsquemaMigracion MovimientosAvesLevante { get; } = new("Movimientos Aves", new ColumnaEsquema[]
     {

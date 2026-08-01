@@ -1,15 +1,19 @@
 // src/ZooSanMarino.Infrastructure/Services/Migracion/Funciones/MigracionService.MovimientosAves.cs
-// Hoja "Movimientos Aves" de la carga masiva de Seguimiento LEVANTE: traslados de aves UNILATERALES
-// sobre el lote del archivo (decisión del usuario, jul-2026).
+// Hoja "Movimientos Aves" de la carga masiva de Seguimiento LEVANTE y PRODUCCIÓN: movimientos de
+// aves UNILATERALES sobre el lote del archivo (decisión del usuario, jul-2026).
 //
-//   • SALIDA  = aves que salen de ESTE lote hacia otro. Valida que el lote contraparte EXISTA en la
-//     empresa (debe estar creado para poder recibir) pero NO lo acredita: ese lote carga su propio
-//     Ingreso en su propio archivo. Así dos archivos, uno por lote, nunca doble-cuentan.
+//   • SALIDA  = aves que salen de ESTE lote hacia otro de la MISMA fase. Valida que el lote
+//     contraparte EXISTA (debe estar creado para poder recibir) pero NO lo acredita: ese lote carga
+//     su propio Ingreso en su propio archivo. Así dos archivos, uno por lote, nunca doble-cuentan.
 //   • INGRESO = aves recibidas "en tránsito". Acredita a ESTE lote sin tocar al lote origen.
+//   • VENTA   = descuenta a ESTE lote. En levante queda en venta_aves_cantidad/motivo de la fila
+//     diaria (espejo del módulo Movimiento de Aves); PRODUCCIÓN no tiene columnas de venta — el
+//     módulo vivo la codifica como sel_h/mortalidad NEGATIVOS, un hack que corrompería los
+//     contadores del día, así que acá la venta queda en la auditoría + una nota en observaciones.
 //
-// La aplicación ESPEJA el camino vivo TrasladoAvesDesdeSegService (misma fila de seguimiento con
-// es_traslado/traslado_*, mismos acumulados levante_traslado_* del LPL, mismo clamp en 0 de
-// aves_h_actual/aves_m_actual y misma auditoría en movimiento_aves ya Completada) pero SIN pasar por
+// La aplicación ESPEJA el camino vivo TrasladoAvesDesdeSegService (fila diaria con es_traslado y
+// las columnas traslado_* de cada fase, acumulados del espejo LPL/LPP, aves actuales, auditoría en
+// movimiento_aves ya Completada y cohorte del ingreso) pero SIN pasar por
 // MovimientoAvesService.CreateAsync — ese camino auto-procesa (inventario_aves + postura +
 // seguimiento) y duplicaría los efectos, la regla §2 de la spec de Fase 3. inventario_aves NO se
 // toca: el camino vivo desde seguimiento tampoco lo hace (el saldo real sale de los acumulados).
@@ -26,7 +30,7 @@ public partial class MigracionService
     /// <summary>Largo máximo de <c>lote_aves_cohortes.observaciones</c> (mismo tope del camino vivo).</summary>
     private const int MaxObservacionesCohorteMigracion = 300;
 
-    /// <summary>Lote levante de la empresa que puede ser contraparte de un movimiento de aves.</summary>
+    /// <summary>Lote de la MISMA fase que puede ser contraparte de un movimiento de aves.</summary>
     private sealed record ContraparteLevante(
         int EspejoId, int LoteBaseId, int GranjaId, string Nombre, DateTime? FechaEncaset);
 
@@ -47,25 +51,17 @@ public partial class MigracionService
 
     /// <summary>
     /// Lee y valida la hoja "Movimientos Aves" (opcional: sin la hoja, lista vacía sin error — los
-    /// archivos anteriores se procesan igual). Solo LEVANTE la invoca; en producción la hoja se
-    /// ignora, igual que levante ignora la hoja "Huevos".
+    /// archivos anteriores se procesan igual). La contraparte se resuelve contra los lotes de la
+    /// MISMA fase del archivo (levante ⇒ espejos LPL; producción ⇒ espejos LPP).
     /// </summary>
     private async Task<List<MovimientoAvesMigFila>> LeerHojaMovimientosAvesAsync(
-        IFormFile file, int companyId, int loteId, LotePosturaCtx? loteCtx,
+        IFormFile file, int companyId, int loteId, bool esLevante, LotePosturaCtx? loteCtx,
         List<MigracionErrorDto> errores, CancellationToken ct)
     {
         var filas = LeerHojaOpcionalConEsquema(file, MigracionEsquemas.MovimientosAvesLevante, errores);
         if (filas.Count == 0) return new List<MovimientoAvesMigFila>();
 
-        // Contrapartes posibles: los lotes de LEVANTE vivos de la empresa (espejo + lote base).
-        var candidatos = await _ctx.Set<LotePosturaLevante>().AsNoTracking()
-            .Where(x => x.CompanyId == companyId && x.DeletedAt == null
-                        && x.LoteId != null && x.LotePosturaLevanteId != null)
-            .Join(_ctx.Lotes.AsNoTracking().Where(l => l.DeletedAt == null),
-                x => x.LoteId, l => l.LoteId,
-                (x, l) => new ContraparteLevante(
-                    x.LotePosturaLevanteId!.Value, l.LoteId!.Value, x.GranjaId, l.LoteNombre, l.FechaEncaset))
-            .ToListAsync(ct);
+        var candidatos = await CargarContrapartesAsync(companyId, esLevante, ct);
 
         var granjasPorClave = (await _ctx.Farms.AsNoTracking()
                 .Where(f => f.CompanyId == companyId)
@@ -104,7 +100,7 @@ public partial class MigracionService
             }
 
             var contraparte = ResolverContraparteLevante(
-                fila, tipo, loteId, candidatos, granjasPorClave, errores);
+                fila, tipo, loteId, esLevante, candidatos, granjasPorClave, errores);
             if (errores.Count > e0) continue;
 
             var clave = MigracionMovimientosAvesCalculos.ClaveArchivo(fecha.Date, tipo, hembras, machos);
@@ -124,21 +120,44 @@ public partial class MigracionService
         return resultado;
     }
 
+    /// <summary>Contrapartes posibles: los lotes vivos de la fase, con su espejo y su lote base.</summary>
+    private async Task<List<ContraparteLevante>> CargarContrapartesAsync(int companyId, bool esLevante, CancellationToken ct)
+    {
+        if (esLevante)
+            return await _ctx.Set<LotePosturaLevante>().AsNoTracking()
+                .Where(x => x.CompanyId == companyId && x.DeletedAt == null
+                            && x.LoteId != null && x.LotePosturaLevanteId != null)
+                .Join(_ctx.Lotes.AsNoTracking().Where(l => l.DeletedAt == null),
+                    x => x.LoteId, l => l.LoteId,
+                    (x, l) => new ContraparteLevante(
+                        x.LotePosturaLevanteId!.Value, l.LoteId!.Value, x.GranjaId, l.LoteNombre, l.FechaEncaset))
+                .ToListAsync(ct);
+
+        return await _ctx.LotePosturaProduccion.AsNoTracking()
+            .Where(x => x.CompanyId == companyId && x.DeletedAt == null
+                        && x.LoteId != null && x.LotePosturaProduccionId != null)
+            .Join(_ctx.Lotes.AsNoTracking().Where(l => l.DeletedAt == null),
+                x => x.LoteId, l => l.LoteId,
+                (x, l) => new ContraparteLevante(
+                    x.LotePosturaProduccionId!.Value, l.LoteId!.Value, x.GranjaId, l.LoteNombre, l.FechaEncaset))
+            .ToListAsync(ct);
+    }
+
     /// <summary>
-    /// Resuelve el "Lote Contraparte" contra los lotes de levante de la empresa, por id del lote base
-    /// o por nombre (case/acento-insensible), con "Granja Contraparte" como desambiguador opcional.
-    /// SALIDA la exige (el lote que recibe debe existir); INGRESO la acepta vacía o no resoluble
-    /// (Advertencia: aves en tránsito sin contraparte); VENTA no la usa (si viene, se ignora con
-    /// Advertencia — la venta no tiene lote destino).
+    /// Resuelve el "Lote Contraparte" contra los lotes de la fase, por id del lote base o por nombre
+    /// (case/acento-insensible), con "Granja Contraparte" como desambiguador opcional. SALIDA la
+    /// exige (el lote que recibe debe existir); INGRESO la acepta vacía o no resoluble (Advertencia:
+    /// aves en tránsito sin contraparte); VENTA no la usa (si viene, se ignora con Advertencia).
     /// </summary>
     private ContraparteLevante? ResolverContraparteLevante(
-        FilaCruda fila, MovimientoAvesMigracion tipo, int loteId,
+        FilaCruda fila, MovimientoAvesMigracion tipo, int loteId, bool esLevante,
         IReadOnlyList<ContraparteLevante> candidatos,
         ILookup<string, int> granjasPorClave,
         List<MigracionErrorDto> errores)
     {
         var texto = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovAves("Lote Contraparte")));
         var esSalida = tipo == MovimientoAvesMigracion.Salida;
+        var fase = esLevante ? "levante" : "producción";
 
         if (tipo == MovimientoAvesMigracion.Venta)
         {
@@ -177,7 +196,7 @@ public partial class MigracionService
         {
             if (esSalida)
                 errores.Add(new(fila.Numero, "Lote Contraparte", texto,
-                    $"El lote '{texto}' no existe en levante para esta empresa: creá el lote destino antes de cargar la salida."));
+                    $"El lote '{texto}' no existe en {fase} para esta empresa: creá el lote destino antes de cargar la salida."));
             else
                 errores.Add(new(fila.Numero, "Lote Contraparte", texto,
                     $"Ingreso: el lote origen '{texto}' no se encontró; el ingreso se registra sin contraparte (aves en tránsito).", "Advertencia"));
@@ -186,7 +205,7 @@ public partial class MigracionService
         if (matches.Count > 1)
         {
             errores.Add(new(fila.Numero, "Lote Contraparte", texto,
-                $"'{texto}' coincide con {matches.Count} lotes de levante; usá el id del lote o completá 'Granja Contraparte'."));
+                $"'{texto}' coincide con {matches.Count} lotes de {fase}; usá el id del lote o completá 'Granja Contraparte'."));
             return null;
         }
 
@@ -202,11 +221,11 @@ public partial class MigracionService
 
     /// <summary>
     /// Advertencia (no bloquea un histórico) cuando el archivo dejaría el saldo de aves en negativo:
-    /// aves actuales − bajas del archivo − salidas + ingresos. El descuento real satura en 0, igual
-    /// que la fn de seguimiento; el aviso existe para que el operario detecte el descuadre a tiempo.
+    /// aves actuales − bajas del archivo − salidas − ventas + ingresos. El descuento real satura en
+    /// 0 en levante (producción espeja al módulo vivo, que no clampa la salida).
     /// </summary>
     private async Task AdvertirSaldoAvesProyectadoAsync(
-        int loteId,
+        TipoMigracion tipo, int loteId,
         IReadOnlyList<Dictionary<string, object?>> filasJson,
         IReadOnlyList<MovimientoAvesMigFila> movimientosAves,
         List<MigracionErrorDto> errores,
@@ -214,20 +233,36 @@ public partial class MigracionService
     {
         if (movimientosAves.Count == 0) return;
 
-        var aves = await _ctx.Set<LotePosturaLevante>().AsNoTracking()
-            .Where(x => x.LoteId == loteId && x.DeletedAt == null)
-            .OrderByDescending(x => x.LotePosturaLevanteId)
-            .Select(x => new { x.AvesHActual, x.AvesHInicial, x.HembrasL, x.AvesMActual, x.AvesMInicial, x.MachosL })
-            .FirstOrDefaultAsync(ct);
-        if (aves is null) return;
+        int avesH, avesM;
+        if (tipo == TipoMigracion.SeguimientoLevante)
+        {
+            var aves = await _ctx.Set<LotePosturaLevante>().AsNoTracking()
+                .Where(x => x.LoteId == loteId && x.DeletedAt == null)
+                .OrderByDescending(x => x.LotePosturaLevanteId)
+                .Select(x => new { x.AvesHActual, x.AvesHInicial, x.AvesMActual, x.AvesMInicial })
+                .FirstOrDefaultAsync(ct);
+            if (aves is null) return;
+            avesH = aves.AvesHActual ?? aves.AvesHInicial ?? 0;
+            avesM = aves.AvesMActual ?? aves.AvesMInicial ?? 0;
+        }
+        else
+        {
+            var aves = await _ctx.LotePosturaProduccion.AsNoTracking()
+                .Where(x => x.LoteId == loteId && x.DeletedAt == null)
+                .OrderByDescending(x => x.LotePosturaProduccionId)
+                .Select(x => new { x.AvesHActual, x.AvesHInicial, x.AvesMActual, x.AvesMInicial })
+                .FirstOrDefaultAsync(ct);
+            if (aves is null) return;
+            avesH = aves.AvesHActual ?? aves.AvesHInicial ?? 0;
+            avesM = aves.AvesMActual ?? aves.AvesMInicial ?? 0;
+        }
 
         static int Baja(Dictionary<string, object?> f, string clave) =>
             f.TryGetValue(clave, out var v) && v is int n ? n : 0;
 
         // Salidas y VENTAS restan; solo el Ingreso suma.
         var proyectado = MigracionMovimientosAvesCalculos.ProyectarSaldoAves(
-            aves.AvesHActual ?? aves.AvesHInicial ?? aves.HembrasL ?? 0,
-            aves.AvesMActual ?? aves.AvesMInicial ?? aves.MachosL ?? 0,
+            avesH, avesM,
             filasJson.Sum(f => Baja(f, "mort_h") + Baja(f, "sel_h") + Baja(f, "err_h")),
             filasJson.Sum(f => Baja(f, "mort_m") + Baja(f, "sel_m") + Baja(f, "err_m")),
             movimientosAves.Where(m => m.Tipo != MovimientoAvesMigracion.Ingreso).Sum(m => m.Hembras),
@@ -238,32 +273,42 @@ public partial class MigracionService
         if (proyectado.AlgunoNegativo)
             errores.Add(new(0, "Movimientos Aves", null,
                 $"Saldo de aves proyectado tras el archivo: hembras {proyectado.Hembras}, machos {proyectado.Machos}. " +
-                "Un negativo indica más bajas/salidas que aves disponibles; el descuento real satura en 0.",
+                "Un negativo indica más bajas/salidas/ventas que aves disponibles.",
                 "Advertencia"));
     }
 
     /// <summary>
     /// Aplica los movimientos de aves DESPUÉS de la fn de seguimiento (las filas diarias del archivo
-    /// ya existen y acá solo se EXTIENDEN con las columnas de traslado, sin tocar mortalidad ni
-    /// selección — mismo contrato del camino vivo). Idempotente contra <c>movimiento_aves</c>: un
-    /// movimiento del mismo día con las mismas cantidades y este lote del mismo lado se OMITE (cubre
-    /// el reimport del archivo y las salidas ya registradas por pantalla). Cada fila aplica y
-    /// commitea por separado: un fallo se reporta y no tumba el resto (patrón hoja Alimento).
+    /// ya existen y acá solo se EXTIENDEN con sus columnas, sin tocar mortalidad ni selección —
+    /// mismo contrato del camino vivo). Idempotente contra <c>movimiento_aves</c>: un movimiento del
+    /// mismo día con las mismas cantidades y este lote del mismo lado se OMITE (cubre el reimport
+    /// del archivo y los movimientos ya registrados por pantalla). Cada fila aplica y commitea por
+    /// separado: un fallo se reporta y no tumba el resto (patrón hoja Alimento).
     /// </summary>
     private async Task<(int Aplicados, int Omitidos)> AplicarMovimientosAvesLevanteAsync(
-        IReadOnlyList<MovimientoAvesMigFila> movimientos, int loteId,
+        IReadOnlyList<MovimientoAvesMigFila> movimientos, TipoMigracion tipo, int loteId,
         List<MigracionErrorDto> fallos, CancellationToken ct)
     {
         if (movimientos.Count == 0) return (0, 0);
+        var esLevante = tipo == TipoMigracion.SeguimientoLevante;
 
-        var lpl = await _ctx.Set<LotePosturaLevante>()
-            .Where(x => x.LoteId == loteId && x.DeletedAt == null && x.LotePosturaLevanteId != null)
-            .OrderByDescending(x => x.LotePosturaLevanteId)
-            .FirstOrDefaultAsync(ct);
-        if (lpl is null)
+        LotePosturaLevante? lpl = null;
+        LotePosturaProduccion? lpp = null;
+        if (esLevante)
+            lpl = await _ctx.Set<LotePosturaLevante>()
+                .Where(x => x.LoteId == loteId && x.DeletedAt == null && x.LotePosturaLevanteId != null)
+                .OrderByDescending(x => x.LotePosturaLevanteId)
+                .FirstOrDefaultAsync(ct);
+        else
+            lpp = await _ctx.LotePosturaProduccion
+                .Where(x => x.LoteId == loteId && x.DeletedAt == null && x.LotePosturaProduccionId != null)
+                .OrderByDescending(x => x.LotePosturaProduccionId)
+                .FirstOrDefaultAsync(ct);
+
+        if (lpl is null && lpp is null)
         {
             fallos.Add(new(0, "Movimientos Aves", null,
-                "No se encontró el espejo de levante del lote: los movimientos de aves no se aplicaron."));
+                "No se encontró el espejo del lote en su fase: los movimientos de aves no se aplicaron."));
             return (0, 0);
         }
 
@@ -297,7 +342,8 @@ public partial class MigracionService
 
             try
             {
-                await AplicarMovimientoAveMigracionAsync(lpl, m, ct);
+                if (esLevante) await AplicarMovimientoAveMigracionAsync(lpl!, m, ct);
+                else await AplicarMovimientoAveProduccionAsync(lpp!, m, ct);
                 aplicados++;
             }
             catch (Exception ex)
@@ -309,7 +355,7 @@ public partial class MigracionService
         return (aplicados, omitidos);
     }
 
-    /// <summary>Aplica UNA fila: fila diaria + acumulados del LPL + auditoría + cohorte (ingreso).</summary>
+    /// <summary>Aplica UNA fila en LEVANTE: fila diaria + acumulados del LPL + auditoría + cohorte (ingreso).</summary>
     private async Task AplicarMovimientoAveMigracionAsync(
         LotePosturaLevante lpl, MovimientoAvesMigFila m, CancellationToken ct)
     {
@@ -414,7 +460,125 @@ public partial class MigracionService
 
         seg.UpdatedAt = fechaUtc;
 
-        // Auditoría Completada SIN auto-procesar (nunca MovimientoAvesService.CreateAsync: doble conteo).
+        await GuardarAuditoriaYCohorteAsync(
+            m, fechaAncla, fechaUtc, esSalida, esVenta,
+            loteBaseId: lpl.LoteId!.Value, granjaId: lpl.GranjaId, companyId: lpl.CompanyId, ct);
+    }
+
+    /// <summary>
+    /// Aplica UNA fila en PRODUCCIÓN, espejando <c>TrasladoAvesDesdeSegService</c> (rama producción):
+    /// misma fila diaria y acumulados <c>produccion_traslado_*</c>; la salida NO clampa en 0 (paridad
+    /// con el módulo vivo). La VENTA no tiene columnas propias en producción: descuenta las aves,
+    /// deja la nota en observaciones y la cantidad queda en la auditoría.
+    /// </summary>
+    private async Task AplicarMovimientoAveProduccionAsync(
+        LotePosturaProduccion lpp, MovimientoAvesMigFila m, CancellationToken ct)
+    {
+        var fechaDia = m.Fecha.Date;
+        var fechaAncla = fechaDia.AddHours(12);
+        var fechaUtc = DateTime.UtcNow;
+        var loteBaseId = lpp.LoteId!.Value;
+        var esSalida = m.Tipo == MovimientoAvesMigracion.Salida;
+        var esVenta = m.Tipo == MovimientoAvesMigracion.Venta;
+
+        var rangoDesde = fechaDia.AddDays(-1);
+        var rangoHasta = fechaDia.AddDays(2);
+        var seg = (await _ctx.SeguimientoProduccion
+                .Where(s => s.LoteId == loteBaseId && s.Fecha >= rangoDesde && s.Fecha < rangoHasta)
+                .ToListAsync(ct))
+            .FirstOrDefault(s => s.Fecha.Date == fechaDia);
+
+        if (seg is null)
+        {
+            seg = new SeguimientoProduccion
+            {
+                LoteId = loteBaseId,
+                LotePosturaProduccionId = lpp.LotePosturaProduccionId,
+                Fecha = fechaAncla,
+                MortalidadH = 0, MortalidadM = 0,
+                SelH = 0, SelM = 0,
+                ErrorSexajeHembras = 0, ErrorSexajeMachos = 0,
+                TipoAlimento = "—",
+                CompanyId = lpp.CompanyId,
+                CreatedByUserId = _current.UserId,
+                CreatedAt = fechaUtc
+            };
+            _ctx.SeguimientoProduccion.Add(seg);
+        }
+
+        var contraparteNombre = m.Contraparte?.Nombre;
+        if (esSalida)
+        {
+            lpp.ProduccionTrasladoSalidaHembras += m.Hembras;
+            lpp.ProduccionTrasladoSalidaMachos += m.Machos;
+            lpp.AvesHActual = (lpp.AvesHActual ?? 0) - m.Hembras;
+            lpp.AvesMActual = (lpp.AvesMActual ?? 0) - m.Machos;
+
+            seg.TrasladoSalidaHembras += m.Hembras;
+            seg.TrasladoSalidaMachos += m.Machos;
+            seg.TrasladoHembras = (seg.TrasladoHembras ?? 0) + m.Hembras;
+            seg.TrasladoMachos = (seg.TrasladoMachos ?? 0) + m.Machos;
+            seg.LoteDestinoId = m.Contraparte?.EspejoId;
+            seg.GranjaDestinoId = m.Contraparte?.GranjaId;
+            seg.FechaTraslado = fechaAncla;
+            seg.EsTraslado = true;
+            seg.TrasladoDireccion = "SALIDA";
+            seg.TrasladoLoteContraparteId = m.Contraparte?.EspejoId;
+            seg.TrasladoGranjaContraparteId = m.Contraparte?.GranjaId;
+            var destinoTxt = $"Traslado SALIDA → {contraparteNombre}";
+            seg.TrasladoObservaciones = string.IsNullOrWhiteSpace(seg.TrasladoObservaciones)
+                ? $"{destinoTxt}. {m.Observaciones ?? ""}".Trim()
+                : $"{seg.TrasladoObservaciones} | {destinoTxt}";
+        }
+        else if (esVenta)
+        {
+            lpp.AvesHActual = Math.Max(0, (lpp.AvesHActual ?? 0) - m.Hembras);
+            lpp.AvesMActual = Math.Max(0, (lpp.AvesMActual ?? 0) - m.Machos);
+
+            var ventaTxt = $"Venta de aves: {m.Hembras} H / {m.Machos} M" +
+                           (string.IsNullOrWhiteSpace(m.Motivo) ? "" : $" ({m.Motivo})");
+            seg.Observaciones = string.IsNullOrWhiteSpace(seg.Observaciones)
+                ? $"{ventaTxt}. {m.Observaciones ?? ""}".Trim()
+                : $"{seg.Observaciones} | {ventaTxt}";
+        }
+        else
+        {
+            lpp.ProduccionTrasladoIngresoHembras += m.Hembras;
+            lpp.ProduccionTrasladoIngresoMachos += m.Machos;
+            lpp.AvesHActual = (lpp.AvesHActual ?? 0) + m.Hembras;
+            lpp.AvesMActual = (lpp.AvesMActual ?? 0) + m.Machos;
+
+            seg.TrasladoIngresoHembras += m.Hembras;
+            seg.TrasladoIngresoMachos += m.Machos;
+            seg.EsTraslado = true;
+            seg.TrasladoDireccion = "INGRESO";
+            seg.TrasladoLoteContraparteId = m.Contraparte?.EspejoId;
+            seg.TrasladoGranjaContraparteId = m.Contraparte?.GranjaId;
+            var origenTxt = contraparteNombre is null
+                ? "Traslado INGRESO (aves en tránsito)"
+                : $"Traslado INGRESO ← {contraparteNombre}";
+            seg.TrasladoObservaciones = string.IsNullOrWhiteSpace(seg.TrasladoObservaciones)
+                ? $"{origenTxt}. {m.Observaciones ?? ""}".Trim()
+                : $"{seg.TrasladoObservaciones} | {origenTxt}";
+        }
+
+        seg.UpdatedAt = fechaUtc;
+        seg.UpdatedByUserId = _current.UserId;
+
+        await GuardarAuditoriaYCohorteAsync(
+            m, fechaAncla, fechaUtc, esSalida, esVenta,
+            loteBaseId, granjaId: lpp.GranjaId, companyId: lpp.CompanyId, ct);
+    }
+
+    /// <summary>
+    /// Auditoría Completada en <c>movimiento_aves</c> SIN auto-procesar (nunca
+    /// <c>MovimientoAvesService.CreateAsync</c>: doble conteo) + cohorte del INGRESO (edad heredada
+    /// del lote origen; informativa, nunca tumba la carga). Común a las dos fases.
+    /// </summary>
+    private async Task GuardarAuditoriaYCohorteAsync(
+        MovimientoAvesMigFila m, DateTime fechaAncla, DateTime fechaUtc, bool esSalida, bool esVenta,
+        int loteBaseId, int granjaId, int companyId, CancellationToken ct)
+    {
         var movimiento = new MovimientoAves
         {
             NumeroMovimiento = $"MGA-{fechaUtc:yyyyMMdd}-{Guid.NewGuid():N}"[..24],
@@ -427,22 +591,21 @@ public partial class MigracionService
             FechaProcesamiento = fechaUtc,
             MotivoMovimiento = esVenta ? m.Motivo : null,
             Observaciones = string.IsNullOrWhiteSpace(m.Observaciones)
-                ? "Carga masiva de seguimiento levante"
-                : $"Carga masiva de seguimiento levante. {m.Observaciones}",
+                ? "Carga masiva de seguimiento"
+                : $"Carga masiva de seguimiento. {m.Observaciones}",
             UsuarioMovimientoId = _current.UserId,
-            LoteOrigenId = esSalida || esVenta ? lpl.LoteId : m.Contraparte?.LoteBaseId,
-            GranjaOrigenId = esSalida || esVenta ? lpl.GranjaId : m.Contraparte?.GranjaId,
-            LoteDestinoId = esSalida ? m.Contraparte?.LoteBaseId : esVenta ? null : lpl.LoteId,
-            GranjaDestinoId = esSalida ? m.Contraparte?.GranjaId : esVenta ? null : lpl.GranjaId,
-            CompanyId = lpl.CompanyId,
+            LoteOrigenId = esSalida || esVenta ? loteBaseId : m.Contraparte?.LoteBaseId,
+            GranjaOrigenId = esSalida || esVenta ? granjaId : m.Contraparte?.GranjaId,
+            LoteDestinoId = esSalida ? m.Contraparte?.LoteBaseId : esVenta ? null : loteBaseId,
+            GranjaDestinoId = esSalida ? m.Contraparte?.GranjaId : esVenta ? null : granjaId,
+            CompanyId = companyId,
             CreatedByUserId = _current.UserId,
             CreatedAt = fechaUtc
         };
         _ctx.MovimientoAves.Add(movimiento);
         await _ctx.SaveChangesAsync(ct);
 
-        // Cohorte del INGRESO (edad heredada del lote origen): informativa, nunca tumba la carga.
-        if (!esSalida && m.Contraparte is { FechaEncaset: DateTime encaset })
+        if (!esSalida && !esVenta && m.Contraparte is { FechaEncaset: DateTime encaset })
         {
             var observaciones = $"Traslado desde {m.Contraparte.Nombre} (carga masiva)";
             if (observaciones.Length > MaxObservacionesCohorteMigracion)
@@ -450,11 +613,11 @@ public partial class MigracionService
 
             _ctx.LoteAvesCohortes.Add(new LoteAvesCohorte
             {
-                CompanyId = lpl.CompanyId,
-                LoteId = lpl.LoteId!.Value,
+                CompanyId = companyId,
+                LoteId = loteBaseId,
                 LoteOrigenId = m.Contraparte.LoteBaseId,
                 MovimientoAvesId = movimiento.Id,
-                FechaIngreso = DateOnly.FromDateTime(fechaDia),
+                FechaIngreso = DateOnly.FromDateTime(m.Fecha.Date),
                 FechaEncasetCohorte = DateOnly.FromDateTime(encaset),
                 CantidadHembras = m.Hembras,
                 CantidadMachos = m.Machos,

@@ -132,14 +132,16 @@ public partial class MigracionService
         var wsAlim = pkg.Workbook.Worksheets.Add(MigracionEsquemas.AlimentoPostura.Hoja);
         PonerEncabezados(wsAlim, MigracionEsquemas.AlimentoPostura);
 
-        // Hoja "Movimientos Aves" (solo levante): traslados UNILATERALES del lote — Salida valida el
-        // destino sin acreditarlo; Ingreso acredita las aves en tránsito sin tocar al origen.
-        ExcelWorksheet? wsMovAves = null;
-        if (esLevante)
-        {
-            wsMovAves = pkg.Workbook.Worksheets.Add(MigracionEsquemas.MovimientosAvesLevante.Hoja);
-            PonerEncabezados(wsMovAves, MigracionEsquemas.MovimientosAvesLevante);
-        }
+        // Hoja "Movimientos Aves" (las dos fases): movimientos UNILATERALES del lote — Salida valida
+        // el destino sin acreditarlo; Ingreso acredita las aves en tránsito; Venta descuenta.
+        var wsMovAves = pkg.Workbook.Worksheets.Add(MigracionEsquemas.MovimientosAvesLevante.Hoja);
+        PonerEncabezados(wsMovAves, MigracionEsquemas.MovimientosAvesLevante);
+
+        // Hoja "Movimientos Huevos" (solo producción): traslados a planta y ventas de huevos.
+        if (!esLevante)
+            PonerEncabezados(
+                pkg.Workbook.Worksheets.Add(MigracionEsquemas.MovimientosHuevosProduccion.Hoja),
+                MigracionEsquemas.MovimientosHuevosProduccion);
 
         ExcelWorksheet? wsHuevos = null;
         if (huevoItems.Count > 0)
@@ -171,31 +173,23 @@ public partial class MigracionService
             }
         }
 
-        // Lotes de levante de la empresa: los valores que acepta "Lote Contraparte" (Movimientos Aves).
-        var lotesLevanteRef = new List<(int LoteId, string Nombre, string Granja)>();
-        if (esLevante)
-        {
-            lotesLevanteRef = (await _ctx.Set<LotePosturaLevante>().AsNoTracking()
-                    .Where(x => x.CompanyId == companyId && x.DeletedAt == null && x.LoteId != null)
-                    .Join(_ctx.Lotes.AsNoTracking().Where(l => l.DeletedAt == null),
-                        x => x.LoteId, l => l.LoteId, (x, l) => new { LoteId = l.LoteId!.Value, l.LoteNombre, x.GranjaId })
-                    .Join(_ctx.Farms.AsNoTracking(), xl => xl.GranjaId, f => f.Id,
-                        (xl, f) => new { xl.LoteId, xl.LoteNombre, Granja = f.Name })
-                    .ToListAsync(ct))
-                .DistinctBy(x => x.LoteId)
-                .OrderBy(x => x.LoteNombre)
-                .Select(x => (x.LoteId, x.LoteNombre, x.Granja))
-                .ToList();
+        // Lotes de la MISMA fase: los valores que acepta "Lote Contraparte" (Movimientos Aves).
+        var lotesFaseRef = (await CargarContrapartesAsync(companyId, esLevante, ct))
+            .Join((await _ctx.Farms.AsNoTracking().Where(f => f.CompanyId == companyId)
+                    .Select(f => new { f.Id, f.Name }).ToListAsync(ct)),
+                c => c.GranjaId, f => f.Id, (c, f) => new { c.LoteBaseId, c.Nombre, Granja = f.Name })
+            .DistinctBy(x => x.LoteBaseId)
+            .OrderBy(x => x.Nombre)
+            .ToList();
 
-            wsRef.Cells[1, 8].Value = "Lote levante (nombre)";
-            wsRef.Cells[1, 9].Value = "Id lote";
-            wsRef.Cells[1, 10].Value = "Granja";
-            for (int i = 0; i < lotesLevanteRef.Count; i++)
-            {
-                wsRef.Cells[i + 2, 8].Value = lotesLevanteRef[i].Nombre;
-                wsRef.Cells[i + 2, 9].Value = lotesLevanteRef[i].LoteId;
-                wsRef.Cells[i + 2, 10].Value = lotesLevanteRef[i].Granja;
-            }
+        wsRef.Cells[1, 8].Value = esLevante ? "Lote levante (nombre)" : "Lote producción (nombre)";
+        wsRef.Cells[1, 9].Value = "Id lote";
+        wsRef.Cells[1, 10].Value = "Granja";
+        for (int i = 0; i < lotesFaseRef.Count; i++)
+        {
+            wsRef.Cells[i + 2, 8].Value = lotesFaseRef[i].Nombre;
+            wsRef.Cells[i + 2, 9].Value = lotesFaseRef[i].LoteBaseId;
+            wsRef.Cells[i + 2, 10].Value = lotesFaseRef[i].Granja;
         }
         wsRef.Cells[wsRef.Dimension?.Address ?? "A1"].AutoFitColumns();
 
@@ -206,9 +200,9 @@ public partial class MigracionService
                 DropdownRango(ws, ColumnaLetra(IndiceColumna(MigracionEsquemas.Para(tipo), titulo) + 1), rango);
             DropdownRango(wsAlim, ColumnaLetra(IndiceColumna(MigracionEsquemas.AlimentoPostura, "Alimento") + 1), rango);
         }
-        if (wsMovAves is not null && lotesLevanteRef.Count > 0)
+        if (lotesFaseRef.Count > 0)
             DropdownRango(wsMovAves, ColumnaLetra(IndiceColumna(MigracionEsquemas.MovimientosAvesLevante, "Lote Contraparte") + 1),
-                $"Referencias!$H$2:$H${lotesLevanteRef.Count + 1}");
+                $"Referencias!$H$2:$H${lotesFaseRef.Count + 1}");
         if (wsHuevos is not null && huevoItems.Count > 0)
             DropdownRango(wsHuevos, ColumnaLetra(IndiceColumna(MigracionEsquemas.HuevosPostura, "Ítem") + 1),
                 $"Referencias!$D$2:$D${huevoItems.Count + 1}");
@@ -239,10 +233,12 @@ public partial class MigracionService
         };
         if (esLevante && lotePosturaCtx?.CapturaHuevosLevante == true)
             instrucciones.Add("• Huevos en levante: podés cargar las 11 categorías (+ peso) en cualquier semana; el total y los incubables se calculan del desglose.");
-        if (esLevante)
+        instrucciones.Add("• Hoja 'Movimientos Aves': movimientos de aves de ESTE lote. 'Salida' descuenta acá y exige que el 'Lote Contraparte' exista en la misma fase (NO se le acreditan las aves: ese lote carga su propio Ingreso en su archivo). 'Ingreso' suma acá las aves recibidas en tránsito, sin tocar al lote origen. 'Venta' descuenta acá (con su 'Motivo'; sin contraparte).");
+        instrucciones.Add("• No cargues en 'Movimientos Aves' movimientos que ya se registraron por pantalla, ni repitas la misma fila: se duplicarían. Dos movimientos iguales el mismo día van como una sola fila sumada.");
+        if (!esLevante)
         {
-            instrucciones.Add("• Hoja 'Movimientos Aves': movimientos de aves de ESTE lote. 'Salida' descuenta acá y exige que el 'Lote Contraparte' exista (NO se le acreditan las aves: ese lote carga su propio Ingreso en su archivo). 'Ingreso' suma acá las aves recibidas en tránsito, sin tocar al lote origen. 'Venta' descuenta acá y queda como venta de aves del día (con su 'Motivo'; sin contraparte).");
-            instrucciones.Add("• No cargues en 'Movimientos Aves' movimientos que ya se registraron por pantalla, ni repitas la misma fila: se duplicarían. Dos movimientos iguales el mismo día van como una sola fila sumada.");
+            instrucciones.Add("• Hoja 'Movimientos Huevos': salidas de huevos de ESTE lote por las 11 categorías. 'Traslado' = envío a planta; 'Venta' = venta (con 'Motivo' y 'Descripción'). Descuentan de la disponibilidad del lote (espejo); si no alcanzan, el archivo se rechaza.");
+            instrucciones.Add("• Pesaje y agua: 'Peso H/M (g)', 'Uniformidad', 'Coef. Variación', 'Observaciones Pesaje', 'Consumo Agua (L)', 'pH Agua' (0-14), 'ORP Agua (mV)' y 'Temperatura Agua (°C)' son opcionales y se guardan tal cual en el registro del día.");
         }
         if (wsHuevos is not null)
             instrucciones.Add("• Hoja 'Huevos': clasificación por ítem del catálogo (una fila por fecha e ítem). No la combines con las 11 categorías de la hoja 'Datos'.");
@@ -274,7 +270,7 @@ public partial class MigracionService
             ? new List<MovimientoAlimentoFila>()
             : await LeerHojaAlimentoPosturaAsync(file, companyId, ctxInv, errores, ct);
 
-        var movimientosAves = await LeerHojaMovimientosAvesAsync(file, companyId, loteId, loteCtx, errores, ct);
+        var movimientosAves = await LeerHojaMovimientosAvesAsync(file, companyId, loteId, esLevante: true, loteCtx, errores, ct);
 
         if (filas.Count == 0 && movimientosAlimento.Count == 0 && movimientosAves.Count == 0 && errores.Count == 0)
             return ResultadoVacio(tipo, dryRun);
@@ -346,7 +342,7 @@ public partial class MigracionService
 
         // Aviso (no bloquea) si el archivo dejaría el saldo de aves en negativo — solo con la hoja
         // "Movimientos Aves" presente, para no cambiar el reporte de los archivos históricos.
-        await AdvertirSaldoAvesProyectadoAsync(loteId, filasJson, movimientosAves, errores, ct);
+        await AdvertirSaldoAvesProyectadoAsync(tipo, loteId, filasJson, movimientosAves, errores, ct);
 
         return await EjecutarHistoricoPosturaAsync(tipo, dryRun, permitirParcial, filas.Count, errores, filasJson,
             consumos, movimientosAlimento, ctxInv, loteId,
@@ -380,7 +376,12 @@ public partial class MigracionService
         // empresa dueña de la granja, fail-closed.
         var huevoItemsPorFecha = await LeerHojaHuevosPosturaAsync(file, companyId, loteCtx, errores, ct);
 
-        if (filas.Count == 0 && movimientosAlimento.Count == 0 && errores.Count == 0) return ResultadoVacio(tipo, dryRun);
+        var movimientosAves = await LeerHojaMovimientosAvesAsync(file, companyId, loteId, esLevante: false, loteCtx, errores, ct);
+        var movimientosHuevos = LeerHojaMovimientosHuevos(file, loteCtx, errores);
+
+        if (filas.Count == 0 && movimientosAlimento.Count == 0 && movimientosAves.Count == 0
+            && movimientosHuevos.Count == 0 && errores.Count == 0)
+            return ResultadoVacio(tipo, dryRun);
 
         var (_, alimentosPorClave) = await CargarAlimentosEmpresaAsync(companyId, ct);
         var filasJson = new List<Dictionary<string, object?>>();
@@ -415,6 +416,25 @@ public partial class MigracionService
             var huevoTot = EnteroNoNegNull(fila, errores, "Huevo Total", ClavesPostura(tipo, "Huevo Total"));
             var huevoInc = EnteroNoNegNull(fila, errores, "Huevo Incubable", ClavesPostura(tipo, "Huevo Incubable"));
             var etapa = EnteroNoNegNull(fila, errores, "Etapa", ClavesPostura(tipo, "Etapa"));
+
+            // Campos completos del modal (opcionales): error de sexaje, pesaje corporal y agua.
+            var errH = EnteroNoNeg(fila, errores, "Error Sexaje H", ClavesPostura(tipo, "Error Sexaje H"));
+            var errM = EnteroNoNeg(fila, errores, "Error Sexaje M", ClavesPostura(tipo, "Error Sexaje M"));
+            var pesoH = DobleNoNeg(fila, errores, "Peso H (g)", ClavesPostura(tipo, "Peso H (g)"));
+            var pesoM = DobleNoNeg(fila, errores, "Peso M (g)", ClavesPostura(tipo, "Peso M (g)"));
+            var unifLote = Porcentaje0a100(fila, errores, "Uniformidad", ClavesPostura(tipo, "Uniformidad"));
+            var cvLote = Porcentaje0a100(fila, errores, "Coef. Variación", ClavesPostura(tipo, "Coef. Variación"));
+            var obsPesaje = MigracionCalculos.TextoLimpio(Celda(fila, ClavesPostura(tipo, "Observaciones Pesaje")));
+            var aguaDiario = DobleNoNeg(fila, errores, "Consumo Agua (L)", ClavesPostura(tipo, "Consumo Agua (L)"));
+            var aguaPh = DobleOpc(fila, errores, "pH Agua", ClavesPostura(tipo, "pH Agua"));
+            if (aguaPh is < 0 or > 14)
+            {
+                errores.Add(new(fila.Numero, "pH Agua", aguaPh.Value.ToString("0.##"),
+                    "pH Agua: se esperaba un valor entre 0 y 14."));
+                aguaPh = null;
+            }
+            var aguaOrp = DobleOpc(fila, errores, "ORP Agua (mV)", ClavesPostura(tipo, "ORP Agua (mV)"));
+            var aguaTemp = DobleOpc(fila, errores, "Temperatura Agua (°C)", ClavesPostura(tipo, "Temperatura Agua (°C)"));
 
             var unidad = LeerUnidadConsumo(fila, errores);
             var (itemsH, itemsM) = LeerAlimentosPostura(tipo, fila, errores, alimentosPorClave, unidad);
@@ -459,7 +479,7 @@ public partial class MigracionService
                 ["lote_id"] = loteId,
                 ["fecha"] = fecha.ToString("yyyy-MM-dd"),
                 ["mort_h"] = mortH, ["mort_m"] = mortM, ["sel_h"] = selH, ["sel_m"] = selM,
-                ["err_h"] = 0, ["err_m"] = 0,
+                ["err_h"] = errH, ["err_m"] = errM,
                 ["cons_h"] = consH, ["cons_m"] = consM,
                 // Con ítems de alimento por sexo el consumo se persiste separado H/M, igual que
                 // ProduccionService; sin ellos se conserva el contrato histórico (todo en cons_kg_h).
@@ -468,7 +488,11 @@ public partial class MigracionService
                 ["tipo_alimento"] = ResolverTipoAlimento(fila, itemsH, itemsM),
                 ["huevo_tot"] = totalFinal, ["huevo_inc"] = incFinal, ["peso_huevo"] = pesoHuevo,
                 ["etapa"] = MigracionPosturaCalculos.EtapaEfectiva(etapa),
-                ["observaciones"] = MigracionCalculos.TextoLimpio(Celda(fila, "observaciones"))
+                ["observaciones"] = MigracionCalculos.TextoLimpio(Celda(fila, "observaciones")),
+                ["peso_h"] = pesoH, ["peso_m"] = pesoM,
+                ["uniformidad"] = unifLote, ["coef_variacion"] = cvLote, ["obs_pesaje"] = obsPesaje,
+                ["agua_diario"] = aguaDiario, ["agua_ph"] = aguaPh,
+                ["agua_orp"] = aguaOrp, ["agua_temp"] = aguaTemp
             };
             AgregarMetadataItems(jsonFila, itemsH, itemsM, itemsHuevoDelDia);
             // La marca del arrastre se conserva (para que siga siendo idempotente) y se cierra la
@@ -489,12 +513,18 @@ public partial class MigracionService
             errores.Add(new(0, "Ítem", fecha.ToString("yyyy-MM-dd"),
                 $"La hoja 'Huevos' trae el {fecha:yyyy-MM-dd} pero la hoja 'Datos' no tiene esa fecha; esos huevos no se cargarían."));
 
+        // Aves: aviso de saldo proyectado. Huevos: la disponibilidad proyectada por categoría es un
+        // ERROR (mismo criterio del módulo vivo, que rechaza el traslado sin huevos suficientes).
+        await AdvertirSaldoAvesProyectadoAsync(tipo, loteId, filasJson, movimientosAves, errores, ct);
+        await ValidarDisponibilidadHuevosProyectadaAsync(loteId, filasJson, movimientosHuevos, errores, ct);
+
         return await EjecutarHistoricoPosturaAsync(tipo, dryRun, permitirParcial, filas.Count, errores, filasJson,
             consumos, movimientosAlimento, ctxInv, loteId,
             MigracionPosturaCalculos.ReferenciaConsumoProduccion,
             json => _ctx.Database.SqlQueryRaw<int>(
                 "SELECT public.fn_migracion_seguimiento_produccion({0}, {1}, {2}::jsonb) AS \"Value\"",
-                companyId, _current.UserId, json).FirstAsync(ct), ct);
+                companyId, _current.UserId, json).FirstAsync(ct), ct,
+            movimientosAves, movimientosHuevos);
     }
 
     // ── Parseo compartido ────────────────────────────────────────────────────
@@ -725,9 +755,11 @@ public partial class MigracionService
         List<ConsumoDiaPostura> consumos, List<MovimientoAlimentoFila> movimientosAlimento,
         ContextoInventarioPostura? ctxInv, int loteId, Func<long, DateTime, string> referencia,
         Func<string, Task<int>> invocarFn, CancellationToken ct,
-        IReadOnlyList<MovimientoAvesMigFila>? movimientosAves = null)
+        IReadOnlyList<MovimientoAvesMigFila>? movimientosAves = null,
+        IReadOnlyList<MovimientoHuevosMigFila>? movimientosHuevos = null)
     {
-        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0 && (movimientosAves?.Count ?? 0) == 0)
+        if (total == 0 && errores.Count == 0 && movimientosAlimento.Count == 0
+            && (movimientosAves?.Count ?? 0) == 0 && (movimientosHuevos?.Count ?? 0) == 0)
             return ResultadoVacio(tipo, dryRun);
 
         // Fechas ya cargadas: la función SQL las omite, así que su consumo NO debe descontarse otra
@@ -790,13 +822,23 @@ public partial class MigracionService
             await DescontarConsumoSeguimientoAsync(ctxInv, conId, referencia, fallos, ct);
         }
 
-        // Movimientos de aves DESPUÉS de la fn: las filas diarias del archivo ya existen y solo se
-        // extienden con sus columnas de traslado (levante; producción siempre pasa null).
+        // Movimientos de aves y de huevos DESPUÉS de la fn: las filas diarias del archivo ya existen
+        // y solo se extienden con sus columnas.
         if (movimientosAves is { Count: > 0 })
         {
-            var (_, avesOmitidos) = await AplicarMovimientosAvesLevanteAsync(movimientosAves, loteId, fallos, ct);
+            var (_, avesOmitidos) = await AplicarMovimientosAvesLevanteAsync(movimientosAves, tipo, loteId, fallos, ct);
             omitidas += avesOmitidos;
         }
+        if (movimientosHuevos is { Count: > 0 })
+        {
+            var (_, huevosOmitidos) = await AplicarMovimientosHuevosAsync(movimientosHuevos, loteId, fallos, ct);
+            omitidas += huevosOmitidos;
+        }
+
+        // El alta manual recalcula el espejo de huevos tras cada registro; la fn no lo hace nunca.
+        // Un recálculo ABSOLUTO al final deja la disponibilidad al día (producción solamente).
+        if (tipo == TipoMigracion.SeguimientoProduccion && (insertados > 0 || movimientosHuevos is { Count: > 0 }))
+            await RecalcularEspejoHuevosAsync(loteId, fallos, ct);
 
         errores.AddRange(fallos);
         omitidas += movOmitidos;
