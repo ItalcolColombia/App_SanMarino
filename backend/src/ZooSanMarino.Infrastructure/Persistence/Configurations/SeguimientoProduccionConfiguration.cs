@@ -164,6 +164,28 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .HasColumnName("observaciones_pesaje")
             .HasColumnType("text");
 
+        // Pesaje POR SEXO + ciclo diario (persistidos desde el modal; tipos espejo de la tabla
+        // legacy seguimiento_diario_levante)
+        builder.Property(x => x.UniformidadHembras)
+            .HasColumnName("uniformidad_hembras")
+            .HasColumnType("double precision");
+
+        builder.Property(x => x.UniformidadMachos)
+            .HasColumnName("uniformidad_machos")
+            .HasColumnType("double precision");
+
+        builder.Property(x => x.CvHembras)
+            .HasColumnName("cv_hembras")
+            .HasColumnType("double precision");
+
+        builder.Property(x => x.CvMachos)
+            .HasColumnName("cv_machos")
+            .HasColumnType("double precision");
+
+        builder.Property(x => x.Ciclo)
+            .HasColumnName("ciclo")
+            .HasMaxLength(50);
+
         // Metadata JSONB para campos adicionales
         // NOTA: Si la columna no existe en la BD, ejecutar: backend/sql/add_metadata_column_seguimiento_produccion.sql
         builder.Property(x => x.Metadata)

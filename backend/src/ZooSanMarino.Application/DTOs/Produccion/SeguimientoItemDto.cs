@@ -46,7 +46,35 @@ public record SeguimientoItemDto(
     double? ConsumoAguaTemperatura, // Temperatura del agua en °C
     int? LotePosturaProduccionId = null,
     /// <summary>Metadata JSON (itemsHembras, itemsMachos, consumo original, etc.). Se serializa como objeto en la API.</summary>
-    object? Metadata = null
+    object? Metadata = null,
+    // ── Campos persistidos D2 (antes el backend los descartaba y la UI repintaba 0/vacío) ──
+    int ErrorSexajeHembras = 0,
+    int ErrorSexajeMachos = 0,
+    double? UniformidadHembras = null,
+    double? UniformidadMachos = null,
+    double? CvHembras = null,
+    double? CvMachos = null,
+    string? Ciclo = null,
+    // ── Traslado de la fila (la grilla ya tenía columnas para esto y siempre veía 0) ──
+    bool EsTraslado = false,
+    string? TrasladoDireccion = null,
+    int TrasladoIngresoHembras = 0,
+    int TrasladoIngresoMachos = 0,
+    int TrasladoSalidaHembras = 0,
+    int TrasladoSalidaMachos = 0,
+    int? LoteDestinoId = null,
+    int? GranjaDestinoId = null,
+    // ── Derivados de fn_seguimiento_diario_produccion (solo el listado de la grilla los
+    //    llena; el GET por id devuelve null) ──
+    int? EdadDias = null,
+    int? Semana = null,
+    int? AvesHInicioDia = null,
+    int? AvesMInicioDia = null,
+    int? SaldoAvesH = null,
+    int? SaldoAvesM = null,
+    long? HuevoTotAcum = null,
+    long? HuevoIncAcum = null,
+    double? PctPosturaDia = null
 );
 
 

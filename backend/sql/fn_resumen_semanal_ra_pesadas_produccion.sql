@@ -137,48 +137,25 @@ lote_base AS (
 lote_ok AS (
     SELECT * FROM lote_base WHERE ref_date IS NOT NULL
 ),
--- ── 2) Registros crudos de las DOS fuentes ──────────────────────────────────
-crudos AS (
-    SELECT lo.lote_postura_produccion_id                   AS lpp_id,
-           sd.fecha                                        AS ts,
-           COALESCE(sd.mortalidad_hembras, 0)              AS mort_h,
-           COALESCE(sd.mortalidad_machos, 0)               AS mort_m,
-           COALESCE(sd.sel_h, 0)                           AS sel_h,
-           COALESCE(sd.consumo_kg_hembras, 0)::double precision AS cons_h,
-           COALESCE(sd.consumo_kg_machos, 0)::double precision  AS cons_m,
-           COALESCE(sd.huevo_tot, 0)                       AS huevo_tot,
-           COALESCE(sd.huevo_inc, 0)                       AS huevo_inc,
-           sd.peso_h::double precision                     AS peso_h,
-           sd.peso_m::double precision                     AS peso_m
-      FROM lote_ok lo
-      JOIN seguimiento_diario_levante sd
-        ON sd.lote_postura_produccion_id = lo.lote_postura_produccion_id
-       AND sd.tipo_seguimiento = 'produccion'
-    UNION ALL
-    SELECT lo.lote_postura_produccion_id                   AS lpp_id,
-           sp.fecha_registro                               AS ts,
-           COALESCE(sp.mortalidad_hembras, 0),
-           COALESCE(sp.mortalidad_machos, 0),
-           COALESCE(sp.sel_h, 0),
-           COALESCE(sp.cons_kg_h, 0)::double precision,
-           COALESCE(sp.cons_kg_m, 0)::double precision,
-           COALESCE(sp.huevo_tot, 0),
-           COALESCE(sp.huevo_inc, 0),
-           sp.peso_h::double precision,
-           sp.peso_m::double precision
-      FROM lote_ok lo
-      JOIN seguimiento_diario_produccion sp
-        ON sp.lote_postura_produccion_id = lo.lote_postura_produccion_id
-),
--- ── 3) Un registro por lote y DÍA: gana el timestamp más temprano ───────────
+-- ── 2+3) Un registro por lote y DÍA desde fn_seguimiento_diario_produccion (la fn diaria
+--         canónica ya hace el UNION dual-fuente + dedup por día Bogotá «gana el más
+--         temprano»); solo días con registro (seg_id IS NOT NULL). Patrón CROSS JOIN LATERAL
+--         del Reporte de Costos de engorde: la fn LANGUAGE sql se inlinea. ─────────────────
 dedup AS (
-    SELECT DISTINCT ON (c.lpp_id, (c.ts AT TIME ZONE 'America/Bogota')::date)
-           c.lpp_id,
-           (c.ts AT TIME ZONE 'America/Bogota')::date AS reg_date,
-           c.mort_h, c.mort_m, c.sel_h, c.cons_h, c.cons_m,
-           c.huevo_tot, c.huevo_inc, c.peso_h, c.peso_m
-      FROM crudos c
-     ORDER BY c.lpp_id, (c.ts AT TIME ZONE 'America/Bogota')::date, c.ts
+    SELECT lo.lote_postura_produccion_id                   AS lpp_id,
+           f.fecha                                         AS reg_date,
+           COALESCE(f.mortalidad_hembras, 0)               AS mort_h,
+           COALESCE(f.mortalidad_machos, 0)                AS mort_m,
+           COALESCE(f.sel_h, 0)                            AS sel_h,
+           COALESCE(f.cons_kg_h, 0)::double precision      AS cons_h,
+           COALESCE(f.cons_kg_m, 0)::double precision      AS cons_m,
+           COALESCE(f.huevo_tot, 0)                        AS huevo_tot,
+           COALESCE(f.huevo_inc, 0)                        AS huevo_inc,
+           f.peso_h::double precision                      AS peso_h,
+           f.peso_m::double precision                      AS peso_m
+      FROM lote_ok lo
+      CROSS JOIN LATERAL fn_seguimiento_diario_produccion(lo.lote_postura_produccion_id, NULL) f
+     WHERE f.seg_id IS NOT NULL
 ),
 -- ── 4) Semana de vida (división entera, arranque en 25) ─────────────────────
 reg AS (
@@ -329,10 +306,12 @@ SELECT
     f.sem                                                          AS edad_semana,
     f.fin_sem                                                      AS fecha_fin_semana,
     f.dias                                                         AS dias_con_registro,
-    -- Participación SIEMPRE dentro de su propia semana calendario: con
-    -- p_sem_anio NULL la ventana global mezclaría las 52 semanas del año.
-    CASE WHEN SUM(f.fin_h) OVER (PARTITION BY f.fin_sem) > 0
-         THEN f.fin_h / SUM(f.fin_h) OVER (PARTITION BY f.fin_sem) END                   AS part,
+    -- Participación sobre el TOTAL del resultado (misma ventana que la migración desplegada
+    -- 20260728120000; el .sql llegó a tener un PARTITION BY fin_sem nunca migrado que dejaba
+    -- part=1 con lotes de encaset distinto — realineado al comportamiento vivo). El C# además
+    -- recalcula PART tras el recorte por alcance (ResumenSemanalRaPesadasCalculos).
+    CASE WHEN SUM(f.fin_h) OVER () > 0
+         THEN f.fin_h / SUM(f.fin_h) OVER () END                     AS part,
     f.fin_h                                                        AS saldo_hembras,
     f.fin_m                                                        AS saldo_machos,
     f.prod_pct                                                     AS produccion_pct,

@@ -165,6 +165,7 @@ DECLARE
     v_raza           text;
     v_ano            text;            -- ano_tabla_genetica::text
     v_lote_id_str    text;            -- para el flujo legacy (lote_id como texto)
+    v_lote_id_int    integer;         -- flujo legacy: lote resuelto, para fn_seguimiento_diario_produccion
     v_has_lote       boolean := false;
 
     -- ── acumuladores iterativos (mismos que el C#) ──
@@ -267,47 +268,27 @@ BEGIN
         END IF;
         v_has_lote := true;
 
-        -- Seguimientos: unificado (tipo produccion) UNION legacy, merge por DÍA (Bogotá),
-        -- el registro más temprano (por timestamp) gana el día.  (== C# GroupBy(Fecha.Date).First())
+        -- Seguimientos: desde fn_seguimiento_diario_produccion (la fn diaria canónica ya hace el
+        -- UNION dual-fuente + dedup por día Bogotá «gana el más temprano»); solo días con registro
+        -- (seg_id IS NOT NULL — sin días movimiento-only).
         CREATE TEMP TABLE _seg ON COMMIT DROP AS
-        WITH crudos AS (
-            SELECT sd.fecha AS ts,
-                   COALESCE(sd.mortalidad_hembras,0) AS mort_h, COALESCE(sd.mortalidad_machos,0) AS mort_m,
-                   COALESCE(sd.sel_h,0) AS sel_h,
-                   COALESCE(sd.consumo_kg_hembras,0)::double precision AS cons_h,
-                   COALESCE(sd.consumo_kg_machos,0)::double precision AS cons_m,
-                   COALESCE(sd.huevo_tot,0) AS huevo_tot, COALESCE(sd.huevo_inc,0) AS huevo_inc,
-                   COALESCE(sd.huevo_limpio,0) AS h_limpio, COALESCE(sd.huevo_tratado,0) AS h_tratado,
-                   COALESCE(sd.huevo_sucio,0) AS h_sucio, COALESCE(sd.huevo_deforme,0) AS h_deforme,
-                   COALESCE(sd.huevo_blanco,0) AS h_blanco, COALESCE(sd.huevo_doble_yema,0) AS h_doble,
-                   COALESCE(sd.huevo_piso,0) AS h_piso, COALESCE(sd.huevo_pequeno,0) AS h_pequeno,
-                   COALESCE(sd.huevo_roto,0) AS h_roto, COALESCE(sd.huevo_desecho,0) AS h_desecho,
-                   COALESCE(sd.huevo_otro,0) AS h_otro,
-                   sd.peso_huevo::double precision AS peso_huevo,
-                   sd.peso_h::double precision AS peso_h, sd.peso_m::double precision AS peso_m,
-                   sd.uniformidad::double precision AS unif, sd.coeficiente_variacion::double precision AS cv
-              FROM seguimiento_diario_levante sd
-             WHERE sd.tipo_seguimiento = 'produccion'
-               AND sd.lote_postura_produccion_id = p_lote_postura_produccion_id
-            UNION ALL
-            SELECT sp.fecha_registro AS ts,
-                   sp.mortalidad_hembras, sp.mortalidad_machos, sp.sel_h,
-                   sp.cons_kg_h::double precision, sp.cons_kg_m::double precision,
-                   sp.huevo_tot, sp.huevo_inc, sp.huevo_limpio, sp.huevo_tratado, sp.huevo_sucio,
-                   sp.huevo_deforme, sp.huevo_blanco, sp.huevo_doble_yema, sp.huevo_piso, sp.huevo_pequeno,
-                   sp.huevo_roto, sp.huevo_desecho, sp.huevo_otro,
-                   sp.peso_huevo::double precision,
-                   sp.peso_h::double precision, sp.peso_m::double precision,
-                   sp.uniformidad::double precision, sp.coeficiente_variacion::double precision
-              FROM seguimiento_diario_produccion sp
-             WHERE sp.lote_postura_produccion_id = p_lote_postura_produccion_id
-        ),
-        dedup AS (
-            SELECT DISTINCT ON ((ts AT TIME ZONE 'America/Bogota')::date) *
-              FROM crudos
-             ORDER BY (ts AT TIME ZONE 'America/Bogota')::date, ts
-        )
-        SELECT * FROM dedup;
+        SELECT f.fecha_ts AS ts,
+               COALESCE(f.mortalidad_hembras,0) AS mort_h, COALESCE(f.mortalidad_machos,0) AS mort_m,
+               COALESCE(f.sel_h,0) AS sel_h,
+               COALESCE(f.cons_kg_h,0)::double precision AS cons_h,
+               COALESCE(f.cons_kg_m,0)::double precision AS cons_m,
+               COALESCE(f.huevo_tot,0) AS huevo_tot, COALESCE(f.huevo_inc,0) AS huevo_inc,
+               COALESCE(f.huevo_limpio,0) AS h_limpio, COALESCE(f.huevo_tratado,0) AS h_tratado,
+               COALESCE(f.huevo_sucio,0) AS h_sucio, COALESCE(f.huevo_deforme,0) AS h_deforme,
+               COALESCE(f.huevo_blanco,0) AS h_blanco, COALESCE(f.huevo_doble_yema,0) AS h_doble,
+               COALESCE(f.huevo_piso,0) AS h_piso, COALESCE(f.huevo_pequeno,0) AS h_pequeno,
+               COALESCE(f.huevo_roto,0) AS h_roto, COALESCE(f.huevo_desecho,0) AS h_desecho,
+               COALESCE(f.huevo_otro,0) AS h_otro,
+               f.peso_huevo::double precision AS peso_huevo,
+               f.peso_h::double precision AS peso_h, f.peso_m::double precision AS peso_m,
+               f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv
+          FROM fn_seguimiento_diario_produccion(p_lote_postura_produccion_id, NULL) f
+         WHERE f.seg_id IS NOT NULL;
 
     ELSIF p_lote_id IS NOT NULL AND p_lote_id > 0 THEN
         -- ── Flujo legacy: Lote en fase Producción ──
@@ -341,6 +322,7 @@ BEGIN
             END IF;
             v_has_lote := true;
             v_lote_id_str := v_lp_lote_id::text;
+            v_lote_id_int := v_lp_lote_id;
 
             -- fecha ref = fecha_inicio_produccion; si null y hay padre -> fecha_encaset del padre
             IF v_lp_fip IS NULL AND v_lp_padre_id IS NOT NULL THEN
@@ -366,45 +348,26 @@ BEGIN
             END IF;
         END;
 
+        -- Seguimientos legacy: desde fn_seguimiento_diario_produccion (dedup dual-fuente ya
+        -- resuelto por la fn diaria); solo días con registro.
         CREATE TEMP TABLE _seg ON COMMIT DROP AS
-        WITH crudos AS (
-            SELECT sd.fecha AS ts,
-                   COALESCE(sd.mortalidad_hembras,0) AS mort_h, COALESCE(sd.mortalidad_machos,0) AS mort_m,
-                   COALESCE(sd.sel_h,0) AS sel_h,
-                   COALESCE(sd.consumo_kg_hembras,0)::double precision AS cons_h,
-                   COALESCE(sd.consumo_kg_machos,0)::double precision AS cons_m,
-                   COALESCE(sd.huevo_tot,0) AS huevo_tot, COALESCE(sd.huevo_inc,0) AS huevo_inc,
-                   COALESCE(sd.huevo_limpio,0) AS h_limpio, COALESCE(sd.huevo_tratado,0) AS h_tratado,
-                   COALESCE(sd.huevo_sucio,0) AS h_sucio, COALESCE(sd.huevo_deforme,0) AS h_deforme,
-                   COALESCE(sd.huevo_blanco,0) AS h_blanco, COALESCE(sd.huevo_doble_yema,0) AS h_doble,
-                   COALESCE(sd.huevo_piso,0) AS h_piso, COALESCE(sd.huevo_pequeno,0) AS h_pequeno,
-                   COALESCE(sd.huevo_roto,0) AS h_roto, COALESCE(sd.huevo_desecho,0) AS h_desecho,
-                   COALESCE(sd.huevo_otro,0) AS h_otro,
-                   sd.peso_huevo::double precision AS peso_huevo,
-                   sd.peso_h::double precision AS peso_h, sd.peso_m::double precision AS peso_m,
-                   sd.uniformidad::double precision AS unif, sd.coeficiente_variacion::double precision AS cv
-              FROM seguimiento_diario_levante sd
-             WHERE sd.tipo_seguimiento = 'produccion'
-               AND sd.lote_id = v_lote_id_str
-            UNION ALL
-            SELECT sp.fecha_registro AS ts,
-                   sp.mortalidad_hembras, sp.mortalidad_machos, sp.sel_h,
-                   sp.cons_kg_h::double precision, sp.cons_kg_m::double precision,
-                   sp.huevo_tot, sp.huevo_inc, sp.huevo_limpio, sp.huevo_tratado, sp.huevo_sucio,
-                   sp.huevo_deforme, sp.huevo_blanco, sp.huevo_doble_yema, sp.huevo_piso, sp.huevo_pequeno,
-                   sp.huevo_roto, sp.huevo_desecho, sp.huevo_otro,
-                   sp.peso_huevo::double precision,
-                   sp.peso_h::double precision, sp.peso_m::double precision,
-                   sp.uniformidad::double precision, sp.coeficiente_variacion::double precision
-              FROM seguimiento_diario_produccion sp
-             WHERE sp.lote_id::text = v_lote_id_str
-        ),
-        dedup AS (
-            SELECT DISTINCT ON ((ts AT TIME ZONE 'America/Bogota')::date) *
-              FROM crudos
-             ORDER BY (ts AT TIME ZONE 'America/Bogota')::date, ts
-        )
-        SELECT * FROM dedup;
+        SELECT f.fecha_ts AS ts,
+               COALESCE(f.mortalidad_hembras,0) AS mort_h, COALESCE(f.mortalidad_machos,0) AS mort_m,
+               COALESCE(f.sel_h,0) AS sel_h,
+               COALESCE(f.cons_kg_h,0)::double precision AS cons_h,
+               COALESCE(f.cons_kg_m,0)::double precision AS cons_m,
+               COALESCE(f.huevo_tot,0) AS huevo_tot, COALESCE(f.huevo_inc,0) AS huevo_inc,
+               COALESCE(f.huevo_limpio,0) AS h_limpio, COALESCE(f.huevo_tratado,0) AS h_tratado,
+               COALESCE(f.huevo_sucio,0) AS h_sucio, COALESCE(f.huevo_deforme,0) AS h_deforme,
+               COALESCE(f.huevo_blanco,0) AS h_blanco, COALESCE(f.huevo_doble_yema,0) AS h_doble,
+               COALESCE(f.huevo_piso,0) AS h_piso, COALESCE(f.huevo_pequeno,0) AS h_pequeno,
+               COALESCE(f.huevo_roto,0) AS h_roto, COALESCE(f.huevo_desecho,0) AS h_desecho,
+               COALESCE(f.huevo_otro,0) AS h_otro,
+               f.peso_huevo::double precision AS peso_huevo,
+               f.peso_h::double precision AS peso_h, f.peso_m::double precision AS peso_m,
+               f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv
+          FROM fn_seguimiento_diario_produccion(NULL, v_lote_id_int) f
+         WHERE f.seg_id IS NOT NULL;
 
     ELSE
         RETURN;  -- ni LPP ni loteId válido

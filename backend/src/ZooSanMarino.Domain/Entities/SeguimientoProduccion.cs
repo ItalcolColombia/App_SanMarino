@@ -48,6 +48,15 @@ public class SeguimientoProduccion : AuditableEntity
     public decimal? Uniformidad { get; set; } // Uniformidad del lote (%)
     public decimal? CoeficienteVariacion { get; set; } // Coeficiente de variación (CV)
     public string? ObservacionesPesaje { get; set; } // Observaciones específicas del pesaje
+
+    // Pesaje POR SEXO + ciclo diario. El modal siempre los envió y el backend los descartaba
+    // (round-trip roto silencioso). Mismos tipos que ya tienen en la tabla legacy
+    // seguimiento_diario_levante (uniformidad_hembras double precision, ciclo varchar).
+    public double? UniformidadHembras { get; set; } // Uniformidad hembras (%)
+    public double? UniformidadMachos { get; set; }  // Uniformidad machos (%)
+    public double? CvHembras { get; set; }          // Coeficiente de variación hembras
+    public double? CvMachos { get; set; }           // Coeficiente de variación machos
+    public string? Ciclo { get; set; }              // Ciclo del registro (ej. "Normal")
     
     // Metadata JSONB para campos adicionales (consumo original, tipo de ítem, etc.)
     public System.Text.Json.JsonDocument? Metadata { get; set; }
