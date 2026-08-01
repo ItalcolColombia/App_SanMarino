@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/ReporteContableService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
@@ -1166,13 +1167,18 @@ public class ReporteContableService : IReporteContableService
             .Select(l => new { l.LoteId, l.LoteNombre })
             .ToListAsync(ct);
 
-        var loteIds = sublotes.Select(s => s.LoteId?.ToString() ?? string.Empty)
+        // Alcance = lote padre + sublotes. La topología nueva (cierre de levante → LPP) no crea
+        // lotes hijos: el padre es el lote operativo y registra su propia producción; y un padre
+        // con hijos también puede tener seguimiento y traslados propios (mismo criterio
+        // padre+hijos que ya usa el flujo por semana contable de más abajo).
+        var lotesReporte = new[] { new { lotePadre.LoteId, lotePadre.LoteNombre } }
+            .Concat(sublotes)
+            .ToList();
+
+        var loteIds = lotesReporte.Select(s => s.LoteId?.ToString() ?? string.Empty)
             .Where(id => !string.IsNullOrEmpty(id))
             .ToList();
-        var loteIdsInt = sublotes.Where(s => s.LoteId.HasValue).Select(s => s.LoteId!.Value).ToList();
-
-        if (!loteIds.Any())
-            throw new InvalidOperationException($"No se encontraron sublotes para el lote padre {request.LotePadreId}");
+        var loteIdsInt = lotesReporte.Where(s => s.LoteId.HasValue).Select(s => s.LoteId!.Value).ToList();
 
         // Determinar rango de fechas
         DateTime fechaInicio, fechaFin;
@@ -1199,12 +1205,22 @@ public class ReporteContableService : IReporteContableService
                 .ToListAsync(ct);
 
             var lotesIdsStr = lotesIds.Select(id => id.ToString()).ToList();
-            var primeraFecha = await _ctx.SeguimientoDiario
+            var primeraFechaLegacy = await _ctx.SeguimientoDiario
                 .AsNoTracking()
                 .Where(s => s.TipoSeguimiento == "produccion" && lotesIdsStr.Contains(s.LoteId))
                 .Select(s => s.Fecha)
                 .OrderBy(f => f)
                 .FirstOrDefaultAsync(ct);
+
+            var primeraFechaNueva = await _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => lotesIds.Contains(s.LoteId))
+                .Select(s => s.Fecha)
+                .OrderBy(f => f)
+                .FirstOrDefaultAsync(ct);
+
+            var primeraFecha = ReporteContableHuevosCalculos.MenorFechaNoDefault(
+                primeraFechaLegacy, primeraFechaNueva);
 
             if (primeraFecha == default)
                 throw new InvalidOperationException("No se encontraron registros de producción para calcular fechas");
@@ -1214,21 +1230,41 @@ public class ReporteContableService : IReporteContableService
         }
         else
         {
-            // Usar todas las fechas disponibles desde tabla unificada seguimiento_diario (producción)
+            // Usar todas las fechas disponibles combinando la tabla legacy seguimiento_diario
+            // (tipo produccion) con la canónica seguimiento_diario_produccion.
             var loteIdsStrProd = loteIdsInt.Select(id => id.ToString()).ToList();
-            var primeraFecha = await _ctx.SeguimientoDiario
+            var primeraFechaLegacy = await _ctx.SeguimientoDiario
                 .AsNoTracking()
                 .Where(s => s.TipoSeguimiento == "produccion" && loteIdsStrProd.Contains(s.LoteId))
                 .Select(s => s.Fecha)
                 .OrderBy(f => f)
                 .FirstOrDefaultAsync(ct);
 
-            var ultimaFecha = await _ctx.SeguimientoDiario
+            var ultimaFechaLegacy = await _ctx.SeguimientoDiario
                 .AsNoTracking()
                 .Where(s => s.TipoSeguimiento == "produccion" && loteIdsStrProd.Contains(s.LoteId))
                 .Select(s => s.Fecha)
                 .OrderByDescending(f => f)
                 .FirstOrDefaultAsync(ct);
+
+            var primeraFechaNueva = await _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => loteIdsInt.Contains(s.LoteId))
+                .Select(s => s.Fecha)
+                .OrderBy(f => f)
+                .FirstOrDefaultAsync(ct);
+
+            var ultimaFechaNueva = await _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => loteIdsInt.Contains(s.LoteId))
+                .Select(s => s.Fecha)
+                .OrderByDescending(f => f)
+                .FirstOrDefaultAsync(ct);
+
+            var primeraFecha = ReporteContableHuevosCalculos.MenorFechaNoDefault(
+                primeraFechaLegacy, primeraFechaNueva);
+            var ultimaFecha = ReporteContableHuevosCalculos.MayorFechaNoDefault(
+                ultimaFechaLegacy, ultimaFechaNueva);
 
             if (primeraFecha == default)
                 throw new InvalidOperationException("No se encontraron registros de producción");
@@ -1237,9 +1273,11 @@ public class ReporteContableService : IReporteContableService
             fechaFin = ultimaFecha.Date;
         }
 
-        // Obtener seguimientos diarios de producción desde tabla unificada seguimiento_diario
+        // Seguimientos diarios de producción: fuente legacy (seguimiento_diario, tipo produccion)
+        // UNION seguimiento_diario_produccion, deduplicadas por (lote, día calendario) con el
+        // criterio canónico de las fns de producción: gana el registro de timestamp más temprano.
         var loteIdsStrSeguimientos = loteIdsInt.Select(id => id.ToString()).ToList();
-        var seguimientosRaw = await _ctx.SeguimientoDiario
+        var seguimientosLegacyRaw = await _ctx.SeguimientoDiario
             .AsNoTracking()
             .Where(s => s.TipoSeguimiento == "produccion" &&
                         loteIdsStrSeguimientos.Contains(s.LoteId) &&
@@ -1267,10 +1305,45 @@ public class ReporteContableService : IReporteContableService
             })
             .ToListAsync(ct);
 
-        var seguimientos = seguimientosRaw
-            .Where(s => int.TryParse(s.LoteId, out var lid) && lid > 0)
-            .Select(s => new { LoteId = int.Parse(s.LoteId), s.Fecha, s.HuevoTot, s.HuevoInc, s.HuevoLimpio, s.HuevoTratado, s.HuevoSucio, s.HuevoDeforme, s.HuevoBlanco, s.HuevoDobleYema, s.HuevoPiso, s.HuevoPequeno, s.HuevoRoto, s.HuevoDesecho, s.HuevoOtro })
-            .ToList();
+        var seguimientosNuevosRaw = await _ctx.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => loteIdsInt.Contains(s.LoteId) &&
+                        s.Fecha.Date >= fechaInicio.Date &&
+                        s.Fecha.Date <= fechaFin.Date)
+            .Select(s => new
+            {
+                s.LoteId,
+                s.Fecha,
+                s.HuevoTot,
+                s.HuevoInc,
+                s.HuevoLimpio,
+                s.HuevoTratado,
+                s.HuevoSucio,
+                s.HuevoDeforme,
+                s.HuevoBlanco,
+                s.HuevoDobleYema,
+                s.HuevoPiso,
+                s.HuevoPequeno,
+                s.HuevoRoto,
+                s.HuevoDesecho,
+                s.HuevoOtro
+            })
+            .ToListAsync(ct);
+
+        var seguimientos = ReporteContableHuevosCalculos.MergeDualFuentePorDia(
+            seguimientosLegacyRaw
+                .Where(s => int.TryParse(s.LoteId, out var lid) && lid > 0)
+                .Select(s => new ReporteContableHuevosCalculos.FilaHuevosDia(
+                    int.Parse(s.LoteId), s.Fecha, EsLegacy: true,
+                    s.HuevoTot, s.HuevoInc, s.HuevoLimpio, s.HuevoTratado, s.HuevoSucio,
+                    s.HuevoDeforme, s.HuevoBlanco, s.HuevoDobleYema, s.HuevoPiso,
+                    s.HuevoPequeno, s.HuevoRoto, s.HuevoDesecho, s.HuevoOtro))
+                .Concat(seguimientosNuevosRaw
+                    .Select(s => new ReporteContableHuevosCalculos.FilaHuevosDia(
+                        s.LoteId, s.Fecha, EsLegacy: false,
+                        s.HuevoTot, s.HuevoInc, s.HuevoLimpio, s.HuevoTratado, s.HuevoSucio,
+                        s.HuevoDeforme, s.HuevoBlanco, s.HuevoDobleYema, s.HuevoPiso,
+                        s.HuevoPequeno, s.HuevoRoto, s.HuevoDesecho, s.HuevoOtro))));
 
         // Obtener traslados de huevos (API espera string)
         var traslados = new List<TrasladoHuevosDto>();
@@ -1283,8 +1356,8 @@ public class ReporteContableService : IReporteContableService
                 t.Estado == "Completado"));
         }
 
-        // Crear diccionario de lotes para nombres
-        var lotesDict = sublotes.ToDictionary(
+        // Crear diccionario de lotes para nombres (padre + sublotes)
+        var lotesDict = lotesReporte.ToDictionary(
             s => s.LoteId?.ToString() ?? string.Empty,
             s => s.LoteNombre ?? string.Empty);
 
