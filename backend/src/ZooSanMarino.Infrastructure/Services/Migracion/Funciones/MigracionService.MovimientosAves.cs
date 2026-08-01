@@ -38,6 +38,7 @@ public partial class MigracionService
         int Hembras,
         int Machos,
         ContraparteLevante? Contraparte,
+        string? Motivo,
         string? Observaciones);
 
     /// <summary>Claves de lectura (título + alias) de una columna de la hoja "Movimientos Aves".</summary>
@@ -88,7 +89,7 @@ public partial class MigracionService
             if (!MigracionMovimientosAvesCalculos.TryMovimiento(tipoTexto, out var tipo))
             {
                 errores.Add(new(fila.Numero, "Tipo", tipoTexto,
-                    "Movimientos Aves: tipo no reconocido. Usá 'Salida' (aves que salen hacia otro lote) o 'Ingreso' (aves recibidas en tránsito)."));
+                    "Movimientos Aves: tipo no reconocido. Usá 'Salida' (aves que salen hacia otro lote), 'Ingreso' (aves recibidas en tránsito) o 'Venta'."));
                 continue;
             }
 
@@ -116,6 +117,7 @@ public partial class MigracionService
 
             resultado.Add(new MovimientoAvesMigFila(
                 fila.Numero, fecha.Date, tipo, hembras, machos, contraparte,
+                MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovAves("Motivo"))),
                 MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovAves("Observaciones")))));
         }
 
@@ -126,7 +128,8 @@ public partial class MigracionService
     /// Resuelve el "Lote Contraparte" contra los lotes de levante de la empresa, por id del lote base
     /// o por nombre (case/acento-insensible), con "Granja Contraparte" como desambiguador opcional.
     /// SALIDA la exige (el lote que recibe debe existir); INGRESO la acepta vacía o no resoluble
-    /// (Advertencia: aves en tránsito sin contraparte).
+    /// (Advertencia: aves en tránsito sin contraparte); VENTA no la usa (si viene, se ignora con
+    /// Advertencia — la venta no tiene lote destino).
     /// </summary>
     private ContraparteLevante? ResolverContraparteLevante(
         FilaCruda fila, MovimientoAvesMigracion tipo, int loteId,
@@ -136,6 +139,14 @@ public partial class MigracionService
     {
         var texto = MigracionCalculos.TextoLimpio(Celda(fila, ClavesMovAves("Lote Contraparte")));
         var esSalida = tipo == MovimientoAvesMigracion.Salida;
+
+        if (tipo == MovimientoAvesMigracion.Venta)
+        {
+            if (!string.IsNullOrWhiteSpace(texto))
+                errores.Add(new(fila.Numero, "Lote Contraparte", texto,
+                    "Venta: no lleva 'Lote Contraparte' (la venta no tiene lote destino); se ignora.", "Advertencia"));
+            return null;
+        }
 
         if (string.IsNullOrWhiteSpace(texto))
         {
@@ -213,13 +224,14 @@ public partial class MigracionService
         static int Baja(Dictionary<string, object?> f, string clave) =>
             f.TryGetValue(clave, out var v) && v is int n ? n : 0;
 
+        // Salidas y VENTAS restan; solo el Ingreso suma.
         var proyectado = MigracionMovimientosAvesCalculos.ProyectarSaldoAves(
             aves.AvesHActual ?? aves.AvesHInicial ?? aves.HembrasL ?? 0,
             aves.AvesMActual ?? aves.AvesMInicial ?? aves.MachosL ?? 0,
             filasJson.Sum(f => Baja(f, "mort_h") + Baja(f, "sel_h") + Baja(f, "err_h")),
             filasJson.Sum(f => Baja(f, "mort_m") + Baja(f, "sel_m") + Baja(f, "err_m")),
-            movimientosAves.Where(m => m.Tipo == MovimientoAvesMigracion.Salida).Sum(m => m.Hembras),
-            movimientosAves.Where(m => m.Tipo == MovimientoAvesMigracion.Salida).Sum(m => m.Machos),
+            movimientosAves.Where(m => m.Tipo != MovimientoAvesMigracion.Ingreso).Sum(m => m.Hembras),
+            movimientosAves.Where(m => m.Tipo != MovimientoAvesMigracion.Ingreso).Sum(m => m.Machos),
             movimientosAves.Where(m => m.Tipo == MovimientoAvesMigracion.Ingreso).Sum(m => m.Hembras),
             movimientosAves.Where(m => m.Tipo == MovimientoAvesMigracion.Ingreso).Sum(m => m.Machos));
 
@@ -255,21 +267,25 @@ public partial class MigracionService
             return (0, 0);
         }
 
-        // Idempotencia contra la auditoría: movimientos Traslado no cancelados del rango con este
-        // lote como origen (Salida) o destino (Ingreso). El lote id es global ⇒ no hace falta company.
-        // El rango se amplía ±1 día y se recorta en memoria (EF traduce .Date a date_trunc con la TZ
-        // de la sesión y pierde bordes — mismo patrón de FechasYaCargadasAsync).
+        // Idempotencia contra la auditoría: movimientos Traslado/Venta no cancelados del rango con
+        // este lote como origen (Salida/Venta) o destino (Ingreso). El lote id es global ⇒ no hace
+        // falta company. El rango se amplía ±1 día y se recorta en memoria (EF traduce .Date a
+        // date_trunc con la TZ de la sesión y pierde bordes — mismo patrón de FechasYaCargadasAsync).
         var desde = movimientos.Min(m => m.Fecha).Date.AddDays(-1);
         var hasta = movimientos.Max(m => m.Fecha).Date.AddDays(2);
         var clavesExistentes = (await _ctx.MovimientoAves.AsNoTracking()
-                .Where(m => m.TipoMovimiento == "Traslado" && m.Estado != "Cancelado"
+                .Where(m => (m.TipoMovimiento == "Traslado" || m.TipoMovimiento == "Venta")
+                            && m.Estado != "Cancelado"
                             && m.FechaMovimiento >= desde && m.FechaMovimiento < hasta
                             && (m.LoteOrigenId == loteId || m.LoteDestinoId == loteId))
-                .Select(m => new { m.FechaMovimiento, m.CantidadHembras, m.CantidadMachos, m.LoteOrigenId })
+                .Select(m => new { m.TipoMovimiento, m.FechaMovimiento, m.CantidadHembras, m.CantidadMachos, m.LoteOrigenId })
                 .ToListAsync(ct))
+            .Where(m => m.TipoMovimiento == "Traslado" || m.LoteOrigenId == loteId)
             .Select(m => MigracionMovimientosAvesCalculos.ClaveArchivo(
                 m.FechaMovimiento.Date,
-                m.LoteOrigenId == loteId ? MovimientoAvesMigracion.Salida : MovimientoAvesMigracion.Ingreso,
+                m.TipoMovimiento == "Venta" ? MovimientoAvesMigracion.Venta
+                    : m.LoteOrigenId == loteId ? MovimientoAvesMigracion.Salida
+                    : MovimientoAvesMigracion.Ingreso,
                 m.CantidadHembras, m.CantidadMachos))
             .ToHashSet();
 
@@ -339,6 +355,7 @@ public partial class MigracionService
         }
 
         var contraparteNombre = m.Contraparte?.Nombre;
+        var esVenta = m.Tipo == MovimientoAvesMigracion.Venta;
         if (esSalida)
         {
             lpl.LevanteTrasladoSalidaHembras += m.Hembras;
@@ -349,11 +366,29 @@ public partial class MigracionService
             seg.TrasladoSalidaHembras += m.Hembras;
             seg.TrasladoSalidaMachos += m.Machos;
             seg.TrasladoAvesSalida = (seg.TrasladoAvesSalida ?? 0) + totalAves;
+            seg.EsTraslado = true;
             seg.TrasladoDireccion = "SALIDA";
+            seg.TrasladoLoteContraparteId = m.Contraparte?.EspejoId;
+            seg.TrasladoGranjaContraparteId = m.Contraparte?.GranjaId;
             var destinoTxt = $"Traslado SALIDA → {contraparteNombre}";
             seg.Observaciones = string.IsNullOrWhiteSpace(seg.Observaciones)
                 ? $"{destinoTxt}. {m.Observaciones ?? ""}".Trim()
                 : $"{seg.Observaciones} | {destinoTxt}";
+        }
+        else if (esVenta)
+        {
+            // Mismo efecto que el módulo Movimiento de Aves con tipo Venta sobre levante: la cantidad
+            // queda en venta_aves_* de la fila diaria (NO en columnas de traslado ni acumulados) y el
+            // descuento va sobre las aves actuales con clamp en 0.
+            lpl.AvesHActual = Math.Max(0, (lpl.AvesHActual ?? 0) - m.Hembras);
+            lpl.AvesMActual = Math.Max(0, (lpl.AvesMActual ?? 0) - m.Machos);
+
+            seg.VentaAvesCantidad = (seg.VentaAvesCantidad ?? 0) + totalAves;
+            seg.VentaAvesMotivo = m.Motivo ?? seg.VentaAvesMotivo;
+            if (!string.IsNullOrWhiteSpace(m.Observaciones))
+                seg.Observaciones = string.IsNullOrWhiteSpace(seg.Observaciones)
+                    ? m.Observaciones
+                    : $"{seg.Observaciones} | {m.Observaciones}";
         }
         else
         {
@@ -365,7 +400,10 @@ public partial class MigracionService
             seg.TrasladoIngresoHembras += m.Hembras;
             seg.TrasladoIngresoMachos += m.Machos;
             seg.TrasladoAvesEntrante = (seg.TrasladoAvesEntrante ?? 0) + totalAves;
+            seg.EsTraslado = true;
             seg.TrasladoDireccion = "INGRESO";
+            seg.TrasladoLoteContraparteId = m.Contraparte?.EspejoId;
+            seg.TrasladoGranjaContraparteId = m.Contraparte?.GranjaId;
             var origenTxt = contraparteNombre is null
                 ? "Traslado INGRESO (aves en tránsito)"
                 : $"Traslado INGRESO ← {contraparteNombre}";
@@ -374,9 +412,6 @@ public partial class MigracionService
                 : $"{seg.Observaciones} | {origenTxt}";
         }
 
-        seg.EsTraslado = true;
-        seg.TrasladoLoteContraparteId = m.Contraparte?.EspejoId;
-        seg.TrasladoGranjaContraparteId = m.Contraparte?.GranjaId;
         seg.UpdatedAt = fechaUtc;
 
         // Auditoría Completada SIN auto-procesar (nunca MovimientoAvesService.CreateAsync: doble conteo).
@@ -384,20 +419,21 @@ public partial class MigracionService
         {
             NumeroMovimiento = $"MGA-{fechaUtc:yyyyMMdd}-{Guid.NewGuid():N}"[..24],
             FechaMovimiento = fechaAncla,
-            TipoMovimiento = "Traslado",
+            TipoMovimiento = esVenta ? "Venta" : "Traslado",
             CantidadHembras = m.Hembras,
             CantidadMachos = m.Machos,
             CantidadMixtas = 0,
             Estado = "Completado",
             FechaProcesamiento = fechaUtc,
+            MotivoMovimiento = esVenta ? m.Motivo : null,
             Observaciones = string.IsNullOrWhiteSpace(m.Observaciones)
                 ? "Carga masiva de seguimiento levante"
                 : $"Carga masiva de seguimiento levante. {m.Observaciones}",
             UsuarioMovimientoId = _current.UserId,
-            LoteOrigenId = esSalida ? lpl.LoteId : m.Contraparte?.LoteBaseId,
-            GranjaOrigenId = esSalida ? lpl.GranjaId : m.Contraparte?.GranjaId,
-            LoteDestinoId = esSalida ? m.Contraparte?.LoteBaseId : lpl.LoteId,
-            GranjaDestinoId = esSalida ? m.Contraparte?.GranjaId : lpl.GranjaId,
+            LoteOrigenId = esSalida || esVenta ? lpl.LoteId : m.Contraparte?.LoteBaseId,
+            GranjaOrigenId = esSalida || esVenta ? lpl.GranjaId : m.Contraparte?.GranjaId,
+            LoteDestinoId = esSalida ? m.Contraparte?.LoteBaseId : esVenta ? null : lpl.LoteId,
+            GranjaDestinoId = esSalida ? m.Contraparte?.GranjaId : esVenta ? null : lpl.GranjaId,
             CompanyId = lpl.CompanyId,
             CreatedByUserId = _current.UserId,
             CreatedAt = fechaUtc

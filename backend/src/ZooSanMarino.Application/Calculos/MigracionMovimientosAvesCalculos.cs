@@ -13,7 +13,12 @@ public enum MovimientoAvesMigracion
     /// <summary>Aves que SALEN de este lote hacia otro (descuenta acá; al destino no lo toca).</summary>
     Salida,
     /// <summary>Aves RECIBIDAS en tránsito (acredita acá; al origen no lo toca).</summary>
-    Ingreso
+    Ingreso,
+    /// <summary>
+    /// VENTA de aves del lote: descuenta acá y queda en <c>venta_aves_cantidad</c>/<c>venta_aves_motivo</c>
+    /// de la fila diaria (mismo efecto del módulo Movimiento de Aves con tipo Venta). Sin contraparte.
+    /// </summary>
+    Venta
 }
 
 /// <summary>
@@ -58,6 +63,13 @@ public static class MigracionMovimientosAvesCalculos
             case "en transito":
             case "transito":
                 tipo = MovimientoAvesMigracion.Ingreso;
+                return true;
+
+            case "venta":
+            case "ventas":
+            case "venta de aves":
+            case "venta aves":
+                tipo = MovimientoAvesMigracion.Venta;
                 return true;
 
             default:

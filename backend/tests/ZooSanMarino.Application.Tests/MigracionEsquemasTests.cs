@@ -252,14 +252,14 @@ public class MigracionEsquemasTests
         var esquema = MigracionEsquemas.MovimientosAvesLevante;
         Assert.Equal("Movimientos Aves", esquema.Hoja);
         Assert.Equal(
-            new[] { "Fecha", "Tipo", "Hembras", "Machos", "Lote Contraparte", "Granja Contraparte", "Observaciones" },
+            new[] { "Fecha", "Tipo", "Hembras", "Machos", "Lote Contraparte", "Granja Contraparte", "Motivo", "Observaciones" },
             esquema.Columnas.Select(c => c.Titulo).ToArray());
         Assert.Equal(
             new[] { "Fecha", "Tipo" },
             esquema.Columnas.Where(c => c.Requerida).Select(c => c.Titulo).ToArray());
 
         var tipo = esquema.Columnas.Single(c => c.Titulo == "Tipo");
-        Assert.Equal(new[] { "Salida", "Ingreso" }, tipo.Opciones);
+        Assert.Equal(new[] { "Salida", "Ingreso", "Venta" }, tipo.Opciones);
     }
 
     [Fact]

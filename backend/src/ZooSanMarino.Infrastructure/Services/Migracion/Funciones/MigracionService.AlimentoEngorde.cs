@@ -443,7 +443,11 @@ public partial class MigracionService
     /// </summary>
     private async Task<HashSet<string>> ClavesMovimientosExistentesAsync(List<MovimientoAlimentoFila> movimientos, CancellationToken ct)
     {
-        var farmIds = movimientos.Select(m => m.Destino.FarmId).Distinct().ToList();
+        // Origen incluido: el traslado inter-granja se registra sobre la granja ORIGEN (con el
+        // destino en From*), así que filtrar solo por destinos dejaba esos movimientos invisibles.
+        var farmIds = movimientos
+            .SelectMany(m => new[] { m.Destino.FarmId, m.Origen?.FarmId ?? m.Destino.FarmId })
+            .Distinct().ToList();
         var itemIds = movimientos.Select(m => m.ItemId).Distinct().ToList();
         var desde = movimientos.Min(m => m.Fecha).Date.AddDays(-1);
         var hasta = movimientos.Max(m => m.Fecha).Date.AddDays(1);
@@ -454,27 +458,47 @@ public partial class MigracionService
             .Where(x => farmIds.Contains(x.FarmId)
                         && itemIds.Contains(x.ItemInventarioEcuadorId)
                         && x.CreatedAt >= desdeUtc && x.CreatedAt <= hastaUtc)
-            .Select(x => new { x.FarmId, x.NucleoId, x.GalponId, x.ItemInventarioEcuadorId, x.Quantity, x.Reference, x.CreatedAt, x.MovementType })
+            .Select(x => new { x.FarmId, x.NucleoId, x.GalponId, x.FromFarmId, x.FromNucleoId, x.FromGalponId,
+                               x.ItemInventarioEcuadorId, x.Quantity, x.Reference, x.CreatedAt, x.MovementType })
             .ToListAsync(ct);
 
         var claves = new HashSet<string>();
         foreach (var e in existentes)
         {
-            var mov = e.MovementType switch
+            // La clave del archivo se arma con el DESTINO de la fila: cada movement_type real del
+            // servicio se reconstruye hacia esa misma ubicación. (El literal "Traslado" nunca se
+            // emite — mapearlo dejaba los traslados aplicados invisibles y un reimport tras un
+            // fallo parcial los volvía a contar en el balance.)
+            MovimientoAlimento? mov;
+            var ubicacion = new UbicacionAlimento(e.FarmId, e.NucleoId, e.GalponId);
+            switch (e.MovementType)
             {
-                "Ingreso" => MovimientoAlimento.Ingreso,
-                "Traslado" => MovimientoAlimento.Traslado,
+                case "Ingreso":
+                    mov = MovimientoAlimento.Ingreso; break;
+                // Traslado misma granja: dos patas; la de ENTRADA lleva la ubicación destino.
+                case "TrasladoEntrada":
+                    mov = MovimientoAlimento.Traslado; break;
+                // Traslado inter-granja: UNA fila (salida en tránsito) sobre el ORIGEN; el destino
+                // viaja en From* (semántica invertida del tránsito).
+                case "TrasladoInterGranjaSalida":
+                    mov = MovimientoAlimento.Traslado;
+                    ubicacion = new UbicacionAlimento(e.FromFarmId ?? e.FarmId, e.FromNucleoId, e.FromGalponId);
+                    break;
+                // Recepción de tránsito ya aceptada (fila sobre el destino elegido al recibir).
+                case "TrasladoInterGranjaEntrada":
+                    mov = MovimientoAlimento.Recepcion; break;
                 // Solo el consumo con REFERENCIA propia entra en la idempotencia de la hoja: los
                 // consumos que genera el seguimiento diario llevan "Seguimiento aves engorde #…" y no
                 // deben tapar una fila de Consumo del archivo.
-                "Consumo" when !(e.Reference ?? "").StartsWith("Seguimiento ", StringComparison.OrdinalIgnoreCase)
-                    => MovimientoAlimento.Consumo,
-                _ => (MovimientoAlimento?)null
-            };
+                case "Consumo" when !(e.Reference ?? "").StartsWith("Seguimiento ", StringComparison.OrdinalIgnoreCase):
+                    mov = MovimientoAlimento.Consumo; break;
+                default:
+                    mov = null; break;
+            }
             if (mov is null) continue;
             claves.Add(MigracionAlimentoCalculos.ClaveIdempotencia(
                 mov.Value,
-                new UbicacionAlimento(e.FarmId, e.NucleoId, e.GalponId),
+                ubicacion,
                 e.ItemInventarioEcuadorId,
                 e.CreatedAt.UtcDateTime.Date,
                 e.Quantity,

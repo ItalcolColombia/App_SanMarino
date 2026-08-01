@@ -241,8 +241,8 @@ public partial class MigracionService
             instrucciones.Add("• Huevos en levante: podés cargar las 11 categorías (+ peso) en cualquier semana; el total y los incubables se calculan del desglose.");
         if (esLevante)
         {
-            instrucciones.Add("• Hoja 'Movimientos Aves': traslados de aves de ESTE lote. 'Salida' descuenta acá y exige que el 'Lote Contraparte' exista (NO se le acreditan las aves: ese lote carga su propio Ingreso en su archivo). 'Ingreso' suma acá las aves recibidas en tránsito, sin tocar al lote origen.");
-            instrucciones.Add("• No cargues en 'Movimientos Aves' traslados que ya se registraron por pantalla, ni repitas la misma fila: los ingresos se duplicarían. Dos viajes iguales el mismo día van como una sola fila sumada.");
+            instrucciones.Add("• Hoja 'Movimientos Aves': movimientos de aves de ESTE lote. 'Salida' descuenta acá y exige que el 'Lote Contraparte' exista (NO se le acreditan las aves: ese lote carga su propio Ingreso en su archivo). 'Ingreso' suma acá las aves recibidas en tránsito, sin tocar al lote origen. 'Venta' descuenta acá y queda como venta de aves del día (con su 'Motivo'; sin contraparte).");
+            instrucciones.Add("• No cargues en 'Movimientos Aves' movimientos que ya se registraron por pantalla, ni repitas la misma fila: se duplicarían. Dos movimientos iguales el mismo día van como una sola fila sumada.");
         }
         if (wsHuevos is not null)
             instrucciones.Add("• Hoja 'Huevos': clasificación por ítem del catálogo (una fila por fecha e ítem). No la combines con las 11 categorías de la hoja 'Datos'.");
@@ -571,20 +571,27 @@ public partial class MigracionService
         return (categorias, peso);
     }
 
+    /// <summary>Largo de <c>seguimiento_diario_levante.tipo_alimento</c> (varchar 100; producción igual).</summary>
+    private const int MaxTipoAlimento = 100;
+
     /// <summary>
     /// Texto de <c>tipo_alimento</c>: el de la celda o, si no viene, los nombres de los alimentos
     /// usados (mismo criterio que engorde, para que la columna nunca quede vacía cuando sí hubo
-    /// alimento identificado).
+    /// alimento identificado). Truncado al largo de la columna: dos alimentos por sexo con nombres
+    /// largos superan los 100 caracteres y la fn entera moría con 22001 (value too long).
     /// </summary>
     private static string? ResolverTipoAlimento(FilaCruda fila, List<ItemSeguimientoDto> itemsH, List<ItemSeguimientoDto> itemsM)
     {
         var texto = MigracionCalculos.TextoLimpio(Celda(fila, "tipo alimento"));
-        if (!string.IsNullOrWhiteSpace(texto)) return texto;
-
-        var partes = new List<string>();
-        if (itemsH.Count > 0) partes.Add("H: " + string.Join(" + ", itemsH.Select(i => i.Nombre)));
-        if (itemsM.Count > 0) partes.Add("M: " + string.Join(" + ", itemsM.Select(i => i.Nombre)));
-        return partes.Count > 0 ? string.Join(" / ", partes) : null;
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            var partes = new List<string>();
+            if (itemsH.Count > 0) partes.Add("H: " + string.Join(" + ", itemsH.Select(i => i.Nombre)));
+            if (itemsM.Count > 0) partes.Add("M: " + string.Join(" + ", itemsM.Select(i => i.Nombre)));
+            if (partes.Count == 0) return null;
+            texto = string.Join(" / ", partes);
+        }
+        return texto.Length <= MaxTipoAlimento ? texto : texto[..MaxTipoAlimento];
     }
 
     /// <summary>

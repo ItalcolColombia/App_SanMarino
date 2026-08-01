@@ -43,10 +43,20 @@ public class MigracionMovimientosAvesCalculosTests
     }
 
     [Theory]
+    [InlineData("Venta")]
+    [InlineData("VENTAS")]
+    [InlineData("Venta de aves")]
+    [InlineData("venta aves")]
+    public void TryMovimiento_reconoce_venta_con_sinonimos(string texto)
+    {
+        Assert.True(MigracionMovimientosAvesCalculos.TryMovimiento(texto, out var tipo));
+        Assert.Equal(MovimientoAvesMigracion.Venta, tipo);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData("Venta")]
     [InlineData("Retiro")]
     [InlineData("Traslado")]  // ambiguo a propósito: no dice el sentido
     [InlineData("cualquier cosa")]
