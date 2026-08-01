@@ -6,7 +6,16 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
-/// Sincroniza espejo_huevo_produccion desde produccion_diaria (SeguimientoProduccion) y traslado_huevos (Completado).
+/// Sincroniza espejo_huevo_produccion desde seguimiento_diario_produccion (SeguimientoProduccion)
+/// y traslado_huevos (Completado). Recalculo ABSOLUTO e idempotente: pisa todos los contadores
+/// desde las fuentes — es el ÚNICO dueño del espejo (D1; el trigger legacy fue retirado por la
+/// migración 20260801071000).
+/// <para>
+/// La empresa se resuelve POR DATOS del LPP (fail-closed multi-tenant del repo), no por
+/// ICurrentUser: antes, un contexto de empresa activa distinto al del lote hacía que el recálculo
+/// se salteara EN SILENCIO y el espejo quedara desactualizado. Las 24 SumAsync originales
+/// (24 round-trips por cada alta/edición/borrado) quedaron colapsadas en 2 agregaciones GroupBy.
+/// </para>
 /// </summary>
 public sealed class EspejoHuevoProduccionSyncService : IEspejoHuevoProduccionSyncService
 {
@@ -21,13 +30,11 @@ public sealed class EspejoHuevoProduccionSyncService : IEspejoHuevoProduccionSyn
 
     public async Task RecalcularEspejoHuevoProduccionAsync(int lotePosturaProduccionId, CancellationToken cancellationToken = default)
     {
-        var companyId = _currentUser.CompanyId;
-
+        // Empresa POR DATOS: el dueño del espejo es la empresa del LPP, no la del token.
         var lpp = await _context.LotePosturaProduccion
             .AsNoTracking()
             .FirstOrDefaultAsync(
                 l => l.LotePosturaProduccionId == lotePosturaProduccionId
-                     && l.CompanyId == companyId
                      && l.DeletedAt == null,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -35,41 +42,80 @@ public sealed class EspejoHuevoProduccionSyncService : IEspejoHuevoProduccionSyn
         if (lpp == null)
             return;
 
-        var pq = _context.SeguimientoProduccion.AsNoTracking()
-            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId);
+        var companyId = lpp.CompanyId;
 
-        var prodTot = await pq.SumAsync(s => (long)s.HuevoTot, cancellationToken).ConfigureAwait(false);
-        var prodInc = await pq.SumAsync(s => (long)s.HuevoInc, cancellationToken).ConfigureAwait(false);
-        var pLimpio = await pq.SumAsync(s => (long)s.HuevoLimpio, cancellationToken).ConfigureAwait(false);
-        var pTrat = await pq.SumAsync(s => (long)s.HuevoTratado, cancellationToken).ConfigureAwait(false);
-        var pSucio = await pq.SumAsync(s => (long)s.HuevoSucio, cancellationToken).ConfigureAwait(false);
-        var pDef = await pq.SumAsync(s => (long)s.HuevoDeforme, cancellationToken).ConfigureAwait(false);
-        var pBlanco = await pq.SumAsync(s => (long)s.HuevoBlanco, cancellationToken).ConfigureAwait(false);
-        var pDy = await pq.SumAsync(s => (long)s.HuevoDobleYema, cancellationToken).ConfigureAwait(false);
-        var pPiso = await pq.SumAsync(s => (long)s.HuevoPiso, cancellationToken).ConfigureAwait(false);
-        var pPeq = await pq.SumAsync(s => (long)s.HuevoPequeno, cancellationToken).ConfigureAwait(false);
-        var pRoto = await pq.SumAsync(s => (long)s.HuevoRoto, cancellationToken).ConfigureAwait(false);
-        var pDes = await pq.SumAsync(s => (long)s.HuevoDesecho, cancellationToken).ConfigureAwait(false);
-        var pOtro = await pq.SumAsync(s => (long)s.HuevoOtro, cancellationToken).ConfigureAwait(false);
+        // 1 sola agregación por tabla (antes: 13 + 11 SumAsync separados, misma cifra).
+        var prod = await _context.SeguimientoProduccion.AsNoTracking()
+            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Tot = g.Sum(s => (long)s.HuevoTot),
+                Inc = g.Sum(s => (long)s.HuevoInc),
+                Limpio = g.Sum(s => (long)s.HuevoLimpio),
+                Trat = g.Sum(s => (long)s.HuevoTratado),
+                Sucio = g.Sum(s => (long)s.HuevoSucio),
+                Def = g.Sum(s => (long)s.HuevoDeforme),
+                Blanco = g.Sum(s => (long)s.HuevoBlanco),
+                Dy = g.Sum(s => (long)s.HuevoDobleYema),
+                Piso = g.Sum(s => (long)s.HuevoPiso),
+                Peq = g.Sum(s => (long)s.HuevoPequeno),
+                Roto = g.Sum(s => (long)s.HuevoRoto),
+                Des = g.Sum(s => (long)s.HuevoDesecho),
+                Otro = g.Sum(s => (long)s.HuevoOtro)
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var tq = _context.TrasladoHuevos.AsNoTracking()
+        var mov = await _context.TrasladoHuevos.AsNoTracking()
             .Where(t =>
                 t.LotePosturaProduccionId == lotePosturaProduccionId
                 && t.CompanyId == companyId
                 && t.DeletedAt == null
-                && t.Estado == "Completado");
+                && t.Estado == "Completado")
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Limpio = g.Sum(t => (long)t.CantidadLimpio),
+                Trat = g.Sum(t => (long)t.CantidadTratado),
+                Sucio = g.Sum(t => (long)t.CantidadSucio),
+                Def = g.Sum(t => (long)t.CantidadDeforme),
+                Blanco = g.Sum(t => (long)t.CantidadBlanco),
+                Dy = g.Sum(t => (long)t.CantidadDobleYema),
+                Piso = g.Sum(t => (long)t.CantidadPiso),
+                Peq = g.Sum(t => (long)t.CantidadPequeno),
+                Roto = g.Sum(t => (long)t.CantidadRoto),
+                Des = g.Sum(t => (long)t.CantidadDesecho),
+                Otro = g.Sum(t => (long)t.CantidadOtro)
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var tLimpio = await tq.SumAsync(t => (long)t.CantidadLimpio, cancellationToken).ConfigureAwait(false);
-        var tTrat = await tq.SumAsync(t => (long)t.CantidadTratado, cancellationToken).ConfigureAwait(false);
-        var tSucio = await tq.SumAsync(t => (long)t.CantidadSucio, cancellationToken).ConfigureAwait(false);
-        var tDef = await tq.SumAsync(t => (long)t.CantidadDeforme, cancellationToken).ConfigureAwait(false);
-        var tBlanco = await tq.SumAsync(t => (long)t.CantidadBlanco, cancellationToken).ConfigureAwait(false);
-        var tDy = await tq.SumAsync(t => (long)t.CantidadDobleYema, cancellationToken).ConfigureAwait(false);
-        var tPiso = await tq.SumAsync(t => (long)t.CantidadPiso, cancellationToken).ConfigureAwait(false);
-        var tPeq = await tq.SumAsync(t => (long)t.CantidadPequeno, cancellationToken).ConfigureAwait(false);
-        var tRoto = await tq.SumAsync(t => (long)t.CantidadRoto, cancellationToken).ConfigureAwait(false);
-        var tDes = await tq.SumAsync(t => (long)t.CantidadDesecho, cancellationToken).ConfigureAwait(false);
-        var tOtro = await tq.SumAsync(t => (long)t.CantidadOtro, cancellationToken).ConfigureAwait(false);
+        var prodTot = prod?.Tot ?? 0L;
+        var prodInc = prod?.Inc ?? 0L;
+        var pLimpio = prod?.Limpio ?? 0L;
+        var pTrat = prod?.Trat ?? 0L;
+        var pSucio = prod?.Sucio ?? 0L;
+        var pDef = prod?.Def ?? 0L;
+        var pBlanco = prod?.Blanco ?? 0L;
+        var pDy = prod?.Dy ?? 0L;
+        var pPiso = prod?.Piso ?? 0L;
+        var pPeq = prod?.Peq ?? 0L;
+        var pRoto = prod?.Roto ?? 0L;
+        var pDes = prod?.Des ?? 0L;
+        var pOtro = prod?.Otro ?? 0L;
+
+        var tLimpio = mov?.Limpio ?? 0L;
+        var tTrat = mov?.Trat ?? 0L;
+        var tSucio = mov?.Sucio ?? 0L;
+        var tDef = mov?.Def ?? 0L;
+        var tBlanco = mov?.Blanco ?? 0L;
+        var tDy = mov?.Dy ?? 0L;
+        var tPiso = mov?.Piso ?? 0L;
+        var tPeq = mov?.Peq ?? 0L;
+        var tRoto = mov?.Roto ?? 0L;
+        var tDes = mov?.Des ?? 0L;
+        var tOtro = mov?.Otro ?? 0L;
 
         var tInc = tLimpio + tTrat;
         var movTot = tLimpio + tTrat + tSucio + tDef + tBlanco + tDy + tPiso + tPeq + tRoto + tDes + tOtro;
@@ -89,20 +135,6 @@ public sealed class EspejoHuevoProduccionSyncService : IEspejoHuevoProduccionSyn
             return (int)v;
         }
 
-        var hTot = ToInt(prodTot);
-        var hInc = ToInt(prodInc);
-        var hLimpio = ToInt(pLimpio);
-        var hTrat = ToInt(pTrat);
-        var hSucio = ToInt(pSucio);
-        var hDef = ToInt(pDef);
-        var hBlanco = ToInt(pBlanco);
-        var hDy = ToInt(pDy);
-        var hPiso = ToInt(pPiso);
-        var hPeq = ToInt(pPeq);
-        var hRoto = ToInt(pRoto);
-        var hDes = ToInt(pDes);
-        var hOtro = ToInt(pOtro);
-
         var espejo = await _context.EspejoHuevoProduccion
             .FirstOrDefaultAsync(e => e.LotePosturaProduccionId == lotePosturaProduccionId, cancellationToken)
             .ConfigureAwait(false);
@@ -121,19 +153,19 @@ public sealed class EspejoHuevoProduccionSyncService : IEspejoHuevoProduccionSyn
         else if (espejo.CompanyId != companyId)
             return;
 
-        espejo.HuevoTotHistorico = hTot;
-        espejo.HuevoIncHistorico = hInc;
-        espejo.HuevoLimpioHistorico = hLimpio;
-        espejo.HuevoTratadoHistorico = hTrat;
-        espejo.HuevoSucioHistorico = hSucio;
-        espejo.HuevoDeformeHistorico = hDef;
-        espejo.HuevoBlancoHistorico = hBlanco;
-        espejo.HuevoDobleYemaHistorico = hDy;
-        espejo.HuevoPisoHistorico = hPiso;
-        espejo.HuevoPequenoHistorico = hPeq;
-        espejo.HuevoRotoHistorico = hRoto;
-        espejo.HuevoDesechoHistorico = hDes;
-        espejo.HuevoOtroHistorico = hOtro;
+        espejo.HuevoTotHistorico = ToInt(prodTot);
+        espejo.HuevoIncHistorico = ToInt(prodInc);
+        espejo.HuevoLimpioHistorico = ToInt(pLimpio);
+        espejo.HuevoTratadoHistorico = ToInt(pTrat);
+        espejo.HuevoSucioHistorico = ToInt(pSucio);
+        espejo.HuevoDeformeHistorico = ToInt(pDef);
+        espejo.HuevoBlancoHistorico = ToInt(pBlanco);
+        espejo.HuevoDobleYemaHistorico = ToInt(pDy);
+        espejo.HuevoPisoHistorico = ToInt(pPiso);
+        espejo.HuevoPequenoHistorico = ToInt(pPeq);
+        espejo.HuevoRotoHistorico = ToInt(pRoto);
+        espejo.HuevoDesechoHistorico = ToInt(pDes);
+        espejo.HuevoOtroHistorico = ToInt(pOtro);
 
         espejo.HuevoTotDinamico = H(prodTot, movTot);
         espejo.HuevoIncDinamico = H(prodInc, tInc);

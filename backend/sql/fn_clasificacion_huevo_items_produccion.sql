@@ -59,6 +59,7 @@ LANGUAGE plpgsql STABLE AS $fn$
 DECLARE
     v_enc_date     date;               -- fecha de referencia (encaset) en zona Bogotá
     v_lote_id_str  text;               -- flujo legacy: lote_id como texto (columna varchar del unificado)
+    v_lote_id_int  integer;            -- flujo legacy: lote resuelto, para fn_seguimiento_diario_produccion
     v_flujo_lpp    boolean := false;   -- true = flujo LPP, false = flujo legacy por lote
     v_has_lote     boolean := false;
 BEGIN
@@ -115,6 +116,7 @@ BEGIN
                 RETURN;
             END IF;
             v_lote_id_str := v_lp_lote_id::text;
+            v_lote_id_int := v_lp_lote_id;
 
             -- fecha ref = fecha_inicio_produccion; si null y hay padre -> fecha_encaset del padre
             IF v_lp_fip IS NULL AND v_lp_padre_id IS NOT NULL THEN
@@ -135,33 +137,20 @@ BEGIN
     IF NOT v_has_lote THEN RETURN; END IF;
 
     -- ════════════════════════════════════════════════════════════════════
-    -- 2) Seguimientos del lote (unificado tipo 'produccion' UNION legacy), merge por DÍA (Bogotá):
-    --    el registro más temprano gana el día — MISMO criterio que los indicadores, así el desglose
-    --    por ítem corresponde exactamente al huevo_tot que muestra la grilla.
+    -- 2) Seguimientos del lote — desde fn_seguimiento_diario_produccion (la fn diaria canónica
+    --    ya resuelve el UNION dual-fuente + dedup por día Bogotá «gana el más temprano»; acá
+    --    solo se toman los días con registro, seg_id IS NOT NULL — sin días movimiento-only).
     -- 3) Semana de vida + filtros de fecha/semana.
     -- 4) Expansión del jsonb 'huevoItems' y agregación por semana × tipo × ítem.
     -- ════════════════════════════════════════════════════════════════════
     RETURN QUERY
-    WITH crudos AS (
-        SELECT sd.fecha AS ts, sd.metadata AS meta
-          FROM seguimiento_diario_levante sd
-         WHERE sd.tipo_seguimiento = 'produccion'
-           AND ((v_flujo_lpp AND sd.lote_postura_produccion_id = p_lote_postura_produccion_id)
-             OR (NOT v_flujo_lpp AND sd.lote_id = v_lote_id_str))
-        UNION ALL
-        SELECT sp.fecha_registro AS ts, sp.metadata AS meta
-          FROM seguimiento_diario_produccion sp
-         WHERE ((v_flujo_lpp AND sp.lote_postura_produccion_id = p_lote_postura_produccion_id)
-             OR (NOT v_flujo_lpp AND sp.lote_id::text = v_lote_id_str))
-    ),
-    dedup AS (
-        SELECT DISTINCT ON ((ts AT TIME ZONE 'America/Bogota')::date) *
-          FROM crudos
-         ORDER BY (ts AT TIME ZONE 'America/Bogota')::date, ts
-    ),
-    dias AS (
-        SELECT (d.ts AT TIME ZONE 'America/Bogota')::date AS reg_date, d.meta
-          FROM dedup d
+    WITH dias AS (
+        SELECT f.fecha AS reg_date, f.metadata AS meta
+          FROM fn_seguimiento_diario_produccion(
+                   CASE WHEN v_flujo_lpp THEN p_lote_postura_produccion_id END,
+                   CASE WHEN NOT v_flujo_lpp THEN v_lote_id_int END) f
+         WHERE f.seg_id IS NOT NULL
+       AND NOT f.fila_sin_lpp   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
     ),
     filtrados AS (
         SELECT ((dd.reg_date - v_enc_date) / 7) + 1 AS sem,   -- división entera == C# (dias/7)+1

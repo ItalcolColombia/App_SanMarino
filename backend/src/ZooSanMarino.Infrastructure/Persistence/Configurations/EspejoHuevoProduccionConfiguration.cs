@@ -42,7 +42,6 @@ public class EspejoHuevoProduccionConfiguration : IEntityTypeConfiguration<Espej
         b.Property(x => x.HuevoOtroHistorico).HasColumnName("huevo_otro_historico").HasDefaultValue(0);
         b.Property(x => x.HuevoOtroDinamico).HasColumnName("huevo_otro_dinamico").HasDefaultValue(0);
 
-        b.Property(x => x.HistoricoSemanal).HasColumnName("historico_semanal").HasColumnType("jsonb");
         b.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamp with time zone");
 

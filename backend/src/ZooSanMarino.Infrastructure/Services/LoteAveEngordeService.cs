@@ -363,6 +363,11 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
 
         if (ent is null) return null;
 
+        // Gate B1 — el más destructivo: cambiar AvesEncasetadas o FechaEncaset invalida la
+        // liquidación congelada. Reabrir primero.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            ent.EstadoOperativoLote, OperacionLoteEngordeLiquidado.EditarLote);
+
         await EnsureFarmExists(dto.GranjaId, companyId);
         if (!allowed.Contains(dto.GranjaId))
             throw new InvalidOperationException("No tiene permiso para usar esta granja (no está asignada a su usuario).");
@@ -492,6 +497,10 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 allowed.Contains(x.GranjaId));
         if (ent is null || ent.DeletedAt != null) return false;
 
+        // Gate B2 — un lote liquidado no se elimina (ni soft): reabrir primero.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            ent.EstadoOperativoLote, OperacionLoteEngordeLiquidado.EliminarLote);
+
         ent.DeletedAt = DateTime.UtcNow;
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
@@ -510,6 +519,10 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 x.CompanyId == companyId &&
                 allowed.Contains(x.GranjaId));
         if (ent is null) return false;
+
+        // Gate B3 — el hard delete arrastra por FK todo el histórico del lote (la copia incluida).
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            ent.EstadoOperativoLote, OperacionLoteEngordeLiquidado.EliminarDefinitivoLote);
 
         _ctx.LoteAveEngorde.Remove(ent);
         await _ctx.SaveChangesAsync();
@@ -555,10 +568,71 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         }
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
+
+        // Liquidar ahora es transaccional: estado + copia congelada + resumen, todo o nada.
+        // Si el congelado falla, la liquidación falla entera — sin copia no hay liquidación
+        // (corrige el defecto del precedente de levante, cuyo snapshot lo dispara el front
+        // en modo best-effort, fuera de la transacción del backend).
+        await using var tx = await _ctx.Database.BeginTransactionAsync();
+
         // Panamá: si con este cierre no queda ningún lote abierto del lote base en la granja,
         // el código ERP de la granja avanza +1 (mismo SaveChanges ⇒ atómico con el cierre).
         await AvanzarCodigoErpGranjaSiCicloCerradoAsync(ent);
         await _ctx.SaveChangesAsync();
+
+        // Congelar DESPUÉS de aplicar 'Cerrado': la fn fuerza el cierre en 0 con ese estado
+        // (aves_iniciales = bajas + ventas). Congelar antes guardaría una foto distinta a la
+        // que el usuario aprobó. La fn lee su detalle EN VIVO porque la cabecera y las filas
+        // se insertan en un único statement (mismo snapshot).
+        await LiquidacionCongeladaAplicador.CongelarAsync(
+            _ctx, loteAveEngordeId, ent.LiquidadoPorUserId ?? request.ClosedByUserId.Trim(), "cierre");
+
+        // El saldo persistido queda alineado con la copia desde el instante del cierre
+        // (idempotente: IS DISTINCT FROM ⇒ 0 filas si ya coincidía).
+        await SaldoAlimentoEngordeAplicador.RecalcularPorLoteAsync(_ctx, loteAveEngordeId);
+
+        // Resumen aprobado (los campos tipados de la cabecera) — la misma fórmula que ven los
+        // dos services de seguimiento (LiquidacionEngordeCalculos vía el aplicador).
+        var resumen = await LiquidacionCongeladaAplicador.CalcularResumenVivoAsync(_ctx, loteAveEngordeId, companyId);
+        if (resumen is not null)
+            await LiquidacionCongeladaAplicador.ActualizarResumenCongeladoAsync(_ctx, loteAveEngordeId, resumen);
+
+        await tx.CommitAsync();
+        return await GetByIdAsync(loteAveEngordeId);
+    }
+
+    /// <summary>
+    /// Re-congela la liquidación SIN reabrir el lote (endpoint admin): anula la copia vigente y
+    /// crea una nueva con la fórmula de HOY (<c>origen='recongelado'</c>), refrescando el resumen.
+    /// Escape hatch para «se descubrió un bug en la fórmula después de congelar». Auditado: queda
+    /// la copia anterior anulada con quién y cuándo.
+    /// </summary>
+    public async Task<LoteAveEngordeDetailDto?> RecongelarLiquidacionAsync(int loteAveEngordeId, string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId es requerido.");
+
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return null;
+
+        var ent = await _ctx.LoteAveEngorde.AsNoTracking()
+            .SingleOrDefaultAsync(x =>
+                x.LoteAveEngordeId == loteAveEngordeId &&
+                x.CompanyId == companyId &&
+                x.DeletedAt == null &&
+                allowed.Contains(x.GranjaId));
+        if (ent is null) return null;
+
+        if (!string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote no está liquidado; no hay copia congelada que regenerar.");
+
+        await using var tx = await _ctx.Database.BeginTransactionAsync();
+        var nuevaId = await LiquidacionCongeladaAplicador.RecongelarYRefrescarResumenAsync(
+            _ctx, loteAveEngordeId, companyId, userId.Trim(), "recongelado");
+        if (nuevaId is null)
+            throw new InvalidOperationException("El lote no tiene copia congelada vigente (¿cerrado antes del backfill?). Reabra y liquide de nuevo.");
+        await tx.CommitAsync();
         return await GetByIdAsync(loteAveEngordeId);
     }
 
@@ -627,6 +701,19 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.MermaRegistradaPorUserId = request.RegistradoPorUserId.Trim();
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
+
+        // La merma se digita después de liquidar POR DISEÑO («NO afectan el registro diario»),
+        // así que este camino queda abierto con el lote cerrado — pero la copia congelada guarda
+        // el resumen aprobado, y la merma es parte de él: se actualizan los 2 campos de la
+        // cabecera vigente en el mismo SaveChanges (no toca el detalle).
+        var copiaVigente = await _ctx.LiquidacionLoteEngordeCongelada
+            .FirstOrDefaultAsync(c => c.LoteAveEngordeId == loteAveEngordeId && c.AnuladaAt == null);
+        if (copiaVigente is not null)
+        {
+            copiaVigente.MermaUnidades = request.MermaUnidades;
+            copiaVigente.MermaKilos = request.MermaKilos;
+        }
+
         await _ctx.SaveChangesAsync();
         return await GetByIdAsync(loteAveEngordeId);
     }
@@ -653,6 +740,15 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         if (!string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote no está cerrado; no aplica reapertura.");
 
+        // Reapertura transaccional: la copia congelada se ANULA (no se borra — queda el rastro de
+        // qué se había liquidado) y el lote vuelve al cálculo en vivo. Se anula PRIMERO, con el
+        // usuario y el motivo reales; el trigger trg_lote_ave_engorde_anula_congelada queda como
+        // red para cualquier UPDATE crudo que no pase por acá (encontrará la copia ya anulada).
+        await using var tx = await _ctx.Database.BeginTransactionAsync();
+        await LiquidacionCongeladaAplicador.AnularAsync(
+            _ctx, loteAveEngordeId, request.OpenedByUserId.Trim(),
+            $"Reapertura: {request.Motivo.Trim()}");
+
         ent.EstadoOperativoLote = "Abierto";
         ent.ReabiertoAt = DateTime.UtcNow;
         ent.ReabiertoPorUserId = request.OpenedByUserId.Trim();
@@ -660,6 +756,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync();
+        await tx.CommitAsync();
         return await GetByIdAsync(loteAveEngordeId);
     }
 

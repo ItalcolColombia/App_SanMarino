@@ -94,38 +94,18 @@ public partial class MovimientoAvesService
         if (movimiento == null)
             return new ResultadoMovimientoDto(false, "Movimiento no encontrado", null, null, new List<string> { "Movimiento no encontrado" }, null);
 
+        // D3: un movimiento COMPLETADO no se elimina — se CANCELA. La eliminación revertía el
+        // espejo LPP y el inventario pero NO el rastro del seguimiento diario (dejaba filas
+        // huérfanas), y con el saldo canónico leyendo movimiento_aves un soft-delete "devolvería"
+        // aves que salieron de verdad. La cancelación sí revierte todos los efectos.
+        if (movimiento.Estado == "Completado")
+            return new ResultadoMovimientoDto(false,
+                "Un movimiento completado no se puede eliminar; cancélelo para revertir sus efectos.",
+                movimiento.Id, movimiento.NumeroMovimiento,
+                new List<string> { "Movimiento en estado Completado: use Cancelar" }, null);
+
         try
         {
-            // Si estaba Completado, revertir su efecto en las tablas postura y en InventarioAves
-            if (movimiento.Estado == "Completado")
-            {
-                await RevertirAvesActualesEnPosturaAsync(movimiento);
-
-                if (movimiento.LoteOrigenId.HasValue && movimiento.GranjaOrigenId.HasValue)
-                {
-                    var inventarioOrigen = await ObtenerOCrearInventarioAsync(
-                        movimiento.LoteOrigenId.Value, movimiento.GranjaOrigenId.Value,
-                        movimiento.NucleoOrigenId, movimiento.GalponOrigenId, crearSiNoExiste: false);
-                    if (inventarioOrigen != null)
-                    {
-                        inventarioOrigen.AplicarMovimientoEntrada(movimiento.CantidadHembras, movimiento.CantidadMachos, movimiento.CantidadMixtas);
-                        inventarioOrigen.UpdatedAt = DateTime.UtcNow;
-                    }
-                }
-
-                if (movimiento.LoteDestinoId.HasValue && movimiento.GranjaDestinoId.HasValue && movimiento.TipoMovimiento == "Traslado")
-                {
-                    var inventarioDestino = await ObtenerOCrearInventarioAsync(
-                        movimiento.LoteDestinoId.Value, movimiento.GranjaDestinoId.Value,
-                        movimiento.NucleoDestinoId, movimiento.GalponDestinoId, crearSiNoExiste: false);
-                    if (inventarioDestino != null)
-                    {
-                        inventarioDestino.AplicarMovimientoSalida(movimiento.CantidadHembras, movimiento.CantidadMachos, movimiento.CantidadMixtas);
-                        inventarioDestino.UpdatedAt = DateTime.UtcNow;
-                    }
-                }
-            }
-
             // Cohortes de aves creadas por este movimiento (traslados desde seguimiento diario):
             // se dan de baja lógica junto con él para que las edades del lote receptor no queden
             // contando aves que ya se revirtieron.

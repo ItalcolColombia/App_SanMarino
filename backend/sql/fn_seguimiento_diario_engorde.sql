@@ -3,6 +3,24 @@
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
+-- v13 (2026-07-31) — Liquidación CONGELADA (migración 20260731185300_AddLiquidacionLoteEngordeCongelada).
+--   * Problema: la fn RECALCULA en cada request — no es una foto. El fix v9→v12 del 28-jul movió
+--     solas corridas CERRADAS hacía meses, después de que Costos las había dado por cuadradas.
+--   * Solución: al liquidar, fn_congelar_liquidacion_engorde guarda la tabla completa en
+--     liquidacion_lote_engorde_congelada(_fila). Esta fn pasa a ser un UNION ALL con quals
+--     excluyentes: con copia VIGENTE (anulada_at IS NULL) devuelve la copia; sin copia, el cuerpo
+--     v12 VERBATIM como subconsulta. El planner gatea la rama viva con One-Time Filter, así que
+--     con copia el cálculo vivo NO se ejecuta. Reabrir el lote anula la copia (servicio o trigger
+--     trg_lote_ave_engorde_anula_congelada) y vuelve el cálculo en vivo.
+--   * SIGUE siendo LANGUAGE sql A PROPÓSITO: la fn se inlinea en los CROSS JOIN LATERAL del
+--     Reporte de Costos / Informe Semanal / Cuadre; una variante plpgsql perdía el inlining
+--     (Function Scan) y multiplicó ×2.8 el Reporte de Costos (medido con EXPLAIN ANALYZE).
+--   * El ORDER BY exterior (fecha, COALESCE(seg_id,0)) es el MISMO de v12; `orden` de la copia es
+--     row_number() sobre ese mismo ORDER BY ⇒ el orden no cambia en ninguna rama.
+--   * Los 5 consumidores quedan congelados con este único cambio: tabla diaria, Reporte Diario de
+--     Costos, Informe Semanal Panamá, Cuadre de alimento y el saldo persistido
+--     (SaldoAlimentoEngordeAplicador lee de acá ⇒ la columna se vuelve auto-reparadora).
+--
 -- v12 (2026-07-30) — Fix: la apertura tampoco puede retroceder más allá del FIN del ciclo anterior.
 --   * La v11 excluye los movimientos atribuidos a un lote AJENO, pero eso solo tapa la mitad del
 --     agujero: `lote_ave_engorde_id` lo pone el trigger con `fn_lote_ave_engorde_id_desde_ubicacion`,
@@ -124,7 +142,6 @@
 -- v3 (plan #12): apertura filtrada por fecha_encaset.
 -- v2 (2026-05-28): rango_seg ::DATE; INV_TRASLADO_SALIDA con ABS(); saldo dinámico.
 -- =============================================================================
-
 CREATE OR REPLACE FUNCTION fn_seguimiento_diario_engorde(p_lote_id INT)
 RETURNS TABLE (
     -- Identificación
@@ -185,6 +202,43 @@ RETURNS TABLE (
     historico_consumo_alimento  JSONB,
     created_by_user_id          TEXT
 ) LANGUAGE sql STABLE AS $$
+SELECT u.seg_id, u.fecha, u.edad_dia, u.semana,
+       u.mortalidad_hembras, u.mortalidad_machos, u.sel_h, u.sel_m,
+       u.error_sexaje_hembras, u.error_sexaje_machos,
+       u.total_mort_sel_dia, u.perdidas_totales_dia,
+       u.consumo_kg_hembras, u.consumo_kg_machos, u.consumo_dia_kg,
+       u.acum_consumo_kg, u.saldo_aves, u.pct_perdidas_dia, u.saldo_alimento_kg,
+       u.ingreso_alimento_kg, u.traslado_entrada_kg, u.traslado_salida_kg, u.consumo_bodega_kg,
+       u.documento, u.despacho_hembras, u.despacho_machos, u.despacho_mixtas,
+       u.despacho_peso_neto, u.despacho_peso_tara, u.despacho_promedio_peso_ave,
+       u.tipo_alimento, u.peso_prom_hembras, u.peso_prom_machos,
+       u.uniformidad_hembras, u.uniformidad_machos, u.cv_hembras, u.cv_machos,
+       u.consumo_agua_diario, u.consumo_agua_ph, u.consumo_agua_orp, u.consumo_agua_temperatura,
+       u.observaciones, u.ciclo, u.metadata, u.items_adicionales, u.historico_consumo_alimento,
+       u.created_by_user_id
+FROM (
+    SELECT f.seg_id, f.fecha, f.edad_dia, f.semana,
+           f.mortalidad_hembras, f.mortalidad_machos, f.sel_h, f.sel_m,
+           f.error_sexaje_hembras, f.error_sexaje_machos,
+           f.total_mort_sel_dia, f.perdidas_totales_dia,
+           f.consumo_kg_hembras, f.consumo_kg_machos, f.consumo_dia_kg,
+           f.acum_consumo_kg, f.saldo_aves, f.pct_perdidas_dia, f.saldo_alimento_kg,
+           f.ingreso_alimento_kg, f.traslado_entrada_kg, f.traslado_salida_kg, f.consumo_bodega_kg,
+           f.documento, f.despacho_hembras, f.despacho_machos, f.despacho_mixtas,
+           f.despacho_peso_neto, f.despacho_peso_tara, f.despacho_promedio_peso_ave,
+           f.tipo_alimento, f.peso_prom_hembras, f.peso_prom_machos,
+           f.uniformidad_hembras, f.uniformidad_machos, f.cv_hembras, f.cv_machos,
+           f.consumo_agua_diario, f.consumo_agua_ph, f.consumo_agua_orp, f.consumo_agua_temperatura,
+           f.observaciones, f.ciclo, f.metadata, f.items_adicionales, f.historico_consumo_alimento,
+           f.created_by_user_id
+      FROM liquidacion_lote_engorde_congelada_fila f
+     WHERE f.liquidacion_id = (SELECT c.id
+                                 FROM liquidacion_lote_engorde_congelada c
+                                WHERE c.lote_ave_engorde_id = p_lote_id
+                                  AND c.anulada_at IS NULL)
+    UNION ALL
+    SELECT t.*
+      FROM (
 
 WITH
 
@@ -764,5 +818,12 @@ CROSS JOIN aves_iniciales ai
 WINDOW
     w_ord  AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW),
     w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
-ORDER BY se.fecha, COALESCE(se.seg_id, 0);
+-- (orden final: lo aplica el SELECT exterior de la union)
+      ) t
+     WHERE NOT EXISTS (SELECT 1
+                         FROM liquidacion_lote_engorde_congelada c
+                        WHERE c.lote_ave_engorde_id = p_lote_id
+                          AND c.anulada_at IS NULL)
+) u
+ORDER BY u.fecha, COALESCE(u.seg_id, 0);
 $$;

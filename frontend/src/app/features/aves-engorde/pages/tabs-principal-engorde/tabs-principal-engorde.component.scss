@@ -196,3 +196,32 @@
   color: var(--white);
   box-shadow: var(--shadow-sm);
 }
+
+/* ── Liquidación congelada ──────────────────────────────────────────────────
+   Badge en la barra de tabs: la tabla diaria de un lote liquidado es la COPIA
+   guardada al liquidar (fn v13), no un recálculo. */
+.tabs-congelado-badge {
+  margin-left: auto;
+  align-self: center;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-lg);
+  background: var(--ital-green-50);
+  border: 1px solid var(--ital-green-100);
+  color: var(--ital-green-dark);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* Nota al pie de Indicadores/Gráficas: esas pestañas calculan EN VIVO en el
+   navegador contra la guía genética vigente — quedan fuera de la copia. */
+.tab-panel__nota-congelado {
+  margin: 0 0 0.9rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  border: 1px dashed var(--ital-green-100);
+  color: var(--text-sub);
+  font-size: 0.83rem;
+}

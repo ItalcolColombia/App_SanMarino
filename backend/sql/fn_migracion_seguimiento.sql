@@ -243,7 +243,12 @@ BEGIN
         huevo_limpio integer, huevo_tratado integer, huevo_sucio integer,
         huevo_deforme integer, huevo_blanco integer, huevo_doble_yema integer,
         huevo_piso integer, huevo_pequeno integer, huevo_roto integer,
-        huevo_desecho integer, huevo_otro integer
+        huevo_desecho integer, huevo_otro integer,
+        -- ── aditivo (campos completos del modal: pesaje corporal + agua) ──
+        peso_h numeric, peso_m numeric,
+        uniformidad numeric, coef_variacion numeric, obs_pesaje text,
+        agua_diario double precision, agua_ph double precision,
+        agua_orp double precision, agua_temp double precision
     );
 
     CREATE TEMP TABLE tmp_delta_prod (lote_postura_produccion_id integer, h integer, m integer) ON COMMIT DROP;
@@ -287,6 +292,15 @@ BEGIN
             huevo_roto           = COALESCE(f.huevo_roto,0),
             huevo_desecho        = COALESCE(f.huevo_desecho,0),
             huevo_otro           = COALESCE(f.huevo_otro,0),
+            peso_h               = COALESCE(f.peso_h, sd.peso_h),
+            peso_m               = COALESCE(f.peso_m, sd.peso_m),
+            uniformidad          = COALESCE(f.uniformidad, sd.uniformidad),
+            coeficiente_variacion = COALESCE(f.coef_variacion, sd.coeficiente_variacion),
+            observaciones_pesaje = COALESCE(f.obs_pesaje, sd.observaciones_pesaje),
+            consumo_agua_diario  = COALESCE(f.agua_diario, sd.consumo_agua_diario),
+            consumo_agua_ph      = COALESCE(f.agua_ph, sd.consumo_agua_ph),
+            consumo_agua_orp     = COALESCE(f.agua_orp, sd.consumo_agua_orp),
+            consumo_agua_temperatura = COALESCE(f.agua_temp, sd.consumo_agua_temperatura),
             updated_by_user_id   = p_usuario,
             updated_at           = (NOW() AT TIME ZONE 'utc')
         FROM tmp_filas_prod f
@@ -333,6 +347,15 @@ BEGIN
             huevo_roto           = COALESCE(f.huevo_roto, sd.huevo_roto),
             huevo_desecho        = COALESCE(f.huevo_desecho, sd.huevo_desecho),
             huevo_otro           = COALESCE(f.huevo_otro, sd.huevo_otro),
+            peso_h               = COALESCE(f.peso_h, sd.peso_h),
+            peso_m               = COALESCE(f.peso_m, sd.peso_m),
+            uniformidad          = COALESCE(f.uniformidad, sd.uniformidad),
+            coeficiente_variacion = COALESCE(f.coef_variacion, sd.coeficiente_variacion),
+            observaciones_pesaje = COALESCE(f.obs_pesaje, sd.observaciones_pesaje),
+            consumo_agua_diario  = COALESCE(f.agua_diario, sd.consumo_agua_diario),
+            consumo_agua_ph      = COALESCE(f.agua_ph, sd.consumo_agua_ph),
+            consumo_agua_orp     = COALESCE(f.agua_orp, sd.consumo_agua_orp),
+            consumo_agua_temperatura = COALESCE(f.agua_temp, sd.consumo_agua_temperatura),
             updated_by_user_id   = p_usuario,
             updated_at           = (NOW() AT TIME ZONE 'utc')
         FROM tmp_filas_prod f
@@ -364,7 +387,9 @@ BEGIN
             company_id, created_by_user_id, created_at,
             metadata,
             huevo_limpio, huevo_tratado, huevo_sucio, huevo_deforme, huevo_blanco,
-            huevo_doble_yema, huevo_piso, huevo_pequeno, huevo_roto, huevo_desecho, huevo_otro
+            huevo_doble_yema, huevo_piso, huevo_pequeno, huevo_roto, huevo_desecho, huevo_otro,
+            peso_h, peso_m, uniformidad, coeficiente_variacion, observaciones_pesaje,
+            consumo_agua_diario, consumo_agua_ph, consumo_agua_orp, consumo_agua_temperatura
         )
         SELECT
             f.lote_id, lpp.lote_postura_produccion_id, f.fecha::timestamptz,
@@ -381,10 +406,17 @@ BEGIN
             COALESCE(f.huevo_limpio,0), COALESCE(f.huevo_tratado,0), COALESCE(f.huevo_sucio,0),
             COALESCE(f.huevo_deforme,0), COALESCE(f.huevo_blanco,0), COALESCE(f.huevo_doble_yema,0),
             COALESCE(f.huevo_piso,0), COALESCE(f.huevo_pequeno,0), COALESCE(f.huevo_roto,0),
-            COALESCE(f.huevo_desecho,0), COALESCE(f.huevo_otro,0)
+            COALESCE(f.huevo_desecho,0), COALESCE(f.huevo_otro,0),
+            f.peso_h, f.peso_m, f.uniformidad, f.coef_variacion, f.obs_pesaje,
+            f.agua_diario, f.agua_ph, f.agua_orp, f.agua_temp
+        -- Sin filtro por l.fase: el cierre de levante NUNCA actualiza lotes.fase (queda 'Levante')
+        -- y con el filtro un lote cerrado por el flujo normal no podía cargar producción por Excel.
+        -- La definición operativa de "producción" es la existencia del LPP vivo (mismo criterio que
+        -- DeterminarFaseLote), y ese JOIN ya está acá; la elegibilidad C# además exige
+        -- Levante Cerrado + liquidado.
         FROM tmp_filas_prod f
         JOIN public.lotes l
-          ON l.lote_id = f.lote_id AND l.company_id = p_company_id AND l.deleted_at IS NULL AND l.fase = 'Produccion'
+          ON l.lote_id = f.lote_id AND l.company_id = p_company_id AND l.deleted_at IS NULL
         JOIN public.lote_postura_produccion lpp
           ON lpp.lote_id = f.lote_id AND lpp.deleted_at IS NULL
         WHERE NOT EXISTS (

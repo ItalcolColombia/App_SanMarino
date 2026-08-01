@@ -161,6 +161,14 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         if (!ValidTipos.Contains(tipo))
             throw new InvalidOperationException($"Tipo de seguimiento inválido. Debe ser: {string.Join(", ", ValidTipos)}.");
 
+        // D1 (espejo huevos): la producción vive en seguimiento_diario_produccion vía
+        // /api/Produccion/seguimiento. Este CRUD genérico escribiría en la tabla LEGACY
+        // (seguimiento_diario_levante) filas tipo='produccion' que el espejo, la grilla y las
+        // fns canónicas dedupean/ignoran de formas distintas — camino cerrado (el front no lo usa).
+        if (tipo == "produccion")
+            throw new InvalidOperationException(
+                "El seguimiento de producción se registra por /api/Produccion/seguimiento; este endpoint genérico quedó deshabilitado para tipo 'produccion'.");
+
         var loteId = (dto.LoteId ?? "").Trim();
         if (string.IsNullOrEmpty(loteId))
             throw new InvalidOperationException("LoteId es requerido.");

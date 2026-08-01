@@ -38,7 +38,9 @@ public class EspejoHuevoProduccion
     public int HuevoOtroHistorico { get; set; }
     public int HuevoOtroDinamico { get; set; }
 
-    public string? HistoricoSemanal { get; set; } // JSONB
+    // historico_semanal (jsonb) fue RETIRADO (migración 20260801120000): estaba vacío en el 100 %
+    // de las filas, sin escritores vivos (su único poblador era el trigger legacy retirado por
+    // 20260801071000) y con cero lectores. El detalle diario vive en seguimiento_diario_produccion.
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 

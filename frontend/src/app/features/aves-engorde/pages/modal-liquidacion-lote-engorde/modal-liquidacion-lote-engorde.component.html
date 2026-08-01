@@ -230,6 +230,12 @@
           @if (loteCerrado) {
             <p class="liq-lote__banner liq-lote__banner--info" role="status">
               Este lote está <strong>cerrado</strong> (liquidado). Puede reabrirlo indicando el motivo.
+              @if (datosCongelados) {
+                <span class="liq-lote__congelado-badge">
+                  🧊 Datos congelados el {{ congeladaAt | date:'dd/MM/yyyy' }}@if (fnVersionCongelada) { ({{ fnVersionCongelada }})}
+                  — lo que ve es la foto aprobada al liquidar; reabrir el lote vuelve al cálculo en vivo.
+                </span>
+              }
             </p>
           }
           <!-- ── SECCIÓN: Cuadre del lote ─────────────────────────────────── -->
@@ -302,10 +308,13 @@
                   @if (loadingStock) {
                     <span class="liq-food__saldo-num">…</span>
                   }
-                  <span class="liq-food__saldo-label">Inventario físico</span>
+                  <!-- El stock de bodega es SIEMPRE vivo (la bodega es del galpón y sigue operando);
+                       el saldo del seguimiento queda congelado con la liquidación. Se rotulan
+                       distinto para que la diferencia no se lea como descuadre. -->
+                  <span class="liq-food__saldo-label">{{ datosCongelados ? 'Stock actual de bodega (vivo)' : 'Inventario físico' }}</span>
                 </div>
                 <div class="liq-food__ref">
-                  <span class="liq-food__ref-label">Saldo último día (seguimiento):</span>
+                  <span class="liq-food__ref-label">{{ datosCongelados ? 'Saldo de alimento liquidado (congelado):' : 'Saldo último día (seguimiento):' }}</span>
                   <span class="liq-food__ref-val">{{ resumen.saldoAlimentoKg != null ? ((resumen.saldoAlimentoKg | number:'1.0-2') + ' kg') : '—' }}</span>
                 </div>
               </div>

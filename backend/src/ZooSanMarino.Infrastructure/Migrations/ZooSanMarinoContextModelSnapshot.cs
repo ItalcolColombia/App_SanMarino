@@ -739,10 +739,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("HistoricoSemanal")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("historico_semanal");
-
                     b.Property<int>("HuevoBlancoDinamico")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -3225,6 +3221,166 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDatabaseName("ix_liquidacion_cierre_lote_levante_lote_postura_levante_id");
 
                     b.ToTable("liquidacion_cierre_lote_levante", (string)null);
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.LiquidacionLoteEngordeCongelada", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("AnuladaAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("anulada_at");
+
+                    b.Property<string>("AnuladaMotivo")
+                        .HasColumnType("text")
+                        .HasColumnName("anulada_motivo");
+
+                    b.Property<string>("AnuladaPorUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("anulada_por_user_id");
+
+                    b.Property<int?>("AvesVivasActuales")
+                        .HasColumnType("integer")
+                        .HasColumnName("aves_vivas_actuales");
+
+                    b.Property<string>("Checksum")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("checksum");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CongeladaAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("congelada_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("EstadoOperativoLote")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("estado_operativo_lote");
+
+                    b.Property<int>("Filas")
+                        .HasColumnType("integer")
+                        .HasColumnName("filas");
+
+                    b.Property<string>("FnVersion")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("fn_version");
+
+                    b.Property<int>("GranjaId")
+                        .HasColumnType("integer")
+                        .HasColumnName("granja_id");
+
+                    b.Property<int?>("HembrasInicio")
+                        .HasColumnType("integer")
+                        .HasColumnName("hembras_inicio");
+
+                    b.Property<DateTime>("LiquidadoAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("liquidado_at");
+
+                    b.Property<string>("LiquidadoPorUserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("liquidado_por_user_id");
+
+                    b.Property<int>("LoteAveEngordeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("lote_ave_engorde_id");
+
+                    b.Property<string>("LoteNombre")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("lote_nombre");
+
+                    b.Property<int?>("MachosInicio")
+                        .HasColumnType("integer")
+                        .HasColumnName("machos_inicio");
+
+                    b.Property<decimal?>("MermaKilos")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("merma_kilos");
+
+                    b.Property<int?>("MermaUnidades")
+                        .HasColumnType("integer")
+                        .HasColumnName("merma_unidades");
+
+                    b.Property<JsonDocument>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<int?>("MixtasInicio")
+                        .HasColumnType("integer")
+                        .HasColumnName("mixtas_inicio");
+
+                    b.Property<int?>("MovimientosVentaCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("movimientos_venta_count");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("origen");
+
+                    b.Property<decimal?>("SaldoAlimentoKg")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("saldo_alimento_kg");
+
+                    b.Property<int?>("TotalAvesInicio")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_aves_inicio");
+
+                    b.Property<int?>("VentasTotalHembras")
+                        .HasColumnType("integer")
+                        .HasColumnName("ventas_total_hembras");
+
+                    b.Property<int?>("VentasTotalMachos")
+                        .HasColumnType("integer")
+                        .HasColumnName("ventas_total_machos");
+
+                    b.Property<int?>("VentasTotalMixtas")
+                        .HasColumnType("integer")
+                        .HasColumnName("ventas_total_mixtas");
+
+                    b.HasKey("Id")
+                        .HasName("pk_liquidacion_lote_engorde_congelada");
+
+                    b.HasIndex("LoteAveEngordeId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_liquidacion_lote_engorde_congelada_vigente")
+                        .HasFilter("anulada_at IS NULL");
+
+                    b.HasIndex("CompanyId", "CongeladaAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_liquidacion_lote_engorde_congelada_company");
+
+                    b.HasIndex("LoteAveEngordeId", "CongeladaAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_liquidacion_lote_engorde_congelada_lote");
+
+                    b.ToTable("liquidacion_lote_engorde_congelada", (string)null);
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.LiquidacionLoteEngordePanama", b =>
@@ -8510,6 +8666,11 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Ciclo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("ciclo");
+
                     b.Property<decimal?>("CoeficienteVariacion")
                         .HasColumnType("numeric(5,2)")
                         .HasColumnName("coeficiente_variacion");
@@ -8555,6 +8716,14 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasColumnName("created_by_user_id");
+
+                    b.Property<double?>("CvHembras")
+                        .HasColumnType("double precision")
+                        .HasColumnName("cv_hembras");
+
+                    b.Property<double?>("CvMachos")
+                        .HasColumnType("double precision")
+                        .HasColumnName("cv_machos");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
@@ -8780,6 +8949,14 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<decimal?>("Uniformidad")
                         .HasColumnType("numeric(5,2)")
                         .HasColumnName("uniformidad");
+
+                    b.Property<double?>("UniformidadHembras")
+                        .HasColumnType("double precision")
+                        .HasColumnName("uniformidad_hembras");
+
+                    b.Property<double?>("UniformidadMachos")
+                        .HasColumnType("double precision")
+                        .HasColumnName("uniformidad_machos");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -10959,6 +11136,18 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasConstraintName("fk_liquidacion_cierre_lote_levante_lote_postura_levante_lote_p");
 
                     b.Navigation("LotePosturaLevante");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.LiquidacionLoteEngordeCongelada", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.LoteAveEngorde", "LoteAveEngorde")
+                        .WithMany()
+                        .HasForeignKey("LoteAveEngordeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_liquidacion_lote_engorde_congelada_lote_ave_engorde_lote_av");
+
+                    b.Navigation("LoteAveEngorde");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.LiquidacionLoteEngordePanama", b =>

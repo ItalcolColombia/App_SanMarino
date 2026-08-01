@@ -30,6 +30,9 @@ public partial class MovimientoPolloEngordeService
         if (idsLote.Count != idsLote.Distinct().Count())
             throw new InvalidOperationException("No puede repetirse el mismo lote en más de una línea.");
 
+        // Gate B8 — ningún lote liquidado puede entrar en el despacho.
+        await ValidarLotesNoLiquidadosAsync(idsLote.Select(i => (int?)i));
+
         // Validación previa: disponibilidad por lote considerando reservas Pendiente.
         var disp = await GetAvesDisponiblesLotesAsync(new AvesDisponiblesLotesRequest
         {

@@ -33,6 +33,12 @@ public partial class MigracionService : IMigracionService
     /// igual que uno digitado. Opcional por el mismo motivo que <see cref="_inventarioGestion"/>.
     /// </summary>
     private readonly IColombiaInventarioConsumoService? _colombiaConsumo;
+    /// <summary>
+    /// Recalculo del espejo de huevos de producción (hoja "Movimientos Huevos" y huevos cargados por
+    /// la hoja Datos). Opcional por el mismo motivo que <see cref="_inventarioGestion"/>: sin la
+    /// dependencia el espejo simplemente no se refresca.
+    /// </summary>
+    private readonly IEspejoHuevoProduccionSyncService? _espejoHuevoSync;
 
     static MigracionService()
     {
@@ -52,10 +58,12 @@ public partial class MigracionService : IMigracionService
         ISeguimientoAvesEngordeService seguimientoEngordeService,
         ISeguimientoDiarioLoteReproductoraService seguimientoReproductoraService,
         IInventarioGestionService? inventarioGestion = null,
-        IColombiaInventarioConsumoService? colombiaConsumo = null)
+        IColombiaInventarioConsumoService? colombiaConsumo = null,
+        IEspejoHuevoProduccionSyncService? espejoHuevoSync = null)
     {
         _inventarioGestion = inventarioGestion;
         _colombiaConsumo = colombiaConsumo;
+        _espejoHuevoSync = espejoHuevoSync;
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;

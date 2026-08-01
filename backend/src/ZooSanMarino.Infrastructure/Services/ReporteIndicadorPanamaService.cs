@@ -34,6 +34,15 @@ public class ReporteIndicadorPanamaService : IReporteIndicadorPanamaService
         if (request.LoteAveEngordeId <= 0)
             throw new InvalidOperationException("LoteAveEngordeId es requerido.");
 
+        // Empresa efectiva + alcance granular FAIL-CLOSED (antes cualquier autenticado escribía la
+        // liquidación de cualquier lote — fuga multi-empresa). Mismo patrón que
+        // GetReportePorCorridaAsync. Y gate B9: los 6 insumos se digitan ANTES de cerrar (el modal
+        // llama /liquidar y después /cerrar); tras liquidar quedan congelados con la copia.
+        var lote = await ResolverLoteDeLaEmpresaYAlcanceAsync(request.LoteAveEngordeId, ct)
+            ?? throw new InvalidOperationException("Lote no existe o no pertenece a la compañía.");
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            lote.EstadoOperativoLote, OperacionLoteEngordeLiquidado.LiquidacionInsumosPanama);
+
         var entity = await _context.LiquidacionLoteEngordePanama
             .FirstOrDefaultAsync(x => x.LoteAveEngordeId == request.LoteAveEngordeId, ct);
 
@@ -63,10 +72,43 @@ public class ReporteIndicadorPanamaService : IReporteIndicadorPanamaService
         return entity.Id;
     }
 
+    /// <summary>
+    /// El lote existe, pertenece a la EMPRESA ACTIVA y está dentro del alcance granular del
+    /// usuario. <c>null</c> = no visible (fail-closed). Mismo criterio de ubicación que
+    /// <see cref="GetReportePorCorridaAsync"/>: engorde se gobierna por galpón/núcleo.
+    /// </summary>
+    private async Task<LoteGateInfo?> ResolverLoteDeLaEmpresaYAlcanceAsync(int loteAveEngordeId, CancellationToken ct)
+    {
+        var lote = await _context.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteAveEngordeId &&
+                        l.CompanyId == _currentUser.CompanyId &&
+                        l.DeletedAt == null)
+            .Select(l => new LoteGateInfo(l.GranjaId, l.NucleoId, l.GalponId, l.EstadoOperativoLote))
+            .SingleOrDefaultAsync(ct);
+        if (lote is null) return null;
+
+        var scope = await _scopeResolver.GetScopeAsync(lote.GranjaId);
+        if (!scope.IsGlobal)
+        {
+            var galpon = (lote.GalponId ?? "").Trim();
+            var nucleo = (lote.NucleoId ?? "").Trim();
+            var visible = galpon.Length > 0
+                ? scope.GalponesVisibles.Contains(galpon)
+                : nucleo.Length > 0 && scope.NucleosVisibles.Contains(nucleo);
+            if (!visible) return null;
+        }
+        return lote;
+    }
+
+    private sealed record LoteGateInfo(int GranjaId, string? NucleoId, string? GalponId, string? EstadoOperativoLote);
+
     public async Task<ReporteIndicadoresPanamaDto?> GetReporteAsync(int loteAveEngordeId, CancellationToken ct = default)
     {
         if (loteAveEngordeId <= 0)
             throw new InvalidOperationException("loteAveEngordeId es requerido.");
+
+        // Fail-closed multi-empresa: un lote de otra empresa o fuera del alcance no devuelve datos.
+        if (await ResolverLoteDeLaEmpresaYAlcanceAsync(loteAveEngordeId, ct) is null) return null;
 
         // OJO: la fn devuelve numerics sin redondear y los derivados encadenados (eef_dos, etc.)
         // llegan a 36+ decimales → System.Decimal no los soporta y Npgsql lanza Overflow al leer.

@@ -23,7 +23,11 @@ public interface IMovimientoPolloEngordeService
     /// Completa el movimiento: descuenta aves del lote origen y suma al destino (si existe).
     /// El lote queda actualizado y el movimiento pasa a estado Completado.
     /// </summary>
-    Task<MovimientoPolloEngordeDto?> CompleteAsync(int id);
+    /// <param name="omitirGateLiquidado">
+    /// Bypass EXPLÍCITO del gate de liquidación congelada — solo la corrección de aves
+    /// disponibles (repara lotes liquidados y re-congela al terminar).
+    /// </param>
+    Task<MovimientoPolloEngordeDto?> CompleteAsync(int id, bool omitirGateLiquidado = false);
 
     /// <summary>
     /// Resumen para reportes: aves con que inició el lote, cuántas salieron (completados), cuántas vendidas (tipo Venta), aves actuales.

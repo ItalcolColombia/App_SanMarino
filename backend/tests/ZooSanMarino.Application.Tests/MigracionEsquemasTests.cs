@@ -244,6 +244,62 @@ public class MigracionEsquemasTests
     }
 
     [Fact]
+    public void SeguimientoProduccion_TieneErrorSexajePesajeYAgua()
+    {
+        // Los campos del modal de producción que la carga no aceptaba: opcionales y AL FINAL (los
+        // operarios pegan bloques enteros — el prefijo histórico no se mueve).
+        var titulos = MigracionEsquemas.SeguimientoProduccion.Columnas.Select(c => c.Titulo).ToList();
+        foreach (var titulo in new[]
+        {
+            "Error Sexaje H", "Error Sexaje M", "Peso H (g)", "Peso M (g)",
+            "Uniformidad", "Coef. Variación", "Observaciones Pesaje",
+            "Consumo Agua (L)", "pH Agua", "ORP Agua (mV)", "Temperatura Agua (°C)"
+        })
+            Assert.Contains(titulo, titulos);
+        Assert.Equal("Temperatura Agua (°C)", titulos[^1]);
+    }
+
+    [Fact]
+    public void MovimientosHuevosProduccion_HojaColumnasYRequeridas()
+    {
+        var esquema = MigracionEsquemas.MovimientosHuevosProduccion;
+        Assert.Equal("Movimientos Huevos", esquema.Hoja);
+        Assert.Equal(
+            new[]
+            {
+                "Fecha", "Tipo",
+                "Huevo Limpio", "Huevo Tratado", "Huevo Sucio", "Huevo Deforme", "Huevo Blanco",
+                "Huevo Doble Yema", "Huevo Piso", "Huevo Pequeño", "Huevo Roto", "Huevo Desecho", "Huevo Otro",
+                "Tipo Destino", "Destino", "Motivo", "Descripción", "Observaciones"
+            },
+            esquema.Columnas.Select(c => c.Titulo).ToArray());
+        Assert.Equal(
+            new[] { "Fecha", "Tipo" },
+            esquema.Columnas.Where(c => c.Requerida).Select(c => c.Titulo).ToArray());
+        Assert.Equal(new[] { "Traslado", "Venta" }, esquema.Columnas.Single(c => c.Titulo == "Tipo").Opciones);
+        Assert.Equal(new[] { "Planta", "Cliente", "Empresa" }, esquema.Columnas.Single(c => c.Titulo == "Tipo Destino").Opciones);
+    }
+
+    [Fact]
+    public void MovimientosAvesLevante_HojaColumnasYRequeridas()
+    {
+        // La hoja de traslados unilaterales de levante: el ORDEN es contrato (los operarios pegan
+        // bloques enteros) y solo Fecha + Tipo son requeridas — "Lote Contraparte" se exige POR FILA
+        // cuando el tipo es Salida, no a nivel de encabezado.
+        var esquema = MigracionEsquemas.MovimientosAvesLevante;
+        Assert.Equal("Movimientos Aves", esquema.Hoja);
+        Assert.Equal(
+            new[] { "Fecha", "Tipo", "Hembras", "Machos", "Lote Contraparte", "Granja Contraparte", "Motivo", "Observaciones" },
+            esquema.Columnas.Select(c => c.Titulo).ToArray());
+        Assert.Equal(
+            new[] { "Fecha", "Tipo" },
+            esquema.Columnas.Where(c => c.Requerida).Select(c => c.Titulo).ToArray());
+
+        var tipo = esquema.Columnas.Single(c => c.Titulo == "Tipo");
+        Assert.Equal(new[] { "Salida", "Ingreso", "Venta" }, tipo.Opciones);
+    }
+
+    [Fact]
     public void AlimentoPostura_EsElMismoEsquemaQueEngorde()
     {
         // Una sola definición de la hoja "Alimento": si engorde gana una columna, postura la recibe.

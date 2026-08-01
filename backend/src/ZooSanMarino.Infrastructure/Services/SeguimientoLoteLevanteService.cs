@@ -102,9 +102,9 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     ///   <item>empresa sin el flag (o modo por ítems) ⇒ los huevos se <b>neutralizan a null</b>
     ///   (comportamiento previo byte a byte, sin error: un cliente viejo que mande el campo no
     ///   empieza a fallar);</item>
-    ///   <item>empresa con el flag y alguna categoría <b>positiva</b> antes de la semana
-    ///   <see cref="HuevosLevanteCalculos.SemanaMinimaHuevosLevante"/> ⇒ <b>error explícito</b>
-    ///   (el usuario está cargando un dato que no corresponde a esa edad);</item>
+    ///   <item>empresa con el flag y alguna categoría <b>positiva</b> con fecha de registro
+    ///   anterior al encaset ⇒ <b>error explícito</b> (el dato no se puede ubicar en la vida del
+    ///   lote; el tab es fijo y ya no hay gate de semana);</item>
     ///   <item>todo en cero ⇒ pasa siempre (un seguimiento normal de semana 3 manda ceros).</item>
     /// </list>
     /// </summary>
@@ -119,7 +119,7 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
 
         if (huevos.Value.AlgunoPositivo && !HuevosLevanteCalculos.PermiteHuevos(lote.FechaEncaset, dto.FechaRegistro))
             throw new InvalidOperationException(
-                $"Los huevos solo pueden registrarse a partir de la semana {HuevosLevanteCalculos.SemanaMinimaHuevosLevante} de vida del lote.");
+                "Los huevos no pueden registrarse con una fecha anterior al encasetamiento del lote.");
 
         return dto;
     }

@@ -119,11 +119,17 @@ public class LoteAveEngordeController : ControllerBase
     // ===========================
     [HttpDelete("{loteAveEngordeId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(int loteAveEngordeId)
     {
-        var ok = await _svc.DeleteAsync(loteAveEngordeId);
-        return ok ? NoContent() : NotFound();
+        // Reglas de negocio (p. ej. lote liquidado con copia congelada) → 400, no 500.
+        try
+        {
+            var ok = await _svc.DeleteAsync(loteAveEngordeId);
+            return ok ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
     // ===========================
@@ -131,11 +137,17 @@ public class LoteAveEngordeController : ControllerBase
     // ===========================
     [HttpDelete("{loteAveEngordeId}/hard")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> HardDelete(int loteAveEngordeId)
     {
-        var ok = await _svc.HardDeleteAsync(loteAveEngordeId);
-        return ok ? NoContent() : NotFound();
+        // Reglas de negocio (p. ej. lote liquidado con copia congelada) → 400, no 500.
+        try
+        {
+            var ok = await _svc.HardDeleteAsync(loteAveEngordeId);
+            return ok ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
     /// <summary>Cierra el lote operativamente (liquidación); guarda usuario que ejecuta la acción.</summary>
@@ -183,6 +195,27 @@ public class LoteAveEngordeController : ControllerBase
         try
         {
             var res = await _svc.AbrirLoteAsync(loteAveEngordeId, body);
+            return res is null ? NotFound() : Ok(res);
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>
+    /// ADMIN — Regenera la copia CONGELADA de la liquidación con la fórmula vigente, sin reabrir
+    /// el lote. Para el caso «se descubrió un bug en la fórmula después de congelar». La copia
+    /// anterior queda anulada en el historial (auditoría completa de versiones).
+    /// </summary>
+    [HttpPost("{loteAveEngordeId}/recongelar")]
+    [ProducesResponseType(typeof(LoteAveEngordeDtos.LoteAveEngordeDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteAveEngordeDtos.LoteAveEngordeDetailDto>> RecongelarLiquidacion(
+        int loteAveEngordeId, [FromServices] ICurrentUser current)
+    {
+        try
+        {
+            var res = await _svc.RecongelarLiquidacionAsync(loteAveEngordeId, current.UserId.ToString());
             return res is null ? NotFound() : Ok(res);
         }
         catch (ArgumentException ex) { return BadRequest(ex.Message); }

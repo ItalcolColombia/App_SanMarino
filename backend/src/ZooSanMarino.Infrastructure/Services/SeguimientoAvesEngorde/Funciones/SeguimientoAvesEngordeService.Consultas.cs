@@ -60,87 +60,19 @@ public partial class SeguimientoAvesEngordeService
         // Alcance granular: acceso directo por lote respeta el scope (fail-closed → null/404)
         if (!await PermiteLoteEngordeAsync(loteId)) return null;
 
-        var lote = await _ctx.LoteAveEngorde.AsNoTracking()
-            .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
-            .Select(l => new
-            {
-                l.LoteAveEngordeId,
-                l.LoteNombre,
-                l.EstadoOperativoLote,
-                l.HembrasL,
-                l.MachosL,
-                l.Mixtas,
-                l.AvesEncasetadas,
-                l.MermaUnidades,
-                l.MermaKilos,
-                l.MortCajaH,
-                l.MortCajaM
-            })
-            .SingleOrDefaultAsync();
-        if (lote is null) return null;
+        var existe = await _ctx.LoteAveEngorde.AsNoTracking()
+            .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
+        if (!existe) return null;
+
+        // Lote liquidado ⇒ el resumen es la COPIA congelada (lo que se aprobó al liquidar), no un
+        // recálculo. Copias de backfill (sin resumen) caen al cálculo en vivo.
+        var congelado = await LiquidacionCongeladaAplicador.LeerResumenCongeladoAsync(_ctx, loteId, companyId);
+        if (congelado is not null) return congelado;
 
         await RecalcularSaldoAlimentoPorLoteAsync(loteId, companyId);
 
-        var saldo = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
-            .Where(s => s.LoteAveEngordeId == loteId)
-            .OrderByDescending(s => s.Fecha)
-            .Select(s => s.SaldoAlimentoKg)
-            .FirstOrDefaultAsync();
-
-        var ventas = await _ctx.LoteRegistroHistoricoUnificados.AsNoTracking()
-            .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado && h.TipoEvento == "VENTA_AVES")
-            .ToListAsync();
-
-        var vh = ventas.Sum(v => v.CantidadHembras ?? 0);
-        var vm = ventas.Sum(v => v.CantidadMachos ?? 0);
-        var vx = ventas.Sum(v => v.CantidadMixtas ?? 0);
-
-        // Encaset / inicio real: mismo criterio que historial_lote_pollo_engorde (Inicio al crear el lote).
-        var ini = await _ctx.HistorialLotePolloEngorde.AsNoTracking()
-            .Where(h =>
-                h.CompanyId == companyId &&
-                h.LoteAveEngordeId == loteId &&
-                h.TipoLote == "LoteAveEngorde" &&
-                h.TipoRegistro == "Inicio")
-            .OrderBy(h => h.Id)
-            .FirstOrDefaultAsync();
-
-        var (hInicio, mInicio, xInicio) = LiquidacionEngordeCalculos.CalcularAvesInicio(
-            ini != null, ini?.AvesHembras ?? 0, ini?.AvesMachos ?? 0, ini?.AvesMixtas ?? 0,
-            lote.HembrasL, lote.MachosL, lote.Mixtas, lote.AvesEncasetadas);
-
-        var totalInicio = hInicio + mInicio + xInicio;
-
-        // Aves vivas actuales: total inicio - (bajas acumuladas del seguimiento) - (ventas acumuladas)
-        var bajas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
-            .Where(s => s.LoteAveEngordeId == loteId)
-            .Select(s =>
-                (s.MortalidadHembras ?? 0) +
-                (s.MortalidadMachos ?? 0) +
-                (s.SelH ?? 0) +
-                (s.SelM ?? 0) +
-                (s.ErrorSexajeHembras ?? 0) +
-                (s.ErrorSexajeMachos ?? 0))
-            .SumAsync();
-        var mortCajaTotal = (lote.MortCajaH ?? 0) + (lote.MortCajaM ?? 0);
-        var avesVivas = LiquidacionEngordeCalculos.CalcularAvesVivas(totalInicio, mortCajaTotal, bajas, vh + vm + vx);
-
-        return new LiquidacionLoteEngordeResumenDto(
-            lote.LoteAveEngordeId ?? loteId,
-            lote.LoteNombre ?? "",
-            lote.EstadoOperativoLote ?? "Abierto",
-            hInicio,
-            mInicio,
-            xInicio,
-            totalInicio,
-            vh,
-            vm,
-            vx,
-            avesVivas,
-            ventas.Count,
-            saldo,
-            lote.MermaUnidades,
-            lote.MermaKilos);
+        // Cuerpo compartido con el service Ecuador y con el cierre (una sola fórmula).
+        return await LiquidacionCongeladaAplicador.CalcularResumenVivoAsync(_ctx, loteId, companyId);
     }
 
     private async Task<IReadOnlyList<LoteRegistroHistoricoUnificadoDto>> QueryHistoricoUnificadoDtosAsync(int loteId, int companyId)

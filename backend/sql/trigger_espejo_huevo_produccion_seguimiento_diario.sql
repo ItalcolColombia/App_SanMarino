@@ -1,4 +1,11 @@
 -- =============================================================================
+-- ⛔ RETIRADO (2026-08-01, migración 20260801071000_RetirarTriggerEspejoHuevoProduccionLegacy).
+--    NO REINSTALAR. El dueño ÚNICO del espejo es el recálculo C# absoluto
+--    (EspejoHuevoProduccionSyncService.RecalcularEspejoHuevoProduccionAsync). Este trigger
+--    estaba muerto en el flujo vivo (0 filas tipo='produccion' en su tabla) y era una trampa
+--    de doble conteo; se conserva el archivo SOLO como referencia histórica.
+--    Plan: fase_de_desarrollo/seguimiento_produccion_fn_canonica_plan.md (decisión D1).
+-- =============================================================================
 -- TRIGGER: seguimiento_diario_levante -> espejo_huevo_produccion
 --
 -- ⚠️ TABLA: el trigger vive sobre **public.seguimiento_diario_levante** (la tabla unificada,

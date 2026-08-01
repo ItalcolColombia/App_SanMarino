@@ -440,6 +440,22 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     return (this.resumen?.estadoOperativoLote ?? '').trim().toLowerCase() === 'cerrado';
   }
 
+  /**
+   * El resumen viene de la COPIA CONGELADA (el backend puebla `congeladaAt` solo en ese caso):
+   * los números del modal son los aprobados al liquidar, no un recálculo.
+   */
+  get datosCongelados(): boolean {
+    return !!this.resumen?.congeladaAt;
+  }
+
+  get congeladaAt(): string | null {
+    return this.resumen?.congeladaAt ?? null;
+  }
+
+  get fnVersionCongelada(): string {
+    return this.resumen?.fnVersion ?? '';
+  }
+
   get puedeConfirmarCierre(): boolean {
     if (!this.resumen || this.loteCerrado) return false;
     // Panamá: exige los 6 insumos de liquidación antes de cerrar.

@@ -185,7 +185,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         if (string.IsNullOrWhiteSpace(dto.NombreLote))
             throw new InvalidOperationException("NombreLote es requerido.");
 
-        await EnsureLoteAveEngordeExistsAsync(dto.LoteAveEngordeId);
+        await EnsureLoteAveEngordeExistsAsync(dto.LoteAveEngordeId, bloquearSiLiquidado: true);
 
         var exists = await _ctx.LoteReproductoraAveEngorde
             .AnyAsync(x => x.LoteAveEngordeId == dto.LoteAveEngordeId && x.ReproductoraId == (dto.ReproductoraId ?? "").Trim());
@@ -261,7 +261,7 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             throw new InvalidOperationException("Todos los registros bulk deben pertenecer al mismo LoteAveEngordeId.");
 
         var loteAveEngordeId = distinctLotes[0];
-        await EnsureLoteAveEngordeExistsAsync(loteAveEngordeId);
+        await EnsureLoteAveEngordeExistsAsync(loteAveEngordeId, bloquearSiLiquidado: true);
 
         var incomingKeys = list.Select(x => (x.ReproductoraId ?? "").Trim()).Distinct().ToList();
         var existingRepIds = await _ctx.LoteReproductoraAveEngorde
@@ -318,11 +318,16 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
     public async Task<LoteReproductoraAveEngordeDto?> UpdateAsync(int id, UpdateLoteReproductoraAveEngordeDto dto)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
-        var ent = await (from lrae in _ctx.LoteReproductoraAveEngorde
+        var filaUpd = await (from lrae in _ctx.LoteReproductoraAveEngorde
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
                          where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                         select lrae).SingleOrDefaultAsync();
-        if (ent is null) return null;
+                         select new { Ent = lrae, l.EstadoOperativoLote }).SingleOrDefaultAsync();
+        if (filaUpd is null) return null;
+
+        // Gate B7 — con el lote de engorde liquidado, las aves asignadas no se tocan.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            filaUpd.EstadoOperativoLote, OperacionLoteEngordeLiquidado.ReproductoraLote);
+        var ent = filaUpd.Ent;
 
         if (string.IsNullOrWhiteSpace(dto.NombreLote))
             throw new InvalidOperationException("NombreLote es requerido.");
@@ -403,11 +408,15 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         // Scoping por compañía con un join AsNoTracking que NO arrastra la entidad al ChangeTracker.
         // (Cargar la entidad DENTRO de ese join la dejaría sin rastrear → un mutate + SaveChanges sería
         //  no-op y `reabierto` nunca se escribiría en BD. Mismo patrón probado que ConfirmarAsync.)
-        var pertenece = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+        var gateReabrir = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
                                join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
                                where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                               select lrae.Id).AnyAsync();
-        if (!pertenece) return null;
+                               select new { l.EstadoOperativoLote }).FirstOrDefaultAsync();
+        if (gateReabrir is null) return null;
+
+        // Gate B7 — reabrir la reproductora habilita devolver aves de un lote liquidado.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            gateReabrir.EstadoOperativoLote, OperacionLoteEngordeLiquidado.ReproductoraLote);
 
         // Cargar la entidad RASTREADA (sin join) para que el UPDATE de reapertura sí persista.
         var ent = await _ctx.LoteReproductoraAveEngorde.SingleOrDefaultAsync(l => l.Id == id);
@@ -432,11 +441,16 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
     public async Task<bool> DeleteAsync(int id)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
-        var ent = await (from lrae in _ctx.LoteReproductoraAveEngorde
+        var filaDel = await (from lrae in _ctx.LoteReproductoraAveEngorde
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
                          where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
-                         select lrae).SingleOrDefaultAsync();
-        if (ent is null) return false;
+                         select new { Ent = lrae, l.EstadoOperativoLote }).SingleOrDefaultAsync();
+        if (filaDel is null) return false;
+
+        // Gate B7 — con el lote de engorde liquidado, sus reproductoras no se eliminan.
+        LiquidacionCongeladaGateCalculos.ValidarEscritura(
+            filaDel.EstadoOperativoLote, OperacionLoteEngordeLiquidado.ReproductoraLote);
+        var ent = filaDel.Ent;
 
         // No se puede eliminar una reproductora que ya tiene registros de seguimiento cargados:
         // primero hay que eliminar esos registros (evita borrar en cascada datos capturados).
@@ -626,12 +640,21 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         throw new InvalidOperationException("No se pudo generar un código único. Intente de nuevo.");
     }
 
-    private async Task EnsureLoteAveEngordeExistsAsync(int loteAveEngordeId)
+    /// <param name="bloquearSiLiquidado">
+    /// Gate B7 (escrituras): las reproductoras cambian las aves asignadas del lote, que alimentan
+    /// el máximo vendible — con el lote liquidado se bloquea. Las lecturas (generar código) pasan.
+    /// </param>
+    private async Task EnsureLoteAveEngordeExistsAsync(int loteAveEngordeId, bool bloquearSiLiquidado = false)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
-        var exists = await _ctx.LoteAveEngorde.AsNoTracking()
-            .AnyAsync(l => l.LoteAveEngordeId == loteAveEngordeId && l.CompanyId == companyId && l.DeletedAt == null);
-        if (!exists)
+        var lote = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteAveEngordeId && l.CompanyId == companyId && l.DeletedAt == null)
+            .Select(l => new { l.EstadoOperativoLote })
+            .SingleOrDefaultAsync();
+        if (lote is null)
             throw new InvalidOperationException($"Lote Aves de Engorde '{loteAveEngordeId}' no existe o no pertenece a la compañía.");
+        if (bloquearSiLiquidado)
+            LiquidacionCongeladaGateCalculos.ValidarEscritura(
+                lote.EstadoOperativoLote, OperacionLoteEngordeLiquidado.ReproductoraLote);
     }
 }

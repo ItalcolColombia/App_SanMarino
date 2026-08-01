@@ -719,3 +719,11 @@
   .liq-lote__footer-actions { justify-content: stretch; }
   .liq-lote__action-btn { flex: 1; }
 }
+
+/* ── Liquidación congelada: badge dentro del banner "lote cerrado" ────────── */
+.liq-lote__congelado-badge {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  opacity: 0.92;
+}
