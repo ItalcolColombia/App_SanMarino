@@ -1,3 +1,6 @@
+-- NOTA (2026-08-01): la columna historico_semanal y su indice GIN fueron RETIRADOS por la
+-- migracion 20260801120000 (columna muerta: sin escritores vivos ni lectores). NO recrearlos.
+-- Este script queda solo como referencia historica.
 -- =============================================================================
 -- TABLA ESPEJO HUEVO PRODUCCIÓN
 -- Espejo de tipos de huevos por lote_postura_produccion.

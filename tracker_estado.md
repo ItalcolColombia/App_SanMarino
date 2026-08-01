@@ -170,6 +170,12 @@ defensivo; arreglo del hack de venta negativa.
 - [x] **Reporte Contable — Movimientos de Huevos con fuente dual**: la sección leía SOLO la tabla legacy (lotes nuevos invisibles y «No se encontraron registros» al derivar fechas); ahora canónica + legacy con dedup por (lote, día) «gana el más temprano», fechas min/máx de ambas tablas y rango superior exclusivo (las filas a mediodía del último día ya no se cortan). ⚠️ El chip de tarea espejo de este fix fue INICIADO en otra sesión (worktree aparte): al integrarla, comparar contra este cambio ya commiteado y descartar el duplicado
 - [x] Validación ronda 2: build 0/0 · tests 1.516 + 1 verdes · gate de paridad 0/0/0 (Sanmarino y Demo) · smoke HTTP en :5499 con números idénticos (9.039/902, 25.330; lpp7 301/5.315) · backend detenido, puerto libre, BD consistente
 
+## Ronda 3 — reconciliación Reporte Contable + DROP historico_semanal (pedidos explícitos)
+
+- [x] **Reconciliación del chip del Reporte Contable** (merge `6de9ea9`): la rama `claude/exciting-khorana-2289c9` (base `21a5c81`) traía una versión MÁS completa que el fix inline de `5a3b220` — alcance **padre + sublotes** (la topología nueva no crea hijos: sin esto un lote como el 130 ni entraba al reporte), cálculo puro `ReporteContableHuevosCalculos` (dedup con desempate determinista `EsLegacy`) y **13 tests**. Se mergeó tomando SU versión del service y aplicando encima el rango sargable sin `.Date` (gotcha date_trunc TZ-sesión) + corte exclusivo al día siguiente (filas a mediodía del último día). Rama borrada; ⚠️ el worktree `determined-agnesi-104f60` no se pudo remover (Permission denied — la sesión del chip retiene archivos): borrarlo a mano cuando esa sesión cierre (`git worktree remove` o eliminar la carpeta + `git worktree prune`)
+- [x] **DROP `historico_semanal`** (OK explícito del usuario; migración `20260801120000_DropHistoricoSemanalEspejoHuevoProduccion`): columna jsonb + índice GIN eliminados de `espejo_huevo_produccion` (vacía en el 100 % de las filas, sin escritores vivos ni lectores; el detalle semanal es derivable de `seguimiento_diario_produccion`). Idempotente (IF EXISTS); entidad y Configuration sin la propiedad; los 3 scripts históricos de `backend/sql/` anotados para que nadie la recree. Verificado en local: columna 0, índice 0, cuadre del espejo sigue 5/5 en cero
+- [x] Validación ronda 3: build 0/0 · tests **1.529 Application + 1 Domain** verdes (incluye los 13 del chip) · commit acotado
+
 
 ---
 

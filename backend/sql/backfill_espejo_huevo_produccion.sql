@@ -1,3 +1,6 @@
+-- NOTA (2026-08-01): la columna historico_semanal y su indice GIN fueron RETIRADOS por la
+-- migracion 20260801120000 (columna muerta: sin escritores vivos ni lectores). NO recrearlos.
+-- Este script queda solo como referencia historica.
 -- =============================================================================
 -- BACKFILL: espejo_huevo_produccion desde seguimiento_diario existente
 -- Ejecutar una vez después de crear la tabla y el trigger.
