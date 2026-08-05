@@ -1,7 +1,15 @@
 import { InventarioGestionStockDto } from '../services/gestion-inventario.service';
-import { cabecerasStockExcel, construirFilasStockExcel } from './exportar-stock-excel.funcion';
+import {
+  HOJA_ALIMENTO,
+  HOJA_OTROS,
+  cabecerasStockExcel,
+  construirFilasStockExcel,
+  construirHojasStockExcel,
+  esFilaAlimento,
+  particionarStockPorConcepto
+} from './exportar-stock-excel.funcion';
 
-/** Índices de columna con ubicación (alimento). Sin ubicación se corren 2 posiciones. */
+/** Índices de columna con ubicación (hoja Alimento). Sin ubicación se corren 2 posiciones. */
 const COL = {
   granja: 0,
   nucleo: 1,
@@ -13,6 +21,8 @@ const COL = {
   cantidad: 7,
   unidad: 8
 } as const;
+
+const META = { filtros: ['Granjas: todas las asignadas (2)'], incluirUbicacion: true };
 
 function stock(over: Partial<InventarioGestionStockDto> = {}): InventarioGestionStockDto {
   return {
@@ -34,20 +44,139 @@ function stock(over: Partial<InventarioGestionStockDto> = {}): InventarioGestion
   };
 }
 
+/** Fila de alimento típica: concepto Alimento + ubicación resuelta por el backend. */
+function alimento(over: Partial<InventarioGestionStockDto> = {}): InventarioGestionStockDto {
+  return stock({
+    itemType: 'Alimento',
+    itemCodigo: 'SM0178',
+    itemNombre: 'AV. SUPER POLLO ENGORDE',
+    nucleoId: 'N1',
+    galponId: 'G2',
+    nucleoNombre: 'N1',
+    galponNombre: 'Galpon-2',
+    quantity: 13570,
+    ...over
+  });
+}
+
+describe('esFilaAlimento', () => {
+  it('reconoce el concepto sin importar mayúsculas (el catálogo lo tiene de las dos formas)', () => {
+    expect(esFilaAlimento(stock({ itemType: 'Alimento' }))).toBeTrue();
+    expect(esFilaAlimento(stock({ itemType: 'alimento' }))).toBeTrue();
+    expect(esFilaAlimento(stock({ itemType: ' ALIMENTO ' }))).toBeTrue();
+  });
+
+  it('no confunde otros conceptos con alimento', () => {
+    expect(esFilaAlimento(stock({ itemType: 'Medicamento' }))).toBeFalse();
+    expect(esFilaAlimento(stock({ itemType: 'Otros insumos' }))).toBeFalse();
+    expect(esFilaAlimento(stock({ itemType: '' }))).toBeFalse();
+  });
+
+  it('clasifica por concepto, NO por tener galpón (alimento a nivel granja sigue siendo alimento)', () => {
+    const sinUbicacion = stock({ itemType: 'Alimento', nucleoId: null, galponId: null });
+    expect(esFilaAlimento(sinUbicacion)).toBeTrue();
+  });
+});
+
+describe('particionarStockPorConcepto', () => {
+  it('separa alimento de los demás conceptos conservando el orden del backend', () => {
+    const { alimento: ali, otros } = particionarStockPorConcepto([
+      alimento({ itemCodigo: 'A1' }),
+      stock({ itemCodigo: 'O1', itemType: 'Desinfectante' }),
+      alimento({ itemCodigo: 'A2' }),
+      stock({ itemCodigo: 'O2', itemType: 'Vacuna' })
+    ]);
+
+    expect(ali.map(r => r.itemCodigo)).toEqual(['A1', 'A2']);
+    expect(otros.map(r => r.itemCodigo)).toEqual(['O1', 'O2']);
+  });
+
+  it('devuelve los dos grupos vacíos si no hay stock', () => {
+    expect(particionarStockPorConcepto([])).toEqual({ alimento: [], otros: [] });
+  });
+});
+
+describe('construirHojasStockExcel', () => {
+  it('siempre entrega las dos hojas, en orden Alimento → Otros conceptos', () => {
+    const hojas = construirHojasStockExcel([alimento(), stock()], META);
+
+    expect(hojas.length).toBe(2);
+    expect(hojas[0].sheetName).toBe(HOJA_ALIMENTO);
+    expect(hojas[1].sheetName).toBe(HOJA_OTROS);
+  });
+
+  it('la hoja de alimento lleva Núcleo y Galpón; la de otros conceptos no', () => {
+    const [hojaAli, hojaOtros] = construirHojasStockExcel([alimento(), stock()], META);
+
+    expect(hojaAli.headers).toContain('Galpón');
+    expect(hojaAli.rows[0][COL.nucleo]).toBe('N1');
+    expect(hojaAli.rows[0][COL.galpon]).toBe('Galpon-2');
+
+    expect(hojaOtros.headers).not.toContain('Núcleo');
+    expect(hojaOtros.headers).not.toContain('Galpón');
+    expect(hojaOtros.headers.length).toBe(7);
+    expect(hojaOtros.rows[0].length).toBe(7);
+  });
+
+  it('cada fila cae en una sola hoja (sin duplicar ni perder registros)', () => {
+    const filas = [alimento(), stock(), alimento(), stock({ itemType: 'Gas' }), stock({ itemType: 'alimento' })];
+    const hojas = construirHojasStockExcel(filas, META);
+
+    expect(hojas[0].rows.length).toBe(3); // 2 Alimento + 1 alimento (minúscula)
+    expect(hojas[1].rows.length).toBe(2);
+  });
+
+  it('incluye la ubicación en «Otros conceptos» si algún registro la trajera (no oculta el dato)', () => {
+    const raro = stock({ itemType: 'Medicamento', nucleoId: 'N9', galponId: 'G9', galponNombre: 'Galpon-9' });
+    const [, hojaOtros] = construirHojasStockExcel([raro], META);
+
+    expect(hojaOtros.headers).toContain('Galpón');
+    expect(hojaOtros.rows[0][COL.galpon]).toBe('Galpon-9');
+  });
+
+  it('marca «Sin registros» en la hoja que quede vacía, sin romper la estructura del archivo', () => {
+    const [hojaAli, hojaOtros] = construirHojasStockExcel([stock()], META);
+
+    expect(hojaAli.rows).toEqual([['Sin registros para este grupo.']]);
+    expect(hojaAli.subtitles).toContain('Registros: 0 · Granjas con existencias: 0');
+    expect(hojaOtros.rows.length).toBe(1);
+  });
+
+  it('resume por hoja cuántos registros y granjas trae', () => {
+    const hojas = construirHojasStockExcel(
+      [
+        alimento({ granjaNombre: 'GRANJA A' }),
+        alimento({ granjaNombre: 'GRANJA B' }),
+        stock({ granjaNombre: 'GRANJA A' })
+      ],
+      META
+    );
+
+    expect(hojas[0].subtitles).toContain('Registros: 2 · Granjas con existencias: 2');
+    expect(hojas[1].subtitles).toContain('Registros: 1 · Granjas con existencias: 1');
+  });
+
+  it('repite en las dos hojas las líneas de contexto del archivo', () => {
+    const hojas = construirHojasStockExcel([alimento(), stock()], META);
+
+    expect(hojas[0].subtitles?.[0]).toBe('Granjas: todas las asignadas (2)');
+    expect(hojas[1].subtitles?.[0]).toBe('Granjas: todas las asignadas (2)');
+  });
+
+  it('omite la ubicación en las dos hojas cuando no aplica (Colombia: todo a nivel granja)', () => {
+    const hojas = construirHojasStockExcel([alimento(), stock()], { ...META, incluirUbicacion: false });
+
+    expect(hojas[0].headers.length).toBe(7);
+    expect(hojas[0].headers).not.toContain('Galpón');
+    expect(hojas[1].headers.length).toBe(7);
+  });
+});
+
 describe('construirFilasStockExcel', () => {
   it('trae núcleo y galpón cuando la fila es de alimento', () => {
-    const fila = construirFilasStockExcel(
-      [
-        stock({
-          itemType: 'Alimento',
-          nucleoId: 'N1',
-          galponId: 'G3',
-          nucleoNombre: 'NÚCLEO 1',
-          galponNombre: 'GALPÓN 3'
-        })
-      ],
-      { incluirUbicacion: true }
-    )[0];
+    const fila = construirFilasStockExcel([alimento({ nucleoNombre: 'NÚCLEO 1', galponNombre: 'GALPÓN 3' })], {
+      incluirUbicacion: true
+    })[0];
 
     expect(fila[COL.granja]).toBe('BODEGA PRINCIAL KM 86');
     expect(fila[COL.nucleo]).toBe('NÚCLEO 1');
@@ -60,7 +189,6 @@ describe('construirFilasStockExcel', () => {
 
     expect(fila[COL.nucleo]).toBe('—');
     expect(fila[COL.galpon]).toBe('—');
-    // El resto de la fila no cambia por no tener ubicación.
     expect(fila[COL.codigo]).toBe('AV0374');
     expect(fila[COL.producto]).toBe('AV. AMINAPOT 720 1LT 0%');
     expect(fila[COL.unidad]).toBe('kg');
@@ -84,7 +212,7 @@ describe('construirFilasStockExcel', () => {
     expect(fila[COL.galpon]).toBe('G9');
   });
 
-  it('omite las columnas de ubicación cuando no aplican (Colombia: inventario a nivel granja)', () => {
+  it('omite las columnas de ubicación cuando no aplican', () => {
     const fila = construirFilasStockExcel([stock({ nucleoId: 'N1', nucleoNombre: 'NÚCLEO 1' })], {
       incluirUbicacion: false
     })[0];

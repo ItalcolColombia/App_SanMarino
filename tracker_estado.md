@@ -505,3 +505,31 @@ hay que cambiar el emisor. **Decisión del usuario: Microsoft Graph API.**
       · **E** Triple clic ⇒ 1 sola petición y 1 solo archivo; botón «Generando…» deshabilitado y luego restaurado
       · **F** Colombia (sin columnas Núcleo/Galpón) cubierto por test unitario; no se smokeó en UI por falta de sesión Colombia
 - [x] E4 Sin procesos huérfanos — 4200 y 5002 libres
+
+## Revisión 2 — dos hojas por concepto (Alimento / Otros conceptos)
+Pedido: *«que descargue todos los conceptos, una hoja que sea alimento y la otra otros conceptos,
+así tenemos varios tipos en un solo archivo»*.
+
+- [x] R1 Validado el manejo de conceptos vigente. **Hallazgo (dato, no bug del export):** el catálogo
+      tiene el mismo concepto escrito con distinta capitalización (`Otros insumos` / `Otros Insumos`,
+      `alimento` / `Alimento`) y el desplegable los lista como opciones separadas, mientras el filtro
+      del backend es *case-insensitive* ⇒ elegir cualquiera de las dos trae las mismas filas
+- [x] R2 Verificado que 167 ítems tienen `concepto IS NULL` (no cadena vacía) ⇒ `Concepto ?? TipoItem`
+      resuelve bien a `alimento`; por eso la partición compara **en minúsculas**
+- [x] R3 `esFilaAlimento` + `particionarStockPorConcepto` + `construirHojasStockExcel` (puras)
+- [x] R4 La partición se decide por **concepto**, NO por «tiene galpón» (un alimento a nivel granja
+      sigue yendo a la hoja Alimento)
+- [x] R5 Hoja `Otros conceptos` sin columnas de ubicación, con escape defensivo si algún registro
+      llegara con núcleo/galpón
+- [x] R6 El export deja de aplicar también el filtro de **concepto**; sigue respetando la búsqueda de ítem
+- [x] R7 Botón «Descargar Excel (todo el stock)» + nota y tooltip actualizados
+- [x] R8 Tests: **25 specs** de la función (partición, hojas, sin-registros, Colombia, mapeo)
+- [x] R9 `yarn build` 0 errores · `yarn test` **131/131 verdes**
+- [x] R10 Smoke: con **granja BODEGA PRINCIAL KM 86 + concepto Alimento** la grilla queda en **0 filas**
+      y el export igual pide `/stock` sin parámetros ⇒ **464 filas / 10 granjas**
+- [x] R11 Contenido del `.xlsx` verificado sobre el XML: hojas `Alimento` (135 filas de 8 granjas, con
+      Núcleo/Galpón) y `Otros conceptos` (329 filas de 10 granjas, 7 columnas). **135 + 329 = 464**:
+      ninguna fila perdida ni duplicada; ninguna fila de alimento se coló en la segunda hoja
+- [x] R12 Hoja vacía: búsqueda que solo matchea no-alimento ⇒ hoja `Alimento` con «Sin registros para
+      este grupo.» y estructura intacta; la búsqueda sí viaja (`?search=AV0374`)
+- [x] R13 Sin errores de consola; todas las llamadas 200. Servicios detenidos (4200 y 5002 libres)

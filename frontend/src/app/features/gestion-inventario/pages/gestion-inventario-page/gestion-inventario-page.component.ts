@@ -743,18 +743,20 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   /**
-   * Descarga el stock en `.xlsx` de TODAS las granjas asignadas, sin importar la granja/núcleo/galpón
-   * seleccionados en pantalla: el pedido de operación es comparar bodegas en un solo archivo.
-   * Los filtros de ÍTEM (concepto y búsqueda) sí se respetan, y el archivo deja escrito cuáles se
-   * aplicaron. Consulta propia al API (`stockList` puede venir recortado a una sola granja).
+   * Descarga el stock COMPLETO en `.xlsx`: todas las granjas asignadas y todos los conceptos,
+   * repartidos en dos hojas (Alimento con núcleo/galpón · Otros conceptos a nivel granja).
+   *
+   * Ignora a propósito los filtros de la pantalla salvo la búsqueda de ítem:
+   * - granja/núcleo/galpón, porque el pedido es comparar TODAS las bodegas en un archivo;
+   * - concepto, porque las dos hojas del archivo YA son la partición por concepto.
+   *
+   * Consulta propia al API (`stockList` puede venir recortado a una sola granja o concepto).
    */
   descargarStockExcel(): void {
     if (this.exportandoStock) return;
     this.exportandoStock = true;
 
-    const params: { itemType?: string; search?: string } = {};
-    const concepto = (this.stockConceptFilter ?? '').trim();
-    if (concepto) params.itemType = concepto;
+    const params: { search?: string } = {};
     const q = (this.searchTerm ?? '').trim();
     if (q) params.search = q;
 
@@ -762,7 +764,7 @@ export class GestionInventarioPageComponent implements OnInit {
       next: (list) => {
         this.exportandoStock = false;
         if (!list.length) {
-          this.openAlertModal('error', 'Sin datos', 'No hay stock para exportar con los filtros de ítem aplicados.');
+          this.openAlertModal('error', 'Sin datos', 'No hay stock para exportar en sus granjas asignadas.');
           return;
         }
         exportarStockExcel(list, {
@@ -777,16 +779,18 @@ export class GestionInventarioPageComponent implements OnInit {
     });
   }
 
-  /** Líneas de contexto que se escriben bajo el título del Excel de stock. */
+  /**
+   * Líneas de contexto comunes a las dos hojas del Excel. Dejan escrito que el archivo NO sigue
+   * los filtros de granja ni de concepto de la pantalla (para que nadie lo lea como un recorte).
+   */
   private filtrosStockExport(list: InventarioGestionStockDto[]): string[] {
     const granjas = new Set(list.map(s => s.granjaNombre ?? String(s.farmId)));
     const lineas = [
-      `Granjas: todas las asignadas (${granjas.size})`,
-      `Concepto: ${(this.stockConceptFilter ?? '').trim() || 'todos'}`
+      `Granjas: todas las asignadas (${granjas.size}) — no aplica la granja seleccionada en pantalla`,
+      'Conceptos: todos — repartidos en las hojas Alimento y Otros conceptos'
     ];
     const q = (this.searchTerm ?? '').trim();
-    if (q) lineas.push(`Búsqueda de ítem: ${q}`);
-    lineas.push(`Registros: ${list.length}`);
+    if (q) lineas.push(`Búsqueda de ítem aplicada: ${q}`);
     return lineas;
   }
 
