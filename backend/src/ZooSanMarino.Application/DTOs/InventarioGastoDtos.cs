@@ -127,6 +127,52 @@ public sealed record InventarioGastoItemStockDto(
     decimal StockCantidad
 );
 
+/// <summary>
+/// Existencia de un ítem del catálogo en una granja, con lo consumido en el rango del reporte.
+/// El universo son TODOS los ítems no-alimento activos de la empresa: un ítem sin consumo aparece
+/// igual, con su saldo (es el control de inventario que pidió el usuario final).
+/// </summary>
+public sealed record InventarioGastoExistenciaDto(
+    int FarmId,
+    string? GranjaNombre,
+    int ItemInventarioEcuadorId,
+    string Codigo,
+    string Nombre,
+    string TipoItem,
+    string Unidad,
+    string? Concepto,
+    decimal SaldoActual,
+    decimal ConsumidoRango,
+    int GastosRango
+);
+
+/// <summary>
+/// Fila cruda de <c>fn_inventario_gastos_existencias</c> (SqlQueryRaw). Props PascalCase que EF mapea
+/// a las columnas snake_case de la función (ver gotcha del módulo).
+/// </summary>
+public sealed class InventarioGastoExistenciaRow
+{
+    public int FarmId { get; set; }
+    public string? GranjaNombre { get; set; }
+    public int ItemInventarioEcuadorId { get; set; }
+    public string Codigo { get; set; } = null!;
+    public string Nombre { get; set; } = null!;
+    public string TipoItem { get; set; } = null!;
+    public string Unidad { get; set; } = null!;
+    public string? Concepto { get; set; }
+    public decimal SaldoActual { get; set; }
+    public decimal ConsumidoRango { get; set; }
+    public int GastosRango { get; set; }
+}
+
+/// <summary>Filtros de la consulta de existencias (hoja 2 del reporte).</summary>
+public sealed record InventarioGastoExistenciasRequest(
+    int? FarmId = null,
+    DateTime? FechaDesde = null,
+    DateTime? FechaHasta = null,
+    string? Concepto = null
+);
+
 /// <summary>Una fila por línea de detalle (export Excel/CSV).</summary>
 public sealed record InventarioGastoExportRowDto(
     int InventarioGastoId,

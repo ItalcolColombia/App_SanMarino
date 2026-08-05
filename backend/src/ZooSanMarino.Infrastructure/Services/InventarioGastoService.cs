@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -159,13 +160,23 @@ public class InventarioGastoService : IInventarioGastoService
         }
     }
 
+    /// <summary>
+    /// Filas del reporte, una por línea de consumo.
+    ///
+    /// Los gastos ELIMINADOS quedan SIEMPRE fuera, sin importar lo que pida el request: su stock ya
+    /// volvió al inventario (ver <see cref="DeleteAsync"/>), así que contarlos como consumo duplica
+    /// el gasto en el reporte contable. Antes se colaban 46 filas anuladas mezcladas con las reales.
+    /// El historial de eliminados se consulta por pantalla (<see cref="SearchAsync"/> sí respeta el
+    /// filtro de estado).
+    /// </summary>
     public async Task<List<InventarioGastoExportRowDto>> ExportAsync(InventarioGastoSearchRequest req, CancellationToken ct = default)
     {
         var companyId = await GetEffectiveCompanyIdAsync(ct);
         if (companyId is null or <= 0) return new List<InventarioGastoExportRowDto>();
 
         var q = _db.InventarioGastos.AsNoTracking()
-            .Where(g => g.CompanyId == companyId.Value);
+            .Where(g => g.CompanyId == companyId.Value)
+            .Where(g => g.Estado != InventarioGastoReporteCalculos.EstadoEliminado);
 
         if (req.FarmId.HasValue) q = q.Where(g => g.FarmId == req.FarmId.Value);
         if (!string.IsNullOrWhiteSpace(req.NucleoId)) q = q.Where(g => g.NucleoId == req.NucleoId!.Trim());
@@ -302,6 +313,35 @@ public class InventarioGastoService : IInventarioGastoService
                 x.g.DeletedByUserId
             );
         }).ToList();
+    }
+
+    /// <summary>
+    /// Existencias del catálogo no-alimento con su saldo actual y lo consumido en el rango.
+    ///
+    /// El universo son TODOS los ítems activos de la empresa (no solo los que tuvieron consumo): un
+    /// ítem sin movimiento aparece igual con su saldo, que es el control de inventario que pidió el
+    /// usuario final. Lo arma <c>fn_inventario_gastos_existencias</c> — el backend solo pasa filtros
+    /// y mapea (la BD filtra y agrega; traer catálogo × granjas a memoria no escala multipaís).
+    /// </summary>
+    public async Task<List<InventarioGastoExistenciaDto>> GetExistenciasAsync(InventarioGastoExistenciasRequest req, CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        if (companyId is null or <= 0) return new List<InventarioGastoExistenciaDto>();
+
+        var rows = await _db.Database
+            .SqlQueryRaw<InventarioGastoExistenciaRow>(
+                "SELECT * FROM fn_inventario_gastos_existencias({0}::int, {1}::int, {2}::date, {3}::date, {4}::text)",
+                companyId.Value,
+                (object?)req.FarmId ?? DBNull.Value,
+                (object?)req.FechaDesde?.Date ?? DBNull.Value,
+                (object?)req.FechaHasta?.Date ?? DBNull.Value,
+                (object?)Trimmed(req.Concepto) ?? DBNull.Value)
+            .ToListAsync(ct);
+
+        return rows.Select(r => new InventarioGastoExistenciaDto(
+            r.FarmId, r.GranjaNombre, r.ItemInventarioEcuadorId, r.Codigo, r.Nombre,
+            r.TipoItem, r.Unidad, InventarioGastoReporteCalculos.EtiquetaConcepto(r.Concepto),
+            r.SaldoActual, r.ConsumidoRango, r.GastosRango)).ToList();
     }
 
     public async Task<InventarioGastoDto> GetByIdAsync(int id, CancellationToken ct = default)
@@ -486,21 +526,29 @@ public class InventarioGastoService : IInventarioGastoService
         return await GetByIdAsync(gasto.Id, ct);
     }
 
+    /// <summary>
+    /// Anula el gasto (Estado = Eliminado) y DEVUELVE al inventario lo consumido, línea por línea,
+    /// dentro de una transacción. Fail-closed por empresa: el gasto se busca acotado a la empresa
+    /// efectiva, para que un id de otra compañía no llegue nunca a mover su stock.
+    /// </summary>
     public async Task DeleteAsync(int id, string? motivo, CancellationToken ct = default)
     {
         var uid = CurrentUserIdString();
         var now = DateTimeOffset.UtcNow;
 
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        if (companyId is null or <= 0) throw new UnauthorizedAccessException("Empresa activa inválida.");
+
         var gasto = await _db.InventarioGastos
             .Include(g => g.Detalles)
-            .FirstOrDefaultAsync(g => g.Id == id, ct);
+            .FirstOrDefaultAsync(g => g.Id == id && g.CompanyId == companyId.Value, ct);
         if (gasto == null) throw new InvalidOperationException("El gasto no existe.");
-        if (string.Equals(gasto.Estado, "Eliminado", StringComparison.OrdinalIgnoreCase))
+        if (InventarioGastoReporteCalculos.EsGastoEliminado(gasto.Estado))
             return;
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-        gasto.Estado = "Eliminado";
+        gasto.Estado = InventarioGastoReporteCalculos.EstadoEliminado;
         gasto.DeletedAt = now;
         gasto.DeletedByUserId = uid;
         _db.InventarioGastos.Update(gasto);

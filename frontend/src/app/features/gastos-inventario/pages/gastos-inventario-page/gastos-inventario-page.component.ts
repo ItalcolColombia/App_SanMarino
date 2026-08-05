@@ -6,9 +6,10 @@ import { environment } from '../../../../../environments/environment';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { exportarGastosInventarioExcel } from '../../funciones/exportar-gastos-inventario-excel.funcion';
 import {
   CreateInventarioGastoRequest,
-  InventarioGastoExportRowDto,
+  EstadoGastoFiltro,
   InventarioGastoItemStockDto,
   InventarioGastoLineaRequest,
   InventarioGastoListItemDto,
@@ -37,6 +38,13 @@ export class GastosInventarioPageComponent implements OnInit {
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
   selectedLoteId: number | null = null;
+
+  /**
+   * Estado de los gastos que muestra la tabla. Por defecto solo los **activos**: un gasto eliminado
+   * ya devolvió su stock al inventario, así que no es consumo. Los otros valores permiten consultar
+   * el historial de eliminados por pantalla — el reporte Excel los excluye siempre.
+   */
+  selectedEstado: EstadoGastoFiltro = 'Activo';
 
   conceptos: string[] = [];
   list: InventarioGastoListItemDto[] = [];
@@ -111,7 +119,8 @@ export class GastosInventarioPageComponent implements OnInit {
           farmId: this.selectedFarmId ?? undefined,
           nucleoId: this.selectedNucleoId ?? undefined,
           galponId: this.selectedGalponId ?? undefined,
-          loteAveEngordeId: this.selectedLoteId ?? undefined
+          loteAveEngordeId: this.selectedLoteId ?? undefined,
+          estado: this.selectedEstado || undefined
         })
       );
       this.list = list ?? [];
@@ -197,12 +206,13 @@ export class GastosInventarioPageComponent implements OnInit {
     await this.eliminar(row);
   }
 
-  /** Limpia los filtros (granja/corrida) y recarga. */
+  /** Limpia los filtros (granja/corrida/estado) y recarga. El estado vuelve a «Activos». */
   limpiarFiltros(): void {
     this.selectedFarmId = null;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
     this.selectedLoteId = null;
+    this.selectedEstado = 'Activo';
     this.refresh();
   }
 
@@ -334,78 +344,43 @@ export class GastosInventarioPageComponent implements OnInit {
     return Number(v).toFixed(decimals);
   }
 
-  exportExcel(): void {
+  /**
+   * Descarga el reporte `.xlsx` de dos hojas: **Consumos** (sin eliminados — el backend los excluye)
+   * y **Existencias** (todo el catálogo, tenga o no consumo). Las dos consultas van en paralelo y el
+   * armado del libro lo hace la función pura de `funciones/`.
+   */
+  async exportExcel(): Promise<void> {
     if (this.exporting) return;
     this.exporting = true;
     this.error = null;
-    this.api
-      .export({
+    try {
+      const filtrosComunes = {
         farmId: this.selectedFarmId ?? undefined,
         nucleoId: this.selectedNucleoId ?? undefined,
         galponId: this.selectedGalponId ?? undefined,
         loteAveEngordeId: this.selectedLoteId ?? undefined
-      })
-      .subscribe({
-        next: rows => {
-          this.exporting = false;
-          const csv = this.buildGastosExportCsv(rows ?? []);
-          const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `gastos-inventario-${new Date().toISOString().slice(0, 10)}.csv`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          this.toast.success(`Se exportaron ${rows?.length ?? 0} fila(s).`, 'Exportar');
-        },
-        error: (e: any) => {
-          this.exporting = false;
-          const msg = e?.error?.error ?? e?.message ?? 'No se pudo exportar.';
-          this.error = msg;
-          this.toast.error(msg, 'Exportar');
-        }
-      });
-  }
+      };
+      const [consumos, existencias] = await Promise.all([
+        firstValueFrom(this.api.export(filtrosComunes)),
+        firstValueFrom(this.api.existencias({ farmId: this.selectedFarmId ?? undefined }))
+      ]);
 
-  private buildGastosExportCsv(rows: InventarioGastoExportRowDto[]): string {
-    const esc = (v: string | number | null | undefined): string => {
-      const t = v == null ? '' : String(v);
-      if (/[",\n\r]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
-      return t;
-    };
-    const headers = [
-      'Fecha',
-      'Granja',
-      'Galpón',
-      'Lote',
-      'Código ítem',
-      'Nombre ítem',
-      'Tipo ítem',
-      'Cantidad',
-      'Unidad',
-      'Stock antes',
-      'Stock después',
-      'Fecha registro'
-    ];
-    const lines = [headers.join(',')];
-    for (const r of rows) {
-      lines.push(
-        [
-          esc(r.fecha?.slice?.(0, 10) ?? r.fecha),
-          esc(r.granjaNombre),
-          esc(r.galponNombre),
-          esc(r.loteNombre),
-          esc(r.itemCodigo),
-          esc(r.itemNombre),
-          esc(r.itemTipo),
-          esc(r.cantidad),
-          esc(r.unidad),
-          esc(r.stockAntes),
-          esc(r.stockDespues),
-          esc(r.createdAt)
-        ].join(',')
+      exportarGastosInventarioExcel(consumos ?? [], existencias ?? [], {
+        granjaNombre: this.selectedFarmId ? (consumos?.[0]?.granjaNombre ?? existencias?.[0]?.granjaNombre ?? null) : null,
+        nucleoNombre: this.selectedNucleoId,
+        galponNombre: this.selectedGalponId,
+        loteNombre: this.list.find(r => r.loteAveEngordeId === this.selectedLoteId)?.loteNombre ?? null
+      });
+      this.toast.success(
+        `Se exportaron ${consumos?.length ?? 0} consumo(s) y ${existencias?.length ?? 0} existencia(s).`,
+        'Exportar'
       );
+    } catch (e: any) {
+      const msg = e?.error?.error ?? e?.message ?? 'No se pudo exportar.';
+      this.error = msg;
+      this.toast.error(msg, 'Exportar');
+    } finally {
+      this.exporting = false;
     }
-    return lines.join('\r\n');
   }
 }
-

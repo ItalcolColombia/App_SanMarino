@@ -79,7 +79,11 @@ public class InventarioGastosController : ControllerBase
         return Ok(list);
     }
 
-    /// <summary>Exportación detallada (una fila por línea de consumo), con nombres de granja, núcleo y galpón.</summary>
+    /// <summary>
+    /// Exportación detallada (una fila por línea de consumo), con nombres de granja, núcleo y galpón.
+    /// NUNCA incluye gastos eliminados: su stock ya volvió al inventario, contarlos duplicaría el
+    /// gasto en el reporte. Para consultar el historial de eliminados, use el listado con estado.
+    /// </summary>
     [HttpGet("export")]
     [ProducesResponseType(typeof(IEnumerable<InventarioGastoExportRowDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Export(
@@ -106,6 +110,29 @@ public class InventarioGastosController : ControllerBase
             Estado: estado
         );
         var rows = await _svc.ExportAsync(req, ct);
+        return Ok(rows);
+    }
+
+    /// <summary>
+    /// Existencias de TODOS los ítems no-alimento del catálogo por granja (tengan o no consumo), con
+    /// su saldo actual y lo consumido en el rango. Es la hoja de control de inventario del reporte.
+    /// </summary>
+    [HttpGet("existencias")]
+    [ProducesResponseType(typeof(IEnumerable<InventarioGastoExistenciaDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetExistencias(
+        [FromQuery] int? farmId = null,
+        [FromQuery] DateTime? fechaDesde = null,
+        [FromQuery] DateTime? fechaHasta = null,
+        [FromQuery] string? concepto = null,
+        CancellationToken ct = default)
+    {
+        var req = new InventarioGastoExistenciasRequest(
+            FarmId: farmId,
+            FechaDesde: fechaDesde,
+            FechaHasta: fechaHasta,
+            Concepto: concepto
+        );
+        var rows = await _svc.GetExistenciasAsync(req, ct);
         return Ok(rows);
     }
 
