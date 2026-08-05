@@ -235,7 +235,9 @@ public partial class SeguimientoAvesEngordeService
                     dto.LoteId, ent.Id, dto.FechaRegistro,
                     bajasHembrasNuevas: bajasH, bajasMachosNuevas: bajasM);
             }
-            catch (Exception ex) { Console.WriteLine($"Error al descontar aves desde seguimiento engorde: {ex.Message}"); }
+            // Si el descuento falla, el registro queda creado y el maestro SIN descontar: hay que poder
+            // verlo. A Console no lo lee nadie en ECS; al logger sí (caso lote 107, jul-2026).
+            catch (Exception ex) { _logger?.LogError(ex, "Error al descontar aves desde seguimiento engorde (lote {LoteId}, seguimiento {SeguimientoId})", dto.LoteId, ent.Id); }
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, _current.CompanyId);
@@ -433,7 +435,7 @@ public partial class SeguimientoAvesEngordeService
                     dto.LoteId, ent.Id, dto.FechaRegistro,
                     bajasHembrasNuevas: newHRet, bajasMachosNuevas: newMRet);
             }
-            catch (Exception ex) { Console.WriteLine($"Error al ajustar el descuento de aves desde seguimiento engorde: {ex.Message}"); }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al ajustar el descuento de aves desde seguimiento engorde (lote {LoteId}, seguimiento {SeguimientoId})", dto.LoteId, ent.Id); }
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, companyId);
