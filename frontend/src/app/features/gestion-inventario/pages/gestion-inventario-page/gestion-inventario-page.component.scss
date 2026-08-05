@@ -312,7 +312,9 @@
   margin-top: 1rem;
 }
 
-.historico-movimientos-card__head {
+/* Misma cabecera (título + botón de export) para la tarjeta de Stock. */
+.historico-movimientos-card__head,
+.stock-card__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -328,7 +330,8 @@
   z-index: 2;
 }
 
-.historico-movimientos-card__title {
+.historico-movimientos-card__title,
+.stock-card__title {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 800;
@@ -337,11 +340,13 @@
   letter-spacing: 0.02em;
 }
 
-.historico-movimientos-card__body {
+.historico-movimientos-card__body,
+.stock-card .card-italfoods__body {
   padding-top: 1rem;
 }
 
-.historico-export-btn {
+.historico-export-btn,
+.stock-export-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;

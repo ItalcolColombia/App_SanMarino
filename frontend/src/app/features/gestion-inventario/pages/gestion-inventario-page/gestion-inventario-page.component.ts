@@ -23,6 +23,7 @@ import {
 
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { exportarStockExcel } from '../../funciones/exportar-stock-excel.funcion';
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
@@ -78,6 +79,8 @@ export class GestionInventarioPageComponent implements OnInit {
   movimientosPagina: InventarioGestionMovimientoDto[] = [];
   itemsList: ItemInventarioDto[] = [];
   loading = false;
+  /** Descarga del Excel de stock en curso (consulta aparte, sin filtro de granja). */
+  exportandoStock = false;
 
   // Modales (confirmación y mensajes)
   showConfirmModal = false;
@@ -737,6 +740,54 @@ export class GestionInventarioPageComponent implements OnInit {
         this.openAlertModal('error', 'Error', 'Error al cargar stock.');
       }
     });
+  }
+
+  /**
+   * Descarga el stock en `.xlsx` de TODAS las granjas asignadas, sin importar la granja/núcleo/galpón
+   * seleccionados en pantalla: el pedido de operación es comparar bodegas en un solo archivo.
+   * Los filtros de ÍTEM (concepto y búsqueda) sí se respetan, y el archivo deja escrito cuáles se
+   * aplicaron. Consulta propia al API (`stockList` puede venir recortado a una sola granja).
+   */
+  descargarStockExcel(): void {
+    if (this.exportandoStock) return;
+    this.exportandoStock = true;
+
+    const params: { itemType?: string; search?: string } = {};
+    const concepto = (this.stockConceptFilter ?? '').trim();
+    if (concepto) params.itemType = concepto;
+    const q = (this.searchTerm ?? '').trim();
+    if (q) params.search = q;
+
+    this.svc.getStock(params).subscribe({
+      next: (list) => {
+        this.exportandoStock = false;
+        if (!list.length) {
+          this.openAlertModal('error', 'Sin datos', 'No hay stock para exportar con los filtros de ítem aplicados.');
+          return;
+        }
+        exportarStockExcel(list, {
+          incluirUbicacion: !this.isColombiaInventario,
+          filtros: this.filtrosStockExport(list)
+        });
+      },
+      error: () => {
+        this.exportandoStock = false;
+        this.openAlertModal('error', 'Error', 'No se pudo generar el Excel del stock.');
+      }
+    });
+  }
+
+  /** Líneas de contexto que se escriben bajo el título del Excel de stock. */
+  private filtrosStockExport(list: InventarioGestionStockDto[]): string[] {
+    const granjas = new Set(list.map(s => s.granjaNombre ?? String(s.farmId)));
+    const lineas = [
+      `Granjas: todas las asignadas (${granjas.size})`,
+      `Concepto: ${(this.stockConceptFilter ?? '').trim() || 'todos'}`
+    ];
+    const q = (this.searchTerm ?? '').trim();
+    if (q) lineas.push(`Búsqueda de ítem: ${q}`);
+    lineas.push(`Registros: ${list.length}`);
+    return lineas;
   }
 
   get nucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {

@@ -1,0 +1,28 @@
+# `funciones/` — lógica pura del módulo gestion-inventario
+
+Carpeta de **funciones puras** (sin estado de Angular, sin `this`, sin inyección de
+dependencias). Cada archivo agrupa una "acción grande" del módulo —típicamente la lógica detrás de
+un botón— para que sea **fácil de encontrar, testear y reutilizar**.
+
+## Convención
+
+- **Un archivo por concern**, nombrado `<accion>.funcion.ts`.
+- Reciben datos por parámetro y devuelven un resultado. **No** tocan `service`, `toast`, ni estado
+  del componente (la descarga del `.xlsx` es el único efecto esperado, y va delegada al helper
+  compartido `shared/utils/excel/exportar-tabla-excel.funcion.ts`).
+- Los componentes (`pages/`) quedan como **orquestadores delgados**: consultan el API, arman los
+  parámetros, llaman la función y manejan estado/UI.
+- Los tipos de dominio se importan desde [`../services/gestion-inventario.service.ts`](../services);
+  si algún día un tipo vive inline en un componente, se mueve antes a `../models/` (evita imports
+  circulares).
+
+## Índice
+
+| Archivo | Qué hace |
+|---|---|
+| `exportar-stock-excel.funcion.ts` | `construirFilasStockExcel` / `cabecerasStockExcel` / `exportarStockExcel`: arma y descarga el `.xlsx` del stock de **todas las granjas asignadas** (alimento con su galpón, otros conceptos a nivel granja). |
+
+## Referencia
+
+El patrón canónico del repo es
+[`movimientos-pollo-engorde/funciones/`](../../movimientos-pollo-engorde/funciones/README.md).

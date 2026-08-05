@@ -469,3 +469,39 @@ hay que cambiar el emisor. **Decisión del usuario: Microsoft Graph API.**
 - [x] B4 Orden obligatorio verificado: el *Gate B1* impide editar `aves_encasetadas` de un lote liquidado ⇒ **corregir ANTES de cerrar** (por eso el lote 30 se corrigió primero)
 - [ ] ⏸️ **Esperando confirmación:** cerrar el grupo A (39 lotes de Ecuador) recorriendo el endpoint real de cierre. Irreversible sobre producción ⇒ requiere OK explícito sobre la lista
 - [ ] ⏸️ Grupos B y C (14 lotes con aves pendientes) — revisión aparte · Panamá **no se toca**
+
+---
+
+# Descargar Excel del stock de TODAS las granjas (Gestión de Inventario)
+
+**Plan:** [`fase_de_desarrollo/exportar_stock_inventario_excel_plan.md`](fase_de_desarrollo/exportar_stock_inventario_excel_plan.md)
+**Fecha:** 2026-08-05 · **Alcance:** front-only (backend ya soporta `farmId` opcional)
+
+## Fase 1 — Análisis
+- [x] A1 `GET /inventario-gestion/stock` sin `farmId` ya devuelve todas las granjas asignadas (scope empresa+país+user, fail-closed) — cero cambios de backend
+- [x] A2 El nivel (galpón para alimento / granja para el resto) lo resuelve el backend (`AlimentoNivelResolver`) — el front no vuelve a decidir
+
+## Fase 2 — Función pura (`funciones/`)
+- [x] B1 `funciones/README.md` con la convención del módulo (calcada del canónico movimientos-pollo-engorde)
+- [x] B2 `funciones/exportar-stock-excel.funcion.ts` — `cabecerasStockExcel` + `construirFilasStockExcel` (puras) + `exportarStockExcel` (usa `shared/utils/excel`, prohibido XLSX inline)
+
+## Fase 3 — Componente + UI
+- [x] C1 `descargarStockExcel()`: consulta propia SIN `farmId`, respeta concepto/búsqueda, delega en la función pura
+- [x] C2 Botón «Descargar Excel (todas las granjas)» en la cabecera de la tarjeta Stock + SCSS agrupado con el del Histórico (sin duplicar reglas)
+- [x] C3 Nota en el hint de filtros: el Excel siempre trae todas las granjas
+- [x] C4 `InventarioGestionStockDto`: `granjaNombre`/`nucleoNombre`/`galponNombre` a `string | null` (el API los manda null; el tipo decía `?: string`)
+
+## Fase 4 — Tests
+- [x] D1 `exportar-stock-excel.funcion.spec.ts` — **12 specs** verdes (alimento con galpón, otros a nivel granja, fallbacks nombre/id, Colombia sin ubicación, fecha sin corrimiento de zona, cantidad numérica, lista vacía, orden, cabeceras)
+
+## Fase 5 — Validación
+- [x] E1 `yarn build` — 0 errores (único warning: bundle budget preexistente)
+- [x] E2 `yarn test` — **118/118 verdes** (106 previos + 12 nuevos)
+- [x] E3 Smoke UI contra backend local (ItalcolEcuador, usuario con 10 granjas):
+      · **B (el crítico)** con granja «BODEGA PRINCIAL KM 86» seleccionada: la grilla muestra 38 filas de 1 granja y el export pide `/stock` **sin farmId** ⇒ 464 filas / **10 granjas** / 135 con galpón (calza exacto con la BD)
+      · Contenido del `.xlsx` verificado: título, subtítulos («Granjas: todas las asignadas (10)», «Concepto: todos», «Registros: 464»), 9 cabeceras, alimento con `CAROLINA | N1 | GALPON 1`, no-alimento con `—`, cantidad numérica
+      · **C** Concepto=Alimento ⇒ 135 filas / 8 granjas, todas con galpón; subtítulo lo documenta
+      · **D** Búsqueda sin resultados ⇒ modal «Sin datos», **0 descargas**
+      · **E** Triple clic ⇒ 1 sola petición y 1 solo archivo; botón «Generando…» deshabilitado y luego restaurado
+      · **F** Colombia (sin columnas Núcleo/Galpón) cubierto por test unitario; no se smokeó en UI por falta de sesión Colombia
+- [x] E4 Sin procesos huérfanos — 4200 y 5002 libres
