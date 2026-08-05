@@ -42,6 +42,14 @@
         
         { "name": "AllowedOrigins", "value": "http://localhost:4200,https://sanmarinoapp.com,http://localhost:8080,http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" },
         
+        { "name": "Email__Provider", "value": "auto" },
+
+        { "name": "Email__Graph__TenantId", "value": "" },
+        { "name": "Email__Graph__ClientId", "value": "" },
+        { "name": "Email__Graph__ClientSecret", "value": "" },
+        { "name": "Email__Graph__SenderMailbox", "value": "zootecnico@sanmarino.com.co" },
+        { "name": "Email__Graph__SaveToSentItems", "value": "false" },
+
         { "name": "Email__Smtp__Host", "value": "smtp.office365.com" },
         { "name": "Email__Smtp__Port", "value": "587" },
         { "name": "Email__Smtp__Username", "value": "zootecnico@sanmarino.com.co" },

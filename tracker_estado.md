@@ -374,6 +374,73 @@ ni fila anulada, ni `updated_at`, ni auditoría.
 
 ---
 
+# Tracker — Envío de correo: migración a Microsoft Graph API (retiro de auth básica SMTP)
+
+**Plan:** [`fase_de_desarrollo/envio_correo_graph_api_plan.md`](fase_de_desarrollo/envio_correo_graph_api_plan.md)
+**Fecha:** 2026-08-05 · Bloque propio — no tocar desde otras sesiones
+
+Producción no envía correos: Microsoft retiró la **auth básica para SMTP Client Submission** en
+Exchange Online (rechazo desde 01-mar-2026, refuerzo total 30-abr-2026; error
+`550 5.7.30 Basic authentication is not supported for Client Submission`).
+**Blocker:** `System.Net.Mail.SmtpClient` no soporta XOAUTH2 ⇒ no alcanza con cambiar la contraseña,
+hay que cambiar el emisor. **Decisión del usuario: Microsoft Graph API.**
+Único punto de envío real: `EmailQueueProcessorService:213-305` (el resto sólo encola).
+
+## Fase 0 — Auditoría y plan
+- [x] Mapeado el flujo completo: 3 encoladores (`EmailService`, `TicketService`, `AuthService`) → `email_queue` → 1 solo emisor
+- [x] Confirmada la causa con fuentes de Microsoft (timeline y código de error)
+- [x] Verificado que no hay paquetes de Graph/MailKit/AWS SES en los `.csproj`
+- [x] Plan escrito + decisión de transporte confirmada por el usuario
+
+## Fase 1 — Abstracción y cálculo puro
+- [x] `Application/Interfaces/IEmailSender.cs` + `EnvioCorreoResultado`
+- [x] `Application/Calculos/EnvioCorreoCalculos.cs` (resolver proveedor, clasificar errores, payload, vigencia de token)
+
+## Fase 2 — Transportes (Infrastructure)
+- [x] `Email/SmtpEmailSender.cs` — traslado literal del código de hoy (dev local + rollback)
+- [x] `Email/GraphTokenProvider.cs` — client_credentials + caché con margen de 5 min
+- [x] `Email/GraphEmailSender.cs` — `POST /v1.0/users/{buzon}/sendMail`, 202 = OK, reintento único ante 401
+- [x] `Email/SinTransporteEmailSender.cs` — transporte nulo con diagnóstico (evita el crash de arranque)
+
+## Fase 3 — Cableado
+- [x] `EmailQueueProcessorService` delega en `IEmailSender` (retries/estados/metadata intactos);
+      263 líneas de SMTP inline eliminadas del procesador (580 → 317 líneas)
+- [x] Se elimina el `throw` del constructor (podía tumbar el arranque en ECS) → log crítico
+- [x] `Program.cs`: `AddHttpClient("graph-email")` + registro del `IEmailSender` resuelto por config
+- [x] `appsettings.json` / `appsettings.Development.json` con `Email:Provider` + `Email:Graph` (sin secretos)
+- [x] `ecs-taskdef-new-aws.json`: `Email__Provider=auto` + `Email__Graph__*` vacíos ⇒ desplegar la
+      TaskDef **no cambia nada** hasta que carguen las credenciales; ahí conmuta solo
+- [x] `backend/documentacion/MIGRACION_CORREO_GRAPH_API.md` (app registration paso a paso)
+- [x] Los 3 documentos con instrucciones ya muertas (habilitar SMTP AUTH / App Password) marcados ⛔ OBSOLETO
+
+## Fase 4 — Tests (gate CI)
+- [x] `EnvioCorreoCalculosTests` — **53 tests**: tabla de decisión completa del proveedor
+      (incluye retrocompatibilidad dev local y provider explícito sin config ⇒ NO cae a SMTP en silencio),
+      vigencia del token, payload de `sendMail` serializado, clasificación 401/403/404/429/5xx y diagnósticos
+
+## Fase 5 — Validación
+- [x] `dotnet build` — **0 errores, 0 advertencias**
+- [x] `dotnet test` — **1.626 Application + 1 Domain verdes** (1.573 previos + 53 nuevos)
+- [x] Smoke 1 (sin config Graph): elige **SMTP** — `📧 Transporte de correo: SMTP (smtp.office365.com:587)`,
+      retrocompatibilidad de desarrollo local intacta
+- [x] Smoke 2 (con credenciales Graph): elige **Graph** — `transporte: graph`, buzón correcto
+- [x] Smoke 3 (`provider=graph` con config incompleta): log **crítico** con las variables que faltan y
+      **la aplicación arranca igual** (antes esto tumbaba el arranque del `HostedService` en ECS)
+- [x] BD local sin tocar (`email_queue` 60 failed / 52 sent, idéntico antes y después; 0 filas `pending`)
+- [x] Sin procesos huérfanos — puerto 5499 libre
+- [x] Commit acotado (sin footer de atribución)
+
+### Pendiente del usuario (bloquea el despliegue, no el código)
+- [ ] App registration en Entra ID + `Mail.Send` de aplicación + consentimiento de administrador
+- [ ] (Recomendado) `New-ApplicationAccessPolicy` acotando la app al buzón `zootecnico@sanmarino.com.co`
+
+### 🔴 Deuda detectada al pasar (fuera de alcance, requiere trabajo propio)
+- Credenciales en texto plano commiteadas: contraseña SMTP (`appsettings.json:77`,
+  `appsettings.Development.json:30`, `ecs-taskdef-new-aws.json:48`), cadena de conexión de RDS prod
+  y clave JWT en la TaskDef. Deben rotarse y moverse a Secrets Manager.
+
+---
+
 # Corrección de la referencia `Inicio` + liquidación de corridas anteriores (pollo engorde)
 
 **Plan:** [`fase_de_desarrollo/correccion_referencia_inicio_engorde_plan.md`](fase_de_desarrollo/correccion_referencia_inicio_engorde_plan.md)
