@@ -1,3 +1,10 @@
+> ⛔ **OBSOLETO (05-ago-2026).** Microsoft **retiró** la autenticación básica para SMTP Client
+> Submission en Exchange Online. Habilitar SMTP AUTH o generar una App Password —las soluciones de
+> este documento— **ya no funcionan**: el mecanismo fue eliminado, no deshabilitado.
+> El envío migró a Microsoft Graph API.
+> 👉 Ver [`MIGRACION_CORREO_GRAPH_API.md`](MIGRACION_CORREO_GRAPH_API.md).
+> Se conserva sólo como registro histórico del incidente.
+
 # Solución: Error 535 5.7.139 en Producción - Office 365 SMTP
 
 ## Error Observado en Producción

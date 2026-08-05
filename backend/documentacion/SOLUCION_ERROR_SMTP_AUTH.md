@@ -1,3 +1,7 @@
+> ⛔ **OBSOLETO (05-ago-2026).** Microsoft retiró la autenticación básica para SMTP Client Submission:
+> las soluciones de este documento ya no aplican. El envío migró a Microsoft Graph API.
+> 👉 Ver [`MIGRACION_CORREO_GRAPH_API.md`](MIGRACION_CORREO_GRAPH_API.md).
+
 # Solución: Error SMTP AUTH en Office 365
 
 ## Error
