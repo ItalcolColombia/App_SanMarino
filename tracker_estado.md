@@ -307,3 +307,51 @@ seguimiento; la venta sigue restando las bajas ya aplicadas al maestro ⇒ las c
   identidad `encaset − ventas − bajas_aplicadas` (24.374 − 0 − 140 = 24.234, maestro = 24.251).
   Es el único lote activo que no cuadra con la grilla; el fix lo acerca de −123 a −17 pero no puede
   corregir un maestro desfasado. Requiere su propia auditoría de datos antes de tocar nada.
+
+---
+
+# Fix — borrar/editar un seguimiento viejo infla el maestro de aves (pollo engorde)
+
+**Plan:** [`fase_de_desarrollo/fix_baseline_bajas_seguimiento_engorde_plan.md`](fase_de_desarrollo/fix_baseline_bajas_seguimiento_engorde_plan.md)
+**Fecha:** 2026-08-05 · Continúa el «Hallazgo aparte» del fix `3998aa2` (lote 107 con 17 aves de más)
+
+**Causa raíz:** `SincronizarAsync` tomaba el baseline de las **columnas del seguimiento** en vez de su
+**fila del histórico**, que es la única prueba de lo que se descontó. Borrar un registro de la cohorte
+anterior al aplicador (< 2026-07-27 17:58, sin fila) **acreditaba aves que nunca se debitaron**, y
+`UpsertHistorico` hacía no-op silencioso (`if (fila is not null)`) ⇒ maestro inflado **sin rastro**:
+ni fila anulada, ni `updated_at`, ni auditoría.
+
+## Fase 0 — Auditoría (solo lectura, sin tocar datos)
+- [x] Identidad de conservación recalculada: maestro 107 = 10.860 + 13.374 = **24.234** ⇒ hoy CUADRA
+- [x] Hipótesis 1 **cruce reproductora descartada**: 26/26 seguimientos con `origen_cruce = false`, 0 filas en `_backup_bajas_cruce_engorde_20260729`
+- [x] Hipótesis 2 **anuladas/duplicadas descartada**: las 10 `BAJA_SEGUIMIENTO` vivas, `uq_lote_hist_origen` impide duplicados
+- [x] Hipótesis 3 **ajuste manual previo descartada**: sin filas `Ajuste`/`AjusteResync` para 107/184
+- [x] Hipótesis 4 **CONFIRMADA**: borrado del #8652 (07-24, pre-aplicador, sin fila) el 07-30 16:50; #10595 (5 H + 12 M = **17**) es el único con fila
+- [x] Fecha de corte del aplicador fijada: primera fila `BAJA_SEGUIMIENTO` **2026-07-27 17:58:29**
+- [x] ⚠️ Detectado por `xmin` que el maestro del 107 **ya lo corrigió SQL crudo externo** (txn `52399`, 2 filas: 107 y 184, sin `updated_at` ni auditoría, base restaurada con `xmin` uniforme `52338`) — **no fue esta sesión**
+- [x] Alcance sistémico: **0 lotes descuadrados** (identidad por sexo y total) · exposición **4.797 seguimientos sin fila / 102 lotes / 158.092 aves** (EC) + 32 (PA)
+- [x] Plan escrito
+
+## Fase 1 — Backend (sin migración ni backfill: no hay descuadre que reparar)
+- [x] C1 `RetiroAvesEngordeCalculos.BaselineAplicado(RetiroAves?)` — puro; fila ausente/anulada ⇒ `(0,0)`; mixtas al bucket machos
+- [x] C2 🔴 `SincronizarAsync` lee la fila por `(origen_tabla, origen_id)` y **deriva el baseline solo**; deja de recibir `viejas`
+- [x] C3 `UpsertHistoricoAsync` → `UpsertHistorico`: recibe la fila ya cargada (una consulta menos) y es síncrono
+- [x] C4 `origen_id` fuera de rango `int` ⇒ no toca el maestro (antes lo movía a ciegas, sin traza)
+- [x] C5 6 llamadas actualizadas (3 Ecuador + 3 carga masiva) + wrapper `SincronizarBajasAvesAsync`
+- [x] C6 `SincronizarCruceAsync` simplificado: el baseline sale de la misma fila ⇒ comportamiento idéntico
+
+## Fase 2 — Tests (gate CI)
+- [x] T1-T3 `BaselineAplicado`: sin fila `(0,0)` · por sexo `(H,M)` · mixta `(0,X)`
+- [x] T4 borrar un seguimiento sin fila **no devuelve aves**, con contraste explícito del bug (inflaba 5 H + 12 M)
+- [x] T5 editar un seguimiento sin fila descuenta el **total nuevo**, no el delta
+- [x] T6-T8 regresión camino normal: alta+borrado simétricos por sexo **y** mixto; edición con fila viva mueve solo el delta
+
+## Fase 3 — Validación
+- [x] `dotnet build` — **0 errores, 0 advertencias**
+- [x] `dotnet test` — **1.573 Application + 1 Domain verdes** (1.565 previos + 8 nuevos)
+- [x] Desfase del maestro medido con `fn_cuadre_aves_engorde` (commit `75f7980`, sesión paralela) — **no se duplicó la fórmula**
+- [x] Guard complementario `backend/sql/verificar_bajas_seguimiento_sin_aplicar.sql`: huérfanas vivas **0 filas**; cohorte sin fila como termómetro
+- [x] Reconciliado con `75f7980` (misma área): su cambio era `Console.WriteLine` → `_logger?.LogError`, **no tocaba el baseline** ⇒ arreglos complementarios, conflicto solo textual
+- [x] Datos **no modificados** por esta sesión (solo `SELECT`; `pageinspect` creada y eliminada)
+- [x] Sin procesos huérfanos (solo consultas psql puntuales)
+- [x] Commit acotado (sin footer de atribución)

@@ -233,7 +233,6 @@ public partial class SeguimientoAvesEngordeService
             {
                 await SincronizarBajasAvesAsync(
                     dto.LoteId, ent.Id, dto.FechaRegistro,
-                    bajasHembrasViejas: 0, bajasMachosViejas: 0,
                     bajasHembrasNuevas: bajasH, bajasMachosNuevas: bajasM);
             }
             catch (Exception ex) { Console.WriteLine($"Error al descontar aves desde seguimiento engorde: {ex.Message}"); }
@@ -432,7 +431,6 @@ public partial class SeguimientoAvesEngordeService
             {
                 await SincronizarBajasAvesAsync(
                     dto.LoteId, ent.Id, dto.FechaRegistro,
-                    bajasHembrasViejas: oldHRet, bajasMachosViejas: oldMRet,
                     bajasHembrasNuevas: newHRet, bajasMachosNuevas: newMRet);
             }
             catch (Exception ex) { Console.WriteLine($"Error al ajustar el descuento de aves desde seguimiento engorde: {ex.Message}"); }
@@ -528,7 +526,6 @@ public partial class SeguimientoAvesEngordeService
             {
                 await SincronizarBajasAvesAsync(
                     ent.Seguimiento.LoteAveEngordeId, ent.Seguimiento.Id, ent.Seguimiento.Fecha,
-                    bajasHembrasViejas: retH, bajasMachosViejas: retM,
                     bajasHembrasNuevas: 0, bajasMachosNuevas: 0);
             }
             catch (Exception ex) { Console.WriteLine($"Error al devolver aves al eliminar seguimiento engorde: {ex.Message}"); }
