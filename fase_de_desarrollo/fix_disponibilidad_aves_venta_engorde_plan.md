@@ -155,3 +155,87 @@ Tampoco se toca el front: solo muestra lo que devuelve el backend.
 - **Gate multipaís** (`CLAUDE.md`): medir Ecuador **y** Panamá; ningún lote debe quedar por debajo de
   lo que muestra hoy el seguimiento, y los lotes sin `BAJA_SEGUIMIENTO` deben quedar **intactos**.
 - Sin procesos huérfanos al terminar.
+
+---
+
+# Parte 2 — Corrección de DATOS y prevención (05-ago-2026)
+
+Pedido: corregir también los datos en la BD (que es la de producción), que no vuelva a pasar en más
+lotes de las empresas con estos módulos, y validar todo contra lo que está registrado.
+
+## 1. Auditoría — la identidad correcta NO es la obvia
+
+Primer intento: `maestro = encaset − ventas − bajas_aplicadas` ⇒ 9 lotes "descuadrados" en Ecuador.
+**8 de ellos resultaron ser una corrección deliberada previa, no un bug.** Tienen
+`hembras_l == bajas_h` y `machos_l == bajas_m` (⇒ disponibles = 0) porque son los lotes «2601» de
+`fase_de_desarrollo/correccion_aves_disponibles_engorde_2601_plan.md` §2.3: lotes **cerrados y
+liquidados** cuyas aves fantasma —nunca descargadas, por atribución de género imprecisa al final del
+ciclo— se pusieron en 0 a propósito. Su rastro son 8 filas `historial_lote_pollo_engorde` con
+`tipo_registro='Ajuste'` que suman **1.552 = exactamente el desfase medido**.
+
+🔴 **«Corregirlos» les habría devuelto 1.552 aves fantasma a lotes liquidados.** La identidad canónica
+—la que el propio `CorreccionAvesDisponiblesEngordeService` documenta en sus constantes— incluye ese
+término:
+
+```
+maestro = inicio(historial) − ventas Completado − bajas BAJA_SEGUIMIENTO − ajustes fantasma
+```
+
+Con ella, los 8 lotes cuadran y quedan fuera. Quedan 6 casos, de los que **solo uno tiene efecto
+visible**:
+
+| Lote | Situación | Pantalla vs grilla | Acción |
+|---|---|---|---|
+| 107 · Km 61 · G1 · 2604 | maestro +17 | 23.936 vs **23.919** ❌ | **corregir** |
+| 184 · SAN GUILLERMO · G1 · 2604 | +50 H / −50 M, total igual | 11.488 = 11.488 ✅ | corregir el reparto por sexo |
+| 5, 7, 30, 132 | historial `Inicio` ≠ `aves_encasetadas` | ya coinciden ✅ | **no tocar** (revisión manual) |
+
+**Los 17 del lote 107 tienen nombre y apellido:** son exactamente la fila `BAJA_SEGUIMIENTO` del 24-07
+(origen_id 10595, 5 H + 12 M). La fila se escribió y su descuento nunca llegó al maestro. Ese
+seguimiento se creó **retroactivamente el 30-07 16:54:02**, 6 días después de su fecha.
+
+## 2. Corrección aplicada
+
+`20260805150000_CorreccionMaestroAvesEngordeIdentidad` (data-only, sin cambio de schema), con guardas:
+(1) solo lotes cuyo `Inicio` cuadra con `aves_encasetadas` — si no, la referencia no es confiable;
+(2) nunca escribe un maestro negativo; (3) `IS DISTINCT FROM` ⇒ idempotente.
+
+Simulada primero en transacción + `ROLLBACK`, después aplicada: **2 lotes tocados (Ecuador), Panamá 0,
+0 negativos**, y re-ejecutar el SQL sobre la BD ya corregida da `UPDATE 0`.
+
+## 3. Prevención
+
+**a) El fallo silencioso.** El descuento de aves vivía dentro de
+`catch (Exception ex) { Console.WriteLine(...) }` en los 4 puntos de los dos services de seguimiento
+(alta y edición, Ecuador y carga masiva): si falla, el registro queda creado y el maestro sin
+descontar, **sin traza** — a `Console` no lo lee nadie en ECS. Ahora va al `_logger` con lote y
+seguimiento, igual que el `catch` de inventario de al lado.
+
+> ⚠️ Se conserva deliberadamente que el error **no** aborte el alta del seguimiento: propagarlo haría
+> fallar registros que hoy se guardan, y ese cambio de comportamiento es decisión del usuario.
+
+**b) El detector.** `fn_cuadre_aves_engorde(p_company_id)` — hermana de `fn_cuadre_alimento_engorde`,
+mismo criterio del repo: *el cuadre se mira, no se espera*. Devuelve el invariante por lote;
+`cuadra = false` es un maestro que dejó de reflejar lo registrado y `referencia_confiable = false`
+aísla los lotes que piden revisión manual en vez de corrección automática.
+
+```sql
+SELECT * FROM fn_cuadre_aves_engorde(NULL) WHERE NOT cuadra;
+```
+
+## 4. Estado final validado
+
+| | Ecuador | Panamá |
+|---|---|---|
+| Lotes que cuadran | 104 / 108 | **60 / 60** |
+| **Descuadrados** | **0** | **0** |
+| Revisión manual (`Inicio` ≠ encaset) | 4 | 0 |
+| Paridad pantalla vs grilla (lotes activos) | **32 / 32** | **29 / 29** |
+
+`dotnet build` 0 errores / 0 advertencias · `dotnet test` 1.566 verdes · migraciones aplicadas en local
+e idempotentes.
+
+**Pendiente (no bloqueante):** los 4 lotes de revisión manual (5, 7, 30, 132) — su historial `Inicio`
+no coincide con `aves_encasetadas` (5 y 7 dicen 50.000 contra 25.542 / 22.681 reales). Hoy muestran el
+número correcto, así que no hay urgencia; corregir el `Inicio` requiere decidir cuál de los dos valores
+es el bueno, y eso es una decisión de negocio.
