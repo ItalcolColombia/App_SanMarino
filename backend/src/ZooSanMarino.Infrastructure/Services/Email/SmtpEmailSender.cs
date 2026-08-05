@@ -4,18 +4,20 @@ using System.Net.Mail;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.Interfaces;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
-/// Transporte SMTP clásico (usuario + contraseña). Es el código que vivía dentro de
-/// <c>EmailQueueProcessorService</c>, trasladado sin cambios de comportamiento: mismos mensajes de
-/// diagnóstico, mismos <c>error_type</c> y el mismo timeout de 60 s.
+/// Transporte SMTP (usuario + contraseña). Es el código que vivía dentro de
+/// <c>EmailQueueProcessorService</c>, trasladado sin cambios de comportamiento: mismos parámetros
+/// de conexión, mismos <c>error_type</c> y el mismo timeout de 60 s.
 ///
-/// ⚠️ Contra Office 365 ya NO funciona: Exchange Online retiró la autenticación básica para SMTP
-/// Client Submission (<c>550 5.7.30</c>). Se conserva para desarrollo local, para servidores SMTP
-/// propios y como rollback inmediato (<c>Email:Provider=smtp</c>).
+/// Verificado el 05-ago-2026: con las credenciales de producción este código **envía
+/// correctamente** contra <c>smtp.office365.com:587</c> con STARTTLS. Si en algún entorno responde
+/// <c>5.7.139</c> / <c>5.7.57</c>, el rechazo es de una política del tenant según el origen de la
+/// conexión, no del código ni de la contraseña — el diagnóstico que se guarda lo explica.
 /// </summary>
 public class SmtpEmailSender : IEmailSender
 {
@@ -104,7 +106,7 @@ public class SmtpEmailSender : IEmailSender
                      ex.Message.Contains("5.7.139") || ex.Message.Contains("Client not authenticated") ||
                      ex.Message.Contains("5.7.57") || ex.Message.Contains("5.7.30"))
             {
-                _logger.LogError("🔴 OFICE 365 RECHAZÓ LA AUTENTICACIÓN (5.7.139 / 5.7.57)");
+                _logger.LogError("🔴 OFFICE 365 RECHAZÓ LA AUTENTICACIÓN (5.7.139 / 5.7.57)");
                 _logger.LogError("   ⚠️ Verificado el 05-ago-2026: las credenciales de {User} son VÁLIDAS y este", _smtpUsername);
                 _logger.LogError("   mismo código envía correctamente desde otras redes. Un rechazo acá significa");
                 _logger.LogError("   que una POLÍTICA DEL TENANT bloquea la autenticación desde el origen del");
@@ -115,14 +117,13 @@ public class SmtpEmailSender : IEmailSender
                 _logger.LogError("   2. SMTP AUTH habilitado para el buzón Y a nivel de organización:");
                 _logger.LogError("      Get-CASMailbox '{User}' | Select SmtpClientAuthenticationDisabled", _smtpUsername);
                 _logger.LogError("      Get-TransportConfig | Select SmtpClientAuthenticationDisabled");
-                _logger.LogError("   3. Si la política no se puede levantar, el camino sancionado es OAuth:");
-                _logger.LogError("      Email:Provider=graph + Email:Graph:* (ya implementado).");
-                _logger.LogError("      Ver: backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
+                _logger.LogError("   3. Si la política no se puede levantar, el camino es OAuth (Microsoft Graph).");
+                _logger.LogError("      Ver: backend/documentacion/DIAGNOSTICO_CORREO_OFFICE365.md");
                 _logger.LogError("   Configuración actual: Host={Host}, Port={Port}, SSL={Ssl}, User={User}",
                     _smtpHost, _smtpPort, _smtpEnableSsl, _smtpUsername);
             }
 
-            return EnvioCorreoResultado.Error(ClasificarPorDetalle(smtpDetails), smtpDetails);
+            return EnvioCorreoResultado.Error(EnvioCorreoCalculos.ClasificarErrorSmtp(smtpDetails), smtpDetails);
         }
         catch (Exception ex)
         {
@@ -135,27 +136,8 @@ public class SmtpEmailSender : IEmailSender
             _logger.LogError(ex, "Error inesperado al enviar correo a {ToEmail}: {Message} | Details: {Details}",
                 toEmail, ex.Message, errorDetails);
 
-            return EnvioCorreoResultado.Error(ClasificarPorDetalle(errorDetails), errorDetails);
+            return EnvioCorreoResultado.Error(EnvioCorreoCalculos.ClasificarErrorSmtp(errorDetails), errorDetails);
         }
-    }
-
-    /// <summary>
-    /// Clasificación por palabras clave del texto de diagnóstico. Se conserva tal cual estaba en el
-    /// procesador de la cola para que los <c>error_type</c> históricos de la tabla no cambien.
-    /// </summary>
-    private static string ClasificarPorDetalle(string? errorDetails)
-    {
-        if (string.IsNullOrEmpty(errorDetails))
-            return "unknown";
-
-        if (errorDetails.Contains("Authentication") || errorDetails.Contains("535"))
-            return "smtp_auth";
-        if (errorDetails.Contains("network") || errorDetails.Contains("timeout") || errorDetails.Contains("connection"))
-            return "network";
-        if (errorDetails.Contains("invalid") || errorDetails.Contains("format") || errorDetails.Contains("address"))
-            return "invalid_email";
-
-        return "unknown";
     }
 
     private string BuildSmtpExceptionDetails(SmtpException ex, string toEmail)
@@ -194,8 +176,8 @@ public class SmtpEmailSender : IEmailSender
         {
             details.AppendLine($"  Diagnosis: Exchange Online RETIRÓ la autenticación básica para SMTP Client Submission.");
             details.AppendLine($"  Este error NO se resuelve cambiando la contraseña ni habilitando SMTP AUTH.");
-            details.AppendLine($"  Solución: migrar a Microsoft Graph (Email:Provider=graph + Email:Graph:*).");
-            details.AppendLine($"  Ver: backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
+            details.AppendLine($"  Solución: migrar a OAuth 2.0 (Microsoft Graph).");
+            details.AppendLine($"  Ver: backend/documentacion/DIAGNOSTICO_CORREO_OFFICE365.md");
         }
         else if (ex.Message.Contains("535") || ex.Message.Contains("5.7.139") ||
                  ex.Message.Contains("5.7.57") ||
@@ -215,9 +197,8 @@ public class SmtpEmailSender : IEmailSender
             details.AppendLine($"    2. SMTP AUTH por buzón y por organización:");
             details.AppendLine($"       Get-CASMailbox '{_smtpUsername}' | Select SmtpClientAuthenticationDisabled");
             details.AppendLine($"       Get-TransportConfig | Select SmtpClientAuthenticationDisabled");
-            details.AppendLine($"    3. Si la política no se puede levantar, usar OAuth (ya implementado):");
-            details.AppendLine($"       Email:Provider=graph + Email:Graph:* — ver");
-            details.AppendLine($"       backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
+            details.AppendLine($"    3. Si la política no se puede levantar, el camino es OAuth (Microsoft Graph):");
+            details.AppendLine($"       backend/documentacion/DIAGNOSTICO_CORREO_OFFICE365.md");
         }
         else
         {

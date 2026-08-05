@@ -469,9 +469,39 @@ según el origen de la conexión** (el propio Exchange dice *"Contact your admin
 - [ ] `Get-CASMailbox 'zootecnico@sanmarino.com.co' | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
 - [ ] `Get-TransportConfig | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
 
-### Pendiente del usuario — Camino B (definitivo; el código ya está listo e inerte)
-- [ ] App registration en Entra ID + `Mail.Send` de aplicación + consentimiento de administrador
-- [ ] (Recomendado) `New-ApplicationAccessPolicy` acotando la app al buzón `zootecnico@sanmarino.com.co`
+### Pendiente del usuario — Camino B (sólo si el A no se puede)
+- [ ] Migrar a OAuth 2.0 / Microsoft Graph. La implementación completa está en el commit `c7b6834`
+      (`git show c7b6834`): emisor Graph, proveedor de token con caché e instructivo del app
+      registration. Se revirtió a pedido del usuario para dejar un solo transporte.
+
+## Fase 7 — Simplificación a SMTP-only (pedido del usuario: «más fácil y desplegar de una vez»)
+
+- [x] Eliminados `GraphEmailSender`, `GraphTokenProvider` y `SinTransporteEmailSender`
+- [x] `EnvioCorreoCalculos` reducido a lo de SMTP: `HayConfiguracionSmtp`, `ClasificarErrorSmtp`,
+      `EsRechazoPorPolitica`, `DiagnosticoSinConfiguracion`
+- [x] `Program.cs`: `AddSingleton<IEmailSender, SmtpEmailSender>()` — se fue el `AddHttpClient`, el
+      switch de proveedor y `Email:Provider`. Si falta config SMTP, avisa y NO tumba el arranque
+- [x] `Email:Graph` fuera de `appsettings.json` / `appsettings.Development.json`; `Email__Provider`
+      y `Email__Graph__*` fuera de la TaskDef ⇒ **las variables desplegadas quedan idénticas a hoy**
+- [x] Doc reescrita como `DIAGNOSTICO_CORREO_OFFICE365.md` (la de migración se eliminó); los 3 docs
+      viejos con banner corregido — ya no dicen «migró a Graph» ni culpan a la contraseña
+- [x] Se conserva lo que sí aportaba el refactor: procesador delgado (580→317 líneas), diagnósticos
+      honestos en `email_queue.error_message` y sin `throw` en el constructor del `HostedService`
+- [x] Tests reescritos (24): configuración, clasificación con los `error_type` HISTÓRICOS y detección
+      del rechazo por política. Incluye el hueco conocido `"timed out"` ≠ `"timeout"`, documentado
+      y **conservado** (cambiarlo alteraría el `error_type` de filas ya existentes)
+- [x] `dotnet build` 0/0 · `dotnet test` **1.601 Application + 1 Domain verdes**
+- [x] Smoke local: arranca con `transporte: smtp`, sin log crítico; puerto 5499 liberado
+- [x] Commit acotado (sin footer de atribución)
+
+### Evidencia adicional hallada en Fase 7
+El historial de `email_queue` por mes muestra un corte **limpio**, no intermitente:
+feb-may 2026 = **45 enviados / 0 fallidos**; junio corta y desde ahí 0 enviados / 47 fallidos.
+Y el mismo síntoma ya había ocurrido en nov-2025/ene-2026, resolviéndose **del lado administrativo**
+(a partir de febrero el envío volvió solo, sin tocar el emisor). Refuerza que la causa es del tenant.
+
+> ⚠️ **Desplegar no arregla el correo.** El código ya envía bien (probado sobre .NET 10 con las
+> credenciales de producción). El destrabe está en Microsoft 365 — ver Camino A.
 
 ### 🔴 Deuda detectada al pasar (fuera de alcance, requiere trabajo propio)
 - Credenciales en texto plano commiteadas: contraseña SMTP (`appsettings.json:77`,

@@ -180,50 +180,21 @@ builder.Services.AddScoped<IEmailQueueService, EmailQueueService>(); // Servicio
 builder.Services.AddScoped<IEmailService, EmailService>(); // Servicio de envío de correos (usa cola)
 
 // ── Transporte de correo saliente ─────────────────────────────────────────────
-// Exchange Online retiró la autenticación básica de SMTP Client Submission (550 5.7.30), así que
-// el transporte por defecto es Microsoft Graph con OAuth 2.0. SMTP se conserva para desarrollo
-// local y como rollback inmediato (Email:Provider=smtp).
-// Ver: backend/documentacion/MIGRACION_CORREO_GRAPH_API.md
-builder.Services.AddHttpClient(GraphTokenProvider.HttpClientName, client =>
+// SMTP con STARTTLS contra Office 365 (587). Verificado el 05-ago-2026: este código envía
+// correctamente con las credenciales de producción. Un rechazo 5.7.139 / 5.7.57 es una política
+// del tenant según el origen de la conexión, no un problema del código ni de la contraseña.
+// Ver: backend/documentacion/DIAGNOSTICO_CORREO_OFFICE365.md
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+
+// La configuración incompleta NO tumba el arranque (el HostedService moriría con la app en ECS):
+// se avisa y los correos quedan "pending" con el motivo en email_queue.error_message.
+if (!EnvioCorreoCalculos.HayConfiguracionSmtp(
+        builder.Configuration["Email:Smtp:Host"],
+        builder.Configuration["Email:Smtp:Username"],
+        builder.Configuration["Email:Smtp:Password"]))
 {
-    client.Timeout = TimeSpan.FromSeconds(60); // Mismo timeout que usaba el SMTP
-});
-builder.Services.AddSingleton<GraphTokenProvider>();
-builder.Services.AddSingleton<GraphEmailSender>();
-builder.Services.AddSingleton<SmtpEmailSender>();
-builder.Services.AddSingleton<IEmailSender>(sp =>
-{
-    var cfg = sp.GetRequiredService<IConfiguration>();
-    var log = sp.GetRequiredService<ILoggerFactory>().CreateLogger("ZooSanMarino.Email.Transporte");
-
-    var provider = cfg["Email:Provider"];
-    var hayGraph = EnvioCorreoCalculos.HayConfiguracionGraph(
-        cfg["Email:Graph:TenantId"],
-        cfg["Email:Graph:ClientId"],
-        cfg["Email:Graph:ClientSecret"],
-        cfg["Email:Graph:SenderMailbox"] ?? cfg["Email:From:Address"]);
-    var haySmtp = EnvioCorreoCalculos.HayConfiguracionSmtp(
-        cfg["Email:Smtp:Host"], cfg["Email:Smtp:Username"], cfg["Email:Smtp:Password"]);
-
-    switch (EnvioCorreoCalculos.ResolverProveedor(provider, hayGraph, haySmtp))
-    {
-        case ProveedorCorreo.Graph:
-            log.LogInformation("📧 Transporte de correo: Microsoft Graph API (buzón {Buzon})",
-                cfg["Email:Graph:SenderMailbox"] ?? cfg["Email:From:Address"]);
-            return sp.GetRequiredService<GraphEmailSender>();
-
-        case ProveedorCorreo.Smtp:
-            log.LogInformation("📧 Transporte de correo: SMTP ({Host}:{Port})",
-                cfg["Email:Smtp:Host"], cfg["Email:Smtp:Port"]);
-            return sp.GetRequiredService<SmtpEmailSender>();
-
-        default:
-            // No se lanza: una configuración incompleta no debe tumbar el arranque en ECS.
-            // Los correos quedan "pending" con el motivo exacto en email_queue.error_message.
-            log.LogCritical("🔴 {Detalle}", EnvioCorreoCalculos.DiagnosticoSinProveedor(provider));
-            return new SinTransporteEmailSender(provider);
-    }
-});
+    Console.WriteLine($"🔴 {EnvioCorreoCalculos.DiagnosticoSinConfiguracion()}");
+}
 
 // Registrar procesador de cola de correos solo si está habilitado por configuración
 var emailQueueEnabled = builder.Configuration.GetValue<bool?>("Email:Queue:Enabled") ?? false;

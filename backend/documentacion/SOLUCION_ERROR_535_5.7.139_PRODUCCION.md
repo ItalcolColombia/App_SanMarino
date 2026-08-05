@@ -1,8 +1,8 @@
-> ⛔ **OBSOLETO (05-ago-2026).** Microsoft **retiró** la autenticación básica para SMTP Client
-> Submission en Exchange Online. Habilitar SMTP AUTH o generar una App Password —las soluciones de
-> este documento— **ya no funcionan**: el mecanismo fue eliminado, no deshabilitado.
-> El envío migró a Microsoft Graph API.
-> 👉 Ver [`MIGRACION_CORREO_GRAPH_API.md`](MIGRACION_CORREO_GRAPH_API.md).
+> ⛔ **OBSOLETO (05-ago-2026).** Las tres causas que propone este documento quedaron **descartadas
+> con pruebas**: SMTP AUTH está habilitado, las credenciales autentican (`235`), `EnableSsl` y el
+> puerto son correctos, y este mismo código envía el correo sin problema. El rechazo viene de una
+> política del tenant según el origen de la conexión.
+> 👉 Ver [`DIAGNOSTICO_CORREO_OFFICE365.md`](DIAGNOSTICO_CORREO_OFFICE365.md).
 > Se conserva sólo como registro histórico del incidente.
 
 # Solución: Error 535 5.7.139 en Producción - Office 365 SMTP

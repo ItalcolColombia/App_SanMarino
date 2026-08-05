@@ -1,6 +1,8 @@
-> ⛔ **OBSOLETO (05-ago-2026).** Microsoft retiró la autenticación básica para SMTP Client Submission:
-> las soluciones de este documento ya no aplican. El envío migró a Microsoft Graph API.
-> 👉 Ver [`MIGRACION_CORREO_GRAPH_API.md`](MIGRACION_CORREO_GRAPH_API.md).
+> ⛔ **OBSOLETO (05-ago-2026).** Se comprobó que las credenciales SÍ autentican (`235`), que SMTP AUTH
+> está habilitado y que este mismo código envía correctamente. Las causas que enumera este documento
+> (SMTP AUTH deshabilitado, contraseña incorrecta, App Password) quedaron **descartadas con pruebas**.
+> El rechazo viene de una política del tenant según el origen de la conexión.
+> 👉 Ver [`DIAGNOSTICO_CORREO_OFFICE365.md`](DIAGNOSTICO_CORREO_OFFICE365.md).
 
 # Explicación Detallada del Error 535 5.7.139
 
