@@ -102,14 +102,22 @@ public class SmtpEmailSender : IEmailSender
             }
             else if (ex.Message.Contains("535") || ex.Message.Contains("Authentication") ||
                      ex.Message.Contains("5.7.139") || ex.Message.Contains("Client not authenticated") ||
-                     ex.Message.Contains("5.7.30"))
+                     ex.Message.Contains("5.7.57") || ex.Message.Contains("5.7.30"))
             {
-                _logger.LogError("🔴 ERROR DE AUTENTICACIÓN SMTP");
-                _logger.LogError("   Office 365 RETIRÓ la autenticación básica de SMTP Client Submission.");
-                _logger.LogError("   El error 550 5.7.30 'Basic authentication is not supported for Client");
-                _logger.LogError("   Submission' NO se arregla cambiando la contraseña: hay que migrar a OAuth.");
-                _logger.LogError("   Solución: configurar Microsoft Graph (Email:Provider=graph + Email:Graph:*).");
-                _logger.LogError("   Ver: backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
+                _logger.LogError("🔴 OFICE 365 RECHAZÓ LA AUTENTICACIÓN (5.7.139 / 5.7.57)");
+                _logger.LogError("   ⚠️ Verificado el 05-ago-2026: las credenciales de {User} son VÁLIDAS y este", _smtpUsername);
+                _logger.LogError("   mismo código envía correctamente desde otras redes. Un rechazo acá significa");
+                _logger.LogError("   que una POLÍTICA DEL TENANT bloquea la autenticación desde el origen del");
+                _logger.LogError("   servidor, no que la contraseña esté mal. Cambiarla NO lo resuelve.");
+                _logger.LogError("   Qué pedirle al administrador de Microsoft 365:");
+                _logger.LogError("   1. Conditional Access / Security Defaults: ¿hay una política que bloquee la");
+                _logger.LogError("      autenticación heredada (legacy auth) por ubicación o por IP de origen?");
+                _logger.LogError("   2. SMTP AUTH habilitado para el buzón Y a nivel de organización:");
+                _logger.LogError("      Get-CASMailbox '{User}' | Select SmtpClientAuthenticationDisabled", _smtpUsername);
+                _logger.LogError("      Get-TransportConfig | Select SmtpClientAuthenticationDisabled");
+                _logger.LogError("   3. Si la política no se puede levantar, el camino sancionado es OAuth:");
+                _logger.LogError("      Email:Provider=graph + Email:Graph:* (ya implementado).");
+                _logger.LogError("      Ver: backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
                 _logger.LogError("   Configuración actual: Host={Host}, Port={Port}, SSL={Ssl}, User={User}",
                     _smtpHost, _smtpPort, _smtpEnableSsl, _smtpUsername);
             }
@@ -190,17 +198,26 @@ public class SmtpEmailSender : IEmailSender
             details.AppendLine($"  Ver: backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
         }
         else if (ex.Message.Contains("535") || ex.Message.Contains("5.7.139") ||
+                 ex.Message.Contains("5.7.57") ||
                  ex.Message.Contains("Authentication unsuccessful") ||
                  ex.Message.Contains("Client not authenticated"))
         {
-            details.AppendLine($"  Diagnosis: Error de autenticación SMTP (535 5.7.139).");
-            details.AppendLine($"  Causas posibles:");
-            details.AppendLine($"    1. Autenticación básica retirada por Microsoft (migrar a Graph/OAuth)");
-            details.AppendLine($"    2. SMTP AUTH deshabilitado en Office 365 para esta cuenta");
-            details.AppendLine($"    3. Contraseña incorrecta o cuenta sin permisos para enviar");
-            details.AppendLine($"  Soluciones:");
-            details.AppendLine($"    - Migrar a Microsoft Graph: backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
-            details.AppendLine($"    - Verificar permisos de la cuenta {_smtpUsername}");
+            details.AppendLine($"  Diagnosis: Office 365 rechazó la autenticación (535 5.7.139 / 5.7.57).");
+            details.AppendLine($"  ⚠️ NO es la contraseña. Verificado el 05-ago-2026 contra este mismo tenant:");
+            details.AppendLine($"     las credenciales de {_smtpUsername} autentican correctamente (235) y este");
+            details.AppendLine($"     mismo código envía sin problema desde otra red. El rechazo depende del ORIGEN.");
+            details.AppendLine($"  Causa esperada: una política del tenant bloquea la autenticación desde donde");
+            details.AppendLine($"     corre el servidor. El propio mensaje lo dice: 'did not meet the criteria to be");
+            details.AppendLine($"     authenticated successfully. Contact your administrator'.");
+            details.AppendLine($"  Qué pedirle al administrador de Microsoft 365:");
+            details.AppendLine($"    1. Conditional Access / Security Defaults: ¿bloquea la autenticación heredada");
+            details.AppendLine($"       (legacy auth) por ubicación o IP de origen? Excluir el origen del servidor.");
+            details.AppendLine($"    2. SMTP AUTH por buzón y por organización:");
+            details.AppendLine($"       Get-CASMailbox '{_smtpUsername}' | Select SmtpClientAuthenticationDisabled");
+            details.AppendLine($"       Get-TransportConfig | Select SmtpClientAuthenticationDisabled");
+            details.AppendLine($"    3. Si la política no se puede levantar, usar OAuth (ya implementado):");
+            details.AppendLine($"       Email:Provider=graph + Email:Graph:* — ver");
+            details.AppendLine($"       backend/documentacion/MIGRACION_CORREO_GRAPH_API.md");
         }
         else
         {

@@ -8,26 +8,59 @@
 
 ---
 
-## 1. Qué pasó
+## 1. Qué pasó — diagnóstico verificado el 05-ago-2026
 
-Exchange Online **retiró la autenticación básica para SMTP Client Submission**. El rechazo empezó el
-**1-mar-2026** y quedó reforzado por completo el **30-abr-2026**. Cualquier aplicación que se autentique
-con usuario + contraseña contra `smtp.office365.com` recibe:
+El error real que guarda `email_queue.error_message` en producción es:
 
 ```
-550 5.7.30 Basic authentication is not supported for Client Submission
+530 5.7.57 Client not authenticated to send mail.
+535 5.7.139 Authentication unsuccessful, the request did not meet the criteria
+to be authenticated successfully. Contact your administrator.
 ```
 
-También puede aparecer como `535 5.7.139 Authentication unsuccessful`.
+⚠️ **No es** `550 5.7.30 Basic authentication is not supported` — el retiro global de la
+autenticación básica **no** es la causa. Se descartó con pruebas.
 
-**Esto NO se arregla:**
+### Qué se probó (y qué quedó descartado)
 
-- ❌ cambiando la contraseña
-- ❌ generando una App Password
-- ❌ habilitando SMTP AUTH con `Set-CASMailbox`
-- ❌ tocando `EnableSsl` o el puerto
+| Hipótesis | Prueba | Veredicto |
+|---|---|---|
+| Auth básica retirada por Microsoft | Probe SMTP a mano: `EHLO` → `STARTTLS` → `AUTH LOGIN` | ❌ `235 Authentication successful` |
+| Contraseña vencida o incorrecta | Las mismas credenciales de producción | ❌ autentican bien |
+| Falta forzar la versión de TLS | Handshake con TLS 1.2, 1.3 y default | ❌ los tres autentican |
+| TLS implícito en el puerto 465 | Conexión a `smtp.office365.com:465` | ❌ puerto cerrado en Office 365 |
+| Bug en el código del emisor | Envío real con el bloque `SmtpClient` idéntico, sobre **.NET 10** | ❌ **el correo se envía OK** |
 
-El mecanismo de autenticación fue eliminado. Hay que usar OAuth 2.0.
+**Conclusión:** las credenciales son válidas, el código es correcto y el protocolo también
+(587 + STARTTLS). El mismo código y la misma configuración envían sin problema desde la red
+corporativa, y fallan desde donde corre el servidor.
+
+⇒ **Lo que rechaza la autenticación es una política del tenant, según el origen de la conexión.**
+El propio mensaje de Exchange lo dice: *"did not meet the criteria to be authenticated successfully.
+Contact your administrator"* — es una decisión administrativa, no un problema de credenciales.
+
+Dato de apoyo: el último correo enviado con éxito fue el **3-jun-2026**; desde esa fecha fallan
+todos. Algo cambió del lado del tenant, no del código (el emisor no se tocó entre esas fechas).
+
+### Cómo se resuelve
+
+**Camino A — levantar el bloqueo (lo más rápido si el administrador puede).** Pedirle a quien
+administre Microsoft 365:
+
+1. **Conditional Access / Security Defaults:** ¿existe una política que bloquee la *autenticación
+   heredada* (legacy auth) por ubicación o por IP de origen? Si la hay, excluir el origen del
+   servidor de aplicaciones.
+2. **SMTP AUTH habilitado**, por buzón y por organización:
+   ```powershell
+   Connect-ExchangeOnline
+   Get-CASMailbox 'zootecnico@sanmarino.com.co' | Select SmtpClientAuthenticationDisabled
+   Get-TransportConfig | Select SmtpClientAuthenticationDisabled
+   ```
+   Ambos deben dar `False`.
+
+**Camino B — OAuth 2.0 con Microsoft Graph (el resto de este documento).** Es el camino sancionado
+por Microsoft y el único inmune a las políticas contra autenticación heredada. Además queda listo
+para diciembre de 2026, cuando Microsoft sí retira definitivamente la auth básica de SMTP.
 
 ## 2. Qué se cambió en el código
 

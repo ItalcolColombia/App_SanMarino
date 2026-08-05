@@ -430,7 +430,46 @@ hay que cambiar el emisor. **Decisión del usuario: Microsoft Graph API.**
 - [x] Sin procesos huérfanos — puerto 5499 libre
 - [x] Commit acotado (sin footer de atribución)
 
-### Pendiente del usuario (bloquea el despliegue, no el código)
+## Fase 6 — ⚠️ CORRECCIÓN DEL DIAGNÓSTICO (05-ago-2026, tras el aviso del usuario)
+
+El usuario avisó que el arreglo era mucho más chico («solo hay que cambiarle el protocolo»).
+**Tenía razón en que mi diagnóstico estaba mal.** Yo había atribuido la falla al retiro global de la
+auth básica **por la fecha del anuncio de Microsoft, sin haber visto nunca el error real** (el
+usuario no lo tenía a mano). Con la BD local ya sincronizada con producción, el error apareció.
+
+**Error real** (`email_queue` id 112, 05-ago-2026 12:35 UTC):
+`530 5.7.57 Client not authenticated` + `535 5.7.139 ... did not meet the criteria to be
+authenticated successfully. Contact your administrator.` — **NO** es `550 5.7.30`.
+
+- [x] Probe SMTP a mano (`EHLO`→`STARTTLS`→`AUTH LOGIN`): **`235 Authentication successful`**
+      ⇒ la auth básica de este tenant SIGUE VIVA y las credenciales son válidas
+- [x] Handshake con TLS 1.2 / 1.3 / default: los tres autentican ⇒ **la versión de TLS no es la causa**
+- [x] Puerto 465 (TLS implícito): cerrado en Office 365 ⇒ descartado (y `SmtpClient` tampoco puede)
+- [x] 🔴 Hipótesis del orden `UseDefaultCredentials`/`Credentials`: reprodujo el error exacto en
+      **.NET Framework** (PowerShell), pero un test en **.NET 10** demostró que ahí NO borra las
+      credenciales ⇒ **descartada**. Casi la publico como causa raíz corriendo el experimento en el
+      runtime equivocado; el test con la premisa falsa se eliminó
+- [x] ✅ **Envío REAL con el bloque `SmtpClient` idéntico al de la app, sobre .NET 10 → ENVIADO OK**
+      (2 correos de prueba entregados a `zootecnico@sanmarino.com.co`)
+- [x] Config desplegada verificada: idéntica a la del repo (587 / EnableSsl=true / mismas credenciales)
+- [x] Último envío exitoso en la cola: **3-jun-2026**; desde ahí fallan todos, sin cambios en el emisor
+
+**Conclusión:** credenciales ✅, código ✅, protocolo ✅. Lo que rechaza es una **política del tenant
+según el origen de la conexión** (el propio Exchange dice *"Contact your administrator"*).
+**El código no puede arreglarlo.**
+
+- [x] Diagnósticos de `SmtpEmailSender` reescritos: dejan de culpar a la contraseña y al retiro de
+      auth básica; ahora indican Conditional Access / SMTP AUTH y los comandos exactos para el admin
+- [x] `MIGRACION_CORREO_GRAPH_API.md` §1 reescrito con el diagnóstico verificado y la tabla de
+      hipótesis descartadas + los dos caminos de solución
+- [x] `dotnet build` 0/0 · `dotnet test` 1.626 + 1 verdes
+
+### Pendiente del usuario — Camino A (rápido, si el admin puede)
+- [ ] Conditional Access / Security Defaults: ¿bloquea legacy auth por ubicación o IP? Excluir el origen
+- [ ] `Get-CASMailbox 'zootecnico@sanmarino.com.co' | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
+- [ ] `Get-TransportConfig | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
+
+### Pendiente del usuario — Camino B (definitivo; el código ya está listo e inerte)
 - [ ] App registration en Entra ID + `Mail.Send` de aplicación + consentimiento de administrador
 - [ ] (Recomendado) `New-ApplicationAccessPolicy` acotando la app al buzón `zootecnico@sanmarino.com.co`
 
