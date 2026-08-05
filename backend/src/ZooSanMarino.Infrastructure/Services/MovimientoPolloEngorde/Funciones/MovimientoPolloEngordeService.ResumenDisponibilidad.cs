@@ -429,6 +429,30 @@ public partial class MovimientoPolloEngordeService
                 ErrM: x.ErrM
             ));
 
+        // Bajas de seguimiento YA DESCONTADAS del maestro por RetiroAvesEngordeAplicador (una fila
+        // BAJA_SEGUIMIENTO por registro). HembrasL/MachosL —la base de las restas— ya las tiene
+        // restadas, así que volver a restar la mortalidad acumulada las contaría DOS VECES y la venta
+        // mostraría menos aves de las que hay, bloqueando despachos legítimos.
+        // Misma fuente que LoteReproductoraAveEngordeService.GetAvesDisponiblesAsync: los lotes
+        // anteriores al descuento automático no tienen filas y conservan la fórmula previa.
+        var bajasAplicadas = await _ctx.LoteRegistroHistoricoUnificados
+            .AsNoTracking()
+            .Where(h =>
+                h.LoteAveEngordeId != null
+                && ids.Contains(h.LoteAveEngordeId.Value)
+                && h.TipoEvento == "BAJA_SEGUIMIENTO"
+                && !h.Anulado)
+            .GroupBy(h => h.LoteAveEngordeId!.Value)
+            .Select(g => new
+            {
+                Id = g.Key,
+                H = g.Sum(x => x.CantidadHembras ?? 0),
+                M = g.Sum(x => x.CantidadMachos ?? 0),
+                X = g.Sum(x => x.CantidadMixtas ?? 0)
+            })
+            .ToListAsync();
+        var aplicadasBy = bajasAplicadas.ToDictionary(x => x.Id, x => (x.H, x.M, x.X));
+
         var pendientes = await _ctx.MovimientoPolloEngorde
             .AsNoTracking()
             .Where(m =>
@@ -469,22 +493,19 @@ public partial class MovimientoPolloEngordeService
             var sieteDias = sieteDiasById.GetValueOrDefault(id, false);
             var seg = segBy.GetValueOrDefault(id, (MortH: 0, MortM: 0, SelH: 0, SelM: 0, ErrH: 0, ErrM: 0));
             pendVentaById.TryGetValue(id, out var p);
+            var aplicadas = aplicadasBy.GetValueOrDefault(id, (H: 0, M: 0, X: 0));
 
-            int rawH, rawM;
-            if (sieteDias)
-            {
-                // Aves devueltas al lote: no se restan las asignadas a reproductora
-                rawH = Math.Max(0, l.HembrasL - l.MortCajaH - mortCajaReproH - seg.MortH - seg.SelH - seg.ErrH);
-                rawM = Math.Max(0, l.MachosL - l.MortCajaM - mortCajaReproM - seg.MortM - seg.SelM - seg.ErrM);
-            }
-            else
-            {
-                rawH = Math.Max(0, l.HembrasL - l.MortCajaH - asigH - seg.MortH - seg.SelH - seg.ErrH);
-                rawM = Math.Max(0, l.MachosL - l.MortCajaM - asigM - seg.MortM - seg.SelM - seg.ErrM);
-            }
-
-            var dispH = Math.Max(0, rawH - p.H);
-            var dispM = Math.Max(0, rawM - p.M);
+            // Misma fórmula que el widget del seguimiento diario: un solo dueño del número.
+            var (dispH, dispM) = AvesDisponiblesEngordeCalculos.DisponiblesPorSexo(
+                maestroHembras: l.HembrasL, maestroMachos: l.MachosL,
+                mortCajaHembras: l.MortCajaH, mortCajaMachos: l.MortCajaM,
+                sieteDiasCompletos: sieteDias,
+                asignadasHembras: asigH, asignadasMachos: asigM,
+                mortCajaReproHembras: mortCajaReproH, mortCajaReproMachos: mortCajaReproM,
+                registradasHembras: seg.MortH + seg.SelH + seg.ErrH,
+                registradasMachos: seg.MortM + seg.SelM + seg.ErrM,
+                aplicadasHembras: aplicadas.H, aplicadasMachos: aplicadas.M, aplicadasMixtas: aplicadas.X,
+                reservadasHembras: p.H, reservadasMachos: p.M);
 
             // dispX: lotes con reproductoras (Panama) → mixtas = dispH+dispM (aves en HembrasL/MachosL).
             // Lotes sin reproductoras → usar campo Mixtas explícito o fallback Encaset.

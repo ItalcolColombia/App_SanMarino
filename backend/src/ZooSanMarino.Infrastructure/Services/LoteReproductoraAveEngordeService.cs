@@ -570,30 +570,23 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         int pendH = pend?.H ?? 0;
         int pendM = pend?.M ?? 0;
 
-        // Solo se restan las bajas que el maestro TODAVÍA no tiene descontadas: el resto ya está
-        // reflejado en hembrasIniciales/machosIniciales y restarlo otra vez las duplicaría.
-        var (bajasPendH, bajasPendM) = AvesDisponiblesEngordeCalculos.BajasPendientesDeAplicar(
+        // Fórmula ÚNICA, compartida con la disponibilidad para venta
+        // (MovimientoPolloEngordeService.ResumenDisponibilidad): solo se restan las bajas que el maestro
+        // TODAVÍA no tiene descontadas —el resto ya está reflejado en hembrasIniciales/machosIniciales—
+        // y, con los 7 días completos, las aves regresan al lote (se resta la mortalidad en caja de los
+        // reproductora en vez de las asignadas; sus bajas diarias ya viajan en los registros de cruce).
+        var (hembrasDisponibles, machosDisponibles) = AvesDisponiblesEngordeCalculos.DisponiblesPorSexo(
+            maestroHembras: hembrasIniciales, maestroMachos: machosIniciales,
+            mortCajaHembras: mortCajaH, mortCajaMachos: mortCajaM,
+            sieteDiasCompletos: sieteDiasCompletos,
+            asignadasHembras: asignadasH, asignadasMachos: asignadasM,
+            mortCajaReproHembras: mortCajaReproH, mortCajaReproMachos: mortCajaReproM,
             registradasHembras: mortSegH + selH + errH,
             registradasMachos: mortSegM + selM + errM,
             aplicadasHembras: bajasAplicadas?.H ?? 0,
             aplicadasMachos: bajasAplicadas?.M ?? 0,
-            aplicadasMixtas: bajasAplicadas?.X ?? 0);
-
-        int hembrasDisponibles, machosDisponibles;
-        if (sieteDiasCompletos)
-        {
-            // Aves devueltas al lote: NO se restan las asignadas (las aves regresan).
-            // Las bajas diarias de los reproductora (días 1-7) ya están en los registros
-            // de cruce de seguimiento_diario_aves_engorde → se restan vía bajasPend.
-            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - mortCajaReproH - bajasPendH - pendH);
-            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - mortCajaReproM - bajasPendM - pendM);
-        }
-        else
-        {
-            // Aves aún distribuidas en los reproductora (no se devuelven hasta completar 7 días).
-            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - asignadasH - bajasPendH - pendH);
-            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - asignadasM - bajasPendM - pendM);
-        }
+            aplicadasMixtas: bajasAplicadas?.X ?? 0,
+            reservadasHembras: pendH, reservadasMachos: pendM);
 
         return new AvesDisponiblesDto
         {
