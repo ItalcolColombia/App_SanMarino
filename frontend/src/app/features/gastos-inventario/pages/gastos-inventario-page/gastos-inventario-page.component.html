@@ -51,6 +51,21 @@
         (loteChange)="selectedLoteId = $event; refresh()"
         (filterDataLoaded)="onFilterDataLoaded($event)">
       </app-filtro-select>
+      <div class="modal-row">
+        <div class="ux-field">
+          <label>Estado</label>
+          <select [(ngModel)]="selectedEstado" (change)="refresh()" [disabled]="loading">
+            <option value="Activo">Activos</option>
+            <option value="Eliminado">Eliminados</option>
+            <option value="">Todos</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint">
+        El reporte Excel exporta <strong>solo los consumos activos</strong>: al eliminar un gasto su stock
+        vuelve al inventario, así que ya no es consumo. Además incluye una hoja
+        <strong>Existencias</strong> con todo el catálogo, haya tenido consumo o no.
+      </p>
     </div>
   </section>
 

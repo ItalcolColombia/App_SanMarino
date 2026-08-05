@@ -212,3 +212,162 @@ el lote 130 hoy ni siquiera entra al método).
 > main tomando su versión del service (alcance padre+sublotes + `ReporteContableHuevosCalculos`
 > puro con tests — más completa que el fix inline de `5a3b220`) y aplicando encima el rango
 > sargable sin `.Date` + corte exclusivo al día siguiente (filas ancladas a mediodía).
+
+---
+
+# Tracker — Gastos de inventario: reporte sin eliminados + hoja de existencias completas
+
+**Plan:** [`fase_de_desarrollo/gastos_inventario_reporte_estado_existencias_plan.md`](fase_de_desarrollo/gastos_inventario_reporte_estado_existencias_plan.md)
+**Fecha:** 2026-08-05 · Módulo transversal (hoy datos solo en ItalcolEcuador; company 5 comparte catálogo)
+
+Novedad del usuario final: el Excel del módulo trae también los consumos eliminados y solo muestra
+las referencias que tuvieron consumo. Pedido de Moises: auditar el servicio de la tabla, lo que
+exporta el Excel, el filtro de eliminados y el retorno a inventario al eliminar.
+
+**Decisiones:** D1 = hoja de existencias con **saldo actual + consumo del rango** (sin kardex histórico) ·
+D2 = el reporte **excluye eliminados SIEMPRE**; el historial queda en pantalla con filtro de Estado.
+
+## Fase 0 — Auditoría (contra BD local, dump tipo-prod)
+- [x] ✅ **Retorno a inventario VALIDADO**: 38/38 gastos eliminados con su devolución — 0 sin devolución, 0 líneas descuadradas, 0 cantidades descuadradas
+- [x] 🔴 Confirmado el bug del reporte: `ExportAsync` no filtra estado ⇒ 46 filas Eliminado + 421 Activo en el archivo
+- [x] 🔴 El CSV descarta `Estado`/`DeletedAt` aunque el DTO ya los trae
+- [x] 🟠 La UI nunca manda `estado`; `fn_inventario_gastos_search` con `p_estado NULL` devuelve todo
+- [x] 🟠 `DeleteAsync` busca el gasto sin `CompanyId` (módulo transversal)
+- [x] Plan escrito + decisiones D1/D2 confirmadas
+
+## Fase 1 — Backend
+- [x] B1 `ExportAsync` excluye `Estado = 'Eliminado'` **incondicionalmente** (antes de aplicar `req.Estado`, así que pedirlo explícitamente tampoco los trae); `SearchAsync` NO cambia — la tabla sigue pudiendo mostrar el historial
+- [x] B2 `fn_inventario_gastos_existencias` (`backend/sql/` + migración idempotente `20260805120000_AddFnInventarioGastosExistencias` con Designer clonado, sin tocar el ModelSnapshot)
+- [x] B2 Endpoint `GET /api/inventario-gastos/existencias` + `InventarioGastoExistenciaDto`/`Row`/`Request` + interfaz
+- [x] B3 `DeleteAsync` fail-closed por empresa (busca el gasto con `CompanyId`; empresa inválida ⇒ `UnauthorizedAccessException`)
+- [x] B4 `InventarioGastoReporteCalculos` (puro: `EsGastoEliminado`/`EsGastoActivo`/`ClaveOrdenConcepto`/`EtiquetaConcepto`) + **21 tests xUnit**
+
+## Fase 2 — Frontend
+- [x] F1 `models/inventario-gasto.model.ts` con todos los tipos + `InventarioGastoExistenciaDto` y `EstadoGastoFiltro`; el servicio los **re-exporta** (imports existentes intactos)
+- [x] F2 `funciones/exportar-gastos-inventario-excel.funcion.ts` (pura: `construirHojasReporteGastos`/`construirFilas*`/`describirFiltros`) sobre `exportarMultiHojaExcel` + README con las 2 reglas que el reporte no puede romper
+- [x] F3 Filtro Estado (Activos por defecto / Eliminados / Todos) aplicado a la tabla + `limpiarFiltros` lo resetea; leyenda explicando el alcance del Excel
+- [x] F4 Servicio `existencias(...)` + `buildParams` compartido; **CSV a mano eliminado** (63 líneas de código muerto)
+
+## Fase 3 — Validación
+- [x] `dotnet build` — **0 errores, 0 advertencias**
+- [x] `dotnet test` — **1.550 Application + 1 Domain verdes** (1.529 previos + 21 nuevos)
+- [x] `yarn build` (Node portable 22.23.1) — OK; único warning el de *bundle budget* preexistente
+- [x] SQL (9 casos): universo 1.310 = 10 granjas × 131 ítems = catálogo completo · 1.114 filas sin consumo presentes (121 con saldo > 0) · `saldo_actual` == stock **0 diferencias** · consumo fn 318.719,220 == gastos activos (los 5.612,225 eliminados fuera) · filtros granja/concepto/rango OK
+- [x] Smoke HTTP (:5499, JWT + X-Secret-Up minteados): `/export` **421 filas, 0 eliminados** (antes 467 con 46) · `/export?estado=Eliminado` ⇒ 0 filas · tabla 316/38/354 según filtro · `/existencias` 1.310 filas con los 9 conceptos
+- [x] Multiempresa: company 5 ⇒ 0 existencias / 0 export, **sin fuga de Ecuador**
+- [x] `DELETE` cross-empresa (gasto 354 de Ecuador con sesión company 5) ⇒ **HTTP 400** y el gasto sigue `Activo`; conteos 316/38 idénticos al inicio
+- [x] **Verificación UI** (front :4200 + back :5002, sesión dev inyectada en `auth_session`): la pantalla abre en **316 registros** (antes 354) · el selector filtra 38 Eliminados / 354 Todos / 316 Activos con los estados correctos en la columna · «Exportar Excel» dispara `/export` + `/existencias` en paralelo (200/200) y produce **`gastos-inventario_20260805.xlsx`** (magic `PK`, 716 KB, ya no `.csv`) con toast «421 consumo(s) y 1310 existencia(s)» · **0 errores de consola**
+- [x] Backend y front de smoke detenidos — puertos 4200/5002/5499 libres, sin procesos huérfanos
+- [x] Commit acotado (sin footer de atribución)
+
+---
+
+# Fix — «Aves disponibles» difiere entre Seguimiento diario y Venta (pollo engorde)
+
+**Plan:** [`fase_de_desarrollo/fix_disponibilidad_aves_venta_engorde_plan.md`](fase_de_desarrollo/fix_disponibilidad_aves_venta_engorde_plan.md)
+**Fecha:** 2026-08-05 · Ticket de operación: CAROLINA G4 lote 2603 y Sacachun 3A G2 lote 2602
+
+Novedad: el seguimiento diario dice 40 aves y la venta 33; la operación no puede despachar.
+**Hipótesis del ticket descartada** (no suma aves del lote cerrado 2601: los dos «7» son coincidencia).
+**Causa raíz:** el fix de doble descuento de jul-26 (`BajasPendientesDeAplicar`) se aplicó solo al
+seguimiento; la venta sigue restando las bajas ya aplicadas al maestro ⇒ las cuenta dos veces.
+**El correcto es 40** (= `fn_seguimiento_diario_engorde`). Impacto: 50 lotes / 31.062 aves (PA 30, EC 20).
+
+## Fase 0 — Diagnóstico (contra BD local, dump tipo-prod)
+- [x] Ambos números reproducidos exactos: seguimiento `762−722=40`, venta `762−729=33`
+- [x] Identidad de conservación verificada: `13.700 − 12.931 − 7 = 762 = machos_l`
+- [x] Fuente de verdad: `fn_seguimiento_diario_engorde(97).saldo_aves = 40` (49 d)
+- [x] `BajasPendientesDeAplicar` tiene 1 solo consumidor productivo (la venta no lo usa)
+- [x] Los 3 caminos de venta convergen en `GetAvesDisponiblesLotesAsync` ⇒ un único punto de arreglo
+- [x] Impacto medido por empresa + 49 lotes activos listados (incluye Sacachun 3A: 194 vs 0)
+- [x] Plan escrito
+
+## Fase 1 — Backend (sin migración: es aritmética en C#)
+- [x] C1 `AvesDisponiblesEngordeCalculos.DisponiblesPorSexo` (puro, encapsula la fórmula completa)
+- [x] C2 🔴 `MovimientoPolloEngordeService.ResumenDisponibilidad` carga `BAJA_SEGUIMIENTO` y delega
+- [x] C3 `LoteReproductoraAveEngordeService.GetAvesDisponiblesAsync` delega (resultado idéntico)
+
+## Fase 2 — Tests (gate CI)
+- [x] T1-T2 casos del ticket (CAROLINA G4 = 40 · Sacachun 3A = 194, antes 0)
+- [x] T3 retrocompatibilidad sin filas `BAJA_SEGUIMIENTO` (lote 2601 G4 = 7 en ambas fórmulas)
+- [x] T4 equivalencia seguimiento == venta
+- [x] T5-T8 reservas pendientes, clamp a 0, rama `sieteDiasCompletos`, bajas mixtas
+
+## Fase 3 — Validación
+- [x] `dotnet build` **0 errores / 0 advertencias**
+- [x] `dotnet test` **verde: 1.566 tests, 0 fallos**
+- [x] Paridad con la grilla: **Panamá 29/29 exacto (desvío 0)** · **Ecuador 31/32** (antes 12/32)
+- [x] Gate multipaís: **0 lotes bajan** su disponibilidad · **0 lotes sin `BAJA_SEGUIMIENTO` cambian**
+      (retrocompatibilidad total) · 50 corregidos / 118 intactos / **31.062 aves recuperadas**
+- [x] Sin procesos huérfanos (solo consultas psql puntuales)
+- [x] Commit acotado (sin footer de atribución)
+
+### Hallazgo aparte (NO es de este fix, no se toca)
+- Kilometro 61 · Galpon-1 · lote 2604 (id 107): el maestro tiene **17 aves de más** frente a la
+  identidad `encaset − ventas − bajas_aplicadas` (24.374 − 0 − 140 = 24.234, maestro = 24.251).
+  Es el único lote activo que no cuadra con la grilla; el fix lo acerca de −123 a −17 pero no puede
+  corregir un maestro desfasado. Requiere su propia auditoría de datos antes de tocar nada.
+
+## Fase 4 — Corrección de DATOS + prevención (pedido 05-ago-2026)
+- [x] A1 Auditoría del universo: identidad canónica = `inicio − ventas − BAJA_SEGUIMIENTO − ajustes fantasma`
+- [x] A2 🔴 **8 lotes «2601» NO eran un bug**: corrección deliberada previa (plan `correccion_aves_disponibles_engorde_2601_plan.md` §2.3), lotes liquidados, rastro de 8 filas `Ajuste` = 1.552 aves ⇒ **NO TOCADOS** (corregirlos revivía aves fantasma)
+- [x] A3 Clasificados los 6 restantes: 1 con efecto visible (107), 1 solo cruce por sexo (184), 4 con `Inicio` ≠ encaset ⇒ revisión manual
+- [x] A4 Origen exacto del descuadre del 107: la fila `BAJA_SEGUIMIENTO` del 24-07 (5 H + 12 M) nunca llegó al maestro; el registro se creó retroactivo el 30-07
+- [x] C4 Simulación en transacción + `ROLLBACK`: 2 lotes, Panamá 0, 0 negativos, 2ª pasada 0 filas
+- [x] C5 Migración `20260805150000_CorreccionMaestroAvesEngordeIdentidad` (data-only, 3 guardas) + SQL en `backend/sql/`
+- [x] C6 Prevención (a): los 4 `catch` que silenciaban el fallo del descuento a `Console` ahora van al `_logger` con lote y seguimiento
+- [x] C7 Prevención (b): `fn_cuadre_aves_engorde` + migración `20260805160000_AddFnCuadreAvesEngorde` (detector del invariante, hermana de `fn_cuadre_alimento_engorde`)
+- [x] V1 Migraciones aplicadas en local; re-ejecutar el SQL de corrección da `UPDATE 0` (idempotente)
+- [x] V2 **Cuadre final: 0 descuadrados** — Ecuador 104/108 (4 en revisión manual), **Panamá 60/60**
+- [x] V3 Paridad pantalla vs grilla: **Ecuador 32/32** (era 31/32) · **Panamá 29/29**
+- [x] V4 `dotnet build` 0/0 · `dotnet test` 1.566 verdes · sin procesos huérfanos
+- [ ] ⚠️ **Pendiente (no bloqueante, decisión de negocio):** 4 lotes con `Inicio` ≠ `aves_encasetadas`
+      (5 y 7 dicen 50.000 vs 25.542/22.681 reales; 30 y 132). Hoy muestran el número correcto.
+
+---
+
+# Fix — borrar/editar un seguimiento viejo infla el maestro de aves (pollo engorde)
+
+**Plan:** [`fase_de_desarrollo/fix_baseline_bajas_seguimiento_engorde_plan.md`](fase_de_desarrollo/fix_baseline_bajas_seguimiento_engorde_plan.md)
+**Fecha:** 2026-08-05 · Continúa el «Hallazgo aparte» del fix `3998aa2` (lote 107 con 17 aves de más)
+
+**Causa raíz:** `SincronizarAsync` tomaba el baseline de las **columnas del seguimiento** en vez de su
+**fila del histórico**, que es la única prueba de lo que se descontó. Borrar un registro de la cohorte
+anterior al aplicador (< 2026-07-27 17:58, sin fila) **acreditaba aves que nunca se debitaron**, y
+`UpsertHistorico` hacía no-op silencioso (`if (fila is not null)`) ⇒ maestro inflado **sin rastro**:
+ni fila anulada, ni `updated_at`, ni auditoría.
+
+## Fase 0 — Auditoría (solo lectura, sin tocar datos)
+- [x] Identidad de conservación recalculada: maestro 107 = 10.860 + 13.374 = **24.234** ⇒ hoy CUADRA
+- [x] Hipótesis 1 **cruce reproductora descartada**: 26/26 seguimientos con `origen_cruce = false`, 0 filas en `_backup_bajas_cruce_engorde_20260729`
+- [x] Hipótesis 2 **anuladas/duplicadas descartada**: las 10 `BAJA_SEGUIMIENTO` vivas, `uq_lote_hist_origen` impide duplicados
+- [x] Hipótesis 3 **ajuste manual previo descartada**: sin filas `Ajuste`/`AjusteResync` para 107/184
+- [x] Hipótesis 4 **CONFIRMADA**: borrado del #8652 (07-24, pre-aplicador, sin fila) el 07-30 16:50; #10595 (5 H + 12 M = **17**) es el único con fila
+- [x] Fecha de corte del aplicador fijada: primera fila `BAJA_SEGUIMIENTO` **2026-07-27 17:58:29**
+- [x] ⚠️ Detectado por `xmin` que el maestro del 107 **ya lo corrigió SQL crudo externo** (txn `52399`, 2 filas: 107 y 184, sin `updated_at` ni auditoría, base restaurada con `xmin` uniforme `52338`) — **no fue esta sesión**
+- [x] Alcance sistémico: **0 lotes descuadrados** (identidad por sexo y total) · exposición **4.797 seguimientos sin fila / 102 lotes / 158.092 aves** (EC) + 32 (PA)
+- [x] Plan escrito
+
+## Fase 1 — Backend (sin migración ni backfill: no hay descuadre que reparar)
+- [x] C1 `RetiroAvesEngordeCalculos.BaselineAplicado(RetiroAves?)` — puro; fila ausente/anulada ⇒ `(0,0)`; mixtas al bucket machos
+- [x] C2 🔴 `SincronizarAsync` lee la fila por `(origen_tabla, origen_id)` y **deriva el baseline solo**; deja de recibir `viejas`
+- [x] C3 `UpsertHistoricoAsync` → `UpsertHistorico`: recibe la fila ya cargada (una consulta menos) y es síncrono
+- [x] C4 `origen_id` fuera de rango `int` ⇒ no toca el maestro (antes lo movía a ciegas, sin traza)
+- [x] C5 6 llamadas actualizadas (3 Ecuador + 3 carga masiva) + wrapper `SincronizarBajasAvesAsync`
+- [x] C6 `SincronizarCruceAsync` simplificado: el baseline sale de la misma fila ⇒ comportamiento idéntico
+
+## Fase 2 — Tests (gate CI)
+- [x] T1-T3 `BaselineAplicado`: sin fila `(0,0)` · por sexo `(H,M)` · mixta `(0,X)`
+- [x] T4 borrar un seguimiento sin fila **no devuelve aves**, con contraste explícito del bug (inflaba 5 H + 12 M)
+- [x] T5 editar un seguimiento sin fila descuenta el **total nuevo**, no el delta
+- [x] T6-T8 regresión camino normal: alta+borrado simétricos por sexo **y** mixto; edición con fila viva mueve solo el delta
+
+## Fase 3 — Validación
+- [x] `dotnet build` — **0 errores, 0 advertencias**
+- [x] `dotnet test` — **1.573 Application + 1 Domain verdes** (1.565 previos + 8 nuevos)
+- [x] Desfase del maestro medido con `fn_cuadre_aves_engorde` (commit `75f7980`, sesión paralela) — **no se duplicó la fórmula**
+- [x] Guard complementario `backend/sql/verificar_bajas_seguimiento_sin_aplicar.sql`: huérfanas vivas **0 filas**; cohorte sin fila como termómetro
+- [x] Reconciliado con `75f7980` (misma área): su cambio era `Console.WriteLine` → `_logger?.LogError`, **no tocaba el baseline** ⇒ arreglos complementarios, conflicto solo textual
+- [x] Datos **no modificados** por esta sesión (solo `SELECT`; `pageinspect` creada y eliminada)
+- [x] Sin procesos huérfanos (solo consultas psql puntuales)
+- [x] Commit acotado (sin footer de atribución)

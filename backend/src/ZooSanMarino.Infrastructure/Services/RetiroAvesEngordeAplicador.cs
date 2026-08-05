@@ -27,14 +27,22 @@ internal static class RetiroAvesEngordeAplicador
 
     /// <summary>
     /// Sincroniza las aves del lote con las bajas de UN registro de seguimiento. Idempotente por
-    /// registro: el maestro <c>lote_ave_engorde</c> se mueve por el DELTA (nuevas − viejas) y en
+    /// registro: el maestro <c>lote_ave_engorde</c> se mueve por el DELTA (nuevas − ya aplicadas) y en
     /// <c>lote_registro_historico_unificado</c> existe a lo sumo UNA fila por seguimiento (clave única
     /// <c>origen_tabla + origen_id</c>) que siempre refleja el total vigente de ese día.
     /// <list type="bullet">
-    /// <item>Alta → viejas = 0.</item>
+    /// <item>Alta → no hay fila ⇒ baseline 0: descuenta el total del día.</item>
     /// <item>Edición → delta, que puede ser negativo y devolver aves.</item>
-    /// <item>Borrado → nuevas = 0: devuelve todo y anula la fila del histórico.</item>
+    /// <item>Borrado → nuevas = 0: devuelve lo aplicado y anula la fila del histórico.</item>
     /// </list>
+    /// <para>
+    /// <b>El baseline lo manda la FILA DEL HISTÓRICO, no el llamador.</b> La fila es el único registro
+    /// de lo que efectivamente se descontó, así que un seguimiento sin fila viva (la cohorte anterior al
+    /// aplicador, &lt; 2026-07-27, o una fila ya anulada) tiene baseline 0 y su borrado no devuelve
+    /// nada. Antes el baseline venía de las columnas del registro y borrar un día viejo ACREDITABA aves
+    /// que nunca se habían debitado: el maestro se inflaba en silencio —sin fila anulada, sin
+    /// <c>updated_at</c>, sin auditoría— y el descuadre solo aparecía al cruzar la conservación.
+    /// </para>
     /// El reparto (mixtas vs. por sexo) lo decide <c>RetiroAvesEngordeCalculos</c> según los DATOS del
     /// lote, así que la plantilla mixta de Panamá — que manda el total del día en las columnas "H" —
     /// descuenta de <c>mixtas</c> sin que el importador tenga que saber nada del lote.
@@ -42,11 +50,12 @@ internal static class RetiroAvesEngordeAplicador
     public static async Task SincronizarAsync(
         ZooSanMarinoContext ctx, int companyId,
         int loteAveEngordeId, long seguimientoId, DateTime fecha,
-        int bajasHembrasViejas, int bajasMachosViejas,
         int bajasHembrasNuevas, int bajasMachosNuevas)
     {
-        var deltaH = bajasHembrasNuevas - bajasHembrasViejas;
-        var deltaM = bajasMachosNuevas - bajasMachosViejas;
+        // origen_id de la tabla es INTEGER. Sin él no se puede leer el baseline aplicado, y mover el
+        // maestro a ciegas es justamente lo que se está corrigiendo: preferimos no tocar nada.
+        if (seguimientoId is < int.MinValue or > int.MaxValue) return;
+        var origenId = (int)seguimientoId;
 
         var lote = await ctx.LoteAveEngorde
             .SingleOrDefaultAsync(l => l.LoteAveEngordeId == loteAveEngordeId
@@ -62,8 +71,17 @@ internal static class RetiroAvesEngordeAplicador
         // descontar antes que reportar un saldo mentiroso.
         if ((lote.AvesEncasetadas ?? 0) <= 0) return;
 
+        var fila = await ctx.LoteRegistroHistoricoUnificados
+            .SingleOrDefaultAsync(h => h.OrigenTabla == OrigenTabla && h.OrigenId == origenId);
+
+        // Baseline REAL: lo que la fila viva dice que se descontó. Ausente o anulada ⇒ 0.
+        var aplicadas = fila is null || fila.Anulado
+            ? (RetiroAves?)null
+            : new RetiroAves(fila.CantidadHembras ?? 0, fila.CantidadMachos ?? 0, fila.CantidadMixtas ?? 0);
+        var (viejasH, viejasM) = BaselineAplicado(aplicadas);
+
         var maestro = new MaestroAves(lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0);
-        var res = AplicarDelta(maestro, deltaH, deltaM);
+        var res = AplicarDelta(maestro, bajasHembrasNuevas - viejasH, bajasMachosNuevas - viejasM);
 
         if (!res.SinEfecto)
         {
@@ -75,7 +93,7 @@ internal static class RetiroAvesEngordeAplicador
         // La fila del histórico refleja el TOTAL vigente del día, repartido con el mismo criterio con
         // el que se movió el maestro (por eso se usa el maestro PREVIO al delta).
         var totalVigente = Repartir(maestro, bajasHembrasNuevas, bajasMachosNuevas);
-        await UpsertHistoricoAsync(ctx, lote, seguimientoId, fecha, totalVigente, res.Insuficiente);
+        UpsertHistorico(lote, fila, ctx, origenId, fecha, totalVigente, res.Insuficiente);
 
         await ctx.SaveChangesAsync();
     }
@@ -132,10 +150,9 @@ internal static class RetiroAvesEngordeAplicador
 
         foreach (var h in aplicadas.Where(x => !existentes.Contains(x.OrigenId)))
         {
+            // El baseline sale de esta misma fila dentro de SincronizarAsync, así que basta con pedir 0.
             await SincronizarAsync(
                 ctx, companyId, loteAveEngordeId, h.OrigenId, h.FechaOperacion,
-                bajasHembrasViejas: h.CantidadHembras ?? 0,
-                bajasMachosViejas: (h.CantidadMachos ?? 0) + (h.CantidadMixtas ?? 0),
                 bajasHembrasNuevas: 0, bajasMachosNuevas: 0);
         }
 
@@ -154,7 +171,6 @@ internal static class RetiroAvesEngordeAplicador
 
             await SincronizarAsync(
                 ctx, companyId, loteAveEngordeId, s.Id, s.Fecha,
-                bajasHembrasViejas: 0, bajasMachosViejas: 0,
                 bajasHembrasNuevas: bajasH, bajasMachosNuevas: bajasM);
         }
     }
@@ -164,18 +180,10 @@ internal static class RetiroAvesEngordeAplicador
     /// lo hace <see cref="SincronizarAsync"/> junto con el maestro, para que ambos efectos viajen en
     /// la misma unidad de trabajo.
     /// </summary>
-    private static async Task UpsertHistoricoAsync(
-        ZooSanMarinoContext ctx, LoteAveEngorde lote, long seguimientoId, DateTime fecha,
-        RetiroAves total, bool insuficiente)
+    private static void UpsertHistorico(
+        LoteAveEngorde lote, LoteRegistroHistoricoUnificado? fila, ZooSanMarinoContext ctx,
+        int origenId, DateTime fecha, RetiroAves total, bool insuficiente)
     {
-        // origen_id de la tabla es INTEGER; los ids de seguimiento entran de sobra, pero si algún día
-        // no entraran preferimos quedarnos sin la traza antes que reventar el alta del registro.
-        if (seguimientoId is < int.MinValue or > int.MaxValue) return;
-        var origenId = (int)seguimientoId;
-
-        var fila = await ctx.LoteRegistroHistoricoUnificados
-            .SingleOrDefaultAsync(h => h.OrigenTabla == OrigenTabla && h.OrigenId == origenId);
-
         if (total.EsVacio)
         {
             if (fila is not null) fila.Anulado = true; // el día quedó sin bajas (o se borró el registro)

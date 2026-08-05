@@ -9,7 +9,14 @@ public interface IInventarioGastoService
 
     Task<List<InventarioGastoListItemDto>> SearchAsync(InventarioGastoSearchRequest req, CancellationToken ct = default);
 
+    /// <summary>Filas del reporte (una por línea de consumo). NUNCA incluye gastos eliminados.</summary>
     Task<List<InventarioGastoExportRowDto>> ExportAsync(InventarioGastoSearchRequest req, CancellationToken ct = default);
+
+    /// <summary>
+    /// Existencias de TODOS los ítems no-alimento del catálogo (tengan o no consumo) con su saldo
+    /// actual y lo consumido en el rango. Es la hoja de control de inventario del reporte.
+    /// </summary>
+    Task<List<InventarioGastoExistenciaDto>> GetExistenciasAsync(InventarioGastoExistenciasRequest req, CancellationToken ct = default);
 
     Task<InventarioGastoDto> GetByIdAsync(int id, CancellationToken ct = default);
 

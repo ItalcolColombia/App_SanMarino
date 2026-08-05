@@ -9,9 +9,8 @@ public partial class SeguimientoAvesEngordeService
     /// <inheritdoc cref="RetiroAvesEngordeAplicador.SincronizarAsync"/>
     private Task SincronizarBajasAvesAsync(
         int loteAveEngordeId, long seguimientoId, DateTime fecha,
-        int bajasHembrasViejas, int bajasMachosViejas,
         int bajasHembrasNuevas, int bajasMachosNuevas) =>
         RetiroAvesEngordeAplicador.SincronizarAsync(
             _ctx, _current.CompanyId, loteAveEngordeId, seguimientoId, fecha,
-            bajasHembrasViejas, bajasMachosViejas, bajasHembrasNuevas, bajasMachosNuevas);
+            bajasHembrasNuevas, bajasMachosNuevas);
 }

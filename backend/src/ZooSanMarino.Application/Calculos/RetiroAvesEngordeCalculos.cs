@@ -114,6 +114,22 @@ public static class RetiroAvesEngordeCalculos
         return (disponible + devuelto, 0, devuelto, false);
     }
 
+    /// <summary>
+    /// Bajas que REALMENTE se aplicaron al maestro por un seguimiento. La única prueba de que un día
+    /// descontó es su fila viva en el histórico unificado (<c>BAJA_SEGUIMIENTO</c>), así que ella —y no
+    /// las columnas del seguimiento— es el baseline del delta.
+    /// <para>
+    /// <paramref name="filaVigente"/> en <c>null</c> (fila ausente o anulada) ⇒ ese día NUNCA descontó
+    /// y el baseline es 0. Es el caso de la cohorte anterior al aplicador (&lt; 2026-07-27): tomar el
+    /// baseline de las columnas del registro hacía que borrarlo DEVOLVIERA aves que nunca se habían
+    /// debitado, inflando el maestro sin dejar rastro.
+    /// </para>
+    /// Las mixtas vuelven al bucket "machos" porque <see cref="AplicarDelta"/> netea los dos sexos en un
+    /// lote mixto: como baseline, <c>(0,0,X)</c> y <c>(0,X)</c> producen el mismo delta.
+    /// </summary>
+    public static (int Hembras, int Machos) BaselineAplicado(RetiroAves? filaVigente) =>
+        filaVigente is { } f ? (f.Hembras, f.Machos + f.Mixtas) : (0, 0);
+
     /// <summary>Bajas de un día por sexo: mortalidad + selección + error de sexaje (negativos = 0).</summary>
     public static (int Hembras, int Machos) BajasDelDia(
         int mortalidadHembras, int selHembras, int errorSexajeHembras,
