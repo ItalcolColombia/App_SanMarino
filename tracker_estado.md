@@ -1033,3 +1033,63 @@ errores, porque son cosas que pueden pasar entre empresas»
 - [x] Q8 No se commiteó trabajo de la otra sesión: `dotnet ef migrations add` había arrastrado al
       `ModelSnapshot` un cambio ajeno de `tipo_alimento` (100→500) — revertido, y el Designer de mi
       migración alineado al modelo de HEAD
+
+---
+
+# Tracker — Ciclo completo S-369: levante → cierre → liquidación → producción
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «cerrá el lote en la fecha que tiene, cargá producción, registrá
+traslados/movimientos/ventas en los módulos que corresponda y validá que el Excel y los reportes de la
+app estén alineados». Empresa **Demo excluida** a pedido: solo Agroavicola Sanmarino.
+
+## Corrección del corte de fase (hallazgo)
+- [x] F1 Cada sublote hace **168 días exactos de levante (24 semanas)** y pasa a producción al día 169.
+      Verificado: el saldo del día 168 es idéntico a las aves con las que arranca su hoja de producción
+      — A `2026-02-13 → 9.484/966` y B `2026-02-19 → 9.534/991`. El corte anterior (uno solo, 2026-02-19)
+      le daba a A **6 días de más** que ya estaban en producción
+- [x] F2 Producción también se parte por sublote: `DIARIO A` (168 días, galpones 9-10) y `DIARIO B`
+      (161 días, galpones 11-13). Las columnas de peso están **corridas una posición** entre las dos hojas
+
+## Carga
+- [x] C1 4 archivos regenerados: levante A/B (168 días c/u) y producción A/B (168 y 161 días)
+- [x] C2 Levante importado: **168/168** filas cada uno, 0 errores; saldos 9.484/966 y 9.534/991
+- [x] C3 **Liquidación** calculada y guardada por sublote (A: mort 3,56 % · sel 0,85 % · sexaje 2,31 % ·
+      retiro acum 6,72 % · B: 2,98 / 0,69 / 3,68 / 7,36)
+- [x] C4 **Cierre en la fecha real**: `P-S-369A` arranca 2026-02-14 y `P-S-369B` 2026-02-20, con
+      9.484/966 y 9.534/991 — exactamente el saldo de su levante
+- [x] C5 Producción importada: **168/168** y **161/161** filas, 0 errores. Cierra en 9.020/810 y 8.952/813
+      con 1.142.573 y 1.115.079 huevos — los cuatro números idénticos al informe
+- [x] C6 **Ajuste de inventario trazable**: el consumo del informe supera a las compras de `CONSUMOS`
+      en **2,8 kg** de PREPOSTURA (86.462,8 vs 86.460,0). En vez de recortar el consumo —que es el que
+      produce el gr/ave— el faltante entra como un `Ingreso` con referencia `AJUSTE-CUADRE-001560`
+
+## Módulos (el historial quedó donde corresponde)
+- [x] M1 **Movimientos de Aves**: 6 movimientos en S-369A y 8 en S-369B, con número `MGA-*`, fecha, tipo,
+      cantidades, estado `Completado` y motivo. `GET /api/MovimientoAves/lote/{id}` los devuelve todos
+- [x] M2 **Cohortes**: el Ingreso de 196 machos dejó su cohorte en el receptor con la procedencia y
+      `fecha_encaset_cohorte = 2025-08-30` (la del **origen**, no la del receptor)
+- [x] M3 **Traslado de Huevos**: 0 registros — el informe fuente no trae movimientos de huevo
+- [x] M4 **Inventario**: 96 ingresos (792.181,8 kg) y 1.190 consumos (764.149,7 kg); histórico unificado
+      con 1.286 filas y **0 anuladas**, cuadrando con los movimientos
+
+## Validación contra el Excel
+- [x] V1 **Levante — semanal consolidado: 24 de 24 semanas IDÉNTICAS** en las 8 métricas (saldo,
+      mortalidad, selección, error de sexaje, consumo kg, g/ave/día, peso corporal y uniformidad).
+      Con el corte corregido ya no queda ninguna semana parcial
+- [x] V2 **Producción — por sublote (24 y 23 semanas)**: mortalidad, selección, consumo kg, huevos
+      totales y huevos aptos **idénticos en todas las semanas** (única excepción: los 5 huevos del
+      2026-06-30, desvío propio del archivo fuente)
+- [x] V3 🔴 **El saldo de aves de producción NO descuenta las ventas** → investigado y localizado:
+      - La brecha aparece justo en la primera venta y al final vale **+114 en A y +224 en B**:
+        exactamente el total vendido de cada uno
+      - Causa: en producción una `Venta` descuenta `aves_h_actual` y deja la auditoría en
+        `movimiento_aves` + una **nota en observaciones**, pero **no escribe ninguna columna numérica**
+        en `seguimiento_diario_produccion` (en levante sí existe `venta_aves_cantidad`)
+      - El reporte reconstruye el saldo desde las filas diarias, así que no la ve. El punto exacto es
+        `fn_indicadores_produccion_postura`: `v_aves_h_act := GREATEST(0, v_aves_h_act - r_mort_h - r_sel_h)`
+        — sin ventas ni traslados
+      - Arrastra el g/ave/día, que divide por ese saldo (semana 48 de A: 159,74 vs 162,39)
+      - **NO corregido en este turno**: esa fn es una cadena de 3 niveles compartida con el módulo de
+        Indicadores de todas las empresas y merece su propio cambio con el gate multipaís completo,
+        igual que se hizo con `ReporteTecnicoService`. Pendiente de OK
