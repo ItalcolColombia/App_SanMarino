@@ -1160,3 +1160,23 @@ tanto en la carga masiva como en los seguimientos diarios de producción».
 - [x] **Producción S-369A: 23 de 24** — la única diferencia del ciclo completo son los **5 huevos**
       del 2026-06-30, desvío del propio archivo fuente (la columna «Producción Huevos» dice 14.038 y
       su propia clasificación suma 14.043)
+
+## Validación exhaustiva del flujo contra el Excel
+- [x] V1 **N1 · día a día**: 665 días (168+168 levante, 168+161 producción) comparados campo por
+      campo contra su hoja fuente — mortalidad H/M, selección H/M, error de sexaje H/M, consumo kg H/M,
+      las 9 categorías de huevo, huevo total y peso del huevo. **0 diferencias**
+- [x] V2 **N2 · reportes**: levante **24/24** semanas × 8 métricas · producción **23/23** (B) y
+      **23/24** (A) × 7 métricas. La única celda distinta de las 71 semanas son los 5 huevos
+- [x] V3 **N3 · invariantes**: los 6 saldos de fase exactos (A 10.167/1.472 → 9.484/966 → 9.020/810 ·
+      B 10.291/1.521 → 9.534/991 → 8.952/813); el cierre entrega a producción exactamente las aves
+      con las que arranca su hoja. Inventario de 7 ítems y 13 movimientos de aves con su historial
+- [x] V4 **Origen de los 5 huevos localizado**: galpón 9, **martes 24-jun-2026** — recolección 2.549
+      contra clasificación 2.554. Son dos registros independientes del mismo día en la hoja del
+      galpón (columna `N` vs bloque `AQ..BI`) que `DIARIO A` arrastra por fórmula. Único día
+      descuadrado del ciclo: 0 en los galpones 10/11/12/13 y 0 en los otros 828 días del galpón 9.
+      El sistema cargó la **clasificación**, que es de donde el propio Excel deriva su columna Total
+- [x] V5 **Segunda desviación del fuente documentada**: las hojas «general» suman **por número de
+      fila, no por fecha** (161 filas cuadran por fila y solo 1 por fecha). Por eso el desvío del
+      24-jun aparecía rotulado 30-jun, y por eso la carga se hizo por sublote
+- [x] V6 `VALIDACION_S-369.md` publicado junto a los archivos, con el flujo en orden, los 3 niveles
+      de validación y las 2 desviaciones del fuente
