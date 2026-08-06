@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Persistence/Configurations/SeguimientoDiarioAvesEngordeConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
@@ -24,7 +25,10 @@ public class SeguimientoDiarioAvesEngordeConfiguration : IEntityTypeConfiguratio
         b.Property(x => x.ErrorSexajeMachos).HasColumnName("error_sexaje_machos");
         b.Property(x => x.ConsumoKgHembras).HasColumnName("consumo_kg_hembras").HasPrecision(12, 3);
         b.Property(x => x.ConsumoKgMachos).HasColumnName("consumo_kg_machos").HasPrecision(12, 3);
-        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(100);
+        // Sigue en 100 (a diferencia de levante): la vista de Power BI vw_seguimiento_pollo_engorde
+        // depende de esta columna y Postgres no deja cambiarle el tipo. El recorte de
+        // TipoAlimentoCalculos.MaxLongitudEngorde evita el 22001 sin tocar la vista.
+        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(TipoAlimentoCalculos.MaxLongitudEngorde);
         b.Property(x => x.Observaciones).HasColumnName("observaciones");
         b.Property(x => x.Ciclo).HasColumnName("ciclo").HasMaxLength(50);
 

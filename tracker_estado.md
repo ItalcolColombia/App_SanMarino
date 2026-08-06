@@ -864,3 +864,56 @@ la carga masiva» para el lote S-369 (regional Centro), en granja de pruebas has
       - hallazgo: el informe fuente tiene un desvío propio de **5 huevos** el 2026-06-30 (col «Producción Huevos» 14.038 vs su clasificación 14.043) — se cargó la clasificación
 - [x] G4 `LEEME_S-369AB.md` junto a los archivos: ficha de alta del lote (granja 44 / núcleo 883195 / galpón G0443, encaset 2025-08-30, 20.458 H + 2.993 M, **raza `AP` y no «ROSS AP»**, año 2026), los 4 pasos operativos y las 5 salvedades
 - [x] G5 Scripts reproducibles copiados a `…/lote carga masiva pruebas/scripts/` (`recover.py` repara el .xlsm truncado, `construir.py` genera, `verificar.py` valida)
+
+---
+
+# Tracker — `tipo_alimento` desborda varchar(100) y tumba el guardado del seguimiento diario
+
+**Plan:** [`fase_de_desarrollo/tipo_alimento_varchar_desborde_plan.md`](fase_de_desarrollo/tipo_alimento_varchar_desborde_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «implementá las migraciones y las correcciones y realizá la validación en local»
+
+Reportado como «falla al guardar el lote A374A» (Sanmarino Colombia). Diagnóstico reproducido: el front
+concatena los nombres de los alimentos en `tipo_alimento` (`varchar(100)`) y el TERCER alimento pasa de
+100 ⇒ `22001` ⇒ `DbUpdateException` ⇒ 500 con el texto genérico de EF. No es el lote.
+
+## Diagnóstico (cerrado)
+- [x] D1 Inner exception real capturada: `22001: value too long for type character varying(100)`
+- [x] D2 Repro: 3 alimentos (113 chars) → 500 idéntico al reporte · 2 alimentos (76) → 201
+- [x] D3 Confirmado en datos: `max(length(tipo_alimento))` de TODA la tabla = **79** (nunca entró un tercero)
+- [x] D4 Rollback verificado íntegro (0 filas, aves y stock intactos) ⇒ sin datos corruptos
+
+## Backend — lógica pura + tests
+- [x] B1 `Application/Calculos/TipoAlimentoCalculos.cs` (`MaxLongitud = 500`, `Recortar`)
+- [x] B2 `Application/Calculos/ErrorPersistenciaCalculos.cs` (`DescribirErrorSql`, `null` si no mapeado)
+- [x] B3 Tests xUnit T1-T8 de `TipoAlimentoCalculos`
+- [x] B4 Tests xUnit E1-E5 de `ErrorPersistenciaCalculos`
+
+## Backend — aplicación de la red de seguridad
+- [x] B5 `SeguimientoLoteLevanteService.Mapeos.cs` — create + update
+- [x] B6 `SeguimientoAvesEngordeService.Crud.cs` — create + update
+- [x] B7 `SeguimientoAvesEngordeEcuadorService.Crud.cs` — create + update
+- [x] B8 `MigracionService.Historicos.cs` — el `MaxTipoAlimento = 100` local pasa a delegar (deja de mutilar)
+- [x] B9 `Program.cs` — el handler global traduce el `SqlState` en vez de devolver el texto de EF
+
+## BD
+- [x] M1 `SeguimientoDiarioConfiguration` (levante) a `HasMaxLength(500)`. ⚠️ **Engorde NO se amplió**: al
+      aplicar la 1ª versión en local, Postgres devolvió `0A000 cannot alter type of a column used by a
+      view or rule` — la vista de Power BI `vw_seguimiento_pollo_engorde` cuelga de
+      `seguimiento_diario_aves_engorde.tipo_alimento`. Sus configurations vuelven a 100
+      (`TipoAlimentoCalculos.MaxLongitudEngorde`) y quedan cubiertas por el recorte
+- [x] M2 Migración `20260806063157_AmpliarTipoAlimentoSeguimientos`, DDL **idempotente** a mano: omite si
+      la columna no existe, si ya es ≥500, o si tiene vistas dependientes (WARNING en vez de fallar —
+      un deploy que no aplica el ancho es recuperable; uno que no arranca, no)
+- [x] M3 `Down()` inverso, aborta si hay datos que no entrarían en 100
+- [x] M4 Aplicada en local + segunda pasada = no-op
+- [x] M5 `has-pending-model-changes` → «No changes» (snapshot alineado)
+
+## Validación
+- [x] V1 `dotnet build` 0 errores / 0 advertencias nuevas
+- [x] V2 `dotnet test` verde
+- [x] V3 Smoke S1 — 3 alimentos en A374A (lote 116) → **201** con el `tipo_alimento` completo
+- [x] V4 Smoke S2 — control de 2 alimentos sin regresión
+- [x] V5 Smoke S3/S4/S5 — inventario y aves exactos, edición y borrado
+- [x] V6 Smoke S6 — 600 chars → recorte a 500, sin 500 HTTP
+- [x] V7 BD local restaurada al snapshot exacto + sin procesos huérfanos
+- [x] V8 Commit sin footer de atribución

@@ -599,7 +599,22 @@ app.UseExceptionHandler(errApp =>
         }
         ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
         ctx.Response.ContentType = "application/json";
-        await ctx.Response.WriteAsJsonAsync(new { message = ex?.Message ?? "Error interno del servidor." });
+
+        // Un DbUpdateException llega con el texto genérico de EF ("An error occurred while saving the
+        // entity changes. See the inner exception for details."), que es lo que terminaba en el toast del
+        // usuario sin decir nada — el SqlState real nunca salía del servidor (incidente 2026-08-06, el
+        // 22001 de tipo_alimento). Se traduce el código de Postgres a algo accionable; si no está mapeado
+        // se conserva el mensaje de siempre. El detalle completo sigue yendo al log del servidor.
+        var mensaje = ex?.Message ?? "Error interno del servidor.";
+        for (var inner = ex?.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            if (inner is not System.Data.Common.DbException dbEx) continue;
+            var descripcion = ErrorPersistenciaCalculos.DescribirErrorSql(dbEx.SqlState);
+            if (descripcion is not null) mensaje = descripcion;
+            break;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { message = mensaje });
     });
 });
 

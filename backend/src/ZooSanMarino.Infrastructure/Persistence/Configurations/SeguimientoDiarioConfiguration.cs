@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Persistence/Configurations/SeguimientoDiarioConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
@@ -28,7 +29,10 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
         b.Property(x => x.ErrorSexajeMachos).HasColumnName("error_sexaje_machos");
         b.Property(x => x.ConsumoKgHembras).HasColumnName("consumo_kg_hembras").HasPrecision(12, 3);
         b.Property(x => x.ConsumoKgMachos).HasColumnName("consumo_kg_machos").HasPrecision(12, 3);
-        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(100);
+        // 500 y no 100: el cliente concatena los nombres de los alimentos del día ("H: … / M: … / G: …")
+        // y con 100 el TERCER alimento reventaba el INSERT con 22001 (incidente 2026-08-06, lote A374A).
+        // Las dos columnas de abajo guardan UN nombre cada una, así que se quedan en 100.
+        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(TipoAlimentoCalculos.MaxLongitud);
         b.Property(x => x.TipoAlimentoHembrasNombre).HasColumnName("tipo_alimento_hembras").HasMaxLength(100);
         b.Property(x => x.TipoAlimentoMachosNombre).HasColumnName("tipo_alimento_machos").HasMaxLength(100);
         b.Property(x => x.Observaciones).HasColumnName("observaciones");

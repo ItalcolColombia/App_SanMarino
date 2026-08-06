@@ -601,14 +601,14 @@ public partial class MigracionService
         return (categorias, peso);
     }
 
-    /// <summary>Largo de <c>seguimiento_diario_levante.tipo_alimento</c> (varchar 100; producción igual).</summary>
-    private const int MaxTipoAlimento = 100;
-
     /// <summary>
     /// Texto de <c>tipo_alimento</c>: el de la celda o, si no viene, los nombres de los alimentos
     /// usados (mismo criterio que engorde, para que la columna nunca quede vacía cuando sí hubo
-    /// alimento identificado). Truncado al largo de la columna: dos alimentos por sexo con nombres
+    /// alimento identificado). Recortado al largo de la columna: dos alimentos por sexo con nombres
     /// largos superan los 100 caracteres y la fn entera moría con 22001 (value too long).
+    /// El tope pasó de 100 a <see cref="TipoAlimentoCalculos.MaxLongitud"/> con la migración
+    /// <c>AmpliarTipoAlimentoSeguimientos</c> (2026-08-06), así que la carga masiva ya no mutila
+    /// el texto salvo en casos extremos.
     /// </summary>
     private static string? ResolverTipoAlimento(FilaCruda fila, List<ItemSeguimientoDto> itemsH, List<ItemSeguimientoDto> itemsM)
     {
@@ -621,7 +621,7 @@ public partial class MigracionService
             if (partes.Count == 0) return null;
             texto = string.Join(" / ", partes);
         }
-        return texto.Length <= MaxTipoAlimento ? texto : texto[..MaxTipoAlimento];
+        return TipoAlimentoCalculos.Recortar(texto);
     }
 
     /// <summary>
