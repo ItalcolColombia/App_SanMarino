@@ -20,6 +20,11 @@ public class LoteAvesCohorteConfiguration : IEntityTypeConfiguration<LoteAvesCoh
         b.Property(x => x.LoteOrigenId).HasColumnName("lote_origen_id");
         b.Property(x => x.MovimientoAvesId).HasColumnName("movimiento_aves_id");
 
+        // Ubicación del origen CONGELADA (nullable: las cohortes anteriores a este dato quedan en null).
+        b.Property(x => x.GranjaOrigenId).HasColumnName("granja_origen_id");
+        b.Property(x => x.NucleoOrigenId).HasColumnName("nucleo_origen_id").HasMaxLength(50);
+        b.Property(x => x.GalponOrigenId).HasColumnName("galpon_origen_id").HasMaxLength(50);
+
         // Fechas PURAS (date): sin componente horario → sin corrimientos de zona horaria.
         b.Property(x => x.FechaIngreso)
             .HasColumnName("fecha_ingreso")

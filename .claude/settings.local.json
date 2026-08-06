@@ -129,7 +129,21 @@
       "Bash(python -c ' *)",
       "Bash(pip install *)",
       "Bash(python -X utf8 -c ' *)",
-      "Bash(mkdir -p \"/c/Users/SANMAR~1/AppData/Local/Temp/claude/C--Users-SAN-MARINO-Desktop-App-SanMarino/a8eb2b89-283f-4a60-8fe5-065f12fac1f6/scratchpad/SmokeTestMigracion\" && echo ok)"
+      "Bash(mkdir -p \"/c/Users/SANMAR~1/AppData/Local/Temp/claude/C--Users-SAN-MARINO-Desktop-App-SanMarino/a8eb2b89-283f-4a60-8fe5-065f12fac1f6/scratchpad/SmokeTestMigracion\" && echo ok)",
+      "Bash(export PGPASSWORD=123456789)",
+      "Bash('/c/Program Files/PostgreSQL/17/bin/psql.exe' -h 127.0.0.1 -p 5433 -U postgres -d sanmarinoapplocal -t -A '-F|' -c ' *)",
+      "Bash('/c/Program Files/PostgreSQL/17/bin/psql.exe' -h 127.0.0.1 -p 5433 -U postgres -d sanmarinoapplocal -t -A -c ' *)",
+      "Bash(~/.dotnet/dotnet.exe build *)",
+      "PowerShell($env:DOTNET_ROOT = \"$env:USERPROFILE\\\\.dotnet\"; $env:PATH = \"$env:DOTNET_ROOT;$env:PATH\"; $ef = \"$env:USERPROFILE\\\\.dotnet\\\\tools-ef10\\\\dotnet-ef.exe\"; cd \"C:\\\\Users\\\\SAN MARINO\\\\Desktop\\\\App_SanMarino\\\\backend\\\\src\\\\ZooSanMarino.Infrastructure\"; & $ef migrations add AddLiquidacionLoteEngordeCongelada --project . --startup-project . --context ZooSanMarinoContext 2>&1 | Select-Object -Last 6)",
+      "Bash('/c/Program Files/PostgreSQL/17/bin/psql.exe' -h 127.0.0.1 -p 5433 -U postgres -d sanmarinoapplocal -t -A '-F | ' -c ' *)",
+      "PowerShell($env:DOTNET_ROOT = \"$env:USERPROFILE\\\\.dotnet\"; $env:PATH = \"$env:DOTNET_ROOT;$env:PATH\"; $ef = \"$env:USERPROFILE\\\\.dotnet\\\\tools-ef10\\\\dotnet-ef.exe\"; cd \"C:\\\\Users\\\\SAN MARINO\\\\Desktop\\\\App_SanMarino\\\\backend\\\\src\\\\ZooSanMarino.Infrastructure\"; & $ef database update --project . --startup-project . --context ZooSanMarinoContext 2>&1 | Select-Object -Last 8)",
+      "PowerShell($env:DOTNET_ROOT = \"$env:USERPROFILE\\\\.dotnet\"; $env:PATH = \"$env:DOTNET_ROOT;$env:PATH\"; $ef = \"$env:USERPROFILE\\\\.dotnet\\\\tools-ef10\\\\dotnet-ef.exe\"; cd \"C:\\\\Users\\\\SAN MARINO\\\\Desktop\\\\App_SanMarino\\\\backend\\\\src\\\\ZooSanMarino.Infrastructure\"; & $ef database update --project . --startup-project . --context ZooSanMarinoContext 2>&1 | Select-Object -Last 5)",
+      "Bash(\"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -h 127.0.0.1 -p 5433 -U postgres -d sanmarinoapplocal -f sql/verificar_paridad_saldo_engorde.sql)",
+      "Bash(\"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -h 127.0.0.1 -p 5433 -U postgres -d sanmarinoapplocal -t -A -F' | ')",
+      "Bash(\"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -h 127.0.0.1 -p 5433 -U postgres -d sanmarinoapplocal -t -A)",
+      "Read(//c/Users/SAN MARINO/Desktop/App_SanMarino/backend/**)",
+      "Bash('C:\\\\Users\\\\SAN MARINO/.dotnet/dotnet.exe' build -p:BaseOutputPath=C:/Users/SANMAR~1/AppData/Local/Temp/claude/C--Users-SAN-MARINO-Desktop-App-SanMarino/5b68e3ea-88ff-4d2e-9fd2-c308c19e3018/scratchpad/buildout/)",
+      "Bash('C:\\\\Users\\\\SAN MARINO/.dotnet/dotnet.exe' test -p:BaseOutputPath=C:/Users/SANMAR~1/AppData/Local/Temp/claude/C--Users-SAN-MARINO-Desktop-App-SanMarino/5b68e3ea-88ff-4d2e-9fd2-c308c19e3018/scratchpad/buildout/ --no-build)"
     ]
   }
 }

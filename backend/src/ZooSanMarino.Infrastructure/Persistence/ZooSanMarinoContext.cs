@@ -105,6 +105,8 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<LoteRegistroHistoricoUnificado> LoteRegistroHistoricoUnificados => Set<LoteRegistroHistoricoUnificado>();
         /// <summary>Cohortes de aves recibidas por traslado (cada grupo conserva la edad de su lote origen).</summary>
         public DbSet<LoteAvesCohorte> LoteAvesCohortes => Set<LoteAvesCohorte>();
+        /// <summary>Ídem para la línea de engorde (lote receptor = lote_ave_engorde).</summary>
+        public DbSet<LoteEngordeAvesCohorte> LoteEngordeAvesCohortes => Set<LoteEngordeAvesCohorte>();
         public DbSet<LotePosturaLevante> LotePosturaLevante => Set<LotePosturaLevante>();
         public DbSet<LotePosturaProduccion> LotePosturaProduccion => Set<LotePosturaProduccion>();
         public DbSet<LotePosturaBase> LotePosturaBases => Set<LotePosturaBase>();

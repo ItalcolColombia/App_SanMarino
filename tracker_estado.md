@@ -430,9 +430,78 @@ hay que cambiar el emisor. **Decisión del usuario: Microsoft Graph API.**
 - [x] Sin procesos huérfanos — puerto 5499 libre
 - [x] Commit acotado (sin footer de atribución)
 
-### Pendiente del usuario (bloquea el despliegue, no el código)
-- [ ] App registration en Entra ID + `Mail.Send` de aplicación + consentimiento de administrador
-- [ ] (Recomendado) `New-ApplicationAccessPolicy` acotando la app al buzón `zootecnico@sanmarino.com.co`
+## Fase 6 — ⚠️ CORRECCIÓN DEL DIAGNÓSTICO (05-ago-2026, tras el aviso del usuario)
+
+El usuario avisó que el arreglo era mucho más chico («solo hay que cambiarle el protocolo»).
+**Tenía razón en que mi diagnóstico estaba mal.** Yo había atribuido la falla al retiro global de la
+auth básica **por la fecha del anuncio de Microsoft, sin haber visto nunca el error real** (el
+usuario no lo tenía a mano). Con la BD local ya sincronizada con producción, el error apareció.
+
+**Error real** (`email_queue` id 112, 05-ago-2026 12:35 UTC):
+`530 5.7.57 Client not authenticated` + `535 5.7.139 ... did not meet the criteria to be
+authenticated successfully. Contact your administrator.` — **NO** es `550 5.7.30`.
+
+- [x] Probe SMTP a mano (`EHLO`→`STARTTLS`→`AUTH LOGIN`): **`235 Authentication successful`**
+      ⇒ la auth básica de este tenant SIGUE VIVA y las credenciales son válidas
+- [x] Handshake con TLS 1.2 / 1.3 / default: los tres autentican ⇒ **la versión de TLS no es la causa**
+- [x] Puerto 465 (TLS implícito): cerrado en Office 365 ⇒ descartado (y `SmtpClient` tampoco puede)
+- [x] 🔴 Hipótesis del orden `UseDefaultCredentials`/`Credentials`: reprodujo el error exacto en
+      **.NET Framework** (PowerShell), pero un test en **.NET 10** demostró que ahí NO borra las
+      credenciales ⇒ **descartada**. Casi la publico como causa raíz corriendo el experimento en el
+      runtime equivocado; el test con la premisa falsa se eliminó
+- [x] ✅ **Envío REAL con el bloque `SmtpClient` idéntico al de la app, sobre .NET 10 → ENVIADO OK**
+      (2 correos de prueba entregados a `zootecnico@sanmarino.com.co`)
+- [x] Config desplegada verificada: idéntica a la del repo (587 / EnableSsl=true / mismas credenciales)
+- [x] Último envío exitoso en la cola: **3-jun-2026**; desde ahí fallan todos, sin cambios en el emisor
+
+**Conclusión:** credenciales ✅, código ✅, protocolo ✅. Lo que rechaza es una **política del tenant
+según el origen de la conexión** (el propio Exchange dice *"Contact your administrator"*).
+**El código no puede arreglarlo.**
+
+- [x] Diagnósticos de `SmtpEmailSender` reescritos: dejan de culpar a la contraseña y al retiro de
+      auth básica; ahora indican Conditional Access / SMTP AUTH y los comandos exactos para el admin
+- [x] `MIGRACION_CORREO_GRAPH_API.md` §1 reescrito con el diagnóstico verificado y la tabla de
+      hipótesis descartadas + los dos caminos de solución
+- [x] `dotnet build` 0/0 · `dotnet test` 1.626 + 1 verdes
+
+### Pendiente del usuario — Camino A (rápido, si el admin puede)
+- [ ] Conditional Access / Security Defaults: ¿bloquea legacy auth por ubicación o IP? Excluir el origen
+- [ ] `Get-CASMailbox 'zootecnico@sanmarino.com.co' | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
+- [ ] `Get-TransportConfig | Select SmtpClientAuthenticationDisabled` ⇒ debe dar `False`
+
+### Pendiente del usuario — Camino B (sólo si el A no se puede)
+- [ ] Migrar a OAuth 2.0 / Microsoft Graph. La implementación completa está en el commit `c7b6834`
+      (`git show c7b6834`): emisor Graph, proveedor de token con caché e instructivo del app
+      registration. Se revirtió a pedido del usuario para dejar un solo transporte.
+
+## Fase 7 — Simplificación a SMTP-only (pedido del usuario: «más fácil y desplegar de una vez»)
+
+- [x] Eliminados `GraphEmailSender`, `GraphTokenProvider` y `SinTransporteEmailSender`
+- [x] `EnvioCorreoCalculos` reducido a lo de SMTP: `HayConfiguracionSmtp`, `ClasificarErrorSmtp`,
+      `EsRechazoPorPolitica`, `DiagnosticoSinConfiguracion`
+- [x] `Program.cs`: `AddSingleton<IEmailSender, SmtpEmailSender>()` — se fue el `AddHttpClient`, el
+      switch de proveedor y `Email:Provider`. Si falta config SMTP, avisa y NO tumba el arranque
+- [x] `Email:Graph` fuera de `appsettings.json` / `appsettings.Development.json`; `Email__Provider`
+      y `Email__Graph__*` fuera de la TaskDef ⇒ **las variables desplegadas quedan idénticas a hoy**
+- [x] Doc reescrita como `DIAGNOSTICO_CORREO_OFFICE365.md` (la de migración se eliminó); los 3 docs
+      viejos con banner corregido — ya no dicen «migró a Graph» ni culpan a la contraseña
+- [x] Se conserva lo que sí aportaba el refactor: procesador delgado (580→317 líneas), diagnósticos
+      honestos en `email_queue.error_message` y sin `throw` en el constructor del `HostedService`
+- [x] Tests reescritos (24): configuración, clasificación con los `error_type` HISTÓRICOS y detección
+      del rechazo por política. Incluye el hueco conocido `"timed out"` ≠ `"timeout"`, documentado
+      y **conservado** (cambiarlo alteraría el `error_type` de filas ya existentes)
+- [x] `dotnet build` 0/0 · `dotnet test` **1.601 Application + 1 Domain verdes**
+- [x] Smoke local: arranca con `transporte: smtp`, sin log crítico; puerto 5499 liberado
+- [x] Commit acotado (sin footer de atribución)
+
+### Evidencia adicional hallada en Fase 7
+El historial de `email_queue` por mes muestra un corte **limpio**, no intermitente:
+feb-may 2026 = **45 enviados / 0 fallidos**; junio corta y desde ahí 0 enviados / 47 fallidos.
+Y el mismo síntoma ya había ocurrido en nov-2025/ene-2026, resolviéndose **del lado administrativo**
+(a partir de febrero el envío volvió solo, sin tocar el emisor). Refuerza que la causa es del tenant.
+
+> ⚠️ **Desplegar no arregla el correo.** El código ya envía bien (probado sobre .NET 10 con las
+> credenciales de producción). El destrabe está en Microsoft 365 — ver Camino A.
 
 ### 🔴 Deuda detectada al pasar (fuera de alcance, requiere trabajo propio)
 - Credenciales en texto plano commiteadas: contraseña SMTP (`appsettings.json:77`,
@@ -469,3 +538,281 @@ hay que cambiar el emisor. **Decisión del usuario: Microsoft Graph API.**
 - [x] B4 Orden obligatorio verificado: el *Gate B1* impide editar `aves_encasetadas` de un lote liquidado ⇒ **corregir ANTES de cerrar** (por eso el lote 30 se corrigió primero)
 - [ ] ⏸️ **Esperando confirmación:** cerrar el grupo A (39 lotes de Ecuador) recorriendo el endpoint real de cierre. Irreversible sobre producción ⇒ requiere OK explícito sobre la lista
 - [ ] ⏸️ Grupos B y C (14 lotes con aves pendientes) — revisión aparte · Panamá **no se toca**
+
+---
+
+# Descargar Excel del stock de TODAS las granjas (Gestión de Inventario)
+
+**Plan:** [`fase_de_desarrollo/exportar_stock_inventario_excel_plan.md`](fase_de_desarrollo/exportar_stock_inventario_excel_plan.md)
+**Fecha:** 2026-08-05 · **Alcance:** front-only (backend ya soporta `farmId` opcional)
+
+## Fase 1 — Análisis
+- [x] A1 `GET /inventario-gestion/stock` sin `farmId` ya devuelve todas las granjas asignadas (scope empresa+país+user, fail-closed) — cero cambios de backend
+- [x] A2 El nivel (galpón para alimento / granja para el resto) lo resuelve el backend (`AlimentoNivelResolver`) — el front no vuelve a decidir
+
+## Fase 2 — Función pura (`funciones/`)
+- [x] B1 `funciones/README.md` con la convención del módulo (calcada del canónico movimientos-pollo-engorde)
+- [x] B2 `funciones/exportar-stock-excel.funcion.ts` — `cabecerasStockExcel` + `construirFilasStockExcel` (puras) + `exportarStockExcel` (usa `shared/utils/excel`, prohibido XLSX inline)
+
+## Fase 3 — Componente + UI
+- [x] C1 `descargarStockExcel()`: consulta propia SIN `farmId`, respeta concepto/búsqueda, delega en la función pura
+- [x] C2 Botón «Descargar Excel (todas las granjas)» en la cabecera de la tarjeta Stock + SCSS agrupado con el del Histórico (sin duplicar reglas)
+- [x] C3 Nota en el hint de filtros: el Excel siempre trae todas las granjas
+- [x] C4 `InventarioGestionStockDto`: `granjaNombre`/`nucleoNombre`/`galponNombre` a `string | null` (el API los manda null; el tipo decía `?: string`)
+
+## Fase 4 — Tests
+- [x] D1 `exportar-stock-excel.funcion.spec.ts` — **12 specs** verdes (alimento con galpón, otros a nivel granja, fallbacks nombre/id, Colombia sin ubicación, fecha sin corrimiento de zona, cantidad numérica, lista vacía, orden, cabeceras)
+
+## Fase 5 — Validación
+- [x] E1 `yarn build` — 0 errores (único warning: bundle budget preexistente)
+- [x] E2 `yarn test` — **118/118 verdes** (106 previos + 12 nuevos)
+- [x] E3 Smoke UI contra backend local (ItalcolEcuador, usuario con 10 granjas):
+      · **B (el crítico)** con granja «BODEGA PRINCIAL KM 86» seleccionada: la grilla muestra 38 filas de 1 granja y el export pide `/stock` **sin farmId** ⇒ 464 filas / **10 granjas** / 135 con galpón (calza exacto con la BD)
+      · Contenido del `.xlsx` verificado: título, subtítulos («Granjas: todas las asignadas (10)», «Concepto: todos», «Registros: 464»), 9 cabeceras, alimento con `CAROLINA | N1 | GALPON 1`, no-alimento con `—`, cantidad numérica
+      · **C** Concepto=Alimento ⇒ 135 filas / 8 granjas, todas con galpón; subtítulo lo documenta
+      · **D** Búsqueda sin resultados ⇒ modal «Sin datos», **0 descargas**
+      · **E** Triple clic ⇒ 1 sola petición y 1 solo archivo; botón «Generando…» deshabilitado y luego restaurado
+      · **F** Colombia (sin columnas Núcleo/Galpón) cubierto por test unitario; no se smokeó en UI por falta de sesión Colombia
+- [x] E4 Sin procesos huérfanos — 4200 y 5002 libres
+
+## Revisión 2 — dos hojas por concepto (Alimento / Otros conceptos)
+Pedido: *«que descargue todos los conceptos, una hoja que sea alimento y la otra otros conceptos,
+así tenemos varios tipos en un solo archivo»*.
+
+- [x] R1 Validado el manejo de conceptos vigente. **Hallazgo (dato, no bug del export):** el catálogo
+      tiene el mismo concepto escrito con distinta capitalización (`Otros insumos` / `Otros Insumos`,
+      `alimento` / `Alimento`) y el desplegable los lista como opciones separadas, mientras el filtro
+      del backend es *case-insensitive* ⇒ elegir cualquiera de las dos trae las mismas filas
+- [x] R2 Verificado que 167 ítems tienen `concepto IS NULL` (no cadena vacía) ⇒ `Concepto ?? TipoItem`
+      resuelve bien a `alimento`; por eso la partición compara **en minúsculas**
+- [x] R3 `esFilaAlimento` + `particionarStockPorConcepto` + `construirHojasStockExcel` (puras)
+- [x] R4 La partición se decide por **concepto**, NO por «tiene galpón» (un alimento a nivel granja
+      sigue yendo a la hoja Alimento)
+- [x] R5 Hoja `Otros conceptos` sin columnas de ubicación, con escape defensivo si algún registro
+      llegara con núcleo/galpón
+- [x] R6 El export deja de aplicar también el filtro de **concepto**; sigue respetando la búsqueda de ítem
+- [x] R7 Botón «Descargar Excel (todo el stock)» + nota y tooltip actualizados
+- [x] R8 Tests: **25 specs** de la función (partición, hojas, sin-registros, Colombia, mapeo)
+- [x] R9 `yarn build` 0 errores · `yarn test` **131/131 verdes**
+- [x] R10 Smoke: con **granja BODEGA PRINCIAL KM 86 + concepto Alimento** la grilla queda en **0 filas**
+      y el export igual pide `/stock` sin parámetros ⇒ **464 filas / 10 granjas**
+- [x] R11 Contenido del `.xlsx` verificado sobre el XML: hojas `Alimento` (135 filas de 8 granjas, con
+      Núcleo/Galpón) y `Otros conceptos` (329 filas de 10 granjas, 7 columnas). **135 + 329 = 464**:
+      ninguna fila perdida ni duplicada; ninguna fila de alimento se coló en la segunda hoja
+- [x] R12 Hoja vacía: búsqueda que solo matchea no-alimento ⇒ hoja `Alimento` con «Sin registros para
+      este grupo.» y estructura intacta; la búsqueda sí viaja (`?search=AV0374`)
+- [x] R13 Sin errores de consola; todas las llamadas 200. Servicios detenidos (4200 y 5002 libres)
+
+---
+
+# Gastos de inventario — las 10 líneas con `concepto = 'insumo'` (item 57 · AV0351)
+
+**Plan:** [`fase_de_desarrollo/concepto_insumo_snapshot_gastos_plan.md`](fase_de_desarrollo/concepto_insumo_snapshot_gastos_plan.md)
+**Fecha:** 2026-08-05 · **Alcance:** datos (empresa 3 ItalcolEcuador)
+**Antecedente:** deuda que la sesión `claude/priceless-bhabha-c60ee5` (commit `84bf74f`) dejó fuera de
+alcance por considerarla una hipótesis. Esta sesión la cierra con evidencia.
+
+## Fase 1 — Investigación del origen
+- [x] A1 Reproducido en BD local: 10 filas, `concepto = 'insumo'` exacto (6 bytes, sin caracteres ocultos), repartidas en **10 cabeceras distintas** (una línea cada una)
+- [x] A2 **Un solo escritor**: `InventarioGastoService.CreateAsync` (491/503). Sin carga masiva, sin seed, sin `INSERT` crudo (los 2 `.sql` del módulo solo leen)
+- [x] A3 **Entró por pantalla**: 10 auditorías `Crear` con payload de UI, 8 días (2026-07-14 → 2026-07-27), **4 usuarios** distintos; una con `Eliminar` motivo «Eliminación desde UI (gasto #135)»
+- [x] A4 **El writer nunca cambió**: `git log -S` sobre `Concepto = item.Concepto` y sobre el mensaje del guard ⇒ un único commit, `b6f5d16` (2026-03-25, alta del módulo). Con el código de hoy esas filas **son imposibles**
+- [x] A5 ⇒ el `concepto` del item 57 **sí fue distinto**: era `insumo`. El guard de la línea 447 habría rechazado el request si no
+- [x] A6 **Testigo independiente**: `20260717192803_SeedItemInventarioPanamaDesdeEcuador` clona el catálogo 3→5 copiando `src.concepto` sin transformar, el **2026-07-17 15:34** (en plena ventana). Su copia de AV0351 (item 356) **sigue hoy en `insumo`** y es la **única divergencia entre los 148 códigos compartidos**
+- [x] A7 `insumo` **nunca fue un concepto**: es un `tipo_item` (29 ítems de la empresa 3 lo tienen). El item 467 (alta 2026-08-04) muestra la combinación correcta `tipo_item = insumo` + `concepto = Otros insumos`
+- [x] A8 Mientras duró, `GetConceptosAsync` **ofrecía `insumo`** en el desplegable: los usuarios lo eligieron de la lista, no lo inventaron
+- [x] A9 **La corrección del catálogo ya ocurrió**, entre las 08:17 y las 17:05 del **2026-07-27** (última línea `insumo` vs. primera del mismo ítem con `Otros insumos`)
+- [x] A10 …y fue **por fuera de la aplicación**: `updated_at` del item 57 sigue en 2026-03-23 (seed masivo) aunque `UpdateAsync` (177-178) y la importación por Excel (249-250) **siempre** lo tocan ⇒ SQL crudo, sin auditoría
+- [x] A11 `xmin` descartado como fechador: las 467 filas comparten `xmin = 52338` (restauración de dump en bloque)
+- [x] A12 ⚠️ **CORRECCIÓN de atribución** (el mensaje del commit `2cab258` dice otra cosa): el cambio de datos a mitad de la investigación —467→469 líneas, reaparición de los duplicados de capitalización, item 356 de vuelta en `insumo`— **no** lo causó la rama hermana aplicando y revirtiendo su `20260805180000`, sino la **restauración de la BD local desde prod** que hizo el usuario a las **18:42:30** del 2026-08-05 (confirmado: el directorio de `sanmarinoapplocal` fue recreado a esa hora). La conclusión operativa no cambia: la `20260805180000` **no** estaba aplicada en ninguna de las dos lecturas (no está desplegada, así que el dump de prod no la trae)
+
+## Fase 2 — Decisión
+- [x] B1 **Opción (a) confirmada por el usuario**: corregir las 10 filas a `Otros insumos`. El motivo del «fuera de alcance» ya no aplica — está probado que `insumo` es el `tipo_item` mal cargado del mismo producto, no una categorización de negocio distinta
+
+## Fase 3 — Implementación de (a)
+- [x] C1 Simulación `BEGIN; … ROLLBACK`: **UPDATE 10**, segunda pasada **UPDATE 0**, total invariante, detector a 0, y verificado que tras el `ROLLBACK` las 10 filas siguen en `insumo`
+- [x] C2 Migración `20260805190000_CorregirConceptoInsumoSnapshotGastos` (data-only, Designer clonado de la `…170000`, `ModelSnapshot` **sin tocar** — verificado con `git diff`). Regla dinámica de 4 condiciones, sin ids ni etiquetas de negocio. `Down()` no restaura (irreversible por diseño, documentado)
+- [x] C3 Aplicada a la BD local con `ASPNETCORE_ENVIRONMENT=Development` forzado — ⚠️ el `appsettings.json` base apunta a **RDS prod**; EF confirmó `Host: 127.0.0.1 | Port: 5433`. Una sola migración pendiente (la mía)
+- [x] C4 `verificar_conceptos_catalogo_inventario.sql` **consulta 4: de 10 líneas a 0**. Las consultas 1 y 2 siguen con filas a propósito: son el alcance de la migración hermana (`20260805180000`), que **no está desplegada** y por eso tampoco viene en el dump de prod
+- [x] C5 Conteos empresa 3: `Otros insumos` **196 → 206**, `insumo` **desaparece**, total de líneas **469 invariante** (T6)
+- [x] C6 T1 las 10 filas en `Otros insumos` · T2 idempotencia `UPDATE 0` · T3 cero líneas de sola capitalización tocadas · el **catálogo no se tocó** (items 57 y 356 intactos)
+- [x] C7 **El rastro histórico sobrevive**: `inventario_gasto_auditoria` conserva `"concepto":"insumo"` en el payload `Crear` de las 10 cabeceras
+- [x] C8 `dotnet build` **0 errores / 0 warnings** · `dotnet test` **1602/1602 verdes** (1601 Application + 1 Domain)
+- [x] C9 Sin procesos huérfanos (no se levantaron servicios)
+
+## Fase 4 — Integración en `main` y validación sobre BD restaurada de prod (2026-08-05)
+- [x] D1 `main` adelantado por **fast-forward** a `2cab258` (estaba limpio en `abe3643`; la rama ya tenía main incluido, sin merge commit)
+- [x] D2 ✅ **La migración corrió contra el dump fresco de producción**, no contra datos locales viejos: la restauración fue a las 18:42:30 y el `database update` después. O sea las 10 filas existían tal cual en **prod** y quedaron corregidas
+- [x] D3 `dotnet build` desde main: **0 errores / 0 warnings**
+- [x] D4 `dotnet ef database update` desde main: *«No migrations were applied. The database is already up to date.»* · `Host: 127.0.0.1 | Port: 5433` confirmado
+- [x] D5 **Historial alineado exacto**: 214 migraciones en el código de main = 214 en `__EFMigrationsHistory`; **cero** en la BD que no estén en el código y **cero** sin aplicar. ⇒ prod venía con las 213 de main y la 214ª es la nueva
+- [x] D6 `dotnet ef migrations has-pending-model-changes`: *«No changes have been made to the model since the last migration»* ⇒ el `ModelSnapshot` quedó sano pese al Designer clonado
+- [x] D7 `dotnet test` desde main: **1602/1602 verdes**
+- [x] D8 Datos revalidados sobre la BD restaurada: 10 filas en `Otros insumos`, `insumo` en cero, total **469 invariante**, idempotencia `UPDATE 0`, catálogo intacto, auditoría conserva el valor viejo
+- [x] D9 Sin procesos huérfanos · sin push ni deploy (siguen requiriendo pedido explícito)
+
+### Pendiente de coordinación con la rama hermana
+- [ ] Al integrar con `claude/priceless-bhabha-c60ee5`: el comentario de la consulta 4 de
+      `backend/sql/verificar_conceptos_catalogo_inventario.sql` («Deuda conocida al 05-ago-2026:
+      10 líneas con 'insumo'…») queda **obsoleto** — esa deuda ya está cerrada por esta migración
+
+---
+
+# Tracker — Traslado de aves: destino cross-granja/galpón en Engorde + fecha de registro visible
+
+**Plan:** [`fase_de_desarrollo/traslado_aves_destino_cross_granja_y_fecha_registro_plan.md`](fase_de_desarrollo/traslado_aves_destino_cross_granja_y_fecha_registro_plan.md)
+**Fecha:** 2026-08-05
+
+**Pedido:** trasladar aves (pollo engorde y postura levante/producción) hacia **otras granjas y otros galpones**, y
+distinguir **fecha del traslado** (la que edita el usuario) de **fecha de creación del registro** (`created_at`).
+
+**Auditoría previa (el código manda):** postura YA tiene cascada de destino cross-granja y fecha editable; engorde NO
+(select plano acotado a la granja filtrada). `created_at` YA se guarda y YA viaja en ambos DTOs, pero **no se pinta
+en ninguna pantalla**. ⇒ sin migraciones: falta la cascada en engorde y exponer la fecha de registro.
+
+## Backend — catálogo de lotes engorde para DESTINO
+- [x] B1 `ILoteAveEngordeService.GetAllAsync(bool paraDestino = false)` (default preserva los llamadores existentes)
+- [x] B2 `LoteAveEngordeService`: propagado a `AplicarScopeUbicacionAsync(q, paraDestino)` — patrón `LotePosturaLevanteService`; restricción por granjas asignadas SIN tocar
+- [x] B3 `GET /api/LoteAveEngorde?paraDestino=true`
+
+## Backend — simetría de destino en el movimiento
+- [x] B4 `RellenarDestinoDesdeLoteDestinoSiFaltaAsync` + `UbicacionDelLoteDestinoAsync` (gemelos del lado origen) en `MovimientoPolloEngordeService.Crud.cs`; la decisión pura vive en `MovimientoPolloEngordeCalculos.ResolverUbicacionDestino`
+- [x] B5 Regla **campo por campo** (corregida durante el smoke): elegir solo la granja en la cascada dejaba núcleo/galpón nulos aunque el lote destino los define ⇒ ahora lo explícito manda por campo y lo que falta se completa del lote
+- [x] B6 `MovimientoPolloEngordeDestinoCalculosTests` — 11 casos (explícito completo, granja sin galpón, sin granja, núcleo vacío ×3, galpón sin núcleo, sin lote destino ×2, lote sin núcleo/galpón)
+
+## Frontend — cascada de destino en el modal de engorde
+- [x] F1 `lote-engorde.service.ts`: `getAll(paraDestino = false)`
+- [x] F2 Modal engorde TS: inyectados Farm/Nucleo/Galpon/LoteEngorde + controles y handlers de cascada (carga perezosa: solo cuando el tipo no es Venta)
+- [x] F3 Modal engorde HTML: bloque «Destino del traslado» (Granja → Núcleo → Galpón → Lote) reemplaza el select plano; al EDITAR se muestra el destino como texto (el update DTO no lo lleva, el select no guardaba nada)
+- [x] F4 `mapear-movimiento-dto.funcion.ts` + service DTO: envía `granjaDestinoId`/`nucleoDestinoId`/`galponDestinoId` (nulos en venta)
+- [x] F4b `funciones/filtrar-lotes-destino.funcion.ts` (pura) + README del módulo actualizado; `destinoOpciones` pasa de getter a campo con referencia estable (un getter que aloca por ciclo rompe el CD)
+
+## Frontend — punto de entrada del traslado (hallazgo del smoke, NO estaba en el plan inicial)
+- [x] E1 🔴 **En engorde no existía forma de crear un traslado**: `create()` fijaba `ventaPorGranjaMode = true` siempre ⇒ la cascada quedaba inalcanzable
+- [x] E2 Botón **«Nuevo traslado»** + `crearTraslado()` / `canOpenTraslado` / `lotesTrasladoOrigen` (lotes ABIERTOS de la granja, sin exigir ventas registradas) + reset de `trasladoMode` al cerrar
+- [x] E3 Modal: `@Input() trasladoMode` / `lotesOrigenTraslado`, select de lote ORIGEN, tipo fijado a `Traslado` y bloqueado, disponibilidad real del origen vía `aves-disponibles-lotes` (mismo número que valida el backend) y destino obligatorio antes de confirmar
+
+## Frontend — fecha de registro visible (columna + detalle + Excel)
+- [x] F5 Lista engorde: columnas «Fecha traslado» y «Registrado» (+ `createdAt` propagado en `FilaDespachoGrupo` / `agrupar-despachos.funcion.ts`, colspans 12→13)
+- [x] F6 Detalle engorde: «Fecha del traslado» + «Registrado el»; en el formulario, nota que distingue ambas fechas
+- [x] F7 `exportar-ventas-excel.funcion.ts`: cabeceras «Fecha traslado» + «Registrado»
+- [x] F8 Lista postura `movimientos-aves`: línea «Reg. dd/MM/yyyy HH:mm» en la celda «N° / Fecha» (+ estilo `.mov-registro`) y nota en el modal
+
+## Validación
+- [x] V1 `cd backend && dotnet build` — **0 errores / 0 advertencias**
+- [x] V2 `cd backend && dotnet test` — **1613 verdes** (1612 Application + 1 Domain; baseline 1601 + 11 casos nuevos)
+- [x] V3 `cd frontend && yarn build` — 0 errores (único warning: bundle budget preexistente)
+- [x] V4 **Smoke UI real** (front :4200 + back :5002 + BD local :5433, sesión inyectada en localStorage):
+      - Traslado creado desde CAROLINA (granja 45, galpón G0061) hacia **Sacachun 3A (granja 41, galpón G0043)** — otra granja Y otro galpón
+      - `granja_destino_id=41`, `nucleo_destino_id=685062`, `galpon_destino_id=G0043` — núcleo y galpón **autocompletados por el backend** desde el lote (en la cascada solo se eligió la granja)
+      - Fecha de traslado **retroactiva** 2026-08-01 vs `created_at` 2026-08-05 21:35 ⇒ las dos fechas conviven y se ven distintas en la tabla
+      - Al completar, las aves se mueven de verdad: origen 952→942 H, destino 673→683 H
+      - Excel exportado contiene ambas cabeceras y la fila `1/8/2026 | 5/8/2026, 21:35:56`
+      - Lista de postura renderiza «10/07/2026» + «Reg. 17/07/2026 09:22» (datos reales con 7 días de diferencia que hasta ahora eran invisibles)
+- [x] V5 **BD local restaurada**: el movimiento de prueba se revirtió por el flujo de la app (estado `Anulado`, `deleted_at` seteado) y los maestros volvieron exactos (99: 952 H / 90: 673 H)
+- [x] V6 Sin procesos huérfanos (backend y dev server detenidos; sesión de smoke borrada del navegador)
+- [x] V7 Commit acotado (sin footer de atribución)
+
+### Fuera de alcance (deuda preexistente detectada, no tocada)
+- Los `movimiento_aves` tipo TSD de la BD local tienen `company_id = 0` y por eso el listado de postura no los
+  muestra — es la deuda ya registrada en `movimientos-tsd-company-id-gate`, ajena a este cambio.
+- `movimientos-aves` no tiene exportación a Excel; el punto «Excel» del pedido se cubrió en engorde, que sí la tiene.
+
+---
+
+# Tracker — Cohortes: cuántas aves, de dónde y con qué edad en el lote receptor
+
+**Plan:** [`fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md`](fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md)
+**Fecha:** 2026-08-06
+
+**Auditoría previa:** el mecanismo (`lote_aves_cohortes`) existe y es correcto, pero solo lo escriben 2 de los 3
+caminos de postura y **engorde no lo tiene en absoluto**. Además: el traslado desde seguimiento deja
+`lote_destino_id` NULL (hueco de duplicación en la carga masiva) y el techo de venta de engorde no sube cuando un
+lote recibe aves (se marcarían como sobreventa). Detalle en el plan.
+
+## Modelo
+- [x] M1 `LoteAvesCohorte` + config: `granja_origen_id` / `nucleo_origen_id` / `galpon_origen_id` (nullable ⇒ las cohortes viejas quedan en null)
+- [x] M2 Entidad + config nuevas `LoteEngordeAvesCohorte` → `lote_engorde_aves_cohortes` (incluye mixtas)
+- [x] M3 `DbSet` + migración `20260806031924_AddCohortesEngordeYUbicacionOrigen` reescrita a SQL crudo **idempotente**; aplicada local y verificada: segunda pasada de `ADD COLUMN IF NOT EXISTS` sin error
+
+## Escritura
+- [x] W1 Engorde: cohorte al COMPLETAR (mismo `SaveChanges` que acredita el maestro); baja lógica al eliminar
+- [x] W2 Postura `MOV-*`: `RegistrarCohorteDestinoMovimientoAsync` tras crear la fila de entrada; idempotente por movimiento; baja lógica al cancelar
+- [x] W3 Postura TSD: `LoteDestinoId = destino.LoteBaseId` — además de la trazabilidad, **cierra un hueco de duplicación**: la idempotencia de la carga masiva busca por `LoteDestinoId == loteId` y no veía estos traslados
+- [x] W4 Ubicación de origen congelada en los 4 escritores (TSD, carga masiva, MOV, engorde)
+
+## Lectura
+- [x] R1 `BaselineConCohortes` + `PropiasDelLote` + `DescribirUbicacionOrigen` (puros) — 9 casos xUnit nuevos
+- [x] R2 Auditoría de ventas engorde: el techo suma las cohortes VIGENTES (no las anuladas). Se resolvió leyendo las cohortes en vez de escribir en `historial_lote_pollo_engorde`, que **no tiene soft-delete** y habría exigido filas negativas al revertir
+- [x] R3 DTO: `UbicacionOrigen` por cohorte + `HembrasPropias`/`MachosPropias` del lote
+- [x] R4 `GET /api/MovimientoPolloEngorde/cohortes/{loteAveEngordeId}` (mismo DTO que postura ⇒ el componente se reutiliza sin cambios)
+
+## Frontend
+- [x] U1 Columna «Procedencia» + fila «Propias» con cantidades + nota que explica que las bajas son por lote
+- [x] U2 `app-edades-lote` con `@Input() linea: 'postura' | 'engorde'` montado en la pantalla de engorde (recarga al guardar un movimiento)
+
+## Validación
+- [x] V1 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1622 verdes** (1621 Application + 1 Domain)
+- [x] V2 `yarn build` sin errores (solo el warning de bundle budget preexistente)
+- [x] V3 ✅ **Smoke engorde COMPLETO** (lote 99 encaset 17-jun, CAROLINA/G0061 → lote 90 encaset 3-jun, Sacachun 3A/G0043):
+      - `Pendiente` ⇒ **0 cohortes** (la cohorte nace al completar, no al crear)
+      - `Completado` ⇒ cohorte con `fecha_encaset_cohorte = 17-jun` (la del **ORIGEN**, no la del receptor) y procedencia congelada `CAROLINA · 668786 · G0061`
+      - Panel de edades: fila «Propias» 673 H/570 M **edad 64 días (sem 10)** + fila «Recibidas» 100 H/40 M **edad 50 días (sem 8)** ⇒ dos edades en el mismo lote
+      - Techo de venta: `encasetadasH` **13.640 → 13.740** y `M` **15.051 → 15.091**, `exceso = 0`, estado OK
+      - Eliminado ⇒ cohorte **anulada** (`deleted_at`, no borrada), maestros restaurados y techo de vuelta a **13.640/15.051**
+- [x] V4 ✅ **Smoke postura `MOV-*` COMPLETO** tras desbloquear la vía (ver el bloque siguiente del tracker)
+- [x] V5 Regresión: un movimiento sin lote destino no crea cohorte (guardas explícitas) y sin cohortes el techo devuelve el `Inicio` idéntico (test dedicado)
+- [x] V6 BD local restaurada al snapshot exacto (`movimiento_aves` max id 18, `movimiento_pollo_engorde` max id 1806, 0 cohortes) · servidores detenidos · commit sin footer de atribución
+
+### ✅ RESUELTO — el bug que bloqueaba el camino `MOV-*`
+
+`inventario_aves.lote_id` e `historial_inventario.lote_id` eran **`character varying`** en la BD mientras
+las entidades declaran **`int`**. Toda consulta que los comparara moría con
+`42883: operator does not exist: character varying = integer`, y como `ProcesarMovimientoAsync` guarda
+`Estado = "Completado"` ANTES de tocar el inventario y `CreateAsync` sólo hace `LogError`, **el movimiento
+quedaba marcado como completado sin haber movido una sola ave**.
+
+Corregido con el OK del usuario en la migración `20260806050306_AlinearLoteIdInventarioAvesAInteger`
+(ver el bloque de tracker siguiente).
+
+---
+
+# Tracker — Alinear `lote_id` de inventario a `integer` (desbloquea el traslado `MOV-*`)
+
+**Plan:** [`fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md`](fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md) (§5)
+**Fecha:** 2026-08-06 · **Pedido:** «realizá la corrección, aplicá siempre migraciones y validá que esté funcionando correctamente»
+
+`inventario_aves.lote_id` e `historial_inventario.lote_id` eran `character varying` con entidades que
+declaran `int`. Por la regla «el código manda» de `CLAUDE.md` gana el código (`lotes.lote_id` ya es
+`integer`), así que se alinean las dos columnas a `integer`.
+
+## Auditoría previa al DDL
+- [x] A1 Tipos reales: `inventario_aves.lote_id` y `historial_inventario.lote_id` = `character varying`; `lotes.lote_id` = `integer`
+- [x] A2 Datos: **ambas tablas VACÍAS** en el dump de producción ⇒ conversión sin riesgo de pérdida
+- [x] A3 Dependencias: **sin FK**, **sin vistas**; único índice sobre la columna (`ix_*_lote_id`) que Postgres reconstruye solo
+- [x] A4 Barrido de otras tablas con `lote_id varchar`: `seguimiento_diario_levante` es **correcta** (su entidad `SeguimientoDiario` usa `string`); `lote_galpones` / `lote_reproductoras` / `lote_seguimientos` / `produccion_lotes` / `traslado_huevos` también (entidades `string`). Solo estas dos estaban desalineadas
+
+## Migración
+- [x] M1 `20260806050306_AlinearLoteIdInventarioAvesAInteger` — EF la generó vacía (el modelo ya cree `int`; el desvío era solo de la BD) ⇒ DDL escrito a mano, `ModelSnapshot` sin tocar
+- [x] M2 **Idempotente**: sale sin hacer nada si la columna no existe o ya es `integer` (probado: segunda pasada → `NOTICE ... sale sin hacer nada`)
+- [x] M3 **Defensiva**: antes de convertir cuenta filas nulas/vacías/no numéricas y aborta con mensaje explícito en vez de romper con un cast críptico o descartar datos en silencio
+- [x] M4 Guard probado con dato malo en `BEGIN/ROLLBACK`: `ERROR: No se puede alinear public.inventario_aves.lote_id a integer: 1 fila(s)...`
+- [x] M5 `Down()` inverso e idempotente
+- [x] M6 Aplicada: las 3 columnas en `integer`, índices reconstruidos
+
+## Validación funcional — camino `MOV-*` de postura
+- [x] V1 Primer intento con los lotes 115/116: el 42883 **desapareció** (`inventario_aves` ya se escribe) pero las aves no se movieron ⇒ **no era otro bug**: esos lotes están en semana ~42 (Producción por edad) y solo tienen espejo de Levante, así que ambos caminos de descuento salen por sus guardas. Dato de prueba inadecuado
+- [x] V2 Se crearon 2 lotes de validación en LA ESMERALDA realmente en levante: **130** (encaset 07-jun, semana 9, G0319) y **131** (encaset 07-jul, semana 5, G0320)
+- [x] V3 Traslado 400 H + 50 M de 130 → 131 por el módulo «Movimientos de Aves»:
+      - **Aves movidas**: 130 `5000/500 → 4600/450` · 131 `3000/300 → 3400/350`
+      - **Filas diarias**: SALIDA en el origen, INGRESO en el destino
+      - **Cohorte creada**: receptor 131, origen 130, procedencia congelada **LA ESMERALDA · 591408 · G0319**, `fecha_encaset_cohorte = 07-jun` (la del **ORIGEN**, no la del receptor 07-jul)
+      - **Panel de edades**: «Propias» 3.000 H/300 M **edad 30 días (sem 5)** + «Recibidas» 400 H/50 M **edad 60 días (sem 9)** ⇒ dos edades conviviendo
+      - **Cuadre**: propias 3.000 + recibidas 400 = **3.400 = saldo actual** ✔
+- [x] V4 Reversión por **Cancelar**: cohorte **anulada** (`deleted_at`, no borrada) y aves devueltas exactas (130 `5000/500`, 131 `3000/300`)
+
+## Cierre
+- [x] C1 `dotnet build` **0/0** · `dotnet test` **1622 verdes**
+- [x] C2 `dotnet ef database update` ⇒ *«already up to date»* · `has-pending-model-changes` ⇒ *«No changes»* (el DDL a mano no ensució el snapshot)
+- [x] C3 BD restaurada al snapshot exacto: `movimiento_aves` max id **18**, `lotes` max **129**, cohortes **0**, `inventario_aves` **0**, `historial_inventario` **0**, lotes 115/116 intactos
+- [x] C4 Sin procesos huérfanos · commit sin footer de atribución

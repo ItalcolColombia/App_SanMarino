@@ -14,15 +14,20 @@ import { CohortesLoteDto, FilaEdadLote } from '../models/cohorte-lote.model';
 export function construirFilasEdadesLote(dto: CohortesLoteDto | null | undefined): FilaEdadLote[] {
   const filas: FilaEdadLote[] = [];
 
+  const hembrasPropias = numeroONull(dto?.hembrasPropias);
+  const machosPropias = numeroONull(dto?.machosPropias);
+
   filas.push({
     clave: 'propia',
     tipo: 'propia',
     origen: 'Aves propias del lote',
+    ubicacionOrigen: '—',
     fechaIngreso: '—',
     fechaEncaset: fechaCortaSinTz(dto?.fechaEncasetPropia ?? null),
-    hembras: null,
-    machos: null,
-    total: null,
+    // Estimación del backend (saldo − recibidas): permite cuadrar propias + recibidas = saldo.
+    hembras: hembrasPropias,
+    machos: machosPropias,
+    total: hembrasPropias == null && machosPropias == null ? null : (hembrasPropias ?? 0) + (machosPropias ?? 0),
     edadDias: numeroONull(dto?.edadPropiaDias),
     edadSemanas: numeroONull(dto?.edadPropiaSemanas),
     observaciones: null
@@ -37,6 +42,7 @@ export function construirFilasEdadesLote(dto: CohortesLoteDto | null | undefined
       clave: `cohorte-${c?.id ?? filas.length}`,
       tipo: 'cohorte',
       origen: nombreOrigen || (idOrigen != null ? `Lote ${idOrigen}` : 'Lote origen desconocido'),
+      ubicacionOrigen: (c?.ubicacionOrigen ?? '').trim() || '—',
       fechaIngreso: fechaCortaSinTz(c?.fechaIngreso ?? null),
       fechaEncaset: fechaCortaSinTz(c?.fechaEncasetCohorte ?? null),
       hembras,

@@ -209,11 +209,16 @@
                         <tr class="ux-row"
                           [class.ux-row--venta]="esTipoVenta(m.tipoMovimiento)"
                           [class.ux-row--cancelado]="m.estado === 'Cancelado'">
-                          <!-- N° / Fecha -->
+                          <!-- N° / Fecha del traslado + fecha de creación del registro -->
                           <td>
                             <div class="cell-num-fecha">
                               <strong class="mov-num">{{ m.numeroMovimiento }}</strong>
-                              <span class="mov-fecha">{{ m.fechaMovimiento | date:'dd/MM/yyyy' }}</span>
+                              <span class="mov-fecha" title="Día real del movimiento (lo digita el usuario)">
+                                {{ m.fechaMovimiento | date:'dd/MM/yyyy' }}
+                              </span>
+                              <span class="mov-registro" title="Fecha y hora en que el registro se cargó en el sistema">
+                                Reg. {{ m.createdAt | date:'dd/MM/yyyy HH:mm' }}
+                              </span>
                             </div>
                           </td>
                           <!-- Tipo + Motivo -->

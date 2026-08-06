@@ -101,6 +101,11 @@ public partial class TrasladoAvesDesdeSegService
                 Observaciones = dto.Observaciones,
                 UsuarioMovimientoId = usuarioId,
                 GranjaDestinoId = granjaDestinoIdOut,
+                // Destino: el lote base receptor. Quedaba NULL y eso rompía dos cosas — la auditoría no
+                // decía a qué lote fueron las aves, y la idempotencia de la carga masiva (que busca por
+                // `LoteDestinoId == loteId` para detectar un Ingreso ya aplicado) no veía este traslado y
+                // lo habría vuelto a aplicar al reimportar el lote receptor.
+                LoteDestinoId = destino.LoteBaseId,
                 // Origen del movimiento: el lote base y la granja del espejo ya cargado.
                 LoteOrigenId = origen.LoteBaseId,
                 GranjaOrigenId = origen.GranjaId

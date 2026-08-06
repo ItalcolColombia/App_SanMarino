@@ -33,6 +33,14 @@ public interface IMovimientoPolloEngordeService
     /// Resumen para reportes: aves con que inició el lote, cuántas salieron (completados), cuántas vendidas (tipo Venta), aves actuales.
     /// tipoLote: "LoteAveEngorde" | "LoteReproductoraAveEngorde"; loteId: PK del lote.
     /// </summary>
+    /// <summary>
+    /// Edades presentes en un lote de engorde: las aves propias (por su <c>fecha_encaset</c>) más cada
+    /// cohorte recibida por traslado, con su edad heredada del lote origen y la ubicación de procedencia.
+    /// <c>null</c> si el lote no existe o no es de la empresa activa.
+    /// </summary>
+    Task<ZooSanMarino.Application.DTOs.Traslados.LoteCohortesDto?> GetCohortesLoteEngordeAsync(
+        int loteAveEngordeId, CancellationToken ct = default);
+
     Task<ResumenAvesLoteDto?> GetResumenAvesLoteAsync(string tipoLote, int loteId);
 
     /// <summary>Resúmenes de varios lotes en una sola llamada (una fila por id solicitado).</summary>

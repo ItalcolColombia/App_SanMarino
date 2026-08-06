@@ -70,6 +70,9 @@ public partial class MovimientoPolloEngordeService
             .GroupBy(x => x.Id)
             .ToDictionary(g => g.Key, g => g.First());
 
+        // Aves recibidas por traslado (cohortes vigentes): suben el techo de venta junto con el Inicio.
+        var recibidasPorCohorte = await RecibidasPorCohorteAsync(ids);
+
         var segAcum = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
             .Where(s => ids.Contains(s.LoteAveEngordeId))
             .GroupBy(s => s.LoteAveEngordeId)
@@ -180,6 +183,13 @@ public partial class MovimientoPolloEngordeService
                 var encX = ini?.AvesMixtas ?? 0;
                 if (encH + encM + encX == 0 && lote.Encaset > 0)
                     encX = lote.Encaset;
+
+                // El registro "Inicio" solo se escribe al CREAR el lote: un lote que RECIBIÓ aves por
+                // traslado sube su maestro pero no su Inicio, y vender esas aves se reportaba como
+                // sobreventa. Las cohortes vigentes son la fuente de ese excedente (al revertir el
+                // traslado se anulan y el techo vuelve solo). Sin cohortes el número queda idéntico.
+                var recibidas = recibidasPorCohorte.GetValueOrDefault(id, (Hembras: 0, Machos: 0, Mixtas: 0));
+                (encH, encM, encX) = LoteCohortesCalculos.BaselineConCohortes((encH, encM, encX), recibidas);
 
                 var seg = segById.GetValueOrDefault(id, (MortH: 0, MortM: 0, SelH: 0, SelM: 0, ErrH: 0, ErrM: 0));
                 var asg = asigById.GetValueOrDefault(id, (H: 0, M: 0));

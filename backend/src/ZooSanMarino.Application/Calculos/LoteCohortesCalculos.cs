@@ -45,6 +45,75 @@ public static class LoteCohortesCalculos
     }
 
     /// <summary>
+    /// Ubicación de origen de una cohorte en una sola línea legible: <c>"Granja · Núcleo · Galpón"</c>,
+    /// omitiendo las partes que no se conocen. Devuelve <c>null</c> cuando no hay ningún dato, para que la
+    /// UI muestre su propio guion en vez de una cadena vacía.
+    /// <para>
+    /// Vive acá (y no en cada service) porque las dos líneas —postura y engorde— pintan la misma columna y
+    /// el formato tiene que ser idéntico en ambas.
+    /// </para>
+    /// </summary>
+    public static string? DescribirUbicacionOrigen(string? granja, string? nucleo, string? galpon)
+    {
+        var partes = new[] { granja, nucleo, galpon }
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!.Trim())
+            .ToArray();
+
+        return partes.Length == 0 ? null : string.Join(" · ", partes);
+    }
+
+    /// <summary>
+    /// Techo de aves vendibles de un lote de ENGORDE que además RECIBIÓ aves por traslado.
+    /// <para>
+    /// <b>Por qué existe:</b> el techo de la auditoría de ventas parte del registro <c>Inicio</c> de
+    /// <c>historial_lote_pollo_engorde</c>, que solo se escribe al CREAR el lote. Un lote que recibe aves
+    /// por traslado sí ve subir su maestro (<c>hembras_l/machos_l</c>) pero no su <c>Inicio</c>, así que
+    /// vender esas aves se reportaba como sobreventa aunque existieran físicamente. Sumar las cohortes
+    /// recibidas alinea el techo con el maestro.
+    /// </para>
+    /// <para>
+    /// <b>Retrocompatible por construcción:</b> un lote sin cohortes recibe 0 en los tres sumandos y
+    /// devuelve el <c>Inicio</c> tal cual — el número de todos los lotes actuales no se mueve.
+    /// </para>
+    /// Las cohortes anuladas (soft-delete) no deben llegar acá: el llamador las filtra, igual que hace
+    /// el resto del sistema con el histórico anulado.
+    /// </summary>
+    /// <param name="inicio">Aves del registro <c>Inicio</c> del lote, por sexo.</param>
+    /// <param name="recibidas">Suma de las cohortes VIGENTES recibidas por el lote, por sexo.</param>
+    public static (int Hembras, int Machos, int Mixtas) BaselineConCohortes(
+        (int Hembras, int Machos, int Mixtas) inicio,
+        (int Hembras, int Machos, int Mixtas) recibidas)
+    {
+        // Clamp a 0 en cada sumando: un dato negativo en la BD no debe inflar ni desinflar el techo.
+        static int NoNegativo(int v) => v > 0 ? v : 0;
+
+        return (
+            NoNegativo(inicio.Hembras) + NoNegativo(recibidas.Hembras),
+            NoNegativo(inicio.Machos) + NoNegativo(recibidas.Machos),
+            NoNegativo(inicio.Mixtas) + NoNegativo(recibidas.Mixtas));
+    }
+
+    /// <summary>
+    /// Aves PROPIAS de un lote = saldo actual − aves recibidas por traslado (cohortes vigentes).
+    /// <para>
+    /// Sirve para que la tabla «Edades en el lote» pueda cuadrar <i>propias + recibidas = saldo</i>.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Es una aproximación y se muestra como tal:</b> la mortalidad y la selección se registran por
+    /// LOTE, no por cohorte, así que las bajas posteriores al ingreso se le descuentan implícitamente a las
+    /// propias. Con clamp a 0 para que un lote donde ya murieron más aves de las propias no muestre
+    /// negativos. Repartir las bajas entre cohortes exigiría una política de imputación
+    /// (proporcional / FIFO / manual) que es una decisión de negocio, no un cálculo.
+    /// </para>
+    /// </summary>
+    public static int PropiasDelLote(int saldoActual, int recibidasVigentes)
+    {
+        var propias = saldoActual - recibidasVigentes;
+        return propias > 0 ? propias : 0;
+    }
+
+    /// <summary>
     /// <c>true</c> si origen y destino son la MISMA etapa (comparación case-insensitive, idéntica a
     /// la que hacía el servicio de traslados inline).
     /// </summary>

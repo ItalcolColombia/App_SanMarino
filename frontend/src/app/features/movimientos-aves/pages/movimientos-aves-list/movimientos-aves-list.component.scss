@@ -442,6 +442,8 @@
 
 .mov-num  { font-weight: 700; font-size: var(--fs-sm); color: var(--text); }
 .mov-fecha { font-size: var(--fs-xs); color: var(--muted); }
+/* Fecha de creación del registro: dato de auditoría, un escalón por debajo de la del movimiento. */
+.mov-registro { font-size: var(--fs-xs); color: var(--muted); opacity: .75; }
 
 .cell-tipo {
   display: flex;

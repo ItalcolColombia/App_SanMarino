@@ -21,6 +21,11 @@ export interface FilaDespachoGrupo {
   clave: string;
   numeroDespacho: string;
   fechaMovimiento: string;
+  /**
+   * Fecha de creación del registro (`created_at`) del despacho: la del primer movimiento del grupo.
+   * Todas las líneas de un despacho nacen en la misma transacción, así que la comparten.
+   */
+  createdAt: string;
   movimientos: MovimientoPolloEngordeDto[];
 }
 

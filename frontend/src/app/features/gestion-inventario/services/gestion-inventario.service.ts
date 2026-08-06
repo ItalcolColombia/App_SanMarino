@@ -75,9 +75,11 @@ export interface InventarioGestionStockDto {
   itemType: string;
   quantity: number;
   unit: string;
-  granjaNombre?: string;
-  nucleoNombre?: string;
-  galponNombre?: string;
+  // El API los manda como `string?` de C#: llegan en null cuando el ítem no es alimento
+  // (stock a nivel granja) o cuando no se resolvió el nombre. Siempre leer con `??`.
+  granjaNombre?: string | null;
+  nucleoNombre?: string | null;
+  galponNombre?: string | null;
   /** Fecha de creación del registro de stock en esta ubicación (primera existencia). */
   fechaIngreso?: string | null;
 }

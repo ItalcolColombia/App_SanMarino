@@ -53,6 +53,7 @@
             El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
             <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
             Puede <strong>editar cantidad, unidad y fecha de registro</strong> desde Editar (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
+            <strong>Descargar Excel</strong> baja el stock completo de <strong>todas sus granjas y todos los conceptos</strong> (sin importar la granja ni el concepto seleccionados arriba), en un archivo con dos hojas: <strong>Alimento</strong> (con su núcleo y galpón) y <strong>Otros conceptos</strong> (a nivel granja).
           </p>
 
           <div class="filter-steps">
@@ -128,8 +129,20 @@
             </div>
           </div>
         </section>
-        <div class="card-italfoods">
-          <div class="card-italfoods__title">Stock</div>
+        <div class="card-italfoods stock-card">
+          <header class="stock-card__head">
+            <h2 class="stock-card__title">Stock</h2>
+            <button
+              type="button"
+              class="btn-italfoods-secondary stock-export-btn"
+              (click)="descargarStockExcel()"
+              [disabled]="exportandoStock"
+              title="Descarga un .xlsx con dos hojas: Alimento (con núcleo y galpón) y Otros conceptos (a nivel granja), de todas sus granjas"
+              >
+              <fa-icon [icon]="faExport"></fa-icon>
+              {{ exportandoStock ? 'Generando…' : 'Descargar Excel (todo el stock)' }}
+            </button>
+          </header>
           <div class="card-italfoods__body">
             @if (loading) {
               <p>Cargando…</p>

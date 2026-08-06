@@ -23,6 +23,7 @@ import {
 
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { exportarStockExcel } from '../../funciones/exportar-stock-excel.funcion';
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
@@ -78,6 +79,8 @@ export class GestionInventarioPageComponent implements OnInit {
   movimientosPagina: InventarioGestionMovimientoDto[] = [];
   itemsList: ItemInventarioDto[] = [];
   loading = false;
+  /** Descarga del Excel de stock en curso (consulta aparte, sin filtro de granja). */
+  exportandoStock = false;
 
   // Modales (confirmación y mensajes)
   showConfirmModal = false;
@@ -737,6 +740,58 @@ export class GestionInventarioPageComponent implements OnInit {
         this.openAlertModal('error', 'Error', 'Error al cargar stock.');
       }
     });
+  }
+
+  /**
+   * Descarga el stock COMPLETO en `.xlsx`: todas las granjas asignadas y todos los conceptos,
+   * repartidos en dos hojas (Alimento con núcleo/galpón · Otros conceptos a nivel granja).
+   *
+   * Ignora a propósito los filtros de la pantalla salvo la búsqueda de ítem:
+   * - granja/núcleo/galpón, porque el pedido es comparar TODAS las bodegas en un archivo;
+   * - concepto, porque las dos hojas del archivo YA son la partición por concepto.
+   *
+   * Consulta propia al API (`stockList` puede venir recortado a una sola granja o concepto).
+   */
+  descargarStockExcel(): void {
+    if (this.exportandoStock) return;
+    this.exportandoStock = true;
+
+    const params: { search?: string } = {};
+    const q = (this.searchTerm ?? '').trim();
+    if (q) params.search = q;
+
+    this.svc.getStock(params).subscribe({
+      next: (list) => {
+        this.exportandoStock = false;
+        if (!list.length) {
+          this.openAlertModal('error', 'Sin datos', 'No hay stock para exportar en sus granjas asignadas.');
+          return;
+        }
+        exportarStockExcel(list, {
+          incluirUbicacion: !this.isColombiaInventario,
+          filtros: this.filtrosStockExport(list)
+        });
+      },
+      error: () => {
+        this.exportandoStock = false;
+        this.openAlertModal('error', 'Error', 'No se pudo generar el Excel del stock.');
+      }
+    });
+  }
+
+  /**
+   * Líneas de contexto comunes a las dos hojas del Excel. Dejan escrito que el archivo NO sigue
+   * los filtros de granja ni de concepto de la pantalla (para que nadie lo lea como un recorte).
+   */
+  private filtrosStockExport(list: InventarioGestionStockDto[]): string[] {
+    const granjas = new Set(list.map(s => s.granjaNombre ?? String(s.farmId)));
+    const lineas = [
+      `Granjas: todas las asignadas (${granjas.size}) — no aplica la granja seleccionada en pantalla`,
+      'Conceptos: todos — repartidos en las hojas Alimento y Otros conceptos'
+    ];
+    const q = (this.searchTerm ?? '').trim();
+    if (q) lineas.push(`Búsqueda de ítem aplicada: ${q}`);
+    return lineas;
   }
 
   get nucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {

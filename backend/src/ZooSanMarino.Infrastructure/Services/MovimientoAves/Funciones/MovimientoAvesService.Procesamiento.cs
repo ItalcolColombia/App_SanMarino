@@ -47,6 +47,12 @@ public partial class MovimientoAvesService
             {
                 // Crear registro de entrada en seguimiento diario del lote destino
                 await CrearRegistroEntradaEnLoteDestinoAsync(movimiento);
+
+                // Cohorte del receptor: las aves entran con la EDAD de su lote origen, no con la del
+                // destino. La fila diaria de arriba calcula su semana con el encaset del receptor —
+                // correcto para ubicar el registro en el calendario del lote, pero no dice qué edad
+                // traen las aves. Esta cohorte es la que lo responde.
+                await RegistrarCohorteDestinoMovimientoAsync(movimiento);
             }
 
             // Actualizar AvesHActual/AvesMActual directamente en las tablas postura (fuente primaria de inventario).
@@ -113,6 +119,10 @@ public partial class MovimientoAvesService
             }
 
             await _context.SaveChangesAsync();
+
+            // Las aves volvieron al origen ⇒ la cohorte que las declaraba en el receptor se ANULA (nunca
+            // se borra). Si no, el lote destino seguiría mostrando esas aves entre sus edades.
+            await AnularCohortesDeMovimientoAsync(movimiento.Id);
 
             var movimientoDto = await GetByIdAsync(movimiento.Id);
             return new ResultadoMovimientoDto(true, "Movimiento cancelado exitosamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimientoDto);
