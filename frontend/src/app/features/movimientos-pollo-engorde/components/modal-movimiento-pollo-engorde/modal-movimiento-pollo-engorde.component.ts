@@ -18,9 +18,10 @@ import {
   CreateMovimientoPolloEngordeDto,
   CreateVentaGranjaDespachoDto,
   UpdateMovimientoPolloEngordeDto,
-  AvesDisponiblesVentaLoteDto
+  AvesDisponiblesVentaLoteDto,
+  AvesDisponiblesLotePorIdDto
 } from '../../services/movimiento-pollo-engorde.service';
-import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
+import { LoteAveEngordeDto, LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
@@ -42,9 +43,22 @@ import {
   ProrateoRow,
   ProrateoTotales
 } from '../../funciones/prorateo-peso.funcion';
-import { formatearNumero as fmtNumero, fechaCorta as fmtFecha } from '../../funciones/formato.funcion';
+import {
+  formatearNumero as fmtNumero,
+  fechaCorta as fmtFecha,
+  fechaHoraCorta as fmtFechaHora
+} from '../../funciones/formato.funcion';
 import { marcarLotesBloqueadosVenta } from '../../funciones/detectar-lotes-bloqueados-venta.funcion';
+import {
+  filtrarLotesDestinoEngorde,
+  construirOpcionesLoteDestino
+} from '../../funciones/filtrar-lotes-destino.funcion';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { FarmService, FarmDto } from '../../../farm/services/farm.service';
+import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
+import { GalponService } from '../../../galpon/services/galpon.service';
+import { GalponDetailDto } from '../../../galpon/models/galpon.models';
+import { catchError, of } from 'rxjs';
 
 /** Permiso que habilita cargar cantidades en lotes cerrados o de una corrida anterior en el mismo galpón. */
 const PERMISO_VENDER_LOTES_CERRADOS = 'movimientos_pollo_engorde.vender_lotes_cerrados';
@@ -73,6 +87,12 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   @Input() ventaPorGranjaMode = false;
   @Input() lotesVentaGranja: LoteAveEngordeDto[] = [];
   @Input() granjaVentaNombre = '';
+  /**
+   * Traslado de aves: el ORIGEN se elige dentro del modal (lotes abiertos de la granja filtrada) y el
+   * DESTINO por la cascada Granja → Núcleo → Galpón → Lote, que puede apuntar a otra granja/galpón.
+   */
+  @Input() trasladoMode = false;
+  @Input() lotesOrigenTraslado: LoteAveEngordeDto[] = [];
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<MovimientoPolloEngordeSaveDetail>();
@@ -108,43 +128,123 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       if (this.isReadOnly) return 'Detalle de Movimiento';
       return 'Editar Movimiento';
     }
+    if (this.trasladoMode) return 'Nuevo traslado de aves';
     if (this.ventaPorGranjaMode) return 'Nueva venta por granja (despacho)';
     return 'Nueva venta de Pollo Engorde';
   }
 
-  /** Opciones de destino excluyendo el lote origen actual. */
-  get destinoOpciones(): LoteDestinoOption[] {
-    if (!this.loteOrigenValue) return this.lotesDestinoOptions;
-    return this.lotesDestinoOptions.filter((o) => o.value !== this.loteOrigenValue);
+  /** Etiqueta del lote origen en el select del traslado: "Galpón · Lote". */
+  etiquetaLoteOrigen(l: LoteAveEngordeDto): string {
+    const galpon = (l.galpon?.galponNombre ?? l.galponId ?? '').toString().trim();
+    const lote = (l.loteNombre || `Lote ${l.loteAveEngordeId}`).trim();
+    return galpon ? `${galpon} · ${lote}` : lote;
   }
+
+  /** Lote origen efectivo: en traslado lo elige el usuario en el modal; si no, viene del @Input. */
+  get loteOrigenEfectivo(): string | null {
+    if (this.trasladoMode && !this.editingMovimiento) {
+      const v = this.form?.getRawValue()?.loteOrigenValue;
+      return v ? String(v) : null;
+    }
+    return this.loteOrigenValue;
+  }
+
+  /**
+   * Disponibilidad del lote origen elegido en modo traslado (mismo endpoint que la venta por granja,
+   * `aves-disponibles-lotes`, para que el tope sea EL MISMO número que usa el backend al validar).
+   */
+  availableTrasladoOrigen: AvailableBirds | null = null;
+  cargandoDisponibleOrigen = false;
+
+  /** Al elegir el lote origen del traslado: pedir su disponibilidad y limpiar cantidades. */
+  onLoteOrigenTrasladoChange(): void {
+    this.form.patchValue({ cantidadHembras: 0, cantidadMachos: 0, cantidadMixtas: 0 });
+    this.availableTrasladoOrigen = null;
+    // El lote origen cambió ⇒ hay que reevaluar la auto-exclusión en la lista de destinos.
+    this.refrescarOpcionesDestino();
+
+    const value = this.form.getRawValue()?.loteOrigenValue as string | null;
+    if (!value || !value.startsWith('ae-')) return;
+    const loteId = Number(value.replace('ae-', ''));
+    if (isNaN(loteId)) return;
+
+    this.cargandoDisponibleOrigen = true;
+    this.movimientoSvc
+      .postAvesDisponiblesLotes({ tipoLote: 'LoteAveEngorde', loteIds: [loteId] })
+      .pipe(catchError(() => of({ items: [] as AvesDisponiblesLotePorIdDto[] })))
+      .subscribe((resp) => {
+        const d = (resp.items ?? [])[0]?.disponibles ?? null;
+        this.availableTrasladoOrigen = d
+          ? {
+              total: d.totalDisponibles ?? 0,
+              hembras: d.hembrasDisponibles ?? 0,
+              machos: d.machosDisponibles ?? 0,
+              mixtas: d.mixtasDisponibles ?? 0
+            }
+          : null;
+        this.cargandoDisponibleOrigen = false;
+        this.cdr.detectChanges();
+      });
+  }
+
+  /**
+   * Opciones de lote destino de la cascada (Granja → Núcleo → Galpón).
+   * Referencia ESTABLE: se recalcula solo al mover la cascada, nunca por getter en cada ciclo de CD
+   * (un getter que aloca array nuevo por ciclo rompe el change detection del `@for`).
+   */
+  destinoOpciones: LoteDestinoOption[] = [];
 
   /** True si el tipo de movimiento es Venta (las aves salen a comprador externo; destino interno suele no aplicar). */
   get isTipoVenta(): boolean {
     return (this.form?.getRawValue()?.tipoMovimiento ?? '') === 'Venta';
   }
 
+  /**
+   * La cascada de destino es editable solo al CREAR: `UpdateMovimientoPolloEngordeDto` no lleva campos
+   * de destino (cambiarlo en un movimiento ya completado exigiría revertir y reaplicar el stock), así
+   * que al editar se muestra el destino como texto en vez de un select que no guardaría nada.
+   */
+  get mostrarCascadaDestino(): boolean {
+    return !this.editingMovimiento && !this.ventaPorGranjaMode;
+  }
+
+  /** Destino legible de un movimiento ya registrado (granja · lote). */
+  get destinoLabel(): string {
+    const m = this.editingMovimiento;
+    if (!m) return '—';
+    const partes = [m.granjaDestinoNombre, m.loteDestinoNombre].filter((x) => !!x && String(x).trim());
+    return partes.length ? partes.join(' · ') : '—';
+  }
+
+  /** Disponibilidad efectiva: la del origen elegido en traslado, o la que envía la pantalla. */
+  private get disponiblesEfectivos(): AvailableBirds | null {
+    if (this.trasladoMode && !this.editingMovimiento) return this.availableTrasladoOrigen;
+    return this.availableBirds;
+  }
+
   get availableTotal(): number {
-    return this.availableBirds?.total ?? 0;
+    return this.disponiblesEfectivos?.total ?? 0;
   }
 
   get maxHembras(): number | null {
-    return this.availableBirds?.hembras ?? null;
+    return this.disponiblesEfectivos?.hembras ?? null;
   }
 
   get maxMachos(): number | null {
-    return this.availableBirds?.machos ?? null;
+    return this.disponiblesEfectivos?.machos ?? null;
   }
 
   get maxMixtas(): number | null {
-    return this.availableBirds?.mixtas ?? null;
+    return this.disponiblesEfectivos?.mixtas ?? null;
   }
 
   /** True si el total a mover supera lo disponible (solo aplica al crear con availableBirds o líneas venta granja). */
   get exceedsAvailable(): boolean {
     if (this.editingMovimiento) return false;
     if (this.ventaPorGranjaMode) return this.exceedsVentaGranjaLine;
-    if (!this.availableBirds) return false;
-    return this.totalAves > this.availableBirds.total;
+    const disp = this.disponiblesEfectivos;
+    if (!disp) return false;
+    return this.totalAves > disp.total;
   }
 
   /** Alguna fila en venta por granja supera disponibles por sexo. */
@@ -192,12 +292,30 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     return this.loteOrigenValue;
   }
 
+  // ── Cascada de DESTINO del traslado (Granja → Núcleo → Galpón → Lote) ──────────────
+  //   Permite trasladar a OTRA granja / OTRO galpón, no solo dentro de la granja filtrada en la
+  //   pantalla. Mismo contrato que el modal de traslado de postura: granjas = todas las de la
+  //   empresa activa; núcleos/galpones/lotes con `paraDestino=true` (omiten el alcance granular).
+  granjasDestino: FarmDto[] = [];
+  nucleosDestino: NucleoDto[] = [];
+  galponesDestino: GalponDetailDto[] = [];
+  /** Catálogo completo de lotes destino (se filtra en cliente al mover la cascada). */
+  private catalogoLotesDestino: LoteAveEngordeDto[] = [];
+  /** True mientras se carga el catálogo de destino (granjas + lotes). */
+  cargandoDestino = false;
+  /** El catálogo se pide UNA vez por apertura y solo si el movimiento es un traslado. */
+  private destinoCatalogoCargado = false;
+
   constructor(
     private fb: FormBuilder,
     private movimientoSvc: MovimientoPolloEngordeService,
     private tokenStorage: TokenStorageService,
     private permService: UserPermissionService,
     private companyConfig: ActiveCompanyConfigService,
+    private farmSvc: FarmService,
+    private nucleoSvc: NucleoService,
+    private galponSvc: GalponService,
+    private loteEngordeSvc: LoteEngordeService,
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
@@ -237,7 +355,13 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         this.configureTotalPollosGalponControl();
       } else {
         this.resetForm();
-        if (this.ventaPorGranjaMode) {
+        this.availableTrasladoOrigen = null;
+        if (this.trasladoMode) {
+          // El traslado no pasa por báscula y no admite otro tipo: se fija y se bloquea.
+          this.form.patchValue({ tipoMovimiento: 'Traslado' });
+          this.form.get('tipoMovimiento')?.disable({ emitEvent: false });
+          this.cargarCatalogoDestinoSiHaceFalta();
+        } else if (this.ventaPorGranjaMode) {
           this.form.patchValue({ tipoMovimiento: 'Venta' });
           this.form.get('tipoMovimiento')?.disable({ emitEvent: false });
           this.applyRazaFromVentaGranja();
@@ -247,6 +371,9 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
           this.applyLotInfoToForm();
           this.subscribeFechaMovimientoForEdad();
           this.configureTotalPollosGalponControl();
+          // Si el usuario abre directamente en un tipo que no es Venta (o vuelve a Traslado), el
+          // catálogo de destino se pide acá; el `valueChanges` cubre el cambio posterior de tipo.
+          if (!this.isTipoVenta) this.cargarCatalogoDestinoSiHaceFalta();
         }
       }
       this.syncPesoValidators();
@@ -305,6 +432,13 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     this.form = this.fb.group({
       fechaMovimiento: [hoy.toISOString().slice(0, 10), [Validators.required]],
       tipoMovimiento: ['Venta', [Validators.required]],
+      // Destino del traslado: cascada Granja → Núcleo → Galpón → Lote (los tres primeros son
+      // opcionales para el backend; el lote sigue siendo opcional como siempre).
+      // Lote origen: solo se usa en modo traslado (en los demás flujos viene por @Input).
+      loteOrigenValue: [null as string | null],
+      granjaDestinoId: [null as number | null],
+      nucleoDestinoId: [null as string | null],
+      galponDestinoId: [null as string | null],
       loteDestinoValue: [null as string | null],
       cantidadHembras: [0, [Validators.required, Validators.min(0)]],
       cantidadMachos: [0, [Validators.required, Validators.min(0)]],
@@ -326,8 +460,118 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       pesoTara: [null as number | null]
     });
     // Peso báscula obligatorio en ventas: al cambiar el tipo se ajustan los validadores.
-    this.form.get('tipoMovimiento')?.valueChanges.subscribe(() => this.syncPesoValidators());
+    // El catálogo de destino se pide recién al pasar a un tipo que lo usa (la venta, que es el
+    // grueso del uso, no paga la petición).
+    this.form.get('tipoMovimiento')?.valueChanges.subscribe(() => {
+      this.syncPesoValidators();
+      if (!this.isTipoVenta) this.cargarCatalogoDestinoSiHaceFalta();
+    });
     this.syncPesoValidators();
+  }
+
+  // ── Cascada de destino ────────────────────────────────────────────────────────────
+
+  /**
+   * Carga (una sola vez por apertura) las granjas y el catálogo de lotes destino.
+   * Fail-closed: si alguna petición falla, la lista queda vacía y el traslado no se puede apuntar a
+   * ningún lote — nunca se cae al comportamiento viejo de ofrecer lotes de la granja filtrada.
+   */
+  private cargarCatalogoDestinoSiHaceFalta(): void {
+    if (!this.mostrarCascadaDestino || this.isReadOnly) return;
+    if (this.destinoCatalogoCargado || this.cargandoDestino) return;
+    this.destinoCatalogoCargado = true;
+    this.cargandoDestino = true;
+
+    let huboError = false;
+
+    this.farmSvc
+      .getForTrasladoSeguimiento()
+      .pipe(
+        catchError(() => {
+          huboError = true;
+          return of<FarmDto[]>([]);
+        })
+      )
+      .subscribe((farms) => {
+        this.granjasDestino = farms;
+        this.cdr.detectChanges();
+      });
+
+    // paraDestino=true: catálogo de lotes DESTINO — omite el alcance granular núcleo/galpón
+    this.loteEngordeSvc
+      .getAll(true)
+      .pipe(
+        catchError(() => {
+          huboError = true;
+          return of<LoteAveEngordeDto[]>([]);
+        })
+      )
+      .subscribe((lotes) => {
+        this.catalogoLotesDestino = lotes;
+        this.cargandoDestino = false;
+        // Fail-closed pero reintentable: la lista queda vacía (no se ofrece un destino que no se pudo
+        // verificar), y al volver a elegir "Traslado" se pide el catálogo de nuevo.
+        if (huboError) this.destinoCatalogoCargado = false;
+        this.refrescarOpcionesDestino();
+        this.cdr.detectChanges();
+      });
+  }
+
+  onGranjaDestinoChange(): void {
+    this.form.patchValue({ nucleoDestinoId: null, galponDestinoId: null, loteDestinoValue: null });
+    this.nucleosDestino = [];
+    this.galponesDestino = [];
+    this.refrescarOpcionesDestino();
+
+    const granjaId = this.form.get('granjaDestinoId')?.value;
+    if (granjaId == null) return;
+
+    // paraDestino=true: cascada de DESTINO — no se restringe por el alcance granular del usuario
+    this.nucleoSvc
+      .getByGranja(Number(granjaId), true)
+      .pipe(catchError(() => of<NucleoDto[]>([])))
+      .subscribe((ns) => {
+        this.nucleosDestino = ns;
+        this.cdr.detectChanges();
+      });
+  }
+
+  onNucleoDestinoChange(): void {
+    this.form.patchValue({ galponDestinoId: null, loteDestinoValue: null });
+    this.galponesDestino = [];
+    this.refrescarOpcionesDestino();
+
+    const granjaId = this.form.get('granjaDestinoId')?.value;
+    const nucleoId = this.form.get('nucleoDestinoId')?.value;
+    if (granjaId == null || !nucleoId) return;
+
+    this.galponSvc
+      .getByGranjaAndNucleo(Number(granjaId), String(nucleoId), true)
+      .pipe(catchError(() => of<GalponDetailDto[]>([])))
+      .subscribe((gs) => {
+        this.galponesDestino = gs;
+        this.cdr.detectChanges();
+      });
+  }
+
+  onGalponDestinoChange(): void {
+    this.form.patchValue({ loteDestinoValue: null });
+    this.refrescarOpcionesDestino();
+  }
+
+  /** Recalcula las opciones de lote destino desde el catálogo + la ubicación elegida (referencia nueva SOLO aquí). */
+  private refrescarOpcionesDestino(): void {
+    const v = this.form.getRawValue();
+    const lotes = filtrarLotesDestinoEngorde(
+      this.catalogoLotesDestino,
+      {
+        granjaId: v.granjaDestinoId != null ? Number(v.granjaDestinoId) : null,
+        nucleoId: v.nucleoDestinoId ?? null,
+        galponId: v.galponDestinoId ?? null
+      },
+      this.loteOrigenEfectivo
+    );
+    this.destinoOpciones = construirOpcionesLoteDestino(lotes);
   }
 
   /** Resuelve el flag de la empresa activa y re-aplica los validadores de peso. */
@@ -377,6 +621,10 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     this.form.patchValue({
       fechaMovimiento: hoy.toISOString().slice(0, 10),
       tipoMovimiento: 'Venta',
+      loteOrigenValue: null,
+      granjaDestinoId: null,
+      nucleoDestinoId: null,
+      galponDestinoId: null,
       loteDestinoValue: null,
       cantidadHembras: 0,
       cantidadMachos: 0,
@@ -397,6 +645,11 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       pesoTara: null
     });
     this.form.markAsUntouched();
+    // Sin granja destino elegida no hay lotes candidatos; además el lote ORIGEN pudo cambiar entre
+    // aperturas, así que las opciones se reconstruyen desde cero.
+    this.nucleosDestino = [];
+    this.galponesDestino = [];
+    this.refrescarOpcionesDestino();
   }
 
   /** Prellena Raza y Edad (días) desde el lote; deshabilita ambos cuando vienen del lote. */
@@ -434,6 +687,9 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     this.form.patchValue({
       fechaMovimiento: m.fechaMovimiento?.slice(0, 10) ?? '',
       tipoMovimiento: m.tipoMovimiento ?? 'Traslado',
+      granjaDestinoId: m.granjaDestinoId ?? null,
+      nucleoDestinoId: null,
+      galponDestinoId: null,
       loteDestinoValue: destValue,
       cantidadHembras: m.cantidadHembras ?? 0,
       cantidadMachos: m.cantidadMachos ?? 0,
@@ -516,7 +772,18 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     }
 
     if (this.form.invalid || this.loading) return;
-    if (!this.loteOrigenValue && !this.editingMovimiento) return;
+    if (!this.loteOrigenEfectivo && !this.editingMovimiento) {
+      this.error = 'Seleccione el lote de origen del traslado.';
+      return;
+    }
+    if (this.trasladoMode && !this.editingMovimiento && !this.form.getRawValue()?.loteDestinoValue) {
+      this.error = 'Seleccione el lote de destino: sin destino las aves saldrían del origen sin entrar a ningún lote.';
+      return;
+    }
+    if (this.totalAves <= 0) {
+      this.error = 'Indique cuántas aves se trasladan.';
+      return;
+    }
     if (this.exceedsAvailable) {
       this.error = `No puede mover más de ${this.formatearNumero(this.availableTotal)} aves (disponibles en el lote).`;
       return;
@@ -747,7 +1014,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
 
   private buildCreateDto(usuarioMovimientoId: number): CreateMovimientoPolloEngordeDto | null {
     return crearCreateDto(this.form.getRawValue() as MovimientoModalFormValue, {
-      loteOrigenValue: this.loteOrigenValue!,
+      loteOrigenValue: this.loteOrigenEfectivo!,
       isTipoVenta: this.isTipoVenta,
       usuarioMovimientoId
     });
@@ -819,6 +1086,11 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
 
   fechaCorta(iso: string | null | undefined): string {
     return fmtFecha(iso);
+  }
+
+  /** Fecha + hora de creación del registro (`created_at`): cuándo se cargó en el sistema. */
+  fechaHoraCorta(iso: string | null | undefined): string {
+    return fmtFechaHora(iso);
   }
 
   get showDespachoEnDetalle(): boolean {

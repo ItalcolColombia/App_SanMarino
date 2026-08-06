@@ -23,6 +23,7 @@ un botón— para que sea **fácil de encontrar, testear y reutilizar**.
 | `mapear-movimiento-dto.funcion.ts` | `buildCreateDto` / `buildUpdateDto` / `buildVentaGranjaDespachoDto`. |
 | `prorateo-peso.funcion.ts` | `calcularProrateoPreview` / `calcularProrateoTotales`. |
 | `detectar-lotes-bloqueados-venta.funcion.ts` | `marcarLotesBloqueadosVenta`: bloquea en Venta por granja los lotes cerrados o de una corrida anterior en el mismo galpón. |
+| `filtrar-lotes-destino.funcion.ts` | `filtrarLotesDestinoEngorde` / `construirOpcionesLoteDestino`: candidatos a lote DESTINO de un traslado según la cascada Granja → Núcleo → Galpón. |
 
 ## Nota multi-país
 

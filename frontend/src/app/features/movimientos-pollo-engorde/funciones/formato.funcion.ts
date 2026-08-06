@@ -4,4 +4,4 @@
  * imports internos del módulo (`./formato.funcion`). Antes definían la lógica aquí; ahora vive
  * en `format.ts` y este archivo solo la re-expone.
  */
-export { formatearNumero, fechaCorta, ymdToIsoUtcNoon } from '../../../shared/utils/format';
+export { formatearNumero, fechaCorta, fechaHoraCorta, ymdToIsoUtcNoon } from '../../../shared/utils/format';

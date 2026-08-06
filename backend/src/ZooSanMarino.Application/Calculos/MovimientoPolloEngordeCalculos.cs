@@ -105,4 +105,32 @@ public static class MovimientoPolloEngordeCalculos
     /// <summary>Exceso de ventas por sexo = max(0, vendidas − máximo vendible).</summary>
     public static int Exceso(int totalVendidas, int maxVendible)
         => Math.Max(0, totalVendidas - maxVendible);
+
+    /// <summary>Ubicación (granja / núcleo / galpón) de un lado del movimiento.</summary>
+    public readonly record struct UbicacionMovimiento(int? GranjaId, string? NucleoId, string? GalponId);
+
+    /// <summary>
+    /// Ubicación DESTINO efectiva de un movimiento: <b>campo por campo</b>, lo que mandó el cliente manda
+    /// y lo que falte se completa con la ubicación del lote destino.
+    /// <para>
+    /// <b>Por qué existe:</b> desde que el traslado de engorde puede apuntar a otra granja/galpón, el front
+    /// envía la ubicación destino explícita; pero los flujos históricos (y la carga masiva) mandan solo el
+    /// lote, y la cascada del modal permite elegir la granja sin bajar a galpón. Como las aves aterrizan
+    /// físicamente en el galpón del lote destino, ese dato se completa igual: dejarlo nulo perdería
+    /// información que el movimiento sí tiene. Sin lote destino (venta / retiro / ajuste) no se inventa nada
+    /// y la ubicación queda exactamente como llegó — comportamiento previo intacto.
+    /// </para>
+    /// </summary>
+    /// <param name="explicita">Ubicación destino tal como llegó en el DTO.</param>
+    /// <param name="delLoteDestino">Ubicación del lote destino; <c>null</c> si el movimiento no tiene destino.</param>
+    public static UbicacionMovimiento ResolverUbicacionDestino(
+        UbicacionMovimiento explicita, UbicacionMovimiento? delLoteDestino)
+    {
+        if (delLoteDestino is not { } lote) return explicita;
+
+        return new UbicacionMovimiento(
+            explicita.GranjaId ?? lote.GranjaId,
+            string.IsNullOrWhiteSpace(explicita.NucleoId) ? lote.NucleoId : explicita.NucleoId,
+            string.IsNullOrWhiteSpace(explicita.GalponId) ? lote.GalponId : explicita.GalponId);
+    }
 }

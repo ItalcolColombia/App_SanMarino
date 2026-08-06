@@ -6,8 +6,12 @@ namespace ZooSanMarino.Application.Interfaces;
 
 public interface ILoteAveEngordeService
 {
-    /// <summary>Listado simple con información completa de relaciones (solo no eliminados).</summary>
-    Task<IEnumerable<LoteAveEngordeDetailDto>> GetAllAsync();
+    /// <summary>
+    /// Listado simple con información completa de relaciones (solo no eliminados).
+    /// <paramref name="paraDestino"/> = true omite el alcance granular núcleo/galpón del usuario, para
+    /// elegir el lote DESTINO de un traslado (la restricción por granjas asignadas se conserva).
+    /// </summary>
+    Task<IEnumerable<LoteAveEngordeDetailDto>> GetAllAsync(bool paraDestino = false);
     /// <summary>Búsqueda avanzada paginada (filtros por granja, núcleo, galpón, fechas, raza, técnico, etc.).</summary>
     Task<CommonDtos.PagedResult<LoteAveEngordeDetailDto>> SearchAsync(LoteAveEngordeSearchRequest req);
     /// <summary>Detalle de un lote de engorde por ID (tenant-safe).</summary>

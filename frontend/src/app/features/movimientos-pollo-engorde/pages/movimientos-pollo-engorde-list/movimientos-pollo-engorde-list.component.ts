@@ -32,7 +32,11 @@ import {
 } from '../../models/movimiento-tabla.model';
 import { construirFilasTabla } from '../../funciones/agrupar-despachos.funcion';
 import { exportarVentasExcel } from '../../funciones/exportar-ventas-excel.funcion';
-import { formatearNumero as fmtNumero, fechaCorta as fmtFecha } from '../../funciones/formato.funcion';
+import {
+  formatearNumero as fmtNumero,
+  fechaCorta as fmtFecha,
+  fechaHoraCorta as fmtFechaHora
+} from '../../funciones/formato.funcion';
 import { ModalVentaPanamaComponent } from '../../components/modal-venta-panama/modal-venta-panama.component';
 import { ModalRegistroPesoComponent } from '../../components/modal-registro-peso/modal-registro-peso.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -111,6 +115,8 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   movimientosParaPeso: MovimientoPolloEngordeDto[] = [];
   /** Sin lote seleccionado: venta desde granja (varios galpones/lotes en un despacho). */
   ventaPorGranjaMode = false;
+  /** Modal abierto para registrar un TRASLADO (origen lote + destino en cualquier granja/galpón). */
+  trasladoMode = false;
   editingMovimiento: MovimientoPolloEngordeDto | null = null;
 
   showConfirmationModal = false;
@@ -500,6 +506,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   private refreshLotesParaVentaGranja(): void {
     if (!this.selectedGranjaId) {
       this.lotesParaVentaGranjaList = [];
+      this.lotesTrasladoOrigen = [];
       return;
     }
     const gid = String(this.selectedGranjaId);
@@ -508,11 +515,16 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       const nid = String(this.selectedNucleoId);
       rows = rows.filter((l) => (l.nucleoId ?? '') === nid);
     }
-    this.lotesParaVentaGranjaList = rows.sort((a, b) => {
+    const ordenados = rows.sort((a, b) => {
       const ga = (a.galponId ?? '').localeCompare(b.galponId ?? '', 'es');
       if (ga !== 0) return ga;
       return (a.loteNombre || '').localeCompare(b.loteNombre || '', 'es', { numeric: true });
     });
+    this.lotesParaVentaGranjaList = ordenados;
+    // Origen de traslado: solo lotes abiertos (el gate B8 rechaza los liquidados).
+    this.lotesTrasladoOrigen = ordenados.filter(
+      (l) => (l.estadoOperativoLote ?? '').trim().toLowerCase() !== 'cerrado'
+    );
   }
 
   private buildLotesOpciones(): void {
@@ -718,8 +730,37 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     if (this.lotesParaVentaGranjaList.length === 0) return;
     // Siempre crear venta por granja (despacho). No se filtra/selecciona por galpón/lote.
     this.ventaPorGranjaMode = true;
+    this.trasladoMode = false;
     this.editingMovimiento = null;
     this.modalOpen = true;
+  }
+
+  /**
+   * Abre el modal en modo TRASLADO: origen = un lote de la granja filtrada, destino = cualquier
+   * granja/galpón (cascada dentro del modal). Es la única vía para registrar un traslado de aves de
+   * engorde; `create()` siempre abre el despacho de venta por granja.
+   */
+  crearTraslado(): void {
+    if (!this.selectedGranjaId) return;
+    if (this.lotesTrasladoOrigen.length === 0) return;
+    this.ventaPorGranjaMode = false;
+    this.trasladoMode = true;
+    this.editingMovimiento = null;
+    this.selectedLoteValue = null;
+    this.modalOpen = true;
+  }
+
+  /**
+   * Lotes de la granja filtrada que pueden ser ORIGEN de un traslado: los abiertos, sin exigir que
+   * tengan ventas registradas (a diferencia de `getVentaLotesAveEngorde()`, que alimenta los filtros
+   * de la pantalla y por diseño solo lista lotes con ventas).
+   * Referencia estable: se recalcula en `refreshLotesParaVentaGranja()`, no por getter.
+   */
+  lotesTrasladoOrigen: LoteAveEngordeDto[] = [];
+
+  /** True si hay lotes para originar un traslado en la granja seleccionada. */
+  get canOpenTraslado(): boolean {
+    return !!this.selectedGranjaId && this.lotesTrasladoOrigen.length > 0;
   }
 
   /** True si el usuario activo es de Panamá (habilita el botón/modal de venta Panamá). */
@@ -779,6 +820,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   closeModal(): void {
     this.modalOpen = false;
     this.ventaPorGranjaMode = false;
+    this.trasladoMode = false;
     this.editingMovimiento = null;
   }
 
@@ -1046,6 +1088,14 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
   fechaCorta(iso: string | null | undefined): string {
     return fmtFecha(iso);
+  }
+
+  /**
+   * Fecha + hora de creación del registro (`created_at`). Es distinta de `fechaMovimiento`: esta la
+   * pone el sistema al guardar y aquella la digita el usuario (el traslado puede ser retroactivo).
+   */
+  fechaHoraCorta(iso: string | null | undefined): string {
+    return fmtFechaHora(iso);
   }
 
   trackById(_: number, m: MovimientoPolloEngordeDto): number {

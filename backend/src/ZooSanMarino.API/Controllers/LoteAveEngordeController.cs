@@ -26,11 +26,16 @@ public class LoteAveEngordeController : ControllerBase
     // ===========================
     // LISTADO SIMPLE CON INFORMACIÓN COMPLETA DE RELACIONES
     // ===========================
+    /// <param name="paraDestino">
+    /// true al listar candidatos a lote DESTINO de un traslado: omite el alcance granular
+    /// núcleo/galpón del usuario (conserva la restricción por granjas asignadas).
+    /// </param>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LoteAveEngordeDtos.LoteAveEngordeDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<LoteAveEngordeDtos.LoteAveEngordeDetailDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<LoteAveEngordeDtos.LoteAveEngordeDetailDto>>> GetAll(
+        [FromQuery] bool paraDestino = false)
     {
-        var items = await _svc.GetAllAsync();
+        var items = await _svc.GetAllAsync(paraDestino);
         return Ok(items);
     }
 

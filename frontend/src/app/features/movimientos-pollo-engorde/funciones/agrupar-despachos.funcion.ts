@@ -73,6 +73,7 @@ export function construirFilasTabla(list: MovimientoPolloEngordeDto[]): FilaTabl
           (movs[0].numeroDespacho ?? '').trim() ||
           (movs[0].facturaId ? `Factura ${String(movs[0].facturaId).slice(0, 8)}` : ''),
         fechaMovimiento: movs[0].fechaMovimiento,
+        createdAt: movs[0].createdAt,
         movimientos: movs
       });
     } else {

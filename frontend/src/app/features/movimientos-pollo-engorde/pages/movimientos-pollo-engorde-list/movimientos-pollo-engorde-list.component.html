@@ -97,6 +97,20 @@
             {{ hasLoteSelected ? 'Nuevo registro' : 'Nueva venta (granja)' }}
           </button>
         }
+        <button
+          type="button"
+          (click)="crearTraslado()"
+          class="btn-italfoods-secondary"
+          [disabled]="!canOpenTraslado"
+          [title]="
+            !selectedGranjaId
+              ? 'Selecciona una granja'
+              : lotesTrasladoOrigen.length === 0
+                ? 'No hay lotes abiertos en esta granja'
+                : 'Trasladar aves de un lote de esta granja a otro lote (puede ser de otra granja u otro galpón)'
+          ">
+          Nuevo traslado
+        </button>
         @if (isPanama && !hasLoteSelected) {
           <button
             type="button"
@@ -295,7 +309,8 @@
                       <tr>
                         <th class="mpp-th-expand"></th>
                         <th>Número / Despacho</th>
-                        <th>Fecha</th>
+                        <th title="Día real en que se movieron las aves (lo digita el usuario)">Fecha traslado</th>
+                        <th title="Fecha y hora en que el registro se cargó en el sistema">Registrado</th>
                         <th>Tipo</th>
                         <th>Origen</th>
                         <th>Destino</th>
@@ -310,7 +325,7 @@
                     <tbody>
                       @if (movimientos.length === 0) {
                         <tr>
-                          <td colspan="12" class="empty-state">
+                          <td colspan="13" class="empty-state">
                             <div class="empty-illustration" aria-hidden="true">🐔</div>
                             <p>No hay registros de movimientos para los filtros seleccionados.</p>
                             <button type="button" class="btn-italfoods-secondary" (click)="create()">Crear el primero</button>
@@ -319,7 +334,7 @@
                       }
                       @if (movimientos.length > 0 && filteredMovimientos.length === 0) {
                         <tr>
-                          <td colspan="12" class="empty-state">
+                          <td colspan="13" class="empty-state">
                             <div class="empty-illustration" aria-hidden="true">🔍</div>
                             <p>No se encontraron registros con los filtros aplicados.</p>
                             <button type="button" class="btn-italfoods-secondary" (click)="limpiarFiltros()">Limpiar filtros</button>
@@ -348,6 +363,7 @@
                               <small class="text-muted">Venta · mismo viaje</small>
                             </td>
                             <td>{{ fechaCorta(fila.fechaMovimiento) }}</td>
+                            <td class="mpp-td-registro">{{ fechaHoraCorta(fila.createdAt) }}</td>
                             <td><span class="badge badge--info">Venta</span></td>
                             <td>
                               <div>{{ fila.movimientos[0]?.granjaOrigenNombre || '—' }}</div>
@@ -412,7 +428,7 @@
                           </tr>
                           @if (isDespachoExpanded(fila.clave)) {
                             <tr class="mpp-row--despacho-detail">
-                              <td colspan="12">
+                              <td colspan="13">
                                 <div class="mpp-despacho-detail">
                                   <p class="mpp-despacho-detail__hint">Salidas por lote (cada fila es un registro en sistema; al completar se aplica a cada lote).</p>
                                   <table class="mpp-subtable">
@@ -497,6 +513,7 @@
                             <td class="mpp-td-expand"></td>
                             <td><strong>{{ fila.movimiento.numeroMovimiento }}</strong></td>
                             <td>{{ fechaCorta(fila.movimiento.fechaMovimiento) }}</td>
+                            <td class="mpp-td-registro">{{ fechaHoraCorta(fila.movimiento.createdAt) }}</td>
                             <td><span class="badge badge--info">{{ fila.movimiento.tipoMovimiento }}</span></td>
                             <td>
                               @if (fila.movimiento.granjaOrigenNombre || fila.movimiento.loteOrigenNombre) {
@@ -613,6 +630,8 @@
   [availableBirds]="availableBirdsForModal"
   [lotInfoFromLote]="lotInfoForMovement"
   [ventaPorGranjaMode]="ventaPorGranjaMode"
+  [trasladoMode]="trasladoMode"
+  [lotesOrigenTraslado]="lotesTrasladoOrigen"
   [lotesVentaGranja]="lotesParaVentaGranjaList"
   [granjaVentaNombre]="selectedGranjaName"
   (close)="closeModal()"

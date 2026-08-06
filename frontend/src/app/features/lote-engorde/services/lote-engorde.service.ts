@@ -91,8 +91,13 @@ export class LoteEngordeService {
     return this.http.get<LoteFormDataResponse>(`${this.baseUrl}/form-data`);
   }
 
-  getAll(): Observable<LoteAveEngordeDto[]> {
-    return this.http.get<LoteAveEngordeDto[]>(this.baseUrl);
+  /**
+   * @param paraDestino true al listar candidatos a lote DESTINO de un traslado: omite el alcance
+   * granular núcleo/galpón del usuario (la restricción por granjas asignadas se conserva).
+   */
+  getAll(paraDestino = false): Observable<LoteAveEngordeDto[]> {
+    const url = paraDestino ? `${this.baseUrl}?paraDestino=true` : this.baseUrl;
+    return this.http.get<LoteAveEngordeDto[]>(url);
   }
 
   getById(loteAveEngordeId: number): Observable<LoteAveEngordeDto> {

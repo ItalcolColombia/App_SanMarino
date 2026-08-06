@@ -26,7 +26,8 @@
             <h3 class="detail-section__title">Datos generales</h3>
             <dl class="detail-grid">
               <dt>Número</dt><dd>{{ editingMovimiento.numeroMovimiento }}</dd>
-              <dt>Fecha</dt><dd>{{ fechaCorta(editingMovimiento.fechaMovimiento) }}</dd>
+              <dt>Fecha del traslado</dt><dd>{{ fechaCorta(editingMovimiento.fechaMovimiento) }}</dd>
+              <dt>Registrado el</dt><dd>{{ fechaHoraCorta(editingMovimiento.createdAt) }}</dd>
               <dt>Tipo</dt><dd>{{ editingMovimiento.tipoMovimiento }}</dd>
               <dt>Estado</dt><dd><span class="detail-badge" [attr.data-estado]="editingMovimiento.estado.toLowerCase()">{{ editingMovimiento.estado }}</span></dd>
             </dl>
@@ -91,8 +92,16 @@
             <h3 class="form-section__title">Datos generales</h3>
             <div class="form-grid form-grid--2">
               <div class="form-group">
-                <label for="fechaMovimiento">Fecha movimiento</label>
+                <label for="fechaMovimiento">Fecha del movimiento</label>
                 <input id="fechaMovimiento" type="date" formControlName="fechaMovimiento" class="form-input" />
+                <p class="form-hint">
+                  Día real en que se movieron las aves (puede ser retroactivo).
+                  @if (editingMovimiento) {
+                    Registrado en el sistema el <strong>{{ fechaHoraCorta(editingMovimiento.createdAt) }}</strong>.
+                  } @else {
+                    La fecha de registro la pone el sistema al guardar.
+                  }
+                </p>
               </div>
               <div class="form-group">
                 <label for="tipoMovimiento">Tipo movimiento</label>
@@ -113,19 +122,108 @@
                   </p>
                 }
               </div>
-              <div class="form-group form-group--full">
-                <label>Origen</label>
-                <p class="form-readonly">{{ origenLabel }}</p>
-              </div>
-              @if (!isTipoVenta) {
+              @if (trasladoMode && !editingMovimiento) {
                 <div class="form-group form-group--full">
-                  <label for="loteDestinoValue">Destino (opcional)</label>
-                  <select id="loteDestinoValue" formControlName="loteDestinoValue" class="form-select">
-                    <option [ngValue]="null">— Sin destino —</option>
-                    @for (opt of destinoOpciones; track opt) {
-                      <option [ngValue]="opt.value">{{ opt.label }}</option>
+                  <label for="loteOrigenValue">Lote origen <span class="req">*</span></label>
+                  <select
+                    id="loteOrigenValue"
+                    formControlName="loteOrigenValue"
+                    class="form-select"
+                    (change)="onLoteOrigenTrasladoChange()">
+                    <option [ngValue]="null">— Seleccione el lote de origen —</option>
+                    @for (l of lotesOrigenTraslado; track l.loteAveEngordeId) {
+                      <option [ngValue]="'ae-' + l.loteAveEngordeId">{{ etiquetaLoteOrigen(l) }}</option>
                     }
                   </select>
+                  @if (cargandoDisponibleOrigen) {
+                    <p class="form-hint">Consultando aves disponibles…</p>
+                  }
+                </div>
+              }
+              @if (!trasladoMode || editingMovimiento) {
+                <div class="form-group form-group--full">
+                  <label>Origen</label>
+                  <p class="form-readonly">{{ origenLabel }}</p>
+                </div>
+              }
+              @if (!isTipoVenta && mostrarCascadaDestino) {
+                <div class="form-group form-group--full destino-cascada">
+                  <label>
+                    Destino del traslado
+                    @if (trasladoMode) {
+                      <span class="req">*</span>
+                    } @else {
+                      (opcional)
+                    }
+                  </label>
+                  <p class="form-hint">
+                    Puede trasladar a <strong>otra granja</strong> y <strong>otro galpón</strong>: elija Granja → Núcleo → Galpón → Lote.
+                  </p>
+                  @if (cargandoDestino) {
+                    <p class="form-hint">Cargando destinos disponibles…</p>
+                  }
+                  <div class="form-grid form-grid--2">
+                    <div class="form-group">
+                      <label for="granjaDestinoId">Granja destino</label>
+                      <select
+                        id="granjaDestinoId"
+                        formControlName="granjaDestinoId"
+                        class="form-select"
+                        (change)="onGranjaDestinoChange()">
+                        <option [ngValue]="null">— Sin destino —</option>
+                        @for (g of granjasDestino; track g.id) {
+                          <option [ngValue]="g.id">{{ g.name }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="nucleoDestinoId">Núcleo destino</label>
+                      <select
+                        id="nucleoDestinoId"
+                        formControlName="nucleoDestinoId"
+                        class="form-select"
+                        [disabled]="!nucleosDestino.length"
+                        (change)="onNucleoDestinoChange()">
+                        <option [ngValue]="null">— Todos —</option>
+                        @for (n of nucleosDestino; track n.nucleoId) {
+                          <option [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="galponDestinoId">Galpón destino</label>
+                      <select
+                        id="galponDestinoId"
+                        formControlName="galponDestinoId"
+                        class="form-select"
+                        [disabled]="!galponesDestino.length"
+                        (change)="onGalponDestinoChange()">
+                        <option [ngValue]="null">— Todos —</option>
+                        @for (gp of galponesDestino; track gp.galponId) {
+                          <option [ngValue]="gp.galponId">{{ gp.galponNombre || gp.galponId }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="loteDestinoValue">Lote destino</label>
+                      <select id="loteDestinoValue" formControlName="loteDestinoValue" class="form-select">
+                        <option [ngValue]="null">— Sin lote —</option>
+                        @for (opt of destinoOpciones; track opt.value) {
+                          <option [ngValue]="opt.value">{{ opt.label }}</option>
+                        }
+                      </select>
+                      @if (!cargandoDestino && form.get('granjaDestinoId')?.value != null && !destinoOpciones.length) {
+                        <p class="form-hint">No hay lotes abiertos en esa ubicación.</p>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+              @if (!isTipoVenta && !mostrarCascadaDestino) {
+                <div class="form-group form-group--full">
+                  <label>Destino</label>
+                  <p class="form-readonly">{{ destinoLabel }}</p>
+                  <p class="form-hint">El destino de un movimiento ya registrado no se modifica desde aquí.</p>
                 </div>
               }
             </div>

@@ -40,9 +40,18 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     /// Filtro de alcance granular (user_farms.restrict_locations + user_farm_scopes), componible en
     /// SQL. Engorde no referencia la tabla lotes ⇒ el nivel LOTE del scope no aplica aquí: los lotes
     /// de engorde se gobiernan por galpón/núcleo visibles. Granjas no restringidas pasan intactas.
+    /// <para>
+    /// <paramref name="paraDestino"/> = true lo omite (selección de DESTINO en traslados): quien traslada
+    /// necesita ver los lotes que RECIBEN aves aunque su alcance granular no incluya ese galpón. Mismo
+    /// contrato que <c>LotePosturaLevanteService.AplicarScopeUbicacionAsync</c>; la restricción por granjas
+    /// asignadas NO se relaja.
+    /// </para>
     /// </summary>
-    private async Task<IQueryable<LoteAveEngorde>> AplicarScopeUbicacionAsync(IQueryable<LoteAveEngorde> q)
+    private async Task<IQueryable<LoteAveEngorde>> AplicarScopeUbicacionAsync(
+        IQueryable<LoteAveEngorde> q, bool paraDestino = false)
     {
+        if (paraDestino) return q;
+
         var restringidos = await _scopeResolver.GetAllRestrictedScopesAsync();
         if (restringidos.Count == 0) return q;
 
@@ -80,7 +89,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         return farms.Select(f => f.Id).ToHashSet();
     }
 
-    public async Task<IEnumerable<LoteAveEngordeDetailDto>> GetAllAsync()
+    public async Task<IEnumerable<LoteAveEngordeDetailDto>> GetAllAsync(bool paraDestino = false)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
         var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
@@ -90,8 +99,9 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             .AsNoTracking()
             .Where(l => l.CompanyId == companyId && l.DeletedAt == null && allowed.Contains(l.GranjaId));
 
-        // Alcance granular núcleo/galpón (el nivel lote del scope no aplica a engorde)
-        q = await AplicarScopeUbicacionAsync(q);
+        // Alcance granular núcleo/galpón (el nivel lote del scope no aplica a engorde).
+        // Omitido al elegir DESTINO de un traslado.
+        q = await AplicarScopeUbicacionAsync(q, paraDestino);
 
         q = q.OrderBy(l => l.LoteAveEngordeId);
         return await ProjectToDetail(q).ToListAsync();

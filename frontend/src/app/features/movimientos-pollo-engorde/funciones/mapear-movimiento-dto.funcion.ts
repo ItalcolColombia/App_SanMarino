@@ -19,6 +19,10 @@ import { ymdToIsoUtcNoon } from './formato.funcion';
 export interface MovimientoModalFormValue {
   fechaMovimiento: string;
   tipoMovimiento: string;
+  /** Cascada de destino del traslado (permite otra granja / otro galpón). */
+  granjaDestinoId: number | string | null;
+  nucleoDestinoId: string | null;
+  galponDestinoId: string | null;
   loteDestinoValue: string | null;
   cantidadHembras: number | string;
   cantidadMachos: number | string;
@@ -72,6 +76,12 @@ function numOrNull(value: number | string | null | undefined): number | null {
   return value != null && value !== '' ? Number(value) : null;
 }
 
+/** Texto no vacío o `null` (los `<select>` sin elegir devuelven '' o null). */
+function txtOrNull(value: string | null | undefined): string | null {
+  const t = (value ?? '').trim();
+  return t === '' ? null : t;
+}
+
 /** DTO de creación de un movimiento individual; `null` si el origen no es válido. */
 export function buildCreateDto(
   v: MovimientoModalFormValue,
@@ -81,6 +91,11 @@ export function buildCreateDto(
   if (!origen) return null;
 
   const dest = ctx.isTipoVenta ? null : v.loteDestinoValue ? parseLoteValue(v.loteDestinoValue) : null;
+  // Ubicación destino: solo viaja en traslados. En venta las aves salen a un comprador externo, así
+  // que se manda null y el backend deja el destino vacío igual que siempre.
+  const granjaDestinoId = ctx.isTipoVenta ? null : numOrNull(v.granjaDestinoId);
+  const nucleoDestinoId = ctx.isTipoVenta ? null : txtOrNull(v.nucleoDestinoId);
+  const galponDestinoId = ctx.isTipoVenta ? null : txtOrNull(v.galponDestinoId);
 
   return {
     fechaMovimiento: ymdToIsoUtcNoon(v.fechaMovimiento) ?? new Date(v.fechaMovimiento).toISOString(),
@@ -89,6 +104,9 @@ export function buildCreateDto(
     loteReproductoraAveEngordeOrigenId: origen.tipo === 'rae' ? origen.id : null,
     loteAveEngordeDestinoId: dest?.tipo === 'ae' ? dest.id : null,
     loteReproductoraAveEngordeDestinoId: dest?.tipo === 'rae' ? dest.id : null,
+    granjaDestinoId,
+    nucleoDestinoId,
+    galponDestinoId,
     cantidadHembras: Number(v.cantidadHembras) || 0,
     cantidadMachos: Number(v.cantidadMachos) || 0,
     cantidadMixtas: Number(v.cantidadMixtas) || 0,

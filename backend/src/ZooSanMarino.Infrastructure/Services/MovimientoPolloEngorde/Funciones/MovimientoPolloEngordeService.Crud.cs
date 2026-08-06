@@ -87,6 +87,7 @@ public partial class MovimientoPolloEngordeService
             movimiento.PromedioPesoAve = movimiento.PesoNeto.Value / movimiento.TotalAves;
 
         await RellenarOrigenDesdeLoteOrigenSiFaltaAsync(movimiento, dto);
+        await RellenarDestinoDesdeLoteDestinoSiFaltaAsync(movimiento, dto);
 
         // Validación de disponibilidad antes de crear (aunque quede Pendiente, reserva cupo para evitar sobreventa).
         if (EsSalidaVenta(movimiento.TipoMovimiento))
@@ -192,6 +193,64 @@ public partial class MovimientoPolloEngordeService
                 if (string.IsNullOrWhiteSpace(m.GalponOrigenId)) m.GalponOrigenId = lae.GalponId;
             }
         }
+    }
+
+    /// <summary>
+    /// Gemelo de <see cref="RellenarOrigenDesdeLoteOrigenSiFaltaAsync"/> para el DESTINO: completa
+    /// <b>campo por campo</b> la granja/núcleo/galpón destino que el DTO no traiga, tomándolos del lote destino.
+    /// <para>
+    /// Existe para que un traslado a otra granja quede con la ubicación destino completa aunque el cliente
+    /// solo mande el lote (flujos históricos y carga masiva) o solo la granja (la cascada del modal permite
+    /// elegir granja + lote sin bajar a galpón). Lo que sí viene en el DTO nunca se pisa, y sin lote destino
+    /// (venta / retiro / ajuste) los tres campos quedan exactamente como llegaron.
+    /// La regla vive en <see cref="MovimientoPolloEngordeCalculos.ResolverUbicacionDestino"/> (con tests).
+    /// </para>
+    /// </summary>
+    private async Task RellenarDestinoDesdeLoteDestinoSiFaltaAsync(MovimientoPolloEngorde m, CreateMovimientoPolloEngordeDto dto)
+    {
+        // Ya está todo resuelto ⇒ no hace falta ir a la BD.
+        if (m.GranjaDestinoId.HasValue &&
+            !string.IsNullOrWhiteSpace(m.NucleoDestinoId) &&
+            !string.IsNullOrWhiteSpace(m.GalponDestinoId))
+            return;
+
+        var ubicacionLote = await UbicacionDelLoteDestinoAsync(dto);
+
+        var efectiva = MovimientoPolloEngordeCalculos.ResolverUbicacionDestino(
+            new MovimientoPolloEngordeCalculos.UbicacionMovimiento(m.GranjaDestinoId, m.NucleoDestinoId, m.GalponDestinoId),
+            ubicacionLote);
+
+        m.GranjaDestinoId = efectiva.GranjaId;
+        m.NucleoDestinoId = efectiva.NucleoId;
+        m.GalponDestinoId = efectiva.GalponId;
+    }
+
+    /// <summary>Ubicación del lote destino (Ave Engorde o Reproductora); null si el movimiento no tiene destino.</summary>
+    private async Task<MovimientoPolloEngordeCalculos.UbicacionMovimiento?> UbicacionDelLoteDestinoAsync(
+        CreateMovimientoPolloEngordeDto dto)
+    {
+        if (dto.LoteAveEngordeDestinoId is { } idAe)
+        {
+            var lae = await _ctx.LoteAveEngorde.AsNoTracking()
+                .FirstOrDefaultAsync(l =>
+                    l.LoteAveEngordeId == idAe && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
+            return lae == null
+                ? null
+                : new MovimientoPolloEngordeCalculos.UbicacionMovimiento(lae.GranjaId, lae.NucleoId, lae.GalponId);
+        }
+
+        if (dto.LoteReproductoraAveEngordeDestinoId is { } idRa)
+        {
+            var lrae = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                .Include(r => r.LoteAveEngorde)
+                .FirstOrDefaultAsync(r => r.Id == idRa);
+            var lae = lrae?.LoteAveEngorde;
+            return lae == null || lae.CompanyId != _currentUser.CompanyId || lae.DeletedAt != null
+                ? null
+                : new MovimientoPolloEngordeCalculos.UbicacionMovimiento(lae.GranjaId, lae.NucleoId, lae.GalponId);
+        }
+
+        return null;
     }
 
     public async Task<MovimientoPolloEngordeDto?> GetByIdAsync(int id)

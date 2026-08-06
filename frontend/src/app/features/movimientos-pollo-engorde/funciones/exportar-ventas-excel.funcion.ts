@@ -6,7 +6,7 @@
  * toast; toda la construcción del libro vive aquí. Función pura sin estado de Angular.
  */
 import { MovimientoPolloEngordeDto } from '../services/movimiento-pollo-engorde.service';
-import { fechaCorta } from './formato.funcion';
+import { fechaCorta, fechaHoraCorta } from './formato.funcion';
 import { exportarTablaExcel } from '../../../shared/utils/excel/exportar-tabla-excel.funcion';
 
 /** Contexto de exportación: nombre de granja (título/archivo) y filtros legibles aplicados. */
@@ -18,7 +18,10 @@ export interface ExportarVentasExcelMeta {
 const HEADERS = [
   'Número movimiento',
   'Despacho',
-  'Fecha',
+  // Dos fechas distintas a propósito: la del traslado la digita el usuario (puede ser retroactiva),
+  // la de registro la pone el sistema al guardar. Auditar la diferencia es el motivo de exportarlas.
+  'Fecha traslado',
+  'Registrado',
   'Tipo',
   'Estado',
   'Granja origen',
@@ -51,6 +54,7 @@ export function exportarVentasExcel(rows: MovimientoPolloEngordeDto[], meta: Exp
       m.numeroMovimiento ?? '',
       (m.numeroDespacho ?? '').trim(),
       fechaCorta(m.fechaMovimiento),
+      fechaHoraCorta(m.createdAt),
       m.tipoMovimiento ?? '',
       m.estado ?? '',
       m.granjaOrigenNombre ?? '',

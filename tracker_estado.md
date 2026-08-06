@@ -655,3 +655,65 @@ alcance por considerarla una hipótesis. Esta sesión la cierra con evidencia.
 - [ ] Al integrar con `claude/priceless-bhabha-c60ee5`: el comentario de la consulta 4 de
       `backend/sql/verificar_conceptos_catalogo_inventario.sql` («Deuda conocida al 05-ago-2026:
       10 líneas con 'insumo'…») queda **obsoleto** — esa deuda ya está cerrada por esta migración
+
+---
+
+# Tracker — Traslado de aves: destino cross-granja/galpón en Engorde + fecha de registro visible
+
+**Plan:** [`fase_de_desarrollo/traslado_aves_destino_cross_granja_y_fecha_registro_plan.md`](fase_de_desarrollo/traslado_aves_destino_cross_granja_y_fecha_registro_plan.md)
+**Fecha:** 2026-08-05
+
+**Pedido:** trasladar aves (pollo engorde y postura levante/producción) hacia **otras granjas y otros galpones**, y
+distinguir **fecha del traslado** (la que edita el usuario) de **fecha de creación del registro** (`created_at`).
+
+**Auditoría previa (el código manda):** postura YA tiene cascada de destino cross-granja y fecha editable; engorde NO
+(select plano acotado a la granja filtrada). `created_at` YA se guarda y YA viaja en ambos DTOs, pero **no se pinta
+en ninguna pantalla**. ⇒ sin migraciones: falta la cascada en engorde y exponer la fecha de registro.
+
+## Backend — catálogo de lotes engorde para DESTINO
+- [x] B1 `ILoteAveEngordeService.GetAllAsync(bool paraDestino = false)` (default preserva los llamadores existentes)
+- [x] B2 `LoteAveEngordeService`: propagado a `AplicarScopeUbicacionAsync(q, paraDestino)` — patrón `LotePosturaLevanteService`; restricción por granjas asignadas SIN tocar
+- [x] B3 `GET /api/LoteAveEngorde?paraDestino=true`
+
+## Backend — simetría de destino en el movimiento
+- [x] B4 `RellenarDestinoDesdeLoteDestinoSiFaltaAsync` + `UbicacionDelLoteDestinoAsync` (gemelos del lado origen) en `MovimientoPolloEngordeService.Crud.cs`; la decisión pura vive en `MovimientoPolloEngordeCalculos.ResolverUbicacionDestino`
+- [x] B5 Regla **campo por campo** (corregida durante el smoke): elegir solo la granja en la cascada dejaba núcleo/galpón nulos aunque el lote destino los define ⇒ ahora lo explícito manda por campo y lo que falta se completa del lote
+- [x] B6 `MovimientoPolloEngordeDestinoCalculosTests` — 11 casos (explícito completo, granja sin galpón, sin granja, núcleo vacío ×3, galpón sin núcleo, sin lote destino ×2, lote sin núcleo/galpón)
+
+## Frontend — cascada de destino en el modal de engorde
+- [x] F1 `lote-engorde.service.ts`: `getAll(paraDestino = false)`
+- [x] F2 Modal engorde TS: inyectados Farm/Nucleo/Galpon/LoteEngorde + controles y handlers de cascada (carga perezosa: solo cuando el tipo no es Venta)
+- [x] F3 Modal engorde HTML: bloque «Destino del traslado» (Granja → Núcleo → Galpón → Lote) reemplaza el select plano; al EDITAR se muestra el destino como texto (el update DTO no lo lleva, el select no guardaba nada)
+- [x] F4 `mapear-movimiento-dto.funcion.ts` + service DTO: envía `granjaDestinoId`/`nucleoDestinoId`/`galponDestinoId` (nulos en venta)
+- [x] F4b `funciones/filtrar-lotes-destino.funcion.ts` (pura) + README del módulo actualizado; `destinoOpciones` pasa de getter a campo con referencia estable (un getter que aloca por ciclo rompe el CD)
+
+## Frontend — punto de entrada del traslado (hallazgo del smoke, NO estaba en el plan inicial)
+- [x] E1 🔴 **En engorde no existía forma de crear un traslado**: `create()` fijaba `ventaPorGranjaMode = true` siempre ⇒ la cascada quedaba inalcanzable
+- [x] E2 Botón **«Nuevo traslado»** + `crearTraslado()` / `canOpenTraslado` / `lotesTrasladoOrigen` (lotes ABIERTOS de la granja, sin exigir ventas registradas) + reset de `trasladoMode` al cerrar
+- [x] E3 Modal: `@Input() trasladoMode` / `lotesOrigenTraslado`, select de lote ORIGEN, tipo fijado a `Traslado` y bloqueado, disponibilidad real del origen vía `aves-disponibles-lotes` (mismo número que valida el backend) y destino obligatorio antes de confirmar
+
+## Frontend — fecha de registro visible (columna + detalle + Excel)
+- [x] F5 Lista engorde: columnas «Fecha traslado» y «Registrado» (+ `createdAt` propagado en `FilaDespachoGrupo` / `agrupar-despachos.funcion.ts`, colspans 12→13)
+- [x] F6 Detalle engorde: «Fecha del traslado» + «Registrado el»; en el formulario, nota que distingue ambas fechas
+- [x] F7 `exportar-ventas-excel.funcion.ts`: cabeceras «Fecha traslado» + «Registrado»
+- [x] F8 Lista postura `movimientos-aves`: línea «Reg. dd/MM/yyyy HH:mm» en la celda «N° / Fecha» (+ estilo `.mov-registro`) y nota en el modal
+
+## Validación
+- [x] V1 `cd backend && dotnet build` — **0 errores / 0 advertencias**
+- [x] V2 `cd backend && dotnet test` — **1613 verdes** (1612 Application + 1 Domain; baseline 1601 + 11 casos nuevos)
+- [x] V3 `cd frontend && yarn build` — 0 errores (único warning: bundle budget preexistente)
+- [x] V4 **Smoke UI real** (front :4200 + back :5002 + BD local :5433, sesión inyectada en localStorage):
+      - Traslado creado desde CAROLINA (granja 45, galpón G0061) hacia **Sacachun 3A (granja 41, galpón G0043)** — otra granja Y otro galpón
+      - `granja_destino_id=41`, `nucleo_destino_id=685062`, `galpon_destino_id=G0043` — núcleo y galpón **autocompletados por el backend** desde el lote (en la cascada solo se eligió la granja)
+      - Fecha de traslado **retroactiva** 2026-08-01 vs `created_at` 2026-08-05 21:35 ⇒ las dos fechas conviven y se ven distintas en la tabla
+      - Al completar, las aves se mueven de verdad: origen 952→942 H, destino 673→683 H
+      - Excel exportado contiene ambas cabeceras y la fila `1/8/2026 | 5/8/2026, 21:35:56`
+      - Lista de postura renderiza «10/07/2026» + «Reg. 17/07/2026 09:22» (datos reales con 7 días de diferencia que hasta ahora eran invisibles)
+- [x] V5 **BD local restaurada**: el movimiento de prueba se revirtió por el flujo de la app (estado `Anulado`, `deleted_at` seteado) y los maestros volvieron exactos (99: 952 H / 90: 673 H)
+- [x] V6 Sin procesos huérfanos (backend y dev server detenidos; sesión de smoke borrada del navegador)
+- [x] V7 Commit acotado (sin footer de atribución)
+
+### Fuera de alcance (deuda preexistente detectada, no tocada)
+- Los `movimiento_aves` tipo TSD de la BD local tienen `company_id = 0` y por eso el listado de postura no los
+  muestra — es la deuda ya registrada en `movimientos-tsd-company-id-gate`, ajena a este cambio.
+- `movimientos-aves` no tiene exportación a Excel; el punto «Excel» del pedido se cubrió en engorde, que sí la tiene.
