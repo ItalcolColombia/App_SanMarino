@@ -1297,7 +1297,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
 
         var fechaInicioProduccion = lpp.FechaInicioProduccion ?? lpp.FechaEncaset ?? DateTime.Today;
 
-        var seguimientos = await ObtenerSeguimientosProduccionPorLPPAsync(loteId, fechaInicio, fechaFin, ct);
+        var seguimientos = await ObtenerSeguimientosDesdePDAsync(loteId, fechaInicio, fechaFin, ct);
 
         var loteInfoClasificacion = MapearInformacionLoteFromLPP(lpp);
 

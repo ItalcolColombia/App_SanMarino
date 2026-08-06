@@ -1,53 +1,39 @@
--- ============================================================================
--- fn_resumen_semanal_ra_pesadas_levante(...)
--- Hoja «RESUMEN SEMANAL» del Informe RA Pesadas — BLOQUE LEVANTE.
--- ----------------------------------------------------------------------------
--- UNA FILA POR LOTE para UNA semana CALENDARIO (año + semana del año).
--- Es la contracara del Detalle: donde fn_reporte_semanal_levante_extras devuelve
--- N semanas de 1 lote, ésta devuelve N lotes de 1 semana.
---
--- ⚠️ Set-based A PROPÓSITO (LANGUAGE sql, ventanas). Está PROHIBIDO resolver el
---    resumen iterando lotes desde C# y llamando la fn por-lote: son ~70 lotes ×
---    25 semanas y el endpoint se cuelga (mismo patrón que ya rompió los
---    endpoints multipaís). Regla del repo: la BD filtra, el backend orquesta.
---
--- EQUIVALENCIA CON EL DETALLE (requisito duro):
---   Replica EXACTO lo de fn_reporte_semanal_levante_extras / fn_indicadores_levante_postura:
---     * semana de edad  = floor((fecha_bogota − encaset)/7) + 1, topada en 25
---     * guards          = sin registros ⇒ lote fuera; encaset NULL o POSTERIOR
---                         al primer registro ⇒ lote fuera (datos inconsistentes)
---     * exclusión       = filas de PURO traslado posteriores a la semana 25
---     * base por sexo   = hembras_l / machos_l, con fallback al primer
---                         traslado_ingreso del lote, si no 0
---     * saldo por sexo  = base − Σ(mort + sel + err + tras_salida − tras_ingreso)
---     * pesaje          = último registro de la semana con peso>0; si no hay,
---                         el último registro de la semana; con ARRASTRE (LOCF)
---                         del último peso conocido del sexo
---   ⇒ para un mismo (lote, semana) el Resumen y el Detalle deben dar los MISMOS
---     números. Cualquier diferencia es un bug (ver plan §7.5b).
---
--- SEMANA DEL AÑO: se usa la convención WEEKNUM de Excel (return_type = 1:
---   semanas que arrancan en DOMINGO, la semana 1 es la que contiene el 1-ene),
---   NO la semana ISO. Verificado contra el archivo fuente: 1825/1825 filas
---   coinciden con WEEKNUM y solo 1736/1825 con ISO. La fecha que se clasifica
---   es `fecha_fin_semana` = encaset + (semana−1)*7 + 6, la misma columna FECHA
---   que ya emite el Detalle.
---
--- FÓRMULAS (verificadas 1:1 contra la hoja «Datos semanal LEV» del archivo):
---   %MortH      = mort_h_semana / aves_hembras_INICIO_semana * 100
---   %RetiroH    = Σ(mort+sel+err)_h hasta la semana / base_hembras * 100   (base FIJA)
---   %DifConsH   = (gr_ave_dia_h_real / gr_ave_dia_h_guia − 1) * 100
---   %DifPesoH   = (peso_h_real / peso_h_guia − 1) * 100
---   PART        = saldo_hembras del lote / Σ saldo_hembras de la selección
---   (idem machos; en el Excel la columna macho se llama «DifConsM» sin %, pero
---    es la misma fórmula)
---
--- Guía: guia_genetica_sanmarino_colombia por (company, raza, año del lote, edad).
--- Todo TEXT en esa tabla ⇒ se parsea con f_safe_numeric (tolera coma decimal).
---
--- Zona horaria: America/Bogota (idéntica a las fns hermanas).
--- ============================================================================
-DROP FUNCTION IF EXISTS fn_resumen_semanal_ra_pesadas_levante(integer, integer, integer, integer[], text, boolean);
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// Redespliega fn_resumen_semanal_ra_pesadas_levante para que acepte p_sem_anio NULL
+    /// (= todas las semanas del año), que es lo que pide la CURVA CONSOLIDADA.
+    ///
+    /// El commit de la curva (145348b) agregó el guard a los DOS espejos .sql pero no
+    /// generó migración. La de producción se redesplegó después por otra migración y se
+    /// llevó el guard puesto; la de levante se quedó en la versión del 28-jul, donde el
+    /// predicado es `&lt;weeknum&gt; = p_sem_anio` a secas: con NULL evalúa a NULL, la fila se
+    /// descarta y la fn devuelve CERO filas. Por eso la curva de levante respondía 200 con
+    /// `puntos: 0` en todas las empresas mientras el resumen (que manda semana concreta)
+    /// funcionaba bien. Acá se aplica el mismo `p_sem_anio IS NULL OR (...)` que ya tiene
+    /// producción, más el `part` particionado por semana calendario que lo acompaña.
+    ///
+    /// El `part` se particiona por la semana CALENDARIO, no por `fin_sem`: `fin_sem` sale
+    /// del encaset de cada lote, así que un lote padre con sublotes de fechas de llegada
+    /// distintas dejaba a cada sublote solo en su partición y todos daban part = 1. Con
+    /// p_sem_anio concreto todas las filas comparten semana calendario, así que el modo de
+    /// una semana queda idéntico al `OVER ()` original (verificado fila a fila, ver abajo).
+    ///
+    /// Espejo .sql: backend/sql/fn_resumen_semanal_ra_pesadas_levante.sql (idéntico).
+    /// Data-only (Designer clonado, ModelSnapshot intacto). Idempotente
+    /// (DROP FUNCTION IF EXISTS + CREATE OR REPLACE). El modo de una semana concreta
+    /// no cambia: el guard solo agrega el caso NULL.
+    /// </summary>
+    public partial class CurvaLevanteAceptaSemanaNula : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"DROP FUNCTION IF EXISTS fn_resumen_semanal_ra_pesadas_levante(integer, integer, integer, integer[], text, boolean);
 
 CREATE OR REPLACE FUNCTION fn_resumen_semanal_ra_pesadas_levante(
     p_company_id           integer,
@@ -240,7 +226,7 @@ pesaje AS (
       ) p ON true
 ),
 -- ── 7) Acumulados por ventana + arrastre (LOCF) del peso por sexo ───────────
---    El "grupo" de LOCF es el conteo de pesajes no nulos hasta la semana:
+--    El ""grupo"" de LOCF es el conteo de pesajes no nulos hasta la semana:
 --    dentro de cada grupo, el primer valor es el último peso conocido.
 acum AS (
     SELECT s.lote_id,
@@ -435,4 +421,14 @@ SELECT
 $$;
 
 COMMENT ON FUNCTION fn_resumen_semanal_ra_pesadas_levante(integer, integer, integer, integer[], text, boolean)
-IS 'Informe RA Pesadas — hoja RESUMEN SEMANAL, bloque Levante: una fila por lote para una semana calendario (WEEKNUM Excel). Set-based; equivalente 1:1 al Detalle de fn_reporte_semanal_levante_extras.';
+IS 'Informe RA Pesadas — hoja RESUMEN SEMANAL, bloque Levante: una fila por lote para una semana calendario (WEEKNUM Excel). Set-based; equivalente 1:1 al Detalle de fn_reporte_semanal_levante_extras.';");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Sin Down: revertir sería reponer la versión que devuelve 0 filas con
+            // p_sem_anio NULL. La fn es idempotente y el modo de una semana es idéntico.
+        }
+    }
+}

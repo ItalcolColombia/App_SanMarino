@@ -139,6 +139,52 @@ public class ReporteTecnicoProduccionController : ControllerBase
     /// Genera reporte técnico diario de producción para un lote específico.
     /// loteId = LotePosturaProduccionId (lote_postura_produccion).
     /// </summary>
+    /// <summary>
+    /// Reporte DIARIO consolidado del lote base: une todos sus sublotes de producción, aunque
+    /// hayan arrancado en fechas distintas. Paridad con <c>GET /api/ReporteTecnico/diario/consolidado</c>
+    /// de levante — la consolidación ya existía, pero solo se podía pedir por POST.
+    /// </summary>
+    [HttpGet("diario/consolidado")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ReporteTecnicoProduccionCompletoDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReporteDiarioConsolidado(
+        [FromQuery] int lotePosturaBaseId,
+        [FromQuery] DateTime? fechaInicio = null,
+        [FromQuery] DateTime? fechaFin = null,
+        CancellationToken ct = default)
+    {
+        if (lotePosturaBaseId <= 0)
+            return BadRequest(new { message = "lotePosturaBaseId es obligatorio y debe ser positivo." });
+
+        try
+        {
+            var reporte = await _service.ObtenerReporteProduccionAsync(
+                new ObtenerReporteProduccionRequestDto(
+                    LotePosturaBaseId: lotePosturaBaseId,
+                    LotePosturaProduccionId: null,
+                    FiltroPeriodicidad: "Diario",
+                    FechaInicio: fechaInicio,
+                    FechaFin: fechaFin),
+                ct);
+            return Ok(reporte);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al generar reporte diario consolidado de producción para base {Base}",
+                lotePosturaBaseId);
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
     [HttpGet("diario/{loteId}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ReporteTecnicoProduccionCompletoDto))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

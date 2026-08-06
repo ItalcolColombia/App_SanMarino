@@ -89,6 +89,51 @@ public static class MigracionMovimientosAvesCalculos
         new(avesHActual - bajasArchivoH - salidasH + ingresosH,
             avesMActual - bajasArchivoM - salidasM + ingresosM);
 
+    /// <summary>Marcas que la carga masiva deja en <c>movimiento_aves.descripcion</c>.</summary>
+    public const string MarcaCargaSalida  = "Carga masiva: SALIDA";
+    public const string MarcaCargaIngreso = "Carga masiva: INGRESO";
+    public const string MarcaCargaVenta   = "Carga masiva: VENTA";
+
+    /// <summary>
+    /// Qué LADO de un movimiento ya registrado le corresponde a <paramref name="loteId"/>, para la
+    /// idempotencia. <c>null</c> = ese movimiento no es de este lote y no debe omitir nada.
+    ///
+    /// <para>
+    /// El modelo es unilateral: el mismo traslado lo cargan los dos lotes, cada uno su lado. Pero
+    /// la <b>Salida</b> de A y el <b>Ingreso</b> de B escriben filas idénticas en
+    /// <c>movimiento_aves</c> (Traslado, origen A, destino B). Sin desempate, al cargar B su Ingreso
+    /// encontraba la Salida de A, la daba por duplicado y la omitía <b>sin acreditar las aves</b>
+    /// — medido: un sublote cerraba 196 machos por debajo. Por eso la carga masiva marca la
+    /// dirección en <c>descripcion</c> y acá se lee.
+    /// </para>
+    ///
+    /// <para>
+    /// Filas SIN marca (anteriores a este arreglo, o creadas por el módulo vivo) se clasifican con
+    /// la heurística de siempre — origen ⇒ Salida, destino ⇒ Ingreso — para no cambiarles el
+    /// comportamiento.
+    /// </para>
+    /// </summary>
+    public static MovimientoAvesMigracion? LadoDelMovimiento(
+        string? tipoMovimiento, int? loteOrigenId, int? loteDestinoId, string? descripcion, int loteId)
+    {
+        if (string.Equals(tipoMovimiento, "Venta", StringComparison.OrdinalIgnoreCase))
+            return loteOrigenId == loteId ? MovimientoAvesMigracion.Venta : null;
+
+        if (!string.Equals(tipoMovimiento, "Traslado", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var marca = descripcion?.Trim();
+        if (string.Equals(marca, MarcaCargaSalida, StringComparison.OrdinalIgnoreCase))
+            return loteOrigenId == loteId ? MovimientoAvesMigracion.Salida : null;
+        if (string.Equals(marca, MarcaCargaIngreso, StringComparison.OrdinalIgnoreCase))
+            return loteDestinoId == loteId ? MovimientoAvesMigracion.Ingreso : null;
+
+        // Sin marca: heurística histórica.
+        if (loteOrigenId == loteId) return MovimientoAvesMigracion.Salida;
+        if (loteDestinoId == loteId) return MovimientoAvesMigracion.Ingreso;
+        return null;
+    }
+
     /// <summary>
     /// Clave de duplicado DENTRO del archivo (misma fecha + tipo + cantidades). Dos viajes idénticos
     /// el mismo día deben cargarse como UNA fila sumada: si fueran dos filas, al reimportar la

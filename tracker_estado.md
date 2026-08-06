@@ -1225,3 +1225,49 @@ distintas; al unirlos el consolidado debe cuadrar. Validá en reportes y descarg
 - [x] P3 La `curva` de levante devuelve 0 puntos (el `resumen` de levante sí trae datos)
 - [x] P4 `REPORTES_POR_FASE.md` publicado junto a los archivos, con el inventario endpoint por
       endpoint, las descargas de cada fase y los 3 pendientes
+
+## Cierre de P1-P3 + el bug de dirección del traslado (deja el ciclo listo para desplegar)
+- [x] C1 **P1 cerrado** — `GET /api/ReporteTecnicoProduccion/diario/consolidado?lotePosturaBaseId=`.
+      La consolidación ya existía (`POST obtener` → `ConsolidarDatosDiarios`); solo faltaba la ruta
+      GET de paridad con levante. **La ruta literal va declarada ANTES de `diario/{loteId}`**, si no
+      el binder intenta parsear «consolidado» como `int` y devuelve 400
+- [x] C2 **P2 cerrado** — `clasificacion-huevo-comercio` era el **tercer** sitio del bug de R3: leía
+      de `seguimiento_diario_levante` con `tipo_seguimiento='produccion'`. Repuntado a la fuente
+      canónica: de 0 a **24 filas**
+- [x] C3 **P3 cerrado** — la `curva` de levante devolvía 0 puntos porque el commit de la curva
+      (`145348b`) agregó `p_sem_anio IS NULL OR (...)` a los dos espejos `.sql` **pero no generó
+      migración**. La fn de producción se redesplegó después por otra migración y se llevó el guard;
+      la de levante quedó en la del 28-jul, con `<weeknum> = p_sem_anio` a secas ⇒ con NULL evalúa a
+      NULL y devuelve **cero filas**. Roto **en prod y en todas las empresas**
+- [x] C4 Al desplegar la fn corregida apareció un segundo bug: `part` con `PARTITION BY fin_sem`.
+      `fin_sem` sale del encaset de **cada** lote, así que dos sublotes del mismo lote padre con
+      fechas de llegada distintas nunca comparten esa fecha ⇒ cada uno solo en su partición y todos
+      con `part = 1` en vez de ~0,50 y ~0,50 (justo el caso S-369). Se particiona por la semana
+      **calendario**, materializada como `sem_cal` para que el filtro y la ventana usen la misma
+      expresión
+- [x] C5 Migración `20260806194500_CurvaLevanteAceptaSemanaNula` (data-only, Designer clonado,
+      ModelSnapshot intacto, `DROP FUNCTION IF EXISTS` + `CREATE OR REPLACE`)
+- [x] C6 **Gate multipaís** de la fn: versión previa desplegada en paralelo con otro nombre y
+      comparada fila a fila en el modo de UNA semana, **todas las empresas × las 53 semanas**:
+      39 filas, **0 diferencias** (0 solo-en-nuevo, 0 solo-en-viejo). Curva: **0 → 39 filas / 8
+      lotes**. `part` suma 1 en cada semana calendario con saldo positivo
+- [x] C7 🔴 **El traslado entre sublotes movía las aves de un solo lado.** La `Salida` de A y el
+      `Ingreso` de B escribían filas **idénticas** en `movimiento_aves` (`Traslado`, origen=A,
+      destino=B), así que la idempotencia del segundo encontraba la del primero, lo daba por
+      duplicado y **lo omitía sin acreditar las aves**: B cerraba en 795 machos en vez de 991 y el
+      importador igual decía «Procesado». Hasta ahora se esquivaba disfrazando el débito de `Venta`
+- [x] C8 Arreglo: cada fila lleva su marca de dirección en `descripcion` (`Carga masiva:
+      SALIDA/INGRESO/VENTA` — verificado que la columna estaba 100% NULL en las 27 filas existentes)
+      y la clasificación sale de `MigracionMovimientosAvesCalculos.LadoDelMovimiento`, que **cae al
+      heurístico histórico cuando la fila no tiene marca** ⇒ los datos viejos conservan su
+      comportamiento. 8 tests nuevos
+- [x] C9 Verificado en caliente sobre BD limpia: A 1162→**966** y B 795→**991**; al reimportar los
+      dos, **0 procesadas / 1 omitida** cada uno y los saldos quietos (idempotencia intacta). Los
+      archivos de carga vuelven al modelado correcto `Salida`+`Ingreso`
+- [x] C10 Revalidación completa tras todos los cambios: **665 días comparados campo a campo, 0
+      diferencias**; consolidado **480 celdas, 0 diferencias**; los **19 endpoints** de las dos fases
+      responden 200 con datos. Único desvío contra el Excel: los 5 huevos del galpón 9 del 24-jun,
+      descuadre del propio informe
+- [x] C11 `dotnet build` **0 errores** · `dotnet test` **1.715 verdes**
+- [ ] C12 Pendiente ajeno: `A374A` y `LOTE 235A` tienen **saldo de hembras negativo**, lo que deja
+      sin `part` a las semanas donde son el único lote. Preexistente, fuera del alcance de esta tarea
