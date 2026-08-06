@@ -618,6 +618,10 @@ public partial class MovimientoPolloEngordeService
                 RevertirEfectoCompletadoEnLotes(m);
             }
 
+            // Las aves vuelven al origen ⇒ la cohorte que las declaraba en el receptor se ANULA (nunca se
+            // borra). Si no, el lote destino seguiría contando esas aves en sus edades y en su techo de venta.
+            await AnularCohortesDeMovimientoEngordeAsync(m.Id);
+
             var nota = string.IsNullOrWhiteSpace(motivo) ? "(sin motivo)" : motivo.Trim();
             m.Estado = "Anulado";
             m.Observaciones = AppendObservaciones(m.Observaciones, " | Eliminado: " + nota);
@@ -833,6 +837,10 @@ public partial class MovimientoPolloEngordeService
             lote.M = (lote.M ?? 0) + m.CantidadMachos;
             lote.Mixtas = (lote.Mixtas ?? 0) + m.CantidadMixtas;
         }
+
+        // Cohorte del lote DESTINO: las aves entran conservando la edad y la ubicación de su lote origen.
+        // Va en el MISMO SaveChanges que la acreditación del maestro para que no puedan divergir.
+        await RegistrarCohorteDestinoEngordeAsync(m);
 
         m.Estado = "Completado";
         m.FechaProcesamiento = DateTime.UtcNow;

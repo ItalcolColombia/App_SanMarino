@@ -145,4 +145,64 @@ public class LoteCohortesCalculosTests
             "Sólo se puede trasladar dentro de la misma etapa (Levante→Levante o Producción→Producción).",
             mensaje);
     }
+
+    // ── Techo de venta del lote receptor (engorde) ────────────────────────────────────────
+
+    [Fact]
+    public void BaselineConCohortes_SinCohortes_DevuelveElInicioIntacto()
+    {
+        // Retrocompatibilidad: TODOS los lotes actuales caen acá y su techo no se puede mover.
+        var r = LoteCohortesCalculos.BaselineConCohortes((10_000, 500, 0), (0, 0, 0));
+
+        Assert.Equal((10_000, 500, 0), r);
+    }
+
+    [Fact]
+    public void BaselineConCohortes_SumaLasAvesRecibidas()
+    {
+        // El lote arrancó con 10.000 H y recibió 1.500 H de otro lote: puede vender 11.500.
+        var r = LoteCohortesCalculos.BaselineConCohortes((10_000, 500, 0), (1_500, 200, 50));
+
+        Assert.Equal((11_500, 700, 50), r);
+    }
+
+    [Fact]
+    public void BaselineConCohortes_LoteMixto_SumaSoloEnSuBucket()
+    {
+        var r = LoteCohortesCalculos.BaselineConCohortes((0, 0, 8_000), (0, 0, 1_000));
+
+        Assert.Equal((0, 0, 9_000), r);
+    }
+
+    [Theory]
+    [InlineData(-5, 0)]
+    [InlineData(0, -5)]
+    [InlineData(-5, -5)]
+    public void BaselineConCohortes_ClampeaNegativosDeLaBd(int inicio, int recibidas)
+    {
+        var r = LoteCohortesCalculos.BaselineConCohortes((inicio, 0, 0), (recibidas, 0, 0));
+
+        Assert.Equal(0, r.Hembras);
+    }
+
+    // ── Aves propias del lote ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void PropiasDelLote_RestaLoRecibidoDelSaldo()
+    {
+        Assert.Equal(8_500, LoteCohortesCalculos.PropiasDelLote(saldoActual: 10_000, recibidasVigentes: 1_500));
+    }
+
+    [Fact]
+    public void PropiasDelLote_SinCohortes_EsTodoElSaldo()
+    {
+        Assert.Equal(10_000, LoteCohortesCalculos.PropiasDelLote(saldoActual: 10_000, recibidasVigentes: 0));
+    }
+
+    [Fact]
+    public void PropiasDelLote_SiLasBajasSeComieronLasPropias_NoDevuelveNegativo()
+    {
+        // Las bajas se registran por lote, no por cohorte: pueden dejar el saldo por debajo de lo recibido.
+        Assert.Equal(0, LoteCohortesCalculos.PropiasDelLote(saldoActual: 900, recibidasVigentes: 1_500));
+    }
 }

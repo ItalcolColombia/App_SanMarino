@@ -286,6 +286,20 @@
         </div>
       </section>
 
+      <!-- Edades del lote seleccionado: aves propias + cada grupo recibido por traslado, con la edad
+           y la procedencia de su lote de origen. Solo aparece al elegir un lote en los filtros. -->
+      @if (loteAveEngordeOrigenId != null) {
+        <section class="ux-card mpp-card mpp-card--edades">
+          <div class="ux-card__body">
+            <app-edades-lote
+              [loteId]="loteAveEngordeOrigenId"
+              [linea]="'engorde'"
+              [refreshTrigger]="edadesRefreshTrigger">
+            </app-edades-lote>
+          </div>
+        </section>
+      }
+
       <section class="ux-card mpp-card mpp-card--registros">
         <div class="ux-card__header">
           <h2>Registros de Venta de Pollo Engorde</h2>

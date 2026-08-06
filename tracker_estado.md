@@ -717,3 +717,63 @@ en ninguna pantalla**. ⇒ sin migraciones: falta la cascada en engorde y expone
 - Los `movimiento_aves` tipo TSD de la BD local tienen `company_id = 0` y por eso el listado de postura no los
   muestra — es la deuda ya registrada en `movimientos-tsd-company-id-gate`, ajena a este cambio.
 - `movimientos-aves` no tiene exportación a Excel; el punto «Excel» del pedido se cubrió en engorde, que sí la tiene.
+
+---
+
+# Tracker — Cohortes: cuántas aves, de dónde y con qué edad en el lote receptor
+
+**Plan:** [`fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md`](fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md)
+**Fecha:** 2026-08-06
+
+**Auditoría previa:** el mecanismo (`lote_aves_cohortes`) existe y es correcto, pero solo lo escriben 2 de los 3
+caminos de postura y **engorde no lo tiene en absoluto**. Además: el traslado desde seguimiento deja
+`lote_destino_id` NULL (hueco de duplicación en la carga masiva) y el techo de venta de engorde no sube cuando un
+lote recibe aves (se marcarían como sobreventa). Detalle en el plan.
+
+## Modelo
+- [x] M1 `LoteAvesCohorte` + config: `granja_origen_id` / `nucleo_origen_id` / `galpon_origen_id` (nullable ⇒ las cohortes viejas quedan en null)
+- [x] M2 Entidad + config nuevas `LoteEngordeAvesCohorte` → `lote_engorde_aves_cohortes` (incluye mixtas)
+- [x] M3 `DbSet` + migración `20260806031924_AddCohortesEngordeYUbicacionOrigen` reescrita a SQL crudo **idempotente**; aplicada local y verificada: segunda pasada de `ADD COLUMN IF NOT EXISTS` sin error
+
+## Escritura
+- [x] W1 Engorde: cohorte al COMPLETAR (mismo `SaveChanges` que acredita el maestro); baja lógica al eliminar
+- [x] W2 Postura `MOV-*`: `RegistrarCohorteDestinoMovimientoAsync` tras crear la fila de entrada; idempotente por movimiento; baja lógica al cancelar
+- [x] W3 Postura TSD: `LoteDestinoId = destino.LoteBaseId` — además de la trazabilidad, **cierra un hueco de duplicación**: la idempotencia de la carga masiva busca por `LoteDestinoId == loteId` y no veía estos traslados
+- [x] W4 Ubicación de origen congelada en los 4 escritores (TSD, carga masiva, MOV, engorde)
+
+## Lectura
+- [x] R1 `BaselineConCohortes` + `PropiasDelLote` + `DescribirUbicacionOrigen` (puros) — 9 casos xUnit nuevos
+- [x] R2 Auditoría de ventas engorde: el techo suma las cohortes VIGENTES (no las anuladas). Se resolvió leyendo las cohortes en vez de escribir en `historial_lote_pollo_engorde`, que **no tiene soft-delete** y habría exigido filas negativas al revertir
+- [x] R3 DTO: `UbicacionOrigen` por cohorte + `HembrasPropias`/`MachosPropias` del lote
+- [x] R4 `GET /api/MovimientoPolloEngorde/cohortes/{loteAveEngordeId}` (mismo DTO que postura ⇒ el componente se reutiliza sin cambios)
+
+## Frontend
+- [x] U1 Columna «Procedencia» + fila «Propias» con cantidades + nota que explica que las bajas son por lote
+- [x] U2 `app-edades-lote` con `@Input() linea: 'postura' | 'engorde'` montado en la pantalla de engorde (recarga al guardar un movimiento)
+
+## Validación
+- [x] V1 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1622 verdes** (1621 Application + 1 Domain)
+- [x] V2 `yarn build` sin errores (solo el warning de bundle budget preexistente)
+- [x] V3 ✅ **Smoke engorde COMPLETO** (lote 99 encaset 17-jun, CAROLINA/G0061 → lote 90 encaset 3-jun, Sacachun 3A/G0043):
+      - `Pendiente` ⇒ **0 cohortes** (la cohorte nace al completar, no al crear)
+      - `Completado` ⇒ cohorte con `fecha_encaset_cohorte = 17-jun` (la del **ORIGEN**, no la del receptor) y procedencia congelada `CAROLINA · 668786 · G0061`
+      - Panel de edades: fila «Propias» 673 H/570 M **edad 64 días (sem 10)** + fila «Recibidas» 100 H/40 M **edad 50 días (sem 8)** ⇒ dos edades en el mismo lote
+      - Techo de venta: `encasetadasH` **13.640 → 13.740** y `M` **15.051 → 15.091**, `exceso = 0`, estado OK
+      - Eliminado ⇒ cohorte **anulada** (`deleted_at`, no borrada), maestros restaurados y techo de vuelta a **13.640/15.051**
+- [ ] V4 ⛔ **Smoke postura `MOV-*` BLOQUEADO por un bug PREEXISTENTE** (ver abajo) — el código de la cohorte está escrito y compila, pero esa vía nunca llega a ejecutarse
+- [x] V5 Regresión: un movimiento sin lote destino no crea cohorte (guardas explícitas) y sin cohortes el techo devuelve el `Inicio` idéntico (test dedicado)
+- [x] V6 BD local restaurada al snapshot exacto (`movimiento_aves` max id 18, `movimiento_pollo_engorde` max id 1806, 0 cohortes) · servidores detenidos · commit sin footer de atribución
+
+### ⛔ Bug PREEXISTENTE que bloquea el camino `MOV-*` (ajeno a este cambio)
+
+`inventario_aves.lote_id` es **`character varying`** en la BD (dump de producción) pero
+`InventarioAves.LoteId` es **`int`**. Toda consulta que los compare muere con
+`42883: operator does not exist: character varying = integer`.
+
+Consecuencia: `ProcesarMovimientoAsync` revienta en `ActualizarInventarioPorMovimientoAsync`, que corre
+**antes** de todo lo demás. Como `movimiento.Procesar()` ya guardó `Estado = "Completado"` y `CreateAsync`
+sólo hace `LogError` del fallo, **el movimiento queda marcado como Completado sin haber movido una sola
+ave**: verificado en el smoke — maestros intactos, sin fila diaria, sin histórico, sin inventario tocado.
+
+Por la regla «el código manda» de `CLAUDE.md` el arreglo sería alinear la columna a `integer`, pero es
+**DDL sobre una tabla de producción** ⇒ requiere OK explícito. No se tocó.

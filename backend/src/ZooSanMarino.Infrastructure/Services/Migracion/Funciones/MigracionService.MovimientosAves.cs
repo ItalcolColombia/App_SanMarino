@@ -617,6 +617,8 @@ public partial class MigracionService
                 LoteId = loteBaseId,
                 LoteOrigenId = m.Contraparte.LoteBaseId,
                 MovimientoAvesId = movimiento.Id,
+                // Ubicación de procedencia CONGELADA (la granja viene en la contraparte de la hoja).
+                GranjaOrigenId = m.Contraparte.GranjaId,
                 FechaIngreso = DateOnly.FromDateTime(m.Fecha.Date),
                 FechaEncasetCohorte = DateOnly.FromDateTime(encaset),
                 CantidadHembras = m.Hembras,

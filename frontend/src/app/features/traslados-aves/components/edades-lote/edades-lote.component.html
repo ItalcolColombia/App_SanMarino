@@ -20,6 +20,7 @@
           <thead>
             <tr>
               <th scope="col">Origen de las aves</th>
+              <th scope="col" title="Granja · núcleo · galpón de donde venían, tal como estaban al momento del traslado">Procedencia</th>
               <th scope="col">Ingreso al lote</th>
               <th scope="col">Encasetamiento</th>
               <th scope="col" class="is-num">🐔 Hembras</th>
@@ -40,6 +41,7 @@
                     <small class="edades-lote__obs">{{ f.observaciones }}</small>
                   }
                 </td>
+                <td class="edades-lote__ubicacion">{{ f.ubicacionOrigen }}</td>
                 <td>{{ f.fechaIngreso }}</td>
                 <td>{{ f.fechaEncaset }}</td>
                 <td class="is-num">{{ f.hembras != null ? (f.hembras | number:'1.0-0') : '—' }}</td>
@@ -58,6 +60,11 @@
         <p class="edades-lote__hint">
           Las aves recibidas por traslado conservan la edad de su lote de origen: cada grupo cuenta su
           propia edad dentro de este lote.
+        </p>
+        <p class="edades-lote__hint">
+          Las cantidades recibidas son las que <strong>ingresaron</strong>. La mortalidad y la selección se
+          registran por lote (no por grupo), así que las bajas posteriores se descuentan de las
+          <em>propias</em>: la fila «Propias» es una estimación del saldo restante.
         </p>
       }
     }

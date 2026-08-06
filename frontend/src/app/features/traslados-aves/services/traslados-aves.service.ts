@@ -703,6 +703,18 @@ export class TrasladosAvesService {
     ).pipe(catchError(this.handleError));
   }
 
+  /**
+   * Ídem para la línea de POLLO ENGORDE. Devuelve el mismo DTO, así que el componente de edades y el
+   * armado de filas se reutilizan sin cambios; solo cambia el endpoint y el tipo de id.
+   *
+   * @param loteAveEngordeId ID de `lote_ave_engorde` (no el lote base de postura).
+   */
+  getCohortesLoteEngorde(loteAveEngordeId: number): Observable<CohortesLoteDto> {
+    return this.http.get<CohortesLoteDto>(
+      `${environment.apiUrl}/MovimientoPolloEngorde/cohortes/${loteAveEngordeId}`
+    ).pipe(catchError(this.handleError));
+  }
+
   // Manejo de errores
   private handleError(error: HttpErrorResponse): Observable<never> {
     let errorMessage = 'Error desconocido';

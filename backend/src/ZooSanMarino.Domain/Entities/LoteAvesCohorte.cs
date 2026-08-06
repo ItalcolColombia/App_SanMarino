@@ -24,6 +24,15 @@ public class LoteAvesCohorte : AuditableEntity
     /// <summary>Lote base del que provienen las aves (informativo; puede ser null en cargas manuales).</summary>
     public int? LoteOrigenId { get; set; }
 
+    /// <summary>
+    /// Ubicación del lote ORIGEN <b>congelada</b> al momento del traslado: un lote puede recibir aves de
+    /// varias procedencias y la auditoría tiene que poder decir de qué granja/galpón vino cada grupo aunque
+    /// después el lote origen se reubique o se elimine. Null en las cohortes anteriores a este dato.
+    /// </summary>
+    public int? GranjaOrigenId { get; set; }
+    public string? NucleoOrigenId { get; set; }
+    public string? GalponOrigenId { get; set; }
+
     /// <summary>Movimiento de aves que originó la cohorte (auditoría / reversión).</summary>
     public int? MovimientoAvesId { get; set; }
 

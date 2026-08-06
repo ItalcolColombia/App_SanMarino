@@ -1,26 +1,29 @@
-// src/ZooSanMarino.Infrastructure/Persistence/Configurations/LoteAvesCohorteConfiguration.cs
+// src/ZooSanMarino.Infrastructure/Persistence/Configurations/LoteEngordeAvesCohorteConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
 
-public class LoteAvesCohorteConfiguration : IEntityTypeConfiguration<LoteAvesCohorte>
+/// <summary>
+/// Espejo de <see cref="LoteAvesCohorteConfiguration"/> para la línea de engorde. Mismas convenciones:
+/// fechas PURAS (<c>date</c>), soft-delete y FK sin cascada (las cohortes se anulan, no se borran).
+/// </summary>
+public class LoteEngordeAvesCohorteConfiguration : IEntityTypeConfiguration<LoteEngordeAvesCohorte>
 {
-    public void Configure(EntityTypeBuilder<LoteAvesCohorte> b)
+    public void Configure(EntityTypeBuilder<LoteEngordeAvesCohorte> b)
     {
-        b.ToTable("lote_aves_cohortes", schema: "public");
+        b.ToTable("lote_engorde_aves_cohortes", schema: "public");
         b.HasKey(x => x.Id);
 
         b.Property(x => x.Id).HasColumnName("id").ValueGeneratedOnAdd();
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
 
-        // Lote RECEPTOR de las aves.
-        b.Property(x => x.LoteId).HasColumnName("lote_id").IsRequired();
-        b.Property(x => x.LoteOrigenId).HasColumnName("lote_origen_id");
-        b.Property(x => x.MovimientoAvesId).HasColumnName("movimiento_aves_id");
+        b.Property(x => x.LoteAveEngordeId).HasColumnName("lote_ave_engorde_id").IsRequired();
+        b.Property(x => x.LoteAveEngordeOrigenId).HasColumnName("lote_ave_engorde_origen_id");
+        b.Property(x => x.MovimientoPolloEngordeId).HasColumnName("movimiento_pollo_engorde_id");
 
-        // Ubicación del origen CONGELADA (nullable: las cohortes anteriores a este dato quedan en null).
+        // Ubicación del origen CONGELADA al momento del traslado.
         b.Property(x => x.GranjaOrigenId).HasColumnName("granja_origen_id");
         b.Property(x => x.NucleoOrigenId).HasColumnName("nucleo_origen_id").HasMaxLength(50);
         b.Property(x => x.GalponOrigenId).HasColumnName("galpon_origen_id").HasMaxLength(50);
@@ -37,6 +40,7 @@ public class LoteAvesCohorteConfiguration : IEntityTypeConfiguration<LoteAvesCoh
 
         b.Property(x => x.CantidadHembras).HasColumnName("cantidad_hembras").HasDefaultValue(0).IsRequired();
         b.Property(x => x.CantidadMachos).HasColumnName("cantidad_machos").HasDefaultValue(0).IsRequired();
+        b.Property(x => x.CantidadMixtas).HasColumnName("cantidad_mixtas").HasDefaultValue(0).IsRequired();
 
         b.Property(x => x.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
 
@@ -46,16 +50,18 @@ public class LoteAvesCohorteConfiguration : IEntityTypeConfiguration<LoteAvesCoh
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         b.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
-        // FK al lote receptor (sin cascada: las cohortes se dan de baja lógicamente).
-        b.HasOne<Lote>()
+        // Propiedad calculada: no es columna.
+        b.Ignore(x => x.TotalAves);
+
+        b.HasOne<LoteAveEngorde>()
             .WithMany()
-            .HasForeignKey(x => x.LoteId)
-            .HasPrincipalKey(l => l.LoteId)
-            .HasConstraintName("fk_lote_aves_cohortes_lote")
+            .HasForeignKey(x => x.LoteAveEngordeId)
+            .HasPrincipalKey(l => l.LoteAveEngordeId)
+            .HasConstraintName("fk_lote_engorde_aves_cohortes_lote")
             .OnDelete(DeleteBehavior.Restrict);
 
-        b.HasIndex(x => x.LoteId).HasDatabaseName("ix_lote_aves_cohortes_lote");
-        b.HasIndex(x => x.CompanyId).HasDatabaseName("ix_lote_aves_cohortes_company");
-        b.HasIndex(x => x.LoteOrigenId).HasDatabaseName("ix_lote_aves_cohortes_lote_origen");
+        b.HasIndex(x => x.LoteAveEngordeId).HasDatabaseName("ix_lote_engorde_aves_cohortes_lote");
+        b.HasIndex(x => x.CompanyId).HasDatabaseName("ix_lote_engorde_aves_cohortes_company");
+        b.HasIndex(x => x.MovimientoPolloEngordeId).HasDatabaseName("ix_lote_engorde_aves_cohortes_movimiento");
     }
 }

@@ -65,6 +65,21 @@ public class MovimientoPolloEngordeController : ControllerBase
         return Ok(resumen);
     }
 
+    /// <summary>
+    /// Edades presentes en un lote de engorde: las aves propias más cada cohorte recibida por traslado,
+    /// con la edad heredada de su lote origen y la ubicación (granja · núcleo · galpón) de procedencia.
+    /// Debe estar antes de {id} para que la ruta literal coincida.
+    /// </summary>
+    [HttpGet("cohortes/{loteAveEngordeId:int}")]
+    [ProducesResponseType(typeof(ZooSanMarino.Application.DTOs.Traslados.LoteCohortesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCohortesLoteEngorde(int loteAveEngordeId, CancellationToken ct)
+    {
+        var cohortes = await _service.GetCohortesLoteEngordeAsync(loteAveEngordeId, ct);
+        if (cohortes == null) return NotFound();
+        return Ok(cohortes);
+    }
+
     /// <summary>Resúmenes de varios lotes en una sola petición (una fila por id solicitado).</summary>
     [HttpPost("resumen-aves-lotes")]
     [ProducesResponseType(typeof(ResumenAvesLotesResponse), StatusCodes.Status200OK)]

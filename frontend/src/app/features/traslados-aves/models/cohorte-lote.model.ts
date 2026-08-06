@@ -14,6 +14,11 @@ export interface CohorteLoteDto {
   id: number;
   loteOrigenId?: number | null;
   loteOrigenNombre?: string | null;
+  /**
+   * Ubicación de procedencia CONGELADA al momento del traslado ("Granja · Núcleo · Galpón").
+   * `null` en las cohortes anteriores a que se guardara este dato.
+   */
+  ubicacionOrigen?: string | null;
   /** Fecha en la que las aves ingresaron al lote receptor. */
   fechaIngreso?: string | null;
   /** Fecha de encasetamiento del lote origen (base de la edad de la cohorte). */
@@ -35,6 +40,13 @@ export interface CohortesLoteDto {
   fechaEncasetPropia?: string | null;
   edadPropiaDias?: number | null;
   edadPropiaSemanas?: number | null;
+  /**
+   * Aves propias estimadas = saldo actual − recibidas por traslado. Permite cuadrar
+   * *propias + recibidas = saldo*. ⚠️ Es una aproximación: las bajas se registran por LOTE, no por
+   * cohorte, así que la mortalidad posterior al ingreso se descuenta de las propias.
+   */
+  hembrasPropias?: number | null;
+  machosPropias?: number | null;
   cohortes?: CohorteLoteDto[] | null;
 }
 
@@ -46,11 +58,13 @@ export interface FilaEdadLote {
   tipo: 'propia' | 'cohorte';
   /** Etiqueta de la primera columna (origen de las aves). */
   origen: string;
+  /** Ubicación de procedencia (`—` en la fila propia: las aves nunca se movieron). */
+  ubicacionOrigen: string;
   /** Fecha de ingreso al lote (`—` en la fila propia: son las aves originales). */
   fechaIngreso: string;
   /** Fecha de encasetamiento que define la edad de la fila. */
   fechaEncaset: string;
-  /** `null` en la fila propia (el endpoint de cohortes no trae el saldo del lote). */
+  /** En la fila propia es una ESTIMACIÓN (saldo − recibidas); `null` si el saldo no se pudo resolver. */
   hembras: number | null;
   machos: number | null;
   total: number | null;

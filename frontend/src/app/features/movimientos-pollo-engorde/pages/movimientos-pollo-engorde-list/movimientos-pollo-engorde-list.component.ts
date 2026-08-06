@@ -41,6 +41,7 @@ import { ModalVentaPanamaComponent } from '../../components/modal-venta-panama/m
 import { ModalRegistroPesoComponent } from '../../components/modal-registro-peso/modal-registro-peso.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { EdadesLoteComponent } from '../../../traslados-aves/components/edades-lote/edades-lote.component';
 
 // Tipos movidos a models/; se re-exportan para no romper imports externos previos.
 export type { LoteOption, FilaDespachoGrupo, FilaMovimientoSimple, FilaTablaMovimiento };
@@ -55,6 +56,7 @@ export type { LoteOption, FilaDespachoGrupo, FilaMovimientoSimple, FilaTablaMovi
     ModalMovimientoPolloEngordeComponent,
     ModalVentaPanamaComponent,
     ModalRegistroPesoComponent,
+    EdadesLoteComponent,
     HasPermissionDirective
 ],
   templateUrl: './movimientos-pollo-engorde-list.component.html',
@@ -117,6 +119,11 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   ventaPorGranjaMode = false;
   /** Modal abierto para registrar un TRASLADO (origen lote + destino en cualquier granja/galpón). */
   trasladoMode = false;
+  /**
+   * Se incrementa tras guardar un movimiento para que el panel «Edades en el lote» recargue: un
+   * traslado completado cambia las cohortes del receptor.
+   */
+  edadesRefreshTrigger = 0;
   editingMovimiento: MovimientoPolloEngordeDto | null = null;
 
   showConfirmationModal = false;
@@ -837,6 +844,8 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     if (this.selectedGranjaId) {
       this.loadMovimientos();
       this.refreshResumenIfLoteSelected();
+      // Un traslado completado agrega/quita cohortes en el receptor: el panel de edades se recarga.
+      this.edadesRefreshTrigger++;
     }
   }
 
