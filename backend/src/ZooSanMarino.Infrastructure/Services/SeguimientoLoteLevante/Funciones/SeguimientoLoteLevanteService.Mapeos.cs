@@ -161,6 +161,8 @@ public partial class SeguimientoLoteLevanteService
             ErrorSexajeMachos: dto.ErrorSexajeMachos,
             ConsumoKgHembras: (decimal)consumoKgHembras,
             ConsumoKgMachos: dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null,
+            // El recorte defensivo vive en SeguimientoDiarioService, el único escritor de la tabla
+            // unificada, para que cubra también a los otros llamadores. Ver TipoAlimentoCalculos.
             TipoAlimento: dto.TipoAlimento,
             Observaciones: dto.Observaciones,
             Ciclo: dto.Ciclo,
@@ -236,6 +238,8 @@ public partial class SeguimientoLoteLevanteService
             ErrorSexajeMachos: dto.ErrorSexajeMachos,
             ConsumoKgHembras: (decimal)consumoKgHembras,
             ConsumoKgMachos: dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null,
+            // El recorte defensivo vive en SeguimientoDiarioService, el único escritor de la tabla
+            // unificada, para que cubra también a los otros llamadores. Ver TipoAlimentoCalculos.
             TipoAlimento: dto.TipoAlimento,
             Observaciones: dto.Observaciones,
             Ciclo: dto.Ciclo,

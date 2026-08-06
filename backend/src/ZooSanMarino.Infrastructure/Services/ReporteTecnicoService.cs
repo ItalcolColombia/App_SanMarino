@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -623,6 +624,12 @@ public class ReporteTecnicoService : IReporteTecnicoService
         public int SelM { get; set; }
         public int ErrorSexajeHembras { get; set; }
         public int ErrorSexajeMachos { get; set; }
+        // Traslados de aves del día. Entran en el saldo con el mismo signo que en
+        // fn_reporte_semanal_levante_extras (salida resta, ingreso suma); antes se ignoraban.
+        public int TrasladoSalidaHembras { get; set; }
+        public int TrasladoSalidaMachos { get; set; }
+        public int TrasladoIngresoHembras { get; set; }
+        public int TrasladoIngresoMachos { get; set; }
         public double ConsumoKgHembras { get; set; }
         public double? ConsumoKgMachos { get; set; }
         public double? PesoPromH { get; set; }
@@ -659,6 +666,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SelM = s.SelM ?? 0,
                 ErrorSexajeHembras = s.ErrorSexajeHembras ?? 0,
                 ErrorSexajeMachos = s.ErrorSexajeMachos ?? 0,
+                TrasladoSalidaHembras = s.TrasladoSalidaHembras,
+                TrasladoSalidaMachos = s.TrasladoSalidaMachos,
+                TrasladoIngresoHembras = s.TrasladoIngresoHembras,
+                TrasladoIngresoMachos = s.TrasladoIngresoMachos,
                 ConsumoKgHembras = (double)(s.ConsumoKgHembras ?? 0),
                 ConsumoKgMachos = s.ConsumoKgMachos.HasValue ? (double)s.ConsumoKgMachos.Value : null,
                 PesoPromH = s.PesoPromHembras,
@@ -695,6 +706,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SelM = s.SelM ?? 0,
                 ErrorSexajeHembras = s.ErrorSexajeHembras ?? 0,
                 ErrorSexajeMachos = s.ErrorSexajeMachos ?? 0,
+                TrasladoSalidaHembras = s.TrasladoSalidaHembras,
+                TrasladoSalidaMachos = s.TrasladoSalidaMachos,
+                TrasladoIngresoHembras = s.TrasladoIngresoHembras,
+                TrasladoIngresoMachos = s.TrasladoIngresoMachos,
                 ConsumoKgHembras = (double)(s.ConsumoKgHembras ?? 0),
                 ConsumoKgMachos = s.ConsumoKgMachos.HasValue ? (double)s.ConsumoKgMachos.Value : null,
                 PesoPromH = s.PesoPromHembras,
@@ -2729,6 +2744,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var selM = items.Sum(x => Math.Max(0, x.Seg.SelM));
             var errH = items.Sum(x => x.Seg.ErrorSexajeHembras);
             var errM = items.Sum(x => x.Seg.ErrorSexajeMachos);
+            var trasSalH = items.Sum(x => x.Seg.TrasladoSalidaHembras);
+            var trasSalM = items.Sum(x => x.Seg.TrasladoSalidaMachos);
+            var trasIngH = items.Sum(x => x.Seg.TrasladoIngresoHembras);
+            var trasIngM = items.Sum(x => x.Seg.TrasladoIngresoMachos);
             var consH = items.Sum(x => x.Seg.ConsumoKgHembras);
             var consM = items.Sum(x => x.Seg.ConsumoKgMachos ?? 0);
 
@@ -2744,11 +2763,18 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var kcalAveH = items.Where(x => x.Seg.KcalAveH.HasValue).Select(x => x.Seg.KcalAveH!.Value).DefaultIfEmpty().Average();
             var protAveH = items.Where(x => x.Seg.ProtAveH.HasValue).Select(x => x.Seg.ProtAveH!.Value).DefaultIfEmpty().Average();
 
-            // Actualizar saldos (antes de mortalidad del día = denominador porcentaje diario)
+            // Actualizar saldos (antes de mortalidad del día = denominador porcentaje diario).
+            // El saldo lo resuelve SaldoAvesLevanteCalculos, que es la especificación ejecutable de
+            // fn_reporte_semanal_levante_extras: además de mortalidad y selección descuenta el
+            // ERROR DE SEXAJE y los traslados. Antes solo restaba mort+sel, así que el reporte
+            // cerraba por encima del maestro (lote_postura_levante.aves_h_actual) y del informe
+            // técnico, e infravaloraba el gr/ave/día al dividir por un saldo inflado.
             var saldoHAntesMort = saldoH;
             var saldoMAntesMort = saldoM;
-            saldoH -= mortH + selH;
-            saldoM -= mortM + selM;
+            saldoH = SaldoAvesLevanteCalculos.Siguiente(saldoH,
+                new SaldoAvesLevanteCalculos.MovimientoDia(mortH, selH, errH, trasSalH, trasIngH));
+            saldoM = SaldoAvesLevanteCalculos.Siguiente(saldoM,
+                new SaldoAvesLevanteCalculos.MovimientoDia(mortM, selM, errM, trasSalM, trasIngM));
 
             // Actualizar acumulados
             acMortH += mortH;
@@ -2820,6 +2846,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
         // Variables acumuladas a lo largo de las semanas (persisten entre iteraciones)
         int acMortH = 0, acSelH = 0, acErrH = 0;
         int acMortM = 0, acSelM = 0, acErrM = 0;
+        int acTrasSalH = 0, acTrasSalM = 0, acTrasIngH = 0, acTrasIngM = 0;
         double acConsH = 0, acConsM = 0;
         double acKcalSemH = 0;
         double acProtSemH = 0;
@@ -2860,6 +2887,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var selM = registrosSemana.Sum(x => Math.Max(0, x.Seg.SelM));
             var errH = registrosSemana.Sum(x => x.Seg.ErrorSexajeHembras);
             var errM = registrosSemana.Sum(x => x.Seg.ErrorSexajeMachos);
+            var trasSalH = registrosSemana.Sum(x => x.Seg.TrasladoSalidaHembras);
+            var trasSalM = registrosSemana.Sum(x => x.Seg.TrasladoSalidaMachos);
+            var trasIngH = registrosSemana.Sum(x => x.Seg.TrasladoIngresoHembras);
+            var trasIngM = registrosSemana.Sum(x => x.Seg.TrasladoIngresoMachos);
             var consKgH = registrosSemana.Sum(x => x.Seg.ConsumoKgHembras);
             var consKgM = registrosSemana.Sum(x => x.Seg.ConsumoKgMachos ?? 0);
 
@@ -2909,12 +2940,20 @@ public class ReporteTecnicoService : IReporteTecnicoService
             acSelM += selM;
             acErrH += errH;
             acErrM += errM;
+            acTrasSalH += trasSalH;
+            acTrasSalM += trasSalM;
+            acTrasIngH += trasIngH;
+            acTrasIngM += trasIngM;
             acConsH += consKgH;
             acConsM += consKgM;
 
-            // Saldos actuales (aves vivas al cierre de la semana)
-            var hembraActual = avesHInicialesTotal - acMortH - acSelH;
-            var machoActual = avesMInicialesTotal - acMortM - acSelM;
+            // Saldos actuales (aves vivas al cierre de la semana). Misma fórmula que el diario y
+            // que fn_reporte_semanal_levante_extras: descuenta también el ERROR DE SEXAJE (que ya
+            // veníamos acumulando en acErrH/acErrM para el % de retiro) y los traslados de aves.
+            var hembraActual = SaldoAvesLevanteCalculos.SaldoFinal(avesHInicialesTotal,
+                new[] { new SaldoAvesLevanteCalculos.MovimientoDia(acMortH, acSelH, acErrH, acTrasSalH, acTrasIngH) });
+            var machoActual = SaldoAvesLevanteCalculos.SaldoFinal(avesMInicialesTotal,
+                new[] { new SaldoAvesLevanteCalculos.MovimientoDia(acMortM, acSelM, acErrM, acTrasSalM, acTrasIngM) });
 
             // ---- Recálculo de porcentajes sobre total unificado (Opción A) ----
             var porcMortH = avesHInicialesTotal > 0

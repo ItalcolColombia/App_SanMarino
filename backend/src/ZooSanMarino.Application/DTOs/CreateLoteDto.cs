@@ -34,6 +34,14 @@ public class CreateLoteDto
     public int?    EdadInicial { get; set; }
     public int?    LotePadreId { get; set; } // ← NUEVO: ID del lote padre
 
+    /// <summary>
+    /// Fase con la que nace el lote: <c>Levante</c> o <c>Produccion</c>. OPCIONAL — si va vacía se
+    /// deriva de las semanas desde el encasetamiento (≥ 26 ⇒ Producción), que es el comportamiento
+    /// histórico. Se indica al cargar un lote HISTÓRICO: encasetado hace más de 26 semanas nacería
+    /// en Producción y los reportes de levante lo filtrarían, dejando el seguimiento invisible.
+    /// </summary>
+    public string? Fase { get; set; }
+
     // Códigos ERP avícolas (empresas con manejaCodigosErpAvicola = true)
     public string? CodigoCentroCosto { get; set; }
     public string? DescripcionCentroCosto { get; set; }

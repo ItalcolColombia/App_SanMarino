@@ -816,3 +816,220 @@ declaran `int`. Por la regla «el código manda» de `CLAUDE.md` gana el código
 - [x] C2 `dotnet ef database update` ⇒ *«already up to date»* · `has-pending-model-changes` ⇒ *«No changes»* (el DDL a mano no ensució el snapshot)
 - [x] C3 BD restaurada al snapshot exacto: `movimiento_aves` max id **18**, `lotes` max **129**, cohortes **0**, `inventario_aves` **0**, `historial_inventario` **0**, lotes 115/116 intactos
 - [x] C4 Sin procesos huérfanos · commit sin footer de atribución
+
+---
+
+# Tracker — Archivos de carga masiva del lote S-369AB (postura: levante + producción + alimento)
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «con estos archivos construir los archivos de migración que necesita
+la carga masiva» para el lote S-369 (regional Centro), en granja de pruebas hasta galpón de pruebas.
+
+## Lectura de las fuentes
+- [x] F1 `INFORME TECNICO LEVANTE S-369AB.xlsm` venía **truncado** (ZIP sin central directory) → reconstruido entrada por entrada; única pérdida `calcChain.xml` (caché de fórmulas, irrelevante)
+- [x] F2 El lote son DOS sublotes: **S-369A** encaset 2025-08-30 (10.167 H / 1.472 M) y **S-369B** encaset 2025-09-05 (10.291 H / 1.521 M) = 20.458 H / 2.993 M
+- [x] F3 Las hojas `… general 369AB` consolidan **por EDAD, no por fecha** (0/175 discrepancias por índice vs 172/175 por fecha) ⇒ el consolidado se arma sumando A+B **por calendario**
+- [x] F4 Conciliación hembras: `20.458 − 669 mort − 614 sexaje − 157 desc = 19.018` al 2026-02-19 = arranque exacto de producción, 0 días inexplicados
+- [x] F5 Conciliación machos: 4 saltos sin columna → A→B 196 (traslado interno, se anula), **150 el 09-feb**, **140 el 17-feb**, −20 el 23-feb (ya está en producción). Con los 290 retiros cierra en **1.957** = arranque de producción
+- [x] F6 Producción 2026-02-20→2026-07-30 (161 días); las 9 «Entradas (+)» son todas **negativas** = salidas de aves
+- [x] F7 `CONSUMOS S369.xlsx`: 7 bloques de alimento; el etiquetado H/M **no es fiable por bloque** (el consumo de hembras de PRODUCCION II está bajo la columna M) → regla de sexo por tipo de alimento, validada por magnitud g/ave
+- [x] F8 Nunca hay más de 2 tipos de alimento por sexo en un día (0/335) ⇒ entra en los 4 slots de la plantilla
+
+## Contrato del importador (leído del código)
+- [x] C1 Esquemas exactos de `SeguimientoLevante`, `SeguimientoProduccion`, hoja `Alimento`, `Movimientos Aves`, `Movimientos Huevos`
+- [x] C2 **Trampa**: una *Advertencia* dentro del bloque de la fila la descarta en silencio ⇒ con slots de alimento, `Consumo H/M (kg)` va VACÍO; con las 11 categorías, `Huevo Total`/`Incubable` van VACÍOS
+- [x] C3 Hoja `Huevos` **prohibida** (Sanmarino tiene `clasificacion_huevo_por_items = false` ⇒ error fail-closed)
+- [x] C4 `Movimientos Aves` tipo **Salida** exige contraparte existente ⇒ los retiros van como **Venta**
+- [x] C5 Hoja `Alimento`: `Origen` vacío (con `granja`/`bodega` el ingreso falla SIEMPRE) y ubicación vacía (stock a nivel granja en Sanmarino)
+- [x] C6 Gate de stock: rechazo total del archivo si el consumo supera `stock + entradas del archivo`
+
+## Estado de la BD local (solo lectura)
+- [x] B1 Granja de pruebas viva = `farms.id 44` «Pruebas Moises»; única ubicación `nucleo 883195` + `galpon G0443`
+- [x] B2 **No existe la raza «ROSS AP»** en Sanmarino → `raza = 'AP'`, `ano_tabla_genetica = 2026`
+- [x] B3 Regional «Centro» = `master_list_options.id 57`; la granja 44 apunta a `regional_id 27` (**huérfano**)
+- [x] B4 Granja 44 con **0 stock** de inventario ⇒ el alimento tiene que entrar por la hoja `Alimento`
+- [x] B5 Mapeo de los 7 alimentos al catálogo por **código** (hay 3 ítems con el nombre idéntico `PRODUCCION III REPRODUCTORA PESADA`)
+- [x] B6 No existe ningún lote `S-369`/`S369`: sin riesgo de duplicado
+
+## Generación de los archivos
+- [x] G1 `Carga_Masiva_Levante_S-369AB.xlsx` — Datos **174** filas (2025-08-30→2026-02-19) · Alimento **37** ingresos · Movimientos Aves **2** (los retiros de 150 y 140 machos, tipo Venta)
+- [x] G2 `Carga_Masiva_Produccion_S-369AB.xlsx` — Datos **161** filas (2026-02-20→2026-07-30) · Alimento **58** ingresos · Movimientos Aves **9** (las «Entradas (+)» negativas)
+- [x] G3 Verificación automática: **todos los chequeos OK**
+      - encabezados byte a byte iguales al esquema, en A1, sin duplicados; fechas únicas, ordenadas, ≥ encaset y ≤ hoy
+      - ninguna fila mezcla slots de alimento con `Consumo H/M (kg)` ni categorías con `Huevo Total` (las dos advertencias que descartan filas en silencio)
+      - hoja `Alimento`: `Origen` y ubicación vacías, `Movimiento`=Ingreso, clave de idempotencia única
+      - **aves**: levante `20.458 − 1.440 = 19.018 H` · `2.993 − 746 − 290 = 1.957 M` → producción `19.018 − 672 − 338 = 18.008 H` · `1.957 − 193 − 130 = 1.634 M`
+      - **huevos**: 2.213.857 totales / 2.032.069 incubables (= columna Apto del informe, exacto)
+      - **alimento**: consumo del archivo idéntico al informe día a día (dif 0,000 kg); ningún ítem negativo tras encadenar levante→producción
+      - hallazgo: el informe fuente tiene un desvío propio de **5 huevos** el 2026-06-30 (col «Producción Huevos» 14.038 vs su clasificación 14.043) — se cargó la clasificación
+- [x] G4 `LEEME_S-369AB.md` junto a los archivos: ficha de alta del lote (granja 44 / núcleo 883195 / galpón G0443, encaset 2025-08-30, 20.458 H + 2.993 M, **raza `AP` y no «ROSS AP»**, año 2026), los 4 pasos operativos y las 5 salvedades
+- [x] G5 Scripts reproducibles copiados a `…/lote carga masiva pruebas/scripts/` (`recover.py` repara el .xlsm truncado, `construir.py` genera, `verificar.py` valida)
+
+---
+
+# Tracker — `tipo_alimento` desborda varchar(100) y tumba el guardado del seguimiento diario
+
+**Plan:** [`fase_de_desarrollo/tipo_alimento_varchar_desborde_plan.md`](fase_de_desarrollo/tipo_alimento_varchar_desborde_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «implementá las migraciones y las correcciones y realizá la validación en local»
+
+Reportado como «falla al guardar el lote A374A» (Sanmarino Colombia). Diagnóstico reproducido: el front
+concatena los nombres de los alimentos en `tipo_alimento` (`varchar(100)`) y el TERCER alimento pasa de
+100 ⇒ `22001` ⇒ `DbUpdateException` ⇒ 500 con el texto genérico de EF. No es el lote.
+
+## Diagnóstico (cerrado)
+- [x] D1 Inner exception real capturada: `22001: value too long for type character varying(100)`
+- [x] D2 Repro: 3 alimentos (113 chars) → 500 idéntico al reporte · 2 alimentos (76) → 201
+- [x] D3 Confirmado en datos: `max(length(tipo_alimento))` de TODA la tabla = **79** (nunca entró un tercero)
+- [x] D4 Rollback verificado íntegro (0 filas, aves y stock intactos) ⇒ sin datos corruptos
+
+## Backend — lógica pura + tests
+- [x] B1 `Application/Calculos/TipoAlimentoCalculos.cs` (`MaxLongitud = 500`, `Recortar`)
+- [x] B2 `Application/Calculos/ErrorPersistenciaCalculos.cs` (`DescribirErrorSql`, `null` si no mapeado)
+- [x] B3 Tests xUnit T1-T8 de `TipoAlimentoCalculos`
+- [x] B4 Tests xUnit E1-E5 de `ErrorPersistenciaCalculos`
+
+## Backend — aplicación de la red de seguridad
+- [x] B5 `SeguimientoLoteLevanteService.Mapeos.cs` — create + update
+- [x] B6 `SeguimientoAvesEngordeService.Crud.cs` — create + update
+- [x] B7 `SeguimientoAvesEngordeEcuadorService.Crud.cs` — create + update
+- [x] B8 `MigracionService.Historicos.cs` — el `MaxTipoAlimento = 100` local pasa a delegar (deja de mutilar)
+- [x] B9 `Program.cs` — el handler global traduce el `SqlState` en vez de devolver el texto de EF
+
+## BD
+- [x] M1 `SeguimientoDiarioConfiguration` (levante) a `HasMaxLength(500)`. ⚠️ **Engorde NO se amplió**: al
+      aplicar la 1ª versión en local, Postgres devolvió `0A000 cannot alter type of a column used by a
+      view or rule` — la vista de Power BI `vw_seguimiento_pollo_engorde` cuelga de
+      `seguimiento_diario_aves_engorde.tipo_alimento`. Sus configurations vuelven a 100
+      (`TipoAlimentoCalculos.MaxLongitudEngorde`) y quedan cubiertas por el recorte
+- [x] M2 Migración `20260806063157_AmpliarTipoAlimentoSeguimientos`, DDL **idempotente** a mano: omite si
+      la columna no existe, si ya es ≥500, o si tiene vistas dependientes (WARNING en vez de fallar —
+      un deploy que no aplica el ancho es recuperable; uno que no arranca, no)
+- [x] M3 `Down()` inverso, aborta si hay datos que no entrarían en 100
+- [x] M4 Aplicada en local + segunda pasada = no-op
+- [x] M5 `has-pending-model-changes` → «No changes» (snapshot alineado)
+
+## Validación
+- [x] V1 `dotnet build` 0 errores / 0 advertencias nuevas
+- [x] V2 `dotnet test` verde
+- [x] V3 Smoke S1 — 3 alimentos en A374A (lote 116) → **201** con el `tipo_alimento` completo
+- [x] V4 Smoke S2 — control de 2 alimentos sin regresión
+- [x] V5 Smoke S3/S4/S5 — inventario y aves exactos, edición y borrado
+- [x] V6 Smoke S6 — 600 chars → recorte a 500, sin 500 HTTP
+- [x] V7 BD local restaurada al snapshot exacto + sin procesos huérfanos
+- [x] V8 Commit sin footer de atribución
+
+---
+
+# Tracker — E2E del lote S-369: alta, carga de levante y validación de los reportes
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «validá la información a cargar, registrá el lote base y el lote,
+cargá el levante con la guía AP 2026, y que los reportes de levante y el semanal cuadren con el Excel»
+
+Backend local propio en `:5499` (Development, BD `sanmarinoapplocal:5433`), JWT + `X-Secret-Up` minteados.
+Backup previo en `snapshot_pre_S369.dump`.
+
+## Alta y carga
+- [x] A1 `lote_postura_base` **S-369** (id 30) + lotes **S-369A** (135, encaset 30-ago, 10.167 H / 1.472 M) y **S-369B** (136, encaset 05-sep, 10.291 H / 1.521 M), granja 44 / núcleo 883195 / galpón G0443, raza `AP`, año tabla `2026`
+- [x] A2 **Validar** (dry-run): 0 errores; los 3 avisos de saldo proyectado de alimento coinciden al gramo con lo calculado antes de importar
+- [x] A3 **Importar**: A 174/174 y B 168/168 filas, 0 errores
+- [x] A4 Saldos: **9.484 + 9.534 = 19.018 H** y **966 + 991 = 1.957 M** = arranque exacto del informe de producción
+- [x] A5 Inventario: 37 ingresos (257.900 kg) y 553 consumos (247.269,6 kg) a nivel **granja**; saldo final 10.630,40 kg en 3 ítems — idéntico a lo proyectado
+- [x] A6 Guía genética: `vw_guia_genetica_por_lote_postura` resuelve **AP / 2026**, semanas 1-25, con los MISMOS valores que las columnas «Tabla» del Excel (21/26/30/34/35/37/39/42 g/ave; 147/329/539/778/1.024/1.284 acum; pesos 145/260/380/490/590/680)
+
+## Validación de reportes
+- [x] R1 **Reporte diario** vs archivo cargado: **0 discrepancias** en 174 días (mortalidad, selección, error de sexaje y consumo por sexo)
+- [x] R2 **Reporte semanal** vs agregación propia de los mismos datos: **0 diferencias** en 25 semanas ⇒ la agregación semanal del sistema es exacta
+- [x] R3 **`/api/ReporteTecnicoSemanal/levante` (el de Sanmarino) vs `Registro Semanal general 369AB`: 24 de 25 semanas IDÉNTICAS** — saldo, mortalidad, selección, error de sexaje, consumo kg, g/ave/día, peso corporal y uniformidad, al decimal. La semana 25 sale parcial **a propósito**: el corte de levante es el 19-feb y los 7 días restantes pertenecen al informe de producción
+- [x] R4 Totales del ciclo: selección **157/157** y error de sexaje **614/614** exactos; mortalidad 669 vs 676 e igual con el consumo (212.906,2 vs 221.874,2 kg) — la diferencia es **exactamente** la de esos 7 días post-corte
+
+## Hallazgos (defectos reales, NO corregidos: requieren confirmación)
+- [x] H1 🔴 **Un lote histórico nace como «Producción» y desaparece de los reportes de levante.** `LoteService.cs:340` deriva `fase = semanasDesdeEncaset >= 26 ? "Produccion" : "Levante"`, así que cualquier lote con encaset de más de 26 semanas nace en Producción; el trigger lo copia a `lote_postura_levante.etapa/estado`. `ReporteTecnicoService.cs:2557` filtra `lpl.Etapa == "Levante"` y `ReporteTecnicoSemanalService.Levante.cs:25` filtra `l.Fase != "Produccion"` ⇒ **los dos reportes salen vacíos**. La carga masiva sí lo acepta (su elegibilidad solo pide un LPL vivo), así que el dato entra y el reporte no lo ve. Se corrigió a mano en local para poder validar
+- [x] H2 🔴 **Tocar `lotes` resetea las aves vivas.** `trg_lotes_sync_lote_postura_levante` hace, en su rama UPDATE, `aves_h_actual = NEW.hembras_l` / `aves_m_actual = NEW.machos_l` sin condición: editar cualquier campo del lote (técnico, regional, fase…) devuelve el saldo al encasetamiento. Acá habría borrado el descuento de las 1.440 hembras y 1.036 machos
+- [x] H3 🔴 **`ReporteTecnico/levante/obtener` no descuenta el error de sexaje del saldo.** `ReporteTecnicoService.cs:2916` `hembraActual = avesHInicialesTotal - acMortH - acSelH` (y el diario en `:2750` `saldoH -= mortH + selH`) — falta `acErrH`, que sí se calcula dos líneas más abajo para `retAcH`. Efecto medido: el reporte cierra en **19.632** hembras contra las **19.018** reales del maestro y del Excel (614 aves, 3,2 %), y arrastra el g/ave/día (`:2944` divide por ese saldo): semana 24 **109,81 vs 113,35** g/ave/día. El reporte semanal de Sanmarino sí lo descuenta bien
+- [x] H4 🟠 **Una `Salida` con contraparte bloquea el `Ingreso` del lote destino.** La Salida escribe `lote_destino_id = <B>` y la idempotencia del Ingreso busca «un Traslado/Venta del mismo día, mismas cantidades, con este lote como destino» ⇒ lo toma por duplicado y lo omite **sin acreditar las aves**. Medido: B cerraba en **795** machos en vez de 991. En los archivos se modela el débito como `Venta` (sin destino) y el crédito como `Ingreso`
+- [x] H5 🟡 El informe fuente tiene un desvío propio de **5 huevos** el 2026-06-30 (col «Producción Huevos» 14.038 vs su clasificación 14.043)
+
+## Cierre
+- [x] C1 Backend detenido, puerto 5499 libre, **0 procesos dotnet** huérfanos
+- [x] C2 Estado final en local: base **S-369** (30) con **S-369A** (135) y **S-369B** (136) cargados y visibles en los reportes; granja 44 con 10.630,40 kg de saldo en 3 ítems
+- [x] C3 Nada preexistente fue tocado: las 588 filas de seguimiento previas quedaron con 0 modificaciones
+
+## 2ª ronda — alineación total (pedido: «realizá el cambio del alcance para dejar todo alineado y corregido»)
+
+- [x] A1 `AmpliarTipoAlimentoEngorde`: las 3 tablas de engorde a varchar(500) **recreando las 3 vistas de
+      Power BI** (captura definición + dueño + GRANTs vía `aclexplode` + comments; drop de la más
+      dependiente a la más base; recreación inversa restaurando todo). Sin renombrar: Power BI apunta ahí
+- [x] A2 Todo el bloque en `BEGIN … EXCEPTION WHEN OTHERS` (subtransacción) ⇒ **no puede tumbar el deploy**;
+      ejerció de verdad en la validación (`text || "char"` sin cast → degradó a WARNING con las 3 vistas
+      intactas, en vez de abortar el arranque). Corregido con `relkind::text`
+- [x] A3 Un solo tope: `TipoAlimentoCalculos.MaxLongitud = 500` para las 4 tablas; se elimina `MaxLongitudEngorde`
+- [x] A4 Red de seguridad CENTRALIZADA en `SeguimientoDiarioService` (los 3 puntos de escritura de la tabla
+      unificada: alta, edición y merge sobre traslado) ⇒ cubre también a `LoteSeguimientoService`, que
+      delega ahí y no estaba protegido. Se quita la duplicada de `SeguimientoLoteLevanteService.Mapeos`
+- [x] A5 Migración de la 1ª ronda quedó marcada como aplicada sin efecto (el guard la saltó) ⇒ se
+      des-marcó en local y se reaplicó, probando el camino real del deploy
+- [x] A6 `ZooSanMarinoContextModelSnapshot` realineado a mano: la migración de otra sesión lo regeneró
+      desde un modelo anterior al cambio y dejó engorde en 100 ⇒ `has-pending-model-changes` en verde
+- [x] A7 **Vistas verificadas idénticas** tras el ALTER: definición byte a byte, mismo dueño, mismas
+      columnas (35/57/65) y mismas filas (5.663 / 170 / 5.736)
+- [x] A8 Escritura real de 300 chars en `seguimiento_diario_aves_engorde` (BEGIN/ROLLBACK) → acepta
+- [x] A9 2ª pasada del `Up` = no-op · `dotnet build` 0/0 · `dotnet test` verde · smoke S1/S2/S6 repetido
+- [x] A10 BD restaurada (aves 7405/738, stock 588.5/9360/320, 144 segs del lote 116) · trabajo de la otra
+      sesión intacto · sin procesos huérfanos
+
+---
+
+# Tracker — Corrección de los 3 defectos del E2E S-369 (con gate multiempresa)
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «corregí los puntos con validación QA de cada uno, que no aparezcan
+errores, porque son cosas que pueden pasar entre empresas»
+
+## 1 · Un lote histórico nacía en «Producción» y desaparecía de los reportes de levante
+- [x] 1a `Application/Calculos/FaseLoteCalculos.cs`: la fase pasa a ser un dato **opcional** de entrada.
+      Con `Fase` vacía se conserva **byte a byte** la derivación anterior (≥ 26 semanas ⇒ Producción)
+- [x] 1b `CreateLoteDto.Fase` y `UpdateLoteDto.Fase` (nullable); `LoteService` delega en el cálculo.
+      En `UpdateAsync` la fase **solo** se toca si el DTO la trae — editar un lote nunca la recalcula
+- [x] 1c Fase inválida ⇒ `ArgumentException` ⇒ HTTP 400, sin crear nada
+- [x] 1d **18 tests** (`FaseLoteCalculosTests`): el corte en 26 semanas intacto, los 61 valores de
+      `Resolver(null, 0..60)` idénticos a `DerivarPorEdad`, normalización y rechazos
+
+## 2 · Editar un lote reseteaba las aves vivas
+- [x] 2a Migración `20260806074742_ArreglarTriggerSyncLotePosturaLevanteNoPisarAvesVivas`:
+      la rama UPDATE del trigger deja de hacer `aves_h_actual = NEW.hembras_l`
+- [x] 2b El saldo vivo ahora se corre por el **delta** del encasetamiento, con `GREATEST(0, …)`.
+      `aves_*_inicial` sigue espejando `hembras_l`/`machos_l`. La rama INSERT no cambia
+- [x] 2c Idempotente (`CREATE OR REPLACE`) y con `Down()` que restituye el comportamiento previo
+
+## 3 · El reporte técnico de levante no descontaba el error de sexaje (ni los traslados)
+- [x] 3a `Application/Calculos/SaldoAvesLevanteCalculos.cs`: especificación ejecutable de
+      `fn_reporte_semanal_levante_extras` — `saldo = inicial − mort − sel − error_sexaje − salidas + ingresos`
+- [x] 3b `ReporteTecnicoService` delega en ese cálculo en el bucle **diario** y en el **semanal**;
+      se agregaron los 4 campos de traslado a las 2 proyecciones de `SegLevanteParaReporte`
+- [x] 3c **21 tests** (`SaldoAvesLevanteCalculosTests`), incluidos los cierres reales del S-369
+      (19.018 H y 1.957 M) y el número que devolvía el bug (19.632)
+
+## QA
+- [x] Q1 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1.689 verdes, 0 fallos**
+- [x] Q2 **QA-1 (fase)** 7/7 OK: encaset viejo sin fase ⇒ Producción (igual que antes); con
+      `fase=Levante` ⇒ Levante y el espejo lo hereda; encaset reciente sin fase ⇒ Levante; fase
+      inválida ⇒ 400 sin dejar el lote a medias
+- [x] Q3 **QA-2 (trigger)** 5/5 OK: editar el técnico **no** mueve el saldo (antes lo devolvía al
+      encaset); corregir el encaset +50 H/+10 M corre el saldo de 70/6 a 120/16 conservando las
+      bajas; un encaset menor que las bajas satura en 0 sin negativos
+- [x] Q4 **QA-3 · gate multiempresa** — 130 semanas de **2 empresas** (Sanmarino y Demo) comparadas
+      contra la fn canónica: **42 semanas CORREGIDAS · 0 REGRESIONES** · 57 ya coincidían ·
+      23 diferencias preexistentes que el cambio no toca (lote A374A, cuya fn devuelve saldos
+      negativos que el reporte satura en 0, igual antes que ahora)
+- [x] Q5 Los 8 casos que aún no igualan a la fn **mejoran todos** su distancia al valor canónico
+      (K345A 63→1, K345B 16→2, Demo 10.200→5.100…), **0 empeoran**. El residuo es de dos diferencias
+      preexistentes y fuera de este cambio: la fn no satura en 0 y toma la base de `hembras_l` con
+      fallback al primer ingreso, mientras el reporte usa `Σ aves_h_inicial` de los sublotes
+- [x] Q6 Caso que originó todo: `ReporteTecnico/levante/obtener` sobre el S-369 pasó de **14 a 24 de
+      25 semanas idénticas** al Excel; semana 24 saldo **19.018** (antes 19.632) y **113,35** g/ave/día
+      (antes 109,81). La 25 sigue parcial por el corte de fase, como debe ser
+- [x] Q7 Backend detenido, puerto 5499 libre; los lotes de QA borrados y el S-369 intacto (9.484/966 + 9.534/991)
+- [x] Q8 No se commiteó trabajo de la otra sesión: `dotnet ef migrations add` había arrastrado al
+      `ModelSnapshot` un cambio ajeno de `tipo_alimento` (100→500) — revertido, y el Designer de mi
+      migración alineado al modelo de HEAD

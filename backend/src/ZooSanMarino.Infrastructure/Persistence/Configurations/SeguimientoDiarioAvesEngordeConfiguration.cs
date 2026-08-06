@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Persistence/Configurations/SeguimientoDiarioAvesEngordeConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
@@ -24,7 +25,10 @@ public class SeguimientoDiarioAvesEngordeConfiguration : IEntityTypeConfiguratio
         b.Property(x => x.ErrorSexajeMachos).HasColumnName("error_sexaje_machos");
         b.Property(x => x.ConsumoKgHembras).HasColumnName("consumo_kg_hembras").HasPrecision(12, 3);
         b.Property(x => x.ConsumoKgMachos).HasColumnName("consumo_kg_machos").HasPrecision(12, 3);
-        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(100);
+        // 500: el nombre concatenado de los alimentos del día no entra en 100 (incidente 2026-08-06).
+        // La migración AmpliarTipoAlimentoEngorde recrea las 3 vistas de Power BI que cuelgan de esta
+        // columna para poder ampliarla. Ver TipoAlimentoCalculos.
+        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(TipoAlimentoCalculos.MaxLongitud);
         b.Property(x => x.Observaciones).HasColumnName("observaciones");
         b.Property(x => x.Ciclo).HasColumnName("ciclo").HasMaxLength(50);
 
