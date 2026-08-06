@@ -1141,3 +1141,22 @@ tanto en la carga masiva como en los seguimientos diarios de producción».
       código como «desviación preservada») y el Excel divide por el saldo de cierre. No lo toqué:
       es un criterio de denominador anterior a este cambio, no una consecuencia suya
 - [x] Q6 Backend detenido, puerto libre
+
+## Alineación final del gr/ave/día al Excel
+- [x] G1 El `gr/ave/día` de **producción** dividía por un censo de inicio reconstruido
+      (`fin + mortalidad + selección`); el informe divide por las aves al **CIERRE** de la semana
+      («No. Final de aves»), que es lo que **levante ya hacía**
+- [x] G2 Helper puro `ReporteTecnicoSemanalCalculos.GrAveDia(kg, días, avesFin)` y los **4 sitios**
+      que lo calculaban (levante tab y consolidado, producción tab y consolidado) pasan a compartirlo
+- [x] G3 **8 tests** con los valores del informe (S-369A sem 47 → 162,83 · sem 48 → 162,39 ·
+      S-369B sem 47 → 161,77) y el que devolvía antes (161,75), más bordes de días/aves en cero
+- [x] G4 `dotnet build` **0/0** · `dotnet test` **1.705 verdes**
+- [x] G5 Smoke multiempresa del reporte de producción: 4 bases, HTTP 200 en todas, 135 semanas con
+      gr/ave calculado y **0 valores negativos**
+
+## Cuadre final contra el Excel
+- [x] **Levante: 24 de 24 semanas idénticas**
+- [x] **Producción S-369B: 23 de 23 idénticas**
+- [x] **Producción S-369A: 23 de 24** — la única diferencia del ciclo completo son los **5 huevos**
+      del 2026-06-30, desvío del propio archivo fuente (la columna «Producción Huevos» dice 14.038 y
+      su propia clasificación suma 14.043)

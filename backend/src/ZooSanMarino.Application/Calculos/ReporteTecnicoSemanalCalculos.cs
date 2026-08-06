@@ -41,6 +41,22 @@ public static class ReporteTecnicoSemanalCalculos
     /// <summary>num/den*100; null si el denominador no es positivo.</summary>
     public static double? Pct(double num, double den) => den > 0 ? num / den * 100.0 : null;
 
+    /// <summary>
+    /// Consumo en gramos por ave y por día de una semana: <c>kg × 1000 / (días × aves)</c>.
+    ///
+    /// <para>
+    /// El divisor son las aves al <b>CIERRE</b> de la semana, que es como lo calcula el informe
+    /// técnico (columna «No. Final de aves») y como ya lo hacía el reporte de levante. Producción
+    /// dividía por un censo de inicio reconstruido como <c>fin + mortalidad + selección</c>, así que
+    /// daba de menos justo en las semanas de más bajas — hasta 1,08 g en el lote S-369.
+    /// </para>
+    /// </summary>
+    /// <param name="kg">Consumo de la semana en kilos.</param>
+    /// <param name="dias">Días con registro de la semana.</param>
+    /// <param name="avesFin">Aves vivas al cierre de la semana.</param>
+    public static double? GrAveDia(double kg, int dias, int avesFin) =>
+        avesFin > 0 && dias > 0 ? kg * 1000.0 / (dias * (double)avesFin) : null;
+
     /// <summary>num/den; null si el denominador no es positivo.</summary>
     public static double? Div(double num, double den) => den > 0 ? num / den : null;
 
@@ -184,8 +200,8 @@ public static class ReporteTecnicoSemanalCalculos
             cumKgH += f.ConsumoKgHembrasSem;    cumKgM += f.ConsumoKgMachosSem;
 
             var dias = f.DiasConRegistro > 0 ? f.DiasConRegistro : 7;
-            var grAveDiaH = f.AvesHembrasFin > 0 ? f.ConsumoKgHembrasSem * 1000.0 / (f.AvesHembrasFin * dias) : (double?)null;
-            var grAveDiaM = f.AvesMachosFin > 0 ? f.ConsumoKgMachosSem * 1000.0 / (f.AvesMachosFin * dias) : (double?)null;
+            var grAveDiaH = GrAveDia(f.ConsumoKgHembrasSem, dias, (int)f.AvesHembrasFin);
+            var grAveDiaM = GrAveDia(f.ConsumoKgMachosSem, dias, (int)f.AvesMachosFin);
 
             // Nutrición acumulada por ave (Excel AH/AI): kcal_alimento*0.001 * gramos/ave de la semana.
             var grAveSemanaH = f.AvesHembrasFin > 0 ? f.ConsumoKgHembrasSem * 1000.0 / f.AvesHembrasFin : 0;
@@ -380,8 +396,12 @@ public static class ReporteTecnicoSemanalCalculos
             if (g?.MortSemMachos is not null) mortGuiaMAcum = (mortGuiaMAcum ?? 0) + g.MortSemMachos;
 
             var dias = f.TotalRegistros > 0 ? f.TotalRegistros : 7;
-            var grAveDiaH = iniH > 0 ? f.ConsumoKgHembras * 1000.0 / (dias * iniH) : (double?)null;
-            var grAveDiaM = iniM > 0 ? f.ConsumoKgMachos * 1000.0 / (dias * iniM) : (double?)null;
+            // El gr/ave/dia divide por las aves al CIERRE de la semana, igual que el informe
+            // tecnico (columna "No. Final de aves") y que el reporte de levante. Antes dividia por
+            // el censo de inicio reconstruido (fin + mort + sel), que da de menos en las semanas
+            // con muchas bajas.
+            var grAveDiaH = GrAveDia(f.ConsumoKgHembras, dias, f.AvesHembrasFinSemana);
+            var grAveDiaM = GrAveDia(f.ConsumoKgMachos, dias, f.AvesMachosFinSemana);
 
             var pctIncSem = f.HuevosTotales > 0 ? f.HuevosIncubables * 100.0 / f.HuevosTotales : (double?)null;
             var pctIncAcum = cumHuevosTot > 0 ? cumHuevosInc * 100.0 / cumHuevosTot : (double?)null;
@@ -563,8 +583,8 @@ public static class ReporteTecnicoSemanalCalculos
             cumErrH += errH; cumErrM += errM;
             cumKgH += kgH; cumKgM += kgM;
 
-            var grAveDiaH = avesHFin > 0 ? kgH * 1000.0 / (avesHFin * diasCalc) : (double?)null;
-            var grAveDiaM = avesMFin > 0 ? kgM * 1000.0 / (avesMFin * diasCalc) : (double?)null;
+            var grAveDiaH = GrAveDia(kgH, diasCalc, (int)avesHFin);
+            var grAveDiaM = GrAveDia(kgM, diasCalc, (int)avesMFin);
             var pesoH = Prom(filas.Select(s => s.PesoHembras));
             var pesoM = Prom(filas.Select(s => s.PesoMachos));
 
@@ -750,8 +770,9 @@ public static class ReporteTecnicoSemanalCalculos
             cumMortSelH += mortH + selH;
             cumMortSelM += mortM + selM;
 
-            var grAveDiaH = iniH > 0 ? kgH * 1000.0 / (diasCalc * iniH) : (double?)null;
-            var grAveDiaM = iniM > 0 ? kgM * 1000.0 / (diasCalc * iniM) : (double?)null;
+            // Mismo criterio que el tab: divisor = aves al CIERRE de la semana.
+            var grAveDiaH = GrAveDia(kgH, diasCalc, avesHFin);
+            var grAveDiaM = GrAveDia(kgM, diasCalc, avesMFin);
             var pctProduccion = iniH > 0 ? (huevosTot / (double)diasCalc) / iniH * 100.0 : (double?)null;
             var pesoHuevo = Prom(filas.Select(s => s.PesoHuevo));
 

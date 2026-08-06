@@ -520,3 +520,66 @@ public class ReporteTecnicoSemanalCalculosTests
         Assert.Equal(14000.0 / 7.0 / 12000.0 * 100.0, s.PorcentajeProduccion!.Value, 8);
     }
 }
+
+/// <summary>
+/// El gr/ave/día divide por las aves al CIERRE de la semana, que es como lo calcula el informe
+/// técnico (columna «No. Final de aves»). Producción dividía por un censo de inicio reconstruido
+/// como <c>fin + mortalidad + selección</c> y por eso daba de menos en las semanas de más bajas.
+/// </summary>
+public class GrAveDiaCalculosTests
+{
+    [Fact]
+    public void GrAveDia_divide_por_las_aves_al_cierre()
+    {
+        // Lote S-369A, semana 48 del informe: 10.253,6 kg en 7 dias sobre 9.020 aves = 162,39.
+        var r = ReporteTecnicoSemanalCalculos.GrAveDia(10253.6, 7, 9020);
+        Assert.NotNull(r);
+        Assert.Equal(162.39, r!.Value, 2);
+    }
+
+    [Fact]
+    public void GrAveDia_con_el_censo_de_inicio_daba_de_menos()
+    {
+        // Lo que devolvia antes: 9.020 + 36 muertas + 0 descartes = 9.056 aves de divisor.
+        var conCenso = ReporteTecnicoSemanalCalculos.GrAveDia(10253.6, 7, 9056);
+        var conCierre = ReporteTecnicoSemanalCalculos.GrAveDia(10253.6, 7, 9020);
+        Assert.Equal(161.75, conCenso!.Value, 2);
+        Assert.True(conCierre!.Value > conCenso.Value);
+        Assert.Equal(0.6456, conCierre.Value - conCenso.Value, 4);
+    }
+
+    [Fact]
+    public void GrAveDia_semana_47_del_S369A_coincide_con_el_informe()
+    {
+        // La semana de mas bajas del lote (59 muertas): es donde mas se notaba la diferencia.
+        Assert.Equal(162.83, ReporteTecnicoSemanalCalculos.GrAveDia(10321.9, 7, 9056)!.Value, 2);
+    }
+
+    [Fact]
+    public void GrAveDia_semana_47_del_S369B_coincide_con_el_informe()
+    {
+        Assert.Equal(161.77, ReporteTecnicoSemanalCalculos.GrAveDia(10137.2, 7, 8952)!.Value, 2);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void GrAveDia_sin_aves_es_null(int aves)
+    {
+        Assert.Null(ReporteTecnicoSemanalCalculos.GrAveDia(1000, 7, aves));
+    }
+
+    [Fact]
+    public void GrAveDia_sin_dias_es_null()
+    {
+        Assert.Null(ReporteTecnicoSemanalCalculos.GrAveDia(1000, 0, 100));
+    }
+
+    [Fact]
+    public void GrAveDia_es_lineal_en_el_consumo()
+    {
+        var uno = ReporteTecnicoSemanalCalculos.GrAveDia(1000, 7, 1000)!.Value;
+        var dos = ReporteTecnicoSemanalCalculos.GrAveDia(2000, 7, 1000)!.Value;
+        Assert.Equal(uno * 2, dos, 6);
+    }
+}
