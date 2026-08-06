@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/SeguimientoDiarioService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using PagedResultSeguimiento = ZooSanMarino.Application.DTOs.Common.PagedResult<ZooSanMarino.Application.DTOs.SeguimientoDiarioDto>;
@@ -314,7 +315,12 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             ErrorSexajeMachos = dto.ErrorSexajeMachos,
             ConsumoKgHembras = dto.ConsumoKgHembras,
             ConsumoKgMachos = dto.ConsumoKgMachos,
-            TipoAlimento = dto.TipoAlimento,
+            // Red de seguridad: el cliente arma esta cadena concatenando los nombres de los alimentos
+            // del día, así que su largo depende del catálogo. Sin el recorte, un nombre largo de más
+            // aborta el INSERT entero con 22001 y —al correr Colombia en transacción atómica— se pierde
+            // el guardado completo (incidente 2026-08-06, lote A374A). Va acá, en el único escritor de
+            // la tabla unificada, para cubrir a todos sus llamadores (levante y LoteSeguimientoService).
+            TipoAlimento = TipoAlimentoCalculos.Recortar(dto.TipoAlimento),
             TipoAlimentoHembrasNombre = dto.TipoAlimentoHembrasNombre,
             TipoAlimentoMachosNombre = dto.TipoAlimentoMachosNombre,
             Observaciones = dto.Observaciones,
@@ -538,7 +544,7 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         ent.ErrorSexajeMachos = dto.ErrorSexajeMachos;
         ent.ConsumoKgHembras = dto.ConsumoKgHembras;
         ent.ConsumoKgMachos = dto.ConsumoKgMachos;
-        ent.TipoAlimento = dto.TipoAlimento;
+        ent.TipoAlimento = TipoAlimentoCalculos.Recortar(dto.TipoAlimento);
         ent.TipoAlimentoHembrasNombre = dto.TipoAlimentoHembrasNombre;
         ent.TipoAlimentoMachosNombre = dto.TipoAlimentoMachosNombre;
         ent.Observaciones = dto.Observaciones;
@@ -850,7 +856,7 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         existente.ErrorSexajeMachos   = dto.ErrorSexajeMachos;
         existente.ConsumoKgHembras    = dto.ConsumoKgHembras;
         existente.ConsumoKgMachos     = dto.ConsumoKgMachos;
-        existente.TipoAlimento        = dto.TipoAlimento ?? existente.TipoAlimento;
+        existente.TipoAlimento        = TipoAlimentoCalculos.Recortar(dto.TipoAlimento) ?? existente.TipoAlimento;
         existente.TipoAlimentoHembrasNombre = dto.TipoAlimentoHembrasNombre ?? existente.TipoAlimentoHembrasNombre;
         existente.TipoAlimentoMachosNombre  = dto.TipoAlimentoMachosNombre ?? existente.TipoAlimentoMachosNombre;
         existente.Ciclo               = dto.Ciclo ?? existente.Ciclo;

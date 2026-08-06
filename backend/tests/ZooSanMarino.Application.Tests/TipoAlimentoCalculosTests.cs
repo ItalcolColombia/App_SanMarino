@@ -111,18 +111,13 @@ public class TipoAlimentoCalculosTests
         Assert.Equal(500, TipoAlimentoCalculos.MaxLongitud);
     }
 
-    [Fact] // engorde sigue en 100 porque su columna no se puede ampliar (vista de Power BI encima)
-    public void MaxLongitudEngorde_SigueEn100()
+    [Fact] // un solo tope para todas las tablas de seguimiento: levante y engorde quedaron alineadas
+    public void MaxLongitud_EsUnicoParaLevanteYEngorde()
     {
-        Assert.Equal(100, TipoAlimentoCalculos.MaxLongitudEngorde);
-    }
-
-    [Fact] // en engorde el mismo string del incidente SÍ se recorta — pero no revienta el guardado
-    public void Recortar_ConElTopeDeEngorde_RecortaSinRomper()
-    {
-        var resultado = TipoAlimentoCalculos.Recortar(TresAlimentosA374A, TipoAlimentoCalculos.MaxLongitudEngorde);
-
-        Assert.Equal(100, resultado!.Length);
-        Assert.Equal(TresAlimentosA374A[..100], resultado);
+        // Si alguna tabla volviera a quedar en 100, este contrato deja de valer y el 22001 reaparece:
+        // el recorte defensivo asume que TODAS las columnas tipo_alimento admiten MaxLongitud.
+        Assert.Equal(500, TipoAlimentoCalculos.MaxLongitud);
+        Assert.True(TipoAlimentoCalculos.MaxLongitud > 100,
+            "engorde se amplió junto con levante (migración AmpliarTipoAlimentoEngorde)");
     }
 }

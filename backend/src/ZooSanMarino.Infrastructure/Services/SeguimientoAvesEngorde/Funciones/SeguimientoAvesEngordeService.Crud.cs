@@ -144,7 +144,7 @@ public partial class SeguimientoAvesEngordeService
             ConsumoKgHembras = (decimal)consumoKgH,
             ConsumoKgMachos = dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null,
             // Recorte defensivo: la cadena viene concatenada desde el cliente (ver TipoAlimentoCalculos).
-            TipoAlimento = TipoAlimentoCalculos.Recortar(dto.TipoAlimento, TipoAlimentoCalculos.MaxLongitudEngorde),
+            TipoAlimento = TipoAlimentoCalculos.Recortar(dto.TipoAlimento),
             Observaciones = dto.Observaciones,
             Ciclo = dto.Ciclo,
             PesoPromHembras = dto.PesoPromH,
@@ -316,7 +316,7 @@ public partial class SeguimientoAvesEngordeService
         ent.ErrorSexajeMachos = dto.ErrorSexajeMachos;
         ent.ConsumoKgHembras = (decimal)consumoKgH;
         ent.ConsumoKgMachos = dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null;
-        ent.TipoAlimento = TipoAlimentoCalculos.Recortar(dto.TipoAlimento, TipoAlimentoCalculos.MaxLongitudEngorde);
+        ent.TipoAlimento = TipoAlimentoCalculos.Recortar(dto.TipoAlimento);
         ent.Observaciones = dto.Observaciones;
         ent.Ciclo = dto.Ciclo;
         ent.PesoPromHembras = dto.PesoPromH;

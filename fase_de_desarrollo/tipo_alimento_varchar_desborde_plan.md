@@ -113,7 +113,34 @@ colgadas de ella**.
 seguimiento_diario_levante.tipo_alimento    varchar(100) → varchar(500)
 ```
 
-### ⚠️ Alcance recortado durante la validación local — engorde queda FUERA
+### 2ª ronda — alcance AMPLIADO: engorde también queda en 500
+
+`20260806074016_AmpliarTipoAlimentoEngorde` completa el trabajo: amplía las 3 tablas de engorde
+recreando alrededor del `ALTER` **las 3 vistas de Power BI** que cuelgan de la columna
+(`vw_seguimiento_pollo_engorde`, `vw_indicadores_diarios_engorde`, `vw_liquidacion_ecuador_pollo_engorde`).
+
+De cada vista se captura antes de dropear: definición (`pg_get_viewdef`), dueño, GRANTs (regenerados
+desde `aclexplode`) y comments de vista y columnas; se dropean de la más dependiente a la más base, se
+amplían las columnas y se recrean en orden inverso restaurando todo. **No se renombran** — Power BI
+apunta a esos nombres.
+
+**No puede tumbar el deploy:** todo va dentro de un `BEGIN … EXCEPTION WHEN OTHERS`, que en plpgsql abre
+una subtransacción. Si algo falla se revierte solo ese bloque (las vistas quedan intactas) y la migración
+sigue con un `WARNING`. Eso ya se ejerció de verdad en la validación: la primera versión tenía
+`text || "char"` sin cast y el guard la degradó a WARNING dejando las 3 vistas idénticas, en vez de
+abortar el arranque.
+
+Con esto **el tope es uno solo** (`TipoAlimentoCalculos.MaxLongitud = 500`) para las 4 tablas de
+seguimiento, y desaparece la constante `MaxLongitudEngorde` de la 1ª ronda.
+
+**Verificación post-deploy:**
+```sql
+select table_name, character_maximum_length from information_schema.columns
+ where table_schema='public' and column_name='tipo_alimento' and table_name like 'seguimiento_diario%';
+select viewname from pg_views where schemaname='public' and viewname like 'vw_%engorde%';  -- deben ser 3
+```
+
+### Registro de la 1ª ronda — por qué engorde no entró de entrada
 
 La primera versión abarcaba también las tres tablas de engorde. **Al aplicarla en local falló**:
 

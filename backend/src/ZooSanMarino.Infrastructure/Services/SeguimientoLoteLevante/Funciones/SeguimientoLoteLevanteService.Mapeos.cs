@@ -161,11 +161,9 @@ public partial class SeguimientoLoteLevanteService
             ErrorSexajeMachos: dto.ErrorSexajeMachos,
             ConsumoKgHembras: (decimal)consumoKgHembras,
             ConsumoKgMachos: dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null,
-            // Red de seguridad: el cliente arma esta cadena concatenando los nombres de los alimentos
-            // del día, así que su largo depende del catálogo. Sin el recorte, un nombre largo de más
-            // aborta el INSERT entero con 22001 (incidente 2026-08-06, lote A374A). Se recorta SOLO al
-            // persistir: las búsquedas de nutrientes/gramaje de arriba siguen viendo la cadena completa.
-            TipoAlimento: TipoAlimentoCalculos.Recortar(dto.TipoAlimento),
+            // El recorte defensivo vive en SeguimientoDiarioService, el único escritor de la tabla
+            // unificada, para que cubra también a los otros llamadores. Ver TipoAlimentoCalculos.
+            TipoAlimento: dto.TipoAlimento,
             Observaciones: dto.Observaciones,
             Ciclo: dto.Ciclo,
             PesoPromHembras: dto.PesoPromH,
@@ -240,11 +238,9 @@ public partial class SeguimientoLoteLevanteService
             ErrorSexajeMachos: dto.ErrorSexajeMachos,
             ConsumoKgHembras: (decimal)consumoKgHembras,
             ConsumoKgMachos: dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null,
-            // Red de seguridad: el cliente arma esta cadena concatenando los nombres de los alimentos
-            // del día, así que su largo depende del catálogo. Sin el recorte, un nombre largo de más
-            // aborta el INSERT entero con 22001 (incidente 2026-08-06, lote A374A). Se recorta SOLO al
-            // persistir: las búsquedas de nutrientes/gramaje de arriba siguen viendo la cadena completa.
-            TipoAlimento: TipoAlimentoCalculos.Recortar(dto.TipoAlimento),
+            // El recorte defensivo vive en SeguimientoDiarioService, el único escritor de la tabla
+            // unificada, para que cubra también a los otros llamadores. Ver TipoAlimentoCalculos.
+            TipoAlimento: dto.TipoAlimento,
             Observaciones: dto.Observaciones,
             Ciclo: dto.Ciclo,
             PesoPromHembras: dto.PesoPromH,

@@ -20,14 +20,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
     /// ampliada en su momento por este mismo motivo. <c>seguimiento_diario_produccion.tipo_alimento</c>
     /// ya es <c>text</c> y por eso producción nunca estuvo afectada.</para>
     ///
-    /// <para><b>Por qué NO se amplían las tablas de engorde</b> (que también están en 100): la vista de
-    /// Power BI <c>vw_seguimiento_pollo_engorde</c> depende de
-    /// <c>seguimiento_diario_aves_engorde.tipo_alimento</c> y Postgres rechaza el ALTER con
-    /// <c>0A000 cannot alter type of a column used by a view or rule</c> — verificado al aplicar la
-    /// primera versión de esta migración en local. Ampliarlas exigiría dropear y recrear esa vista dentro
-    /// de una migración que se aplica sola en cada deploy, con riesgo de perder sus permisos sin que nadie
-    /// lo note. Engorde no es el módulo del incidente y ya quedó cubierto por el recorte de
-    /// <c>TipoAlimentoCalculos.MaxLongitudEngorde</c>: el texto se acorta, pero el guardado no se cae.</para>
+    /// <para>Las tablas de ENGORDE, que tenían el mismo problema, se amplían en la migración siguiente
+    /// (<c>AmpliarTipoAlimentoEngorde</c>): no entran acá porque de su <c>tipo_alimento</c> cuelgan las 3
+    /// vistas de Power BI y Postgres rechaza el ALTER con <c>0A000 cannot alter type of a column used by
+    /// a view or rule</c> — hay que capturarlas, dropearlas y recrearlas alrededor del cambio.</para>
     ///
     /// <para><b>DDL escrito a mano</b> porque el <c>AlterColumn</c> de EF no es idempotente. El bloque de
     /// abajo omite la columna si no existe o si ya está ampliada, y <b>omite con WARNING</b> —en vez de

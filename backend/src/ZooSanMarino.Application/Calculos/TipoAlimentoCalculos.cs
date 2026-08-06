@@ -23,24 +23,12 @@ namespace ZooSanMarino.Application.Calculos;
 public static class TipoAlimentoCalculos
 {
     /// <summary>
-    /// Largo de <c>seguimiento_diario_levante.tipo_alimento</c>. Debe coincidir con el
-    /// <c>HasMaxLength</c> de <c>SeguimientoDiarioConfiguration</c> y con el DDL de la migración
-    /// <c>AmpliarTipoAlimentoSeguimientos</c>.
+    /// Largo de <c>tipo_alimento</c> en TODAS las tablas de seguimiento diario (levante y engorde).
+    /// Debe coincidir con el <c>HasMaxLength</c> de sus configurations y con el DDL de las migraciones
+    /// <c>AmpliarTipoAlimentoSeguimientos</c> (levante) y <c>AmpliarTipoAlimentoEngorde</c> (engorde,
+    /// que además recrea las 3 vistas de Power BI que cuelgan de la columna).
     /// </summary>
     public const int MaxLongitud = 500;
-
-    /// <summary>
-    /// Largo de <c>tipo_alimento</c> en las tablas de seguimiento de ENGORDE, que siguen en 100.
-    ///
-    /// <para><b>Por qué no se ampliaron junto con levante.</b> La vista de Power BI
-    /// <c>vw_seguimiento_pollo_engorde</c> depende de <c>seguimiento_diario_aves_engorde.tipo_alimento</c>,
-    /// y PostgreSQL rechaza el <c>ALTER COLUMN … TYPE</c> con <c>0A000 cannot alter type of a column used
-    /// by a view or rule</c>. Ampliarla exigiría dropear y recrear esa vista dentro de una migración que
-    /// se aplica sola en cada deploy, con riesgo de perder sus permisos sin que nadie lo note. Engorde no
-    /// es el módulo del incidente, así que acá alcanza con el recorte: el texto se acorta, pero el
-    /// guardado nunca vuelve a caerse con 22001.</para>
-    /// </summary>
-    public const int MaxLongitudEngorde = 100;
 
     /// <summary>
     /// Devuelve <paramref name="valor"/> recortado a <paramref name="max"/> caracteres.

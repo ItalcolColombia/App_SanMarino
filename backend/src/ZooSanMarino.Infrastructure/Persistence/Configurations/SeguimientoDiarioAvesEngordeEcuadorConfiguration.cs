@@ -24,8 +24,8 @@ public class SeguimientoDiarioAvesEngordeEcuadorConfiguration : IEntityTypeConfi
         b.Property(x => x.ErrorSexajeMachos).HasColumnName("error_sexaje_machos");
         b.Property(x => x.ConsumoKgHembras).HasColumnName("consumo_kg_hembras").HasPrecision(12, 3);
         b.Property(x => x.ConsumoKgMachos).HasColumnName("consumo_kg_machos").HasPrecision(12, 3);
-        // Sigue en 100, igual que la tabla hermana de engorde (ver TipoAlimentoCalculos.MaxLongitudEngorde).
-        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(TipoAlimentoCalculos.MaxLongitudEngorde);
+        // 500, igual que la tabla hermana de engorde (ver TipoAlimentoCalculos).
+        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(TipoAlimentoCalculos.MaxLongitud);
         b.Property(x => x.Observaciones).HasColumnName("observaciones");
         b.Property(x => x.Ciclo).HasColumnName("ciclo").HasMaxLength(50);
 
