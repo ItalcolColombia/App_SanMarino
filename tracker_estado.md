@@ -760,20 +760,59 @@ lote recibe aves (se marcarían como sobreventa). Detalle en el plan.
       - Panel de edades: fila «Propias» 673 H/570 M **edad 64 días (sem 10)** + fila «Recibidas» 100 H/40 M **edad 50 días (sem 8)** ⇒ dos edades en el mismo lote
       - Techo de venta: `encasetadasH` **13.640 → 13.740** y `M` **15.051 → 15.091**, `exceso = 0`, estado OK
       - Eliminado ⇒ cohorte **anulada** (`deleted_at`, no borrada), maestros restaurados y techo de vuelta a **13.640/15.051**
-- [ ] V4 ⛔ **Smoke postura `MOV-*` BLOQUEADO por un bug PREEXISTENTE** (ver abajo) — el código de la cohorte está escrito y compila, pero esa vía nunca llega a ejecutarse
+- [x] V4 ✅ **Smoke postura `MOV-*` COMPLETO** tras desbloquear la vía (ver el bloque siguiente del tracker)
 - [x] V5 Regresión: un movimiento sin lote destino no crea cohorte (guardas explícitas) y sin cohortes el techo devuelve el `Inicio` idéntico (test dedicado)
 - [x] V6 BD local restaurada al snapshot exacto (`movimiento_aves` max id 18, `movimiento_pollo_engorde` max id 1806, 0 cohortes) · servidores detenidos · commit sin footer de atribución
 
-### ⛔ Bug PREEXISTENTE que bloquea el camino `MOV-*` (ajeno a este cambio)
+### ✅ RESUELTO — el bug que bloqueaba el camino `MOV-*`
 
-`inventario_aves.lote_id` es **`character varying`** en la BD (dump de producción) pero
-`InventarioAves.LoteId` es **`int`**. Toda consulta que los compare muere con
-`42883: operator does not exist: character varying = integer`.
+`inventario_aves.lote_id` e `historial_inventario.lote_id` eran **`character varying`** en la BD mientras
+las entidades declaran **`int`**. Toda consulta que los comparara moría con
+`42883: operator does not exist: character varying = integer`, y como `ProcesarMovimientoAsync` guarda
+`Estado = "Completado"` ANTES de tocar el inventario y `CreateAsync` sólo hace `LogError`, **el movimiento
+quedaba marcado como completado sin haber movido una sola ave**.
 
-Consecuencia: `ProcesarMovimientoAsync` revienta en `ActualizarInventarioPorMovimientoAsync`, que corre
-**antes** de todo lo demás. Como `movimiento.Procesar()` ya guardó `Estado = "Completado"` y `CreateAsync`
-sólo hace `LogError` del fallo, **el movimiento queda marcado como Completado sin haber movido una sola
-ave**: verificado en el smoke — maestros intactos, sin fila diaria, sin histórico, sin inventario tocado.
+Corregido con el OK del usuario en la migración `20260806050306_AlinearLoteIdInventarioAvesAInteger`
+(ver el bloque de tracker siguiente).
 
-Por la regla «el código manda» de `CLAUDE.md` el arreglo sería alinear la columna a `integer`, pero es
-**DDL sobre una tabla de producción** ⇒ requiere OK explícito. No se tocó.
+---
+
+# Tracker — Alinear `lote_id` de inventario a `integer` (desbloquea el traslado `MOV-*`)
+
+**Plan:** [`fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md`](fase_de_desarrollo/cohortes_edades_lote_receptor_plan.md) (§5)
+**Fecha:** 2026-08-06 · **Pedido:** «realizá la corrección, aplicá siempre migraciones y validá que esté funcionando correctamente»
+
+`inventario_aves.lote_id` e `historial_inventario.lote_id` eran `character varying` con entidades que
+declaran `int`. Por la regla «el código manda» de `CLAUDE.md` gana el código (`lotes.lote_id` ya es
+`integer`), así que se alinean las dos columnas a `integer`.
+
+## Auditoría previa al DDL
+- [x] A1 Tipos reales: `inventario_aves.lote_id` y `historial_inventario.lote_id` = `character varying`; `lotes.lote_id` = `integer`
+- [x] A2 Datos: **ambas tablas VACÍAS** en el dump de producción ⇒ conversión sin riesgo de pérdida
+- [x] A3 Dependencias: **sin FK**, **sin vistas**; único índice sobre la columna (`ix_*_lote_id`) que Postgres reconstruye solo
+- [x] A4 Barrido de otras tablas con `lote_id varchar`: `seguimiento_diario_levante` es **correcta** (su entidad `SeguimientoDiario` usa `string`); `lote_galpones` / `lote_reproductoras` / `lote_seguimientos` / `produccion_lotes` / `traslado_huevos` también (entidades `string`). Solo estas dos estaban desalineadas
+
+## Migración
+- [x] M1 `20260806050306_AlinearLoteIdInventarioAvesAInteger` — EF la generó vacía (el modelo ya cree `int`; el desvío era solo de la BD) ⇒ DDL escrito a mano, `ModelSnapshot` sin tocar
+- [x] M2 **Idempotente**: sale sin hacer nada si la columna no existe o ya es `integer` (probado: segunda pasada → `NOTICE ... sale sin hacer nada`)
+- [x] M3 **Defensiva**: antes de convertir cuenta filas nulas/vacías/no numéricas y aborta con mensaje explícito en vez de romper con un cast críptico o descartar datos en silencio
+- [x] M4 Guard probado con dato malo en `BEGIN/ROLLBACK`: `ERROR: No se puede alinear public.inventario_aves.lote_id a integer: 1 fila(s)...`
+- [x] M5 `Down()` inverso e idempotente
+- [x] M6 Aplicada: las 3 columnas en `integer`, índices reconstruidos
+
+## Validación funcional — camino `MOV-*` de postura
+- [x] V1 Primer intento con los lotes 115/116: el 42883 **desapareció** (`inventario_aves` ya se escribe) pero las aves no se movieron ⇒ **no era otro bug**: esos lotes están en semana ~42 (Producción por edad) y solo tienen espejo de Levante, así que ambos caminos de descuento salen por sus guardas. Dato de prueba inadecuado
+- [x] V2 Se crearon 2 lotes de validación en LA ESMERALDA realmente en levante: **130** (encaset 07-jun, semana 9, G0319) y **131** (encaset 07-jul, semana 5, G0320)
+- [x] V3 Traslado 400 H + 50 M de 130 → 131 por el módulo «Movimientos de Aves»:
+      - **Aves movidas**: 130 `5000/500 → 4600/450` · 131 `3000/300 → 3400/350`
+      - **Filas diarias**: SALIDA en el origen, INGRESO en el destino
+      - **Cohorte creada**: receptor 131, origen 130, procedencia congelada **LA ESMERALDA · 591408 · G0319**, `fecha_encaset_cohorte = 07-jun` (la del **ORIGEN**, no la del receptor 07-jul)
+      - **Panel de edades**: «Propias» 3.000 H/300 M **edad 30 días (sem 5)** + «Recibidas» 400 H/50 M **edad 60 días (sem 9)** ⇒ dos edades conviviendo
+      - **Cuadre**: propias 3.000 + recibidas 400 = **3.400 = saldo actual** ✔
+- [x] V4 Reversión por **Cancelar**: cohorte **anulada** (`deleted_at`, no borrada) y aves devueltas exactas (130 `5000/500`, 131 `3000/300`)
+
+## Cierre
+- [x] C1 `dotnet build` **0/0** · `dotnet test` **1622 verdes**
+- [x] C2 `dotnet ef database update` ⇒ *«already up to date»* · `has-pending-model-changes` ⇒ *«No changes»* (el DDL a mano no ensució el snapshot)
+- [x] C3 BD restaurada al snapshot exacto: `movimiento_aves` max id **18**, `lotes` max **129**, cohortes **0**, `inventario_aves` **0**, `historial_inventario` **0**, lotes 115/116 intactos
+- [x] C4 Sin procesos huérfanos · commit sin footer de atribución
