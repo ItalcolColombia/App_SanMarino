@@ -917,3 +917,40 @@ concatena los nombres de los alimentos en `tipo_alimento` (`varchar(100)`) y el 
 - [x] V6 Smoke S6 — 600 chars → recorte a 500, sin 500 HTTP
 - [x] V7 BD local restaurada al snapshot exacto + sin procesos huérfanos
 - [x] V8 Commit sin footer de atribución
+
+---
+
+# Tracker — E2E del lote S-369: alta, carga de levante y validación de los reportes
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «validá la información a cargar, registrá el lote base y el lote,
+cargá el levante con la guía AP 2026, y que los reportes de levante y el semanal cuadren con el Excel»
+
+Backend local propio en `:5499` (Development, BD `sanmarinoapplocal:5433`), JWT + `X-Secret-Up` minteados.
+Backup previo en `snapshot_pre_S369.dump`.
+
+## Alta y carga
+- [x] A1 `lote_postura_base` **S-369** (id 30) + lotes **S-369A** (135, encaset 30-ago, 10.167 H / 1.472 M) y **S-369B** (136, encaset 05-sep, 10.291 H / 1.521 M), granja 44 / núcleo 883195 / galpón G0443, raza `AP`, año tabla `2026`
+- [x] A2 **Validar** (dry-run): 0 errores; los 3 avisos de saldo proyectado de alimento coinciden al gramo con lo calculado antes de importar
+- [x] A3 **Importar**: A 174/174 y B 168/168 filas, 0 errores
+- [x] A4 Saldos: **9.484 + 9.534 = 19.018 H** y **966 + 991 = 1.957 M** = arranque exacto del informe de producción
+- [x] A5 Inventario: 37 ingresos (257.900 kg) y 553 consumos (247.269,6 kg) a nivel **granja**; saldo final 10.630,40 kg en 3 ítems — idéntico a lo proyectado
+- [x] A6 Guía genética: `vw_guia_genetica_por_lote_postura` resuelve **AP / 2026**, semanas 1-25, con los MISMOS valores que las columnas «Tabla» del Excel (21/26/30/34/35/37/39/42 g/ave; 147/329/539/778/1.024/1.284 acum; pesos 145/260/380/490/590/680)
+
+## Validación de reportes
+- [x] R1 **Reporte diario** vs archivo cargado: **0 discrepancias** en 174 días (mortalidad, selección, error de sexaje y consumo por sexo)
+- [x] R2 **Reporte semanal** vs agregación propia de los mismos datos: **0 diferencias** en 25 semanas ⇒ la agregación semanal del sistema es exacta
+- [x] R3 **`/api/ReporteTecnicoSemanal/levante` (el de Sanmarino) vs `Registro Semanal general 369AB`: 24 de 25 semanas IDÉNTICAS** — saldo, mortalidad, selección, error de sexaje, consumo kg, g/ave/día, peso corporal y uniformidad, al decimal. La semana 25 sale parcial **a propósito**: el corte de levante es el 19-feb y los 7 días restantes pertenecen al informe de producción
+- [x] R4 Totales del ciclo: selección **157/157** y error de sexaje **614/614** exactos; mortalidad 669 vs 676 e igual con el consumo (212.906,2 vs 221.874,2 kg) — la diferencia es **exactamente** la de esos 7 días post-corte
+
+## Hallazgos (defectos reales, NO corregidos: requieren confirmación)
+- [x] H1 🔴 **Un lote histórico nace como «Producción» y desaparece de los reportes de levante.** `LoteService.cs:340` deriva `fase = semanasDesdeEncaset >= 26 ? "Produccion" : "Levante"`, así que cualquier lote con encaset de más de 26 semanas nace en Producción; el trigger lo copia a `lote_postura_levante.etapa/estado`. `ReporteTecnicoService.cs:2557` filtra `lpl.Etapa == "Levante"` y `ReporteTecnicoSemanalService.Levante.cs:25` filtra `l.Fase != "Produccion"` ⇒ **los dos reportes salen vacíos**. La carga masiva sí lo acepta (su elegibilidad solo pide un LPL vivo), así que el dato entra y el reporte no lo ve. Se corrigió a mano en local para poder validar
+- [x] H2 🔴 **Tocar `lotes` resetea las aves vivas.** `trg_lotes_sync_lote_postura_levante` hace, en su rama UPDATE, `aves_h_actual = NEW.hembras_l` / `aves_m_actual = NEW.machos_l` sin condición: editar cualquier campo del lote (técnico, regional, fase…) devuelve el saldo al encasetamiento. Acá habría borrado el descuento de las 1.440 hembras y 1.036 machos
+- [x] H3 🔴 **`ReporteTecnico/levante/obtener` no descuenta el error de sexaje del saldo.** `ReporteTecnicoService.cs:2916` `hembraActual = avesHInicialesTotal - acMortH - acSelH` (y el diario en `:2750` `saldoH -= mortH + selH`) — falta `acErrH`, que sí se calcula dos líneas más abajo para `retAcH`. Efecto medido: el reporte cierra en **19.632** hembras contra las **19.018** reales del maestro y del Excel (614 aves, 3,2 %), y arrastra el g/ave/día (`:2944` divide por ese saldo): semana 24 **109,81 vs 113,35** g/ave/día. El reporte semanal de Sanmarino sí lo descuenta bien
+- [x] H4 🟠 **Una `Salida` con contraparte bloquea el `Ingreso` del lote destino.** La Salida escribe `lote_destino_id = <B>` y la idempotencia del Ingreso busca «un Traslado/Venta del mismo día, mismas cantidades, con este lote como destino» ⇒ lo toma por duplicado y lo omite **sin acreditar las aves**. Medido: B cerraba en **795** machos en vez de 991. En los archivos se modela el débito como `Venta` (sin destino) y el crédito como `Ingreso`
+- [x] H5 🟡 El informe fuente tiene un desvío propio de **5 huevos** el 2026-06-30 (col «Producción Huevos» 14.038 vs su clasificación 14.043)
+
+## Cierre
+- [x] C1 Backend detenido, puerto 5499 libre, **0 procesos dotnet** huérfanos
+- [x] C2 Estado final en local: base **S-369** (30) con **S-369A** (135) y **S-369B** (136) cargados y visibles en los reportes; granja 44 con 10.630,40 kg de saldo en 3 ítems
+- [x] C3 Nada preexistente fue tocado: las 588 filas de seguimiento previas quedaron con 0 modificaciones
