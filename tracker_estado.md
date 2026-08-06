@@ -1271,3 +1271,119 @@ distintas; al unirlos el consolidado debe cuadrar. Validá en reportes y descarg
 - [x] C11 `dotnet build` **0 errores** · `dotnet test` **1.715 verdes**
 - [ ] C12 Pendiente ajeno: `A374A` y `LOTE 235A` tienen **saldo de hembras negativo**, lo que deja
       sin `part` a las semanas donde son el único lote. Preexistente, fuera del alcance de esta tarea
+
+---
+
+# Tracker — Tickets como CASOS tipo Jira: tareas, tablero, tiempos y solicitante delegado
+
+**Plan:** [`fase_de_desarrollo/18_tickets_jira_casos_tareas_tablero_plan.md`](fase_de_desarrollo/18_tickets_jira_casos_tareas_tablero_plan.md)
+**Fecha:** 2026-08-06
+
+Pedido: (1) poder indicar de qué usuario del sistema viene una solicitud; (2) módulo tipo Jira sobre
+los tickets — casos con tareas/historias, tablero con drag & drop, tiempos y fases de desarrollo,
+solo para `tickets.admin`; (3) *Mis solicitudes* profesional con línea de tiempo por caso.
+Decisiones del usuario: fases = **ampliar estados del caso Y tablero de tareas**; "a nombre de" =
+**solo el admin global**; entrega = **todo de una**.
+
+## BD (1 migración EF idempotente)
+- [ ] B1 `tickets`: `solicitante_user_guid`, `solicitante_user_id`, `prioridad`, `orden_tablero`, `horas_estimadas`, `fecha_limite`, `fecha_inicio_plan`, `fecha_fin_plan`
+- [ ] B2 `ticket_notas.tipo_evento` (NULL = comentario humano ⇒ notas existentes intactas)
+- [ ] B3 Tabla `ticket_tareas` + `ticket_tiempos` + índices (`IF NOT EXISTS`)
+- [ ] B4 Seed de menú `tickets.tablero` y `tickets.roadmap` gated por `tickets.admin` (por `route`, no por id)
+
+## Backend
+- [ ] D1 `TicketEstados`: + `EN_DOCUMENTACION` / `EN_REVISION` y transiciones ampliadas sin quitar ninguna previa
+- [ ] D2 `TicketPrioridades` + entidades `TicketTarea` / `TicketTiempo` + configurations + DbSets
+- [ ] D3 `Ticket`: campos de gestión y solicitante delegado
+- [ ] A1 Cálculo puro: `TicketMetricasCalculos`, `TicketTimelineCalculos`, `TicketTareaCalculos`
+- [ ] A2 DTOs nuevos + extensión compatible de los existentes (parámetros al final con default)
+- [ ] I1 `TicketTareaService` (partial + `Funciones/`) + DI
+- [ ] I2 `TicketService`: solicitante delegado (create, visibilidad, `EsCreador`, correos), gestión del caso (prioridad/planificación/asignado/mover), tablero, roadmap, timeline, métricas
+- [ ] C1 `TicketTareasController` + endpoints nuevos en `TicketsController` (ninguna ruta con `admin` — WAF)
+
+## Frontend
+- [ ] F1 Modelos + servicios (tareas, tiempos, tablero, timeline)
+- [ ] F2 `pages/tablero` — kanban CDK con drag & drop, filtros y tarjeta rica
+- [ ] F3 `pages/roadmap` — timeline/gantt tipo el screenshot de Jira
+- [ ] F4 Componentes: `ticket-timeline`, `prioridad-badge`, `sla-chip`, `tarea-card`, `tarea-modal`, `worklog-panel`
+- [ ] F5 Rediseño `mis-tickets` (tarjetas pro + línea de tiempo + resumen por estado)
+- [ ] F6 Rediseño `ticket-detalle` (layout Jira: principal + sidebar de detalles)
+- [ ] F7 `ticket-create`: selector de solicitante solo con `tickets.admin`
+- [ ] F8 Rutas + menú + gating por permiso
+
+## Tests y validación
+- [ ] T1 xUnit: no-regresión de transiciones + nuevas fases
+- [ ] T2 xUnit: métricas/SLA, timeline, reordenamiento kanban, código de tarea
+- [ ] V1 `dotnet build` 0 errores · `dotnet test` verde
+- [ ] V2 `dotnet ef database update` en la BD local (:5433) sin error
+- [ ] V3 `cd frontend && yarn build` 0 errores
+- [ ] V4 Smoke: crear a nombre de otro usuario, caso viejo abre bien, drag & drop persiste, worklog suma
+- [ ] V5 Sin procesos huérfanos + commit acotado
+
+---
+
+## Base de aves de los lotes poblados por TRASLADO (saldos negativos y saldos al doble)
+Plan: este bloque. Motivo: el usuario aclara que **un lote sin aves encasetadas es legítimo** —hay
+lotes que reciben aves de otros lotes—, así que forzar `hembras_l > 0` sería incorrecto. El bug está
+en cómo el reporte resuelve la base de esos lotes.
+
+- [x] T1 Reproducido el mecanismo exacto contra la BD. El filtro `reg_ok` **descarta las filas de
+      puro traslado más allá de la semana 25** —que son justamente las que traen las aves— y el
+      fallback de base lee de `reg` (sin filtrar) **una sola fila** (`LIMIT 1`) sacando de ahí LOS
+      DOS SEXOS
+- [x] T2 🔴 **Defecto 1 — saldo NEGATIVO.** Lote 116 (A374A, Sanmarino) recibió 1.010 machos el
+      08-jun y 7.617 hembras el 11-jun, en filas distintas. El `LIMIT 1` tomó la de machos ⇒
+      `base_h = 0` ⇒ el reporte le restaba igual 122 de mortalidad y 90 de error de sexaje ⇒ **−212
+      durante 14 semanas**, mientras el maestro decía 7.405
+- [x] T3 🔴 **Defecto 2 — saldo AL DOBLE.** Cuando el traslado cae DENTRO de la ventana de 25
+      semanas, la fila la suma la acumulación *y además* se usa como base ⇒ las aves cuentan dos
+      veces. Lote 124: 5.100 hembras reportadas como **10.200**. Igual en 128 (29.475 vs 19.475) y
+      129 (9.000 vs 6.000)
+- [x] T4 El mismo fallback estaba replicado en **las tres** fns de levante:
+      `fn_resumen_semanal_ra_pesadas_levante`, `fn_reporte_semanal_levante_extras`,
+      `fn_indicadores_levante_postura`
+- [x] T5 Arreglo idéntico en las tres: la base por traslado pasa a ser la **SUMA POR SEXO** de los
+      ingresos de las filas que la ventana **descarta**. Sigue siendo `COALESCE`, **no** suma: un
+      lote con encaset propio conserva su número exacto y el fallback solo entra con encaset 0/NULL
+- [x] T6 **Gate multipaís** (las 3 versiones previas desplegadas en paralelo con sufijo `_V0` y
+      comparadas fila a fila, todas las empresas): cambian **únicamente los mismos 4 lotes** en las
+      3 fns; 0 filas de diferencia en todo el resto. S-369 (142/143) queda byte a byte idéntico
+- [x] T7 **Contraste contra el testigo independiente**: los 4 lotes pasan a coincidir EXACTO con
+      `lote_postura_levante.aves_h_actual/aves_m_actual` (116→7.405/738 · 124→4.870 · 128→19.385 ·
+      129→6.000). Antes ninguno coincidía
+- [x] T8 Migración `20260806211500_BaseAvesPorTrasladoEnLevante` con las 3 fns (data-only, Designer
+      clonado, ModelSnapshot intacto, `DROP FUNCTION IF EXISTS` + `CREATE OR REPLACE`)
+- [x] T9 `dotnet build` 0 errores · `dotnet test` **1.834 verdes** · migración aplicada en local
+- [x] T10 Reconstruir S-369 desde los 4 archivos (mi test del traslado dejó la BD local sucia: la
+      limpieza borró `movimiento_aves` y los contadores del maestro pero **no las columnas de
+      traslado de la fila diaria**, así que B quedó con `traslado_ingreso_machos = 392` = 196×2 y A
+      con la venta vieja del workaround Y la salida nueva a la vez). **No es un bug del código** —
+      lo confirma que la fila de A tiene 196 y no 392— pero había que rehacer el ciclo para validar
+      que los archivos producen el resultado correcto de punta a punta. **Rehecho desde cero**: A
+      queda con salida 196 y SIN la venta espuria, B con ingreso 196 (no 392), y B cierra en **991
+      machos** — el fix del traslado probado de punta a punta con el modelado correcto
+- [x] T11 Revalidación completa tras la reconstrucción: **665 días campo a campo, 0 diferencias** ·
+      consolidado levante **24/24** y producción **22/23** (los 5 huevos conocidos del informe) ·
+      semanal de levante **0 diferencias** · producción 168 y 161 días con 1.142.573 y 1.115.079
+      huevos, exactamente lo que predicen los archivos
+- [x] T12 **7 de 8 lotes de todas las empresas coinciden EXACTO con el maestro** y no queda ningún
+      saldo negativo salvo el del lote 123, que es dato genuinamente sobregirado (X1)
+
+### Lo que este bloque NO arregla (dos hallazgos separados, ambos previos y sin tocar)
+- [ ] X1 🔴 **El seguimiento diario acepta bajas mayores al saldo.** Caso probado: lote 123 (Demo)
+      tenía base 5.303, una salida de 5.100 el 06-jul y ~85 aves vivas; el **03-ago alguien cargó
+      500 muertes**. El reporte muestra −460 (es honesto) y el maestro lo tapa con el clamp
+      mostrando 0. El único control existente es REQ-011b
+      (`SeguimientoLoteLevanteService.Crud.cs:357`), que su propio doc-comment declara *«soft-check,
+      NO bloqueo duro»*: solo escribe `LogWarning`, va envuelto en un `try/catch` que se traga todo,
+      y compara `saldo == 0` exacto ⇒ con saldo negativo o con 5 aves y 100 de mortalidad **no
+      dispara**. Convertirlo en bloqueo rechaza escrituras que hoy pasan ⇒ decisión del usuario
+- [ ] X2 `fn_resumen_semanal_ra_pesadas_levante` **no resta las ventas de aves** (solo mort, sel,
+      error de sexaje y traslados). Con la BD ya limpia el desvío queda AISLADO y exacto: S-369B da
+      **1.281 machos** donde el maestro dice **991**, y la diferencia es **290 = las dos ventas**
+      (150 el 09-feb + 140 el 17-feb). Alcance medido: **un solo lote en toda la BD** tiene ventas
+      de aves en levante. Complicación: la fila diaria de levante solo guarda
+      `venta_aves_cantidad` (TOTAL, sin split por sexo) mientras el reporte lleva el saldo POR
+      SEXO ⇒ el arreglo limpio es replicar en levante lo que producción ya tiene
+      (`venta_aves_hembras/machos` + backfill idempotente desde `movimiento_aves`, migración
+      `VentaAvesEnFilaDiariaProduccion`) y restarlas en la fn

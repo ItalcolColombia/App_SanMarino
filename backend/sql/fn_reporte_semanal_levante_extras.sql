@@ -122,14 +122,27 @@ BEGIN
 
     IF NOT FOUND THEN RETURN; END IF;
 
-    SELECT COALESCE(sl.traslado_ingreso_hembras,0)::double precision,
-           COALESCE(sl.traslado_ingreso_machos,0)::double precision
+    -- Aves entradas por traslado en filas que el armado de _seg_sem_rx DESCARTA (puro traslado
+    -- > sem 25). Nadie las suma: la ventana las tira. Se rescatan como base cuando el lote no
+    -- trae encaset.
+    --
+    -- ⚠️ El predicado debe ser el MISMO que el WHERE NOT (...) de _seg_sem_rx más abajo. Si acá
+    --    entrara una fila que sí se procesa, sus aves contarían DOS veces (base + ingreso).
+    -- SUM por sexo, no una sola fila: los sexos pueden llegar en traslados de días distintos,
+    -- y con LIMIT 1 el sexo ausente de la fila más antigua quedaba con base 0 ⇒ saldo negativo.
+    SELECT COALESCE(SUM(COALESCE(sl.traslado_ingreso_hembras,0)),0)::double precision,
+           COALESCE(SUM(COALESCE(sl.traslado_ingreso_machos,0)),0)::double precision
       INTO v_first_ing_h, v_first_ing_m
       FROM seguimiento_diario_levante sl
      WHERE sl.tipo_seguimiento = 'levante' AND sl.lote_id = p_lote_id::text
-       AND (COALESCE(sl.traslado_ingreso_hembras,0) + COALESCE(sl.traslado_ingreso_machos,0)) > 0
-     ORDER BY sl.fecha ASC, sl.id ASC
-     LIMIT 1;
+       AND (floor(((( sl.fecha AT TIME ZONE 'America/Bogota')::date - v_enc_date) / 7.0))::int) + 1 > 25
+       AND COALESCE(sl.mortalidad_hembras,0) = 0 AND COALESCE(sl.mortalidad_machos,0) = 0
+       AND COALESCE(sl.sel_h,0) = 0 AND COALESCE(sl.sel_m,0) = 0
+       AND COALESCE(sl.error_sexaje_hembras,0) = 0 AND COALESCE(sl.error_sexaje_machos,0) = 0
+       AND COALESCE(sl.consumo_kg_hembras,0) = 0 AND COALESCE(sl.consumo_kg_machos,0) = 0
+       AND COALESCE(sl.peso_prom_hembras,0) = 0 AND COALESCE(sl.peso_prom_machos,0) = 0
+       AND (COALESCE(sl.traslado_salida_hembras,0) + COALESCE(sl.traslado_salida_machos,0)
+          + COALESCE(sl.traslado_ingreso_hembras,0) + COALESCE(sl.traslado_ingreso_machos,0)) > 0;
     v_first_ing_h := COALESCE(v_first_ing_h, 0);
     v_first_ing_m := COALESCE(v_first_ing_m, 0);
 

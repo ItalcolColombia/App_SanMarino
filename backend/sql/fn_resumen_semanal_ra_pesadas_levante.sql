@@ -149,14 +149,16 @@ reg AS (
 lote_ok AS (
     SELECT lb.*,
            g.min_reg,
-           -- base por sexo con el mismo fallback del Detalle
+           -- base por sexo con el mismo fallback del Detalle. Sigue siendo COALESCE, no suma:
+           -- un lote CON encaset conserva exactamente su número de siempre. El fallback solo
+           -- entra cuando el encaset es 0/NULL, que es el lote poblado únicamente por traslado.
            COALESCE(
                NULLIF(l.hembras_l, 0)::double precision,
-               NULLIF(fi.first_ing_h, 0),
+               NULLIF(fi.ing_desc_h, 0),
                0)                                    AS base_h,
            COALESCE(
                NULLIF(l.machos_l, 0)::double precision,
-               NULLIF(fi.first_ing_m, 0),
+               NULLIF(fi.ing_desc_m, 0),
                0)                                    AS base_m,
            COALESCE(tr.tuvo_traslado, false)         AS tuvo_traslado
       FROM lote_base lb
@@ -167,14 +169,29 @@ lote_ok AS (
               FROM reg r
              WHERE r.lote_id = lb.lote_id
       ) g ON true
+      -- Aves que entraron por traslado en filas que reg_ok DESCARTA (puro traslado > sem 25).
+      -- Esas aves no las suma nadie: la ventana las tira, así que si el lote no trae encaset
+      -- quedan fuera del saldo. Se rescatan acá como base.
+      --
+      -- ⚠️ El predicado tiene que ser el MISMO que el de reg_ok (más abajo). Si cambia uno,
+      --    cambia el otro: si acá entrara una fila que reg_ok SÍ cuenta, sus aves se sumarían
+      --    dos veces (una como base y otra como ingreso) y el saldo saldría inflado.
+      -- SUM por sexo, no una sola fila: los sexos pueden llegar en traslados de DÍAS DISTINTOS.
+      -- Con `LIMIT 1` se leían los dos sexos de la fila más antigua, así que el sexo que no
+      -- venía en esa fila quedaba con base 0 y el reporte lo mostraba NEGATIVO tras restarle
+      -- la mortalidad (caso real: machos el 08-jun y hembras el 11-jun ⇒ hembras en -212).
       LEFT JOIN LATERAL (
-            SELECT r.tras_ing_h::double precision AS first_ing_h,
-                   r.tras_ing_m::double precision AS first_ing_m
+            SELECT COALESCE(SUM(r.tras_ing_h), 0)::double precision AS ing_desc_h,
+                   COALESCE(SUM(r.tras_ing_m), 0)::double precision AS ing_desc_m
               FROM reg r
              WHERE r.lote_id = lb.lote_id
-               AND (r.tras_ing_h + r.tras_ing_m) > 0
-             ORDER BY r.reg_date ASC, r.id ASC
-             LIMIT 1
+               AND r.real_sem > 25
+               AND r.mort_h = 0 AND r.mort_m = 0
+               AND r.sel_h = 0  AND r.sel_m = 0
+               AND r.err_h = 0  AND r.err_m = 0
+               AND r.cons_kg_h = 0 AND r.cons_kg_m = 0
+               AND r.ph = 0 AND r.pm = 0
+               AND (r.tras_sal_h + r.tras_sal_m + r.tras_ing_h + r.tras_ing_m) > 0
       ) fi ON true
       LEFT JOIN LATERAL (
             SELECT true AS tuvo_traslado
