@@ -816,3 +816,51 @@ declaran `int`. Por la regla «el código manda» de `CLAUDE.md` gana el código
 - [x] C2 `dotnet ef database update` ⇒ *«already up to date»* · `has-pending-model-changes` ⇒ *«No changes»* (el DDL a mano no ensució el snapshot)
 - [x] C3 BD restaurada al snapshot exacto: `movimiento_aves` max id **18**, `lotes` max **129**, cohortes **0**, `inventario_aves` **0**, `historial_inventario` **0**, lotes 115/116 intactos
 - [x] C4 Sin procesos huérfanos · commit sin footer de atribución
+
+---
+
+# Tracker — Archivos de carga masiva del lote S-369AB (postura: levante + producción + alimento)
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «con estos archivos construir los archivos de migración que necesita
+la carga masiva» para el lote S-369 (regional Centro), en granja de pruebas hasta galpón de pruebas.
+
+## Lectura de las fuentes
+- [x] F1 `INFORME TECNICO LEVANTE S-369AB.xlsm` venía **truncado** (ZIP sin central directory) → reconstruido entrada por entrada; única pérdida `calcChain.xml` (caché de fórmulas, irrelevante)
+- [x] F2 El lote son DOS sublotes: **S-369A** encaset 2025-08-30 (10.167 H / 1.472 M) y **S-369B** encaset 2025-09-05 (10.291 H / 1.521 M) = 20.458 H / 2.993 M
+- [x] F3 Las hojas `… general 369AB` consolidan **por EDAD, no por fecha** (0/175 discrepancias por índice vs 172/175 por fecha) ⇒ el consolidado se arma sumando A+B **por calendario**
+- [x] F4 Conciliación hembras: `20.458 − 669 mort − 614 sexaje − 157 desc = 19.018` al 2026-02-19 = arranque exacto de producción, 0 días inexplicados
+- [x] F5 Conciliación machos: 4 saltos sin columna → A→B 196 (traslado interno, se anula), **150 el 09-feb**, **140 el 17-feb**, −20 el 23-feb (ya está en producción). Con los 290 retiros cierra en **1.957** = arranque de producción
+- [x] F6 Producción 2026-02-20→2026-07-30 (161 días); las 9 «Entradas (+)» son todas **negativas** = salidas de aves
+- [x] F7 `CONSUMOS S369.xlsx`: 7 bloques de alimento; el etiquetado H/M **no es fiable por bloque** (el consumo de hembras de PRODUCCION II está bajo la columna M) → regla de sexo por tipo de alimento, validada por magnitud g/ave
+- [x] F8 Nunca hay más de 2 tipos de alimento por sexo en un día (0/335) ⇒ entra en los 4 slots de la plantilla
+
+## Contrato del importador (leído del código)
+- [x] C1 Esquemas exactos de `SeguimientoLevante`, `SeguimientoProduccion`, hoja `Alimento`, `Movimientos Aves`, `Movimientos Huevos`
+- [x] C2 **Trampa**: una *Advertencia* dentro del bloque de la fila la descarta en silencio ⇒ con slots de alimento, `Consumo H/M (kg)` va VACÍO; con las 11 categorías, `Huevo Total`/`Incubable` van VACÍOS
+- [x] C3 Hoja `Huevos` **prohibida** (Sanmarino tiene `clasificacion_huevo_por_items = false` ⇒ error fail-closed)
+- [x] C4 `Movimientos Aves` tipo **Salida** exige contraparte existente ⇒ los retiros van como **Venta**
+- [x] C5 Hoja `Alimento`: `Origen` vacío (con `granja`/`bodega` el ingreso falla SIEMPRE) y ubicación vacía (stock a nivel granja en Sanmarino)
+- [x] C6 Gate de stock: rechazo total del archivo si el consumo supera `stock + entradas del archivo`
+
+## Estado de la BD local (solo lectura)
+- [x] B1 Granja de pruebas viva = `farms.id 44` «Pruebas Moises»; única ubicación `nucleo 883195` + `galpon G0443`
+- [x] B2 **No existe la raza «ROSS AP»** en Sanmarino → `raza = 'AP'`, `ano_tabla_genetica = 2026`
+- [x] B3 Regional «Centro» = `master_list_options.id 57`; la granja 44 apunta a `regional_id 27` (**huérfano**)
+- [x] B4 Granja 44 con **0 stock** de inventario ⇒ el alimento tiene que entrar por la hoja `Alimento`
+- [x] B5 Mapeo de los 7 alimentos al catálogo por **código** (hay 3 ítems con el nombre idéntico `PRODUCCION III REPRODUCTORA PESADA`)
+- [x] B6 No existe ningún lote `S-369`/`S369`: sin riesgo de duplicado
+
+## Generación de los archivos
+- [x] G1 `Carga_Masiva_Levante_S-369AB.xlsx` — Datos **174** filas (2025-08-30→2026-02-19) · Alimento **37** ingresos · Movimientos Aves **2** (los retiros de 150 y 140 machos, tipo Venta)
+- [x] G2 `Carga_Masiva_Produccion_S-369AB.xlsx` — Datos **161** filas (2026-02-20→2026-07-30) · Alimento **58** ingresos · Movimientos Aves **9** (las «Entradas (+)» negativas)
+- [x] G3 Verificación automática: **todos los chequeos OK**
+      - encabezados byte a byte iguales al esquema, en A1, sin duplicados; fechas únicas, ordenadas, ≥ encaset y ≤ hoy
+      - ninguna fila mezcla slots de alimento con `Consumo H/M (kg)` ni categorías con `Huevo Total` (las dos advertencias que descartan filas en silencio)
+      - hoja `Alimento`: `Origen` y ubicación vacías, `Movimiento`=Ingreso, clave de idempotencia única
+      - **aves**: levante `20.458 − 1.440 = 19.018 H` · `2.993 − 746 − 290 = 1.957 M` → producción `19.018 − 672 − 338 = 18.008 H` · `1.957 − 193 − 130 = 1.634 M`
+      - **huevos**: 2.213.857 totales / 2.032.069 incubables (= columna Apto del informe, exacto)
+      - **alimento**: consumo del archivo idéntico al informe día a día (dif 0,000 kg); ningún ítem negativo tras encadenar levante→producción
+      - hallazgo: el informe fuente tiene un desvío propio de **5 huevos** el 2026-06-30 (col «Producción Huevos» 14.038 vs su clasificación 14.043) — se cargó la clasificación
+- [x] G4 `LEEME_S-369AB.md` junto a los archivos: ficha de alta del lote (granja 44 / núcleo 883195 / galpón G0443, encaset 2025-08-30, 20.458 H + 2.993 M, **raza `AP` y no «ROSS AP»**, año 2026), los 4 pasos operativos y las 5 salvedades
+- [x] G5 Scripts reproducibles copiados a `…/lote carga masiva pruebas/scripts/` (`recover.py` repara el .xlsm truncado, `construir.py` genera, `verificar.py` valida)
