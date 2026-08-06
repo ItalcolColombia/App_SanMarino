@@ -39,7 +39,13 @@ public class SeguimientoProduccion : AuditableEntity
     public string TipoAlimento { get; set; } = null!;
     public string? Observaciones { get; set; }
     
-    public decimal PesoHuevo { get; set; }
+    /// <summary>
+    /// Peso promedio del huevo del día. NULLABLE, igual que la columna `peso_huevo` y que sus
+    /// hermanas `peso_h`, `peso_m` y `uniformidad`: un día sin pesaje no tiene peso. Estaba
+    /// declarada como `decimal` no anulable y eso hacía reventar el reporte técnico de producción
+    /// entero (`Column 'PesoHuevo' is null`) en cuanto un día llegaba sin pesar.
+    /// </summary>
+    public decimal? PesoHuevo { get; set; }
     public int Etapa { get; set; }
     
     // Campos de Pesaje Semanal (registro una vez por semana)

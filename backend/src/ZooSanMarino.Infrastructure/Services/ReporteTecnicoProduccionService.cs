@@ -71,7 +71,12 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             fechaFin,
             hembras,
             machos,
-            ct);
+            ct,
+            // La fuente canonica del seguimiento de produccion es seguimiento_diario_produccion.
+            // El otro camino busca filas de produccion dentro de seguimiento_diario_levante
+            // (tipo_seguimiento='produccion'), donde no existe ninguna: por eso este reporte
+            // salia vacio para todas las empresas.
+            usarProduccionDiaria: true);
 
         var datosSemanales = ConsolidarSemanales(datosDiarios, fechaInicioProd);
 
@@ -162,7 +167,12 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 request.FechaFin,
                 hembras,
                 machos,
-                ct);
+                ct,
+                // La fuente canonica del seguimiento de produccion es seguimiento_diario_produccion.
+                // El otro camino busca filas de produccion dentro de seguimiento_diario_levante
+                // (tipo_seguimiento='produccion'), donde no existe ninguna: por eso este reporte
+                // salia vacio para todas las empresas.
+                usarProduccionDiaria: true);
 
             todosDatosDiarios.AddRange(datosSublote);
         }
@@ -1479,7 +1489,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 HuevoOtro    = s.HuevoOtro,
                 PesoH        = s.PesoH,
                 PesoM        = s.PesoM,
-                PesoHuevo    = s.PesoHuevo
+                PesoHuevo    = s.PesoHuevo ?? 0
             })
             .ToListAsync(ct);
     }
@@ -1607,7 +1617,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 ConsKgM      = (double)s.ConsKgM,
                 HuevoTot     = s.HuevoTot,
                 HuevoInc     = s.HuevoInc,
-                PesoHuevo    = (double)s.PesoHuevo,
+                PesoHuevo    = (double)(s.PesoHuevo ?? 0),
                 PesoH        = s.PesoH     != null ? (double?)((double)s.PesoH.Value)        : null,
                 PesoM        = s.PesoM     != null ? (double?)((double)s.PesoM.Value)        : null,
                 Uniformidad  = s.Uniformidad != null ? (double?)((double)s.Uniformidad.Value) : null,

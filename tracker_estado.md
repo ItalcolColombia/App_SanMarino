@@ -1180,3 +1180,48 @@ tanto en la carga masiva como en los seguimientos diarios de producción».
       24-jun aparecía rotulado 30-jun, y por eso la carga se hizo por sublote
 - [x] V6 `VALIDACION_S-369.md` publicado junto a los archivos, con el flujo en orden, los 3 niveles
       de validación y las 2 desviaciones del fuente
+
+---
+
+# Tracker — Consolidado de sublotes y paridad de reportes por fase
+
+**Fecha:** 2026-08-06 · **Pedido:** «un lote padre puede tener varios sublotes con fechas de llegada
+distintas; al unirlos el consolidado debe cuadrar. Validá en reportes y descargas qué falta por fase».
+
+## El consolidado cuadra
+- [x] K1 **Consolidado = suma de los tabs**, celda por celda: 240 celdas en levante y 240 en
+      producción (10 campos × 24 semanas cada uno) · **0 diferencias**. La unión es por semana de
+      EDAD, no por fecha, que es como la hace el informe
+- [x] K2 Levante consolidado vs `Registro Semanal general`: **24/24** semanas × 8 métricas
+- [x] K3 Producción consolidado vs `SEMANAL GENERAL`: **22/23** — la única celda son los 5 huevos
+
+## Cuatro reportes de PRODUCCIÓN estaban caídos (los cuatro salieron al cargar un lote real)
+- [x] R1 🔴 `POST /obtener` (diario y semanal) daba **500** — `Column 'PesoHuevo' is null`. La entidad
+      declaraba `peso_huevo` no anulable y la columna sí lo es (sus hermanas `peso_h`, `peso_m`,
+      `uniformidad` siempre fueron anulables). Un día sin pesaje reventaba la consulta entera.
+      **Nunca había pasado porque ninguna carga anterior escribió un NULL ahí**: de 934 filas, los
+      únicos 3 nulos son de esta carga
+- [x] R2 🔴 `POST /obtener-tabs` daba **404** «Nullable object must have a value» por el mismo nulo
+      casteado a `double`
+- [x] R3 🔴 `GET /diario/{lppId}` y `GET /cuadro/{lppId}` devolvían **vacío para TODAS las empresas**:
+      leían de `seguimiento_diario_levante` filtrando `tipo_seguimiento='produccion'`, donde no hay
+      ni una fila (924 filas, todas de levante). La fuente canónica es `seguimiento_diario_produccion`
+- [x] R4 Arreglos: entidad `PesoHuevo` → `decimal?` (alineada a la columna y a sus hermanas) con
+      `?? 0` en los 5 consumidores que necesitan valor —convención que el código ya usaba con
+      `if (PesoHuevo > 0)`—; las 2 llamadas de `ObtenerDatosDiariosPorLPPAsync` apuntadas a la fuente
+      canónica; migración `AlinearPesoHuevoProduccionANullable` (DDL no-op donde ya es nullable, con
+      `Down` que rellena nulos con 0 antes de volver a NOT NULL)
+- [x] R5 Verificado después: `diario/{lppId}` **168 días**, `cuadro` **24 filas**, `obtener` diario y
+      semanal **200**, `obtener-tabs` **200** con 329 diarios por galpón y 47 semanales
+- [x] R6 Riesgo de regresión **nulo** en R3: la fuente anterior está vacía para todas las empresas,
+      así que solo pueden pasar de «vacío» a «con datos»
+- [x] R7 `dotnet build` **0/0** · `dotnet test` **1.705 verdes**
+
+## Lo que queda documentado como pendiente
+- [x] P1 **Producción no tiene diario consolidado** (`GET diario/consolidado`), levante sí. Es el
+      hueco de paridad más visible con un lote padre de varios sublotes
+- [x] P2 `clasificacion-huevo-comercio` responde vacío — lee de la tabla canónica, así que no es el
+      mismo problema; falta confirmar por qué filtra
+- [x] P3 La `curva` de levante devuelve 0 puntos (el `resumen` de levante sí trae datos)
+- [x] P4 `REPORTES_POR_FASE.md` publicado junto a los archivos, con el inventario endpoint por
+      endpoint, las descargas de cada fase y los 3 pendientes
