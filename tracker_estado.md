@@ -1093,3 +1093,51 @@ app estén alineados». Empresa **Demo excluida** a pedido: solo Agroavicola San
       - **NO corregido en este turno**: esa fn es una cadena de 3 niveles compartida con el módulo de
         Indicadores de todas las empresas y merece su propio cambio con el gate multipaís completo,
         igual que se hizo con `ReporteTecnicoService`. Pendiente de OK
+
+---
+
+# Tracker — Alinear el saldo de aves de PRODUCCIÓN (los dos caminos)
+
+**Fecha:** 2026-08-06 · **Pedido:** «realizá los dos y al final dejá todo alineado y codificado,
+tanto en la carga masiva como en los seguimientos diarios de producción».
+
+## Camino 1 · La venta deja su cantidad en la fila diaria
+- [x] 1a `SeguimientoProduccion` + configuración: `VentaAvesHembras`, `VentaAvesMachos`, `VentaAvesMotivo`.
+      Split por **sexo** (levante usa una sola columna sumada, que no sirve porque el saldo de
+      producción se lleva por sexo)
+- [x] 1b Migración `20260806092854_VentaAvesEnFilaDiariaProduccion`: columnas idempotentes
+      (`ADD COLUMN IF NOT EXISTS`) + **backfill** desde `movimiento_aves` que solo toca filas en cero
+- [x] 1c Los **dos** escritores la llenan: la carga masiva (`MigracionService.MovimientosAves`) y el
+      módulo de Movimientos de Aves (`MovimientoAvesService.SeguimientoDiario`). Antes los dos
+      escribían únicamente una nota de texto en `observaciones`
+- [x] 1d Backfill verificado: S-369A **114 H / 63 M** en 4 días y S-369B **224 H / 67 M** en 5 días,
+      con su motivo — exactamente las ventas de `movimiento_aves`
+
+## Camino 2 · La fn descuenta ventas, retiros, traslados y selección de machos
+- [x] 2a Migración `20260806093256_SaldoProduccionDescuentaVentasYTraslados`
+- [x] 2b `_seg` incorpora `sel_m`, `mov_venta_*`, `mov_retiro_*` y `mov_traslado_in/out_*` — todos ya
+      los exponía `fn_seguimiento_diario_produccion` (agrega `movimiento_aves` por día), así que no
+      hizo falta una dependencia nueva
+- [x] 2c El decremento pasa a `− mort − sel_h − venta − retiro − salidas + ingresos` para hembras y
+      `− mort − sel_m − venta − retiro − salidas + ingresos` para machos
+- [x] 2d 🔴 **Tercer hueco encontrado en el camino**: la fn **nunca leyó la selección de machos** —
+      ni para el saldo ni para la salida (`SeleccionMachos` del reporte estaba **fijo en 0** en
+      `ReporteTecnicoSemanalCalculos:410`). Eran otras **61** y **77** aves de más. Se agregó
+      `seleccion_machos` a la fn (DROP + CREATE, la firma cambia), al `IndicadorProduccionSemanalBdRow`
+      y al mapeo; el % de retiro de machos ahora incluye la selección, igual que el de hembras
+- [x] 2e `SaldoAvesLevanteCalculos.MovimientoDia` suma `Venta` y `Retiro` — sigue siendo la
+      especificación ejecutable de la fórmula, ahora para las dos fases
+
+## QA
+- [x] Q1 `dotnet build` **0/0** · `dotnet test` **1.697 verdes** (8 tests nuevos con los cierres
+      reales del S-369 y el número que devolvía el bug)
+- [x] Q2 **Gate multiempresa** sobre los 6 lotes de producción de la BD: **118 semanas CORREGIDAS,
+      17 sin cambio, 0 REGRESIONES**
+- [x] Q3 **Saldo de aves: coincide con el Excel en las 24 + 23 semanas** de los dos sublotes.
+      A cierra en **9.020 H / 810 M** y B en **8.952 H / 813 M** — antes daba 9.134/871 y 9.176/890
+- [x] Q4 Mortalidad, selección, consumo kg, huevos totales y huevos aptos: idénticos en todas las semanas
+- [x] Q5 Diferencia que **queda y es previa**: el `gr/ave/día` de 4 semanas difiere hasta 1,08 g
+      porque la fn divide por el **censo de inicio** de semana (`saldo + mort + sel`, marcado en el
+      código como «desviación preservada») y el Excel divide por el saldo de cierre. No lo toqué:
+      es un criterio de denominador anterior a este cambio, no una consecuencia suya
+- [x] Q6 Backend detenido, puerto libre

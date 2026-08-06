@@ -407,7 +407,7 @@ public static class ReporteTecnicoSemanalCalculos
                 RetiroAcumHembrasGuiaPct = f.RetiroAcHGuia,
 
                 MortalidadMachos = f.MortalidadMachos,
-                SeleccionMachos = 0,
+                SeleccionMachos = f.SeleccionMachos,
                 MortalidadMachosPct = f.PorcentajeMortalidadMachos,
                 MortalidadMachosGuiaPct = f.MortalidadGuiaMachos,
                 MortSelMachosAcumPct = Pct(cumMortSelM, baseM),

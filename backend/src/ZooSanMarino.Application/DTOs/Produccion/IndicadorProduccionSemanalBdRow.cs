@@ -25,6 +25,8 @@ public sealed class IndicadorProduccionSemanalBdRow
 
     public int SeleccionHembras { get; set; }
     public double PorcentajeSeleccionHembras { get; set; }
+    /// <summary>Selección de machos de la semana. La fn no la devolvía y el reporte la mostraba fija en 0.</summary>
+    public int SeleccionMachos { get; set; }
 
     public double ConsumoKgHembras { get; set; }
     public double ConsumoKgMachos { get; set; }

@@ -365,11 +365,19 @@ public partial class MovimientoAvesService
 
         if (movimiento.TipoMovimiento == "Venta")
         {
-            // Producción no tiene columnas de venta en la fila diaria: nota en la fila del día si
-            // existe (convención carga masiva). Sin fila, la fn genera el día movimiento-only con
-            // mov_venta_* desde movimiento_aves — no se crea una fila solo para la nota.
+            // La venta deja su CANTIDAD en la fila diaria (venta_aves_hembras/machos), no solo la
+            // nota: así la grilla diaria la muestra y cuadra con la carga masiva. Sin fila del día
+            // la fn diaria igual genera el día movimiento-only con mov_venta_* desde
+            // movimiento_aves — no se crea una fila solo para esto.
             var segVenta = await BuscarSeguimientoProduccionDelDiaAsync(loteIdInt, fechaMovimiento);
             if (segVenta is null) return;
+
+            segVenta.VentaAvesHembras += movimiento.CantidadHembras;
+            segVenta.VentaAvesMachos += movimiento.CantidadMachos;
+            if (!string.IsNullOrWhiteSpace(movimiento.MotivoMovimiento))
+                segVenta.VentaAvesMotivo = string.IsNullOrWhiteSpace(segVenta.VentaAvesMotivo)
+                    ? movimiento.MotivoMovimiento
+                    : $"{segVenta.VentaAvesMotivo} | {movimiento.MotivoMovimiento}";
 
             var ventaTxt = $"Venta de aves {movimiento.NumeroMovimiento}: {movimiento.CantidadHembras} H / {movimiento.CantidadMachos} M" +
                            (string.IsNullOrWhiteSpace(movimiento.MotivoMovimiento) ? "" : $" ({movimiento.MotivoMovimiento})");

@@ -137,3 +137,69 @@ public class SaldoAvesLevanteCalculosTests
         Assert.Equal(1440, RetiroAcumulado(new[] { new MovimientoDia(669, 157, 614) }));
     }
 }
+
+/// <summary>
+/// La VENTA de aves entra al saldo igual que una salida. En producción venía quedando fuera porque
+/// la venta solo dejaba una nota de texto en la fila diaria: el reporte cerraba por encima del real
+/// en exactamente el total vendido.
+/// </summary>
+public class SaldoAvesVentaCalculosTests
+{
+    [Fact]
+    public void BajasNetas_cuenta_la_venta_como_salida()
+    {
+        Assert.Equal(100, BajasNetas(new MovimientoDia(0, 0, 0, Venta: 100)));
+    }
+
+    [Fact]
+    public void BajasNetas_cuenta_el_retiro_como_salida()
+    {
+        Assert.Equal(7, BajasNetas(new MovimientoDia(0, 0, 0, Retiro: 7)));
+    }
+
+    [Fact]
+    public void BajasNetas_suma_todos_los_conceptos()
+    {
+        var m = new MovimientoDia(10, 5, 3, TrasladoSalida: 20, TrasladoIngreso: 8, Venta: 50, Retiro: 2);
+        Assert.Equal(10 + 5 + 3 + 20 + 50 + 2 - 8, BajasNetas(m));
+    }
+
+    [Fact]
+    public void SaldoFinal_produccion_S369A_cierra_en_9020()
+    {
+        // Informe MANGOS, hoja DIARIO A: arranca produccion con 9.484 hembras; en 168 dias hubo
+        // 312 muertas, 38 descartes y 114 vendidas. El informe cierra en 9.020.
+        Assert.Equal(9020, SaldoFinal(9484, new[] { new MovimientoDia(312, 38, 0, Venta: 114) }));
+        // Sin contar la venta —el bug— daba 9.134, que es lo que mostraba el reporte.
+        Assert.Equal(9134, SaldoFinal(9484, new[] { new MovimientoDia(312, 38, 0) }));
+    }
+
+    [Fact]
+    public void SaldoFinal_produccion_S369B_cierra_en_8952()
+    {
+        // DIARIO B: 9.534 iniciales, 309 muertas, 49 descartes, 224 vendidas.
+        Assert.Equal(8952, SaldoFinal(9534, new[] { new MovimientoDia(309, 49, 0, Venta: 224) }));
+        Assert.Equal(9176, SaldoFinal(9534, new[] { new MovimientoDia(309, 49, 0) }));
+    }
+
+    [Fact]
+    public void SaldoFinal_produccion_machos_de_los_dos_sublotes()
+    {
+        Assert.Equal(810, SaldoFinal(966, new[] { new MovimientoDia(32, 61, 0, Venta: 63) }));
+        Assert.Equal(813, SaldoFinal(991, new[] { new MovimientoDia(34, 77, 0, Venta: 67) }));
+    }
+
+    [Fact]
+    public void RetiroAcumulado_no_cuenta_la_venta()
+    {
+        // El % de retiro acumulado de los reportes es mortalidad+seleccion+sexaje; la venta se
+        // reporta en su propia columna y no debe inflarlo.
+        Assert.Equal(350, RetiroAcumulado(new[] { new MovimientoDia(312, 38, 0, Venta: 114) }));
+    }
+
+    [Fact]
+    public void Siguiente_una_venta_mayor_que_el_saldo_satura_en_cero()
+    {
+        Assert.Equal(0, Siguiente(50, new MovimientoDia(0, 0, 0, Venta: 200)));
+    }
+}

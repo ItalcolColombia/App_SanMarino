@@ -535,6 +535,18 @@ public partial class MigracionService
             lpp.AvesHActual = Math.Max(0, (lpp.AvesHActual ?? 0) - m.Hembras);
             lpp.AvesMActual = Math.Max(0, (lpp.AvesMActual ?? 0) - m.Machos);
 
+            // La venta deja su CANTIDAD en la fila diaria, no solo la nota. Antes solo escribía
+            // Observaciones, así que la grilla diaria y cualquier reporte que reconstruyera el
+            // saldo desde estas filas no la veían (el saldo de producción quedaba por encima del
+            // real en exactamente el total vendido). Espeja lo que levante ya hacía con
+            // venta_aves_cantidad, pero con el split por sexo que necesita el saldo de producción.
+            seg.VentaAvesHembras += m.Hembras;
+            seg.VentaAvesMachos += m.Machos;
+            if (!string.IsNullOrWhiteSpace(m.Motivo))
+                seg.VentaAvesMotivo = string.IsNullOrWhiteSpace(seg.VentaAvesMotivo)
+                    ? m.Motivo
+                    : $"{seg.VentaAvesMotivo} | {m.Motivo}";
+
             var ventaTxt = $"Venta de aves: {m.Hembras} H / {m.Machos} M" +
                            (string.IsNullOrWhiteSpace(m.Motivo) ? "" : $" ({m.Motivo})");
             seg.Observaciones = string.IsNullOrWhiteSpace(seg.Observaciones)

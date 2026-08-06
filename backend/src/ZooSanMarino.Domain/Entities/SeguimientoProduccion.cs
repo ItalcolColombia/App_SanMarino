@@ -91,6 +91,16 @@ public class SeguimientoProduccion : AuditableEntity
     public int? TrasladoLoteContraparteId { get; set; }
     public int? TrasladoGranjaContraparteId { get; set; }
 
+    // Venta de aves — splits H/M dedicados.
+    // Levante ya guardaba la venta en la fila diaria (venta_aves_cantidad); producción solo dejaba
+    // una nota en Observaciones, así que la venta era invisible para cualquier reporte que
+    // reconstruyera el saldo desde estas filas. Acá va con el split por sexo porque el saldo de
+    // producción se lleva por sexo. El dueño del número sigue siendo movimiento_aves: estas
+    // columnas son su espejo denormalizado para la grilla diaria y la carga masiva.
+    public int VentaAvesHembras { get; set; }
+    public int VentaAvesMachos { get; set; }
+    public string? VentaAvesMotivo { get; set; }
+
     // Traslado — legacy R3
     public int? TrasladoHembras { get; set; }
     public int? TrasladoMachos { get; set; }
