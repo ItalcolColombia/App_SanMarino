@@ -6,6 +6,13 @@ public class UpdateLoteDto
     public int LoteId { get; set; } // Requerido para actualización - secuencia numérica
     public string LoteNombre { get; set; } = null!;
     public int?   LotePosturaBaseId { get; set; } // ← NUEVO: base lot opcional
+
+    /// <summary>
+    /// Fase del lote: <c>Levante</c> o <c>Produccion</c>. OPCIONAL — vacía conserva la fase actual
+    /// (la edición nunca la recalculó). Sirve para corregir un lote histórico que nació en
+    /// Producción por la derivación por edad y que los reportes de levante no muestran.
+    /// </summary>
+    public string? Fase { get; set; }
     public int    GranjaId { get; set; }
     public string? NucleoId { get; set; }      // ← string? (coincide con Nucleo.NucleoId)
     public string? GalponId { get; set; }      // ← string? (coincide con Galpon.GalponId)

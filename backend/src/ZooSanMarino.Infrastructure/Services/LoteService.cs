@@ -334,10 +334,11 @@ namespace ZooSanMarino.Infrastructure.Services
                     throw new InvalidOperationException("Núcleo no existe en la granja (o no pertenece a la compañía).");
             }
 
-            // Opción B: Fase según semanas desde encaset: >= 26 → Producción, < 26 → Levante
+            // Fase: la que indique el DTO y, si no viene, la Opción B de siempre (>= 26 semanas
+            // desde el encaset → Producción). Sin `dto.Fase` el resultado es idéntico al anterior.
             var fechaEncasetUtc = dto.FechaEncaset?.ToUniversalTime();
             var semanasDesdeEncaset = CalcularSemanasDesdeEncaset(fechaEncasetUtc, DateTime.UtcNow);
-            var fase = semanasDesdeEncaset >= 26 ? "Produccion" : "Levante";
+            var fase = FaseLoteCalculos.Resolver(dto.Fase, semanasDesdeEncaset);
 
             // Sesión: usuario, empresa y país (desde storage/headers)
             var paisNombre = (string?)null;
@@ -636,6 +637,12 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.LoteErp = dto.LoteErp;  // ← NUEVO: Código ERP del lote
             ent.LotePadreId = dto.LotePadreId;  // ← NUEVO: ID del lote padre
             ent.LotePosturaBaseId = dto.LotePosturaBaseId;
+
+            // Fase: solo se toca si el DTO la trae. Vacía ⇒ se conserva la que ya tenía el lote
+            // (la edición nunca la recalculaba, y seguir sin recalcularla evita que editar el
+            // técnico de un lote de levante lo mande a producción al cruzar la semana 26).
+            if (FaseLoteCalculos.NormalizarFaseIndicada(dto.Fase) is string faseIndicada)
+                ent.Fase = faseIndicada;
 
             // Códigos ERP avícolas (pass-through)
             ent.CodigoCentroCosto = dto.CodigoCentroCosto;

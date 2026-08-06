@@ -954,3 +954,82 @@ Backup previo en `snapshot_pre_S369.dump`.
 - [x] C1 Backend detenido, puerto 5499 libre, **0 procesos dotnet** huérfanos
 - [x] C2 Estado final en local: base **S-369** (30) con **S-369A** (135) y **S-369B** (136) cargados y visibles en los reportes; granja 44 con 10.630,40 kg de saldo en 3 ítems
 - [x] C3 Nada preexistente fue tocado: las 588 filas de seguimiento previas quedaron con 0 modificaciones
+
+## 2ª ronda — alineación total (pedido: «realizá el cambio del alcance para dejar todo alineado y corregido»)
+
+- [x] A1 `AmpliarTipoAlimentoEngorde`: las 3 tablas de engorde a varchar(500) **recreando las 3 vistas de
+      Power BI** (captura definición + dueño + GRANTs vía `aclexplode` + comments; drop de la más
+      dependiente a la más base; recreación inversa restaurando todo). Sin renombrar: Power BI apunta ahí
+- [x] A2 Todo el bloque en `BEGIN … EXCEPTION WHEN OTHERS` (subtransacción) ⇒ **no puede tumbar el deploy**;
+      ejerció de verdad en la validación (`text || "char"` sin cast → degradó a WARNING con las 3 vistas
+      intactas, en vez de abortar el arranque). Corregido con `relkind::text`
+- [x] A3 Un solo tope: `TipoAlimentoCalculos.MaxLongitud = 500` para las 4 tablas; se elimina `MaxLongitudEngorde`
+- [x] A4 Red de seguridad CENTRALIZADA en `SeguimientoDiarioService` (los 3 puntos de escritura de la tabla
+      unificada: alta, edición y merge sobre traslado) ⇒ cubre también a `LoteSeguimientoService`, que
+      delega ahí y no estaba protegido. Se quita la duplicada de `SeguimientoLoteLevanteService.Mapeos`
+- [x] A5 Migración de la 1ª ronda quedó marcada como aplicada sin efecto (el guard la saltó) ⇒ se
+      des-marcó en local y se reaplicó, probando el camino real del deploy
+- [x] A6 `ZooSanMarinoContextModelSnapshot` realineado a mano: la migración de otra sesión lo regeneró
+      desde un modelo anterior al cambio y dejó engorde en 100 ⇒ `has-pending-model-changes` en verde
+- [x] A7 **Vistas verificadas idénticas** tras el ALTER: definición byte a byte, mismo dueño, mismas
+      columnas (35/57/65) y mismas filas (5.663 / 170 / 5.736)
+- [x] A8 Escritura real de 300 chars en `seguimiento_diario_aves_engorde` (BEGIN/ROLLBACK) → acepta
+- [x] A9 2ª pasada del `Up` = no-op · `dotnet build` 0/0 · `dotnet test` verde · smoke S1/S2/S6 repetido
+- [x] A10 BD restaurada (aves 7405/738, stock 588.5/9360/320, 144 segs del lote 116) · trabajo de la otra
+      sesión intacto · sin procesos huérfanos
+
+---
+
+# Tracker — Corrección de los 3 defectos del E2E S-369 (con gate multiempresa)
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «corregí los puntos con validación QA de cada uno, que no aparezcan
+errores, porque son cosas que pueden pasar entre empresas»
+
+## 1 · Un lote histórico nacía en «Producción» y desaparecía de los reportes de levante
+- [x] 1a `Application/Calculos/FaseLoteCalculos.cs`: la fase pasa a ser un dato **opcional** de entrada.
+      Con `Fase` vacía se conserva **byte a byte** la derivación anterior (≥ 26 semanas ⇒ Producción)
+- [x] 1b `CreateLoteDto.Fase` y `UpdateLoteDto.Fase` (nullable); `LoteService` delega en el cálculo.
+      En `UpdateAsync` la fase **solo** se toca si el DTO la trae — editar un lote nunca la recalcula
+- [x] 1c Fase inválida ⇒ `ArgumentException` ⇒ HTTP 400, sin crear nada
+- [x] 1d **18 tests** (`FaseLoteCalculosTests`): el corte en 26 semanas intacto, los 61 valores de
+      `Resolver(null, 0..60)` idénticos a `DerivarPorEdad`, normalización y rechazos
+
+## 2 · Editar un lote reseteaba las aves vivas
+- [x] 2a Migración `20260806074742_ArreglarTriggerSyncLotePosturaLevanteNoPisarAvesVivas`:
+      la rama UPDATE del trigger deja de hacer `aves_h_actual = NEW.hembras_l`
+- [x] 2b El saldo vivo ahora se corre por el **delta** del encasetamiento, con `GREATEST(0, …)`.
+      `aves_*_inicial` sigue espejando `hembras_l`/`machos_l`. La rama INSERT no cambia
+- [x] 2c Idempotente (`CREATE OR REPLACE`) y con `Down()` que restituye el comportamiento previo
+
+## 3 · El reporte técnico de levante no descontaba el error de sexaje (ni los traslados)
+- [x] 3a `Application/Calculos/SaldoAvesLevanteCalculos.cs`: especificación ejecutable de
+      `fn_reporte_semanal_levante_extras` — `saldo = inicial − mort − sel − error_sexaje − salidas + ingresos`
+- [x] 3b `ReporteTecnicoService` delega en ese cálculo en el bucle **diario** y en el **semanal**;
+      se agregaron los 4 campos de traslado a las 2 proyecciones de `SegLevanteParaReporte`
+- [x] 3c **21 tests** (`SaldoAvesLevanteCalculosTests`), incluidos los cierres reales del S-369
+      (19.018 H y 1.957 M) y el número que devolvía el bug (19.632)
+
+## QA
+- [x] Q1 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1.689 verdes, 0 fallos**
+- [x] Q2 **QA-1 (fase)** 7/7 OK: encaset viejo sin fase ⇒ Producción (igual que antes); con
+      `fase=Levante` ⇒ Levante y el espejo lo hereda; encaset reciente sin fase ⇒ Levante; fase
+      inválida ⇒ 400 sin dejar el lote a medias
+- [x] Q3 **QA-2 (trigger)** 5/5 OK: editar el técnico **no** mueve el saldo (antes lo devolvía al
+      encaset); corregir el encaset +50 H/+10 M corre el saldo de 70/6 a 120/16 conservando las
+      bajas; un encaset menor que las bajas satura en 0 sin negativos
+- [x] Q4 **QA-3 · gate multiempresa** — 130 semanas de **2 empresas** (Sanmarino y Demo) comparadas
+      contra la fn canónica: **42 semanas CORREGIDAS · 0 REGRESIONES** · 57 ya coincidían ·
+      23 diferencias preexistentes que el cambio no toca (lote A374A, cuya fn devuelve saldos
+      negativos que el reporte satura en 0, igual antes que ahora)
+- [x] Q5 Los 8 casos que aún no igualan a la fn **mejoran todos** su distancia al valor canónico
+      (K345A 63→1, K345B 16→2, Demo 10.200→5.100…), **0 empeoran**. El residuo es de dos diferencias
+      preexistentes y fuera de este cambio: la fn no satura en 0 y toma la base de `hembras_l` con
+      fallback al primer ingreso, mientras el reporte usa `Σ aves_h_inicial` de los sublotes
+- [x] Q6 Caso que originó todo: `ReporteTecnico/levante/obtener` sobre el S-369 pasó de **14 a 24 de
+      25 semanas idénticas** al Excel; semana 24 saldo **19.018** (antes 19.632) y **113,35** g/ave/día
+      (antes 109,81). La 25 sigue parcial por el corte de fase, como debe ser
+- [x] Q7 Backend detenido, puerto 5499 libre; los lotes de QA borrados y el S-369 intacto (9.484/966 + 9.534/991)
+- [x] Q8 No se commiteó trabajo de la otra sesión: `dotnet ef migrations add` había arrastrado al
+      `ModelSnapshot` un cambio ajeno de `tipo_alimento` (100→500) — revertido, y el Designer de mi
+      migración alineado al modelo de HEAD
