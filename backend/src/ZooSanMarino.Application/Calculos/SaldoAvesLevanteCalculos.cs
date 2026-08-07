@@ -31,19 +31,26 @@ public static class SaldoAvesLevanteCalculos
     /// <param name="ErrorSexaje">Aves que salen del sexo por corrección de sexaje.</param>
     /// <param name="TrasladoSalida">Aves trasladadas a otro lote.</param>
     /// <param name="TrasladoIngreso">Aves recibidas de otro lote.</param>
+    /// <param name="Venta">Aves vendidas (descarte). Salen del lote igual que un traslado, pero no
+    /// llegan a ningún otro lote. En producción venían quedando fuera del saldo porque la venta solo
+    /// dejaba una nota de texto en la fila diaria.</param>
+    /// <param name="Retiro">Aves retiradas por otros motivos registrados en <c>movimiento_aves</c>.</param>
     public readonly record struct MovimientoDia(
         int Mortalidad,
         int Seleccion,
         int ErrorSexaje,
         int TrasladoSalida = 0,
-        int TrasladoIngreso = 0);
+        int TrasladoIngreso = 0,
+        int Venta = 0,
+        int Retiro = 0);
 
     /// <summary>
-    /// Bajas netas del período: <c>mortalidad + selección + error de sexaje + salidas − ingresos</c>.
+    /// Bajas netas del período:
+    /// <c>mortalidad + selección + error de sexaje + salidas + ventas + retiros − ingresos</c>.
     /// Puede ser negativa si el lote recibió más aves de las que perdió.
     /// </summary>
     public static int BajasNetas(MovimientoDia m) =>
-        m.Mortalidad + m.Seleccion + m.ErrorSexaje + m.TrasladoSalida - m.TrasladoIngreso;
+        m.Mortalidad + m.Seleccion + m.ErrorSexaje + m.TrasladoSalida + m.Venta + m.Retiro - m.TrasladoIngreso;
 
     /// <summary>
     /// Saldo tras aplicar el movimiento, con piso en 0 (mismo <c>GREATEST(0, …)</c> que la fn SQL:
@@ -67,7 +74,7 @@ public static class SaldoAvesLevanteCalculos
     /// <summary>
     /// Retiro acumulado (mortalidad + selección + error de sexaje) sobre el que se calcula el
     /// «% retiro acumulado» de los reportes. NO incluye traslados: un traslado mueve aves entre
-    /// lotes, no las retira del ciclo.
+    /// lotes, no las retira del ciclo. Tampoco ventas: se reportan aparte.
     /// </summary>
     public static int RetiroAcumulado(IEnumerable<MovimientoDia> movimientos)
     {

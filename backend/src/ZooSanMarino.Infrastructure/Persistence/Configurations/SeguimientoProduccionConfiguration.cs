@@ -228,6 +228,11 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
         builder.Property(x => x.TrasladoSalidaHembras ).HasColumnName("traslado_salida_hembras" ).HasDefaultValue(0).IsRequired();
         builder.Property(x => x.TrasladoSalidaMachos  ).HasColumnName("traslado_salida_machos"  ).HasDefaultValue(0).IsRequired();
 
+        // Venta de aves — splits H/M dedicados (espejo de movimiento_aves en la fila diaria)
+        builder.Property(x => x.VentaAvesHembras).HasColumnName("venta_aves_hembras").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.VentaAvesMachos ).HasColumnName("venta_aves_machos" ).HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.VentaAvesMotivo ).HasColumnName("venta_aves_motivo" );
+
         // Traslado — marcado
         builder.Property(x => x.EsTraslado).HasColumnName("es_traslado").HasDefaultValue(false).IsRequired();
         builder.Property(x => x.TrasladoDireccion).HasColumnName("traslado_direccion").HasMaxLength(10);

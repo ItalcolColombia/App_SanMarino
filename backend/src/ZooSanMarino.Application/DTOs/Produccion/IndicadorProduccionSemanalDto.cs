@@ -24,7 +24,12 @@ public record IndicadorProduccionSemanalDto(
     // Selección
     int SeleccionHembras,
     decimal PorcentajeSeleccionHembras,
-    
+    // La fn emite seleccion_machos desde 20260806093256 (ya entra al saldo de machos y al %retiro);
+    // el DTO no la exponía, así que el conteo nunca llegaba al front. El porcentaje lo emite desde
+    // 20260807180000, con el mismo denominador que el de hembras.
+    int SeleccionMachos,
+    decimal PorcentajeSeleccionMachos,
+
     // Consumo (kg)
     decimal ConsumoKgHembras,
     decimal ConsumoKgMachos,

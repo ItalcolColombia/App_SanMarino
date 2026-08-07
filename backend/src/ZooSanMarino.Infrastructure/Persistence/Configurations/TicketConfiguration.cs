@@ -53,6 +53,26 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         b.Property(x => x.AssignedToUserGuid).HasColumnName("assigned_to_user_guid");
         b.Property(x => x.CreatedByUserGuid).HasColumnName("created_by_user_guid");
 
+        // Solicitante delegado ("a nombre de") — null ⇒ el solicitante es el creador
+        b.Property(x => x.SolicitanteUserGuid).HasColumnName("solicitante_user_guid");
+        b.Property(x => x.SolicitanteUserId).HasColumnName("solicitante_user_id");
+
+        // Gestión tipo tablero (admin)
+        b.Property(x => x.Prioridad)
+            .HasColumnName("prioridad")
+            .HasMaxLength(20)
+            .HasDefaultValue(TicketPrioridades.Media)
+            .IsRequired();
+        b.Property(x => x.OrdenTablero)
+            .HasColumnName("orden_tablero")
+            .HasDefaultValue(0)
+            .IsRequired();
+        b.Property(x => x.HorasEstimadas).HasColumnName("horas_estimadas").HasPrecision(8, 2);
+        b.Property(x => x.FechaLimite).HasColumnName("fecha_limite");
+        b.Property(x => x.FechaInicioPlan).HasColumnName("fecha_inicio_plan");
+        b.Property(x => x.FechaFinPlan).HasColumnName("fecha_fin_plan");
+        b.Property(x => x.HistoriaId).HasColumnName("historia_id");
+
         // Relaciones (cascada hacia imágenes y notas)
         b.HasMany(x => x.Imagenes)
             .WithOne(i => i.Ticket!)
@@ -66,6 +86,14 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
             .WithOne(a => a.Ticket!)
             .HasForeignKey(a => a.TicketId)
             .OnDelete(DeleteBehavior.Cascade);
+        b.HasMany(x => x.Tareas)
+            .WithOne(t => t.Ticket!)
+            .HasForeignKey(t => t.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.HasMany(x => x.Tiempos)
+            .WithOne(t => t.Ticket!)
+            .HasForeignKey(t => t.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Índices para filtros típicos
         b.HasIndex(x => x.CompanyId).HasDatabaseName("ix_tickets_company_id");
@@ -76,5 +104,8 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         b.HasIndex(x => x.AssignedToUserId).HasDatabaseName("ix_tickets_assigned_to_user_id");
         b.HasIndex(x => x.CreatedAt).HasDatabaseName("ix_tickets_created_at");
         b.HasIndex(x => x.Codigo).HasDatabaseName("ix_tickets_codigo");
+        b.HasIndex(x => x.SolicitanteUserId).HasDatabaseName("ix_tickets_solicitante_user_id");
+        b.HasIndex(x => x.Prioridad).HasDatabaseName("ix_tickets_prioridad");
+        b.HasIndex(x => x.HistoriaId).HasDatabaseName("ix_tickets_historia_id");
     }
 }

@@ -32,6 +32,8 @@ public static class IndicadoresProduccionCalculos
             Dec(r.DiferenciaMortalidadMachos),
             r.SeleccionHembras,
             (decimal)r.PorcentajeSeleccionHembras,
+            r.SeleccionMachos,
+            (decimal)r.PorcentajeSeleccionMachos,
             (decimal)r.ConsumoKgHembras,
             (decimal)r.ConsumoKgMachos,
             (decimal)r.ConsumoTotalKg,

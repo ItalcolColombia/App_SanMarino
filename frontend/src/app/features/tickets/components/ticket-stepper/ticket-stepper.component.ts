@@ -24,11 +24,15 @@ interface Step {
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div>
-      <ol class="flex flex-col gap-4 md:flex-row md:items-center md:gap-0" [class.opacity-60]="esEspecial">
+      <!-- Con siete fases la barra no entra en pantallas medianas: scrollea DENTRO de su caja
+           en vez de ensanchar la página (que arrastraba scroll horizontal a todo el detalle).
+           w-max + min-w-full = ocupa todo el ancho cuando sobra, y crece con scroll cuando falta. -->
+      <div class="-mx-1 overflow-x-auto px-1 pb-1">
+        <ol class="flex flex-col gap-4 md:w-max md:min-w-full md:flex-row md:items-center md:gap-0" [class.opacity-60]="esEspecial">
         @for (step of steps; track step.key; let i = $index; let last = $last) {
           <li class="flex items-center gap-3 md:flex-1">
             <span
-              class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold ring-4 transition"
+              class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ring-4 transition"
               [class.bg-ital-green]="step.done"
               [class.text-white]="step.done || step.current"
               [class.bg-ital-orange]="step.current"
@@ -44,12 +48,19 @@ interface Step {
                 {{ i + 1 }}
               }
             </span>
-            <span class="whitespace-nowrap text-sm"
+            <!-- Etiquetas: todas en móvil (la lista va vertical) y en lg+. Entre md y lg solo la
+                 de la fase actual — las otras ni se renderizan, para no reservar su ancho. -->
+            <span class="whitespace-nowrap text-xs md:hidden lg:inline"
               [class.font-semibold]="step.current"
               [class.text-slate-800]="step.done || step.current"
               [class.text-slate-400]="!step.done && !step.current">
               {{ step.label }}
             </span>
+            @if (step.current) {
+              <span class="hidden whitespace-nowrap text-xs font-semibold text-slate-800 md:inline lg:hidden">
+                {{ step.label }}
+              </span>
+            }
             @if (!last) {
               <span class="mx-2 hidden h-0.5 flex-1 md:block"
                 [class.bg-ital-green]="step.done"
@@ -58,6 +69,7 @@ interface Step {
           </li>
         }
       </ol>
+      </div>
 
       @if (esEspecial) {
         <div class="mt-4 flex items-center gap-2">

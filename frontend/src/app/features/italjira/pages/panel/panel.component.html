@@ -1,0 +1,363 @@
+<!-- src/app/features/italjira/pages/panel/panel.component.html -->
+<div class="min-h-full bg-ital-cream">
+  <div class="mx-auto max-w-[1700px] px-4 py-5 sm:px-6 sm:py-7">
+
+    <!-- ── Cabecera ── -->
+    <header class="mb-5 flex flex-wrap items-center gap-3">
+      <div class="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-lg shadow-slate-900/20">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-slate-800">Panel de control</h1>
+        <p class="text-xs text-ital-muted">Volumen, efectividad y tiempos de los casos, con desglose por país y empresa.</p>
+      </div>
+
+      <nav class="ml-auto flex flex-wrap items-center gap-1.5">
+        <a routerLink="/italjira/tablero"
+           class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Tablero</a>
+        <a routerLink="/italjira/roadmap"
+           class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Roadmap</a>
+        <a routerLink="/italjira/configuracion"
+           class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Lista</a>
+        <button type="button" (click)="descargarExcel()" [disabled]="descargando() || cargando()"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-ital-green to-ital-green-dark px-3 py-1.5 text-xs font-semibold text-white shadow transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60">
+          @if (descargando()) {
+            <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+          } @else {
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+          }
+          Descargar Excel
+        </button>
+      </nav>
+    </header>
+
+    <!-- ── Filtros (barra compartida con tablero y roadmap) ── -->
+    <div class="mb-5">
+      <app-ticket-filtros [expandidoInicial]="true" (cambio)="onFiltro($event)" />
+    </div>
+
+    @if (cargando() && !data()) {
+      <div class="flex items-center justify-center gap-2 py-20 text-sm text-ital-muted">
+        <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+        Calculando indicadores…
+      </div>
+    } @else if (resumen(); as r) {
+
+      <!-- ══════════ KPIs ══════════ -->
+      <section class="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <!-- Efectividad -->
+        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-ital-muted">Efectividad</p>
+          <p class="mt-1 text-3xl font-bold"
+             [class.text-emerald-600]="(r.efectividad ?? 0) >= 80"
+             [class.text-amber-600]="(r.efectividad ?? 0) >= 50 && (r.efectividad ?? 0) < 80"
+             [class.text-rose-600]="r.efectividad !== null && r.efectividad < 50"
+             [class.text-slate-400]="r.efectividad === null">
+            {{ porcentaje(r.efectividad) }}
+          </p>
+          <p class="mt-0.5 text-[11px] text-ital-muted">
+            @if (r.conCompromiso) {
+              {{ r.compromisoCumplido }} de {{ r.conCompromiso }} compromisos cumplidos
+            } @else {
+              Ningún caso tiene fecha de compromiso
+            }
+          </p>
+        </article>
+
+        <!-- Casos -->
+        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-ital-muted">Casos</p>
+          <p class="mt-1 text-3xl font-bold text-slate-800">{{ r.total }}</p>
+          <p class="mt-0.5 text-[11px] text-ital-muted">
+            {{ r.abiertos }} sin arrancar · {{ r.enCurso }} en curso
+          </p>
+        </article>
+
+        <!-- Resueltos -->
+        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-ital-muted">Resueltos</p>
+          <p class="mt-1 text-3xl font-bold text-emerald-600">{{ r.solucionados + r.cerrados }}</p>
+          <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div class="h-full rounded-full bg-emerald-500 transition-all" [style.width.%]="r.porcentajeResueltos"></div>
+          </div>
+          <p class="mt-1 text-[11px] text-ital-muted">{{ r.porcentajeResueltos }}% del total</p>
+        </article>
+
+        <!-- Tareas -->
+        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-ital-muted">Tareas</p>
+          <p class="mt-1 text-3xl font-bold text-slate-800">
+            {{ r.tareasListas }}<span class="text-lg font-semibold text-slate-400">/{{ r.tareasTotal }}</span>
+          </p>
+          <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div class="h-full rounded-full bg-indigo-500 transition-all" [style.width.%]="r.avanceTareas"></div>
+          </div>
+          <p class="mt-1 text-[11px] text-ital-muted">{{ r.tareasPendientes }} pendientes</p>
+        </article>
+
+        <!-- Primera respuesta -->
+        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-ital-muted">Primera respuesta</p>
+          <p class="mt-1 text-3xl font-bold text-slate-800">{{ horas(r.promedioPrimeraRespuesta) }}</p>
+          <p class="mt-0.5 text-[11px] text-ital-muted">Promedio hasta que el equipo lo toma</p>
+        </article>
+
+        <!-- Resolución -->
+        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-ital-muted">Resolución</p>
+          <p class="mt-1 text-3xl font-bold text-slate-800">{{ horas(r.promedioResolucion) }}</p>
+          <p class="mt-0.5 text-[11px] text-ital-muted">Promedio sobre los solucionados</p>
+        </article>
+      </section>
+
+      <!-- Alertas -->
+      <section class="mb-5 flex flex-wrap gap-2">
+        @if (r.vencidos > 0) {
+          <span class="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
+            {{ r.vencidos }} caso(s) vencido(s)
+          </span>
+        }
+        @if (r.porVencer > 0) {
+          <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+            {{ r.porVencer }} por vencer en 24 h
+          </span>
+        }
+        @if (r.sinAsignar > 0) {
+          <span class="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
+            {{ r.sinAsignar }} sin responsable
+          </span>
+        }
+        <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+          {{ r.horasRegistradas }} h registradas
+          @if (r.horasEstimadas > 0) { de {{ r.horasEstimadas }} h estimadas }
+        </span>
+      </section>
+
+      <!-- ══════════ Desgloses ══════════ -->
+      <div class="grid gap-4 xl:grid-cols-2">
+
+        <!-- Por país -->
+        <section class="min-w-0 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+          <header class="border-b border-slate-200 px-4 py-3">
+            <h2 class="text-sm font-bold text-slate-800">Por país</h2>
+            <p class="text-[11px] text-ital-muted">Volumen, efectividad y tiempo de resolución en cada país.</p>
+          </header>
+          @if (!data()!.porPais.length) {
+            <p class="px-4 py-8 text-center text-sm text-ital-muted">Sin casos para estos filtros.</p>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[620px] text-left text-xs">
+                <thead class="border-b border-slate-100 text-[10px] uppercase tracking-wide text-ital-muted">
+                  <tr>
+                    <th class="px-4 py-2 font-bold">País</th>
+                    <th class="px-2 py-2 text-right font-bold">Casos</th>
+                    <th class="px-2 py-2 text-right font-bold">En curso</th>
+                    <th class="px-2 py-2 text-right font-bold">Resueltos</th>
+                    <th class="px-2 py-2 text-right font-bold">Vencidos</th>
+                    <th class="px-2 py-2 text-right font-bold">Horas</th>
+                    <th class="px-2 py-2 text-right font-bold">Resolución</th>
+                    <th class="px-4 py-2 text-right font-bold">Efectividad</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  @for (p of data()!.porPais; track p.id) {
+                    <tr class="transition hover:bg-slate-50/70">
+                      <td class="px-4 py-2">
+                        <span class="font-semibold text-slate-700">{{ p.nombre }}</span>
+                        <div class="mt-1 h-1 w-24 overflow-hidden rounded-full bg-slate-100">
+                          <div class="h-full rounded-full bg-ital-orange" [style.width.%]="ancho(p.total, maxPorPais())"></div>
+                        </div>
+                      </td>
+                      <td class="px-2 py-2 text-right font-bold text-slate-800">{{ p.total }}</td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ p.enCurso }}</td>
+                      <td class="px-2 py-2 text-right text-emerald-600">{{ p.resueltos }}</td>
+                      <td class="px-2 py-2 text-right" [class.text-rose-600]="p.vencidos > 0" [class.text-slate-400]="!p.vencidos">
+                        {{ p.vencidos }}
+                      </td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ p.horasRegistradas }}</td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ horas(p.promedioResolucion) }}</td>
+                      <td class="px-4 py-2 text-right font-semibold"
+                          [class.text-emerald-600]="(p.efectividad ?? 0) >= 80"
+                          [class.text-slate-400]="p.efectividad === null">
+                        {{ porcentaje(p.efectividad) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+
+        <!-- Por empresa -->
+        <section class="min-w-0 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+          <header class="border-b border-slate-200 px-4 py-3">
+            <h2 class="text-sm font-bold text-slate-800">Por empresa</h2>
+            <p class="text-[11px] text-ital-muted">Los mismos indicadores, cortados por empresa.</p>
+          </header>
+          @if (!data()!.porEmpresa.length) {
+            <p class="px-4 py-8 text-center text-sm text-ital-muted">Sin casos para estos filtros.</p>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[620px] text-left text-xs">
+                <thead class="border-b border-slate-100 text-[10px] uppercase tracking-wide text-ital-muted">
+                  <tr>
+                    <th class="px-4 py-2 font-bold">Empresa</th>
+                    <th class="px-2 py-2 text-right font-bold">Casos</th>
+                    <th class="px-2 py-2 text-right font-bold">En curso</th>
+                    <th class="px-2 py-2 text-right font-bold">Resueltos</th>
+                    <th class="px-2 py-2 text-right font-bold">Vencidos</th>
+                    <th class="px-2 py-2 text-right font-bold">Horas</th>
+                    <th class="px-2 py-2 text-right font-bold">Resolución</th>
+                    <th class="px-4 py-2 text-right font-bold">Efectividad</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  @for (e of data()!.porEmpresa; track e.id) {
+                    <tr class="transition hover:bg-slate-50/70">
+                      <td class="px-4 py-2">
+                        <span class="font-semibold text-slate-700">{{ e.nombre }}</span>
+                        <div class="mt-1 h-1 w-24 overflow-hidden rounded-full bg-slate-100">
+                          <div class="h-full rounded-full bg-ital-green" [style.width.%]="ancho(e.total, maxPorEmpresa())"></div>
+                        </div>
+                      </td>
+                      <td class="px-2 py-2 text-right font-bold text-slate-800">{{ e.total }}</td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ e.enCurso }}</td>
+                      <td class="px-2 py-2 text-right text-emerald-600">{{ e.resueltos }}</td>
+                      <td class="px-2 py-2 text-right" [class.text-rose-600]="e.vencidos > 0" [class.text-slate-400]="!e.vencidos">
+                        {{ e.vencidos }}
+                      </td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ e.horasRegistradas }}</td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ horas(e.promedioResolucion) }}</td>
+                      <td class="px-4 py-2 text-right font-semibold"
+                          [class.text-emerald-600]="(e.efectividad ?? 0) >= 80"
+                          [class.text-slate-400]="e.efectividad === null">
+                        {{ porcentaje(e.efectividad) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+
+        <!-- Por estado -->
+        <section class="min-w-0 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+          <header class="border-b border-slate-200 px-4 py-3">
+            <h2 class="text-sm font-bold text-slate-800">Estado de los casos</h2>
+            <p class="text-[11px] text-ital-muted">Dónde está parado cada caso ahora mismo.</p>
+          </header>
+          <ul class="space-y-2 p-4">
+            @for (e of data()!.porEstado; track e.clave) {
+              <li class="flex items-center gap-3">
+                <span class="h-2 w-2 shrink-0 rounded-full" [class]="dotDeEstado(e.clave)"></span>
+                <span class="w-36 shrink-0 truncate text-xs font-medium text-slate-600">{{ e.label }}</span>
+                <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div class="h-full rounded-full transition-all" [class]="dotDeEstado(e.clave)"
+                       [style.width.%]="ancho(e.total, maxPorEstado())"></div>
+                </div>
+                <span class="w-8 shrink-0 text-right text-xs font-bold text-slate-700">{{ e.total }}</span>
+              </li>
+            }
+          </ul>
+        </section>
+
+        <!-- Por tipo -->
+        <section class="min-w-0 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+          <header class="border-b border-slate-200 px-4 py-3">
+            <h2 class="text-sm font-bold text-slate-800">Por tipo</h2>
+          </header>
+          @if (!data()!.porTipo.length) {
+            <p class="px-4 py-8 text-center text-sm text-ital-muted">Sin datos.</p>
+          } @else {
+            <ul class="divide-y divide-slate-50">
+              @for (t of data()!.porTipo; track t.clave) {
+                <li class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-xs">
+                  <span class="font-semibold text-slate-700">{{ t.label }}</span>
+                  <span class="text-ital-muted">{{ t.total }} caso(s)</span>
+                  <span class="text-emerald-600">{{ t.resueltos }} resuelto(s)</span>
+                  @if (t.vencidos > 0) { <span class="text-rose-600">{{ t.vencidos }} vencido(s)</span> }
+                  <span class="ml-auto font-medium text-slate-600">{{ horas(t.promedioResolucion) }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <!-- Por prioridad -->
+        <section class="min-w-0 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+          <header class="border-b border-slate-200 px-4 py-3">
+            <h2 class="text-sm font-bold text-slate-800">Por prioridad</h2>
+          </header>
+          @if (!data()!.porPrioridad.length) {
+            <p class="px-4 py-8 text-center text-sm text-ital-muted">Sin datos.</p>
+          } @else {
+            <ul class="divide-y divide-slate-50">
+              @for (p of data()!.porPrioridad; track p.clave) {
+                <li class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-xs">
+                  <span class="h-2.5 w-4 shrink-0 rounded-full" [class]="acentoDePrioridad(p.clave)"></span>
+                  <span class="font-semibold text-slate-700">{{ labelDePrioridad(p.clave, p.label) }}</span>
+                  <span class="text-ital-muted">{{ p.total }} caso(s)</span>
+                  <span class="text-emerald-600">{{ p.resueltos }} resuelto(s)</span>
+                  @if (p.vencidos > 0) { <span class="text-rose-600">{{ p.vencidos }} vencido(s)</span> }
+                  <span class="ml-auto font-medium text-slate-600">{{ horas(p.promedioResolucion) }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <!-- Por responsable -->
+        <section class="min-w-0 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 xl:col-span-2">
+          <header class="border-b border-slate-200 px-4 py-3">
+            <h2 class="text-sm font-bold text-slate-800">Carga por responsable</h2>
+            <p class="text-[11px] text-ital-muted">Cuántos casos atiende cada uno y cómo viene resolviéndolos.</p>
+          </header>
+          @if (!data()!.porResponsable.length) {
+            <p class="px-4 py-8 text-center text-sm text-ital-muted">Sin datos.</p>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[620px] text-left text-xs">
+                <thead class="border-b border-slate-100 text-[10px] uppercase tracking-wide text-ital-muted">
+                  <tr>
+                    <th class="px-4 py-2 font-bold">Responsable</th>
+                    <th class="px-2 py-2 text-right font-bold">Asignados</th>
+                    <th class="px-2 py-2 text-right font-bold">Resueltos</th>
+                    <th class="px-2 py-2 text-right font-bold">Vencidos</th>
+                    <th class="px-2 py-2 text-right font-bold">Tareas listas</th>
+                    <th class="px-2 py-2 text-right font-bold">Horas</th>
+                    <th class="px-4 py-2 text-right font-bold">Resolución</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  @for (x of data()!.porResponsable; track $index) {
+                    <tr class="transition hover:bg-slate-50/70">
+                      <td class="px-4 py-2 font-semibold text-slate-700">{{ x.nombre }}</td>
+                      <td class="px-2 py-2 text-right font-bold text-slate-800">{{ x.asignados }}</td>
+                      <td class="px-2 py-2 text-right text-emerald-600">{{ x.resueltos }}</td>
+                      <td class="px-2 py-2 text-right" [class.text-rose-600]="x.vencidos > 0" [class.text-slate-400]="!x.vencidos">
+                        {{ x.vencidos }}
+                      </td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ x.tareasListas }}</td>
+                      <td class="px-2 py-2 text-right text-slate-600">{{ x.horasRegistradas }}</td>
+                      <td class="px-4 py-2 text-right text-slate-600">{{ horas(x.promedioResolucion) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+      </div>
+    } @else {
+      <div class="grid place-items-center rounded-2xl bg-white py-20 ring-1 ring-slate-200">
+        <p class="text-sm text-ital-muted">No hay casos para estos filtros.</p>
+      </div>
+    }
+  </div>
+</div>

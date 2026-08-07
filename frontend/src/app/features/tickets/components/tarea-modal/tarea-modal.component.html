@@ -1,0 +1,136 @@
+<!-- src/app/features/tickets/components/tarea-modal/tarea-modal.component.html -->
+<div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+     (click)="cerrar.emit()">
+  <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
+       (click)="$event.stopPropagation()">
+
+    <!-- Cabecera -->
+    <div class="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white px-5 py-4">
+      <span class="grid h-8 w-8 place-items-center rounded-lg text-sm font-bold text-white" [class]="tipoColor[tipo]">
+        {{ esEdicion ? '✎' : '+' }}
+      </span>
+      <div class="min-w-0">
+        <h3 class="truncate text-base font-bold text-slate-800">
+          {{ esEdicion ? 'Editar tarea' : (parentTareaId ? 'Nueva subtarea' : 'Nueva tarea') }}
+        </h3>
+        @if (esEdicion && tarea?.codigo) {
+          <p class="text-xs font-medium text-ital-muted">{{ tarea!.codigo }}</p>
+        } @else if (parentTitulo) {
+          <p class="truncate text-xs text-ital-muted">Dentro de: {{ parentTitulo }}</p>
+        }
+      </div>
+      <button type="button" (click)="cerrar.emit()"
+              class="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              aria-label="Cerrar">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Formulario -->
+    <div class="space-y-4 px-5 py-5">
+      <div>
+        <label for="tarea-titulo" class="mb-1 block text-xs font-semibold text-slate-700">Título *</label>
+        <input id="tarea-titulo" type="text" [(ngModel)]="titulo" maxlength="200"
+               placeholder="Ej: Ajustar el cálculo de aves disponibles"
+               class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+      </div>
+
+      <div>
+        <label for="tarea-desc" class="mb-1 block text-xs font-semibold text-slate-700">Descripción</label>
+        <textarea id="tarea-desc" [(ngModel)]="descripcion" rows="3"
+                  placeholder="Qué hay que hacer, criterios de aceptación, contexto…"
+                  class="w-full resize-y rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20"></textarea>
+      </div>
+
+      <!-- Tipo -->
+      <div>
+        <span class="mb-1.5 block text-xs font-semibold text-slate-700">Tipo</span>
+        <div class="flex flex-wrap gap-1.5">
+          @for (t of tipos; track t.value) {
+            <button type="button" (click)="tipo = t.value"
+                    class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition"
+                    [class.bg-slate-800]="tipo === t.value" [class.text-white]="tipo === t.value" [class.ring-slate-800]="tipo === t.value"
+                    [class.bg-white]="tipo !== t.value" [class.text-slate-600]="tipo !== t.value" [class.ring-slate-200]="tipo !== t.value">
+              <span class="grid h-4 w-4 place-items-center rounded text-[10px] font-bold text-white" [class]="tipoColor[t.value]">{{ t.icono }}</span>
+              {{ t.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label for="tarea-estado" class="mb-1 block text-xs font-semibold text-slate-700">Columna</label>
+          <select id="tarea-estado" [(ngModel)]="estado"
+                  class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20">
+            @for (c of columnas; track c) { <option [ngValue]="c">{{ estadoLabel[c] }}</option> }
+          </select>
+        </div>
+        <div>
+          <label for="tarea-prioridad" class="mb-1 block text-xs font-semibold text-slate-700">Prioridad</label>
+          <select id="tarea-prioridad" [(ngModel)]="prioridad"
+                  class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20">
+            @for (p of prioridades; track p) { <option [ngValue]="p">{{ prioridadLabel[p] }}</option> }
+          </select>
+        </div>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label for="tarea-asignado" class="mb-1 block text-xs font-semibold text-slate-700">Responsable</label>
+          <select id="tarea-asignado" [(ngModel)]="asignadoGuid"
+                  class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20">
+            <option value="">Sin asignar</option>
+            @for (a of asignables; track a.guid) { <option [value]="a.guid">{{ a.nombre }}</option> }
+          </select>
+        </div>
+        <div>
+          <label for="tarea-horas" class="mb-1 block text-xs font-semibold text-slate-700">Horas estimadas</label>
+          <input id="tarea-horas" type="number" min="0" step="0.25" [(ngModel)]="horasEstimadas" placeholder="Ej: 4"
+                 class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+        </div>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label for="tarea-ini" class="mb-1 block text-xs font-semibold text-slate-700">Inicio planificado</label>
+          <input id="tarea-ini" type="date" [(ngModel)]="fechaInicioPlan"
+                 class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+        </div>
+        <div>
+          <label for="tarea-fin" class="mb-1 block text-xs font-semibold text-slate-700">Fin planificado</label>
+          <input id="tarea-fin" type="date" [(ngModel)]="fechaFinPlan"
+                 class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+          @if (fechaInicioPlan && fechaFinPlan && fechaFinPlan < fechaInicioPlan) {
+            <p class="mt-1 text-xs font-medium text-rose-600">El fin no puede ser anterior al inicio.</p>
+          }
+        </div>
+      </div>
+
+      <div>
+        <label for="tarea-etiquetas" class="mb-1 block text-xs font-semibold text-slate-700">Etiquetas</label>
+        <input id="tarea-etiquetas" type="text" [(ngModel)]="etiquetas" maxlength="300"
+               placeholder="backend, urgente, postura"
+               class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+        <p class="mt-1 text-[11px] text-ital-muted">Separalas con coma.</p>
+      </div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
+      <button type="button" (click)="cerrar.emit()"
+              class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">
+        Cancelar
+      </button>
+      <button type="button" (click)="onGuardar()" [disabled]="invalido || guardando"
+              class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-ital-green/25 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none">
+        @if (guardando) {
+          <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+        }
+        {{ esEdicion ? 'Guardar cambios' : 'Crear tarea' }}
+      </button>
+    </div>
+  </div>
+</div>

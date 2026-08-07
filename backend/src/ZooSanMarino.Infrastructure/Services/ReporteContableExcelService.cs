@@ -2,6 +2,7 @@
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System.Drawing;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -17,17 +18,30 @@ public class ReporteContableExcelService
     }
 
     /// <summary>
-    /// Genera archivo Excel para reporte contable con una hoja por semana
+    /// Genera archivo Excel para reporte contable con una hoja por semana.
+    /// <paramref name="movimientosHuevos"/> es opcional: cuando llega con filas se agrega la hoja
+    /// MOVIMIENTOS HUEVOS después del RESUMEN. En Levante no hay postura, así que el libro sale
+    /// igual que sin el parámetro.
     /// </summary>
-    public byte[] GenerarExcel(ReporteContableCompletoDto reporte)
+    public byte[] GenerarExcel(
+        ReporteContableCompletoDto reporte,
+        ReporteMovimientosHuevosDto? movimientosHuevos = null)
     {
         using var package = new ExcelPackage();
-        
+
         // Crear hoja de resumen
         var hojaResumen = package.Workbook.Worksheets.Add("RESUMEN");
         ConfigurarEncabezado(hojaResumen, reporte);
         var rowInicio = EscribirResumenSemanal(hojaResumen, reporte, 10);
         hojaResumen.Cells.AutoFitColumns();
+
+        // Movimientos de huevo (solo si el lote tiene postura en el período)
+        if (movimientosHuevos is not null && movimientosHuevos.MovimientosDiarios.Count > 0)
+        {
+            var hojaHuevos = package.Workbook.Worksheets.Add("MOVIMIENTOS HUEVOS");
+            EscribirMovimientosHuevos(hojaHuevos, reporte, movimientosHuevos);
+            hojaHuevos.Cells.AutoFitColumns();
+        }
 
         // Crear una hoja por cada semana
         foreach (var reporteSemanal in reporte.ReportesSemanales.OrderBy(r => r.SemanaContable))
@@ -126,38 +140,55 @@ public class ReporteContableExcelService
         }
     }
 
+    /// <summary>
+    /// Columnas de la hoja RESUMEN, en orden. Declararlas acá (en vez de indexar a mano) mantiene
+    /// alineados el encabezado, la fila de datos, los formatos y la fila de totales: agregar una
+    /// columna es agregar una entrada, no reindexar cuatro bloques.
+    /// </summary>
+    private static readonly (string Titulo, string Formato,
+        Func<ReporteContableResumenCalculos.FilaResumen, object?> Valor)[] ColumnasResumen =
+    {
+        ("Mortalidad",    "#,##0",    f => f.Mortalidad),
+        ("Selección",     "#,##0",    f => f.Seleccion),
+        ("Traslados",     "#,##0",    f => f.Traslados),
+        ("Ventas",        "#,##0",    f => f.Ventas),
+        ("Alimento (kg)", "#,##0.00", f => f.Alimento),
+        ("Agua (L)",      "#,##0.00", f => f.Agua),
+        ("Medicamento",   "#,##0.00", f => f.Medicamento),
+        ("Vacuna",        "#,##0.00", f => f.Vacuna),
+        ("Otros",         "#,##0.00", f => f.Otros),
+        ("Total General", "#,##0.00", f => f.TotalGeneral)
+    };
+
     private int EscribirResumenSemanal(ExcelWorksheet worksheet, ReporteContableCompletoDto reporte, int rowInicio)
     {
         var row = rowInicio;
+
+        // "Semana" y "Período" van fijas al frente; el resto sale de ColumnasResumen
+        const int colSemana = 1;
+        const int colPeriodo = 2;
+        const int primeraColumnaDato = 3;
+        var ultimaColumna = primeraColumnaDato + ColumnasResumen.Length - 1;
+        var colTotalGeneral = ultimaColumna;
 
         // Título de sección
         worksheet.Cells[row, 1].Value = "RESUMEN SEMANAL";
         worksheet.Cells[row, 1].Style.Font.Size = 14;
         worksheet.Cells[row, 1].Style.Font.Bold = true;
-        worksheet.Cells[row, 1, row, 13].Merge = true;
+        worksheet.Cells[row, 1, row, ultimaColumna].Merge = true;
         worksheet.Cells[row, 1].Style.Fill.PatternType = ExcelFillStyle.Solid;
         worksheet.Cells[row, 1].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
         row++;
 
         // Encabezados de columnas
-        var headers = new[]
+        worksheet.Cells[row, colSemana].Value = "Semana";
+        worksheet.Cells[row, colPeriodo].Value = "Período";
+        for (int i = 0; i < ColumnasResumen.Length; i++)
         {
-            "Semana",
-            "Período",
-            "Mortalidad",
-            "Traslados",
-            "Ventas",
-            "Alimento (kg)",
-            "Agua (L)",
-            "Medicamento",
-            "Vacuna",
-            "Otros",
-            "Total General"
-        };
-
-        for (int col = 1; col <= headers.Length; col++)
+            worksheet.Cells[row, primeraColumnaDato + i].Value = ColumnasResumen[i].Titulo;
+        }
+        for (int col = 1; col <= ultimaColumna; col++)
         {
-            worksheet.Cells[row, col].Value = headers[col - 1];
             worksheet.Cells[row, col].Style.Font.Bold = true;
             worksheet.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
             worksheet.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
@@ -167,93 +198,44 @@ public class ReporteContableExcelService
         row++;
 
         // Escribir datos semanales
-        int totalMortalidad = 0;
-        int totalTraslados = 0;
-        int totalVentas = 0;
-        decimal totalAlimento = 0;
-        decimal totalAgua = 0;
-        decimal totalMedicamento = 0;
-        decimal totalVacuna = 0;
-        decimal totalOtros = 0;
-        decimal totalGeneral = 0;
+        var filas = ReporteContableResumenCalculos.Filas(reporte.ReportesSemanales);
 
-        foreach (var reporteSemanal in reporte.ReportesSemanales.OrderBy(r => r.SemanaContable))
+        foreach (var fila in filas)
         {
-            // Calcular totales de aves
-            var mortalidadTotal = reporteSemanal.MortalidadHembrasSemanal + reporteSemanal.MortalidadMachosSemanal;
-            var trasladosTotal = reporteSemanal.TrasladosHembrasSemanal + reporteSemanal.TrasladosMachosSemanal;
-            var ventasTotal = reporteSemanal.VentasHembrasSemanal + reporteSemanal.VentasMachosSemanal;
+            worksheet.Cells[row, colSemana].Value = fila.Semana;
+            worksheet.Cells[row, colPeriodo].Value = $"{fila.FechaInicio:dd/MM} - {fila.FechaFin:dd/MM}";
 
-            worksheet.Cells[row, 1].Value = reporteSemanal.SemanaContable;
-            worksheet.Cells[row, 2].Value = $"{reporteSemanal.FechaInicio:dd/MM} - {reporteSemanal.FechaFin:dd/MM}";
-            worksheet.Cells[row, 3].Value = mortalidadTotal;
-            worksheet.Cells[row, 4].Value = trasladosTotal;
-            worksheet.Cells[row, 5].Value = ventasTotal;
-            worksheet.Cells[row, 6].Value = reporteSemanal.ConsumoTotalAlimento;
-            worksheet.Cells[row, 7].Value = reporteSemanal.ConsumoTotalAgua;
-            worksheet.Cells[row, 8].Value = reporteSemanal.ConsumoTotalMedicamento;
-            worksheet.Cells[row, 9].Value = reporteSemanal.ConsumoTotalVacuna;
-            worksheet.Cells[row, 10].Value = reporteSemanal.OtrosConsumos;
-            worksheet.Cells[row, 11].Value = reporteSemanal.TotalGeneral;
-
-            // Formato de números (aves como enteros, consumos como decimales)
-            worksheet.Cells[row, 3].Style.Numberformat.Format = "#,##0";
-            worksheet.Cells[row, 4].Style.Numberformat.Format = "#,##0";
-            worksheet.Cells[row, 5].Style.Numberformat.Format = "#,##0";
-            worksheet.Cells[row, 6].Style.Numberformat.Format = "#,##0.00";
-            worksheet.Cells[row, 7].Style.Numberformat.Format = "#,##0.00";
-            worksheet.Cells[row, 8].Style.Numberformat.Format = "#,##0.00";
-            worksheet.Cells[row, 9].Style.Numberformat.Format = "#,##0.00";
-            worksheet.Cells[row, 10].Style.Numberformat.Format = "#,##0.00";
-            worksheet.Cells[row, 11].Style.Numberformat.Format = "#,##0.00";
-            worksheet.Cells[row, 11].Style.Font.Bold = true;
+            for (int i = 0; i < ColumnasResumen.Length; i++)
+            {
+                var col = primeraColumnaDato + i;
+                worksheet.Cells[row, col].Value = ColumnasResumen[i].Valor(fila);
+                worksheet.Cells[row, col].Style.Numberformat.Format = ColumnasResumen[i].Formato;
+            }
+            worksheet.Cells[row, colTotalGeneral].Style.Font.Bold = true;
 
             // Bordes
-            for (int col = 1; col <= headers.Length; col++)
+            for (int col = 1; col <= ultimaColumna; col++)
             {
                 worksheet.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
             }
-
-            totalMortalidad += mortalidadTotal;
-            totalTraslados += trasladosTotal;
-            totalVentas += ventasTotal;
-            totalAlimento += reporteSemanal.ConsumoTotalAlimento;
-            totalAgua += reporteSemanal.ConsumoTotalAgua;
-            totalMedicamento += reporteSemanal.ConsumoTotalMedicamento;
-            totalVacuna += reporteSemanal.ConsumoTotalVacuna;
-            totalOtros += reporteSemanal.OtrosConsumos;
-            totalGeneral += reporteSemanal.TotalGeneral;
 
             row++;
         }
 
         // Fila de totales
+        var total = ReporteContableResumenCalculos.Total(filas);
+
         worksheet.Cells[row, 1].Value = "TOTAL GENERAL";
-        worksheet.Cells[row, 1, row, 2].Merge = true;
+        worksheet.Cells[row, colSemana, row, colPeriodo].Merge = true;
         worksheet.Cells[row, 1].Style.Font.Bold = true;
         worksheet.Cells[row, 1].Style.Fill.PatternType = ExcelFillStyle.Solid;
         worksheet.Cells[row, 1].Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
-        worksheet.Cells[row, 3].Value = totalMortalidad;
-        worksheet.Cells[row, 4].Value = totalTraslados;
-        worksheet.Cells[row, 5].Value = totalVentas;
-        worksheet.Cells[row, 6].Value = totalAlimento;
-        worksheet.Cells[row, 7].Value = totalAgua;
-        worksheet.Cells[row, 8].Value = totalMedicamento;
-        worksheet.Cells[row, 9].Value = totalVacuna;
-        worksheet.Cells[row, 10].Value = totalOtros;
-        worksheet.Cells[row, 11].Value = totalGeneral;
 
-        // Formato de totales
-        worksheet.Cells[row, 3].Style.Numberformat.Format = "#,##0";
-        worksheet.Cells[row, 4].Style.Numberformat.Format = "#,##0";
-        worksheet.Cells[row, 5].Style.Numberformat.Format = "#,##0";
-        for (int col = 6; col <= 11; col++)
+        for (int i = 0; i < ColumnasResumen.Length; i++)
         {
-            worksheet.Cells[row, col].Style.Numberformat.Format = "#,##0.00";
-        }
-        
-        for (int col = 3; col <= 11; col++)
-        {
+            var col = primeraColumnaDato + i;
+            worksheet.Cells[row, col].Value = ColumnasResumen[i].Valor(total);
+            worksheet.Cells[row, col].Style.Numberformat.Format = ColumnasResumen[i].Formato;
             worksheet.Cells[row, col].Style.Font.Bold = true;
             worksheet.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
             worksheet.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
@@ -261,6 +243,143 @@ public class ReporteContableExcelService
         }
 
         return row + 2;
+    }
+
+    /// <summary>
+    /// Columnas de la hoja MOVIMIENTOS HUEVOS, espejo de la pestaña «Movimientos de Huevos» de la
+    /// pantalla: el Excel y la tabla tienen que decir lo mismo. <c>Total</c> es el acumulado que ya
+    /// trae el DTO — el Excel no recalcula.
+    /// </summary>
+    private static readonly (string Grupo, string Titulo,
+        Func<MovimientoHuevoDiarioDto, int> Valor,
+        Func<ReporteMovimientosHuevosDto, int> Total)[] ColumnasHuevos =
+    {
+        ("PRODUCCIÓN", "POSTURA",           d => d.Postura,          r => r.TotalPostura),
+        ("PRODUCCIÓN", "HVTO FÉRTIL",       d => d.HvtoFertil,       r => r.TotalHvtoFertil),
+        ("PRODUCCIÓN", "HVO COMERCIAL",     d => d.HvoComercial,     r => r.TotalHvoComercial),
+        ("PRODUCCIÓN", "HUEVO DESECHO",     d => d.HuevoDesecho,     r => r.TotalHuevoDesecho),
+        ("MOVIMIENTOS", "ENTRADA",          d => d.Entrada,          r => r.TotalEntrada),
+        ("MOVIMIENTOS", "CAPTURA INFO",     d => d.CapturaInfo,      r => r.MovimientosDiarios.Sum(x => x.CapturaInfo)),
+        ("MOVIMIENTOS", "VENTA",            d => d.Venta,            r => r.TotalVenta),
+        ("MOVIMIENTOS", "SALIDA",           d => d.Salida,           r => r.TotalSalida),
+        ("MOVIMIENTOS", "TRASLADO A PLANTA", d => d.TrasladoAPlanta, r => r.TotalTrasladoAPlanta),
+        ("MOVIMIENTOS", "DESCARTE",         d => d.Descarte,         r => r.TotalDescarte)
+    };
+
+    /// <summary>
+    /// Escribe la hoja de movimientos de huevo: encabezado del lote, una fila por día y lote, y la
+    /// fila de totales del reporte.
+    /// </summary>
+    private void EscribirMovimientosHuevos(
+        ExcelWorksheet worksheet,
+        ReporteContableCompletoDto reporte,
+        ReporteMovimientosHuevosDto huevos)
+    {
+        const int colDia = 1;
+        const int colFecha = 2;
+        const int colLote = 3;
+        const int primeraColumnaDato = 4;
+        var ultimaColumna = primeraColumnaDato + ColumnasHuevos.Length - 1;
+
+        // Encabezado
+        worksheet.Cells[1, 1].Value = "MOVIMIENTOS DE HUEVOS";
+        worksheet.Cells[1, 1].Style.Font.Size = 18;
+        worksheet.Cells[1, 1].Style.Font.Bold = true;
+        worksheet.Cells[1, 1, 1, ultimaColumna].Merge = true;
+        worksheet.Cells[1, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+
+        worksheet.Cells[2, 1].Value = "Lote Padre:";
+        worksheet.Cells[2, 2].Value = huevos.LotePadreNombre;
+        worksheet.Cells[2, 2].Style.Font.Bold = true;
+
+        worksheet.Cells[3, 1].Value = "Granja:";
+        worksheet.Cells[3, 2].Value = reporte.GranjaNombre;
+
+        if (huevos.FechaInicio.HasValue && huevos.FechaFin.HasValue)
+        {
+            worksheet.Cells[4, 1].Value = "Período:";
+            worksheet.Cells[4, 2].Value = $"{huevos.FechaInicio:dd/MM/yyyy} - {huevos.FechaFin:dd/MM/yyyy}";
+        }
+
+        var row = 6;
+
+        // Fila de grupos (PRODUCCIÓN / MOVIMIENTOS) sobre sus columnas
+        var inicioGrupo = primeraColumnaDato;
+        for (int i = 0; i < ColumnasHuevos.Length; i++)
+        {
+            var esUltima = i == ColumnasHuevos.Length - 1;
+            var cambiaGrupo = esUltima || ColumnasHuevos[i + 1].Grupo != ColumnasHuevos[i].Grupo;
+            if (!cambiaGrupo) continue;
+
+            var finGrupo = primeraColumnaDato + i;
+            worksheet.Cells[row, inicioGrupo].Value = ColumnasHuevos[i].Grupo;
+            worksheet.Cells[row, inicioGrupo, row, finGrupo].Merge = true;
+            worksheet.Cells[row, inicioGrupo].Style.Font.Bold = true;
+            worksheet.Cells[row, inicioGrupo].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            worksheet.Cells[row, inicioGrupo].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            worksheet.Cells[row, inicioGrupo].Style.Fill.BackgroundColor.SetColor(Color.LightBlue);
+            worksheet.Cells[row, inicioGrupo].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            inicioGrupo = finGrupo + 1;
+        }
+        row++;
+
+        // Encabezados de columnas
+        worksheet.Cells[row, colDia].Value = "Día";
+        worksheet.Cells[row, colFecha].Value = "Fecha";
+        worksheet.Cells[row, colLote].Value = "Lote";
+        for (int i = 0; i < ColumnasHuevos.Length; i++)
+        {
+            worksheet.Cells[row, primeraColumnaDato + i].Value = ColumnasHuevos[i].Titulo;
+        }
+        for (int col = 1; col <= ultimaColumna; col++)
+        {
+            worksheet.Cells[row, col].Style.Font.Bold = true;
+            worksheet.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            worksheet.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+            worksheet.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            worksheet.Cells[row, col].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        }
+        row++;
+
+        // Detalle diario
+        var dia = 1;
+        foreach (var mov in huevos.MovimientosDiarios)
+        {
+            worksheet.Cells[row, colDia].Value = dia++;
+            worksheet.Cells[row, colFecha].Value = mov.Fecha.ToString("dd/MM/yyyy");
+            worksheet.Cells[row, colLote].Value = mov.LoteNombre;
+
+            for (int i = 0; i < ColumnasHuevos.Length; i++)
+            {
+                var col = primeraColumnaDato + i;
+                worksheet.Cells[row, col].Value = ColumnasHuevos[i].Valor(mov);
+                worksheet.Cells[row, col].Style.Numberformat.Format = "#,##0";
+            }
+
+            for (int col = 1; col <= ultimaColumna; col++)
+            {
+                worksheet.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            }
+            row++;
+        }
+
+        // Totales
+        worksheet.Cells[row, colDia].Value = "TOTALES";
+        worksheet.Cells[row, colDia, row, colLote].Merge = true;
+        worksheet.Cells[row, colDia].Style.Font.Bold = true;
+        worksheet.Cells[row, colDia].Style.Fill.PatternType = ExcelFillStyle.Solid;
+        worksheet.Cells[row, colDia].Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
+
+        for (int i = 0; i < ColumnasHuevos.Length; i++)
+        {
+            var col = primeraColumnaDato + i;
+            worksheet.Cells[row, col].Value = ColumnasHuevos[i].Total(huevos);
+            worksheet.Cells[row, col].Style.Numberformat.Format = "#,##0";
+            worksheet.Cells[row, col].Style.Font.Bold = true;
+            worksheet.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            worksheet.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGreen);
+            worksheet.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thick);
+        }
     }
 
     /// <summary>

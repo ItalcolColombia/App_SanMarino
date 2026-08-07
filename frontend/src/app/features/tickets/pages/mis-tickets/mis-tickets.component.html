@@ -1,9 +1,9 @@
 <!-- src/app/features/tickets/pages/mis-tickets/mis-tickets.component.html -->
-<div class="min-h-full bg-white bg-gradient-to-b from-ital-orange-50 via-white to-white">
+<div class="min-h-full bg-ital-cream">
   <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
 
-    <!-- Hero header -->
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <!-- ── Hero ── -->
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3.5">
         <div class="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-ital-orange to-ital-orange-dark text-white shadow-lg shadow-ital-orange/25">
           <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -12,17 +12,38 @@
         </div>
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-slate-800">Mis solicitudes</h1>
-          <p class="text-sm text-ital-muted">Seguí el estado de tus tickets de soporte y requerimientos.</p>
+          <p class="text-sm text-ital-muted">Seguí el estado de tus casos paso a paso.</p>
         </div>
       </div>
       <a routerLink="/tickets/nuevo"
          class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ital-green/25 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-ital-green/30">
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-        Nuevo ticket
+        Nueva solicitud
       </a>
     </div>
 
-    <!-- Filtros -->
+    <!-- ── Aviso: casos esperando tu confirmación ── -->
+    @if (pendientesConfirmar() > 0 && estado !== 'SOLUCIONADO') {
+      <button type="button" (click)="selectEstado('SOLUCIONADO')"
+              class="mb-5 flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-4 py-3 text-left shadow-sm transition hover:shadow-md">
+        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-600">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-bold text-emerald-800">
+            {{ pendientesConfirmar() }} {{ pendientesConfirmar() === 1 ? 'caso solucionado espera' : 'casos solucionados esperan' }} tu confirmación
+          </span>
+          <span class="block text-xs text-emerald-600">Revisá la solución y confirmá el cierre, o reabrí si no estás conforme.</span>
+        </span>
+        <svg class="h-5 w-5 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+      </button>
+    }
+
+    <!-- ── Filtros ── -->
     <section class="ux-card filter-card mb-5">
       <div class="filter-card__header">
         <div class="filter-card__header-icon" aria-hidden="true">
@@ -34,7 +55,7 @@
         </div>
         @if (data()) {
           <span class="ml-auto rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-            {{ data()!.total }} ticket(s)
+            {{ data()!.total }} caso(s)
           </span>
         }
       </div>
@@ -68,16 +89,155 @@
       </div>
     </section>
 
-    <!-- Listado compartido -->
-    <app-ticket-list
-      [items]="data()?.items ?? []"
-      [loading]="loading()"
-      [page]="page"
-      [totalPages]="totalPages()"
-      [total]="data()?.total ?? 0"
-      emptyText="No tenés tickets para este filtro. ¡Creá el primero!"
-      (prev)="prevPage()"
-      (next)="nextPage()">
-    </app-ticket-list>
+    <!-- ── Listado ── -->
+    @if (loading()) {
+      <div class="space-y-3">
+        @for (s of [1,2,3]; track s) {
+          <div class="h-32 animate-pulse rounded-2xl border-l-4 border-l-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+            <div class="mb-2 flex gap-2">
+              <div class="h-4 w-24 rounded bg-slate-100"></div>
+              <div class="h-4 w-16 rounded bg-slate-100"></div>
+            </div>
+            <div class="h-4 w-2/3 rounded bg-slate-100"></div>
+          </div>
+        }
+      </div>
+    } @else if (items().length === 0) {
+      <div class="rounded-3xl border border-dashed border-slate-200 bg-white/60 px-6 py-16 text-center">
+        <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-ital-cream text-ital-orange">
+          <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />
+          </svg>
+        </div>
+        <p class="text-sm font-medium text-slate-600">No tenés casos para este filtro.</p>
+        <a routerLink="/tickets/nuevo" class="mt-3 inline-block text-sm font-semibold text-ital-green hover:underline">Creá el primero</a>
+      </div>
+    } @else {
+      <div class="space-y-3">
+        @for (t of items(); track t.id) {
+          <article class="overflow-hidden rounded-2xl border-l-4 bg-white shadow-sm ring-1 ring-slate-200/70 transition-all duration-200 hover:shadow-md"
+                   [class]="estadoBorder[t.estado]">
+
+            <!-- Cabecera de la tarjeta -->
+            <div class="p-4 sm:p-5">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span class="rounded-md bg-slate-900/[0.06] px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wider text-slate-500">{{ t.codigo }}</span>
+                    <span class="rounded-md bg-ital-orange-50 px-1.5 py-0.5 text-[11px] font-semibold text-ital-orange-dark">{{ tipoLabel[t.tipo] }}</span>
+                    <app-ticket-prioridad-badge [prioridad]="t.prioridad" />
+                    <app-ticket-sla-chip [estado]="t.estadoSla" [horasParaVencer]="t.horasParaVencer" />
+                    @if (t.registradoPorTercero) {
+                      <span class="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-600"
+                            [title]="'Registrado por ' + (t.createdByNombre || 'el administrador')">registrado por soporte</span>
+                    }
+                  </div>
+
+                  <a [routerLink]="['/tickets', t.id]"
+                     class="block truncate text-[15px] font-semibold text-slate-800 transition-colors hover:text-ital-green-dark">
+                    {{ t.titulo }}
+                  </a>
+
+                  <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ital-muted">
+                    <span class="inline-flex items-center gap-1">
+                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                      {{ t.createdAt | date:'dd MMM yyyy' }} · hace {{ diasDesde(t.createdAt) }} d
+                    </span>
+                    @if (t.assignedToNombre) {
+                      <span class="inline-flex items-center gap-1 text-ital-green-dark">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                        Atiende {{ t.assignedToNombre }}
+                      </span>
+                    }
+                    @if (t.cantidadNotas > 0) {
+                      <span class="inline-flex items-center gap-1">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5h8m-8 4h5m-6.6 5.4L3 21V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7.4a2 2 0 0 0-1.4.6Z"/></svg>
+                        {{ t.cantidadNotas }}
+                      </span>
+                    }
+                    @if (t.cantidadImagenes > 0) {
+                      <span class="inline-flex items-center gap-1">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15A2.25 2.25 0 0 0 2.25 6.75v10.5A2.25 2.25 0 0 0 4.5 19.5Z"/></svg>
+                        {{ t.cantidadImagenes }}
+                      </span>
+                    }
+                  </div>
+
+                  <!-- Avance de las tareas del equipo -->
+                  @if (t.cantidadTareas > 0) {
+                    <div class="mt-2.5 flex items-center gap-2">
+                      <div class="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
+                        <div class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500"
+                             [style.width.%]="t.avanceTareas"></div>
+                      </div>
+                      <span class="text-[11px] font-medium text-ital-muted">
+                        {{ t.avanceTareas }}% · {{ t.tareasListas }} de {{ t.cantidadTareas }} tareas
+                      </span>
+                    </div>
+                  }
+                </div>
+
+                <div class="flex shrink-0 flex-col items-end gap-2">
+                  <app-ticket-estado-badge [estado]="t.estado"></app-ticket-estado-badge>
+                  @if (t.estado === 'SOLUCIONADO') {
+                    <a [routerLink]="['/tickets', t.id]"
+                       class="rounded-lg bg-gradient-to-br from-ital-green to-ital-green-dark px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition hover:-translate-y-0.5">
+                      Validar solución
+                    </a>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Pie: desplegar seguimiento -->
+            <div class="border-t border-slate-100 bg-slate-50/60">
+              <button type="button" (click)="alternarTimeline(t)"
+                      class="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-semibold text-slate-600 transition hover:bg-slate-100/70 sm:px-5">
+                <svg class="h-3.5 w-3.5 transition-transform" [class.rotate-90]="casoAbierto() === t.id"
+                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+                {{ casoAbierto() === t.id ? 'Ocultar seguimiento' : 'Ver seguimiento del caso' }}
+                <a [routerLink]="['/tickets', t.id]" (click)="$event.stopPropagation()"
+                   class="ml-auto text-[11px] font-semibold text-ital-orange hover:underline">
+                  Abrir caso →
+                </a>
+              </button>
+
+              @if (casoAbierto() === t.id) {
+                <div class="border-t border-slate-100 bg-white px-4 py-4 sm:px-5">
+                  @if (cargandoTimeline() && !timelineDe(t.id).length) {
+                    <div class="flex items-center justify-center gap-2 py-6 text-sm text-ital-muted">
+                      <span class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+                      Cargando seguimiento…
+                    </div>
+                  } @else {
+                    <app-ticket-timeline [eventos]="timelineDe(t.id)" />
+                  }
+                </div>
+              }
+            </div>
+          </article>
+        }
+      </div>
+
+      <!-- Paginación -->
+      @if (totalPages() > 1 || (data()?.total ?? 0) > 0) {
+        <div class="mt-5 flex items-center justify-between text-sm">
+          <span class="text-ital-muted">{{ data()?.total ?? 0 }} caso(s)</span>
+          <div class="flex items-center gap-1.5">
+            <button (click)="prevPage()" [disabled]="page <= 1"
+                    class="grid h-8 w-8 place-items-center rounded-lg bg-white ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-40">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+            </button>
+            <span class="px-2 text-slate-600">{{ page }} / {{ totalPages() }}</span>
+            <button (click)="nextPage()" [disabled]="page >= totalPages()"
+                    class="grid h-8 w-8 place-items-center rounded-lg bg-white ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-40">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+            </button>
+          </div>
+        </div>
+      }
+    }
   </div>
 </div>

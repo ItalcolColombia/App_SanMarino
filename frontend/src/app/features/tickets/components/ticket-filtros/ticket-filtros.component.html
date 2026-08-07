@@ -1,0 +1,154 @@
+<!-- src/app/features/tickets/components/ticket-filtros/ticket-filtros.component.html -->
+<section class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 sm:p-4">
+
+  <!-- ── Línea siempre visible: lo que se usa todo el tiempo ── -->
+  <div class="flex flex-wrap items-end gap-2">
+    <div class="min-w-[180px] flex-1">
+      <label for="tf-texto" class="mb-1 block text-[11px] font-semibold text-slate-600">Buscar</label>
+      <input id="tf-texto" type="search" [(ngModel)]="texto" (keyup.enter)="emitir()" (search)="emitir()"
+             placeholder="Código, título o descripción… (Enter para buscar)"
+             class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+    </div>
+
+    <div>
+      <label for="tf-anio" class="mb-1 block text-[11px] font-semibold text-slate-600">Año</label>
+      <select id="tf-anio" [(ngModel)]="anio" (ngModelChange)="emitir()"
+              class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+        <option [ngValue]="null">Todos</option>
+        @for (a of anios; track a) { <option [ngValue]="a">{{ a }}</option> }
+      </select>
+    </div>
+
+    <div>
+      <label for="tf-tipo" class="mb-1 block text-[11px] font-semibold text-slate-600">Tipo</label>
+      <select id="tf-tipo" [(ngModel)]="tipo" (ngModelChange)="emitir()"
+              class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+        <option value="">Todos</option>
+        @for (t of tipos; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+      </select>
+    </div>
+
+    <div>
+      <label for="tf-prio" class="mb-1 block text-[11px] font-semibold text-slate-600">Prioridad</label>
+      <select id="tf-prio" [(ngModel)]="prioridad" (ngModelChange)="emitir()"
+              class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+        <option value="">Todas</option>
+        @for (p of prioridades; track p) { <option [value]="p">{{ prioridadLabel[p] }}</option> }
+      </select>
+    </div>
+
+    <!-- Abre el resto. El contador evita que quede un recorte activo escondido. -->
+    <button type="button" (click)="alternarExpandido()"
+            class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition"
+            [class.bg-slate-800]="activos() > 0" [class.text-white]="activos() > 0" [class.ring-slate-800]="activos() > 0"
+            [class.bg-white]="activos() === 0" [class.text-slate-600]="activos() === 0" [class.ring-slate-200]="activos() === 0"
+            [attr.aria-expanded]="expandido()">
+      <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/>
+      </svg>
+      Más filtros
+      @if (activos() > 0) {
+        <span class="rounded-full bg-white/20 px-1.5 text-[10px] font-bold">{{ activos() }}</span>
+      }
+      <svg class="h-3 w-3 transition-transform" [class.rotate-180]="expandido()"
+           fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+      </svg>
+    </button>
+
+    @if (activos() > 0) {
+      <button type="button" (click)="limpiar()"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100">
+        Limpiar
+      </button>
+    }
+  </div>
+
+  <!-- ── Bloque avanzado ── -->
+  @if (expandido()) {
+    <div class="mt-3 space-y-3 border-t border-slate-100 pt-3">
+
+      <!-- Países -->
+      <div>
+        <span class="mb-1.5 block text-[11px] font-semibold text-slate-600">
+          Países <span class="font-normal text-ital-muted">({{ paisIds.length ? paisIds.length + ' seleccionado(s)' : 'todos' }})</span>
+        </span>
+        <div class="flex flex-wrap gap-1.5">
+          @for (p of paises; track p.paisId) {
+            <button type="button" (click)="alternarPais(p.paisId)"
+                    class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition"
+                    [class.bg-slate-800]="paisSeleccionado(p.paisId)" [class.text-white]="paisSeleccionado(p.paisId)"
+                    [class.ring-slate-800]="paisSeleccionado(p.paisId)"
+                    [class.bg-white]="!paisSeleccionado(p.paisId)" [class.text-slate-600]="!paisSeleccionado(p.paisId)"
+                    [class.ring-slate-200]="!paisSeleccionado(p.paisId)">
+              {{ p.paisNombre }}
+            </button>
+          }
+          @if (!paises.length) { <span class="text-xs text-ital-muted">Cargando países…</span> }
+        </div>
+      </div>
+
+      <!-- Empresas -->
+      <div>
+        <span class="mb-1.5 block text-[11px] font-semibold text-slate-600">
+          Empresas <span class="font-normal text-ital-muted">({{ companyIds.length ? companyIds.length + ' seleccionada(s)' : 'todas' }})</span>
+        </span>
+        <div class="flex flex-wrap gap-1.5">
+          @for (e of empresas; track e.id) {
+            <button type="button" (click)="alternarEmpresa(e.id)"
+                    class="rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition"
+                    [class.bg-ital-orange]="empresaSeleccionada(e.id)" [class.text-white]="empresaSeleccionada(e.id)"
+                    [class.ring-ital-orange]="empresaSeleccionada(e.id)"
+                    [class.bg-white]="!empresaSeleccionada(e.id)" [class.text-slate-600]="!empresaSeleccionada(e.id)"
+                    [class.ring-slate-200]="!empresaSeleccionada(e.id)">
+              {{ e.name }}
+            </button>
+          }
+          @if (!empresas.length) { <span class="text-xs text-ital-muted">Cargando empresas…</span> }
+        </div>
+      </div>
+
+      <!-- Resto -->
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div>
+          <label for="tf-desde" class="mb-1 block text-[11px] font-semibold text-slate-600">Creados desde</label>
+          <input id="tf-desde" type="date" [(ngModel)]="desde" (ngModelChange)="emitir()"
+                 class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+        </div>
+        <div>
+          <label for="tf-hasta" class="mb-1 block text-[11px] font-semibold text-slate-600">Hasta</label>
+          <input id="tf-hasta" type="date" [(ngModel)]="hasta" (ngModelChange)="emitir()"
+                 class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+        </div>
+
+        @if (!ocultarEstado) {
+          <div>
+            <label for="tf-estado" class="mb-1 block text-[11px] font-semibold text-slate-600">Estado</label>
+            <select id="tf-estado" [(ngModel)]="estado" (ngModelChange)="emitir()"
+                    class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+              <option value="">Todos</option>
+              @for (e of estados; track e) { <option [value]="e">{{ estadoLabel[e] }}</option> }
+            </select>
+          </div>
+        }
+
+        <div>
+          <label for="tf-sla" class="mb-1 block text-[11px] font-semibold text-slate-600">Compromiso (SLA)</label>
+          <select id="tf-sla" [(ngModel)]="estadoSla" (ngModelChange)="emitir()"
+                  class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+            @for (o of opcionesSla; track o.value) { <option [value]="o.value">{{ o.label }}</option> }
+          </select>
+        </div>
+
+        <div>
+          <label for="tf-resol" class="mb-1 block text-[11px] font-semibold text-slate-600">Responsable</label>
+          <select id="tf-resol" [(ngModel)]="assignedToGuid" (ngModelChange)="emitir()"
+                  class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+            <option value="">Todos</option>
+            @for (r of resolutores; track r.guid) { <option [value]="r.guid">{{ r.nombre }}</option> }
+          </select>
+        </div>
+      </div>
+    </div>
+  }
+</section>

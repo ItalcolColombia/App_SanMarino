@@ -138,6 +138,11 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<TicketResolutor> TicketResolutores => Set<TicketResolutor>();
         public DbSet<TicketPerfilUsuario> TicketPerfilesUsuario => Set<TicketPerfilUsuario>();
         public DbSet<TicketResolutorRol> TicketResolutorRoles => Set<TicketResolutorRol>();
+        public DbSet<TicketTarea> TicketTareas => Set<TicketTarea>();
+        public DbSet<TicketTiempo> TicketTiempos => Set<TicketTiempo>();
+
+        // ItalJira — historias (épicas) que agrupan tareas y casos
+        public DbSet<Historia> Historias => Set<Historia>();
 
         // Módulo Mapas (documentos de mapeo ERP/CIESA)
         public DbSet<Mapa> Mapas => Set<Mapa>();

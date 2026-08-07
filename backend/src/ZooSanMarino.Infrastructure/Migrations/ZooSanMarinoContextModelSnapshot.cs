@@ -1623,6 +1623,130 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("guia_genetica_ecuador_header", (string)null);
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.Historia", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("codigo");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Descripcion")
+                        .HasColumnType("text")
+                        .HasColumnName("descripcion");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("BACKLOG")
+                        .HasColumnName("estado");
+
+                    b.Property<string>("Etiquetas")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("etiquetas");
+
+                    b.Property<DateOnly?>("FechaFinPlan")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_fin_plan");
+
+                    b.Property<DateTime?>("FechaFinReal")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_fin_real");
+
+                    b.Property<DateOnly?>("FechaInicioPlan")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_inicio_plan");
+
+                    b.Property<DateTime?>("FechaInicioReal")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_inicio_real");
+
+                    b.Property<decimal?>("HorasEstimadas")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("horas_estimadas");
+
+                    b.Property<int>("Orden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("orden");
+
+                    b.Property<int>("PaisId")
+                        .HasColumnType("integer")
+                        .HasColumnName("pais_id");
+
+                    b.Property<string>("Prioridad")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("MEDIA")
+                        .HasColumnName("prioridad");
+
+                    b.Property<Guid?>("ResponsableUserGuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsable_user_guid");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("titulo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_historias");
+
+                    b.HasIndex("Codigo")
+                        .HasDatabaseName("ix_historias_codigo");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_historias_company_id");
+
+                    b.HasIndex("Estado")
+                        .HasDatabaseName("ix_historias_estado");
+
+                    b.HasIndex("ResponsableUserGuid")
+                        .HasDatabaseName("ix_historias_responsable");
+
+                    b.ToTable("historias", "public");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.HistorialInventario", b =>
                 {
                     b.Property<int>("Id")
@@ -8238,6 +8362,18 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("venta_aves_cantidad");
 
+                    b.Property<int>("VentaAvesHembras")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("venta_aves_hembras");
+
+                    b.Property<int>("VentaAvesMachos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("venta_aves_machos");
+
                     b.Property<string>("VentaAvesMotivo")
                         .HasColumnType("text")
                         .HasColumnName("venta_aves_motivo");
@@ -8992,7 +9128,7 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("peso_h");
 
-                    b.Property<double>("PesoHuevo")
+                    b.Property<double?>("PesoHuevo")
                         .HasColumnType("double precision")
                         .HasColumnName("peso_huevo");
 
@@ -9084,6 +9220,22 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer")
                         .HasColumnName("updated_by_user_id");
+
+                    b.Property<int>("VentaAvesHembras")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("venta_aves_hembras");
+
+                    b.Property<int>("VentaAvesMachos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("venta_aves_machos");
+
+                    b.Property<string>("VentaAvesMotivo")
+                        .HasColumnType("text")
+                        .HasColumnName("venta_aves_motivo");
 
                     b.HasKey("Id")
                         .HasName("pk_seguimiento_diario_produccion");
@@ -9260,6 +9412,18 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_cierre_solicitante");
 
+                    b.Property<DateOnly?>("FechaFinPlan")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_fin_plan");
+
+                    b.Property<DateOnly?>("FechaInicioPlan")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_inicio_plan");
+
+                    b.Property<DateTime?>("FechaLimite")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_limite");
+
                     b.Property<DateTime?>("FechaNotificacionCorreo")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_notificacion_correo");
@@ -9272,15 +9436,46 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_solucion");
 
+                    b.Property<long?>("HistoriaId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("historia_id");
+
+                    b.Property<decimal?>("HorasEstimadas")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("horas_estimadas");
+
                     b.Property<bool>("NotificadoCorreo")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("notificado_correo");
 
+                    b.Property<int>("OrdenTablero")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("orden_tablero");
+
                     b.Property<int>("PaisId")
                         .HasColumnType("integer")
                         .HasColumnName("pais_id");
+
+                    b.Property<string>("Prioridad")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("MEDIA")
+                        .HasColumnName("prioridad");
+
+                    b.Property<Guid?>("SolicitanteUserGuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("solicitante_user_guid");
+
+                    b.Property<int?>("SolicitanteUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("solicitante_user_id");
 
                     b.Property<string>("SolucionDescripcion")
                         .HasColumnType("text")
@@ -9335,8 +9530,17 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.HasIndex("Estado")
                         .HasDatabaseName("ix_tickets_estado");
 
+                    b.HasIndex("HistoriaId")
+                        .HasDatabaseName("ix_tickets_historia_id");
+
                     b.HasIndex("PaisId")
                         .HasDatabaseName("ix_tickets_pais_id");
+
+                    b.HasIndex("Prioridad")
+                        .HasDatabaseName("ix_tickets_prioridad");
+
+                    b.HasIndex("SolicitanteUserId")
+                        .HasDatabaseName("ix_tickets_solicitante_user_id");
 
                     b.HasIndex("Tipo")
                         .HasDatabaseName("ix_tickets_tipo");
@@ -9491,6 +9695,11 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<long>("TicketId")
                         .HasColumnType("bigint")
                         .HasColumnName("ticket_id");
+
+                    b.Property<string>("TipoEvento")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("tipo_evento");
 
                     b.Property<int>("UserId")
                         .HasColumnType("integer")
@@ -9737,6 +9946,213 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDatabaseName("ux_ticket_resolutor_rol_role_tipo_pais_company");
 
                     b.ToTable("ticket_resolutor_rol", "public");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketTarea", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid?>("AsignadoUserGuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("asignado_user_guid");
+
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("codigo");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Descripcion")
+                        .HasColumnType("text")
+                        .HasColumnName("descripcion");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("BACKLOG")
+                        .HasColumnName("estado");
+
+                    b.Property<string>("Etiquetas")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("etiquetas");
+
+                    b.Property<DateOnly?>("FechaFinPlan")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_fin_plan");
+
+                    b.Property<DateTime?>("FechaFinReal")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_fin_real");
+
+                    b.Property<DateOnly?>("FechaInicioPlan")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_inicio_plan");
+
+                    b.Property<DateTime?>("FechaInicioReal")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_inicio_real");
+
+                    b.Property<long?>("HistoriaId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("historia_id");
+
+                    b.Property<decimal?>("HorasEstimadas")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("horas_estimadas");
+
+                    b.Property<int>("Orden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("orden");
+
+                    b.Property<long?>("ParentTareaId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("parent_tarea_id");
+
+                    b.Property<string>("Prioridad")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("MEDIA")
+                        .HasColumnName("prioridad");
+
+                    b.Property<long?>("TicketId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("TAREA")
+                        .HasColumnName("tipo");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("titulo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_tareas");
+
+                    b.HasIndex("AsignadoUserGuid")
+                        .HasDatabaseName("ix_ticket_tareas_asignado");
+
+                    b.HasIndex("Estado")
+                        .HasDatabaseName("ix_ticket_tareas_estado");
+
+                    b.HasIndex("HistoriaId")
+                        .HasDatabaseName("ix_ticket_tareas_historia_id");
+
+                    b.HasIndex("ParentTareaId")
+                        .HasDatabaseName("ix_ticket_tareas_parent");
+
+                    b.HasIndex("TicketId")
+                        .HasDatabaseName("ix_ticket_tareas_ticket_id");
+
+                    b.ToTable("ticket_tareas", "public");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketTiempo", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("descripcion");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha");
+
+                    b.Property<decimal>("Horas")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("numeric(6,2)")
+                        .HasColumnName("horas");
+
+                    b.Property<long?>("TareaId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tarea_id");
+
+                    b.Property<long?>("TicketId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<Guid?>("UserGuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_guid");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_tiempos");
+
+                    b.HasIndex("TareaId")
+                        .HasDatabaseName("ix_ticket_tiempos_tarea_id");
+
+                    b.HasIndex("TicketId")
+                        .HasDatabaseName("ix_ticket_tiempos_ticket_id");
+
+                    b.HasIndex("UserGuid")
+                        .HasDatabaseName("ix_ticket_tiempos_user_guid");
+
+                    b.ToTable("ticket_tiempos", "public");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.TrasladoHuevos", b =>
@@ -11890,6 +12306,17 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("LoteReproductoraAveEngorde");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.Ticket", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.Historia", "Historia")
+                        .WithMany("Casos")
+                        .HasForeignKey("HistoriaId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_tickets_historias_historia_id");
+
+                    b.Navigation("Historia");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketAdjunto", b =>
                 {
                     b.HasOne("ZooSanMarino.Domain.Entities.Ticket", "Ticket")
@@ -11934,6 +12361,50 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_ticket_notificados_tickets_ticket_id");
+
+                    b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketTarea", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.Historia", "Historia")
+                        .WithMany("Tareas")
+                        .HasForeignKey("HistoriaId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ticket_tareas_historias_historia_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.TicketTarea", null)
+                        .WithMany()
+                        .HasForeignKey("ParentTareaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_ticket_tareas_ticket_tareas_parent_tarea_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.Ticket", "Ticket")
+                        .WithMany("Tareas")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_ticket_tareas_tickets_ticket_id");
+
+                    b.Navigation("Historia");
+
+                    b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketTiempo", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.TicketTarea", "Tarea")
+                        .WithMany("Tiempos")
+                        .HasForeignKey("TareaId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ticket_tiempos_ticket_tareas_tarea_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.Ticket", "Ticket")
+                        .WithMany("Tiempos")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_ticket_tiempos_tickets_ticket_id");
+
+                    b.Navigation("Tarea");
 
                     b.Navigation("Ticket");
                 });
@@ -12198,6 +12669,13 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("Detalles");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.Historia", b =>
+                {
+                    b.Navigation("Casos");
+
+                    b.Navigation("Tareas");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.ImplementacionPlan", b =>
                 {
                     b.Navigation("Tareas");
@@ -12301,6 +12779,15 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("Notas");
 
                     b.Navigation("Notificados");
+
+                    b.Navigation("Tareas");
+
+                    b.Navigation("Tiempos");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketTarea", b =>
+                {
+                    b.Navigation("Tiempos");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.User", b =>

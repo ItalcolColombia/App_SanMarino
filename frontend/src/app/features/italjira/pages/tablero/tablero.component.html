@@ -1,0 +1,190 @@
+<!-- src/app/features/italjira/pages/tablero/tablero.component.html -->
+<div class="flex h-full min-h-full flex-col bg-ital-cream">
+
+  <!-- ── Cabecera ── -->
+  <header class="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-lg shadow-slate-900/20">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25zm0 9.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18zM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-slate-800">Tablero de casos</h1>
+          <p class="text-xs text-ital-muted">Arrastrá las tarjetas entre fases para mover el caso.</p>
+        </div>
+      </div>
+
+      <nav class="ml-auto flex flex-wrap items-center gap-1.5">
+        <a routerLink="/italjira/panel"
+           class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125z" />
+          </svg>
+          Panel
+        </a>
+        <a routerLink="/italjira/roadmap"
+           class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+          </svg>
+          Roadmap
+        </a>
+        <a routerLink="/italjira/configuracion"
+           class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">
+          Lista
+        </a>
+        <a routerLink="/tickets/nuevo"
+           class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-ital-green to-ital-green-dark px-3 py-1.5 text-xs font-semibold text-white shadow transition hover:-translate-y-0.5">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Nuevo caso
+        </a>
+      </nav>
+    </div>
+
+    <!-- Indicadores -->
+    @if (resumen(); as r) {
+      <div class="mt-3 flex flex-wrap gap-2">
+        <span class="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
+          {{ r.total }} casos
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">
+          {{ r.abiertos }} sin arrancar
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">
+          {{ r.enCurso }} en curso
+        </span>
+        @if (r.vencidos > 0) {
+          <span class="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
+            {{ r.vencidos }} vencidos
+          </span>
+        }
+        @if (r.porVencer > 0) {
+          <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+            {{ r.porVencer }} por vencer
+          </span>
+        }
+        @if (r.sinAsignar > 0) {
+          <span class="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-inset ring-slate-200">
+            {{ r.sinAsignar }} sin responsable
+          </span>
+        }
+        <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+          {{ r.horasRegistradas }} h registradas
+        </span>
+      </div>
+    }
+  </header>
+
+  <!-- ── Filtros (barra compartida con roadmap y panel) ── -->
+  <div class="shrink-0 border-b border-slate-200 bg-white/70 px-4 py-2.5 sm:px-6">
+    <app-ticket-filtros [ocultarEstado]="true" (cambio)="onFiltro($event)" />
+    @if (cargando() || moviendo()) {
+      <p class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-medium text-ital-muted">
+        <span class="h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+        {{ moviendo() ? 'Guardando…' : 'Cargando…' }}
+      </p>
+    }
+  </div>
+
+  <!-- ── Tablero ── -->
+  <div class="flex-1 overflow-x-auto overflow-y-hidden p-4 sm:px-6">
+    <div class="flex h-full min-w-max gap-3" cdkDropListGroup>
+      @for (col of columnas(); track col.estado) {
+        <section class="flex h-full w-[290px] shrink-0 flex-col rounded-2xl bg-white/70 ring-1 ring-slate-200">
+          <!-- Cabecera de columna -->
+          <header class="flex shrink-0 items-center gap-2 rounded-t-2xl border-b border-slate-200 bg-white px-3 py-2.5">
+            <span class="h-2.5 w-2.5 rounded-full" [class]="estadoDot[col.estado]"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wide text-slate-700">{{ col.label }}</h2>
+            <span class="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+              {{ col.total }}
+            </span>
+          </header>
+
+          <!-- Tarjetas -->
+          <div class="flex-1 space-y-2 overflow-y-auto p-2"
+               cdkDropList [cdkDropListData]="col" [id]="'caso-col-' + col.estado"
+               (cdkDropListDropped)="soltar($event)">
+
+            @for (caso of col.items; track caso.id) {
+              <article cdkDrag [cdkDragData]="caso" (click)="abrirCaso(caso)"
+                       class="group relative cursor-pointer overflow-hidden rounded-xl bg-white p-3 pl-3.5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md">
+                <span class="absolute inset-y-0 left-0 w-1" [class]="prioridadAcento[caso.prioridad]"></span>
+
+                <!-- Código + tipo -->
+                <div class="flex items-center gap-1.5">
+                  @if (caso.codigo) {
+                    <span class="font-mono text-[10px] font-bold text-ital-muted">{{ caso.codigo }}</span>
+                  }
+                  <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                    {{ tipoLabel[caso.tipo] }}
+                  </span>
+                  <span class="ml-auto text-[10px] text-slate-400">{{ diasDesde(caso.createdAt) }} d</span>
+                </div>
+
+                <!-- Título -->
+                <h3 class="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-800">
+                  {{ caso.titulo }}
+                </h3>
+
+                <!-- Solicitante -->
+                <p class="mt-1 truncate text-[11px] text-ital-muted">
+                  {{ caso.solicitanteNombre || caso.createdByNombre || 'Sin solicitante' }}
+                  @if (caso.registradoPorTercero) {
+                    <span class="ml-1 rounded bg-violet-50 px-1 py-0.5 text-[9px] font-bold text-violet-600">a nombre de</span>
+                  }
+                </p>
+
+                <!-- Avance de tareas -->
+                @if (caso.cantidadTareas > 0) {
+                  <div class="mt-2">
+                    <div class="h-1 overflow-hidden rounded-full bg-slate-100">
+                      <div class="h-full rounded-full bg-emerald-500 transition-all" [style.width.%]="caso.avanceTareas"></div>
+                    </div>
+                    <p class="mt-1 text-[10px] font-medium text-ital-muted">
+                      {{ caso.tareasListas }}/{{ caso.cantidadTareas }} tareas
+                      @if (caso.horasRegistradas > 0) { · {{ caso.horasRegistradas }} h }
+                    </p>
+                  </div>
+                }
+
+                <!-- Pie: prioridad, SLA, responsable -->
+                <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  <app-ticket-prioridad-badge [prioridad]="caso.prioridad" />
+                  <app-ticket-sla-chip [estado]="caso.estadoSla" [horasParaVencer]="caso.horasParaVencer" />
+                  <span class="ml-auto grid h-6 w-6 place-items-center rounded-full text-[9px] font-bold ring-2 ring-white"
+                        [class.bg-ital-orange]="caso.assignedToNombre" [class.text-white]="caso.assignedToNombre"
+                        [class.bg-slate-100]="!caso.assignedToNombre" [class.text-slate-400]="!caso.assignedToNombre"
+                        [title]="caso.assignedToNombre || 'Sin responsable'">
+                    {{ iniciales(caso.assignedToNombre) }}
+                  </span>
+                </div>
+              </article>
+            }
+
+            @if (!col.items.length) {
+              <div class="grid h-24 place-items-center rounded-xl border-2 border-dashed border-slate-200">
+                <p class="text-[11px] text-slate-400">Soltá una tarjeta acá</p>
+              </div>
+            }
+
+            @if (col.total > col.items.length) {
+              <p class="py-1 text-center text-[10px] font-medium text-ital-muted">
+                Mostrando {{ col.items.length }} de {{ col.total }} · afiná los filtros para ver el resto
+              </p>
+            }
+          </div>
+        </section>
+      }
+
+      @if (!columnas().length && !cargando()) {
+        <div class="grid w-full place-items-center py-16">
+          <p class="text-sm text-ital-muted">No hay casos para estos filtros.</p>
+        </div>
+      }
+    </div>
+  </div>
+</div>

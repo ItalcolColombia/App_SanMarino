@@ -17,9 +17,9 @@
 --     * guards          = sin registros ⇒ lote fuera; encaset NULL o POSTERIOR
 --                         al primer registro ⇒ lote fuera (datos inconsistentes)
 --     * exclusión       = filas de PURO traslado posteriores a la semana 25
---     * base por sexo   = hembras_l / machos_l, con fallback al primer
---                         traslado_ingreso del lote, si no 0
---     * saldo por sexo  = base − Σ(mort + sel + err + tras_salida − tras_ingreso)
+--     * base por sexo   = hembras_l / machos_l, con fallback a la SUMA POR SEXO de
+--                         los traslado_ingreso de las filas que la ventana descarta
+--     * saldo por sexo  = base − Σ(mort + sel + err + tras_salida + venta − tras_ingreso)
 --     * pesaje          = último registro de la semana con peso>0; si no hay,
 --                         el último registro de la semana; con ARRASTRE (LOCF)
 --                         del último peso conocido del sexo
@@ -133,6 +133,12 @@ reg AS (
            COALESCE(sl.traslado_salida_machos, 0)  AS tras_sal_m,
            COALESCE(sl.traslado_ingreso_hembras, 0) AS tras_ing_h,
            COALESCE(sl.traslado_ingreso_machos, 0)  AS tras_ing_m,
+           -- Venta de aves: el saldo tiene que descontarla o el reporte sobrestima el lote. El total
+           -- (venta_aves_cantidad) no sirve acá porque el saldo va POR SEXO; se usan los splits
+           -- dedicados venta_aves_hembras/machos, espejo de movimiento_aves (que sigue siendo el
+           -- dueño del número). Sin esto S-369B reportaba 1.281 machos con el maestro en 991.
+           COALESCE(sl.venta_aves_hembras, 0)       AS venta_h,
+           COALESCE(sl.venta_aves_machos, 0)        AS venta_m,
            COALESCE(sl.peso_prom_hembras, 0)::double precision AS ph,
            COALESCE(sl.peso_prom_machos, 0)::double precision  AS pm,
            sl.uniformidad_hembras::double precision AS uh,
@@ -149,14 +155,16 @@ reg AS (
 lote_ok AS (
     SELECT lb.*,
            g.min_reg,
-           -- base por sexo con el mismo fallback del Detalle
+           -- base por sexo con el mismo fallback del Detalle. Sigue siendo COALESCE, no suma:
+           -- un lote CON encaset conserva exactamente su número de siempre. El fallback solo
+           -- entra cuando el encaset es 0/NULL, que es el lote poblado únicamente por traslado.
            COALESCE(
                NULLIF(l.hembras_l, 0)::double precision,
-               NULLIF(fi.first_ing_h, 0),
+               NULLIF(fi.ing_desc_h, 0),
                0)                                    AS base_h,
            COALESCE(
                NULLIF(l.machos_l, 0)::double precision,
-               NULLIF(fi.first_ing_m, 0),
+               NULLIF(fi.ing_desc_m, 0),
                0)                                    AS base_m,
            COALESCE(tr.tuvo_traslado, false)         AS tuvo_traslado
       FROM lote_base lb
@@ -167,14 +175,30 @@ lote_ok AS (
               FROM reg r
              WHERE r.lote_id = lb.lote_id
       ) g ON true
+      -- Aves que entraron por traslado en filas que reg_ok DESCARTA (puro traslado > sem 25).
+      -- Esas aves no las suma nadie: la ventana las tira, así que si el lote no trae encaset
+      -- quedan fuera del saldo. Se rescatan acá como base.
+      --
+      -- ⚠️ El predicado tiene que ser el MISMO que el de reg_ok (más abajo). Si cambia uno,
+      --    cambia el otro: si acá entrara una fila que reg_ok SÍ cuenta, sus aves se sumarían
+      --    dos veces (una como base y otra como ingreso) y el saldo saldría inflado.
+      -- SUM por sexo, no una sola fila: los sexos pueden llegar en traslados de DÍAS DISTINTOS.
+      -- Con `LIMIT 1` se leían los dos sexos de la fila más antigua, así que el sexo que no
+      -- venía en esa fila quedaba con base 0 y el reporte lo mostraba NEGATIVO tras restarle
+      -- la mortalidad (caso real: machos el 08-jun y hembras el 11-jun ⇒ hembras en -212).
       LEFT JOIN LATERAL (
-            SELECT r.tras_ing_h::double precision AS first_ing_h,
-                   r.tras_ing_m::double precision AS first_ing_m
+            SELECT COALESCE(SUM(r.tras_ing_h), 0)::double precision AS ing_desc_h,
+                   COALESCE(SUM(r.tras_ing_m), 0)::double precision AS ing_desc_m
               FROM reg r
              WHERE r.lote_id = lb.lote_id
-               AND (r.tras_ing_h + r.tras_ing_m) > 0
-             ORDER BY r.reg_date ASC, r.id ASC
-             LIMIT 1
+               AND r.real_sem > 25
+               AND r.mort_h = 0 AND r.mort_m = 0
+               AND r.sel_h = 0  AND r.sel_m = 0
+               AND r.err_h = 0  AND r.err_m = 0
+               AND r.cons_kg_h = 0 AND r.cons_kg_m = 0
+               AND r.ph = 0 AND r.pm = 0
+               AND r.venta_h = 0 AND r.venta_m = 0
+               AND (r.tras_sal_h + r.tras_sal_m + r.tras_ing_h + r.tras_ing_m) > 0
       ) fi ON true
       LEFT JOIN LATERAL (
             SELECT true AS tuvo_traslado
@@ -200,6 +224,7 @@ reg_ok AS (
            AND r.err_h = 0  AND r.err_m = 0
            AND r.cons_kg_h = 0 AND r.cons_kg_m = 0
            AND r.ph = 0 AND r.pm = 0
+           AND r.venta_h = 0 AND r.venta_m = 0
            AND (r.tras_sal_h + r.tras_sal_m + r.tras_ing_h + r.tras_ing_m) > 0
        )
 ),
@@ -218,6 +243,8 @@ sem AS (
            SUM(tras_sal_m)::double precision   AS tras_sal_m,
            SUM(tras_ing_h)::double precision   AS tras_ing_h,
            SUM(tras_ing_m)::double precision   AS tras_ing_m,
+           SUM(venta_h)::double precision      AS venta_h,
+           SUM(venta_m)::double precision      AS venta_m,
            SUM(cons_kg_h)                      AS cons_kg_h,
            SUM(cons_kg_m)                      AS cons_kg_m
       FROM reg_ok
@@ -248,6 +275,7 @@ acum AS (
            s.dias,
            s.mort_h, s.mort_m, s.sel_h, s.sel_m, s.err_h, s.err_m,
            s.tras_sal_h, s.tras_sal_m, s.tras_ing_h, s.tras_ing_m,
+           s.venta_h, s.venta_m,
            s.cons_kg_h, s.cons_kg_m,
            NULLIF(p.ph, 0) AS peso_h_raw,
            NULLIF(p.pm, 0) AS peso_m_raw,
@@ -256,10 +284,10 @@ acum AS (
            NULLIF(COALESCE(p.cvh, 0), 0) AS cv_h,
            NULLIF(COALESCE(p.cvm, 0), 0) AS cv_m,
            -- salidas netas acumuladas hasta ESTA semana (inclusive)
-           SUM(s.mort_h + s.sel_h + s.err_h + s.tras_sal_h - s.tras_ing_h)
+           SUM(s.mort_h + s.sel_h + s.err_h + s.tras_sal_h + s.venta_h - s.tras_ing_h)
                OVER (PARTITION BY s.lote_id ORDER BY s.sem
                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS neto_out_h,
-           SUM(s.mort_m + s.sel_m + s.err_m + s.tras_sal_m - s.tras_ing_m)
+           SUM(s.mort_m + s.sel_m + s.err_m + s.tras_sal_m + s.venta_m - s.tras_ing_m)
                OVER (PARTITION BY s.lote_id ORDER BY s.sem
                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS neto_out_m,
            -- retiro acumulado (mort + sel + err), SIN traslados: es lo que el
@@ -302,7 +330,18 @@ sem_objetivo AS (
            x.unif_h, x.unif_m, x.cv_h, x.cv_m,
            x.neto_out_h, x.neto_out_m, x.retiro_ac_h, x.retiro_ac_m,
            x.peso_h, x.peso_m,
-           (lo.enc_date + ((x.sem - 1) * 7) + 6) AS fin_sem
+           (lo.enc_date + ((x.sem - 1) * 7) + 6) AS fin_sem,
+           -- Semana CALENDARIO (WEEKNUM estilo Excel) del cierre de la semana de edad.
+           -- Se materializa acá porque la usan DOS cosas: el filtro de abajo y la
+           -- partición de `part`. OJO: NO es lo mismo que fin_sem — fin_sem depende del
+           -- encaset de CADA lote, así que dos sublotes del mismo lote padre con fechas
+           -- de llegada distintas caen en la misma semana calendario con fin_sem DISTINTO.
+           floor(
+             ( (lo.enc_date + ((x.sem - 1) * 7) + 6)
+               - date_trunc('year', (lo.enc_date + ((x.sem - 1) * 7) + 6)::timestamp)::date
+               + EXTRACT(DOW FROM date_trunc('year', (lo.enc_date + ((x.sem - 1) * 7) + 6)::timestamp))::int
+             ) / 7.0
+           )::int + 1                            AS sem_cal
       FROM locf x
       JOIN lote_ok lo ON lo.lote_id = x.lote_id
      WHERE EXTRACT(YEAR FROM (lo.enc_date + ((x.sem - 1) * 7) + 6))::int = p_anio
@@ -384,10 +423,14 @@ SELECT
     f.fin_sem                                                    AS fecha_fin_semana,
     f.dias                                                       AS dias_con_registro,
     f.tuvo_traslado,
-    -- Participación SIEMPRE dentro de su propia semana calendario: con
-    -- p_sem_anio NULL la ventana global mezclaría las 52 semanas del año.
-    CASE WHEN SUM(f.saldo_h) OVER (PARTITION BY f.fin_sem) > 0
-         THEN f.saldo_h / SUM(f.saldo_h) OVER (PARTITION BY f.fin_sem)
+    -- Participación SIEMPRE dentro de su propia semana CALENDARIO: con p_sem_anio NULL
+    -- la ventana global mezclaría las 52 semanas del año. Particiona por sem_cal, NO por
+    -- fin_sem: fin_sem sale del encaset de cada lote, así que un lote padre con sublotes
+    -- de fechas de llegada distintas dejaba a cada sublote SOLO en su partición y todos
+    -- daban part = 1 (deberían repartirse ~0,50 y ~0,50). Con p_sem_anio concreto todas
+    -- las filas comparten sem_cal, así que esto equivale al OVER () original.
+    CASE WHEN SUM(f.saldo_h) OVER (PARTITION BY f.sem_cal) > 0
+         THEN f.saldo_h / SUM(f.saldo_h) OVER (PARTITION BY f.sem_cal)
     END                                                          AS part,
     f.saldo_h                                                    AS saldo_hembras,
     f.saldo_m                                                    AS saldo_machos,

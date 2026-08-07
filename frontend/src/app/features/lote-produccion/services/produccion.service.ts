@@ -478,6 +478,11 @@ export interface IndicadorProduccionSemanalDto {
   // Selección
   seleccionHembras: number;
   porcentajeSeleccionHembras: number;
+  /** Conteo de la semana. El % de retiro de machos —que ya incluye esta selección— viaja aparte
+   *  en retiroSemanalMachosReal/retiroAcumuladoMachosReal. */
+  seleccionMachos: number;
+  /** Mismo denominador que el de hembras: el saldo del sexo antes de descontar la semana. */
+  porcentajeSeleccionMachos: number;
 
   // Consumo (kg)
   consumoKgHembras: number;

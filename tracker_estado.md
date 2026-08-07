@@ -1033,3 +1033,948 @@ errores, porque son cosas que pueden pasar entre empresas»
 - [x] Q8 No se commiteó trabajo de la otra sesión: `dotnet ef migrations add` había arrastrado al
       `ModelSnapshot` un cambio ajeno de `tipo_alimento` (100→500) — revertido, y el Designer de mi
       migración alineado al modelo de HEAD
+
+---
+
+# Tracker — Ciclo completo S-369: levante → cierre → liquidación → producción
+
+**Plan:** [`fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md`](fase_de_desarrollo/carga_masiva_s369ab_postura_plan.md)
+**Fecha:** 2026-08-06 · **Pedido:** «cerrá el lote en la fecha que tiene, cargá producción, registrá
+traslados/movimientos/ventas en los módulos que corresponda y validá que el Excel y los reportes de la
+app estén alineados». Empresa **Demo excluida** a pedido: solo Agroavicola Sanmarino.
+
+## Corrección del corte de fase (hallazgo)
+- [x] F1 Cada sublote hace **168 días exactos de levante (24 semanas)** y pasa a producción al día 169.
+      Verificado: el saldo del día 168 es idéntico a las aves con las que arranca su hoja de producción
+      — A `2026-02-13 → 9.484/966` y B `2026-02-19 → 9.534/991`. El corte anterior (uno solo, 2026-02-19)
+      le daba a A **6 días de más** que ya estaban en producción
+- [x] F2 Producción también se parte por sublote: `DIARIO A` (168 días, galpones 9-10) y `DIARIO B`
+      (161 días, galpones 11-13). Las columnas de peso están **corridas una posición** entre las dos hojas
+
+## Carga
+- [x] C1 4 archivos regenerados: levante A/B (168 días c/u) y producción A/B (168 y 161 días)
+- [x] C2 Levante importado: **168/168** filas cada uno, 0 errores; saldos 9.484/966 y 9.534/991
+- [x] C3 **Liquidación** calculada y guardada por sublote (A: mort 3,56 % · sel 0,85 % · sexaje 2,31 % ·
+      retiro acum 6,72 % · B: 2,98 / 0,69 / 3,68 / 7,36)
+- [x] C4 **Cierre en la fecha real**: `P-S-369A` arranca 2026-02-14 y `P-S-369B` 2026-02-20, con
+      9.484/966 y 9.534/991 — exactamente el saldo de su levante
+- [x] C5 Producción importada: **168/168** y **161/161** filas, 0 errores. Cierra en 9.020/810 y 8.952/813
+      con 1.142.573 y 1.115.079 huevos — los cuatro números idénticos al informe
+- [x] C6 **Ajuste de inventario trazable**: el consumo del informe supera a las compras de `CONSUMOS`
+      en **2,8 kg** de PREPOSTURA (86.462,8 vs 86.460,0). En vez de recortar el consumo —que es el que
+      produce el gr/ave— el faltante entra como un `Ingreso` con referencia `AJUSTE-CUADRE-001560`
+
+## Módulos (el historial quedó donde corresponde)
+- [x] M1 **Movimientos de Aves**: 6 movimientos en S-369A y 8 en S-369B, con número `MGA-*`, fecha, tipo,
+      cantidades, estado `Completado` y motivo. `GET /api/MovimientoAves/lote/{id}` los devuelve todos
+- [x] M2 **Cohortes**: el Ingreso de 196 machos dejó su cohorte en el receptor con la procedencia y
+      `fecha_encaset_cohorte = 2025-08-30` (la del **origen**, no la del receptor)
+- [x] M3 **Traslado de Huevos**: 0 registros — el informe fuente no trae movimientos de huevo
+- [x] M4 **Inventario**: 96 ingresos (792.181,8 kg) y 1.190 consumos (764.149,7 kg); histórico unificado
+      con 1.286 filas y **0 anuladas**, cuadrando con los movimientos
+
+## Validación contra el Excel
+- [x] V1 **Levante — semanal consolidado: 24 de 24 semanas IDÉNTICAS** en las 8 métricas (saldo,
+      mortalidad, selección, error de sexaje, consumo kg, g/ave/día, peso corporal y uniformidad).
+      Con el corte corregido ya no queda ninguna semana parcial
+- [x] V2 **Producción — por sublote (24 y 23 semanas)**: mortalidad, selección, consumo kg, huevos
+      totales y huevos aptos **idénticos en todas las semanas** (única excepción: los 5 huevos del
+      2026-06-30, desvío propio del archivo fuente)
+- [x] V3 🔴 **El saldo de aves de producción NO descuenta las ventas** → investigado y localizado:
+      - La brecha aparece justo en la primera venta y al final vale **+114 en A y +224 en B**:
+        exactamente el total vendido de cada uno
+      - Causa: en producción una `Venta` descuenta `aves_h_actual` y deja la auditoría en
+        `movimiento_aves` + una **nota en observaciones**, pero **no escribe ninguna columna numérica**
+        en `seguimiento_diario_produccion` (en levante sí existe `venta_aves_cantidad`)
+      - El reporte reconstruye el saldo desde las filas diarias, así que no la ve. El punto exacto es
+        `fn_indicadores_produccion_postura`: `v_aves_h_act := GREATEST(0, v_aves_h_act - r_mort_h - r_sel_h)`
+        — sin ventas ni traslados
+      - Arrastra el g/ave/día, que divide por ese saldo (semana 48 de A: 159,74 vs 162,39)
+      - **NO corregido en este turno**: esa fn es una cadena de 3 niveles compartida con el módulo de
+        Indicadores de todas las empresas y merece su propio cambio con el gate multipaís completo,
+        igual que se hizo con `ReporteTecnicoService`. Pendiente de OK
+
+---
+
+# Tracker — Alinear el saldo de aves de PRODUCCIÓN (los dos caminos)
+
+**Fecha:** 2026-08-06 · **Pedido:** «realizá los dos y al final dejá todo alineado y codificado,
+tanto en la carga masiva como en los seguimientos diarios de producción».
+
+## Camino 1 · La venta deja su cantidad en la fila diaria
+- [x] 1a `SeguimientoProduccion` + configuración: `VentaAvesHembras`, `VentaAvesMachos`, `VentaAvesMotivo`.
+      Split por **sexo** (levante usa una sola columna sumada, que no sirve porque el saldo de
+      producción se lleva por sexo)
+- [x] 1b Migración `20260806092854_VentaAvesEnFilaDiariaProduccion`: columnas idempotentes
+      (`ADD COLUMN IF NOT EXISTS`) + **backfill** desde `movimiento_aves` que solo toca filas en cero
+- [x] 1c Los **dos** escritores la llenan: la carga masiva (`MigracionService.MovimientosAves`) y el
+      módulo de Movimientos de Aves (`MovimientoAvesService.SeguimientoDiario`). Antes los dos
+      escribían únicamente una nota de texto en `observaciones`
+- [x] 1d Backfill verificado: S-369A **114 H / 63 M** en 4 días y S-369B **224 H / 67 M** en 5 días,
+      con su motivo — exactamente las ventas de `movimiento_aves`
+
+## Camino 2 · La fn descuenta ventas, retiros, traslados y selección de machos
+- [x] 2a Migración `20260806093256_SaldoProduccionDescuentaVentasYTraslados`
+- [x] 2b `_seg` incorpora `sel_m`, `mov_venta_*`, `mov_retiro_*` y `mov_traslado_in/out_*` — todos ya
+      los exponía `fn_seguimiento_diario_produccion` (agrega `movimiento_aves` por día), así que no
+      hizo falta una dependencia nueva
+- [x] 2c El decremento pasa a `− mort − sel_h − venta − retiro − salidas + ingresos` para hembras y
+      `− mort − sel_m − venta − retiro − salidas + ingresos` para machos
+- [x] 2d 🔴 **Tercer hueco encontrado en el camino**: la fn **nunca leyó la selección de machos** —
+      ni para el saldo ni para la salida (`SeleccionMachos` del reporte estaba **fijo en 0** en
+      `ReporteTecnicoSemanalCalculos:410`). Eran otras **61** y **77** aves de más. Se agregó
+      `seleccion_machos` a la fn (DROP + CREATE, la firma cambia), al `IndicadorProduccionSemanalBdRow`
+      y al mapeo; el % de retiro de machos ahora incluye la selección, igual que el de hembras
+- [x] 2e `SaldoAvesLevanteCalculos.MovimientoDia` suma `Venta` y `Retiro` — sigue siendo la
+      especificación ejecutable de la fórmula, ahora para las dos fases
+
+## QA
+- [x] Q1 `dotnet build` **0/0** · `dotnet test` **1.697 verdes** (8 tests nuevos con los cierres
+      reales del S-369 y el número que devolvía el bug)
+- [x] Q2 **Gate multiempresa** sobre los 6 lotes de producción de la BD: **118 semanas CORREGIDAS,
+      17 sin cambio, 0 REGRESIONES**
+- [x] Q3 **Saldo de aves: coincide con el Excel en las 24 + 23 semanas** de los dos sublotes.
+      A cierra en **9.020 H / 810 M** y B en **8.952 H / 813 M** — antes daba 9.134/871 y 9.176/890
+- [x] Q4 Mortalidad, selección, consumo kg, huevos totales y huevos aptos: idénticos en todas las semanas
+- [x] Q5 Diferencia que **queda y es previa**: el `gr/ave/día` de 4 semanas difiere hasta 1,08 g
+      porque la fn divide por el **censo de inicio** de semana (`saldo + mort + sel`, marcado en el
+      código como «desviación preservada») y el Excel divide por el saldo de cierre. No lo toqué:
+      es un criterio de denominador anterior a este cambio, no una consecuencia suya
+- [x] Q6 Backend detenido, puerto libre
+
+## Alineación final del gr/ave/día al Excel
+- [x] G1 El `gr/ave/día` de **producción** dividía por un censo de inicio reconstruido
+      (`fin + mortalidad + selección`); el informe divide por las aves al **CIERRE** de la semana
+      («No. Final de aves»), que es lo que **levante ya hacía**
+- [x] G2 Helper puro `ReporteTecnicoSemanalCalculos.GrAveDia(kg, días, avesFin)` y los **4 sitios**
+      que lo calculaban (levante tab y consolidado, producción tab y consolidado) pasan a compartirlo
+- [x] G3 **8 tests** con los valores del informe (S-369A sem 47 → 162,83 · sem 48 → 162,39 ·
+      S-369B sem 47 → 161,77) y el que devolvía antes (161,75), más bordes de días/aves en cero
+- [x] G4 `dotnet build` **0/0** · `dotnet test` **1.705 verdes**
+- [x] G5 Smoke multiempresa del reporte de producción: 4 bases, HTTP 200 en todas, 135 semanas con
+      gr/ave calculado y **0 valores negativos**
+
+## Cuadre final contra el Excel
+- [x] **Levante: 24 de 24 semanas idénticas**
+- [x] **Producción S-369B: 23 de 23 idénticas**
+- [x] **Producción S-369A: 23 de 24** — la única diferencia del ciclo completo son los **5 huevos**
+      del 2026-06-30, desvío del propio archivo fuente (la columna «Producción Huevos» dice 14.038 y
+      su propia clasificación suma 14.043)
+
+## Validación exhaustiva del flujo contra el Excel
+- [x] V1 **N1 · día a día**: 665 días (168+168 levante, 168+161 producción) comparados campo por
+      campo contra su hoja fuente — mortalidad H/M, selección H/M, error de sexaje H/M, consumo kg H/M,
+      las 9 categorías de huevo, huevo total y peso del huevo. **0 diferencias**
+- [x] V2 **N2 · reportes**: levante **24/24** semanas × 8 métricas · producción **23/23** (B) y
+      **23/24** (A) × 7 métricas. La única celda distinta de las 71 semanas son los 5 huevos
+- [x] V3 **N3 · invariantes**: los 6 saldos de fase exactos (A 10.167/1.472 → 9.484/966 → 9.020/810 ·
+      B 10.291/1.521 → 9.534/991 → 8.952/813); el cierre entrega a producción exactamente las aves
+      con las que arranca su hoja. Inventario de 7 ítems y 13 movimientos de aves con su historial
+- [x] V4 **Origen de los 5 huevos localizado**: galpón 9, **martes 24-jun-2026** — recolección 2.549
+      contra clasificación 2.554. Son dos registros independientes del mismo día en la hoja del
+      galpón (columna `N` vs bloque `AQ..BI`) que `DIARIO A` arrastra por fórmula. Único día
+      descuadrado del ciclo: 0 en los galpones 10/11/12/13 y 0 en los otros 828 días del galpón 9.
+      El sistema cargó la **clasificación**, que es de donde el propio Excel deriva su columna Total
+- [x] V5 **Segunda desviación del fuente documentada**: las hojas «general» suman **por número de
+      fila, no por fecha** (161 filas cuadran por fila y solo 1 por fecha). Por eso el desvío del
+      24-jun aparecía rotulado 30-jun, y por eso la carga se hizo por sublote
+- [x] V6 `VALIDACION_S-369.md` publicado junto a los archivos, con el flujo en orden, los 3 niveles
+      de validación y las 2 desviaciones del fuente
+
+---
+
+# Tracker — Consolidado de sublotes y paridad de reportes por fase
+
+**Fecha:** 2026-08-06 · **Pedido:** «un lote padre puede tener varios sublotes con fechas de llegada
+distintas; al unirlos el consolidado debe cuadrar. Validá en reportes y descargas qué falta por fase».
+
+## El consolidado cuadra
+- [x] K1 **Consolidado = suma de los tabs**, celda por celda: 240 celdas en levante y 240 en
+      producción (10 campos × 24 semanas cada uno) · **0 diferencias**. La unión es por semana de
+      EDAD, no por fecha, que es como la hace el informe
+- [x] K2 Levante consolidado vs `Registro Semanal general`: **24/24** semanas × 8 métricas
+- [x] K3 Producción consolidado vs `SEMANAL GENERAL`: **22/23** — la única celda son los 5 huevos
+
+## Cuatro reportes de PRODUCCIÓN estaban caídos (los cuatro salieron al cargar un lote real)
+- [x] R1 🔴 `POST /obtener` (diario y semanal) daba **500** — `Column 'PesoHuevo' is null`. La entidad
+      declaraba `peso_huevo` no anulable y la columna sí lo es (sus hermanas `peso_h`, `peso_m`,
+      `uniformidad` siempre fueron anulables). Un día sin pesaje reventaba la consulta entera.
+      **Nunca había pasado porque ninguna carga anterior escribió un NULL ahí**: de 934 filas, los
+      únicos 3 nulos son de esta carga
+- [x] R2 🔴 `POST /obtener-tabs` daba **404** «Nullable object must have a value» por el mismo nulo
+      casteado a `double`
+- [x] R3 🔴 `GET /diario/{lppId}` y `GET /cuadro/{lppId}` devolvían **vacío para TODAS las empresas**:
+      leían de `seguimiento_diario_levante` filtrando `tipo_seguimiento='produccion'`, donde no hay
+      ni una fila (924 filas, todas de levante). La fuente canónica es `seguimiento_diario_produccion`
+- [x] R4 Arreglos: entidad `PesoHuevo` → `decimal?` (alineada a la columna y a sus hermanas) con
+      `?? 0` en los 5 consumidores que necesitan valor —convención que el código ya usaba con
+      `if (PesoHuevo > 0)`—; las 2 llamadas de `ObtenerDatosDiariosPorLPPAsync` apuntadas a la fuente
+      canónica; migración `AlinearPesoHuevoProduccionANullable` (DDL no-op donde ya es nullable, con
+      `Down` que rellena nulos con 0 antes de volver a NOT NULL)
+- [x] R5 Verificado después: `diario/{lppId}` **168 días**, `cuadro` **24 filas**, `obtener` diario y
+      semanal **200**, `obtener-tabs` **200** con 329 diarios por galpón y 47 semanales
+- [x] R6 Riesgo de regresión **nulo** en R3: la fuente anterior está vacía para todas las empresas,
+      así que solo pueden pasar de «vacío» a «con datos»
+- [x] R7 `dotnet build` **0/0** · `dotnet test` **1.705 verdes**
+
+## Lo que queda documentado como pendiente
+- [x] P1 **Producción no tiene diario consolidado** (`GET diario/consolidado`), levante sí. Es el
+      hueco de paridad más visible con un lote padre de varios sublotes
+- [x] P2 `clasificacion-huevo-comercio` responde vacío — lee de la tabla canónica, así que no es el
+      mismo problema; falta confirmar por qué filtra
+- [x] P3 La `curva` de levante devuelve 0 puntos (el `resumen` de levante sí trae datos)
+- [x] P4 `REPORTES_POR_FASE.md` publicado junto a los archivos, con el inventario endpoint por
+      endpoint, las descargas de cada fase y los 3 pendientes
+
+## Cierre de P1-P3 + el bug de dirección del traslado (deja el ciclo listo para desplegar)
+- [x] C1 **P1 cerrado** — `GET /api/ReporteTecnicoProduccion/diario/consolidado?lotePosturaBaseId=`.
+      La consolidación ya existía (`POST obtener` → `ConsolidarDatosDiarios`); solo faltaba la ruta
+      GET de paridad con levante. **La ruta literal va declarada ANTES de `diario/{loteId}`**, si no
+      el binder intenta parsear «consolidado» como `int` y devuelve 400
+- [x] C2 **P2 cerrado** — `clasificacion-huevo-comercio` era el **tercer** sitio del bug de R3: leía
+      de `seguimiento_diario_levante` con `tipo_seguimiento='produccion'`. Repuntado a la fuente
+      canónica: de 0 a **24 filas**
+- [x] C3 **P3 cerrado** — la `curva` de levante devolvía 0 puntos porque el commit de la curva
+      (`145348b`) agregó `p_sem_anio IS NULL OR (...)` a los dos espejos `.sql` **pero no generó
+      migración**. La fn de producción se redesplegó después por otra migración y se llevó el guard;
+      la de levante quedó en la del 28-jul, con `<weeknum> = p_sem_anio` a secas ⇒ con NULL evalúa a
+      NULL y devuelve **cero filas**. Roto **en prod y en todas las empresas**
+- [x] C4 Al desplegar la fn corregida apareció un segundo bug: `part` con `PARTITION BY fin_sem`.
+      `fin_sem` sale del encaset de **cada** lote, así que dos sublotes del mismo lote padre con
+      fechas de llegada distintas nunca comparten esa fecha ⇒ cada uno solo en su partición y todos
+      con `part = 1` en vez de ~0,50 y ~0,50 (justo el caso S-369). Se particiona por la semana
+      **calendario**, materializada como `sem_cal` para que el filtro y la ventana usen la misma
+      expresión
+- [x] C5 Migración `20260806194500_CurvaLevanteAceptaSemanaNula` (data-only, Designer clonado,
+      ModelSnapshot intacto, `DROP FUNCTION IF EXISTS` + `CREATE OR REPLACE`)
+- [x] C6 **Gate multipaís** de la fn: versión previa desplegada en paralelo con otro nombre y
+      comparada fila a fila en el modo de UNA semana, **todas las empresas × las 53 semanas**:
+      39 filas, **0 diferencias** (0 solo-en-nuevo, 0 solo-en-viejo). Curva: **0 → 39 filas / 8
+      lotes**. `part` suma 1 en cada semana calendario con saldo positivo
+- [x] C7 🔴 **El traslado entre sublotes movía las aves de un solo lado.** La `Salida` de A y el
+      `Ingreso` de B escribían filas **idénticas** en `movimiento_aves` (`Traslado`, origen=A,
+      destino=B), así que la idempotencia del segundo encontraba la del primero, lo daba por
+      duplicado y **lo omitía sin acreditar las aves**: B cerraba en 795 machos en vez de 991 y el
+      importador igual decía «Procesado». Hasta ahora se esquivaba disfrazando el débito de `Venta`
+- [x] C8 Arreglo: cada fila lleva su marca de dirección en `descripcion` (`Carga masiva:
+      SALIDA/INGRESO/VENTA` — verificado que la columna estaba 100% NULL en las 27 filas existentes)
+      y la clasificación sale de `MigracionMovimientosAvesCalculos.LadoDelMovimiento`, que **cae al
+      heurístico histórico cuando la fila no tiene marca** ⇒ los datos viejos conservan su
+      comportamiento. 8 tests nuevos
+- [x] C9 Verificado en caliente sobre BD limpia: A 1162→**966** y B 795→**991**; al reimportar los
+      dos, **0 procesadas / 1 omitida** cada uno y los saldos quietos (idempotencia intacta). Los
+      archivos de carga vuelven al modelado correcto `Salida`+`Ingreso`
+- [x] C10 Revalidación completa tras todos los cambios: **665 días comparados campo a campo, 0
+      diferencias**; consolidado **480 celdas, 0 diferencias**; los **19 endpoints** de las dos fases
+      responden 200 con datos. Único desvío contra el Excel: los 5 huevos del galpón 9 del 24-jun,
+      descuadre del propio informe
+- [x] C11 `dotnet build` **0 errores** · `dotnet test` **1.715 verdes**
+- [ ] C12 Pendiente ajeno: `A374A` y `LOTE 235A` tienen **saldo de hembras negativo**, lo que deja
+      sin `part` a las semanas donde son el único lote. Preexistente, fuera del alcance de esta tarea
+
+---
+
+# Tracker — Tickets como CASOS tipo Jira: tareas, tablero, tiempos y solicitante delegado
+
+**Plan:** [`fase_de_desarrollo/18_tickets_jira_casos_tareas_tablero_plan.md`](fase_de_desarrollo/18_tickets_jira_casos_tareas_tablero_plan.md)
+**Fecha:** 2026-08-06
+
+Pedido: (1) poder indicar de qué usuario del sistema viene una solicitud; (2) módulo tipo Jira sobre
+los tickets — casos con tareas/historias, tablero con drag & drop, tiempos y fases de desarrollo,
+solo para `tickets.admin`; (3) *Mis solicitudes* profesional con línea de tiempo por caso.
+Decisiones del usuario: fases = **ampliar estados del caso Y tablero de tareas**; "a nombre de" =
+**solo el admin global**; entrega = **todo de una**.
+
+## BD (1 migración EF idempotente)
+- [x] B1 `tickets`: `solicitante_user_guid`, `solicitante_user_id`, `prioridad`, `orden_tablero`, `horas_estimadas`, `fecha_limite`, `fecha_inicio_plan`, `fecha_fin_plan`
+- [x] B2 `ticket_notas.tipo_evento` (NULL = comentario humano ⇒ notas existentes intactas)
+- [x] B3 Tabla `ticket_tareas` + `ticket_tiempos` + índices (`IF NOT EXISTS`)
+- [x] B4 Seed de menú `tickets.tablero` y `tickets.roadmap` gated por `tickets.admin` (por `route`, no por id)
+
+## Backend
+- [x] D1 `TicketEstados`: + `EN_DOCUMENTACION` / `EN_REVISION` y transiciones ampliadas sin quitar ninguna previa
+- [x] D2 `TicketPrioridades` + entidades `TicketTarea` / `TicketTiempo` + configurations + DbSets
+- [x] D3 `Ticket`: campos de gestión y solicitante delegado
+- [x] A1 Cálculo puro: `TicketMetricasCalculos`, `TicketTimelineCalculos`, `TicketTareaCalculos`
+- [x] A2 DTOs nuevos + extensión compatible de los existentes (parámetros al final con default)
+- [x] I1 `TicketTareaService` (partial + `Funciones/`) + DI
+- [x] I2 `TicketService`: solicitante delegado (create, visibilidad, `EsCreador`, correos), gestión del caso (prioridad/planificación/asignado/mover), tablero, roadmap, timeline, métricas
+- [x] C1 `TicketTareasController` + endpoints nuevos en `TicketsController` (ninguna ruta con `admin` — WAF)
+
+## Frontend
+- [x] F1 Modelos + servicios (tareas, tiempos, tablero, timeline)
+- [x] F2 `pages/tablero` — kanban CDK con drag & drop, filtros y tarjeta rica
+- [x] F3 `pages/roadmap` — timeline/gantt tipo el screenshot de Jira
+- [x] F4 Componentes: `ticket-timeline`, `prioridad-badge`, `sla-chip`, `tarea-card`, `tarea-modal`, `worklog-panel`
+- [x] F5 Rediseño `mis-tickets` (tarjetas pro + línea de tiempo + resumen por estado)
+- [x] F6 Rediseño `ticket-detalle` (layout Jira: principal + sidebar de detalles)
+- [x] F7 `ticket-create`: selector de solicitante solo con `tickets.admin`
+- [x] F8 Rutas + menú + gating por permiso
+
+## Tests y validación
+- [x] T1 xUnit: no-regresión de transiciones + nuevas fases
+- [x] T2 xUnit: métricas/SLA, timeline, reordenamiento kanban, código de tarea
+- [x] V1 `dotnet build` 0 errores · `dotnet test` verde
+- [x] V2 `dotnet ef database update` en la BD local (:5433) sin error
+- [x] V3 `cd frontend && yarn build` 0 errores
+- [x] V4 Smoke: crear a nombre de otro usuario, caso viejo abre bien, drag & drop persiste, worklog suma
+- [x] V5 Sin procesos huérfanos + commit acotado
+
+---
+
+## Base de aves de los lotes poblados por TRASLADO (saldos negativos y saldos al doble)
+Plan: este bloque. Motivo: el usuario aclara que **un lote sin aves encasetadas es legítimo** —hay
+lotes que reciben aves de otros lotes—, así que forzar `hembras_l > 0` sería incorrecto. El bug está
+en cómo el reporte resuelve la base de esos lotes.
+
+- [x] T1 Reproducido el mecanismo exacto contra la BD. El filtro `reg_ok` **descarta las filas de
+      puro traslado más allá de la semana 25** —que son justamente las que traen las aves— y el
+      fallback de base lee de `reg` (sin filtrar) **una sola fila** (`LIMIT 1`) sacando de ahí LOS
+      DOS SEXOS
+- [x] T2 🔴 **Defecto 1 — saldo NEGATIVO.** Lote 116 (A374A, Sanmarino) recibió 1.010 machos el
+      08-jun y 7.617 hembras el 11-jun, en filas distintas. El `LIMIT 1` tomó la de machos ⇒
+      `base_h = 0` ⇒ el reporte le restaba igual 122 de mortalidad y 90 de error de sexaje ⇒ **−212
+      durante 14 semanas**, mientras el maestro decía 7.405
+- [x] T3 🔴 **Defecto 2 — saldo AL DOBLE.** Cuando el traslado cae DENTRO de la ventana de 25
+      semanas, la fila la suma la acumulación *y además* se usa como base ⇒ las aves cuentan dos
+      veces. Lote 124: 5.100 hembras reportadas como **10.200**. Igual en 128 (29.475 vs 19.475) y
+      129 (9.000 vs 6.000)
+- [x] T4 El mismo fallback estaba replicado en **las tres** fns de levante:
+      `fn_resumen_semanal_ra_pesadas_levante`, `fn_reporte_semanal_levante_extras`,
+      `fn_indicadores_levante_postura`
+- [x] T5 Arreglo idéntico en las tres: la base por traslado pasa a ser la **SUMA POR SEXO** de los
+      ingresos de las filas que la ventana **descarta**. Sigue siendo `COALESCE`, **no** suma: un
+      lote con encaset propio conserva su número exacto y el fallback solo entra con encaset 0/NULL
+- [x] T6 **Gate multipaís** (las 3 versiones previas desplegadas en paralelo con sufijo `_V0` y
+      comparadas fila a fila, todas las empresas): cambian **únicamente los mismos 4 lotes** en las
+      3 fns; 0 filas de diferencia en todo el resto. S-369 (142/143) queda byte a byte idéntico
+- [x] T7 **Contraste contra el testigo independiente**: los 4 lotes pasan a coincidir EXACTO con
+      `lote_postura_levante.aves_h_actual/aves_m_actual` (116→7.405/738 · 124→4.870 · 128→19.385 ·
+      129→6.000). Antes ninguno coincidía
+- [x] T8 Migración `20260806211500_BaseAvesPorTrasladoEnLevante` con las 3 fns (data-only, Designer
+      clonado, ModelSnapshot intacto, `DROP FUNCTION IF EXISTS` + `CREATE OR REPLACE`)
+- [x] T9 `dotnet build` 0 errores · `dotnet test` **1.834 verdes** · migración aplicada en local
+- [x] T10 Reconstruir S-369 desde los 4 archivos (mi test del traslado dejó la BD local sucia: la
+      limpieza borró `movimiento_aves` y los contadores del maestro pero **no las columnas de
+      traslado de la fila diaria**, así que B quedó con `traslado_ingreso_machos = 392` = 196×2 y A
+      con la venta vieja del workaround Y la salida nueva a la vez). **No es un bug del código** —
+      lo confirma que la fila de A tiene 196 y no 392— pero había que rehacer el ciclo para validar
+      que los archivos producen el resultado correcto de punta a punta. **Rehecho desde cero**: A
+      queda con salida 196 y SIN la venta espuria, B con ingreso 196 (no 392), y B cierra en **991
+      machos** — el fix del traslado probado de punta a punta con el modelado correcto
+- [x] T11 Revalidación completa tras la reconstrucción: **665 días campo a campo, 0 diferencias** ·
+      consolidado levante **24/24** y producción **22/23** (los 5 huevos conocidos del informe) ·
+      semanal de levante **0 diferencias** · producción 168 y 161 días con 1.142.573 y 1.115.079
+      huevos, exactamente lo que predicen los archivos
+- [x] T12 **7 de 8 lotes de todas las empresas coinciden EXACTO con el maestro** y no queda ningún
+      saldo negativo salvo el del lote 123, que es dato genuinamente sobregirado (X1)
+
+### Lo que este bloque NO arregla (dos hallazgos separados, ambos previos y sin tocar)
+- [x] X1 🔴 **El seguimiento diario acepta bajas mayores al saldo.** Caso probado: lote 123 (Demo)
+      tenía base 5.303, una salida de 5.100 el 06-jul y ~85 aves vivas; el **03-ago alguien cargó
+      500 muertes**. El reporte muestra −460 (es honesto) y el maestro lo tapa con el clamp
+      mostrando 0. El único control existente es REQ-011b
+      (`SeguimientoLoteLevanteService.Crud.cs:357`), que su propio doc-comment declara *«soft-check,
+      NO bloqueo duro»*: solo escribe `LogWarning`, va envuelto en un `try/catch` que se traga todo,
+      y compara `saldo == 0` exacto ⇒ con saldo negativo o con 5 aves y 100 de mortalidad **no
+      dispara**. Convertirlo en bloqueo rechaza escrituras que hoy pasan ⇒ decisión del usuario
+- [x] X2 **RESUELTO — el saldo de levante no descontaba las VENTAS.** Con la BD limpia el desvío
+      quedó aislado y exacto: S-369B daba **1.281 machos** contra **991** del maestro, y la
+      diferencia eran **290 = las dos ventas** (150 el 09-feb + 140 el 17-feb). Era además una
+      violación de «una sola fórmula por número»: el camino C# (`ReporteTecnicoService` sobre
+      `SaldoAvesLevanteCalculos`) SÍ las descuenta y coincide con el informe; las dos fns SQL no
+  - [x] X2.1 La fila diaria de levante solo tenía `venta_aves_cantidad` (TOTAL, sin sexo) mientras
+        el saldo va POR SEXO ⇒ se replica lo que producción ya tenía: `venta_aves_hembras/machos`
+        en entidad, configuration y BD, con backfill idempotente desde `movimiento_aves` (el dueño
+        del número). El backfill encontró exactamente las 2 ventas y las repartió bien
+  - [x] X2.2 Los **cuatro** puntos de escritura pueblan el split: carga masiva
+        (`MigracionService.MovimientosAves`), alta por UI, cancelación y edición
+        (`MovimientoAvesService.SeguimientoDiario`)
+  - [x] X2.3 Las dos fns restan la venta del saldo, y las filas de puro traslado pasadas de la
+        semana 25 ya no se descartan si traen venta (una fila con venta es una fila con dato) ni se
+        usan como base
+  - [x] X2.4 Migración `20260806235000_VentaAvesEnFilaDiariaLevante`. ⚠️ Designer clonado y
+        **ModelSnapshot intacto pese a agregar 2 propiedades de entidad**: regenerarlo con
+        `migrations add` arrastraría los cambios EN VUELO de la otra sesión que trabaja Tickets en
+        este repo. El DDL es idempotente, así que el desfase no tiene consecuencias
+  - [x] X2.5 **Gate**: de 39 filas del resumen y 137 del Detalle en todas las empresas cambia **un
+        solo lote** (S-369B, el único con ventas en levante). Las 3 fuentes convergen en **991** y
+        **los 8 lotes de todas las empresas cuadran con el maestro**, salvo el 123 (X1), donde el
+        reporte es el honesto y el maestro miente por el clamp
+  - [x] X2.6 Revalidación completa: **665 días, 0 diferencias** · semanal levante 24/24 ·
+        consolidado **480 celdas, 0 diferencias** · **19/19 endpoints** con datos ·
+        `dotnet test` **1.834 verdes**
+  - [x] X2.7 Al aplicar la migración por EF se aplicó también `20260806235814_AddTicketsJiraCasosTareas`,
+        de la otra sesión, sobre la BD local compartida. No es destructivo (crea sus tablas) pero
+        queda anotado: no era mía
+
+### Evidencia de la validación (2026-08-06)
+- `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1.834 verdes** (1.715 previos + 119 nuevos)
+- `yarn build` (Node portable 22.23.1) **0 errores**; único warning el de *bundle budget* preexistente
+- Migración `20260806235814_AddTicketsJiraCasosTareas` aplicada en la BD local (:5433) y **verificada en
+  caliente**: 8 columnas en `tickets`, `ticket_notas.tipo_evento`, tablas `ticket_tareas`/`ticket_tiempos`
+  con sus índices, fila en `__EFMigrationsHistory` y los 2 menús nuevos con su `menu_permissions`
+- **Smoke funcional end-to-end (backend :5501, JWT + X-Secret-Up minteados): 44 verificaciones, 0 fallas**
+  - Gate de "a nombre de": un gestor sin `tickets.admin` recibe 400; el admin crea el caso y el
+    solicitante queda en la usuaria delegada, con nota de sistema `SISTEMA_SOLICITANTE`
+  - La usuaria delegada **ve el caso en «Mis solicitudes»** y para ella `soySolicitante = true`;
+    el admin que lo registró **sí puede gestionarlo** (`Tomar` OK)
+  - Fases nuevas: mover a `EN_DOCUMENTACION` y `EN_REVISION` OK; **arrastrar a `CERRADO` rechazado**
+    (el cierre lo confirma el solicitante)
+  - Tareas: código correlativo `-T1`/`-T2`, subtarea anidada, mover a `LISTO` sella `fecha_fin_real`
+    y el `orden` de cada columna queda 0..n-1 sin huecos
+  - Tiempos: 2,5 h + 1 h = 3,5 h, desvío −4,5 h contra la estimación de 8 h, y 40 h en un registro rechazado
+  - Línea de tiempo: 18 eventos ordenados (CREADO/SISTEMA/APERTURA/ESTADO/TAREA/TIEMPO), visible también
+    para la solicitante; tablero con 7 columnas y roadmap con las 3 tareas del caso
+  - Buscador de solicitantes: 3 resultados para el admin, **vacío fail-closed** sin `tickets.admin`
+  - **No-regresión**: los 14 casos preexistentes listan, abren, salen con `prioridad=MEDIA`,
+    `estadoSla=SIN_SLA` y con su línea de tiempo derivada
+- Dato de prueba borrado de la BD local (caso 15 + sus 3 tareas, 2 tiempos y 10 notas) y backend del
+  smoke detenido (:5501 libre; el :5002 del usuario quedó intacto)
+
+### Verificación visual en el navegador (2026-08-07, front :4200 + back :5002)
+Sesión inyectada en `localStorage` (admin y luego la usuaria delegada). **Cero errores de consola**,
+todas las llamadas `/api/tickets/*` en 200.
+- **Tablero**: las 7 columnas pobladas (3/1/1/2/1/4/6), resumen «19 casos · 3 sin arrancar · 5 en curso
+  · 1 vencidos · 13 h registradas»; 18 tarjetas `cdk-drag` y las 7 listas conectadas por sus ids
+- **Roadmap**: eje semanal 20-jul → 24-ago, barras posicionadas por %, marcador de HOY, leyenda de
+  prioridad; al desplegar un caso aparecen sus 4 tareas anidadas con su estado
+- **Mis solicitudes**: tarjetas con código/tipo/prioridad/SLA («Vencido · 3 h», «En tiempo · 9 d») y
+  barra de avance; «Ver seguimiento» despliega la línea de tiempo (13 eventos con autor y fecha)
+- **Detalle**: banda «Solicitud de KARINA … · registrada por Jose Moises», sidebar con solicitante +
+  registrado por + planificado + compromiso, métricas (5,5 h de 12 · avance 25 %), pestañas
+  Actividad/Comentarios/Tareas/Tiempos, panel de tareas en lista y en tablero, worklog con 46 % de la
+  estimación y −6,5 h de desvío
+- **Formulario nuevo**: el bloque «Registrar a nombre de otro usuario» solo para el admin, con
+  búsqueda en vivo (3 resultados para «karina») y selector de prioridad
+- **Vista del SOLICITANTE** (Karina): ve sus 2 casos marcados «registrado por soporte», abre el
+  detalle y el seguimiento (18 eventos), y **NO** ve el panel de gestión, ni la pestaña Tiempos, ni
+  el botón de crear tareas
+- 🔧 **Corregido en el pase**: la línea de tiempo mostraba el alta de cada tarea **dos veces** (la nota
+  de sistema + el evento derivado). Se quitó la nota de sistema al crear (el evento ya se deriva de la
+  fila); mover una tarea sí sigue dejando su nota. Verificado: crear = 1 evento, mover = 1 evento
+- ⚠️ **No se pudo capturar pantalla ni arrastrar con el mouse**: el panel del navegador no estaba
+  desplegado, así que la página no compone frames (`screenshot` y `left_click_drag` quedan
+  bloqueados). Todo lo anterior se verificó por DOM, red y consola
+
+### 🔴 Hueco de despliegue detectado y cerrado (2026-08-07)
+Al revisar si la entrega quedaba lista para producción apareció que **crear el menú no alcanza para
+que se vea**: `RoleCompositeService.Menus_GetForUserAsync` arma el árbol desde `role_menus` y solo cae
+al filtro por permisos cuando el rol no tiene NINGÚN menú asignado. La migración anterior sembraba
+`menus` + `menu_permissions`, así que en local `tickets.tablero` y `tickets.roadmap` figuraban con
+**0 roles** ⇒ en prod habrían quedado invisibles para todos (y no asignables en la UI de roles hasta
+tener fila en `company_menus`).
+
+- [x] Migración data-only `20260807030500_SeedMenusTableroRoadmapEnRolesYEmpresas` (Designer clonado,
+      **ModelSnapshot intacto**, idempotente con `WHERE NOT EXISTS`): copia los dos menús nuevos a los
+      roles y empresas que YA tienen `tickets.admin` o `tickets.gestion`. No habilita nada a nadie
+      nuevo: el gate sigue siendo `menu_permissions`
+- [x] Verificado en local: de **0 → 6 roles y 2 empresas** en cada menú nuevo; reaplicar el SQL inserta
+      **0 filas** (idempotente); `GET /api/roles/menus/me` del admin devuelve las 5 entradas del grupo
+      Tickets, con «Tablero de casos» y «Roadmap» incluidas
+- [x] ⚠️ **Gotcha de sesiones paralelas**: `dotnet ef migrations add` capturó cambios de OTRA sesión
+      (`venta_aves_hembras`/`venta_aves_machos` en `seguimiento_diario_levante`, que tienen entidad pero
+      todavía no migración). Se descartó esa migración generada y se restauró el ModelSnapshot; la
+      data-only se escribió a mano con el Designer clonado
+- [x] `dotnet build` 0 errores · `dotnet test` **1.834 verdes**
+
+---
+
+## Tab «Indicadores» de Levante y Producción — guía genética + UX unificada
+Plan: [19_indicadores_levante_produccion_ux_plan.md](fase_de_desarrollo/19_indicadores_levante_produccion_ux_plan.md)
+
+### Validación contra la guía genética (con el lote S-369 real, guía AP 2026)
+- [x] I1 **Levante: 24/24 exactas** en las 4 columnas de guía (`consumoTablaHembras`,
+      `pesoTablaHembras`, `mortTablaHembras`, `unifTabla`). Sin hallazgos
+- [x] I2 **Producción: correctas 24/24** en `porcentajeProduccionGuia`, `consumoGuia H/M`,
+      `mortalidadGuia H/M`, `huevosTotalesGuia`, `huevosIncubablesGuia`, `pesoHuevoGuia`,
+      `retiroAcumulado*Guia` y `pesoGuia H/M` (la fn divide /1000: la guía guarda gramos)
+- [x] I3 Dos falsos positivos documentados para que nadie los «arregle»: la semana 25 tiene DOS
+      filas en la guía (`25` levante y `25P` producción) y la fn usa bien la `25P`; y el % de
+      producción usa aves vivas corrientes, no el promedio inicio/fin
+- [x] I4 🔴 **`uniformidadGuia` = 0 en las 24 semanas** — arreglado en la capa de presentación (ver I5).
+      Diagnóstico: La guía no trae uniformidad para edades de
+      producción (solo 25 de 98 filas la tienen, todas de levante); la fn la lee bien como NULL y
+      después la pisa con `g_unif := COALESCE(g_unif, 0)`. Se lee como «la guía exige 0 %» en vez de
+      «sin dato». Igual con `g_peso_h/m`. El COALESCE es deliberado (parity con un `ParseDouble`
+      viejo) ⇒ el arreglo va explícito y medido
+- [x] I5 ⚠️ **NO se tocó la fn: el espejo `.sql` está desincronizado de producción.** Al intentar el
+      arreglo en `fn_indicadores_produccion_postura` descubrí que
+      `backend/sql/fn_indicadores_produccion_postura.sql` **no coincide con lo desplegado**: le falta
+      la columna `seleccion_machos`, que agregó la migración `SaldoProduccionDescuentaVentasYTraslados`
+      y que el espejo nunca recibió. Lo desplegué en local y dejó la fn en **68 columnas en vez de
+      69** ⇒ habría roto `IndicadorProduccionSemanalBdRow.SeleccionMachos` en runtime. Detectado por
+      el gate y restaurado desde la definición viva. **Reconciliar el espejo queda como tarea aparte
+      con su propio gate**; meterlo en un cambio de UX era arrastrar riesgo. El síntoma se arregló
+      donde es seguro: `hayGuiaUniformidad()` trata el 0 como ausencia y la UI pinta «—» (verificado
+      en el navegador: las 5 primeras semanas muestran «—»)
+
+### UX — cada tab tiene la mitad de lo bueno
+- [x] I6 Levante tiene chips de contexto, modal de Fórmulas y resumen acumulado; **le faltan**
+      estados de carga/error y la leyenda de desvío
+- [x] I7 Producción tiene carga/error/leyenda; **le faltan** chips, Fórmulas y resumen acumulado, y
+      arrastra `style=` inline en el encabezado
+- [x] I8 `frontend/src/styles/indicadores-tab.scss` (registrado en `styles.scss`) con los bloques comunes, tokens del sistema de diseño
+      (prohibido hardcodear color)
+- [x] I9 Sin cambio: la cabecera de producción **ya decía «%Prod Real»**. La columna «Eficiencia» que
+      vi al principio es de la tabla de LEVANTE, que es otra métrica
+
+### Quitar el tab «Reporte semanal»
+- [x] I10 Solo **levante** lo tenía («🗓️ Reporte semana»); producción no. Eliminar marcado, rama
+      `@if`, el estado `reporteSemana`, `buildReporteSemanaFilas`, `exportReporteSemanaExcel`, la
+      interfaz `ReporteSemanaFila` y el SCSS huérfano
+- [x] I11 `ng build` **correcto** (único warning: el de bundle budget preexistente que el repo acepta)
+- [x] I12 **Verificado en el navegador** con el lote S-369 real (front :4300, back :5002 con
+      `AllowedOrigins__1` por variable de entorno, sesión inyectada en `localStorage`):
+      · Levante: 3 tabs sin «Reporte semana», encabezado + 4 chips + leyenda nueva + 24 filas +
+        resumen acumulado, **0 clases viejas**
+      · Producción: encabezado + 4 chips + leyenda + 23 filas, **0 estilos inline**, `loading-state`
+        y `error-state` reemplazados, y **`Unif Guía` mostrando «—»** en vez de 0
+      · Colores resueltos desde los tokens: naranja acción, verde solo éxito (#16A34A), rojo solo
+        peligro (#DC2626)
+
+### Layout: aprovechar el ancho en monitor (2026-08-07)
+Feedback del usuario sobre las capturas: *«tiene mucho espacio alrededor y tengo que bajar»*, *«el chat
+está abajo cuando puede estar a un lado»*, *«todo es hacia abajo cuando tenemos espacio en los lados»*.
+
+- [x] **Nuevo ticket**: contenedor `max-w-5xl` → `max-w-[1500px]` y el formulario pasa a **dos columnas**
+      en `lg+` (izquierda: título, tipo, resolutor, descripción, prioridad · derecha: notificados,
+      imágenes, adjuntos), con «a nombre de» a lo ancho arriba. Alto del form 825 px contra el scroll
+      largo de antes
+- [x] **Detalle**: contenedor a `max-w-[1700px]` y **tres columnas** en `xl` — caso (629 px) ·
+      conversación (499 px) · gestión (369 px). El chat **deja de ser pestaña**: vive en su columna,
+      con los mensajes scrolleando dentro y el redactor fijo abajo. Conversación y gestión son
+      `sticky` (con `self-start`, que es lo que les da margen para desplazarse), así que el caso
+      scrollea sin que se vayan de pantalla. En `lg` baja a dos columnas (caso + gestión, chat debajo)
+      y en móvil a una
+- [x] 🔴 **Bug de layout encontrado y corregido**: el detalle sacaba **scroll horizontal a toda la
+      página** en pantallas medianas. Era un *grid blowout* — el ancho mínimo del contenido (el stepper
+      de 7 fases con `whitespace-nowrap`) estiraba la pista del grid a 996 px dentro de un contenedor
+      de 705. Fix: `min-w-0` en las columnas del grid + el stepper scrollea dentro de su propia caja
+      (`overflow-x-auto` con `w-max min-w-full`) y entre `md` y `lg` solo renderiza la etiqueta de la
+      fase actual, para no reservar el ancho de las otras seis
+- [x] Verificado en 1600 / 768 / 375 px: **cero desborde horizontal** en los tres, y el stepper de 7
+      fases entra completo. `yarn build` 0 errores (solo el warning de bundle budget preexistente)
+
+### Panel de control del administrador + reporte a Excel (2026-08-07)
+Pedido: *«quiero filtros y datos arriba — efectividad, cantidad de casos, tareas terminadas con las
+pendientes, promedio de respuesta, estado de ticket… control por país… y descargar un reporte que
+muestre países, ticket, tiempos de implementación, planificación, bien detallado en Excel»* y, al
+revisarlo, *«también necesito filtrar por empresa»*.
+
+- [x] `TicketIndicadoresCalculos` (puro): resumen (volumen, efectividad, % resueltos, tareas
+      terminadas/pendientes, promedios de primera respuesta / resolución / confirmación de cierre,
+      vencidos y por vencer, sin responsable, horas) + desgloses por **país**, **empresa**, estado,
+      tipo, prioridad y responsable. Los promedios **ignoran** las filas sin el dato en vez de
+      contarlas como cero, y la efectividad solo mide los casos que tenían compromiso
+- [x] Filtros ampliados y COMPARTIDOS por tablero, roadmap, panel y reporte (un solo
+      `TicketTableroFiltro`, armado en un helper del controller para que no se desincronicen):
+      **multi-país**, **multi-empresa**, rango de fechas, estado, tipo, prioridad, semáforo de SLA,
+      responsable y búsqueda libre. El filtro de SLA se traduce a condiciones sobre `fecha_limite`
+      para que lo resuelva la BD y no el backend en memoria
+- [x] `GET /api/tickets/indicadores` y `GET /api/tickets/reporte` (ninguna ruta con `admin` — WAF)
+- [x] Página `pages/panel` (`/tickets/panel`): 6 KPIs arriba, alertas de vencidos / por vencer / sin
+      responsable, y desgloses por país, empresa, estado, tipo, prioridad y responsable
+- [x] **Descarga a Excel** con el helper compartido `exportarMultiHojaExcel` (no `XLSX` inline):
+      6 hojas — Indicadores · Por país · Por empresa · Casos · Tareas · Tiempos —, cada una con los
+      filtros aplicados en el encabezado. La hoja Casos trae 29 columnas: país, empresa, solicitante,
+      registrado por, responsable, fechas, SLA, tiempos de primera respuesta y resolución,
+      planificación, estimadas/registradas/desvío y avance de tareas
+- [x] Migración data-only `20260807062000_SeedMenuPanelIndicadoresTickets` (Designer clonado,
+      ModelSnapshot intacto, idempotente): menú + `menu_permissions` + `role_menus` + `company_menus`.
+      Verificado: **6 roles y 2 empresas**
+- [x] `dotnet build` 0 errores · `dotnet test` **1.864 verdes** (30 nuevos de indicadores) ·
+      `yarn build` 0 errores
+- [x] **Smoke API: 24 + 11 verificaciones, 0 fallas** — efectividad 0/4, tareas 2 listas / 7
+      pendientes, promedios 14,26 h y 169,51 h, desgloses por los 6 cortes; multi-país y
+      multi-empresa suman exacto y se combinan entre sí; SLA=VENCIDO coincide con el resumen; el
+      tablero, el roadmap y el reporte respetan el mismo filtro
+- [x] **Smoke UI**: chips de país y empresa filtran en vivo (19 → 13 casos con ItalcolEcuador, y la
+      tabla queda con esa sola empresa); el `.xlsx` descargado trae las 6 hojas y dice
+      «Empresas: ItalcolEcuador» en el encabezado. Cero desborde horizontal
+
+---
+
+# Tracker — Reconciliar el espejo `.sql` de `fn_indicadores_produccion_postura` + `uniformidad_guia` NULL
+
+**Plan:** [`fase_de_desarrollo/reconciliacion_espejo_fn_indicadores_produccion_plan.md`](fase_de_desarrollo/reconciliacion_espejo_fn_indicadores_produccion_plan.md)
+**Fecha:** 2026-08-07 · Continúa el handoff de postura (§2.1 «bomba de tiempo» + §2.2)
+**Bloque propio — no tocar desde otras sesiones** (hay una sesión de Tickets con trabajo abierto)
+
+## Fase 0 — Auditoría
+- [x] A1 Migración vigente = `20260806093256`; su constante `FnConSaldoCorregido` vs la definición
+      **viva** (`pg_get_functiondef`, normalizada): **0 diferencias** ⇒ lo desplegado es lo que
+      despliega la migración
+- [x] A2 Diff normalizado espejo vs viva: 220 líneas = **exactamente los 9 deltas** de esa migración
+      + el formato de `pg_get_functiondef`. **Ninguna divergencia oculta**
+- [x] A3 Ningún otro `.sql` redefine la fn (los otros 6 que la nombran son comentarios o scripts de
+      verificación)
+- [x] A4 Cadena de `uniformidad_guia` auditada punta a punta y **toda nullable**: `BdRow` `double?`
+      → `Dec(double?)` → DTO `decimal?` → front `number | null`, `hayGuiaUniformidad()` ya trata
+      null/undefined/0 como ausencia, `redondearFila()` deja pasar null
+- [x] A5 Plan escrito
+- [x] A6 🔎 **Corrección al handoff**: el «CRLF inflado (`
+`)» era **artefacto del volcado**
+      (psql.exe en Windows duplica los CR al escribir por pipe). Medido dentro de la BD el cuerpo
+      tiene **1.964 CR y 1.964 LF** — balanceado. Lo inflado son las **líneas en blanco**
+      (1.965 líneas para 457 útiles, ~3 blancos antes y después de cada línea real)
+
+## Fase 1 — Espejo reconciliado (sin cambio de comportamiento)
+- [x] E1 `RETURNS TABLE` + `seleccion_machos`
+- [x] E2 `DECLARE`: `v_cum_sel_m` + `r_sel_m` + venta/retiro/traslado H y M
+- [x] E3 CTE `_seg` rama LPP y rama lote: `sel_m` + 8 columnas `mov_*`
+- [x] E4 Agregación semanal: 9 `SUM` + 9 destinos del `INTO`
+- [x] E5 Acumulado `v_cum_sel_m`, `retiro_sem_m`/`retiro_ac_m`/`r_aves_m_inicio` con selección de machos
+- [x] E6 Decremento del saldo con ventas/retiros/traslados
+- [x] E7 `seleccion_machos := r_sel_m;` en la emisión
+- [x] E8 Comentario **obsoleto corregido**: la versión desplegada aún dice «Machos sin selección en
+      esta fn (… solo resta mort_m)», que su propio cambio volvió falso
+- [x] E9 CHANGELOG + regla en la cabecera del `.sql` («este archivo es el ESPEJO; si lo cambiás va
+      con su migración y su gate; nunca `psql -f` sin verificar que está al día»)
+
+## Fase 2 — `uniformidad_guia` NULL (único cambio de comportamiento)
+- [x] U1 `g_unif := COALESCE(g_unif, 0);` eliminado, con el porqué documentado y la aclaración de
+      que `g_cons_*`/`g_mort_*`/`g_peso_*`/`g_retiro_ac_*` conservan el 0 a propósito
+- [x] U2 Migración `20260807140000_UniformidadGuiaProduccionNull` — `CREATE OR REPLACE` (la firma NO
+      cambia), `Down()` = espejo + COALESCE restaurado, Designer clonado, **ModelSnapshot intacto**
+- [x] U3 Comentario del front actualizado; el guard contra 0 **se conserva** (cubre backends sin la
+      migración y un 0 genuino)
+
+## Fase 3 — Gate de fn compartida (§5 del handoff)
+- [x] G1 Universo: **5 empresas × 8 LPP** (flujo LPP, ventana completa **y** semanas 30-40) +
+      **5 × 6 lotes** (flujo legacy) = 70 llamadas por versión ⇒ **179 filas**.
+      ⚠️ Gotcha: la fn hace `CREATE TEMP TABLE _seg` **sin dropearla** ⇒ una sola llamada por
+      transacción; el gate corre en autocommit, una sentencia por llamada (no `CROSS JOIN LATERAL`)
+- [x] G2 🥇 **Prueba de fidelidad del port**: espejo reconciliado **+ COALESCE restaurado** (`_v0`)
+      vs fn viva ⇒ `EXCEPT` **0 en los dos sentidos** y **0 diferencias en las 68 columnas**
+- [x] G3 Aislamiento por columna (el `EXCEPT` marcaba las 179 en ambos sentidos sin decir por qué):
+      **`uniformidad_guia` es la única distinta**. `diferencia_uniformidad` **0 diffs** — se cumple la
+      predicción de que `fn_dif_pct` ya devolvía NULL con guía = 0.
+      ⚠️ Gotcha: `JOIN … USING (lpp, lote)` da **0 filas** porque esas claves traen NULL ⇒
+      `ON n.x IS NOT DISTINCT FROM v.x`
+- [x] G4 Dirección: **179/179 `0 → NULL`**, `0` valores reales perdidos, `0` NULL→valor.
+      Es data-driven, no hardcode: con guías AP no hay uniformidad en edades ≥25; donde la guía sí la
+      define (R308 2021, fila `25P` = 90) la fn ahora la mostraría en vez de 0
+- [x] G5 La fn desplegada devuelve **69 columnas**, `seleccion_machos` en la **posición 15**, y su
+      salida coincide exacto con la esperada (`EXCEPT` 0/0). Bonus: el cuerpo pasó de **1.965 a 499
+      líneas** (se fue la inflación de blancos)
+- [x] G6 `dotnet build` de Infrastructure **0/0** · `dotnet test` **1.864 verdes** ·
+      `ng build` OK (único warning: bundle budget preexistente).
+      ⚠️ El `dotnet build` de la solución falla por **MSB3021/MSB3027**: un `ZooSanMarino.API.exe`
+      **ajeno** (PID 5060, otra sesión) tiene tomados los DLL. No es error de compilación y **no se
+      mató el proceso ajeno**
+- [x] G7 **Smoke HTTP real** (backend propio :5499, `ASPNETCORE_ENVIRONMENT=Development`, JWT +
+      X-Secret-Up minteados): `POST /api/Produccion/indicadores-semanales` (LPP 7) ⇒ **HTTP 200**,
+      44 semanas, **`uniformidadGuia` null en 44/44** y `diferenciaUniformidad` null en 44/44.
+      ⚠️ Gotcha: el backend **NO ignora `PORT`** (el handoff dice lo contrario) —
+      `Program.cs:89` hace `Configuration["PORT"] ?? "5002"` + `UseUrls`, que **gana sobre
+      `ASPNETCORE_URLS`**. Se levanta con `PORT=5499`
+- [x] G8 Limpieza: backend de smoke detenido (5499 libre, el **ajeno de :5002 intacto**), `_v0`/`_v1`
+      y las 4 tablas `_gate_*` borradas de la BD local, migración registrada en
+      `__EFMigrationsHistory`. Commit acotado, `git add` archivo por archivo, sin footer de atribución
+
+## Aplicación en la BD local (nota de método)
+- [x] La migración **no se pudo aplicar con `dotnet ef database update`**: EF necesita compilar el
+      startup project (API) y ese binario lo tiene tomado el proceso ajeno. Se aplicó ejecutando el
+      **SQL extraído de la propia migración** (`FnUniformidadGuiaNull`, no del espejo) y recién
+      después se registró en `__EFMigrationsHistory` — con el efecto **verificado presente** (69
+      columnas y salida idéntica a la esperada), que es la condición que exige CLAUDE.md. En el
+      deploy la aplica EF sola, como siempre
+
+## 🔴 Hallazgo NUEVO (fuera del alcance de este bloque, no se tocó)
+- [ ] **`seleccion_machos` es un callejón sin salida**: la fn lo emite y
+      `IndicadorProduccionSemanalBdRow.SeleccionMachos` lo materializa, pero
+      `IndicadorProduccionSemanalDto` **no tiene el campo** y `IndicadoresProduccionCalculos` **no lo
+      mapea** ⇒ el valor se calcula y se descarta; el front nunca lo ve (`grep seleccionMachos` en
+      `features/lote-produccion/` = 0 resultados). Verificado por API: la respuesta no trae la clave.
+      Es un cabo suelto de la misma `20260806093256`; exponerlo cambia el contrato del DTO y pide
+      decidir dónde va la columna (tabla + Excel) ⇒ tarea aparte
+      · **Tomado y resuelto** en el bloque «Exponer `seleccion_machos`…» del final de este archivo
+
+---
+
+# Exponer `seleccion_machos` en indicadores semanales de PRODUCCIÓN
+
+**Plan:** [`fase_de_desarrollo/exponer_seleccion_machos_indicadores_produccion_plan.md`](fase_de_desarrollo/exponer_seleccion_machos_indicadores_produccion_plan.md)
+**Fecha:** 2026-08-07 · Continúa el hallazgo abierto del bloque anterior. **Sin migración**: la fn ya
+emite la columna, esto solo la deja llegar al front.
+
+## Verificación previa (la aritmética ya estaba bien, no se toca)
+- [x] V1 Confirmado **contra la fn desplegada en la BD local** (`pg_get_functiondef`, no el espejo
+      `.sql`): la firma incluye `seleccion_machos`, el saldo hace
+      `v_aves_m_act - r_mort_m - r_sel_m` y el %retiro de machos usa `(r_mort_m + r_sel_m)`
+- [x] V2 `20260807140000` (la última que recrea la fn) conserva las tres cosas ⇒ no hay regresión
+      pendiente de la `20260806093256`
+- [x] V3 `grep "new IndicadorProduccionSemanalDto"` ⇒ **un solo sitio de construcción** (`MapRow`),
+      así que insertar el campo en medio del `record` posicional es seguro (si faltara el mapeo, no
+      compila por aridad)
+- [x] V4 La fn **no** emite `porcentaje_seleccion_machos` (solo el de hembras) ⇒ se expone el conteo;
+      el % de machos no se replica en TypeScript (una sola fórmula por número)
+
+## Backend
+- [x] B1 `IndicadorProduccionSemanalDto`: + `int SeleccionMachos` en el bloque Selección (pos. 15,
+      igual que la fn y el BdRow)
+- [x] B2 `IndicadoresProduccionCalculos.MapRow`: + `r.SeleccionMachos` (int→int, sin conversión)
+- [x] B3 Test xUnit: `SampleRow.SeleccionMachos = 3` (valor ≠ 0 a propósito: `SeleccionHembras` es 0 y
+      un mapeo faltante habría pasado como falso verde) + aserción en
+      `MapRow_CopiaTodosLosCamposEnteros`
+
+## Frontend — decisión del usuario: tabla + Excel, **solo conteo**
+- [x] F1 `produccion.service.ts`: + `seleccionMachos: number` en la interfaz del DTO
+- [x] F2 `tabla-lista-indicadores.component.html`: `<th>Sel M</th>` + `<td>` tras `%Sel H`
+- [x] F3 `tabla-lista-indicadores.component.ts` → `buildIndicadoresRows()`: `SeleccionM` tras `PorcSelH`
+- [x] F4 **Bug de layout preexistente corregido de paso**: el `colspan` del grupo «Mortalidad /
+      Selección» decía **8** con **10** subcolumnas debajo (quedó viejo al agregar `Sel H`/`%Sel H`)
+      ⇒ corría 2 columnas la fila de encabezados. Ahora **11**. Sin `nth-child` en el SCSS y el
+      detalle usa `colspan="999"`, así que nada más dependía del número
+
+## Gates
+- [x] G1 `dotnet build` (con el SDK **10** de `~/.dotnet/dotnet.exe`; el `dotnet` del PATH es 9 y
+      falla con `NETSDK1045`)
+- [x] G2 `dotnet test`
+- [x] G3 `yarn build` del front. ⚠️ Gotcha del worktree: **no tiene `node_modules`** ⇒ se enlazó por
+      *junction* al del repo principal antes de compilar
+- [x] G4 Smoke API: `POST /api/Produccion/indicadores-semanales` con `PORT=5499` ⇒ la clave
+      `seleccionMachos` ahora viaja en el JSON
+
+## Fase 2 — `%Sel M` emitido desde la fn (cierra el pendiente que dejó la fase 1)
+- [x] M1 Migración `20260807180000_PorcentajeSeleccionMachosProduccion`: `DROP + CREATE` (la firma
+      cambia), Down restituye la previa completa. El SQL se generó **desde el cuerpo exacto de
+      `20260807140000`** con 4 inserciones puntuales, cada una con guard de ocurrencia única
+- [x] M2 **Verificado byte a byte**: quitando las 6 líneas insertadas, el cuerpo nuevo es idéntico al
+      previo ⇒ cambio aditivo puro, ninguna otra columna se movió
+- [x] M3 Designer clonado del de `20260807140000` (misma ModelSnapshot; no toca entidades)
+- [x] G5 **Gate de paridad** con la receta de [[espejo-sql-desincronizado-y-gate]]: la versión nueva
+      se desplegó primero con **otro nombre** (`..._gate`) para no tocar la fn que usaba el backend
+      ajeno de `:5002`. `EXCEPT ALL` en ambos sentidos sobre las **69 columnas** previas, los **6
+      lotes** de producción de la BD local ⇒ **0 diferencias** en 135 filas.
+      ⚠️ Las 135 filas son todas de la **empresa 1**: los 2 lotes de la empresa 4 no tienen
+      seguimiento cargado, así que el gate cubre una sola empresa por falta de datos, no por diseño
+      · Gotcha confirmado: la fn crea `TEMP TABLE ... ON COMMIT DROP` ⇒ **1 llamada por
+      transacción**; dos en la misma consulta fallan con `relation "_seg" already exists`
+- [x] B4 `IndicadorProduccionSemanalBdRow` + DTO (`decimal PorcentajeSeleccionMachos`) + `MapRow` +
+      test de conversión sin pérdida
+- [x] F5 Front: `porcentajeSeleccionMachos` en la interfaz, columna «%Sel M», `PorcSelM` en el Excel,
+      colspan del grupo 11 → **12**. Estructura verificada: 61 = 61 = 61
+- [x] G6 **La migración la aplicó EF sola** al arrancar el backend (`Database:RunMigrations=true`).
+      NO se tocó `__EFMigrationsHistory` a mano — el `INSERT` manual quedó además bloqueado por el
+      clasificador de permisos, que es el comportamiento correcto según CLAUDE.md. Antes se verificó
+      que la única pendiente real era ésta (los 4 `*.Fn.cs` que figuran como pendientes son
+      `partial class` de migraciones ya aplicadas)
+- [x] G7 `dotnet build` 0 errores · `dotnet test` 1864+1 verdes · `ng build` OK · smoke ⇒ 200, 44
+      semanas, ambas claves en las 44 y `%Sel M` coincidiendo con la fórmula en **44/44**
+- [x] G8 Limpieza: fn `..._gate` y tablas `gate_selm_*` borradas, backend de smoke detenido
+      (5499 libre, el ajeno de :5002 intacto)
+
+---
+
+# Tracker — ItalJira: historias, tareas y tiempos fuera del módulo de Tickets
+
+**Plan:** [`fase_de_desarrollo/italjira_gestion_historias_tareas_plan.md`](fase_de_desarrollo/italjira_gestion_historias_tareas_plan.md)
+**Fecha:** 2026-08-07 · **Bloque propio — no tocar desde otras sesiones**
+
+Pedido: sacar la gestión del área de desarrollo fuera de Tickets a un módulo nuevo **ItalJira**
+(Tickets queda con «Mis solicitudes» y «Bandeja de gestión»), agregar el nivel **HISTORIA** encima de
+las tareas (historia → tarea → subtarea/bug), permitir tareas nacidas en desarrollo (sin ticket), y
+sembrar por migración el histórico REAL de lo ya desarrollado, asignado a `moiesbbuga@gmail.com`.
+
+**Decisiones del usuario:** D1 = tabla nueva `historias` (3 niveles reales) · D2 = mover rutas a
+`/italjira` con redirect · D3 = histórico mixto (historias por módulo + una tarea por plan de
+`fase_de_desarrollo/`, con fechas reales de git).
+
+## Fase 0 — Auditoría y plan
+- [x] Modelo actual auditado: `Ticket` / `TicketTarea` (`ticket_id` **NOT NULL**) / `TicketTiempo`,
+      servicios partial, 3 controllers, 6 menús en BD, rutas y páginas del front
+- [x] Plan escrito con el DDL, las reglas de negocio y los casos de prueba
+- [x] Decisiones D1/D2/D3 confirmadas por el usuario
+
+### Resultado (07-ago-2026)
+
+## Fase 1 — Backend: datos ✔
+- [x] Entidad `Historia` + `HistoriaEstados` (alias explícito de `TicketTareaEstados`: un solo vocabulario en los dos niveles del tablero)
+- [x] `TicketTarea.TicketId` a `long?` + `HistoriaId` · `Ticket.HistoriaId` · `TicketTiempo.TicketId` a `long?`
+- [x] Blast radius del nullable: **solo 5 sitios** (2 proyecciones a DTO + 3 `Contains` en LINQ), todos ajustados con `!= null && …Value`
+- [x] `HistoriaConfiguration` (FK `ON DELETE SET NULL`) + 3 configurations existentes + `DbSet<Historia>`
+- [x] Migración M1 `20260807075318_AddHistoriasItalJira` idempotente, aplicada en local
+- [x] ⚠️ EF arrastró al ModelSnapshot `seguimiento_diario_levante.venta_aves_hembras/machos` de OTRA sesión
+      (`20260806235000` las creó por SQL dejando el snapshot atrás **a propósito**). Se **excluyeron
+      del Up/Down** de M1 (ya existen en la BD) y se conservó la actualización del snapshot: es
+      exactamente la reconciliación que esa migración anticipaba en su comentario
+
+## Fase 2 — Backend: lógica ✔
+- [x] `Application/Calculos/HistoriaCalculos.cs` — código correlativo, normalización, sellado de fechas
+      (DELEGA en `TicketTareaCalculos`, no lo copia), avance, conteo, rango de roadmap y traducción
+      `EstadoTrabajoDeCaso` (las 9 fases del caso al vocabulario de tareas)
+- [x] **48 tests xUnit** nuevos (`HistoriaCalculosTests`), incluido el que impide duplicar `Reordenar`
+- [x] `HistoriaDtos` (12 records) + `IHistoriaService` + `HistoriaService` (ancla + `Funciones/Backlog`)
+- [x] `TicketTareaService.Historias.cs` — partial del MISMO servicio: `ticket_tareas` conserva un
+      único escritor, y las dos vistas comparten proyección, reordenamiento y reglas de fecha
+- [x] `ProyectarTareasAsync` generalizada a `IQueryable<TicketTarea>`: una sola fórmula para el panel
+      del caso y para ItalJira
+- [x] `ItalJiraController` (`/api/italjira`, 17 endpoints) + DI en `Program.cs`
+- [x] Alcance: ItalJira **no filtra por empresa** (espeja la bandeja de gestión de tickets); la puerta
+      es el permiso `tickets.gestionar` / `tickets.admin`, ya configurado en los roles
+
+## Fase 3 — Menús ✔
+- [x] Migración M2 `20260807150000_MenusItalJiraFueraDeTickets`: grupo `italjira` + **UPDATE EN SITIO**
+      de las 4 vistas (conserva `role_menus`/`company_menus`/`menu_permissions` porque referencian
+      `menu_id`) + menú nuevo `italjira.backlog` heredado de quien ya ve el Tablero
+- [x] `tickets.admin` pasa a `italjira.configuracion`: la ruta deja de contener `admin` (AWS WAF)
+- [x] Verificado en BD: Tickets con 2 items · ItalJira con 5 · 6 roles y 2 empresas conservados intactos
+
+## Fase 4 — Frontend ✔
+- [x] `features/italjira/`: routes, `models/historia.models.ts` (re-exporta lo compartido con tickets),
+      `services/italjira.service.ts`, `funciones/` (2 puras + README), `components/historia-modal/`
+- [x] Páginas MUDADAS con `git mv` (historia preservada): tablero, roadmap, panel, mis-asignados y
+      admin-tickets → `configuracion` (clase `ItalJiraConfiguracionComponent`)
+- [x] Página nueva **Backlog**: árbol historia → tarea → subtarea/bug, bandeja «sin historia»,
+      indicadores, filtros, exportación a Excel (helper compartido) y modales de historia/tarea
+- [x] `TareaModalComponent` REUTILIZADO (no se duplicó): el contenedor agrega la historia destino
+- [x] Redirects de las 5 rutas viejas + ruta lazy `italjira` en `app.config.ts`
+- [x] `changeDetection: Eager` explícito en los 2 componentes nuevos
+- [x] `ToastService` / `ConfirmDialogService` / helper de Excel: cero `alert`/`confirm`/`XLSX` inline
+
+## Fase 5 — Histórico real ✔
+- [x] Fechas reales extraídas de git para los 198 planes de `fase_de_desarrollo/`
+      (`--diff-filter=A` para el alta, `git log -1` para el fin) + título = H1 de cada plan
+- [x] Curado en **20 historias por módulo**; TIPO derivado de la naturaleza del plan
+      (129 TAREA · 32 BUG · 22 MEJORA · 20 DOCUMENTACION)
+- [x] Migración M3 `20260807160000_SeedHistorialDesarrolloItalJira` (+ partial `.Seed.cs` con ~1.900
+      líneas generadas): **20 historias / 203 tareas**, todo LISTO salvo «ItalJira», que queda
+      EN_CURSO porque es esta misma entrega
+- [x] Identidad POR EMAIL con fail-open (si el usuario no existe en el entorno, siembra 0 y no tumba
+      el arranque). ⚠️ El int de auditoría **no es la cédula**: la de este usuario (3177120174) no
+      entra en un `integer` — se toma el `created_by_user_id` que ya usan sus propios tickets
+- [x] Idempotente: historias por `codigo`, tareas por `(historia_id, titulo)`
+
+## Fase 6 — Validación ✔
+- [x] `dotnet build` Infrastructure **0/0** y API **0/0** (a salida aparte: el `bin` del API lo tiene
+      tomado un `ZooSanMarino.API.exe` **ajeno** en :5002 — proceso de otra sesión, NO se mató)
+- [x] `dotnet test` **1.914 Application + 1 Domain**, todo verde
+- [x] `yarn build` OK (único warning: bundle budget preexistente)
+- [x] **Smoke HTTP** (backend propio :5499, JWT + X-Secret-Up minteados), 11 pasos: backlog inicial
+      20/212/19 → crear historia → tarea → subtarea + bug (heredan historia del padre) → 3,5 h de
+      worklog con `ticket_id` NULL → avance 33 % → 100 % → agrupar un caso real (4 trabajos, 75 %) →
+      tablero 7 columnas y roadmap 2026-05-08→2026-08-07 → borrar la historia deja las 3 tareas
+      VIVAS y sueltas → limpieza y estado final idéntico al inicial
+- [x] **Smoke UI** (front :4300 + backend :5499, sesión inyectada en `localStorage.auth_session`):
+      backlog con las 20 historias y sus tareas, bandeja con los 19 casos reales, modal de historia y
+      de tarea abren/cierran **dos veces** sin colgarse, y las 5 rutas viejas redirigen
+      (`/tickets/tablero|roadmap|panel|admin|asignados` → `/italjira/...`)
+- [x] BD local devuelta a su estado exacto (20 historias del seed, 203 tareas agrupadas, 6 worklogs,
+      0 tickets con historia); sin procesos huérfanos; `environment.ts` y `.claude/launch.json`
+      restaurados byte a byte y el `bin/smoke-italjira` eliminado
+
+## 🔴 Dos bugs que cazó el smoke (corregidos)
+
+1. **El CHECK `ck_ticket_tareas_no_huerfana` rompía la propia bandeja de sueltas.** Exigía que toda
+   tarea tuviera caso, historia o padre; pero una tarea con los tres en NULL es el estado LEGÍTIMO de
+   «sin historia» — el que se crea con «+ Tarea suelta» y al que vuelve el trabajo cuando se borra su
+   épica. Con el CHECK, `DELETE /historias/{id}` daba **500**. Se retiró de M1 (con `DROP … IF EXISTS`
+   defensivo por si alguna base intermedia lo llegó a tener).
+2. **El desplegable de columna de cada tarea mostraba siempre «Backlog».** `[value]` en el `<select>`
+   (y también `[selected]` en la `<option>`) se aplican ANTES de que el `@for` registre las opciones.
+   Fix: `[ngModel]` + `(ngModelChange)`, cuyo accessor reasigna el valor cuando las opciones terminan
+   de registrarse. Verificado en pantalla: los 5 selectores pasaron de `BACKLOG` a `LISTO`.
+
+Además, `GetSinAgruparAsync` / la bandeja del backlog dejaron de filtrar `ParentTareaId == null`: al
+borrar una historia, sus subtareas quedaban invisibles en las tres pantallas. Ahora la bandeja trae el
+árbol completo y el front lo anida.
+
+## Fase 4 — §2.3 Barrido de sobregiro de aves (decisión del usuario: medir primero, sin tocar código)
+
+Pregunta: si el seguimiento diario bloqueara «no cargar más bajas que aves disponibles», ¿cuántas
+escrituras históricas quedarían rechazadas y en qué empresas?
+
+- [x] B1 Detector `backend/sql/verificar_sobregiro_aves_postura.sql` (**solo lectura**, hermano de
+      `verificar_paridad_saldo_engorde.sql`). Aritmética NO inventada: base y exclusión de filas
+      copiadas de `fn_indicadores_levante_postura`; bajas = `SaldoAvesLevanteCalculos.BajasNetas`;
+      producción sobre `fn_seguimiento_diario_produccion`. **Sin clamp** (el `GREATEST(0,…)` es lo que
+      esconde el sobregiro)
+- [x] B2 **Validación cruzada de la fórmula**: producción da saldo idéntico al `saldo_aves_h/m` que la
+      propia fn expone en **5/5 LPP**; levante reproduce el **−460** del lote 123 exacto. La medición
+      no es una fórmula nueva
+- [x] B3 **RESULTADO — 1 sola fila en toda la BD local**:
+      · **Levante**: 1 de 902 filas (11 lotes) — el ya conocido **lote 123 «LOTE 235A» de Demo**,
+        03-ago-2026: **40 disponibles contra 500 bajas cargadas**. **Agroavícola Sanmarino: 0**
+      · **Producción**: **0 de 933 filas** (5 LPP), 0 lotes con saldo final negativo
+      · Alcance real del barrido: solo Sanmarino y Demo tienen datos de postura; ItalcolEcuador,
+        ItalcolPanamá y Santa Reyes tienen **0 filas** ⇒ el bloqueo no los toca
+- [x] B4 🔑 **Hallazgo de diseño que cambia la regla**: **4 lotes de levante y 1 LPP tocan saldo
+      exactamente 0**, que es el cierre LEGÍTIMO (lote agotado). La regla tiene que ser
+      **`bajas <= disponibles`**, NO `saldo > 0` — exigir `> 0` rompería el cierre normal de todos
+      esos lotes. Y explica por qué el soft-check REQ-011b está doblemente mal: compara `saldo == 0`
+      exacto ⇒ **salta en el caso legítimo y NO salta en el sobregiro real**
+- [x] B5 Margen de operación: levante 6 lotes holgados / 4 en cero / 1 negativo; producción 3
+      holgados / 1 con margen 1-50 / 1 en cero. Ningún lote «casi» sobregira ⇒ el bloqueo no
+      generaría falsos rechazos por operación normal
+- [ ] **Pendiente de decisión**: re-correr el detector contra el dump de PROD antes de implementar
+      (la BD local es un dump de fecha incierta y solo tiene 2 empresas con postura). Si prod
+      confirma un número parecido, el bloqueo es de riesgo bajo
+
+### Hallazgo lateral del barrido (NO tocado)
+- [ ] **Tres fórmulas distintas para el saldo de levante**: `fn_indicadores_levante_postura`
+      **NO descuenta ventas** (`r_aves_fin := v_aves_acum - mort - sel - err - tras_sal + tras_ing`),
+      mientras que `fn_resumen_semanal_ra_pesadas_levante` y `fn_reporte_semanal_levante_extras`
+      **sí** desde `b315612` / `20260806235000`, y `SaldoAvesLevanteCalculos.BajasNetas` también.
+      Hoy no se nota (solo 2 filas en toda la BD tienen venta), pero viola «una sola fórmula por
+      número» y va a divergir en cuanto se registren ventas de verdad.
+      ✅ Verificado de paso: el espejo `fn_indicadores_levante_postura.sql` **sí está al día**
+      (cuerpo idéntico a la definición viva) — no hay una segunda bomba de tiempo ahí
+
+---
+
+# Reporte Contable — Selección en RESUMEN + hoja de Movimientos de Huevo
+
+Plan: [reporte_contable_resumen_seleccion_y_huevos_plan.md](fase_de_desarrollo/reporte_contable_resumen_seleccion_y_huevos_plan.md)
+Origen: hallazgos 3 y 4 del correo de conciliación del lote K345
+([análisis](fase_de_desarrollo/conciliacion_lote_k345_niza_iii_analisis.md) §8).
+
+## Cambio 1 — columna Selección en la hoja RESUMEN
+- [x] `ReporteContableResumenCalculos` (Application/Calculos): acumulado puro del resumen semanal
+- [x] Reescribir `EscribirResumenSemanal` data-driven (12 columnas, Selección tras Mortalidad)
+- [x] Tests xUnit del acumulado
+
+## Cambio 2 — hoja MOVIMIENTOS HUEVOS en el Excel
+- [x] `GenerarExcel(reporte, movimientosHuevos = null)` — parámetro opcional, sin romper el caller
+- [x] Hoja espejo de la pantalla (POSTURA · HVTO FÉRTIL · HVO COMERCIAL · HUEVO DESECHO + movimientos)
+- [x] `ReporteContableController.ExportarExcel` resuelve los movimientos y los pasa
+
+## Validación
+- [x] `dotnet build` sin errores ni advertencias nuevas
+- [x] `dotnet test` verde
+- [x] Smoke: exportar Excel de un lote con producción y cuadrar contra la BD
+
+## Validación cruzada contra los informes de Verenice (lote S-369AB)
+- [x] Recuperar el `.xlsm` de levante (viene truncado: sin central directory del ZIP)
+- [x] Mapa de columnas del informe → campos de la aplicación (levante y producción)
+- [x] Identificar qué campos del informe **no tienen dónde guardarse** en la app
+- [x] Contrastar los datos cargados de S-369 contra el informe e informar diferencias
+
+## Alineación de la carga masiva de LEVANTE (hallazgo de la validación contra Verenice)
+Análisis: [validacion_informes_verenice_s369_analisis.md](fase_de_desarrollo/validacion_informes_verenice_s369_analisis.md)
+- [x] `MigracionEsquemas.SeguimientoLevante`: Coef. Variación H/M, Observaciones Pesaje y los 4 de agua
+- [x] `MigracionService.Historicos.cs`: lectura de las columnas nuevas + instrucciones de la plantilla
+- [x] `fn_migracion_seguimiento_levante`: recordset + UPDATE + INSERT (espejo `.sql` y migración EF)
+- [x] Migración `20260807190000_FnMigracionLevantePesajeYAgua` (+ Designer clonado)
+- [x] Tests xUnit del esquema (9) y smoke de la fn en transacción revertida
+- [x] **Descartado (era un dato mío equivocado)**: el modal de levante SÍ captura el C.V. — los controles
+      se llaman `cvH`/`cvM` y el servicio los mapea a `CvHembras`/`CvMachos`
+      (`SeguimientoLoteLevanteService.Mapeos.cs:173`). El hueco estaba solo en la carga masiva, ya cerrado
+- [ ] **Pendiente de decisión (técnica + costos)**: el corte levante/producción quedó en 24 semanas
+      en S-369 y el informe de Verenice usa 25 ⇒ ~17.332 kg cambian de etapa en una conciliación
+
+## Corte de etapa: bloqueo del doble conteo levante/producción
+- [x] `CorteEtapaPosturaCalculos` (Application/Calculos): regla pura + mensajes, 10 tests xUnit
+- [x] `SeguimientoLoteLevanteService.EnsureDiaSinAporteDeProduccionAsync` en el alta de levante
+- [x] `ProduccionService.EnsureDiaSinAporteDeLevanteAsync` en el alta de producción
+- [x] La regla mira el APORTE (consumo/bajas), no la existencia de la fila: el arrastre de huevos del
+      levante crea filas de producción de solo huevos y esas NO deben chocar
+- [x] Barrido de la BD: el traslape existe solo en K345 (15 días) ⇒ el guard no rompe nada existente
+- [x] `dotnet build` + `dotnet test` (1.939 en verde)
+- [ ] **Pendiente, requiere OK explícito**: limpiar los 15 días traslapados de K345 (el guard impide
+      nuevos, los existentes siguen ahí). Hay que decidir cuál de las dos filas queda antes de tocar datos
+
+## Entrega
+- [x] Respuesta final para costos con las correcciones aplicadas:
+      [conciliacion_k345_respuesta_final_con_correcciones.md](fase_de_desarrollo/conciliacion_k345_respuesta_final_con_correcciones.md)

@@ -64,9 +64,49 @@ public class Ticket : AuditableEntity
     /// <summary>Estado del registro (A=activo). Patrón del proyecto.</summary>
     public string Status { get; set; } = "A";
 
+    // ─────────────── Solicitante delegado ("a nombre de") ───────────────
+
+    /// <summary>
+    /// Usuario del sistema a nombre de quien va el caso, cuando lo registró otra persona
+    /// (solo <c>tickets.admin</c> puede delegarlo). Null ⇒ el solicitante es el creador,
+    /// que es como se comportaron todos los tickets previos a esta funcionalidad.
+    /// </summary>
+    public Guid? SolicitanteUserGuid { get; set; }
+
+    /// <summary>Cédula del solicitante delegado (espejo int, para las bandejas por <c>UserId</c>).</summary>
+    public int? SolicitanteUserId { get; set; }
+
+    // ─────────────── Gestión tipo tablero (admin) ───────────────
+
+    /// <summary>BAJA | MEDIA | ALTA | CRITICA — ver <see cref="TicketPrioridades"/>.</summary>
+    public string Prioridad { get; set; } = TicketPrioridades.Media;
+
+    /// <summary>Posición de la tarjeta dentro de su columna del tablero (0..n-1).</summary>
+    public int OrdenTablero { get; set; }
+
+    /// <summary>Estimación de esfuerzo del caso completo.</summary>
+    public decimal? HorasEstimadas { get; set; }
+
+    /// <summary>Compromiso de solución. Base del semáforo de SLA; null ⇒ el caso no tiene SLA.</summary>
+    public DateTime? FechaLimite { get; set; }
+
+    /// <summary>Fechas planificadas — dibujan la barra del caso en el roadmap.</summary>
+    public DateOnly? FechaInicioPlan { get; set; }
+    public DateOnly? FechaFinPlan { get; set; }
+
+    /// <summary>
+    /// Historia (épica) de ItalJira que agrupa este caso. Null ⇒ el caso está «sin historia», que es
+    /// como nacen todos los que registra un usuario final; el área de desarrollo lo mueve a una
+    /// historia después. Agrupar un caso NO altera su estado ni su flujo.
+    /// </summary>
+    public long? HistoriaId { get; set; }
+
     // Navegación
     public ICollection<TicketImagen> Imagenes { get; set; } = new List<TicketImagen>();
     public ICollection<TicketNota> Notas { get; set; } = new List<TicketNota>();
     public ICollection<TicketAdjunto> Adjuntos { get; set; } = new List<TicketAdjunto>();
     public ICollection<TicketNotificado> Notificados { get; set; } = new List<TicketNotificado>();
+    public ICollection<TicketTarea> Tareas { get; set; } = new List<TicketTarea>();
+    public ICollection<TicketTiempo> Tiempos { get; set; } = new List<TicketTiempo>();
+    public Historia? Historia { get; set; }
 }

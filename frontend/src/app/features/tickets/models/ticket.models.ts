@@ -2,12 +2,18 @@
 // Tipos del módulo de tickets de soporte. Alineados con los DTOs del backend
 // (ZooSanMarino.Application.DTOs.Tickets). El backend serializa en camelCase.
 
+// Import de solo-tipos: se borra al compilar, así que el ciclo con ticket-tarea.models no existe
+// en runtime (ese archivo sí importa tipos de este).
+import type { EstadoSla, PrioridadTicket, TicketMetricas, TicketTarea } from './ticket-tarea.models';
+
 export type TipoTicket = 'SOPORTE' | 'DESARROLLO' | 'REQUERIMIENTO' | 'DUDAS';
 
 export type EstadoTicket =
   | 'ABIERTO'
   | 'EN_ANALISIS'
+  | 'EN_DOCUMENTACION'
   | 'EN_IMPLEMENTACION'
+  | 'EN_REVISION'
   | 'SOLUCIONADO'
   | 'CERRADO'
   | 'TRANSFERIDO'
@@ -41,6 +47,10 @@ export interface CreateTicketRequest {
   imagenes?: TicketImagenInput[] | null;
   /** Guids de usuarios a notificar (copiados) — opcional. */
   notificarUserGuids?: string[];
+  /** Usuario a nombre de quien se registra el caso. Solo lo acepta el backend con tickets.admin. */
+  solicitanteUserGuid?: string | null;
+  /** Prioridad inicial. Null ⇒ MEDIA. */
+  prioridad?: PrioridadTicket | null;
 }
 
 export interface TransferirTicketRequest {
@@ -107,6 +117,9 @@ export interface TicketListFilter {
   paisId?: number;
   companyId?: number;
   assignedToGuid?: string;
+  prioridad?: string;
+  /** Busca en código, título y descripción. */
+  texto?: string;
   page?: number;
   pageSize?: number;
 }
@@ -138,6 +151,23 @@ export interface TicketListItem {
   assignedToNombre: string | null;
   assignedToRol: string | null;
   paisNombre: string | null;
+  // ── Gestión tipo tablero (el backend siempre los envía; default neutro) ──
+  prioridad: PrioridadTicket;
+  ordenTablero: number;
+  fechaLimite: string | null;
+  fechaInicioPlan: string | null;
+  fechaFinPlan: string | null;
+  horasEstimadas: number | null;
+  horasRegistradas: number;
+  cantidadTareas: number;
+  tareasListas: number;
+  avanceTareas: number;
+  estadoSla: EstadoSla;
+  horasParaVencer: number | null;
+  /** Nombre del solicitante real (delegado si lo hay; si no, el creador). */
+  solicitanteNombre: string | null;
+  /** True si el caso lo registró alguien distinto del solicitante. */
+  registradoPorTercero: boolean;
 }
 
 export interface TicketNota {
@@ -153,6 +183,8 @@ export interface TicketNota {
   userEmail: string | null;
   /** True si la nota la escribió el usuario actual (chat: burbuja a la derecha). */
   esMio: boolean;
+  /** Tipo de evento cuando la nota la generó el sistema; null = comentario humano. */
+  tipoEvento: string | null;
 }
 
 /** Metadata de imagen (SIN base64) — para listar miniaturas a pedir on-demand. */
@@ -215,6 +247,27 @@ export interface TicketDetail {
   adjuntos: TicketAdjunto[] | null;
   /** Usuarios notificados (copiados) al crear el ticket. */
   notificados?: TicketNotificadoDto[];
+  // ── Solicitante delegado ("a nombre de") ──
+  solicitanteUserGuid: string | null;
+  solicitanteNombre: string | null;
+  solicitanteRol: string | null;
+  solicitanteEmail: string | null;
+  /** True si el caso lo registró alguien distinto del solicitante. */
+  registradoPorTercero: boolean;
+  /** True si el usuario actual es el solicitante: puede confirmar cierre o reabrir. */
+  soySolicitante: boolean;
+  // ── Gestión tipo tablero ──
+  prioridad: PrioridadTicket;
+  ordenTablero: number;
+  fechaLimite: string | null;
+  fechaInicioPlan: string | null;
+  fechaFinPlan: string | null;
+  horasEstimadas: number | null;
+  horasRegistradas: number;
+  tareas: TicketTarea[] | null;
+  metricas: TicketMetricas | null;
+  /** Guid del responsable — preselecciona el desplegable de reasignación. */
+  assignedToUserGuid: string | null;
 }
 
 /** Una imagen on-demand (con base64). */
@@ -242,13 +295,26 @@ export const TIPO_LABEL: Record<TipoTicket, string> = {
 };
 
 export const ESTADOS_TICKET: EstadoTicket[] = [
-  'ABIERTO', 'EN_ANALISIS', 'EN_IMPLEMENTACION', 'SOLUCIONADO', 'CERRADO', 'TRANSFERIDO', 'SUSPENDIDO',
+  'ABIERTO', 'EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION',
+  'SOLUCIONADO', 'CERRADO', 'TRANSFERIDO', 'SUSPENDIDO',
+];
+
+/** Fases en las que el equipo trabaja el caso (columnas centrales del tablero). */
+export const FASES_TRABAJO: EstadoTicket[] =
+  ['EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION'];
+
+/** Columnas del tablero kanban de casos, de izquierda a derecha. */
+export const COLUMNAS_TABLERO: EstadoTicket[] = [
+  'ABIERTO', 'EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION',
+  'SOLUCIONADO', 'CERRADO',
 ];
 
 export const ESTADO_LABEL: Record<EstadoTicket, string> = {
   ABIERTO: 'Abierto',
   EN_ANALISIS: 'En análisis',
+  EN_DOCUMENTACION: 'En documentación',
   EN_IMPLEMENTACION: 'En implementación',
+  EN_REVISION: 'En revisión',
   SOLUCIONADO: 'Solucionado',
   CERRADO: 'Cerrado',
   TRANSFERIDO: 'Transferido',
@@ -259,7 +325,9 @@ export const ESTADO_LABEL: Record<EstadoTicket, string> = {
 export const ESTADO_BADGE: Record<EstadoTicket, string> = {
   ABIERTO:           'bg-sky-50 text-sky-700 ring-sky-200',
   EN_ANALISIS:       'bg-amber-50 text-amber-700 ring-amber-200',
+  EN_DOCUMENTACION:  'bg-violet-50 text-violet-700 ring-violet-200',
   EN_IMPLEMENTACION: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+  EN_REVISION:       'bg-cyan-50 text-cyan-700 ring-cyan-200',
   SOLUCIONADO:       'bg-emerald-50 text-emerald-700 ring-emerald-200',
   CERRADO:           'bg-ital-green text-white ring-ital-green-dark',
   TRANSFERIDO:       'bg-slate-100 text-slate-600 ring-slate-200',
@@ -270,7 +338,9 @@ export const ESTADO_BADGE: Record<EstadoTicket, string> = {
 export const ESTADO_BORDER: Record<EstadoTicket, string> = {
   ABIERTO:           'border-l-sky-400',
   EN_ANALISIS:       'border-l-amber-400',
+  EN_DOCUMENTACION:  'border-l-violet-400',
   EN_IMPLEMENTACION: 'border-l-indigo-400',
+  EN_REVISION:       'border-l-cyan-400',
   SOLUCIONADO:       'border-l-emerald-500',
   CERRADO:           'border-l-ital-green',
   TRANSFERIDO:       'border-l-slate-400',
@@ -281,7 +351,9 @@ export const ESTADO_BORDER: Record<EstadoTicket, string> = {
 export const ESTADO_DOT: Record<EstadoTicket, string> = {
   ABIERTO:           'bg-sky-400',
   EN_ANALISIS:       'bg-amber-400',
+  EN_DOCUMENTACION:  'bg-violet-400',
   EN_IMPLEMENTACION: 'bg-indigo-400',
+  EN_REVISION:       'bg-cyan-400',
   SOLUCIONADO:       'bg-emerald-500',
   CERRADO:           'bg-ital-green',
   TRANSFERIDO:       'bg-slate-400',
@@ -289,18 +361,26 @@ export const ESTADO_DOT: Record<EstadoTicket, string> = {
 };
 
 /** Pasos lineales del stepper (los estados especiales se muestran aparte). */
-export const STEPPER_STEPS: EstadoTicket[] = ['ABIERTO', 'EN_ANALISIS', 'EN_IMPLEMENTACION', 'SOLUCIONADO', 'CERRADO'];
+export const STEPPER_STEPS: EstadoTicket[] = [
+  'ABIERTO', 'EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION', 'SOLUCIONADO', 'CERRADO',
+];
 export const ESTADOS_ESPECIALES: EstadoTicket[] = ['TRANSFERIDO', 'SUSPENDIDO'];
 
-/** Transiciones que ofrece la UI al RESOLUTOR (el cierre lo confirma el solicitante aparte). */
+/**
+ * Transiciones que ofrece la UI al RESOLUTOR (el cierre lo confirma el solicitante aparte).
+ * Espeja `TicketEstados.Transiciones` del backend: las cuatro fases de trabajo se mueven
+ * libremente entre sí, que es lo que hace usable el tablero.
+ */
 export const TRANSICIONES: Record<EstadoTicket, EstadoTicket[]> = {
-  ABIERTO:           ['EN_ANALISIS', 'SUSPENDIDO', 'TRANSFERIDO'],
-  EN_ANALISIS:       ['EN_IMPLEMENTACION', 'SOLUCIONADO', 'SUSPENDIDO', 'TRANSFERIDO'],
-  EN_IMPLEMENTACION: ['SOLUCIONADO', 'EN_ANALISIS', 'SUSPENDIDO', 'TRANSFERIDO'],
+  ABIERTO:           ['EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION', 'SUSPENDIDO', 'TRANSFERIDO'],
+  EN_ANALISIS:       ['EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION', 'SOLUCIONADO', 'SUSPENDIDO', 'TRANSFERIDO'],
+  EN_DOCUMENTACION:  ['EN_ANALISIS', 'EN_IMPLEMENTACION', 'EN_REVISION', 'SOLUCIONADO', 'SUSPENDIDO', 'TRANSFERIDO'],
+  EN_IMPLEMENTACION: ['EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_REVISION', 'SOLUCIONADO', 'SUSPENDIDO', 'TRANSFERIDO'],
+  EN_REVISION:       ['EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'SOLUCIONADO', 'SUSPENDIDO', 'TRANSFERIDO'],
   SOLUCIONADO:       ['EN_ANALISIS'],
   CERRADO:           [],
-  TRANSFERIDO:       ['EN_ANALISIS', 'SUSPENDIDO'],
-  SUSPENDIDO:        ['EN_ANALISIS'],
+  TRANSFERIDO:       ['EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION', 'SUSPENDIDO'],
+  SUSPENDIDO:        ['EN_ANALISIS', 'EN_DOCUMENTACION', 'EN_IMPLEMENTACION', 'EN_REVISION'],
 };
 
 /** Claves de permiso del módulo (se siembran en la tabla `permissions`). */

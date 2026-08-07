@@ -20,7 +20,33 @@ public class TicketNota
     /// <summary>Nota interna: visible solo para resolutores / super admin.</summary>
     public bool EsInterna { get; set; }
 
+    /// <summary>
+    /// Clasifica las notas que escribe el sistema al registrar un cambio de gestión
+    /// (ver <see cref="TicketNotaEventos"/>). <c>null</c> = comentario escrito por una persona,
+    /// que es lo que son todas las notas anteriores a esta columna.
+    /// </summary>
+    public string? TipoEvento { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Ticket? Ticket { get; set; }
+}
+
+/// <summary>Tipos de nota generada por el sistema, para pintarlas distinto en la línea de tiempo.</summary>
+public static class TicketNotaEventos
+{
+    public const string Asignacion    = "SISTEMA_ASIGNACION";
+    public const string Prioridad     = "SISTEMA_PRIORIDAD";
+    public const string Tarea         = "SISTEMA_TAREA";
+    public const string Planificacion = "SISTEMA_PLANIFICACION";
+    public const string Solicitante   = "SISTEMA_SOLICITANTE";
+    public const string Tiempo        = "SISTEMA_TIEMPO";
+
+    public static readonly IReadOnlySet<string> Todos =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        { Asignacion, Prioridad, Tarea, Planificacion, Solicitante, Tiempo };
+
+    /// <summary>True si la nota la escribió el sistema (no una persona).</summary>
+    public static bool EsDeSistema(string? tipoEvento) =>
+        !string.IsNullOrWhiteSpace(tipoEvento) && Todos.Contains(tipoEvento);
 }

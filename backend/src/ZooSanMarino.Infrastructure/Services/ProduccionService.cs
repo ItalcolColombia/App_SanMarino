@@ -127,7 +127,48 @@ public partial class ProduccionService : IProduccionService
                 "El lote de producción está cerrado; no se pueden crear, modificar ni eliminar registros de seguimiento diario. " +
                 "Reabra el lote desde Seguimiento Diario de Producción si necesita ajustarlo.");
     }
-    
+
+    /// <summary>
+    /// Corte de etapa (contraparte de <c>SeguimientoLoteLevanteService.EnsureDiaSinAporteDeProduccionAsync</c>):
+    /// bloquea el alta de un día de PRODUCCIÓN cuando levante ya registró ese mismo día del mismo lote
+    /// CON consumo o bajas. Solo se mira el aporte, no la existencia de la fila: el arrastre de huevos
+    /// del levante crea filas legítimas de solo huevos y esas no chocan. Lo que se impide es el doble
+    /// conteo del caso K345 — 14 días de julio-2025 en las dos tablas con el mismo consumo.
+    /// </summary>
+    private async Task EnsureDiaSinAporteDeLevanteAsync(int loteId, CrearSeguimientoRequest request)
+    {
+        var (desde, hasta) = FechasPuras.RangoDiaUtc(request.FechaRegistro);
+        var loteTexto = loteId.ToString();
+
+        var otra = await _context.SeguimientoDiario.AsNoTracking()
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteTexto
+                     && s.Fecha >= desde && s.Fecha < hasta)
+            .Select(s => new
+            {
+                Consumo = (s.ConsumoKgHembras ?? 0m) + (s.ConsumoKgMachos ?? 0m),
+                Mortalidad = (s.MortalidadHembras ?? 0) + (s.MortalidadMachos ?? 0),
+                Seleccion = (s.SelH ?? 0) + (s.SelM ?? 0)
+            })
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+
+        if (otra is null) return;
+
+        // El consumo se toma en crudo (sin convertir la unidad): al guard solo le importa si el día
+        // aporta alimento, no cuánto.
+        var nuevo = new CorteEtapaPosturaCalculos.AporteDia(
+            (decimal)(request.ConsumoH ?? 0) + (decimal)(request.ConsumoM ?? 0),
+            request.MortalidadH + request.MortalidadM,
+            request.SelH + request.SelM);
+
+        var existente = new CorteEtapaPosturaCalculos.AporteDia(otra.Consumo, otra.Mortalidad, otra.Seleccion);
+
+        if (CorteEtapaPosturaCalculos.HayDobleConteo(nuevo, existente))
+            throw new InvalidOperationException(
+                CorteEtapaPosturaCalculos.MensajeProduccionChocaConLevante(request.FechaRegistro));
+    }
+
+
     /// <summary>
     /// Construye el objeto Metadata JSONB con los campos adicionales.
     /// </summary>

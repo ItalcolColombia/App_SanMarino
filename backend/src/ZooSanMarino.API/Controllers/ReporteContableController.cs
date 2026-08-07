@@ -125,8 +125,22 @@ public class ReporteContableController : ControllerBase
             // Generar el reporte
             var reporte = await _reporteContableService.GenerarReporteAsync(request, ct);
 
+            // Movimientos de huevo: solo aplica a Producción (en Levante no hay postura)
+            ReporteMovimientosHuevosDto? movimientosHuevos = null;
+            if (faseLote == "Produccion")
+            {
+                movimientosHuevos = await _reporteContableService.ObtenerReporteMovimientosHuevosAsync(
+                    new ObtenerReporteMovimientosHuevosRequestDto
+                    {
+                        LotePadreId = lotePadreId,
+                        SemanaContable = semanaContable,
+                        FechaInicio = fechaInicio,
+                        FechaFin = fechaFin
+                    }, ct);
+            }
+
             // Generar Excel
-            var excelBytes = _excelService.GenerarExcel(reporte);
+            var excelBytes = _excelService.GenerarExcel(reporte, movimientosHuevos);
 
             // Generar nombre de archivo
             var nombreArchivo = _excelService.GenerarNombreArchivo(reporte, semanaContable);

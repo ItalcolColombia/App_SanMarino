@@ -277,7 +277,7 @@ public partial class ProduccionService
             e.HuevoTot,
             e.HuevoInc,
             e.TipoAlimento ?? "",
-            e.PesoHuevo,
+            e.PesoHuevo ?? 0,
             e.Etapa,
             e.Observaciones,
             CreatedAt: e.Fecha,

@@ -24,6 +24,20 @@ import {
   ResolutorAdminDto,
   UsuarioNotificableDto,
 } from '../models/ticket.models';
+import {
+  ActualizarPlanificacionRequest,
+  CambiarAsignadoRequest,
+  CambiarPrioridadRequest,
+  MoverTicketRequest,
+  SolicitanteCandidato,
+  TicketIndicadores,
+  TicketMetricas,
+  TicketReporte,
+  TicketRoadmap,
+  TicketTablero,
+  TicketTableroFiltro,
+  TicketTimelineEvento,
+} from '../models/ticket-tarea.models';
 
 /**
  * Servicio HTTP del módulo de tickets. Consume TicketsController.
@@ -133,6 +147,56 @@ export class TicketService {
     return this.http.get<ResolutorAdminDto[]>(`${this.baseUrl}/global/resolutores`);
   }
 
+  // ── Gestión del caso (tablero tipo Jira) ─────────────────────
+  cambiarPrioridad(id: number, req: CambiarPrioridadRequest): Observable<TicketDetail> {
+    return this.http.patch<TicketDetail>(`${this.baseUrl}/${id}/prioridad`, req);
+  }
+
+  cambiarAsignado(id: number, req: CambiarAsignadoRequest): Observable<TicketDetail> {
+    return this.http.patch<TicketDetail>(`${this.baseUrl}/${id}/asignado`, req);
+  }
+
+  actualizarPlanificacion(id: number, req: ActualizarPlanificacionRequest): Observable<TicketDetail> {
+    return this.http.patch<TicketDetail>(`${this.baseUrl}/${id}/planificacion`, req);
+  }
+
+  /** Suelta la tarjeta del caso en una columna del tablero. */
+  moverCaso(id: number, req: MoverTicketRequest): Observable<TicketDetail> {
+    return this.http.post<TicketDetail>(`${this.baseUrl}/${id}/mover`, req);
+  }
+
+  tablero(filtro: TicketTableroFiltro = {}): Observable<TicketTablero> {
+    return this.http.get<TicketTablero>(`${this.baseUrl}/tablero`, { params: this.toParams(filtro) });
+  }
+
+  roadmap(filtro: TicketTableroFiltro = {}): Observable<TicketRoadmap> {
+    return this.http.get<TicketRoadmap>(`${this.baseUrl}/roadmap`, { params: this.toParams(filtro) });
+  }
+
+  /** Panel de control: volumen, efectividad, tiempos y desgloses del conjunto filtrado. */
+  indicadores(filtro: TicketTableroFiltro = {}): Observable<TicketIndicadores> {
+    return this.http.get<TicketIndicadores>(`${this.baseUrl}/indicadores`, { params: this.toParams(filtro) });
+  }
+
+  /** Reporte detallado (casos + tareas + tiempos + indicadores) para armar el .xlsx. */
+  reporte(filtro: TicketTableroFiltro = {}): Observable<TicketReporte> {
+    return this.http.get<TicketReporte>(`${this.baseUrl}/reporte`, { params: this.toParams(filtro) });
+  }
+
+  timeline(id: number): Observable<TicketTimelineEvento[]> {
+    return this.http.get<TicketTimelineEvento[]>(`${this.baseUrl}/${id}/timeline`);
+  }
+
+  metricas(id: number): Observable<TicketMetricas> {
+    return this.http.get<TicketMetricas>(`${this.baseUrl}/${id}/metricas`);
+  }
+
+  /** Usuarios candidatos a figurar como solicitante ("a nombre de"). Solo responde al admin. */
+  solicitantes(texto?: string): Observable<SolicitanteCandidato[]> {
+    const params = texto ? new HttpParams().set('texto', texto) : new HttpParams();
+    return this.http.get<SolicitanteCandidato[]>(`${this.baseUrl}/solicitantes`, { params });
+  }
+
   // ── Común ────────────────────────────────────────────────────
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
@@ -142,13 +206,22 @@ export class TicketService {
     return this.http.get<{ tipos: string[]; estados: string[] }>(`${this.baseUrl}/catalogos`);
   }
 
-  /** Construye HttpParams omitiendo valores vacíos/undefined. */
-  private toParams(obj: TicketListFilter): HttpParams {
+  /**
+   * Construye HttpParams omitiendo valores vacíos/undefined. Los arrays se repiten
+   * (`paisIds=1&paisIds=2`), que es como el binder de .NET arma un `int[]`; con `set` y una
+   * lista separada por comas llegaría un solo valor «1,2» y el filtro se perdería.
+   */
+  private toParams(obj: TicketListFilter | TicketTableroFiltro): HttpParams {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(obj)) {
-      if (v !== undefined && v !== null && v !== '') {
-        params = params.set(k, String(v));
+      if (v === undefined || v === null || v === '') continue;
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item !== undefined && item !== null && item !== '') params = params.append(k, String(item));
+        }
+        continue;
       }
+      params = params.set(k, String(v));
     }
     return params;
   }

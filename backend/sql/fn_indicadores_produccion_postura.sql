@@ -34,6 +34,21 @@
 --   (= America/Bogota sin DST) → .Date del C# = fecha Bogotá. Se normaliza a Bogotá aquí.
 --
 -- Fuente de verdad: IndicadoresProduccionService.cs (ObtenerIndicadoresSemanalesAsync/CalcularIndicadoresAsync).
+--
+-- ── CHANGELOG ───────────────────────────────────────────────────────────────
+--   20260806093256_SaldoProduccionDescuentaVentasYTraslados
+--     El saldo descuenta VENTAS, retiros y traslados, y aparece la selección de MACHOS
+--     (columna nueva `seleccion_machos`, que además entra al %retiro y al censo de machos).
+--     ⚠️ Este archivo estuvo 1 día DESINCRONIZADO de lo desplegado: le faltaba todo eso, así que
+--        correrlo dejaba la fn en 68 columnas y rompía IndicadorProduccionSemanalBdRow en runtime.
+--        Reconciliado el 2026-08-07 (plan reconciliacion_espejo_fn_indicadores_produccion_plan.md).
+--   20260807140000_UniformidadGuiaProduccionNull
+--     `uniformidad_guia` deja de coalescearse a 0: la guía no define uniformidad en producción,
+--     y el 0 se leía como «la guía exige 0 %» en vez de «sin dato». Única columna que cambia.
+--
+-- ⚠️ REGLA: este archivo es el ESPEJO de la fn desplegada. Si lo cambiás, va con su migración
+--    (CREATE OR REPLACE) y con el gate de paridad fila a fila en TODAS las empresas. Nunca hagas
+--    `psql -f` de este archivo contra una BD sin haber verificado que está al día.
 -- ============================================================================
 
 -- ── Helper: diferencia porcentual (== CalcularDiferenciaPorcentual del C#).
@@ -94,6 +109,9 @@ RETURNS TABLE(
     diferencia_mortalidad_machos        double precision,
     seleccion_hembras                   integer,
     porcentaje_seleccion_hembras        double precision,
+    -- La fn nunca llevó la selección de MACHOS: ni al saldo ni a la salida (el reporte la mostraba
+    --   fija en 0). Agregada por 20260806093256_SaldoProduccionDescuentaVentasYTraslados.
+    seleccion_machos                    integer,
     consumo_kg_hembras                  double precision,
     consumo_kg_machos                   double precision,
     consumo_total_kg                    double precision,
@@ -177,6 +195,7 @@ DECLARE
     v_cum_mort_h     bigint := 0;
     v_cum_sel_h      bigint := 0;
     v_cum_mort_m     bigint := 0;
+    v_cum_sel_m      bigint := 0;
 
     v_max_sem        integer;
     s                integer;
@@ -209,6 +228,19 @@ DECLARE
     r_retiro_ac_m    double precision;
     r_aves_h_inicio  integer;
     r_aves_m_inicio  integer;
+    -- Movimientos de aves de la semana (ventas, retiros y traslados). Antes el saldo
+    --   solo restaba mortalidad y selección, así que una venta de producción —que no deja
+    --   columna numérica en la fila diaria, solo nota— quedaba fuera y el saldo del
+    --   reporte terminaba por encima del real en exactamente el total vendido.
+    r_sel_m          integer;   -- la fn nunca llevó la selección de machos: ni al saldo ni a la salida
+    r_venta_h        integer;
+    r_venta_m        integer;
+    r_retiro_h       integer;
+    r_retiro_m       integer;
+    r_tras_out_h     integer;
+    r_tras_out_m     integer;
+    r_tras_in_h      integer;
+    r_tras_in_m      integer;
     -- guía
     g_cons_h         double precision;
     g_cons_m         double precision;
@@ -274,7 +306,7 @@ BEGIN
         CREATE TEMP TABLE _seg ON COMMIT DROP AS
         SELECT f.fecha_ts AS ts,
                COALESCE(f.mortalidad_hembras,0) AS mort_h, COALESCE(f.mortalidad_machos,0) AS mort_m,
-               COALESCE(f.sel_h,0) AS sel_h,
+               COALESCE(f.sel_h,0) AS sel_h, COALESCE(f.sel_m,0) AS sel_m,
                COALESCE(f.cons_kg_h,0)::double precision AS cons_h,
                COALESCE(f.cons_kg_m,0)::double precision AS cons_m,
                COALESCE(f.huevo_tot,0) AS huevo_tot, COALESCE(f.huevo_inc,0) AS huevo_inc,
@@ -286,7 +318,11 @@ BEGIN
                COALESCE(f.huevo_otro,0) AS h_otro,
                f.peso_huevo::double precision AS peso_huevo,
                f.peso_h::double precision AS peso_h, f.peso_m::double precision AS peso_m,
-               f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv
+               f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv,
+               COALESCE(f.mov_venta_h,0) AS mv_venta_h, COALESCE(f.mov_venta_m,0) AS mv_venta_m,
+               COALESCE(f.mov_retiro_h,0) AS mv_retiro_h, COALESCE(f.mov_retiro_m,0) AS mv_retiro_m,
+               COALESCE(f.mov_traslado_out_h,0) AS mv_out_h, COALESCE(f.mov_traslado_out_m,0) AS mv_out_m,
+               COALESCE(f.mov_traslado_in_h,0) AS mv_in_h, COALESCE(f.mov_traslado_in_m,0) AS mv_in_m
           FROM fn_seguimiento_diario_produccion(p_lote_postura_produccion_id, NULL) f
          WHERE f.seg_id IS NOT NULL
            AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
@@ -354,7 +390,7 @@ BEGIN
         CREATE TEMP TABLE _seg ON COMMIT DROP AS
         SELECT f.fecha_ts AS ts,
                COALESCE(f.mortalidad_hembras,0) AS mort_h, COALESCE(f.mortalidad_machos,0) AS mort_m,
-               COALESCE(f.sel_h,0) AS sel_h,
+               COALESCE(f.sel_h,0) AS sel_h, COALESCE(f.sel_m,0) AS sel_m,
                COALESCE(f.cons_kg_h,0)::double precision AS cons_h,
                COALESCE(f.cons_kg_m,0)::double precision AS cons_m,
                COALESCE(f.huevo_tot,0) AS huevo_tot, COALESCE(f.huevo_inc,0) AS huevo_inc,
@@ -366,7 +402,11 @@ BEGIN
                COALESCE(f.huevo_otro,0) AS h_otro,
                f.peso_huevo::double precision AS peso_huevo,
                f.peso_h::double precision AS peso_h, f.peso_m::double precision AS peso_m,
-               f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv
+               f.uniformidad::double precision AS unif, f.coeficiente_variacion::double precision AS cv,
+               COALESCE(f.mov_venta_h,0) AS mv_venta_h, COALESCE(f.mov_venta_m,0) AS mv_venta_m,
+               COALESCE(f.mov_retiro_h,0) AS mv_retiro_h, COALESCE(f.mov_retiro_m,0) AS mv_retiro_m,
+               COALESCE(f.mov_traslado_out_h,0) AS mv_out_h, COALESCE(f.mov_traslado_out_m,0) AS mv_out_m,
+               COALESCE(f.mov_traslado_in_h,0) AS mv_in_h, COALESCE(f.mov_traslado_in_m,0) AS mv_in_m
           FROM fn_seguimiento_diario_produccion(NULL, v_lote_id_int) f
          WHERE f.seg_id IS NOT NULL
            AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
@@ -417,11 +457,17 @@ BEGIN
                COALESCE(SUM(h_limpio),0), COALESCE(SUM(h_tratado),0), COALESCE(SUM(h_sucio),0),
                COALESCE(SUM(h_deforme),0), COALESCE(SUM(h_blanco),0), COALESCE(SUM(h_doble),0),
                COALESCE(SUM(h_piso),0), COALESCE(SUM(h_pequeno),0), COALESCE(SUM(h_roto),0),
-               COALESCE(SUM(h_desecho),0), COALESCE(SUM(h_otro),0)
+               COALESCE(SUM(h_desecho),0), COALESCE(SUM(h_otro),0),
+               COALESCE(SUM(mv_venta_h),0), COALESCE(SUM(mv_venta_m),0),
+               COALESCE(SUM(mv_retiro_h),0), COALESCE(SUM(mv_retiro_m),0),
+               COALESCE(SUM(mv_out_h),0), COALESCE(SUM(mv_out_m),0),
+               COALESCE(SUM(mv_in_h),0), COALESCE(SUM(mv_in_m),0), COALESCE(SUM(sel_m),0)
           INTO r_dias, r_mort_h, r_mort_m, r_sel_h, r_cons_kg_h, r_cons_kg_m,
                r_huevos_tot, r_huevos_inc,
                r_limpios, r_tratados, r_sucios, r_deformes, r_blancos, r_doble_yema,
-               r_piso, r_pequenos, r_rotos, r_desecho, r_otro
+               r_piso, r_pequenos, r_rotos, r_desecho, r_otro,
+               r_venta_h, r_venta_m, r_retiro_h, r_retiro_m,
+               r_tras_out_h, r_tras_out_m, r_tras_in_h, r_tras_in_m, r_sel_m
           FROM _seg WHERE sem_vida = s;
 
         r_prom_huevos := CASE WHEN r_dias > 0 THEN r_huevos_tot::double precision / r_dias ELSE 0 END;
@@ -433,11 +479,12 @@ BEGIN
         v_cum_h_tot := v_cum_h_tot + r_huevos_tot;
         v_cum_h_inc := v_cum_h_inc + r_huevos_inc;
 
-        -- REQ-004: acumulados de retiro (mortalidad + selección) por sexo. Machos sin selección en
-        --   esta fn (igual que el decremento de aves, que solo resta mort_m).
+        -- REQ-004: acumulados de retiro (mortalidad + selección) por sexo. Desde
+        --   20260806093256 los MACHOS también acumulan selección, igual que las hembras.
         v_cum_mort_h := v_cum_mort_h + r_mort_h;
         v_cum_sel_h  := v_cum_sel_h + r_sel_h;
         v_cum_mort_m := v_cum_mort_m + r_mort_m;
+        v_cum_sel_m  := v_cum_sel_m + r_sel_m;
         r_htaa := CASE WHEN v_aves_h_ini > 0 THEN v_cum_h_tot::double precision / v_aves_h_ini ELSE 0 END;
         r_hiaa := CASE WHEN v_aves_h_ini > 0 THEN v_cum_h_inc::double precision / v_aves_h_ini ELSE 0 END;
 
@@ -461,13 +508,13 @@ BEGIN
         --   Semanal: (mort + sel de la semana) / saldo REAL de inicio del sexo (v_aves_*_act, pre-decremento) * 100.
         --   Acumulado: (mort + sel acumulados) / aves iniciales del sexo * 100.
         r_retiro_sem_h := CASE WHEN v_aves_h_act > 0 THEN (r_mort_h + r_sel_h)::double precision / v_aves_h_act * 100 ELSE 0 END;
-        r_retiro_sem_m := CASE WHEN v_aves_m_act > 0 THEN r_mort_m::double precision / v_aves_m_act * 100 ELSE 0 END;
+        r_retiro_sem_m := CASE WHEN v_aves_m_act > 0 THEN (r_mort_m + r_sel_m)::double precision / v_aves_m_act * 100 ELSE 0 END;
         r_retiro_ac_h  := CASE WHEN v_aves_h_ini > 0 THEN (v_cum_mort_h + v_cum_sel_h)::double precision / v_aves_h_ini * 100 ELSE 0 END;
-        r_retiro_ac_m  := CASE WHEN v_aves_m_ini > 0 THEN v_cum_mort_m::double precision / v_aves_m_ini * 100 ELSE 0 END;
+        r_retiro_ac_m  := CASE WHEN v_aves_m_ini > 0 THEN (v_cum_mort_m + v_cum_sel_m)::double precision / v_aves_m_ini * 100 ELSE 0 END;
 
         -- Censo de inicio de semana (desviación preservada: sobrecuenta con las bajas de la propia semana)
         r_aves_h_inicio := v_aves_h_act + r_mort_h + r_sel_h;
-        r_aves_m_inicio := v_aves_m_act + r_mort_m;
+        r_aves_m_inicio := v_aves_m_act + r_mort_m + r_sel_m;
 
         -- ── Guía (una sola tabla) por Edad = semana de VIDA (s) ──
         g_found := false;
@@ -514,7 +561,15 @@ BEGIN
             g_mort_m := COALESCE(g_mort_m, 0);
             g_peso_h := COALESCE(g_peso_h, 0) / 1000;   -- peso_h/1000
             g_peso_m := COALESCE(g_peso_m, 0) / 1000;   -- peso_m/1000
-            g_unif   := COALESCE(g_unif, 0);
+            -- ⚠️ EXCEPCIÓN DELIBERADA a la regla ParseDouble=>0 de sus vecinas: g_unif NO se
+            --   coalescea. La guía genética no define uniformidad para las edades de PRODUCCIÓN
+            --   (solo 25 de sus 98 filas la traen, todas de levante) ⇒ el 0 se pintaba en TODAS
+            --   las semanas y se lee como «la guía exige 0 %» en vez de «sin dato», además de
+            --   calcular la diferencia contra ese 0. Un 0 real tampoco existe como objetivo de
+            --   uniformidad, así que NULL es la única lectura honesta.
+            --   `diferencia_uniformidad` no se mueve: fn_dif_pct ya devolvía NULL con guía = 0.
+            --   Los demás (cons/mort/peso/retiro_ac) SÍ conservan el 0: la guía los trae en toda
+            --   la curva y cambiarlos movería números sin necesidad.
             -- huevos/%prod/pesoHuevo: quedan NULL si vacíos (ParseDecimal), no 0.
             -- retiro_ac_h/m guía: mismo criterio que mort_h/mort_m (ParseDouble => 0 si vacío).
             g_retiro_ac_h := COALESCE(g_retiro_ac_h, 0);
@@ -532,9 +587,13 @@ BEGIN
         r_cons_real_m := CASE WHEN r_dias > 0 AND r_aves_m_inicio > 0
                               THEN r_cons_kg_m * 1000 / (r_dias * r_aves_m_inicio) ELSE NULL END;
 
-        -- Decremento de aves (al final, == C#)
-        v_aves_h_act := GREATEST(0, v_aves_h_act - r_mort_h - r_sel_h);
-        v_aves_m_act := GREATEST(0, v_aves_m_act - r_mort_m);
+        -- Decremento de aves. Además de mortalidad y selección descuenta VENTAS, retiros
+        --   y salidas por traslado, y suma los ingresos: son aves que dejan (o entran a)
+        --   el lote igual que las bajas. Misma composición que SaldoAvesLevanteCalculos.
+        v_aves_h_act := GREATEST(0, v_aves_h_act - r_mort_h - r_sel_h
+                                    - r_venta_h - r_retiro_h - r_tras_out_h + r_tras_in_h);
+        v_aves_m_act := GREATEST(0, v_aves_m_act - r_mort_m - r_sel_m
+                                    - r_venta_m - r_retiro_m - r_tras_out_m + r_tras_in_m);
 
         -- ── Emitir fila (respetando filtro semanaDesde/Hasta como en C#) ──
         IF (p_semana_desde IS NULL OR s >= p_semana_desde)
@@ -552,6 +611,7 @@ BEGIN
             diferencia_mortalidad_hembras    := fn_dif_pct(r_porc_mort_h, g_mort_h);
             diferencia_mortalidad_machos     := fn_dif_pct(r_porc_mort_m, g_mort_m);
             seleccion_hembras                := r_sel_h;
+            seleccion_machos                 := r_sel_m;
             porcentaje_seleccion_hembras     := r_porc_sel_h;
             consumo_kg_hembras               := r_cons_kg_h;
             consumo_kg_machos                := r_cons_kg_m;

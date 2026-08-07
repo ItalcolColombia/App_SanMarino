@@ -1,30 +1,30 @@
 <!-- ================= TABLA DE INDICADORES SEMANALES ================= -->
 <div class="indicadores-container">
-  <div class="indicadores-header">
-    <div class="indicadores-header__titles">
-      <h3>Indicadores Semanales</h3>
+  <!-- Encabezado, chips, leyenda y estados: bloques compartidos con el tab de
+       Producción (styles/indicadores-tab.scss). Los dos tabs deben verse igual. -->
+  <div class="ind-header">
+    <div class="ind-header__titles">
+      <h3 class="ind-header__title">📈 Indicadores Semanales de Levante</h3>
       @if (fuenteGuiaIndicadores === 'ecuador-mixto') {
-        <p class="indicadores-guia-hint">
+        <p class="ind-header__hint">
           Comparación con <strong>Guía genética Ecuador (mixto)</strong>, por bloques de 7 días desde encaset.
         </p>
       }
       @if (fuenteGuiaIndicadores === 'clasica') {
-        <p class="indicadores-guia-hint indicadores-guia-hint--muted">
-          Comparación con <strong>guía genética clásica</strong> (tabla por semana); no hay datos mixto Ecuador para esta raza/año.
+        <p class="ind-header__hint">
+          Comparación con <strong>guía genética</strong> por semana de vida del lote.
         </p>
       }
     </div>
-    <div class="indicadores-header__actions">
+    <div class="ind-header__actions">
       <button
         type="button"
         (click)="descargarExcel()"
         [disabled]="!indicadoresSemanales || indicadoresSemanales.length === 0"
-        class="btn-formulas">
+        class="ind-btn">
         ⬇ Descargar Excel (Seguimiento + Indicadores)
       </button>
-      <button
-        (click)="mostrarFormulas = !mostrarFormulas"
-        class="btn-formulas">
+      <button type="button" (click)="mostrarFormulas = !mostrarFormulas" class="ind-btn">
         📐 Fórmulas
       </button>
     </div>
@@ -32,13 +32,13 @@
 
   <!-- Modal de Fórmulas -->
   @if (mostrarFormulas) {
-    <div class="formulas-modal" (click)="mostrarFormulas = false">
-      <div class="formulas-content" (click)="$event.stopPropagation()">
-        <div class="formulas-header">
+    <div class="ind-modal" (click)="mostrarFormulas = false">
+      <div class="ind-modal__content" (click)="$event.stopPropagation()">
+        <div class="ind-modal__header">
           <h4>📐 Fórmulas de Indicadores</h4>
-          <button class="btn-close" (click)="mostrarFormulas = false">×</button>
+          <button type="button" class="ind-modal__close" (click)="mostrarFormulas = false">×</button>
         </div>
-        <div class="formulas-body">
+        <div class="ind-modal__body">
           @for (grupo of gruposFormulas; track grupo) {
             <div class="formula-group">
               <h5 class="formula-group-title">{{ grupo.titulo }}</h5>
@@ -57,16 +57,44 @@
     </div>
   }
 
-  <div class="indicadores-chips" aria-label="Contexto del lote">
-    <span class="chip chip--info">
-      <span class="chip__dot" aria-hidden="true"></span>
+  <div class="ind-chips" aria-label="Contexto del lote">
+    <span class="ind-chip ind-chip--info">
+      <span class="ind-chip__dot" aria-hidden="true"></span>
       Regional: {{ chipRegional }}
     </span>
-    <span class="chip chip--muted">Granja: {{ chipGranja }}</span>
-    <span class="chip chip--muted">Módulo: {{ chipModulo }}</span>
-    <span class="chip chip--muted">Sub Lote: {{ chipSubLote }}</span>
+    <span class="ind-chip">Granja: {{ chipGranja }}</span>
+    <span class="ind-chip">Módulo: {{ chipModulo }}</span>
+    <span class="ind-chip">Sub Lote: {{ chipSubLote }}</span>
   </div>
 
+  <!-- Leyenda de comparación con la guía genética (paridad con Producción) -->
+  @if (indicadoresSemanales.length > 0) {
+    <div class="ind-legend">
+      <span class="ind-legend__title">Diferencia vs guía:</span>
+      <span class="ind-legend__item"><span class="ind-legend__chip ind-legend__chip--ok"></span> Óptimo (≤ 5%)</span>
+      <span class="ind-legend__item"><span class="ind-legend__chip ind-legend__chip--warning"></span> Aceptable (≤ 15%)</span>
+      <span class="ind-legend__item"><span class="ind-legend__chip ind-legend__chip--danger"></span> Requiere atención (&gt; 15%)</span>
+    </div>
+  }
+
+  <!-- Cargando -->
+  @if (cargandoIndicadores) {
+    <div class="ind-state">
+      <div class="ind-state__spinner" aria-hidden="true"></div>
+      <p class="ind-state__text">Calculando indicadores semanales…</p>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (errorIndicadores && !cargandoIndicadores) {
+    <div class="ind-state ind-state--error" role="alert">
+      <div class="ind-state__icon" aria-hidden="true">⚠️</div>
+      <p class="ind-state__text">{{ errorIndicadores }}</p>
+      <button type="button" class="ind-btn" (click)="calcularIndicadores()">Reintentar</button>
+    </div>
+  }
+
+  @if (!cargandoIndicadores && !errorIndicadores) {
   <div class="ux-scroll">
     <table class="ux-table indicadores-table">
       <thead>
@@ -184,22 +212,23 @@
 
   <!-- Resumen de Acumulados -->
   @if (indicadoresSemanales.length > 0) {
-    <div class="acumulados-section">
-      <h4>Resumen Acumulado</h4>
-      <div class="acumulados-grid">
-        <div class="acumulado-card">
-          <h5>Mortalidad Acumulada</h5>
-          <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadAcum || 0) }}</p>
+    <div class="ind-summary">
+      <h4 class="ind-summary__title">Resumen Acumulado</h4>
+      <div class="ind-summary__grid">
+        <div class="ind-card">
+          <p class="ind-card__label">Mortalidad Acumulada</p>
+          <p class="ind-card__value">{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadAcum || 0) }}</p>
         </div>
-        <div class="acumulado-card">
-          <h5>Selección Acumulada</h5>
-          <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].seleccionAcum || 0) }}</p>
+        <div class="ind-card">
+          <p class="ind-card__label">Selección Acumulada</p>
+          <p class="ind-card__value">{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].seleccionAcum || 0) }}</p>
         </div>
-        <div class="acumulado-card">
-          <h5>Total Mort. + Sel.</h5>
-          <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadMasSeleccionAcum || 0) }}</p>
+        <div class="ind-card">
+          <p class="ind-card__label">Total Mort. + Sel.</p>
+          <p class="ind-card__value">{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadMasSeleccionAcum || 0) }}</p>
         </div>
       </div>
     </div>
+  }
   }
 </div>

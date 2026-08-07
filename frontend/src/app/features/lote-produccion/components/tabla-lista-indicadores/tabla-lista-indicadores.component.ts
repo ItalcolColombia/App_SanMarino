@@ -254,6 +254,22 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     return out;
   }
 
+  /**
+   * ¿La guía trae uniformidad para esta semana? La guía genética normalmente NO define uniformidad
+   * para las edades de PRODUCCIÓN (solo la trae en las de levante), así que lo habitual es que
+   * `uniformidadGuia` llegue null y la celda muestre «—».
+   *
+   * El chequeo contra 0 se conserva a propósito: `fn_indicadores_produccion_postura` emitía ese
+   * campo como 0 en vez de NULL (paridad histórica con un `ParseDouble` viejo del C#) hasta la
+   * migración `20260807140000_UniformidadGuiaProduccionNull`. Pintar ese 0 se lee como «la guía
+   * exige 0 % de uniformidad», que es falso: es «sin dato». Un 0 real tampoco existe como
+   * objetivo, así que tratarlo como ausencia sigue siendo correcto y cubre backends sin la migración.
+   */
+  hayGuiaUniformidad(ind: IndicadorProduccionSemanalDto): boolean {
+    const g = ind?.uniformidadGuia;
+    return g !== null && g !== undefined && Number(g) !== 0;
+  }
+
   /** Filas de la hoja "Indicadores" (métricas semanales + comparación con guía). */
   private buildIndicadoresRows(): any[] {
     return (this.indicadoresSemanales || []).map(ind => this.redondearFila({
@@ -273,6 +289,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
       SeleccionH: ind.seleccionHembras,
       PorcSelH: ind.porcentajeSeleccionHembras,
+      SeleccionM: ind.seleccionMachos,
+      PorcSelM: ind.porcentajeSeleccionMachos,
 
       RetiroSemH: ind.retiroSemanalHembrasReal,
       RetiroSemM: ind.retiroSemanalMachosReal,

@@ -4,6 +4,8 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TicketListItem, TIPO_LABEL, ESTADO_BORDER } from '../../models/ticket.models';
 import { TicketEstadoBadgeComponent } from '../ticket-estado-badge/ticket-estado-badge.component';
+import { TicketPrioridadBadgeComponent } from '../ticket-prioridad-badge/ticket-prioridad-badge.component';
+import { TicketSlaChipComponent } from '../ticket-sla-chip/ticket-sla-chip.component';
 
 /**
  * Lista presentacional de tickets (cards mobile-first + paginación).
@@ -12,7 +14,10 @@ import { TicketEstadoBadgeComponent } from '../ticket-estado-badge/ticket-estado
 @Component({
   selector: 'app-ticket-list',
   standalone: true,
-  imports: [CommonModule, RouterLink, TicketEstadoBadgeComponent],
+  imports: [
+    CommonModule, RouterLink, TicketEstadoBadgeComponent,
+    TicketPrioridadBadgeComponent, TicketSlaChipComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading) {
@@ -49,8 +54,27 @@ import { TicketEstadoBadgeComponent } from '../ticket-estado-badge/ticket-estado
                 <div class="mb-1.5 flex flex-wrap items-center gap-2">
                   <span class="rounded-md bg-slate-900/[0.06] px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wider text-slate-500">{{ t.codigo }}</span>
                   <span class="inline-flex items-center rounded-md bg-ital-orange-50 px-1.5 py-0.5 text-[11px] font-semibold text-ital-orange-dark">{{ tipoLabel[t.tipo] }}</span>
+                  <app-ticket-prioridad-badge [prioridad]="t.prioridad" />
+                  <app-ticket-sla-chip [estado]="t.estadoSla" [horasParaVencer]="t.horasParaVencer" />
+                  @if (t.registradoPorTercero) {
+                    <span class="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-600"
+                          title="Lo registró otra persona a nombre del solicitante">a nombre de</span>
+                  }
                 </div>
                 <h3 class="truncate text-[15px] font-semibold text-slate-800 transition-colors group-hover:text-ital-green-dark">{{ t.titulo }}</h3>
+
+                <!-- Avance de tareas -->
+                @if (t.cantidadTareas > 0) {
+                  <div class="mt-2 flex items-center gap-2">
+                    <div class="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                      <div class="h-full rounded-full bg-emerald-500 transition-all" [style.width.%]="t.avanceTareas"></div>
+                    </div>
+                    <span class="text-[11px] font-medium text-ital-muted">
+                      {{ t.tareasListas }}/{{ t.cantidadTareas }} tareas
+                      @if (t.horasRegistradas > 0) { · {{ t.horasRegistradas }} h }
+                    </span>
+                  </div>
+                }
                 <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ital-muted">
                   <span class="inline-flex items-center gap-1">
                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
@@ -58,8 +82,8 @@ import { TicketEstadoBadgeComponent } from '../ticket-estado-badge/ticket-estado
                   </span>
                   <span class="inline-flex items-center gap-1">
                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 19.5a7.5 7.5 0 0 1 15 0"/></svg>
-                    {{ t.createdByNombre || ('#' + t.createdByUserId) }}
-                    @if (t.createdByRol) { <span class="text-slate-400">· {{ t.createdByRol }}</span> }
+                    {{ t.solicitanteNombre || t.createdByNombre || ('#' + t.createdByUserId) }}
+                    @if (t.createdByRol && !t.registradoPorTercero) { <span class="text-slate-400">· {{ t.createdByRol }}</span> }
                   </span>
                   @if (showAsignado && (t.assignedToNombre || t.assignedToUserId)) {
                     <span class="inline-flex items-center gap-1 text-ital-green-dark">

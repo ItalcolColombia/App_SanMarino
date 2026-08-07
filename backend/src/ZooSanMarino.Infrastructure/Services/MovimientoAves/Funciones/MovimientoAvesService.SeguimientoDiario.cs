@@ -246,6 +246,10 @@ public partial class MovimientoAvesService
             // descuento del saldo lo aporta el registro MovimientoAves (así lo consumen
             // los indicadores). No se tocan splits de traslado ni acumulados.
             seg.VentaAvesCantidad = (seg.VentaAvesCantidad ?? 0) + (movimiento.CantidadHembras + movimiento.CantidadMachos);
+            // Split por sexo además del total: el saldo de levante se lleva por sexo y con solo el
+            // total ninguna fórmula que lo reconstruya desde la fila diaria puede descontar la venta.
+            seg.VentaAvesHembras += movimiento.CantidadHembras;
+            seg.VentaAvesMachos += movimiento.CantidadMachos;
             seg.VentaAvesMotivo = movimiento.MotivoMovimiento;
             obs = $"Venta {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
         }
@@ -365,11 +369,19 @@ public partial class MovimientoAvesService
 
         if (movimiento.TipoMovimiento == "Venta")
         {
-            // Producción no tiene columnas de venta en la fila diaria: nota en la fila del día si
-            // existe (convención carga masiva). Sin fila, la fn genera el día movimiento-only con
-            // mov_venta_* desde movimiento_aves — no se crea una fila solo para la nota.
+            // La venta deja su CANTIDAD en la fila diaria (venta_aves_hembras/machos), no solo la
+            // nota: así la grilla diaria la muestra y cuadra con la carga masiva. Sin fila del día
+            // la fn diaria igual genera el día movimiento-only con mov_venta_* desde
+            // movimiento_aves — no se crea una fila solo para esto.
             var segVenta = await BuscarSeguimientoProduccionDelDiaAsync(loteIdInt, fechaMovimiento);
             if (segVenta is null) return;
+
+            segVenta.VentaAvesHembras += movimiento.CantidadHembras;
+            segVenta.VentaAvesMachos += movimiento.CantidadMachos;
+            if (!string.IsNullOrWhiteSpace(movimiento.MotivoMovimiento))
+                segVenta.VentaAvesMotivo = string.IsNullOrWhiteSpace(segVenta.VentaAvesMotivo)
+                    ? movimiento.MotivoMovimiento
+                    : $"{segVenta.VentaAvesMotivo} | {movimiento.MotivoMovimiento}";
 
             var ventaTxt = $"Venta de aves {movimiento.NumeroMovimiento}: {movimiento.CantidadHembras} H / {movimiento.CantidadMachos} M" +
                            (string.IsNullOrWhiteSpace(movimiento.MotivoMovimiento) ? "" : $" ({movimiento.MotivoMovimiento})");
@@ -445,6 +457,8 @@ public partial class MovimientoAvesService
                 if (movimiento.TipoMovimiento == "Venta")
                 {
                     seg.VentaAvesCantidad = Math.Max(0, (seg.VentaAvesCantidad ?? 0) - (movimiento.CantidadHembras + movimiento.CantidadMachos));
+                    seg.VentaAvesHembras = Math.Max(0, seg.VentaAvesHembras - movimiento.CantidadHembras);
+                    seg.VentaAvesMachos = Math.Max(0, seg.VentaAvesMachos - movimiento.CantidadMachos);
                 }
                 else
                 {
@@ -649,6 +663,8 @@ public partial class MovimientoAvesService
                 if (movimiento.TipoMovimiento == "Venta")
                 {
                     seg.VentaAvesCantidad = Math.Max(0, (seg.VentaAvesCantidad ?? 0) + deltaH + deltaM);
+                    seg.VentaAvesHembras = Math.Max(0, seg.VentaAvesHembras + deltaH);
+                    seg.VentaAvesMachos = Math.Max(0, seg.VentaAvesMachos + deltaM);
                 }
                 else
                 {

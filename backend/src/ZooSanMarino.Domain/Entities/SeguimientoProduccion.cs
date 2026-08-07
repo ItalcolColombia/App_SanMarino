@@ -39,7 +39,13 @@ public class SeguimientoProduccion : AuditableEntity
     public string TipoAlimento { get; set; } = null!;
     public string? Observaciones { get; set; }
     
-    public decimal PesoHuevo { get; set; }
+    /// <summary>
+    /// Peso promedio del huevo del día. NULLABLE, igual que la columna `peso_huevo` y que sus
+    /// hermanas `peso_h`, `peso_m` y `uniformidad`: un día sin pesaje no tiene peso. Estaba
+    /// declarada como `decimal` no anulable y eso hacía reventar el reporte técnico de producción
+    /// entero (`Column 'PesoHuevo' is null`) en cuanto un día llegaba sin pesar.
+    /// </summary>
+    public decimal? PesoHuevo { get; set; }
     public int Etapa { get; set; }
     
     // Campos de Pesaje Semanal (registro una vez por semana)
@@ -90,6 +96,16 @@ public class SeguimientoProduccion : AuditableEntity
     public string? TrasladoDireccion { get; set; }
     public int? TrasladoLoteContraparteId { get; set; }
     public int? TrasladoGranjaContraparteId { get; set; }
+
+    // Venta de aves — splits H/M dedicados.
+    // Levante ya guardaba la venta en la fila diaria (venta_aves_cantidad); producción solo dejaba
+    // una nota en Observaciones, así que la venta era invisible para cualquier reporte que
+    // reconstruyera el saldo desde estas filas. Acá va con el split por sexo porque el saldo de
+    // producción se lleva por sexo. El dueño del número sigue siendo movimiento_aves: estas
+    // columnas son su espejo denormalizado para la grilla diaria y la carga masiva.
+    public int VentaAvesHembras { get; set; }
+    public int VentaAvesMachos { get; set; }
+    public string? VentaAvesMotivo { get; set; }
 
     // Traslado — legacy R3
     public int? TrasladoHembras { get; set; }

@@ -35,7 +35,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 x.HuevoInc,
                 x.TipoAlimento,
                 x.Observaciones ?? "",
-                x.PesoHuevo,
+                x.PesoHuevo ?? 0,
                 x.Etapa,
                 x.Metadata
             ))
@@ -65,7 +65,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             entity.HuevoInc,
             entity.TipoAlimento,
             entity.Observaciones ?? "",
-            entity.PesoHuevo,
+            entity.PesoHuevo ?? 0,
             entity.Etapa,
             entity.Metadata
         );
@@ -274,7 +274,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 x.HuevoInc,
                 x.TipoAlimento,
                 x.Observaciones ?? "",
-                x.PesoHuevo,
+                x.PesoHuevo ?? 0,
                 x.Etapa,
                 x.Metadata
             ))
@@ -504,7 +504,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             e.HuevoInc,
             "",
             e.Observaciones ?? "",
-            e.PesoHuevo,
+            e.PesoHuevo ?? 0,
             0,
             null
         );

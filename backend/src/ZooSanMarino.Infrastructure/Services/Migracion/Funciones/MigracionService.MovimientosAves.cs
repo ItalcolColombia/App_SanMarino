@@ -323,15 +323,15 @@ public partial class MigracionService
                             && m.Estado != "Cancelado"
                             && m.FechaMovimiento >= desde && m.FechaMovimiento < hasta
                             && (m.LoteOrigenId == loteId || m.LoteDestinoId == loteId))
-                .Select(m => new { m.TipoMovimiento, m.FechaMovimiento, m.CantidadHembras, m.CantidadMachos, m.LoteOrigenId })
+                .Select(m => new { m.TipoMovimiento, m.FechaMovimiento, m.CantidadHembras, m.CantidadMachos,
+                                   m.LoteOrigenId, m.LoteDestinoId, m.Descripcion })
                 .ToListAsync(ct))
-            .Where(m => m.TipoMovimiento == "Traslado" || m.LoteOrigenId == loteId)
+            .Select(m => new { m.FechaMovimiento, m.CantidadHembras, m.CantidadMachos,
+                               Tipo = MigracionMovimientosAvesCalculos.LadoDelMovimiento(
+                                   m.TipoMovimiento, m.LoteOrigenId, m.LoteDestinoId, m.Descripcion, loteId) })
+            .Where(m => m.Tipo.HasValue)
             .Select(m => MigracionMovimientosAvesCalculos.ClaveArchivo(
-                m.FechaMovimiento.Date,
-                m.TipoMovimiento == "Venta" ? MovimientoAvesMigracion.Venta
-                    : m.LoteOrigenId == loteId ? MovimientoAvesMigracion.Salida
-                    : MovimientoAvesMigracion.Ingreso,
-                m.CantidadHembras, m.CantidadMachos))
+                m.FechaMovimiento.Date, m.Tipo!.Value, m.CantidadHembras, m.CantidadMachos))
             .ToHashSet();
 
         int aplicados = 0, omitidos = 0;
@@ -430,6 +430,10 @@ public partial class MigracionService
             lpl.AvesMActual = Math.Max(0, (lpl.AvesMActual ?? 0) - m.Machos);
 
             seg.VentaAvesCantidad = (seg.VentaAvesCantidad ?? 0) + totalAves;
+            // Split por sexo además del total: el saldo de levante se lleva por sexo y sin esto
+            // ninguna fórmula que lo reconstruya desde la fila diaria puede descontar la venta.
+            seg.VentaAvesHembras += m.Hembras;
+            seg.VentaAvesMachos += m.Machos;
             seg.VentaAvesMotivo = m.Motivo ?? seg.VentaAvesMotivo;
             if (!string.IsNullOrWhiteSpace(m.Observaciones))
                 seg.Observaciones = string.IsNullOrWhiteSpace(seg.Observaciones)
@@ -535,6 +539,18 @@ public partial class MigracionService
             lpp.AvesHActual = Math.Max(0, (lpp.AvesHActual ?? 0) - m.Hembras);
             lpp.AvesMActual = Math.Max(0, (lpp.AvesMActual ?? 0) - m.Machos);
 
+            // La venta deja su CANTIDAD en la fila diaria, no solo la nota. Antes solo escribía
+            // Observaciones, así que la grilla diaria y cualquier reporte que reconstruyera el
+            // saldo desde estas filas no la veían (el saldo de producción quedaba por encima del
+            // real en exactamente el total vendido). Espeja lo que levante ya hacía con
+            // venta_aves_cantidad, pero con el split por sexo que necesita el saldo de producción.
+            seg.VentaAvesHembras += m.Hembras;
+            seg.VentaAvesMachos += m.Machos;
+            if (!string.IsNullOrWhiteSpace(m.Motivo))
+                seg.VentaAvesMotivo = string.IsNullOrWhiteSpace(seg.VentaAvesMotivo)
+                    ? m.Motivo
+                    : $"{seg.VentaAvesMotivo} | {m.Motivo}";
+
             var ventaTxt = $"Venta de aves: {m.Hembras} H / {m.Machos} M" +
                            (string.IsNullOrWhiteSpace(m.Motivo) ? "" : $" ({m.Motivo})");
             seg.Observaciones = string.IsNullOrWhiteSpace(seg.Observaciones)
@@ -575,6 +591,15 @@ public partial class MigracionService
     /// <c>MovimientoAvesService.CreateAsync</c>: doble conteo) + cohorte del INGRESO (edad heredada
     /// del lote origen; informativa, nunca tumba la carga). Común a las dos fases.
     /// </summary>
+    /// <summary>
+    /// Marcas de dirección que la carga masiva escribe en <c>movimiento_aves.descripcion</c> para
+    /// que la idempotencia sepa qué lado del movimiento cargó cada fila (el modelo es unilateral:
+    /// el mismo traslado lo cargan los dos lotes, cada uno el suyo).
+    /// </summary>
+    private const string MarcaCargaSalida  = MigracionMovimientosAvesCalculos.MarcaCargaSalida;
+    private const string MarcaCargaIngreso = MigracionMovimientosAvesCalculos.MarcaCargaIngreso;
+    private const string MarcaCargaVenta   = MigracionMovimientosAvesCalculos.MarcaCargaVenta;
+
     private async Task GuardarAuditoriaYCohorteAsync(
         MovimientoAvesMigFila m, DateTime fechaAncla, DateTime fechaUtc, bool esSalida, bool esVenta,
         int loteBaseId, int granjaId, int companyId, CancellationToken ct)
@@ -590,6 +615,13 @@ public partial class MigracionService
             Estado = "Completado",
             FechaProcesamiento = fechaUtc,
             MotivoMovimiento = esVenta ? m.Motivo : null,
+            // Marca de qué LADO cargó este movimiento. Sin ella, la Salida de A (Traslado,
+            // origen A, destino B) y el Ingreso de B (Traslado, origen A, destino B) son filas
+            // IDÉNTICAS: la idempotencia del Ingreso encontraba la Salida del otro lote, lo daba
+            // por duplicado y lo omitía SIN acreditar las aves (medido: un sublote cerraba 196
+            // machos por debajo). El modelo es unilateral — cada lote carga su propio lado — así
+            // que la fila tiene que decir cuál lado es.
+            Descripcion = esVenta ? MarcaCargaVenta : esSalida ? MarcaCargaSalida : MarcaCargaIngreso,
             Observaciones = string.IsNullOrWhiteSpace(m.Observaciones)
                 ? "Carga masiva de seguimiento"
                 : $"Carga masiva de seguimiento. {m.Observaciones}",

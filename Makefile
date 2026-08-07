@@ -33,6 +33,7 @@ dev:
 	powershell -NoProfile -ExecutionPolicy Bypass -File dev.ps1
 
 dev-back:
+	@cmd /c ".\dev-kill-back.cmd"
 	powershell -NoProfile -ExecutionPolicy Bypass -File dev-back.ps1
 
 dev-front:

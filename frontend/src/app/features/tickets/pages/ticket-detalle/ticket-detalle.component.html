@@ -1,6 +1,6 @@
 <!-- src/app/features/tickets/pages/ticket-detalle/ticket-detalle.component.html -->
-<div class="min-h-full bg-white bg-gradient-to-b from-ital-orange-50 via-white to-white">
-  <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+<div class="min-h-full bg-ital-cream">
+  <div class="mx-auto max-w-[1700px] px-4 py-5 sm:px-6 sm:py-7">
 
     @if (loading() && !ticket()) {
       <div class="flex items-center justify-center gap-2 py-24 text-ital-muted">
@@ -9,8 +9,8 @@
       </div>
     } @else if (ticket(); as t) {
 
-      <!-- Encabezado -->
-      <div class="mb-6 flex items-start gap-3">
+      <!-- ── Encabezado ── -->
+      <div class="mb-5 flex items-start gap-3">
         <a [routerLink]="volverRuta"
            class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 hover:text-ital-green" title="Volver">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
@@ -20,18 +20,43 @@
             <span class="rounded-md bg-slate-900/[0.06] px-2 py-0.5 font-mono text-xs font-bold tracking-wider text-slate-500">{{ t.codigo }}</span>
             <span class="rounded-md bg-ital-orange-50 px-2 py-0.5 text-xs font-semibold text-ital-orange-dark">{{ tipoLabel[t.tipo] }}</span>
             <app-ticket-estado-badge [estado]="t.estado"></app-ticket-estado-badge>
+            <app-ticket-prioridad-badge [prioridad]="t.prioridad" />
+            @if (t.metricas) {
+              <app-ticket-sla-chip [estado]="t.metricas.estadoSla" [horasParaVencer]="t.metricas.horasParaVencer" />
+            }
           </div>
           <h1 class="mt-1.5 text-xl font-bold tracking-tight text-slate-800 sm:text-2xl">{{ t.titulo }}</h1>
+
+          <!-- Registrado a nombre de otro -->
+          @if (t.registradoPorTercero) {
+            <p class="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-xs text-violet-700 ring-1 ring-violet-200">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0M4.5 20.25a8.25 8.25 0 0 1 15 0" />
+              </svg>
+              Solicitud de <strong class="font-bold">{{ t.solicitanteNombre || '—' }}</strong>
+              · registrada por {{ t.createdByNombre || 'el administrador' }}
+            </p>
+          }
         </div>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-3">
-        <!-- Columna principal -->
-        <div class="space-y-5 lg:col-span-2">
+      <!--
+        Tres columnas en monitor: el caso, la conversación y la gestión, cada una con su propio
+        scroll. En lg baja a dos (caso + gestión, con la conversación debajo) y en móvil a una.
+        La conversación NO es una pestaña: en pantalla ancha se lee en paralelo con el caso.
+      -->
+      <div class="grid gap-5 lg:grid-cols-12">
+
+        <!-- `min-w-0` en las tres columnas es obligatorio: sin él el ancho mínimo del contenido
+             (el stepper, los códigos monoespaciados) estira la pista del grid y la página entera
+             termina con scroll horizontal. -->
+
+        <!-- ══════════ Columna 1 — el caso ══════════ -->
+        <div class="min-w-0 space-y-5 lg:col-span-8 xl:col-span-5">
 
           <!-- Stepper -->
           <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70 sm:p-6">
-            <h2 class="mb-4 text-xs font-bold uppercase tracking-wider text-ital-muted">Progreso</h2>
+            <h2 class="mb-4 text-xs font-bold uppercase tracking-wider text-ital-muted">Fase del caso</h2>
             <app-ticket-stepper [estado]="t.estado"></app-ticket-stepper>
           </div>
 
@@ -41,7 +66,7 @@
             <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{{ t.descripcion }}</p>
           </div>
 
-          <!-- Solución (cuando el resolutor la registró) -->
+          <!-- Solución -->
           @if (t.solucionDescripcion) {
             <div class="rounded-2xl border border-emerald-100 bg-gradient-to-b from-emerald-50/70 to-white p-5 shadow-sm sm:p-6">
               <h2 class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
@@ -50,7 +75,7 @@
               </h2>
               <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{{ t.solucionDescripcion }}</p>
               @if (t.notificadoCorreo) {
-                <div class="mt-3 flex items-center gap-1.5 rounded-lg bg-white/70 px-3 py-1.5 text-xs text-emerald-700 ring-1 ring-emerald-100">
+                <div class="mt-3 flex flex-wrap items-center gap-1.5 rounded-lg bg-white/70 px-3 py-1.5 text-xs text-emerald-700 ring-1 ring-emerald-100">
                   <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
                   Notificado por correo
                   @if (t.correoNotificadoA) { <span class="font-medium">a {{ t.correoNotificadoA }}</span> }
@@ -59,6 +84,68 @@
               }
             </div>
           }
+
+          <!-- ── Pestañas ── -->
+          <div class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+            <nav class="flex gap-1 overflow-x-auto border-b border-slate-200 px-2 pt-2" role="tablist">
+              <button type="button" role="tab" (click)="pestana = 'actividad'"
+                      class="shrink-0 rounded-t-lg border-b-2 px-3.5 py-2 text-sm font-semibold transition"
+                      [class.border-ital-orange]="pestana === 'actividad'" [class.text-ital-orange-dark]="pestana === 'actividad'"
+                      [class.border-transparent]="pestana !== 'actividad'" [class.text-slate-500]="pestana !== 'actividad'">
+                Actividad
+              </button>
+              <button type="button" role="tab" (click)="pestana = 'tareas'"
+                      class="shrink-0 rounded-t-lg border-b-2 px-3.5 py-2 text-sm font-semibold transition"
+                      [class.border-ital-orange]="pestana === 'tareas'" [class.text-ital-orange-dark]="pestana === 'tareas'"
+                      [class.border-transparent]="pestana !== 'tareas'" [class.text-slate-500]="pestana !== 'tareas'">
+                Tareas
+                @if (t.tareas?.length) {
+                  <span class="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{{ t.tareas!.length }}</span>
+                }
+              </button>
+              @if (tienePermisoGestion) {
+                <button type="button" role="tab" (click)="pestana = 'tiempos'"
+                        class="shrink-0 rounded-t-lg border-b-2 px-3.5 py-2 text-sm font-semibold transition"
+                        [class.border-ital-orange]="pestana === 'tiempos'" [class.text-ital-orange-dark]="pestana === 'tiempos'"
+                        [class.border-transparent]="pestana !== 'tiempos'" [class.text-slate-500]="pestana !== 'tiempos'">
+                  Tiempos
+                  @if (t.horasRegistradas > 0) {
+                    <span class="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">{{ t.horasRegistradas }} h</span>
+                  }
+                </button>
+              }
+            </nav>
+
+            <div class="p-4 sm:p-5">
+              <!-- Actividad: línea de tiempo -->
+              @if (pestana === 'actividad') {
+                @if (loadingTimeline()) {
+                  <div class="flex items-center justify-center gap-2 py-10 text-sm text-ital-muted">
+                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+                    Cargando actividad…
+                  </div>
+                } @else {
+                  <app-ticket-timeline [eventos]="timeline()" />
+                }
+              }
+
+              <!-- Tareas -->
+              @else if (pestana === 'tareas') {
+                <app-tareas-panel
+                  [ticketId]="t.id"
+                  [puedeGestionar]="puedeGestionarTicket(t)"
+                  [asignables]="opcionesAsignable()" />
+              }
+
+              <!-- Tiempos -->
+              @else if (pestana === 'tiempos') {
+                <app-worklog-panel
+                  [ticketId]="t.id"
+                  [puedeRegistrar]="puedeGestionarTicket(t)"
+                  [tareas]="t.tareas ?? []" />
+              }
+            </div>
+          </div>
 
           <!-- Galería -->
           @if (t.imagenes.length > 0) {
@@ -112,7 +199,6 @@
               <p class="mb-4 text-sm text-slate-400">Sin documentos ni links todavía.</p>
             }
 
-            <!-- Subir documento + agregar link -->
             <div class="space-y-2 border-t border-slate-100 pt-4">
               <label class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:border-ital-green hover:bg-ital-green-50 hover:text-ital-green-dark"
                      [class.pointer-events-none]="subiendoAdjunto()" [class.opacity-60]="subiendoAdjunto()">
@@ -134,73 +220,170 @@
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Novedades / timeline -->
-          <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70 sm:p-6">
-            <h2 class="mb-4 text-xs font-bold uppercase tracking-wider text-ital-muted">Novedades</h2>
+        <!-- ══════════ Columna 2 — la conversación ══════════ -->
+        <!-- `self-start` es lo que deja que el sticky funcione: sin él la columna se estira a la
+             altura de la fila y no le queda margen para desplazarse. -->
+        <section class="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70
+                        lg:col-span-8 lg:col-start-1
+                        xl:col-span-4 xl:col-start-6 xl:sticky xl:top-5 xl:self-start xl:max-h-[calc(100vh-2.5rem)]">
+          <header class="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
+            <span class="grid h-8 w-8 place-items-center rounded-lg bg-ital-orange-50 text-ital-orange">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5h8m-8 4h5m-6.6 5.4L3 21V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7.4a2 2 0 0 0-1.4.6Z" />
+              </svg>
+            </span>
+            <div>
+              <h2 class="text-sm font-bold text-slate-800">Conversación</h2>
+              <p class="text-[11px] text-ital-muted">Con el solicitante y el equipo que atiende.</p>
+            </div>
+            @if (t.notas.length) {
+              <span class="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">{{ t.notas.length }}</span>
+            }
+          </header>
 
+          <!-- Mensajes: scrollean dentro de la columna, no arrastran la página -->
+          <div class="min-h-[220px] flex-1 space-y-4 overflow-y-auto p-4">
             @if (t.notas.length === 0) {
-              <p class="mb-4 text-sm text-slate-400">Todavía no hay novedades.</p>
+              <p class="py-10 text-center text-sm text-slate-400">Todavía no hay comentarios.</p>
             } @else {
-              <!-- Conversación tipo chat: mis mensajes a la derecha, los demás a la izquierda -->
-              <div class="mb-5 space-y-4">
-                @for (n of t.notas; track n.id) {
-                  <div class="flex items-end gap-2.5" [class.flex-row-reverse]="n.esMio">
-                    <!-- Avatar con iniciales -->
-                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-bold uppercase ring-2 ring-white shadow-sm"
-                          [class]="n.esMio ? 'bg-gradient-to-br from-ital-green to-ital-green-dark text-white' : 'bg-ital-orange-50 text-ital-orange'">
-                      {{ iniciales(n.userNombre) || '#' }}
-                    </span>
+              @for (n of t.notas; track n.id) {
+                <div class="flex items-end gap-2.5" [class.flex-row-reverse]="n.esMio">
+                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-bold uppercase shadow-sm ring-2 ring-white"
+                        [class]="n.esMio ? 'bg-gradient-to-br from-ital-green to-ital-green-dark text-white' : 'bg-ital-orange-50 text-ital-orange'">
+                    {{ iniciales(n.userNombre) || '#' }}
+                  </span>
 
-                    <div class="flex min-w-0 max-w-[80%] flex-col" [class.items-end]="n.esMio">
-                      <!-- Cabecera: nombre + rol -->
-                      <div class="mb-1 flex flex-wrap items-center gap-1.5" [class.flex-row-reverse]="n.esMio">
-                        <span class="text-[13px] font-semibold text-slate-700">{{ n.userNombre || ('Usuario #' + n.userId) }}</span>
-                        @if (n.userRol) {
-                          <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">{{ n.userRol }}</span>
-                        }
-                        @if (n.esInterna) {
-                          <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">interna</span>
-                        }
-                      </div>
+                  <div class="flex min-w-0 max-w-[85%] flex-col" [class.items-end]="n.esMio">
+                    <div class="mb-1 flex flex-wrap items-center gap-1.5" [class.flex-row-reverse]="n.esMio">
+                      <span class="text-[13px] font-semibold text-slate-700">{{ n.userNombre || ('Usuario #' + n.userId) }}</span>
+                      @if (n.userRol) {
+                        <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">{{ n.userRol }}</span>
+                      }
+                      @if (n.esInterna) {
+                        <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">interna</span>
+                      }
+                      @if (n.tipoEvento) {
+                        <span class="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600">sistema</span>
+                      }
+                    </div>
 
-                      <!-- Burbuja -->
-                      <div class="rounded-2xl px-3.5 py-2 text-sm shadow-sm"
-                           [class]="n.esMio ? 'rounded-br-sm bg-gradient-to-br from-ital-green to-ital-green-dark text-white' : 'rounded-bl-sm bg-slate-100 text-slate-700'">
-                        <p class="whitespace-pre-wrap break-words">{{ n.nota }}</p>
-                      </div>
+                    <div class="rounded-2xl px-3.5 py-2 text-sm shadow-sm"
+                         [class]="n.esMio ? 'rounded-br-sm bg-gradient-to-br from-ital-green to-ital-green-dark text-white' : 'rounded-bl-sm bg-slate-100 text-slate-700'">
+                      <p class="whitespace-pre-wrap break-words">{{ n.nota }}</p>
+                    </div>
 
-                      <!-- Pie: estado + email + fecha -->
-                      <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-400" [class.flex-row-reverse]="n.esMio">
-                        <span>{{ n.createdAt | date:'dd/MM/yy HH:mm' }}</span>
-                        @if (n.userEmail) { <span class="truncate">{{ n.userEmail }}</span> }
-                        @if (n.estadoResultante) {
-                          <span class="font-semibold text-ital-green-dark">→ {{ estadoLabel[n.estadoResultante] }}</span>
-                        }
-                      </div>
+                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-400" [class.flex-row-reverse]="n.esMio">
+                      <span>{{ n.createdAt | date:'dd/MM/yy HH:mm' }}</span>
+                      @if (n.estadoResultante) {
+                        <span class="font-semibold text-ital-green-dark">→ {{ estadoLabel[n.estadoResultante] }}</span>
+                      }
                     </div>
                   </div>
-                }
-              </div>
+                </div>
+              }
             }
+          </div>
 
-            <div class="border-t border-slate-100 pt-4">
-              <textarea [(ngModel)]="notaTexto" rows="2" placeholder="Agregar un comentario o respuesta…"
-                        class="w-full rounded-xl border-slate-200 px-3.5 py-2.5 text-sm shadow-sm transition focus:border-ital-green focus:ring-ital-green"></textarea>
-              <div class="mt-2 flex justify-end">
-                <button (click)="addNota()" [disabled]="savingNota() || !notaTexto.trim()"
-                        class="inline-flex items-center gap-2 rounded-xl bg-ital-orange px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-ital-orange-dark disabled:opacity-50">
-                  @if (savingNota()) { <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span> }
-                  Comentar
+          <!-- Redactor: queda fijo abajo, no hay que scrollear para escribir -->
+          <div class="shrink-0 border-t border-slate-200 bg-white p-3">
+            <textarea [(ngModel)]="notaTexto" rows="2" placeholder="Escribí un comentario o respuesta…"
+                      class="w-full resize-y rounded-xl border-slate-200 px-3.5 py-2.5 text-sm shadow-sm transition focus:border-ital-green focus:ring-ital-green"></textarea>
+            <div class="mt-2 flex justify-end">
+              <button (click)="addNota()" [disabled]="savingNota() || !notaTexto.trim()"
+                      class="inline-flex items-center gap-2 rounded-xl bg-ital-orange px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-ital-orange-dark disabled:opacity-50">
+                @if (savingNota()) { <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span> }
+                Comentar
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══════════ Columna 3 — gestión ══════════ -->
+        <aside class="min-w-0 space-y-4 lg:col-span-4 lg:col-start-9 lg:row-start-1
+                      xl:col-span-3 xl:col-start-10 xl:row-start-1
+                      xl:sticky xl:top-5 xl:self-start xl:max-h-[calc(100vh-2.5rem)] xl:overflow-y-auto xl:pr-1">
+
+          <!-- Cierre por el solicitante (arriba de todo: es la acción que se espera de él) -->
+          @if (t.soySolicitante && t.estado === 'SOLUCIONADO') {
+            <div class="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-5 shadow-sm">
+              <h2 class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                Validá la solución
+              </h2>
+              <p class="mb-3 text-xs text-slate-600">El equipo marcó tu caso como solucionado. Si estás conforme, confirmá el cierre; si no, reabrílo.</p>
+              <div class="space-y-2">
+                <button (click)="confirmarCierre()" [disabled]="savingCierre()"
+                        class="w-full rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-ital-green/20 transition hover:-translate-y-0.5 disabled:opacity-60">
+                  @if (savingCierre()) { <span class="mr-1 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span> }
+                  Confirmar cierre
+                </button>
+                <button (click)="reabrir()" [disabled]="savingEstado()"
+                        class="w-full rounded-xl bg-white px-4 py-2 text-sm font-semibold text-amber-700 ring-1 ring-amber-200 transition hover:bg-amber-50 disabled:opacity-60">
+                  No estoy conforme — reabrir
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          }
 
-        <!-- Panel lateral -->
-        <aside class="space-y-4 lg:col-span-1">
-          <!-- Detalles / metadata -->
+          <!-- Caso cerrado -->
+          @if (t.estado === 'CERRADO') {
+            <div class="rounded-2xl border border-ital-green/30 bg-ital-green-50 p-5 text-center shadow-sm">
+              <svg class="mx-auto mb-2 h-9 w-9 text-ital-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              <p class="text-sm font-bold text-ital-green-dark">Caso cerrado por ambas partes</p>
+              @if (t.fechaCierreSolicitante) {
+                <p class="mt-0.5 text-xs text-slate-500">Cierre confirmado el {{ t.fechaCierreSolicitante | date:'dd/MM/yy HH:mm' }}</p>
+              }
+            </div>
+          }
+
+          <!-- Métricas de tiempo -->
+          @if (t.metricas; as m) {
+            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+              <h2 class="mb-3 text-xs font-bold uppercase tracking-wider text-ital-muted">Tiempos</h2>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-ital-muted">Primera respuesta</p>
+                  <p class="mt-0.5 text-lg font-bold text-slate-800">{{ humanizarHoras(m.horasPrimeraRespuesta) }}</p>
+                </div>
+                <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-ital-muted">
+                    {{ t.fechaSolucion ? 'Resolución' : 'Transcurrido' }}
+                  </p>
+                  <p class="mt-0.5 text-lg font-bold text-slate-800">{{ humanizarHoras(m.horasResolucion) }}</p>
+                </div>
+                <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-ital-muted">Horas registradas</p>
+                  <p class="mt-0.5 text-lg font-bold text-slate-800">
+                    {{ m.horasRegistradas }} h
+                    @if (m.horasEstimadas) { <span class="text-xs font-medium text-ital-muted">/ {{ m.horasEstimadas }}</span> }
+                  </p>
+                </div>
+                <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p class="text-[10px] font-semibold uppercase tracking-wide text-ital-muted">Avance tareas</p>
+                  <p class="mt-0.5 text-lg font-bold text-slate-800">{{ m.avanceTareas }}%</p>
+                  <p class="text-[10px] text-ital-muted">{{ m.tareasListas }} de {{ m.cantidadTareas }}</p>
+                </div>
+              </div>
+
+              @if (m.permanenciaPorEstado.length > 1) {
+                <div class="mt-3 border-t border-slate-100 pt-3">
+                  <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ital-muted">Tiempo por fase</p>
+                  <ul class="space-y-1">
+                    @for (p of m.permanenciaPorEstado; track p.estado) {
+                      <li class="flex items-center justify-between gap-2 text-xs">
+                        <span class="truncate text-slate-600">{{ estadoLabel[p.estado] || p.estado }}</span>
+                        <span class="shrink-0 font-semibold text-slate-700">{{ humanizarHoras(p.horas) }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Detalles -->
           <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
             <h2 class="mb-3 text-xs font-bold uppercase tracking-wider text-ital-muted">Detalles</h2>
             <dl class="space-y-2.5 text-sm">
@@ -217,29 +400,63 @@
                 <dd><app-ticket-estado-badge [estado]="t.estado"></app-ticket-estado-badge></dd>
               </div>
               <div class="flex items-center justify-between gap-2">
+                <dt class="text-ital-muted">Prioridad</dt>
+                <dd><app-ticket-prioridad-badge [prioridad]="t.prioridad" /></dd>
+              </div>
+              <div class="flex items-center justify-between gap-2">
                 <dt class="text-ital-muted">País</dt>
                 <dd class="font-medium text-slate-700">{{ t.paisNombre || ('#' + t.paisId) }}</dd>
               </div>
+
               <div class="flex items-start justify-between gap-2">
-                <dt class="shrink-0 text-ital-muted">Creado por</dt>
+                <dt class="shrink-0 text-ital-muted">Solicitante</dt>
                 <dd class="text-right">
-                  <span class="block font-medium text-slate-700">{{ t.createdByNombre || ('Usuario #' + t.createdByUserId) }}</span>
-                  @if (t.createdByRol) { <span class="block text-xs text-ital-orange-dark">{{ t.createdByRol }}</span> }
-                  @if (t.createdByEmail) { <span class="block break-all text-xs text-slate-400">{{ t.createdByEmail }}</span> }
+                  <span class="block font-medium text-slate-700">{{ t.solicitanteNombre || t.createdByNombre || ('Usuario #' + t.createdByUserId) }}</span>
+                  @if (t.solicitanteRol || t.createdByRol) {
+                    <span class="block text-xs text-ital-orange-dark">{{ t.solicitanteRol || t.createdByRol }}</span>
+                  }
+                  @if (t.solicitanteEmail || t.createdByEmail) {
+                    <span class="block break-all text-xs text-slate-400">{{ t.solicitanteEmail || t.createdByEmail }}</span>
+                  }
                 </dd>
               </div>
+
+              @if (t.registradoPorTercero) {
+                <div class="flex items-start justify-between gap-2">
+                  <dt class="shrink-0 text-ital-muted">Registrado por</dt>
+                  <dd class="text-right">
+                    <span class="block font-medium text-slate-700">{{ t.createdByNombre || ('Usuario #' + t.createdByUserId) }}</span>
+                    @if (t.createdByEmail) { <span class="block break-all text-xs text-slate-400">{{ t.createdByEmail }}</span> }
+                  </dd>
+                </div>
+              }
+
               <div class="flex items-center justify-between gap-2">
                 <dt class="text-ital-muted">Creado</dt>
                 <dd class="font-medium text-slate-700">{{ t.createdAt | date:'dd/MM/yy HH:mm' }}</dd>
               </div>
               @if (t.assignedToNombre || t.assignedToUserId) {
                 <div class="flex items-start justify-between gap-2">
-                  <dt class="shrink-0 text-ital-muted">Asignado a</dt>
+                  <dt class="shrink-0 text-ital-muted">Responsable</dt>
                   <dd class="text-right">
                     <span class="block font-medium text-slate-700">{{ t.assignedToNombre || ('Usuario #' + t.assignedToUserId) }}</span>
                     @if (t.assignedToRol) { <span class="block text-xs text-ital-green-dark">{{ t.assignedToRol }}</span> }
                     @if (t.assignedToEmail) { <span class="block break-all text-xs text-slate-400">{{ t.assignedToEmail }}</span> }
                   </dd>
+                </div>
+              }
+              @if (t.fechaInicioPlan || t.fechaFinPlan) {
+                <div class="flex items-center justify-between gap-2">
+                  <dt class="text-ital-muted">Planificado</dt>
+                  <dd class="text-right text-xs font-medium text-slate-700">
+                    {{ (t.fechaInicioPlan | date:'dd/MM/yy') || '—' }} → {{ (t.fechaFinPlan | date:'dd/MM/yy') || '—' }}
+                  </dd>
+                </div>
+              }
+              @if (t.fechaLimite) {
+                <div class="flex items-center justify-between gap-2">
+                  <dt class="text-ital-muted">Compromiso</dt>
+                  <dd class="font-medium text-slate-700">{{ t.fechaLimite | date:'dd/MM/yy' }}</dd>
                 </div>
               }
               @if (t.fechaSolucion) {
@@ -250,7 +467,6 @@
               }
             </dl>
 
-            <!-- Notificados (copiados) -->
             @if (t.notificados && t.notificados.length > 0) {
               <div class="mt-4 border-t border-slate-100 pt-3.5">
                 <p class="mb-2 text-xs font-bold uppercase tracking-wider text-ital-muted">Notificados</p>
@@ -265,40 +481,124 @@
             }
           </div>
 
-          <!-- Gestión: SOLO para quien atiende (no el solicitante) -->
+          <!-- Gestión: SOLO para quien atiende -->
           @if (puedeGestionarTicket(t)) {
             <div class="rounded-2xl border border-ital-green-100 bg-gradient-to-b from-ital-green-50 to-white p-5 shadow-sm">
               <h2 class="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ital-green-dark">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z"/></svg>
                 Gestión
               </h2>
-              @if (t.assignedToNombre || t.assignedToUserId) {
-                <p class="mb-3 text-xs text-slate-500">Asignado a
-                  <span class="font-semibold text-slate-700">{{ t.assignedToNombre || ('usuario #' + t.assignedToUserId) }}</span>
-                </p>
-              }
-              <div class="space-y-2">
-                @if (!t.assignedToUserId) {
+
+              <div class="space-y-3">
+                @if (!t.assignedToUserId && !t.assignedToUserGuid) {
                   <button (click)="tomar()" [disabled]="savingEstado()"
                           class="w-full rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-ital-green/20 transition hover:-translate-y-0.5 disabled:opacity-60">
-                    Tomar ticket
+                    Tomar caso
                   </button>
                 }
+
+                <!-- Estado -->
                 @if (transiciones().length > 0) {
-                  <p class="pt-1 text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Cambiar estado a</p>
-                  <div class="flex flex-wrap gap-2">
-                    @for (e of transiciones(); track e) {
-                      <button (click)="cambiarEstado(e)" [disabled]="savingEstado()"
-                              class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:ring-ital-green disabled:opacity-60">
-                        {{ estadoLabel[e] }}
-                      </button>
-                    }
+                  <div>
+                    <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Mover a</p>
+                    <div class="flex flex-wrap gap-1.5">
+                      @for (e of transiciones(); track e) {
+                        <button (click)="cambiarEstado(e)" [disabled]="savingEstado()"
+                                class="rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:ring-ital-green disabled:opacity-60">
+                          {{ estadoLabel[e] }}
+                        </button>
+                      }
+                    </div>
                   </div>
                 }
 
-                <!-- Transferir (solo para tipo REQUERIMIENTO) -->
+                <!-- Prioridad -->
+                <div class="border-t border-white/60 pt-3">
+                  <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Prioridad</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    @for (p of prioridades; track p) {
+                      <button (click)="cambiarPrioridad(p)" [disabled]="savingGestion()"
+                              class="rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition disabled:opacity-60"
+                              [class.bg-slate-800]="t.prioridad === p" [class.text-white]="t.prioridad === p" [class.ring-slate-800]="t.prioridad === p"
+                              [class.bg-white]="t.prioridad !== p" [class.text-slate-600]="t.prioridad !== p" [class.ring-slate-200]="t.prioridad !== p">
+                        {{ prioridadLabel[p] }}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <!-- Responsable -->
+                <div class="border-t border-white/60 pt-3">
+                  @if (!mostrarReasignar) {
+                    <button (click)="abrirReasignar()"
+                            class="w-full rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50">
+                      Cambiar responsable
+                    </button>
+                  } @else {
+                    <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Nuevo responsable</p>
+                    <select [(ngModel)]="reasignarGuid"
+                            class="mb-2 w-full rounded-lg border-slate-200 py-1.5 text-xs focus:border-ital-green focus:ring-ital-green">
+                      <option value="">— Elegí responsable —</option>
+                      @for (a of asignablesDelCaso; track a.userId) {
+                        <option [value]="a.userId">{{ a.nombreCompleto }}</option>
+                      }
+                    </select>
+                    <div class="flex gap-2">
+                      <button (click)="mostrarReasignar = false"
+                              class="flex-1 rounded-lg bg-white px-2 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">Cancelar</button>
+                      <button (click)="reasignar()" [disabled]="savingGestion() || !reasignarGuid"
+                              class="flex-1 rounded-lg bg-ital-green px-2 py-1.5 text-xs font-semibold text-white hover:bg-ital-green-dark disabled:opacity-60">
+                        Asignar
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                <!-- Planificación -->
+                <div class="border-t border-white/60 pt-3">
+                  @if (!mostrarPlanificacion) {
+                    <button (click)="mostrarPlanificacion = true"
+                            class="w-full rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50">
+                      Planificar (fechas y estimación)
+                    </button>
+                  } @else {
+                    <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Planificación</p>
+                    <div class="space-y-2">
+                      <div>
+                        <label for="plan-ini" class="mb-0.5 block text-[10px] font-semibold text-slate-600">Inicio</label>
+                        <input id="plan-ini" type="date" [(ngModel)]="planFechaInicio"
+                               class="w-full rounded-lg border-slate-200 py-1.5 text-xs focus:border-ital-green focus:ring-ital-green" />
+                      </div>
+                      <div>
+                        <label for="plan-fin" class="mb-0.5 block text-[10px] font-semibold text-slate-600">Fin</label>
+                        <input id="plan-fin" type="date" [(ngModel)]="planFechaFin"
+                               class="w-full rounded-lg border-slate-200 py-1.5 text-xs focus:border-ital-green focus:ring-ital-green" />
+                      </div>
+                      <div>
+                        <label for="plan-lim" class="mb-0.5 block text-[10px] font-semibold text-slate-600">Compromiso de solución</label>
+                        <input id="plan-lim" type="date" [(ngModel)]="planFechaLimite"
+                               class="w-full rounded-lg border-slate-200 py-1.5 text-xs focus:border-ital-green focus:ring-ital-green" />
+                      </div>
+                      <div>
+                        <label for="plan-hrs" class="mb-0.5 block text-[10px] font-semibold text-slate-600">Horas estimadas</label>
+                        <input id="plan-hrs" type="number" min="0" step="0.5" [(ngModel)]="planHorasEstimadas"
+                               class="w-full rounded-lg border-slate-200 py-1.5 text-xs focus:border-ital-green focus:ring-ital-green" />
+                      </div>
+                      <div class="flex gap-2 pt-1">
+                        <button (click)="mostrarPlanificacion = false"
+                                class="flex-1 rounded-lg bg-white px-2 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">Cancelar</button>
+                        <button (click)="guardarPlanificacion()" [disabled]="savingGestion()"
+                                class="flex-1 rounded-lg bg-ital-green px-2 py-1.5 text-xs font-semibold text-white hover:bg-ital-green-dark disabled:opacity-60">
+                          Guardar
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- Transferir (solo REQUERIMIENTO) -->
                 @if (t.tipo === 'REQUERIMIENTO') {
-                  <div class="border-t border-slate-100 pt-3">
+                  <div class="border-t border-white/60 pt-3">
                     @if (!mostrarTransferir) {
                       <button (click)="abrirTransferir(t)"
                               class="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100">
@@ -331,39 +631,6 @@
               </div>
             </div>
           }
-
-          <!-- Cierre por el solicitante: ticket SOLUCIONADO esperando confirmación -->
-          @if (t.soyCreador && t.estado === 'SOLUCIONADO') {
-            <div class="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-5 shadow-sm">
-              <h2 class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                Validá la solución
-              </h2>
-              <p class="mb-3 text-xs text-slate-600">El equipo marcó tu ticket como solucionado. Si estás conforme, confirmá el cierre; si no, reabrílo.</p>
-              <div class="space-y-2">
-                <button (click)="confirmarCierre()" [disabled]="savingCierre()"
-                        class="w-full rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-ital-green/20 transition hover:-translate-y-0.5 disabled:opacity-60">
-                  @if (savingCierre()) { <span class="mr-1 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span> }
-                  Confirmar cierre
-                </button>
-                <button (click)="reabrir()" [disabled]="savingEstado()"
-                        class="w-full rounded-xl bg-white px-4 py-2 text-sm font-semibold text-amber-700 ring-1 ring-amber-200 transition hover:bg-amber-50 disabled:opacity-60">
-                  No estoy conforme — reabrir
-                </button>
-              </div>
-            </div>
-          }
-
-          <!-- Ticket cerrado por ambas partes -->
-          @if (t.estado === 'CERRADO') {
-            <div class="rounded-2xl border border-ital-green/30 bg-ital-green-50 p-5 text-center shadow-sm">
-              <svg class="mx-auto mb-2 h-9 w-9 text-ital-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-              <p class="text-sm font-bold text-ital-green-dark">Caso cerrado por ambas partes</p>
-              @if (t.fechaCierreSolicitante) {
-                <p class="mt-0.5 text-xs text-slate-500">Cierre confirmado el {{ t.fechaCierreSolicitante | date:'dd/MM/yy HH:mm' }}</p>
-              }
-            </div>
-          }
         </aside>
       </div>
 
@@ -381,7 +648,7 @@
           <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" (click)="$event.stopPropagation()">
             <h3 class="mb-1 text-lg font-bold text-slate-800">Marcar como solucionado</h3>
             <p class="mb-4 text-sm text-ital-muted">Describí la solución aplicada. Se notificará al solicitante por correo.</p>
-            <textarea [(ngModel)]="solucionTexto" rows="5" placeholder="Detallá qué se hizo para resolver el ticket…"
+            <textarea [(ngModel)]="solucionTexto" rows="5" placeholder="Detallá qué se hizo para resolver el caso…"
                       class="w-full rounded-xl border-slate-200 px-3.5 py-2.5 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"></textarea>
             <div class="mt-4 flex justify-end gap-2">
               <button (click)="mostrarSolucion=false"

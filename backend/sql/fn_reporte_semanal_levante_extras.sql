@@ -7,7 +7,7 @@
 -- MISMA fórmula de semana (floor((fecha_bogota - encaset)/7)+1, LEAST(25,…)),
 -- MISMOS guards (encaset NULL/futuro ⇒ cero filas; exclusión de filas de PURO
 -- traslado posteriores a la semana 25) y MISMO saldo Feature-13 por sexo
--- (aves_fin = aves_ini - mort - sel - err - tras_sal + tras_ing).
+-- (aves_fin = aves_ini - mort - sel - err - tras_sal - venta + tras_ing).
 -- ⇒ la columna `semana` casa 1:1 con la fn base y el servicio puede hacer zip.
 --
 -- Qué agrega (la fn base emite % y promedios; el Excel del reporte necesita
@@ -96,6 +96,8 @@ DECLARE
     r_tras_ing_m  integer;
     r_tras_sal_h  integer;
     r_tras_sal_m  integer;
+    r_venta_h     integer;
+    r_venta_m     integer;
     r_cons_kg_h   double precision;
     r_cons_kg_m   double precision;
     r_dias        integer;
@@ -122,14 +124,28 @@ BEGIN
 
     IF NOT FOUND THEN RETURN; END IF;
 
-    SELECT COALESCE(sl.traslado_ingreso_hembras,0)::double precision,
-           COALESCE(sl.traslado_ingreso_machos,0)::double precision
+    -- Aves entradas por traslado en filas que el armado de _seg_sem_rx DESCARTA (puro traslado
+    -- > sem 25). Nadie las suma: la ventana las tira. Se rescatan como base cuando el lote no
+    -- trae encaset.
+    --
+    -- ⚠️ El predicado debe ser el MISMO que el WHERE NOT (...) de _seg_sem_rx más abajo. Si acá
+    --    entrara una fila que sí se procesa, sus aves contarían DOS veces (base + ingreso).
+    -- SUM por sexo, no una sola fila: los sexos pueden llegar en traslados de días distintos,
+    -- y con LIMIT 1 el sexo ausente de la fila más antigua quedaba con base 0 ⇒ saldo negativo.
+    SELECT COALESCE(SUM(COALESCE(sl.traslado_ingreso_hembras,0)),0)::double precision,
+           COALESCE(SUM(COALESCE(sl.traslado_ingreso_machos,0)),0)::double precision
       INTO v_first_ing_h, v_first_ing_m
       FROM seguimiento_diario_levante sl
      WHERE sl.tipo_seguimiento = 'levante' AND sl.lote_id = p_lote_id::text
-       AND (COALESCE(sl.traslado_ingreso_hembras,0) + COALESCE(sl.traslado_ingreso_machos,0)) > 0
-     ORDER BY sl.fecha ASC, sl.id ASC
-     LIMIT 1;
+       AND (floor(((( sl.fecha AT TIME ZONE 'America/Bogota')::date - v_enc_date) / 7.0))::int) + 1 > 25
+       AND COALESCE(sl.mortalidad_hembras,0) = 0 AND COALESCE(sl.mortalidad_machos,0) = 0
+       AND COALESCE(sl.sel_h,0) = 0 AND COALESCE(sl.sel_m,0) = 0
+       AND COALESCE(sl.error_sexaje_hembras,0) = 0 AND COALESCE(sl.error_sexaje_machos,0) = 0
+       AND COALESCE(sl.consumo_kg_hembras,0) = 0 AND COALESCE(sl.consumo_kg_machos,0) = 0
+       AND COALESCE(sl.peso_prom_hembras,0) = 0 AND COALESCE(sl.peso_prom_machos,0) = 0
+       AND COALESCE(sl.venta_aves_hembras,0) = 0 AND COALESCE(sl.venta_aves_machos,0) = 0
+       AND (COALESCE(sl.traslado_salida_hembras,0) + COALESCE(sl.traslado_salida_machos,0)
+          + COALESCE(sl.traslado_ingreso_hembras,0) + COALESCE(sl.traslado_ingreso_machos,0)) > 0;
     v_first_ing_h := COALESCE(v_first_ing_h, 0);
     v_first_ing_m := COALESCE(v_first_ing_m, 0);
 
@@ -165,6 +181,11 @@ BEGIN
             COALESCE(sl.traslado_salida_machos,0)  AS tras_sal_m,
             COALESCE(sl.traslado_ingreso_hembras,0) AS tras_ing_h,
             COALESCE(sl.traslado_ingreso_machos,0)  AS tras_ing_m,
+            -- Venta de aves: el saldo tiene que descontarla o el reporte sobrestima el lote.
+            -- El total (venta_aves_cantidad) no sirve porque el saldo va POR SEXO; se usan los
+            -- splits dedicados, espejo de movimiento_aves (que sigue siendo el dueño del número).
+            COALESCE(sl.venta_aves_hembras,0)       AS venta_h,
+            COALESCE(sl.venta_aves_machos,0)        AS venta_m,
             COALESCE(sl.peso_prom_hembras,0)  AS ph,
             COALESCE(sl.peso_prom_machos,0)   AS pm,
             sl.uniformidad_hembras            AS uh,
@@ -182,7 +203,7 @@ BEGIN
         reg_date, mort_h, mort_m, sel_h, sel_m, err_h, err_m,
         cons_kg_h_num::double precision AS cons_kg_h,
         cons_kg_m_num::double precision AS cons_kg_m,
-        tras_sal_h, tras_sal_m, tras_ing_h, tras_ing_m,
+        tras_sal_h, tras_sal_m, tras_ing_h, tras_ing_m, venta_h, venta_m,
         ph, pm, uh, um, cvh, cvm, kcal_h, prot_h, id
       FROM base
      WHERE NOT (
@@ -191,6 +212,7 @@ BEGIN
         AND err_h = 0 AND err_m = 0
         AND cons_kg_h_num = 0 AND cons_kg_m_num = 0
         AND ph = 0 AND pm = 0
+        AND venta_h = 0 AND venta_m = 0
         AND (tras_sal_h + tras_sal_m + tras_ing_h + tras_ing_m) > 0
      );
 
@@ -205,12 +227,14 @@ BEGIN
                COALESCE(SUM(x.err_h),0)::int,  COALESCE(SUM(x.err_m),0)::int,
                COALESCE(SUM(x.tras_ing_h),0)::int, COALESCE(SUM(x.tras_ing_m),0)::int,
                COALESCE(SUM(x.tras_sal_h),0)::int, COALESCE(SUM(x.tras_sal_m),0)::int,
+               COALESCE(SUM(x.venta_h),0)::int, COALESCE(SUM(x.venta_m),0)::int,
                COALESCE(SUM(x.cons_kg_h),0), COALESCE(SUM(x.cons_kg_m),0),
                COUNT(*)::int,
                AVG(x.kcal_h) FILTER (WHERE x.kcal_h IS NOT NULL AND x.kcal_h > 0),
                AVG(x.prot_h) FILTER (WHERE x.prot_h IS NOT NULL AND x.prot_h > 0)
           INTO r_mort_h, r_mort_m, r_sel_h, r_sel_m, r_err_h, r_err_m,
                r_tras_ing_h, r_tras_ing_m, r_tras_sal_h, r_tras_sal_m,
+               r_venta_h, r_venta_m,
                r_cons_kg_h, r_cons_kg_m, r_dias, r_kcal_h, r_prot_h
           FROM _seg_sem_rx x WHERE x.sem = s;
 
@@ -230,8 +254,8 @@ BEGIN
         r_peso_h := CASE WHEN r_ph > 0 THEN r_ph ELSE v_peso_ant_h END;
         r_peso_m := CASE WHEN r_pm > 0 THEN r_pm ELSE v_peso_ant_m END;
 
-        r_fin_h := v_aves_acum_h - r_mort_h - r_sel_h - r_err_h - r_tras_sal_h + r_tras_ing_h;
-        r_fin_m := v_aves_acum_m - r_mort_m - r_sel_m - r_err_m - r_tras_sal_m + r_tras_ing_m;
+        r_fin_h := v_aves_acum_h - r_mort_h - r_sel_h - r_err_h - r_tras_sal_h - r_venta_h + r_tras_ing_h;
+        r_fin_m := v_aves_acum_m - r_mort_m - r_sel_m - r_err_m - r_tras_sal_m - r_venta_m + r_tras_ing_m;
 
         semana                       := s;
         fecha_fin_semana             := v_enc_date + ((s - 1) * 7) + 6;
