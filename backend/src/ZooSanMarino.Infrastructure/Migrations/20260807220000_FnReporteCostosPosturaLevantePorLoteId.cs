@@ -1,4 +1,36 @@
--- =============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <inheritdoc />
+    public partial class FnReporteCostosPosturaLevantePorLoteId : Migration
+    {
+        // FIX del Reporte Diario Area de Costos de POSTURA: la fn devolvia CERO filas de LEVANTE.
+        //
+        // v1 keyeaba el levante por seguimiento_diario_levante.lote_id_int, y esa columna esta NULL
+        // en el 100% de las filas de produccion (588/588). Ninguna linea de C# la escribe (grep
+        // "LoteIdInt" en backend/src = 0 coincidencias); solo la setea fn_migracion_seguimiento_levante
+        // en sus INSERT nuevos, que es por que el lote de pruebas S-369 (cargado por carga masiva en
+        // local) validaba y produccion no. Resultado en prod: K345 salia mutilado (solo produccion) y
+        // A374, que solo tiene levante, salia vacio.
+        //
+        // v2 keyea por lote_id (varchar), la clave que la aplicacion siempre escribe y la que usan los
+        // indices ix_sdlr_lote_id / ix_sdlr_tipo_lote_fecha, con guardas tipo_seguimiento='levante' y
+        // sin reproductora. La rama de PRODUCCION no se toca: verificado fila a fila contra la v1 en
+        // las 5 empresas del dump de produccion (0 diferencias en ambos sentidos).
+        //
+        // El traslape levante/produccion se devuelve TAL CUAL: la regla de doble conteo tiene dueno y
+        // es C# puro y testeado (CorteEtapaPosturaCalculos), aplicada en ReporteDiarioCostosPosturaCalculos.
+        //
+        // Idempotente: CREATE OR REPLACE, misma firma, sin DDL de tablas ni cambios de modelo
+        // (ModelSnapshot intacto). Fuente canonica: backend/sql/fn_reporte_diario_costos_postura.sql
+
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"-- =============================================================================
 -- fn_reporte_diario_costos_postura(p_company_id, p_granja_ids, p_regional,
 --                                  p_lote_postura_base_id, p_fase,
 --                                  p_fecha_desde, p_fecha_hasta)
@@ -36,7 +68,7 @@
 --     está NULL en el 100 % de las filas (588/588) ⇒ la fn devolvía CERO filas de
 --     levante para toda la empresa: K345 salía mutilado (solo producción) y A374,
 --     que solo tiene levante, salía vacío.
---     `lote_id_int` es legado: ninguna línea de C# la escribe (grep "LoteIdInt" en
+--     `lote_id_int` es legado: ninguna línea de C# la escribe (grep ""LoteIdInt"" en
 --     backend/src = 0 coincidencias); solo la setea fn_migracion_seguimiento_levante
 --     en sus INSERT nuevos, que es exactamente por qué el lote de pruebas S-369
 --     (cargado por carga masiva en local) validó y producción no.
@@ -75,12 +107,12 @@
 --   * Alimento: explode de metadata->'itemsHembras'/'itemsMachos'
 --     ([{nombre, cantidad, unidad, ...}]) ⇒ una entrada por ítem (decisión D4).
 --     Fallback para filas sin metadata: 1 entrada por sexo con el nombre partido
---     de tipo_alimento ("H: x / M: y") y el total de consumo_kg_*. Nunca se
+--     de tipo_alimento (""H: x / M: y"") y el total de consumo_kg_*. Nunca se
 --     descarta consumo: si no hay ítems pero hay kg, sale la entrada de fallback.
 --   * Corte de día SIEMPRE AT TIME ZONE 'America/Bogota' (date_trunc crudo sobre
 --     timestamptz usa la zona de la SESIÓN: local Bogotá vs prod UTC ⇒ corrimiento).
 --   * Alcance fail-closed: p_granja_ids lo arma el service con las granjas
---     asignadas al usuario. Array vacío ⇒ 0 filas (jamás "todas").
+--     asignadas al usuario. Array vacío ⇒ 0 filas (jamás ""todas"").
 --     p_granja_ids NULL ⇒ todas las granjas de la empresa (uso interno/scripts).
 --   * p_fase NULL ⇒ ambas fases. 'lev%' ⇒ Levante, 'produc%' ⇒ Produccion
 --     (acepta 'produccion' y 'producción').
@@ -320,10 +352,10 @@ base_rango AS (
 -- 5. Alimento por ÍTEM (decisión D4). Explode del metadata; fallback por sexo.
 --
 --    ⚠️ El metadata tiene DOS formas según el camino de captura del consumo:
---      · camino 2 (inventario):  {"nombre": "...", "itemInventarioEcuadorId": 180}  → trae nombre
---      · camino 1 (catálogo):    {"catalogItemId": 70}                             → NO trae nombre
+--      · camino 2 (inventario):  {""nombre"": ""..."", ""itemInventarioEcuadorId"": 180}  → trae nombre
+--      · camino 1 (catálogo):    {""catalogItemId"": 70}                             → NO trae nombre
 --    Los lotes viejos (K345) son camino 1: sin resolver el id contra el catálogo, la columna
---    "tipo alimento" salía «Sin especificar» y el reporte quedaba inútil para costear.
+--    ""tipo alimento"" salía «Sin especificar» y el reporte quedaba inútil para costear.
 items_metadata AS (
     SELECT b.fase, b.lote_id, b.d, 'H'::text AS sexo,
            COALESCE(
@@ -359,7 +391,7 @@ items_metadata AS (
 ),
 items_fallback AS (
     -- Sin ítems en metadata pero CON kg consumidos: se parte tipo_alimento, que tiene DOS
-    -- formatos vivos: "H: x + y / M: z" (levante/producción nuevos) y "x / y" (lotes viejos,
+    -- formatos vivos: ""H: x + y / M: z"" (levante/producción nuevos) y ""x / y"" (lotes viejos,
     -- sin prefijo de sexo). Si no matchea ninguno, el nombre completo va a los dos sexos.
     SELECT b.fase, b.lote_id, b.d, 'H'::text AS sexo,
            NULLIF(TRIM(CASE
@@ -502,3 +534,16 @@ IS 'v2. Reporte diario del área de costos para postura (levante + producción) 
    'levante/producción TAL CUAL: tanto la clasificación fértil/comercial/inservible como la regla '
    'de doble conteo viven en C# puro y testeado (ReporteDiarioCostosPosturaCalculos, '
    'CorteEtapaPosturaCalculos).';
+");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Vuelve a la v1 (levante por lote_id_int). Se deja explicito que revertir REINTRODUCE
+            // el bug: el reporte volveria a no mostrar levante en produccion.
+            migrationBuilder.Sql(
+                "DROP FUNCTION IF EXISTS fn_reporte_diario_costos_postura(INT, INT[], TEXT, INT, TEXT, DATE, DATE);");
+        }
+    }
+}

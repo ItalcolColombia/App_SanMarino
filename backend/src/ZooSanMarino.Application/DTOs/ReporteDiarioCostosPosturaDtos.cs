@@ -80,7 +80,18 @@ public sealed record ReporteDiarioCostosPosturaFilaDto(
     double ConsumoKgM,
     IReadOnlyList<ReporteDiarioCostosPosturaAlimentoDto> Alimentos,
     // Pestaña 3 — Huevos (todo en 0 en filas de levante)
-    ReporteDiarioCostosPosturaHuevoDto Huevo
+    ReporteDiarioCostosPosturaHuevoDto Huevo,
+    /// <summary>
+    /// El lote tiene fila de levante Y de producción ese mismo día. No es un error por sí solo:
+    /// el arrastre de huevos del levante crea legítimamente una fila de producción de solo huevos.
+    /// </summary>
+    bool DiaEnAmbasEtapas = false,
+    /// <summary>
+    /// La fila se muestra pero NO suma en los totales, porque su día ya lo aporta la otra etapa
+    /// (regla de <c>CorteEtapaPosturaCalculos.HayDobleConteo</c>). Solo se marcan filas de levante:
+    /// producción manda, porque sale de la fn diaria canónica.
+    /// </summary>
+    bool ExcluidoDelTotal = false
 );
 
 /// <summary>Totales de la pestaña de aves (footer).</summary>
@@ -119,6 +130,24 @@ public sealed record ReporteDiarioCostosPosturaLoteDto(
     string LoteBaseNombre
 );
 
+/// <summary>
+/// Dónde ocurrió cada fase: una entrada por (fase, granja) presente en el resultado. Es la respuesta
+/// a «el levante se hizo en NIZA III y la producción en NIZA I»: al seguir un lote base entre granjas,
+/// esto dice explícitamente qué pasó dónde y cuándo.
+/// </summary>
+public sealed record ReporteDiarioCostosPosturaUbicacionFaseDto(
+    string Fase,
+    int GranjaId,
+    string GranjaNombre,
+    string LoteBaseNombre,
+    /// <summary>Lotes distintos de esa fase en esa granja.</summary>
+    int Lotes,
+    DateTime Desde,
+    DateTime Hasta,
+    /// <summary>Días con registro (no el rango calendario).</summary>
+    int Dias
+);
+
 public sealed record ReporteDiarioCostosPosturaReporteDto(
     ReporteDiarioCostosPosturaRequest FiltrosAplicados,
     DateTime? FechaDesdeEfectiva,
@@ -127,7 +156,36 @@ public sealed record ReporteDiarioCostosPosturaReporteDto(
     IReadOnlyList<string> Fases,
     IReadOnlyList<ReporteDiarioCostosPosturaLoteDto> Lotes,
     IReadOnlyList<ReporteDiarioCostosPosturaFilaDto> Filas,
-    ReporteDiarioCostosPosturaTotalesDto Totales
+    ReporteDiarioCostosPosturaTotalesDto Totales,
+    /// <summary>Dónde ocurrió cada fase (ver <see cref="ReporteDiarioCostosPosturaUbicacionFaseDto"/>).</summary>
+    IReadOnlyList<ReporteDiarioCostosPosturaUbicacionFaseDto>? Ubicaciones = null,
+    /// <summary>Filas mostradas pero excluidas del total por estar registradas en las dos etapas.</summary>
+    int DiasDuplicados = 0,
+    /// <summary>
+    /// Cuánto queda FUERA del total por el traslape. No se esconde: el dato duplicado no siempre es
+    /// simétrico — en K345 la fila de levante trae 133 machos de selección que la de producción no
+    /// tiene — y el área de costos necesita el número exacto para corregir el registro en origen.
+    /// <c>null</c> si no hay ninguna fila excluida.
+    /// </summary>
+    ReporteDiarioCostosPosturaTotalesDto? TotalesExcluidos = null,
+    /// <summary>
+    /// El lote base elegido tenía lotes fuera de la granja pedida y el reporte los siguió
+    /// (siempre dentro de las granjas asignadas al usuario). La UI lo avisa.
+    /// </summary>
+    bool AlcanceExpandidoPorLoteBase = false
+);
+
+/// <summary>
+/// Opción del filtro «Lote base»: se lista por DÓNDE ESTÁN SUS LOTES, no por el <c>farm_id</c> del
+/// catálogo — si el lote se traslada de granja, la base tiene que seguir apareciendo bajo la granja
+/// donde se hizo el levante.
+/// </summary>
+public sealed record ReporteDiarioCostosPosturaLoteBaseOpcionDto(
+    int LotePosturaBaseId,
+    string LoteNombre,
+    IReadOnlyList<int> GranjaIds,
+    IReadOnlyList<string> GranjaNombres,
+    int Lotes
 );
 
 /// <summary>

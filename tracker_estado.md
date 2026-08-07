@@ -2242,36 +2242,40 @@ que seguir al lote base y decir en qué granja pasó cada fase.
 - [x] `lev_dedup` filtra `s.lote_id_int IS NOT NULL`; en prod las **588 filas** de `seguimiento_diario_levante` la tienen **NULL** (100 %) ⇒ **0 filas de levante en toda la empresa**
 - [x] `grep "LoteIdInt" backend/src` = **0 coincidencias**: ningún C# escribe esa columna; solo `fn_migracion_seguimiento_levante` la setea en sus INSERT (por eso S-369 validó en local y prod no)
 - [x] Sanmarino tiene 6 lotes: K345A/B (NIZA III, 176+175 días de levante) y A374A ×2 (LA ESMERALDA, 144+38, **sin producción** ⇒ salía vacío)
-- [x] Keyeando por `lote_id::text` se recuperan 533 días (Sanmarino) + 42 (Demo)
-- [x] Traslape K345: **15 días** (8 lote 13 + 7 lote 14) con fila en las dos etapas ⇒ al arreglar levante habría doble conteo (~16.952 kg)
-- [x] Traslado de lote a otra granja = **lote NUEVO** (`historial_traslado_lote`, hoy 0 filas); ningún lote base vive hoy en >1 granja
-- [x] Ninguna pestaña ni hoja de Excel muestra la granja por fila
+- [x] Traslape K345: **15 días** con fila en las dos etapas; 14 son doble conteo real (16.952 kg) y 1 tiene la fila de levante vacía
+- [x] El traslado **NO crea un lote nuevo**: pisa `lotes.granja_id` ⇒ el reporte re-atribuía TODO el histórico a la granja nueva (verificado: NIZA III pasa de 953 filas a 0)
+- [x] `fn_mover_lote` pisaba la granja **sin registrar** en `historial_traslado_lote` (`TrasladarLoteAsync` sí lo hace)
+- [x] `edad_dias`/`semana` de producción no cuadraban con la fn canónica: **301/301 filas** de K345B desfasadas 3 días, 129 con semana distinta
+- [x] Ninguna pestaña ni hoja de Excel mostraba la granja por fila
 
 ## BD / SQL
-- [ ] `backend/sql/fn_reporte_diario_costos_postura.sql` v2: `lev_dedup` por `lote_id` (texto) + guardas `tipo_seguimiento`/`reproductora_id`
-- [ ] Columna nueva `dia_en_ambas_etapas` (hecho crudo; la decisión la toma C#)
-- [ ] Migración EF idempotente con el `.sql` embebido verbatim (`CREATE OR REPLACE`, misma firma)
+- [x] `fn_reporte_diario_costos_postura` v2: `lev_dedup` por `lote_id` (texto) + guardas `tipo_seguimiento`/`reproductora_id`
+- [x] Granja **vigente el día** vía `historial_traslado_lote`; filtro `p_granja_ids` matchea la actual O cualquiera histórica
+- [x] `edad_dias`/`semana` de producción desde la fn canónica (levante conserva su `fecha_encaset`)
+- [x] `fn_mover_lote` registra el traslado en `historial_traslado_lote` cuando cambia de granja
+- [x] Migraciones EF idempotentes con el `.sql` embebido verbatim (`20260807220000` y `20260807221000`, Designer clonado, ModelSnapshot intacto)
 
 ## Backend
-- [ ] DTOs: `DiaEnAmbasEtapas`/`ExcluidoDelTotal` en la fila; `DiasDuplicados`/`AlcanceExpandidoPorLoteBase`/`Granjas` en el reporte
-- [ ] `ReporteDiarioCostosPosturaCalculos.MarcarDuplicados` delegando en `CorteEtapaPosturaCalculos.HayDobleConteo`
-- [ ] `ConstruirTotales` ignora las filas excluidas
-- [ ] Service: el lote base expande el alcance a las granjas asignadas (fail-closed intacto)
-- [ ] `GET /api/ReporteDiarioCostosPostura/lotes-base` (catálogo por dónde están los lotes)
+- [x] DTOs: `DiaEnAmbasEtapas`/`ExcluidoDelTotal` en la fila; `Ubicaciones`/`DiasDuplicados`/`TotalesExcluidos`/`AlcanceExpandidoPorLoteBase` en el reporte
+- [x] `MarcarDuplicados` delegando en `CorteEtapaPosturaCalculos.HayDobleConteo` + `Ubicaciones` + `TotalesExcluidos`
+- [x] `ConstruirTotales` ignora las filas excluidas (sin marcas queda idéntico)
+- [x] Service: el lote base expande el alcance a las granjas asignadas (fail-closed intacto)
+- [x] `GET /api/ReporteDiarioCostosPostura/lotes-base` (catálogo por dónde están los lotes, scoped al usuario)
 
 ## Frontend
-- [ ] Modelo + service apuntando al catálogo nuevo
-- [ ] Columna **Granja** en las 3 pestañas y en las 3 hojas del Excel
-- [ ] Aviso de días duplicados + nota de alcance expandido por lote base
-- [ ] Cascada del filtro por `granjaIds`
+- [x] Modelo + service apuntando al catálogo nuevo
+- [x] Columna **Granja** en las 3 pestañas y en las 3 hojas del Excel
+- [x] Bloque «Dónde se hizo cada fase» + aviso de días duplicados **cuantificado** + nota de alcance expandido
+- [x] Filas excluidas atenuadas (`.rdc-tr--excluida`) y marcadas «NO SUMA» en el Excel
+- [x] Cascada del filtro por `granjaIds`; `granja` en las track keys (la etiqueta lote:galpón ya colisiona entre granjas)
 
 ## Tests / validación
-- [ ] `ReporteDiarioCostosPosturaCalculosTests`: marcado de duplicados + totales que lo excluyen + no regresión sin duplicados
-- [ ] `cd backend && dotnet build` (0 errores, sin advertencias nuevas) + `dotnet test`
-- [ ] `cd frontend && yarn build`
-- [ ] P1-P10 del plan contra el dump de prod (incluye P6 no-regresión de producción y P9 empresa Demo)
-- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
-
+- [x] `ReporteDiarioCostosPosturaCalculosTests`: +11 casos (marcado, arrastre de solo huevos, cuantificación, ubicaciones, no regresión)
+- [x] `dotnet build` 0 errores / sin advertencias nuevas · `dotnet test` **2.004 en verde**
+- [x] `yarn build` OK (solo el warning de bundle preexistente)
+- [x] P1-P13 del plan: gate de paridad de producción en las **5 empresas** (0 diferencias), traslado simulado en transacción revertida, smoke API y smoke UI
+- [x] Sin procesos huérfanos (back :5002 y front :4200 detenidos, sin listeners)
+- [ ] Commit acotado (sin footer de atribución)
 ---
 
 # Migraciones Masivas — permiso de POSTURA, tiles por permiso y módulo solo para Sanmarino
