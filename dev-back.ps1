@@ -23,6 +23,68 @@ $env:DOTNET_ROOT            = $dotnetDir
 $env:PATH                   = "$dotnetDir;$env:PATH"
 $env:ASPNETCORE_ENVIRONMENT = 'Development'   # appsettings.Development.json (Postgres local :5433)
 
+# -----------------------------------------------------------------------------
+#  Guard: bajar el backend previo antes de compilar.
+#  Un ZooSanMarino.API vivo de una corrida anterior mantiene abiertos los .dll de
+#  Application/Infrastructure/Domain -> MSBuild no los puede sobreescribir y el
+#  build muere con MSB3026 x10 + MSB3027/MSB3021 ("The file is locked by:
+#  ZooSanMarino.API (PID)"). Ademas deja ocupado el :5002.
+# -----------------------------------------------------------------------------
+function Stop-BackendPrevio {
+    $objetivo = @()
+
+    # 1) Cualquier API viva por nombre (aunque escuche en otro puerto).
+    $objetivo += @(Get-Process -Name 'ZooSanMarino.API' -ErrorAction SilentlyContinue |
+                   Select-Object -ExpandProperty Id)
+
+    # 2) Quien tenga tomado el :5002, solo si es nuestro (API o el host dotnet).
+    $conns = @()
+    try { $conns = @(Get-NetTCPConnection -LocalPort 5002 -State Listen -ErrorAction SilentlyContinue) } catch { }
+    foreach ($c in $conns) {
+        $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+        if (-not $proc) { continue }
+        if ($proc.ProcessName -eq 'ZooSanMarino.API' -or $proc.ProcessName -eq 'dotnet') {
+            $objetivo += $proc.Id
+        }
+        else {
+            Write-Host ("[dev-back] AVISO: :5002 lo ocupa " + $proc.ProcessName + " (PID " + $proc.Id + ") - no es el backend, no lo toco") -ForegroundColor Yellow
+        }
+    }
+
+    # 3) El host `dotnet run` que lanzo la API (si no, queda huerfano).
+    foreach ($id in @($objetivo)) {
+        $hijo = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
+        if (-not $hijo -or -not $hijo.ParentProcessId) { continue }
+        $padre = Get-CimInstance Win32_Process -Filter "ProcessId=$($hijo.ParentProcessId)" -ErrorAction SilentlyContinue
+        if ($padre -and $padre.Name -eq 'dotnet.exe' -and $padre.CommandLine -like '*run*') {
+            $objetivo += [int]$padre.ProcessId
+        }
+    }
+
+    $objetivo = @($objetivo | Sort-Object -Unique | Where-Object { $_ -ne $PID })
+    if ($objetivo.Count -eq 0) { return }
+
+    foreach ($id in $objetivo) {
+        $p = Get-Process -Id $id -ErrorAction SilentlyContinue
+        if (-not $p) { continue }
+        Write-Host ("[dev-back] Cerrando backend previo: " + $p.ProcessName + " (PID " + $id + ")") -ForegroundColor Yellow
+        try { Stop-Process -Id $id -Force -Confirm:$false -ErrorAction Stop }
+        catch { Write-Host ("[dev-back] AVISO: no pude cerrar el PID " + $id + " - " + $_.Exception.Message) -ForegroundColor Yellow }
+    }
+
+    # Esperar a que Windows libere los handles y el puerto (hasta ~10s).
+    for ($i = 0; $i -lt 20; $i++) {
+        $viva = Get-Process -Name 'ZooSanMarino.API' -ErrorAction SilentlyContinue
+        $puerto = @()
+        try { $puerto = @(Get-NetTCPConnection -LocalPort 5002 -State Listen -ErrorAction SilentlyContinue) } catch { }
+        if (-not $viva -and $puerto.Count -eq 0) { return }
+        Start-Sleep -Milliseconds 500
+    }
+    Write-Host "[dev-back] AVISO: el backend previo no termino de cerrar; si el build falla por archivos bloqueados, reintenta." -ForegroundColor Yellow
+}
+
+Stop-BackendPrevio
+
 $apiDir = Join-Path $PSScriptRoot 'backend\src\ZooSanMarino.API'
 Push-Location $apiDir
 try {
