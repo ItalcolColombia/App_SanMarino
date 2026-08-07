@@ -2174,5 +2174,9 @@ Gestión de Inventario (alimento) y las ventas de aves/huevos. **No toca código
 
 ## Validación
 - [x] Publicado como artifact compartible
+- [x] Versión **Word** (`Manual_Carga_Masiva_Postura.docx`, 17 pág.) + PDF, con índice numerado
+- [x] Renderizado y revisado página por página (Word COM → PDF → PNG con pymupdf); corregidos:
+      nombres de columna pegados (Word descarta runs de solo espacio), filas y callouts partidos
+      por el salto de página (`cantSplit`), interlineado del título de portada
 - [ ] Capturas de pantalla del módulo en el navegador — pendiente: requiere login del usuario
 - [x] Sin procesos huérfanos (back :5002 y front :4200 los levantó otra sesión; no se detuvieron)
