@@ -1,26 +1,20 @@
 // src/app/features/tickets/pages/tablero/tablero.component.ts
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { TicketService } from '../../services/ticket.service';
 import {
-  ESTADO_DOT, ESTADO_LABEL, ResolutorAdminDto, TIPOS_TICKET, TIPO_LABEL,
-  TicketListItem, EstadoTicket, TipoTicket,
+  ESTADO_DOT, ESTADO_LABEL, TIPO_LABEL, TicketListItem, EstadoTicket,
 } from '../../models/ticket.models';
 import {
-  PRIORIDADES, PRIORIDAD_ACENTO, PRIORIDAD_LABEL, PrioridadTicket,
-  TicketTablero, TicketTableroColumna,
+  PRIORIDAD_ACENTO, TicketTablero, TicketTableroColumna, TicketTableroFiltro,
 } from '../../models/ticket-tarea.models';
 import { TicketPrioridadBadgeComponent } from '../../components/ticket-prioridad-badge/ticket-prioridad-badge.component';
 import { TicketSlaChipComponent } from '../../components/ticket-sla-chip/ticket-sla-chip.component';
+import { TicketFiltrosComponent } from '../../components/ticket-filtros/ticket-filtros.component';
 import { ToastService } from '../../../../shared/services/toast.service';
-import { environment } from '../../../../../environments/environment';
-
-interface PaisOpcion { paisId: number; paisNombre: string; }
 
 /**
  * Tablero kanban de CASOS (perfil administrador): columnas por fase, tarjetas arrastrables,
@@ -30,8 +24,8 @@ interface PaisOpcion { paisId: number; paisNombre: string; }
   selector: 'app-tickets-tablero',
   standalone: true,
   imports: [
-    FormsModule, RouterLink, CdkDropListGroup, CdkDropList, CdkDrag,
-    TicketPrioridadBadgeComponent, TicketSlaChipComponent,
+    RouterLink, CdkDropListGroup, CdkDropList, CdkDrag,
+    TicketPrioridadBadgeComponent, TicketSlaChipComponent, TicketFiltrosComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './tablero.component.html',
@@ -39,7 +33,6 @@ interface PaisOpcion { paisId: number; paisNombre: string; }
 export class TableroComponent implements OnInit {
   private readonly svc = inject(TicketService);
   private readonly toast = inject(ToastService);
-  private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -50,23 +43,10 @@ export class TableroComponent implements OnInit {
   readonly estadoLabel = ESTADO_LABEL;
   readonly estadoDot = ESTADO_DOT;
   readonly tipoLabel = TIPO_LABEL;
-  readonly tipos = TIPOS_TICKET;
-  readonly prioridades = PRIORIDADES;
-  readonly prioridadLabel = PRIORIDAD_LABEL;
   readonly prioridadAcento = PRIORIDAD_ACENTO;
 
-  // Filtros
-  anio: number | null = new Date().getFullYear();
-  tipo: TipoTicket | '' = '';
-  prioridad: PrioridadTicket | '' = '';
-  paisId: number | null = null;
-  assignedToGuid = '';
-  texto = '';
-
-  paises: PaisOpcion[] = [];
-  resolutores: ResolutorAdminDto[] = [];
-
-  readonly anios: number[] = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+  /** Último filtro emitido por la barra compartida. */
+  private filtro: TicketTableroFiltro = {};
 
   readonly columnas = computed<TicketTableroColumna[]>(() => this.data()?.columnas ?? []);
   readonly resumen = computed(() => this.data()?.resumen ?? null);
@@ -74,48 +54,23 @@ export class TableroComponent implements OnInit {
   /** Ids de las listas CDK; el grupo habilita arrastrar entre columnas. */
   readonly idsColumnas = computed(() => this.columnas().map(c => `caso-col-${c.estado}`));
 
-  ngOnInit(): void {
-    this.cargarCatalogos();
+  // La carga inicial la dispara la barra de filtros con su primera emisión.
+  ngOnInit(): void { /* sin trabajo propio */ }
+
+  /** La barra compartida publica el filtro ya armado; acá solo se recarga. */
+  onFiltro(filtro: TicketTableroFiltro): void {
+    this.filtro = filtro;
     this.cargar();
-  }
-
-  private cargarCatalogos(): void {
-    this.http.get<PaisOpcion[]>(`${environment.apiUrl}/pais`)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: p => this.paises = p, error: () => {} });
-
-    this.svc.getResolutoresAdmin()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: r => this.resolutores = r, error: () => {} });
   }
 
   cargar(): void {
     this.cargando.set(true);
-    this.svc.tablero({
-      anio: this.anio ?? undefined,
-      tipo: this.tipo || undefined,
-      prioridad: this.prioridad || undefined,
-      paisId: this.paisId ?? undefined,
-      assignedToGuid: this.assignedToGuid || undefined,
-      texto: this.texto.trim() || undefined,
-    })
+    this.svc.tablero(this.filtro)
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.cargando.set(false)))
       .subscribe({
         next: t => this.data.set(t),
         error: () => this.toast.error('No se pudo cargar el tablero.'),
       });
-  }
-
-  onFiltroChange(): void { this.cargar(); }
-
-  limpiarFiltros(): void {
-    this.anio = new Date().getFullYear();
-    this.tipo = '';
-    this.prioridad = '';
-    this.paisId = null;
-    this.assignedToGuid = '';
-    this.texto = '';
-    this.cargar();
   }
 
   abrirCaso(caso: TicketListItem): void {

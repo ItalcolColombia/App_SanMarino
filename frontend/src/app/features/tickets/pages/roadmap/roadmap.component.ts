@@ -1,16 +1,16 @@
 // src/app/features/tickets/pages/roadmap/roadmap.component.ts
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { TicketService } from '../../services/ticket.service';
-import { ESTADO_DOT, ESTADO_LABEL, TIPOS_TICKET, TIPO_LABEL, TipoTicket } from '../../models/ticket.models';
+import { ESTADO_DOT, ESTADO_LABEL, TIPO_LABEL } from '../../models/ticket.models';
 import {
-  PRIORIDADES, PRIORIDAD_ACENTO, PRIORIDAD_LABEL, PrioridadTicket,
-  TAREA_ESTADO_DOT, TAREA_ESTADO_LABEL, TicketRoadmap, TicketRoadmapItem,
+  PRIORIDADES, PRIORIDAD_ACENTO, PRIORIDAD_LABEL,
+  TAREA_ESTADO_DOT, TAREA_ESTADO_LABEL, TicketRoadmap, TicketRoadmapItem, TicketTableroFiltro,
 } from '../../models/ticket-tarea.models';
 import { TicketSlaChipComponent } from '../../components/ticket-sla-chip/ticket-sla-chip.component';
+import { TicketFiltrosComponent } from '../../components/ticket-filtros/ticket-filtros.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 
 /** Una división del eje temporal (un mes o una semana según el rango visible). */
@@ -28,7 +28,7 @@ const MS_DIA = 86_400_000;
 @Component({
   selector: 'app-tickets-roadmap',
   standalone: true,
-  imports: [FormsModule, RouterLink, TicketSlaChipComponent],
+  imports: [RouterLink, TicketSlaChipComponent, TicketFiltrosComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './roadmap.component.html',
 })
@@ -46,20 +46,20 @@ export class RoadmapComponent implements OnInit {
   readonly estadoLabel = ESTADO_LABEL;
   readonly estadoDot = ESTADO_DOT;
   readonly tipoLabel = TIPO_LABEL;
-  readonly tipos = TIPOS_TICKET;
   readonly prioridades = PRIORIDADES;
   readonly prioridadLabel = PRIORIDAD_LABEL;
   readonly prioridadAcento = PRIORIDAD_ACENTO;
   readonly tareaEstadoLabel = TAREA_ESTADO_LABEL;
   readonly tareaEstadoDot = TAREA_ESTADO_DOT;
 
-  // Filtros
-  anio: number | null = new Date().getFullYear();
-  tipo: TipoTicket | '' = '';
-  prioridad: PrioridadTicket | '' = '';
-  texto = '';
+  /** Último filtro emitido por la barra compartida. */
+  private filtro: TicketTableroFiltro = {};
 
-  readonly anios: number[] = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+  /**
+   * «Ahora» CONGELADO por carga. Si cada barra llamara a `new Date()`, dos pasadas de detección
+   * de cambios darían anchos distintos por microsegundos y Angular tiraría NG0100 en cada ciclo.
+   */
+  readonly ahora = signal(this.hoyCero());
 
   readonly items = computed<TicketRoadmapItem[]>(() => this.data()?.items ?? []);
 
@@ -69,8 +69,7 @@ export class RoadmapComponent implements OnInit {
    */
   readonly ventana = computed<{ inicio: Date; fin: Date; dias: number }>(() => {
     const d = this.data();
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
+    const hoy = this.ahora();
 
     const desde = d?.desde ? this.parseYmd(d.desde) : null;
     const hasta = d?.hasta ? this.parseYmd(d.hasta) : null;
@@ -96,30 +95,29 @@ export class RoadmapComponent implements OnInit {
   /** Posición de la línea de HOY, en % del ancho del eje. */
   readonly posicionHoy = computed<number>(() => {
     const { inicio, dias } = this.ventana();
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const offset = (hoy.getTime() - inicio.getTime()) / MS_DIA;
+    const offset = (this.ahora().getTime() - inicio.getTime()) / MS_DIA;
     return Math.max(0, Math.min(100, (offset / dias) * 100));
   });
 
-  ngOnInit(): void { this.cargar(); }
+  // La carga inicial la dispara la barra de filtros con su primera emisión.
+  ngOnInit(): void { /* sin trabajo propio */ }
+
+  /** La barra compartida publica el filtro ya armado; acá solo se recarga. */
+  onFiltro(filtro: TicketTableroFiltro): void {
+    this.filtro = filtro;
+    this.cargar();
+  }
 
   cargar(): void {
     this.cargando.set(true);
-    this.svc.roadmap({
-      anio: this.anio ?? undefined,
-      tipo: this.tipo || undefined,
-      prioridad: this.prioridad || undefined,
-      texto: this.texto.trim() || undefined,
-    })
+    this.ahora.set(this.hoyCero());   // se refresca una vez por carga, no por evaluación
+    this.svc.roadmap(this.filtro)
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.cargando.set(false)))
       .subscribe({
         next: r => this.data.set(r),
         error: () => this.toast.error('No se pudo cargar el roadmap.'),
       });
   }
-
-  onFiltroChange(): void { this.cargar(); }
 
   abrirCaso(id: number): void { this.router.navigate(['/tickets', id]); }
 
@@ -143,7 +141,8 @@ export class RoadmapComponent implements OnInit {
       return this.barra(item.fechaInicioPlan, item.fechaFinPlan);
     }
     const inicio = new Date(item.createdAt);
-    const fin = item.fechaSolucion ? new Date(item.fechaSolucion) : new Date();
+    // Sin solución, la barra llega hasta HOY — el «hoy» congelado, no el reloj.
+    const fin = item.fechaSolucion ? new Date(item.fechaSolucion) : this.ahora();
     return this.barraEntre(inicio, fin);
   }
 
@@ -240,6 +239,13 @@ export class RoadmapComponent implements OnInit {
     const soloFecha = ymd.length > 10 ? ymd.slice(0, 10) : ymd;
     const [a, m, d] = soloFecha.split('-').map(Number);
     return new Date(a, (m ?? 1) - 1, d ?? 1);
+  }
+
+  /** Hoy a medianoche: el eje del roadmap trabaja en días, no en instantes. */
+  private hoyCero(): Date {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
   }
 
   iniciales(nombre: string | null): string {

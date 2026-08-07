@@ -1,38 +1,19 @@
 // src/app/features/tickets/pages/panel/panel.component.ts
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { TicketService } from '../../services/ticket.service';
+import { ESTADO_DOT, ESTADO_LABEL, EstadoTicket, TIPO_LABEL, TipoTicket } from '../../models/ticket.models';
 import {
-  ESTADOS_TICKET, ESTADO_DOT, ESTADO_LABEL, ResolutorAdminDto, TIPOS_TICKET, TIPO_LABEL,
-  EstadoTicket, TipoTicket,
-} from '../../models/ticket.models';
-import {
-  EstadoSla, PRIORIDADES, PRIORIDAD_ACENTO, PRIORIDAD_LABEL, PrioridadTicket,
-  SLA_LABEL, TicketIndicadores, TicketTableroFiltro,
+  PRIORIDAD_ACENTO, PRIORIDAD_LABEL, PrioridadTicket,
+  SLA_LABEL, TicketIndicadores, TicketReporte, TicketTableroFiltro,
 } from '../../models/ticket-tarea.models';
+import { TicketFiltrosComponent } from '../../components/ticket-filtros/ticket-filtros.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { exportarMultiHojaExcel, HojaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { fechaHoraCorta } from '../../../../shared/utils/format';
-import { environment } from '../../../../../environments/environment';
-
-interface PaisOpcion { paisId: number; paisNombre: string; }
-interface EmpresaOpcion { id: number; name: string; }
-
-/** Semáforos disponibles para filtrar. */
-const OPCIONES_SLA: { value: EstadoSla | ''; label: string }[] = [
-  { value: '',           label: 'Todos' },
-  { value: 'VENCIDO',    label: SLA_LABEL.VENCIDO },
-  { value: 'POR_VENCER', label: SLA_LABEL.POR_VENCER },
-  { value: 'EN_TIEMPO',  label: SLA_LABEL.EN_TIEMPO },
-  { value: 'CUMPLIDO',   label: SLA_LABEL.CUMPLIDO },
-  { value: 'INCUMPLIDO', label: SLA_LABEL.INCUMPLIDO },
-  { value: 'SIN_SLA',    label: SLA_LABEL.SIN_SLA },
-];
 
 /**
  * Panel de control del administrador: indicadores del conjunto filtrado (volumen, efectividad,
@@ -42,47 +23,27 @@ const OPCIONES_SLA: { value: EstadoSla | ''; label: string }[] = [
 @Component({
   selector: 'app-tickets-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, RouterLink, TicketFiltrosComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './panel.component.html',
 })
 export class PanelComponent implements OnInit {
   private readonly svc = inject(TicketService);
   private readonly toast = inject(ToastService);
-  private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly data = signal<TicketIndicadores | null>(null);
   readonly cargando = signal(false);
   readonly descargando = signal(false);
 
-  readonly estados = ESTADOS_TICKET;
   readonly estadoLabel = ESTADO_LABEL;
   readonly estadoDot = ESTADO_DOT;
-  readonly tipos = TIPOS_TICKET;
   readonly tipoLabel = TIPO_LABEL;
-  readonly prioridades = PRIORIDADES;
   readonly prioridadLabel = PRIORIDAD_LABEL;
   readonly prioridadAcento = PRIORIDAD_ACENTO;
-  readonly opcionesSla = OPCIONES_SLA;
 
-  // ── Filtros ──────────────────────────────────────────────────
-  /** Selección múltiple de países: vacío = todos. */
-  paisIds: number[] = [];
-  /** Selección múltiple de empresas: vacío = todas. */
-  companyIds: number[] = [];
-  tipo: TipoTicket | '' = '';
-  estado: EstadoTicket | '' = '';
-  prioridad: PrioridadTicket | '' = '';
-  estadoSla: EstadoSla | '' = '';
-  assignedToGuid = '';
-  texto = '';
-  desde = '';
-  hasta = '';
-
-  paises: PaisOpcion[] = [];
-  empresas: EmpresaOpcion[] = [];
-  resolutores: ResolutorAdminDto[] = [];
+  /** Último filtro emitido por la barra compartida. */
+  private filtroActual: TicketTableroFiltro = {};
 
   readonly resumen = computed(() => this.data()?.resumen ?? null);
 
@@ -94,45 +55,18 @@ export class PanelComponent implements OnInit {
   readonly maxPorEmpresa = computed(() =>
     Math.max(1, ...(this.data()?.porEmpresa ?? []).map(p => p.total)));
 
-  ngOnInit(): void {
-    this.cargarCatalogos();
+  // La carga inicial la dispara la barra de filtros con su primera emisión.
+  ngOnInit(): void { /* sin trabajo propio */ }
+
+  /** La barra compartida publica el filtro ya armado; acá solo se recarga. */
+  onFiltro(filtro: TicketTableroFiltro): void {
+    this.filtroActual = filtro;
     this.cargar();
-  }
-
-  private cargarCatalogos(): void {
-    this.http.get<PaisOpcion[]>(`${environment.apiUrl}/pais`)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: p => this.paises = p, error: () => {} });
-
-    // Ruta "global" (no "admin"): el WAF bloquea cualquier path con /admin.
-    this.http.get<EmpresaOpcion[]>(`${environment.apiUrl}/Company/global`)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: e => this.empresas = e ?? [], error: () => {} });
-
-    this.svc.getResolutoresAdmin()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: r => this.resolutores = r, error: () => {} });
-  }
-
-  /** Filtro vigente — el mismo objeto alimenta indicadores y reporte. */
-  private filtro(): TicketTableroFiltro {
-    return {
-      paisIds: this.paisIds.length ? this.paisIds : undefined,
-      companyIds: this.companyIds.length ? this.companyIds : undefined,
-      tipo: this.tipo || undefined,
-      estado: this.estado || undefined,
-      prioridad: this.prioridad || undefined,
-      estadoSla: this.estadoSla || undefined,
-      assignedToGuid: this.assignedToGuid || undefined,
-      texto: this.texto.trim() || undefined,
-      desde: this.desde || undefined,
-      hasta: this.hasta || undefined,
-    };
   }
 
   cargar(): void {
     this.cargando.set(true);
-    this.svc.indicadores(this.filtro())
+    this.svc.indicadores(this.filtroActual)
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.cargando.set(false)))
       .subscribe({
         next: d => this.data.set(d),
@@ -140,47 +74,11 @@ export class PanelComponent implements OnInit {
       });
   }
 
-  onFiltroChange(): void { this.cargar(); }
-
-  /** Marca/desmarca un país del multi-select. */
-  alternarPais(paisId: number): void {
-    this.paisIds = this.paisIds.includes(paisId)
-      ? this.paisIds.filter(p => p !== paisId)
-      : [...this.paisIds, paisId];
-    this.cargar();
-  }
-
-  paisSeleccionado(paisId: number): boolean { return this.paisIds.includes(paisId); }
-
-  /** Marca/desmarca una empresa del multi-select. */
-  alternarEmpresa(companyId: number): void {
-    this.companyIds = this.companyIds.includes(companyId)
-      ? this.companyIds.filter(c => c !== companyId)
-      : [...this.companyIds, companyId];
-    this.cargar();
-  }
-
-  empresaSeleccionada(companyId: number): boolean { return this.companyIds.includes(companyId); }
-
-  limpiarFiltros(): void {
-    this.paisIds = [];
-    this.companyIds = [];
-    this.tipo = '';
-    this.estado = '';
-    this.prioridad = '';
-    this.estadoSla = '';
-    this.assignedToGuid = '';
-    this.texto = '';
-    this.desde = '';
-    this.hasta = '';
-    this.cargar();
-  }
-
   // ── Descarga del reporte ─────────────────────────────────────
 
   descargarExcel(): void {
     this.descargando.set(true);
-    this.svc.reporte(this.filtro())
+    this.svc.reporte(this.filtroActual)
       .pipe(finalize(() => this.descargando.set(false)))
       .subscribe({
         next: r => {
@@ -199,7 +97,7 @@ export class PanelComponent implements OnInit {
   }
 
   /** Cinco hojas: indicadores, países, casos, tareas y tiempos. */
-  private armarHojas(r: import('../../models/ticket-tarea.models').TicketReporte): HojaExcel[] {
+  private armarHojas(r: TicketReporte): HojaExcel[] {
     const res = r.indicadores.resumen;
     const filtros = r.filtrosAplicados;
 

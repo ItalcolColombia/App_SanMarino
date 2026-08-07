@@ -1592,3 +1592,65 @@ revisarlo, *«también necesito filtrar por empresa»*.
 - [x] **Smoke UI**: chips de país y empresa filtran en vivo (19 → 13 casos con ItalcolEcuador, y la
       tabla queda con esa sola empresa); el `.xlsx` descargado trae las 6 hojas y dice
       «Empresas: ItalcolEcuador» en el encabezado. Cero desborde horizontal
+
+---
+
+# Tracker — Reconciliar el espejo `.sql` de `fn_indicadores_produccion_postura` + `uniformidad_guia` NULL
+
+**Plan:** [`fase_de_desarrollo/reconciliacion_espejo_fn_indicadores_produccion_plan.md`](fase_de_desarrollo/reconciliacion_espejo_fn_indicadores_produccion_plan.md)
+**Fecha:** 2026-08-07 · Continúa el handoff de postura (§2.1 «bomba de tiempo» + §2.2)
+**Bloque propio — no tocar desde otras sesiones** (hay una sesión de Tickets con trabajo abierto)
+
+## Fase 0 — Auditoría
+- [ ] A1 Migración vigente identificada + su constante comparada contra la definición VIVA
+- [ ] A2 Diff normalizado espejo vs viva: confirmar que el delta es SOLO el de `20260806093256`
+- [ ] A3 Confirmar que ningún otro `.sql` redefine la fn
+- [ ] A4 Auditar la cadena completa de `uniformidad_guia` (BdRow → Dec → DTO → front → Excel)
+- [ ] A5 Plan escrito
+
+## Fase 1 — Espejo reconciliado (sin cambio de comportamiento)
+- [ ] E1 `RETURNS TABLE` + `seleccion_machos`
+- [ ] E2 `DECLARE`: `v_cum_sel_m` + `r_sel_m` + venta/retiro/traslado H y M
+- [ ] E3 CTE `_seg` rama LPP y rama lote: `sel_m` + 8 columnas `mov_*`
+- [ ] E4 Agregación semanal: 9 `SUM` + 9 destinos del `INTO`
+- [ ] E5 Acumulado `v_cum_sel_m`, `retiro_sem_m`/`retiro_ac_m`/`r_aves_m_inicio` con selección de machos
+- [ ] E6 Decremento del saldo con ventas/retiros/traslados
+- [ ] E7 `seleccion_machos := r_sel_m;` en la emisión
+
+## Fase 2 — `uniformidad_guia` NULL (único cambio de comportamiento)
+- [ ] U1 Eliminar `g_unif := COALESCE(g_unif, 0);` dejando el porqué documentado
+- [ ] U2 Migración `CREATE OR REPLACE` (la firma NO cambia) + `Down()` verbatim + Designer clonado
+- [ ] U3 Comentario del front actualizado (el guard defensivo se conserva)
+
+## Fase 3 — Gate de fn compartida (§5 del handoff)
+- [ ] G1 Desplegar la reconciliada como `..._V1` en paralelo
+- [ ] G2 `EXCEPT` en los dos sentidos, TODAS las empresas × 53 semanas × ambos flujos
+- [ ] G3 Aislar la columna culpable (conteo por cada una de las 69)
+- [ ] G4 `uniformidad_guia` la única distinta y siempre `0 → NULL`; `diferencia_uniformidad` 0 diffs
+- [ ] G5 La fn reconciliada devuelve 69 columnas con `seleccion_machos` en la posición 15
+- [ ] G6 `dotnet build` · `dotnet test` · `yarn build`
+- [ ] G7 Verificación por pantalla del tab Indicadores de producción
+- [ ] G8 Sin procesos huérfanos · commit acotado (sin footer de atribución)
+
+### Filtros compartidos en tablero, roadmap y panel (2026-08-07)
+Pedido: *«en el Roadmap y Tablero de casos tengo los filtros, también hasta por empresa»*.
+
+- [x] `components/ticket-filtros` — **una sola barra** para las tres vistas. Cada página deja de
+      tener su propio estado de filtro: la barra emite el `TicketTableroFiltro` ya armado y la
+      página solo recarga. Se borraron los filtros duplicados de tablero, roadmap y panel
+- [x] Diseño: línea siempre visible (buscar, año, tipo, prioridad) + botón «Más filtros» que
+      despliega países, empresas, rango de fechas, estado, SLA y responsable. El botón lleva el
+      **contador de filtros activos** para que no quede un recorte escondido; el año no cuenta
+      porque siempre hay uno puesto
+- [x] `[ocultarEstado]` en el tablero: ahí el estado ES la columna, filtrarlo vaciaría las demás.
+      `[expandidoInicial]` para que el panel abra con todo desplegado
+- [x] 🔴 **Dos bugs de change detection cazados en el pase**:
+      1. El contador de filtros era un `computed` sobre campos mutables (no señales) ⇒ se quedaba
+         con el valor viejo. Pasó a método.
+      2. **El roadmap tiraba NG0100 en cada ciclo**: las barras del gantt llamaban `new Date()` en
+         cada evaluación, así que dos pasadas de detección daban anchos distintos por microsegundos
+         (`44.00185402199074` vs `44.00185420283565`). Ahora el «ahora» se congela en un signal que
+         se refresca **una vez por carga**
+- [x] Verificado en pantalla: tablero 19 → 13 (ItalcolEcuador) → 11 (+ Ecuador), badge 1 y 2, y
+      «Limpiar» vuelve a 19; roadmap 20 → 14 filas; panel 19 → 13 con la tabla en esa sola empresa.
+      **Cero errores de consola** navegando entre las tres. `yarn build` 0 errores

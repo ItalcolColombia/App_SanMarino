@@ -79,66 +79,15 @@
     }
   </header>
 
-  <!-- ── Filtros ── -->
+  <!-- ── Filtros (barra compartida con roadmap y panel) ── -->
   <div class="shrink-0 border-b border-slate-200 bg-white/70 px-4 py-2.5 sm:px-6">
-    <div class="flex flex-wrap items-end gap-2">
-      <div class="min-w-[180px] flex-1">
-        <label for="tb-texto" class="mb-1 block text-[11px] font-semibold text-slate-600">Buscar</label>
-        <input id="tb-texto" type="search" [(ngModel)]="texto" (keyup.enter)="onFiltroChange()"
-               placeholder="Código, título o descripción…"
-               class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
-      </div>
-      <div>
-        <label for="tb-anio" class="mb-1 block text-[11px] font-semibold text-slate-600">Año</label>
-        <select id="tb-anio" [(ngModel)]="anio" (ngModelChange)="onFiltroChange()"
-                class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
-          <option [ngValue]="null">Todos</option>
-          @for (a of anios; track a) { <option [ngValue]="a">{{ a }}</option> }
-        </select>
-      </div>
-      <div>
-        <label for="tb-tipo" class="mb-1 block text-[11px] font-semibold text-slate-600">Tipo</label>
-        <select id="tb-tipo" [(ngModel)]="tipo" (ngModelChange)="onFiltroChange()"
-                class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
-          <option value="">Todos</option>
-          @for (t of tipos; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
-        </select>
-      </div>
-      <div>
-        <label for="tb-prio" class="mb-1 block text-[11px] font-semibold text-slate-600">Prioridad</label>
-        <select id="tb-prio" [(ngModel)]="prioridad" (ngModelChange)="onFiltroChange()"
-                class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
-          <option value="">Todas</option>
-          @for (p of prioridades; track p) { <option [value]="p">{{ prioridadLabel[p] }}</option> }
-        </select>
-      </div>
-      <div>
-        <label for="tb-pais" class="mb-1 block text-[11px] font-semibold text-slate-600">País</label>
-        <select id="tb-pais" [(ngModel)]="paisId" (ngModelChange)="onFiltroChange()"
-                class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
-          <option [ngValue]="null">Todos</option>
-          @for (p of paises; track p.paisId) { <option [ngValue]="p.paisId">{{ p.paisNombre }}</option> }
-        </select>
-      </div>
-      <div>
-        <label for="tb-resol" class="mb-1 block text-[11px] font-semibold text-slate-600">Responsable</label>
-        <select id="tb-resol" [(ngModel)]="assignedToGuid" (ngModelChange)="onFiltroChange()"
-                class="max-w-[180px] rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
-          <option value="">Todos</option>
-          @for (r of resolutores; track r.guid) { <option [value]="r.guid">{{ r.nombre }}</option> }
-        </select>
-      </div>
-      <button type="button" (click)="limpiarFiltros()"
-              class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100">
-        Limpiar
-      </button>
-      @if (cargando() || moviendo()) {
-        <span class="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-ital-muted">
-          <span class="h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
-          {{ moviendo() ? 'Guardando…' : 'Cargando…' }}
-        </span>
-      }
-    </div>
+    <app-ticket-filtros [ocultarEstado]="true" (cambio)="onFiltro($event)" />
+    @if (cargando() || moviendo()) {
+      <p class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-medium text-ital-muted">
+        <span class="h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+        {{ moviendo() ? 'Guardando…' : 'Cargando…' }}
+      </p>
+    }
   </div>
 
   <!-- ── Tablero ── -->
