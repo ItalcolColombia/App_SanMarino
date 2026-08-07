@@ -2117,3 +2117,30 @@ dos defectos laterales que aparecieron al diagnosticarlo.
 - [x] Sin procesos huérfanos (no se levantó servidor propio: otra sesión tiene el back/front corriendo)
 - [ ] Verificación visual del combo en el navegador — pendiente: el dev server de este repo lo ocupa otra sesión
 - [x] Commit acotado `226a5a4` (sin footer de atribución)
+
+---
+
+# Gastos de inventario — elegir el rango de fechas del consumo (tabla + Excel)
+📄 Plan: [gastos_inventario_rango_fechas_plan.md](fase_de_desarrollo/gastos_inventario_rango_fechas_plan.md)
+
+Pedido: «al momento de descargar pueda elegir de qué fecha hasta qué fecha necesito el consumo de
+productos, para así no tener que bajar todos los consumos realizados». Backend y BD **no se tocan**:
+`search`, `export` y `existencias` ya aceptan `fechaDesde`/`fechaHasta` — la UI nunca los enviaba.
+
+## Diagnóstico
+- [ ] Confirmado: los 3 endpoints ya filtran por rango; `buildParams` del servicio ya los serializa
+- [ ] Confirmado: `FiltrosReporteGastos.fechaDesde/Hasta` ya existían y `describirFiltros` ya los imprime
+- [ ] Confirmado: `inventario_gasto.fecha` es columna `date` ⇒ sin corrimiento de zona, filtro inclusivo
+
+## Frontend
+- [ ] `funciones/rango-fechas-gastos.funcion.ts` (PURA): presets, validación y sufijo de archivo
+- [ ] `funciones/exportar-...-excel.funcion.ts`: rango en el nombre del archivo + subtítulo de Existencias
+- [ ] Página: estado `fechaDesde`/`fechaHasta`, propagación a `refresh()` / `exportExcel()` / `limpiarFiltros()`
+- [ ] HTML: campos Desde/Hasta + atajos + aviso de rango inválido · SCSS de los chips
+- [ ] `funciones/README.md`: índice actualizado
+
+## Validación
+- [ ] `cd frontend && yarn build` (0 errores)
+- [ ] Smoke en pantalla: rango aplicado ⇒ tabla acotada y Excel con las mismas filas
+- [ ] Sin rango ⇒ comportamiento idéntico al actual (nombre de archivo incluido)
+- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)

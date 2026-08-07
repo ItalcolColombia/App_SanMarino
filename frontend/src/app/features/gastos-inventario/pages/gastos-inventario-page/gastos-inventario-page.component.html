@@ -53,6 +53,26 @@
       </app-filtro-select>
       <div class="modal-row">
         <div class="ux-field">
+          <label for="gastos-fecha-desde">Desde</label>
+          <input
+            id="gastos-fecha-desde"
+            type="date"
+            [(ngModel)]="fechaDesde"
+            (change)="onRangoChange()"
+            [disabled]="loading"
+            [class.input--error]="!!rangoError" />
+        </div>
+        <div class="ux-field">
+          <label for="gastos-fecha-hasta">Hasta</label>
+          <input
+            id="gastos-fecha-hasta"
+            type="date"
+            [(ngModel)]="fechaHasta"
+            (change)="onRangoChange()"
+            [disabled]="loading"
+            [class.input--error]="!!rangoError" />
+        </div>
+        <div class="ux-field">
           <label>Estado</label>
           <select [(ngModel)]="selectedEstado" (change)="refresh()" [disabled]="loading">
             <option value="Activo">Activos</option>
@@ -61,10 +81,41 @@
           </select>
         </div>
       </div>
+
+      <div class="rango-presets">
+        <span class="rango-presets__label">Rango rápido:</span>
+        @for (p of presetsRango; track p.preset) {
+          <button type="button" class="rango-chip" (click)="aplicarPresetRango(p.preset)" [disabled]="loading">
+            {{ p.label }}
+          </button>
+        }
+        <button
+          type="button"
+          class="rango-chip rango-chip--reset"
+          (click)="limpiarRango()"
+          [disabled]="loading || !rangoActivo">
+          Todo el histórico
+        </button>
+        <span class="rango-presets__estado" [class.rango-presets__estado--on]="rangoActivo">
+          @if (rangoActivo) {
+            Período: {{ fechaDesde || 'inicio' }} → {{ fechaHasta || 'hoy' }}
+          } @else {
+            Sin rango: se consulta y descarga TODO el histórico
+          }
+        </span>
+      </div>
+
+      @if (rangoError) {
+        <p class="hint hint--error">{{ rangoError }}</p>
+      }
+
       <p class="hint">
-        El reporte Excel exporta <strong>solo los consumos activos</strong>: al eliminar un gasto su stock
-        vuelve al inventario, así que ya no es consumo. Además incluye una hoja
-        <strong>Existencias</strong> con todo el catálogo, haya tenido consumo o no.
+        El rango <strong>Desde/Hasta</strong> (ambos días incluidos) acota por igual la tabla y el Excel:
+        lo que ve en pantalla es exactamente lo que descarga. El reporte exporta
+        <strong>solo los consumos activos</strong>: al eliminar un gasto su stock vuelve al inventario, así
+        que ya no es consumo. Además incluye una hoja <strong>Existencias</strong> con todo el catálogo, haya
+        tenido consumo o no (su <em>saldo actual</em> es el de hoy; lo <em>consumido en el rango</em> sí
+        respeta las fechas elegidas).
       </p>
     </div>
   </section>
@@ -78,9 +129,14 @@
 
   @if (!loading) {
     <section class="ux-card">
-      <div class="ux-card__header">
+      <div class="ux-card__header ux-card__header--row">
         <h2>Registros</h2>
-        <span class="ux-muted">{{ list.length }} registro(s)</span>
+        <span class="ux-muted">
+          {{ list.length }} registro(s)
+          @if (rangoActivo) {
+            · {{ fechaDesde || 'inicio' }} → {{ fechaHasta || 'hoy' }}
+          }
+        </span>
       </div>
       <div class="ux-card__body ux-scroll">
         <table class="ux-table">

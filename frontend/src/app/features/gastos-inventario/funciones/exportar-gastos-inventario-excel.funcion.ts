@@ -21,6 +21,7 @@ import {
   InventarioGastoExistenciaDto,
   InventarioGastoExportRowDto
 } from '../models/inventario-gasto.model';
+import { sufijoArchivoRango } from './rango-fechas-gastos.funcion';
 
 /** Filtros aplicados, para dejarlos escritos como subtítulo del reporte. */
 export interface FiltrosReporteGastos {
@@ -126,6 +127,23 @@ export function construirFilasExistencias(rows: InventarioGastoExistenciaDto[]):
   ]);
 }
 
+/**
+ * Aclara, en la hoja de Existencias, a qué período corresponde la columna «Consumido en el rango».
+ * Sin rango es el histórico completo (comportamiento previo a que la pantalla ofreciera el filtro).
+ */
+export function leyendaRangoExistencias(f: FiltrosReporteGastos): string {
+  const desde = (f.fechaDesde ?? '').trim();
+  const hasta = (f.fechaHasta ?? '').trim();
+  const periodo = desde && hasta
+    ? `del ${desde} al ${hasta}`
+    : desde
+      ? `desde el ${desde}`
+      : hasta
+        ? `hasta el ${hasta}`
+        : 'de TODO el histórico';
+  return `«Consumido en el rango» y «Gastos en el rango» corresponden a los consumos ${periodo}; «Saldo actual» es el stock a la fecha de descarga.`;
+}
+
 /** Arma las dos hojas del reporte (pura: sin descargar; testeable). */
 export function construirHojasReporteGastos(
   consumos: InventarioGastoExportRowDto[],
@@ -146,12 +164,22 @@ export function construirHojasReporteGastos(
       title: 'Gastos de inventario — Existencias por concepto',
       subtitles: [
         filtrosTxt,
-        'Incluye TODOS los ítems del catálogo (no solo los que tuvieron consumo). Saldo actual a la fecha de descarga.'
+        'Incluye TODOS los ítems del catálogo (no solo los que tuvieron consumo).',
+        leyendaRangoExistencias(filtros)
       ],
       headers: HEADERS_EXISTENCIAS,
       rows: construirFilasExistencias(existencias)
     }
   ];
+}
+
+/**
+ * Nombre base del archivo. Lleva el rango pedido para que dos descargas de períodos distintos no se
+ * pisen (el sello `_YYYYMMDD` del helper compartido es el día de la descarga, no el del rango).
+ * Sin rango queda `gastos-inventario`, exactamente como antes.
+ */
+export function nombreBaseReporteGastos(f: FiltrosReporteGastos): string {
+  return `gastos-inventario${sufijoArchivoRango(f.fechaDesde, f.fechaHasta)}`;
 }
 
 /** Arma y descarga el `.xlsx` de dos hojas del módulo. */
@@ -161,6 +189,6 @@ export function exportarGastosInventarioExcel(
   filtros: FiltrosReporteGastos
 ): void {
   exportarMultiHojaExcel(construirHojasReporteGastos(consumos, existencias, filtros), {
-    filenameBase: 'gastos-inventario'
+    filenameBase: nombreBaseReporteGastos(filtros)
   });
 }

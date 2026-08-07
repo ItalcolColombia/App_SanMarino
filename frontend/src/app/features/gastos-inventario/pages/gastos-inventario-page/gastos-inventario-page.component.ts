@@ -8,6 +8,12 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { exportarGastosInventarioExcel } from '../../funciones/exportar-gastos-inventario-excel.funcion';
 import {
+  PRESETS_RANGO_GASTOS,
+  RangoPresetGastos,
+  calcularRangoPreset,
+  validarRangoFechas
+} from '../../funciones/rango-fechas-gastos.funcion';
+import {
   CreateInventarioGastoRequest,
   EstadoGastoFiltro,
   InventarioGastoItemStockDto,
@@ -45,6 +51,17 @@ export class GastosInventarioPageComponent implements OnInit {
    * el historial de eliminados por pantalla — el reporte Excel los excluye siempre.
    */
   selectedEstado: EstadoGastoFiltro = 'Activo';
+
+  /**
+   * Rango de fechas del consumo (`yyyy-MM-dd`, ambos extremos inclusivos). Vacío = **todos** los
+   * consumos, que es el comportamiento histórico del módulo. Acota por igual la tabla y las dos
+   * hojas del Excel: lo que el usuario ve en pantalla es exactamente lo que descarga.
+   */
+  fechaDesde: string | null = null;
+  fechaHasta: string | null = null;
+
+  /** Atajos de rango ofrecidos en la tarjeta de filtros (referencia estable para el template). */
+  readonly presetsRango = PRESETS_RANGO_GASTOS;
 
   conceptos: string[] = [];
   list: InventarioGastoListItemDto[] = [];
@@ -110,7 +127,48 @@ export class GastosInventarioPageComponent implements OnInit {
     }
   }
 
+  /** Mensaje del rango de fechas cuando es inconsistente; `null` si se puede consultar. */
+  get rangoError(): string | null {
+    return validarRangoFechas(this.fechaDesde, this.fechaHasta);
+  }
+
+  /** ¿Hay rango puesto? (para el badge/atajo «Todo el histórico» del template). */
+  get rangoActivo(): boolean {
+    return !!(this.fechaDesde || this.fechaHasta);
+  }
+
+  /** Cambio en Desde/Hasta: con rango válido recarga; con rango inválido deja el aviso y NO consulta. */
+  onRangoChange(): void {
+    const err = this.rangoError;
+    if (err) {
+      this.error = err;
+      return;
+    }
+    this.error = null;
+    void this.refresh();
+  }
+
+  /** Aplica un atajo de rango (Este mes, Mes anterior, …) y recarga la tabla. */
+  aplicarPresetRango(preset: RangoPresetGastos): void {
+    const rango = calcularRangoPreset(preset, new Date());
+    this.fechaDesde = rango.desde;
+    this.fechaHasta = rango.hasta;
+    this.onRangoChange();
+  }
+
+  /** Quita el rango (vuelve a todo el histórico) y recarga. */
+  limpiarRango(): void {
+    this.fechaDesde = null;
+    this.fechaHasta = null;
+    this.onRangoChange();
+  }
+
   async refresh(): Promise<void> {
+    const rangoErr = this.rangoError;
+    if (rangoErr) {
+      this.error = rangoErr;
+      return;
+    }
     this.loading = true;
     this.error = null;
     try {
@@ -120,6 +178,8 @@ export class GastosInventarioPageComponent implements OnInit {
           nucleoId: this.selectedNucleoId ?? undefined,
           galponId: this.selectedGalponId ?? undefined,
           loteAveEngordeId: this.selectedLoteId ?? undefined,
+          fechaDesde: this.fechaDesde ?? undefined,
+          fechaHasta: this.fechaHasta ?? undefined,
           estado: this.selectedEstado || undefined
         })
       );
@@ -206,13 +266,15 @@ export class GastosInventarioPageComponent implements OnInit {
     await this.eliminar(row);
   }
 
-  /** Limpia los filtros (granja/corrida/estado) y recarga. El estado vuelve a «Activos». */
+  /** Limpia los filtros (granja/corrida/estado/rango) y recarga. El estado vuelve a «Activos». */
   limpiarFiltros(): void {
     this.selectedFarmId = null;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.selectedEstado = 'Activo';
+    this.fechaDesde = null;
+    this.fechaHasta = null;
     this.refresh();
   }
 
@@ -348,9 +410,19 @@ export class GastosInventarioPageComponent implements OnInit {
    * Descarga el reporte `.xlsx` de dos hojas: **Consumos** (sin eliminados — el backend los excluye)
    * y **Existencias** (todo el catálogo, tenga o no consumo). Las dos consultas van en paralelo y el
    * armado del libro lo hace la función pura de `funciones/`.
+   *
+   * El **rango de fechas de la pantalla viaja a las dos hojas**: la de Consumos trae solo las líneas
+   * del período y la de Existencias acota «Consumido en el rango» al mismo período (el saldo actual
+   * sigue siendo el de hoy). Sin rango, se descarga todo el histórico como siempre.
    */
   async exportExcel(): Promise<void> {
     if (this.exporting) return;
+    const rangoErr = this.rangoError;
+    if (rangoErr) {
+      this.error = rangoErr;
+      this.toast.error(rangoErr, 'Exportar');
+      return;
+    }
     this.exporting = true;
     this.error = null;
     try {
@@ -358,21 +430,32 @@ export class GastosInventarioPageComponent implements OnInit {
         farmId: this.selectedFarmId ?? undefined,
         nucleoId: this.selectedNucleoId ?? undefined,
         galponId: this.selectedGalponId ?? undefined,
-        loteAveEngordeId: this.selectedLoteId ?? undefined
+        loteAveEngordeId: this.selectedLoteId ?? undefined,
+        fechaDesde: this.fechaDesde ?? undefined,
+        fechaHasta: this.fechaHasta ?? undefined
       };
       const [consumos, existencias] = await Promise.all([
         firstValueFrom(this.api.export(filtrosComunes)),
-        firstValueFrom(this.api.existencias({ farmId: this.selectedFarmId ?? undefined }))
+        firstValueFrom(this.api.existencias({
+          farmId: this.selectedFarmId ?? undefined,
+          fechaDesde: this.fechaDesde ?? undefined,
+          fechaHasta: this.fechaHasta ?? undefined
+        }))
       ]);
 
       exportarGastosInventarioExcel(consumos ?? [], existencias ?? [], {
         granjaNombre: this.selectedFarmId ? (consumos?.[0]?.granjaNombre ?? existencias?.[0]?.granjaNombre ?? null) : null,
         nucleoNombre: this.selectedNucleoId,
         galponNombre: this.selectedGalponId,
-        loteNombre: this.list.find(r => r.loteAveEngordeId === this.selectedLoteId)?.loteNombre ?? null
+        loteNombre: this.list.find(r => r.loteAveEngordeId === this.selectedLoteId)?.loteNombre ?? null,
+        fechaDesde: this.fechaDesde,
+        fechaHasta: this.fechaHasta
       });
+      const periodo = this.rangoActivo
+        ? ` (${this.fechaDesde || 'inicio'} a ${this.fechaHasta || 'hoy'})`
+        : ' (todo el histórico)';
       this.toast.success(
-        `Se exportaron ${consumos?.length ?? 0} consumo(s) y ${existencias?.length ?? 0} existencia(s).`,
+        `Se exportaron ${consumos?.length ?? 0} consumo(s) y ${existencias?.length ?? 0} existencia(s)${periodo}.`,
         'Exportar'
       );
     } catch (e: any) {
