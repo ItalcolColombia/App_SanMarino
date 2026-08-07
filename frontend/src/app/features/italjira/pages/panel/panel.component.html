@@ -1,4 +1,4 @@
-<!-- src/app/features/tickets/pages/panel/panel.component.html -->
+<!-- src/app/features/italjira/pages/panel/panel.component.html -->
 <div class="min-h-full bg-ital-cream">
   <div class="mx-auto max-w-[1700px] px-4 py-5 sm:px-6 sm:py-7">
 
@@ -15,11 +15,11 @@
       </div>
 
       <nav class="ml-auto flex flex-wrap items-center gap-1.5">
-        <a routerLink="/tickets/tablero"
+        <a routerLink="/italjira/tablero"
            class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Tablero</a>
-        <a routerLink="/tickets/roadmap"
+        <a routerLink="/italjira/roadmap"
            class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Roadmap</a>
-        <a routerLink="/tickets/admin"
+        <a routerLink="/italjira/configuracion"
            class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Lista</a>
         <button type="button" (click)="descargarExcel()" [disabled]="descargando() || cargando()"
                 class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-ital-green to-ital-green-dark px-3 py-1.5 text-xs font-semibold text-white shadow transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60">

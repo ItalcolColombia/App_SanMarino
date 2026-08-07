@@ -71,6 +71,7 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         b.Property(x => x.FechaLimite).HasColumnName("fecha_limite");
         b.Property(x => x.FechaInicioPlan).HasColumnName("fecha_inicio_plan");
         b.Property(x => x.FechaFinPlan).HasColumnName("fecha_fin_plan");
+        b.Property(x => x.HistoriaId).HasColumnName("historia_id");
 
         // Relaciones (cascada hacia imágenes y notas)
         b.HasMany(x => x.Imagenes)
@@ -105,5 +106,6 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         b.HasIndex(x => x.Codigo).HasDatabaseName("ix_tickets_codigo");
         b.HasIndex(x => x.SolicitanteUserId).HasDatabaseName("ix_tickets_solicitante_user_id");
         b.HasIndex(x => x.Prioridad).HasDatabaseName("ix_tickets_prioridad");
+        b.HasIndex(x => x.HistoriaId).HasDatabaseName("ix_tickets_historia_id");
     }
 }

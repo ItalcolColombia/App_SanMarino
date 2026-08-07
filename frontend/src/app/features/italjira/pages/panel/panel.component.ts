@@ -1,16 +1,16 @@
-// src/app/features/tickets/pages/panel/panel.component.ts
+// src/app/features/italjira/pages/panel/panel.component.ts
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
-import { TicketService } from '../../services/ticket.service';
-import { ESTADO_DOT, ESTADO_LABEL, EstadoTicket, TIPO_LABEL, TipoTicket } from '../../models/ticket.models';
+import { TicketService } from '../../../tickets/services/ticket.service';
+import { ESTADO_DOT, ESTADO_LABEL, EstadoTicket, TIPO_LABEL, TipoTicket } from '../../../tickets/models/ticket.models';
 import {
   PRIORIDAD_ACENTO, PRIORIDAD_LABEL, PrioridadTicket,
   SLA_LABEL, TicketIndicadores, TicketReporte, TicketTableroFiltro,
-} from '../../models/ticket-tarea.models';
-import { TicketFiltrosComponent } from '../../components/ticket-filtros/ticket-filtros.component';
+} from '../../../tickets/models/ticket-tarea.models';
+import { TicketFiltrosComponent } from '../../../tickets/components/ticket-filtros/ticket-filtros.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { exportarMultiHojaExcel, HojaExcel } from '../../../../shared/utils/excel/exportar-tabla-excel.funcion';
 import { fechaHoraCorta } from '../../../../shared/utils/format';

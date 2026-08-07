@@ -378,6 +378,8 @@ builder.Services.AddScoped<ILesionService, LesionService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<ITicketPerfilService, TicketPerfilService>();
 builder.Services.AddScoped<ITicketTareaService, TicketTareaService>();
+// ItalJira — historias (épicas) del área de desarrollo
+builder.Services.AddScoped<IHistoriaService, HistoriaService>();
 
 // PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
 builder.Services.AddScoped<IServiceTokenService, ServiceTokenService>();

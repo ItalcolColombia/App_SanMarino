@@ -152,17 +152,28 @@ public partial class TicketTareaService : ITicketTareaService
     /// Proyecta las tareas vivas del caso con sus horas registradas y su cantidad de subtareas.
     /// Las sumas y los conteos se resuelven como subconsultas agregadas en la BD.
     /// </summary>
-    private async Task<List<TicketTareaDto>> ProyectarTareasAsync(long ticketId, CancellationToken ct)
+    private Task<List<TicketTareaDto>> ProyectarTareasAsync(long ticketId, CancellationToken ct) =>
+        ProyectarTareasAsync(_ctx.TicketTareas.AsNoTracking().Where(t => t.TicketId == ticketId), ct);
+
+    /// <summary>
+    /// Proyección ÚNICA de tareas a DTO — la comparten el panel del caso y las vistas de ItalJira.
+    /// Recibe el universo ya filtrado (por caso, por historia o sueltas) y agrega el filtro de
+    /// vivas + el orden del tablero. Tenerla en un solo lugar evita que las dos vistas calculen
+    /// las horas o las subtareas con criterios distintos.
+    /// </summary>
+    private async Task<List<TicketTareaDto>> ProyectarTareasAsync(
+        IQueryable<TicketTarea> universo, CancellationToken ct)
     {
-        var rows = await _ctx.TicketTareas.AsNoTracking()
-            .Where(t => t.TicketId == ticketId && t.DeletedAt == null)
+        var rows = await universo
+            .Where(t => t.DeletedAt == null)
             .OrderBy(t => t.Estado).ThenBy(t => t.Orden).ThenBy(t => t.Id)
             .Select(t => new
             {
-                t.Id, t.TicketId, t.Codigo, t.Tipo, t.Estado, t.Prioridad, t.Titulo, t.Descripcion,
+                t.Id, t.TicketId, t.HistoriaId, t.Codigo, t.Tipo, t.Estado, t.Prioridad, t.Titulo, t.Descripcion,
                 t.AsignadoUserGuid, t.ParentTareaId, t.Orden, t.HorasEstimadas,
                 t.FechaInicioPlan, t.FechaFinPlan, t.FechaInicioReal, t.FechaFinReal,
                 t.Etiquetas, t.CreatedAt, t.CreatedByUserId,
+                CodigoCaso = t.Ticket != null ? t.Ticket.Codigo : null,
                 HorasRegistradas = t.Tiempos.Where(w => w.DeletedAt == null).Sum(w => (decimal?)w.Horas) ?? 0m,
                 Subtareas = _ctx.TicketTareas.Count(s => s.ParentTareaId == t.Id && s.DeletedAt == null)
             })
@@ -179,7 +190,7 @@ public partial class TicketTareaService : ITicketTareaService
             r.ParentTareaId, r.Orden, r.HorasEstimadas, r.HorasRegistradas,
             r.FechaInicioPlan, r.FechaFinPlan, r.FechaInicioReal, r.FechaFinReal,
             r.Etiquetas, r.CreatedAt, autores.GetValueOrDefault(r.CreatedByUserId),
-            r.Subtareas)).ToList();
+            r.Subtareas, r.HistoriaId, r.CodigoCaso)).ToList();
     }
 
     // ───────────────────────────── CREAR ─────────────────────────────

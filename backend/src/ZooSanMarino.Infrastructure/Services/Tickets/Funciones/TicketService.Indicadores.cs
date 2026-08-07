@@ -179,7 +179,7 @@ public partial class TicketService
         if (ticketIds.Count == 0) return new List<TicketReporteTareaDto>();
 
         var rows = await _ctx.TicketTareas.AsNoTracking()
-            .Where(t => ticketIds.Contains(t.TicketId) && t.DeletedAt == null)
+            .Where(t => t.TicketId != null && ticketIds.Contains(t.TicketId.Value) && t.DeletedAt == null)
             .OrderBy(t => t.TicketId).ThenBy(t => t.Id)
             .Take(MaxFilasReporte)
             .Select(t => new
@@ -210,7 +210,7 @@ public partial class TicketService
         if (ticketIds.Count == 0) return new List<TicketReporteTiempoDto>();
 
         var rows = await _ctx.TicketTiempos.AsNoTracking()
-            .Where(w => ticketIds.Contains(w.TicketId) && w.DeletedAt == null)
+            .Where(w => w.TicketId != null && ticketIds.Contains(w.TicketId.Value) && w.DeletedAt == null)
             .OrderByDescending(w => w.Fecha).ThenBy(w => w.Id)
             .Take(MaxFilasReporte)
             .Select(w => new

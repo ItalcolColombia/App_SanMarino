@@ -1788,41 +1788,98 @@ sembrar por migración el histórico REAL de lo ya desarrollado, asignado a `moi
 - [x] Plan escrito con el DDL, las reglas de negocio y los casos de prueba
 - [x] Decisiones D1/D2/D3 confirmadas por el usuario
 
-## Fase 1 — Backend: datos
-- [ ] Entidad `Historia` + `HistoriaEstados`
-- [ ] `TicketTarea.TicketId` a `long?` + `HistoriaId` · `Ticket.HistoriaId` · `TicketTiempo.TicketId` a `long?`
-- [ ] `HistoriaConfiguration` + ajustes en las 3 configurations existentes + `DbSet` en el context
-- [ ] Migración M1 `AddHistoriasItalJira` (DDL idempotente + CHECK de no-huérfana) aplicada en local
+### Resultado (07-ago-2026)
 
-## Fase 2 — Backend: lógica
-- [ ] `Application/Calculos/HistoriaCalculos.cs` (puro) + tests xUnit
-- [ ] `HistoriaDtos` + `IHistoriaService` + `HistoriaService` (ancla + `Funciones/Backlog`)
-- [ ] `TicketTareaService.Historias.cs` (partial: tareas por historia y sueltas)
-- [ ] `HistoriasController` + DI en `Program.cs`
+## Fase 1 — Backend: datos ✔
+- [x] Entidad `Historia` + `HistoriaEstados` (alias explícito de `TicketTareaEstados`: un solo vocabulario en los dos niveles del tablero)
+- [x] `TicketTarea.TicketId` a `long?` + `HistoriaId` · `Ticket.HistoriaId` · `TicketTiempo.TicketId` a `long?`
+- [x] Blast radius del nullable: **solo 5 sitios** (2 proyecciones a DTO + 3 `Contains` en LINQ), todos ajustados con `!= null && …Value`
+- [x] `HistoriaConfiguration` (FK `ON DELETE SET NULL`) + 3 configurations existentes + `DbSet<Historia>`
+- [x] Migración M1 `20260807075318_AddHistoriasItalJira` idempotente, aplicada en local
+- [x] ⚠️ EF arrastró al ModelSnapshot `seguimiento_diario_levante.venta_aves_hembras/machos` de OTRA sesión
+      (`20260806235000` las creó por SQL dejando el snapshot atrás **a propósito**). Se **excluyeron
+      del Up/Down** de M1 (ya existen en la BD) y se conservó la actualización del snapshot: es
+      exactamente la reconciliación que esa migración anticipaba en su comentario
 
-## Fase 3 — Menús
-- [ ] Migración M2 `MenusItalJiraFueraDeTickets` (UPDATE en sitio conserva role_menus/company_menus)
-- [ ] Verificado en BD local: ItalJira con sus items, Tickets con 2
+## Fase 2 — Backend: lógica ✔
+- [x] `Application/Calculos/HistoriaCalculos.cs` — código correlativo, normalización, sellado de fechas
+      (DELEGA en `TicketTareaCalculos`, no lo copia), avance, conteo, rango de roadmap y traducción
+      `EstadoTrabajoDeCaso` (las 9 fases del caso al vocabulario de tareas)
+- [x] **48 tests xUnit** nuevos (`HistoriaCalculosTests`), incluido el que impide duplicar `Reordenar`
+- [x] `HistoriaDtos` (12 records) + `IHistoriaService` + `HistoriaService` (ancla + `Funciones/Backlog`)
+- [x] `TicketTareaService.Historias.cs` — partial del MISMO servicio: `ticket_tareas` conserva un
+      único escritor, y las dos vistas comparten proyección, reordenamiento y reglas de fecha
+- [x] `ProyectarTareasAsync` generalizada a `IQueryable<TicketTarea>`: una sola fórmula para el panel
+      del caso y para ItalJira
+- [x] `ItalJiraController` (`/api/italjira`, 17 endpoints) + DI en `Program.cs`
+- [x] Alcance: ItalJira **no filtra por empresa** (espeja la bandeja de gestión de tickets); la puerta
+      es el permiso `tickets.gestionar` / `tickets.admin`, ya configurado en los roles
 
-## Fase 4 — Frontend
-- [ ] Feature `features/italjira/` (routes, models, service, funciones)
-- [ ] Páginas mudadas: tablero, roadmap, panel, configuración, mis asignados
-- [ ] Página nueva **Backlog** (árbol historia → tarea → subtarea + bandeja «Sin historia»)
-- [ ] Redirects desde las rutas viejas de tickets + ruta lazy en `app.config.ts`
-- [ ] `changeDetection: Eager` explícito en TODO componente nuevo
+## Fase 3 — Menús ✔
+- [x] Migración M2 `20260807150000_MenusItalJiraFueraDeTickets`: grupo `italjira` + **UPDATE EN SITIO**
+      de las 4 vistas (conserva `role_menus`/`company_menus`/`menu_permissions` porque referencian
+      `menu_id`) + menú nuevo `italjira.backlog` heredado de quien ya ve el Tablero
+- [x] `tickets.admin` pasa a `italjira.configuracion`: la ruta deja de contener `admin` (AWS WAF)
+- [x] Verificado en BD: Tickets con 2 items · ItalJira con 5 · 6 roles y 2 empresas conservados intactos
 
-## Fase 5 — Histórico real
-- [ ] Fechas reales extraídas de git para los planes de `fase_de_desarrollo/`
-- [ ] Curado en ~20 historias por módulo
-- [ ] Migración M3 `SeedHistorialDesarrolloItalJira` (idempotente, usuario por email)
+## Fase 4 — Frontend ✔
+- [x] `features/italjira/`: routes, `models/historia.models.ts` (re-exporta lo compartido con tickets),
+      `services/italjira.service.ts`, `funciones/` (2 puras + README), `components/historia-modal/`
+- [x] Páginas MUDADAS con `git mv` (historia preservada): tablero, roadmap, panel, mis-asignados y
+      admin-tickets → `configuracion` (clase `ItalJiraConfiguracionComponent`)
+- [x] Página nueva **Backlog**: árbol historia → tarea → subtarea/bug, bandeja «sin historia»,
+      indicadores, filtros, exportación a Excel (helper compartido) y modales de historia/tarea
+- [x] `TareaModalComponent` REUTILIZADO (no se duplicó): el contenedor agrega la historia destino
+- [x] Redirects de las 5 rutas viejas + ruta lazy `italjira` en `app.config.ts`
+- [x] `changeDetection: Eager` explícito en los 2 componentes nuevos
+- [x] `ToastService` / `ConfirmDialogService` / helper de Excel: cero `alert`/`confirm`/`XLSX` inline
 
-## Fase 6 — Validación
-- [ ] `dotnet build` 0 errores / 0 advertencias nuevas
-- [ ] `dotnet test` verde
-- [ ] `yarn build` (único warning aceptado: bundle budget preexistente)
-- [ ] Smoke HTTP (backend propio `PORT=5499`) del flujo completo
-- [ ] Smoke UI (menús, backlog, modales que no se cuelgan)
-- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
+## Fase 5 — Histórico real ✔
+- [x] Fechas reales extraídas de git para los 198 planes de `fase_de_desarrollo/`
+      (`--diff-filter=A` para el alta, `git log -1` para el fin) + título = H1 de cada plan
+- [x] Curado en **20 historias por módulo**; TIPO derivado de la naturaleza del plan
+      (129 TAREA · 32 BUG · 22 MEJORA · 20 DOCUMENTACION)
+- [x] Migración M3 `20260807160000_SeedHistorialDesarrolloItalJira` (+ partial `.Seed.cs` con ~1.900
+      líneas generadas): **20 historias / 203 tareas**, todo LISTO salvo «ItalJira», que queda
+      EN_CURSO porque es esta misma entrega
+- [x] Identidad POR EMAIL con fail-open (si el usuario no existe en el entorno, siembra 0 y no tumba
+      el arranque). ⚠️ El int de auditoría **no es la cédula**: la de este usuario (3177120174) no
+      entra en un `integer` — se toma el `created_by_user_id` que ya usan sus propios tickets
+- [x] Idempotente: historias por `codigo`, tareas por `(historia_id, titulo)`
+
+## Fase 6 — Validación ✔
+- [x] `dotnet build` Infrastructure **0/0** y API **0/0** (a salida aparte: el `bin` del API lo tiene
+      tomado un `ZooSanMarino.API.exe` **ajeno** en :5002 — proceso de otra sesión, NO se mató)
+- [x] `dotnet test` **1.914 Application + 1 Domain**, todo verde
+- [x] `yarn build` OK (único warning: bundle budget preexistente)
+- [x] **Smoke HTTP** (backend propio :5499, JWT + X-Secret-Up minteados), 11 pasos: backlog inicial
+      20/212/19 → crear historia → tarea → subtarea + bug (heredan historia del padre) → 3,5 h de
+      worklog con `ticket_id` NULL → avance 33 % → 100 % → agrupar un caso real (4 trabajos, 75 %) →
+      tablero 7 columnas y roadmap 2026-05-08→2026-08-07 → borrar la historia deja las 3 tareas
+      VIVAS y sueltas → limpieza y estado final idéntico al inicial
+- [x] **Smoke UI** (front :4300 + backend :5499, sesión inyectada en `localStorage.auth_session`):
+      backlog con las 20 historias y sus tareas, bandeja con los 19 casos reales, modal de historia y
+      de tarea abren/cierran **dos veces** sin colgarse, y las 5 rutas viejas redirigen
+      (`/tickets/tablero|roadmap|panel|admin|asignados` → `/italjira/...`)
+- [x] BD local devuelta a su estado exacto (20 historias del seed, 203 tareas agrupadas, 6 worklogs,
+      0 tickets con historia); sin procesos huérfanos; `environment.ts` y `.claude/launch.json`
+      restaurados byte a byte y el `bin/smoke-italjira` eliminado
+
+## 🔴 Dos bugs que cazó el smoke (corregidos)
+
+1. **El CHECK `ck_ticket_tareas_no_huerfana` rompía la propia bandeja de sueltas.** Exigía que toda
+   tarea tuviera caso, historia o padre; pero una tarea con los tres en NULL es el estado LEGÍTIMO de
+   «sin historia» — el que se crea con «+ Tarea suelta» y al que vuelve el trabajo cuando se borra su
+   épica. Con el CHECK, `DELETE /historias/{id}` daba **500**. Se retiró de M1 (con `DROP … IF EXISTS`
+   defensivo por si alguna base intermedia lo llegó a tener).
+2. **El desplegable de columna de cada tarea mostraba siempre «Backlog».** `[value]` en el `<select>`
+   (y también `[selected]` en la `<option>`) se aplican ANTES de que el `@for` registre las opciones.
+   Fix: `[ngModel]` + `(ngModelChange)`, cuyo accessor reasigna el valor cuando las opciones terminan
+   de registrarse. Verificado en pantalla: los 5 selectores pasaron de `BACKLOG` a `LISTO`.
+
+Además, `GetSinAgruparAsync` / la bandeja del backlog dejaron de filtrar `ParentTareaId == null`: al
+borrar una historia, sus subtareas quedaban invisibles en las tres pantallas. Ahora la bandeja trae el
+árbol completo y el front lo anida.
 
 ## Fase 4 — §2.3 Barrido de sobregiro de aves (decisión del usuario: medir primero, sin tocar código)
 

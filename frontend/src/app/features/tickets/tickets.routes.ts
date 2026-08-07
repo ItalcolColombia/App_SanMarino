@@ -9,7 +9,13 @@ const ANY_TICKET_PERM = [TICKET_PERMS.crear, TICKET_PERMS.gestionar, TICKET_PERM
 /**
  * Rutas del módulo de tickets (standalone, lazy).
  * Gating por permiso con permissionGuard (data.permissions). El `:id` va último
- * para no capturar las rutas literales (nuevo/gestion/admin).
+ * para no capturar las rutas literales (nuevo/gestion).
+ *
+ * Tickets quedó con lo que usa el negocio: **Mis solicitudes** (crear y seguir el propio caso) y
+ * la **Bandeja de gestión** del resolutor. Todo lo que es gestión del área de desarrollo —tablero,
+ * roadmap, panel, configuración y mis asignados— se mudó a **ItalJira** (`/italjira/*`).
+ * Las rutas viejas se conservan como REDIRECT: un enlace guardado o un correo antiguo siguen
+ * funcionando en vez de caer en un 404.
  */
 export const TICKETS_ROUTES: Routes = [
   {
@@ -27,49 +33,20 @@ export const TICKETS_ROUTES: Routes = [
       import('./pages/ticket-create/ticket-create.component').then(m => m.TicketCreateComponent),
   },
   {
-    path: 'asignados',
-    canActivate: [permissionGuard],
-    data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
-    loadComponent: () =>
-      import('./pages/mis-asignados/mis-asignados.component').then(m => m.MisAsignadosComponent),
-  },
-  {
     path: 'gestion',
     canActivate: [permissionGuard],
     data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
     loadComponent: () =>
       import('./pages/gestion-tickets/gestion-tickets.component').then(m => m.GestionTicketsComponent),
   },
-  {
-    path: 'admin',
-    canActivate: [permissionGuard],
-    data: { permissions: [TICKET_PERMS.admin] },
-    loadComponent: () =>
-      import('./pages/admin-tickets/admin-tickets.component').then(m => m.AdminTicketsComponent),
-  },
-  {
-    // Tablero kanban de casos (drag & drop). Gestores ven sus casos; el admin, todos.
-    path: 'tablero',
-    canActivate: [permissionGuard],
-    data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
-    loadComponent: () =>
-      import('./pages/tablero/tablero.component').then(m => m.TableroComponent),
-  },
-  {
-    path: 'roadmap',
-    canActivate: [permissionGuard],
-    data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
-    loadComponent: () =>
-      import('./pages/roadmap/roadmap.component').then(m => m.RoadmapComponent),
-  },
-  {
-    // Panel de indicadores + descarga del reporte detallado.
-    path: 'panel',
-    canActivate: [permissionGuard],
-    data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
-    loadComponent: () =>
-      import('./pages/panel/panel.component').then(m => m.PanelComponent),
-  },
+
+  // ── Mudadas a ItalJira: se conservan como redirect para no romper enlaces guardados ──
+  { path: 'asignados', pathMatch: 'full', redirectTo: '/italjira/asignados' },
+  { path: 'admin',     pathMatch: 'full', redirectTo: '/italjira/configuracion' },
+  { path: 'tablero',   pathMatch: 'full', redirectTo: '/italjira/tablero' },
+  { path: 'roadmap',   pathMatch: 'full', redirectTo: '/italjira/roadmap' },
+  { path: 'panel',     pathMatch: 'full', redirectTo: '/italjira/panel' },
+
   {
     path: ':id',
     canActivate: [permissionGuard],

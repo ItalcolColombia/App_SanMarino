@@ -116,7 +116,8 @@ export const TAREA_TIPO_COLOR: Record<TipoTarea, string> = {
 
 export interface TicketTarea {
   id: number;
-  ticketId: number;
+  /** Caso al que pertenece. Null = tarea nacida en ItalJira, sin ticket. */
+  ticketId: number | null;
   codigo: string | null;
   tipo: TipoTarea;
   estado: EstadoTarea;
@@ -137,6 +138,10 @@ export interface TicketTarea {
   createdAt: string;
   createdByNombre: string | null;
   cantidadSubtareas: number;
+  /** Historia (épica) de ItalJira que agrupa la tarea. Null = sin historia. */
+  historiaId: number | null;
+  /** Código del caso al que pertenece, cuando lo hay (para el árbol del backlog). */
+  codigoCaso: string | null;
 }
 
 export interface CreateTicketTareaRequest {
@@ -177,7 +182,8 @@ export interface MoverTareaRequest {
 
 export interface TicketTiempo {
   id: number;
-  ticketId: number;
+  /** Caso al que se imputa. Null = la tarea no pertenece a un caso. */
+  ticketId: number | null;
   tareaId: number | null;
   tareaTitulo: string | null;
   userId: number;

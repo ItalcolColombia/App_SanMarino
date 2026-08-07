@@ -4,35 +4,34 @@ using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
 
-public class TicketTareaConfiguration : IEntityTypeConfiguration<TicketTarea>
+/// <summary>
+/// Mapeo de la épica de ItalJira. Las relaciones hacia tareas y casos usan
+/// <see cref="DeleteBehavior.SetNull"/>: borrar una historia NO arrastra el trabajo, lo devuelve a
+/// la bandeja «sin historia».
+/// </summary>
+public class HistoriaConfiguration : IEntityTypeConfiguration<Historia>
 {
-    public void Configure(EntityTypeBuilder<TicketTarea> b)
+    public void Configure(EntityTypeBuilder<Historia> b)
     {
-        b.ToTable("ticket_tareas", "public");
+        b.ToTable("historias", "public");
 
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasColumnName("id").UseIdentityAlwaysColumn();
 
-        // Opcional desde ItalJira: una tarea puede nacer en desarrollo, sin caso.
-        b.Property(x => x.TicketId).HasColumnName("ticket_id");
-        b.Property(x => x.HistoriaId).HasColumnName("historia_id");
         b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(40);
-
-        b.Property(x => x.Tipo)
-            .HasColumnName("tipo").HasMaxLength(20)
-            .HasDefaultValue(TicketTareaTipos.Tarea).IsRequired();
-        b.Property(x => x.Estado)
-            .HasColumnName("estado").HasMaxLength(20)
-            .HasDefaultValue(TicketTareaEstados.Backlog).IsRequired();
-        b.Property(x => x.Prioridad)
-            .HasColumnName("prioridad").HasMaxLength(20)
-            .HasDefaultValue(TicketPrioridades.Media).IsRequired();
+        b.Property(x => x.PaisId).HasColumnName("pais_id").IsRequired();
 
         b.Property(x => x.Titulo).HasColumnName("titulo").HasMaxLength(200).IsRequired();
         b.Property(x => x.Descripcion).HasColumnName("descripcion");
 
-        b.Property(x => x.AsignadoUserGuid).HasColumnName("asignado_user_guid");
-        b.Property(x => x.ParentTareaId).HasColumnName("parent_tarea_id");
+        b.Property(x => x.Estado)
+            .HasColumnName("estado").HasMaxLength(20)
+            .HasDefaultValue(HistoriaEstados.Backlog).IsRequired();
+        b.Property(x => x.Prioridad)
+            .HasColumnName("prioridad").HasMaxLength(20)
+            .HasDefaultValue(TicketPrioridades.Media).IsRequired();
+
+        b.Property(x => x.ResponsableUserGuid).HasColumnName("responsable_user_guid");
         b.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
 
         b.Property(x => x.HorasEstimadas).HasColumnName("horas_estimadas").HasPrecision(8, 2);
@@ -53,22 +52,19 @@ public class TicketTareaConfiguration : IEntityTypeConfiguration<TicketTarea>
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         b.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
-        // Subtareas: auto-referencia. Restrict para que borrar una padre no arrastre en cascada
-        // (el borrado del módulo es lógico; la cascada real solo baja desde el ticket).
-        b.HasMany<TicketTarea>()
-            .WithOne()
-            .HasForeignKey(x => x.ParentTareaId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        b.HasMany(x => x.Tiempos)
-            .WithOne(t => t.Tarea!)
-            .HasForeignKey(t => t.TareaId)
+        b.HasMany(x => x.Tareas)
+            .WithOne(t => t.Historia!)
+            .HasForeignKey(t => t.HistoriaId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        b.HasIndex(x => x.TicketId).HasDatabaseName("ix_ticket_tareas_ticket_id");
-        b.HasIndex(x => x.HistoriaId).HasDatabaseName("ix_ticket_tareas_historia_id");
-        b.HasIndex(x => x.Estado).HasDatabaseName("ix_ticket_tareas_estado");
-        b.HasIndex(x => x.AsignadoUserGuid).HasDatabaseName("ix_ticket_tareas_asignado");
-        b.HasIndex(x => x.ParentTareaId).HasDatabaseName("ix_ticket_tareas_parent");
+        b.HasMany(x => x.Casos)
+            .WithOne(t => t.Historia!)
+            .HasForeignKey(t => t.HistoriaId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        b.HasIndex(x => x.CompanyId).HasDatabaseName("ix_historias_company_id");
+        b.HasIndex(x => x.Estado).HasDatabaseName("ix_historias_estado");
+        b.HasIndex(x => x.ResponsableUserGuid).HasDatabaseName("ix_historias_responsable");
+        b.HasIndex(x => x.Codigo).HasDatabaseName("ix_historias_codigo");
     }
 }

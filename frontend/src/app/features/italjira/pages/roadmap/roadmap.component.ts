@@ -1,16 +1,16 @@
-// src/app/features/tickets/pages/roadmap/roadmap.component.ts
+// src/app/features/italjira/pages/roadmap/roadmap.component.ts
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
-import { TicketService } from '../../services/ticket.service';
-import { ESTADO_DOT, ESTADO_LABEL, TIPO_LABEL } from '../../models/ticket.models';
+import { TicketService } from '../../../tickets/services/ticket.service';
+import { ESTADO_DOT, ESTADO_LABEL, TIPO_LABEL } from '../../../tickets/models/ticket.models';
 import {
   PRIORIDADES, PRIORIDAD_ACENTO, PRIORIDAD_LABEL,
   TAREA_ESTADO_DOT, TAREA_ESTADO_LABEL, TicketRoadmap, TicketRoadmapItem, TicketTableroFiltro,
-} from '../../models/ticket-tarea.models';
-import { TicketSlaChipComponent } from '../../components/ticket-sla-chip/ticket-sla-chip.component';
-import { TicketFiltrosComponent } from '../../components/ticket-filtros/ticket-filtros.component';
+} from '../../../tickets/models/ticket-tarea.models';
+import { TicketSlaChipComponent } from '../../../tickets/components/ticket-sla-chip/ticket-sla-chip.component';
+import { TicketFiltrosComponent } from '../../../tickets/components/ticket-filtros/ticket-filtros.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 
 /** Una división del eje temporal (un mes o una semana según el rango visible). */

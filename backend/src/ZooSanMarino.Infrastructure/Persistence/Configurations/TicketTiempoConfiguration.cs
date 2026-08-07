@@ -13,7 +13,8 @@ public class TicketTiempoConfiguration : IEntityTypeConfiguration<TicketTiempo>
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasColumnName("id").UseIdentityAlwaysColumn();
 
-        b.Property(x => x.TicketId).HasColumnName("ticket_id").IsRequired();
+        // Opcional: las horas de una tarea nacida en ItalJira no tienen caso al que imputarse.
+        b.Property(x => x.TicketId).HasColumnName("ticket_id");
         b.Property(x => x.TareaId).HasColumnName("tarea_id");
         b.Property(x => x.UserGuid).HasColumnName("user_guid");
         b.Property(x => x.UserId).HasColumnName("user_id").IsRequired();

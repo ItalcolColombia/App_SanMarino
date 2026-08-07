@@ -17,7 +17,12 @@ public record CreateTicketTareaRequest(
     decimal? HorasEstimadas = null,
     DateOnly? FechaInicioPlan = null,
     DateOnly? FechaFinPlan = null,
-    string? Etiquetas = null
+    string? Etiquetas = null,
+    /// <summary>
+    /// Historia a la que pertenece. Solo lo usa ItalJira al crear trabajo que NO nace de un caso;
+    /// el alta desde el detalle de un ticket lo ignora (la tarea pertenece al caso).
+    /// </summary>
+    long? HistoriaId = null
 );
 
 /// <summary>Edita una tarea. Los campos en null NO se tocan (patch parcial explícito).</summary>
@@ -41,7 +46,8 @@ public record MoverTicketTareaRequest(string Estado, int Indice);
 
 public record TicketTareaDto(
     long Id,
-    long TicketId,
+    /// <summary>Caso al que pertenece. Null = tarea nacida en ItalJira, sin ticket.</summary>
+    long? TicketId,
     string? Codigo,
     string Tipo,
     string Estado,
@@ -62,7 +68,11 @@ public record TicketTareaDto(
     DateTime CreatedAt,
     string? CreatedByNombre = null,
     /// <summary>Cantidad de subtareas vivas colgando de esta tarea.</summary>
-    int CantidadSubtareas = 0
+    int CantidadSubtareas = 0,
+    /// <summary>Historia (épica) de ItalJira que agrupa la tarea. Null = sin historia.</summary>
+    long? HistoriaId = null,
+    /// <summary>Código del caso al que pertenece, cuando lo hay (para el árbol del backlog).</summary>
+    string? CodigoCaso = null
 );
 
 // ───────────────────────── Registro de tiempo (worklog) ─────────────────────────
@@ -77,7 +87,8 @@ public record CreateTicketTiempoRequest(
 
 public record TicketTiempoDto(
     long Id,
-    long TicketId,
+    /// <summary>Caso al que se imputa. Null = la tarea no pertenece a un caso.</summary>
+    long? TicketId,
     long? TareaId,
     string? TareaTitulo,
     int UserId,

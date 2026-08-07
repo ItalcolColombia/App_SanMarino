@@ -7,12 +7,16 @@ namespace ZooSanMarino.Domain.Entities;
 /// <remarks>
 /// <see cref="TareaId"/> null significa que el tiempo se imputó al caso completo (no a una tarea
 /// puntual). El borrado es lógico (<c>DeletedAt</c>) para no alterar totales ya reportados.
+///
+/// <see cref="TicketId"/> null es el caso simétrico de ItalJira: horas imputadas a una tarea que
+/// nació en desarrollo y no tiene caso. Al menos uno de los dos identifica el trabajo.
 /// </remarks>
 public class TicketTiempo
 {
     public long Id { get; set; }
 
-    public long TicketId { get; set; }
+    /// <summary>Caso al que se imputa. Null = la tarea no pertenece a un caso (trabajo de ItalJira).</summary>
+    public long? TicketId { get; set; }
 
     /// <summary>Tarea a la que se imputa. Null = tiempo del caso completo.</summary>
     public long? TareaId { get; set; }

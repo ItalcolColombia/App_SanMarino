@@ -94,6 +94,13 @@ public class Ticket : AuditableEntity
     public DateOnly? FechaInicioPlan { get; set; }
     public DateOnly? FechaFinPlan { get; set; }
 
+    /// <summary>
+    /// Historia (épica) de ItalJira que agrupa este caso. Null ⇒ el caso está «sin historia», que es
+    /// como nacen todos los que registra un usuario final; el área de desarrollo lo mueve a una
+    /// historia después. Agrupar un caso NO altera su estado ni su flujo.
+    /// </summary>
+    public long? HistoriaId { get; set; }
+
     // Navegación
     public ICollection<TicketImagen> Imagenes { get; set; } = new List<TicketImagen>();
     public ICollection<TicketNota> Notas { get; set; } = new List<TicketNota>();
@@ -101,4 +108,5 @@ public class Ticket : AuditableEntity
     public ICollection<TicketNotificado> Notificados { get; set; } = new List<TicketNotificado>();
     public ICollection<TicketTarea> Tareas { get; set; } = new List<TicketTarea>();
     public ICollection<TicketTiempo> Tiempos { get; set; } = new List<TicketTiempo>();
+    public Historia? Historia { get; set; }
 }

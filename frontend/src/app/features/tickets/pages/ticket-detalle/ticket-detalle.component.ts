@@ -115,7 +115,7 @@ export class TicketDetalleComponent implements OnInit {
 
   /** Ruta de vuelta según el rol del usuario (para el botón "Volver"). */
   readonly volverRuta: string = (() => {
-    if (this.esAdmin)     return '/tickets/tablero';
+    if (this.esAdmin)     return '/italjira/tablero';
     if (this.esResolutor) return '/tickets/gestion';
     return '/tickets';
   })();

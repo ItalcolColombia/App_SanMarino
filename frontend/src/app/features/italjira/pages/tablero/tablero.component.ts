@@ -1,19 +1,19 @@
-// src/app/features/tickets/pages/tablero/tablero.component.ts
+// src/app/features/italjira/pages/tablero/tablero.component.ts
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
-import { TicketService } from '../../services/ticket.service';
+import { TicketService } from '../../../tickets/services/ticket.service';
 import {
   ESTADO_DOT, ESTADO_LABEL, TIPO_LABEL, TicketListItem, EstadoTicket,
-} from '../../models/ticket.models';
+} from '../../../tickets/models/ticket.models';
 import {
   PRIORIDAD_ACENTO, TicketTablero, TicketTableroColumna, TicketTableroFiltro,
-} from '../../models/ticket-tarea.models';
-import { TicketPrioridadBadgeComponent } from '../../components/ticket-prioridad-badge/ticket-prioridad-badge.component';
-import { TicketSlaChipComponent } from '../../components/ticket-sla-chip/ticket-sla-chip.component';
-import { TicketFiltrosComponent } from '../../components/ticket-filtros/ticket-filtros.component';
+} from '../../../tickets/models/ticket-tarea.models';
+import { TicketPrioridadBadgeComponent } from '../../../tickets/components/ticket-prioridad-badge/ticket-prioridad-badge.component';
+import { TicketSlaChipComponent } from '../../../tickets/components/ticket-sla-chip/ticket-sla-chip.component';
+import { TicketFiltrosComponent } from '../../../tickets/components/ticket-filtros/ticket-filtros.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 
 /**

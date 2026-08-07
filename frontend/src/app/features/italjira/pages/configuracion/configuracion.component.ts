@@ -1,4 +1,4 @@
-// src/app/features/tickets/pages/admin-tickets/admin-tickets.component.ts
+// src/app/features/italjira/pages/configuracion/configuracion.component.ts
 import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
@@ -6,26 +6,33 @@ import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
-import { TicketService } from '../../services/ticket.service';
+import { TicketService } from '../../../tickets/services/ticket.service';
 import {
   TicketListItem, PagedResult, EstadoTicket, TipoTicket,
   ESTADOS_TICKET, ESTADO_LABEL, TIPOS_TICKET, ResolutorAdminDto,
-} from '../../models/ticket.models';
-import { TicketListComponent } from '../../components/ticket-list/ticket-list.component';
+} from '../../../tickets/models/ticket.models';
+import { TicketListComponent } from '../../../tickets/components/ticket-list/ticket-list.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { environment } from '../../../../../environments/environment';
 
 interface PaisOpcion { paisId: number; paisNombre: string; }
 
-/** Bandeja global (Perfil C: Super Admin) — todos los tickets sin filtro de empresa. */
+/**
+ * Configuración de ItalJira: bandeja global de casos (todos los tickets, sin filtro de empresa) y
+ * administración de resolutores del módulo.
+ *
+ * Antes vivía en `/tickets/admin`. La ruta cambió a `/italjira/configuracion` no solo por la
+ * mudanza de módulo: AWS WAF devuelve 403 a cualquier path que contenga `admin` — incidente ya
+ * documentado en el repo.
+ */
 @Component({
-  selector: 'app-admin-tickets',
+  selector: 'app-italjira-configuracion',
   standalone: true,
   imports: [FormsModule, RouterLink, TicketListComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
-  templateUrl: './admin-tickets.component.html',
+  templateUrl: './configuracion.component.html',
 })
-export class AdminTicketsComponent implements OnInit {
+export class ItalJiraConfiguracionComponent implements OnInit {
   private readonly svc = inject(TicketService);
   private readonly toast = inject(ToastService);
   private readonly http = inject(HttpClient);

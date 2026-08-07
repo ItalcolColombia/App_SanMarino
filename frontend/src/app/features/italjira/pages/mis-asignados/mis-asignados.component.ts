@@ -1,15 +1,15 @@
-// src/app/features/tickets/pages/mis-asignados/mis-asignados.component.ts
+// src/app/features/italjira/pages/mis-asignados/mis-asignados.component.ts
 import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
-import { TicketService } from '../../services/ticket.service';
+import { TicketService } from '../../../tickets/services/ticket.service';
 import {
   TicketListItem, PagedResult, EstadoTicket,
   ESTADOS_TICKET, ESTADO_LABEL, TIPOS_TICKET, TIPO_LABEL,
-} from '../../models/ticket.models';
-import { TicketListComponent } from '../../components/ticket-list/ticket-list.component';
+} from '../../../tickets/models/ticket.models';
+import { TicketListComponent } from '../../../tickets/components/ticket-list/ticket-list.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 
 /** Bandeja personal del resolutor: tickets asignados a mí. */

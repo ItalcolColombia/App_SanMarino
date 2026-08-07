@@ -1,0 +1,463 @@
+<!-- src/app/features/italjira/pages/backlog/backlog.component.html -->
+<div class="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6">
+
+  <!-- ════════════ Cabecera ════════════ -->
+  <div class="mb-4 flex flex-wrap items-center gap-3">
+    <div class="min-w-0 flex-1">
+      <h1 class="text-lg font-bold text-slate-800">Backlog</h1>
+      <p class="text-xs text-ital-muted">
+        Historias del área de desarrollo, con sus tareas y subtareas. Lo que registran los usuarios
+        entra abajo, en la bandeja «sin historia».
+      </p>
+    </div>
+
+    <nav class="flex flex-wrap items-center gap-1.5">
+      <a routerLink="/italjira/tablero"
+         class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Tablero</a>
+      <a routerLink="/italjira/roadmap"
+         class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Roadmap</a>
+      <a routerLink="/italjira/panel"
+         class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Panel</a>
+      <button type="button" (click)="exportar()" [disabled]="!data()"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-50">
+        Exportar Excel
+      </button>
+      <button type="button" (click)="nuevaHistoria()"
+              class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-ital-green to-ital-green-dark px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-ital-green/25 transition hover:-translate-y-0.5">
+        <span class="text-sm leading-none">+</span> Nueva historia
+      </button>
+    </nav>
+  </div>
+
+  <!-- ════════════ Filtros ════════════ -->
+  <div class="mb-4 flex flex-wrap items-end gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+    <div class="min-w-[220px] flex-1">
+      <label for="bl-texto" class="mb-1 block text-[11px] font-semibold text-slate-600">Buscar</label>
+      <input id="bl-texto" type="text" [(ngModel)]="texto" (keyup.enter)="cargar()"
+             placeholder="Título o código de historia"
+             class="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+    </div>
+    <div>
+      <label for="bl-estado" class="mb-1 block text-[11px] font-semibold text-slate-600">Columna</label>
+      <select id="bl-estado" [(ngModel)]="estadoFiltro" (change)="cargar()"
+              class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20">
+        <option value="">Todas</option>
+        @for (c of columnas; track c) { <option [value]="c">{{ estadoLabel[c] }}</option> }
+      </select>
+    </div>
+    <label class="inline-flex items-center gap-2 pb-1.5 text-xs font-medium text-slate-600">
+      <input type="checkbox" [(ngModel)]="incluirTerminadas" (change)="cargar()"
+             class="h-4 w-4 rounded border-slate-300 text-ital-orange focus:ring-ital-orange/30" />
+      Incluir terminadas
+    </label>
+    <button type="button" (click)="cargar()"
+            class="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700">
+      Aplicar
+    </button>
+    <button type="button" (click)="limpiarFiltros()"
+            class="rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100">
+      Limpiar
+    </button>
+    <div class="ml-auto flex gap-1.5">
+      <button type="button" (click)="expandirTodo()"
+              class="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50">
+        Expandir todo
+      </button>
+      <button type="button" (click)="colapsarTodo()"
+              class="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50">
+        Colapsar
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════ Indicadores ════════════ -->
+  @if (data(); as b) {
+    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Historias</p>
+        <p class="text-xl font-bold text-slate-800">{{ b.resumen.historias }}</p>
+      </div>
+      <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-ital-muted">En curso</p>
+        <p class="text-xl font-bold text-indigo-600">{{ b.resumen.historiasEnCurso }}</p>
+      </div>
+      <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Terminadas</p>
+        <p class="text-xl font-bold text-emerald-600">{{ b.resumen.historiasListas }}</p>
+      </div>
+      <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Tareas</p>
+        <p class="text-xl font-bold text-slate-800">{{ b.resumen.tareasListas }}<span class="text-sm font-semibold text-ital-muted">/{{ b.resumen.tareas }}</span></p>
+      </div>
+      <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Sin historia</p>
+        <p class="text-xl font-bold text-amber-600">{{ b.resumen.casosSinHistoria }}</p>
+      </div>
+      <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-ital-muted">Horas</p>
+        <p class="text-xl font-bold text-slate-800">{{ b.resumen.horasRegistradas }}</p>
+      </div>
+    </div>
+  }
+
+  @if (cargando()) {
+    <div class="flex items-center justify-center gap-3 rounded-2xl bg-white py-16 shadow-sm ring-1 ring-slate-200">
+      <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+      <span class="text-sm font-medium text-ital-muted">Cargando el backlog…</span>
+    </div>
+  }
+
+  <!-- ════════════ Árbol de historias ════════════ -->
+  @if (!cargando()) {
+    <div class="space-y-2.5">
+      @for (f of filas(); track f.historia.id) {
+        <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+
+          <!-- Fila de la historia -->
+          <header class="flex flex-wrap items-center gap-3 px-3 py-3 sm:px-4">
+            <span class="h-8 w-1 shrink-0 rounded-full" [class]="prioridadAcento[f.historia.prioridad]"></span>
+
+            <button type="button" (click)="alternarHistoria(f.historia.id)"
+                    class="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100"
+                    [attr.aria-expanded]="estaExpandida(f.historia.id)"
+                    [attr.aria-label]="estaExpandida(f.historia.id) ? 'Colapsar historia' : 'Expandir historia'">
+              <svg class="h-4 w-4 transition-transform" [class.rotate-90]="estaExpandida(f.historia.id)"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+              </svg>
+            </button>
+
+            <span class="grid h-6 w-6 shrink-0 place-items-center rounded bg-emerald-500 text-[11px] font-bold text-white">★</span>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-baseline gap-2">
+                <span class="text-[11px] font-semibold text-ital-muted">{{ f.historia.codigo }}</span>
+                <h2 class="truncate text-sm font-bold text-slate-800">{{ f.historia.titulo }}</h2>
+              </div>
+              @if (f.historia.responsableNombre || f.historia.etiquetas) {
+                <p class="mt-0.5 truncate text-[11px] text-ital-muted">
+                  @if (f.historia.responsableNombre) { {{ f.historia.responsableNombre }} }
+                  @if (f.historia.responsableNombre && f.historia.etiquetas) { · }
+                  @if (f.historia.etiquetas) { {{ f.historia.etiquetas }} }
+                </p>
+              }
+            </div>
+
+            <!-- Avance -->
+            <div class="flex w-40 shrink-0 items-center gap-2">
+              <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full rounded-full transition-all"
+                     [class]="colorAvance(f.historia.avancePorcentaje)"
+                     [style.width.%]="f.historia.avancePorcentaje"></div>
+              </div>
+              <span class="w-16 shrink-0 text-right text-[11px] font-semibold text-slate-600">
+                {{ f.historia.avancePorcentaje }}% · {{ f.historia.trabajosTerminados }}/{{ f.historia.trabajosTotales }}
+              </span>
+            </div>
+
+            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+              <span class="h-1.5 w-1.5 rounded-full" [class]="estadoDot[f.historia.estado]"></span>
+              {{ estadoLabel[f.historia.estado] }}
+            </span>
+
+            <span class="shrink-0 text-[11px] font-medium text-ital-muted">{{ f.historia.horasRegistradas }} h</span>
+
+            <div class="flex shrink-0 items-center gap-1">
+              <button type="button" (click)="nuevaTarea(f.historia.id)" title="Agregar tarea"
+                      class="rounded-lg px-2 py-1 text-[11px] font-semibold text-ital-green ring-1 ring-emerald-200 transition hover:bg-emerald-50">
+                + Tarea
+              </button>
+              <button type="button" (click)="editarHistoria(f.historia)" title="Editar historia"
+                      class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">✎</button>
+              <button type="button" (click)="eliminarHistoria(f.historia)" title="Eliminar historia"
+                      class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">✕</button>
+            </div>
+          </header>
+
+          <!-- Contenido de la historia -->
+          @if (estaExpandida(f.historia.id)) {
+            <div class="border-t border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4">
+
+              @if (f.historia.descripcion) {
+                <p class="mb-2.5 rounded-xl bg-white px-3 py-2 text-xs text-slate-600 ring-1 ring-slate-200">
+                  {{ f.historia.descripcion }}
+                </p>
+              }
+
+              @if (f.nodos.length === 0 && f.casos.length === 0) {
+                <p class="py-4 text-center text-xs text-ital-muted">
+                  Esta historia todavía no tiene trabajo. Agregá una tarea o mové un caso desde la bandeja.
+                </p>
+              }
+
+              <!-- Tareas -->
+              @for (n of f.nodos; track n.tarea.id) {
+                <div class="mb-1.5 rounded-xl bg-white ring-1 ring-slate-200">
+                  <div class="flex flex-wrap items-center gap-2.5 px-3 py-2">
+                    @if (n.hijos.length > 0) {
+                      <button type="button" (click)="alternarTarea(n.tarea.id)"
+                              class="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 transition hover:bg-slate-100"
+                              [attr.aria-expanded]="estaAbierta(n.tarea.id)" aria-label="Ver subtareas">
+                        <svg class="h-3.5 w-3.5 transition-transform" [class.rotate-90]="estaAbierta(n.tarea.id)"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+                        </svg>
+                      </button>
+                    } @else {
+                      <span class="h-5 w-5 shrink-0"></span>
+                    }
+
+                    <span class="grid h-5 w-5 shrink-0 place-items-center rounded text-[10px] font-bold text-white"
+                          [class]="tipoColor[n.tarea.tipo]" [title]="tipoLabel[n.tarea.tipo]">
+                      {{ tipoLabel[n.tarea.tipo].charAt(0) }}
+                    </span>
+
+                    <span class="shrink-0 text-[11px] font-semibold text-ital-muted">{{ n.tarea.codigo }}</span>
+                    <span class="min-w-0 flex-1 truncate text-sm text-slate-700">{{ n.tarea.titulo }}</span>
+
+                    @if (n.tarea.codigoCaso) {
+                      <span class="shrink-0 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-sky-200">
+                        {{ n.tarea.codigoCaso }}
+                      </span>
+                    }
+                    @if (n.tarea.asignadoNombre) {
+                      <span class="shrink-0 text-[11px] text-ital-muted">{{ n.tarea.asignadoNombre }}</span>
+                    }
+                    <span class="shrink-0 text-[11px] font-medium text-ital-muted">{{ n.tarea.horasRegistradas }} h</span>
+
+                    <!-- `[ngModel]`, NO `[value]` ni `[selected]`: con las opciones renderizadas
+                         por @for en la misma pasada, esos bindings se aplican antes de que las
+                         opciones existan y el desplegable se queda en la primera (mostraba siempre
+                         «Backlog» aunque la tarea estuviera en LISTO). El accessor de ngModel
+                         reasigna el valor cuando las opciones terminan de registrarse. -->
+                    <select [ngModel]="n.tarea.estado"
+                            (ngModelChange)="cambiarEstadoTarea(n.tarea, $event)"
+                            aria-label="Columna de la tarea"
+                            class="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 outline-none transition focus:border-ital-orange">
+                      @for (c of columnas; track c) { <option [value]="c">{{ estadoLabel[c] }}</option> }
+                    </select>
+
+                    <div class="flex shrink-0 items-center gap-0.5">
+                      <button type="button" (click)="nuevaSubtarea(n.tarea)" title="Agregar subtarea o bug"
+                              class="grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">+</button>
+                      <button type="button" (click)="editarTarea(n.tarea)" title="Editar tarea"
+                              class="grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">✎</button>
+                      <button type="button" (click)="eliminarTarea(n.tarea)" title="Eliminar tarea"
+                              class="grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">✕</button>
+                    </div>
+                  </div>
+
+                  <!-- Subtareas / bugs -->
+                  @if (estaAbierta(n.tarea.id)) {
+                    <div class="border-t border-slate-100 py-1 pl-10 pr-3">
+                      @for (h of n.hijos; track h.id) {
+                        <div class="flex flex-wrap items-center gap-2.5 border-b border-slate-50 py-1.5 last:border-0">
+                          <span class="grid h-4 w-4 shrink-0 place-items-center rounded text-[9px] font-bold text-white"
+                                [class]="tipoColor[h.tipo]" [title]="tipoLabel[h.tipo]">
+                            {{ tipoLabel[h.tipo].charAt(0) }}
+                          </span>
+                          <span class="shrink-0 text-[10px] font-semibold text-ital-muted">{{ h.codigo }}</span>
+                          <span class="min-w-0 flex-1 truncate text-xs text-slate-600">{{ h.titulo }}</span>
+                          @if (h.asignadoNombre) {
+                            <span class="shrink-0 text-[10px] text-ital-muted">{{ h.asignadoNombre }}</span>
+                          }
+                          <span class="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-slate-500">
+                            <span class="h-1.5 w-1.5 rounded-full" [class]="estadoDot[h.estado]"></span>
+                            {{ estadoLabel[h.estado] }}
+                          </span>
+                          <div class="flex shrink-0 items-center gap-0.5">
+                            <button type="button" (click)="editarTarea(h)" title="Editar"
+                                    class="grid h-5 w-5 place-items-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">✎</button>
+                            <button type="button" (click)="eliminarTarea(h)" title="Eliminar"
+                                    class="grid h-5 w-5 place-items-center rounded text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">✕</button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Casos agrupados en la historia -->
+              @for (c of f.casos; track c.id) {
+                <div class="mb-1.5 flex flex-wrap items-center gap-2.5 rounded-xl bg-white px-3 py-2 ring-1 ring-sky-200">
+                  <span class="h-5 w-5 shrink-0"></span>
+                  <span class="grid h-5 w-5 shrink-0 place-items-center rounded bg-sky-500 text-[10px] font-bold text-white" title="Caso de un usuario">C</span>
+                  <a [routerLink]="['/tickets', c.id]" class="shrink-0 text-[11px] font-semibold text-sky-700 hover:underline">{{ c.codigo }}</a>
+                  <span class="min-w-0 flex-1 truncate text-sm text-slate-700">{{ c.titulo }}</span>
+                  @if (c.assignedToNombre) {
+                    <span class="shrink-0 text-[11px] text-ital-muted">{{ c.assignedToNombre }}</span>
+                  }
+                  <span class="shrink-0 text-[11px] font-medium text-ital-muted">{{ c.horasRegistradas }} h</span>
+                  <span class="shrink-0 rounded-lg bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">{{ c.estado }}</span>
+                  <button type="button" (click)="moverCasoAHistoria(c, '')"
+                          class="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100">
+                    Sacar
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
+
+      @if (filas().length === 0) {
+        <div class="rounded-2xl bg-white py-12 text-center shadow-sm ring-1 ring-slate-200">
+          <p class="text-sm font-semibold text-slate-600">Todavía no hay historias.</p>
+          <p class="mt-1 text-xs text-ital-muted">
+            Creá la primera para empezar a agrupar el trabajo del área de desarrollo.
+          </p>
+          <button type="button" (click)="nuevaHistoria()"
+                  class="mt-3 rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-ital-green/25 transition hover:-translate-y-0.5">
+            Nueva historia
+          </button>
+        </div>
+      }
+    </div>
+
+    <!-- ════════════ Bandeja «sin historia» ════════════ -->
+    @if (data(); as b) {
+      <section class="mt-5 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-amber-200">
+        <header class="flex flex-wrap items-center gap-3 bg-amber-50/60 px-4 py-3">
+          <button type="button" (click)="entradaAbierta.set(!entradaAbierta())"
+                  class="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-amber-600 transition hover:bg-amber-100"
+                  [attr.aria-expanded]="entradaAbierta()" aria-label="Ver bandeja de entrada">
+            <svg class="h-4 w-4 transition-transform" [class.rotate-90]="entradaAbierta()"
+                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+            </svg>
+          </button>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-sm font-bold text-amber-900">Sin historia · bandeja de entrada</h2>
+            <p class="text-[11px] text-amber-700/80">
+              Lo que registra un usuario entra acá como trabajo sin historia. Movelo a la que corresponda.
+            </p>
+          </div>
+          <span class="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
+            {{ b.casosSinHistoria.length + b.tareasSinHistoria.length }}
+          </span>
+          <button type="button" (click)="nuevaTarea(null)"
+                  class="shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-300 transition hover:bg-amber-100">
+            + Tarea suelta
+          </button>
+        </header>
+
+        @if (entradaAbierta()) {
+          <div class="px-3 py-2.5 sm:px-4">
+            @if (b.casosSinHistoria.length === 0 && nodosSueltos().length === 0) {
+              <p class="py-4 text-center text-xs text-ital-muted">No hay trabajo pendiente de agrupar.</p>
+            }
+
+            @for (c of b.casosSinHistoria; track c.id) {
+              <div class="mb-1.5 flex flex-wrap items-center gap-2.5 rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200">
+                <span class="grid h-5 w-5 shrink-0 place-items-center rounded bg-sky-500 text-[10px] font-bold text-white" title="Caso de un usuario">C</span>
+                <a [routerLink]="['/tickets', c.id]" class="shrink-0 text-[11px] font-semibold text-sky-700 hover:underline">{{ c.codigo }}</a>
+                <span class="min-w-0 flex-1 truncate text-sm text-slate-700">{{ c.titulo }}</span>
+                <span class="shrink-0 rounded-lg bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">{{ c.estado }}</span>
+                @if (c.assignedToNombre) {
+                  <span class="shrink-0 text-[11px] text-ital-muted">{{ c.assignedToNombre }}</span>
+                }
+                <select (change)="moverCasoAHistoria(c, $any($event.target).value)"
+                        aria-label="Mover el caso a una historia"
+                        class="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 outline-none transition focus:border-ital-orange">
+                  <option value="">Mover a historia…</option>
+                  @for (h of opcionesHistoria; track h.id) { <option [value]="h.id">{{ h.titulo }}</option> }
+                </select>
+              </div>
+            }
+
+            @for (n of nodosSueltos(); track n.tarea.id) {
+              <div class="mb-1.5 rounded-xl bg-white ring-1 ring-slate-200">
+                <div class="flex flex-wrap items-center gap-2.5 px-3 py-2">
+                  @if (n.hijos.length > 0) {
+                    <button type="button" (click)="alternarTarea(n.tarea.id)"
+                            class="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 transition hover:bg-slate-100"
+                            [attr.aria-expanded]="estaAbierta(n.tarea.id)" aria-label="Ver subtareas">
+                      <svg class="h-3.5 w-3.5 transition-transform" [class.rotate-90]="estaAbierta(n.tarea.id)"
+                           fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+                      </svg>
+                    </button>
+                  } @else {
+                    <span class="h-5 w-5 shrink-0"></span>
+                  }
+
+                  <span class="grid h-5 w-5 shrink-0 place-items-center rounded text-[10px] font-bold text-white"
+                        [class]="tipoColor[n.tarea.tipo]" [title]="tipoLabel[n.tarea.tipo]">
+                    {{ tipoLabel[n.tarea.tipo].charAt(0) }}
+                  </span>
+                  <span class="shrink-0 text-[11px] font-semibold text-ital-muted">{{ n.tarea.codigo }}</span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-slate-700">{{ n.tarea.titulo }}</span>
+                  <span class="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500">
+                    <span class="h-1.5 w-1.5 rounded-full" [class]="estadoDot[n.tarea.estado]"></span>
+                    {{ estadoLabel[n.tarea.estado] }}
+                  </span>
+                  <select (change)="moverTareaAHistoria(n.tarea, $any($event.target).value)"
+                          aria-label="Mover la tarea a una historia"
+                          class="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 outline-none transition focus:border-ital-orange">
+                    <option value="">Mover a historia…</option>
+                    @for (h of opcionesHistoria; track h.id) { <option [value]="h.id">{{ h.titulo }}</option> }
+                  </select>
+                  <div class="flex shrink-0 items-center gap-0.5">
+                    <button type="button" (click)="nuevaSubtarea(n.tarea)" title="Agregar subtarea o bug"
+                            class="grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">+</button>
+                    <button type="button" (click)="editarTarea(n.tarea)" title="Editar"
+                            class="grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">✎</button>
+                    <button type="button" (click)="eliminarTarea(n.tarea)" title="Eliminar"
+                            class="grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">✕</button>
+                  </div>
+                </div>
+
+                @if (estaAbierta(n.tarea.id)) {
+                  <div class="border-t border-slate-100 py-1 pl-10 pr-3">
+                    @for (h of n.hijos; track h.id) {
+                      <div class="flex flex-wrap items-center gap-2.5 border-b border-slate-50 py-1.5 last:border-0">
+                        <span class="grid h-4 w-4 shrink-0 place-items-center rounded text-[9px] font-bold text-white"
+                              [class]="tipoColor[h.tipo]" [title]="tipoLabel[h.tipo]">
+                          {{ tipoLabel[h.tipo].charAt(0) }}
+                        </span>
+                        <span class="shrink-0 text-[10px] font-semibold text-ital-muted">{{ h.codigo }}</span>
+                        <span class="min-w-0 flex-1 truncate text-xs text-slate-600">{{ h.titulo }}</span>
+                        <span class="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-slate-500">
+                          <span class="h-1.5 w-1.5 rounded-full" [class]="estadoDot[h.estado]"></span>
+                          {{ estadoLabel[h.estado] }}
+                        </span>
+                        <div class="flex shrink-0 items-center gap-0.5">
+                          <button type="button" (click)="editarTarea(h)" title="Editar"
+                                  class="grid h-5 w-5 place-items-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">✎</button>
+                          <button type="button" (click)="eliminarTarea(h)" title="Eliminar"
+                                  class="grid h-5 w-5 place-items-center rounded text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">✕</button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+  }
+</div>
+
+<!-- ════════════ Modales ════════════ -->
+@if (modalHistoria()) {
+  <app-historia-modal
+    [historia]="historiaEnEdicion()"
+    [responsables]="responsables()"
+    [guardando]="guardando()"
+    (guardar)="guardarHistoria($event)"
+    (cerrar)="cerrarModalHistoria()" />
+}
+
+@if (modalTarea()) {
+  <app-tarea-modal
+    [tarea]="tareaEnEdicion()"
+    [asignables]="asignables"
+    [guardando]="guardando()"
+    [parentTareaId]="parentTareaId()"
+    [parentTitulo]="parentTitulo()"
+    (guardar)="guardarTarea($event)"
+    (cerrar)="cerrarModalTarea()" />
+}

@@ -76,7 +76,7 @@ export class MisTicketsComponent implements OnInit {
     // Usuarios sin tickets.crear no deben aterrizar aquí: su bandeja real es gestión/admin.
     if (!this.perm.has(TICKET_PERMS.crear)) {
       if (this.perm.has(TICKET_PERMS.admin)) {
-        this.router.navigate(['/tickets/tablero'], { replaceUrl: true });
+        this.router.navigate(['/italjira/tablero'], { replaceUrl: true });
         return;
       }
       if (this.perm.has(TICKET_PERMS.gestionar)) {

@@ -301,7 +301,7 @@ public partial class TicketService
 
         var ids = query.Select(x => x.Id);
         var horas = await _ctx.TicketTiempos.AsNoTracking()
-            .Where(t => t.DeletedAt == null && ids.Contains(t.TicketId))
+            .Where(t => t.DeletedAt == null && t.TicketId != null && ids.Contains(t.TicketId.Value))
             .SumAsync(t => (decimal?)t.Horas, ct) ?? 0m;
 
         var enCurso = TicketEstados.FasesTrabajo.Sum(f => conteos.GetValueOrDefault(f));

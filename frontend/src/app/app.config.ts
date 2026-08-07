@@ -130,6 +130,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.TICKETS_ROUTES)
       },
 
+      // ItalJira — gestión del área de desarrollo: historias, tareas, tiempos y roadmap
+      {
+        path: 'italjira',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/italjira/italjira.routes')
+            .then(m => m.ITALJIRA_ROUTES)
+      },
+
       // Implementación (cronogramas de entrega por empresa con checklist confirmable)
       {
         path: 'implementacion',

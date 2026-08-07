@@ -9,12 +9,21 @@ namespace ZooSanMarino.Domain.Entities;
 /// Las subtareas se modelan con <see cref="ParentTareaId"/> apuntando a otra tarea del mismo caso.
 /// El caso conserva su propia máquina de estados (<see cref="TicketEstados"/>): mover tareas NO
 /// cambia el estado del caso — esa decisión sigue siendo del resolutor.
+///
+/// Desde ItalJira una tarea también puede nacer SIN caso (trabajo que arranca en el área de
+/// desarrollo): en ese escenario <see cref="TicketId"/> es null y la tarea cuelga de una
+/// <see cref="Historia"/> o de otra tarea. El invariante es que al menos uno de
+/// <see cref="TicketId"/> / <see cref="HistoriaId"/> / <see cref="ParentTareaId"/> tenga valor.
 /// </remarks>
 public class TicketTarea : AuditableEntity
 {
     public long Id { get; set; }
 
-    public long TicketId { get; set; }
+    /// <summary>Caso al que pertenece. Null = tarea nacida en desarrollo (ItalJira), sin ticket.</summary>
+    public long? TicketId { get; set; }
+
+    /// <summary>Historia (épica) que agrupa la tarea. Null = tarea sin historia.</summary>
+    public long? HistoriaId { get; set; }
 
     /// <summary>Código legible correlativo dentro del caso (ej: <c>TK-2026-000123-T3</c>).</summary>
     public string? Codigo { get; set; }
@@ -57,6 +66,7 @@ public class TicketTarea : AuditableEntity
 
     // Navegación
     public Ticket? Ticket { get; set; }
+    public Historia? Historia { get; set; }
     public ICollection<TicketTiempo> Tiempos { get; set; } = new List<TicketTiempo>();
 }
 
