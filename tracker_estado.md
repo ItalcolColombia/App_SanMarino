@@ -2104,14 +2104,16 @@ dos defectos laterales que aparecieron al diagnosticarlo.
 - [x] Regresión encontrada: `EnsureLoteNombreNoDuplicadoAsync` (17-jul-2026, `b917ad9`) valida por granja ⇒ hoy bloquea el patrón legítimo 114/116 y 115/117
 
 ## Backend — alcance de la guarda
-- [ ] `Application/Calculos/LoteNombreDuplicadoCalculos.cs` (PURO: normaliza, decide, arma mensaje)
-- [ ] `LoteService.EnsureLoteNombreNoDuplicadoAsync` recibe `galponId` y delega en el cálculo puro
-- [ ] Los 2 llamadores (Create/Update) pasan `dto.GalponId`
+- [x] `Application/Calculos/LoteNombreDuplicadoCalculos.cs` (PURO: normaliza, decide, arma mensaje)
+- [x] `LoteService.EnsureLoteNombreNoDuplicadoAsync` recibe `galponId` y delega en el cálculo puro
+- [x] Los 2 llamadores (Create/Update) pasan `dto.GalponId`
 
 ## Frontend — combo «Lote» del seguimiento diario
-- [ ] `[compareWith]` + `compararLoteId` en `modal-create-edit` (el control guarda texto y las opciones número)
+- [x] `[compareWith]` + `compararLoteId` en `modal-create-edit` (el control guarda texto y las opciones número)
 
 ## Tests y validación
-- [ ] `tests/ZooSanMarino.Application.Tests/LoteNombreDuplicadoCalculosTests.cs` — 10 casos del plan
-- [ ] `dotnet build` 0/0 · `dotnet test` verde · `yarn build` OK
-- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
+- [x] `tests/ZooSanMarino.Application.Tests/LoteNombreDuplicadoCalculosTests.cs` — 10 casos del plan
+- [x] `dotnet build` 0/0 (Infrastructure) · `dotnet test` 1992 verdes (24 nuevos) · `yarn build` OK (solo warning de bundle budget)
+- [x] Sin procesos huérfanos (no se levantó servidor propio: otra sesión tiene el back/front corriendo)
+- [ ] Verificación visual del combo en el navegador — pendiente: el dev server de este repo lo ocupa otra sesión
+- [x] Commit acotado `226a5a4` (sin footer de atribución)
