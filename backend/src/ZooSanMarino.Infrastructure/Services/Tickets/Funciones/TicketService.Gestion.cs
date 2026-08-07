@@ -335,13 +335,73 @@ public partial class TicketService
                 : query.Where(_ => false);
         }
 
-        if (filtro.PaisId.HasValue)    query = query.Where(x => x.PaisId == filtro.PaisId.Value);
-        if (filtro.CompanyId.HasValue) query = query.Where(x => x.CompanyId == filtro.CompanyId.Value);
+        // Selección múltiple de países: manda sobre el país único.
+        if (filtro.PaisIds is { Count: > 0 })
+        {
+            var paises = filtro.PaisIds.Distinct().ToList();
+            query = query.Where(x => paises.Contains(x.PaisId));
+        }
+        else if (filtro.PaisId.HasValue)
+        {
+            query = query.Where(x => x.PaisId == filtro.PaisId.Value);
+        }
+
+        // Ídem para empresas: la selección múltiple manda sobre la empresa única.
+        if (filtro.CompanyIds is { Count: > 0 })
+        {
+            var empresas = filtro.CompanyIds.Distinct().ToList();
+            query = query.Where(x => empresas.Contains(x.CompanyId));
+        }
+        else if (filtro.CompanyId.HasValue)
+        {
+            query = query.Where(x => x.CompanyId == filtro.CompanyId.Value);
+        }
+
         if (filtro.AssignedToGuid.HasValue)
             query = query.Where(x => x.AssignedToUserGuid == filtro.AssignedToGuid.Value);
 
-        return ApplyFilters(query, new TicketSearchRequest(
-            Anio: filtro.Anio, Tipo: filtro.Tipo, Prioridad: filtro.Prioridad, Texto: filtro.Texto));
+        // Rango de fechas: más fino que el año, así que si viene, el año se ignora.
+        var hayRango = filtro.Desde.HasValue || filtro.Hasta.HasValue;
+        if (filtro.Desde is { } desde) query = query.Where(x => x.CreatedAt >= desde);
+        if (filtro.Hasta is { } hasta)
+        {
+            // El "hasta" del usuario es un día inclusive, no un instante.
+            var fin = hasta.Date.AddDays(1);
+            query = query.Where(x => x.CreatedAt < fin);
+        }
+
+        query = ApplyFilters(query, new TicketSearchRequest(
+            Anio: hayRango ? null : filtro.Anio,
+            Estado: filtro.Estado,
+            Tipo: filtro.Tipo,
+            Prioridad: filtro.Prioridad,
+            Texto: filtro.Texto));
+
+        // El SLA no es una columna: se traduce al predicado equivalente sobre fecha_limite.
+        return AplicarFiltroSla(query, filtro.EstadoSla);
+    }
+
+    /// <summary>
+    /// Traduce el semáforo de SLA a condiciones sobre <c>fecha_limite</c> / <c>fecha_solucion</c>,
+    /// para que el filtro lo resuelva la BD y no el backend en memoria.
+    /// </summary>
+    private static IQueryable<Ticket> AplicarFiltroSla(IQueryable<Ticket> query, string? estadoSla)
+    {
+        if (string.IsNullOrWhiteSpace(estadoSla)) return query;
+
+        var ahora = DateTime.UtcNow;
+        var umbral = ahora.AddHours(TicketMetricasCalculos.HorasUmbralPorVencer);
+
+        return estadoSla.ToUpperInvariant() switch
+        {
+            TicketMetricasCalculos.SlaSinCompromiso => query.Where(x => x.FechaLimite == null),
+            TicketMetricasCalculos.SlaCumplido      => query.Where(x => x.FechaLimite != null && x.FechaSolucion != null && x.FechaSolucion <= x.FechaLimite),
+            TicketMetricasCalculos.SlaIncumplido    => query.Where(x => x.FechaLimite != null && x.FechaSolucion != null && x.FechaSolucion > x.FechaLimite),
+            TicketMetricasCalculos.SlaVencido       => query.Where(x => x.FechaLimite != null && x.FechaSolucion == null && x.FechaLimite < ahora),
+            TicketMetricasCalculos.SlaPorVencer     => query.Where(x => x.FechaLimite != null && x.FechaSolucion == null && x.FechaLimite >= ahora && x.FechaLimite <= umbral),
+            TicketMetricasCalculos.SlaEnTiempo      => query.Where(x => x.FechaLimite != null && x.FechaSolucion == null && x.FechaLimite > umbral),
+            _ => query,
+        };
     }
 
     // ───────────────────────────── ROADMAP ─────────────────────────────

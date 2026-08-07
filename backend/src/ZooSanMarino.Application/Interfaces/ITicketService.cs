@@ -59,6 +59,12 @@ public interface ITicketService
     Task<TicketTableroDto> GetTableroAsync(TicketTableroFiltro filtro, CancellationToken ct);
     Task<TicketRoadmapDto> GetRoadmapAsync(TicketTableroFiltro filtro, CancellationToken ct);
 
+    /// <summary>Panel de control: volumen, efectividad, tiempos y desgloses del conjunto filtrado.</summary>
+    Task<TicketIndicadoresDto> GetIndicadoresAsync(TicketTableroFiltro filtro, CancellationToken ct);
+
+    /// <summary>Reporte detallado (casos + tareas + tiempos + indicadores) para exportar a Excel.</summary>
+    Task<TicketReporteDto> GetReporteAsync(TicketTableroFiltro filtro, CancellationToken ct);
+
     // ── Trazabilidad ──────────────────────────────────────────────
     /// <summary>Línea de tiempo del caso. Devuelve vacío si el usuario no puede verlo.</summary>
     Task<IReadOnlyList<TicketTimelineEventoDto>> GetTimelineAsync(long id, CancellationToken ct);

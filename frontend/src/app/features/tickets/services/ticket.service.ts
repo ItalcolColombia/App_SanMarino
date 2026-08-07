@@ -30,7 +30,9 @@ import {
   CambiarPrioridadRequest,
   MoverTicketRequest,
   SolicitanteCandidato,
+  TicketIndicadores,
   TicketMetricas,
+  TicketReporte,
   TicketRoadmap,
   TicketTablero,
   TicketTableroFiltro,
@@ -171,6 +173,16 @@ export class TicketService {
     return this.http.get<TicketRoadmap>(`${this.baseUrl}/roadmap`, { params: this.toParams(filtro) });
   }
 
+  /** Panel de control: volumen, efectividad, tiempos y desgloses del conjunto filtrado. */
+  indicadores(filtro: TicketTableroFiltro = {}): Observable<TicketIndicadores> {
+    return this.http.get<TicketIndicadores>(`${this.baseUrl}/indicadores`, { params: this.toParams(filtro) });
+  }
+
+  /** Reporte detallado (casos + tareas + tiempos + indicadores) para armar el .xlsx. */
+  reporte(filtro: TicketTableroFiltro = {}): Observable<TicketReporte> {
+    return this.http.get<TicketReporte>(`${this.baseUrl}/reporte`, { params: this.toParams(filtro) });
+  }
+
   timeline(id: number): Observable<TicketTimelineEvento[]> {
     return this.http.get<TicketTimelineEvento[]>(`${this.baseUrl}/${id}/timeline`);
   }
@@ -194,13 +206,22 @@ export class TicketService {
     return this.http.get<{ tipos: string[]; estados: string[] }>(`${this.baseUrl}/catalogos`);
   }
 
-  /** Construye HttpParams omitiendo valores vacíos/undefined. */
+  /**
+   * Construye HttpParams omitiendo valores vacíos/undefined. Los arrays se repiten
+   * (`paisIds=1&paisIds=2`), que es como el binder de .NET arma un `int[]`; con `set` y una
+   * lista separada por comas llegaría un solo valor «1,2» y el filtro se perdería.
+   */
   private toParams(obj: TicketListFilter | TicketTableroFiltro): HttpParams {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(obj)) {
-      if (v !== undefined && v !== null && v !== '') {
-        params = params.set(k, String(v));
+      if (v === undefined || v === null || v === '') continue;
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item !== undefined && item !== null && item !== '') params = params.append(k, String(item));
+        }
+        continue;
       }
+      params = params.set(k, String(v));
     }
     return params;
   }

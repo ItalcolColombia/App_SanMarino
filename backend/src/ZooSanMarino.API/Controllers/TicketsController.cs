@@ -354,9 +354,16 @@ public class TicketsController : ControllerBase
         [FromQuery] Guid?   assignedToGuid = null,
         [FromQuery] string? texto          = null,
         [FromQuery] int     maxPorColumna  = 60,
+        [FromQuery] int[]?  paisIds        = null,
+        [FromQuery] int[]?  companyIds     = null,
+        [FromQuery] DateTime? desde        = null,
+        [FromQuery] DateTime? hasta        = null,
+        [FromQuery] string? estado         = null,
+        [FromQuery] string? estadoSla      = null,
         CancellationToken ct = default)
         => Ok(await _service.GetTableroAsync(
-            new TicketTableroFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto, maxPorColumna), ct));
+            ArmarFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto,
+                        maxPorColumna, paisIds, companyIds, desde, hasta, estado, estadoSla), ct));
 
     /// <summary>Roadmap: casos con sus fechas planificadas y sus tareas, para la vista de línea de tiempo.</summary>
     [HttpGet("roadmap")]
@@ -369,9 +376,79 @@ public class TicketsController : ControllerBase
         [FromQuery] int?    companyId      = null,
         [FromQuery] Guid?   assignedToGuid = null,
         [FromQuery] string? texto          = null,
+        [FromQuery] int[]?  paisIds        = null,
+        [FromQuery] int[]?  companyIds     = null,
+        [FromQuery] DateTime? desde        = null,
+        [FromQuery] DateTime? hasta        = null,
+        [FromQuery] string? estado         = null,
+        [FromQuery] string? estadoSla      = null,
         CancellationToken ct = default)
         => Ok(await _service.GetRoadmapAsync(
-            new TicketTableroFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto), ct));
+            ArmarFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto,
+                        60, paisIds, companyIds, desde, hasta, estado, estadoSla), ct));
+
+    /// <summary>
+    /// Panel de control: volumen, efectividad, tiempos promedio y desgloses por país, estado,
+    /// tipo, prioridad y responsable del conjunto filtrado.
+    /// </summary>
+    [HttpGet("indicadores")]
+    [ProducesResponseType(typeof(TicketIndicadoresDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<TicketIndicadoresDto>> Indicadores(
+        [FromQuery] int?    anio           = null,
+        [FromQuery] string? tipo           = null,
+        [FromQuery] string? prioridad      = null,
+        [FromQuery] int?    paisId         = null,
+        [FromQuery] int?    companyId      = null,
+        [FromQuery] Guid?   assignedToGuid = null,
+        [FromQuery] string? texto          = null,
+        [FromQuery] int[]?  paisIds        = null,
+        [FromQuery] int[]?  companyIds     = null,
+        [FromQuery] DateTime? desde        = null,
+        [FromQuery] DateTime? hasta        = null,
+        [FromQuery] string? estado         = null,
+        [FromQuery] string? estadoSla      = null,
+        CancellationToken ct = default)
+        => Ok(await _service.GetIndicadoresAsync(
+            ArmarFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto,
+                        60, paisIds, companyIds, desde, hasta, estado, estadoSla), ct));
+
+    /// <summary>
+    /// Reporte detallado (indicadores + casos + tareas + tiempos) del conjunto filtrado.
+    /// El frontend lo convierte en un .xlsx multi-hoja.
+    /// </summary>
+    [HttpGet("reporte")]
+    [ProducesResponseType(typeof(TicketReporteDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<TicketReporteDto>> Reporte(
+        [FromQuery] int?    anio           = null,
+        [FromQuery] string? tipo           = null,
+        [FromQuery] string? prioridad      = null,
+        [FromQuery] int?    paisId         = null,
+        [FromQuery] int?    companyId      = null,
+        [FromQuery] Guid?   assignedToGuid = null,
+        [FromQuery] string? texto          = null,
+        [FromQuery] int[]?  paisIds        = null,
+        [FromQuery] int[]?  companyIds     = null,
+        [FromQuery] DateTime? desde        = null,
+        [FromQuery] DateTime? hasta        = null,
+        [FromQuery] string? estado         = null,
+        [FromQuery] string? estadoSla      = null,
+        CancellationToken ct = default)
+        => Ok(await _service.GetReporteAsync(
+            ArmarFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto,
+                        60, paisIds, companyIds, desde, hasta, estado, estadoSla), ct));
+
+    /// <summary>
+    /// Arma el filtro compartido por tablero, roadmap, indicadores y reporte. Existe para que las
+    /// cuatro vistas lean EXACTAMENTE los mismos parámetros y no se desincronicen.
+    /// </summary>
+    private static TicketTableroFiltro ArmarFiltro(
+        int? anio, string? tipo, string? prioridad, int? paisId, int? companyId,
+        Guid? assignedToGuid, string? texto, int maxPorColumna, int[]? paisIds, int[]? companyIds,
+        DateTime? desde, DateTime? hasta, string? estado, string? estadoSla) =>
+        new(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto, maxPorColumna,
+            paisIds is { Length: > 0 } ? paisIds : null,
+            companyIds is { Length: > 0 } ? companyIds : null,
+            desde, hasta, estado, estadoSla);
 
     /// <summary>Línea de tiempo del caso (creación, estados, comentarios, adjuntos, tareas y tiempos).</summary>
     [HttpGet("{id:long}/timeline")]

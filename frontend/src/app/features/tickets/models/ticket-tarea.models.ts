@@ -228,6 +228,10 @@ export interface ActualizarPlanificacionRequest {
 
 // ───────────────────────── Tablero ─────────────────────────
 
+/**
+ * Filtros que comparten tablero, roadmap, panel de indicadores y reporte. Uno solo para las
+ * cuatro vistas: si se desincronizan, el Excel deja de coincidir con lo que se ve en pantalla.
+ */
 export interface TicketTableroFiltro {
   anio?: number;
   tipo?: string;
@@ -237,6 +241,15 @@ export interface TicketTableroFiltro {
   assignedToGuid?: string;
   texto?: string;
   maxPorColumna?: number;
+  /** Selección múltiple de países; tiene prioridad sobre `paisId`. */
+  paisIds?: number[];
+  /** Selección múltiple de empresas; tiene prioridad sobre `companyId`. */
+  companyIds?: number[];
+  /** Rango de creación (`yyyy-MM-dd`). Si viene, manda sobre `anio`. */
+  desde?: string;
+  hasta?: string;
+  estado?: string;
+  estadoSla?: string;
 }
 
 export interface TicketTableroColumna {
@@ -338,6 +351,153 @@ export interface TicketMetricas {
   horasEstimadas: number | null;
   desvioHoras: number | null;
   permanenciaPorEstado: TicketPermanenciaEstado[];
+}
+
+// ───────────────────────── Panel de indicadores ─────────────────────────
+
+export interface TicketResumenIndicadores {
+  total: number;
+  abiertos: number;
+  enCurso: number;
+  solucionados: number;
+  cerrados: number;
+  suspendidos: number;
+  vencidos: number;
+  porVencer: number;
+  sinAsignar: number;
+  tareasTotal: number;
+  tareasListas: number;
+  tareasPendientes: number;
+  horasEstimadas: number;
+  horasRegistradas: number;
+  /** Horas promedio hasta que el equipo tomó el caso. Null si ninguno fue tomado. */
+  promedioPrimeraRespuesta: number | null;
+  promedioResolucion: number | null;
+  promedioConfirmacionCierre: number | null;
+  /** % de casos con compromiso que se cumplieron. Null si ninguno tiene fecha límite. */
+  efectividad: number | null;
+  porcentajeResueltos: number;
+  avanceTareas: number;
+  conCompromiso: number;
+  compromisoCumplido: number;
+}
+
+/** Desglose de un agrupador con identidad: se usa igual para país y para empresa. */
+export interface TicketIndicadorGrupo {
+  id: number;
+  nombre: string;
+  total: number;
+  abiertos: number;
+  enCurso: number;
+  resueltos: number;
+  vencidos: number;
+  horasRegistradas: number;
+  avanceTareas: number;
+  promedioResolucion: number | null;
+  efectividad: number | null;
+}
+
+export interface TicketIndicadorCategoria {
+  clave: string;
+  label: string;
+  total: number;
+  resueltos: number;
+  vencidos: number;
+  promedioResolucion: number | null;
+}
+
+export interface TicketIndicadorResponsable {
+  guid: string | null;
+  nombre: string;
+  asignados: number;
+  resueltos: number;
+  vencidos: number;
+  horasRegistradas: number;
+  tareasListas: number;
+  promedioResolucion: number | null;
+}
+
+export interface TicketIndicadores {
+  resumen: TicketResumenIndicadores;
+  porPais: TicketIndicadorGrupo[];
+  porEmpresa: TicketIndicadorGrupo[];
+  porEstado: TicketIndicadorCategoria[];
+  porTipo: TicketIndicadorCategoria[];
+  porPrioridad: TicketIndicadorCategoria[];
+  porResponsable: TicketIndicadorResponsable[];
+}
+
+// ───────────────────────── Reporte detallado ─────────────────────────
+
+export interface TicketReporteCaso {
+  id: number;
+  codigo: string | null;
+  pais: string | null;
+  empresa: string | null;
+  tipo: string;
+  estado: string;
+  prioridad: string;
+  titulo: string;
+  solicitante: string | null;
+  solicitanteEmail: string | null;
+  registradoPor: string | null;
+  responsable: string | null;
+  createdAt: string;
+  primeraApertura: string | null;
+  fechaSolucion: string | null;
+  fechaCierre: string | null;
+  fechaLimite: string | null;
+  estadoSla: EstadoSla;
+  horasPrimeraRespuesta: number | null;
+  horasResolucion: number;
+  fechaInicioPlan: string | null;
+  fechaFinPlan: string | null;
+  horasEstimadas: number | null;
+  horasRegistradas: number;
+  desvioHoras: number | null;
+  tareasTotal: number;
+  tareasListas: number;
+  avanceTareas: number;
+  solucionDescripcion: string | null;
+}
+
+export interface TicketReporteTarea {
+  codigoCaso: string | null;
+  tituloCaso: string | null;
+  pais: string | null;
+  codigo: string | null;
+  tipo: string;
+  estado: string;
+  prioridad: string;
+  titulo: string;
+  responsable: string | null;
+  horasEstimadas: number | null;
+  horasRegistradas: number;
+  fechaInicioPlan: string | null;
+  fechaFinPlan: string | null;
+  fechaInicioReal: string | null;
+  fechaFinReal: string | null;
+  createdAt: string;
+}
+
+export interface TicketReporteTiempo {
+  codigoCaso: string | null;
+  tituloCaso: string | null;
+  pais: string | null;
+  tarea: string | null;
+  persona: string | null;
+  fecha: string;
+  horas: number;
+  descripcion: string | null;
+}
+
+export interface TicketReporte {
+  indicadores: TicketIndicadores;
+  casos: TicketReporteCaso[];
+  tareas: TicketReporteTarea[];
+  tiempos: TicketReporteTiempo[];
+  /** Filtros aplicados en texto, para el encabezado de cada hoja del Excel. */
+  filtrosAplicados: string[];
 }
 
 // ───────────────────────── Solicitante delegado ─────────────────────────

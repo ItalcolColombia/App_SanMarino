@@ -63,6 +63,14 @@ export const TICKETS_ROUTES: Routes = [
       import('./pages/roadmap/roadmap.component').then(m => m.RoadmapComponent),
   },
   {
+    // Panel de indicadores + descarga del reporte detallado.
+    path: 'panel',
+    canActivate: [permissionGuard],
+    data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
+    loadComponent: () =>
+      import('./pages/panel/panel.component').then(m => m.PanelComponent),
+  },
+  {
     path: ':id',
     canActivate: [permissionGuard],
     data: { permissions: ANY_TICKET_PERM },

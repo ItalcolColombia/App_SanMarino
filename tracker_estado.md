@@ -1555,3 +1555,40 @@ está abajo cuando puede estar a un lado»*, *«todo es hacia abajo cuando tenem
       fase actual, para no reservar el ancho de las otras seis
 - [x] Verificado en 1600 / 768 / 375 px: **cero desborde horizontal** en los tres, y el stepper de 7
       fases entra completo. `yarn build` 0 errores (solo el warning de bundle budget preexistente)
+
+### Panel de control del administrador + reporte a Excel (2026-08-07)
+Pedido: *«quiero filtros y datos arriba — efectividad, cantidad de casos, tareas terminadas con las
+pendientes, promedio de respuesta, estado de ticket… control por país… y descargar un reporte que
+muestre países, ticket, tiempos de implementación, planificación, bien detallado en Excel»* y, al
+revisarlo, *«también necesito filtrar por empresa»*.
+
+- [x] `TicketIndicadoresCalculos` (puro): resumen (volumen, efectividad, % resueltos, tareas
+      terminadas/pendientes, promedios de primera respuesta / resolución / confirmación de cierre,
+      vencidos y por vencer, sin responsable, horas) + desgloses por **país**, **empresa**, estado,
+      tipo, prioridad y responsable. Los promedios **ignoran** las filas sin el dato en vez de
+      contarlas como cero, y la efectividad solo mide los casos que tenían compromiso
+- [x] Filtros ampliados y COMPARTIDOS por tablero, roadmap, panel y reporte (un solo
+      `TicketTableroFiltro`, armado en un helper del controller para que no se desincronicen):
+      **multi-país**, **multi-empresa**, rango de fechas, estado, tipo, prioridad, semáforo de SLA,
+      responsable y búsqueda libre. El filtro de SLA se traduce a condiciones sobre `fecha_limite`
+      para que lo resuelva la BD y no el backend en memoria
+- [x] `GET /api/tickets/indicadores` y `GET /api/tickets/reporte` (ninguna ruta con `admin` — WAF)
+- [x] Página `pages/panel` (`/tickets/panel`): 6 KPIs arriba, alertas de vencidos / por vencer / sin
+      responsable, y desgloses por país, empresa, estado, tipo, prioridad y responsable
+- [x] **Descarga a Excel** con el helper compartido `exportarMultiHojaExcel` (no `XLSX` inline):
+      6 hojas — Indicadores · Por país · Por empresa · Casos · Tareas · Tiempos —, cada una con los
+      filtros aplicados en el encabezado. La hoja Casos trae 29 columnas: país, empresa, solicitante,
+      registrado por, responsable, fechas, SLA, tiempos de primera respuesta y resolución,
+      planificación, estimadas/registradas/desvío y avance de tareas
+- [x] Migración data-only `20260807062000_SeedMenuPanelIndicadoresTickets` (Designer clonado,
+      ModelSnapshot intacto, idempotente): menú + `menu_permissions` + `role_menus` + `company_menus`.
+      Verificado: **6 roles y 2 empresas**
+- [x] `dotnet build` 0 errores · `dotnet test` **1.864 verdes** (30 nuevos de indicadores) ·
+      `yarn build` 0 errores
+- [x] **Smoke API: 24 + 11 verificaciones, 0 fallas** — efectividad 0/4, tareas 2 listas / 7
+      pendientes, promedios 14,26 h y 169,51 h, desgloses por los 6 cortes; multi-país y
+      multi-empresa suman exacto y se combinan entre sí; SLA=VENCIDO coincide con el resumen; el
+      tablero, el roadmap y el reporte respetan el mismo filtro
+- [x] **Smoke UI**: chips de país y empresa filtran en vivo (19 → 13 casos con ItalcolEcuador, y la
+      tabla queda con esa sola empresa); el `.xlsx` descargado trae las 6 hojas y dice
+      «Empresas: ItalcolEcuador» en el encabezado. Cero desborde horizontal
