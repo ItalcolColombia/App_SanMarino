@@ -541,4 +541,82 @@ public class MigracionEsquemasTests
         Assert.Empty(desconocidos);
         Assert.Empty(faltantes);
     }
+
+    // ── Pesaje y agua en LEVANTE ──────────────────────────────────────────────
+    // El informe técnico de levante trae coeficiente de variación por sexo y la plantilla no tenía
+    // dónde recibirlo, aunque `fn_reporte_semanal_levante_extras` y
+    // `fn_resumen_semanal_ra_pesadas_levante` LEEN cv_hembras/cv_machos: la columna «C.V.%» del
+    // reporte semanal de levante salía siempre vacía. Producción ya aceptaba estos campos.
+
+    private static readonly string[] LevantePesajeYAgua =
+    {
+        "Coef. Variación H", "Coef. Variación M", "Observaciones Pesaje",
+        "Consumo Agua (L)", "pH Agua", "ORP Agua (mV)", "Temperatura Agua (°C)"
+    };
+
+    [Fact]
+    public void SeguimientoLevante_AceptaPesajeFinoYAgua()
+    {
+        var titulos = MigracionEsquemas.SeguimientoLevante.Columnas.Select(c => c.Titulo).ToList();
+
+        foreach (var esperada in LevantePesajeYAgua)
+            Assert.Contains(esperada, titulos);
+    }
+
+    [Fact]
+    public void SeguimientoLevante_PesajeYAgua_VanAlFinalYSonOpcionales()
+    {
+        // Van al final para no correr las columnas que los operarios ya copian y pegan.
+        var columnas = MigracionEsquemas.SeguimientoLevante.Columnas;
+        var ultimas = columnas.TakeLast(LevantePesajeYAgua.Length).Select(c => c.Titulo).ToArray();
+
+        Assert.Equal(LevantePesajeYAgua, ultimas);
+        Assert.All(columnas.TakeLast(LevantePesajeYAgua.Length), c => Assert.False(c.Requerida));
+    }
+
+    [Theory]
+    [InlineData("Coef. Variación H", "cv h")]
+    [InlineData("Coef. Variación M", "cv m")]
+    [InlineData("Consumo Agua (L)", "consumo agua")]
+    [InlineData("pH Agua", "ph")]
+    [InlineData("Temperatura Agua (°C)", "temp agua")]
+    public void SeguimientoLevante_PesajeYAgua_TienenAliasDeLectura(string titulo, string alias)
+    {
+        var claves = MigracionEsquemaCalculos.ClavesDeColumna(MigracionEsquemas.SeguimientoLevante, titulo);
+
+        Assert.Contains(MigracionCalculos.NormalizarClave(alias), claves);
+    }
+
+    [Fact]
+    public void SeguimientoLevante_ArchivoSinPesajeNiAgua_SigueSiendoValido()
+    {
+        // Regresión: los archivos ya generados no llevan estas columnas y deben importar igual.
+        var headers = MigracionEsquemas.SeguimientoLevante.Columnas
+            .Select(c => c.Titulo)
+            .Where(t => !LevantePesajeYAgua.Contains(t))
+            .Select(MigracionCalculos.NormalizarClave)
+            .ToList();
+
+        var (faltantes, desconocidos) = MigracionEsquemaCalculos.ValidarEncabezados(
+            MigracionEsquemas.SeguimientoLevante, headers);
+
+        Assert.Empty(faltantes);
+        Assert.Empty(desconocidos);
+    }
+
+    [Fact]
+    public void PosturaLevanteYProduccion_AceptanElMismoBloqueDeAgua()
+    {
+        // La asimetría entre las dos plantillas era el defecto: mismo dato, una lo recibía y la otra no.
+        var agua = new[] { "Consumo Agua (L)", "pH Agua", "ORP Agua (mV)", "Temperatura Agua (°C)" };
+
+        var enLevante = MigracionEsquemas.SeguimientoLevante.Columnas.Select(c => c.Titulo).ToList();
+        var enProduccion = MigracionEsquemas.SeguimientoProduccion.Columnas.Select(c => c.Titulo).ToList();
+
+        foreach (var col in agua)
+        {
+            Assert.Contains(col, enLevante);
+            Assert.Contains(col, enProduccion);
+        }
+    }
 }

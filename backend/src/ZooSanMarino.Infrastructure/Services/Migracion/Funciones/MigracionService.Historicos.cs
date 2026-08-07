@@ -231,6 +231,8 @@ public partial class MigracionService
                 ? "• Peso/Uniformidad: opcionales."
                 : "• Huevos: podés cargar Total/Incubable o las 11 categorías (si cargás categorías, el total y los incubables se calculan de ellas). Etapa: 1, 2 o 3.",
         };
+        if (esLevante)
+            instrucciones.Add("• Pesaje y agua: 'Coef. Variación H/M' (0-100), 'Observaciones Pesaje', 'Consumo Agua (L)', 'pH Agua' (0-14), 'ORP Agua (mV)' y 'Temperatura Agua (°C)' son opcionales y se guardan tal cual en el registro del día. El C.V. es el que alimenta la columna 'C.V.%' del reporte semanal de levante.");
         if (esLevante && lotePosturaCtx?.CapturaHuevosLevante == true)
             instrucciones.Add("• Huevos en levante: podés cargar las 11 categorías (+ peso) en cualquier semana; el total y los incubables se calculan del desglose.");
         instrucciones.Add("• Hoja 'Movimientos Aves': movimientos de aves de ESTE lote. 'Salida' descuenta acá y exige que el 'Lote Contraparte' exista en la misma fase (NO se le acreditan las aves: ese lote carga su propio Ingreso en su archivo). 'Ingreso' suma acá las aves recibidas en tránsito, sin tocar al lote origen. 'Venta' descuenta acá (con su 'Motivo'; sin contraparte).");
@@ -303,6 +305,23 @@ public partial class MigracionService
             var unifH = DobleOpc(fila, errores, "Uniformidad H", ClavesPostura(tipo, "Uniformidad H"));
             var unifM = DobleOpc(fila, errores, "Uniformidad M", ClavesPostura(tipo, "Uniformidad M"));
 
+            // Pesaje y agua (opcionales), a la par de lo que ya acepta producción. El C.V. importa
+            // especialmente: los reportes semanales de levante lo leen de cv_hembras/cv_machos y hasta
+            // acá ninguna vía de captura lo escribía.
+            var cvH = Porcentaje0a100(fila, errores, "Coef. Variación H", ClavesPostura(tipo, "Coef. Variación H"));
+            var cvM = Porcentaje0a100(fila, errores, "Coef. Variación M", ClavesPostura(tipo, "Coef. Variación M"));
+            var obsPesaje = MigracionCalculos.TextoLimpio(Celda(fila, ClavesPostura(tipo, "Observaciones Pesaje")));
+            var aguaDiario = DobleNoNeg(fila, errores, "Consumo Agua (L)", ClavesPostura(tipo, "Consumo Agua (L)"));
+            var aguaPh = DobleOpc(fila, errores, "pH Agua", ClavesPostura(tipo, "pH Agua"));
+            if (aguaPh is < 0 or > 14)
+            {
+                errores.Add(new(fila.Numero, "pH Agua", aguaPh.Value.ToString("0.##"),
+                    "pH Agua: se esperaba un valor entre 0 y 14."));
+                aguaPh = null;
+            }
+            var aguaOrp = DobleOpc(fila, errores, "ORP Agua (mV)", ClavesPostura(tipo, "ORP Agua (mV)"));
+            var aguaTemp = DobleOpc(fila, errores, "Temperatura Agua (°C)", ClavesPostura(tipo, "Temperatura Agua (°C)"));
+
             var unidad = LeerUnidadConsumo(fila, errores);
             var (itemsH, itemsM) = LeerAlimentosPostura(tipo, fila, errores, alimentosPorClave, unidad);
             (consH, consM) = ResolverConsumoPostura(tipo, fila, errores, itemsH, itemsM, consH, consM, unidad);
@@ -330,7 +349,10 @@ public partial class MigracionService
                 ["cons_h"] = consH, ["cons_m"] = consM,
                 ["tipo_alimento"] = ResolverTipoAlimento(fila, itemsH, itemsM),
                 ["peso_h"] = pesoH, ["peso_m"] = pesoM, ["unif_h"] = unifH, ["unif_m"] = unifM,
-                ["observaciones"] = MigracionCalculos.TextoLimpio(Celda(fila, "observaciones"))
+                ["observaciones"] = MigracionCalculos.TextoLimpio(Celda(fila, "observaciones")),
+                ["cv_h"] = cvH, ["cv_m"] = cvM, ["obs_pesaje"] = obsPesaje,
+                ["agua_diario"] = aguaDiario, ["agua_ph"] = aguaPh,
+                ["agua_orp"] = aguaOrp, ["agua_temp"] = aguaTemp
             };
             AgregarMetadataItems(jsonFila, itemsH, itemsM);
             AgregarHuevosClasificacion(jsonFila, huevos, pesoHuevo, incluirTotales: true);

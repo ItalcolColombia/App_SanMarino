@@ -62,6 +62,9 @@ BEGIN
         peso_h double precision, peso_m double precision,
         unif_h double precision, unif_m double precision,
         observaciones text,
+        cv_h double precision, cv_m double precision, obs_pesaje text,
+        agua_diario double precision, agua_ph double precision,
+        agua_orp double precision, agua_temp double precision,
         -- ── aditivo ──
         metadata jsonb,
         huevo_tot integer, huevo_inc integer, peso_huevo double precision,
@@ -90,6 +93,14 @@ BEGIN
             uniformidad_hembras  = f.unif_h,
             uniformidad_machos   = f.unif_m,
             observaciones        = f.observaciones,
+            -- Pesaje y agua: COALESCE con lo que ya tenía la fila, mismo criterio aditivo de abajo.
+            cv_hembras               = COALESCE(f.cv_h, sd.cv_hembras),
+            cv_machos                = COALESCE(f.cv_m, sd.cv_machos),
+            observaciones_pesaje     = COALESCE(f.obs_pesaje, sd.observaciones_pesaje),
+            consumo_agua_diario      = COALESCE(f.agua_diario, sd.consumo_agua_diario),
+            consumo_agua_ph          = COALESCE(f.agua_ph, sd.consumo_agua_ph),
+            consumo_agua_orp         = COALESCE(f.agua_orp, sd.consumo_agua_orp),
+            consumo_agua_temperatura = COALESCE(f.agua_temp, sd.consumo_agua_temperatura),
             -- Aditivo: COALESCE con lo que ya tenía la fila ⇒ una fila de traslado sin estos datos
             -- (el caso real) queda igual que antes cuando el archivo tampoco los trae.
             metadata             = COALESCE(f.metadata, sd.metadata),
@@ -135,6 +146,8 @@ BEGIN
             consumo_kg_hembras, consumo_kg_machos, tipo_alimento,
             peso_prom_hembras, peso_prom_machos, uniformidad_hembras, uniformidad_machos,
             observaciones, ciclo, created_by_user_id, created_at,
+            cv_hembras, cv_machos, observaciones_pesaje,
+            consumo_agua_diario, consumo_agua_ph, consumo_agua_orp, consumo_agua_temperatura,
             metadata,
             huevo_tot, huevo_inc, peso_huevo,
             huevo_limpio, huevo_tratado, huevo_sucio, huevo_deforme, huevo_blanco,
@@ -147,6 +160,8 @@ BEGIN
             f.cons_h, f.cons_m, f.tipo_alimento,
             f.peso_h, f.peso_m, f.unif_h, f.unif_m,
             f.observaciones, 'Normal', p_usuario, (NOW() AT TIME ZONE 'utc'),
+            f.cv_h, f.cv_m, f.obs_pesaje,
+            f.agua_diario, f.agua_ph, f.agua_orp, f.agua_temp,
             f.metadata,
             COALESCE(f.huevo_tot,0), COALESCE(f.huevo_inc,0), f.peso_huevo,
             COALESCE(f.huevo_limpio,0), COALESCE(f.huevo_tratado,0), COALESCE(f.huevo_sucio,0),

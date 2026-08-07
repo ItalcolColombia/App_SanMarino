@@ -112,6 +112,20 @@ public static class MigracionEsquemas
         .Concat(AlimentosPorSexoPostura())
         .Concat(CategoriasHuevo())
         .Append(new ColumnaEsquema("Peso Huevo (g)", Requerida: false, Alias: new[] { "peso huevo" }))
+        // Pesaje y agua del registro diario que la carga de LEVANTE no aceptaba, mientras que la de
+        // producción sí. El coeficiente de variación es el caso grave: `fn_reporte_semanal_levante_extras`
+        // y `fn_resumen_semanal_ra_pesadas_levante` LEEN cv_hembras/cv_machos, así que la columna C.V.%
+        // del reporte semanal de levante salía siempre vacía porque nada la escribía.
+        .Concat(new ColumnaEsquema[]
+        {
+            new("Coef. Variación H",      Requerida: false, Alias: new[] { "coeficiente de variacion h", "cv h", "coef variacion h" }),
+            new("Coef. Variación M",      Requerida: false, Alias: new[] { "coeficiente de variacion m", "cv m", "coef variacion m" }),
+            new("Observaciones Pesaje",   Requerida: false, Alias: new[] { "obs pesaje" }),
+            new("Consumo Agua (L)",       Requerida: false, Alias: new[] { "consumo agua", "agua", "litros agua" }),
+            new("pH Agua",                Requerida: false, Alias: new[] { "ph", "ph agua" }),
+            new("ORP Agua (mV)",          Requerida: false, Alias: new[] { "orp", "orp agua" }),
+            new("Temperatura Agua (°C)",  Requerida: false, Alias: new[] { "temperatura agua", "temp agua" }),
+        })
         .ToArray());
 
     /// <summary>

@@ -1921,3 +1921,44 @@ escrituras históricas quedarían rechazadas y en qué empresas?
       número» y va a divergir en cuanto se registren ventas de verdad.
       ✅ Verificado de paso: el espejo `fn_indicadores_levante_postura.sql` **sí está al día**
       (cuerpo idéntico a la definición viva) — no hay una segunda bomba de tiempo ahí
+
+---
+
+# Reporte Contable — Selección en RESUMEN + hoja de Movimientos de Huevo
+
+Plan: [reporte_contable_resumen_seleccion_y_huevos_plan.md](fase_de_desarrollo/reporte_contable_resumen_seleccion_y_huevos_plan.md)
+Origen: hallazgos 3 y 4 del correo de conciliación del lote K345
+([análisis](fase_de_desarrollo/conciliacion_lote_k345_niza_iii_analisis.md) §8).
+
+## Cambio 1 — columna Selección en la hoja RESUMEN
+- [x] `ReporteContableResumenCalculos` (Application/Calculos): acumulado puro del resumen semanal
+- [x] Reescribir `EscribirResumenSemanal` data-driven (12 columnas, Selección tras Mortalidad)
+- [x] Tests xUnit del acumulado
+
+## Cambio 2 — hoja MOVIMIENTOS HUEVOS en el Excel
+- [x] `GenerarExcel(reporte, movimientosHuevos = null)` — parámetro opcional, sin romper el caller
+- [x] Hoja espejo de la pantalla (POSTURA · HVTO FÉRTIL · HVO COMERCIAL · HUEVO DESECHO + movimientos)
+- [x] `ReporteContableController.ExportarExcel` resuelve los movimientos y los pasa
+
+## Validación
+- [x] `dotnet build` sin errores ni advertencias nuevas
+- [x] `dotnet test` verde
+- [x] Smoke: exportar Excel de un lote con producción y cuadrar contra la BD
+
+## Validación cruzada contra los informes de Verenice (lote S-369AB)
+- [x] Recuperar el `.xlsm` de levante (viene truncado: sin central directory del ZIP)
+- [x] Mapa de columnas del informe → campos de la aplicación (levante y producción)
+- [x] Identificar qué campos del informe **no tienen dónde guardarse** en la app
+- [x] Contrastar los datos cargados de S-369 contra el informe e informar diferencias
+
+## Alineación de la carga masiva de LEVANTE (hallazgo de la validación contra Verenice)
+Análisis: [validacion_informes_verenice_s369_analisis.md](fase_de_desarrollo/validacion_informes_verenice_s369_analisis.md)
+- [x] `MigracionEsquemas.SeguimientoLevante`: Coef. Variación H/M, Observaciones Pesaje y los 4 de agua
+- [x] `MigracionService.Historicos.cs`: lectura de las columnas nuevas + instrucciones de la plantilla
+- [x] `fn_migracion_seguimiento_levante`: recordset + UPDATE + INSERT (espejo `.sql` y migración EF)
+- [x] Migración `20260807190000_FnMigracionLevantePesajeYAgua` (+ Designer clonado)
+- [x] Tests xUnit del esquema (9) y smoke de la fn en transacción revertida
+- [ ] **Pendiente**: el modal de levante sigue sin capturar C.V. — la entidad `SeguimientoLoteLevante`
+      no mapea `cv_hembras`/`cv_machos`, así que por pantalla no hay dónde escribirlo (solo por carga masiva)
+- [ ] **Pendiente de decisión (técnica + costos)**: el corte levante/producción quedó en 24 semanas
+      en S-369 y el informe de Verenice usa 25 ⇒ ~17.332 kg cambian de etapa en una conciliación
