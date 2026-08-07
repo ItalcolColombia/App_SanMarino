@@ -1689,3 +1689,102 @@ revisarlo, *«también necesito filtrar por empresa»*.
       `features/lote-produccion/` = 0 resultados). Verificado por API: la respuesta no trae la clave.
       Es un cabo suelto de la misma `20260806093256`; exponerlo cambia el contrato del DTO y pide
       decidir dónde va la columna (tabla + Excel) ⇒ tarea aparte
+
+---
+
+# Tracker — ItalJira: historias, tareas y tiempos fuera del módulo de Tickets
+
+**Plan:** [`fase_de_desarrollo/italjira_gestion_historias_tareas_plan.md`](fase_de_desarrollo/italjira_gestion_historias_tareas_plan.md)
+**Fecha:** 2026-08-07 · **Bloque propio — no tocar desde otras sesiones**
+
+Pedido: sacar la gestión del área de desarrollo fuera de Tickets a un módulo nuevo **ItalJira**
+(Tickets queda con «Mis solicitudes» y «Bandeja de gestión»), agregar el nivel **HISTORIA** encima de
+las tareas (historia → tarea → subtarea/bug), permitir tareas nacidas en desarrollo (sin ticket), y
+sembrar por migración el histórico REAL de lo ya desarrollado, asignado a `moiesbbuga@gmail.com`.
+
+**Decisiones del usuario:** D1 = tabla nueva `historias` (3 niveles reales) · D2 = mover rutas a
+`/italjira` con redirect · D3 = histórico mixto (historias por módulo + una tarea por plan de
+`fase_de_desarrollo/`, con fechas reales de git).
+
+## Fase 0 — Auditoría y plan
+- [x] Modelo actual auditado: `Ticket` / `TicketTarea` (`ticket_id` **NOT NULL**) / `TicketTiempo`,
+      servicios partial, 3 controllers, 6 menús en BD, rutas y páginas del front
+- [x] Plan escrito con el DDL, las reglas de negocio y los casos de prueba
+- [x] Decisiones D1/D2/D3 confirmadas por el usuario
+
+## Fase 1 — Backend: datos
+- [ ] Entidad `Historia` + `HistoriaEstados`
+- [ ] `TicketTarea.TicketId` a `long?` + `HistoriaId` · `Ticket.HistoriaId` · `TicketTiempo.TicketId` a `long?`
+- [ ] `HistoriaConfiguration` + ajustes en las 3 configurations existentes + `DbSet` en el context
+- [ ] Migración M1 `AddHistoriasItalJira` (DDL idempotente + CHECK de no-huérfana) aplicada en local
+
+## Fase 2 — Backend: lógica
+- [ ] `Application/Calculos/HistoriaCalculos.cs` (puro) + tests xUnit
+- [ ] `HistoriaDtos` + `IHistoriaService` + `HistoriaService` (ancla + `Funciones/Backlog`)
+- [ ] `TicketTareaService.Historias.cs` (partial: tareas por historia y sueltas)
+- [ ] `HistoriasController` + DI en `Program.cs`
+
+## Fase 3 — Menús
+- [ ] Migración M2 `MenusItalJiraFueraDeTickets` (UPDATE en sitio conserva role_menus/company_menus)
+- [ ] Verificado en BD local: ItalJira con sus items, Tickets con 2
+
+## Fase 4 — Frontend
+- [ ] Feature `features/italjira/` (routes, models, service, funciones)
+- [ ] Páginas mudadas: tablero, roadmap, panel, configuración, mis asignados
+- [ ] Página nueva **Backlog** (árbol historia → tarea → subtarea + bandeja «Sin historia»)
+- [ ] Redirects desde las rutas viejas de tickets + ruta lazy en `app.config.ts`
+- [ ] `changeDetection: Eager` explícito en TODO componente nuevo
+
+## Fase 5 — Histórico real
+- [ ] Fechas reales extraídas de git para los planes de `fase_de_desarrollo/`
+- [ ] Curado en ~20 historias por módulo
+- [ ] Migración M3 `SeedHistorialDesarrolloItalJira` (idempotente, usuario por email)
+
+## Fase 6 — Validación
+- [ ] `dotnet build` 0 errores / 0 advertencias nuevas
+- [ ] `dotnet test` verde
+- [ ] `yarn build` (único warning aceptado: bundle budget preexistente)
+- [ ] Smoke HTTP (backend propio `PORT=5499`) del flujo completo
+- [ ] Smoke UI (menús, backlog, modales que no se cuelgan)
+- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
+
+## Fase 4 — §2.3 Barrido de sobregiro de aves (decisión del usuario: medir primero, sin tocar código)
+
+Pregunta: si el seguimiento diario bloqueara «no cargar más bajas que aves disponibles», ¿cuántas
+escrituras históricas quedarían rechazadas y en qué empresas?
+
+- [x] B1 Detector `backend/sql/verificar_sobregiro_aves_postura.sql` (**solo lectura**, hermano de
+      `verificar_paridad_saldo_engorde.sql`). Aritmética NO inventada: base y exclusión de filas
+      copiadas de `fn_indicadores_levante_postura`; bajas = `SaldoAvesLevanteCalculos.BajasNetas`;
+      producción sobre `fn_seguimiento_diario_produccion`. **Sin clamp** (el `GREATEST(0,…)` es lo que
+      esconde el sobregiro)
+- [x] B2 **Validación cruzada de la fórmula**: producción da saldo idéntico al `saldo_aves_h/m` que la
+      propia fn expone en **5/5 LPP**; levante reproduce el **−460** del lote 123 exacto. La medición
+      no es una fórmula nueva
+- [x] B3 **RESULTADO — 1 sola fila en toda la BD local**:
+      · **Levante**: 1 de 902 filas (11 lotes) — el ya conocido **lote 123 «LOTE 235A» de Demo**,
+        03-ago-2026: **40 disponibles contra 500 bajas cargadas**. **Agroavícola Sanmarino: 0**
+      · **Producción**: **0 de 933 filas** (5 LPP), 0 lotes con saldo final negativo
+      · Alcance real del barrido: solo Sanmarino y Demo tienen datos de postura; ItalcolEcuador,
+        ItalcolPanamá y Santa Reyes tienen **0 filas** ⇒ el bloqueo no los toca
+- [x] B4 🔑 **Hallazgo de diseño que cambia la regla**: **4 lotes de levante y 1 LPP tocan saldo
+      exactamente 0**, que es el cierre LEGÍTIMO (lote agotado). La regla tiene que ser
+      **`bajas <= disponibles`**, NO `saldo > 0` — exigir `> 0` rompería el cierre normal de todos
+      esos lotes. Y explica por qué el soft-check REQ-011b está doblemente mal: compara `saldo == 0`
+      exacto ⇒ **salta en el caso legítimo y NO salta en el sobregiro real**
+- [x] B5 Margen de operación: levante 6 lotes holgados / 4 en cero / 1 negativo; producción 3
+      holgados / 1 con margen 1-50 / 1 en cero. Ningún lote «casi» sobregira ⇒ el bloqueo no
+      generaría falsos rechazos por operación normal
+- [ ] **Pendiente de decisión**: re-correr el detector contra el dump de PROD antes de implementar
+      (la BD local es un dump de fecha incierta y solo tiene 2 empresas con postura). Si prod
+      confirma un número parecido, el bloqueo es de riesgo bajo
+
+### Hallazgo lateral del barrido (NO tocado)
+- [ ] **Tres fórmulas distintas para el saldo de levante**: `fn_indicadores_levante_postura`
+      **NO descuenta ventas** (`r_aves_fin := v_aves_acum - mort - sel - err - tras_sal + tras_ing`),
+      mientras que `fn_resumen_semanal_ra_pesadas_levante` y `fn_reporte_semanal_levante_extras`
+      **sí** desde `b315612` / `20260806235000`, y `SaldoAvesLevanteCalculos.BajasNetas` también.
+      Hoy no se nota (solo 2 filas en toda la BD tienen venta), pero viola «una sola fórmula por
+      número» y va a divergir en cuanto se registren ventas de verdad.
+      ✅ Verificado de paso: el espejo `fn_indicadores_levante_postura.sql` **sí está al día**
+      (cuerpo idéntico a la definición viva) — no hay una segunda bomba de tiempo ahí
