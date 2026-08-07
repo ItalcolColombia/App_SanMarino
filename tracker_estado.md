@@ -1477,3 +1477,62 @@ tener fila en `company_menus`).
       todavía no migración). Se descartó esa migración generada y se restauró el ModelSnapshot; la
       data-only se escribió a mano con el Designer clonado
 - [x] `dotnet build` 0 errores · `dotnet test` **1.834 verdes**
+
+---
+
+## Tab «Indicadores» de Levante y Producción — guía genética + UX unificada
+Plan: [19_indicadores_levante_produccion_ux_plan.md](fase_de_desarrollo/19_indicadores_levante_produccion_ux_plan.md)
+
+### Validación contra la guía genética (con el lote S-369 real, guía AP 2026)
+- [x] I1 **Levante: 24/24 exactas** en las 4 columnas de guía (`consumoTablaHembras`,
+      `pesoTablaHembras`, `mortTablaHembras`, `unifTabla`). Sin hallazgos
+- [x] I2 **Producción: correctas 24/24** en `porcentajeProduccionGuia`, `consumoGuia H/M`,
+      `mortalidadGuia H/M`, `huevosTotalesGuia`, `huevosIncubablesGuia`, `pesoHuevoGuia`,
+      `retiroAcumulado*Guia` y `pesoGuia H/M` (la fn divide /1000: la guía guarda gramos)
+- [x] I3 Dos falsos positivos documentados para que nadie los «arregle»: la semana 25 tiene DOS
+      filas en la guía (`25` levante y `25P` producción) y la fn usa bien la `25P`; y el % de
+      producción usa aves vivas corrientes, no el promedio inicio/fin
+- [ ] I4 🔴 **`uniformidadGuia` = 0 en las 24 semanas.** La guía no trae uniformidad para edades de
+      producción (solo 25 de 98 filas la tienen, todas de levante); la fn la lee bien como NULL y
+      después la pisa con `g_unif := COALESCE(g_unif, 0)`. Se lee como «la guía exige 0 %» en vez de
+      «sin dato». Igual con `g_peso_h/m`. El COALESCE es deliberado (parity con un `ParseDouble`
+      viejo) ⇒ el arreglo va explícito y medido
+- [ ] I5 Gate multipaís de la fn tras el cambio: solo deben moverse esas columnas
+
+### UX — cada tab tiene la mitad de lo bueno
+- [ ] I6 Levante tiene chips de contexto, modal de Fórmulas y resumen acumulado; **le faltan**
+      estados de carga/error y la leyenda de desvío
+- [ ] I7 Producción tiene carga/error/leyenda; **le faltan** chips, Fórmulas y resumen acumulado, y
+      arrastra `style=` inline en el encabezado
+- [ ] I8 `shared/styles/indicadores-tab.scss` con los bloques comunes, tokens del sistema de diseño
+      (prohibido hardcodear color)
+- [ ] I9 Renombrar «Eficiencia» a «% Producción» en producción (es lo que realmente calcula)
+
+### Quitar el tab «Reporte semanal»
+- [ ] I10 Solo **levante** lo tiene («🗓️ Reporte semana»); producción no. Eliminar marcado, rama
+      `@if`, el estado `reporteSemana`, `buildReporteSemanaFilas`, `exportReporteSemanaExcel`, la
+      interfaz `ReporteSemanaFila` y el SCSS huérfano
+- [ ] I11 `yarn build` + `dotnet build` + `dotnet test`
+
+### Layout: aprovechar el ancho en monitor (2026-08-07)
+Feedback del usuario sobre las capturas: *«tiene mucho espacio alrededor y tengo que bajar»*, *«el chat
+está abajo cuando puede estar a un lado»*, *«todo es hacia abajo cuando tenemos espacio en los lados»*.
+
+- [x] **Nuevo ticket**: contenedor `max-w-5xl` → `max-w-[1500px]` y el formulario pasa a **dos columnas**
+      en `lg+` (izquierda: título, tipo, resolutor, descripción, prioridad · derecha: notificados,
+      imágenes, adjuntos), con «a nombre de» a lo ancho arriba. Alto del form 825 px contra el scroll
+      largo de antes
+- [x] **Detalle**: contenedor a `max-w-[1700px]` y **tres columnas** en `xl` — caso (629 px) ·
+      conversación (499 px) · gestión (369 px). El chat **deja de ser pestaña**: vive en su columna,
+      con los mensajes scrolleando dentro y el redactor fijo abajo. Conversación y gestión son
+      `sticky` (con `self-start`, que es lo que les da margen para desplazarse), así que el caso
+      scrollea sin que se vayan de pantalla. En `lg` baja a dos columnas (caso + gestión, chat debajo)
+      y en móvil a una
+- [x] 🔴 **Bug de layout encontrado y corregido**: el detalle sacaba **scroll horizontal a toda la
+      página** en pantallas medianas. Era un *grid blowout* — el ancho mínimo del contenido (el stepper
+      de 7 fases con `whitespace-nowrap`) estiraba la pista del grid a 996 px dentro de un contenedor
+      de 705. Fix: `min-w-0` en las columnas del grid + el stepper scrollea dentro de su propia caja
+      (`overflow-x-auto` con `w-max min-w-full`) y entre `md` y `lg` solo renderiza la etiqueta de la
+      fase actual, para no reservar el ancho de las otras seis
+- [x] Verificado en 1600 / 768 / 375 px: **cero desborde horizontal** en los tres, y el stepper de 7
+      fases entra completo. `yarn build` 0 errores (solo el warning de bundle budget preexistente)

@@ -25,8 +25,11 @@ import { OpcionAsignable } from '../../components/tarea-modal/tarea-modal.compon
 import { ToastService } from '../../../../shared/services/toast.service';
 import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 
-/** Pestañas de la columna principal. */
-type Pestana = 'actividad' | 'comentarios' | 'tareas' | 'tiempos';
+/**
+ * Pestañas de la columna del caso. La conversación NO es una pestaña: vive en su propia
+ * columna para poder leerla en paralelo con el caso en pantalla ancha.
+ */
+type Pestana = 'actividad' | 'tareas' | 'tiempos';
 
 /** Detalle del caso con layout tipo Jira: contenido + pestañas y sidebar de gestión. */
 @Component({
