@@ -1492,27 +1492,46 @@ Plan: [19_indicadores_levante_produccion_ux_plan.md](fase_de_desarrollo/19_indic
 - [x] I3 Dos falsos positivos documentados para que nadie los «arregle»: la semana 25 tiene DOS
       filas en la guía (`25` levante y `25P` producción) y la fn usa bien la `25P`; y el % de
       producción usa aves vivas corrientes, no el promedio inicio/fin
-- [ ] I4 🔴 **`uniformidadGuia` = 0 en las 24 semanas.** La guía no trae uniformidad para edades de
+- [x] I4 🔴 **`uniformidadGuia` = 0 en las 24 semanas** — arreglado en la capa de presentación (ver I5).
+      Diagnóstico: La guía no trae uniformidad para edades de
       producción (solo 25 de 98 filas la tienen, todas de levante); la fn la lee bien como NULL y
       después la pisa con `g_unif := COALESCE(g_unif, 0)`. Se lee como «la guía exige 0 %» en vez de
       «sin dato». Igual con `g_peso_h/m`. El COALESCE es deliberado (parity con un `ParseDouble`
       viejo) ⇒ el arreglo va explícito y medido
-- [ ] I5 Gate multipaís de la fn tras el cambio: solo deben moverse esas columnas
+- [x] I5 ⚠️ **NO se tocó la fn: el espejo `.sql` está desincronizado de producción.** Al intentar el
+      arreglo en `fn_indicadores_produccion_postura` descubrí que
+      `backend/sql/fn_indicadores_produccion_postura.sql` **no coincide con lo desplegado**: le falta
+      la columna `seleccion_machos`, que agregó la migración `SaldoProduccionDescuentaVentasYTraslados`
+      y que el espejo nunca recibió. Lo desplegué en local y dejó la fn en **68 columnas en vez de
+      69** ⇒ habría roto `IndicadorProduccionSemanalBdRow.SeleccionMachos` en runtime. Detectado por
+      el gate y restaurado desde la definición viva. **Reconciliar el espejo queda como tarea aparte
+      con su propio gate**; meterlo en un cambio de UX era arrastrar riesgo. El síntoma se arregló
+      donde es seguro: `hayGuiaUniformidad()` trata el 0 como ausencia y la UI pinta «—» (verificado
+      en el navegador: las 5 primeras semanas muestran «—»)
 
 ### UX — cada tab tiene la mitad de lo bueno
-- [ ] I6 Levante tiene chips de contexto, modal de Fórmulas y resumen acumulado; **le faltan**
+- [x] I6 Levante tiene chips de contexto, modal de Fórmulas y resumen acumulado; **le faltan**
       estados de carga/error y la leyenda de desvío
-- [ ] I7 Producción tiene carga/error/leyenda; **le faltan** chips, Fórmulas y resumen acumulado, y
+- [x] I7 Producción tiene carga/error/leyenda; **le faltan** chips, Fórmulas y resumen acumulado, y
       arrastra `style=` inline en el encabezado
-- [ ] I8 `shared/styles/indicadores-tab.scss` con los bloques comunes, tokens del sistema de diseño
+- [x] I8 `frontend/src/styles/indicadores-tab.scss` (registrado en `styles.scss`) con los bloques comunes, tokens del sistema de diseño
       (prohibido hardcodear color)
-- [ ] I9 Renombrar «Eficiencia» a «% Producción» en producción (es lo que realmente calcula)
+- [x] I9 Sin cambio: la cabecera de producción **ya decía «%Prod Real»**. La columna «Eficiencia» que
+      vi al principio es de la tabla de LEVANTE, que es otra métrica
 
 ### Quitar el tab «Reporte semanal»
-- [ ] I10 Solo **levante** lo tiene («🗓️ Reporte semana»); producción no. Eliminar marcado, rama
+- [x] I10 Solo **levante** lo tenía («🗓️ Reporte semana»); producción no. Eliminar marcado, rama
       `@if`, el estado `reporteSemana`, `buildReporteSemanaFilas`, `exportReporteSemanaExcel`, la
       interfaz `ReporteSemanaFila` y el SCSS huérfano
-- [ ] I11 `yarn build` + `dotnet build` + `dotnet test`
+- [x] I11 `ng build` **correcto** (único warning: el de bundle budget preexistente que el repo acepta)
+- [x] I12 **Verificado en el navegador** con el lote S-369 real (front :4300, back :5002 con
+      `AllowedOrigins__1` por variable de entorno, sesión inyectada en `localStorage`):
+      · Levante: 3 tabs sin «Reporte semana», encabezado + 4 chips + leyenda nueva + 24 filas +
+        resumen acumulado, **0 clases viejas**
+      · Producción: encabezado + 4 chips + leyenda + 23 filas, **0 estilos inline**, `loading-state`
+        y `error-state` reemplazados, y **`Unif Guía` mostrando «—»** en vez de 0
+      · Colores resueltos desde los tokens: naranja acción, verde solo éxito (#16A34A), rojo solo
+        peligro (#DC2626)
 
 ### Layout: aprovechar el ancho en monitor (2026-08-07)
 Feedback del usuario sobre las capturas: *«tiene mucho espacio alrededor y tengo que bajar»*, *«el chat

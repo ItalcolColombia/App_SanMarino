@@ -77,6 +77,12 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   /** Origen de los valores "tabla" mostrado como hint; con los indicadores en BD siempre es la guía Colombia ('clasica'). */
   fuenteGuiaIndicadores: 'ecuador-mixto' | 'clasica' | null = null;
 
+  /** Estados de la carga contra la BD. Antes el endpoint podía fallar y la tabla simplemente
+   *  quedaba vacía con el mismo mensaje que «este lote no tiene datos»: el usuario no podía
+   *  distinguir «no hay» de «se cayó». Producción ya los tenía; ahora los dos. */
+  cargandoIndicadores = false;
+  errorIndicadores: string | null = null;
+
   constructor(
     private seguimientoSvc: SeguimientoLoteLevanteService
   ) { }
@@ -158,7 +164,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
    * Sin fallback de cálculo cliente (misma fuente que las gráficas): si no se
    * resuelve el loteId o el endpoint falla, la tabla queda vacía.
    */
-  private async calcularIndicadores(): Promise<void> {
+  async calcularIndicadores(): Promise<void> {
+    this.errorIndicadores = null;
     if (!this.seguimientos || this.seguimientos.length === 0 || !this.selectedLote) {
       this.indicadoresSemanales = [];
       this.fuenteGuiaIndicadores = null;
@@ -171,6 +178,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       this.fuenteGuiaIndicadores = null;
       return;
     }
+    this.cargandoIndicadores = true;
     try {
       const dto = await firstValueFrom(this.seguimientoSvc.getIndicadores(loteId));
       this.indicadoresSemanales = (dto || []).map(d => this.mapDtoAIndicador(d));
@@ -179,6 +187,9 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       console.warn('Indicadores desde BD no disponibles para la tabla:', e);
       this.indicadoresSemanales = [];
       this.fuenteGuiaIndicadores = null;
+      this.errorIndicadores = 'No se pudieron cargar los indicadores de este lote.';
+    } finally {
+      this.cargandoIndicadores = false;
     }
   }
 

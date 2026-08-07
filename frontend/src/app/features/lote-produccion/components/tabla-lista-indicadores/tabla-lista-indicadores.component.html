@@ -1,54 +1,68 @@
 <div class="indicadores-container">
-  <div class="indicadores-header">
-    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap: 12px;">
-      <h3 style="margin:0;">📈 Indicadores Semanales de Producción</h3>
+  <!-- Encabezado, chips, leyenda y estados: bloques compartidos con el tab de
+       Levante (styles/indicadores-tab.scss). Los dos tabs deben verse igual. -->
+  <div class="ind-header">
+    <div class="ind-header__titles">
+      <h3 class="ind-header__title">📈 Indicadores Semanales de Producción</h3>
+      <p class="ind-header__hint">
+        Comparación con <strong>guía genética</strong> por semana de vida del lote.
+      </p>
+    </div>
+    <div class="ind-header__actions">
       <button
         type="button"
-        class="btn btn--outline"
+        class="ind-btn"
         (click)="descargarIndicadoresExcel()"
         [disabled]="!indicadoresSemanales || indicadoresSemanales.length === 0">
         ⬇ Descargar Excel (Seguimiento + Indicadores)
       </button>
     </div>
-    <p class="indicadores-subtitle">
-      Resumen de métricas clave por semana de producción
-      @if (tieneDatosGuiaGenetica) {
-        <span class="badge-guia">✓ Comparación con Guía Genética disponible</span>
-      }
-    </p>
-    @if (mensajeGuiaGenetica) {
-      <div class="mensaje-guia-info" role="alert">
-        ℹ️ {{ mensajeGuiaGenetica }}
-      </div>
-    }
-
-    <!-- Leyenda de comparación con la guía genética -->
-    @if (tieneDatosGuiaGenetica && indicadoresSemanales.length > 0) {
-      <div class="leyenda-guia">
-        <span class="leyenda-titulo">Diferencia vs guía:</span>
-        <span class="leyenda-item"><span class="leyenda-chip diferencia-ok"></span> Óptimo (≤ 5%)</span>
-        <span class="leyenda-item"><span class="leyenda-chip diferencia-warning"></span> Aceptable (≤ 15%)</span>
-        <span class="leyenda-item"><span class="leyenda-chip diferencia-danger"></span> Requiere atención (&gt; 15%)</span>
-      </div>
-    }
   </div>
+
+  @if (mensajeGuiaGenetica) {
+    <div class="ind-state ind-state--error" role="alert">
+      <p class="ind-state__text">ℹ️ {{ mensajeGuiaGenetica }}</p>
+    </div>
+  }
+
+  <!-- Chips de contexto del lote (paridad con Levante; acá con los datos que
+       expone InformacionLoteDto, que no trae regional/granja). -->
+  @if (informacionLote) {
+    <div class="ind-chips" aria-label="Contexto del lote">
+      <span class="ind-chip ind-chip--info">
+        <span class="ind-chip__dot" aria-hidden="true"></span>
+        Lote: {{ informacionLote.loteNombre }}
+      </span>
+      <span class="ind-chip">Estado: {{ informacionLote.estado }}</span>
+      <span class="ind-chip">Edad: {{ informacionLote.edadSemanasProduccion }} sem</span>
+      <span class="ind-chip">Aves: {{ informacionLote.avesActualesH | number:'1.0-0' }} H / {{ informacionLote.avesActualesM | number:'1.0-0' }} M</span>
+    </div>
+  }
+
+  <!-- Leyenda de comparación con la guía genética -->
+  @if (tieneDatosGuiaGenetica && indicadoresSemanales.length > 0) {
+    <div class="ind-legend">
+      <span class="ind-legend__title">Diferencia vs guía:</span>
+      <span class="ind-legend__item"><span class="ind-legend__chip ind-legend__chip--ok"></span> Óptimo (≤ 5%)</span>
+      <span class="ind-legend__item"><span class="ind-legend__chip ind-legend__chip--warning"></span> Aceptable (≤ 15%)</span>
+      <span class="ind-legend__item"><span class="ind-legend__chip ind-legend__chip--danger"></span> Requiere atención (&gt; 15%)</span>
+    </div>
+  }
 
   <!-- Loading State -->
   @if (loadingIndicadores) {
-    <div class="loading-state">
-      <div class="spinner"></div>
-      <p>Calculando indicadores semanales...</p>
+    <div class="ind-state">
+      <div class="ind-state__spinner" aria-hidden="true"></div>
+      <p class="ind-state__text">Calculando indicadores semanales…</p>
     </div>
   }
 
   <!-- Error State -->
   @if (error && !loadingIndicadores) {
-    <div class="error-state">
-      <div class="error-icon">⚠️</div>
-      <p>{{ error }}</p>
-      <button type="button" class="btn btn--outline" (click)="cargarIndicadores()">
-        Reintentar
-      </button>
+    <div class="ind-state ind-state--error" role="alert">
+      <div class="ind-state__icon" aria-hidden="true">⚠️</div>
+      <p class="ind-state__text">{{ error }}</p>
+      <button type="button" class="ind-btn" (click)="cargarIndicadores()">Reintentar</button>
     </div>
   }
 
@@ -216,7 +230,7 @@
               <td>{{ ind.pesoGuiaMachos !== null && ind.pesoGuiaMachos !== undefined ? (ind.pesoGuiaMachos | number:'1.0-2') : '—' }}</td>
               <td [class]="getDiferenciaClass(ind.diferenciaPesoMachos)">{{ formatearPorcentaje(ind.diferenciaPesoMachos) }}</td>
               <td>{{ ind.uniformidadPromedio !== null && ind.uniformidadPromedio !== undefined ? (ind.uniformidadPromedio | number:'1.0-2') : '—' }}</td>
-              <td>{{ ind.uniformidadGuia !== null && ind.uniformidadGuia !== undefined ? (ind.uniformidadGuia | number:'1.0-2') : '—' }}</td>
+              <td>{{ hayGuiaUniformidad(ind) ? (ind.uniformidadGuia | number:'1.0-2') : '—' }}</td>
               <td [class]="getDiferenciaClass(ind.diferenciaUniformidad)">{{ formatearPorcentaje(ind.diferenciaUniformidad) }}</td>
               <td>{{ ind.coeficienteVariacionPromedio !== null && ind.coeficienteVariacionPromedio !== undefined ? (ind.coeficienteVariacionPromedio | number:'1.0-2') : '—' }}</td>
               <!-- Aves -->

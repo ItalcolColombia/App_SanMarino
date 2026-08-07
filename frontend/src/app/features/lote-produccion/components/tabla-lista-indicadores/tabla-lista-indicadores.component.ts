@@ -254,6 +254,18 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     return out;
   }
 
+  /**
+   * ¿La guía trae uniformidad para esta semana? La guía genética NO define uniformidad para las
+   * edades de PRODUCCIÓN (solo la trae en las de levante), y `fn_indicadores_produccion_postura`
+   * la emite como 0 en vez de NULL por paridad histórica con un `ParseDouble` viejo del C#.
+   * Pintar ese 0 se lee como «la guía exige 0 % de uniformidad», que es falso: es «sin dato».
+   * Un 0 real tampoco existe como objetivo, así que tratarlo como ausencia es seguro.
+   */
+  hayGuiaUniformidad(ind: IndicadorProduccionSemanalDto): boolean {
+    const g = ind?.uniformidadGuia;
+    return g !== null && g !== undefined && Number(g) !== 0;
+  }
+
   /** Filas de la hoja "Indicadores" (métricas semanales + comparación con guía). */
   private buildIndicadoresRows(): any[] {
     return (this.indicadoresSemanales || []).map(ind => this.redondearFila({

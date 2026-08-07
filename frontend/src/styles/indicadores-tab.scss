@@ -1,0 +1,282 @@
+/* ============================================================================
+   Tab «Indicadores» — estructura compartida entre Levante y Producción
+   ----------------------------------------------------------------------------
+   Los dos tabs muestran datos distintos (23 columnas vs 52) y no pueden compartir
+   componente, pero SÍ deben verse igual. Acá viven los bloques comunes; cada
+   componente solo aporta lo suyo (sus columnas y sus reglas de color por celda).
+
+   Antes cada uno tenía la mitad de lo bueno: levante traía chips de contexto,
+   modal de fórmulas y resumen acumulado pero no tenía estados de carga/error;
+   producción tenía carga/error y leyenda de desvío pero ningún chip ni resumen,
+   y resolvía el encabezado con `style=` inline. Con este parcial los dos tienen
+   el set completo y el mismo lenguaje visual.
+
+   Tokens: SOLO variables de theme-italfoods.scss. Prohibido hardcodear color
+   (regla de marca del repo: naranja = acción, verde = éxito, rojo = peligro).
+   ============================================================================ */
+
+/* ── Encabezado ───────────────────────────────────────────────────────────── */
+.ind-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--ital-green-50);
+
+  &__titles { min-width: 0; }
+
+  &__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--ital-text);
+  }
+
+  &__hint {
+    margin: 4px 0 0;
+    font-size: .8rem;
+    color: var(--ital-muted);
+
+    strong { color: var(--ital-text); font-weight: 600; }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* Botón secundario del encabezado (Excel, Fórmulas). Naranja = acción. */
+.ind-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--ital-orange-dark);
+  background: var(--ital-orange-50);
+  border: 1px solid var(--ital-orange-100);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--ital-orange-100);
+    border-color: var(--ital-orange);
+  }
+
+  &:disabled { opacity: .5; cursor: not-allowed; }
+}
+
+/* ── Chips de contexto del lote (Regional / Granja / Módulo / Sub Lote) ───── */
+.ind-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: .76rem;
+  font-weight: 600;
+  color: var(--ital-muted);
+  background: var(--ital-green-50);
+  border: 1px solid var(--ital-green-100);
+  border-radius: 999px;
+  white-space: nowrap;
+
+  &--info {
+    color: var(--ital-orange-dark);
+    background: var(--ital-orange-50);
+    border-color: var(--ital-orange-100);
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+
+/* ── Leyenda de desvío contra la guía genética ───────────────────────────── */
+.ind-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: .76rem;
+  color: var(--ital-muted);
+  background: var(--ital-cream);
+  border: 1px solid var(--ital-green-50);
+  border-radius: 8px;
+
+  &__title { font-weight: 700; color: var(--ital-text); }
+
+  &__item { display: inline-flex; align-items: center; gap: 6px; }
+
+  &__chip {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+
+    &--ok      { background: var(--success); }
+    &--warning { background: var(--ital-orange); }
+    &--danger  { background: var(--danger); }
+  }
+}
+
+/* ── Estados: cargando / error / vacío ───────────────────────────────────── */
+.ind-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 44px 20px;
+  text-align: center;
+  color: var(--ital-muted);
+
+  &__icon { font-size: 2rem; line-height: 1; }
+
+  &__text { margin: 0; font-size: .9rem; }
+
+  &__spinner {
+    width: 34px;
+    height: 34px;
+    border: 3px solid var(--ital-green-100);
+    border-top-color: var(--ital-orange);
+    border-radius: 50%;
+    animation: ind-spin .8s linear infinite;
+  }
+
+  /* El error es informativo, no destructivo: rojo SOLO en el texto y el borde. */
+  &--error {
+    color: var(--danger);
+    background: rgba(220, 38, 38, .04);
+    border: 1px solid rgba(220, 38, 38, .18);
+    border-radius: 10px;
+  }
+}
+
+@keyframes ind-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ind-state__spinner { animation-duration: 3s; }
+}
+
+/* ── Resumen acumulado (cards del pie) ───────────────────────────────────── */
+.ind-summary {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ital-green-50);
+
+  &__title {
+    margin: 0 0 10px;
+    font-size: .9rem;
+    font-weight: 700;
+    color: var(--ital-text);
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+  }
+}
+
+.ind-card {
+  padding: 12px 14px;
+  background: var(--ital-cream);
+  border: 1px solid var(--ital-green-50);
+  border-left: 3px solid var(--ital-orange);
+  border-radius: 8px;
+
+  &__label {
+    margin: 0 0 4px;
+    font-size: .74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--ital-muted);
+  }
+
+  &__value {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--ital-text);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ── Celda sin dato ──────────────────────────────────────────────────────── */
+/* Una guía sin valor debe leerse «no hay dato», nunca como un 0 exigido. */
+.ind-nd {
+  color: var(--ital-muted);
+  opacity: .65;
+}
+
+/* ── Modal de fórmulas ───────────────────────────────────────────────────── */
+.ind-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(28, 25, 23, .45);
+
+  &__content {
+    width: min(760px, 100%);
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--ital-cream-50);
+    border-radius: 12px;
+    box-shadow: 0 18px 44px rgba(28, 25, 23, .22);
+    overflow: hidden;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--ital-green-50);
+
+    h4 { margin: 0; font-size: .98rem; font-weight: 700; color: var(--ital-text); }
+  }
+
+  &__close {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: var(--ital-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover { background: var(--ital-green-50); color: var(--ital-text); }
+  }
+
+  &__body { padding: 16px 18px; overflow-y: auto; }
+}

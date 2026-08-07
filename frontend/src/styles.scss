@@ -1,6 +1,7 @@
 // @use debe ir antes que cualquier otra regla (Sass)
 @use 'styles/theme-italfoods' as *;
 @use 'styles/filter-context' as *;
+@use 'styles/indicadores-tab' as *;
 
 @tailwind base;
 @tailwind components;

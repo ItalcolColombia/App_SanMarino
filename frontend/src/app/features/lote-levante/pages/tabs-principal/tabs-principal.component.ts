@@ -59,31 +59,6 @@ export interface RegistroDiarioTablaFila {
   pctRetiroSemana: number | null;
 }
 
-interface ReporteSemanaFila {
-  semana: number;
-  dias: number;
-  mortH: number;
-  mortM: number;
-  mortTotal: number;
-  selH: number;
-  selM: number;
-  selTotal: number;
-  errH: number;
-  errM: number;
-  errTotal: number;
-  /** Mortalidad Total de la semana (mort + sel + err. sexaje) — glosario REQ-001a. */
-  bajasTotal: number;
-  consumoHkg: number;
-  consumoMkg: number;
-  /** Consumo (g/ave/día) de hembras en la semana — REQ-008a. null si no hay saldo/días para calcularlo. */
-  grAveDiaH: number | null;
-  /** Consumo (g/ave/día) de machos en la semana — REQ-008a. */
-  grAveDiaM: number | null;
-  saldoInicio: number | null;
-  saldoFin: number | null;
-  pctBajasSobreInicio: number | null;
-}
-
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
@@ -127,7 +102,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Output() delete = new EventEmitter<number>();
   @Output() viewDetail = new EventEmitter<SeguimientoLoteLevanteDto>();
 
-  activeTab: 'general' | 'indicadores' | 'reporteSemana' | 'grafica' = 'general';
+  activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
 
   // Verificar si el usuario es admin
   isAdmin: boolean = false;
@@ -135,9 +110,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   /** Registros ordenados por fecha (asc) con acumulados y campos de metadata (traslado, ingreso, etc.). */
   diarioFilas: RegistroDiarioTablaFila[] = [];
 
-  /** Totales por semana para el tab "Reporte semana". Memoizado en ngOnChanges (patrón NG0103: evita
-   *  recalcular/alocar un array nuevo en cada ciclo de detección de cambios vía getter de template). */
-  reporteSemanaFilas: ReporteSemanaFila[] = [];
 
   /**
    * Flag `companies.captura_huevos_en_levante`: habilita las columnas de huevos en la tabla de
@@ -173,7 +145,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['seguimientos'] || changes['selectedLote'] || changes['historicoUnificado'] || changes['enriquecerTablaConHistoricoInventario']) {
       this.diarioFilas = this.buildDiarioFilas();
-      this.reporteSemanaFilas = this.buildReporteSemanaFilas();
     }
   }
 
@@ -528,103 +499,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.activeTab = tab;
   }
 
-  onTabChangeExtended(tab: 'general' | 'indicadores' | 'reporteSemana' | 'grafica'): void {
-    this.activeTab = tab;
-  }
-
-  /** Construye el Reporte semana (memoizado en `reporteSemanaFilas` desde ngOnChanges — patrón NG0103,
-   *  antes era un getter que recalculaba y alocaba un array nuevo en cada ciclo de detección). */
-  private buildReporteSemanaFilas(): ReporteSemanaFila[] {
-    // REQ-008c: excluir filas administrativas de puro traslado (sin conteos productivos) y filas sin
-    // semana válida (REQ-011d, registro anterior al encasetamiento) — no deben generar semanas fantasma.
-    const filas = (this.diarioFilas ?? []).filter(f => f.semana != null && !this.esFilaTrasladoPuro(f));
-    if (filas.length === 0) return [];
-
-    const porSemana = new Map<number, RegistroDiarioTablaFila[]>();
-    for (const f of filas) {
-      const s = f.semana as number;
-      if (!porSemana.has(s)) porSemana.set(s, []);
-      porSemana.get(s)!.push(f);
-    }
-
-    const out: ReporteSemanaFila[] = [];
-    const semanas = [...porSemana.keys()].sort((a, b) => a - b);
-    for (const semana of semanas) {
-      const list = porSemana.get(semana) ?? [];
-      if (list.length === 0) continue;
-      // vienen ya ordenadas por fecha en buildDiarioFilas()
-      const last = list[list.length - 1];
-
-      let mortH = 0, mortM = 0, selH = 0, selM = 0, errH = 0, errM = 0;
-      let consumoHkg = 0, consumoMkg = 0;
-      let sumSaldoH = 0, sumSaldoM = 0;
-      for (const f of list) {
-        const s = f.seg;
-        mortH += Number(s.mortalidadHembras ?? 0);
-        mortM += Number(s.mortalidadMachos ?? 0);
-        selH += Number(s.selH ?? 0);
-        selM += Number(s.selM ?? 0);
-        errH += Number(s.errorSexajeHembras ?? 0);
-        errM += Number(s.errorSexajeMachos ?? 0);
-        consumoHkg += Number(s.consumoKgHembras ?? 0);
-        consumoMkg += Number(s.consumoKgMachos ?? 0);
-        sumSaldoH += f.saldoAvesH;
-        sumSaldoM += f.saldoAvesM;
-      }
-
-      const mortTotal = mortH + mortM;
-      const selTotal = selH + selM;
-      const errTotal = errH + errM;
-      const bajasTotal = mortTotal + selTotal + errTotal;
-      const dias = list.length;
-
-      // REQ-008a: gr/ave/día por sexo = (consumo de la semana en g) / (saldo promedio del sexo en la semana) / días.
-      const saldoPromH = dias > 0 ? sumSaldoH / dias : 0;
-      const saldoPromM = dias > 0 ? sumSaldoM / dias : 0;
-      const grAveDiaH = saldoPromH > 0 ? (consumoHkg * 1000) / saldoPromH / dias : null;
-      const grAveDiaM = saldoPromM > 0 ? (consumoMkg * 1000) / saldoPromM / dias : null;
-
-      // Saldo inicio de semana: saldo fin + bajas acumuladas dentro de la semana (aprox. aves vivas al iniciar)
-      const saldoFin = last.saldoAves;
-      const saldoInicio = saldoFin + bajasTotal;
-      const pctBajasSobreInicio = saldoInicio > 0 ? (100 * bajasTotal) / saldoInicio : null;
-
-      out.push({
-        semana,
-        dias,
-        mortH, mortM, mortTotal,
-        selH, selM, selTotal,
-        errH, errM, errTotal,
-        bajasTotal,
-        consumoHkg,
-        consumoMkg,
-        grAveDiaH,
-        grAveDiaM,
-        saldoInicio: Number.isFinite(saldoInicio) ? saldoInicio : null,
-        saldoFin: Number.isFinite(saldoFin) ? saldoFin : null,
-        pctBajasSobreInicio
-      });
-    }
-    return out;
-  }
-
-  /** REQ-008c: fila administrativa creada por un traslado (no por seguimiento manual) sin ningún
-   *  conteo productivo (mort/sel/err/consumo en 0). El traslado ya impacta los saldos vía
-   *  buildDiarioFilas; estas filas no deben generar una semana propia en el Reporte semana. */
-  private esFilaTrasladoPuro(f: RegistroDiarioTablaFila): boolean {
-    const s = f.seg;
-    if (s.esTraslado !== true) return false;
-    return (
-      (s.mortalidadHembras ?? 0) === 0 &&
-      (s.mortalidadMachos ?? 0) === 0 &&
-      (s.selH ?? 0) === 0 &&
-      (s.selM ?? 0) === 0 &&
-      (s.errorSexajeHembras ?? 0) === 0 &&
-      (s.errorSexajeMachos ?? 0) === 0 &&
-      Number(s.consumoKgHembras ?? 0) === 0 &&
-      Number(s.consumoKgMachos ?? 0) === 0
-    );
-  }
 
   onCreate(): void {
     this.create.emit();
@@ -802,66 +676,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     exportarAoaExcel(aoa, 'Seguimiento', {
       colWidths,
       filenameFull: `Seguimiento_Diario_de_Levante_${safe}_${stamp}.xlsx`,
-    });
-  }
-
-  exportReporteSemanaExcel(): void {
-    const filas = this.reporteSemanaFilas ?? [];
-    if (!filas.length) return;
-
-    const headers = [
-      'Semana',
-      'Días',
-      'Mort. H',
-      'Mort. M',
-      'Mort. Total',
-      'Sel. H',
-      'Sel. M',
-      'Sel. Total',
-      'Err. H',
-      'Err. M',
-      'Err. Total',
-      'Mortalidad Total',
-      'Consumo H (kg)',
-      'Consumo M (kg)',
-      'Consumo (g/ave/día) H',
-      'Consumo (g/ave/día) M',
-      'Saldo inicio',
-      'Saldo fin',
-      '% Mort. Total/ini'
-    ];
-
-    const rows = filas.map(r => ([
-      r.semana,
-      r.dias,
-      r.mortH,
-      r.mortM,
-      r.mortTotal,
-      r.selH,
-      r.selM,
-      r.selTotal,
-      r.errH,
-      r.errM,
-      r.errTotal,
-      r.bajasTotal,
-      r.consumoHkg,
-      r.consumoMkg,
-      r.grAveDiaH != null ? Math.round(r.grAveDiaH * 100) / 100 : '',
-      r.grAveDiaM != null ? Math.round(r.grAveDiaM * 100) / 100 : '',
-      r.saldoInicio != null ? r.saldoInicio : '',
-      r.saldoFin != null ? r.saldoFin : '',
-      r.pctBajasSobreInicio != null ? Math.round(r.pctBajasSobreInicio * 100) / 100 : ''
-    ]));
-
-    const loteNombre = this.exportSeguimientoLoteNombre.trim();
-    const title = loteNombre
-      ? `Reporte semana — Lote: ${loteNombre}`
-      : 'Reporte semana';
-
-    exportarTablaExcel(headers, rows, {
-      filenameBase: `Reporte_Semana_${loteNombre || 'lote'}`,
-      sheetName: 'ReporteSemana',
-      title,
     });
   }
 
