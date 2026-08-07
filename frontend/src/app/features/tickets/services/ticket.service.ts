@@ -24,6 +24,18 @@ import {
   ResolutorAdminDto,
   UsuarioNotificableDto,
 } from '../models/ticket.models';
+import {
+  ActualizarPlanificacionRequest,
+  CambiarAsignadoRequest,
+  CambiarPrioridadRequest,
+  MoverTicketRequest,
+  SolicitanteCandidato,
+  TicketMetricas,
+  TicketRoadmap,
+  TicketTablero,
+  TicketTableroFiltro,
+  TicketTimelineEvento,
+} from '../models/ticket-tarea.models';
 
 /**
  * Servicio HTTP del módulo de tickets. Consume TicketsController.
@@ -133,6 +145,46 @@ export class TicketService {
     return this.http.get<ResolutorAdminDto[]>(`${this.baseUrl}/global/resolutores`);
   }
 
+  // ── Gestión del caso (tablero tipo Jira) ─────────────────────
+  cambiarPrioridad(id: number, req: CambiarPrioridadRequest): Observable<TicketDetail> {
+    return this.http.patch<TicketDetail>(`${this.baseUrl}/${id}/prioridad`, req);
+  }
+
+  cambiarAsignado(id: number, req: CambiarAsignadoRequest): Observable<TicketDetail> {
+    return this.http.patch<TicketDetail>(`${this.baseUrl}/${id}/asignado`, req);
+  }
+
+  actualizarPlanificacion(id: number, req: ActualizarPlanificacionRequest): Observable<TicketDetail> {
+    return this.http.patch<TicketDetail>(`${this.baseUrl}/${id}/planificacion`, req);
+  }
+
+  /** Suelta la tarjeta del caso en una columna del tablero. */
+  moverCaso(id: number, req: MoverTicketRequest): Observable<TicketDetail> {
+    return this.http.post<TicketDetail>(`${this.baseUrl}/${id}/mover`, req);
+  }
+
+  tablero(filtro: TicketTableroFiltro = {}): Observable<TicketTablero> {
+    return this.http.get<TicketTablero>(`${this.baseUrl}/tablero`, { params: this.toParams(filtro) });
+  }
+
+  roadmap(filtro: TicketTableroFiltro = {}): Observable<TicketRoadmap> {
+    return this.http.get<TicketRoadmap>(`${this.baseUrl}/roadmap`, { params: this.toParams(filtro) });
+  }
+
+  timeline(id: number): Observable<TicketTimelineEvento[]> {
+    return this.http.get<TicketTimelineEvento[]>(`${this.baseUrl}/${id}/timeline`);
+  }
+
+  metricas(id: number): Observable<TicketMetricas> {
+    return this.http.get<TicketMetricas>(`${this.baseUrl}/${id}/metricas`);
+  }
+
+  /** Usuarios candidatos a figurar como solicitante ("a nombre de"). Solo responde al admin. */
+  solicitantes(texto?: string): Observable<SolicitanteCandidato[]> {
+    const params = texto ? new HttpParams().set('texto', texto) : new HttpParams();
+    return this.http.get<SolicitanteCandidato[]>(`${this.baseUrl}/solicitantes`, { params });
+  }
+
   // ── Común ────────────────────────────────────────────────────
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
@@ -143,7 +195,7 @@ export class TicketService {
   }
 
   /** Construye HttpParams omitiendo valores vacíos/undefined. */
-  private toParams(obj: TicketListFilter): HttpParams {
+  private toParams(obj: TicketListFilter | TicketTableroFiltro): HttpParams {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(obj)) {
       if (v !== undefined && v !== null && v !== '') {

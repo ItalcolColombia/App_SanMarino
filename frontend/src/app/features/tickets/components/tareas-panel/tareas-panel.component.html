@@ -1,0 +1,261 @@
+<!-- src/app/features/tickets/components/tareas-panel/tareas-panel.component.html -->
+<section class="rounded-2xl bg-white ring-1 ring-slate-200">
+
+  <!-- Cabecera con avance y acciones -->
+  <header class="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3">
+    <div class="flex items-center gap-2.5">
+      <span class="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-600">
+        <svg class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+      </span>
+      <div>
+        <h3 class="text-sm font-bold text-slate-800">Tareas del caso</h3>
+        <p class="text-[11px] text-ital-muted">
+          {{ listas() }} de {{ total() }} completadas
+          @if (horasEstimadas() > 0 || horasRegistradas() > 0) {
+            · {{ horasRegistradas() }} h de {{ horasEstimadas() }} h estimadas
+          }
+        </p>
+      </div>
+    </div>
+
+    <!-- Barra de avance -->
+    @if (total() > 0) {
+      <div class="order-last w-full sm:order-none sm:ml-4 sm:w-40">
+        <div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500"
+               [style.width.%]="avance()"></div>
+        </div>
+        <p class="mt-1 text-right text-[10px] font-semibold text-ital-muted">{{ avance() }}%</p>
+      </div>
+    }
+
+    <div class="ml-auto flex items-center gap-1.5">
+      <!-- Alternar vista -->
+      <div class="flex rounded-lg bg-slate-100 p-0.5">
+        <button type="button" (click)="vista = 'lista'"
+                class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition"
+                [class.bg-white]="vista === 'lista'" [class.text-slate-800]="vista === 'lista'"
+                [class.shadow-sm]="vista === 'lista'" [class.text-slate-500]="vista !== 'lista'">
+          Lista
+        </button>
+        <button type="button" (click)="vista = 'tablero'"
+                class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition"
+                [class.bg-white]="vista === 'tablero'" [class.text-slate-800]="vista === 'tablero'"
+                [class.shadow-sm]="vista === 'tablero'" [class.text-slate-500]="vista !== 'tablero'">
+          Tablero
+        </button>
+      </div>
+
+      @if (puedeGestionar) {
+        <button type="button" (click)="abrirNueva()"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-900">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Tarea
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (cargando()) {
+    <div class="flex items-center justify-center gap-2 py-10 text-sm text-ital-muted">
+      <span class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+      Cargando tareas…
+    </div>
+  } @else if (total() === 0) {
+    <div class="px-4 py-10 text-center">
+      <p class="text-sm font-medium text-slate-600">Este caso todavía no tiene tareas.</p>
+      <p class="mt-1 text-xs text-ital-muted">
+        @if (puedeGestionar) {
+          Desglosá el trabajo en tareas para seguir el avance y los tiempos.
+        } @else {
+          Cuando el equipo desglose el trabajo, vas a ver el avance acá.
+        }
+      </p>
+      @if (puedeGestionar) {
+        <button type="button" (click)="abrirNueva()"
+                class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-900">
+          Crear la primera tarea
+        </button>
+      }
+    </div>
+  }
+
+  <!-- ── Vista LISTA (padres con subtareas) ── -->
+  @else if (vista === 'lista') {
+    <ul class="divide-y divide-slate-100">
+      @for (nodo of arbol(); track nodo.padre.id) {
+        <li>
+          <div class="group flex items-start gap-3 px-4 py-3 transition hover:bg-slate-50">
+            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded text-[10px] font-bold text-white"
+                  [class]="tipoColor[nodo.padre.tipo]" [title]="tipoLabel[nodo.padre.tipo]">
+              {{ nodo.padre.tipo.charAt(0) }}
+            </span>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                @if (nodo.padre.codigo) {
+                  <span class="font-mono text-[11px] font-semibold text-ital-muted">{{ nodo.padre.codigo }}</span>
+                }
+                <span class="text-sm font-semibold text-slate-800"
+                      [class.line-through]="nodo.padre.estado === 'LISTO'"
+                      [class.text-slate-400]="nodo.padre.estado === 'LISTO'">
+                  {{ nodo.padre.titulo }}
+                </span>
+              </div>
+
+              <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
+                  <span class="h-1.5 w-1.5 rounded-full" [class]="estadoDot[nodo.padre.estado]"></span>
+                  {{ estadoLabel[nodo.padre.estado] }}
+                </span>
+                <app-ticket-prioridad-badge [prioridad]="nodo.padre.prioridad" />
+                @if (nodo.padre.horasRegistradas > 0 || nodo.padre.horasEstimadas) {
+                  <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+                    {{ nodo.padre.horasRegistradas }} h@if (nodo.padre.horasEstimadas) { / {{ nodo.padre.horasEstimadas }} h }
+                  </span>
+                }
+                @for (etq of etiquetasDe(nodo.padre); track etq) {
+                  <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">{{ etq }}</span>
+                }
+              </div>
+            </div>
+
+            <!-- Responsable -->
+            <span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold ring-2 ring-white"
+                  [class.bg-ital-orange]="nodo.padre.asignadoNombre" [class.text-white]="nodo.padre.asignadoNombre"
+                  [class.bg-slate-100]="!nodo.padre.asignadoNombre" [class.text-slate-400]="!nodo.padre.asignadoNombre"
+                  [title]="nodo.padre.asignadoNombre || 'Sin asignar'">
+              {{ iniciales(nodo.padre.asignadoNombre) }}
+            </span>
+
+            @if (puedeGestionar) {
+              <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
+                <button type="button" (click)="abrirSubtarea(nodo.padre)" title="Agregar subtarea"
+                        class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-200 hover:text-slate-700">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </button>
+                <button type="button" (click)="abrirEdicion(nodo.padre)" title="Editar"
+                        class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-200 hover:text-slate-700">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897z" />
+                  </svg>
+                </button>
+                <button type="button" (click)="eliminar(nodo.padre)" title="Eliminar"
+                        class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21q.383.058.76.12m-.76-.12-1.13 14.677A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.71 5.79m14.518 0a48 48 0 0 0-3.478-.397M4.74 5.79q-.378.06-.74.12m.74-.12 1.13-.155M9.26 5.79V4.478c0-.612.508-1.113 1.12-1.133q1.62-.055 3.24 0c.612.02 1.12.521 1.12 1.133v1.312" />
+                  </svg>
+                </button>
+              </div>
+            }
+          </div>
+
+          <!-- Subtareas -->
+          @if (nodo.hijas.length) {
+            <ul class="border-t border-slate-100 bg-slate-50/60">
+              @for (h of nodo.hijas; track h.id) {
+                <li class="group flex items-center gap-2.5 py-2 pl-12 pr-4 transition hover:bg-slate-100/60">
+                  <span class="h-1.5 w-1.5 shrink-0 rounded-full" [class]="estadoDot[h.estado]"></span>
+                  <span class="min-w-0 flex-1 truncate text-xs text-slate-600"
+                        [class.line-through]="h.estado === 'LISTO'" [class.text-slate-400]="h.estado === 'LISTO'">
+                    {{ h.titulo }}
+                  </span>
+                  <span class="shrink-0 text-[10px] font-semibold text-ital-muted">{{ estadoLabel[h.estado] }}</span>
+                  @if (puedeGestionar) {
+                    <button type="button" (click)="abrirEdicion(h)"
+                            class="shrink-0 text-[10px] font-semibold text-ital-orange opacity-0 transition group-hover:opacity-100">
+                      Editar
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <!-- ── Vista TABLERO (drag & drop) ── -->
+  @else {
+    <div class="overflow-x-auto px-4 py-4">
+      <div class="flex min-w-max gap-3" cdkDropListGroup>
+        @for (col of columnas(); track col.estado) {
+          <div class="flex w-64 shrink-0 flex-col rounded-xl bg-slate-50 ring-1 ring-slate-200">
+            <div class="flex items-center gap-2 border-b border-slate-200 px-3 py-2">
+              <span class="h-2 w-2 rounded-full" [class]="col.dot"></span>
+              <span class="text-xs font-bold uppercase tracking-wide text-slate-600">{{ col.label }}</span>
+              <span class="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                {{ col.tareas.length }}
+              </span>
+              @if (puedeGestionar) {
+                <button type="button" (click)="abrirNueva(col.estado)" title="Nueva tarea acá"
+                        class="grid h-5 w-5 place-items-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-700">
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </button>
+              }
+            </div>
+
+            <div class="min-h-[80px] flex-1 space-y-2 p-2"
+                 cdkDropList [cdkDropListData]="col" [id]="'col-' + col.estado"
+                 [cdkDropListDisabled]="!puedeGestionar" (cdkDropListDropped)="soltar($event)">
+              @for (t of col.tareas; track t.id) {
+                <article cdkDrag [cdkDragData]="t"
+                         class="group relative cursor-pointer overflow-hidden rounded-lg bg-white p-2.5 pl-3 shadow-sm ring-1 ring-slate-200 transition hover:shadow-md"
+                         (click)="puedeGestionar && abrirEdicion(t)">
+                  <span class="absolute inset-y-0 left-0 w-1" [class]="prioridadAcento[t.prioridad]"></span>
+
+                  <p class="text-xs font-semibold leading-snug text-slate-700"
+                     [class.line-through]="t.estado === 'LISTO'" [class.text-slate-400]="t.estado === 'LISTO'">
+                    {{ t.titulo }}
+                  </p>
+
+                  <div class="mt-2 flex items-center gap-1.5">
+                    <span class="grid h-4 w-4 place-items-center rounded text-[9px] font-bold text-white"
+                          [class]="tipoColor[t.tipo]" [title]="tipoLabel[t.tipo]">{{ t.tipo.charAt(0) }}</span>
+                    @if (t.codigo) {
+                      <span class="font-mono text-[10px] text-ital-muted">{{ t.codigo }}</span>
+                    }
+                    @if (t.horasRegistradas > 0) {
+                      <span class="text-[10px] font-semibold text-amber-600">{{ t.horasRegistradas }} h</span>
+                    }
+                    <span class="ml-auto grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold"
+                          [class.bg-ital-orange]="t.asignadoNombre" [class.text-white]="t.asignadoNombre"
+                          [class.bg-slate-100]="!t.asignadoNombre" [class.text-slate-400]="!t.asignadoNombre"
+                          [title]="t.asignadoNombre || 'Sin asignar'">
+                      {{ iniciales(t.asignadoNombre) }}
+                    </span>
+                  </div>
+                </article>
+              }
+
+              @if (!col.tareas.length) {
+                <p class="py-4 text-center text-[11px] text-slate-400">Sin tareas</p>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</section>
+
+@if (mostrarModal) {
+  <app-tarea-modal
+    [tarea]="tareaEnEdicion"
+    [estadoInicial]="estadoInicialModal"
+    [asignables]="asignables"
+    [guardando]="guardando()"
+    [parentTareaId]="parentTareaId"
+    [parentTitulo]="parentTitulo"
+    (guardar)="onGuardar($event)"
+    (cerrar)="cerrarModal()" />
+}

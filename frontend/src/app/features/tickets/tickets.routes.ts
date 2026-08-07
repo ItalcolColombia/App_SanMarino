@@ -48,6 +48,21 @@ export const TICKETS_ROUTES: Routes = [
       import('./pages/admin-tickets/admin-tickets.component').then(m => m.AdminTicketsComponent),
   },
   {
+    // Tablero kanban de casos (drag & drop). Gestores ven sus casos; el admin, todos.
+    path: 'tablero',
+    canActivate: [permissionGuard],
+    data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
+    loadComponent: () =>
+      import('./pages/tablero/tablero.component').then(m => m.TableroComponent),
+  },
+  {
+    path: 'roadmap',
+    canActivate: [permissionGuard],
+    data: { permissions: [TICKET_PERMS.gestionar, TICKET_PERMS.admin] },
+    loadComponent: () =>
+      import('./pages/roadmap/roadmap.component').then(m => m.RoadmapComponent),
+  },
+  {
     path: ':id',
     canActivate: [permissionGuard],
     data: { permissions: ANY_TICKET_PERM },

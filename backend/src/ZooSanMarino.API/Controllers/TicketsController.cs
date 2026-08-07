@@ -276,13 +276,144 @@ public class TicketsController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
+    // ───────────────────── Gestión del caso (tablero tipo Jira) ─────────────────────
+
+    /// <summary>Cambia la prioridad del caso (BAJA | MEDIA | ALTA | CRITICA).</summary>
+    [HttpPatch("{id:long}/prioridad")]
+    [ProducesResponseType(typeof(TicketDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketDetailDto>> CambiarPrioridad(
+        long id, [FromBody] CambiarPrioridadRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.CambiarPrioridadAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>Reasigna el caso a otro responsable y le avisa por correo.</summary>
+    [HttpPatch("{id:long}/asignado")]
+    [ProducesResponseType(typeof(TicketDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketDetailDto>> CambiarAsignado(
+        long id, [FromBody] CambiarAsignadoRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.CambiarAsignadoAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>Fechas del roadmap, compromiso de solución y estimación de horas.</summary>
+    [HttpPatch("{id:long}/planificacion")]
+    [ProducesResponseType(typeof(TicketDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketDetailDto>> ActualizarPlanificacion(
+        long id, [FromBody] ActualizarPlanificacionRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.ActualizarPlanificacionAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>Suelta la tarjeta del caso en una columna del tablero (drag &amp; drop).</summary>
+    [HttpPost("{id:long}/mover")]
+    [ProducesResponseType(typeof(TicketDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketDetailDto>> Mover(
+        long id, [FromBody] MoverTicketRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.MoverAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>Tablero kanban de casos agrupados por estado, con indicadores de cabecera.</summary>
+    [HttpGet("tablero")]
+    [ProducesResponseType(typeof(TicketTableroDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<TicketTableroDto>> Tablero(
+        [FromQuery] int?    anio           = null,
+        [FromQuery] string? tipo           = null,
+        [FromQuery] string? prioridad      = null,
+        [FromQuery] int?    paisId         = null,
+        [FromQuery] int?    companyId      = null,
+        [FromQuery] Guid?   assignedToGuid = null,
+        [FromQuery] string? texto          = null,
+        [FromQuery] int     maxPorColumna  = 60,
+        CancellationToken ct = default)
+        => Ok(await _service.GetTableroAsync(
+            new TicketTableroFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto, maxPorColumna), ct));
+
+    /// <summary>Roadmap: casos con sus fechas planificadas y sus tareas, para la vista de línea de tiempo.</summary>
+    [HttpGet("roadmap")]
+    [ProducesResponseType(typeof(TicketRoadmapDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<TicketRoadmapDto>> Roadmap(
+        [FromQuery] int?    anio           = null,
+        [FromQuery] string? tipo           = null,
+        [FromQuery] string? prioridad      = null,
+        [FromQuery] int?    paisId         = null,
+        [FromQuery] int?    companyId      = null,
+        [FromQuery] Guid?   assignedToGuid = null,
+        [FromQuery] string? texto          = null,
+        CancellationToken ct = default)
+        => Ok(await _service.GetRoadmapAsync(
+            new TicketTableroFiltro(anio, tipo, prioridad, paisId, companyId, assignedToGuid, texto), ct));
+
+    /// <summary>Línea de tiempo del caso (creación, estados, comentarios, adjuntos, tareas y tiempos).</summary>
+    [HttpGet("{id:long}/timeline")]
+    [ProducesResponseType(typeof(IEnumerable<TicketTimelineEventoDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<TicketTimelineEventoDto>>> Timeline(long id, CancellationToken ct)
+        => Ok(await _service.GetTimelineAsync(id, ct));
+
+    /// <summary>Métricas de tiempos y SLA del caso.</summary>
+    [HttpGet("{id:long}/metricas")]
+    [ProducesResponseType(typeof(TicketMetricasDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketMetricasDto>> Metricas(long id, CancellationToken ct)
+    {
+        var dto = await _service.GetMetricasAsync(id, ct);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    /// <summary>
+    /// Usuarios del sistema candidatos a figurar como solicitante de un caso ("a nombre de").
+    /// Fail-closed: sin <c>tickets.admin</c> devuelve vacío.
+    /// </summary>
+    [HttpGet("solicitantes")]
+    [ProducesResponseType(typeof(IEnumerable<SolicitanteCandidatoDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<SolicitanteCandidatoDto>>> Solicitantes(
+        [FromQuery] string? texto = null, CancellationToken ct = default)
+        => Ok(await _service.GetSolicitantesAsync(texto, ct));
+
     // ───────────────────────── Catálogos / utilidades ─────────────────────────
 
     /// <summary>Catálogos de tipos y estados para poblar los selects del frontend.</summary>
     [HttpGet("catalogos")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult Catalogos()
-        => Ok(new { tipos = TicketTipos.Todos, estados = TicketEstados.Todos });
+        => Ok(new
+        {
+            tipos      = TicketTipos.Todos,
+            estados    = TicketEstados.Todos,
+            prioridades = TicketPrioridades.Todas,
+            columnasTablero = TicketEstados.ColumnasTablero,
+            tareaEstados    = TicketTareaEstados.Columnas,
+            tareaTipos      = TicketTareaTipos.Todos
+        });
 
     /// <summary>Usuarios de la empresa efectiva candidatos a notificar (copiados) al crear un ticket.</summary>
     [HttpGet("notificables")]

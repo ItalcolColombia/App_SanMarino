@@ -7,3 +7,34 @@
 @tailwind utilities;
 
 // Tema Italfoods ya cargado arriba. Clases: .table-italfoods, .btn-italfoods-*, .modal-italfoods, etc.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Drag & drop del CDK (tableros de tickets: casos y tareas)
+// El CDK monta la tarjeta arrastrada en un contenedor fuera del componente, así que
+// su estilo tiene que vivir en el ámbito global; sin esto la tarjeta se ve sin sombra
+// y el hueco de destino no se distingue.
+// ─────────────────────────────────────────────────────────────────────────────
+.cdk-drag-preview {
+  box-sizing: border-box;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 28px -8px rgb(15 23 42 / 0.35), 0 4px 10px -4px rgb(15 23 42 / 0.2);
+  opacity: 0.95;
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.4;
+  background: #f1f5f9;
+  border: 2px dashed #cbd5e1;
+  box-shadow: none;
+}
+
+.cdk-drag-animating,
+.cdk-drop-list-dragging .cdk-drag:not(.cdk-drag-placeholder) {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+// Mientras se arrastra, el cursor manda: evita seleccionar texto sin querer.
+.cdk-drop-list-dragging {
+  cursor: grabbing;
+  user-select: none;
+}

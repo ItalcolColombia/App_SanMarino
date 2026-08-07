@@ -47,6 +47,27 @@ public interface ITicketService
     /// <summary>Usuarios de la empresa efectiva con email, candidatos a notificar (excluye al usuario actual).</summary>
     Task<IReadOnlyList<UsuarioNotificableDto>> GetNotificablesAsync(CancellationToken ct);
 
+    // ── Gestión del caso (tablero) ────────────────────────────────
+    Task<TicketDetailDto?> CambiarPrioridadAsync(long id, CambiarPrioridadRequest req, CancellationToken ct);
+    Task<TicketDetailDto?> CambiarAsignadoAsync(long id, CambiarAsignadoRequest req, CancellationToken ct);
+    Task<TicketDetailDto?> ActualizarPlanificacionAsync(long id, ActualizarPlanificacionRequest req, CancellationToken ct);
+
+    /// <summary>Suelta la tarjeta del caso en una columna del tablero (drag &amp; drop).</summary>
+    Task<TicketDetailDto?> MoverAsync(long id, MoverTicketRequest req, CancellationToken ct);
+
+    // ── Vistas del administrador ──────────────────────────────────
+    Task<TicketTableroDto> GetTableroAsync(TicketTableroFiltro filtro, CancellationToken ct);
+    Task<TicketRoadmapDto> GetRoadmapAsync(TicketTableroFiltro filtro, CancellationToken ct);
+
+    // ── Trazabilidad ──────────────────────────────────────────────
+    /// <summary>Línea de tiempo del caso. Devuelve vacío si el usuario no puede verlo.</summary>
+    Task<IReadOnlyList<TicketTimelineEventoDto>> GetTimelineAsync(long id, CancellationToken ct);
+    Task<TicketMetricasDto?> GetMetricasAsync(long id, CancellationToken ct);
+
+    // ── Solicitante delegado ("a nombre de") ──────────────────────
+    /// <summary>Usuarios candidatos a figurar como solicitante. Solo para <c>tickets.admin</c>.</summary>
+    Task<IReadOnlyList<SolicitanteCandidatoDto>> GetSolicitantesAsync(string? texto, CancellationToken ct);
+
     // ── Común ────────────────────────────────────────────────────────
     Task<bool> DeleteAsync(long id, CancellationToken ct);
 }

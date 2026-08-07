@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Common;
 using ZooSanMarino.Application.DTOs.Tickets;
 using ZooSanMarino.Application.Interfaces;
@@ -14,7 +15,12 @@ namespace ZooSanMarino.Infrastructure.Services;
 /// resuelve la empresa efectiva con <see cref="ICompanyResolver"/> y toma país/usuario
 /// de <see cref="ICurrentUser"/>. Ningún listado materializa <c>imagen_base64</c>.
 /// </summary>
-public class TicketService : ITicketService
+/// <remarks>
+/// Archivo ANCLA del partial: usings, campos, constructor, helpers compartidos y la interfaz.
+/// La gestión tipo tablero (prioridad, planificación, tablero, roadmap, timeline, métricas) vive
+/// en <c>Tickets/Funciones/TicketService.Gestion.cs</c>.
+/// </remarks>
+public partial class TicketService : ITicketService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
@@ -96,6 +102,41 @@ public class TicketService : ITicketService
         if (!resolutorValido)
             throw new InvalidOperationException("El resolutor seleccionado no está disponible para este tipo y país.");
 
+        // Solicitante delegado ("a nombre de"): privilegio exclusivo de tickets.admin. Sin este
+        // campo el caso queda idéntico a como se creaba antes (solicitante = creador).
+        Guid? solicitanteGuid = null;
+        int?  solicitanteCedula = null;
+        if (req.SolicitanteUserGuid is { } delegado && delegado != Guid.Empty)
+        {
+            if (!EsSuperAdmin())
+                throw new InvalidOperationException("Solo el administrador de tickets puede registrar un caso a nombre de otro usuario.");
+
+            var destino = await _ctx.Set<User>().AsNoTracking()
+                .Where(u => u.Id == delegado)
+                .Select(u => new
+                {
+                    u.Id, u.cedula,
+                    Empresas = u.UserCompanies.Select(uc => uc.CompanyId).ToList()
+                })
+                .FirstOrDefaultAsync(ct);
+            if (destino is null)
+                throw new InvalidOperationException("El usuario indicado como solicitante no existe.");
+
+            // Delegar en uno mismo es redundante: se ignora y el caso queda como propio.
+            if (!_currentUser.UserGuid.HasValue || destino.Id != _currentUser.UserGuid.Value)
+            {
+                solicitanteGuid = destino.Id;
+                solicitanteCedula = int.TryParse(destino.cedula, out var ced) ? ced : null;
+
+                // El caso pertenece a la empresa del SOLICITANTE: si quedara en la empresa activa
+                // del admin, "Mis solicitudes" del solicitante (que filtra por su empresa efectiva)
+                // no lo mostraría nunca. Se respeta la empresa activa si el solicitante también
+                // pertenece a ella; si no, se cae a la suya.
+                if (destino.Empresas.Count > 0 && !destino.Empresas.Contains(companyId))
+                    companyId = destino.Empresas[0];
+            }
+        }
+
         var entity = new Ticket
         {
             CompanyId            = companyId,
@@ -107,6 +148,9 @@ public class TicketService : ITicketService
             CreatedByUserId      = _currentUser.UserId,
             CreatedByUserGuid    = _currentUser.UserGuid,
             AssignedToUserGuid   = req.AssignedToUserGuid,
+            SolicitanteUserGuid  = solicitanteGuid,
+            SolicitanteUserId    = solicitanteCedula,
+            Prioridad            = TicketTareaCalculos.NormalizarPrioridad(req.Prioridad),
             CreatedAt            = now,
             Status               = "A"
         };
@@ -132,6 +176,23 @@ public class TicketService : ITicketService
 
         // Código legible una vez disponible el Id (libre de colisiones).
         entity.Codigo = $"TK-{now:yyyy}-{entity.Id:D6}";
+
+        // Deja rastro en la bitácora de que el caso lo registró un tercero: sin esta nota, el
+        // solicitante vería un caso suyo que nunca creó.
+        if (solicitanteGuid.HasValue)
+        {
+            var nombreSolicitante = await ResolveNombrePorGuidAsync(solicitanteGuid, ct);
+            var nombreRegistrador = await ResolveNombrePorGuidAsync(_currentUser.UserGuid, ct);
+            _ctx.TicketNotas.Add(new TicketNota
+            {
+                TicketId   = entity.Id,
+                UserId     = _currentUser.UserId,
+                Nota       = $"Caso registrado por {nombreRegistrador ?? "el administrador"} a nombre de {nombreSolicitante ?? "otro usuario"}.",
+                TipoEvento = TicketNotaEventos.Solicitante,
+                CreatedAt  = now
+            });
+        }
+
         await _ctx.SaveChangesAsync(ct);
 
         // Notificados (copiados): resolver email + nombre por cada Guid recibido. Se omite
@@ -280,7 +341,15 @@ public class TicketService : ITicketService
     public async Task<PagedResult<TicketListItemDto>> SearchMisTicketsAsync(TicketSearchRequest req, CancellationToken ct)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
-        var query = BaseQuery(companyId).Where(x => x.CreatedByUserId == _currentUser.UserId);
+        var miGuid = _currentUser.UserGuid;
+
+        // "Mis solicitudes" incluye los casos que otro registró A MI NOMBRE: si no, el usuario
+        // recibiría el correo de un caso suyo que no puede ver ni cerrar.
+        var query = BaseQuery(companyId).Where(x =>
+            x.CreatedByUserId == _currentUser.UserId ||
+            (x.SolicitanteUserId != null && x.SolicitanteUserId == _currentUser.UserId) ||
+            (miGuid != null && x.SolicitanteUserGuid == miGuid));
+
         return await PageAsync(ApplyFilters(query, req), req, ct);
     }
 
@@ -380,6 +449,22 @@ public class TicketService : ITicketService
         if (req.AssignedToGuid.HasValue)
             query = query.Where(x => x.AssignedToUserGuid == req.AssignedToGuid.Value);
 
+        if (!string.IsNullOrWhiteSpace(req.Prioridad))
+        {
+            var p = req.Prioridad.ToUpperInvariant();
+            query = query.Where(x => x.Prioridad == p);
+        }
+
+        // Búsqueda libre: se resuelve en la BD (ILIKE), nunca trayendo todo a memoria.
+        if (!string.IsNullOrWhiteSpace(req.Texto))
+        {
+            var texto = $"%{req.Texto.Trim()}%";
+            query = query.Where(x =>
+                EF.Functions.ILike(x.Titulo, texto) ||
+                EF.Functions.ILike(x.Descripcion, texto) ||
+                (x.Codigo != null && EF.Functions.ILike(x.Codigo, texto)));
+        }
+
         return query;
     }
 
@@ -387,7 +472,12 @@ public class TicketService : ITicketService
     private sealed record TicketRow(
         long Id, string? Codigo, string Titulo, string Tipo, string Estado, int PaisId, int CompanyId,
         int CreatedByUserId, int? AssignedToUserId, Guid? CreatedByUserGuid, Guid? AssignedToUserGuid,
-        DateTime CreatedAt, int ImgCount, int NotaCount);
+        DateTime CreatedAt, int ImgCount, int NotaCount,
+        // Gestión tipo tablero
+        string Prioridad, int OrdenTablero, DateTime? FechaLimite, DateTime? FechaSolucion,
+        DateOnly? FechaInicioPlan, DateOnly? FechaFinPlan, decimal? HorasEstimadas,
+        decimal HorasRegistradas, int CantidadTareas, int TareasListas,
+        Guid? SolicitanteUserGuid, int? SolicitanteUserId);
 
     private async Task<PagedResult<TicketListItemDto>> PageAsync(
         IQueryable<Ticket> query, TicketSearchRequest req, CancellationToken ct)
@@ -397,40 +487,67 @@ public class TicketService : ITicketService
 
         var total = await query.LongCountAsync(ct);
 
-        // Proyección: Imagenes.Count / Notas.Count se traducen a subconsultas COUNT,
-        // por lo que NO se materializa imagen_base64 en los listados.
-        var rows = await query
-            .OrderByDescending(x => x.CreatedAt)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .Select(x => new TicketRow(
+        var rows = await ProyectarFilasAsync(
+            query.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * size).Take(size), ct);
+
+        return new PagedResult<TicketListItemDto>
+        {
+            Page = page, PageSize = size, Total = total, Items = await MapearItemsAsync(rows, ct)
+        };
+    }
+
+    /// <summary>
+    /// Proyecta las filas del listado. Contadores y sumas de tareas/tiempos se traducen a
+    /// subconsultas agregadas ⇒ la BD filtra y agrupa, y NO se materializa <c>imagen_base64</c>.
+    /// </summary>
+    private static Task<List<TicketRow>> ProyectarFilasAsync(IQueryable<Ticket> query, CancellationToken ct) =>
+        query.Select(x => new TicketRow(
                 x.Id, x.Codigo, x.Titulo, x.Tipo, x.Estado, x.PaisId, x.CompanyId,
                 x.CreatedByUserId, x.AssignedToUserId, x.CreatedByUserGuid, x.AssignedToUserGuid,
-                x.CreatedAt, x.Imagenes.Count, x.Notas.Count))
+                x.CreatedAt, x.Imagenes.Count, x.Notas.Count,
+                x.Prioridad, x.OrdenTablero, x.FechaLimite, x.FechaSolucion,
+                x.FechaInicioPlan, x.FechaFinPlan, x.HorasEstimadas,
+                x.Tiempos.Where(t => t.DeletedAt == null).Sum(t => (decimal?)t.Horas) ?? 0m,
+                x.Tareas.Count(t => t.DeletedAt == null),
+                x.Tareas.Count(t => t.DeletedAt == null && t.Estado == TicketTareaEstados.Listo),
+                x.SolicitanteUserGuid, x.SolicitanteUserId))
             .ToListAsync(ct);
 
-        // Enriquecer con nombre completo + rol (en la empresa de cada ticket) + país.
+    /// <summary>Enriquece las filas con identidad (nombre + rol), país y métricas derivadas.</summary>
+    private async Task<List<TicketListItemDto>> MapearItemsAsync(List<TicketRow> rows, CancellationToken ct)
+    {
         var refs = new List<(Guid Guid, int CompanyId)>();
         foreach (var r in rows)
         {
             if (r.CreatedByUserGuid.HasValue) refs.Add((r.CreatedByUserGuid.Value, r.CompanyId));
             if (r.AssignedToUserGuid.HasValue) refs.Add((r.AssignedToUserGuid.Value, r.CompanyId));
+            if (r.SolicitanteUserGuid.HasValue) refs.Add((r.SolicitanteUserGuid.Value, r.CompanyId));
         }
         var (users, roles) = await BuildUserInfoAsync(refs, ct);
         var paises = await BuildPaisMapAsync(rows.Select(r => r.PaisId), ct);
+        var ahora = DateTime.UtcNow;
 
-        var items = rows.Select(r => new TicketListItemDto(
-            r.Id, r.Codigo, r.Titulo, r.Tipo, r.Estado, r.PaisId,
-            r.CreatedByUserId, r.AssignedToUserId, r.CreatedAt, r.ImgCount, r.NotaCount,
-            NombreDe(users, r.CreatedByUserGuid),  RolDe(roles, r.CreatedByUserGuid, r.CompanyId),
-            NombreDe(users, r.AssignedToUserGuid), RolDe(roles, r.AssignedToUserGuid, r.CompanyId),
-            paises.GetValueOrDefault(r.PaisId)))
-            .ToList();
-
-        return new PagedResult<TicketListItemDto>
+        return rows.Select(r =>
         {
-            Page = page, PageSize = size, Total = total, Items = items
-        };
+            var creadoPor = NombreDe(users, r.CreatedByUserGuid);
+            var solicitante = r.SolicitanteUserGuid.HasValue
+                ? NombreDe(users, r.SolicitanteUserGuid)
+                : creadoPor;
+
+            return new TicketListItemDto(
+                r.Id, r.Codigo, r.Titulo, r.Tipo, r.Estado, r.PaisId,
+                r.CreatedByUserId, r.AssignedToUserId, r.CreatedAt, r.ImgCount, r.NotaCount,
+                creadoPor, RolDe(roles, r.CreatedByUserGuid, r.CompanyId),
+                NombreDe(users, r.AssignedToUserGuid), RolDe(roles, r.AssignedToUserGuid, r.CompanyId),
+                paises.GetValueOrDefault(r.PaisId),
+                r.Prioridad, r.OrdenTablero, r.FechaLimite, r.FechaInicioPlan, r.FechaFinPlan,
+                r.HorasEstimadas, r.HorasRegistradas, r.CantidadTareas, r.TareasListas,
+                TicketMetricasCalculos.PorcentajeAvanceTareas(r.CantidadTareas, r.TareasListas),
+                TicketMetricasCalculos.EstadoSla(r.FechaLimite, r.FechaSolucion, ahora),
+                TicketMetricasCalculos.HorasParaVencer(r.FechaLimite, r.FechaSolucion, ahora),
+                solicitante,
+                r.SolicitanteUserGuid.HasValue);
+        }).ToList();
     }
 
     // ───────────────────────── Resolución de identidad (nombre + rol) ─────────────────────────
@@ -543,34 +660,40 @@ public class TicketService : ITicketService
         // La autorización se valida por visibilidad, no por empresa activa.
         var meta = await _ctx.Tickets.AsNoTracking()
             .Where(x => x.Id == id && x.DeletedAt == null)
-            .Select(x => new { x.PaisId, x.Tipo, x.CreatedByUserId, x.CreatedByUserGuid, x.AssignedToUserGuid })
+            .Select(x => new { x.PaisId, x.Tipo, x.CreatedByUserId, x.CreatedByUserGuid, x.AssignedToUserGuid,
+                               x.SolicitanteUserGuid, x.SolicitanteUserId })
             .FirstOrDefaultAsync(ct);
         if (meta is null) return null;
 
         if (!await PuedeVerTicketAsync(meta.PaisId, meta.Tipo, meta.CreatedByUserId,
-                                       meta.CreatedByUserGuid, meta.AssignedToUserGuid, ct))
+                                       meta.CreatedByUserGuid, meta.AssignedToUserGuid,
+                                       meta.SolicitanteUserGuid, meta.SolicitanteUserId, ct))
             return null;   // 404: no revela existencia de tickets ajenos
 
         return await GetByIdInternalAsync(id, ct);
     }
 
     /// <summary>
-    /// Reglas de visibilidad de un ticket: lo ve su creador, su asignado, un resolutor
-    /// cuyo perfil matchea (tipo, país), o cualquiera con <c>tickets.admin</c>.
+    /// Reglas de visibilidad de un ticket: lo ve su creador, el solicitante a cuyo nombre se
+    /// registró, su asignado, un resolutor cuyo perfil matchea (tipo, país), o cualquiera con
+    /// <c>tickets.admin</c>.
     /// </summary>
     private async Task<bool> PuedeVerTicketAsync(int paisId, string tipo, int createdByUserId,
-        Guid? createdByGuid, Guid? assignedGuid, CancellationToken ct)
+        Guid? createdByGuid, Guid? assignedGuid, Guid? solicitanteGuid, int? solicitanteUserId,
+        CancellationToken ct)
     {
         if (createdByUserId != 0 && createdByUserId == _currentUser.UserId) return true;
+        if (solicitanteUserId is { } sol && sol != 0 && sol == _currentUser.UserId) return true;
 
         var userGuid = _currentUser.UserGuid;
         if (userGuid.HasValue)
         {
             if (createdByGuid == userGuid.Value) return true;   // creador (guid)
             if (assignedGuid == userGuid.Value) return true;    // asignado
+            if (solicitanteGuid == userGuid.Value) return true; // solicitante delegado
         }
 
-        if (_currentUser.Permissions.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase))
+        if (EsSuperAdmin())
             return true;
 
         if (userGuid.HasValue)
@@ -595,8 +718,24 @@ public class TicketService : ITicketService
                 x.CreatedAt, x.FechaPrimeraApertura, x.FechaSolucion,
                 x.SolucionDescripcion, x.FechaCierreSolicitante,
                 x.NotificadoCorreo, x.FechaNotificacionCorreo, x.CorreoNotificadoA,
+                // Solicitante delegado + gestión tipo tablero
+                x.SolicitanteUserGuid, x.SolicitanteUserId,
+                x.Prioridad, x.OrdenTablero, x.FechaLimite, x.FechaInicioPlan, x.FechaFinPlan,
+                x.HorasEstimadas,
+                HorasRegistradas = x.Tiempos.Where(t => t.DeletedAt == null).Sum(t => (decimal?)t.Horas) ?? 0m,
+                Tareas = x.Tareas.Where(t => t.DeletedAt == null)
+                    .OrderBy(t => t.Estado).ThenBy(t => t.Orden)
+                    .Select(t => new
+                    {
+                        t.Id, t.Codigo, t.Tipo, t.Estado, t.Prioridad, t.Titulo, t.Descripcion,
+                        t.AsignadoUserGuid, t.ParentTareaId, t.Orden, t.HorasEstimadas,
+                        t.FechaInicioPlan, t.FechaFinPlan, t.FechaInicioReal, t.FechaFinReal,
+                        t.Etiquetas, t.CreatedAt, t.CreatedByUserId,
+                        HorasRegistradas = t.Tiempos.Where(w => w.DeletedAt == null).Sum(w => (decimal?)w.Horas) ?? 0m
+                    })
+                    .ToList(),
                 Notas = x.Notas.OrderBy(n => n.CreatedAt)
-                    .Select(n => new { n.Id, n.UserId, n.Nota, n.EstadoResultante, n.EsInterna, n.CreatedAt })
+                    .Select(n => new { n.Id, n.UserId, n.Nota, n.EstadoResultante, n.EsInterna, n.TipoEvento, n.CreatedAt })
                     .ToList(),
                 // Solo metadata — NO imagen_base64.
                 Imagenes = x.Imagenes.OrderBy(i => i.CreatedAt)
@@ -614,18 +753,23 @@ public class TicketService : ITicketService
 
         if (t is null) return null;
 
-        // Identidad por Guid (creador/asignado) — rol en la empresa del ticket.
+        // Identidad por Guid (creador/asignado/solicitante/responsables de tareas) — rol en la empresa del ticket.
         var refs = new List<(Guid Guid, int CompanyId)>();
         if (t.CreatedByUserGuid.HasValue) refs.Add((t.CreatedByUserGuid.Value, t.CompanyId));
         if (t.AssignedToUserGuid.HasValue) refs.Add((t.AssignedToUserGuid.Value, t.CompanyId));
+        if (t.SolicitanteUserGuid.HasValue) refs.Add((t.SolicitanteUserGuid.Value, t.CompanyId));
+        foreach (var tarea in t.Tareas)
+            if (tarea.AsignadoUserGuid.HasValue) refs.Add((tarea.AsignadoUserGuid.Value, t.CompanyId));
         var (users, roles) = await BuildUserInfoAsync(refs, ct);
 
         // Identidad por cédula (autores de notas + adjuntos + fallback de creador/asignado sin Guid,
         // para tickets antiguos creados antes de poblar created_by_user_guid).
         var cedulaIds = t.Notas.Select(n => n.UserId)
             .Concat(t.Adjuntos.Select(a => a.CreatedByUserId))
+            .Concat(t.Tareas.Select(x => x.CreatedByUserId))
             .Append(t.CreatedByUserId)
             .Append(t.AssignedToUserId ?? 0)
+            .Append(t.SolicitanteUserId ?? 0)
             .Where(uid => uid != 0).Distinct().ToList();
         var cedInfo = await BuildNotaUserInfoAsync(cedulaIds, t.CompanyId, ct);
 
@@ -636,11 +780,19 @@ public class TicketService : ITicketService
         {
             cedInfo.TryGetValue(n.UserId, out var info);
             return new TicketNotaDto(n.Id, n.UserId, n.Nota, n.EstadoResultante, n.EsInterna, n.CreatedAt,
-                info.Nombre, info.Rol, info.Email, EsMio: n.UserId != 0 && n.UserId == miUserId);
+                info.Nombre, info.Rol, info.Email, EsMio: n.UserId != 0 && n.UserId == miUserId,
+                TipoEvento: n.TipoEvento);
         }).ToList();
 
         var soyCreador = (t.CreatedByUserId != 0 && t.CreatedByUserId == miUserId)
                          || (_currentUser.UserGuid.HasValue && t.CreatedByUserGuid == _currentUser.UserGuid.Value);
+
+        // Solicitante efectivo: el delegado si existe, el creador si no. Es quien puede cerrar/reabrir.
+        var hayDelegado = t.SolicitanteUserGuid.HasValue || t.SolicitanteUserId.HasValue;
+        var soySolicitante = hayDelegado
+            ? (t.SolicitanteUserId is { } solCed && solCed != 0 && solCed == miUserId)
+              || (_currentUser.UserGuid.HasValue && t.SolicitanteUserGuid == _currentUser.UserGuid.Value)
+            : soyCreador;
 
         // Resuelve nombre/rol/email: Guid primero; si no hay, cae a cédula.
         (string? Nombre, string? Rol, string? Email) Resolver(Guid? guid, int cedula)
@@ -654,6 +806,9 @@ public class TicketService : ITicketService
 
         var creador  = Resolver(t.CreatedByUserGuid, t.CreatedByUserId);
         var asignado = Resolver(t.AssignedToUserGuid, t.AssignedToUserId ?? 0);
+        var solicitante = hayDelegado
+            ? Resolver(t.SolicitanteUserGuid, t.SolicitanteUserId ?? 0)
+            : creador;
 
         var adjuntosDto = t.Adjuntos.Select(a =>
         {
@@ -661,6 +816,30 @@ public class TicketService : ITicketService
             return new TicketAdjuntoDto(a.Id, a.Tipo, a.FileName, a.ContentType, a.SizeBytes,
                 a.Url, a.Titulo, a.CreatedByUserId, a.CreatedAt, u.Nombre);
         }).ToList();
+
+        var subtareasPorPadre = t.Tareas
+            .Where(x => x.ParentTareaId.HasValue)
+            .GroupBy(x => x.ParentTareaId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var tareasDto = t.Tareas.Select(x =>
+        {
+            cedInfo.TryGetValue(x.CreatedByUserId, out var autor);
+            return new TicketTareaDto(
+                x.Id, t.Id, x.Codigo, x.Tipo, x.Estado, x.Prioridad, x.Titulo, x.Descripcion,
+                x.AsignadoUserGuid, NombreDe(users, x.AsignadoUserGuid), x.ParentTareaId, x.Orden,
+                x.HorasEstimadas, x.HorasRegistradas,
+                x.FechaInicioPlan, x.FechaFinPlan, x.FechaInicioReal, x.FechaFinReal,
+                x.Etiquetas, x.CreatedAt, autor.Nombre,
+                subtareasPorPadre.GetValueOrDefault(x.Id));
+        }).ToList();
+
+        var metricas = ConstruirMetricas(
+            t.CreatedAt, t.FechaPrimeraApertura, t.FechaSolucion, t.FechaCierreSolicitante,
+            t.FechaLimite, t.Estado, t.HorasEstimadas, t.HorasRegistradas,
+            t.Tareas.Count, t.Tareas.Count(x => TicketTareaEstados.EsTerminal(x.Estado)),
+            t.Notas.Where(n => !string.IsNullOrWhiteSpace(n.EstadoResultante))
+                   .Select(n => new TicketMetricasCalculos.CambioEstado(n.EstadoResultante!, n.CreatedAt)));
 
         return new TicketDetailDto(
             t.Id, t.Codigo, t.Titulo, t.Tipo, t.Estado, t.Descripcion, t.PaisId,
@@ -678,7 +857,23 @@ public class TicketService : ITicketService
             t.FechaNotificacionCorreo,
             t.CorreoNotificadoA,
             adjuntosDto,
-            t.Notificados);
+            t.Notificados,
+            t.SolicitanteUserGuid,
+            solicitante.Nombre,
+            solicitante.Rol,
+            solicitante.Email,
+            RegistradoPorTercero: hayDelegado,
+            SoySolicitante: soySolicitante,
+            t.Prioridad,
+            t.OrdenTablero,
+            t.FechaLimite,
+            t.FechaInicioPlan,
+            t.FechaFinPlan,
+            t.HorasEstimadas,
+            t.HorasRegistradas,
+            tareasDto,
+            metricas,
+            t.AssignedToUserGuid);
     }
 
     // ───────────────────────────── IMÁGENES ─────────────────────────────
@@ -861,10 +1056,33 @@ public class TicketService : ITicketService
 
     // ───────────────────────────── GESTIÓN (resolutor) ─────────────────────────────
 
-    /// <summary>True si el usuario actual es el creador/solicitante del ticket.</summary>
-    private bool EsCreador(Ticket t) =>
-        (t.CreatedByUserId != 0 && t.CreatedByUserId == _currentUser.UserId)
-        || (_currentUser.UserGuid.HasValue && t.CreatedByUserGuid == _currentUser.UserGuid.Value);
+    /// <summary>True si el usuario actual tiene el permiso de administración global del módulo.</summary>
+    private bool EsSuperAdmin() =>
+        _currentUser.Permissions.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True si el usuario actual es EL SOLICITANTE del caso — el delegado cuando existe, el creador
+    /// cuando no. Es la regla que decide quién NO puede gestionar el caso y quién sí puede cerrarlo.
+    /// </summary>
+    /// <remarks>
+    /// Cuando el admin registra un caso a nombre de otro, el admin es el creador pero NO el
+    /// solicitante: por eso sí puede gestionarlo, que es justamente para lo que delegó.
+    /// </remarks>
+    private bool EsSolicitante(Ticket t)
+    {
+        if (t.SolicitanteUserGuid.HasValue || t.SolicitanteUserId.HasValue)
+            return (t.SolicitanteUserId is { } ced && ced != 0 && ced == _currentUser.UserId)
+                || (_currentUser.UserGuid.HasValue && t.SolicitanteUserGuid == _currentUser.UserGuid.Value);
+
+        return (t.CreatedByUserId != 0 && t.CreatedByUserId == _currentUser.UserId)
+            || (_currentUser.UserGuid.HasValue && t.CreatedByUserGuid == _currentUser.UserGuid.Value);
+    }
+
+    /// <summary>Guid del solicitante efectivo (delegado si lo hay; si no, el creador).</summary>
+    private static Guid? SolicitanteGuidDe(Ticket t) => t.SolicitanteUserGuid ?? t.CreatedByUserGuid;
+
+    /// <summary>Cédula del solicitante efectivo (delegado si lo hay; si no, el creador).</summary>
+    private static int SolicitanteCedulaDe(Ticket t) => t.SolicitanteUserId ?? t.CreatedByUserId;
 
     public async Task<TicketDetailDto?> TomarAsync(long id, CancellationToken ct)
     {
@@ -873,8 +1091,9 @@ public class TicketService : ITicketService
         if (ticket is null) return null;
 
         // El solicitante NO gestiona su propio ticket — ni siquiera el admin: la gestión la hace
-        // el equipo que atiende. El admin sigue gestionando tickets ajenos (ahí EsCreador es falso).
-        if (EsCreador(ticket))
+        // el equipo que atiende. El admin sigue gestionando tickets ajenos (ahí EsSolicitante es falso),
+        // incluidos los que él mismo registró A NOMBRE DE otro usuario.
+        if (EsSolicitante(ticket))
             throw new InvalidOperationException("Sos el solicitante de este ticket; lo toma y gestiona el equipo que atiende.");
 
         var now = DateTime.UtcNow;
@@ -921,9 +1140,9 @@ public class TicketService : ITicketService
         if (ticket is null) return null;
 
         // El solicitante NO gestiona su propio ticket, salvo REABRIR (SOLUCIONADO → EN_ANALISIS).
-        // Aplica también al admin cuando es el creador: la gestión la hace el equipo que atiende
-        // (sobre tickets ajenos, donde EsCreador es falso, el admin gestiona normalmente).
-        if (EsCreador(ticket))
+        // Aplica también al admin cuando él es el solicitante: la gestión la hace el equipo que
+        // atiende (sobre casos ajenos, donde EsSolicitante es falso, el admin gestiona normalmente).
+        if (EsSolicitante(ticket))
         {
             var esReapertura = string.Equals(ticket.Estado, TicketEstados.Solucionado, StringComparison.OrdinalIgnoreCase)
                                && nuevo == TicketEstados.EnAnalisis;
@@ -949,8 +1168,10 @@ public class TicketService : ITicketService
             ticket.SolucionDescripcion = req.SolucionDescripcion.Trim();
             ticket.FechaSolucion ??= now;
 
-            // Notificar la solución al solicitante por correo (cola asíncrona).
-            var (email, nombreSol) = await ResolveSolicitanteEmailAsync(ticket.CreatedByUserGuid, ticket.CreatedByUserId, ct);
+            // Notificar la solución al solicitante por correo (cola asíncrona). Si el caso se
+            // registró a nombre de otro usuario, el correo va a ESE usuario, no a quien lo tipeó.
+            var (email, nombreSol) = await ResolveSolicitanteEmailAsync(
+                SolicitanteGuidDe(ticket), SolicitanteCedulaDe(ticket), ct);
             if (!string.IsNullOrWhiteSpace(email))
             {
                 try
@@ -997,7 +1218,7 @@ public class TicketService : ITicketService
             .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return null;
 
-        if (!EsCreador(ticket))
+        if (!EsSolicitante(ticket))
             throw new InvalidOperationException("Solo el solicitante puede confirmar el cierre del ticket.");
         if (!string.Equals(ticket.Estado, TicketEstados.Solucionado, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Solo se puede cerrar un ticket que está SOLUCIONADO.");
@@ -1044,9 +1265,19 @@ public class TicketService : ITicketService
             var destinatarios = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
             var (solicitanteEmail, solicitanteNombre) = await ResolveSolicitanteEmailAsync(
-                ticket.CreatedByUserGuid, ticket.CreatedByUserId, ct);
+                SolicitanteGuidDe(ticket), SolicitanteCedulaDe(ticket), ct);
             if (!string.IsNullOrWhiteSpace(solicitanteEmail))
                 destinatarios[solicitanteEmail!] = solicitanteNombre;
+
+            // Con solicitante delegado, quien registró el caso también recibe el cierre: es quien
+            // lo está siguiendo operativamente.
+            if (ticket.SolicitanteUserGuid.HasValue)
+            {
+                var (registradorEmail, registradorNombre) = await ResolveSolicitanteEmailAsync(
+                    ticket.CreatedByUserGuid, ticket.CreatedByUserId, ct);
+                if (!string.IsNullOrWhiteSpace(registradorEmail))
+                    destinatarios.TryAdd(registradorEmail!, registradorNombre);
+            }
 
             var notificados = await _ctx.TicketNotificados.AsNoTracking()
                 .Where(n => n.TicketId == ticket.Id)

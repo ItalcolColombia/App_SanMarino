@@ -2,6 +2,7 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
@@ -20,7 +21,7 @@ interface PaisOpcion { paisId: number; paisNombre: string; }
 @Component({
   selector: 'app-admin-tickets',
   standalone: true,
-  imports: [FormsModule, TicketListComponent],
+  imports: [FormsModule, RouterLink, TicketListComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-tickets.component.html',
 })

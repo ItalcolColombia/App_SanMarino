@@ -1,0 +1,224 @@
+<!-- src/app/features/tickets/pages/roadmap/roadmap.component.html -->
+<div class="flex h-full min-h-full flex-col bg-ital-cream">
+
+  <!-- ── Cabecera ── -->
+  <header class="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-lg shadow-indigo-600/20">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-slate-800">Roadmap</h1>
+          <p class="text-xs text-ital-muted">Planificación de los casos en el tiempo, con sus tareas.</p>
+        </div>
+      </div>
+
+      <nav class="ml-auto flex items-center gap-1.5">
+        <a routerLink="/tickets/tablero"
+           class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">
+          Tablero
+        </a>
+        <a routerLink="/tickets/admin"
+           class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">
+          Lista
+        </a>
+      </nav>
+    </div>
+
+    <!-- Filtros -->
+    <div class="mt-3 flex flex-wrap items-end gap-2">
+      <div class="min-w-[180px] flex-1 sm:max-w-xs">
+        <label for="rm-texto" class="mb-1 block text-[11px] font-semibold text-slate-600">Buscar</label>
+        <input id="rm-texto" type="search" [(ngModel)]="texto" (keyup.enter)="onFiltroChange()"
+               placeholder="Código, título o descripción…"
+               class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs outline-none transition focus:border-ital-orange focus:ring-2 focus:ring-ital-orange/20" />
+      </div>
+      <div>
+        <label for="rm-anio" class="mb-1 block text-[11px] font-semibold text-slate-600">Año</label>
+        <select id="rm-anio" [(ngModel)]="anio" (ngModelChange)="onFiltroChange()"
+                class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+          <option [ngValue]="null">Todos</option>
+          @for (a of anios; track a) { <option [ngValue]="a">{{ a }}</option> }
+        </select>
+      </div>
+      <div>
+        <label for="rm-tipo" class="mb-1 block text-[11px] font-semibold text-slate-600">Tipo</label>
+        <select id="rm-tipo" [(ngModel)]="tipo" (ngModelChange)="onFiltroChange()"
+                class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+          <option value="">Todos</option>
+          @for (t of tipos; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+        </select>
+      </div>
+      <div>
+        <label for="rm-prio" class="mb-1 block text-[11px] font-semibold text-slate-600">Prioridad</label>
+        <select id="rm-prio" [(ngModel)]="prioridad" (ngModelChange)="onFiltroChange()"
+                class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-ital-orange">
+          <option value="">Todas</option>
+          @for (p of prioridades; track p) { <option [value]="p">{{ prioridadLabel[p] }}</option> }
+        </select>
+      </div>
+      @if (cargando()) {
+        <span class="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-ital-muted">
+          <span class="h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-ital-orange"></span>
+          Cargando…
+        </span>
+      }
+    </div>
+  </header>
+
+  <!-- ── Gantt ── -->
+  <div class="flex-1 overflow-auto p-4 sm:px-6">
+    @if (!items().length && !cargando()) {
+      <div class="grid place-items-center rounded-2xl bg-white py-20 ring-1 ring-slate-200">
+        <p class="text-sm font-medium text-slate-600">No hay casos para estos filtros.</p>
+        <p class="mt-1 text-xs text-ital-muted">Cargá fechas de inicio y fin en los casos para verlos planificados acá.</p>
+      </div>
+    } @else {
+      <div class="min-w-[900px] overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
+
+        <!-- Encabezado del eje -->
+        <div class="sticky top-0 z-20 flex border-b border-slate-200 bg-white">
+          <div class="w-[320px] shrink-0 border-r border-slate-200 px-4 py-2">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Caso</span>
+          </div>
+          <div class="relative flex flex-1">
+            @for (p of periodos(); track $index) {
+              <div class="border-r border-slate-100 px-1 py-2 text-center" [style.width.%]="p.ancho">
+                <p class="truncate text-[11px] font-bold text-slate-600">{{ p.etiqueta }}</p>
+                <p class="truncate text-[10px] text-slate-400">{{ p.sub }}</p>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Filas -->
+        <div class="relative">
+          <!-- Línea de HOY, sobre todas las filas -->
+          <div class="pointer-events-none absolute inset-y-0 z-10 hidden sm:block"
+               [style.left]="'calc(320px + (100% - 320px) * ' + (posicionHoy() / 100) + ')'">
+            <div class="h-full w-px bg-rose-400"></div>
+            <span class="absolute -left-4 top-0 rounded-b bg-rose-400 px-1.5 py-0.5 text-[9px] font-bold text-white">HOY</span>
+          </div>
+
+          @for (item of items(); track item.id) {
+            <!-- Fila del caso -->
+            <div class="group flex border-b border-slate-100 transition hover:bg-slate-50/70">
+              <!-- Columna izquierda -->
+              <div class="flex w-[320px] shrink-0 items-center gap-2 border-r border-slate-200 px-3 py-2.5">
+                @if (item.tareas.length) {
+                  <button type="button" (click)="alternar(item.id)"
+                          class="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+                          [attr.aria-label]="estaExpandido(item.id) ? 'Contraer tareas' : 'Ver tareas'">
+                    <svg class="h-3.5 w-3.5 transition-transform" [class.rotate-90]="estaExpandido(item.id)"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </button>
+                } @else {
+                  <span class="w-5 shrink-0"></span>
+                }
+
+                <button type="button" (click)="abrirCaso(item.id)" class="min-w-0 flex-1 text-left">
+                  <div class="flex items-center gap-1.5">
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full" [class]="estadoDot[item.estado]"></span>
+                    @if (item.codigo) {
+                      <span class="font-mono text-[10px] font-bold text-ital-muted">{{ item.codigo }}</span>
+                    }
+                    <span class="truncate rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold uppercase text-slate-500">
+                      {{ tipoLabel[item.tipo] }}
+                    </span>
+                  </div>
+                  <p class="mt-0.5 truncate text-xs font-semibold text-slate-800 group-hover:text-ital-orange">
+                    {{ item.titulo }}
+                  </p>
+                  <p class="truncate text-[10px] text-ital-muted">
+                    {{ estadoLabel[item.estado] }}
+                    @if (item.assignedToNombre) { · {{ item.assignedToNombre }} }
+                  </p>
+                </button>
+
+                <span class="shrink-0 grid h-6 w-6 place-items-center rounded-full text-[9px] font-bold ring-2 ring-white"
+                      [class.bg-ital-orange]="item.assignedToNombre" [class.text-white]="item.assignedToNombre"
+                      [class.bg-slate-100]="!item.assignedToNombre" [class.text-slate-400]="!item.assignedToNombre"
+                      [title]="item.assignedToNombre || 'Sin responsable'">
+                  {{ iniciales(item.assignedToNombre) }}
+                </span>
+              </div>
+
+              <!-- Barra del caso -->
+              <div class="relative flex-1 py-2.5">
+                @if (barraCaso(item); as b) {
+                  @if (b.visible) {
+                    <div class="absolute top-1/2 -translate-y-1/2 rounded-full shadow-sm transition-all"
+                         [class.opacity-50]="esBarraEstimada(item)"
+                         [class.border]="esBarraEstimada(item)"
+                         [class.border-dashed]="esBarraEstimada(item)"
+                         [class.border-slate-400]="esBarraEstimada(item)"
+                         [style.left.%]="b.izquierda" [style.width.%]="b.ancho"
+                         [title]="item.titulo + (esBarraEstimada(item) ? ' (sin fechas planificadas — rango real)' : '')">
+                      <div class="relative h-6 overflow-hidden rounded-full" [class]="prioridadAcento[item.prioridad]">
+                        <!-- Avance de tareas dentro de la barra -->
+                        @if (item.avanceTareas > 0) {
+                          <div class="absolute inset-y-0 left-0 bg-white/35" [style.width.%]="item.avanceTareas"></div>
+                        }
+                        <span class="absolute inset-0 flex items-center gap-1 truncate px-2 text-[10px] font-bold text-white">
+                          @if (item.avanceTareas > 0) { {{ item.avanceTareas }}% }
+                        </span>
+                      </div>
+                    </div>
+                  }
+                }
+                <div class="absolute right-2 top-1/2 -translate-y-1/2">
+                  <app-ticket-sla-chip [estado]="item.estadoSla" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Filas de tareas -->
+            @if (estaExpandido(item.id)) {
+              @for (t of item.tareas; track t.id) {
+                <div class="flex border-b border-slate-100 bg-slate-50/60">
+                  <div class="flex w-[320px] shrink-0 items-center gap-2 border-r border-slate-200 py-2 pl-11 pr-3">
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full" [class]="tareaEstadoDot[t.estado]"></span>
+                    <span class="min-w-0 flex-1 truncate text-[11px] text-slate-600">{{ t.titulo }}</span>
+                    <span class="shrink-0 text-[10px] font-semibold text-ital-muted">{{ tareaEstadoLabel[t.estado] }}</span>
+                  </div>
+                  <div class="relative flex-1 py-2">
+                    @if (barraTarea(t.fechaInicioPlan, t.fechaFinPlan); as b) {
+                      @if (b.visible) {
+                        <div class="absolute top-1/2 h-3.5 -translate-y-1/2 rounded-full bg-slate-400/80"
+                             [style.left.%]="b.izquierda" [style.width.%]="b.ancho" [title]="t.titulo"></div>
+                      } @else {
+                        <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] italic text-slate-400">
+                          Sin fechas planificadas
+                        </span>
+                      }
+                    }
+                  </div>
+                </div>
+              }
+            }
+          }
+        </div>
+      </div>
+
+      <!-- Leyenda -->
+      <div class="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-ital-muted">
+        <span class="font-semibold">Prioridad:</span>
+        @for (p of prioridades; track p) {
+          <span class="inline-flex items-center gap-1.5">
+            <span class="h-2.5 w-4 rounded-full" [class]="prioridadAcento[p]"></span>
+            {{ prioridadLabel[p] }}
+          </span>
+        }
+        <span class="inline-flex items-center gap-1.5">
+          <span class="h-2.5 w-4 rounded-full border border-dashed border-slate-400 bg-slate-300 opacity-50"></span>
+          Rango real (sin planificar)
+        </span>
+      </div>
+    }
+  </div>
+</div>

@@ -11,7 +11,14 @@ public record CreateTicketRequest(
     Guid AssignedToUserGuid,
     List<TicketImagenInput>? Imagenes,
     /// <summary>Guids de usuarios registrados a notificar (copiados) por correo. Opcional.</summary>
-    List<Guid>? NotificarUserGuids = null
+    List<Guid>? NotificarUserGuids = null,
+    /// <summary>
+    /// Usuario del sistema a nombre de quien se registra el caso ("a nombre de"). Solo lo acepta
+    /// <c>tickets.admin</c>; null ⇒ el solicitante es quien crea, como siempre.
+    /// </summary>
+    Guid? SolicitanteUserGuid = null,
+    /// <summary>Prioridad inicial (BAJA|MEDIA|ALTA|CRITICA). Null ⇒ MEDIA.</summary>
+    string? Prioridad = null
 );
 
 /// <summary>Transfiere un ticket de REQUERIMIENTO a DESARROLLO, reasignándolo.</summary>
@@ -64,7 +71,11 @@ public record TicketSearchRequest(
     int? CompanyId = null,
     int Page = 1,
     int PageSize = 20,
-    Guid? AssignedToGuid = null
+    Guid? AssignedToGuid = null,
+    /// <summary>BAJA|MEDIA|ALTA|CRITICA. Null = todas.</summary>
+    string? Prioridad = null,
+    /// <summary>Busca en código, título y descripción.</summary>
+    string? Texto = null
 );
 
 /// <summary>Usuario resolutor (para el dropdown de filtro del admin).</summary>
@@ -89,7 +100,25 @@ public record TicketListItemDto(
     string? CreatedByRol,
     string? AssignedToNombre,
     string? AssignedToRol,
-    string? PaisNombre = null
+    string? PaisNombre = null,
+    // ── Gestión tipo tablero (todos con default: los consumidores previos no cambian) ──
+    string Prioridad = "MEDIA",
+    int OrdenTablero = 0,
+    DateTime? FechaLimite = null,
+    DateOnly? FechaInicioPlan = null,
+    DateOnly? FechaFinPlan = null,
+    decimal? HorasEstimadas = null,
+    decimal HorasRegistradas = 0m,
+    int CantidadTareas = 0,
+    int TareasListas = 0,
+    decimal AvanceTareas = 0m,
+    /// <summary>SIN_SLA | EN_TIEMPO | POR_VENCER | VENCIDO | CUMPLIDO | INCUMPLIDO.</summary>
+    string EstadoSla = "SIN_SLA",
+    double? HorasParaVencer = null,
+    /// <summary>Nombre del solicitante real (delegado si lo hay; si no, el creador).</summary>
+    string? SolicitanteNombre = null,
+    /// <summary>True si el caso lo registró alguien distinto del solicitante.</summary>
+    bool RegistradoPorTercero = false
 );
 
 // ──────────── Salida — DETALLE (metadata de imágenes, sin Base64 inline) ────────────
@@ -126,7 +155,28 @@ public record TicketDetailDto(
     DateTime? FechaNotificacionCorreo = null,
     string? CorreoNotificadoA = null,
     IReadOnlyList<TicketAdjuntoDto>? Adjuntos = null,
-    IReadOnlyList<TicketNotificadoDto>? Notificados = null
+    IReadOnlyList<TicketNotificadoDto>? Notificados = null,
+    // ── Solicitante delegado ("a nombre de") ──
+    Guid? SolicitanteUserGuid = null,
+    string? SolicitanteNombre = null,
+    string? SolicitanteRol = null,
+    string? SolicitanteEmail = null,
+    /// <summary>True si el caso lo registró alguien distinto del solicitante.</summary>
+    bool RegistradoPorTercero = false,
+    /// <summary>True si el usuario actual es el solicitante (creador o delegado): puede cerrar/reabrir.</summary>
+    bool SoySolicitante = false,
+    // ── Gestión tipo tablero ──
+    string Prioridad = "MEDIA",
+    int OrdenTablero = 0,
+    DateTime? FechaLimite = null,
+    DateOnly? FechaInicioPlan = null,
+    DateOnly? FechaFinPlan = null,
+    decimal? HorasEstimadas = null,
+    decimal HorasRegistradas = 0m,
+    IReadOnlyList<TicketTareaDto>? Tareas = null,
+    TicketMetricasDto? Metricas = null,
+    /// <summary>Guid del responsable — el front lo usa para preseleccionar en el reasignar.</summary>
+    Guid? AssignedToUserGuid = null
 );
 
 /// <summary>Persona notificada/copiada en el ticket (no es solicitante ni resolutor).</summary>
@@ -147,7 +197,9 @@ public record TicketNotaDto(
     string? UserRol = null,
     string? UserEmail = null,
     /// <summary>True si la nota la escribió el usuario actual (chat: burbuja a la derecha).</summary>
-    bool EsMio = false
+    bool EsMio = false,
+    /// <summary>Tipo de evento cuando la nota la generó el sistema; null = comentario humano.</summary>
+    string? TipoEvento = null
 );
 
 public record TicketImagenMetaDto(

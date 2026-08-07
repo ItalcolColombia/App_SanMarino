@@ -21,6 +21,8 @@ public class TicketNotaConfiguration : IEntityTypeConfiguration<TicketNota>
             .HasColumnName("es_interna")
             .HasDefaultValue(false)
             .IsRequired();
+        // Notas de sistema (null = comentario humano — todas las notas previas quedan así)
+        b.Property(x => x.TipoEvento).HasColumnName("tipo_evento").HasMaxLength(30);
         b.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("timezone('utc', now())")

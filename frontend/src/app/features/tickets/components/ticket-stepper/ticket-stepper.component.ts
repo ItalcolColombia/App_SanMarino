@@ -28,7 +28,7 @@ interface Step {
         @for (step of steps; track step.key; let i = $index; let last = $last) {
           <li class="flex items-center gap-3 md:flex-1">
             <span
-              class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold ring-4 transition"
+              class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ring-4 transition"
               [class.bg-ital-green]="step.done"
               [class.text-white]="step.done || step.current"
               [class.bg-ital-orange]="step.current"
@@ -44,10 +44,15 @@ interface Step {
                 {{ i + 1 }}
               }
             </span>
-            <span class="whitespace-nowrap text-sm"
+            <!-- Con 7 fases la etiqueta no entra en desktop: se muestra solo la de la fase actual. -->
+            <span class="whitespace-nowrap text-xs md:hidden lg:inline"
               [class.font-semibold]="step.current"
               [class.text-slate-800]="step.done || step.current"
               [class.text-slate-400]="!step.done && !step.current">
+              {{ step.label }}
+            </span>
+            <span class="hidden whitespace-nowrap text-xs font-semibold text-slate-800 md:inline lg:hidden"
+                  [class.invisible]="!step.current">
               {{ step.label }}
             </span>
             @if (!last) {

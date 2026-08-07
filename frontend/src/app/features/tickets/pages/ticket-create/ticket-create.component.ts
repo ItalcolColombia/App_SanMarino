@@ -7,11 +7,15 @@ import { finalize } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TicketService } from '../../services/ticket.service';
 import { TicketPerfilService, TipoPermitidoDto, AsignableDto } from '../../services/ticket-perfil.service';
-import { CreateTicketRequest, TipoTicket, TicketImagenInput, UsuarioNotificableDto } from '../../models/ticket.models';
+import { CreateTicketRequest, TipoTicket, TicketImagenInput, UsuarioNotificableDto, TICKET_PERMS } from '../../models/ticket.models';
+import {
+  PRIORIDADES, PRIORIDAD_LABEL, PrioridadTicket, SolicitanteCandidato,
+} from '../../models/ticket-tarea.models';
 import { ImageDropzoneComponent } from '../../components/image-dropzone/image-dropzone.component';
 import { TicketAdjuntosInputComponent, AdjuntosInputState } from '../../components/ticket-adjuntos-input/ticket-adjuntos-input.component';
 import { ToastService } from '../../../../shared/services/toast.service';
-import { forkJoin, of } from 'rxjs';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import { forkJoin, of, Subject, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs';
 
 /** Formulario de creación de ticket. Tipos y asignados filtrados por perfil del usuario y país. */
 @Component({
@@ -27,10 +31,27 @@ export class TicketCreateComponent implements OnInit {
   private readonly perfilSvc = inject(TicketPerfilService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
+  private readonly perm = inject(UserPermissionService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly saving = signal(false);
   readonly loadingTipos = signal(false);
+
+  // ── Solicitante delegado ("a nombre de") — solo para tickets.admin ──
+  /** Gate del bloque: el backend rechaza el campo a cualquier otro perfil. */
+  readonly esAdmin = this.perm.has(TICKET_PERMS.admin);
+  /** True cuando el admin decide registrar el caso a nombre de otra persona. */
+  aNombreDeOtro = false;
+  solicitanteBusqueda = '';
+  readonly solicitanteResultados = signal<SolicitanteCandidato[]>([]);
+  readonly solicitanteSeleccionado = signal<SolicitanteCandidato | null>(null);
+  readonly buscandoSolicitantes = signal(false);
+  private readonly solicitanteBusqueda$ = new Subject<string>();
+
+  // Prioridad inicial
+  readonly prioridades = PRIORIDADES;
+  readonly prioridadLabel = PRIORIDAD_LABEL;
+  prioridad: PrioridadTicket = 'MEDIA';
 
   tiposPermitidos: TipoPermitidoDto[] = [];
   asignablesActuales: AsignableDto[] = [];
@@ -78,6 +99,52 @@ export class TicketCreateComponent implements OnInit {
         // Error suave: la sección de notificados es opcional, no debe romper el form.
         error: () => this.toast.warning('No se pudo cargar la lista de usuarios a notificar.'),
       });
+
+    // Búsqueda de solicitantes contra el padrón: se consulta al servidor con debounce
+    // porque el catálogo de usuarios es demasiado grande para traerlo entero.
+    if (this.esAdmin) {
+      this.solicitanteBusqueda$
+        .pipe(
+          debounceTime(300),
+          distinctUntilChanged(),
+          switchMap(texto => {
+            this.buscandoSolicitantes.set(true);
+            return this.svc.solicitantes(texto).pipe(catchError(() => of([] as SolicitanteCandidato[])));
+          }),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe(resultados => {
+          this.buscandoSolicitantes.set(false);
+          this.solicitanteResultados.set(resultados);
+        });
+    }
+  }
+
+  // ── Solicitante delegado ───────────────────────────────────────
+
+  /** Al apagar el interruptor se limpia la selección: el caso vuelve a ser propio. */
+  onToggleANombreDeOtro(): void {
+    if (!this.aNombreDeOtro) {
+      this.solicitanteSeleccionado.set(null);
+      this.solicitanteBusqueda = '';
+      this.solicitanteResultados.set([]);
+    }
+  }
+
+  onSolicitanteBusquedaChange(texto: string): void {
+    this.solicitanteBusqueda = texto;
+    if (!texto.trim()) { this.solicitanteResultados.set([]); return; }
+    this.solicitanteBusqueda$.next(texto.trim());
+  }
+
+  seleccionarSolicitante(u: SolicitanteCandidato): void {
+    this.solicitanteSeleccionado.set(u);
+    this.solicitanteBusqueda = '';
+    this.solicitanteResultados.set([]);
+  }
+
+  quitarSolicitante(): void {
+    this.solicitanteSeleccionado.set(null);
   }
 
   onTipoChange(tipo: string): void {
@@ -125,15 +192,24 @@ export class TicketCreateComponent implements OnInit {
       return;
     }
 
+    // "A nombre de" activo pero sin elegir a nadie: sería un caso propio por accidente.
+    if (this.esAdmin && this.aNombreDeOtro && !this.solicitanteSeleccionado()) {
+      this.toast.warning('Elegí de qué usuario viene la solicitud o desactivá la opción.');
+      return;
+    }
+
     const v = this.form.getRawValue();
     const notificarUserGuids = this.notificadosSeleccionados().map(u => u.guid);
+    const solicitante = this.esAdmin && this.aNombreDeOtro ? this.solicitanteSeleccionado() : null;
     const req: CreateTicketRequest = {
       titulo: v.titulo.trim(),
       tipo: v.tipo as TipoTicket,
       descripcion: v.descripcion.trim(),
       assignedToUserGuid: v.asignadoGuid as unknown as string,
       imagenes: this.imagenes.length ? this.imagenes : null,
+      prioridad: this.prioridad,
       ...(notificarUserGuids.length ? { notificarUserGuids } : {}),
+      ...(solicitante ? { solicitanteUserGuid: solicitante.guid } : {}),
     } as any;
 
     this.saving.set(true);

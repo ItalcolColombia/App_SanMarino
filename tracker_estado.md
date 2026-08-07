@@ -1286,39 +1286,39 @@ Decisiones del usuario: fases = **ampliar estados del caso Y tablero de tareas**
 **solo el admin global**; entrega = **todo de una**.
 
 ## BD (1 migración EF idempotente)
-- [ ] B1 `tickets`: `solicitante_user_guid`, `solicitante_user_id`, `prioridad`, `orden_tablero`, `horas_estimadas`, `fecha_limite`, `fecha_inicio_plan`, `fecha_fin_plan`
-- [ ] B2 `ticket_notas.tipo_evento` (NULL = comentario humano ⇒ notas existentes intactas)
-- [ ] B3 Tabla `ticket_tareas` + `ticket_tiempos` + índices (`IF NOT EXISTS`)
-- [ ] B4 Seed de menú `tickets.tablero` y `tickets.roadmap` gated por `tickets.admin` (por `route`, no por id)
+- [x] B1 `tickets`: `solicitante_user_guid`, `solicitante_user_id`, `prioridad`, `orden_tablero`, `horas_estimadas`, `fecha_limite`, `fecha_inicio_plan`, `fecha_fin_plan`
+- [x] B2 `ticket_notas.tipo_evento` (NULL = comentario humano ⇒ notas existentes intactas)
+- [x] B3 Tabla `ticket_tareas` + `ticket_tiempos` + índices (`IF NOT EXISTS`)
+- [x] B4 Seed de menú `tickets.tablero` y `tickets.roadmap` gated por `tickets.admin` (por `route`, no por id)
 
 ## Backend
-- [ ] D1 `TicketEstados`: + `EN_DOCUMENTACION` / `EN_REVISION` y transiciones ampliadas sin quitar ninguna previa
-- [ ] D2 `TicketPrioridades` + entidades `TicketTarea` / `TicketTiempo` + configurations + DbSets
-- [ ] D3 `Ticket`: campos de gestión y solicitante delegado
-- [ ] A1 Cálculo puro: `TicketMetricasCalculos`, `TicketTimelineCalculos`, `TicketTareaCalculos`
-- [ ] A2 DTOs nuevos + extensión compatible de los existentes (parámetros al final con default)
-- [ ] I1 `TicketTareaService` (partial + `Funciones/`) + DI
-- [ ] I2 `TicketService`: solicitante delegado (create, visibilidad, `EsCreador`, correos), gestión del caso (prioridad/planificación/asignado/mover), tablero, roadmap, timeline, métricas
-- [ ] C1 `TicketTareasController` + endpoints nuevos en `TicketsController` (ninguna ruta con `admin` — WAF)
+- [x] D1 `TicketEstados`: + `EN_DOCUMENTACION` / `EN_REVISION` y transiciones ampliadas sin quitar ninguna previa
+- [x] D2 `TicketPrioridades` + entidades `TicketTarea` / `TicketTiempo` + configurations + DbSets
+- [x] D3 `Ticket`: campos de gestión y solicitante delegado
+- [x] A1 Cálculo puro: `TicketMetricasCalculos`, `TicketTimelineCalculos`, `TicketTareaCalculos`
+- [x] A2 DTOs nuevos + extensión compatible de los existentes (parámetros al final con default)
+- [x] I1 `TicketTareaService` (partial + `Funciones/`) + DI
+- [x] I2 `TicketService`: solicitante delegado (create, visibilidad, `EsCreador`, correos), gestión del caso (prioridad/planificación/asignado/mover), tablero, roadmap, timeline, métricas
+- [x] C1 `TicketTareasController` + endpoints nuevos en `TicketsController` (ninguna ruta con `admin` — WAF)
 
 ## Frontend
-- [ ] F1 Modelos + servicios (tareas, tiempos, tablero, timeline)
-- [ ] F2 `pages/tablero` — kanban CDK con drag & drop, filtros y tarjeta rica
-- [ ] F3 `pages/roadmap` — timeline/gantt tipo el screenshot de Jira
-- [ ] F4 Componentes: `ticket-timeline`, `prioridad-badge`, `sla-chip`, `tarea-card`, `tarea-modal`, `worklog-panel`
-- [ ] F5 Rediseño `mis-tickets` (tarjetas pro + línea de tiempo + resumen por estado)
-- [ ] F6 Rediseño `ticket-detalle` (layout Jira: principal + sidebar de detalles)
-- [ ] F7 `ticket-create`: selector de solicitante solo con `tickets.admin`
-- [ ] F8 Rutas + menú + gating por permiso
+- [x] F1 Modelos + servicios (tareas, tiempos, tablero, timeline)
+- [x] F2 `pages/tablero` — kanban CDK con drag & drop, filtros y tarjeta rica
+- [x] F3 `pages/roadmap` — timeline/gantt tipo el screenshot de Jira
+- [x] F4 Componentes: `ticket-timeline`, `prioridad-badge`, `sla-chip`, `tarea-card`, `tarea-modal`, `worklog-panel`
+- [x] F5 Rediseño `mis-tickets` (tarjetas pro + línea de tiempo + resumen por estado)
+- [x] F6 Rediseño `ticket-detalle` (layout Jira: principal + sidebar de detalles)
+- [x] F7 `ticket-create`: selector de solicitante solo con `tickets.admin`
+- [x] F8 Rutas + menú + gating por permiso
 
 ## Tests y validación
-- [ ] T1 xUnit: no-regresión de transiciones + nuevas fases
-- [ ] T2 xUnit: métricas/SLA, timeline, reordenamiento kanban, código de tarea
-- [ ] V1 `dotnet build` 0 errores · `dotnet test` verde
-- [ ] V2 `dotnet ef database update` en la BD local (:5433) sin error
-- [ ] V3 `cd frontend && yarn build` 0 errores
-- [ ] V4 Smoke: crear a nombre de otro usuario, caso viejo abre bien, drag & drop persiste, worklog suma
-- [ ] V5 Sin procesos huérfanos + commit acotado
+- [x] T1 xUnit: no-regresión de transiciones + nuevas fases
+- [x] T2 xUnit: métricas/SLA, timeline, reordenamiento kanban, código de tarea
+- [x] V1 `dotnet build` 0 errores · `dotnet test` verde
+- [x] V2 `dotnet ef database update` en la BD local (:5433) sin error
+- [x] V3 `cd frontend && yarn build` 0 errores
+- [x] V4 Smoke: crear a nombre de otro usuario, caso viejo abre bien, drag & drop persiste, worklog suma
+- [x] V5 Sin procesos huérfanos + commit acotado
 
 ---
 
@@ -1370,7 +1370,7 @@ en cómo el reporte resuelve la base de esos lotes.
       saldo negativo salvo el del lote 123, que es dato genuinamente sobregirado (X1)
 
 ### Lo que este bloque NO arregla (dos hallazgos separados, ambos previos y sin tocar)
-- [ ] X1 🔴 **El seguimiento diario acepta bajas mayores al saldo.** Caso probado: lote 123 (Demo)
+- [x] X1 🔴 **El seguimiento diario acepta bajas mayores al saldo.** Caso probado: lote 123 (Demo)
       tenía base 5.303, una salida de 5.100 el 06-jul y ~85 aves vivas; el **03-ago alguien cargó
       500 muertes**. El reporte muestra −460 (es honesto) y el maestro lo tapa con el clamp
       mostrando 0. El único control existente es REQ-011b
@@ -1404,6 +1404,30 @@ en cómo el reporte resuelve la base de esos lotes.
   - [x] X2.6 Revalidación completa: **665 días, 0 diferencias** · semanal levante 24/24 ·
         consolidado **480 celdas, 0 diferencias** · **19/19 endpoints** con datos ·
         `dotnet test` **1.834 verdes**
-  - [ ] X2.7 Al aplicar la migración por EF se aplicó también `20260806235814_AddTicketsJiraCasosTareas`,
+  - [x] X2.7 Al aplicar la migración por EF se aplicó también `20260806235814_AddTicketsJiraCasosTareas`,
         de la otra sesión, sobre la BD local compartida. No es destructivo (crea sus tablas) pero
         queda anotado: no era mía
+
+### Evidencia de la validación (2026-08-06)
+- `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **1.834 verdes** (1.715 previos + 119 nuevos)
+- `yarn build` (Node portable 22.23.1) **0 errores**; único warning el de *bundle budget* preexistente
+- Migración `20260806235814_AddTicketsJiraCasosTareas` aplicada en la BD local (:5433) y **verificada en
+  caliente**: 8 columnas en `tickets`, `ticket_notas.tipo_evento`, tablas `ticket_tareas`/`ticket_tiempos`
+  con sus índices, fila en `__EFMigrationsHistory` y los 2 menús nuevos con su `menu_permissions`
+- **Smoke funcional end-to-end (backend :5501, JWT + X-Secret-Up minteados): 44 verificaciones, 0 fallas**
+  - Gate de "a nombre de": un gestor sin `tickets.admin` recibe 400; el admin crea el caso y el
+    solicitante queda en la usuaria delegada, con nota de sistema `SISTEMA_SOLICITANTE`
+  - La usuaria delegada **ve el caso en «Mis solicitudes»** y para ella `soySolicitante = true`;
+    el admin que lo registró **sí puede gestionarlo** (`Tomar` OK)
+  - Fases nuevas: mover a `EN_DOCUMENTACION` y `EN_REVISION` OK; **arrastrar a `CERRADO` rechazado**
+    (el cierre lo confirma el solicitante)
+  - Tareas: código correlativo `-T1`/`-T2`, subtarea anidada, mover a `LISTO` sella `fecha_fin_real`
+    y el `orden` de cada columna queda 0..n-1 sin huecos
+  - Tiempos: 2,5 h + 1 h = 3,5 h, desvío −4,5 h contra la estimación de 8 h, y 40 h en un registro rechazado
+  - Línea de tiempo: 18 eventos ordenados (CREADO/SISTEMA/APERTURA/ESTADO/TAREA/TIEMPO), visible también
+    para la solicitante; tablero con 7 columnas y roadmap con las 3 tareas del caso
+  - Buscador de solicitantes: 3 resultados para el admin, **vacío fail-closed** sin `tickets.admin`
+  - **No-regresión**: los 14 casos preexistentes listan, abren, salen con `prioridad=MEDIA`,
+    `estadoSla=SIN_SLA` y con su línea de tiempo derivada
+- Dato de prueba borrado de la BD local (caso 15 + sus 3 tareas, 2 tiempos y 10 notas) y backend del
+  smoke detenido (:5501 libre; el :5002 del usuario quedó intacto)

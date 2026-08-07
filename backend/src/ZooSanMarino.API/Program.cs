@@ -377,6 +377,7 @@ builder.Services.AddScoped<ILesionService, LesionService>();
 // Módulo de tickets de soporte / requerimientos
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<ITicketPerfilService, TicketPerfilService>();
+builder.Services.AddScoped<ITicketTareaService, TicketTareaService>();
 
 // PAT / Tokens de servicio (clientes headless: crones que llaman /api/tickets)
 builder.Services.AddScoped<IServiceTokenService, ServiceTokenService>();
