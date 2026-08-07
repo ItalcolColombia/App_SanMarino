@@ -90,6 +90,15 @@ public class SeguimientoDiario
     public int? VentaAvesCantidad { get; set; }
     public string? VentaAvesMotivo { get; set; }
 
+    // Venta de aves — splits H/M dedicados, espejo de lo que producción ya tenía.
+    // `VentaAvesCantidad` guarda el TOTAL sin distinguir sexo, y el saldo de levante se lleva
+    // POR SEXO: sin el split, cualquier fórmula que reconstruya el saldo desde estas filas no
+    // puede descontar la venta y lo sobrestima (las fns SQL daban 1.281 machos donde el maestro
+    // decía 991: los 290 de dos ventas). El dueño del número sigue siendo movimiento_aves;
+    // estas columnas son su espejo denormalizado para la grilla diaria y los reportes.
+    public int VentaAvesHembras { get; set; }
+    public int VentaAvesMachos { get; set; }
+
     // ── Marcado de traslado (Feature 13) ────────────────────────────
     /// <summary>TRUE si este registro fue creado o modificado por un traslado (visual: fila amarilla).</summary>
     public bool EsTraslado { get; set; }

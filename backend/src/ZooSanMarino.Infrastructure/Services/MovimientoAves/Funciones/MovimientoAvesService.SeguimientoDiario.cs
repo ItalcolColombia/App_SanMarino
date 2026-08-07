@@ -246,6 +246,10 @@ public partial class MovimientoAvesService
             // descuento del saldo lo aporta el registro MovimientoAves (así lo consumen
             // los indicadores). No se tocan splits de traslado ni acumulados.
             seg.VentaAvesCantidad = (seg.VentaAvesCantidad ?? 0) + (movimiento.CantidadHembras + movimiento.CantidadMachos);
+            // Split por sexo además del total: el saldo de levante se lleva por sexo y con solo el
+            // total ninguna fórmula que lo reconstruya desde la fila diaria puede descontar la venta.
+            seg.VentaAvesHembras += movimiento.CantidadHembras;
+            seg.VentaAvesMachos += movimiento.CantidadMachos;
             seg.VentaAvesMotivo = movimiento.MotivoMovimiento;
             obs = $"Venta {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
         }
@@ -453,6 +457,8 @@ public partial class MovimientoAvesService
                 if (movimiento.TipoMovimiento == "Venta")
                 {
                     seg.VentaAvesCantidad = Math.Max(0, (seg.VentaAvesCantidad ?? 0) - (movimiento.CantidadHembras + movimiento.CantidadMachos));
+                    seg.VentaAvesHembras = Math.Max(0, seg.VentaAvesHembras - movimiento.CantidadHembras);
+                    seg.VentaAvesMachos = Math.Max(0, seg.VentaAvesMachos - movimiento.CantidadMachos);
                 }
                 else
                 {
@@ -657,6 +663,8 @@ public partial class MovimientoAvesService
                 if (movimiento.TipoMovimiento == "Venta")
                 {
                     seg.VentaAvesCantidad = Math.Max(0, (seg.VentaAvesCantidad ?? 0) + deltaH + deltaM);
+                    seg.VentaAvesHembras = Math.Max(0, seg.VentaAvesHembras + deltaH);
+                    seg.VentaAvesMachos = Math.Max(0, seg.VentaAvesMachos + deltaM);
                 }
                 else
                 {

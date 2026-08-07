@@ -86,6 +86,8 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
         b.Property(x => x.TrasladoAvesSalida).HasColumnName("traslado_aves_salida");
         b.Property(x => x.VentaAvesCantidad).HasColumnName("venta_aves_cantidad");
         b.Property(x => x.VentaAvesMotivo).HasColumnName("venta_aves_motivo");
+        b.Property(x => x.VentaAvesHembras).HasColumnName("venta_aves_hembras").HasDefaultValue(0);
+        b.Property(x => x.VentaAvesMachos).HasColumnName("venta_aves_machos").HasDefaultValue(0);
 
         // Marcado de traslado (Feature 13)
         b.Property(x => x.EsTraslado).HasColumnName("es_traslado").HasDefaultValue(false).IsRequired();

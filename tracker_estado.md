@@ -1378,12 +1378,32 @@ en cómo el reporte resuelve la base de esos lotes.
       NO bloqueo duro»*: solo escribe `LogWarning`, va envuelto en un `try/catch` que se traga todo,
       y compara `saldo == 0` exacto ⇒ con saldo negativo o con 5 aves y 100 de mortalidad **no
       dispara**. Convertirlo en bloqueo rechaza escrituras que hoy pasan ⇒ decisión del usuario
-- [ ] X2 `fn_resumen_semanal_ra_pesadas_levante` **no resta las ventas de aves** (solo mort, sel,
-      error de sexaje y traslados). Con la BD ya limpia el desvío queda AISLADO y exacto: S-369B da
-      **1.281 machos** donde el maestro dice **991**, y la diferencia es **290 = las dos ventas**
-      (150 el 09-feb + 140 el 17-feb). Alcance medido: **un solo lote en toda la BD** tiene ventas
-      de aves en levante. Complicación: la fila diaria de levante solo guarda
-      `venta_aves_cantidad` (TOTAL, sin split por sexo) mientras el reporte lleva el saldo POR
-      SEXO ⇒ el arreglo limpio es replicar en levante lo que producción ya tiene
-      (`venta_aves_hembras/machos` + backfill idempotente desde `movimiento_aves`, migración
-      `VentaAvesEnFilaDiariaProduccion`) y restarlas en la fn
+- [x] X2 **RESUELTO — el saldo de levante no descontaba las VENTAS.** Con la BD limpia el desvío
+      quedó aislado y exacto: S-369B daba **1.281 machos** contra **991** del maestro, y la
+      diferencia eran **290 = las dos ventas** (150 el 09-feb + 140 el 17-feb). Era además una
+      violación de «una sola fórmula por número»: el camino C# (`ReporteTecnicoService` sobre
+      `SaldoAvesLevanteCalculos`) SÍ las descuenta y coincide con el informe; las dos fns SQL no
+  - [x] X2.1 La fila diaria de levante solo tenía `venta_aves_cantidad` (TOTAL, sin sexo) mientras
+        el saldo va POR SEXO ⇒ se replica lo que producción ya tenía: `venta_aves_hembras/machos`
+        en entidad, configuration y BD, con backfill idempotente desde `movimiento_aves` (el dueño
+        del número). El backfill encontró exactamente las 2 ventas y las repartió bien
+  - [x] X2.2 Los **cuatro** puntos de escritura pueblan el split: carga masiva
+        (`MigracionService.MovimientosAves`), alta por UI, cancelación y edición
+        (`MovimientoAvesService.SeguimientoDiario`)
+  - [x] X2.3 Las dos fns restan la venta del saldo, y las filas de puro traslado pasadas de la
+        semana 25 ya no se descartan si traen venta (una fila con venta es una fila con dato) ni se
+        usan como base
+  - [x] X2.4 Migración `20260806235000_VentaAvesEnFilaDiariaLevante`. ⚠️ Designer clonado y
+        **ModelSnapshot intacto pese a agregar 2 propiedades de entidad**: regenerarlo con
+        `migrations add` arrastraría los cambios EN VUELO de la otra sesión que trabaja Tickets en
+        este repo. El DDL es idempotente, así que el desfase no tiene consecuencias
+  - [x] X2.5 **Gate**: de 39 filas del resumen y 137 del Detalle en todas las empresas cambia **un
+        solo lote** (S-369B, el único con ventas en levante). Las 3 fuentes convergen en **991** y
+        **los 8 lotes de todas las empresas cuadran con el maestro**, salvo el 123 (X1), donde el
+        reporte es el honesto y el maestro miente por el clamp
+  - [x] X2.6 Revalidación completa: **665 días, 0 diferencias** · semanal levante 24/24 ·
+        consolidado **480 celdas, 0 diferencias** · **19/19 endpoints** con datos ·
+        `dotnet test` **1.834 verdes**
+  - [ ] X2.7 Al aplicar la migración por EF se aplicó también `20260806235814_AddTicketsJiraCasosTareas`,
+        de la otra sesión, sobre la BD local compartida. No es destructivo (crea sus tablas) pero
+        queda anotado: no era mía

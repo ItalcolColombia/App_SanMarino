@@ -430,6 +430,10 @@ public partial class MigracionService
             lpl.AvesMActual = Math.Max(0, (lpl.AvesMActual ?? 0) - m.Machos);
 
             seg.VentaAvesCantidad = (seg.VentaAvesCantidad ?? 0) + totalAves;
+            // Split por sexo además del total: el saldo de levante se lleva por sexo y sin esto
+            // ninguna fórmula que lo reconstruya desde la fila diaria puede descontar la venta.
+            seg.VentaAvesHembras += m.Hembras;
+            seg.VentaAvesMachos += m.Machos;
             seg.VentaAvesMotivo = m.Motivo ?? seg.VentaAvesMotivo;
             if (!string.IsNullOrWhiteSpace(m.Observaciones))
                 seg.Observaciones = string.IsNullOrWhiteSpace(seg.Observaciones)
