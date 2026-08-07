@@ -1431,3 +1431,28 @@ en cómo el reporte resuelve la base de esos lotes.
     `estadoSla=SIN_SLA` y con su línea de tiempo derivada
 - Dato de prueba borrado de la BD local (caso 15 + sus 3 tareas, 2 tiempos y 10 notas) y backend del
   smoke detenido (:5501 libre; el :5002 del usuario quedó intacto)
+
+### Verificación visual en el navegador (2026-08-07, front :4200 + back :5002)
+Sesión inyectada en `localStorage` (admin y luego la usuaria delegada). **Cero errores de consola**,
+todas las llamadas `/api/tickets/*` en 200.
+- **Tablero**: las 7 columnas pobladas (3/1/1/2/1/4/6), resumen «19 casos · 3 sin arrancar · 5 en curso
+  · 1 vencidos · 13 h registradas»; 18 tarjetas `cdk-drag` y las 7 listas conectadas por sus ids
+- **Roadmap**: eje semanal 20-jul → 24-ago, barras posicionadas por %, marcador de HOY, leyenda de
+  prioridad; al desplegar un caso aparecen sus 4 tareas anidadas con su estado
+- **Mis solicitudes**: tarjetas con código/tipo/prioridad/SLA («Vencido · 3 h», «En tiempo · 9 d») y
+  barra de avance; «Ver seguimiento» despliega la línea de tiempo (13 eventos con autor y fecha)
+- **Detalle**: banda «Solicitud de KARINA … · registrada por Jose Moises», sidebar con solicitante +
+  registrado por + planificado + compromiso, métricas (5,5 h de 12 · avance 25 %), pestañas
+  Actividad/Comentarios/Tareas/Tiempos, panel de tareas en lista y en tablero, worklog con 46 % de la
+  estimación y −6,5 h de desvío
+- **Formulario nuevo**: el bloque «Registrar a nombre de otro usuario» solo para el admin, con
+  búsqueda en vivo (3 resultados para «karina») y selector de prioridad
+- **Vista del SOLICITANTE** (Karina): ve sus 2 casos marcados «registrado por soporte», abre el
+  detalle y el seguimiento (18 eventos), y **NO** ve el panel de gestión, ni la pestaña Tiempos, ni
+  el botón de crear tareas
+- 🔧 **Corregido en el pase**: la línea de tiempo mostraba el alta de cada tarea **dos veces** (la nota
+  de sistema + el evento derivado). Se quitó la nota de sistema al crear (el evento ya se deriva de la
+  fila); mover una tarea sí sigue dejando su nota. Verificado: crear = 1 evento, mover = 1 evento
+- ⚠️ **No se pudo capturar pantalla ni arrastrar con el mouse**: el panel del navegador no estaba
+  desplegado, así que la página no compone frames (`screenshot` y `left_click_drag` quedan
+  bloqueados). Todo lo anterior se verificó por DOM, red y consola

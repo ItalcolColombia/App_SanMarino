@@ -246,9 +246,8 @@ public partial class TicketTareaService : ITicketTareaService
         _ctx.TicketTareas.Add(entity);
         await _ctx.SaveChangesAsync(ct);
 
-        RegistrarEventoTarea(ticketId, $"Tarea creada: {entity.Codigo} · {entity.Titulo}.", now);
-        await _ctx.SaveChangesAsync(ct);
-
+        // Sin nota de sistema: el alta de la tarea ya la deriva la línea de tiempo de la propia
+        // fila (TicketTimelineCalculos). Anotarla acá además duplicaría el evento en pantalla.
         var tareas = await ProyectarTareasAsync(ticketId, ct);
         return tareas.FirstOrDefault(t => t.Id == entity.Id);
     }
