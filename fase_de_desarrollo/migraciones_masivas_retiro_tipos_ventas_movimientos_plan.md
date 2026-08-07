@@ -103,3 +103,62 @@ El historial además cae a `?? item.tipo` cuando un código no está en el catá
 - `cd frontend && yarn build` (0 errores; único warning aceptado: bundle budget preexistente).
 - Smoke en pantalla del paso 1 (tiles) y descarga de la plantilla de Seguimiento Producción para
   confirmar que las hojas de movimientos siguen ahí.
+
+---
+
+## 7. Segunda entrega (ago-2026) — permisos y alcance por empresa
+
+Pedido posterior del usuario, sobre el mismo módulo:
+
+> «en producción no puedo realizar lo de postura porque el permiso no existe · de acuerdo al permiso
+> que tenga, muestre los cargadores; si no tiene permiso, los oculta · este módulo ya no debe estar
+> disponible a todas las empresas, solo para Sanmarino Colombia».
+
+### 7.1 Diagnóstico
+
+Contra el dump de producción cargado en la BD local:
+
+| Hallazgo | Detalle |
+|---|---|
+| El permiso **sí existe** | `carga_masiva_postura` está en `permissions` (lo creó `20260714115357`). Lo que falta es la **asignación a un rol**: esa migración dice explícitamente que no asigna. |
+| Nadie en Sanmarino lo tenía | `Implementador Sanmarino Colombia` (3 usuarios) tenía solo `carga_masiva_pollo_engorde` → coincide exacto con la captura: tiles de engorde habilitados y los de postura bloqueados. |
+| El menú lo lee `role_menus`, **no** `company_menus` | `RoleCompositeService.Menus_GetForUserAsync` arma el menú desde `role_menus` ∩ `menus.is_active` ∩ `menu_permissions`. `company_menus` solo alimenta la pantalla de administración de menús por empresa. ⇒ Restringir por empresa exige limpiar **las dos** tablas. |
+| Está en las 5 empresas | `AddMigracionesMasivasMenu` lo sembró heredando la visibilidad del módulo «Lotes». |
+
+### 7.2 Decisiones
+
+1. **Empresa habilitada = `Agroavicola Sanmarino`** (única «Sanmarino» en `companies`; las otras son
+   ItalcolEcuador, Demo, ItalcolPanama y Santa Reyes).
+2. **Criterio de conservación en `role_menus`: rol de uso EXCLUSIVO de Sanmarino** — al menos un
+   usuario de esa empresa y ninguno de otra. Un rol compartido se retira: conservarlo se lo dejaría
+   también a la otra empresa. Un rol sin usuarios se retira (fail-closed).
+3. **Grant acotado**: `carga_masiva_postura` solo a roles exclusivos de Sanmarino que **ya** tenían
+   `carga_masiva_pollo_engorde`. No se toca a Admin ni a Colombia Administrativa: siguen viendo el
+   módulo y ahora leen en pantalla qué permiso pedir.
+4. **Ocultar, no deshabilitar** — y fail-closed: sin permisos no se ofrece ningún cargador y se
+   muestra un aviso con las claves exactas (`carga_masiva_postura`, `carga_masiva_pollo_engorde`).
+
+### 7.3 ⚠️ Efecto colateral explícito
+
+«Solo Sanmarino» le **quita** el módulo a **Santa Reyes** (hoy tiene 2 roles con ambos permisos y con
+el menú), **ItalcolPanama**, **Demo** e **ItalcolEcuador**. Es consecuencia directa de lo pedido. Si
+Santa Reyes debe conservarlo, basta agregar su nombre a la lista de empresas habilitadas de la
+migración `20260807230000` y volver a desplegar.
+
+### 7.4 Archivos
+
+- `Migrations/20260807230000_RestringirMigracionesMasivasASanmarino.cs` (+ Designer clonado) — seed
+  data-only, idempotente, localizando por `companies.name` / `menus.route` / `permissions.key`.
+- `funciones/filtrar-tipos-visibles.funcion.ts` — función pura del filtrado.
+- `pages/migraciones-masivas-page/*` — filtrado reactivo (`toSignal(permissions$)`) + aviso.
+- `components/selector-tipo-migracion/*` — queda 100% presentacional.
+
+### 7.5 Validación hecha
+
+- `dotnet build` y `yarn build` en 0 errores.
+- La migración se corrió sobre la BD local **dentro de una transacción con ROLLBACK**: `company_menus`
+  5 → 1, `role_permissions` +1, y una segunda corrida seguida deja todos los contadores en 0
+  (idempotente). La BD local quedó intacta.
+- El filtro de `role_menus` se probó rama por rama sembrando roles de otras empresas, un rol sin
+  usuarios y un rol compartido Sanmarino+Ecuador: se retiran los tres, se conservan solo los
+  exclusivos de Sanmarino.

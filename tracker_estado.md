@@ -2226,3 +2226,99 @@ tres cajitas «Próximamente» de la Fase 3 sobran. Además el tile queda ilegib
 - [ ] **Pendiente de decisión del usuario**: ¿el tile «Venta Engorde» (`VentaPolloEngorde`) también sale?
       Hoy queda: está implementado y en uso (fn `fn_migracion_venta_engorde` v2 con despachos), y la venta
       de engorde NO se registra desde el seguimiento diario
+
+---
+
+# Tracker — Reporte Diario Costos Postura: el levante nunca salía + lote base multi-granja
+
+**Plan:** [`fase_de_desarrollo/reporte_diario_costos_postura_levante_vacio_y_multigranja_plan.md`](fase_de_desarrollo/reporte_diario_costos_postura_levante_vacio_y_multigranja_plan.md)
+**Fecha:** 2026-08-07
+
+**Pedido:** el reporte no trae nada para lotes con levante (NIZA III, granja de pruebas), y un lote base
+puede quedar repartido en varias granjas (levante en NIZA III, producción en NIZA I) — el reporte tiene
+que seguir al lote base y decir en qué granja pasó cada fase.
+
+## Diagnóstico (contra el dump de producción, BD local :5433)
+- [x] `lev_dedup` filtra `s.lote_id_int IS NOT NULL`; en prod las **588 filas** de `seguimiento_diario_levante` la tienen **NULL** (100 %) ⇒ **0 filas de levante en toda la empresa**
+- [x] `grep "LoteIdInt" backend/src` = **0 coincidencias**: ningún C# escribe esa columna; solo `fn_migracion_seguimiento_levante` la setea en sus INSERT (por eso S-369 validó en local y prod no)
+- [x] Sanmarino tiene 6 lotes: K345A/B (NIZA III, 176+175 días de levante) y A374A ×2 (LA ESMERALDA, 144+38, **sin producción** ⇒ salía vacío)
+- [x] Keyeando por `lote_id::text` se recuperan 533 días (Sanmarino) + 42 (Demo)
+- [x] Traslape K345: **15 días** (8 lote 13 + 7 lote 14) con fila en las dos etapas ⇒ al arreglar levante habría doble conteo (~16.952 kg)
+- [x] Traslado de lote a otra granja = **lote NUEVO** (`historial_traslado_lote`, hoy 0 filas); ningún lote base vive hoy en >1 granja
+- [x] Ninguna pestaña ni hoja de Excel muestra la granja por fila
+
+## BD / SQL
+- [ ] `backend/sql/fn_reporte_diario_costos_postura.sql` v2: `lev_dedup` por `lote_id` (texto) + guardas `tipo_seguimiento`/`reproductora_id`
+- [ ] Columna nueva `dia_en_ambas_etapas` (hecho crudo; la decisión la toma C#)
+- [ ] Migración EF idempotente con el `.sql` embebido verbatim (`CREATE OR REPLACE`, misma firma)
+
+## Backend
+- [ ] DTOs: `DiaEnAmbasEtapas`/`ExcluidoDelTotal` en la fila; `DiasDuplicados`/`AlcanceExpandidoPorLoteBase`/`Granjas` en el reporte
+- [ ] `ReporteDiarioCostosPosturaCalculos.MarcarDuplicados` delegando en `CorteEtapaPosturaCalculos.HayDobleConteo`
+- [ ] `ConstruirTotales` ignora las filas excluidas
+- [ ] Service: el lote base expande el alcance a las granjas asignadas (fail-closed intacto)
+- [ ] `GET /api/ReporteDiarioCostosPostura/lotes-base` (catálogo por dónde están los lotes)
+
+## Frontend
+- [ ] Modelo + service apuntando al catálogo nuevo
+- [ ] Columna **Granja** en las 3 pestañas y en las 3 hojas del Excel
+- [ ] Aviso de días duplicados + nota de alcance expandido por lote base
+- [ ] Cascada del filtro por `granjaIds`
+
+## Tests / validación
+- [ ] `ReporteDiarioCostosPosturaCalculosTests`: marcado de duplicados + totales que lo excluyen + no regresión sin duplicados
+- [ ] `cd backend && dotnet build` (0 errores, sin advertencias nuevas) + `dotnet test`
+- [ ] `cd frontend && yarn build`
+- [ ] P1-P10 del plan contra el dump de prod (incluye P6 no-regresión de producción y P9 empresa Demo)
+- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
+
+---
+
+# Migraciones Masivas — permiso de POSTURA, tiles por permiso y módulo solo para Sanmarino
+
+**Plan:** [`fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md`](fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md) (sección 7)
+**Fecha:** 2026-08-07 · Continúa el bloque commiteado en `cbc922c`
+
+Pedido: (a) en prod no se puede cargar postura «porque el permiso no existe»; (b) los cargadores sin
+permiso deben OCULTARSE, no salir en gris; (c) el módulo debe quedar solo para Sanmarino Colombia.
+
+## Diagnóstico (contra el dump de prod en la BD local)
+- [x] `carga_masiva_postura` SÍ existe como fila (la creó `20260714115357`); lo que falta es la
+      ASIGNACIÓN: ningún rol de Sanmarino la tenía. `Implementador Sanmarino Colombia` (3 usuarios)
+      tenía solo `carga_masiva_pollo_engorde` ⇒ los tiles de postura salían bloqueados
+- [x] `Menus_GetForUserAsync` arma el menú desde **`role_menus`** y NO lee `company_menus` ⇒ para
+      ocultar el módulo hay que limpiar las DOS tablas, no solo la de empresa
+- [x] `AddMigracionesMasivasMenu` lo sembró heredando de «Lotes» ⇒ quedó en las 5 empresas
+
+## Backend — migración `20260807230000_RestringirMigracionesMasivasASanmarino`
+- [x] Re-asegura que existan `carga_masiva_postura` y `carga_masiva_pollo_engorde` (NOT EXISTS)
+- [x] `company_menus`: solo «Agroavicola Sanmarino» (borra el resto, garantiza la de Sanmarino)
+- [x] `role_menus`: conserva solo roles de uso EXCLUSIVO de Sanmarino (un rol compartido se retira)
+- [x] `role_permissions`: `carga_masiva_postura` al rol exclusivo de Sanmarino que YA tenía el de engorde
+- [x] Todo por `companies.name` / `menus.route` / `permissions.key`, nunca por id (difieren local↔prod)
+- [x] `Down` restaura el punto de partida reheredando de «Lotes»
+- [x] Designer clonado del último migration; ModelSnapshot intacto (data-only)
+
+## Frontend
+- [x] `funciones/filtrar-tipos-visibles.funcion.ts` (PURA): descarta estructura, no implementados y
+      líneas sin permiso. **Fail-closed**: lista de permisos vacía ⇒ no se ofrece nada
+- [x] Página: `toSignal(permissions$)` + `tiposVisibles` = `filtrarTiposVisibles(...)` · `sinPermisos`
+- [x] Aviso «No tenés permisos de carga masiva asignados» nombrando las dos claves exactas a pedir
+- [x] Selector: queda 100% presentacional — se elimina `UserPermissionService`, `tienePermiso`,
+      `mensajeSinPermiso`, `onClick` y los estilos `tile--locked` / `tile--soon` (código muerto)
+- [x] `funciones/README.md` actualizado
+
+## Validación
+- [x] `cd backend && dotnet build` — 0 errores (solo la advertencia CS8625 preexistente)
+- [x] `cd frontend && yarn build` — 0 errores (solo el bundle budget preexistente)
+- [x] Migración simulada en la BD local **dentro de una transacción con ROLLBACK**: `company_menus`
+      5 → 1; `role_permissions` +1 (rol 32); 2ª corrida seguida = todos los contadores en 0 (idempotente)
+- [x] Filtro de `role_menus` probado rama por rama (sembrado y revertido): se retiran los roles de
+      otra empresa, el rol SIN usuarios y el rol COMPARTIDO Sanmarino+Ecuador; se conservan solo los
+      exclusivos de Sanmarino
+- [x] BD local sin cambios (todo bajo ROLLBACK) · sin procesos huérfanos
+- [ ] ⚠️ **Efecto colateral a confirmar con el usuario**: «solo Sanmarino» le quita el módulo a
+      **Santa Reyes** (2 roles que HOY tienen ambos permisos) y a **ItalcolPanama / Demo / Ecuador**.
+      Si Santa Reyes debe conservarlo, hay que agregar su nombre a la lista de empresas habilitadas
+- [ ] Smoke en prod tras el deploy: usuario de Sanmarino ve solo sus 2 tiles de postura + engorde;
+      usuario de otra empresa ya no ve el ítem de menú

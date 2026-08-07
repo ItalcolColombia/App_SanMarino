@@ -23,7 +23,8 @@ archivo por concern, para que sea fácil de encontrar, testear y reutilizar.
 | `validar-archivo-cliente.funcion.ts` | `validarArchivoCliente`: valida extensión `.xlsx` y tamaño antes de llamar al servidor. |
 | `construir-resumen-resultado.funcion.ts` | `construirResumenResultado` (tarjetas totales/procesadas/omitidas/error/advertencias/duración), `construirBadgeEstado` (tono del badge de estado) y `formatearDuracion`. |
 | `exportar-errores-excel.funcion.ts` | `exportarErroresExcel`: exporta el detalle de errores/advertencias a `.xlsx` (delega en el helper compartido de Excel). |
-| `agrupar-tipo-migracion.funcion.ts` | `esTipoPolloEngorde`: distingue la línea Pollo Engorde de Postura dentro del catálogo de tipos (gating por permiso de los tiles). |
+| `agrupar-tipo-migracion.funcion.ts` | `esTipoPolloEngorde` (línea Pollo Engorde vs. Postura) y `esTipoEstructura` (Granjas/Núcleos/Galpones, retirados de la pantalla). |
+| `filtrar-tipos-visibles.funcion.ts` | `filtrarTiposVisibles`: los tipos que se le ofrecen al operario en el paso 1 — descarta estructura, no implementados y las líneas cuyo permiso el usuario no tiene. Fail-closed. También expone `permisoDeLinea` y las claves `PERMISO_POSTURA` / `PERMISO_POLLO_ENGORDE`. |
 
 ## Nota de reutilización
 

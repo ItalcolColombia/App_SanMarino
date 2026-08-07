@@ -23,8 +23,26 @@
     <div *ngIf="cargandoTipos()" class="loading">
       <span class="spinner" aria-hidden="true"></span> Cargando tipos…
     </div>
+
+    <!-- Solo se listan los cargadores que el usuario puede usar; si no puede usar ninguno,
+         el aviso nombra el permiso exacto que tiene que pedir (antes veía tiles en gris). -->
+    <div *ngIf="sinPermisos()" class="sin-permisos">
+      <span class="sin-permisos__icon" aria-hidden="true">🔒</span>
+      <div>
+        <p class="sin-permisos__title">No tenés permisos de carga masiva asignados</p>
+        <p class="sin-permisos__text">
+          Pedile a un administrador que te asigne, desde <strong>Roles y Permisos</strong>, alguno de estos
+          permisos según la línea que necesités cargar:
+        </p>
+        <ul class="sin-permisos__list">
+          <li><code>{{ permisoPostura }}</code> — Postura (Seguimiento Levante y Producción)</li>
+          <li><code>{{ permisoPolloEngorde }}</code> — Pollo Engorde (Lotes, Seguimientos y Venta)</li>
+        </ul>
+      </div>
+    </div>
+
     <app-selector-tipo-migracion
-      *ngIf="!cargandoTipos()"
+      *ngIf="!cargandoTipos() && !sinPermisos()"
       [tipos]="tiposVisibles()"
       [seleccionado]="seleccionado()?.codigo ?? null"
       (seleccionar)="onSeleccionar($event)">

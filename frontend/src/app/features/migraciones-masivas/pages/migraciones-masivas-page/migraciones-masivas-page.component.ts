@@ -1,5 +1,6 @@
 // features/migraciones-masivas/pages/migraciones-masivas-page/migraciones-masivas-page.component.ts
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import {
   HierarchicalFilterComponent,
@@ -11,8 +12,13 @@ import { PanelPlantillaUploadComponent } from '../../components/panel-plantilla-
 import { HistorialMigracionesComponent } from '../../components/historial-migraciones/historial-migraciones.component';
 import { MigracionService } from '../../services/migracion.service';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { TipoMigracionInfo, MigracionContexto, LoteElegible, ReproductoraElegible } from '../../models/migracion.model';
-import { esTipoEstructura } from '../../funciones/agrupar-tipo-migracion.funcion';
+import {
+  filtrarTiposVisibles,
+  PERMISO_POSTURA,
+  PERMISO_POLLO_ENGORDE
+} from '../../funciones/filtrar-tipos-visibles.funcion';
 
 /**
  * Página orquestadora del módulo de Migraciones Masivas (Postura).
@@ -42,6 +48,11 @@ import { esTipoEstructura } from '../../funciones/agrupar-tipo-migracion.funcion
 export class MigracionesMasivasPageComponent implements OnInit {
   private readonly svc = inject(MigracionService);
   private readonly toast = inject(ToastService);
+  private readonly permService = inject(UserPermissionService);
+
+  /** Claves de permiso que el aviso "sin permisos" le muestra al usuario para que las pida. */
+  readonly permisoPostura = PERMISO_POSTURA;
+  readonly permisoPolloEngorde = PERMISO_POLLO_ENGORDE;
 
   readonly tipos = signal<TipoMigracionInfo[]>([]);
   readonly cargandoTipos = signal(true);
@@ -59,11 +70,18 @@ export class MigracionesMasivasPageComponent implements OnInit {
 
   readonly esTipoReproductora = computed(() => this.seleccionado()?.codigo === 'SeguimientoReproductoraEngorde');
 
+  /** Permisos del usuario; se re-emite al cambiar la sesión (login, cambio de empresa). */
+  private readonly permisos = toSignal(this.permService.permissions$, { initialValue: [] as string[] });
+
   /**
-   * Tipos que se ofrecen en el paso 1: los de estructura (Granjas/Núcleos/Galpones) se ocultan.
+   * Tipos que se ofrecen en el paso 1: sin los de estructura y **sin los de una línea cuyo permiso
+   * el usuario no tenga** (antes salían en gris con "Sin permisos"; ahora no se muestran).
    * El historial sigue recibiendo `tipos()` completo para traducir corridas viejas por nombre.
    */
-  readonly tiposVisibles = computed(() => this.tipos().filter(t => !esTipoEstructura(t.codigo)));
+  readonly tiposVisibles = computed(() => filtrarTiposVisibles(this.tipos(), this.permisos()));
+
+  /** Sesión cargada, catálogo traído y ni un solo cargador habilitado ⇒ aviso en vez de grilla vacía. */
+  readonly sinPermisos = computed(() => !this.cargandoTipos() && this.tiposVisibles().length === 0);
 
   ngOnInit(): void {
     this.svc.getTipos().subscribe({
