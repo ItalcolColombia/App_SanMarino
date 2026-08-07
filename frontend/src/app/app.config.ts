@@ -300,6 +300,16 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ReporteDiarioCostosEngordeMainComponent)
       },
 
+      // Reporte Diario Área de Costos POSTURA (levante + producción, por lote base).
+      // OJO: no es el de engorde de arriba — otras fuentes y otras reglas de negocio.
+      {
+        path: 'reporte-diario-costos-postura',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/reporte-diario-costos-postura/pages/reporte-diario-costos-postura-main/reporte-diario-costos-postura-main.component')
+            .then(m => m.ReporteDiarioCostosPosturaMainComponent)
+      },
+
       // Informe RA Pesadas (Sanmarino postura): shell con dos modos —
       // Resumen semanal (todos los lotes, una semana) y Detalle de lote
       // (un lote base, todas sus semanas + gráficas), ambos vs guía genética.
