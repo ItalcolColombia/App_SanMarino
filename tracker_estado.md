@@ -1456,3 +1456,24 @@ todas las llamadas `/api/tickets/*` en 200.
 - ⚠️ **No se pudo capturar pantalla ni arrastrar con el mouse**: el panel del navegador no estaba
   desplegado, así que la página no compone frames (`screenshot` y `left_click_drag` quedan
   bloqueados). Todo lo anterior se verificó por DOM, red y consola
+
+### 🔴 Hueco de despliegue detectado y cerrado (2026-08-07)
+Al revisar si la entrega quedaba lista para producción apareció que **crear el menú no alcanza para
+que se vea**: `RoleCompositeService.Menus_GetForUserAsync` arma el árbol desde `role_menus` y solo cae
+al filtro por permisos cuando el rol no tiene NINGÚN menú asignado. La migración anterior sembraba
+`menus` + `menu_permissions`, así que en local `tickets.tablero` y `tickets.roadmap` figuraban con
+**0 roles** ⇒ en prod habrían quedado invisibles para todos (y no asignables en la UI de roles hasta
+tener fila en `company_menus`).
+
+- [x] Migración data-only `20260807030500_SeedMenusTableroRoadmapEnRolesYEmpresas` (Designer clonado,
+      **ModelSnapshot intacto**, idempotente con `WHERE NOT EXISTS`): copia los dos menús nuevos a los
+      roles y empresas que YA tienen `tickets.admin` o `tickets.gestion`. No habilita nada a nadie
+      nuevo: el gate sigue siendo `menu_permissions`
+- [x] Verificado en local: de **0 → 6 roles y 2 empresas** en cada menú nuevo; reaplicar el SQL inserta
+      **0 filas** (idempotente); `GET /api/roles/menus/me` del admin devuelve las 5 entradas del grupo
+      Tickets, con «Tablero de casos» y «Roadmap» incluidas
+- [x] ⚠️ **Gotcha de sesiones paralelas**: `dotnet ef migrations add` capturó cambios de OTRA sesión
+      (`venta_aves_hembras`/`venta_aves_machos` en `seguimiento_diario_levante`, que tienen entidad pero
+      todavía no migración). Se descartó esa migración generada y se restauró el ModelSnapshot; la
+      data-only se escribió a mano con el Designer clonado
+- [x] `dotnet build` 0 errores · `dotnet test` **1.834 verdes**
