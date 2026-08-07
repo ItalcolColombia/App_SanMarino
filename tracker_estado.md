@@ -1613,7 +1613,7 @@ revisarlo, *«también necesito filtrar por empresa»*.
       → `Dec(double?)` → DTO `decimal?` → front `number | null`, `hayGuiaUniformidad()` ya trata
       null/undefined/0 como ausencia, `redondearFila()` deja pasar null
 - [x] A5 Plan escrito
-- [x] A6 🔎 **Corrección al handoff**: el «CRLF inflado (`
+- [x] A6 🔎 **Corrección al handoff**: el «CRLF inflado (`
 `)» era **artefacto del volcado**
       (psql.exe en Windows duplica los CR al escribir por pipe). Medido dentro de la BD el cuerpo
       tiene **1.964 CR y 1.964 LF** — balanceado. Lo inflado son las **líneas en blanco**
@@ -1689,3 +1689,50 @@ revisarlo, *«también necesito filtrar por empresa»*.
       `features/lote-produccion/` = 0 resultados). Verificado por API: la respuesta no trae la clave.
       Es un cabo suelto de la misma `20260806093256`; exponerlo cambia el contrato del DTO y pide
       decidir dónde va la columna (tabla + Excel) ⇒ tarea aparte
+      · **Tomado y resuelto** en el bloque «Exponer `seleccion_machos`…» del final de este archivo
+
+---
+
+# Exponer `seleccion_machos` en indicadores semanales de PRODUCCIÓN
+
+**Plan:** [`fase_de_desarrollo/exponer_seleccion_machos_indicadores_produccion_plan.md`](fase_de_desarrollo/exponer_seleccion_machos_indicadores_produccion_plan.md)
+**Fecha:** 2026-08-07 · Continúa el hallazgo abierto del bloque anterior. **Sin migración**: la fn ya
+emite la columna, esto solo la deja llegar al front.
+
+## Verificación previa (la aritmética ya estaba bien, no se toca)
+- [x] V1 Confirmado **contra la fn desplegada en la BD local** (`pg_get_functiondef`, no el espejo
+      `.sql`): la firma incluye `seleccion_machos`, el saldo hace
+      `v_aves_m_act - r_mort_m - r_sel_m` y el %retiro de machos usa `(r_mort_m + r_sel_m)`
+- [x] V2 `20260807140000` (la última que recrea la fn) conserva las tres cosas ⇒ no hay regresión
+      pendiente de la `20260806093256`
+- [x] V3 `grep "new IndicadorProduccionSemanalDto"` ⇒ **un solo sitio de construcción** (`MapRow`),
+      así que insertar el campo en medio del `record` posicional es seguro (si faltara el mapeo, no
+      compila por aridad)
+- [x] V4 La fn **no** emite `porcentaje_seleccion_machos` (solo el de hembras) ⇒ se expone el conteo;
+      el % de machos no se replica en TypeScript (una sola fórmula por número)
+
+## Backend
+- [x] B1 `IndicadorProduccionSemanalDto`: + `int SeleccionMachos` en el bloque Selección (pos. 15,
+      igual que la fn y el BdRow)
+- [x] B2 `IndicadoresProduccionCalculos.MapRow`: + `r.SeleccionMachos` (int→int, sin conversión)
+- [x] B3 Test xUnit: `SampleRow.SeleccionMachos = 3` (valor ≠ 0 a propósito: `SeleccionHembras` es 0 y
+      un mapeo faltante habría pasado como falso verde) + aserción en
+      `MapRow_CopiaTodosLosCamposEnteros`
+
+## Frontend — decisión del usuario: tabla + Excel, **solo conteo**
+- [x] F1 `produccion.service.ts`: + `seleccionMachos: number` en la interfaz del DTO
+- [x] F2 `tabla-lista-indicadores.component.html`: `<th>Sel M</th>` + `<td>` tras `%Sel H`
+- [x] F3 `tabla-lista-indicadores.component.ts` → `buildIndicadoresRows()`: `SeleccionM` tras `PorcSelH`
+- [x] F4 **Bug de layout preexistente corregido de paso**: el `colspan` del grupo «Mortalidad /
+      Selección» decía **8** con **10** subcolumnas debajo (quedó viejo al agregar `Sel H`/`%Sel H`)
+      ⇒ corría 2 columnas la fila de encabezados. Ahora **11**. Sin `nth-child` en el SCSS y el
+      detalle usa `colspan="999"`, así que nada más dependía del número
+
+## Gates
+- [x] G1 `dotnet build` (con el SDK **10** de `~/.dotnet/dotnet.exe`; el `dotnet` del PATH es 9 y
+      falla con `NETSDK1045`)
+- [x] G2 `dotnet test`
+- [x] G3 `yarn build` del front. ⚠️ Gotcha del worktree: **no tiene `node_modules`** ⇒ se enlazó por
+      *junction* al del repo principal antes de compilar
+- [x] G4 Smoke API: `POST /api/Produccion/indicadores-semanales` con `PORT=5499` ⇒ la clave
+      `seleccionMachos` ahora viaja en el JSON

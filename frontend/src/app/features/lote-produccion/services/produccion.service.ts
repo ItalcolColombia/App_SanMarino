@@ -478,6 +478,9 @@ export interface IndicadorProduccionSemanalDto {
   // Selección
   seleccionHembras: number;
   porcentajeSeleccionHembras: number;
+  /** Conteo de la semana. La fn no emite su porcentaje (solo el de hembras); el % de retiro de
+   *  machos —que ya incluye esta selección— viaja en retiroSemanalMachosReal/retiroAcumuladoMachosReal. */
+  seleccionMachos: number;
 
   // Consumo (kg)
   consumoKgHembras: number;

@@ -27,6 +27,7 @@ public class IndicadoresProduccionCalculosTests
         DiferenciaMortalidadMachos = 2209.0962435610877,
         SeleccionHembras = 0,
         PorcentajeSeleccionHembras = 0,
+        SeleccionMachos = 3,
         ConsumoKgHembras = 6835.1,
         ConsumoKgMachos = 646.9,
         ConsumoTotalKg = 7482.0,
@@ -88,6 +89,8 @@ public class IndicadoresProduccionCalculosTests
         Assert.Equal(5, d.MortalidadHembras);
         Assert.Equal(2, d.MortalidadMachos);
         Assert.Equal(0, d.SeleccionHembras);
+        // La fn la emite desde 20260806093256, pero el DTO no la exponía y el front la veía siempre en 0.
+        Assert.Equal(3, d.SeleccionMachos);
         Assert.Equal(12044, d.HuevosTotales);
         Assert.Equal(7905, d.HuevosIncubables);
         Assert.Equal(7166, d.HuevosLimpios);

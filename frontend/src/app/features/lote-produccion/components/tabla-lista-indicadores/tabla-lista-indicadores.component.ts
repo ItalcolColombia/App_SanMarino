@@ -289,6 +289,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
       SeleccionH: ind.seleccionHembras,
       PorcSelH: ind.porcentajeSeleccionHembras,
+      SeleccionM: ind.seleccionMachos,
 
       RetiroSemH: ind.retiroSemanalHembrasReal,
       RetiroSemM: ind.retiroSemanalMachosReal,
