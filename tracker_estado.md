@@ -2275,7 +2275,7 @@ que seguir al lote base y decir en qué granja pasó cada fase.
 - [x] `yarn build` OK (solo el warning de bundle preexistente)
 - [x] P1-P13 del plan: gate de paridad de producción en las **5 empresas** (0 diferencias), traslado simulado en transacción revertida, smoke API y smoke UI
 - [x] Sin procesos huérfanos (back :5002 y front :4200 detenidos, sin listeners)
-- [ ] Commit acotado (sin footer de atribución)
+- [x] Commit acotado (sin footer de atribución)
 ---
 
 # Migraciones Masivas — permiso de POSTURA, tiles por permiso y módulo solo para Sanmarino
