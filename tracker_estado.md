@@ -1602,55 +1602,90 @@ revisarlo, *«también necesito filtrar por empresa»*.
 **Bloque propio — no tocar desde otras sesiones** (hay una sesión de Tickets con trabajo abierto)
 
 ## Fase 0 — Auditoría
-- [ ] A1 Migración vigente identificada + su constante comparada contra la definición VIVA
-- [ ] A2 Diff normalizado espejo vs viva: confirmar que el delta es SOLO el de `20260806093256`
-- [ ] A3 Confirmar que ningún otro `.sql` redefine la fn
-- [ ] A4 Auditar la cadena completa de `uniformidad_guia` (BdRow → Dec → DTO → front → Excel)
-- [ ] A5 Plan escrito
+- [x] A1 Migración vigente = `20260806093256`; su constante `FnConSaldoCorregido` vs la definición
+      **viva** (`pg_get_functiondef`, normalizada): **0 diferencias** ⇒ lo desplegado es lo que
+      despliega la migración
+- [x] A2 Diff normalizado espejo vs viva: 220 líneas = **exactamente los 9 deltas** de esa migración
+      + el formato de `pg_get_functiondef`. **Ninguna divergencia oculta**
+- [x] A3 Ningún otro `.sql` redefine la fn (los otros 6 que la nombran son comentarios o scripts de
+      verificación)
+- [x] A4 Cadena de `uniformidad_guia` auditada punta a punta y **toda nullable**: `BdRow` `double?`
+      → `Dec(double?)` → DTO `decimal?` → front `number | null`, `hayGuiaUniformidad()` ya trata
+      null/undefined/0 como ausencia, `redondearFila()` deja pasar null
+- [x] A5 Plan escrito
+- [x] A6 🔎 **Corrección al handoff**: el «CRLF inflado (`
+`)» era **artefacto del volcado**
+      (psql.exe en Windows duplica los CR al escribir por pipe). Medido dentro de la BD el cuerpo
+      tiene **1.964 CR y 1.964 LF** — balanceado. Lo inflado son las **líneas en blanco**
+      (1.965 líneas para 457 útiles, ~3 blancos antes y después de cada línea real)
 
 ## Fase 1 — Espejo reconciliado (sin cambio de comportamiento)
-- [ ] E1 `RETURNS TABLE` + `seleccion_machos`
-- [ ] E2 `DECLARE`: `v_cum_sel_m` + `r_sel_m` + venta/retiro/traslado H y M
-- [ ] E3 CTE `_seg` rama LPP y rama lote: `sel_m` + 8 columnas `mov_*`
-- [ ] E4 Agregación semanal: 9 `SUM` + 9 destinos del `INTO`
-- [ ] E5 Acumulado `v_cum_sel_m`, `retiro_sem_m`/`retiro_ac_m`/`r_aves_m_inicio` con selección de machos
-- [ ] E6 Decremento del saldo con ventas/retiros/traslados
-- [ ] E7 `seleccion_machos := r_sel_m;` en la emisión
+- [x] E1 `RETURNS TABLE` + `seleccion_machos`
+- [x] E2 `DECLARE`: `v_cum_sel_m` + `r_sel_m` + venta/retiro/traslado H y M
+- [x] E3 CTE `_seg` rama LPP y rama lote: `sel_m` + 8 columnas `mov_*`
+- [x] E4 Agregación semanal: 9 `SUM` + 9 destinos del `INTO`
+- [x] E5 Acumulado `v_cum_sel_m`, `retiro_sem_m`/`retiro_ac_m`/`r_aves_m_inicio` con selección de machos
+- [x] E6 Decremento del saldo con ventas/retiros/traslados
+- [x] E7 `seleccion_machos := r_sel_m;` en la emisión
+- [x] E8 Comentario **obsoleto corregido**: la versión desplegada aún dice «Machos sin selección en
+      esta fn (… solo resta mort_m)», que su propio cambio volvió falso
+- [x] E9 CHANGELOG + regla en la cabecera del `.sql` («este archivo es el ESPEJO; si lo cambiás va
+      con su migración y su gate; nunca `psql -f` sin verificar que está al día»)
 
 ## Fase 2 — `uniformidad_guia` NULL (único cambio de comportamiento)
-- [ ] U1 Eliminar `g_unif := COALESCE(g_unif, 0);` dejando el porqué documentado
-- [ ] U2 Migración `CREATE OR REPLACE` (la firma NO cambia) + `Down()` verbatim + Designer clonado
-- [ ] U3 Comentario del front actualizado (el guard defensivo se conserva)
+- [x] U1 `g_unif := COALESCE(g_unif, 0);` eliminado, con el porqué documentado y la aclaración de
+      que `g_cons_*`/`g_mort_*`/`g_peso_*`/`g_retiro_ac_*` conservan el 0 a propósito
+- [x] U2 Migración `20260807140000_UniformidadGuiaProduccionNull` — `CREATE OR REPLACE` (la firma NO
+      cambia), `Down()` = espejo + COALESCE restaurado, Designer clonado, **ModelSnapshot intacto**
+- [x] U3 Comentario del front actualizado; el guard contra 0 **se conserva** (cubre backends sin la
+      migración y un 0 genuino)
 
 ## Fase 3 — Gate de fn compartida (§5 del handoff)
-- [ ] G1 Desplegar la reconciliada como `..._V1` en paralelo
-- [ ] G2 `EXCEPT` en los dos sentidos, TODAS las empresas × 53 semanas × ambos flujos
-- [ ] G3 Aislar la columna culpable (conteo por cada una de las 69)
-- [ ] G4 `uniformidad_guia` la única distinta y siempre `0 → NULL`; `diferencia_uniformidad` 0 diffs
-- [ ] G5 La fn reconciliada devuelve 69 columnas con `seleccion_machos` en la posición 15
-- [ ] G6 `dotnet build` · `dotnet test` · `yarn build`
-- [ ] G7 Verificación por pantalla del tab Indicadores de producción
-- [ ] G8 Sin procesos huérfanos · commit acotado (sin footer de atribución)
+- [x] G1 Universo: **5 empresas × 8 LPP** (flujo LPP, ventana completa **y** semanas 30-40) +
+      **5 × 6 lotes** (flujo legacy) = 70 llamadas por versión ⇒ **179 filas**.
+      ⚠️ Gotcha: la fn hace `CREATE TEMP TABLE _seg` **sin dropearla** ⇒ una sola llamada por
+      transacción; el gate corre en autocommit, una sentencia por llamada (no `CROSS JOIN LATERAL`)
+- [x] G2 🥇 **Prueba de fidelidad del port**: espejo reconciliado **+ COALESCE restaurado** (`_v0`)
+      vs fn viva ⇒ `EXCEPT` **0 en los dos sentidos** y **0 diferencias en las 68 columnas**
+- [x] G3 Aislamiento por columna (el `EXCEPT` marcaba las 179 en ambos sentidos sin decir por qué):
+      **`uniformidad_guia` es la única distinta**. `diferencia_uniformidad` **0 diffs** — se cumple la
+      predicción de que `fn_dif_pct` ya devolvía NULL con guía = 0.
+      ⚠️ Gotcha: `JOIN … USING (lpp, lote)` da **0 filas** porque esas claves traen NULL ⇒
+      `ON n.x IS NOT DISTINCT FROM v.x`
+- [x] G4 Dirección: **179/179 `0 → NULL`**, `0` valores reales perdidos, `0` NULL→valor.
+      Es data-driven, no hardcode: con guías AP no hay uniformidad en edades ≥25; donde la guía sí la
+      define (R308 2021, fila `25P` = 90) la fn ahora la mostraría en vez de 0
+- [x] G5 La fn desplegada devuelve **69 columnas**, `seleccion_machos` en la **posición 15**, y su
+      salida coincide exacto con la esperada (`EXCEPT` 0/0). Bonus: el cuerpo pasó de **1.965 a 499
+      líneas** (se fue la inflación de blancos)
+- [x] G6 `dotnet build` de Infrastructure **0/0** · `dotnet test` **1.864 verdes** ·
+      `ng build` OK (único warning: bundle budget preexistente).
+      ⚠️ El `dotnet build` de la solución falla por **MSB3021/MSB3027**: un `ZooSanMarino.API.exe`
+      **ajeno** (PID 5060, otra sesión) tiene tomados los DLL. No es error de compilación y **no se
+      mató el proceso ajeno**
+- [x] G7 **Smoke HTTP real** (backend propio :5499, `ASPNETCORE_ENVIRONMENT=Development`, JWT +
+      X-Secret-Up minteados): `POST /api/Produccion/indicadores-semanales` (LPP 7) ⇒ **HTTP 200**,
+      44 semanas, **`uniformidadGuia` null en 44/44** y `diferenciaUniformidad` null en 44/44.
+      ⚠️ Gotcha: el backend **NO ignora `PORT`** (el handoff dice lo contrario) —
+      `Program.cs:89` hace `Configuration["PORT"] ?? "5002"` + `UseUrls`, que **gana sobre
+      `ASPNETCORE_URLS`**. Se levanta con `PORT=5499`
+- [x] G8 Limpieza: backend de smoke detenido (5499 libre, el **ajeno de :5002 intacto**), `_v0`/`_v1`
+      y las 4 tablas `_gate_*` borradas de la BD local, migración registrada en
+      `__EFMigrationsHistory`. Commit acotado, `git add` archivo por archivo, sin footer de atribución
 
-### Filtros compartidos en tablero, roadmap y panel (2026-08-07)
-Pedido: *«en el Roadmap y Tablero de casos tengo los filtros, también hasta por empresa»*.
+## Aplicación en la BD local (nota de método)
+- [x] La migración **no se pudo aplicar con `dotnet ef database update`**: EF necesita compilar el
+      startup project (API) y ese binario lo tiene tomado el proceso ajeno. Se aplicó ejecutando el
+      **SQL extraído de la propia migración** (`FnUniformidadGuiaNull`, no del espejo) y recién
+      después se registró en `__EFMigrationsHistory` — con el efecto **verificado presente** (69
+      columnas y salida idéntica a la esperada), que es la condición que exige CLAUDE.md. En el
+      deploy la aplica EF sola, como siempre
 
-- [x] `components/ticket-filtros` — **una sola barra** para las tres vistas. Cada página deja de
-      tener su propio estado de filtro: la barra emite el `TicketTableroFiltro` ya armado y la
-      página solo recarga. Se borraron los filtros duplicados de tablero, roadmap y panel
-- [x] Diseño: línea siempre visible (buscar, año, tipo, prioridad) + botón «Más filtros» que
-      despliega países, empresas, rango de fechas, estado, SLA y responsable. El botón lleva el
-      **contador de filtros activos** para que no quede un recorte escondido; el año no cuenta
-      porque siempre hay uno puesto
-- [x] `[ocultarEstado]` en el tablero: ahí el estado ES la columna, filtrarlo vaciaría las demás.
-      `[expandidoInicial]` para que el panel abra con todo desplegado
-- [x] 🔴 **Dos bugs de change detection cazados en el pase**:
-      1. El contador de filtros era un `computed` sobre campos mutables (no señales) ⇒ se quedaba
-         con el valor viejo. Pasó a método.
-      2. **El roadmap tiraba NG0100 en cada ciclo**: las barras del gantt llamaban `new Date()` en
-         cada evaluación, así que dos pasadas de detección daban anchos distintos por microsegundos
-         (`44.00185402199074` vs `44.00185420283565`). Ahora el «ahora» se congela en un signal que
-         se refresca **una vez por carga**
-- [x] Verificado en pantalla: tablero 19 → 13 (ItalcolEcuador) → 11 (+ Ecuador), badge 1 y 2, y
-      «Limpiar» vuelve a 19; roadmap 20 → 14 filas; panel 19 → 13 con la tabla en esa sola empresa.
-      **Cero errores de consola** navegando entre las tres. `yarn build` 0 errores
+## 🔴 Hallazgo NUEVO (fuera del alcance de este bloque, no se tocó)
+- [ ] **`seleccion_machos` es un callejón sin salida**: la fn lo emite y
+      `IndicadorProduccionSemanalBdRow.SeleccionMachos` lo materializa, pero
+      `IndicadorProduccionSemanalDto` **no tiene el campo** y `IndicadoresProduccionCalculos` **no lo
+      mapea** ⇒ el valor se calcula y se descarta; el front nunca lo ve (`grep seleccionMachos` en
+      `features/lote-produccion/` = 0 resultados). Verificado por API: la respuesta no trae la clave.
+      Es un cabo suelto de la misma `20260806093256`; exponerlo cambia el contrato del DTO y pide
+      decidir dónde va la columna (tabla + Excel) ⇒ tarea aparte
