@@ -1,0 +1,1065 @@
+<title>Manual de carga masiva — Postura</title>
+
+<style>
+  /* ── Tokens ─────────────────────────────────────────────────────────────
+     Paleta de marca del repo (theme-italfoods): ital-cream de fondo,
+     ital-orange como acento estructural, ital-green SOLO para éxito/cuadre,
+     rojo SOLO para las trampas que descartan datos. Neutros sesgados al
+     cálido para que convivan con el cream sin verse grises de plantilla. */
+  :root {
+    --ground:  #faf8f5;
+    --paper:   #ffffff;
+    --sunken:  #f2ece5;
+    --ink:     #1c1714;
+    --muted:   #6b6058;
+    --rule:    #e6ded4;
+    --rule-strong: #d3c6b8;
+    --accent:  #e85c25;
+    --accent-soft: #fdeee7;
+    --ok:      #2d7a3e;
+    --ok-soft: #eaf4ec;
+    --warn:    #a8650b;
+    --warn-soft: #fdf3e2;
+    --stop:    #b3261e;
+    --stop-soft: #fdeceb;
+
+    --display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, SFMono-Regular, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:  #17140f;
+      --paper:   #201c16;
+      --sunken:  #262119;
+      --ink:     #f0eae2;
+      --muted:   #a2968a;
+      --rule:    #37302a;
+      --rule-strong: #4b4239;
+      --accent:  #f47b45;
+      --accent-soft: #34211a;
+      --ok:      #63b077;
+      --ok-soft:  #1c2a1f;
+      --warn:    #dfa245;
+      --warn-soft: #2e2416;
+      --stop:    #f2857c;
+      --stop-soft: #331b1a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:#17140f; --paper:#201c16; --sunken:#262119; --ink:#f0eae2;
+    --muted:#a2968a; --rule:#37302a; --rule-strong:#4b4239;
+    --accent:#f47b45; --accent-soft:#34211a; --ok:#63b077; --ok-soft:#1c2a1f;
+    --warn:#dfa245; --warn-soft:#2e2416; --stop:#f2857c; --stop-soft:#331b1a;
+  }
+  :root[data-theme="light"] {
+    --ground:#faf8f5; --paper:#ffffff; --sunken:#f2ece5; --ink:#1c1714;
+    --muted:#6b6058; --rule:#e6ded4; --rule-strong:#d3c6b8;
+    --accent:#e85c25; --accent-soft:#fdeee7; --ok:#2d7a3e; --ok-soft:#eaf4ec;
+    --warn:#a8650b; --warn-soft:#fdf3e2; --stop:#b3261e; --stop-soft:#fdeceb;
+  }
+
+  /* ── Base ───────────────────────────────────────────────────────────── */
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  * { box-sizing: border-box; }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+    display: grid;
+    grid-template-columns: 214px minmax(0, 1fr);
+    gap: 56px;
+    align-items: start;
+  }
+  @media (max-width: 1020px) {
+    .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .toc { position: static; margin: 0 0 40px; }
+  }
+
+  /* ── Cabecera ───────────────────────────────────────────────────────── */
+  .masthead {
+    grid-column: 1 / -1;
+    padding: 56px 0 32px;
+    border-bottom: 3px solid var(--ink);
+    margin-bottom: 44px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px 48px;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .masthead__eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  .masthead h1 {
+    font-family: var(--display);
+    font-size: clamp(34px, 5.2vw, 56px);
+    line-height: 1.03;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -.015em;
+  }
+  .masthead p {
+    margin: 16px 0 0;
+    max-width: 52ch;
+    color: var(--muted);
+    font-size: 16.5px;
+  }
+  .stamp {
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.85;
+    color: var(--muted);
+    border-left: 2px solid var(--accent);
+    padding-left: 14px;
+    flex: 0 0 auto;
+  }
+  .stamp b { color: var(--ink); font-weight: 600; }
+
+  /* ── Índice ─────────────────────────────────────────────────────────── */
+  .toc {
+    position: sticky;
+    top: 24px;
+    font-size: 13.5px;
+  }
+  .toc__title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+  .toc a {
+    display: flex;
+    gap: 9px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 4px 6px 4px 0;
+    border-radius: 3px;
+    line-height: 1.35;
+  }
+  .toc a:hover, .toc a:focus-visible { color: var(--accent); }
+  .toc .n {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--rule-strong);
+    flex: 0 0 16px;
+    padding-top: 2px;
+  }
+
+  /* ── Secciones ──────────────────────────────────────────────────────── */
+  .content { min-width: 0; }
+  section { margin: 0 0 68px; scroll-margin-top: 20px; }
+  section > h2 {
+    font-family: var(--display);
+    font-size: clamp(25px, 3.2vw, 33px);
+    font-weight: 600;
+    line-height: 1.15;
+    margin: 0 0 6px;
+    text-wrap: balance;
+    letter-spacing: -.01em;
+  }
+  .sec-num {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 10px;
+  }
+  .sec-lede {
+    color: var(--muted);
+    max-width: 68ch;
+    margin: 0 0 26px;
+    font-size: 16.5px;
+  }
+  h3 {
+    font-family: var(--body);
+    font-size: 17px;
+    font-weight: 650;
+    margin: 34px 0 12px;
+    letter-spacing: -.005em;
+  }
+  h4 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 26px 0 10px;
+    font-weight: 600;
+  }
+  p { margin: 0 0 14px; max-width: 72ch; }
+  ul, ol.steps { max-width: 72ch; padding-left: 20px; margin: 0 0 16px; }
+  li { margin-bottom: 7px; }
+  a { color: var(--accent); }
+
+  code, .m {
+    font-family: var(--mono);
+    font-size: .875em;
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: .1em .38em;
+    white-space: nowrap;
+  }
+  .m--req { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  /* ── Ruta / secuencia ───────────────────────────────────────────────── */
+  .route { display: flex; flex-direction: column; gap: 0; margin: 0 0 8px; }
+  .route__step {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 18px;
+    padding: 18px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .route__step:last-child { border-bottom: 1px solid var(--rule); }
+  .route__n {
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--accent);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .route__b { font-weight: 650; margin: 0 0 3px; }
+  .route__d { color: var(--muted); font-size: 14.5px; margin: 0; max-width: 62ch; }
+  .route__tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 2px;
+    margin-left: 8px;
+    vertical-align: 2px;
+    white-space: nowrap;
+  }
+  .tag--excel { background: var(--accent-soft); color: var(--accent); }
+  .tag--mano  { background: var(--sunken); color: var(--muted); }
+
+  /* ── Callouts ───────────────────────────────────────────────────────── */
+  .note {
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--rule-strong);
+    background: var(--paper);
+    padding: 16px 18px;
+    margin: 20px 0;
+    border-radius: 0 4px 4px 0;
+    max-width: 76ch;
+  }
+  .note__k {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 7px;
+    font-weight: 600;
+  }
+  .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+  .note p, .note ul { font-size: 15px; }
+  .note--stop { border-left-color: var(--stop); background: var(--stop-soft); }
+  .note--stop .note__k { color: var(--stop); }
+  .note--warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .note--warn .note__k { color: var(--warn); }
+  .note--ok   { border-left-color: var(--ok); background: var(--ok-soft); }
+  .note--ok .note__k { color: var(--ok); }
+
+  /* ── Rendering de hoja Excel ────────────────────────────────────────── */
+  .sheet { margin: 18px 0 26px; }
+  .sheet__tab {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--paper);
+    border: 1px solid var(--rule-strong);
+    border-bottom: none;
+    padding: 7px 15px;
+    border-radius: 5px 5px 0 0;
+    position: relative;
+    top: 1px;
+  }
+  .sheet__tab b { font-weight: 700; }
+  .sheet__tab span { color: var(--muted); font-size: 11px; }
+  .sheet__scroll {
+    overflow-x: auto;
+    border: 1px solid var(--rule-strong);
+    border-radius: 0 5px 5px 5px;
+    background: var(--paper);
+  }
+  table.grid {
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+    min-width: 100%;
+    font-variant-numeric: tabular-nums;
+  }
+  table.grid th, table.grid td {
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 5px 9px;
+    text-align: left;
+  }
+  table.grid tr:last-child td { border-bottom: none; }
+  .grid__col {
+    background: var(--sunken);
+    color: var(--muted);
+    font-weight: 400;
+    text-align: center !important;
+    font-size: 10.5px;
+    letter-spacing: .04em;
+  }
+  .grid__hdr th {
+    background: var(--sunken);
+    font-weight: 700;
+    color: var(--ink);
+    border-bottom: 2px solid var(--rule-strong);
+  }
+  .grid__hdr th.req { color: var(--accent); }
+  .grid__rn {
+    background: var(--sunken);
+    color: var(--muted);
+    text-align: center !important;
+    font-size: 10.5px;
+    position: sticky;
+    left: 0;
+    border-right: 1px solid var(--rule-strong) !important;
+  }
+  td.empty { background: repeating-linear-gradient(135deg, transparent, transparent 6px, var(--sunken) 6px, var(--sunken) 7px); }
+  .sheet__cap { font-size: 13px; color: var(--muted); margin: 9px 0 0; max-width: 72ch; }
+
+  /* ── Tabla de campos ────────────────────────────────────────────────── */
+  .fields { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 6px 0 22px; }
+  .fields th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 0 12px 8px 0;
+    border-bottom: 2px solid var(--rule-strong);
+    vertical-align: bottom;
+  }
+  .fields td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .fields td:first-child { white-space: nowrap; }
+  .fields tr:last-child td { border-bottom: none; }
+  .fields .col-o { width: 78px; }
+  .req-dot {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .opt-dot { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .fields small { color: var(--muted); display: block; font-size: 12.5px; line-height: 1.5; margin-top: 2px; }
+
+  /* ── Bloque de datos clave ──────────────────────────────────────────── */
+  .kv {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 18px 0 24px;
+  }
+  .kv > div { background: var(--paper); padding: 13px 15px; }
+  .kv dt {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .kv dd {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+  }
+  .kv dd small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; margin-top: 2px; }
+
+  hr.soft { border: none; border-top: 1px solid var(--rule); margin: 34px 0; }
+
+  .closing {
+    grid-column: 1 / -1;
+    border-top: 3px solid var(--ink);
+    padding-top: 22px;
+    margin-top: 12px;
+    font-size: 13.5px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 32px;
+    justify-content: space-between;
+  }
+  .closing code { font-size: 12px; }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <p class="masthead__eyebrow">ItalGranja · Migraciones Masivas · Línea Postura</p>
+      <h1>Carga masiva de postura,<br>de punta a punta</h1>
+      <p>Cómo dejar cargado un lote de reproductora pesada completo —&nbsp;levante, cierre, producción, alimento, ventas&nbsp;— con dos archivos de Excel y dos pasos por pantalla. Escrito para quien va a armar los archivos.</p>
+    </div>
+    <div class="stamp">
+      Versión <b>1.0</b> · 07-ago-2026<br>
+      Contrato leído de <b>MigracionEsquemas.cs</b><br>
+      Caso de referencia <b>lote S-369AB</b><br>
+      Módulo <b>Migraciones Masivas</b> · Fase 2
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Índice">
+    <p class="toc__title">Contenido</p>
+    <ol>
+      <li><a href="#ruta"><span class="n">01</span><span>La ruta completa</span></a></li>
+      <li><a href="#lote"><span class="n">02</span><span>El lote base</span></a></li>
+      <li><a href="#elegible"><span class="n">03</span><span>Cuándo el lote es elegible</span></a></li>
+      <li><a href="#levante"><span class="n">04</span><span>Archivo de levante</span></a></li>
+      <li><a href="#alimento"><span class="n">05</span><span>Alimento e inventario</span></a></li>
+      <li><a href="#aves"><span class="n">06</span><span>Movimientos y venta de aves</span></a></li>
+      <li><a href="#cierre"><span class="n">07</span><span>Cerrar y liquidar</span></a></li>
+      <li><a href="#produccion"><span class="n">08</span><span>Archivo de producción</span></a></li>
+      <li><a href="#huevos"><span class="n">09</span><span>Movimientos y venta de huevos</span></a></li>
+      <li><a href="#trampas"><span class="n">10</span><span>Las cinco trampas</span></a></li>
+      <li><a href="#checklist"><span class="n">11</span><span>Checklist de entrega</span></a></li>
+    </ol>
+  </nav>
+
+  <main class="content">
+
+    <!-- ══════════════════════════════════════════════════ 01 ── RUTA ── -->
+    <section id="ruta">
+      <span class="sec-num">01 — Panorama</span>
+      <h2>La ruta completa</h2>
+      <p class="sec-lede">Son <b>seis pasos y el orden es obligatorio</b>. Dos son archivos de Excel; los otros cuatro se hacen por pantalla. Saltear uno no da error: da un lote que no aparece en el desplegable, o un archivo rechazado por falta de stock.</p>
+
+      <div class="route">
+        <div class="route__step">
+          <div class="route__n">1</div>
+          <div>
+            <p class="route__b">Crear el lote base<span class="route__tag tag--mano">por pantalla</span></p>
+            <p class="route__d">Gestión de Lotes → Nuevo. <b>No existe carga masiva de lotes de postura</b> — la que hay en el módulo es «Lotes Engorde» y no sirve acá. Un lote, una vez.</p>
+          </div>
+        </div>
+        <div class="route__step">
+          <div class="route__n">2</div>
+          <div>
+            <p class="route__b">Importar el archivo de levante<span class="route__tag tag--excel">Excel</span></p>
+            <p class="route__d">Hojas <code>Datos</code> + <code>Alimento</code> + <code>Movimientos Aves</code>. Cubre desde el encasetamiento hasta el último día de levante.</p>
+          </div>
+        </div>
+        <div class="route__step">
+          <div class="route__n">3</div>
+          <div>
+            <p class="route__b">Cerrar el levante<span class="route__tag tag--mano">por pantalla</span></p>
+            <p class="route__d">Liquidación de cierre + cierre del lote de levante. Esto es lo que <b>crea el lote de producción</b>.</p>
+          </div>
+        </div>
+        <div class="route__step">
+          <div class="route__n">4</div>
+          <div>
+            <p class="route__b">Importar el archivo de producción<span class="route__tag tag--excel">Excel</span></p>
+            <p class="route__d">Hojas <code>Datos</code> + <code>Alimento</code> + <code>Movimientos Aves</code> + <code>Movimientos Huevos</code>.</p>
+          </div>
+        </div>
+        <div class="route__step">
+          <div class="route__n">5</div>
+          <div>
+            <p class="route__b">Verificar el cuadre<span class="route__tag tag--mano">por pantalla</span></p>
+            <p class="route__d">Aves vivas, huevos acumulados y saldo de alimento contra el informe de origen.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="note note--stop">
+        <span class="note__k">Trampa · reimportar no corrige</span>
+        <p>La idempotencia es por <b>(lote, fecha)</b>: una fecha ya cargada se <b>omite en silencio</b> en la segunda pasada. Si un día entró mal, corregirlo exige <b>borrar la fila antes</b> de reintentar. Hay que dejarlo bien a la primera — por eso siempre se pasa por <b>Validar</b> antes de <b>Importar</b>.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ 02 ── LOTE ── -->
+    <section id="lote">
+      <span class="sec-num">02 — Paso 1</span>
+      <h2>El lote base</h2>
+      <p class="sec-lede">Todo cuelga de acá. El lote fija la <b>fecha piso</b> de todas las filas, el <b>plantel inicial</b> contra el que se descuentan mortalidad y ventas, y la <b>guía genética</b> con la que después comparan los reportes.</p>
+
+      <h4>Campos del alta</h4>
+      <table class="fields">
+        <thead>
+          <tr><th style="width:210px">Campo</th><th class="col-o">Oblig.</th><th>Qué poner</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="m m--req">Nombre del lote</span></td><td><span class="req-dot">sí</span></td>
+            <td>Es <b>único por galpón</b>, no por granja: el mismo nombre puede repetirse en otro galpón y está bien.</td>
+          </tr>
+          <tr>
+            <td><span class="m m--req">Granja / Núcleo / Galpón</span></td><td><span class="req-dot">sí</span></td>
+            <td>Define dónde vive el stock de alimento del lote. Tiene que existir antes (hay carga masiva de Granjas, Núcleos y Galpones si hace falta crearlos).</td>
+          </tr>
+          <tr>
+            <td><span class="m m--req">Fecha de encasetamiento</span></td><td><span class="req-dot">sí</span></td>
+            <td><b>Ninguna fila del Excel puede ser anterior a esta fecha</b> — se rechaza con error. Si el lote son varios sublotes fusionados, va el encaset <b>más viejo</b> de todos.</td>
+          </tr>
+          <tr>
+            <td><span class="m">Hembras</span> · <span class="m">Machos</span></td><td><span class="req-dot">sí</span></td>
+            <td>Plantel encasetado. De acá arranca el saldo: <code>vivas = encasetadas − mortalidad − selección − error de sexaje − salidas − ventas</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="m m--req">Raza</span> + <span class="m m--req">Año tabla genética</span></td><td><span class="req-dot">sí*</span></td>
+            <td>Obligatorios <b>si la empresa tiene guía genética cargada</b>, y la combinación tiene que existir en esa guía. Con un valor que no matchea, el lote queda sin guía y los reportes comparativos salen vacíos.<small>Sanmarino postura usa <code>AP</code> + año <code>2026</code>. «ROSS 308 AP» solo existe en la guía de Ecuador/Panamá.</small></td>
+          </tr>
+          <tr>
+            <td><span class="m m--req">Fase</span></td><td><span class="req-dot">sí</span></td>
+            <td>Poner <b><code>Levante</code></b> explícito. Ver la advertencia de abajo.</td>
+          </tr>
+          <tr>
+            <td><span class="m">Peso inicial H/M</span>, <span class="m">Uniformidad</span>, <span class="m">Mort. en caja</span>, <span class="m">Técnico</span>, <span class="m">Lote ERP</span>, <span class="m">Regional</span></td>
+            <td><span class="opt-dot">no</span></td>
+            <td>Opcionales. Cargarlos si el informe de origen los trae — no condicionan la carga masiva.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note note--stop">
+        <span class="note__k">Trampa · la fase se autocalcula</span>
+        <p>Si dejás <span class="m">Fase</span> en blanco, el sistema la <b>deriva del encasetamiento</b>: <b>26 semanas o más ⇒ nace en Producción</b>. Un lote histórico encasetado hace ocho meses nacería directo en Producción, los reportes de levante lo filtrarían y todo el seguimiento que cargues quedaría <b>invisible</b>. Para cualquier carga histórica: <b>Fase = Levante</b>, escrito a mano.</p>
+      </div>
+
+      <div class="note note--warn">
+        <span class="note__k">Ojo · fechas a mediodía</span>
+        <p>Las fechas puras se anclan a <b>mediodía UTC</b>, no a medianoche. Una fecha guardada a las 00:00 se relee como el <b>día anterior</b> y rompe cualquier cotejo por día calendario. El formulario ya lo hace bien; el dato importa si alguien carga por API o corrige por SQL.</p>
+      </div>
+
+      <p>Al guardar el lote, un <b>trigger</b> crea automáticamente su espejo de levante (<code>lote_postura_levante</code>). Ese espejo es lo que lo vuelve elegible en el módulo — no hay que crearlo a mano.</p>
+    </section>
+
+    <!-- ═════════════════════════════════════════ 03 ── ELEGIBILIDAD ── -->
+    <section id="elegible">
+      <span class="sec-num">03 — La compuerta</span>
+      <h2>Cuándo el lote es elegible</h2>
+      <p class="sec-lede">El desplegable del paso 2 del módulo <b>solo muestra lotes elegibles</b>. Si el lote que buscás no está en la lista, es porque le falta uno de estos requisitos —&nbsp;no porque el filtro esté mal.</p>
+
+      <table class="fields">
+        <thead><tr><th style="width:200px">Para cargar…</th><th>El lote necesita</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Seguimiento Levante</b></td>
+            <td>Tener su espejo de levante vivo. Se crea solo al guardar el lote ⇒ <b>en la práctica, cualquier lote de postura recién creado ya es elegible</b>.</td>
+          </tr>
+          <tr>
+            <td><b>Seguimiento Producción</b></td>
+            <td>Las <b>tres cosas encadenadas</b>:<br>
+              <span class="m">1</span> el levante en estado <b>Cerrado</b>, <span class="m">2</span> con su fila de <b>liquidación de cierre</b>, y <span class="m">3</span> el <b>lote de producción</b> que ese cierre crea.<br>
+              <small>Falta cualquiera de las tres y el lote no aparece. No hay atajo: se hace por pantalla (paso 7).</small></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note note--warn">
+        <span class="note__k">Ojo · alcance por granja</span>
+        <p>El listado respeta el <b>alcance granular del usuario</b>. Si tu usuario tiene granjas asignadas y el lote está en otra, no lo vas a ver aunque exista y esté cerrado. Con un usuario de implementación conviene tener alcance completo o la granja destino asignada.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ 04 ── LEVANTE ── -->
+    <section id="levante">
+      <span class="sec-num">04 — Paso 2</span>
+      <h2>Archivo de levante</h2>
+      <p class="sec-lede">Bajá siempre la plantilla desde el módulo con el lote ya seleccionado: viene con la hoja <code>Referencias</code> cargada con <b>los alimentos y los lotes reales de tu empresa</b>, que son los únicos valores que el importador acepta.</p>
+
+      <div class="kv">
+        <div><dt>Hoja obligatoria</dt><dd>Datos<small>una fila por día</small></dd></div>
+        <div><dt>Hojas opcionales</dt><dd>3<small>Alimento · Mov. Aves · Instrucciones</small></dd></div>
+        <div><dt>Columnas en Datos</dt><dd>43<small>solo Fecha es obligatoria</small></dd></div>
+        <div><dt>Tope por hoja</dt><dd>5.000<small>filas · 10 MB por archivo</small></dd></div>
+      </div>
+
+      <h3>Hoja <code>Datos</code> — así se ve</h3>
+
+      <div class="sheet">
+        <div class="sheet__tab"><b>Datos</b> <span>· 43 columnas · una fila por día</span></div>
+        <div class="sheet__scroll">
+          <table class="grid">
+            <tr>
+              <td class="grid__rn"></td>
+              <th class="grid__col">A</th><th class="grid__col">B</th><th class="grid__col">C</th><th class="grid__col">D</th><th class="grid__col">E</th><th class="grid__col">F</th><th class="grid__col">G</th><th class="grid__col">H</th><th class="grid__col">I</th><th class="grid__col">P</th><th class="grid__col">Q</th><th class="grid__col">R</th><th class="grid__col">U</th><th class="grid__col">V</th>
+            </tr>
+            <tr class="grid__hdr">
+              <td class="grid__rn">1</td>
+              <th class="req">Fecha</th><th>Mort H</th><th>Mort M</th><th>Sel H</th><th>Sel M</th><th>Error Sexaje H</th><th>Error Sexaje M</th><th>Consumo H (kg)</th><th>Consumo M (kg)</th><th>Unidad Consumo</th><th>Alimento 1 H</th><th>Consumo Alimento 1 H</th><th>Alimento 1 M</th><th>Consumo Alimento 1 M</th>
+            </tr>
+            <tr>
+              <td class="grid__rn">2</td>
+              <td>2025-08-30</td><td>10</td><td>8</td><td>1</td><td>0</td><td>0</td><td>0</td><td class="empty"></td><td class="empty"></td><td>kg</td><td>000691</td><td>137,5</td><td>000691</td><td>19,5</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">3</td>
+              <td>2025-08-31</td><td>34</td><td>4</td><td>6</td><td>1</td><td>0</td><td>0</td><td class="empty"></td><td class="empty"></td><td>kg</td><td>000691</td><td>147,5</td><td>000691</td><td>21</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">4</td>
+              <td>2025-09-01</td><td>26</td><td>5</td><td>8</td><td>0</td><td>0</td><td>0</td><td class="empty"></td><td class="empty"></td><td>kg</td><td>000691</td><td>204</td><td>000691</td><td>26,5</td>
+            </tr>
+          </table>
+        </div>
+        <p class="sheet__cap">Extracto real del archivo del lote S-369AB. Las celdas rayadas van <b>deliberadamente vacías</b>: cuando la fila trae alimentos del inventario, <span class="m">Consumo H&nbsp;(kg)</span> y <span class="m">Consumo M&nbsp;(kg)</span> <b>no se completan</b>.</p>
+      </div>
+
+      <h4>Las 43 columnas, por bloque</h4>
+      <table class="fields">
+        <thead><tr><th style="width:190px">Columna</th><th class="col-o">Oblig.</th><th>Regla</th></tr></thead>
+        <tbody>
+          <tr><td><span class="m m--req">Fecha</span></td><td><span class="req-dot">sí</span></td>
+            <td><code>aaaa-mm-dd</code> o <code>dd/mm/aaaa</code>. <b>Una sola fila por fecha</b>; repetida ⇒ error. No anterior al encaset (error) ni futura (advertencia).</td></tr>
+          <tr><td><span class="m">Mort H</span> <span class="m">Mort M</span><br><span class="m">Sel H</span> <span class="m">Sel M</span><br><span class="m">Error Sexaje H</span> <span class="m">Error Sexaje M</span></td><td><span class="opt-dot">no</span></td>
+            <td><b>Enteros ≥ 0</b>. Vacío cuenta como 0. Un decimal acá descarta la fila.</td></tr>
+          <tr><td><span class="m">Consumo H (kg)</span><br><span class="m">Consumo M (kg)</span></td><td><span class="opt-dot">no</span></td>
+            <td>Consumo <b>directo</b>: se guarda como número y <b>no toca el inventario</b>. Usar <b>solo</b> si no vas a detallar los alimentos.</td></tr>
+          <tr><td><span class="m">Unidad Consumo</span></td><td><span class="opt-dot">no</span></td>
+            <td><code>kg</code> (default) o <code>qq</code>. Con <code>qq</code> se convierte: <b>1 qq = 45,36 kg</b>. Aplica a todos los consumos de la fila.</td></tr>
+          <tr><td><span class="m">Alimento 1 H</span> <span class="m">Consumo Alimento 1 H</span><br><span class="m">Alimento 2 H</span> <span class="m">Consumo Alimento 2 H</span><br><span class="m">Alimento 1 M</span> <span class="m">Consumo Alimento 1 M</span><br><span class="m">Alimento 2 M</span> <span class="m">Consumo Alimento 2 M</span></td><td><span class="opt-dot">no</span></td>
+            <td>Hasta <b>2 alimentos por sexo y por día</b>, del catálogo de inventario de la empresa. <b>Este es el camino que descuenta stock real.</b><small><b>Poné el CÓDIGO, no el nombre</b>: hay ítems distintos con nombre idéntico (tres se llaman <i>PRODUCCION III REPRODUCTORA PESADA</i>). Los códigos válidos están en la hoja <code>Referencias</code>.</small></td></tr>
+          <tr><td><span class="m">Tipo Alimento</span></td><td><span class="opt-dot">no</span></td>
+            <td>Texto libre. Si lo dejás vacío y usaste los slots, el sistema lo arma solo con los nombres.</td></tr>
+          <tr><td><span class="m">Peso H (g)</span> <span class="m">Peso M (g)</span><br><span class="m">Uniformidad H</span> <span class="m">Uniformidad M</span></td><td><span class="opt-dot">no</span></td>
+            <td>Decimales. Los días sin pesaje van vacíos.</td></tr>
+          <tr><td><span class="m">Coef. Variación H</span> <span class="m">Coef. Variación M</span></td><td><span class="opt-dot">no</span></td>
+            <td>0 a 100. <b>Cargarlos si el informe los trae</b>: es lo único que alimenta la columna <b>C.V.%</b> del reporte semanal de levante — sin esto sale vacía.</td></tr>
+          <tr><td><span class="m">Observaciones Pesaje</span></td><td><span class="opt-dot">no</span></td><td>Texto libre.</td></tr>
+          <tr><td><span class="m">Consumo Agua (L)</span> <span class="m">pH Agua</span><br><span class="m">ORP Agua (mV)</span> <span class="m">Temperatura Agua (°C)</span></td><td><span class="opt-dot">no</span></td>
+            <td>Decimales. <span class="m">pH Agua</span> valida <b>0 a 14</b>.</td></tr>
+          <tr><td>Las <b>11 categorías de huevo</b><br><span class="m">Huevo Limpio</span> <span class="m">Tratado</span> <span class="m">Sucio</span> <span class="m">Deforme</span> <span class="m">Blanco</span> <span class="m">Doble Yema</span> <span class="m">Piso</span> <span class="m">Pequeño</span> <span class="m">Roto</span> <span class="m">Desecho</span> <span class="m">Otro</span> + <span class="m">Peso Huevo (g)</span></td><td><span class="opt-dot">no</span></td>
+            <td>Solo si la empresa tiene habilitada la <b>captura de huevos en levante</b>. Total e incubables se <b>derivan</b> del desglose (no hay columnas propias en levante). Si la empresa no lo tiene habilitado, las columnas se ignoran con advertencia <b>y la fila se pierde</b>.</td></tr>
+          <tr><td><span class="m">Observaciones</span></td><td><span class="opt-dot">no</span></td><td>Texto libre del día.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note note--stop">
+        <span class="note__k">Trampa · la advertencia que borra la fila</span>
+        <p>Cualquier <b>advertencia</b> emitida dentro del bloque de una fila la <b>descarta entera y en silencio</b> — el resultado global igual dice «Procesado». En la práctica significa:</p>
+        <ul>
+          <li>Si la fila trae <span class="m">Alimento N H/M</span>, entonces <span class="m">Consumo H (kg)</span> y <span class="m">Consumo M (kg)</span> van <b>vacías</b>.</li>
+          <li>No mezclar fuentes de huevo en la misma fila.</li>
+          <li>Nada de fechas futuras.</li>
+        </ul>
+      </div>
+
+      <div class="note note--ok">
+        <span class="note__k">Cómo se evita</span>
+        <p>Corré <b>Validar</b> (dry-run, no inserta nada) y leé el reporte completo <b>antes</b> de importar. Toda advertencia listada es una fila que no va a entrar: resolvelas todas y recién ahí <b>Importar</b>.</p>
+      </div>
+    </section>
+
+    <!-- ═════════════════════════════════════════ 05 ── ALIMENTO ── -->
+    <section id="alimento">
+      <span class="sec-num">05 — Inventario</span>
+      <h2>Alimento e inventario</h2>
+      <p class="sec-lede">Es el punto de contacto con <b>Gestión de Inventario</b>, y el que más rechaza archivos. La hoja <code>Alimento</code> mete los <b>kilos que entraron</b>; los slots de la hoja <code>Datos</code> los <b>consumen</b>. Los dos lados tienen que cerrar.</p>
+
+      <h3>El orden interno del importador</h3>
+      <div class="route">
+        <div class="route__step">
+          <div class="route__n">a</div>
+          <div><p class="route__b">Se aplica la hoja <code>Alimento</code></p><p class="route__d">Ingresos, traslados y recepciones entran primero, para que haya stock que descontar.</p></div>
+        </div>
+        <div class="route__step">
+          <div class="route__n">b</div>
+          <div><p class="route__b">Se simula el balance</p><p class="route__d">Por posición de stock y por ítem: <b>consumo total contra stock actual + entradas del archivo</b>. Si no alcanza, <b>se rechaza el archivo entero</b> indicando cuánto falta. La comparación es total contra total, no cronológica.</p></div>
+        </div>
+        <div class="route__step">
+          <div class="route__n">c</div>
+          <div><p class="route__b">Se insertan los días</p><p class="route__d">Y recién después se descuenta el consumo de <b>los días que realmente entraron</b>, por el mismo camino que usa el registro diario manual.</p></div>
+        </div>
+      </div>
+
+      <h3>Hoja <code>Alimento</code> — así se ve</h3>
+      <div class="sheet">
+        <div class="sheet__tab"><b>Alimento</b> <span>· 14 columnas · un movimiento por fila</span></div>
+        <div class="sheet__scroll">
+          <table class="grid">
+            <tr>
+              <td class="grid__rn"></td>
+              <th class="grid__col">A</th><th class="grid__col">B</th><th class="grid__col">C</th><th class="grid__col">D</th><th class="grid__col">E</th><th class="grid__col">F</th><th class="grid__col">G</th><th class="grid__col">H</th><th class="grid__col">L</th><th class="grid__col">M</th><th class="grid__col">N</th>
+            </tr>
+            <tr class="grid__hdr">
+              <td class="grid__rn">1</td>
+              <th class="req">Fecha</th><th>Movimiento</th><th class="req">Alimento</th><th class="req">Cantidad</th><th>Unidad</th><th>Granja</th><th>Núcleo</th><th>Galpón</th><th>Origen</th><th>Referencia</th><th>Observaciones</th>
+            </tr>
+            <tr>
+              <td class="grid__rn">2</td>
+              <td>2025-08-30</td><td>Ingreso</td><td>000691</td><td>5.080</td><td>kg</td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td>LEV-INICIACION-20250830</td><td>Ingreso INICIACION S-369AB</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">3</td>
+              <td>2025-09-09</td><td>Ingreso</td><td>000691</td><td>7.280</td><td>kg</td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td>LEV-INICIACION-20250909</td><td>Ingreso INICIACION S-369AB</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">4</td>
+              <td>2025-09-12</td><td>Ingreso</td><td>000691</td><td>2.520</td><td>kg</td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td>LEV-INICIACION-20250912</td><td>Ingreso INICIACION S-369AB</td>
+            </tr>
+          </table>
+        </div>
+        <p class="sheet__cap">Ubicación y <span class="m">Origen</span> vacíos: el movimiento va solo a la posición de stock del lote, que es lo correcto en el 95&nbsp;% de los casos.</p>
+      </div>
+
+      <table class="fields">
+        <thead><tr><th style="width:180px">Columna</th><th class="col-o">Oblig.</th><th>Regla</th></tr></thead>
+        <tbody>
+          <tr><td><span class="m m--req">Fecha</span></td><td><span class="req-dot">sí</span></td><td>Fecha del movimiento.</td></tr>
+          <tr><td><span class="m">Movimiento</span></td><td><span class="opt-dot">no</span></td>
+            <td><code>Ingreso</code> · <code>Traslado</code> · <code>Recepción</code> · <code>Consumo</code>. Vacío ⇒ <code>Ingreso</code>.</td></tr>
+          <tr><td><span class="m m--req">Alimento</span></td><td><span class="req-dot">sí</span></td>
+            <td><b>El código del ítem</b> del catálogo. Nunca el nombre.</td></tr>
+          <tr><td><span class="m m--req">Cantidad</span></td><td><span class="req-dot">sí</span></td><td>Cantidad en la unidad de la columna siguiente.</td></tr>
+          <tr><td><span class="m">Unidad</span></td><td><span class="opt-dot">no</span></td><td><code>kg</code> (default) o <code>qq</code>.</td></tr>
+          <tr><td><span class="m">Granja</span> <span class="m">Núcleo</span> <span class="m">Galpón</span></td><td><span class="opt-dot">no</span></td>
+            <td><b>Dejar vacías.</b> Vacías, el movimiento va a la posición de stock del lote seleccionado.<small>Si la empresa maneja el alimento <b>a nivel granja</b> (Sanmarino, Santa Reyes), núcleo y galpón se ignoran con advertencia aunque los pongas.</small></td></tr>
+          <tr><td><span class="m">Granja Origen</span> <span class="m">Núcleo Origen</span> <span class="m">Galpón Origen</span></td><td><span class="opt-dot">no</span></td>
+            <td>Solo para <code>Traslado</code> y <code>Recepción</code>. En un <code>Ingreso</code> no van.</td></tr>
+          <tr><td><span class="m">Origen</span></td><td><span class="opt-dot">no</span></td>
+            <td><code>planta</code> · <code>bodega</code> · <code>granja</code>, solo para <code>Ingreso</code>.<small><b>Dejala vacía.</b> Con <code>granja</code> o <code>bodega</code> el sistema exige además <span class="m">Granja Origen</span>; si falta, el ingreso falla.</small></td></tr>
+          <tr><td><span class="m">Referencia</span></td><td><span class="opt-dot">no</span></td>
+            <td>Remisión, factura o documento. <b>Es la clave de la idempotencia</b>: dos ingresos iguales el mismo día necesitan <b>referencias distintas</b> o el segundo se toma por repetido y se omite.</td></tr>
+          <tr><td><span class="m">Observaciones</span></td><td><span class="opt-dot">no</span></td><td>Texto libre.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note note--warn">
+        <span class="note__k">Ojo · el orden entre archivos también importa</span>
+        <p>Si la granja arranca <b>sin stock</b>, todo el alimento entra por estas hojas. Importar <b>producción antes que levante</b> hace que el gate de stock rechace el archivo: los ingresos del levante todavía no existen. Levante primero, siempre.</p>
+      </div>
+
+      <div class="note note--ok">
+        <span class="note__k">Qué mirar en el dry-run</span>
+        <p>La validación lista el <b>saldo proyectado por ítem</b>: entradas, consumo y diferencia. <b>Todos los ítems tienen que dar ≥ 0.</b> Un negativo ahí es exactamente lo que va a rechazar la importación.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ 06 ── AVES ── -->
+    <section id="aves">
+      <span class="sec-num">06 — Aves</span>
+      <h2>Movimientos y venta de aves</h2>
+      <p class="sec-lede">Todo lo que saca o mete aves sin ser mortalidad ni selección va en la hoja <code>Movimientos&nbsp;Aves</code>. Existe igual en el archivo de levante y en el de producción.</p>
+
+      <div class="sheet">
+        <div class="sheet__tab"><b>Movimientos Aves</b> <span>· 8 columnas · levante y producción</span></div>
+        <div class="sheet__scroll">
+          <table class="grid">
+            <tr>
+              <td class="grid__rn"></td>
+              <th class="grid__col">A</th><th class="grid__col">B</th><th class="grid__col">C</th><th class="grid__col">D</th><th class="grid__col">E</th><th class="grid__col">F</th><th class="grid__col">G</th><th class="grid__col">H</th>
+            </tr>
+            <tr class="grid__hdr">
+              <td class="grid__rn">1</td>
+              <th class="req">Fecha</th><th class="req">Tipo</th><th>Hembras</th><th>Machos</th><th>Lote Contraparte</th><th>Granja Contraparte</th><th>Motivo</th><th>Observaciones</th>
+            </tr>
+            <tr>
+              <td class="grid__rn">2</td>
+              <td>2026-04-08</td><td>Venta</td><td>30</td><td>55</td><td class="empty"></td><td class="empty"></td><td>Venta de descarte</td><td>Columna «Entradas (+)» negativa del informe</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">3</td>
+              <td>2026-05-19</td><td>Venta</td><td>50</td><td>0</td><td class="empty"></td><td class="empty"></td><td>Venta de descarte</td><td>Columna «Entradas (+)» negativa del informe</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">4</td>
+              <td>2026-02-09</td><td>Salida</td><td>0</td><td>150</td><td>A-374B</td><td>NIZA I</td><td class="empty"></td><td>Traslado de machos</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <h4>Los tres tipos</h4>
+      <table class="fields">
+        <thead><tr><th style="width:110px">Tipo</th><th>Qué hace</th></tr></thead>
+        <tbody>
+          <tr><td><span class="m">Salida</span></td>
+            <td><b>Descuenta</b> las aves de este lote y <b>exige</b> que <span class="m">Lote Contraparte</span> exista en la <b>misma fase</b> dentro de la empresa. <b>No le acredita nada al otro lote</b>: ese lote carga su propio <code>Ingreso</code> en su propio archivo. Así dos archivos nunca doble-cuentan.</td></tr>
+          <tr><td><span class="m">Ingreso</span></td>
+            <td><b>Suma</b> las aves recibidas en tránsito, sin tocar al lote origen. La contraparte es opcional (solo informa la edad de la cohorte).</td></tr>
+          <tr><td><span class="m">Venta</span></td>
+            <td><b>Descuenta</b> con su <span class="m">Motivo</span> y <b>sin contraparte</b>. Es la opción correcta para <b>cualquier retiro que no tenga un lote destino concreto</b>: ventas de descarte, retiros de machos, bajas administrativas.<small>En levante queda además registrada en los campos de venta de la fila diaria; en producción queda en la auditoría y en observaciones.</small></td></tr>
+        </tbody>
+      </table>
+
+      <div class="note note--warn">
+        <span class="note__k">Ojo · el importador no ve lo que ya cargaste por pantalla</span>
+        <p>No pongas en esta hoja movimientos que <b>ya se registraron en el módulo de Movimiento de Aves</b>: se duplicarían. Y <b>dos movimientos iguales el mismo día van como una sola fila sumada</b>, no como dos filas idénticas — dos filas iguales se toman por repetición.</p>
+      </div>
+
+      <div class="note note--ok">
+        <span class="note__k">Cómo detectar los movimientos que el informe no declara</span>
+        <p>Antes de generar nada, conciliá el saldo día a día: <code>saldo = previo − mortalidad − sexaje − descartes</code>. Los días que no cierran son movimientos reales que ninguna columna del informe registra. En el lote S-369 aparecieron así <b>290 machos retirados</b> y un traslado interno entre sublotes: sin ellos el lote no cuadraba con el arranque de producción.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ 07 ── CIERRE ── -->
+    <section id="cierre">
+      <span class="sec-num">07 — Paso 3</span>
+      <h2>Cerrar y liquidar el levante</h2>
+      <p class="sec-lede">Paso manual, por pantalla, y <b>no hay forma de hacerlo por Excel</b>. Es lo que crea el lote de producción — sin esto, el paso siguiente no tiene dónde cargar.</p>
+
+      <ol class="steps">
+        <li>Abrir el <b>resumen de cierre</b> del lote de levante y revisar las aves vivas que propone.</li>
+        <li><b>Guardar la liquidación de cierre.</b></li>
+        <li><b>Cerrar el lote</b>, indicando los <b>huevos iniciales</b> y la <b>fecha de inicio de producción</b>.</li>
+      </ol>
+
+      <p>El cierre deja tres cosas: el lote de producción con las aves vivas del cierre, los huevos arrastrados, y una <b>fila de arrastre</b> en el seguimiento de producción en la fecha de inicio.</p>
+
+      <div class="note note--ok">
+        <span class="note__k">Bien resuelto · el día del arrastre</span>
+        <p>El primer día de producción <b>ya existe</b> como fila de arrastre. Cuando tu Excel trae ese mismo día —&nbsp;que es lo normal&nbsp;— el importador <b>fusiona</b>: suma los huevos arrastrados a los de tu fila y el resto de los datos los define el archivo. Vas a ver una advertencia informándolo; <b>esa advertencia no descarta la fila</b>. No hay que omitir ese día del archivo.</p>
+      </div>
+
+      <div class="note note--warn">
+        <span class="note__k">Ojo · la fase del lote no cambia</span>
+        <p>El cierre <b>no actualiza</b> el campo <span class="m">Fase</span> del lote: sigue diciendo «Levante». Es correcto —&nbsp;el sistema deriva que está en producción por la existencia del lote de producción, no por ese campo. No lo corrijas a mano.</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════ 08 ── PRODUCCIÓN ── -->
+    <section id="produccion">
+      <span class="sec-num">08 — Paso 4</span>
+      <h2>Archivo de producción</h2>
+      <p class="sec-lede">Misma mecánica que levante. Cambian doce columnas del principio y se suma una hoja para las salidas de huevo.</p>
+
+      <div class="kv">
+        <div><dt>Columnas en Datos</dt><dd>43<small>solo Fecha es obligatoria</small></dd></div>
+        <div><dt>Hojas opcionales</dt><dd>4<small>+ Movimientos Huevos</small></dd></div>
+        <div><dt>Etapa válida</dt><dd>1 – 3<small>fuera de rango ⇒ error</small></dd></div>
+        <div><dt>Categorías de huevo</dt><dd>11<small>fijas, mismo orden del modal</small></dd></div>
+      </div>
+
+      <div class="sheet">
+        <div class="sheet__tab"><b>Datos</b> <span>· producción · 43 columnas</span></div>
+        <div class="sheet__scroll">
+          <table class="grid">
+            <tr>
+              <td class="grid__rn"></td>
+              <th class="grid__col">A</th><th class="grid__col">B</th><th class="grid__col">C</th><th class="grid__col">H</th><th class="grid__col">I</th><th class="grid__col">J</th><th class="grid__col">K</th><th class="grid__col">N</th><th class="grid__col">O</th><th class="grid__col">V</th><th class="grid__col">W</th><th class="grid__col">X</th><th class="grid__col">Y</th><th class="grid__col">Z</th>
+            </tr>
+            <tr class="grid__hdr">
+              <td class="grid__rn">1</td>
+              <th class="req">Fecha</th><th>Mort H</th><th>Mort M</th><th>Huevo Total</th><th>Huevo Incubable</th><th>Peso Huevo (g)</th><th>Etapa</th><th>Alimento 1 H</th><th>Consumo Alimento 1 H</th><th>Huevo Limpio</th><th>Huevo Tratado</th><th>Huevo Sucio</th><th>Huevo Deforme</th><th>Huevo Blanco</th>
+            </tr>
+            <tr>
+              <td class="grid__rn">2</td>
+              <td>2026-02-14</td><td>0</td><td>0</td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td>1</td><td>001560</td><td>1.098,8</td><td>5</td><td>26</td><td>183</td><td>6</td><td>7</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">3</td>
+              <td>2026-02-15</td><td>0</td><td>0</td><td class="empty"></td><td class="empty"></td><td class="empty"></td><td>1</td><td>001560</td><td>1.098,8</td><td>10</td><td>21</td><td>156</td><td>4</td><td>5</td>
+            </tr>
+            <tr>
+              <td class="grid__rn">4</td>
+              <td>2026-02-16</td><td>0</td><td>0</td><td class="empty"></td><td class="empty"></td><td>46,6</td><td>1</td><td>001560</td><td>1.098,8</td><td>7</td><td>51</td><td>211</td><td>5</td><td>14</td>
+            </tr>
+          </table>
+        </div>
+        <p class="sheet__cap"><span class="m">Huevo Total</span> y <span class="m">Huevo Incubable</span> van <b>vacíos</b> cuando cargás el desglose por categorías. El sistema los deriva.</p>
+      </div>
+
+      <h4>Lo que cambia respecto de levante</h4>
+      <table class="fields">
+        <thead><tr><th style="width:190px">Columna</th><th>Regla</th></tr></thead>
+        <tbody>
+          <tr><td><span class="m">Huevo Total</span><br><span class="m">Huevo Incubable</span></td>
+            <td>Existen <b>solo en producción</b>. Son la alternativa <b>excluyente</b> al desglose por categorías: o cargás estas dos, o cargás las 11.</td></tr>
+          <tr><td><span class="m">Etapa</span></td>
+            <td><b>1, 2 o 3.</b> Cualquier otro valor es error. Antes se aceptaba cualquier entero y dejaba filas que ningún reporte por etapa podía ubicar.</td></tr>
+          <tr><td><span class="m">Uniformidad</span><br><span class="m">Coef. Variación</span></td>
+            <td><b>Una sola columna por lote</b>, no dos por sexo como en levante. 0 a 100.</td></tr>
+          <tr><td>No existen acá</td>
+            <td><span class="m">Uniformidad H</span> y <span class="m">Uniformidad M</span>. Sí existen <span class="m">Peso H (g)</span> y <span class="m">Peso M (g)</span>, y <span class="m">Error Sexaje H/M</span>, al final de la hoja.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note note--stop">
+        <span class="note__k">Trampa · el total que no cuadra</span>
+        <p>Si cargás <b>las 11 categorías</b>, dejá <span class="m">Huevo Total</span> y <span class="m">Huevo Incubable</span> <b>vacíos</b>. Un total que no coincide con la suma del desglose genera una advertencia <b>y la advertencia descarta la fila</b>.</p>
+        <p>Las reglas que aplica el sistema: <b>Incubable = Limpio + Tratado</b> · <b>Total = suma de las 11</b>.</p>
+      </div>
+
+      <h4>Hoja <code>Huevos</code> — clasificación por ítem del catálogo</h4>
+      <p>Tres columnas (<span class="m m--req">Fecha</span>, <span class="m m--req">Ítem</span>, <span class="m m--req">Cantidad</span>), varias filas por fecha. Es una hoja <b>exclusiva de las empresas con clasificación de huevo por ítems</b> —&nbsp;hoy Santa Reyes.</p>
+
+      <div class="note note--stop">
+        <span class="note__k">Trampa · la hoja Huevos en la empresa equivocada</span>
+        <p>En una empresa <b>sin</b> ese flag —&nbsp;Sanmarino, por ejemplo&nbsp;— esa hoja con aunque sea <b>una fila de datos</b> hace que el importador <b>rechace el archivo entero</b>. Si la plantilla no te la generó, <b>no la agregues</b>.</p>
+        <p>Y donde sí aplica: no combines la hoja <code>Huevos</code> con las 11 categorías de <code>Datos</code> para la misma fecha. Una sola fuente por día.</p>
+      </div>
+    </section>
+
+    <!-- ═════════════════════════════════════════ 09 ── HUEVOS ── -->
+    <section id="huevos">
+      <span class="sec-num">09 — Huevos</span>
+      <h2>Movimientos y venta de huevos</h2>
+      <p class="sec-lede">Hoja <code>Movimientos Huevos</code>, <b>solo en el archivo de producción</b>. Registra las salidas de huevo del lote: lo que se manda a planta y lo que se vende.</p>
+
+      <div class="sheet">
+        <div class="sheet__tab"><b>Movimientos Huevos</b> <span>· 18 columnas · solo producción</span></div>
+        <div class="sheet__scroll">
+          <table class="grid">
+            <tr>
+              <td class="grid__rn"></td>
+              <th class="grid__col">A</th><th class="grid__col">B</th><th class="grid__col">C</th><th class="grid__col">D</th><th class="grid__col">E</th><th class="grid__col">N</th><th class="grid__col">O</th><th class="grid__col">P</th><th class="grid__col">Q</th>
+            </tr>
+            <tr class="grid__hdr">
+              <td class="grid__rn">1</td>
+              <th class="req">Fecha</th><th class="req">Tipo</th><th>Huevo Limpio</th><th>Huevo Tratado</th><th>Huevo Sucio</th><th>Tipo Destino</th><th>Destino</th><th>Motivo</th><th>Descripción</th>
+            </tr>
+            <tr>
+              <td class="grid__rn">2</td>
+              <td>2026-03-15</td><td>Traslado</td><td>18.420</td><td>2.110</td><td>0</td><td>Planta</td><td>Planta Incubación</td><td class="empty"></td><td class="empty"></td>
+            </tr>
+            <tr>
+              <td class="grid__rn">3</td>
+              <td>2026-03-18</td><td>Venta</td><td>0</td><td>0</td><td>1.240</td><td>Cliente</td><td>Distribuidora Centro</td><td>Venta huevo comercial</td><td>Factura 4471</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <table class="fields">
+        <thead><tr><th style="width:170px">Columna</th><th class="col-o">Oblig.</th><th>Regla</th></tr></thead>
+        <tbody>
+          <tr><td><span class="m m--req">Fecha</span></td><td><span class="req-dot">sí</span></td><td>Fecha de la salida.</td></tr>
+          <tr><td><span class="m m--req">Tipo</span></td><td><span class="req-dot">sí</span></td>
+            <td><code>Traslado</code> = envío a planta · <code>Venta</code> = venta de huevo.</td></tr>
+          <tr><td>Las <b>11 categorías</b></td><td><span class="opt-dot">no</span></td>
+            <td>Mismos nombres y mismo orden que en <code>Datos</code>. Enteros ≥ 0.</td></tr>
+          <tr><td><span class="m">Tipo Destino</span></td><td><span class="opt-dot">no</span></td><td><code>Planta</code> · <code>Cliente</code> · <code>Empresa</code>.</td></tr>
+          <tr><td><span class="m">Destino</span></td><td><span class="opt-dot">no</span></td><td>Nombre de la planta, cliente o lote destino.</td></tr>
+          <tr><td><span class="m">Motivo</span> <span class="m">Descripción</span> <span class="m">Observaciones</span></td><td><span class="opt-dot">no</span></td>
+            <td>Texto libre; los dos primeros son para las ventas.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note note--stop">
+        <span class="note__k">Trampa · huevos que no alcanzan</span>
+        <p>A diferencia de las aves —&nbsp;donde un saldo negativo es solo una advertencia&nbsp;— acá la <b>disponibilidad proyectada por categoría es un ERROR</b> que rechaza el archivo. Si el movimiento saca más huevos de una categoría de los que el lote produjo hasta esa fecha, no entra.</p>
+        <p>Consecuencia práctica: <b>los movimientos tienen que ir en el mismo archivo que la producción que los sostiene</b>, y el desglose por categoría de las salidas tiene que ser coherente con el de la producción diaria.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ 10 ── TRAMPAS ── -->
+    <section id="trampas">
+      <span class="sec-num">10 — Resumen</span>
+      <h2>Las cinco trampas</h2>
+      <p class="sec-lede">Todas comparten el mismo perfil: <b>no dan error visible</b>. El importador dice «Procesado» y el dato no está. Si algo sale mal, empezá por acá.</p>
+
+      <table class="fields">
+        <thead><tr><th style="width:44px">#</th><th style="width:230px">Síntoma</th><th>Causa y arreglo</th></tr></thead>
+        <tbody>
+          <tr><td><span class="req-dot">01</span></td>
+            <td>Dice «Procesado» pero <b>faltan días</b></td>
+            <td>Una <b>advertencia dentro de la fila la descarta entera</b>. Casi siempre: <span class="m">Consumo H/M (kg)</span> completado <b>a la vez</b> que los slots de alimento. Dejá el consumo suelto vacío.</td></tr>
+          <tr><td><span class="req-dot">02</span></td>
+            <td>Se rechaza el <b>archivo entero</b> por stock</td>
+            <td>El consumo total supera stock + entradas del archivo, por ítem. Revisá el saldo proyectado del dry-run y agregá los ingresos faltantes en la hoja <code>Alimento</code>. Verificá también que no estés importando producción antes que levante.</td></tr>
+          <tr><td><span class="req-dot">03</span></td>
+            <td>El lote <b>no aparece</b> en el desplegable</td>
+            <td>Para producción faltan cierre, liquidación o el lote de producción. También puede ser el <b>alcance por granja</b> del usuario.</td>
+          </tr>
+          <tr><td><span class="req-dot">04</span></td>
+            <td>Cargó todo pero los <b>reportes salen vacíos</b></td>
+            <td>Dos causas: el lote nació en <b>fase Producción</b> por el autocálculo de 26 semanas, o la combinación <b>raza + año</b> no existe en la guía genética de la empresa.</td></tr>
+          <tr><td><span class="req-dot">05</span></td>
+            <td>Reimportar <b>no arregla</b> nada</td>
+            <td>Las fechas ya cargadas se omiten en silencio. Hay que <b>borrar las filas</b> del período y volver a importar. Los ingresos de alimento se deduplican por referencia: dos iguales el mismo día necesitan referencias distintas.</td></tr>
+        </tbody>
+      </table>
+
+      <hr class="soft">
+
+      <h3>Dos advertencias que <em>no</em> descartan la fila</h3>
+      <p>Para no confundirlas con las trampas de arriba:</p>
+      <ul>
+        <li><b>El día del arrastre de huevos</b> del cierre de levante: avisa que fusiona y fusiona bien.</li>
+        <li><b>El saldo de aves proyectado en negativo</b>: es informativo. Vale la pena mirarlo igual —&nbsp;suele delatar un movimiento faltante&nbsp;— pero no bloquea.</li>
+      </ul>
+    </section>
+
+    <!-- ═════════════════════════════════════════ 11 ── CHECKLIST ── -->
+    <section id="checklist">
+      <span class="sec-num">11 — Entrega</span>
+      <h2>Checklist de entrega</h2>
+      <p class="sec-lede">Lo que hay que poder responder antes de dar un lote por cargado.</p>
+
+      <h4>Antes de generar los archivos</h4>
+      <ul>
+        <li>El saldo de aves <b>cierra día a día</b> contra el informe de origen, y los saltos inexplicados están representados como movimientos.</li>
+        <li>Los alimentos están mapeados <b>por código</b> contra el catálogo de la empresa, no por nombre.</li>
+        <li>Los ingresos de alimento <b>alcanzan</b> para el consumo del período.</li>
+        <li>Si el lote son varios sublotes, el consolidado se armó <b>sumando por fecha calendario</b> y el encaset es el <b>más viejo</b>.</li>
+      </ul>
+
+      <h4>En el dry-run (Validar)</h4>
+      <ul>
+        <li><b>Cero errores</b> y <b>cero advertencias de fila</b>. Una advertencia listada es una fila que se pierde.</li>
+        <li>El <b>saldo proyectado de cada ítem de alimento</b> da ≥ 0.</li>
+        <li>El número de filas leídas coincide con el número de días del período.</li>
+      </ul>
+
+      <h4>Después de importar</h4>
+      <ul>
+        <li><b>Aves vivas</b> al último día = las del informe. Es la verificación que más errores detecta.</li>
+        <li><b>Huevos acumulados</b> = los del informe (total e incubables).</li>
+        <li><b>Saldo de alimento</b> por ítem en Gestión de Inventario = entradas − consumo.</li>
+        <li>El <b>reporte semanal</b> del lote se dibuja y compara contra la guía genética.</li>
+      </ul>
+
+      <div class="note note--ok">
+        <span class="note__k">Referencia · el lote S-369AB</span>
+        <p>El caso completo está documentado con sus archivos y scripts reproducibles: cuadre esperado <b>19.018 hembras y 1.957 machos</b> al cierre del levante, <b>18.008 y 1.634</b> al final de producción, <b>2.213.857 huevos</b> producidos. Sirve como plantilla de trabajo para el próximo lote.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="closing">
+    <span>Manual de carga masiva de postura · ItalGranja · v1.0 · 07-ago-2026</span>
+    <span>Contrato verificado contra <code>MigracionEsquemas.cs</code> y <code>MigracionService.Historicos.cs</code></span>
+  </footer>
+
+</div>

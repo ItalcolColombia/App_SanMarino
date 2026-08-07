@@ -2144,3 +2144,35 @@ productos, para así no tener que bajar todos los consumos realizados». Backend
 - [ ] Smoke en pantalla: rango aplicado ⇒ tabla acotada y Excel con las mismas filas
 - [ ] Sin rango ⇒ comportamiento idéntico al actual (nombre de archivo incluido)
 - [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
+
+---
+
+# Manual de carga masiva de POSTURA (documento para implementación)
+📄 Entregable: [manual_carga_masiva_postura.html](fase_de_desarrollo/manual_carga_masiva_postura.html)
+
+Pedido: manual para la persona encargada de implementar la carga masiva de postura — campos de cada
+hoja, en qué estado debe estar el lote base, orden levante → cierre → producción, y el contacto con
+Gestión de Inventario (alimento) y las ventas de aves/huevos. **No toca código del repo.**
+
+## Fuente del contrato (regla «el código manda»)
+- [x] `Application/Calculos/MigracionEsquemas.cs` — columnas exactas, obligatoriedad, alias y opciones
+- [x] `Services/Migracion/Funciones/MigracionService.Historicos.cs` — elegibilidad, parseo, merge de arrastre
+- [x] `MigracionService.AlimentoPostura.cs` + `.AlimentoEngorde.cs` — gate de stock, idempotencia, `Origen`
+- [x] `DTOs/CreateLoteDto.cs` + `GuiaGeneticaRequisitoCalculos.cs` — campos del lote base y exigencia raza/año
+- [x] Archivos reales del lote S-369AB como ejemplo verificado de cada hoja
+
+## Contenido
+- [x] Ruta completa (6 pasos, cuáles son Excel y cuáles por pantalla)
+- [x] Lote base: campos, `Fase=Levante` explícito, raza/año contra la guía
+- [x] Compuerta de elegibilidad levante vs. producción (las 3 condiciones encadenadas)
+- [x] Hoja `Datos` levante (43 col.) y producción (43 col.) con extracto real renderizado
+- [x] Hoja `Alimento` (14 col.) + orden interno del importador + gate de stock
+- [x] Hoja `Movimientos Aves` (8 col.): Salida / Ingreso / Venta unilaterales
+- [x] Hoja `Movimientos Huevos` (18 col.) y hoja `Huevos` (por ítems, solo Santa Reyes)
+- [x] Las 5 trampas silenciosas + las 2 advertencias que NO descartan fila
+- [x] Checklist de entrega y cuadre esperado
+
+## Validación
+- [x] Publicado como artifact compartible
+- [ ] Capturas de pantalla del módulo en el navegador — pendiente: requiere login del usuario
+- [x] Sin procesos huérfanos (back :5002 y front :4200 los levantó otra sesión; no se detuvieron)
