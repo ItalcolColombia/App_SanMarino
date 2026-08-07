@@ -83,7 +83,7 @@
                 <div class="form-field">
                   <label for="f-lote">Lote</label>
                   <div class="ux-select">
-                    <select id="f-lote" formControlName="loteId" [disabled]="true">
+                    <select id="f-lote" formControlName="loteId" [compareWith]="compararLoteId" [disabled]="true">
                       <option value="" disabled>— Seleccione —</option>
                       @for (l of lotes; track l) {
                         <option [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>

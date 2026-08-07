@@ -317,6 +317,64 @@ input, select, textarea {
   min-width: 12rem;
 }
 
+/* Atajos del rango de fechas del consumo (Este mes / Mes anterior / …) */
+.rango-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.rango-presets__label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.rango-chip {
+  border: 1px solid var(--ital-orange, #f5821f);
+  background: #fff;
+  color: var(--ital-orange-dark, #c2410c);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rango-chip:hover:not(:disabled) {
+  background: var(--ital-orange-50, #fff7ed);
+}
+
+.rango-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* «Todo el histórico» quita el filtro: es neutro, no una acción de marca. */
+.rango-chip--reset {
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.rango-chip--reset:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.rango-presets__estado {
+  font-size: 0.76rem;
+  color: #64748b;
+  margin-left: 0.25rem;
+}
+
+.rango-presets__estado--on {
+  color: var(--ital-orange-dark, #c2410c);
+  font-weight: 700;
+}
+
 .hint {
   margin: 0.35rem 0 0;
   font-size: 0.78rem;

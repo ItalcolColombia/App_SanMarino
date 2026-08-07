@@ -1978,3 +1978,169 @@ Análisis: [validacion_informes_verenice_s369_analisis.md](fase_de_desarrollo/va
 ## Entrega
 - [x] Respuesta final para costos con las correcciones aplicadas:
       [conciliacion_k345_respuesta_final_con_correcciones.md](fase_de_desarrollo/conciliacion_k345_respuesta_final_con_correcciones.md)
+
+---
+
+# Tracker — Reporte Diario Área de Costos: POSTURA (levante + producción)
+
+**Plan:** [`fase_de_desarrollo/reporte_diario_costos_postura_plan.md`](fase_de_desarrollo/reporte_diario_costos_postura_plan.md)
+**Fecha:** 2026-08-07 · **Sesión propia — no tocar desde otras sesiones**
+
+Reporte diario para el área de costos de **Agroavícola San Marino (Colombia)**, sobre **lote base**, con 3
+pestañas (Aves · Alimento · Huevos) y filtros regional/granja/lote base/fase/fechas. Validación contra el
+lote base **S-369** (sublotes S-369A id 144 y S-369B id 145, granja Pruebas Moises 44), cargado por carga
+masiva desde informes reales. **Es POSTURA**: engorde solo se usa como molde de arquitectura.
+
+## Fase 0 — Exploración y decisiones
+- [x] Auditadas las fuentes: `seguimiento_diario_levante` (77 col) y `seguimiento_diario_produccion` (68 col)
+- [x] 🔑 **Producción SÍ tiene fn diaria canónica** (`fn_seguimiento_diario_produccion`, expone las 11
+      categorías de huevo + `metadata` con los ítems de alimento) y **levante NO**
+      (`fn_indicadores_levante_postura` es **semanal**) ⇒ producción se reusa por LATERAL, levante se lee
+      de la tabla dentro de la fn nueva (un solo lugar con ese criterio)
+- [x] 🔑 **Invariante de huevo verificado en datos reales**: `huevo_tot = Σ 11 categorías` y
+      `huevo_inc = limpio + tratado` (7.799 = 7.799 el 15-may; 1.021.041 = 992.662+28.379 acumulado)
+- [x] 🔴 **Hallazgo**: el Reporte Contable muestra «HVTO FÉRTIL» y «HVO COMERCIAL» con el **mismo número**
+      (ambos = limpio+tratado). Documentado como deuda; NO se toca en esta entrega
+- [x] Datos de S-369 medidos: levante 168+168 días, producción 168+161 días, 0 días duplicados
+- [x] ⚠️ `traslado_huevos` **sin filas** para 144/145 ⇒ ventas/traslado a planta se validan con el lote 13
+- [x] ⚠️ `farms.regional_id=27` de Pruebas Moises no resuelve a `master_list_options` ⇒ regional vacía
+- [x] Plan escrito con enfoque, DDL, reglas de negocio y 25 casos de prueba
+- [x] Decisiones D1-D4 confirmadas por el usuario: **D1** huevo `fértil=inc / comercial=sucio+deforme+
+      blanco+doble_yema+piso+pequeño / inservible=roto+desecho+otro` (partición exacta) · **D2** lote base
+      **opcional**, filas por lote:galpón · **D3** fase **Levante|Producción|Ambas** · **D4** alimento
+      **una fila por ítem**
+
+## Fase 1 — BD ✔
+- [x] `backend/sql/fn_reporte_diario_costos_postura.sql` (LANGUAGE sql STABLE, corte de día
+      `AT TIME ZONE 'America/Bogota'`, `DISTINCT ON` gana el timestamp más temprano = mismo criterio
+      que la fn canónica de producción)
+- [x] Migración idempotente `20260807200000_AddFnReporteDiarioCostosPostura` con el `.sql` embebido
+      **verbatim** (Designer clonado, ModelSnapshot intacto) ⇒ el espejo no puede desincronizarse
+- [x] Aplicada por EF al arrancar (nunca a mano en `__EFMigrationsHistory`) y verificada contra S-369
+- [x] 🔑 **Corrección de diseño**: la fn devuelve el huevo **CRUDO** (11 categorías). La clasificación
+      D1 se movió a C# puro y testeado — calcularla también en SQL era la 2ª implementación del mismo
+      número
+- [x] 🔴 **Hueco cazado en la UI**: el metadata de alimento tiene DOS formas — camino 2 trae `nombre`
+      (S-369) y camino 1 solo `catalogItemId` (K345, lotes viejos). Sin resolver contra
+      `catalogo_items` / `item_inventario_ecuador`, la columna «tipo alimento» salía
+      **«Sin especificar»** en todos los lotes viejos. También se cubrió el 2º formato de
+      `tipo_alimento` (`"x / y"` sin prefijo de sexo)
+- [x] 🔑 `venta_aves_hembras/machos` por `LEFT JOIN` con `seg_id`: la fn canónica NO las expone y su
+      `mov_venta_*` (de `movimiento_aves`) vale 0 en los lotes de carga masiva
+
+## Fase 2 — Application ✔
+- [x] `DTOs/ReporteDiarioCostosPosturaDtos.cs` (+ `HuevoCrudo` y `ParticionCuadra`)
+- [x] `Interfaces/IReporteDiarioCostosPosturaService.cs`
+- [x] `Calculos/ReporteDiarioCostosPosturaCalculos.cs` (PURO: `ClasificarHuevo` = único dueño de D1,
+      `NormalizarFase`, `EtiquetaLoteGalpon`, totales de aves/alimento/huevo)
+
+## Fase 3 — Infrastructure + API ✔
+- [x] `Services/ReporteDiarioCostosPostura/ReporteDiarioCostosPosturaService.cs` — delgado y
+      fail-closed (empresa efectiva + granjas asignadas + alcance granular por `LotePermitido`)
+- [x] `Controllers/ReporteDiarioCostosPosturaController.cs` → `POST /api/ReporteDiarioCostosPostura/generar`
+- [x] DI en `Program.cs`
+- [x] Migración `20260807201000_AddMenuReporteDiarioCostosPostura`: menú bajo «Reportes», 9 roles
+      heredados de `/reporte-contable` (incluye **«costos Sanmarino»**) y `company_menus` **SOLO
+      Agroavicola Sanmarino** (habilitarlo en otras empresas es decisión de negocio desde la UI)
+
+## Fase 4 — Tests (gate CI) ✔
+- [x] `ReporteDiarioCostosPosturaCalculosTests` — **25 casos** con testigos reales de S-369B
+      (días 15-may y 15-jun, acumulado del ciclo, invariante `inc == limpio + tratado`, fila
+      inconsistente que NO se cuadra a la fuerza, 2 alimentos del mismo sexo, sinónimos de fase)
+
+## Fase 5 — Frontend ✔
+- [x] `features/reporte-diario-costos-postura/` (models · funciones puras + README · service · página)
+- [x] 3 pestañas, cascada regional → granja → lote base, `changeDetection: Eager` explícito
+- [x] Export Excel de 3 hojas con `exportarAoaMultiHojaExcel` (sin `XLSX` inline), `ToastService`,
+      cero `alert`/`confirm`, vista precalculada con referencias estables
+- [x] Ruta lazy `/reporte-diario-costos-postura` en `app.config.ts`
+
+## Fase 6 — Validación ✔
+- [x] `dotnet build` 0 errores / 0 advertencias · `dotnet test` **1.992 verdes** · `yarn build` OK
+      (único warning: bundle budget preexistente)
+- [x] **15/15 testigos SQL** contra S-369: 168/168 y 168/161 días · mort 307/125 · sel 71/308 ·
+      err 379/3 · venta 0/290 y 224/67 · consumo 104.073,6/16.772,4 y 237.626,8/18.703 ·
+      huevo 1.115.079 con fértil 1.021.041
+- [x] **Partición D1 exacta**: diferencia **0** en los dos lotes · **0 descuadres** de ítems de
+      alimento vs `consumo_kg_*` en las 1.267 filas · **0 ítems sin nombre**
+- [x] **Cruce independiente contra el Reporte Contable** (lote K345, regional Occidente): postura
+      **3.632.634**, fértil **3.484.872**, traslado a planta **2.395.894** — idénticos a los del
+      smoke ya validado de ese módulo
+- [x] Fail-closed verificado: empresa Demo ⇒ 0 filas · `p_granja_ids` vacío ⇒ 0 filas
+- [x] Smoke HTTP (JWT + X-Secret-Up minteados): 665 filas con lote base, filtros de fase (incluida
+      «Producción» con acento), rango de fechas y regional
+- [x] **Smoke UI** (front :4300 + backend propio, sesión en `localStorage.auth_session`): filtros
+      poblados (6 regionales / 30 granjas / 4 lotes base), reporte de 1.267 registros, las 3 pestañas
+      pintan, Excel de 3 hojas descargado (blob 1,2 MB) y **página abierta 3 veces sin colgarse**
+- [x] Aritmética cruzada en pantalla: 665 (S-369) + 602 (K345) = **1.267** · fértil 5.558.965 +
+      comercial 245.251 + inservible 86.070 = **5.890.286** = huevo total
+- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
+
+### Notas para la siguiente tanda
+- ⚠️ `traslado_huevos` **no tiene filas** para S-369A/B ⇒ «ventas de huevo» y «traslado a planta»
+  salen en 0 para ese lote. La columna se validó con K345 (2.395.894 a planta).
+- ⚠️ `farms.regional_id = 27` de *Pruebas Moises* no resuelve a ninguna opción de `master_list_options`
+  ⇒ esa granja queda fuera del filtro por regional (sale con regional vacía).
+- 🔴 **Deuda ajena documentada**: el Reporte Contable muestra «HVTO FÉRTIL» y «HVO COMERCIAL» con el
+  **mismo número** (ambos = limpio + tratado). No se tocó en esta entrega.
+- Levante sigue sin fn diaria canónica: si algún día nace `fn_seguimiento_diario_levante`, este
+  reporte debe re-sourcearse sobre ella y verificarse byte a byte.
+
+---
+
+# El nombre de lote es único POR GALPÓN, no por granja
+📄 Plan: [lote_nombre_duplicado_por_galpon_plan.md](fase_de_desarrollo/lote_nombre_duplicado_por_galpon_plan.md)
+
+Origen: ticket «Falla en fecha registro levante semana 6 lote A374A galpón 4». La causa del ticket
+(`tipo_alimento varchar(100)`) ya se resolvió en `2a35d63` y se desplegó el 07-ago-2026; acá van los
+dos defectos laterales que aparecieron al diagnosticarlo.
+
+## Diagnóstico
+- [x] Ticket ubicado: `lote_id 114` = A374A / LA ESMERALDA / Módulo II / `G0326` (galpón 4)
+- [x] Causa del ticket confirmada (3er alimento ⇒ 22001) y deploy verificado: TaskDef `sanmarino-back-task:151`, imagen `4fcafbd…`, rollout COMPLETED
+- [x] Las filas de 09/06/2026 y 12/06/2026 NO son registros incompletos: son traslados (SALIDA 1.010 M y 7.617 H)
+- [x] Regla confirmada por el usuario: **el mismo nombre de lote SÍ puede repetirse en galpones distintos**
+- [x] `GetLetrasDisponiblesAsync` (alcance por galpón) está BIEN ⇒ no se toca
+- [x] Regresión encontrada: `EnsureLoteNombreNoDuplicadoAsync` (17-jul-2026, `b917ad9`) valida por granja ⇒ hoy bloquea el patrón legítimo 114/116 y 115/117
+
+## Backend — alcance de la guarda
+- [x] `Application/Calculos/LoteNombreDuplicadoCalculos.cs` (PURO: normaliza, decide, arma mensaje)
+- [x] `LoteService.EnsureLoteNombreNoDuplicadoAsync` recibe `galponId` y delega en el cálculo puro
+- [x] Los 2 llamadores (Create/Update) pasan `dto.GalponId`
+
+## Frontend — combo «Lote» del seguimiento diario
+- [x] `[compareWith]` + `compararLoteId` en `modal-create-edit` (el control guarda texto y las opciones número)
+
+## Tests y validación
+- [x] `tests/ZooSanMarino.Application.Tests/LoteNombreDuplicadoCalculosTests.cs` — 10 casos del plan
+- [x] `dotnet build` 0/0 (Infrastructure) · `dotnet test` 1992 verdes (24 nuevos) · `yarn build` OK (solo warning de bundle budget)
+- [x] Sin procesos huérfanos (no se levantó servidor propio: otra sesión tiene el back/front corriendo)
+- [ ] Verificación visual del combo en el navegador — pendiente: el dev server de este repo lo ocupa otra sesión
+- [x] Commit acotado `226a5a4` (sin footer de atribución)
+
+---
+
+# Gastos de inventario — elegir el rango de fechas del consumo (tabla + Excel)
+📄 Plan: [gastos_inventario_rango_fechas_plan.md](fase_de_desarrollo/gastos_inventario_rango_fechas_plan.md)
+
+Pedido: «al momento de descargar pueda elegir de qué fecha hasta qué fecha necesito el consumo de
+productos, para así no tener que bajar todos los consumos realizados». Backend y BD **no se tocan**:
+`search`, `export` y `existencias` ya aceptan `fechaDesde`/`fechaHasta` — la UI nunca los enviaba.
+
+## Diagnóstico
+- [ ] Confirmado: los 3 endpoints ya filtran por rango; `buildParams` del servicio ya los serializa
+- [ ] Confirmado: `FiltrosReporteGastos.fechaDesde/Hasta` ya existían y `describirFiltros` ya los imprime
+- [ ] Confirmado: `inventario_gasto.fecha` es columna `date` ⇒ sin corrimiento de zona, filtro inclusivo
+
+## Frontend
+- [ ] `funciones/rango-fechas-gastos.funcion.ts` (PURA): presets, validación y sufijo de archivo
+- [ ] `funciones/exportar-...-excel.funcion.ts`: rango en el nombre del archivo + subtítulo de Existencias
+- [ ] Página: estado `fechaDesde`/`fechaHasta`, propagación a `refresh()` / `exportExcel()` / `limpiarFiltros()`
+- [ ] HTML: campos Desde/Hasta + atajos + aviso de rango inválido · SCSS de los chips
+- [ ] `funciones/README.md`: índice actualizado
+
+## Validación
+- [ ] `cd frontend && yarn build` (0 errores)
+- [ ] Smoke en pantalla: rango aplicado ⇒ tabla acotada y Excel con las mismas filas
+- [ ] Sin rango ⇒ comportamiento idéntico al actual (nombre de archivo incluido)
+- [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)

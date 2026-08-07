@@ -17,7 +17,8 @@ que sea **fácil de encontrar, testear y reutilizar**.
 
 | Archivo | Qué hace |
 |---|---|
-| `exportar-gastos-inventario-excel.funcion.ts` | `exportarGastosInventarioExcel`: arma y descarga el `.xlsx` de 2 hojas (Consumos + Existencias). `construirHojasReporteGastos` / `construirFilas*` / `describirFiltros` son puras y testeables sin descargar. |
+| `exportar-gastos-inventario-excel.funcion.ts` | `exportarGastosInventarioExcel`: arma y descarga el `.xlsx` de 2 hojas (Consumos + Existencias). `construirHojasReporteGastos` / `construirFilas*` / `describirFiltros` / `nombreBaseReporteGastos` son puras y testeables sin descargar. |
+| `rango-fechas-gastos.funcion.ts` | Rango de fechas del consumo: `calcularRangoPreset` (atajos Este mes / Mes anterior / Últimos 30 / Este año), `validarRangoFechas` y `sufijoArchivoRango`. El `hoy` entra **por parámetro** (nada de `new Date()` adentro) para poder testearlas. |
 
 ## Nota multi-país / multi-empresa
 
@@ -34,3 +35,9 @@ filas ya resueltas por el backend, que es quien acota por empresa efectiva.
 - **La hoja Existencias muestra el catálogo completo**, no solo lo consumido: un ítem sin movimiento
   aparece con `consumidoRango = 0` y su saldo. Filtrar esas filas rompería el control de inventario
   que motivó la hoja.
+- **El rango de fechas es del backend, no del front.** `fechaDesde`/`fechaHasta` viajan a
+  `search`, `export` y `existencias` (columna `date`, extremos inclusivos): no recortes las filas ya
+  descargadas en el front, porque la hoja Existencias agrega en la BD (`fn_inventario_gastos_existencias`)
+  y quedaría descuadrada contra la de Consumos.
+- **Rango vacío = todo el histórico**, que es el comportamiento previo del módulo. El nombre del
+  archivo solo lleva sufijo de período cuando hay rango, para no cambiar la salida de quien no lo usa.
