@@ -30,11 +30,11 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
         <span class="tile__body">
           <span class="tile__name">{{ t.nombre }}</span>
           <span class="tile__desc">{{ t.descripcion }}</span>
-        </span>
-        <span class="tile__meta">
-          <span class="tile__phase">Fase {{ t.fase }}</span>
-          <span class="tile__soon" *ngIf="!t.disponible">Próximamente</span>
-          <span class="tile__locked" *ngIf="t.disponible && !tienePermiso(t.codigo)">{{ mensajeSinPermiso(t.codigo) }}</span>
+          <span class="tile__meta">
+            <span class="tile__phase">Fase {{ t.fase }}</span>
+            <span class="tile__soon" *ngIf="!t.disponible">Próximamente</span>
+            <span class="tile__locked" *ngIf="t.disponible && !tienePermiso(t.codigo)">{{ mensajeSinPermiso(t.codigo) }}</span>
+          </span>
         </span>
       </button>
     </div>
@@ -42,12 +42,18 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
   styles: [`
     .tiles {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
       gap: 0.85rem;
     }
+    /*
+      Icono a la izquierda y TODO el texto en una sola columna que ocupa el resto del ancho: los
+      metadatos (Fase / Próximamente / Sin permiso) van al pie del cuerpo, no en una tercera columna.
+      Como columna, el badge largo "Sin permiso para carga masiva" (nowrap) se llevaba más de la
+      mitad del tile y dejaba la descripción en una palabra por línea, montada sobre el título.
+    */
     .tile {
       display: flex;
-      align-items: flex-start;
+      align-items: stretch;
       gap: 0.7rem;
       text-align: left;
       padding: 0.95rem 1rem;
@@ -82,6 +88,7 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      align-self: flex-start;
       width: 2.4rem; height: 2.4rem;
       flex-shrink: 0;
       font-size: 1.25rem;
@@ -91,7 +98,11 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
     .tile__body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
     .tile__name { font-weight: 700; color: var(--ital-text, #1f2937); font-size: 0.95rem; }
     .tile__desc { font-size: 0.78rem; color: var(--ital-muted, #6b7280); line-height: 1.35; }
-    .tile__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; flex-shrink: 0; }
+    /* Fila de chips al pie del cuerpo; el margin-top auto los alinea entre tiles de distinto alto. */
+    .tile__meta {
+      display: flex; flex-wrap: wrap; align-items: center;
+      gap: 0.3rem 0.4rem; margin-top: auto; padding-top: 0.45rem;
+    }
     .tile__phase { font-size: 0.62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #b8bcc4; }
     .tile__soon {
       font-size: 0.6rem; font-weight: 700;
@@ -99,9 +110,9 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
       background: #f1f2f4; color: #8a8f98; white-space: nowrap;
     }
     .tile__locked {
-      font-size: 0.6rem; font-weight: 700; text-align: right;
+      font-size: 0.6rem; font-weight: 700;
       padding: 0.12rem 0.4rem; border-radius: 999px;
-      background: #f1f2f4; color: #b3261e; white-space: nowrap;
+      background: #f1f2f4; color: #b3261e;
     }
   `]
 })
@@ -118,9 +129,6 @@ export class SelectorTipoMigracionComponent {
     Galpones: '🏭',
     SeguimientoLevante: '🐥',
     SeguimientoProduccion: '🥚',
-    Ventas: '💵',
-    MovimientoAves: '🐔',
-    MovimientoHuevos: '📦',
     LotesPolloEngorde: '🐔',
     SeguimientoPolloEngorde: '📋',
     SeguimientoReproductoraEngorde: '🐣',

@@ -2180,3 +2180,49 @@ Gestión de Inventario (alimento) y las ventas de aves/huevos. **No toca código
       por el salto de página (`cantSplit`), interlineado del título de portada
 - [ ] Capturas de pantalla del módulo en el navegador — pendiente: requiere login del usuario
 - [x] Sin procesos huérfanos (back :5002 y front :4200 los levantó otra sesión; no se detuvieron)
+
+---
+
+# Migraciones Masivas — retirar los tipos «Ventas / Movimiento de Aves / Movimiento de Huevos»
+
+**Plan:** [`fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md`](fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md)
+**Fecha:** 2026-08-07
+
+Pedido: las ventas y los traslados ya se cargan **dentro** del seguimiento diario (hojas
+`Movimientos Aves` / `Movimientos Huevos` de las plantillas de Levante y Producción), así que las
+tres cajitas «Próximamente» de la Fase 3 sobran. Además el tile queda ilegible: el badge
+«Sin permiso para carga masiva» (nowrap) aplasta la descripción a una palabra por línea.
+
+## Auditoría previa (el código manda)
+- [x] Los 3 enum members solo se referencian en `TipoMigracion.cs` + 1 test — no llegan a `ProcesarAsync`
+- [x] `MigracionService.MovimientosAves/.MovimientosHuevos` son HOJAS del seguimiento, no estos tipos — no se tocan
+- [x] `migracion_masiva.tipo` es varchar con `tipo.ToString()` ⇒ borrar miembros no corre ordinales
+- [x] `VentaPolloEngorde` está implementado y en uso ⇒ queda (pendiente confirmación del usuario)
+
+## Backend
+- [x] `TipoMigracion.cs`: borrar `Ventas`/`MovimientoAves`/`MovimientoHuevos` del enum y del catálogo
+- [x] `MigracionEsquemas.Para()`: mensaje del `_ =>` sin referencia a «Fase 3»
+- [x] `MigracionService.Operaciones.cs`: comentario de cabecera + mensaje del `_ =>` de elegibles
+- [x] `MigracionEsquemasTests.Para_TipoSinEsquema_Lanza`: usar un valor no definido del enum
+
+## Frontend
+- [x] `models/migracion.model.ts`: sacar los 3 del union `TipoMigracionCodigo`
+- [x] `selector-tipo-migracion.component.ts`: sacar sus 3 íconos
+- [x] `selector-tipo-migracion.component.ts`: layout del tile — metadatos (Fase + badge) debajo del texto
+
+## Validación
+- [x] `cd backend && dotnet build` — 0 errores; única advertencia CS8625 en `MigracionMovimientosAvesCalculosTests.cs:184`, PREEXISTENTE
+- [x] `cd backend && dotnet test` — 1.992 Application + 1 Domain, 0 fallos
+- [x] `cd frontend && yarn build` — 0 errores (solo el warning de bundle budget preexistente).
+      ⚠️ Trampa propia: puse backticks dentro de un comentario CSS del bloque `styles` inline ⇒ cortaron
+      el template literal y el compilador tiró «Failed to resolve styles at position 1 to a string».
+      **Nunca usar backticks dentro de un `styles`/`template` inline.**
+- [x] Layout verificado en el navegador con una página aislada que copia el CSS y el markup finales:
+      ANTES reproduce el defecto de la captura (badge sobre el título, descripción en 1 palabra/línea);
+      DESPUÉS: 6 tiles, descripción completa a 2 líneas y chips alineados al pie
+- [x] Plantillas intactas por código: `MigracionService.Historicos.cs:137-144` sigue agregando las hojas
+      `Movimientos Aves` (levante+producción) y `Movimientos Huevos` (producción); la aplicación en :851
+- [x] Sin procesos huérfanos (no se levantó back ni front) · commit acotado (sin footer de atribución)
+- [ ] **Pendiente de decisión del usuario**: ¿el tile «Venta Engorde» (`VentaPolloEngorde`) también sale?
+      Hoy queda: está implementado y en uso (fn `fn_migracion_venta_engorde` v2 con despachos), y la venta
+      de engorde NO se registra desde el seguimiento diario

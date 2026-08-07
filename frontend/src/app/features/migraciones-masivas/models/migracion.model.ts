@@ -1,15 +1,14 @@
 // features/migraciones-masivas/models/migracion.model.ts
 // Tipos compartidos del módulo de Migraciones Masivas (espejo de los DTOs del backend).
 
+// Las ventas y los movimientos de aves/huevos NO tienen tipo propio: se cargan en las hojas
+// "Movimientos Aves" / "Movimientos Huevos" de las plantillas de seguimiento (espejo del backend).
 export type TipoMigracionCodigo =
   | 'Granjas'
   | 'Nucleos'
   | 'Galpones'
   | 'SeguimientoLevante'
   | 'SeguimientoProduccion'
-  | 'Ventas'
-  | 'MovimientoAves'
-  | 'MovimientoHuevos'
   // Línea Engorde
   | 'LotesPolloEngorde'
   | 'SeguimientoPolloEngorde'

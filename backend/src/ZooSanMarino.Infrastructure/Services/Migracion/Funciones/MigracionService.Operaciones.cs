@@ -1,6 +1,10 @@
 // src/ZooSanMarino.Infrastructure/Services/Migracion/Funciones/MigracionService.Operaciones.cs
-// Despacho por tipo. Estructura (Estructura.cs) y Seguimientos (Historicos.cs) implementados;
-// Ventas/Movimientos (Fase 3) lanzan NotImplementedException → 501 en el controller.
+// Despacho por tipo. Todos los tipos del catálogo están implementados: Estructura (Estructura.cs /
+// EstructuraEngorde.cs) y Seguimientos (Historicos.cs, SeguimientoEngorde.cs,
+// SeguimientoReproductora.cs, VentaEngorde.cs). Los `_ =>` son la red de seguridad ante un valor de
+// enum fuera de rango y responden 501 desde el controller.
+// Las ventas y los movimientos de aves/huevos NO son un tipo aparte: viajan como hojas dentro de
+// las plantillas de seguimiento (MovimientosAves.cs / MovimientosHuevos.cs).
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using ZooSanMarino.Application.DTOs.Migracion;
@@ -20,7 +24,7 @@ public partial class MigracionService
                 => await ElegiblesEngordeAsync(companyId, contexto, ct),
             TipoMigracion.SeguimientoReproductoraEngorde
                 => await ElegiblesReproductoraEngordeAsync(companyId, contexto, ct),
-            _ => throw new NotImplementedException($"Los lotes elegibles para '{tipo}' se implementan en la Fase 3.")
+            _ => throw new NotImplementedException($"El tipo de migración '{tipo}' no define lotes elegibles.")
         };
     }
 

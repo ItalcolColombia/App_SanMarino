@@ -1,7 +1,14 @@
 // src/ZooSanMarino.Application/DTOs/Migracion/TipoMigracion.cs
 namespace ZooSanMarino.Application.DTOs.Migracion;
 
-/// <summary>Tipos de migración masiva soportados (Postura + línea Engorde).</summary>
+/// <summary>
+/// Tipos de migración masiva soportados (Postura + línea Engorde).
+///
+/// Los tipos sueltos de Ventas y Movimientos (de aves y de huevos) se RETIRARON: esos movimientos
+/// se cargan dentro del propio seguimiento diario, en las hojas "Movimientos Aves" (Levante y
+/// Producción) y "Movimientos Huevos" (Producción) de sus plantillas, así que un tipo aparte solo
+/// ofrecía una carga duplicada. Ver <c>MigracionService.MovimientosAves/.MovimientosHuevos</c>.
+/// </summary>
 public enum TipoMigracion
 {
     Granjas,
@@ -9,9 +16,6 @@ public enum TipoMigracion
     Galpones,
     SeguimientoLevante,
     SeguimientoProduccion,
-    Ventas,
-    MovimientoAves,
-    MovimientoHuevos,
     // ── Línea Engorde ──
     LotesPolloEngorde,
     SeguimientoPolloEngorde,
@@ -24,7 +28,7 @@ public enum TipoMigracion
 /// <param name="Nombre">Etiqueta amigable.</param>
 /// <param name="Descripcion">Descripción corta.</param>
 /// <param name="RequiereLote">Si necesita bajar el filtro jerárquico hasta un lote elegible.</param>
-/// <param name="Fase">Fase de implementación ("1"=estructura, "2"=seguimientos, "3"=ventas/movimientos).</param>
+/// <param name="Fase">Fase de implementación ("1"=estructura, "2"=seguimientos de postura, "4"=línea engorde).</param>
 /// <param name="Disponible">Si la carga ya está implementada y habilitada.</param>
 public record TipoMigracionInfoDto(
     string Codigo,
@@ -45,9 +49,8 @@ public static class TipoMigracionCatalogo
         new(nameof(TipoMigracion.Galpones), "Galpones", "Creación masiva de galpones por núcleo.",           false, "1", true),
         new(nameof(TipoMigracion.SeguimientoLevante),    "Seguimiento Levante",    "Carga histórica de seguimiento diario de levante.",    true, "2", true),
         new(nameof(TipoMigracion.SeguimientoProduccion), "Seguimiento Producción", "Carga histórica de seguimiento diario de producción.", true, "2", true),
-        new(nameof(TipoMigracion.Ventas),           "Ventas",             "Carga de ventas de aves (descarte) y de huevos.",   true, "3", false),
-        new(nameof(TipoMigracion.MovimientoAves),   "Movimiento de Aves", "Carga de traslados/retiros/ajustes de aves (no-venta).", true, "3", false),
-        new(nameof(TipoMigracion.MovimientoHuevos), "Movimiento de Huevos", "Carga de traslados/ajustes de huevos (no-venta).",  true, "3", false),
+        // Ventas y movimientos de aves/huevos NO son tipos propios: viajan en las hojas
+        // "Movimientos Aves" / "Movimientos Huevos" de las plantillas de seguimiento de arriba.
         // ── Línea Engorde ──
         new(nameof(TipoMigracion.LotesPolloEngorde),       "Lotes Engorde",       "Creación masiva de lotes de pollo de engorde.",          false, "4", true),
         new(nameof(TipoMigracion.SeguimientoPolloEngorde), "Seguimiento Engorde", "Carga histórica de seguimiento diario de engorde.",      true,  "4", true),
