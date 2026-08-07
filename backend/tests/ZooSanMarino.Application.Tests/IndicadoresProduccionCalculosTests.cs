@@ -28,6 +28,7 @@ public class IndicadoresProduccionCalculosTests
         SeleccionHembras = 0,
         PorcentajeSeleccionHembras = 0,
         SeleccionMachos = 3,
+        PorcentajeSeleccionMachos = 0.3891050583657588,
         ConsumoKgHembras = 6835.1,
         ConsumoKgMachos = 646.9,
         ConsumoTotalKg = 7482.0,
@@ -112,6 +113,8 @@ public class IndicadoresProduccionCalculosTests
         Assert.Equal((decimal)r.PorcentajeMortalidadHembras, d.PorcentajeMortalidadHembras);
         Assert.Equal((decimal)r.EficienciaProduccion, d.EficienciaProduccion);
         Assert.Equal((decimal)r.ConsumoTotalKg, d.ConsumoTotalKg);
+        // %Sel M: la fn lo emite desde 20260807180000 con el mismo denominador que el de hembras.
+        Assert.Equal((decimal)r.PorcentajeSeleccionMachos, d.PorcentajeSeleccionMachos);
         Assert.Equal((decimal)r.HtaaReal, d.HtaaReal);
         Assert.Equal((decimal)r.HiaaReal, d.HiaaReal);
         Assert.Equal((decimal)r.PesoPromedioHembras!.Value, d.PesoPromedioHembras);

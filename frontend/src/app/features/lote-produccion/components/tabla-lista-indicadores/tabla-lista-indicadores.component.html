@@ -77,7 +77,7 @@
             <th rowspan="2" class="sticky-left sticky-col-3">Etapa</th>
             <th rowspan="2" class="sticky-left sticky-col-4">Reg.</th>
             <th rowspan="2" class="sticky-left sticky-col-5">Detalle</th>
-            <th colspan="11" class="grp">💀 Mortalidad / Selección</th>
+            <th colspan="12" class="grp">💀 Mortalidad / Selección</th>
             <th colspan="6" class="grp">🔻 % Retiro (Real vs Guía)</th>
             <th colspan="10" class="grp">🌾 Consumo</th>
             <th colspan="14" class="grp">🥚 Producción Huevos</th>
@@ -97,6 +97,7 @@
             <th>Sel H</th>
             <th>%Sel H</th>
             <th>Sel M</th>
+            <th>%Sel M</th>
             <!-- % Retiro (Real vs Guía) -->
             <th class="grp">Sem H (Real)</th>
             <th>Sem M (Real)</th>
@@ -183,6 +184,7 @@
               <td>{{ ind.seleccionHembras }}</td>
               <td>{{ ind.porcentajeSeleccionHembras | number:'1.0-2' }}%</td>
               <td>{{ ind.seleccionMachos }}</td>
+              <td>{{ ind.porcentajeSeleccionMachos | number:'1.0-2' }}%</td>
               <!-- % Retiro (Real vs Guía) -->
               <td class="grp">{{ ind.retiroSemanalHembrasReal != null ? (ind.retiroSemanalHembrasReal | number:'1.0-2') + '%' : '—' }}</td>
               <td>{{ ind.retiroSemanalMachosReal != null ? (ind.retiroSemanalMachosReal | number:'1.0-2') + '%' : '—' }}</td>

@@ -27,6 +27,12 @@ public sealed class IndicadorProduccionSemanalBdRow
     public double PorcentajeSeleccionHembras { get; set; }
     /// <summary>Selección de machos de la semana. La fn no la devolvía y el reporte la mostraba fija en 0.</summary>
     public int SeleccionMachos { get; set; }
+    /// <summary>
+    /// %Selección de machos. Misma fórmula y mismo denominador que el de hembras (saldo del sexo
+    /// antes de descontar la semana). Lo emite la fn desde 20260807180000; antes solo existía el de
+    /// hembras, así que la tabla mostraba «%Sel H» sin su par.
+    /// </summary>
+    public double PorcentajeSeleccionMachos { get; set; }
 
     public double ConsumoKgHembras { get; set; }
     public double ConsumoKgMachos { get; set; }

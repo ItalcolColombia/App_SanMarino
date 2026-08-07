@@ -1736,3 +1736,32 @@ emite la columna, esto solo la deja llegar al front.
       *junction* al del repo principal antes de compilar
 - [x] G4 Smoke API: `POST /api/Produccion/indicadores-semanales` con `PORT=5499` ⇒ la clave
       `seleccionMachos` ahora viaja en el JSON
+
+## Fase 2 — `%Sel M` emitido desde la fn (cierra el pendiente que dejó la fase 1)
+- [x] M1 Migración `20260807180000_PorcentajeSeleccionMachosProduccion`: `DROP + CREATE` (la firma
+      cambia), Down restituye la previa completa. El SQL se generó **desde el cuerpo exacto de
+      `20260807140000`** con 4 inserciones puntuales, cada una con guard de ocurrencia única
+- [x] M2 **Verificado byte a byte**: quitando las 6 líneas insertadas, el cuerpo nuevo es idéntico al
+      previo ⇒ cambio aditivo puro, ninguna otra columna se movió
+- [x] M3 Designer clonado del de `20260807140000` (misma ModelSnapshot; no toca entidades)
+- [x] G5 **Gate de paridad** con la receta de [[espejo-sql-desincronizado-y-gate]]: la versión nueva
+      se desplegó primero con **otro nombre** (`..._gate`) para no tocar la fn que usaba el backend
+      ajeno de `:5002`. `EXCEPT ALL` en ambos sentidos sobre las **69 columnas** previas, los **6
+      lotes** de producción de la BD local ⇒ **0 diferencias** en 135 filas.
+      ⚠️ Las 135 filas son todas de la **empresa 1**: los 2 lotes de la empresa 4 no tienen
+      seguimiento cargado, así que el gate cubre una sola empresa por falta de datos, no por diseño
+      · Gotcha confirmado: la fn crea `TEMP TABLE ... ON COMMIT DROP` ⇒ **1 llamada por
+      transacción**; dos en la misma consulta fallan con `relation "_seg" already exists`
+- [x] B4 `IndicadorProduccionSemanalBdRow` + DTO (`decimal PorcentajeSeleccionMachos`) + `MapRow` +
+      test de conversión sin pérdida
+- [x] F5 Front: `porcentajeSeleccionMachos` en la interfaz, columna «%Sel M», `PorcSelM` en el Excel,
+      colspan del grupo 11 → **12**. Estructura verificada: 61 = 61 = 61
+- [x] G6 **La migración la aplicó EF sola** al arrancar el backend (`Database:RunMigrations=true`).
+      NO se tocó `__EFMigrationsHistory` a mano — el `INSERT` manual quedó además bloqueado por el
+      clasificador de permisos, que es el comportamiento correcto según CLAUDE.md. Antes se verificó
+      que la única pendiente real era ésta (los 4 `*.Fn.cs` que figuran como pendientes son
+      `partial class` de migraciones ya aplicadas)
+- [x] G7 `dotnet build` 0 errores · `dotnet test` 1864+1 verdes · `ng build` OK · smoke ⇒ 200, 44
+      semanas, ambas claves en las 44 y `%Sel M` coincidiendo con la fórmula en **44/44**
+- [x] G8 Limpieza: fn `..._gate` y tablas `gate_selm_*` borradas, backend de smoke detenido
+      (5499 libre, el ajeno de :5002 intacto)

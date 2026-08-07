@@ -86,3 +86,67 @@ nueva). No hay `nth-child` en el SCSS ni colspan de detalle que dependan del nú
 3. Smoke API: `POST /api/Produccion/indicadores-semanales` `{"lotePosturaProduccionId":7}` ⇒ 200, la
    clave `seleccionMachos` aparece en las 44 semanas.
 4. `yarn build` del front sin errores nuevos (único warning aceptado: bundle budget preexistente).
+
+---
+
+# Fase 2 — `%Sel M` emitido desde la fn
+
+La fase 1 dejó el conteo llegando al front pero sin porcentaje: la tabla mostraba «%Sel H» sin su par
+porque la fn solo calculaba `porcentaje_seleccion_hembras`. Se resuelve donde corresponde —en la
+BD, no replicando la fórmula en TypeScript.
+
+## Migración `20260807180000_PorcentajeSeleccionMachosProduccion`
+
+Cambio **aditivo** sobre `fn_indicadores_produccion_postura`. La firma cambia ⇒ `DROP + CREATE`
+(Postgres no permite cambiar el tipo de retorno), idempotente por el `DROP ... IF EXISTS`; `Down()`
+restituye la versión previa completa.
+
+El SQL se generó **partiendo del cuerpo exacto de `20260807140000`** y aplicando 4 inserciones
+puntuales, cada una con guard de ocurrencia única:
+
+| # | Inserción |
+|---|---|
+| 1 | columna `porcentaje_seleccion_machos double precision` tras `seleccion_machos` (+ 2 líneas de comentario) |
+| 2 | `r_porc_sel_m double precision;` junto a `r_porc_sel_h` |
+| 3 | `r_porc_sel_m := CASE WHEN v_aves_m_act > 0 THEN r_sel_m::double precision / v_aves_m_act * 100 ELSE 0 END;` |
+| 4 | `porcentaje_seleccion_machos := r_porc_sel_m;` en el bloque de salida |
+
+**Verificado programáticamente:** quitando esas 6 líneas del cuerpo nuevo, el resultado es **byte a
+byte** el cuerpo previo. Misma fórmula y mismo denominador que el de hembras (`v_aves_*_act`, el
+saldo del sexo antes de descontar la semana).
+
+## Gate de paridad
+
+Receta de [[espejo-sql-desincronizado-y-gate]]: la versión nueva se desplegó primero con **otro
+nombre** (`..._gate`) para no tocar la fn real que estaba usando el backend de otra sesión en `:5002`.
+
+- Se materializó la salida de ambas versiones para **los 6 lotes de producción** de la BD local
+  (tablas reales, no `TEMP`: la fn crea una `TEMP TABLE ON COMMIT DROP` ⇒ **una llamada por
+  transacción**, así que dos llamadas en la misma consulta fallan con `relation "_seg" already exists`).
+- Comparación `EXCEPT ALL` en **ambos sentidos** sobre las **69 columnas** previas: **0 diferencias**
+  en 135 filas.
+- ⚠️ Cobertura real: las 135 filas son todas de la **empresa 1**; los 2 lotes de la empresa 4 existen
+  pero no producen filas (sin seguimiento cargado). El gate cubre una sola empresa **por falta de
+  datos, no por diseño**.
+
+## Resto de la cadena
+
+- `IndicadorProduccionSemanalBdRow` + `IndicadorProduccionSemanalDto` (`decimal
+  PorcentajeSeleccionMachos`, tras `SeleccionMachos`) + `MapRow` (`double`→`decimal`).
+- Test: valor `≠ 0` en el `SampleRow` y aserción de conversión sin pérdida.
+- Front: `porcentajeSeleccionMachos` en la interfaz, columna «%Sel M» tras «Sel M», `PorcSelM` en el
+  Excel, colspan del grupo 11 → **12**.
+
+## Verificación
+
+- Gate de paridad: 0 diferencias (arriba).
+- `dotnet build` 0 errores · `dotnet test` 1864+1 verdes · `ng build` OK.
+- **La migración la aplicó EF sola** al arrancar el backend (`Database:RunMigrations=true`), que es
+  el camino correcto: no se tocó `__EFMigrationsHistory` a mano. Antes se verificó que la única
+  migración pendiente era ésta (los 4 archivos `*.Fn.cs` que aparecen como «pendientes» son
+  `partial class` de migraciones ya aplicadas).
+- Smoke `POST /api/Produccion/indicadores-semanales {lotePosturaProduccionId:7}` ⇒ 200, 44 semanas,
+  las dos claves presentes en las 44 y el `%Sel M` coincidiendo con la fórmula en **44/44**.
+  Semana 56: `porcentajeSeleccionMachos == retiroSemanalMachosReal` (2.1242) porque esa semana no
+  hubo mortalidad de machos — confirma que el retiro es mortalidad + selección.
+- Estructura de la tabla: 61 = 61 = 61 (grupos, subcolumnas, `<td>`).

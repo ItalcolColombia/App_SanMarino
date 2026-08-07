@@ -33,6 +33,7 @@ public static class IndicadoresProduccionCalculos
             r.SeleccionHembras,
             (decimal)r.PorcentajeSeleccionHembras,
             r.SeleccionMachos,
+            (decimal)r.PorcentajeSeleccionMachos,
             (decimal)r.ConsumoKgHembras,
             (decimal)r.ConsumoKgMachos,
             (decimal)r.ConsumoTotalKg,
