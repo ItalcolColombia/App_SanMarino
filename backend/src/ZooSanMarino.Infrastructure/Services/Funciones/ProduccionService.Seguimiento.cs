@@ -71,6 +71,9 @@ public partial class ProduccionService
 
         await EnsureLoteProduccionAbiertoAsync(loteId, lotePosturaProduccionId);
 
+        // Corte de etapa: ese día no puede aportar consumo/bajas también desde levante (caso K345).
+        await EnsureDiaSinAporteDeLevanteAsync(loteId, request);
+
         // Validar que la fecha no sea en el futuro
         if (request.FechaRegistro.Date > DateTime.Today)
         {

@@ -75,11 +75,14 @@ aplicación:
 - La tabla `seguimiento_diario_levante` **sí tiene** `cv_hembras` y `cv_machos`.
 - `fn_reporte_semanal_levante_extras` y `fn_resumen_semanal_ra_pesadas_levante` **leen** esas columnas
   → la columna **«C.V.%»** del Reporte Técnico Semanal de levante sale de ahí.
-- Pero **ninguna vía de captura las escribía**: el modal de levante no las mapea en la entidad y la
-  plantilla de carga masiva no tenía la columna.
+- El **modal de levante SÍ los captura** (controles `cvH`/`cvM`, que el servicio mapea a
+  `CvHembras`/`CvMachos` en `SeguimientoLoteLevanteService.Mapeos.cs:173`). El registro diario por
+  pantalla nunca tuvo el problema.
+- Lo que **no** los recibía era la **carga masiva**: la plantilla de levante no tenía la columna.
 
-Resultado: **la columna C.V.% del reporte semanal de levante estaba estructuralmente vacía.**
-Verificado en la BD: de 336 días de S-369, `cv_hembras` tiene **0** valores.
+Resultado: en los lotes históricos —que entran por carga masiva, no por pantalla— la columna C.V.%
+del reporte semanal salía vacía. Verificado en la BD: de 336 días de S-369, `cv_hembras` tenía
+**0** valores.
 
 Producción sí aceptaba estos campos desde `20260728130000`. **Levante nunca recibió el mismo
 tratamiento** — asimetría, no decisión.
@@ -140,7 +143,21 @@ Plantilla de levante + `fn_migracion_seguimiento_levante` ahora aceptan: **Coef.
   de tablas) + espejo `backend/sql/fn_migracion_seguimiento.sql` actualizado en el mismo commit.
 
 **Con esto, el C.V. del informe de Verenice ya tiene por dónde entrar y la columna C.V.% del reporte
-semanal de levante deja de estar vacía.**
+semanal de levante deja de estar vacía en los lotes cargados por Excel.**
+
+### 4.4 Corte de etapa: bloqueo del doble conteo
+
+`CorteEtapaPosturaCalculos` (cálculo puro, 10 tests) + guard en las dos direcciones:
+`SeguimientoLoteLevanteService.EnsureDiaSinAporteDeProduccionAsync` y
+`ProduccionService.EnsureDiaSinAporteDeLevanteAsync`.
+
+La regla **no** es «un día no puede tener dos filas» — el arrastre de huevos del levante crea
+legítimamente una fila de producción de solo huevos para un día que ya tiene su levante. Lo que se
+bloquea es que **las dos filas aporten consumo o bajas**, que es el doble conteo real del caso K345.
+Filas de solo huevos, de solo pesaje o vacías no chocan.
+
+Barrido de la BD: el traslape existe **únicamente en K345** (15 días); el resto de los lotes está
+limpio, así que el guard no rompe nada existente.
 
 ### Validación
 
@@ -157,8 +174,11 @@ semanal de levante deja de estar vacía.**
 
 | # | Qué | Por qué importa |
 |---|---|---|
-| 1 | **El modal de levante no captura C.V.** — la entidad `SeguimientoLoteLevante` no mapea `cv_hembras`/`cv_machos` | Hoy solo entra por carga masiva. Para el registro diario por pantalla sigue sin haber dónde escribirlo |
-| 2 | Corte levante/producción: 24 vs 25 semanas | Mueve ~17 t entre etapas en una conciliación. Es decisión de técnica + costos, no de desarrollo |
-| 3 | Corte único y excluyente entre etapas (caso K345: 14 días duplicados) | El módulo de carga masiva ya lo hace bien; falta impedirlo a nivel de datos |
-| 4 | Bloque de **incubadora/nacimientos** sin destino en el modelo | Hoy el informe no lo diligencia; si empieza a usarse, hay que modelarlo |
-| 5 | Re-exportar `INFORME TECNICO LEVANTE S-369AB.xlsm` | El archivo está truncado y no abre sin reparación |
+| 1 | Corte levante/producción: **24 vs 25 semanas** | Mueve ~17 t entre etapas en una conciliación. Es decisión de técnica + costos, no de desarrollo |
+| 2 | **Limpiar los 15 días traslapados de K345** | El guard impide nuevos, pero los existentes siguen ahí. Requiere criterio (¿cuál de las dos filas queda?) y OK explícito antes de tocar datos |
+| 3 | Bloque de **incubadora/nacimientos** sin destino en el modelo | Hoy el informe no lo diligencia; si empieza a usarse, hay que modelarlo |
+| 4 | Re-exportar `INFORME TECNICO LEVANTE S-369AB.xlsm` | El archivo está truncado y no abre sin reparación |
+
+> **Corrección respecto de la primera versión de este documento:** se afirmó que el modal de levante
+> no capturaba el C.V. Es **falso** — sí lo captura (controles `cvH`/`cvM`). El hueco estaba solo en
+> la carga masiva, que es la vía por la que entran los lotes históricos.

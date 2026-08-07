@@ -1958,7 +1958,23 @@ Análisis: [validacion_informes_verenice_s369_analisis.md](fase_de_desarrollo/va
 - [x] `fn_migracion_seguimiento_levante`: recordset + UPDATE + INSERT (espejo `.sql` y migración EF)
 - [x] Migración `20260807190000_FnMigracionLevantePesajeYAgua` (+ Designer clonado)
 - [x] Tests xUnit del esquema (9) y smoke de la fn en transacción revertida
-- [ ] **Pendiente**: el modal de levante sigue sin capturar C.V. — la entidad `SeguimientoLoteLevante`
-      no mapea `cv_hembras`/`cv_machos`, así que por pantalla no hay dónde escribirlo (solo por carga masiva)
+- [x] **Descartado (era un dato mío equivocado)**: el modal de levante SÍ captura el C.V. — los controles
+      se llaman `cvH`/`cvM` y el servicio los mapea a `CvHembras`/`CvMachos`
+      (`SeguimientoLoteLevanteService.Mapeos.cs:173`). El hueco estaba solo en la carga masiva, ya cerrado
 - [ ] **Pendiente de decisión (técnica + costos)**: el corte levante/producción quedó en 24 semanas
       en S-369 y el informe de Verenice usa 25 ⇒ ~17.332 kg cambian de etapa en una conciliación
+
+## Corte de etapa: bloqueo del doble conteo levante/producción
+- [x] `CorteEtapaPosturaCalculos` (Application/Calculos): regla pura + mensajes, 10 tests xUnit
+- [x] `SeguimientoLoteLevanteService.EnsureDiaSinAporteDeProduccionAsync` en el alta de levante
+- [x] `ProduccionService.EnsureDiaSinAporteDeLevanteAsync` en el alta de producción
+- [x] La regla mira el APORTE (consumo/bajas), no la existencia de la fila: el arrastre de huevos del
+      levante crea filas de producción de solo huevos y esas NO deben chocar
+- [x] Barrido de la BD: el traslape existe solo en K345 (15 días) ⇒ el guard no rompe nada existente
+- [x] `dotnet build` + `dotnet test` (1.939 en verde)
+- [ ] **Pendiente, requiere OK explícito**: limpiar los 15 días traslapados de K345 (el guard impide
+      nuevos, los existentes siguen ahí). Hay que decidir cuál de las dos filas queda antes de tocar datos
+
+## Entrega
+- [x] Respuesta final para costos con las correcciones aplicadas:
+      [conciliacion_k345_respuesta_final_con_correcciones.md](fase_de_desarrollo/conciliacion_k345_respuesta_final_con_correcciones.md)

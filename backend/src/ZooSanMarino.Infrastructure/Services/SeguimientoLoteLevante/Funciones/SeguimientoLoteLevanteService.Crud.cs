@@ -22,6 +22,9 @@ public partial class SeguimientoLoteLevanteService
         // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
         await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
 
+        // Corte de etapa: ese día no puede aportar consumo/bajas también desde producción (K345).
+        await EnsureDiaSinAporteDeProduccionAsync(dto);
+
         // Huevos en levante (semana 14+): gate por flag de empresa + edad del lote. Neutraliza o
         // lanza ANTES de tocar inventario/consumo, para no dejar efectos a medias.
         dto = await AplicarGateHuevosLevanteAsync(dto, lote);
@@ -344,6 +347,42 @@ public partial class SeguimientoLoteLevanteService
         var estado = (lev?.EstadoCierre ?? "").Trim();
         if (string.Equals(estado, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote de levante está cerrado; no se pueden crear, modificar ni eliminar registros de seguimiento diario.");
+    }
+
+    /// <summary>
+    /// Corte de etapa: bloquea el alta de un día de LEVANTE cuando producción ya registró ese mismo
+    /// día del mismo lote CON consumo o bajas. No basta con que exista la fila: el arrastre de huevos
+    /// del levante crea legítimamente filas de producción de solo huevos, y esas no molestan. Lo que
+    /// se impide es el doble conteo — el caso K345, donde 14 días de julio-2025 quedaron en las dos
+    /// tablas con el mismo consumo (16.952 kg y 10 aves contados dos veces por cualquier reporte que
+    /// sume el ciclo). Ver <see cref="CorteEtapaPosturaCalculos"/>.
+    /// </summary>
+    private async Task EnsureDiaSinAporteDeProduccionAsync(SeguimientoLoteLevanteDto dto)
+    {
+        var (desde, hasta) = FechasPuras.RangoDiaUtc(dto.FechaRegistro);
+
+        var otra = await _ctx.SeguimientoProduccion.AsNoTracking()
+            .Where(s => s.LoteId == dto.LoteId && s.Fecha >= desde && s.Fecha < hasta && s.DeletedAt == null)
+            .Select(s => new
+            {
+                Consumo = s.ConsKgH + s.ConsKgM,
+                Mortalidad = s.MortalidadH + s.MortalidadM,
+                Seleccion = s.SelH + s.SelM
+            })
+            .FirstOrDefaultAsync();
+
+        if (otra is null) return;
+
+        var nuevo = new CorteEtapaPosturaCalculos.AporteDia(
+            (decimal)dto.ConsumoKgHembras + (decimal)(dto.ConsumoKgMachos ?? 0),
+            dto.MortalidadHembras + dto.MortalidadMachos,
+            dto.SelH + dto.SelM);
+
+        var existente = new CorteEtapaPosturaCalculos.AporteDia(otra.Consumo, otra.Mortalidad, otra.Seleccion);
+
+        if (CorteEtapaPosturaCalculos.HayDobleConteo(nuevo, existente))
+            throw new InvalidOperationException(
+                CorteEtapaPosturaCalculos.MensajeLevanteChocaConProduccion(dto.FechaRegistro));
     }
 
     /// <summary>
