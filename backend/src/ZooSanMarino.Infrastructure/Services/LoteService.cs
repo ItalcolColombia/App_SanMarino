@@ -257,8 +257,8 @@ namespace ZooSanMarino.Infrastructure.Services
 
             await EnsureFarmExists(dto.GranjaId, companyId);
 
-            // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos)
-            await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: null);
+            // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja+galpón, entre lotes activos)
+            await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, dto.GalponId, excludeLoteId: null);
 
             // Guía genética CONDICIONAL: si la empresa todavía no cargó su guía (0 filas vivas en
             // produccion_avicola_raw) Raza/Año son opcionales — raza de texto libre — y no se
@@ -530,8 +530,8 @@ namespace ZooSanMarino.Infrastructure.Services
 
             await EnsureFarmExists(dto.GranjaId, companyId);
 
-            // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja, entre lotes activos; excluye el propio lote)
-            await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, excludeLoteId: dto.LoteId);
+            // REQ-009c: lote duplicado (mismo nombre en la misma compañía+granja+galpón, entre lotes activos; excluye el propio lote)
+            await EnsureLoteNombreNoDuplicadoAsync(companyId, dto.GranjaId, dto.LoteNombre, dto.GalponId, excludeLoteId: dto.LoteId);
 
             // Guía genética CONDICIONAL (mismo criterio que CreateAsync): sin guía cargada en la
             // empresa, Raza/Año son opcionales (raza libre) y no se verifica existencia.
@@ -780,28 +780,41 @@ namespace ZooSanMarino.Infrastructure.Services
         }
 
         /// <summary>
-        /// REQ-009c: rechaza nombre de lote duplicado dentro de la misma compañía+granja, entre lotes
-        /// activos (DeletedAt == null). Acotado a compañía+granja (no global) para no romper el caso
-        /// legítimo de reutilizar el mismo nombre en distinta granja. excludeLoteId permite que Update
-        /// no se auto-reporte como duplicado.
+        /// REQ-009c: rechaza nombre de lote duplicado entre lotes activos (DeletedAt == null) dentro de
+        /// compañía + granja + <b>galpón</b>. <c>excludeLoteId</c> permite que Update no se auto-reporte
+        /// como duplicado.
+        ///
+        /// <para><b>El galpón entró después (ago-2026).</b> La guarda nació acotada a compañía+granja y
+        /// eso rechazaba una operación legítima: un mismo nombre de sublote SÍ puede repetirse en
+        /// galpones distintos de la misma granja — es el patrón vivo en producción (A374A en G0326 y
+        /// G0324 de LA ESMERALDA; A374B en G0325 y G0323; LOTE 235A en dos galpones de la empresa 4).
+        /// El selector de letra (<c>LotePosturaLevanteService.GetLetrasDisponiblesAsync</c>) siempre
+        /// trabajó por galpón: era esta guarda la que quedó fuera de fase con él y ofrecía una letra
+        /// que después el guardado rechazaba.</para>
+        ///
+        /// <para>La consulta trae los homónimos de la granja (conjunto mínimo: mismo nombre exacto) y la
+        /// decisión —incluido el caso «lote sin galpón», que forma su propio grupo— la resuelve
+        /// <see cref="LoteNombreDuplicadoCalculos"/>, que es pura y está cubierta por tests.</para>
         /// </summary>
-        private async Task EnsureLoteNombreNoDuplicadoAsync(int companyId, int granjaId, string? loteNombre, int? excludeLoteId)
+        private async Task EnsureLoteNombreNoDuplicadoAsync(int companyId, int granjaId, string? loteNombre, string? galponId, int? excludeLoteId)
         {
-            var nombreNorm = (loteNombre ?? string.Empty).Trim();
+            var nombreNorm = LoteNombreDuplicadoCalculos.NormalizarNombre(loteNombre);
             if (nombreNorm.Length == 0) return;
 
-            var existeDuplicado = await _ctx.Lotes
+            var galponesHomonimos = await _ctx.Lotes
                 .AsNoTracking()
-                .AnyAsync(l =>
+                .Where(l =>
                     l.CompanyId == companyId &&
                     l.GranjaId == granjaId &&
                     l.DeletedAt == null &&
                     (!excludeLoteId.HasValue || l.LoteId != excludeLoteId.Value) &&
                     l.LoteNombre != null &&
-                    l.LoteNombre.ToLower() == nombreNorm.ToLower());
+                    l.LoteNombre.ToLower() == nombreNorm.ToLower())
+                .Select(l => l.GalponId)
+                .ToListAsync();
 
-            if (existeDuplicado)
-                throw new InvalidOperationException($"Ya existe un lote activo con el nombre '{nombreNorm}' en esta granja.");
+            if (LoteNombreDuplicadoCalculos.HayDuplicado(galponId, galponesHomonimos))
+                throw new InvalidOperationException(LoteNombreDuplicadoCalculos.MensajeDuplicado(nombreNorm, galponId));
         }
 
         /// <summary>Calcula la semana de edad desde fecha encaset hasta la fecha de referencia. Semana 1 = días 0-6, 2 = 7-13, etc. >= 26 → Producción.</summary>

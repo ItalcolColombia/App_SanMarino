@@ -1203,6 +1203,18 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  /**
+   * Compara el valor del control con el de cada `<option>` del select de lote.
+   *
+   * El control guarda el id como TEXTO (`lockLoteField` fija `String(selectedLoteId)`, y así viaja al
+   * backend) mientras las opciones lo bindean con `[ngValue]="l.loteId"`, que es NÚMERO. Sin este
+   * `compareWith`, Angular compara por identidad, no encuentra la opción y pinta «— Seleccione —»
+   * aunque el lote esté fijado por el contexto: el operario cree que no hay lote elegido. Comparar
+   * como texto no toca el valor del control ⇒ el payload sale idéntico.
+   */
+  compararLoteId = (a: unknown, b: unknown): boolean =>
+    a != null && b != null && String(a) === String(b);
+
   /** Lote debe mostrarse pero no ser editable. */
   private lockLoteField(): void {
     const c = this.form?.get('loteId');
