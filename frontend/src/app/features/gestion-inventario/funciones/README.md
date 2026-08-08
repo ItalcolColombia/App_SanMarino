@@ -21,6 +21,7 @@ un botón— para que sea **fácil de encontrar, testear y reutilizar**.
 | Archivo | Qué hace |
 |---|---|
 | `exportar-stock-excel.funcion.ts` | `construirFilasStockExcel` / `cabecerasStockExcel` / `exportarStockExcel`: arma y descarga el `.xlsx` del stock de **todas las granjas asignadas** (alimento con su galpón, otros conceptos a nivel granja). |
+| `ventana-fecha-movimiento.funcion.ts` | `ventanaFechaMovimiento` / `esFechaMovimientoPermitida` / `mensajeFechaFueraDeVentana`: ventana de fechas de los movimientos cargados **a mano** (día 1 del mes en curso → hoy). Espejo de `VentanaFechaMovimientoInventarioCalculos` del backend, que es el que manda; acá acota el datepicker y avisa antes del request. |
 
 ## Referencia
 

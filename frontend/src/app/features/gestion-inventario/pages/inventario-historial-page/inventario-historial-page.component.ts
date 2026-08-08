@@ -12,6 +12,11 @@ import {
   NucleoDto,
   GalponLiteDto,
 } from '../../services/gestion-inventario.service';
+import {
+  esFechaMovimientoPermitida,
+  mensajeFechaFueraDeVentana,
+  ventanaFechaMovimiento,
+} from '../../funciones/ventana-fecha-movimiento.funcion';
 
 type ActiveTab = 'traslados' | 'ingresos';
 
@@ -94,6 +99,12 @@ export class InventarioHistorialPageComponent implements OnInit {
   editFecha = '';
   editSaving = false;
   editError = '';
+  /**
+   * Ventana admitida para la fecha (día 1 del mes en curso → hoy). Campos, no getters: el template
+   * los lee en cada ciclo y tienen que ser referencias estables.
+   */
+  fechaMovimientoMin = '';
+  fechaMovimientoMax = '';
 
   // ── Delete confirm modal ──────────────────────────────────────────────────────
   deleteOpen = false;
@@ -104,6 +115,9 @@ export class InventarioHistorialPageComponent implements OnInit {
   deleteError = '';
 
   ngOnInit(): void {
+    const ventana = ventanaFechaMovimiento(new Date());
+    this.fechaMovimientoMin = ventana.min;
+    this.fechaMovimientoMax = ventana.max;
     this.loadFilterData();
     this.loadTraslados();
   }
@@ -262,6 +276,12 @@ export class InventarioHistorialPageComponent implements OnInit {
 
   saveEdit(): void {
     if (!this.editFecha || this.editSaving) return;
+    // Misma ventana que el alta: si no, la regla se esquiva cargando hoy y reeditando la fecha.
+    const hoy = new Date();
+    if (!esFechaMovimientoPermitida(this.editFecha, hoy)) {
+      this.editError = mensajeFechaFueraDeVentana(hoy);
+      return;
+    }
     this.editSaving = true;
     this.editError = '';
 

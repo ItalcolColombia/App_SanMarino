@@ -1,5 +1,6 @@
 // src/ZooSanMarino.API/Controllers/InventarioGestionController.cs
 using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -15,6 +16,25 @@ public class InventarioGestionController : ControllerBase
     public InventarioGestionController(IInventarioGestionService service)
     {
         _service = service;
+    }
+
+    /// <summary>
+    /// Ventana de fechas de los movimientos cargados A MANO: del 1 del mes en curso hasta hoy
+    /// (<see cref="VentanaFechaMovimientoInventarioCalculos"/>). Devuelve el 400 ya armado, o
+    /// <c>null</c> si la fecha es válida.
+    /// <para>
+    /// ⚠️ La guarda vive acá y NO en <c>InventarioGestionService</c> a propósito: los mismos métodos
+    /// del servicio los llaman la carga masiva, las devoluciones de alimento al editar o borrar un
+    /// seguimiento diario y la anulación de gastos, que escriben con fecha histórica legítimamente.
+    /// El controller es la única frontera «esto lo tipeó una persona en pantalla».
+    /// </para>
+    /// </summary>
+    private IActionResult? ValidarVentanaFecha(DateTime? fecha)
+    {
+        var hoy = VentanaFechaMovimientoInventarioCalculos.DiaOperativo(DateTimeOffset.UtcNow);
+        return VentanaFechaMovimientoInventarioCalculos.EsFechaPermitida(fecha, hoy)
+            ? null
+            : BadRequest(new { message = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentana(hoy) });
     }
 
     /// <summary>Datos para filtros: Granja → Núcleo → Galpón (usado en Panama/Ecuador).</summary>
@@ -41,6 +61,7 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ActualizarStock(int stockId, [FromBody] InventarioGestionStockUpdateRequest req, CancellationToken ct = default)
     {
+        if (ValidarVentanaFecha(req.FechaIngreso) is { } fueraDeVentana) return fueraDeVentana;
         try
         {
             var result = await _service.ActualizarStockAsync(stockId, req, ct);
@@ -90,6 +111,7 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RegistrarIngreso([FromBody] InventarioGestionIngresoRequest req, CancellationToken ct = default)
     {
+        if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
         try
         {
             var result = await _service.RegistrarIngresoAsync(req, ct);
@@ -107,6 +129,7 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RegistrarTraslado([FromBody] InventarioGestionTrasladoRequest req, CancellationToken ct = default)
     {
+        if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
         try
         {
             var (origen, destino) = await _service.RegistrarTrasladoAsync(req, ct);
@@ -263,6 +286,7 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ActualizarFechaTraslado(Guid transferGroupId, [FromBody] InventarioGestionActualizarFechaTrasladoRequest req, CancellationToken ct = default)
     {
+        if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
         try
         {
             var result = await _service.ActualizarFechaTrasladoAsync(transferGroupId, req, ct);
@@ -319,6 +343,7 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ActualizarFechaIngreso(int movimientoId, [FromBody] InventarioGestionActualizarFechaIngresoRequest req, CancellationToken ct = default)
     {
+        if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
         try
         {
             var result = await _service.ActualizarFechaIngresoAsync(movimientoId, req, ct);

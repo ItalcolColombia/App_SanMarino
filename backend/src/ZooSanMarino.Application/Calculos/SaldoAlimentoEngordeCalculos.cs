@@ -129,4 +129,61 @@ public static class SaldoAlimentoEngordeCalculos
         if (corteVentana is null) return trasElCicloAnterior;
         return corteVentana.Value.Date >= trasElCicloAnterior ? corteVentana.Value.Date : trasElCicloAnterior;
     }
+
+    /// <summary>
+    /// Primer día de seguimiento del ciclo que ocupa el galpón DESPUÉS que este (v14).
+    /// <c>null</c> si es el último ciclo del galpón o si el lote consultado todavía no tiene
+    /// seguimiento.
+    /// <para>
+    /// Espejo del CTE <c>corte_ciclo_siguiente</c> y complemento exacto de
+    /// <see cref="ResolverFinCicloAnterior"/>: si nada anterior al fin del ciclo previo es alimento
+    /// mío, nada posterior al arranque del ciclo que me sucede lo es tampoco.
+    /// </para>
+    /// <para>
+    /// La comparación es ESTRICTA a propósito: un lote que CONVIVE conmigo en el galpón (v10) empieza
+    /// antes de que yo termine, así que nunca corta nada y el saldo compartido queda intacto.
+    /// </para>
+    /// </summary>
+    /// <param name="ciclosDelGalpon">Los otros lotes del mismo (granja, núcleo, galpón).</param>
+    /// <param name="hasta">Último día de seguimiento del lote consultado.</param>
+    public static DateTime? ResolverInicioCicloSiguiente(
+        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)> ciclosDelGalpon,
+        DateTime? hasta)
+    {
+        if (hasta is null) return null;
+        DateTime? inicio = null;
+        foreach (var c in ciclosDelGalpon)
+        {
+            if (!c.SegMin.HasValue) continue;
+            var min = c.SegMin.Value.Date;
+            if (min <= hasta.Value.Date) continue;           // convive conmigo o arrancó antes
+            if (inicio is null || min < inicio.Value) inicio = min;
+        }
+        return inicio;
+    }
+
+    /// <summary>
+    /// Último día que muestra la grilla diaria del lote. Espejo del CTE <c>rango_final</c>.
+    /// <list type="bullet">
+    ///   <item>cierre efectivo por saldo de alimento en 0 (v5), si lo hay;</item>
+    ///   <item>si no, el último seguimiento cuando el lote está marcado como cerrado (v5);</item>
+    ///   <item>y nunca más allá del día previo al arranque del ciclo siguiente del galpón (v14).</item>
+    /// </list>
+    /// <c>null</c> = sin tope (lote genuinamente activo). Espeja el <c>LEAST</c> de SQL, que ignora
+    /// los NULL: un lote sin ciclo posterior conserva exactamente el corte previo a v14.
+    /// </summary>
+    public static DateTime? ResolverFechaMaxGrilla(
+        DateTime? cierrePorSaldoCero,
+        bool loteCerrado,
+        DateTime? ultimoSeguimiento,
+        DateTime? inicioCicloSiguiente)
+    {
+        var previo = cierrePorSaldoCero?.Date
+                  ?? (loteCerrado ? ultimoSeguimiento?.Date : null);
+        var porCicloSiguiente = inicioCicloSiguiente?.Date.AddDays(-1);
+
+        if (previo is null) return porCicloSiguiente;
+        if (porCicloSiguiente is null) return previo;
+        return previo.Value <= porCicloSiguiente.Value ? previo : porCicloSiguiente;
+    }
 }

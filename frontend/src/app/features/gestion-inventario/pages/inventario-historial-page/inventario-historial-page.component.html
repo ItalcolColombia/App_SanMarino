@@ -423,7 +423,16 @@
       <div class="ux-modal__body">
         <div class="edit-field">
           <label class="ux-label">Nueva fecha</label>
-          <input type="date" class="ux-input" [(ngModel)]="editFecha" [disabled]="editSaving" />
+          <input
+            type="date"
+            class="ux-input"
+            [min]="fechaMovimientoMin"
+            [max]="fechaMovimientoMax"
+            [(ngModel)]="editFecha"
+            [disabled]="editSaving" />
+          <small class="ux-hint">
+            Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+          </small>
         </div>
         @if (editError) {
           <p class="edit-error">{{ editError }}</p>

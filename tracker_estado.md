@@ -2326,3 +2326,100 @@ permiso deben OCULTARSE, no salir en gris; (c) el módulo debe quedar solo para 
       Si Santa Reyes debe conservarlo, hay que agregar su nombre a la lista de empresas habilitadas
 - [ ] Smoke en prod tras el deploy: usuario de Sanmarino ve solo sus 2 tiles de postura + engorde;
       usuario de otra empresa ya no ve el ítem de menú
+
+---
+
+# Tracker — Lote cerrado que absorbe el ciclo siguiente (KM 86) + ventana de mes actual en Inventario
+
+**Plan:** [`fase_de_desarrollo/lote_cerrado_absorbe_ciclo_siguiente_y_ventana_mes_inventario_plan.md`](fase_de_desarrollo/lote_cerrado_absorbe_ciclo_siguiente_y_ventana_mes_inventario_plan.md)
+**Fecha:** 2026-08-07 · Ticket de operación Ecuador (granja KM 86, lote 2601, Galpon-1 y Galpon-2)
+
+Pedido: (a) la grilla de un lote que terminó en ABRIL muestra ingresos de julio; (b) que en Gestión de
+Inventario solo se pueda cargar movimientos manualmente con fecha del mes actual.
+
+## Diagnóstico (contra el dump de prod en la BD local :5433)
+- [x] Captura identificada: `fn_seguimiento_diario_engorde(2)` reproduce edad y saldos byte a byte
+- [x] Causa raíz: `rango_final.fecha_max` NULL (lote `Abierto` + saldo que nunca llega a 0) ⇒ grilla sin tope
+- [x] Asimetría confirmada: v11/v12 excluyen ciclos ajenos en la APERTURA, nunca en el CIERRE
+- [x] Alcance medido en las 2 empresas con engorde: solo 2 lotes invadidos (EC 2 y 86); **Panamá 0**
+- [x] Los ingresos de julio son CORRECTOS (son del lote 2603): el error es a qué lote se los muestra
+- [x] Plan escrito + decisiones D1-D4 confirmadas por el usuario
+
+## Parte A — fn v14: corte por ciclo siguiente (la versión vigente era la v13, no la v12)
+- [x] `backend/sql/fn_seguimiento_diario_engorde.sql` v14 (CTE `corte_ciclo_siguiente` + `LEAST` en `rango_final`).
+      `LEAST` ignora los NULL ⇒ un lote sin ciclo posterior conserva su corte de v13 y uno activo sigue sin tope
+- [x] Migración `20260808010000_FnSeguimientoEngordeV14CorteCicloSiguiente` (+ `.Fn.cs` con v14 y v13 verbatim,
+      Designer clonado, ModelSnapshot intacto, `Down` = v13). Aplicada en local con `dotnet-ef` 10
+- [x] `SaldoAlimentoEngordeCalculos.ResolverInicioCicloSiguiente` / `.ResolverFechaMaxGrilla` (puro, hermanas de
+      las de v11/v12) + `CorteCicloEngordeCalculosTests` — 12 casos
+- [x] Gate multipaís antes/después: **ItalcolPanama NO-OP** (los 6 de `dif_saldo_aves`/`dif_consumo` son un
+      artefacto preexistente del script —claves (lote,fecha) duplicadas—, idéntico en la corrida de línea base)
+- [x] Comparación fila a fila de los 140 lotes: **solo cambian 2**, lote 2 (31 filas) y lote 86 (1 fila);
+      0 diferencias de saldo/aves/ingreso/consumo/documento en las filas que quedan
+- [x] **0 filas con seguimiento real perdidas** (5.722 esperadas == 5.722 presentes): solo desaparecen
+      filas movimiento-only. Los ciclos siguientes del galpón (72, 104) quedan intactos
+- [x] `fn_cuadre_alimento_engorde` 22 → 22 y `fn_cuadre_aves_engorde` 1 → 1 (sin regresión)
+- [x] Resultado: la grilla del lote 2601 / Galpon-1 termina el **2026-04-20 con 1.600 kg** (antes 2026-08-03 con 206.450)
+
+## Parte B — Ventana de mes actual (D1 todo movimiento manual · D2 todas las empresas · D3 hasta hoy)
+- [x] `Application/Calculos/VentanaFechaMovimientoInventarioCalculos.cs` (puro) + 12 tests xUnit.
+      `DiaOperativo` = UTC−5 (CO/EC/PA sin DST): sin eso, las últimas 5 h del mes el servidor ya está en el
+      mes siguiente y rechaza la fecha de HOY que el usuario ve en pantalla
+- [x] Gate en el CONTROLLER (`ValidarVentanaFecha`) en las 5 puertas manuales: `POST /ingreso`, `POST /traslado`,
+      `PUT /ingresos/{id}/fecha`, `PUT /traslados/{gid}/fecha`, `PUT /stock/{id}` (`FechaIngreso`)
+- [x] **NUNCA en el service**: `RegistrarIngreso/Traslado/ConsumoAsync` los llaman la carga masiva, los 4 services
+      de seguimiento (devoluciones al editar/borrar) e `InventarioGastoService`, que fechan histórico a propósito.
+      `POST /consumo` no se toca (el front nunca lo llama)
+- [x] Front: `funciones/ventana-fecha-movimiento.funcion.ts` (pura, espejo del backend) + `min`/`max` y leyenda en
+      los 3 datepickers de movimiento (alta de ingreso, alta de traslado, ajuste de stock) y en el de edición de
+      fecha del histórico + validación previa al submit en los 5 caminos
+- [x] Los filtros «Fecha desde/hasta» del histórico NO se tocan (son filtros, no fechas de movimiento)
+
+## Validación
+- [x] `dotnet build` — 0 errores (solo la advertencia CS8625 preexistente)
+- [x] `dotnet test` — **2.028 Application + 1 Domain, 0 fallos** (+24 nuevos)
+- [x] `yarn build` (Node portable 22.23.1) — OK, solo el warning de bundle budget preexistente
+- [x] Smoke HTTP real (back :5002 Dev, JWT + X-Secret-Up minteados) de las 5 puertas: mes anterior y mañana
+      dan **400 con el mensaje de la ventana**; hoy pasa y llega al servicio (200, o el error de dominio esperado)
+- [x] **BD local restaurada exacta**: el smoke escribió 3 movimientos, 2 registros de stock y corrió la fecha del
+      movimiento 1 (doc 52968, granja 38 / G0035). Todo revertido; la fecha original (2026-02-07) se recuperó por
+      los documentos correlativos vecinos (52912/52913/52925/52971, todos de esa fecha) y quedó **verificada por el
+      gate**: la corrida posterior es idéntica a la del cambio (5.804 filas, 0 diferencias de valor)
+- [x] Tablas temporales del gate eliminadas · sin procesos huérfanos (5002/5499/4200 sin listeners)
+- [x] Commit acotado (sin footer de atribución). ⚠️ NO se commiteó
+      `fase_de_desarrollo/ingreso_alimento_fecha_real_ingreso_inicial_ciclo_plan.md` (propuesta de OTRA
+      sesión en curso) ni `.devpilot/events.jsonl`
+
+### Aviso a la operación (fuera de alcance del código)
+- [ ] Los lotes 2601 de Galpon-1 (id 2) y Galpon-2 (id 12) siguen en estado `Abierto`: cerrarlos POR
+      PANTALLA (liquidar es una transacción de 5 pasos, no va por migración)
+- [ ] El lote 12 arrastra apertura negativa (−9.020 kg): auditoría de datos aparte
+
+
+---
+
+# Tracker — Alimento previo al encaset: fecha real para contabilidad + «ingreso inicial del ciclo» (engorde y postura)
+
+**Plan:** [fase_de_desarrollo/ingreso_alimento_fecha_real_ingreso_inicial_ciclo_plan.md](fase_de_desarrollo/ingreso_alimento_fecha_real_ingreso_inicial_ciclo_plan.md)
+**Fecha:** 2026-08-07 · **Estado: PROPUESTA entregada, pendiente decisiones D1-D4 del usuario. SIN código.**
+
+Pedido: el alimento llega 2-7 días antes del encaset; hoy la operación falsea la fecha al primer día de
+consumo para que el seguimiento diario cuadre, y contabilidad pierde el día real de llegada.
+
+## Fase 0 — Análisis y propuesta
+- [x] Exploración con workflow de 5 agentes (fn engorde/ventana previa, módulo inventario, postura, encasetamiento, evidencia BD dump prod)
+- [x] Diagnóstico: la ventana `dias_alimento_previo_encaset` YA absorbe el alimento previo en engorde pero es INVISIBLE (sin columna de apertura, sin documento, fila que «desaparece» al cargar el 1er seguimiento); postura no tiene NADA (el Reporte Contable además lo pierde por el `continue` de fechas sin dato del lote); `created_at` es la única fecha y la tipeada la pisa
+- [x] Evidencia medida: Ecuador 110/110 ciclos con ingreso fechado el día 1 (workaround), Panamá 9/30 con fecha real 2-7 días antes; 28/75 ciclos encadenados EC con gap ≤ ventana (la fecha sola no atribuye)
+- [x] ⚠️ Colisión identificada con la ventana de mes en curso (sesión paralela, sin commitear): bloquea la fecha real que cruza mes — conciliar D4 con esa sesión ANTES de que commitee
+- [x] Plan/propuesta escrito (Partes A engorde / B inventario / C postura + D1-D4)
+
+## Pendiente de decisión (usuario)
+- [ ] D1 una fecha real + apertura visible (recomendado) vs doble fecha
+- [ ] D2 marca «para el próximo ciclo» en el ingreso (recomendado sí)
+- [ ] D3 alcance postura (recomendado mínimo: fix Reporte Contable + saldo inicial)
+- [ ] D4 conciliación con la ventana de mes de la sesión paralela
+
+## Implementación (arranca tras confirmar decisiones)
+- [ ] Parte A — fn v15 apertura visible + UI admin de la ventana + gate multipaís
+- [ ] Parte B — marca de ciclo + auditoría de captura + edición desde historial
+- [ ] Parte C — Reporte Contable postura (continue + saldo inicial)
