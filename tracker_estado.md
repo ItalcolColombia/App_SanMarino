@@ -2432,3 +2432,77 @@ consumo para que el seguimiento diario cuadre, y contabilidad pierde el día rea
 
 ### Hallazgo BLOQUEANTE aparte (NO tocado — tarea propia con su gate)
 - `ObtenerDatosBultosAsync` pide PageSize=10000 pero `FarmInventoryMovementService.GetPagedAsync:447` clampa a **20** ⇒ el Reporte Contable solo ve los 20 movimientos de bultos más recientes de la granja (3 entradas históricas de granja 5 = 2.800 bultos invisibles). El fix C1 funciona para el caso real (alimento reciente) pero lo histórico queda estrangulado. Arreglarlo cambia números en muchos lotes ⇒ gate propio antes/después.
+
+---
+
+# Fix — Reporte Contable (postura): el kardex de BULTOS se estrangula en 20 movimientos
+
+**Plan:** [`fase_de_desarrollo/reporte_contable_bultos_sin_tope_paginacion_plan.md`](fase_de_desarrollo/reporte_contable_bultos_sin_tope_paginacion_plan.md)
+**Fecha:** 2026-08-08 · Bloque propio — no tocar desde otras sesiones
+**Origen:** «Hallazgo BLOQUEANTE aparte» del QA de `801b14f` (bloque de arriba)
+
+`ObtenerDatosBultosAsync` pide `PageSize = 10000` pero `FarmInventoryMovementService.GetPagedAsync:447`
+clampa a **20** (`> 200 ⇒ 20`) ordenado por `created_at DESC`, y el filtro por `type_item='alimento'`
+corre **en memoria después** de paginar ⇒ el reporte ve los 20 movimientos más recientes de la granja,
+de cualquier ítem.
+
+## Fase 0 — Diagnóstico (BD local, dump tipo-prod)
+- [x] Estrangulamiento medido en granja 5 / lote 13 «K345A» — **peor de lo reportado**: el reporte veía
+      **5 de los 58** movimientos de alimento de la granja y **CERO de sus 4 entradas**. Los 20 del tope
+      son de la granja entera, así que 15 cupos se los comían ítems que no son alimento
+- [x] Universo real: 4 entradas = 112.000 kg = **2.800 bultos** (2025-10-16 y 2026-01-09 de 1.250 c/u,
+      2026-02-27 de 300) + 54 retiros = 20.528,900 kg = 513,2225 bultos
+- [x] Plan escrito con paridad de filtros y criterio del gate
+
+## Fase 1 — Gate ANTES (línea base congelada)
+- [x] JSON de `GET /api/ReporteContable/generar` capturado para las 6 combinaciones lote×fase
+      (backend propio :5499 vía `PORT`, JWT + X-Secret-Up minteados, usuario Admin de company 1)
+
+## Fase 2 — Backend
+- [x] C1 `ReporteContableBultosCalculos.RangoConsulta` (puro): ventana → `[desde, hasta+1d)`, corte
+      superior **exclusivo** (created_at es timestamptz sin anclar a medianoche) y sin `.Date` sobre la
+      columna (date_trunc usaría la zona de la SESIÓN)
+- [x] C2 `ObtenerDatosBultosAsync` consulta `_ctx.FarmInventoryMovements` directo: granja + empresa +
+      país + ítems de alimento + ventana, **todo traducido a SQL y sin tope**. El filtro por empresa pasa
+      de condicional a incondicional (el método ya retornaba vacío sin `companyId` ⇒ fail-closed igual)
+- [x] C3 Limpieza: fuera el parámetro `loteIds` (nunca se usaba) y la dependencia
+      `IFarmInventoryMovementService`, que quedó sin ningún consumidor en el service (DI por
+      `Program.cs:341`, sin `new` manual ⇒ sin impacto)
+
+## Fase 3 — Tests (gate CI)
+- [x] T1-T4 `RangoConsulta`: corte exclusivo al día siguiente (un movimiento de las 16:45 del último día
+      ENTRA), normalización de hora, ventana de un día = 24 h, y `[Theory]` que verifica que el veredicto
+      de la consulta **coincide con el de `GeneraFilaSoloBultos`** aguas abajo
+- [x] Los 16 tests previos de `ReporteContableBultosCalculos` verdes sin tocarlos
+
+## Fase 4 — Validación
+- [x] `dotnet build` — 0 errores, 0 advertencias
+- [x] `dotnet test` — **2.098 Application + 1 Domain verdes** (2.091 previos + 7 nuevos)
+- [x] **Gate DESPUÉS: VEREDICTO GO.** Comparación campo a campo emparejando filas por clave
+      (fecha+loteId), no por posición — el diff posicional inventaba 3 falsos «cambios de fecha» porque
+      las filas nuevas corren los índices:
+      - **4 controles negativos (granja 20): 0 diferencias, byte a byte**
+      - lote 13 **Producción**: 333 campos modificados, **el 100 % columnas de bultos**, 0 filas nuevas
+        (esas fechas ya tenían dato del lote, solo ganaron el kardex)
+      - lote 13 **Levante**: 29 campos modificados, **todos de bultos**; 11 filas nuevas con **todas las
+        columnas de aves en cero** (filas solo-bultos del feature C1) y 4 secciones semanales que nacen
+        porque esa semana no tenía ninguna fila
+      - **Invariante de aves: idéntico** — 374 (Levante) + 620 (Producción) + 300 (lote 116) agregados
+        comparados, 0 cambios en entradas/mortalidad/selección/ventas/traslados/consumo ni en el saldo de
+        ninguna fecha preexistente. Los 10 saldos «nuevos» son el saldo vigente arrastrado publicado en
+        fechas que antes no tenían fila
+- [x] **Trazabilidad exacta**: el kardex del reporte reproduce ahora las **6 fechas de la BD una a una**
+      (1.250 / 1.250 / 300 entradas · 347,34 / 15,245 / 150,6375 retiros) en **ambas fases**;
+      totales 2.800,0000 entradas y 513,2225 retiros = los 112.000 kg y 20.528,900 kg medidos en SQL.
+      El **consumo NO se movió** (6.035,4875 Levante · 22.290,4025 Producción): viene de los seguimientos,
+      no del kardex
+- [x] Backend del smoke detenido (puerto 5499 libre), sin procesos huérfanos. BD **no modificada**
+      (el gate son solo `GET` + `SELECT`)
+- [x] Commit acotado (sin footer de atribución)
+
+### Hallazgo aparte detectado al medir (NO tocado — requiere su propia auditoría de datos)
+Los ítems de alimento de la **granja 20** (85, 89, 98, 99, 100) tienen `metadata->>'type_item'` **NULL**
+⇒ el Reporte Contable no los reconoce como alimento y no cuenta **ninguno** de sus 236 movimientos, ni
+antes ni después de este fix. Es un problema de **datos de catálogo**, no de este código — por eso esos
+lotes sirvieron como control negativo. Decidir si se saneia el metadata o si el criterio pasa a
+`farm_inventory_movements.item_type`.

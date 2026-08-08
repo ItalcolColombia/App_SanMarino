@@ -262,4 +262,64 @@ public class ReporteContableBultosCalculosTests
     {
         Assert.Empty(AcumularSaldos(Array.Empty<(DateTime, DeltaBultosFila)>()));
     }
+
+    // ── RangoConsulta ────────────────────────────────────────────────────────
+    // El kardex de bultos se consulta con este rango contra farm_inventory_movements.created_at,
+    // que es timestamptz y NO está anclado a medianoche.
+
+    [Fact]
+    public void RangoConsulta_CortaExclusivoAlDiaSiguiente_ParaQueElUltimoDiaEntreCompleto()
+    {
+        var (desde, hastaExclusivo) = RangoConsulta(
+            (new DateTime(2025, 10, 6), new DateTime(2026, 4, 10)));
+
+        Assert.Equal(new DateTime(2025, 10, 6), desde);
+        Assert.Equal(new DateTime(2026, 4, 11), hastaExclusivo);
+
+        // Un movimiento registrado a media tarde del último día del reporte ENTRA.
+        var movimiento = new DateTime(2026, 4, 10, 16, 45, 0);
+        Assert.True(movimiento >= desde && movimiento < hastaExclusivo);
+    }
+
+    [Fact]
+    public void RangoConsulta_NormalizaLaHoraDeLaVentanaAMedianoche()
+    {
+        var (desde, hastaExclusivo) = RangoConsulta(
+            (new DateTime(2026, 1, 15, 9, 30, 0), new DateTime(2026, 1, 20, 23, 59, 59)));
+
+        Assert.Equal(new DateTime(2026, 1, 15), desde);
+        Assert.Equal(new DateTime(2026, 1, 21), hastaExclusivo);
+    }
+
+    [Fact]
+    public void RangoConsulta_VentanaDeUnSoloDia_Cubre24Horas()
+    {
+        var dia = new DateTime(2026, 2, 27);
+        var (desde, hastaExclusivo) = RangoConsulta((dia, dia));
+
+        Assert.Equal(dia, desde);
+        Assert.Equal(TimeSpan.FromHours(24), hastaExclusivo - desde);
+    }
+
+    [Theory]
+    // Los movimientos que el gate exige recuperar en la granja 5 (lote 13 «K345A»): las 4 entradas
+    // históricas que el tope de 20 de GetPagedAsync dejaba fuera, contra una ventana que arranca
+    // 10 días antes del encaset (2025-01-28) y termina hoy.
+    [InlineData("2025-10-16", true)]
+    [InlineData("2026-02-27", true)]
+    [InlineData("2026-04-10", true)]
+    // Fuera de la ventana: no lo imputa el reporte (misma regla que GeneraFilaSoloBultos).
+    [InlineData("2024-12-31", false)]
+    public void RangoConsulta_CoincideConLaVentanaQueElReporteYaAplicaAguasAbajo(string fecha, bool dentro)
+    {
+        var ventana = (new DateTime(2025, 1, 18), new DateTime(2026, 8, 8));
+        var (desde, hastaExclusivo) = RangoConsulta(ventana);
+        var f = DateTime.Parse(fecha, System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.Equal(dentro, f >= desde && f < hastaExclusivo);
+
+        // Y el veredicto de la consulta coincide con el de la regla de filas solo-bultos.
+        var mov = new MovimientoBultosDia(f, 0m, 100m, 0m);
+        Assert.Equal(dentro, GeneraFilaSoloBultos(mov, false, ventana.Item1, ventana.Item2));
+    }
 }

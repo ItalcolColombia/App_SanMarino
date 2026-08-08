@@ -83,6 +83,26 @@ public static class ReporteContableBultosCalculos
     }
 
     /// <summary>
+    /// Traduce la ventana a un rango consultable contra <c>farm_inventory_movements.created_at</c>:
+    /// <c>[Desde 00:00, Hasta+1día 00:00)</c>.
+    /// <para>
+    /// El corte superior es EXCLUSIVO al día siguiente para que el último día del reporte entre
+    /// completo: <c>created_at</c> es <c>timestamptz</c> y las filas del kardex no están ancladas a
+    /// medianoche, así que un <c>&lt;= Hasta</c> se comería todo lo registrado después de las 00:00 de
+    /// ese día. Tampoco se recorta con <c>.Date</c> sobre la columna: <c>date_trunc</c> usaría la zona
+    /// horaria de la SESIÓN, no la del reporte.
+    /// </para>
+    /// <para>
+    /// Es el mismo rango que <see cref="GeneraFilaSoloBultos"/> ya exige aguas abajo; llevarlo a la
+    /// consulta no cambia qué movimientos llegan al reporte, solo evita traer los que igual se iban a
+    /// descartar (regla del repo: la BD filtra, el backend orquesta).
+    /// </para>
+    /// </summary>
+    public static (DateTime Desde, DateTime HastaExclusivo) RangoConsulta(
+        (DateTime Desde, DateTime Hasta) ventana) =>
+        (ventana.Desde.Date, ventana.Hasta.Date.AddDays(1));
+
+    /// <summary>
     /// ¿Esta fecha genera una fila "solo bultos" del lote padre? Sí cuando hay movimiento real, el
     /// padre no generó ya una fila propia ese día (si la generó, esa fila YA lleva los bultos: el
     /// comportamiento histórico queda intacto) y la fecha cae en la ventana del reporte.

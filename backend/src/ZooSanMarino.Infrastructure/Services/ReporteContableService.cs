@@ -14,7 +14,6 @@ public class ReporteContableService : IReporteContableService
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
     private readonly IMovimientoAvesService _movimientoAvesService;
-    private readonly IFarmInventoryMovementService _inventoryMovementService;
     private readonly ITrasladoHuevosService _trasladoHuevosService;
     private readonly ILocationScopeResolver _scopeResolver;
 
@@ -25,14 +24,12 @@ public class ReporteContableService : IReporteContableService
         ZooSanMarinoContext ctx,
         ICurrentUser currentUser,
         IMovimientoAvesService movimientoAvesService,
-        IFarmInventoryMovementService inventoryMovementService,
         ITrasladoHuevosService trasladoHuevosService,
         ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _currentUser = currentUser;
         _movimientoAvesService = movimientoAvesService;
-        _inventoryMovementService = inventoryMovementService;
         _trasladoHuevosService = trasladoHuevosService;
         _scopeResolver = scopeResolver;
     }
@@ -578,7 +575,7 @@ public class ReporteContableService : IReporteContableService
         // Obtener datos de bultos (si hay granja y lotes)
         var granjaId = lotes.FirstOrDefault()?.GranjaId ?? 0;
         var datosBultos = (loteIds.Any() && granjaId > 0)
-            ? await ObtenerDatosBultosAsync(loteIds, granjaId, ct)
+            ? await ObtenerDatosBultosAsync(granjaId, ventanaBultos, ct)
             : new List<(DateTime Fecha, decimal SaldoAnterior, decimal Traslados, decimal Entradas, decimal Retiros, decimal ConsumoHembras, decimal ConsumoMachos)>();
 
         // Consolidar todas las fechas (usar HashSet para mejor rendimiento con muchos datos)
@@ -764,13 +761,23 @@ public class ReporteContableService : IReporteContableService
     }
 
     /// <summary>
-    /// Obtiene datos de bultos (entradas, traslados, consumo)
-    /// Solo considera productos con type_item = 'alimento' en su metadata
+    /// Obtiene el kardex de bultos de la granja (entradas, traslados, retiros) dentro de la ventana
+    /// del reporte. Solo considera productos con type_item = 'alimento' en su metadata.
+    /// <para>
+    /// Consulta <c>farm_inventory_movements</c> DIRECTO y no vía <c>IFarmInventoryMovementService
+    /// .GetPagedAsync</c>: ese método clampa el tamaño de página a 20 cuando se le piden más de 200
+    /// (<c>PageSize = 10000</c> caía al default), y además filtraba por ítem DESPUÉS de paginar, así
+    /// que un movimiento de vacunas consumía cupo del kardex de alimento. Resultado: el reporte veía
+    /// los 20 movimientos más recientes de la granja y todo lo histórico desaparecía —medido en local,
+    /// la granja 5 mostraba 5 de sus 58 movimientos de alimento y CERO de sus 4 entradas (112.000 kg
+    /// = 2.800 bultos)—. Acá los cuatro filtros (granja, empresa, país, ítems de alimento y ventana)
+    /// se resuelven en una sola consulta traducida a SQL, sin tope.
+    /// </para>
     /// </summary>
-    private async Task<List<(DateTime Fecha, decimal SaldoAnterior, decimal Traslados, decimal Entradas, decimal Retiros, decimal ConsumoHembras, decimal ConsumoMachos)>> 
+    private async Task<List<(DateTime Fecha, decimal SaldoAnterior, decimal Traslados, decimal Entradas, decimal Retiros, decimal ConsumoHembras, decimal ConsumoMachos)>>
         ObtenerDatosBultosAsync(
-        List<int> loteIds,
         int granjaId,
+        (DateTime Desde, DateTime Hasta) ventanaBultos,
         CancellationToken ct)
     {
         var datos = new List<(DateTime, decimal, decimal, decimal, decimal, decimal, decimal)>();
@@ -796,21 +803,36 @@ public class ReporteContableService : IReporteContableService
 
         if (!productosAlimento.Any()) return datos;
 
-        // Obtener movimientos de inventario solo para productos de tipo 'alimento'
-        // Nota: Los movimientos de inventario están a nivel de granja, no de lote
-        var query = new MovementQuery
-        {
-            Type = null, // Obtener todos los tipos
-            Page = 1,
-            PageSize = 10000
-        };
+        // Los movimientos de inventario están a nivel de GRANJA, no de lote: el reporte los imputa al
+        // lote padre. La ventana acota la consulta al rango que el reporte puede imputar; el corte
+        // superior es exclusivo al día siguiente (created_at es timestamptz y no está anclado a
+        // medianoche) y no se usa .Date sobre la columna para no depender de la zona de la sesión.
+        var (desde, hastaExclusivo) = ReporteContableBultosCalculos.RangoConsulta(ventanaBultos);
+        var desdeUtc = new DateTimeOffset(DateTime.SpecifyKind(desde, DateTimeKind.Utc));
+        var hastaUtc = new DateTimeOffset(DateTime.SpecifyKind(hastaExclusivo, DateTimeKind.Utc));
 
-        var movimientos = await _inventoryMovementService.GetPagedAsync(granjaId, query, ct);
+        var queryMovimientos = _ctx.FarmInventoryMovements
+            .AsNoTracking()
+            .Where(m => m.FarmId == granjaId &&
+                        m.CompanyId == companyId &&
+                        productosAlimento.Contains(m.CatalogItemId) &&
+                        m.CreatedAt >= desdeUtc &&
+                        m.CreatedAt < hastaUtc);
 
-        // Filtrar solo movimientos de productos con type_item = 'alimento'
-        var movimientosAlimento = movimientos.Items
-            .Where(m => productosAlimento.Contains(m.CatalogItemId))
-            .ToList();
+        // Mismo filtro por país que aplicaba GetPagedAsync (condicional: solo si la sesión lo trae)
+        var paisId = _currentUser?.PaisId ?? 0;
+        if (paisId > 0)
+            queryMovimientos = queryMovimientos.Where(m => m.PaisId == paisId);
+
+        var movimientosAlimento = await queryMovimientos
+            .Select(m => new
+            {
+                m.CreatedAt,
+                m.Quantity,
+                m.Unit,
+                MovementType = m.MovementType.ToString()
+            })
+            .ToListAsync(ct);
 
         // Agrupar por fecha
         var movimientosPorFecha = movimientosAlimento
