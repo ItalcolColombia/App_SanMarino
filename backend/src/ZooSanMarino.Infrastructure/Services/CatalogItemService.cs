@@ -1,4 +1,5 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -19,8 +20,13 @@ public class CatalogItemService : ICatalogItemService
 
     public async Task<PagedResult<CatalogItemDto>> GetAsync(string? q, int page, int pageSize, CancellationToken ct = default)
     {
-        if (page <= 0) page = 1;
-        if (pageSize <= 0 || pageSize > 200) pageSize = 20;
+        // El catálogo es una tabla MAESTRA acotada que el front consume entero como selector: siete
+        // pantallas le piden 1.000-2.000 ítems. Con el clamp viejo (`> 200 ⇒ 20`) recibían 20 y encima
+        // filtraban por activo sobre esos 20, así que el selector de alimento del seguimiento diario
+        // mostraba 20 ítems de un catálogo de 310. Pedir de más ahora devuelve el tope, no el default.
+        page = PaginacionCalculos.NormalizarPage(page);
+        pageSize = PaginacionCalculos.NormalizarPageSize(
+            pageSize, PaginacionCalculos.MaximoCatalogoMaestro);
 
         var query = _db.CatalogItems.AsNoTracking();
 

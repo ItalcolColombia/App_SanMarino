@@ -139,8 +139,10 @@ public class RoleCompositeService : IRoleCompositeService
 
     public async Task<IEnumerable<RoleDto>> Roles_GetAllAsync(string? q, int page, int pageSize)
     {
-        page = page <= 0 ? 1 : page;
-        pageSize = pageSize <= 0 || pageSize > 200 ? 50 : pageSize;
+        // Pedir de más devuelve el tope, no el default (ver PaginacionCalculos).
+        page = PaginacionCalculos.NormalizarPage(page);
+        pageSize = PaginacionCalculos.NormalizarPageSize(
+            pageSize, PaginacionCalculos.MaximoListadoTransaccional, porDefecto: 50);
         var term = (q ?? string.Empty).Trim().ToLowerInvariant();
 
         var query = _ctx.Roles

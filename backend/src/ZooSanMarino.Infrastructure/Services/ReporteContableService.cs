@@ -762,16 +762,27 @@ public class ReporteContableService : IReporteContableService
 
     /// <summary>
     /// Obtiene el kardex de bultos de la granja (entradas, traslados, retiros) dentro de la ventana
-    /// del reporte. Solo considera productos con type_item = 'alimento' en su metadata.
+    /// del reporte. Solo considera los movimientos cuyo tipo efectivo es alimento
+    /// (<see cref="ItemInventarioTipoCalculos"/>).
     /// <para>
-    /// Consulta <c>farm_inventory_movements</c> DIRECTO y no vía <c>IFarmInventoryMovementService
-    /// .GetPagedAsync</c>: ese método clampa el tamaño de página a 20 cuando se le piden más de 200
-    /// (<c>PageSize = 10000</c> caía al default), y además filtraba por ítem DESPUÉS de paginar, así
-    /// que un movimiento de vacunas consumía cupo del kardex de alimento. Resultado: el reporte veía
-    /// los 20 movimientos más recientes de la granja y todo lo histórico desaparecía —medido en local,
-    /// la granja 5 mostraba 5 de sus 58 movimientos de alimento y CERO de sus 4 entradas (112.000 kg
-    /// = 2.800 bultos)—. Acá los cuatro filtros (granja, empresa, país, ítems de alimento y ventana)
-    /// se resuelven en una sola consulta traducida a SQL, sin tope.
+    /// Este método arrastró DOS defectos que se tapaban entre sí, ambos corregidos en ago-2026:
+    /// </para>
+    /// <list type="number">
+    /// <item><b>El tope de página (commit <c>92cd918</c>).</b> Pasaba por
+    /// <c>IFarmInventoryMovementService.GetPagedAsync</c> con <c>PageSize = 10000</c>, y ese método
+    /// clampaba a 20 cualquier pedido mayor a 200; encima filtraba por ítem DESPUÉS de paginar, así
+    /// que un movimiento de vacunas consumía cupo del kardex de alimento. El reporte veía los 20
+    /// movimientos más recientes de la granja y todo lo histórico desaparecía.</item>
+    /// <item><b>El criterio de "esto es alimento".</b> Miraba
+    /// <c>catalogo_items.metadata-&gt;&gt;'type_item'</c>, el modelo VIEJO que ya nadie llena (NULL en
+    /// el 80 % del catálogo), en vez de la columna <c>item_type</c> que lo reemplazó; y comparaba
+    /// distinguiendo mayúsculas, perdiendo las filas cargadas como <c>"Alimento"</c>. Costaba 257
+    /// movimientos: la granja 20 entera (236) más 19 de la granja 5. Ver
+    /// <see cref="ItemInventarioTipoCalculos"/>.</item>
+    /// </list>
+    /// <para>
+    /// Hoy los filtros (granja, empresa, país, tipo de ítem y ventana) se resuelven en UNA consulta
+    /// traducida a SQL, sin tope y sin traer el catálogo a memoria.
     /// </para>
     /// </summary>
     private async Task<List<(DateTime Fecha, decimal SaldoAnterior, decimal Traslados, decimal Entradas, decimal Retiros, decimal ConsumoHembras, decimal ConsumoMachos)>>
@@ -788,21 +799,6 @@ public class ReporteContableService : IReporteContableService
         var companyId = _currentUser?.CompanyId ?? 0;
         if (companyId <= 0) return datos;
 
-        // Obtener IDs de productos que tienen type_item = 'alimento' en su metadata
-        // Nota: EF Core no puede traducir TryGetProperty a SQL, por lo que obtenemos todos los activos y filtramos en memoria
-        var todosProductos = await _ctx.CatalogItems
-            .AsNoTracking()
-            .Where(c => c.Activo && c.CompanyId == companyId)
-            .ToListAsync(ct);
-
-        var productosAlimento = todosProductos
-            .Where(c => c.Metadata.RootElement.TryGetProperty("type_item", out var typeItem) &&
-                       typeItem.GetString() == "alimento")
-            .Select(c => c.Id)
-            .ToList();
-
-        if (!productosAlimento.Any()) return datos;
-
         // Los movimientos de inventario están a nivel de GRANJA, no de lote: el reporte los imputa al
         // lote padre. La ventana acota la consulta al rango que el reporte puede imputar; el corte
         // superior es exclusivo al día siguiente (created_at es timestamptz y no está anclado a
@@ -811,11 +807,21 @@ public class ReporteContableService : IReporteContableService
         var desdeUtc = new DateTimeOffset(DateTime.SpecifyKind(desde, DateTimeKind.Utc));
         var hastaUtc = new DateTimeOffset(DateTime.SpecifyKind(hastaExclusivo, DateTimeKind.Utc));
 
+        // El tipo efectivo es el del movimiento y, si no lo trae, el del catálogo — el mismo criterio
+        // que usa el módulo de inventario. Se compara en minúsculas porque el catálogo tiene filas
+        // cargadas como "Alimento"; EF traduce ToLower() a SQL, así que el filtro entero viaja a la BD
+        // y ya no hace falta traer el catálogo de la empresa a memoria.
+        var tipoAlimento = ItemInventarioTipoCalculos.TipoAlimento;
+
         var queryMovimientos = _ctx.FarmInventoryMovements
             .AsNoTracking()
             .Where(m => m.FarmId == granjaId &&
                         m.CompanyId == companyId &&
-                        productosAlimento.Contains(m.CatalogItemId) &&
+                        (m.ItemType != null && m.ItemType != ""
+                            ? m.ItemType.Trim().ToLower()
+                            : m.CatalogItem.ItemType.Trim().ToLower()) == tipoAlimento &&
+                        m.CatalogItem.Activo &&
+                        m.CatalogItem.CompanyId == companyId &&
                         m.CreatedAt >= desdeUtc &&
                         m.CreatedAt < hastaUtc);
 

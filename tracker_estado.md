@@ -2506,3 +2506,76 @@ Los ítems de alimento de la **granja 20** (85, 89, 98, 99, 100) tienen `metadat
 antes ni después de este fix. Es un problema de **datos de catálogo**, no de este código — por eso esos
 lotes sirvieron como control negativo. Decidir si se saneia el metadata o si el criterio pasa a
 `farm_inventory_movements.item_type`.
+
+---
+
+# Fix — «Esto es alimento» vuelve a la columna + el clamp de paginación deja de degradar en silencio
+
+**Plan:** [`fase_de_desarrollo/criterio_item_alimento_y_clamp_paginacion_plan.md`](fase_de_desarrollo/criterio_item_alimento_y_clamp_paginacion_plan.md)
+**Fecha:** 2026-08-08 · Bloque propio — no tocar desde otras sesiones
+**Continúa:** el fix `92cd918` (bloque de arriba). Pedido del usuario: implementarlo en todo, **encontrar
+el factor donde sucede** y mejorarlo para que no vuelva a pasar.
+
+Dos defectos que son el mismo: el Reporte Contable decidía «es alimento» leyendo
+`metadata->>'type_item'`, el modelo VIEJO que ya nadie llena (NULL en el 80 %), en vez de la columna
+`catalogo_items.item_type` (`NOT NULL`, 0 nulos, 3 índices) que nació para reemplazarlo; y el clamp
+`pageSize > 200 ⇒ 20` está repetido en 3 servicios, con **7 pantallas del front pidiendo 1.000-2.000
+ítems de catálogo y recibiendo 20**.
+
+## Fase 0 — Diagnóstico
+- [x] Las 3 fuentes del tipo de ítem medidas: columna `catalogo_items.item_type` **0 nulos de 435**
+      con taxonomía completa · `metadata->>'type_item'` **NULL en el 80 %** · `farm_inventory_movements
+      .item_type` poblada al **100 %**. `ReporteContableService` era el ÚNICO lector del jsonb en todo
+      el backend (el front ya hace `item.itemType || item.metadata?.type_item`)
+- [x] Causa raíz de la reincidencia: `CatalogItemService.CreateAsync` escribe la COLUMNA y **no** el
+      metadata ⇒ todo ítem creado desde la UI moderna nacía invisible para el reporte
+- [x] Impacto medido: **257 movimientos** invisibles (granja 20 entera = 236, granja 5 = 19, granja 87 = 2)
+- [x] 🔴 **FACTOR identificado**: el clamp `pageSize > 200 ⇒ 20` degrada al MÍNIMO y está repetido en
+      **3 servicios**; `CatalogItemService` lo tenía **activo**, con **7 pantallas del front pidiendo
+      1.000-2.000 ítems y recibiendo 20** (`ajuste-form`, `conteo-fisico`, `kardex-list`,
+      `traslado-form` y los modales de seguimiento de levante y producción, que además filtran por
+      activo sobre esos 20)
+- [x] Plan escrito
+
+## Fase 1 — Gate ANTES
+- [x] Línea base de 9 combinaciones lote×fase + smoke del factor. **Bug reproducido en vivo**:
+      `catalogo?pageSize=1000` devolvía `items=20 / total=61 / pageSize=20`
+
+## Fase 2 — Backend
+- [x] C1 `ItemInventarioTipoCalculos` (puro): `EsTipoAlimento` tolerante a capitalización y espacios
+      (el catálogo tiene filas «Alimento»; el resto del sistema ya comparaba así) + `TipoEfectivo`
+      (manda el del movimiento, el catálogo respalda — patrón vigente en `FarmInventoryMovementService`)
+- [x] C2 `ObtenerDatosBultosAsync` filtra por el tipo efectivo **dentro de la query**: desaparece el
+      paso de traer el catálogo de la empresa a memoria (310 filas por llamada en Santa Reyes) y el
+      filtro cae sobre columnas indexadas. Se conservan los filtros de empresa/activo del catálogo
+- [x] C3 `PaginacionCalculos.NormalizarPageSize`: **pedir de más devuelve el TOPE, nunca el default**
+- [x] C4 Los 3 servicios usan la normalización. Topes por naturaleza de la tabla: catálogo maestro
+      **2.000** (máximo real 310, margen 6×) · movimientos y roles 200 (crecen sin techo). Las 7
+      pantallas quedan arregladas **sin tocar una línea de frontend**
+- [x] C5 `add_item_type_catalogo.sql` anotado: la columna es la fuente de verdad, el jsonb es VESTIGIAL
+
+## Fase 3 — Tests (gate CI)
+- [x] T1 `ItemInventarioTipoCalculosTests` — 33 casos: capitalización, los 9 tipos de la taxonomía real,
+      «alimentos» no cuela por prefijo, precedencia movimiento/catálogo, y el caso exacto del bug
+- [x] T2 `PaginacionCalculosTests` — 20 casos, incluido el que blinda el bug (`Assert.NotEqual(
+      PageSizePorDefecto, size)` al pedir de más) y el que fija que el tope del catálogo cubre 310×6.
+      ⚠️ Mi primer test estaba MAL formulado (esperaba que pedir 1.000 con tope 2.000 recortara a
+      2.000): falló, y el corregido documenta que ese pedido pasa igual
+
+## Fase 4 — Validación
+- [x] `dotnet build` 0 errores / 0 advertencias nuevas · `dotnet test` **2.148 Application + 1 Domain**
+      (2.098 previos + 50 nuevos)
+- [x] **Gate DESPUÉS: VEREDICTO GO.**
+      - **3 controles negativos (company 4, granjas sin movimientos): 0 diferencias byte a byte**
+      - los 6 casos afectados: **todo campo modificado es de bultos**; las filas nuevas (3 a 18 por
+        lote) tienen **todas las columnas de aves en cero**
+      - las secciones semanales que nacen y los `fechaFin` que se corren un día quedaron **validados
+        uno por uno**: cada fecha nueva corresponde a una fila de bultos real sin aves (p. ej.
+        `fechaFin 2026-06-11 → 2026-06-12` porque esa semana ganó la fila de 106,7875 bultos de retiro)
+      - **invariante de aves intacto**: 1.388 agregados comparados, 0 cambios
+- [x] **Kardex == SQL, exacto en los 6 casos**: granja 5 → 3.913,8750 entradas / 755,2825 retiros ·
+      granja 20 → 2.907,0000 / 2.608,6750, idénticos a la consulta con el criterio nuevo
+- [x] **Smoke del factor**: `catalogo?pageSize=1000` pasa de `items=20` a **`items=61` (total=61)** ·
+      `movimientos?pageSize=10000` pasa de 20 a **77** (`pageSize=200`, el tope)
+- [x] Backend detenido (5499 y 5002 libres), sin procesos huérfanos. BD **no modificada** (solo GET/SELECT)
+- [x] Commit acotado (sin footer de atribución)
