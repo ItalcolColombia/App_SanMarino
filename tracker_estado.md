@@ -2656,3 +2656,73 @@ crudos → 8 verificados → **7 confirmados, 1 refutado**).
       necesita la migración `Recalcular…` que sí acompañó a v11 y v12 (este lote tocó la fn 2 veces sin ella)
 - [ ] Los 31 hallazgos de severidad baja/informativa NO pasaron por verificación adversarial: son
       sospechas, no hechos
+
+
+---
+
+# v16 de engorde (coherencia de la marca `para_proximo_ciclo`) — INTENTADA Y **REVERTIDA**
+
+**Fecha:** 2026-08-08 · Pedido: cerrar los 2 huecos §2.3b/§2.3c de la auditoría («fixes baratos»).
+**Resultado: NO-GO tras 3 rondas. Nada commiteado; working tree y BD local restaurados a `362155c`.**
+
+## Qué se intentó
+Cerrar dos incoherencias de la marca `para_proximo_ciclo` (introducida en `801b14f`, **0 filas en uso**):
+(a) `fn_cuadre_alimento_engorde` no conocía la marca ⇒ un movimiento marcado movía el cuadre de 0;
+(b) `fechas_universo` dejaba el corte `fecha_corte_alimento` fuera del disyunto de la marca ⇒ un ingreso
+marcado y fechado antes de `encaset−N` no aparecía en ninguna pantalla hasta el primer seguimiento.
+
+## Por qué se revirtió — las 3 rondas, cada una con su contraejemplo reproducido en BD
+1. **Ronda 1 (NO-GO ×2):** relajar el piso solo en `fechas_universo` hacía que la fila abierta por la marca
+   volcara **todo el galpón-día** (13.000 kg por 5.000, con el alimento ajeno mostrándose a la vez en su
+   propio lote); y un ingreso marcado se veía en **4 lotes** en vez de 1 (PA-67, 20.000 kg por 5.000) —
+   o sea la v16 **empeoraba** la v15. Causa: el predicado «¿existe algún lote con primer seguimiento
+   posterior?» no desempata entre lotes sin seguimiento, que son justo el caso de uso de la marca.
+2. **Ronda 2 (NO-GO ×2):** con el criterio corregido a «ciclo destino = menor `fecha_encaset` posterior», el
+   CTE `post` del cuadre quedó **sin cota inferior** ⇒ descontaba marcado histórico que el ciclo destino YA
+   CONSUMIÓ (y por lo tanto ya no está en stock) ⇒ descuadre **+5.000 permanente**. Testigo: granja 37 /
+   G0025 (cadena 53→70→189), mov 5.000 kg del 25-mar marcado, sin tocar stock: descuadrados 1→2; HEAD daba 0.
+   Radio: **33 de 35 galpones de Ecuador** ya tienen ciclo anterior. Además, un marcado **sin encaset
+   posterior** (= marcar antes de crear el lote siguiente, el flujo primario) quedaba invisible en el 100 %
+   de las pantallas (v16: 0 lotes lo ven; HEAD: 4).
+3. **Ronda 3 — veredicto final NO-GO:** con las 3 guardas nuevas del cuadre, el defecto se mudó al saldo:
+   `pt_calc` acumula sobre **dos bases distintas dentro del mismo lote** (con y sin el piso `solo_marca`)
+   ⇒ **6 de 59 galpones reales quedan con saldo NEGATIVO** en la tabla del lote destino, contra **0 de 59
+   en HEAD** cambiando solo el booleano. Peor caso: granja 43 / G0055, ingreso de 5.600 kg ⇒ saldo **−8.840**.
+
+## Lo que SÍ quedó probado (vale para el rediseño)
+- **Identidad sin marcas siempre dio 0/0** en las 3 rondas (5.804 filas diaria, 61 cuadre, 172 aves, 224
+  costos, 898 informe semanal, ambas empresas) ⇒ el gate de identidad **no puede ser la compuerta** de esta
+  feature: con 0 marcas todo pasa siempre.
+- **El desempate por `fecha_encaset` es el criterio correcto** (probado: 01-may→lote 121, 16-may→121,
+  18-may→122) y cierra la multiplicación entre lotes sin seguimiento.
+- **0 de 2.344 movimientos reales empeoran el cuadre** con la última versión — el problema que quedó vivo es
+  del **saldo de la grilla**, no del cuadre.
+- Topología «destino liquidado/congelado»: **no existe hoy** en la BD (búsqueda exhaustiva = 0).
+
+## Aprendizajes de método (los caros)
+- 🔴 **El que corrige no puede ser el que declara GO.** En la ronda 2 el agente de síntesis aplicó los fixes
+  de las compuertas y se autoevaluó verde; la verificación independiente posterior encontró la regresión de
+  los 6 galpones negativos.
+- 🔴 **Tests en C# que no pueden construir la topología rota son falso verde.** Los 17 tests del primer
+  intento pasaban CON los defectos adentro porque hardcodeaban `miPrimerSeguimiento: null`. `pt_calc` no
+  tiene espejo C# y los `Calculos` no tienen llamador de producción ⇒ **la compuerta útil es SQL sobre datos
+  reales**, con el invariante explícito «ninguna fila diaria queda negativa».
+- El cuadre solo mira lotes CON seguimiento ⇒ es **ciego al lote destino recién creado**, que es justo donde
+  aparecieron los negativos.
+
+## Estado dejado (verificado)
+- [x] Working tree limpio (`git status` solo `.devpilot/events.jsonl`, ajeno)
+- [x] BD local restaurada: ambas fns reinstaladas desde HEAD (0 rastros de `marca_efectiva`/`marca_propia`/
+      `marca_destino`, `apertura_alimento_kg` presente = v15 correcta), `ix_lote_hist_para_proximo_ciclo`
+      dropeado, registro `20260808140000` borrado de `__EFMigrationsHistory` (última = `20260808130000`)
+- [x] La columna `para_proximo_ciclo` y su trigger **NO se tocaron** (son de `20260808120000`, commiteada)
+- [x] Cuadre en línea base: 1 descuadrado preexistente (Panamá lote 182) · 0 movimientos marcados
+- [x] `dotnet build` Application y Infrastructure 0/0 · build servers apagados
+- [x] El intento archivado en el scratchpad de la sesión (`intento_v16_modificados.patch` + los 3 archivos
+      nuevos) por si sirve de base al rediseño
+
+## Antes de reintentar — DECISIÓN DE PRODUCTO pendiente (no es código)
+Qué debe hacer la marca cuando: (1) el galpón tiene **dos ciclos conviviendo**; (2) el lote destino queda
+**liquidado** antes de consumir el alimento; (3) alguien marca y **nunca crea** el ciclo siguiente.
+Sin esa definición, cada guarda nueva mueve el defecto de lugar (pasó 3 veces).
+⚠️ Los 2 huecos originales siguen abiertos, con **impacto cero mientras nadie use la marca**.
