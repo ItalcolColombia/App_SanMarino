@@ -179,8 +179,21 @@ public class ReporteContableService : IReporteContableService
         // Obtener entradas iniciales
         var entradasIniciales = await ObtenerEntradasInicialesAsync(todosLotes, ct);
 
+        // Ventana en la que un movimiento de bultos (de granja) puede generar fila propia del lote
+        // padre: desde N días antes del encaset —la ventana de alimento previo de la empresa, la misma
+        // que usa engorde— hasta el fin del reporte. Sin ella el alimento que llega antes del
+        // encasetamiento no tendría dónde caer; con ella no se cuelan movimientos de otros ciclos.
+        var diasAlimentoPrevio = await _ctx.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == _currentUser.CompanyId)
+            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
+            .FirstOrDefaultAsync(ct);
+
+        var ventanaBultos = ReporteContableBultosCalculos.Ventana(
+            fechaPrimeraLlegada, diasAlimentoPrevio, request.FechaInicio, fechaFinFiltro);
+
         // Obtener datos diarios completos (aplicar filtro de fecha si existe)
-        var datosDiarios = await ObtenerDatosDiariosCompletosAsync(
+        var (datosDiarios, fechasSoloBultos) = await ObtenerDatosDiariosCompletosAsync(
             todosLotes,
             entradasIniciales,
             lotePadre.LoteId ?? 0,
@@ -188,6 +201,7 @@ public class ReporteContableService : IReporteContableService
             request.FechaInicio,
             request.FechaFin,
             request.FaseLote,
+            ventanaBultos,
             ct);
 
         // Calcular saldos acumulativos
@@ -200,14 +214,28 @@ public class ReporteContableService : IReporteContableService
             throw new InvalidOperationException("No se encontraron semanas contables para el período especificado");
         }
 
-        var reportesSemanales = semanasAFiltrar.Select(semana => 
+        var lotePadreIdReporte = lotePadre.LoteId ?? 0;
+
+        // Una fila "solo bultos" es la del lote padre en una fecha que no tenía dato del lote: lleva
+        // el kardex de alimento, pero NO representa el estado de aves de esa fecha para toda la
+        // familia de lotes (los sublotes no tienen fila ahí).
+        bool EsFilaSoloBultos(DatoDiarioContableDto d) =>
+            d.LoteId == lotePadreIdReporte && fechasSoloBultos.Contains(d.Fecha);
+
+        var reportesSemanales = semanasAFiltrar.Select(semana =>
         {
+            // La primera semana absorbe además las filas solo-bultos anteriores a su inicio (alimento
+            // recibido antes del encasetamiento): de otro modo no caerían en ninguna semana.
             var datosSemana = datosConSaldos
-                .Where(d => d.Fecha >= semana.FechaInicio && d.Fecha <= semana.FechaFin)
+                .Where(d => ReporteContableBultosCalculos.PerteneceASemana(
+                    d.Fecha,
+                    semana.FechaInicio,
+                    semana.FechaFin,
+                    absorbeAnteriores: semana.Semana == 1 && EsFilaSoloBultos(d)))
                 .ToList();
 
             // Obtener saldo anterior (de la semana anterior)
-            var saldoAnterior = ObtenerSaldoAnteriorSemana(semana.Semana, semanasContables, datosConSaldos, entradasIniciales);
+            var saldoAnterior = ObtenerSaldoAnteriorSemana(semana.Semana, semanasContables, datosConSaldos, entradasIniciales, EsFilaSoloBultos);
 
             return ConsolidarSemanaContable(
                 semana.Semana,
@@ -439,9 +467,12 @@ public class ReporteContableService : IReporteContableService
     }
 
     /// <summary>
-    /// Obtiene datos diarios completos (aves, mortalidad, selección, ventas, traslados, consumo, bultos)
+    /// Obtiene datos diarios completos (aves, mortalidad, selección, ventas, traslados, consumo, bultos).
+    /// Devuelve además las fechas cuya fila nació SOLO por movimientos de bultos (sin dato del lote),
+    /// que la semana 1 necesita para absorber el alimento recibido antes del encasetamiento.
     /// </summary>
-    private async Task<List<DatoDiarioContableDto>> ObtenerDatosDiariosCompletosAsync(
+    private async Task<(List<DatoDiarioContableDto> Datos, HashSet<DateTime> FechasSoloBultos)>
+        ObtenerDatosDiariosCompletosAsync(
         List<Lote> lotes,
         Dictionary<int, (int hembras, int machos)> entradasIniciales,
         int lotePadreId,
@@ -449,9 +480,11 @@ public class ReporteContableService : IReporteContableService
         DateTime? fechaInicioFiltro,
         DateTime? fechaFinFiltro,
         string faseLote,
+        (DateTime Desde, DateTime Hasta) ventanaBultos,
         CancellationToken ct)
     {
         var datosDiarios = new List<DatoDiarioContableDto>();
+        var fechasSoloBultos = new HashSet<DateTime>();
         var loteIds = lotes.Where(l => l.LoteId.HasValue).Select(l => l.LoteId!.Value).ToList();
         var loteIdsString = loteIds.Select(id => id.ToString()).ToList();
 
@@ -572,6 +605,7 @@ public class ReporteContableService : IReporteContableService
         {
             var bultos = datosBultos.FirstOrDefault(d => d.Fecha == fecha);
             var tieneBultos = bultos.Fecha != default(DateTime);
+            var padreGeneroFila = false;
 
             foreach (var lote in lotes)
             {
@@ -629,10 +663,43 @@ public class ReporteContableService : IReporteContableService
                 };
 
                 datosDiarios.Add(dato);
+                if (esPadre) padreGeneroFila = true;
+            }
+
+            // C1 — una fecha con movimientos de bultos genera fila del lote padre aunque ningún lote
+            // tenga dato propio ese día. Antes se descartaba con el `continue` de arriba y el alimento
+            // desaparecía del reporte y del saldo (caso típico: llega días antes del encasetamiento).
+            if (tieneBultos && lotePadreId > 0)
+            {
+                var movimiento = new ReporteContableBultosCalculos.MovimientoBultosDia(
+                    fecha, bultos.Traslados, bultos.Entradas, bultos.Retiros);
+
+                if (ReporteContableBultosCalculos.GeneraFilaSoloBultos(
+                        movimiento, padreGeneroFila, ventanaBultos.Desde, ventanaBultos.Hasta))
+                {
+                    // Las fechas del kardex de bultos nacen de un DateTimeOffset (Kind Unspecified) y
+                    // las del lote son locales; sin igualar el Kind esta fila sería la única del JSON
+                    // sin offset. El valor de la fecha no cambia, solo su serialización.
+                    var fechaFila = DateTime.SpecifyKind(fecha, DateTimeKind.Local);
+
+                    datosDiarios.Add(new DatoDiarioContableDto
+                    {
+                        Fecha = fechaFila,
+                        LoteId = lotePadreId,
+                        LoteNombre = lotePadreNombre,
+
+                        SaldoBultosAnterior = bultos.SaldoAnterior,
+                        TrasladosBultos = bultos.Traslados,
+                        EntradasBultos = bultos.Entradas,
+                        RetirosBultos = bultos.Retiros,
+                    });
+
+                    fechasSoloBultos.Add(fechaFila);
+                }
             }
         }
 
-        return datosDiarios.OrderBy(d => d.Fecha).ThenBy(d => d.LoteId).ToList();
+        return (datosDiarios.OrderBy(d => d.Fecha).ThenBy(d => d.LoteId).ToList(), fechasSoloBultos);
     }
 
     /// <summary>
@@ -795,7 +862,6 @@ public class ReporteContableService : IReporteContableService
     {
         var datosConSaldos = new List<DatoDiarioContableDto>();
         var saldosPorLote = new Dictionary<int, (int hembras, int machos)>();
-        var saldoBultosPorFecha = new Dictionary<DateTime, decimal>();
 
         // Inicializar saldos con entradas iniciales
         foreach (var (loteId, (hembras, machos)) in entradasIniciales)
@@ -803,90 +869,80 @@ public class ReporteContableService : IReporteContableService
             saldosPorLote[loteId] = (hembras, machos);
         }
 
-        // Agrupar datos por fecha para calcular saldo de bultos correctamente
+        // Agrupar datos por fecha: el saldo de bultos se acumula en orden cronológico, no por lote
         var datosPorFecha = datosDiarios
             .GroupBy(d => d.Fecha)
             .OrderBy(g => g.Key)
+            .SelectMany(g => g)
             .ToList();
 
-        decimal saldoBultosAcumulado = 0;
+        // Saldo de bultos: cálculo puro (mismo algoritmo que vivía acá, ahora testeable)
+        var saldosBultos = ReporteContableBultosCalculos.AcumularSaldos(
+            datosPorFecha.Select(d => (
+                d.Fecha,
+                new ReporteContableBultosCalculos.DeltaBultosFila(
+                    d.EntradasBultos,
+                    d.TrasladosBultos,
+                    d.RetirosBultos,
+                    d.ConsumoBultosHembras,
+                    d.ConsumoBultosMachos))));
 
-        foreach (var grupoFecha in datosPorFecha)
+        for (var i = 0; i < datosPorFecha.Count; i++)
         {
-            var fecha = grupoFecha.Key;
-            var datosFecha = grupoFecha.ToList();
+            var dato = datosPorFecha[i];
+            var loteId = dato.LoteId;
 
-            // Calcular saldo anterior de bultos para esta fecha
-            var fechaAnterior = fecha.AddDays(-1);
-            if (saldoBultosPorFecha.ContainsKey(fechaAnterior))
+            // Obtener saldo anterior de aves
+            var (saldoHAnterior, saldoMAnterior) = saldosPorLote.GetValueOrDefault(loteId, (0, 0));
+
+            // Calcular saldo actual de aves
+            var saldoHActual = saldoHAnterior
+                + dato.EntradasHembras
+                - dato.MortalidadHembras
+                - dato.SeleccionHembras
+                - dato.VentasHembras
+                - dato.TrasladosHembras;
+
+            var saldoMActual = saldoMAnterior
+                + dato.EntradasMachos
+                - dato.MortalidadMachos
+                - dato.SeleccionMachos
+                - dato.VentasMachos
+                - dato.TrasladosMachos;
+
+            // Actualizar saldos de aves
+            saldosPorLote[loteId] = (Math.Max(0, saldoHActual), Math.Max(0, saldoMActual));
+
+            var datoConSaldo = dato with
             {
-                saldoBultosAcumulado = saldoBultosPorFecha[fechaAnterior];
-            }
+                SaldoHembras = Math.Max(0, saldoHActual),
+                SaldoMachos = Math.Max(0, saldoMActual),
+                SaldoBultosAnterior = saldosBultos[i].SaldoAnterior,
+                SaldoBultos = saldosBultos[i].Saldo
+            };
 
-            // Procesar cada registro en esta fecha (ya consolidado por fecha)
-            foreach (var dato in datosFecha)
-            {
-                var loteId = dato.LoteId;
-                
-                // Obtener saldo anterior de aves
-                var (saldoHAnterior, saldoMAnterior) = saldosPorLote.GetValueOrDefault(loteId, (0, 0));
-
-                // Calcular saldo actual de aves
-                var saldoHActual = saldoHAnterior 
-                    + dato.EntradasHembras
-                    - dato.MortalidadHembras
-                    - dato.SeleccionHembras
-                    - dato.VentasHembras
-                    - dato.TrasladosHembras;
-
-                var saldoMActual = saldoMAnterior
-                    + dato.EntradasMachos
-                    - dato.MortalidadMachos
-                    - dato.SeleccionMachos
-                    - dato.VentasMachos
-                    - dato.TrasladosMachos;
-
-                // Actualizar saldos de aves
-                saldosPorLote[loteId] = (Math.Max(0, saldoHActual), Math.Max(0, saldoMActual));
-
-                // Calcular saldo de bultos (consolidado para todos los lotes en la misma fecha)
-                // Los bultos se calculan una vez por fecha, no por lote
-                saldoBultosAcumulado = saldoBultosAcumulado
-                    + dato.EntradasBultos
-                    - dato.TrasladosBultos
-                    - dato.RetirosBultos
-                    - dato.ConsumoBultosHembras
-                    - dato.ConsumoBultosMachos;
-
-                var datoConSaldo = dato with
-                {
-                    SaldoHembras = Math.Max(0, saldoHActual),
-                    SaldoMachos = Math.Max(0, saldoMActual),
-                    SaldoBultosAnterior = saldoBultosPorFecha.GetValueOrDefault(fechaAnterior, 0),
-                    SaldoBultos = Math.Max(0, saldoBultosAcumulado)
-                };
-
-                datosConSaldos.Add(datoConSaldo);
-            }
-
-            // Guardar saldo de bultos para esta fecha (solo una vez por fecha)
-            if (datosFecha.Any())
-            {
-                saldoBultosPorFecha[fecha] = Math.Max(0, saldoBultosAcumulado);
-            }
+            datosConSaldos.Add(datoConSaldo);
         }
 
         return datosConSaldos;
     }
 
     /// <summary>
-    /// Obtiene el saldo anterior de una semana (saldo final de la semana anterior)
+    /// Obtiene el saldo anterior de una semana (saldo final de la semana anterior).
+    /// <para>
+    /// Las aves se leen del último día de la semana anterior CON dato del lote: una fila solo-bultos
+    /// (kardex de alimento sin registro del lote) no describe el inventario de aves de la familia de
+    /// lotes, así que no puede definir ese día. Los bultos, en cambio, sí se leen del último día con
+    /// cualquier movimiento — es su kardex. Sin filas solo-bultos ambas fechas coinciden y el
+    /// resultado es idéntico al histórico.
+    /// </para>
     /// </summary>
     private (int hembras, int machos, decimal bultos) ObtenerSaldoAnteriorSemana(
         int semanaActual,
         List<(int Semana, DateTime FechaInicio, DateTime FechaFin)> semanasContables,
         List<DatoDiarioContableDto> datosConSaldos,
-        Dictionary<int, (int hembras, int machos)> entradasIniciales)
+        Dictionary<int, (int hembras, int machos)> entradasIniciales,
+        Func<DatoDiarioContableDto, bool> esFilaSoloBultos)
     {
         // Si es la primera semana, usar entradas iniciales
         if (semanaActual == 1)
@@ -906,23 +962,38 @@ public class ReporteContableService : IReporteContableService
             return (0, 0, 0);
         }
 
-        // Obtener última fecha de la semana anterior y sumar saldos de todos los lotes
-        var ultimaFechaSemanaAnterior = datosConSaldos
+        var datosSemanaAnterior = datosConSaldos
             .Where(d => d.Fecha >= semanaAnterior.FechaInicio && d.Fecha <= semanaAnterior.FechaFin)
+            .ToList();
+
+        // Bultos: último día con movimiento (incluye las filas solo-bultos, son su kardex)
+        var ultimaFechaBultos = datosSemanaAnterior
+            .Select(d => d.Fecha)
+            .DefaultIfEmpty(default)
+            .Max();
+
+        var saldoBultos = ultimaFechaBultos == default(DateTime)
+            ? 0
+            : datosConSaldos
+                .Where(d => d.Fecha == ultimaFechaBultos)
+                .Max(d => (decimal?)d.SaldoBultos) ?? 0;
+
+        // Aves: último día con dato del lote y suma de los saldos de esa fecha
+        var ultimaFechaSemanaAnterior = datosSemanaAnterior
+            .Where(d => !esFilaSoloBultos(d))
             .Select(d => d.Fecha)
             .DefaultIfEmpty(default)
             .Max();
 
         if (ultimaFechaSemanaAnterior == default(DateTime))
-            return (0, 0, 0);
+            return (0, 0, saldoBultos);
 
         var ultimosDatos = datosConSaldos
-            .Where(d => d.Fecha == ultimaFechaSemanaAnterior)
+            .Where(d => d.Fecha == ultimaFechaSemanaAnterior && !esFilaSoloBultos(d))
             .ToList();
 
         var totalH = ultimosDatos.Sum(d => d.SaldoHembras);
         var totalM = ultimosDatos.Sum(d => d.SaldoMachos);
-        var saldoBultos = ultimosDatos.Max(d => (decimal?)d.SaldoBultos) ?? 0;
 
         return (totalH, totalM, saldoBultos);
     }

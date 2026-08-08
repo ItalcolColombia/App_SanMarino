@@ -324,6 +324,7 @@
               <th>Estado</th>
               <th>Referencia</th>
               <th>Fecha</th>
+              <th title="Ingreso atribuido al PRÓXIMO encasetamiento del galpón (D2)">Próx. ciclo</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -346,7 +347,39 @@
                   }
                 </td>
                 <td class="muted">{{ i.reference ?? '—' }}</td>
-                <td>{{ i.fechaMovimiento | date:'dd/MM/yyyy' }}</td>
+                <td>
+                  <div class="fecha-text">{{ i.fechaMovimiento | date:'dd/MM/yyyy' }}</div>
+                  @if (i.registradoAt) {
+                    <div class="item-code" [title]="'Capturado el ' + (i.registradoAt | date:'dd/MM/yyyy HH:mm')">
+                      capturado el {{ i.registradoAt | date:'dd/MM/yyyy' }}
+                    </div>
+                  }
+                </td>
+                <td>
+                  @if (puedeMarcarDestinoCiclo(i)) {
+                    <div class="row-actions">
+                      @if (i.paraProximoCiclo) {
+                        <span class="ux-badge badge-proximo-ciclo" title="Este ingreso se toma como ingreso inicial del PRÓXIMO ciclo del galpón">Próx. ciclo</span>
+                      } @else {
+                        <span class="muted">—</span>
+                      }
+                      <button
+                        class="icon-btn"
+                        type="button"
+                        [title]="i.paraProximoCiclo ? 'Quitar marca de próximo ciclo' : 'Marcar para el próximo ciclo'"
+                        [disabled]="destinoCicloSavingId === i.movimientoId"
+                        (click)="toggleDestinoCiclo(i)">
+                        @if (destinoCicloSavingId === i.movimientoId) {
+                          <span class="spinner-sm"></span>
+                        } @else {
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        }
+                      </button>
+                    </div>
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
                 <td>
                   <div class="row-actions">
                     <button class="icon-btn" title="Editar fecha" (click)="openEditIngreso(i)">
@@ -360,7 +393,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="7">
+                <td colspan="8">
                   <div class="empty-state">
                     <div class="empty-illustration">📥</div>
                     <p>Sin ingresos para los filtros aplicados.</p>

@@ -29,5 +29,8 @@ public record CreateCompanyDto(
     // ¿El peso báscula de la venta de pollo engorde llega al día siguiente (se carga al confirmar)?
     bool     VentaEngordePesoDiferido = false,
     /// <summary>La hora de llegada de las aves decide el primer día con registro del lote (≥13:00 ⇒ día siguiente).</summary>
-    bool     PrimerRegistroSegunHoraLlegada = false
+    bool     PrimerRegistroSegunHoraLlegada = false,
+    // Días ANTES del encasetamiento cuyo alimento ya cuenta como del lote en el saldo del reporte
+    // diario de engorde. Rango 0-30 (clamp en el service vía VentanaAlimentoPrevioCalculos), default 10.
+    int      DiasAlimentoPrevioEncaset = 10
 );

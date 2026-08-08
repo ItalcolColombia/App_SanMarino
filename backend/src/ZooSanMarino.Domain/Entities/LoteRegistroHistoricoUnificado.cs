@@ -55,6 +55,15 @@ public class LoteRegistroHistoricoUnificado
 
     public bool Anulado { get; set; }
 
+    /// <summary>
+    /// Espejo de <c>inventario_gestion_movimiento.para_proximo_ciclo</c>: el movimiento se atribuyó
+    /// explícitamente al PRÓXIMO ciclo del galpón, no al vigente. Lo copia el trigger
+    /// <c>trg_lote_hist_desde_inventario_gestion</c> en el INSERT y lo sincroniza el endpoint
+    /// <c>PUT /ingresos/{id}/destino-ciclo</c>.
+    /// <para>Siempre <c>false</c> en las filas que no vienen de inventario (ventas de aves).</para>
+    /// </summary>
+    public bool ParaProximoCiclo { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 }
 

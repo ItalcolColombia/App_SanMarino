@@ -293,9 +293,14 @@
                             }
                             <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
                             <td>{{ tipoAlimentoCorto(f.tipoAlimento) }}</td>
-                            <td class="cell-text cell-text--wide" [title]="f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : ''">{{ f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : '—' }}</td>
+                            <td class="cell-text cell-text--wide" [title]="f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : ''">
+                              {{ f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : '—' }}
+                              @if (hayIngresoInicialCiclo(f)) {
+                                <span class="badge-apertura-alimento" [title]="tituloIngresoInicialCiclo(f)">+ {{ f.aperturaAlimentoKg }} kg ingreso inicial (previo al encaset)</span>
+                              }
+                            </td>
                             <td class="cell-text cell-text--wide" [title]="buildTrasladoTexto(f)">{{ buildTrasladoTexto(f) || '—' }}</td>
-                            <td class="cell-text cell-text--wide" [title]="f.documento || ''">{{ f.documento || '—' }}</td>
+                            <td class="cell-text cell-text--wide" [title]="documentoCeldaTexto(f)">{{ documentoCeldaTexto(f) || '—' }}</td>
                             <td class="num">{{ f.consumoDiaKg != null ? (f.consumoDiaKg | number:'1.0-2') : '—' }}</td>
                             @if (isPanama) {
                               <td class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>

@@ -77,4 +77,13 @@ public class SeguimientoDiarioTablaFilaDto
     public string? HistoricoConsumoAlimento { get; set; }
 
     public string? CreatedByUserId { get; set; }
+
+    // ─── ⭐ v15: «Ingreso inicial del ciclo» (alimento previo al encasetamiento) ───────────────
+    // El alimento llega a la granja 2-7 días antes del encaset y la fn ya lo absorbía en la apertura
+    // desde v9, pero como escalar interno: la fila del día 1 mostraba ingreso 0 y documento vacío, y
+    // el saldo «aparecía de la nada». Estas dos columnas exponen ese mismo número (no lo recalculan).
+    // Solo vienen con valor en la PRIMERA fila del ciclo; el resto trae 0 / null. La rama congelada
+    // (lote ya liquidado) devuelve null en las dos: su foto se tomó antes de que existieran.
+    public double? AperturaAlimentoKg { get; set; }
+    public string? AperturaDocumentos { get; set; }
 }

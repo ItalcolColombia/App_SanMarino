@@ -249,7 +249,7 @@
                 </button>
                 <button type="button" class="btn-italfoods-secondary" (click)="openIngresoFechaModal()">Elegir fecha</button>
               </div>
-              <small class="hint" style="display: block; margin-top: 0.35rem">Se usa como fecha del registro en el histórico de movimientos.</small>
+              <small class="hint" style="display: block; margin-top: 0.35rem">Registrá la fecha REAL de llegada del alimento. Se usa como fecha del registro en el histórico de movimientos.</small>
             </div>
             @if (ingresoEsPorGalpon) {
               <p class="hint field-full" style="margin: 0">
@@ -331,12 +331,23 @@
                 </div>
                 <div class="field">
                   <label class="form-label">Galpón *</label>
-                  <select class="form-input" [(ngModel)]="ingresoGalponId">
+                  <select class="form-input" [(ngModel)]="ingresoGalponId" (ngModelChange)="ingresoParaProximoCiclo = false">
                     <option [ngValue]="null">Seleccione…</option>
                     @for (g of ingresoGalponesFiltered(); track g) {
                       <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
                     }
                   </select>
+                </div>
+              }
+              @if (mostrarParaProximoCicloIngreso) {
+                <div class="field field-full ingreso-proximo-ciclo">
+                  <label class="checkbox-label">
+                    <input type="checkbox" [(ngModel)]="ingresoParaProximoCiclo" />
+                    Este alimento es para el <strong>PRÓXIMO ciclo/encasetamiento</strong> de este galpón
+                  </label>
+                  <small class="hint" style="display: block; margin-top: 0.35rem">
+                    El seguimiento diario lo tomará como ingreso inicial del ciclo que viene, aunque hoy este galpón tenga un ciclo activo.
+                  </small>
                 </div>
               }
               <div class="field field-full">

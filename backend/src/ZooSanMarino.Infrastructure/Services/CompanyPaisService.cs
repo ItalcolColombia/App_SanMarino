@@ -117,7 +117,8 @@ public class CompanyPaisService : ICompanyPaisService
             PermiteTrasladoAvesCrossEtapa: cp.Company.PermiteTrasladoAvesCrossEtapa,
             CapturaHuevosEnLevante: cp.Company.CapturaHuevosEnLevante,
             VentaEngordePesoDiferido: cp.Company.VentaEngordePesoDiferido,
-            PrimerRegistroSegunHoraLlegada: cp.Company.PrimerRegistroSegunHoraLlegada
+            PrimerRegistroSegunHoraLlegada: cp.Company.PrimerRegistroSegunHoraLlegada,
+            DiasAlimentoPrevioEncaset: cp.Company.DiasAlimentoPrevioEncaset
         )).ToList();
     }
 

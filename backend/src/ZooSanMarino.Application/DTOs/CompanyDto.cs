@@ -36,5 +36,8 @@ public record CompanyDto(
     // front deja de exigir peso bruto/tara al registrar la venta y pide el peso al confirmarla.
     bool VentaEngordePesoDiferido = false,
     /// <summary>La hora de llegada de las aves decide el primer día con registro del lote (≥13:00 ⇒ día siguiente).</summary>
-    bool PrimerRegistroSegunHoraLlegada = false
+    bool PrimerRegistroSegunHoraLlegada = false,
+    // Días ANTES del encasetamiento cuyo alimento ya cuenta como del lote en el saldo del reporte
+    // diario de engorde (ventana de "ingreso inicial del ciclo"). Rango 0-30, default 10.
+    int DiasAlimentoPrevioEncaset = 10
 );

@@ -17,6 +17,8 @@ import {
   mensajeFechaFueraDeVentana,
   ventanaFechaMovimiento,
 } from '../../funciones/ventana-fecha-movimiento.funcion';
+import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 type ActiveTab = 'traslados' | 'ingresos';
 
@@ -55,6 +57,8 @@ const emptyIngresoFilter = (): IngresoFilter => ({
 })
 export class InventarioHistorialPageComponent implements OnInit {
   private svc = inject(GestionInventarioService);
+  private confirmDialog = inject(ConfirmDialogService);
+  private toast = inject(ToastService);
 
   activeTab: ActiveTab = 'traslados';
 
@@ -81,6 +85,8 @@ export class InventarioHistorialPageComponent implements OnInit {
   ingresos: InventarioGestionIngresoListDto[] = [];
   ingresosLoading = false;
   ingresosFilter = emptyIngresoFilter();
+  /** movimientoId del ingreso cuya marca «próximo ciclo» se está guardando (deshabilita su botón). */
+  destinoCicloSavingId: number | null = null;
 
   get nucleosIngresosFiltrados(): NucleoDto[] {
     if (!this.filterData) return [];
@@ -228,6 +234,46 @@ export class InventarioHistorialPageComponent implements OnInit {
     this.deleteLabel = `${i.itemNombre} — ${i.quantity} ${i.unit} (${i.fechaMovimiento.substring(0, 10)})`;
     this.deleteError = '';
     this.deleteOpen = true;
+  }
+
+  /**
+   * La marca «para el próximo ciclo» (D2) solo aplica a ingresos con galpón: sin galpón el backend
+   * no tiene a qué ciclo atribuir el alimento (`ActualizarDestinoCicloIngresoAsync`).
+   */
+  puedeMarcarDestinoCiclo(i: InventarioGestionIngresoListDto): boolean {
+    return !!(i.galponId ?? '').trim();
+  }
+
+  /** Pone o quita la marca «próximo ciclo» de un ingreso ya registrado, con confirmación y toast. */
+  async toggleDestinoCiclo(i: InventarioGestionIngresoListDto): Promise<void> {
+    if (this.destinoCicloSavingId != null || !this.puedeMarcarDestinoCiclo(i)) return;
+    const marcar = !i.paraProximoCiclo;
+    const ok = await this.confirmDialog.ask({
+      title: marcar ? 'Marcar para el próximo ciclo' : 'Quitar marca de próximo ciclo',
+      message: marcar
+        ? `¿Marcar este ingreso de «${i.itemNombre}» (${i.quantity} ${i.unit}) como alimento para el PRÓXIMO encasetamiento de este galpón? El seguimiento diario lo tomará como ingreso inicial del ciclo que viene.`
+        : `¿Quitar la marca de «próximo ciclo» de este ingreso de «${i.itemNombre}»? Volverá a evaluarse por su fecha, como cualquier otro ingreso.`,
+      type: 'warning',
+      confirmText: marcar ? 'Marcar' : 'Quitar marca',
+    });
+    if (!ok) return;
+
+    this.destinoCicloSavingId = i.movimientoId;
+    this.svc.actualizarDestinoCicloIngreso(i.movimientoId, { paraProximoCiclo: marcar }).subscribe({
+      next: updated => {
+        const idx = this.ingresos.findIndex(x => x.movimientoId === i.movimientoId);
+        if (idx >= 0) this.ingresos = [...this.ingresos.slice(0, idx), updated, ...this.ingresos.slice(idx + 1)];
+        this.destinoCicloSavingId = null;
+        this.toast.success(
+          marcar ? 'Ingreso marcado para el próximo ciclo.' : 'Se quitó la marca de próximo ciclo.',
+          'Listo'
+        );
+      },
+      error: err => {
+        this.destinoCicloSavingId = null;
+        this.toast.error(err?.error?.message ?? 'No se pudo actualizar la marca de ciclo.', 'Error');
+      },
+    });
   }
 
   // ── Edit modal ────────────────────────────────────────────────────────────────

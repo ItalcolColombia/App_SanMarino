@@ -37,6 +37,37 @@ public class InventarioGestionController : ControllerBase
             : BadRequest(new { message = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentana(hoy) });
     }
 
+    /// <summary>
+    /// D4 — misma ventana que <see cref="ValidarVentanaFecha"/> más la excepción del alimento previo
+    /// al encasetamiento: una fecha del mes anterior se admite si cae dentro de los
+    /// <c>dias_alimento_previo_encaset</c> días previos a un encasetamiento REAL de ese galpón.
+    /// <para>
+    /// Se aplica SOLO a las dos puertas de ingreso —que son las del alimento que llega antes que los
+    /// pollitos—. Las otras tres puertas (traslado, fecha de traslado y stock) conservan la regla dura.
+    /// El futuro y los más de 30 días hacia atrás siguen prohibidos por las dos vías.
+    /// </para>
+    /// </summary>
+    private async Task<IActionResult?> ValidarVentanaFechaIngresoAsync(
+        DateTime? fecha,
+        Func<CancellationToken, Task<InventarioGestionVentanaAlimentoPrevioDto>> resolverVentana,
+        CancellationToken ct)
+    {
+        var hoy = VentanaFechaMovimientoInventarioCalculos.DiaOperativo(DateTimeOffset.UtcNow);
+        if (VentanaFechaMovimientoInventarioCalculos.EsFechaPermitida(fecha, hoy))
+            return null;
+
+        var ventana = await resolverVentana(ct);
+        if (VentanaFechaMovimientoInventarioCalculos.EsFechaPermitidaConEncasetProximo(
+                fecha, hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa))
+            return null;
+
+        return BadRequest(new
+        {
+            message = VentanaFechaMovimientoInventarioCalculos.MensajeFueraDeVentanaConEncaset(
+                hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa)
+        });
+    }
+
     /// <summary>Datos para filtros: Granja → Núcleo → Galpón (usado en Panama/Ecuador).</summary>
     [HttpGet("filter-data")]
     [ProducesResponseType(typeof(InventarioGestionFilterDataDto), StatusCodes.Status200OK)]
@@ -111,7 +142,12 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RegistrarIngreso([FromBody] InventarioGestionIngresoRequest req, CancellationToken ct = default)
     {
-        if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+        var fueraDeVentana = await ValidarVentanaFechaIngresoAsync(
+            req.FechaMovimiento,
+            c => _service.ResolverVentanaAlimentoPrevioEncasetAsync(
+                req.FarmId, req.NucleoId, req.GalponId, req.FechaMovimiento ?? DateTime.UtcNow, c),
+            ct);
+        if (fueraDeVentana is not null) return fueraDeVentana;
         try
         {
             var result = await _service.RegistrarIngresoAsync(req, ct);
@@ -343,10 +379,39 @@ public class InventarioGestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ActualizarFechaIngreso(int movimientoId, [FromBody] InventarioGestionActualizarFechaIngresoRequest req, CancellationToken ct = default)
     {
-        if (ValidarVentanaFecha(req.FechaMovimiento) is { } fueraDeVentana) return fueraDeVentana;
+        // La ubicación no viaja en el request: sale del movimiento que se está editando.
+        var fueraDeVentana = await ValidarVentanaFechaIngresoAsync(
+            req.FechaMovimiento,
+            c => _service.ResolverVentanaAlimentoPrevioEncasetDeIngresoAsync(movimientoId, req.FechaMovimiento, c),
+            ct);
+        if (fueraDeVentana is not null) return fueraDeVentana;
         try
         {
             var result = await _service.ActualizarFechaIngresoAsync(movimientoId, req, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Marca (o desmarca) un ingreso como «alimento para el PRÓXIMO encasetamiento de este galpón».
+    /// <para>
+    /// Es la atribución EXPLÍCITA al ciclo siguiente para los galpones encadenados, donde la fecha
+    /// sola no alcanza: la llegada real 2-7 días antes del encaset cae dentro del ciclo anterior y el
+    /// corte por fecha la descartaría. Sincroniza el espejo <c>lote_registro_historico_unificado</c>.
+    /// </para>
+    /// </summary>
+    [HttpPut("ingresos/{movimientoId:int}/destino-ciclo")]
+    [ProducesResponseType(typeof(InventarioGestionIngresoListDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ActualizarDestinoCicloIngreso(int movimientoId, [FromBody] InventarioGestionActualizarDestinoCicloRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await _service.ActualizarDestinoCicloIngresoAsync(movimientoId, req, ct);
             return Ok(result);
         }
         catch (InvalidOperationException ex)

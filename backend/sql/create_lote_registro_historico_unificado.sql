@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS public.lote_registro_historico_unificado (
     numero_documento            VARCHAR(200) NULL,
     -- Suma acumulada de kg que ENTRAN al lote (Ingreso + traslados entrada a esa ubicación)
     acumulado_entradas_alimento_kg NUMERIC(18, 3) NULL,
+    -- Espejo de inventario_gestion_movimiento.para_proximo_ciclo: el movimiento se atribuyó
+    -- explícitamente al PRÓXIMO ciclo del galpón. Vive acá porque el histórico se ANULA pero nunca
+    -- se borra: si la marca solo estuviera en el movimiento, el saldo la perdería al eliminarlo.
+    para_proximo_ciclo          BOOLEAN NOT NULL DEFAULT FALSE,
     anulado                     BOOLEAN NOT NULL DEFAULT FALSE,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     CONSTRAINT uq_lote_hist_origen UNIQUE (origen_tabla, origen_id),
@@ -46,6 +50,10 @@ CREATE INDEX IF NOT EXISTS ix_lote_hist_company_fecha
     ON public.lote_registro_historico_unificado (company_id, fecha_operacion DESC);
 CREATE INDEX IF NOT EXISTS ix_lote_hist_tipo
     ON public.lote_registro_historico_unificado (tipo_evento);
+
+-- Idempotente para las bases que ya tenían la tabla (migración 20260808120000_AlimentoPrevioEncasetMarcaCiclo).
+ALTER TABLE public.lote_registro_historico_unificado
+    ADD COLUMN IF NOT EXISTS para_proximo_ciclo BOOLEAN NOT NULL DEFAULT FALSE;
 
 COMMENT ON TABLE public.lote_registro_historico_unificado IS
 'Historial unificado por lote: movimientos inventario EC (kg) y ventas de aves (H/M/X). '
@@ -129,7 +137,7 @@ BEGIN
         fecha_operacion, tipo_evento, origen_tabla, origen_id,
         movement_type_original, item_inventario_ecuador_id, item_resumen,
         cantidad_kg, unidad, referencia, numero_documento,
-        acumulado_entradas_alimento_kg
+        acumulado_entradas_alimento_kg, para_proximo_ciclo
     ) VALUES (
         NEW.company_id,
         v_lote,
@@ -147,7 +155,10 @@ BEGIN
         NEW.unit,
         NEW.reference,
         NULL,
-        NULL
+        NULL,
+        -- El trigger es AFTER INSERT: ningún UPDATE del origen se propaga solo, así que el endpoint
+        -- PUT /ingresos/{id}/destino-ciclo sincroniza esta columna a mano cuando la marca cambia.
+        COALESCE(NEW.para_proximo_ciclo, FALSE)
     )
     RETURNING id INTO v_hist_id;
 

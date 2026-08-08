@@ -97,6 +97,9 @@ public partial class SeguimientoAvesEngordeEcuadorService
         if (!await PermiteLoteEngordeAsync(loteId))
             return Array.Empty<SeguimientoDiarioTablaFilaDto>();
 
+        // `SELECT *` a propósito: el contrato de la fn es su RETURNS TABLE y el mapeo es por nombre
+        // de columna (snake_case). Las columnas v15 `apertura_alimento_kg` / `apertura_documentos`
+        // —el «Ingreso inicial del ciclo»— viajan por acá sin tocar la consulta.
         return await _ctx.Database
             .SqlQueryRaw<SeguimientoDiarioTablaFilaDto>(
                 "SELECT * FROM fn_seguimiento_diario_engorde({0}::int)", loteId)

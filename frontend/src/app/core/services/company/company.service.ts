@@ -33,6 +33,8 @@ export interface Company {
   clasificacionHuevoPorItems?: boolean;
   /** Flag por empresa: permite trasladar aves entre etapas (Levante → Producción) registrando cohorte con la edad de origen. */
   permiteTrasladoAvesCrossEtapa?: boolean;
+  /** Días ANTES del encasetamiento cuyo alimento cuenta como «ingreso inicial del ciclo» en el reporte diario de engorde. Rango 0-30, default 10. */
+  diasAlimentoPrevioEncaset?: number;
 }
 
 @Injectable({ providedIn: 'root' })

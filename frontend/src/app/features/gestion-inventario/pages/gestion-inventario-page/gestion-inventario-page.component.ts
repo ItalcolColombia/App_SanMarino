@@ -128,6 +128,8 @@ export class GestionInventarioPageComponent implements OnInit {
   ingresoFechaMovimiento = '';
   showIngresoFechaModal = false;
   ingresoFechaDraft = '';
+  /** «Este alimento es para el PRÓXIMO ciclo/encasetamiento de este galpón» (D2). Solo aplica a alimento con galpón. */
+  ingresoParaProximoCiclo = false;
 
   // Form traslado
   fromFarmId: number | null = null;
@@ -916,6 +918,14 @@ export class GestionInventarioPageComponent implements OnInit {
     return !this.isColombiaInventario;
   }
 
+  /**
+   * Checkbox «para el próximo ciclo» (D2): visible solo con concepto Alimento Y galpón ya elegido —
+   * el backend exige galpón para atribuir el alimento a un ciclo (`ActualizarDestinoCicloIngresoAsync`).
+   */
+  get mostrarParaProximoCicloIngreso(): boolean {
+    return this.ingresoEsPorGalpon && !!(this.ingresoGalponId ?? '').trim();
+  }
+
   /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
   get stockShowNucleoGalpon(): boolean {
     // Colombia: stock a nivel granja → sin columnas núcleo/galpón.
@@ -962,6 +972,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.ingresoOrigenTipo = 'planta';
       this.ingresoOrigenFarmId = null;
       this.ingresoOrigenBodegaTexto = '';
+      this.ingresoParaProximoCiclo = false;
       this.fromNucleoId = null;
       this.fromGalponId = null;
       this.toNucleoId = null;
@@ -1000,10 +1011,12 @@ export class GestionInventarioPageComponent implements OnInit {
   onIngresoDestinoFarmChange(): void {
     this.ingresoNucleoId = null;
     this.ingresoGalponId = null;
+    this.ingresoParaProximoCiclo = false;
   }
 
   onIngresoDestinoNucleoChange(): void {
     this.ingresoGalponId = null;
+    this.ingresoParaProximoCiclo = false;
   }
 
   submitIngreso(): void {
@@ -1484,7 +1497,8 @@ export class GestionInventarioPageComponent implements OnInit {
       origenTipo: tipoOrigen,
       origenFarmId: esAlimento && (tipoOrigen === 'granja' || tipoOrigen === 'bodega') ? this.ingresoOrigenFarmId : null,
       origenBodegaDescripcion: esAlimento && tipoOrigen === 'bodega' ? (this.ingresoOrigenBodegaTexto || null) : null,
-      fechaMovimiento: this.ingresoFechaMovimiento?.trim() || null
+      fechaMovimiento: this.ingresoFechaMovimiento?.trim() || null,
+      paraProximoCiclo: this.mostrarParaProximoCicloIngreso ? this.ingresoParaProximoCiclo : false
     }).subscribe({
       next: () => {
         this.submittingIngreso = false;
@@ -1493,6 +1507,7 @@ export class GestionInventarioPageComponent implements OnInit {
         this.ingresoReference = '';
         this.ingresoReason = '';
         this.ingresoOrigenBodegaTexto = '';
+        this.ingresoParaProximoCiclo = false;
         this.ingresoFechaMovimiento = this.todayYmd();
         this.loadStock();
       },

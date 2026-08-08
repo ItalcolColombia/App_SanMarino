@@ -36,6 +36,14 @@ public class InventarioGestionMovimientoConfiguration : IEntityTypeConfiguration
         e.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         e.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").HasMaxLength(128);
 
+        // Marca «para el próximo ciclo del galpón». Sin HasDefaultValue a propósito (mismo criterio
+        // que `anulado` en el espejo): el DEFAULT false de la BD cubre las filas viejas y el SQL
+        // crudo, y EF escribe siempre el valor explícito.
+        e.Property(x => x.ParaProximoCiclo).HasColumnName("para_proximo_ciclo").IsRequired();
+
+        // Instante real de captura: NULL en las filas anteriores a la columna.
+        e.Property(x => x.RegistradoAt).HasColumnName("registrado_at").HasColumnType("timestamptz");
+
         e.HasIndex(x => new { x.FarmId, x.ItemInventarioEcuadorId }).HasDatabaseName("ix_igm_farm_item");
         e.HasIndex(x => x.MovementType).HasDatabaseName("ix_igm_movement_type");
         e.HasIndex(x => x.TransferGroupId).HasDatabaseName("ix_igm_transfer_group");

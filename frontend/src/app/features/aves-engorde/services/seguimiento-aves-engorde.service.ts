@@ -141,6 +141,15 @@ export interface SeguimientoDiarioTablaFilaDto {
   itemsAdicionales: string | null;
   historicoConsumoAlimento: string | null;
   createdByUserId: string | null;
+  /**
+   * v15: alimento que llegó ANTES del encaset y la fn ya absorbía en el saldo de apertura del
+   * ciclo (desde v9) pero como escalar interno invisible. Solo trae valor (> 0) en la PRIMERA
+   * fila del ciclo; el resto llega en 0/null. La rama congelada (lote liquidado) trae null: su
+   * foto se tomó antes de que existiera esta columna. Aditivo — no reemplaza `ingresoAlimentoKg`.
+   */
+  aperturaAlimentoKg?: number | null;
+  /** Documentos/facturas reales de los movimientos absorbidos en `aperturaAlimentoKg` (STRING_AGG). */
+  aperturaDocumentos?: string | null;
 }
 
 // ── DTOs Cuadrar Saldos ────────────────────────────────────────────────────

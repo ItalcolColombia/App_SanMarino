@@ -520,14 +520,22 @@ public class InventarioGestionService : IInventarioGestionService
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             CreatedAt = movCreatedAt,
-            CreatedByUserId = _current?.UserId.ToString()
+            CreatedByUserId = _current?.UserId.ToString(),
+            ParaProximoCiclo = req.ParaProximoCiclo,
+            // Auditoría: el instante REAL de captura. `CreatedAt` lo pisa la fecha que tipea el
+            // usuario, así que no puede servir de auditoría; acá nunca se escribe esa fecha.
+            RegistradoAt = DateTimeOffset.UtcNow
         };
         _db.InventarioGestionMovimientos.Add(mov);
         await _db.SaveChangesAsync(ct);
         await RefrescarSaldoAlimentoEngordeAsync(companyId, req.FarmId, nucleoId, galponId, mov.MovementType, ct);
 
         // Avisa —sin bloquear— si el ingreso quedó fechado fuera del ciclo vigente del galpón.
-        var aviso = await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
+        // Con la marca «para el próximo ciclo» NO se avisa: la atribución ya es explícita del
+        // usuario, así que el aviso sería ruido justo en el caso que la marca viene a resolver.
+        var aviso = req.ParaProximoCiclo
+            ? null
+            : await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
 
         var dto = (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
             .FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId)
@@ -1009,7 +1017,9 @@ public class InventarioGestionService : IInventarioGestionService
                 origenGn,
                 "Traslado entre granjas (recepción)",
                 item.Concepto,
-                item.TipoItem));
+                item.TipoItem,
+                movEntrada.ParaProximoCiclo,
+                movEntrada.RegistradoAt));
         }
 
         return new InventarioGestionRecepcionTransitoResultDto(dtosStock, dtosMov);
@@ -1513,7 +1523,12 @@ public class InventarioGestionService : IInventarioGestionService
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             CreatedAt = DateTimeOffset.UtcNow,
-            CreatedByUserId = _current?.UserId.ToString()
+            CreatedByUserId = _current?.UserId.ToString(),
+            // Mismo criterio que RegistrarIngresoAsync: la marca viaja en el request y el instante de
+            // captura se guarda aparte. Sin esto, todo lo que entra por Colombia quedaría marcado
+            // como «fila anterior a la columna» para siempre.
+            ParaProximoCiclo = req.ParaProximoCiclo,
+            RegistradoAt = DateTimeOffset.UtcNow
         });
         // NO SaveChanges/tx aquí: el orquestador externo commitea.
     }
@@ -1787,7 +1802,9 @@ public class InventarioGestionService : IInventarioGestionService
                 fromGalponNombre,
                 tipoOp,
                 x.ItemInventario.Concepto,
-                x.ItemInventario.TipoItem);
+                x.ItemInventario.TipoItem,
+                x.ParaProximoCiclo,
+                x.RegistradoAt);
         }).ToList();
     }
 
@@ -2277,7 +2294,9 @@ public class InventarioGestionService : IInventarioGestionService
                 x.Reason,
                 x.Estado,
                 x.CreatedAt,
-                x.CreatedAt);
+                x.CreatedAt,
+                x.ParaProximoCiclo,
+                x.RegistradoAt);
         });
 
         var orphanedDtos = orphaned.Select(h =>
@@ -2317,7 +2336,11 @@ public class InventarioGestionService : IInventarioGestionService
                 null,
                 null,
                 new DateTimeOffset(h.FechaOperacion, TimeSpan.Zero),
-                h.CreatedAt);
+                h.CreatedAt,
+                // El movimiento ya no existe: la marca sobrevive en el espejo, el instante de captura no
+                // (`registrado_at` vive solo en inventario_gestion_movimiento).
+                h.ParaProximoCiclo,
+                null);
         });
 
         return mainDtos.Concat(orphanedDtos)
@@ -2381,6 +2404,17 @@ public class InventarioGestionService : IInventarioGestionService
         // Correr la fecha de un ingreso lo mueve de día dentro del saldo del galpón.
         await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
 
+        return await MapIngresoListDtoAsync(mov, ct);
+    }
+
+    /// <summary>
+    /// Proyección de un movimiento de ingreso ya cargado (con <c>Farm</c> e <c>ItemInventario</c>) al
+    /// DTO del listado. Extraída sin cambiar nada: las dos ediciones de un ingreso —fecha y destino de
+    /// ciclo— devuelven exactamente la misma fila.
+    /// </summary>
+    private async Task<InventarioGestionIngresoListDto> MapIngresoListDtoAsync(
+        InventarioGestionMovimiento mov, CancellationToken ct)
+    {
         string? nucleoNombre = null;
         string? galponNombre = null;
         if (mov.NucleoId != null)
@@ -2413,7 +2447,165 @@ public class InventarioGestionService : IInventarioGestionService
             mov.Reason,
             mov.Estado,
             mov.CreatedAt,
-            mov.CreatedAt);
+            mov.CreatedAt,
+            mov.ParaProximoCiclo,
+            mov.RegistradoAt);
+    }
+
+    /// <summary>
+    /// Cambia la atribución de ciclo de un ingreso ya registrado y la refleja en
+    /// <c>lote_registro_historico_unificado</c>.
+    /// <para>
+    /// El espejo se busca <b>primero</b> por <c>origen_tabla + origen_id</c>, que es la clave real
+    /// (<c>uq_lote_hist_origen</c>). El fallback por granja+núcleo+galpón+ítem+cantidad se conserva tal
+    /// cual está en <see cref="ActualizarFechaIngresoAsync"/> para no divergir, pero es <b>frágil</b>:
+    /// con dos ingresos idénticos en la misma ubicación puede marcar el otro. Se llega a él solo con
+    /// filas viejas sin <c>origen_id</c>; si se cambia, hay que cambiarlo en los dos lugares a la vez.
+    /// </para>
+    /// </summary>
+    public async Task<InventarioGestionIngresoListDto> ActualizarDestinoCicloIngresoAsync(
+        int movimientoId,
+        InventarioGestionActualizarDestinoCicloRequest req,
+        CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        if (companyId == null || companyId.Value <= 0)
+            throw new InvalidOperationException("No tiene empresa activa para esta operación.");
+
+        var allowedFarmIds = await GetAssignedFarmIdsInCompanyAsync(companyId.Value, ct).ConfigureAwait(false);
+
+        var mov = await _db.InventarioGestionMovimientos
+            .Include(x => x.ItemInventario)
+            .Include(x => x.Farm)
+            .FirstOrDefaultAsync(x => x.Id == movimientoId && x.CompanyId == companyId.Value, ct);
+
+        if (mov == null)
+            throw new InvalidOperationException("No se encontró el ingreso indicado.");
+
+        var tiposEntradaEditables = new HashSet<string>(StringComparer.Ordinal) { "Ingreso", "TrasladoEntrada", "TrasladoInterGranjaEntrada" };
+        if (!tiposEntradaEditables.Contains(mov.MovementType))
+            throw new InvalidOperationException("Solo se puede marcar el destino de ciclo de movimientos de tipo Ingreso o entrada de traslado.");
+
+        if (!allowedFarmIds.Contains(mov.FarmId))
+            throw new InvalidOperationException("No tiene acceso a este ingreso.");
+
+        if (string.IsNullOrWhiteSpace(mov.GalponId))
+            throw new InvalidOperationException("La marca «para el próximo ciclo» solo aplica a movimientos con galpón: sin galpón no hay ciclo al que atribuir el alimento.");
+
+        mov.ParaProximoCiclo = req.ParaProximoCiclo;
+        await _db.SaveChangesAsync(ct);
+
+        // Espejo: mismo patrón de búsqueda que ActualizarFechaIngresoAsync (clave real primero,
+        // fallback frágil después). El histórico se ANULA, nunca se borra, así que la fila vive.
+        var hist = await _db.LoteRegistroHistoricoUnificados
+            .FirstOrDefaultAsync(h => h.OrigenTabla == "inventario_gestion_movimiento" && h.OrigenId == movimientoId, ct);
+        if (hist == null)
+        {
+            hist = await _db.LoteRegistroHistoricoUnificados
+                .FirstOrDefaultAsync(h =>
+                    h.FarmId == mov.FarmId &&
+                    h.NucleoId == mov.NucleoId &&
+                    h.GalponId == mov.GalponId &&
+                    h.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
+                    h.CantidadKg == mov.Quantity &&
+                    !h.Anulado, ct);
+        }
+        if (hist != null)
+            hist.ParaProximoCiclo = req.ParaProximoCiclo;
+        await _db.SaveChangesAsync(ct);
+
+        // Cambiar de ciclo mueve los kg de una apertura a otra: el saldo persistido se recalcula
+        // desde la fn, igual que al correr la fecha.
+        await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
+
+        return await MapIngresoListDtoAsync(mov, ct);
+    }
+
+    // ─── D4: VENTANA DE ALIMENTO PREVIO AL ENCASETAMIENTO ─────────────────────
+
+    /// <inheritdoc />
+    public async Task<InventarioGestionVentanaAlimentoPrevioDto> ResolverVentanaAlimentoPrevioEncasetAsync(
+        int farmId,
+        string? nucleoId,
+        string? galponId,
+        DateTime fechaMovimiento,
+        CancellationToken ct = default)
+    {
+        var companyId = await _db.Farms.AsNoTracking()
+            .Where(f => f.Id == farmId)
+            .Select(f => (int?)f.CompanyId)
+            .FirstOrDefaultAsync(ct);
+
+        // Empresa efectiva SIEMPRE por datos (farms.company_id) y fail-closed: sin granja no hay
+        // ventana que abrir, así que la regla del mes en curso queda como única.
+        if (companyId is not { } company || company <= 0)
+            return new InventarioGestionVentanaAlimentoPrevioDto(null, 0);
+
+        var dias = await _db.Companies.AsNoTracking()
+            .Where(c => c.Id == company)
+            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
+            .FirstOrDefaultAsync(ct) ?? 10;
+
+        var galpon = (galponId ?? "").Trim();
+        if (galpon.Length == 0)
+            return new InventarioGestionVentanaAlimentoPrevioDto(null, dias);
+
+        var nucleo = (nucleoId ?? "").Trim();
+        // `fecha_encaset` es timestamptz: el límite tiene que ir anclado en UTC o Npgsql rechaza el
+        // parámetro (Kind=Unspecified). Medianoche UTC del día del movimiento incluye el encaset del
+        // MISMO día, que el front graba a mediodía UTC (FechasPuras).
+        var desde = FechasPuras.RangoDiaUtc(fechaMovimiento).Desde;
+
+        // Encaset más cercano DEL GALPÓN a partir de la fecha del movimiento. "A partir de" y no
+        // "futuro": el alimento se digita días después de llegar, así que el encaset que lo justifica
+        // ya puede haber ocurrido. Se miran las dos poblaciones porque el pedido cubre engorde y postura.
+        var encasetEngorde = await _db.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.CompanyId == company
+                     && l.DeletedAt == null
+                     && l.GranjaId == farmId
+                     && (l.NucleoId == null ? "" : l.NucleoId.Trim()) == nucleo
+                     && (l.GalponId == null ? "" : l.GalponId.Trim()) == galpon
+                     && l.FechaEncaset != null
+                     && l.FechaEncaset >= desde)
+            .MinAsync(l => l.FechaEncaset, ct);
+
+        var encasetPostura = await _db.Lotes.AsNoTracking()
+            .Where(l => l.CompanyId == company
+                     && l.DeletedAt == null
+                     && l.GranjaId == farmId
+                     && (l.NucleoId == null ? "" : l.NucleoId.Trim()) == nucleo
+                     && (l.GalponId == null ? "" : l.GalponId.Trim()) == galpon
+                     && l.FechaEncaset != null
+                     && l.FechaEncaset >= desde)
+            .MinAsync(l => l.FechaEncaset, ct);
+
+        var proximo = (encasetEngorde, encasetPostura) switch
+        {
+            (null, null) => (DateTime?)null,
+            (null, { } p) => p,
+            ({ } e, null) => e,
+            ({ } e, { } p) => e <= p ? e : p
+        };
+
+        return new InventarioGestionVentanaAlimentoPrevioDto(proximo, dias);
+    }
+
+    /// <inheritdoc />
+    public async Task<InventarioGestionVentanaAlimentoPrevioDto> ResolverVentanaAlimentoPrevioEncasetDeIngresoAsync(
+        int movimientoId,
+        DateTime fechaMovimiento,
+        CancellationToken ct = default)
+    {
+        var ubicacion = await _db.InventarioGestionMovimientos.AsNoTracking()
+            .Where(m => m.Id == movimientoId)
+            .Select(m => new { m.FarmId, m.NucleoId, m.GalponId })
+            .FirstOrDefaultAsync(ct);
+
+        if (ubicacion == null)
+            return new InventarioGestionVentanaAlimentoPrevioDto(null, 0);
+
+        return await ResolverVentanaAlimentoPrevioEncasetAsync(
+            ubicacion.FarmId, ubicacion.NucleoId, ubicacion.GalponId, fechaMovimiento, ct);
     }
 
     // ─── ELIMINAR INGRESO ─────────────────────────────────────────────────────

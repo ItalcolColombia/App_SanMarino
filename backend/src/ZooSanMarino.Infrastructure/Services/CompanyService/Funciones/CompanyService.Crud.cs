@@ -76,7 +76,8 @@ public partial class CompanyService
             PermiteTrasladoAvesCrossEtapa = dto.PermiteTrasladoAvesCrossEtapa,
             CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante,
             VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido,
-            PrimerRegistroSegunHoraLlegada = dto.PrimerRegistroSegunHoraLlegada
+            PrimerRegistroSegunHoraLlegada = dto.PrimerRegistroSegunHoraLlegada,
+            DiasAlimentoPrevioEncaset = VentanaAlimentoPrevioCalculos.NormalizarDias(dto.DiasAlimentoPrevioEncaset)
         };
 
         _ctx.Companies.Add(c);
@@ -119,6 +120,9 @@ public partial class CompanyService
         c.CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante ?? c.CapturaHuevosEnLevante;
         c.VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido ?? c.VentaEngordePesoDiferido;
         c.PrimerRegistroSegunHoraLlegada = dto.PrimerRegistroSegunHoraLlegada ?? c.PrimerRegistroSegunHoraLlegada;
+        c.DiasAlimentoPrevioEncaset = dto.DiasAlimentoPrevioEncaset.HasValue
+            ? VentanaAlimentoPrevioCalculos.NormalizarDias(dto.DiasAlimentoPrevioEncaset)
+            : c.DiasAlimentoPrevioEncaset;
 
         await _ctx.SaveChangesAsync();
 

@@ -196,12 +196,16 @@
   transition: color .12s, background-color .12s, transform .12s;
 
   &:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); }
+  &:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
 
   &--danger {
     color: #dc2626;
     &:hover { background: #fee2e2; color: #991b1b; transform: translateY(-1px); }
   }
 }
+
+/* Fecha del movimiento + captura (B3): la fecha es la del movimiento, "capturado el" es auditoría. */
+.fecha-text { font-size: .85rem; color: var(--slate-800); }
 
 /* Badges estado */
 .ux-badge {
@@ -213,6 +217,7 @@
 .badge-pendiente   { background: #e0f2fe; color: #075985; }
 .badge-rechazado   { background: #fee2e2; color: #991b1b; }
 .badge-default     { background: var(--warm-200); color: var(--slate-800); }
+.badge-proximo-ciclo { background: var(--ital-orange-50, #fff3e8); color: var(--ital-orange-dark, #a64b18); border: 1px solid var(--ital-orange, #e8a06a); }
 
 /* Empty state */
 .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--warm-600); }

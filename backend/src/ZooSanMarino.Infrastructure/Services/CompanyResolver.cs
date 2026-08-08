@@ -62,7 +62,8 @@ public class CompanyResolver : ICompanyResolver
                 c.PermiteTrasladoAvesCrossEtapa,
                 c.CapturaHuevosEnLevante,
                 c.VentaEngordePesoDiferido,
-                c.PrimerRegistroSegunHoraLlegada
+                c.PrimerRegistroSegunHoraLlegada,
+                c.DiasAlimentoPrevioEncaset
             ))
             .FirstOrDefaultAsync();
 
@@ -107,7 +108,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.PermiteTrasladoAvesCrossEtapa,
                 uc.Company.CapturaHuevosEnLevante,
                 uc.Company.VentaEngordePesoDiferido,
-                uc.Company.PrimerRegistroSegunHoraLlegada
+                uc.Company.PrimerRegistroSegunHoraLlegada,
+                uc.Company.DiasAlimentoPrevioEncaset
             ))
             .ToListAsync();
 

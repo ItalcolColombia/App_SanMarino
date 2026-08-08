@@ -95,7 +95,17 @@ public sealed record InventarioGestionIngresoRequest(
     /// <summary>Si OrigenTipo es "bodega", texto opcional (nombre/referencia de la bodega de procedencia).</summary>
     string? OrigenBodegaDescripcion = null,
     /// <summary>Fecha del movimiento en histórico (solo día). Si es null, se usa la fecha/hora actual del servidor.</summary>
-    DateTime? FechaMovimiento = null
+    DateTime? FechaMovimiento = null,
+    /// <summary>
+    /// «Este alimento es para el PRÓXIMO encasetamiento de este galpón». Atribución EXPLÍCITA al ciclo
+    /// siguiente, para los galpones encadenados donde la fecha sola no alcanza (el ingreso real cae
+    /// dentro del ciclo anterior y el corte por fecha lo descartaría).
+    /// <para>
+    /// Con la marca puesta tampoco se emite <c>AvisoFechaFueraDeCiclo</c>: el usuario ya dijo a qué
+    /// ciclo pertenece. Default <c>false</c> ⇒ comportamiento previo intacto.
+    /// </para>
+    /// </summary>
+    bool ParaProximoCiclo = false
 );
 
 /// <summary>Request para registrar un traslado.</summary>
@@ -149,7 +159,11 @@ public sealed record InventarioGestionMovimientoDto(
     /// <summary>Etiqueta de operación para reportes (ingreso, consumo, traslado, etc.).</summary>
     string? TipoOperacion = null,
     string? ItemConcepto = null,
-    string? ItemTipoItem = null
+    string? ItemTipoItem = null,
+    /// <summary>Movimiento atribuido explícitamente al PRÓXIMO ciclo del galpón (marca del alta o del historial).</summary>
+    bool ParaProximoCiclo = false,
+    /// <summary>Instante real de captura. <c>null</c> en las filas anteriores a la columna.</summary>
+    DateTimeOffset? RegistradoAt = null
 );
 
 /// <summary>Una ubicación de la granja destino y cuánto de lo recibido entra en ella (alimento por galpón).</summary>
@@ -304,10 +318,36 @@ public sealed record InventarioGestionIngresoListDto(
     string? Reason,
     string? Estado,
     DateTimeOffset FechaMovimiento,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    /// <summary>Ingreso atribuido explícitamente al PRÓXIMO ciclo del galpón (editable desde el historial).</summary>
+    bool ParaProximoCiclo = false,
+    /// <summary>Instante real de captura. <c>null</c> en las filas anteriores a la columna.</summary>
+    DateTimeOffset? RegistradoAt = null
 );
 
 /// <summary>Edita solo la fecha de movimiento de un ingreso.</summary>
 public sealed record InventarioGestionActualizarFechaIngresoRequest(
     DateTime FechaMovimiento
+);
+
+/// <summary>
+/// Edita solo la atribución de ciclo de un ingreso ya registrado (el «desde acá podamos modificar
+/// los datos» del pedido). Sincroniza el espejo <c>lote_registro_historico_unificado</c>.
+/// </summary>
+public sealed record InventarioGestionActualizarDestinoCicloRequest(
+    bool ParaProximoCiclo
+);
+
+/// <summary>
+/// Ventana de alimento previo al encasetamiento resuelta para una ubicación (D4). La usa el
+/// controller para decidir si una fecha del mes anterior es admisible.
+/// </summary>
+/// <param name="ProximoEncaset">
+/// Encasetamiento más cercano del galpón (engorde o postura) con <c>fecha_encaset &gt;= fecha</c> del
+/// movimiento. <c>null</c> = el galpón no tiene ninguno ⇒ no hay excepción que aplicar.
+/// </param>
+/// <param name="DiasVentanaEmpresa"><c>companies.dias_alimento_previo_encaset</c> de la empresa de la granja.</param>
+public sealed record InventarioGestionVentanaAlimentoPrevioDto(
+    DateTime? ProximoEncaset,
+    int DiasVentanaEmpresa
 );

@@ -2412,14 +2412,23 @@ consumo para que el seguimiento diario cuadre, y contabilidad pierde el día rea
 - [x] Evidencia medida: Ecuador 110/110 ciclos con ingreso fechado el día 1 (workaround), Panamá 9/30 con fecha real 2-7 días antes; 28/75 ciclos encadenados EC con gap ≤ ventana (la fecha sola no atribuye)
 - [x] ⚠️ Colisión identificada con la ventana de mes en curso (sesión paralela, sin commitear): bloquea la fecha real que cruza mes — conciliar D4 con esa sesión ANTES de que commitee
 - [x] Plan/propuesta escrito (Partes A engorde / B inventario / C postura + D1-D4)
+- [x] Revalidación pedida por el usuario («llega el 15, encaseto el 25»): SIMULADO en BD local con ROLLBACK — 10 días cae justo dentro de la ventana default y entra al saldo del día 1, pero INVISIBLE (ingreso 0, documento vacío); con 11 días el saldo BAJA en silencio al cargar el 1er seguimiento (10.000→6.800 medido). Ver §8 del plan
 
-## Pendiente de decisión (usuario)
-- [ ] D1 una fecha real + apertura visible (recomendado) vs doble fecha
-- [ ] D2 marca «para el próximo ciclo» en el ingreso (recomendado sí)
-- [ ] D3 alcance postura (recomendado mínimo: fix Reporte Contable + saldo inicial)
-- [ ] D4 conciliación con la ventana de mes de la sesión paralela
+## Decisiones (aprobadas 07-ago — el usuario pidió arrancar con las recomendaciones)
+- [x] D1 UNA fecha = la real + apertura visible como «ingreso inicial del ciclo»
+- [x] D2 marca «para el próximo ciclo» en el ingreso (editable desde el historial)
+- [x] D3 postura alcance mínimo (fix `continue` del Reporte Contable + fila de bultos con fecha real)
+- [x] D4 excepción acotada a la ventana de mes (solo ingresos con encaset próximo en el galpón; el resto de la regla de 7339c61 intacta)
 
-## Implementación (arranca tras confirmar decisiones)
-- [ ] Parte A — fn v15 apertura visible + UI admin de la ventana + gate multipaís
-- [ ] Parte B — marca de ciclo + auditoría de captura + edición desde historial
-- [ ] Parte C — Reporte Contable postura (continue + saldo inicial)
+## Implementación (workflow multi-agente 08-ago: Opus código complejo · Sonnet código directo · QA final en Fable — 7 agentes, 0 errores)
+- [x] B1 (opus) migración `20260808120000_AlimentoPrevioEncasetMarcaCiclo`: `para_proximo_ciclo` (mov + espejo + trigger CREATE OR REPLACE) + `registrado_at` (auditoría nunca pisada) + `PUT /ingresos/{id}/destino-ciclo` + excepción D4 solo en las 2 puertas de ingreso (con tope `dia <= hoy`, desvío documentado) + 22 tests. DDL probado en tx+ROLLBACK; espejos .sql actualizados
+- [x] A2 (sonnet) `diasAlimentoPrevioEncaset` en CompanyDto/Create/Update + las 4 proyecciones (ToDto, Crud, CompanyResolver, CompanyPaisService) con clamp `NormalizarDias` + campo 0-30 en company-management (front)
+- [x] C (opus) Reporte Contable: fila solo-bultos cuando la fecha tiene kardex sin dato del lote (`ReporteContableBultosCalculos` puro + 16 tests, acumulador legado como especificación ejecutable); semana 1 absorbe filas previas al encaset; gate 6 casos lote×fase — 5 con 0 diferencias y lote 13 Levante gana EXACTAMENTE la fila del bug (retiros 150,6375 del 10-abr que Producción ya mostraba)
+- [x] A1+B2 (opus, high) fn v15: `apertura_alimento_kg`/`apertura_documentos` en la fila de fecha_min (DOUBLE PRECISION como sus hermanas; DROP FUNCTION previo porque cambia el RETURNS TABLE — pg_depend 0 dependientes) + override por marca con guarda anti-«dos ciclos después» + excepción fecha_min NULL (el flicker muere: los kg nunca desaparecen); migración `20260808130000` con Down=v14 verbatim; espejo C# + DTO; gate propio 5.804 filas/147 lotes 0 diferencias; apertura visible: Panamá 9 ciclos/70.030 kg (los que el plan predijo), Ecuador 2/7.200
+- [x] B3 (sonnet) front inventario: checkbox «para el PRÓXIMO ciclo» (solo alimento+galpón, se resetea al cambiar destino) + badge/toggle en historial con ConfirmDialog+Toast + «capturado el» (registradoAt) + hint «Registrá la fecha REAL de llegada»
+- [x] A3 (sonnet) front grilla engorde: badge «+X kg ingreso inicial (previo al encaset)» + documentos de apertura en la celda Documento, gateado por flag Y campo (levante/producción intactos)
+- [x] QA (fable, high) — **VEREDICTO GO, cero defectos**: builds 0/0 · tests **2.091 + 1 verdes** · yarn build 0 errores · migraciones aplicadas y registradas en local (idempotencia probada sobre DDL pre-aplicado) · gate PROPIO v15 vs v14 (fn v14 reinstalada bajo nombre QA, EXCEPT doble NULL-safe): **0 diferencias en 5.804 filas / 197 lotes / 2 empresas** · cuadres sin regresión (2 descuadres PREEXISTENTES de datos: PA alimento lote 182, EC aves lote 132) · CRUD E2E a-f verde (escenario 15→25 con marca: ingreso 11 días antes que la v14 PERDÍA ahora abre con 3.000 kg y su factura; DELETE → espejo anulado; D4 200/400 correctos; clamp 45→30) · Reporte Contable K345 3.632.634 EXACTO · datos QA eliminados con 0 rastro, backend abatido
+- [x] Commit acotado (sin footer de atribución)
+
+### Hallazgo BLOQUEANTE aparte (NO tocado — tarea propia con su gate)
+- `ObtenerDatosBultosAsync` pide PageSize=10000 pero `FarmInventoryMovementService.GetPagedAsync:447` clampa a **20** ⇒ el Reporte Contable solo ve los 20 movimientos de bultos más recientes de la granja (3 entradas históricas de granja 5 = 2.800 bultos invisibles). El fix C1 funciona para el caso real (alimento reciente) pero lo histórico queda estrangulado. Arreglarlo cambia números en muchos lotes ⇒ gate propio antes/después.

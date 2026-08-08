@@ -44,6 +44,7 @@ public partial class CompanyService : ICompanyService
         c.PermiteTrasladoAvesCrossEtapa,
         c.CapturaHuevosEnLevante,
         c.VentaEngordePesoDiferido,
-        c.PrimerRegistroSegunHoraLlegada
+        c.PrimerRegistroSegunHoraLlegada,
+        c.DiasAlimentoPrevioEncaset
     );
 }

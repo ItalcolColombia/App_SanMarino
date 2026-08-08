@@ -335,6 +335,30 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     return parts.join(' · ');
   }
 
+  // ─── «Ingreso inicial del ciclo» (v15: alimento previo al encaset, visible) ──────────────────
+  // La fn ya absorbía este alimento en el saldo de apertura desde v9; v15 solo lo expone en la
+  // primera fila del ciclo vía `aperturaAlimentoKg`/`aperturaDocumentos`. El saldo NO cambia acá,
+  // solo la presentación de esa fila. Gate doble (flag Y campo) para que, si algún día este mismo
+  // componente se usa con `enriquecerTablaConHistoricoInventario=false`, quede invisible.
+
+  /** true solo en la fila del día 1 con alimento absorbido en la apertura del ciclo. */
+  hayIngresoInicialCiclo(f: SeguimientoDiarioTablaFilaDto): boolean {
+    return this.enriquecerTablaConHistoricoInventario && (f.aperturaAlimentoKg ?? 0) > 0;
+  }
+
+  /** Tooltip del badge de ingreso inicial: documentos/facturas reales absorbidos en la apertura. */
+  tituloIngresoInicialCiclo(f: SeguimientoDiarioTablaFilaDto): string {
+    return (f.aperturaDocumentos || '').trim();
+  }
+
+  /** Celda «Documento»: concatena el documento propio del día con los de apertura, si los hay. */
+  documentoCeldaTexto(f: SeguimientoDiarioTablaFilaDto): string {
+    const propio = (f.documento || '').trim();
+    const apertura = this.hayIngresoInicialCiclo(f) ? (f.aperturaDocumentos || '').trim() : '';
+    if (propio && apertura) return `${propio} · ${apertura}`;
+    return propio || apertura;
+  }
+
   tipoAlimentoCorto(tipo: string | null | undefined): string {
     const t = (tipo ?? '').toUpperCase();
     if (t.includes('PRE')) return 'PRE';
