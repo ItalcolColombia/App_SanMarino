@@ -2579,3 +2579,80 @@ Dos defectos que son el mismo: el Reporte Contable decidía «es alimento» leye
       `movimientos?pageSize=10000` pasa de 20 a **77** (`pageSize=200`, el tope)
 - [x] Backend detenido (5499 y 5002 libres), sin procesos huérfanos. BD **no modificada** (solo GET/SELECT)
 - [x] Commit acotado (sin footer de atribución)
+
+
+---
+
+# Auditoría de cierre — «alimento previo al encaset» + fix del chip (SOLO LECTURA, sin código)
+
+**Fecha:** 2026-08-08 · Pedido del usuario: validar si el fix del chip quedó bien y qué falta cubrir.
+**Método:** 5 lentes en paralelo + verificación adversarial de cada hallazgo (14 agentes, 39 hallazgos
+crudos → 8 verificados → **7 confirmados, 1 refutado**).
+
+## Veredicto sobre el chip (92cd918 + 8d5565c)
+- [x] **Sin defectos propios.** `item_type` cubre los 2 valores reales (`alimento` 166 / `Alimento` 2),
+      0 discrepancias columna vs jsonb, 0 movimientos con tipo contradictorio; `PaginacionCalculos`
+      coherente en los 3 services; totales del commit reproducidos exactos en SQL; borrar `loteIds`
+      fue correcto (no hay dato con qué filtrar: `galpon_destino_id` NULL en 326/326)
+- [x] **Refutado** el único cargo contra el chip (supuesto corte en medianoche UTC): la agrupación por
+      `CreatedAt.Date` ya existía y el camino nuevo ancla a MEDIODÍA UTC, que no cruza medianoche en
+      ningún huso americano
+- [x] Crítica válida: su gate comparó el reporte contra una consulta con **su mismo criterio**
+      (auto-consistencia, no corrección), y al destapar 257 movimientos volvió MATERIALES 3 defectos
+      preexistentes que estaban tapados
+
+## Confirmados — pendientes de decisión del usuario
+- [ ] 🔴 **§2.1 El saldo de bultos resta el consumo DOS VECES** (único número mal en pantalla HOY).
+      El modal de seguimiento escribe un `Exit` de kardex `reason='Consumo diario'` con los MISMOS kg
+      que graba en `consumo_kg_*`, y `AcumularSaldos` hace `− Retiros − ConsumoH − ConsumoM`.
+      Verificado a mano: granja 87, 23-jun, 500 kg en el kardex Y 500 kg en el seguimiento.
+      Escala: 253 movs / **131.778 kg**; 358 de 588 seguimientos caen el mismo día. Lo ven 9 roles.
+      ⚠️ El arreglo NO va en `AcumularSaldos` (borraría el retiro legítimo de 3.280 kg): va aguas
+      arriba (el `Exit` del modal, o excluirlos en `ObtenerDatosBultosAsync`). Falta el test con
+      `Retiros>0` Y `Consumo>0` a la vez — los helpers actuales nunca ejercen la combinación
+- [ ] 🟠 **§2.2 En postura el feature no entrega nada**: el Reporte Contable lee `farm_inventory_movements`
+      y todo el feature escribe `inventario_gestion_movimiento`. **Sin puente** (0 triggers, la única
+      pg_proc que la nombra solo LEE). Probado con ROLLBACK: el kardex queda 138 filas/146.260,5 kg
+      antes y después. PREEXISTENTE (nace 2026-07-05 con la unificación Colombia), no lo introdujo el
+      feature. Matiz: company 1 escribe en LOS DOS modelos (su último movimiento, 17-jul, fue al viejo
+      por la ruta `/inventario` que sigue registrada sin guard de rol) ⇒ inventario partido sin puente
+- [ ] 🟠 **§2.3a La excepción D4 es inalcanzable desde la UI**: backend + 184 líneas de test escritos,
+      pero el front la bloquea en 3 lugares y **no existe endpoint** que exponga la ventana del galpón.
+      El hint dice «Solo se admite el mes en curso» ⇒ instrucción activa a falsear la fecha.
+      Afecta 39/110 encasets 2026 de Ecuador (35%) y 10/60 de Panamá. Ningún número sale mal: se
+      pierde la fecha contable real, que es justo lo que contabilidad pidió
+- [ ] 🟡 **§2.3b La marca rompe `fn_cuadre_alimento_engorde`** (A/B controlado: mismo ingreso, solo
+      cambia el booleano ⇒ descuadre −5.000). CLAUDE.md declara que mover el cuadre de 0 es regresión.
+      Matiz: no hay tablero (0 archivos en el front), es endpoint + LogWarning; transitorio salvo que
+      el ciclo siguiente nunca arranque. **Impacto hoy: cero** (`para_proximo_ciclo` = 0 filas en BD)
+- [ ] 🟡 **§2.3c Hueco de trazabilidad**: `fechas_universo` dejó el corte `>= fecha_corte_alimento`
+      FUERA del disyunto de la marca ⇒ un ingreso marcado y fechado antes de `encaset−N` no genera
+      fila en ningún lote hasta el primer seguimiento. Recrea el síntoma «el sistema se comió
+      alimento» que motivó el feature. **Arreglo de UNA línea**, simétrico con `apert_mov`
+- [ ] 🟡 **§2.4 Cada lote padre muestra el kardex de la GRANJA entera** (granja 20 tiene 4 padres ⇒ los
+      4 reportes muestran los mismos 2.907 bultos; sumarlos da 11.628 vs 2.907 reales). Preexistente,
+      no arreglable en la query (la tabla no tiene columna de lote). Peor: `AcumularSaldos` resta
+      consumos POR LOTE de entradas POR GRANJA ⇒ el saldo no es ni de la granja ni del lote
+
+## Verificado OK — no re-auditar
+- [x] Infraestructura del feature: 242 migraciones BD = 242 código, 0 pendientes; trigger probado
+      (marca TRUE → espejo TRUE) · espejo `.sql` **idéntico byte a byte** a la migración (63.459 chars)
+- [x] **Gate multipaís sin regresión**: v13→v15 cambia EXACTAMENTE 32 filas (Ecuador, lotes 2 y 86,
+      todas movimiento-only = lo que v14 declara); Panamá 747=747, **0 diferencias**. El descuadre vivo
+      de Panamá es preexistente (reponiendo v13 da el mismo)
+- [x] **Subir `dias_alimento_previo_encaset` a 30 en Ecuador es SEGURO** (simulado: 0 filas con saldo
+      distinto en 5.804 filas/172 lotes, 0 negativos nuevos, cuadre sin cambios) — las guardas v11/v12
+      lo contienen. Es la prueba que nadie había hecho antes de exponer el campo por pantalla
+- [x] El caso testigo del usuario («llega el 15, encaseto el 25») **entra sin marca ni configuración**
+- [x] Con marca: el ciclo siguiente abre en 5.000 kg; sin marca ese mismo ingreso dejaba al nuevo en
+      **−300 kg**. El mecanismo nuclear funciona
+- [x] Puntos ciegos que salieron limpios: las 88 granjas con `maneja_alimento_por_galpon` NULL heredan
+      `true`; los 457 ingresos EC sin galpón son insumo/medicamento/gas (0 alimento) ⇒ el checkbox
+      está en el 100% de los ingresos de alimento; editar/borrar un ingreso marcado conserva/anula bien
+- [x] Sin datos de prueba de agentes anteriores en la BD (0 lotes/movimientos SIM/QA/TEST)
+
+## No verificado (declarado)
+- [ ] Descuadre persistido vs fn en Panamá (69 filas, hasta 23.355 kg): detectado, NO se determinó si
+      necesita la migración `Recalcular…` que sí acompañó a v11 y v12 (este lote tocó la fn 2 veces sin ella)
+- [ ] Los 31 hallazgos de severidad baja/informativa NO pasaron por verificación adversarial: son
+      sospechas, no hechos
