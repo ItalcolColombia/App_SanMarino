@@ -43,12 +43,18 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json yarn.lock* ./
 COPY angular.json tsconfig*.json ./
 COPY tailwind.config.js postcss.config.js ./
+# ngsw-config.json define qué precachea el Service Worker. Si no llega al contexto,
+# `ng build` falla por archivo faltante (angular.json lo referencia en la configuración
+# `docker`), que es el modo correcto de fallar: una PWA sin Service Worker se desplegaría
+# sin una sola queja y recién se notaría en la granja, sin red.
+COPY ngsw-config.json ./
 COPY src ./src
 # Se nombra el archivo en vez de copiar el directorio: si el contexto no lo trae
 # (p. ej. .dockerignore desactualizado) el build falla ACÁ, diciendo qué archivo
 # falta, en vez de copiar una carpeta vacía sin quejarse y reventar minutos
 # después dentro del RUN con un MODULE_NOT_FOUND. Ver frontend/.dockerignore.
 COPY scripts/build-version.js ./scripts/build-version.js
+COPY scripts/verificar-ngsw.js ./scripts/verificar-ngsw.js
 
 # Build optimizado con variables de entorno
 ENV NODE_ENV=production
@@ -59,9 +65,16 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 #   emit    -> publica version.json, un archivo nuevo (no una mutación de uno ya hasheado)
 # Nada puede reescribir un archivo del output después del build: invalidaría el SHA1
 # que ngsw.json guarda para ese archivo y el Service Worker entraría en safe mode.
+#
+# `verificar-ngsw.js` corre AL FINAL y convierte esa regla en algo que la máquina
+# comprueba: recalcula el SHA1 de cada archivo declarado en ngsw.json y falla el build
+# si alguno divergió. Sin este paso, el modo de falla es una imagen que se despliega
+# perfecto, arranca perfecto, y no funciona sin red en la granja — sin un solo error en
+# ningún log. Ya cazó un caso real (ver frontend/PWA.md).
 RUN node scripts/build-version.js prepare \
     && yarn build --configuration docker \
     && node scripts/build-version.js emit \
+    && node scripts/verificar-ngsw.js \
     && rm -rf node_modules \
     && yarn cache clean
 

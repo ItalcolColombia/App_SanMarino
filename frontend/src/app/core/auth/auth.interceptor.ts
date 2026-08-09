@@ -1,10 +1,12 @@
 // src/app/core/auth/auth.interceptor.ts
 import { HttpInterceptorFn, HttpHandlerFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { from, switchMap, catchError, throwError } from 'rxjs';
+import { from, switchMap, catchError, tap, throwError } from 'rxjs';
+import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { TokenStorageService } from './token-storage.service';
 import { EncryptionService } from './encryption.service';
 import { SessionTimeoutService } from './session-timeout.service';
+import { ConexionService } from '../pwa/conexion.service';
 import { debeCerrarSesionPor401 } from './funciones/debe-cerrar-sesion-por-401.funcion';
 import { environment } from '../../../environments/environment';
 
@@ -12,6 +14,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
   const storage = inject(TokenStorageService);
   const encryption = inject(EncryptionService);
   const sessionTimeout = inject(SessionTimeoutService);
+  const conexion = inject(ConexionService);
   const token = storage.getToken();
   const session = storage.get();
 
@@ -72,7 +75,24 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
       });
 
       return next(authReq).pipe(
+        // Señal de conectividad REAL para el indicador de la PWA. `navigator.onLine` es
+        // optimista: en la granja el wifi del galpón está conectado y no sale a ningún
+        // lado, y ahí sigue diciendo `true`. Una respuesta efectiva del backend es la
+        // única evidencia fuerte; un `status === 0` es la única evidencia de lo contrario.
+        // No cambia el comportamiento de la petición: solo observa.
+        tap(evento => {
+          if (evento instanceof HttpResponse) {
+            conexion.marcarExitoDeRed();
+          }
+        }),
         catchError((err: unknown) => {
+          if (err instanceof HttpErrorResponse && err.status === 0) {
+            conexion.marcarFalloDeRed();
+          } else if (err instanceof HttpErrorResponse) {
+            // Cualquier status del servidor prueba que el servidor contestó.
+            conexion.marcarExitoDeRed();
+          }
+
           // No todo 401 termina la sesión: el gate de plataforma (SECRET_UP) también
           // responde 401 y ahí el usuario y su token están perfectos. La regla vive
           // aislada y con tests en funciones/debe-cerrar-sesion-por-401.funcion.ts.

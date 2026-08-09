@@ -1,0 +1,124 @@
+/**
+ * Barra de estado de la PWA.
+ *
+ * Colores desde los tokens centrales de `theme-italfoods.scss` — regla de marca de CLAUDE.md:
+ * el naranja es para ACCIONES, el rojo solo para peligro. "Sin conexión" no es un error del
+ * usuario ni un peligro: es un estado. Por eso va en gris oscuro neutro y no en rojo, que en
+ * esta app significa "destructivo".
+ */
+
+.pwa-barra {
+  position: fixed;
+  left: 0;
+  right: 0;
+  // `env(safe-area-inset-bottom)` importa cuando la app corre instalada en pantalla completa:
+  // sin esto, en un teléfono con barra gestual el botón queda debajo del área táctil del sistema.
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+
+  padding: 0 0.75rem;
+  pointer-events: none; // la barra no intercepta clics; sí los avisos.
+}
+
+.pwa-aviso {
+  pointer-events: auto;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+
+  width: 100%;
+  max-width: 42rem;
+  padding: 0.75rem 1rem;
+
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.pwa-texto {
+  flex: 1 1 16rem;
+}
+
+.pwa-acciones {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* --- Sin conexión: estado, no error --- */
+.pwa-aviso--offline {
+  background-color: #33302c;
+  color: #faf8f5;
+}
+
+.pwa-punto {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background-color: var(--ital-orange-light, #fbb040);
+  flex-shrink: 0;
+}
+
+/* --- Actualización e instalación: acción -> naranja de marca --- */
+.pwa-aviso--update,
+.pwa-aviso--instalar {
+  background-color: #ffffff;
+  color: #33302c;
+  border: 1px solid var(--ital-orange-100, rgb(245 130 31 / 12%));
+  border-left: 4px solid var(--ital-orange, #f5821f);
+}
+
+.pwa-btn {
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  // Objetivo táctil mínimo cómodo con guantes en granja.
+  min-height: 2.25rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+.pwa-btn--primario {
+  background-color: var(--ital-orange, #f5821f);
+  color: #ffffff;
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background-color: var(--ital-orange-dark, #c85a0e);
+  }
+}
+
+.pwa-btn--fantasma {
+  background-color: transparent;
+  color: #6b6560;
+  border: 1px solid #d9d4ce;
+
+  &:hover:not(:disabled) {
+    background-color: #f4f1ec;
+  }
+}
+
+/* La barra offline usa el botón fantasma sobre fondo oscuro en el futuro; se deja legible. */
+.pwa-aviso--offline .pwa-btn--fantasma {
+  color: #e8e3dd;
+  border-color: #5a544e;
+
+  &:hover:not(:disabled) {
+    background-color: #4a443e;
+  }
+}

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideServiceWorker } from '@angular/service-worker';
 
 import { AppComponent } from './app.component';
 
@@ -19,7 +20,12 @@ describe('AppComponent', () => {
       providers: [
         provideRouter([]),
         provideHttpClient(),
-        provideHttpClientTesting()
+        provideHttpClientTesting(),
+        // AppComponent inyecta PwaActualizacionService, que a su vez inyecta SwUpdate.
+        // `enabled: false` da la instancia con `isEnabled === false` sin registrar nada:
+        // es lo mismo que ocurre en el dev server, así que el componente toma el camino
+        // del fallback por version.json y no toca el navegador.
+        provideServiceWorker('ngsw-worker.js', { enabled: false })
       ]
     }).compileComponents();
   });

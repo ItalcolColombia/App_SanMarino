@@ -70,6 +70,7 @@ temp/
 # apuntando al archivo borrado.
 scripts/*
 !scripts/build-version.js
+!scripts/verificar-ngsw.js
 deploy/
 
 # Configuración local

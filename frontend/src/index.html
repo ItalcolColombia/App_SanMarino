@@ -1,12 +1,38 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <title>ItalGranja</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Gestión avícola Italcol — lotes, seguimiento diario, inventario y movimientos.">
+
+  <!-- ===================================================================== -->
+  <!-- PWA                                                                    -->
+  <!-- ===================================================================== -->
+  <!-- El manifest hace instalable la app. nginx lo sirve con no-cache y con
+       Content-Type application/manifest+json (ver nginx.conf, bloque 1): sin ese
+       tipo el navegador lo descarta en silencio y la app deja de ser instalable
+       sin ningún error visible. -->
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <!-- Color de la barra del sistema cuando la app corre instalada.
+       #F5821F es --ital-orange de styles/theme-italfoods.scss (naranja = acción/marca). -->
+  <meta name="theme-color" content="#F5821F">
+
+  <!-- iOS no lee el manifest: la instalación es manual y estos metas son la única
+       forma de que la app abra en pantalla completa y con el icono correcto.
+       Android es la plataforma objetivo (decisión D5 del plan de PWA); esto es
+       degradación elegante para los iPhone que igual aparecen en campo. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ItalGranja">
+  <meta name="mobile-web-app-capable" content="yes">
+
   <link rel="icon" type="image/png" href="assets/brand/italcol-naraanja.png">
-  <link rel="apple-touch-icon" href="assets/brand/italcol-naraanja.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/pwa/apple-touch-icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/pwa/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/pwa/icon-512.png">
 </head>
 <body>
   <app-root></app-root>

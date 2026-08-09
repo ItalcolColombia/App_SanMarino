@@ -3064,3 +3064,81 @@ en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en 
       seguir viendo el movimiento). El predicado ya existe en el archivo: es el de `lotes_ajenos` (v11)
       aplicado al destino en vez de a mí
 - [ ] Fase 2 (visibilidad/corrección R3) y Fase 3 (señalamiento de la anomalía R2) del plan
+
+---
+
+# PWA F1 — shell instalable, autoactualizable y con kill switch
+
+**Plan:** [fase_de_desarrollo/pwa_f1_shell_plan.md](fase_de_desarrollo/pwa_f1_shell_plan.md)
+**Contexto:** F0.C cerrada (`76a2903`), F0.B parcial (`f139dfd`). El borde ya sirve `ngsw.json`,
+`ngsw-worker.js`, `safety-worker.js` y `manifest.webmanifest` con `no-cache` — pero el Service Worker
+nunca existió. Esta entrega es la F1 del plan madre.
+
+⛔ **Fuera de alcance, explícito:** escritura offline (outbox/push). Sigue bloqueada por F0.A/F0.B
+(sin idempotencia, sin concurrencia, sin tombstones en el backend).
+
+## Shell y build
+- [x] `@angular/service-worker` en `package.json` (versión alineada a Angular 22)
+- [x] `ngsw-config.json` — assetGroups `app` (prefetch) + `assets` (lazy); **sin `dataGroups`**
+- [x] `angular.json` — `serviceWorker` en `production` y `docker`; manifest y safety-worker como assets
+- [x] `provideServiceWorker` con `!isDevMode()` + `registerWhenStable:30000`
+- [x] `scripts/verificar-ngsw.js` — el build falla si un SHA1 de `ngsw.json` no coincide con el disco
+- [x] `Dockerfile` copia `ngsw-config.json` y corre el verificador; `.dockerignore` con la lista blanca al día
+
+## Instalabilidad
+- [x] `manifest.webmanifest` (name, short_name, start_url, display standalone, theme/background)
+- [x] Iconos 192/512 `any` + 192/512 `maskable` + apple-touch 180, generados por script reproducible
+- [x] `index.html` — link al manifest, `theme-color`, metas de iOS
+
+## Ciclo de vida
+- [x] `PwaActualizacionService` con `SwUpdate` + banner (sin recarga forzada) + fallback `version.json`
+- [x] `VersionCheckService` **eliminado** (dos autoridades de recarga = bucle)
+- [x] `ConexionService` (online/offline) + indicador
+- [x] `PwaInstalacionService` (`beforeinstallprompt`) + botón de instalar
+- [x] `safety-worker.js` — desregistra y limpia CacheStorage, **NO toca IndexedDB** + `make pwa-panic`
+
+## Diagnóstico
+- [x] `/diagnostico` sin `authGuard`, sin datos de negocio: build, estado del SW (safe mode incluido),
+      `storage.estimate()`, persistencia, caches
+
+## Validación
+- [x] Tests Karma de las funciones puras (`decidirActualizacion`, `formatearBytes`, `resumirEstadoSw`)
+- [x] `yarn build` 0 errores · `yarn test` verde
+- [x] Pruebas en vivo sobre build de producción servido en localhost: SW activo, manifest, iconos,
+      **red cortada**, 404 de asset inexistente, kill switch
+
+## Resultado de las pruebas en vivo (build de producción servido en :4400 con las reglas de nginx)
+
+Servidor: `frontend/scripts/servir-pwa-local.js` (replica no-cache de control, 404 de assets y
+fallback solo en navegaciones). `localhost` es contexto seguro ⇒ el SW se registra sin HTTPS.
+
+- [x] SW registrado (`ngsw-worker.js`, scope `/`) y **controlando** tras la segunda carga ·
+      114 recursos del shell + 3 de assets precacheados (~9 MB)
+- [x] Manifest 200 con `application/manifest+json`, `display: standalone`, `theme #F5821F`;
+      los **4 iconos** declarados resuelven 200
+- [x] `ngsw.json` / `ngsw-worker.js` / `safety-worker.js` / `version.json` → 200 `no-cache`
+- [x] `/chunk-que-no-existe.js` → **404**, no el index (criterio §9 del plan madre)
+- [x] **Servidor APAGADO** ⇒ `/diagnostico` (ruta lazy) carga completa desde la caché del SW
+- [x] Banner "Sin conexión" aparece al evento `offline`
+- [x] **Ciclo de actualización real**: `prepare → build → emit → verificar-ngsw` ⇒ el banner
+      aparece solo, se aplica con el botón, el bundle cambia (`main-5R4LC3MN` → `main-6VNNBUWV`)
+      y el `buildId` en pantalla queda **igual al de `/version.json`**. Sin bucle de recarga
+- [x] **Kill switch** (procedimiento exacto de `make pwa-panic`): 0 registros de SW, 0 cachés,
+      y la base IndexedDB de prueba **INTACTA** — la regla que protege el futuro outbox
+- [x] Recuperación tras el kill switch: el SW vuelve a registrarse y activarse solo
+- [x] Consola sin errores (el único 404 es el provocado a propósito)
+
+### 🔴 Hallazgo del gate en su primera corrida
+`verificar-ngsw.js` falló apenas se escribió, con un SHA1 divergente en `/safety-worker.js`:
+**`@angular/build` escribe su propio `safety-worker.js` ENCIMA del asset, después de haberlo
+hasheado para `ngsw.json`**. Es exactamente el modo de falla que el gate existe para atrapar —
+se habría desplegado una imagen que arranca perfecto y deja el SW en **safe mode silencioso**.
+Resuelto eliminando la copia propia (la de Angular ya hace `unregister()` + borra solo cachés
+`ngsw:` y nunca toca IndexedDB) y excluyendo `safety-worker.js` y `worker-basic.min.js` de los
+`assetGroups`: el kill switch no debe servirse desde la caché del SW que viene a matar.
+
+## Fuera de alcance (explícito, no pendiente de pulir)
+Escritura offline (outbox + push). Bloqueada por F0.A/F0.B: el backend no tiene idempotencia,
+ni control de concurrencia, ni tombstones, y los saldos son contadores read-modify-write con
+`Math.Max(0,…)` (no reversibles). Al cerrar F1 la app es una PWA instalable cuyo **shell** anda
+sin red; los **datos** siguen requiriendo conexión. Documentado en `frontend/PWA.md`.

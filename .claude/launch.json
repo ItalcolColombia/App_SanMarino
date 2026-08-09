@@ -16,6 +16,15 @@
       "port": 4200
     },
     {
+      "comment": "PWA: sirve el build de produccion replicando las reglas de nginx. El dev server NO registra el Service Worker (enabled: !isDevMode()), asi que esta es la unica forma de probar la PWA sin desplegar. Requiere `yarn build` previo.",
+      "name": "pwa-preview",
+      "runtimeExecutable": "C:/Users/SAN MARINO/node-portable/node-v22.23.1-win-x64/node.exe",
+      "runtimeArgs": ["scripts/servir-pwa-local.js", "4400"],
+      "cwd": "frontend",
+      "port": 4400,
+      "autoPort": false
+    },
+    {
       "name": "backend",
       "runtimeExecutable": "C:/Users/SAN MARINO/.dotnet/dotnet.exe",
       "runtimeArgs": ["run", "--launch-profile", "Development"],

@@ -1,0 +1,108 @@
+# PWA de ItalGranja — operación
+
+Qué hay, cómo se prueba y qué hacer cuando algo se rompe en campo.
+Diseño y fundamentos: [`fase_de_desarrollo/pwa_f1_shell_plan.md`](../fase_de_desarrollo/pwa_f1_shell_plan.md).
+
+---
+
+## Qué funciona sin conexión (y qué no)
+
+| | Sin red |
+|---|---|
+| Abrir la app, navegar, ver la pantalla de diagnóstico | ✅ el shell está precacheado |
+| Consultar lotes, seguimientos, inventario, reportes | ❌ **requiere conexión** |
+| Guardar cualquier cosa | ❌ **requiere conexión** |
+
+**Esto es deliberado, no una limitación pendiente de pulir.** La captura offline (outbox +
+sincronización diferida) está bloqueada por el backend: no tiene idempotencia, ni control de
+concurrencia, ni tombstones, y todos los saldos son contadores read-modify-write con `Math.Max(0, …)`
+—o sea, no reversibles aritméticamente—. Encolar escrituras sobre ese modelo multiplicaría por N
+dispositivos un problema de integridad que hoy ya es explotable con dos pestañas. El detalle, medido
+contra el código, está en `fase_de_desarrollo/pwa_offline_first_plan.md` §4.A y §4.B; son las fases
+F0.A/F0.B, y son prerrequisito de F2 (lectura offline) y F3 (escritura offline).
+
+---
+
+## Piezas
+
+| Archivo | Qué es |
+|---|---|
+| `ngsw-config.json` | Qué precachea el Service Worker. **Sin `dataGroups`** — ver abajo |
+| `src/manifest.webmanifest` | Hace instalable la app. Iconos en `src/assets/pwa/` |
+| `scripts/generar-iconos-pwa.ps1` | Regenera los 5 iconos desde la marca del repo. Si cambia la marca, se corre esto |
+| `scripts/verificar-ngsw.js` | Gate de integridad. Corre en el build y lo **hace fallar** |
+| `src/app/core/pwa/` | Servicios de actualización, instalación y conexión + funciones puras con tests |
+| `/diagnostico` | Pantalla de soporte. Sin `authGuard`, sin datos de negocio |
+
+### ⛔ Prohibido: `dataGroups` sobre `/api/**`
+
+La caché del Service Worker **indexa por URL e ignora los headers**. La empresa activa viaja en
+`X-Active-Company`, así que un `dataGroup` le serviría al operario de la empresa B la respuesta
+cacheada de la empresa A: fuga entre empresas, silenciosa y sin rastro. `verificar-ngsw.js` corta el
+build si aparece alguno. Cuando llegue F2, los datos van a IndexedDB **particionada por
+`{userId, companyId}`**, que sí se puede aislar.
+
+---
+
+## Probar en local (build de producción)
+
+El dev server **no** registra el Service Worker (`enabled: !isDevMode()`). Para probar la PWA de punta
+a punta hace falta servir un build de producción — `localhost` cuenta como contexto seguro, así que no
+hace falta desplegar:
+
+```bash
+cd frontend && yarn build && node scripts/verificar-ngsw.js && npx http-server dist/browser -p 4400 -c-1
+```
+
+Chequeos que tienen que dar:
+
+1. DevTools → Application → Service Workers: **activated and is running**.
+2. Recargar: `navigator.serviceWorker.controller` deja de ser `null`.
+3. Application → Manifest: sin errores, iconos 192/512 resueltos.
+4. Network → **Offline** → recargar: la app carga igual y `/diagnostico` responde.
+5. `/chunk-que-no-existe.js` → **404**, nunca el `index.html`.
+
+---
+
+## 🔴 Kill switch — `make pwa-panic`
+
+**Cuándo:** un deploy dejó el Service Worker sirviendo un bundle roto. Los dispositivos de campo se
+quedan con esa versión y **no se los puede alcanzar desde el servidor**: el SW responde desde su propia
+caché antes de tocar la red.
+
+**Cómo funciona:** se reemplaza `ngsw-worker.js` por `safety-worker.js` en el contenedor. El navegador
+detecta que el contenido del worker registrado cambió, lo instala, y ese se desregistra a sí mismo.
+nginx sirve ambos con `Cache-Control: no-cache` (`nginx.conf`, bloque 1), así que se propaga en el
+siguiente arranque de la app en cada dispositivo.
+
+```bash
+make pwa-panic       # imprime el procedimiento y los comandos exactos
+```
+
+**`safety-worker.js` lo emite `@angular/service-worker`, no este repo.** Hubo una versión propia acá y
+se eliminó: el builder escribe el suyo **encima** del asset, *después* de haberlo hasheado para
+`ngsw.json` → SHA1 divergente → el SW arranca en safe mode y se desactiva solo, en silencio. Lo detectó
+`verificar-ngsw.js` la primera vez que corrió. El de Angular hace exactamente lo que hace falta:
+`unregister()` + borrar **solo** las cachés `ngsw:`.
+
+### La regla que no se puede romper
+
+**El kill switch NUNCA debe borrar IndexedDB.** Hoy la base local está vacía, pero la fase F3 guarda
+ahí el outbox: las capturas que el galponero hizo sin red y todavía no se sincronizaron. El servidor
+nunca las vio; borrarlas es destruir trabajo de campo real e irrecuperable. CacheStorage sí se puede
+borrar —se reconstruye bajando la app de nuevo—. Si alguna vez aparece un `indexedDB.deleteDatabase`
+en ese camino, es un bug, no una mejora.
+
+---
+
+## Si un operario dice "no me anda"
+
+1. Que abra **`/diagnostico`** (funciona sin red y sin sesión) y toque **Copiar diagnóstico**.
+2. El campo a mirar primero es **Modo sin conexión**:
+   - *Activo y controlando la app* → el SW está bien; el problema es otro.
+   - *Instalándose* → normal en la primera visita; que recargue.
+   - ***Registrado pero NO controla*** → safe mode. Casi siempre significa que un archivo del build
+     cambió después de que se calculó su hash. Verificar con `verificar-ngsw.js` sobre la imagen
+     desplegada; si se confirma, `make pwa-panic` y re-deploy.
+3. `buildId` del diagnóstico contra `curl -sk https://<alb>/version.json` dice si el dispositivo tiene
+   la versión publicada o quedó en una vieja.

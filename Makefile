@@ -1,4 +1,4 @@
-.PHONY: up down open logs restart rebuild build-angular check-port help deploy-backend deploy-frontend deploy-all dev dev-back dev-front
+.PHONY: up down open logs restart rebuild build-angular check-port help deploy-backend deploy-frontend deploy-all dev dev-back dev-front pwa-build pwa-serve pwa-panic
 
 help:
 	@echo "🧰 Opciones disponibles:"
@@ -17,6 +17,11 @@ help:
 	@echo "  make open           👉 Abre navegador en frontend y API"
 	@echo "  make build-angular  👉 Compila Angular en modo producción"
 	@echo "  make check-port     👉 Verifica si el puerto 5050 está libre"
+	@echo ""
+	@echo "📲 PWA:"
+	@echo "  make pwa-build      👉 Build de produccion + gate de integridad del Service Worker"
+	@echo "  make pwa-serve      👉 Sirve el build en :4400 para probar la PWA (SW activo)"
+	@echo "  make pwa-panic      👉 KILL SWITCH: procedimiento para desactivar el SW en campo"
 	@echo ""
 	@echo "🚀 Despliegue AWS ECS:"
 	@echo "  make deploy-backend  👉 Despliega solo el Backend a AWS"
@@ -99,3 +104,46 @@ deploy-all: deploy-backend deploy-frontend
 	@echo "✅ Despliegue completo finalizado"
 	@echo "🌐 Obteniendo URLs de acceso..."
 	@aws elbv2 describe-load-balancers --region us-east-2 --query 'LoadBalancers[?contains(LoadBalancerName, `sanmarino`)].DNSName' --output text 2>/dev/null | head -1 | xargs -I {} echo "Frontend: http://{}" || echo "No se pudo obtener la URL del ALB"
+# ==========================================
+# PWA
+#   Detalle y procedimientos en frontend/PWA.md
+# ==========================================
+
+pwa-build:
+	@echo "📲 Build de produccion + gate de integridad del Service Worker..."
+	cd frontend && yarn build && node scripts/verificar-ngsw.js
+
+pwa-serve: pwa-build
+	@echo "📲 Sirviendo dist/browser en http://localhost:4400"
+	@echo "   El dev server NO registra el Service Worker (enabled: !isDevMode())."
+	@echo "   localhost cuenta como contexto seguro, asi que aca la PWA funciona completa."
+	cd frontend && npx http-server dist/browser -p 4400 -c-1
+
+# KILL SWITCH. Leer frontend/PWA.md antes de ejecutarlo.
+# No automatiza el deploy a proposito: es una accion irreversible sobre produccion
+# y quien la corre tiene que ver y confirmar cada paso.
+pwa-panic:
+	@echo ""
+	@echo "🔴 KILL SWITCH DEL SERVICE WORKER"
+	@echo ""
+	@echo "CUANDO: un deploy dejo el SW sirviendo un bundle roto y los dispositivos de"
+	@echo "        campo no se pueden alcanzar desde el servidor (el SW responde desde"
+	@echo "        su propia cache antes de tocar la red)."
+	@echo ""
+	@echo "COMO FUNCIONA: se reemplaza ngsw-worker.js por safety-worker.js en la imagen."
+	@echo "        El navegador ve que el contenido del worker registrado cambio, lo"
+	@echo "        instala, y ese se desregistra solo. nginx sirve ambos con no-cache,"
+	@echo "        asi que se propaga en el siguiente arranque de cada dispositivo."
+	@echo ""
+	@echo "PASOS:"
+	@echo "  1) cd frontend"
+	@echo "  2) yarn build"
+	@echo "  3) cp dist/browser/safety-worker.js dist/browser/ngsw-worker.js"
+	@echo "  4) node scripts/verificar-ngsw.js   # va a FALLAR por el hash: es esperado aca"
+	@echo "  5) construir la imagen y desplegar (bash scripts/deploy-frontend-ecs.sh)"
+	@echo "  6) verificar el deploy (CLAUDE.md, seccion CI/CD) y ademas:"
+	@echo "     curl -sk https://<alb>/ngsw-worker.js | head -5   # debe ser el safety worker"
+	@echo ""
+	@echo "⚠️  El safety worker borra SOLO las caches ngsw:. NUNCA debe tocar IndexedDB:"
+	@echo "    ahi vive (o vivira) la cola de capturas offline sin sincronizar."
+	@echo ""
