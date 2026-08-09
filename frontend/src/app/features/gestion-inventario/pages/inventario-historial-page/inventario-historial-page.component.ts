@@ -237,11 +237,16 @@ export class InventarioHistorialPageComponent implements OnInit {
   }
 
   /**
-   * La marca «para el próximo ciclo» (D2) solo aplica a ingresos con galpón: sin galpón el backend
-   * no tiene a qué ciclo atribuir el alimento (`ActualizarDestinoCicloIngresoAsync`).
+   * ⛔ Marcar ingresos nuevos está DESHABILITADO (09-ago-2026) — ver el comentario extenso en
+   * `gestion-inventario-page.component.ts` (`mostrarParaProximoCicloIngreso`): la marca rompe la
+   * conservación de kilos en galpones con ciclos que conviven y espera su rediseño.
+   *
+   * Acá se conserva a propósito el camino de SALIDA: una fila que YA está marcada sigue mostrando su
+   * badge y se puede DESMARCAR. Nunca se esconde alimento — es la regla del dueño del producto: si el
+   * sistema no sabe a qué ciclo pertenece, tiene que verse para poder corregirlo.
    */
   puedeMarcarDestinoCiclo(i: InventarioGestionIngresoListDto): boolean {
-    return !!(i.galponId ?? '').trim();
+    return !!(i.galponId ?? '').trim() && i.paraProximoCiclo === true;
   }
 
   /** Pone o quita la marca «próximo ciclo» de un ingreso ya registrado, con confirmación y toast. */

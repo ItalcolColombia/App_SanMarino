@@ -2726,3 +2726,341 @@ Qué debe hacer la marca cuando: (1) el galpón tiene **dos ciclos conviviendo**
 **liquidado** antes de consumir el alimento; (3) alguien marca y **nunca crea** el ciclo siguiente.
 Sin esa definición, cada guarda nueva mueve el defecto de lugar (pasó 3 veces).
 ⚠️ Los 2 huecos originales siguen abiertos, con **impacto cero mientras nadie use la marca**.
+
+
+---
+
+# Rediseño de la marca `para_proximo_ciclo` — v16 con ENTREGA al ciclo siguiente
+
+**Plan:** [`fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md`](fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md)
+**Fecha:** 2026-08-08 · Bloque propio — no tocar desde otras sesiones
+**Continúa:** el bloque «v16 de engorde … INTENTADA Y REVERTIDA» (commit `d6aeccb`). Ahora **sí** hay
+decisión de producto: las 3 reglas de negocio (R1 conviven / R2 liquidación / R3 sin destino) las definió
+el dueño del producto el 08-ago-2026 y son la especificación.
+
+**Cambio de modelo (no es una cuarta guarda):** el diferimiento deja de ser un **borrado** de la fila de
+ingreso y pasa a ser una **ENTREGA** —salida sintética en el último día visible del ciclo cedente, topada
+por su propio saldo— que el ciclo destino recibe en su apertura. *La marca nunca quita kg de una pantalla
+si no hay, en el mismo acto, otra pantalla que los reciba.* Con eso: R3 se cumple por construcción (nada
+desaparece nunca), no pueden nacer filas negativas (un solo delta, en el último día, topado), `pt_calc`
+conserva **una sola base**, y **`fn_cuadre_alimento_engorde` no se toca** (demostración en §2.4 del plan:
+el cedente jamás es el ciclo activo que mira el cuadre).
+
+## Fase 0 — Plan (STEP 1) · HECHO
+- [x] Exploración leída (3 lentes: convivencia / liquidación / corrección) y cruzada con el código de HEAD
+- [x] Topología de los 7 galpones testigo **verificada en la BD local** (solo lecturas, sin escrituras):
+      37/G0025 `53→70→189` · 37/Galpon-11 `25→44→85` · 43/G0055 `57→16→86→193` · 96/PA-67 4 lotes **sin
+      seguimiento y sin movimientos** · 105/G0491, 105/G0492, 106/G0479, 106/G0490 conviven
+- [x] Confirmado: **0 marcas** en `lote_registro_historico_unificado` y en `inventario_gestion_movimiento`;
+      el índice `ix_lote_hist_para_proximo_ciclo` **no existe** (quedó dropeado en la reversión)
+- [x] Plan escrito con: 3 reglas → 5 decisiones de diseño justificadas por dato · semántica completa en
+      **11 casos** (ninguno termina en «no se ve en ningún lado») · fases · compuerta · 12 casos de prueba
+      con galpones reales · qué no se toca
+
+## Fase 1 — NÚCLEO · **entra AHORA** (pendiente de implementar)
+- [ ] F1.1 `backend/sql/fn_alimento_marcado_atribucion.sql` — dueña ÚNICA de la atribución (destino por
+      `fecha_encaset` mínima posterior, cedente por `fecha_encaset` máxima anterior, convivencia por solape,
+      tope, estado) + índice parcial `ix_lote_hist_para_proximo_ciclo`
+- [ ] F1.2 `fn_seguimiento_diario_engorde` **v16**: revertir a v14 las 4 exclusiones de v15 (líneas 615,
+      761, 790, 826) · `apert_mov` por `lote_destino_id` · CTE `entrega_ciclo_siguiente` + tope · marca solo
+      en ENTRADAS · guardas de destino sin seguimiento / destino congelado / cedente sin seguimiento /
+      `d >= destino.prim_seg`. **La firma NO cambia ⇒ `CREATE OR REPLACE`, sin `DROP FUNCTION`**
+- [ ] F1.3 Espejo C#: `SaldoAlimentoEngordeCalculos` (reescribir `EntraPorMarcaProximoCiclo`, reemplazar
+      `ExcluidoDeFilaDiariaPorMarca`) + `SeguimientoAvesEngordeCalculos` (líneas 100, 164, 228)
+- [ ] F1.4 Recálculo al **cruzar el umbral**: primer seguimiento de un lote en un galpón con marcados ⇒
+      `SaldoAlimentoEngordeAplicador.RecalcularPorUbicacionAsync`
+- [ ] F1.5 Decisión registrada: **el cuadre NO se toca** en Fase 1 (la prueba es del gate, no del fix)
+- [ ] F1.6 3 migraciones EF idempotentes (índice · helper · fn v16) + espejo `.sql` **byte a byte**
+      (un `.sql` cambiado sin migración queda MUERTO)
+
+## Fase 2a — Visibilidad barata (R3) · **entra AHORA**
+- [ ] F2a.1 Columna «Próx. ciclo» en el tab **Histórico** de Gestión de Inventario (el backend ya la
+      devuelve en `InventarioGestionService.cs:1806`; el front no la pinta en ninguna de sus 15 columnas)
+- [ ] F2a.2 Verificar en pantalla la fila de **entrega** (etiqueta y signo) en la grilla de engorde
+
+## Fase 2b — Bandeja de alimento reservado · **NO entra ahora**
+- [ ] Endpoint + pantalla con `estado`/`motivo` del helper y corrección en línea (el
+      `PUT /ingresos/{id}/destino-ciclo` ya existe). Se difiere: R3 ya queda cumplido por la Fase 1
+
+## Fase 3 — Señalamiento de la anomalía R2 · **NO entra ahora**
+- [ ] F3.1 Columnas informativas en el cuadre (`marcado_no_diferible_kg`, `liquidado_con_saldo_kg`)
+      ⚠️ cambia el `RETURNS TABLE` ⇒ exige `DROP FUNCTION` y toca una fn con 5 consumidores
+- [ ] F3.2 Reporte «liquidados con alimento sin trasladar» — hoy **24 de 84 (28,6 %), 111.821 kg**
+- [ ] F3.3 Bug del aviso de liquidación: el fallback a stock de **núcleo**
+      (`modal-liquidacion-lote-engorde.component.ts:375-383`) muestra stock de galpones vecinos —
+      **7 de 11 galpones de SAN GUILLERMO** avisan con 19.160 kg ajenos
+- [ ] F3.4 `GET /api/CuadreAlimentoEngorde` no tiene **ningún** consumidor en el front
+
+## Compuerta (el gate manda; los 4 aprendizajes de las rondas fallidas van adentro)
+- [ ] **G0 — identidad SIN marcas: NECESARIA, JAMÁS SUFICIENTE.** Las 3 rondas dieron 0/0 siempre, incluida
+      la que producía negativos. `verificar_paridad_saldo_engorde.sql` antes/después, las 5 fns, ambas
+      empresas. **Nadie declara GO con esto**
+- [ ] **G1 — A/B con la marca PRENDIDA sobre movimientos REALES** (`backend/sql/verificar_marca_proximo_ciclo.sql`,
+      nuevo, LF): censo de los ~59 galpones / ~2.344 movimientos, `SAVEPOINT` por movimiento, `ROLLBACK` y
+      verificación de 0 rastro
+- [ ] I1 **ninguna fila diaria negativa** = 0 en todo el universo (ronda 3: 6 de 59)
+- [ ] I2 **conservación suma cero** por galpón (apertura + filas) invariante vs HEAD
+- [ ] I3 **visibilidad R3**: 0 movimientos marcados invisibles
+- [ ] I4 **no multiplicación**: mismo número de ciclos que lo cuentan, con y sin marca (ronda 1: 4 lotes)
+- [ ] I5 **cuadre** sin alejarse de 0 · línea base 61 filas, 1 preexistente (Panamá lote 182) (ronda 2: +5.000)
+- [ ] I6 **R1 convivencia**: `dif_saldo` = 0,00 en los 4 pares (10.699,52 · 17.761,52 · 1.576,47 · 19.393,56)
+- [ ] I7 **rendimiento** del cuadre ≤ 1,5× la línea base
+- [ ] **G3 — tests C# que CONSTRUYEN las topologías** (los 17 del primer intento pasaron con los defectos
+      adentro por hardcodear `miPrimerSeguimiento: null`): los 11 casos de la tabla + **prueba de mutación
+      registrada** (comentar cada guarda ⇒ el test tiene que ponerse rojo)
+- [ ] **G4 — el que corrige NO declara GO**: el gate lo lee una sesión que no escribió la v16
+
+## Casos de prueba con galpones reales (veredicto esperado escrito de antemano)
+- [ ] P1 96/PA-67 (4 lotes sin seguimiento) ⇒ NEUTRO, idéntico a HEAD · P2/P3 los 4 pares que conviven ⇒
+      `dif_saldo` 0,00 · P4 37/G0025 `id 6337`/`6245` ⇒ DIFERIDO limpio · P5 `id 13266` anulado ⇒ inerte ·
+      P6 37/Galpon-11 `id 9087` ⇒ NEUTRO sin destino · **P7 43/G0055 `id 14047` (04-ago, 5.600 kg) ⇒ NEUTRO:
+      es el testigo del −8.840 de la ronda 3** · P8 salidas 0173…0188 ⇒ IGNORADA_NO_ENTRADA · P9 `id 7189`
+      ⇒ DIFERIDO_PARCIAL topado · P10 destino congelado (construido en tx) ⇒ NEUTRO · P11 cruce de umbral ⇒
+      refresco del saldo persistido · **P12 granja 42/G0049 lote 132, 7.000 kg doc `005-001-000063560` ⇒ la
+      fila conserva `ingreso 7.000 / saldo 11.260 / documento`** (regresión E1 de la auditoría)
+
+## No se toca (y por qué)
+- [x] `fn_cuadre_alimento_engorde` (fórmula) — no lo necesita y tocarlo fue el error de la ronda 2; tiene
+      que seguir siendo el detector **independiente**
+- [x] Rama congelada (84 fotos) · columna `para_proximo_ciclo` + trigger (ya commiteados) ·
+      `vw_seguimiento_pollo_engorde` (Power BI, reimplementación aparte — divergencia documentada) ·
+      ventana D4 `dias_alimento_previo_encaset` (§2.3a, otro feature) · descuadre persistido de Panamá
+      (69 filas, preexistente) · decidir por país/empresa (anti-patrón prohibido por CLAUDE.md)
+- [x] `ReporteContableService.cs`, `ReporteContableBultosCalculos.cs`, `FarmInventoryMovementService.cs`,
+      `CatalogItemService.cs`, `.devpilot/` — **sesiones paralelas**
+
+---
+
+# v16 de engorde — FASE 1 IMPLEMENTADA: la marca `para_proximo_ciclo` ENTREGA en vez de borrar
+
+**Plan:** [`fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md`](fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md)
+**Fecha:** 2026-08-09 · Bloque propio — no tocar desde otras sesiones
+**Continúa** el bloque «Rediseño de la marca `para_proximo_ciclo` — v16 con ENTREGA al ciclo siguiente»
+(Fase 0 = plan). Base: HEAD `d6aeccb`. **Esta sesión NO commitea** (lo hace el orquestador).
+
+## Qué quedó implementado
+
+- [x] **F1.1** `backend/sql/fn_alimento_marcado_atribucion.sql` (NUEVO, 543 líneas) — dueño único de la
+      atribución. Dos funciones: `fn_alimento_base_cedente_engorde(INT)` (el TOPE: último día visible
+      del cedente + su saldo ahí) y `fn_alimento_marcado_atribucion(INT,TEXT,TEXT)` (el veredicto por
+      movimiento) + el índice parcial `ix_lote_hist_para_proximo_ciclo`
+- [x] **F1.2** `fn_seguimiento_diario_engorde` **v16**: las 4 exclusiones de v15 revertidas a v14 y la
+      marca convertida en dos términos **ADITIVOS** — `+kg_diferido` en la apertura del DESTINO y
+      `−kg_diferido` como `traslado_salida_kg` del CEDENTE en su último día visible
+- [x] **F1.3** espejo C# `Application/Calculos/AtribucionAlimentoMarcadoCalculos.cs` (NUEVO) +
+      `SaldoAlimentoEngordeCalculos` y `SeguimientoAvesEngordeCalculos` **revertidos a v14** (la marca
+      ya no los toca) + 33 tests nuevos que CONSTRUYEN las topologías
+- [x] **F1.4** cruce de umbral: `SaldoAlimentoEngordeAplicador.RecalcularVecinosSiHayAlimentoMarcadoAsync`,
+      llamado desde los dos services de seguimiento (carga masiva y formulario Ecuador)
+- [x] **F1.5** **el cuadre NO se tocó** — ni una línea de `fn_cuadre_alimento_engorde`
+- [x] **F1.6** 2 migraciones EF idempotentes con el SQL **byte a byte** de los `.sql`:
+      `20260809120000_FnAlimentoMarcadoAtribucionEngorde` y
+      `20260809120100_FnSeguimientoEngordeV16EntregaCicloSiguiente` (Down = v15 VERBATIM, Designer
+      clonado del último real, **ModelSnapshot intacto**)
+- [x] `backend/sql/verificar_marca_proximo_ciclo.sql` (NUEVO, 566 líneas, LF) — el gate ejecutable
+
+## El cambio de modelo, en una línea
+
+`apert_mov`, `hist_full`, `hist_alimento`, `docs_por_fecha` y `fechas_universo` vuelven a la forma de
+**v14 exacta**. La marca no quita nada de ninguna parte: agrega una **fila de entrega** al cedente y un
+**crédito de apertura** al destino, por los mismos kg. Por eso R3 («invisible» nunca es una respuesta)
+pasa de condición a vigilar a **propiedad estructural**, y una fila negativa es imposible por
+construcción (un solo delta, en el último día, topado por el saldo propio).
+
+## 🔴 DOS DEFECTOS QUE ENCONTRÓ EL GATE Y QUE NO ESTABAN EN EL PLAN
+
+1. **La entrega recibida movía el CIERRE del destino.** `saldo_close` → `rango_final.fecha_max` se
+   alimenta de la apertura; al sumarle el crédito, el ciclo destino cerraba más tarde, **ampliaba su
+   ventana visible** y absorbía movimientos que no eran suyos. Medido: **37 probes con la conservación
+   rota, hasta 14.320 kg**. Fix: `saldo_running` usa `apertura_alimento_base` (v14) y solo `pt_calc` y
+   la columna expuesta usan la apertura efectiva. Es la misma asimetría que ya obliga a dejar la
+   entrega fuera de `hist_full` (si entrara, movería la fecha donde ella misma se escribe).
+2. **Diferir alimento que el ciclo cedente estaba consumiendo descuadra el ciclo activo.** En
+   **43/G0055** el lote 86 (seg 02-jun→18-jul) cierra con **1.100 kg «de saldo»**, pero el stock físico
+   del galpón (**4.540 kg**) coincide EXACTO con el saldo del ciclo activo 193 ⇒ esos 1.100 kg son un
+   **fantasma contable** (la anomalía R2 que ya existe a escala: 24 de 84 liquidaciones congelaron con
+   saldo > 0). Entregarlos movía `fn_cuadre_alimento_engorde` de **1 → 2 galpones descuadrados** en los
+   17 probes de ese galpón — la firma exacta de la ronda 2. Fix: guarda nueva
+   **`NEUTRO_DENTRO_DEL_CEDENTE`** (`d <= cedente.ult_seg` ⇒ la marca es inerte).
+
+⚠️ **La guarda 2 se aparta del plan**: el caso de prueba **P4** (37/G0025, `id 6337` del 19-may dentro
+del rango del lote 70) esperaba `DIFERIDO` y ahora da `NEUTRO_DENTRO_DEL_CEDENTE`. Se eligió el
+invariante del cuadre por encima del veredicto escrito. **Consecuencia a decidir por producto:** el
+feature queda acotado al ingreso que cae en el **HUECO entre ciclos** —que es el caso que el propio
+plan identifica como el real (39 de 110 encasets 2026 de Ecuador, §9.3)— y NO cubre el alimento que
+llega mientras el lote anterior sigue en seguimiento.
+
+## Semántica final: 17 estados, ninguno deja kilos invisibles
+
+`DIFERIDO` · `DIFERIDO_PARCIAL` · `IGNORADA_ANULADO` · `IGNORADA_NO_ENTRADA` · `NEUTRO_SIN_DESTINO` ·
+`NEUTRO_SIN_CEDENTE` · `NEUTRO_CEDENTE_SIN_SEGUIMIENTO` · `NEUTRO_DESTINO_SIN_SEGUIMIENTO` ·
+`NEUTRO_CONVIVENCIA` · `NEUTRO_DENTRO_DEL_DESTINO` · `NEUTRO_DESTINO_LIQUIDADO` ·
+`NEUTRO_CEDENTE_LIQUIDADO` · `NEUTRO_YA_VISIBLE_EN_DESTINO` · `NEUTRO_DENTRO_DEL_CEDENTE` ·
+`NEUTRO_CEDENTE_SIN_CIERRE` · `NEUTRO_FUERA_DEL_CEDENTE` · `NEUTRO_SIN_RESPALDO`
+
+Tres estados **no anticipados por el plan** y por qué existen:
+- `NEUTRO_CEDENTE_LIQUIDADO`: una foto congelada no se reescribe ⇒ la entrega no se escribiría y el
+  destino recibiría kg sin contraparte (suma ≠ 0).
+- `NEUTRO_YA_VISIBLE_EN_DESTINO`: si el movimiento ya entra a la apertura natural del destino (v11+v12),
+  diferirlo lo contaría **dos veces**. Es lo que mantiene la conservación exacta en 0,00.
+- `NEUTRO_DENTRO_DEL_CEDENTE`: el defecto 2 de arriba.
+
+## Resultados del gate (BD local, dump tipo prod, todo en tx con ROLLBACK)
+
+**G0 — identidad SIN marcas (necesaria, jamás suficiente).** `EXCEPT ALL` bidireccional, las dos
+empresas, las 5 fns: **0 / 0 en todas**.
+`fn_seguimiento_diario_engorde` 5.804 filas · `fn_cuadre_alimento_engorde` 61 · `fn_cuadre_aves_engorde`
+172 · `fn_reporte_diario_costos_engorde` 224 · `fn_informe_semanal_pollo_engorde` 898.
+
+**G1 — censo con la marca PRENDIDA.** `backend/sql/verificar_marca_proximo_ciclo.sql`,
+**1.406 movimientos / 64 galpones**, tres fases:
+
+| | Fase A (BD tal cual) | Fase B (sin congeladas) | Fase C (ingreso sintético en el hueco) |
+|---|---|---|---|
+| I1 filas negativas nuevas | **0** de 1.406 | **0** de 1.406 | **0** de 17 |
+| I2 conservación, desvío máx. | **0,0000 kg** | **0,0000 kg** | **0,0000 kg** |
+| I3 marcados que se vuelven invisibles | **0** | **0** | **0** |
+| I4 documento en más lotes sin diferir | **0** | — | — |
+| I5 cuadre | **no se movió** en ningún probe | — | **1 → 2 sin marca, 2 → 1 CON marca** |
+| I6 convivencia (4 pares) | `dif_saldo` **0,00** con y sin marca | — | — |
+
+- Línea base del cuadre re-medida: **61 filas, 1 descuadrado preexistente (Panamá, lote 182)**.
+- Filas diarias ya negativas en HEAD: **91** — I1 mide filas negativas **nuevas**, no el total.
+- **I7 rendimiento:** `fn_cuadre_alimento_engorde(NULL)` **0,62 s** (v16) vs **0,49 s** (HEAD) = **1,27×**
+  (umbral 1,5×).
+- Rastro al terminar: **0 marcas** en `lote_registro_historico_unificado` y en
+  `inventario_gestion_movimiento`; **0 filas** del ingreso sintético.
+
+**🔴 Lo que el censo NO puede demostrar, y por eso existe la fase C.** En el dump local **ningún
+movimiento real** cae en la ventana que habilita `DIFERIDO` (después del último seguimiento del cedente
+y antes de la ventana de apertura del destino): las fases A y B terminan con **0 probes DIFERIDO**, así
+que por sí solas prueban que la marca *no rompe nada*, no que la entrega *funcione*. La fase C inyecta
+el ingreso que falta (3.000 kg) en 17 pares secuenciales reales, bombeando también
+`inventario_gestion_stock`, y compara el MISMO movimiento con el booleano en `FALSE` y en `TRUE`.
+El único par con respaldo (**43/G0055, 86 → 193, 19-jul**) da exactamente lo diseñado:
+
+| | sin marca | con marca |
+|---|---|---|
+| saldo final del cedente 86 | 4.100 kg | **1.100 kg** (entregó 3.000) |
+| `apertura_alimento_kg` del destino 193 | 0 kg | **3.000 kg** |
+| galpones descuadrados | **2** (el bug: el stock subió y el ciclo activo no lo ve) | **1** (= línea base) |
+| conservación / filas negativas nuevas | — | **0,00 kg / 0** |
+
+**G3 — tests C# que construyen las topologías.** `AtribucionAlimentoMarcadoCalculosTests` (NUEVO, 33
+tests) con un helper que arma un **galpón completo** (ciclos con encaset, primer y último seguimiento,
+congelación, ventana) y el estado del cedente como dato ⇒ se pueden expresar «destino sin seguimiento»,
+«cedente sin respaldo», «destino liquidado», «ciclos que conviven». `dotnet test`: **2.168 pasan, 0
+fallan**. Prueba de mutación registrada más abajo.
+
+**Builds:** `dotnet build` Application **0/0**, Infrastructure **0/0**. `ModelSnapshot` sin tocar.
+
+## Prueba de mutación (G3) — comentar cada guarda y ver el test en rojo
+
+Se comentó cada guarda nueva, se corrió `dotnet test` y se verificó que los tests se ponen ROJOS.
+Una guarda cuyo test sigue verde al quitarla no está testeada. **12 de 12 en rojo, 0 falsos verdes:**
+
+| guarda comentada | resultado |
+|---|---|
+| R1 convivencia (`Conviven`) | 🔴 1 test falla |
+| caso 10 · `d >= destino.PrimerSeg` | 🔴 1 |
+| caso 5 · destino congelado | 🔴 1 |
+| caso 5b · cedente congelado | 🔴 1 |
+| Option F · ya visible en la apertura del destino | 🔴 1 |
+| anti-abuso · `d <= cedente.UltimoSeg` | 🔴 1 |
+| `d > baseCedente.FechaMax` | 🔴 1 |
+| caso 3 · destino sin seguimiento | 🔴 1 |
+| caso 9 · cedente sin seguimiento | 🔴 1 |
+| caso 8 · solo entradas de alimento | 🔴 2 |
+| caso 7 · movimiento anulado | 🔴 1 |
+| tope · piso en 0 | 🔴 1 |
+
+Script reproducible: el de la sesión comenta el fragmento, corre los tests y restaura el fuente.
+
+## Estado dejado en la BD local
+
+- [x] `fn_alimento_base_cedente_engorde`, `fn_alimento_marcado_atribucion`,
+      `ix_lote_hist_para_proximo_ciclo` y `fn_seguimiento_diario_engorde` v16 **instalados**
+- [x] `__EFMigrationsHistory` **NO se tocó a mano** (última sigue siendo `20260808130000`): las dos
+      migraciones nuevas son idempotentes y las aplica EF sola al levantar el backend
+- [x] **0 marcas** y **0 filas sintéticas**: todo el gate corre en transacción con `ROLLBACK`
+- [x] Tablas temporales de línea base (`tmp_*`) eliminadas · sin procesos vivos
+
+## Lo que NO entra en esta fase (y sigue pendiente)
+
+- [ ] **Fase 2a** — columna «Próx. ciclo» en el tab Histórico (el backend ya la devuelve en
+      `InventarioGestionService.cs:1806`; el front no la pinta) y verificación en pantalla de la fila
+      de entrega
+- [ ] **Fase 2b** — bandeja de alimento reservado (el helper ya devuelve `estado` y `motivo` listos
+      para la UI)
+- [ ] **Fase 3** — señalamiento de la anomalía R2 (columnas informativas en el cuadre, reporte de
+      liquidados con alimento sin trasladar, el falso positivo del aviso de liquidación)
+- [ ] **Mensaje del endpoint** `ActualizarDestinoCicloAsync`: sigue con texto fijo; debería reportar el
+      estado resuelto por el helper («se difiere al lote X» / «queda reservado»)
+- [ ] **Decisión de producto** sobre `NEUTRO_DENTRO_DEL_CEDENTE` (ver el ⚠️ de arriba)
+
+## G4 — el que corrige NO declara GO
+
+Esta sesión **escribió** la v16, así que **no declara GO**. El gate lo tiene que ejecutar y leer una
+sesión que no la escribió: `psql ... -f backend/sql/verificar_marca_proximo_ciclo.sql`.
+
+## VEREDICTO DE LA RONDA 4: **NO-GO — REVERTIDA** (y la marca queda DESHABILITADA en la UI)
+
+El gate lo corrieron dos verificadores independientes (ninguno escribió la v16) y un juez sin permiso
+de editar. **C1 = NO-GO · C2 = GO-CON-RESERVAS · juez = NO-GO.** La diferencia entre los dos: C1 abrió
+la **foto congelada** de la liquidación y C2 no.
+
+### Lo que SÍ mejoró respecto de las 3 rondas previas
+- **Filas negativas nuevas por la marca: 0** (0 de 64 galpones reales, 0 de 75 pares sintéticos, 0 de
+  2.210 movimientos). El invariante que hundió la ronda 3 quedó cerrado.
+- **Cuadre vs HEAD: 0 movimientos empeoran** (A/B uno a uno: 0 peor · 729 mejor · 1.481 iguales).
+- **Los tests MUERDEN**: 14/14 mutantes muertos, 0 sobrevivientes (el predicado viejo pone 4 en rojo).
+- **R1 convivencia: CUMPLE** — 4 pares reales, 29 movimientos marcados, 113 filas, `EXCEPT ALL` 0 y 0.
+
+### Por qué igual es NO-GO: el handoff se parte al liquidar
+- 🔴 **Liquidar el CEDENTE esconde kilos**: tras una entrega válida (apertura destino 3.000, descuadre
+  0,00), congelar el cedente —el procedimiento normal de R2— flipea a `NEUTRO_CEDENTE_LIQUIDADO`:
+  apertura del destino 3.000→0, cuadre 0,00→−3.000, y la foto congelada del cedente sigue diciendo
+  «Entrega al ciclo siguiente, salida 3.000». **3.000 kg reales sin ninguna tabla diaria viva.** (R3 ✗)
+- 🔴 **Liquidar el DESTINO los duplica**: Σ galpón 8.640→11.640 (**+3.000 kg creados**) con
+  `descuadre_kg = 0,00 en ambos estados` ⇒ **el detector es ciego**. HEAD no puede producir esto.
+- **Causa raíz**: la atribución es un veredicto **recalculado en lectura** sobre estado mutable, pero la
+  liquidación congela **un solo** extremo ⇒ el handoff se parte. El rediseño correcto es **persistir la
+  atribución como hecho** (cedente, destino, kg, fecha) en el momento de marcar.
+- Alcance: **0 movimientos DIFERIDO** en 1.680 marcados reales ⇒ la Fase 1 verde mide un no-op; el único
+  par que alcanza el estado es justo el que rompen los dos bloqueantes.
+
+### 🔴 HALLAZGO QUE OBLIGA A ACTUAR SOBRE `801b14f` (lo ya commiteado)
+Bajo **HEAD/v15**, marcar un movimiento **rompe la conservación en 729 de 2.210 casos reales**
+(hasta **37.467 kg** que desaparecen de toda tabla diaria) y HEAD produce **208 filas negativas**.
+Motivo: los 4 guards de la fn (`hist_full`, `hist_alimento`, `docs_por_fecha`, `fechas_universo`) le
+quitan el movimiento a **TODO** lote con seguimiento —incluidos los que **CONVIVEN** con el destino— y
+en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en producción.**
+
+- [x] **Mitigación commiteada**: el checkbox del alta se oculta (`mostrarParaProximoCicloIngreso` ⇒
+      `false`) y el historial solo permite **QUITAR** una marca existente, nunca poner una nueva
+      (`puedeMarcarDestinoCiclo` exige `paraProximoCiclo === true`). La columna, el endpoint, el badge y
+      la migración `20260808120000` **quedan intactos**: se apaga la puerta de entrada, no la feature.
+      Regla del dueño del producto respetada: el alimento marcado nunca queda invisible ni sin corregir.
+- [x] `yarn build` (Node portable 22.23.1) — 0 errores, único warning el de bundle budget preexistente
+
+### Reversión (verificada)
+- [x] Working tree: `git checkout -- backend` + borrados los untracked del intento
+      (`fn_alimento_marcado_atribucion.sql`, `verificar_marca_proximo_ciclo.sql`,
+      `AtribucionAlimentoMarcadoCalculos.cs` + test, migraciones `20260809120000_*` y `20260809120100_*`).
+      **Se conservan** el plan `marca_proximo_ciclo_rediseno_plan.md` y este bloque del tracker
+- [x] BD local: fn diaria reinstalada desde HEAD (`DROP` + `CREATE`, cambió el `RETURNS TABLE`) ·
+      `fn_alimento_marcado_atribucion` y `fn_alimento_base_cedente_engorde` dropeadas ·
+      `__EFMigrationsHistory` **NO se tocó** (las migraciones nuevas nunca se registraron) · el índice
+      `ix_lote_hist_para_proximo_ciclo` **NO se tocó** (otra sesión lo estaba creando)
+- [x] Verificado: 0 marcados · 0 fns auxiliares · 0 rastros en la fn (`DIFERIDO`/`NEUTRO_`/`cedente`) ·
+      `apertura_alimento_kg` presente (= v15 correcta) · última migración `20260808130000` ·
+      cuadre 61 filas / 1 descuadrado (el preexistente de Panamá)
+
+### Lo que queda para el rediseño (con las 3 reglas ya definidas por el usuario)
+- [ ] **Persistir la atribución como hecho** en el momento de marcar (cedente, destino, kg, fecha), en
+      vez de recalcularla en lectura: es la única forma de que la liquidación de un extremo no parta el
+      handoff. Es un cambio de modelo de datos, no una guarda más
+- [ ] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
+      seguir viendo el movimiento). El predicado ya existe en el archivo: es el de `lotes_ajenos` (v11)
+      aplicado al destino en vez de a mí
+- [ ] Fase 2 (visibilidad/corrección R3) y Fase 3 (señalamiento de la anomalía R2) del plan

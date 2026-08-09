@@ -919,11 +919,23 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   /**
-   * Checkbox «para el próximo ciclo» (D2): visible solo con concepto Alimento Y galpón ya elegido —
-   * el backend exige galpón para atribuir el alimento a un ciclo (`ActualizarDestinoCicloIngresoAsync`).
+   * ⛔ DESHABILITADO (09-ago-2026) — la marca «para el próximo ciclo» NO se puede usar todavía.
+   *
+   * El checkbox se entregó en `801b14f`, pero la auditoría posterior midió que marcar un movimiento
+   * ROMPE LA CONSERVACIÓN de kilos en **729 de 2.210 casos reales** (hasta 37.467 kg que desaparecen
+   * de toda tabla diaria) y deja filas de la grilla en negativo: la fn diaria le quita el movimiento a
+   * TODO lote con seguimiento, incluidos los que CONVIVEN con el ciclo destino, y en esos galpones
+   * ninguna apertura lo vuelve a tomar. Cuatro intentos de arreglarlo terminaron revertidos porque
+   * cada guarda mudaba el defecto de lugar (ver `fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md`
+   * y el bloque «v16 ... REVERTIDA» de `tracker_estado.md`).
+   *
+   * Se oculta el checkbox en vez de borrar la feature: la columna, el endpoint y el badge del historial
+   * siguen vivos, y el historial permite QUITAR una marca existente (nunca dejar kilos invisibles).
+   * Para reactivarlo, primero tiene que estar el rediseño (atribución persistida como hecho, no
+   * recalculada en lectura) con su compuerta de no-negativos.
    */
   get mostrarParaProximoCicloIngreso(): boolean {
-    return this.ingresoEsPorGalpon && !!(this.ingresoGalponId ?? '').trim();
+    return false;
   }
 
   /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
