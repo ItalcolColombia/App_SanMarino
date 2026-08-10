@@ -273,34 +273,12 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         return Math.Max(1, (int)Math.Floor(dias / 7.0) + 1);
     }
 
-    /// <summary>
-    /// Descuenta aves de lote_postura_levante (aves_h_actual, aves_m_actual).
-    /// Busca por lote_postura_levante_id o por lote_id.
-    /// </summary>
-    private async Task DescontarAvesEnLotePosturaLevanteAsync(int loteId, int? lotePosturaLevanteId, int hembras, int machos)
-    {
-        await AjustarAvesEnLotePosturaLevanteAsync(loteId, lotePosturaLevanteId, -hembras, -machos);
-    }
-
-    /// <summary>
-    /// Ajusta aves en lote_postura_levante. deltaH/deltaM positivos = sumar, negativos = restar.
-    /// </summary>
-    private async Task AjustarAvesEnLotePosturaLevanteAsync(int loteId, int? lotePosturaLevanteId, int deltaH, int deltaM)
-    {
-        if (deltaH == 0 && deltaM == 0) return;
-
-        var lev = lotePosturaLevanteId.HasValue
-            ? await _ctx.LotePosturaLevante.FirstOrDefaultAsync(l => l.LotePosturaLevanteId == lotePosturaLevanteId.Value && l.DeletedAt == null)
-            : await _ctx.LotePosturaLevante.FirstOrDefaultAsync(l => l.LoteId == loteId && l.DeletedAt == null);
-        if (lev == null) return;
-
-        var avesH = (lev.AvesHActual ?? 0) + deltaH;
-        var avesM = (lev.AvesMActual ?? 0) + deltaM;
-        lev.AvesHActual = Math.Max(0, avesH);
-        lev.AvesMActual = Math.Max(0, avesM);
-        lev.UpdatedAt = DateTime.UtcNow;
-        await _ctx.SaveChangesAsync();
-    }
+    // A7 — acá vivían `DescontarAvesEnLotePosturaLevanteAsync` y
+    // `AjustarAvesEnLotePosturaLevanteAsync`, que ajustaban `lote_postura_levante.aves_*_actual`
+    // desde este módulo. Se eliminaron: la regla se movió a `SeguimientoDiarioService`, que es
+    // donde se escribe la fila, para que la cumplan los TRES caminos que editan o borran un
+    // seguimiento de levante y no solo el endpoint de este módulo. Ver el comentario de
+    // `SeguimientoDiarioService.UpdateAsync`.
 
     /// <summary>
     /// Parseo de items de metadata (itemsHembras/Machos/Generales) → kg por ítem.

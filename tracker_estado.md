@@ -3324,3 +3324,54 @@ arrancar de cero.
 **A5 (2ª parte: soft delete)** → **A7** (consolidar los dos escritores de levante) → **A6** (medir
 primero) → **A4** (aplicador + gate de paridad) → **A9** (último, con gate multipaís y en horario de
 baja operación).
+
+---
+
+# F0.A · A7 — una sola regla de saldo de aves para levante
+
+**Contexto:** item A7 de [f0a_auditoria_estado_2026-08-09.md](fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md).
+
+## El defecto, confirmado leyendo los tres caminos
+`SeguimientoDiarioService` escribía la fila pero **no** movía el saldo de levante en `Update`/`Delete`;
+lo hacía el módulo (`SeguimientoLoteLevanteService.Crud.cs`) **después** de llamarlo. Resultado:
+
+| Camino | Editar / borrar mortalidad de levante | Saldo de aves |
+|---|---|---|
+| Módulo de levante | ✅ | se movía |
+| `PUT`/`DELETE /api/SeguimientoDiario` | ✅ | **quedaba intacto** |
+| Módulo `LoteSeguimiento` | ✅ | **quedaba intacto** |
+
+O sea: la fila corregida y el saldo mintiendo. Producción **sí** lo hacía bien dentro del service —
+la asimetría era solo de levante.
+
+## Lo hecho
+- [x] `UpdateAsync` aplica el delta de levante **revirtiendo lo viejo y aplicando lo nuevo**, simétrico
+      con el bloque de producción que ya existía
+- [x] `DeleteAsync` devuelve las aves (`RestaurarAvesLevanteAsync`) en **los dos caminos**, incluido el
+      de traslado, y **dentro de la transacción** para que una falla del borrado se lleve la devolución
+- [x] Las **4** aplicaciones duplicadas del módulo de levante eliminadas (si no, se descontaría dos veces)
+- [x] Código muerto borrado: `DescontarAvesEnLotePosturaLevanteAsync` y
+      `AjustarAvesEnLotePosturaLevanteAsync` (grep: 0 llamadas restantes)
+- [x] `DescuentoAvesSeguimientoCalculos` (puro) + **18 tests xUnit**
+
+## La prueba que hace que esto sea un refactor y no un cambio de comportamiento
+El módulo aplicaba el **delta neto** (`viejo − nuevo`) y el service **revierte y reaplica**. El test
+`RevertirYAplicarEsIgualAlDeltaNeto` fija que las dos formas dan el mismo saldo en 9 escenarios,
+**clamp incluido** (saldo en cero, viejo mayor que el saldo, nuevo mayor que el saldo…). Sin esa
+equivalencia, mover la regla habría sido cambiar números históricos.
+
+Queda además fijado por test que el `Math.Max(0, …)` hace la operación **no reversible** (descontar 10
+sobre un saldo de 3 deja 0, y revertir deja 10, no 3) — es una de las razones por las que F3 sigue
+bloqueada.
+
+## Validación
+- [x] `dotnet build` 0 errores · `dotnet test` **2.181 verdes** (2.163 → 2.181)
+- [x] Cuadre de alimento de engorde **61 filas / 1 descuadrado**, sin moverse
+- [x] Grep: queda **exactamente un** aplicador del saldo de levante
+
+## ⚠️ Lo que NO se probó
+**No se corrió un smoke HTTP** de los tres endpoints: `PlatformSecretMiddleware` exige el header
+`X-Secret-Up` cifrado y montarlo no era rápido. La afirmación *"ahora los tres caminos mueven el
+saldo"* está verificada por lectura del código y por los tests de la aritmética, **no** por una
+corrida punta a punta. Antes de desplegar conviene: editar y borrar un seguimiento de levante por cada
+uno de los tres caminos y verificar `lote_postura_levante.aves_h_actual` en cada paso.
