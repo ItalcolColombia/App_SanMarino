@@ -3375,3 +3375,24 @@ bloqueada.
 saldo"* está verificada por lectura del código y por los tests de la aritmética, **no** por una
 corrida punta a punta. Antes de desplegar conviene: editar y borrar un seguimiento de levante por cada
 uno de los tres caminos y verificar `lote_postura_levante.aves_h_actual` en cada paso.
+
+---
+
+# F0.A · A6 — MEDIDO y cerrado como "no se cambia"
+
+**Detalle:** apéndice de [f0a_auditoria_estado_2026-08-09.md](fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md).
+
+- [x] **La premisa del plan no se reproduce.** `SELECT lote_id … HAVING count(*) > 1` sobre
+      `lote_postura_produccion` devuelve **0 filas**: ningún lote tiene más de un LPP, así que el único
+      por `lote_id` no puede producir la colisión que el plan describe. **No se toca el índice** —
+      cambiarlo contra la medición permitiría duplicados que hoy están correctamente prohibidos
+- [x] **Hallazgo lateral:** la entidad `SeguimientoDiario` mapea a **`seguimiento_diario_levante`**,
+      no a una tabla unificada. Razonar sobre los índices de `seguimiento_diario_produccion` **no dice
+      nada** sobre lo que escribe ese service. 588 filas, todas `levante`, 0 con LPP
+- [x] **Dos índices únicos que sobran** (anotados, NO tocados): `uq_sdlr_prod_lote_fecha` es parcial
+      sobre `lote_id_int`, columna NULL en el 100 % de prod ⇒ **no puede dispararse nunca**; y en
+      producción el índice por timestamp es redundante con el de día UTC (el estricto implica al laxo)
+
+**Estado F0.A: 8 de 10 resueltos** (A1, A2, A3, A5-1ª, A6, A7, A8, A10). Quedan **A4** (refactor del
+aplicador + gate de paridad) y **A9** (zona minada, gate multipaís) — los dos exigen decisión y gate,
+no ejecución directa.

@@ -116,3 +116,50 @@ Requisitos **no negociables** antes de tocarla, según CLAUDE.md:
 > **Nota para quien retome esto:** el inventario del plan madre quedó desactualizado en 3 de 10 ítems
 > en dos semanas. Antes de ejecutar cualquiera de los que quedan, **volvé a verificar contra la BD y
 > el código**, como se hizo acá. Cuesta veinte minutos y evita "arreglar" algo que ya está bien.
+
+---
+
+## Apéndice — A6 MEDIDO (2026-08-09): la colisión que el plan describe NO existe en estos datos
+
+Se midió antes de tocar nada, como exige la regla de schema de CLAUDE.md.
+
+### 1. La premisa del plan no se reproduce
+
+El plan justifica mover el índice único a `(lote_postura_produccion_id, fecha)` porque *"dos galpones
+del mismo lote base colisionan"*. Medido:
+
+```sql
+SELECT lote_id, count(*) FROM lote_postura_produccion
+WHERE deleted_at IS NULL GROUP BY lote_id HAVING count(*) > 1;
+-- 0 filas
+```
+
+**Ningún `lote_id` tiene más de un LPP.** La relación es 1:1, así que el único por `lote_id` no puede
+producir la colisión descrita. **Conclusión: no se cambia el índice.** Hacerlo por lo que dice un plan,
+contra una medición que lo contradice, permitiría duplicados que hoy están correctamente prohibidos.
+
+### 2. Hallazgo lateral: la entidad `SeguimientoDiario` NO mapea a una tabla unificada
+
+`SeguimientoDiarioConfiguration` hace `ToTable("seguimiento_diario_levante")`. O sea que
+`SeguimientoDiarioService` —el service "unificado"— escribe en la tabla de **levante**, y
+`seguimiento_diario_produccion` es una tabla distinta con sus propios índices. Es la deuda de
+"tablas duplicadas vivas" y conviene tenerla presente: **razonar sobre índices de
+`seguimiento_diario_produccion` no dice nada sobre lo que escribe ese service.**
+
+Medido en `seguimiento_diario_levante`: **588 filas, todas `tipo_seguimiento = 'levante'`, 0 con
+`lote_postura_produccion_id`.**
+
+### 3. Dos índices únicos que sobran
+
+- `uq_sdlr_prod_lote_fecha` es **parcial sobre `lote_id_int`** con `WHERE lote_id_int IS NOT NULL`.
+  Esa columna es NULL en el 100 % de prod (ver la memoria `lote-id-int-legado-mata-lectores-levante`),
+  y además la tabla tiene **0 filas de producción**: el índice **no puede dispararse nunca**.
+- En `seguimiento_diario_produccion`, `ix_..._lote_id_fecha_registro` (por timestamp) es **redundante**
+  con `ux_..._lote_dia_utc` (por día UTC): si dos filas comparten el timestamp exacto, comparten el
+  día, así que el índice por día ya las rechaza. El estricto implica al laxo.
+
+Ninguna de las dos limpiezas es urgente y **ninguna se hace en este item**: quitar un índice único es
+irreversible en la práctica (recrearlo exige que los datos sigan cumpliendo), y el beneficio es
+cosmético. Queda anotado con la medición para que la decisión se tome con datos.
+
+**Estado de A6: CERRADO como "no se cambia", con la medición como fundamento.**
