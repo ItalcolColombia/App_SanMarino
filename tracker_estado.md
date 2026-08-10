@@ -3142,3 +3142,72 @@ Escritura offline (outbox + push). Bloqueada por F0.A/F0.B: el backend no tiene 
 ni control de concurrencia, ni tombstones, y los saldos son contadores read-modify-write con
 `Math.Max(0,…)` (no reversibles). Al cerrar F1 la app es una PWA instalable cuyo **shell** anda
 sin red; los **datos** siguen requiriendo conexión. Documentado en `frontend/PWA.md`.
+
+---
+
+# F0.A · A1 + A2 — el stock de inventario deja de perder escrituras
+
+**Plan:** [fase_de_desarrollo/f0a_stock_atomico_plan.md](fase_de_desarrollo/f0a_stock_atomico_plan.md)
+**Contexto:** items A1 y A2 de `pwa_offline_first_plan.md` §4.A. **Son bugs de producción de HOY**,
+reproducibles con dos pestañas; el offline solo los multiplicaría por N dispositivos. Prerrequisito
+de F2/F3.
+
+## Medición previa (local, refresh del dump de prod)
+- [x] 539 filas de stock · **0 grupos duplicados** · **0 FKs** apuntando a `stock.id` ⇒ el índice
+      único se puede crear y consolidar no rompe nada
+
+## A1 — clave natural única
+- [x] Migración `AddStockClaveNaturalUnica`, idempotente: consolida duplicados (suma, se queda
+      `MIN(id)`) **antes** de crear el índice. Sin esto, duplicados vivos en prod harían fallar la
+      migración al arrancar el contenedor (`RunMigrations=true`) → exit 139 / rollback silencioso
+- [x] Índice único de **expresión** con `COALESCE(nucleo_id,'')`/`COALESCE(galpon_id,'')`: sin el
+      COALESCE, `NULL <> NULL` deja duplicarse todo el modelo a nivel granja (Colombia + granjas con
+      `maneja_alimento_por_galpon = false`)
+- [x] Se conserva el índice no único existente (el de expresión no resuelve las igualdades de las
+      consultas ⇒ quitarlo sería regresión de plan)
+- [x] Upsert `INSERT ... ON CONFLICT DO UPDATE` en los 4 sitios de buscar-o-insertar
+
+## A2 — descuento atómico
+- [x] `UPDATE ... SET quantity = quantity - @q WHERE id = @id AND quantity >= @q`; **0 filas = rechazo**
+- [x] Aplicado en los 4 sitios de read-modify-write (consumo, traslado misma granja, tránsito
+      inter-granja, distribución)
+- [x] Lecturas previas al descuento pasan a `AsNoTracking()` (que el tracker no reescriba la fila)
+- [x] Transacción explícita solo si no hay una ambiente (`CurrentTransaction is null`)
+
+## Validación
+- [x] Tests xUnit de la lógica pura
+- [x] Pruebas SQL en transacción + ROLLBACK: consolidación, rechazo del índice único (incluido el
+      caso NULL), UPDATE condicional con saldo suficiente e insuficiente
+- [x] `dotnet build` + `dotnet test`
+- [x] Cuadre de alimento de engorde sin moverse de 61 filas / 1 descuadrado (Panamá preexistente)
+
+## Pruebas de concurrencia REALES (dos sesiones psql simultáneas contra la BD local)
+
+Es el punto: los dos defectos son carreras, así que probarlos de a una operación no prueba nada.
+
+- [x] **A2 — descuento.** Fila con saldo **150**, dos consumos concurrentes de **100**:
+      sesión A → `UPDATE 1` · sesión B → **`UPDATE 0`** (se bloqueó en el lock de fila de A y al
+      liberarse reevaluó el `WHERE` contra el valor nuevo) · **saldo final 50**.
+      Con el código anterior los dos pasaban la validación en C# y el saldo quedaba en **−50**.
+- [x] **A1 — inserción.** Dos upserts concurrentes sobre la misma clave natural (40 + 40):
+      resultado **1 fila con 80**, en vez de dos filas de 40 con una invisible.
+- [x] Datos de prueba borrados; la tabla vuelve a **539 filas**.
+
+## Validación
+- [x] DDL probado en transacción + ROLLBACK con duplicados sembrados: consolidación (2 grupos,
+      3 filas absorbidas), rechazo del índice con ubicación **y a nivel granja** (`NULL,NULL`),
+      `UPDATE` condicional (1 fila con saldo / 0 sin saldo), idempotencia
+- [x] `dotnet build` 0 errores · `dotnet test` **2.163 verdes** (12 nuevos de `StockAtomicoCalculos`)
+- [x] Migración aplicada en local: índice creado, 539 filas intactas, 0 duplicados
+- [x] Cuadre de alimento de engorde **61 filas / 1 descuadrado** — idéntico al estado previo
+      (el descuadre preexistente de Panamá)
+
+## ⚠️ Brecha que queda ABIERTA, a propósito
+Los dos métodos **a nivel granja de Colombia** (`RegistrarConsumoNivelGranjaAsync` /
+`RegistrarIngresoNivelGranjaAsync`) **NO se hicieron atómicos**. Su contrato dice explícitamente
+*«NO SaveChanges/tx aquí: el orquestador externo commitea»*, y de sus cuatro llamadores, **tres**
+(`ProduccionService.Seguimiento`) abren transacción pero el de **carga masiva**
+(`MigracionService.AlimentoPostura:131`) no. Con escritura diferida eso hoy funciona; con SQL
+inmediato, el descuento se auto-commitearía y el movimiento quedaría pendiente ⇒ **ventana de
+escritura parcial nueva**. Cerrarla requiere primero envolver el camino de carga masiva en su propia
+transacción. Se deja anotado en vez de introducir un modo de falla que este cambio no puede verificar.
