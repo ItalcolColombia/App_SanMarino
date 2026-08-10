@@ -3479,3 +3479,75 @@ pasó de **753 a 747** al arreglarlo — las 6 de más eran el cartesiano.
 - [x] `dotnet build` 0 errores · `dotnet test` **2.181 verdes**
 - [x] Comentario de `SaldoAlimentoEngordeCalculos` actualizado: la fn ya no devuelve liquidados, pero
       **sigue sin mirar la fecha** entre dos lotes vivos ⇒ los dos cortes de v12 siguen haciendo falta
+
+---
+
+# PWA F0 — scoping de empresa en seguimiento de producción + cierre de A5
+
+**Plan:** [fase_de_desarrollo/pwa_f0_scoping_produccion_y_softdelete_plan.md](fase_de_desarrollo/pwa_f0_scoping_produccion_y_softdelete_plan.md)
+
+**Contexto:** continuación de la PWA. F1 y F2 entregadas, F3 bloqueada por F0.A/F0.B. Se retomó A5
+(2ª parte) aplicando la regla de la auditoría anterior —verificar el plan contra la BD y el código de
+HOY— y esa verificación destapó algo que el plan no menciona y pesa más que los dos ítems restantes.
+
+## 🔴 El hallazgo: `SeguimientoProduccionService` no filtra por empresa en NINGÚN método
+- [x] `GetAllAsync:21` devuelve los seguimientos de **todas las empresas**; `GetByLoteId:45`,
+      `Update:157`, `Delete:208` y `Filter:250` operan **por id crudo**, sin `CompanyId`
+- [x] No es anónimo (`Program.cs:462` fija `FallbackPolicy = RequireAuthenticatedUser`): falta la
+      **autorización por empresa**, no la autenticación
+- [x] Es el ítem **B4** de la Fase 0. La PWA no lo crea pero lo multiplica por N dispositivos: un
+      outbox reproducido contra un servidor que no verifica la empresa escribe en la equivocada con 200 OK
+- [x] Evidencia de que ya corrió sin identidad: **1 fila con `company_id = 0`** (`Create:137` hace
+      `_current?.CompanyId ?? 0`) — mismo patrón que la deuda de los movimientos TSD
+- [x] Radio de rotura **medido**: el front solo usa `/filter-data`, que ya tiene scoping ⇒ los seis
+      métodos no los llama ninguna pantalla
+
+## A5 (2ª parte) — MEDIDO y cerrado como "no se hace soft delete"
+- [x] Solo `seguimiento_diario_produccion` tiene `deleted_at`; las otras 3 tablas **ni la columna**
+- [x] **`HasQueryFilter` no aparece ni una vez en todo el backend** ⇒ "agregar soft delete" sería
+      tocar cada consulta a mano o cambiar el comportamiento de todas. Y los tombstones (`60d3125`)
+      **ya cubren** el requisito que el plan invoca para A5
+- [x] 🔴 La bomba armada: `fn_seguimiento_diario_produccion` filtra el `deleted_at` de `lotes`, `lpp`,
+      `lpl` y `movimiento_aves`, pero **NO el de la tabla de la que saca los seguimientos**
+
+## Lo que se hace
+- [x] **S1** — scoping por join a `Lotes` (patrón vivo de `ProduccionDiariaService.cs:253-257`: la
+      empresa la dicta el LOTE, no la columna `company_id` de la fila, que puede valer 0), fail-closed
+- [x] **S2** — `fn_seguimiento_diario_produccion` filtra `sp.deleted_at IS NULL`, por migración EF +
+      espejo `.sql` en el mismo commit. Hoy 0 filas borradas ⇒ **no-op verificable**
+- [x] **S3** — cálculo puro + tests xUnit del scoping
+
+## A4 — medido, fuera de alcance por tamaño
+- [x] **15 escritores incrementales** en 6 archivos + 2 absolutos; el `SaveChangesAsync` del GET
+      (`ProduccionService.Consultas.cs:174-184`) **cura** la columna en cada lectura de la ficha
+- [x] Medido: **4 LPP vivos, 0 difieren** de la fn. El self-heal enmascara la deriva, así que el 0
+      prueba que el refactor sería un no-op verificable, no que los incrementales estén bien
+
+## Validación
+- [x] Gate de paridad `verificar_paridad_seguimiento_produccion.sql` antes/después ⇒ 0 en toda empresa
+- [x] `dotnet build` 0 errores · `dotnet test` sin regresión (base 2.181)
+- [x] Cuadre de engorde 61/1 sin moverse
+
+## Cómo se verificó (no por lectura de código)
+- [x] **Efecto medido del filtro**: `GET /api/SeguimientoProduccion` pasaba de **605 filas visibles
+      para cualquier sesión** a **602 (empresa 1) · 2 (empresa 4) · 0 sin empresa**
+- [x] La fila que queda fuera de toda empresa es la de `company_id = 0`: apunta a un `lote_id = 7`
+      que **no existe**. Deja de ser alcanzable por la API; **no se borró nada**, sigue en la BD
+- [x] **El filtro de `deleted_at` se probó que FILTRA**, en transacción + `ROLLBACK`: marcar una fila
+      real la saca de la serie (**301 → 300**). Un no-op que no se puede distinguir de no haber
+      hecho nada no está probado
+- [x] Espejo `backend/sql/fn_seguimiento_diario_produccion.sql` == función desplegada, con el filtro
+      en ambos (comparado carácter a carácter antes y después)
+- [x] Migración `20260810053551_FnSeguimientoProduccionExcluyeBorrados` generada **desde el `.sql`**,
+      así el espejo y la migración quedan sincronizados por construcción. ModelSnapshot **sin tocar**
+
+## Resultado
+- [x] Gate de paridad: **Sanmarino 0 · Demo 0** en todas las columnas (604 filas base)
+- [x] `dotnet build` **0 errores / 0 warnings** · `dotnet test` **2.197 verdes** (2.181 → 2.197, +16)
+- [x] Cuadre de engorde **61 filas / 1 descuadrado**, sin moverse
+- [x] **F0.A queda en 9 de 10.** Solo falta **A4**, medido y documentado, con su propio gate
+
+> El plan mandaba "soft delete en 4 tablas". La medición dijo otra cosa: 3 no tienen ni la columna,
+> los tombstones ya cubren el requisito, y no hay un solo `HasQueryFilter` en el backend. Ejecutarlo
+> al pie de la letra habría sido un cambio de comportamiento masivo para cubrir algo ya cubierto.
+> Lo que sí había era una **bomba armada** que el plan no menciona.
