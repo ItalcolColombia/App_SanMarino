@@ -94,7 +94,10 @@ public static class SaldoAlimentoEngordeCalculos
     /// Complementa a <see cref="ResolverLotesAjenos"/>. Hacen falta los dos porque la atribución del
     /// histórico falla en ambos sentidos: <c>lote_ave_engorde_id</c> lo pone el trigger con
     /// <c>fn_lote_ave_engorde_id_desde_ubicacion</c>, que devuelve el lote de id MÁS ALTO del galpón
-    /// al momento de insertar. La limpieza del ciclo anterior queda con el id del lote viejo si se
+    /// al momento de insertar. (Desde la migración <c>FnLoteEngordeDesdeUbicacionExcluyeLiquidados</c>
+    /// esa función ya no puede devolver un lote <b>liquidado</b> —item A9—, pero sigue sin mirar la
+    /// fecha de la operación: entre dos lotes VIVOS del mismo galpón elige el de id más alto, así que
+    /// estos dos cortes siguen siendo necesarios. Y no arregla nada de lo ya grabado.) La limpieza del ciclo anterior queda con el id del lote viejo si se
     /// registró antes de crear el nuevo (la caza <c>ResolverLotesAjenos</c>) o con el id del NUEVO si
     /// se registró después (la caza este corte). Caso SAN GUILLERMO G0033: dos traslados de salida del
     /// 13/03 por 5.160 kg, el mismo día en que cerró el ciclo previo, etiquetados con el lote nuevo.

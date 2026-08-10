@@ -21,6 +21,9 @@
 -- La primera corrida crea la línea base y avisa. La segunda muestra el diff por empresa.
 -- Para empezar de cero: DROP TABLE _paridad_saldo_base;
 --
+-- CLAVE DE COMPARACIÓN: (lote_id, fecha, seg_id). El `seg_id` NO es decorativo — ver el
+-- comentario del snapshot.
+--
 -- CÓMO SE LEE
 -- Toda empresa que NO sea el objetivo del cambio tiene que salir con 0 en TODAS las columnas. Si el
 -- cambio se declaró no-op, salen en 0 todas. Cualquier otra cosa se justifica por escrito antes de
@@ -35,6 +38,14 @@ CREATE TABLE _paridad_saldo_nuevo AS
 SELECT l.company_id,
        l.lote_ave_engorde_id AS lote_id,
        f.fecha,
+       -- `seg_id` es OBLIGATORIO en la clave: un lote puede tener DOS filas la misma fecha
+       -- (dos seguimientos el mismo dia) y la fn no garantiza el orden entre ellas. Sin este
+       -- desempate, el LEFT JOIN de abajo las emparejaba cruzadas y el gate reportaba
+       -- diferencias que no existian. Medido el 09-ago-2026: 3 pares en Panama producian
+       -- 6 falsas diferencias (dif_saldo_aves y dif_consumo) en CUALQUIER corrida, incluso
+       -- sin ningun cambio. Un gate con falsos positivos se termina ignorando, que es peor
+       -- que no tenerlo.
+       f.seg_id,
        f.saldo_alimento_kg,
        f.saldo_aves,
        f.ingreso_alimento_kg,
@@ -70,7 +81,8 @@ SELECT c.name                                                                   
        (SELECT count(*) FROM _paridad_saldo_nuevo n2
          WHERE n2.company_id = b.company_id
            AND NOT EXISTS (SELECT 1 FROM _paridad_saldo_base b2
-                            WHERE b2.lote_id = n2.lote_id AND b2.fecha = n2.fecha)) AS filas_nuevas,
+                            WHERE b2.lote_id = n2.lote_id AND b2.fecha = n2.fecha
+                              AND b2.seg_id IS NOT DISTINCT FROM n2.seg_id)) AS filas_nuevas,
        count(*) FILTER (WHERE n.lote_id IS NOT NULL
                           AND abs(coalesce(b.saldo_alimento_kg,0) - coalesce(n.saldo_alimento_kg,0)) > 0.001) AS dif_saldo_alimento,
        count(*) FILTER (WHERE n.lote_id IS NOT NULL
@@ -84,6 +96,7 @@ SELECT c.name                                                                   
 FROM _paridad_saldo_base b
 JOIN companies c ON c.id = b.company_id
 LEFT JOIN _paridad_saldo_nuevo n ON n.lote_id = b.lote_id AND n.fecha = b.fecha
+                                AND n.seg_id IS NOT DISTINCT FROM b.seg_id
 GROUP BY b.company_id, c.name
 ORDER BY c.name;
 
@@ -108,6 +121,7 @@ SELECT c.name AS empresa, fa.name AS granja, l.galpon_id, l.lote_nombre AS corri
        round(max(abs(b.saldo_alimento_kg - n.saldo_alimento_kg))::numeric, 1) AS peor_diferencia
 FROM _paridad_saldo_base b
 JOIN _paridad_saldo_nuevo n ON n.lote_id = b.lote_id AND n.fecha = b.fecha
+                           AND n.seg_id IS NOT DISTINCT FROM b.seg_id
 JOIN lote_ave_engorde l ON l.lote_ave_engorde_id = b.lote_id
 JOIN companies c ON c.id = b.company_id
 LEFT JOIN farms fa ON fa.id = l.granja_id

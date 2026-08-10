@@ -3436,3 +3436,46 @@ evita por completo esa zona.
    el hueco. No toca historia ni liquidaciones.
 2. **¿Backfill de las 1.677 filas?** Movería 4,1 M kg entre lotes, y **41 lotes ya liquidados**
    quedarían fuera de sintonía con su copia congelada. Es una decisión de negocio, no técnica.
+
+## A9 · paso 2 — la fn deja de imputar a lotes liquidados
+
+**Regla del usuario:** un lote liquidado está **congelado**: no recibe atribución nueva. La
+liquidación guarda una copia congelada de sus números; si después le siguen entrando movimientos, la
+copia y el dato vivo dejan de coincidir y no hay forma de saber cuál es el bueno.
+
+- [x] Migración `20260810035730_FnLoteEngordeDesdeUbicacionExcluyeLiquidados`: `CREATE OR REPLACE`
+      con la **misma firma de 3 argumentos** (agregar un parámetro con DEFAULT habría creado una
+      **sobrecarga**, no un reemplazo, y las llamadas existentes quedarían ambiguas)
+- [x] Radio de impacto medido **antes** de tocar: **Panamá 38 de 38 galpones sin ningún cambio**
+      (no tiene un solo lote cerrado) · Ecuador 25 sin cambio y **10 pasan a NULL** ·
+      **0 galpones pasan a imputar a otro lote** — la regla nunca redirige alimento
+- [x] NULL es un estado **soportado**, no invisibilidad: `fn_seguimiento_diario_engorde` lo dice
+      explícito ("los movimientos sin lote se conservan: no se pierde alimento") y ya hay **1.453
+      filas** de Ecuador así. Es el mismo camino del alimento previo al encaset
+- [x] Solo afecta inserciones **futuras**. Las 1.677 filas ya mal atribuidas siguen igual
+
+### 🔴 El gate de paridad estaba ROTO (falso positivo) — arreglado
+La primera corrida dio **Panamá `dif_saldo_aves = 6` y `dif_consumo = 6`**, y Panamá no tiene lotes
+cerrados. En vez de justificarlo, se hizo la prueba decisiva: **restaurar la fn vieja y volver a
+comparar** ⇒ **el 6 seguía ahí**. O sea que no lo causaba el cambio.
+
+Causa: un lote puede tener **dos filas la misma fecha** (dos seguimientos el mismo día) y la fn no
+garantiza el orden entre ellas; el script unía por `(lote_id, fecha)`, que **no es único**, y armaba
+un producto cartesiano que emparejaba las filas cruzadas. Se ve en el conteo: `filas_base` de Panamá
+pasó de **753 a 747** al arreglarlo — las 6 de más eran el cartesiano.
+
+- [x] `verificar_paridad_saldo_engorde.sql` ahora captura y compara por **`(lote_id, fecha, seg_id)`**.
+      Verificado que los 3 pares duplicados del universo tienen `seg_id` distinto ⇒ desempate total
+- [x] **Corrida de control** (misma fn, sin cambio) ⇒ **todo en 0** en las dos empresas
+
+> Un gate con falsos positivos se termina ignorando, y ahí es cuando pasa la regresión de verdad.
+> Es la misma lección que G0: *«identidad NECESARIA, JAMÁS SUFICIENTE»* — pero al revés.
+
+### Validación del cambio
+- [x] Paridad: **Ecuador 0 / Panamá 0** en todas las columnas · 5.722 = 5.722 filas presentes
+- [x] Cuadre **61 filas / 1 descuadrado**, sin moverse
+- [x] La paridad compara la serie diaria fila a fila y da 0 ⇒ el cambio es un **no-op verificado
+      sobre los datos existentes**; solo cambia la atribución futura
+- [x] `dotnet build` 0 errores · `dotnet test` **2.181 verdes**
+- [x] Comentario de `SaldoAlimentoEngordeCalculos` actualizado: la fn ya no devuelve liquidados, pero
+      **sigue sin mirar la fecha** entre dos lotes vivos ⇒ los dos cortes de v12 siguen haciendo falta
