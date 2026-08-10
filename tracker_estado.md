@@ -3273,3 +3273,54 @@ intermitente en el CI.
 
 ## Lo que sigue para la captura offline (F3)
 Sigue bloqueada por F0.A/F0.B. Hechos: **A1 y A2** (`44b2400`). Pendientes: A3-A10 y B1/B4/B5/B6/B8/B10.
+
+---
+
+# F0.A — auditoría del estado real + A5 (lápidas de borrado)
+
+**Auditoría:** [fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md](fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md)
+
+## Auditoría: el inventario del plan madre estaba desactualizado en 3 de 10 ítems
+Verificado contra las funciones/triggers **vivos** en la BD y grep sobre `backend/src`, no contra el plan.
+
+- [x] **A1, A2** — hechos (`44b2400`, esta sesión)
+- [x] **A3** — ya estaba hecho por **otra sesión** (migración `20260806074742`): la rama UPDATE del
+      trigger ya corre el saldo **por delta** y no lo pisa
+- [x] **A8** — ya estaba hecho: `InventarioGestionConsumoRequest.FechaMovimiento` existe
+- [x] **A10** — ya estaba hecho: **0 triggers** en `seguimiento_diario_produccion` y no existe
+      ninguna función `%espejo%huevo%`
+- [x] **A4 — el plan pide algo que hoy ROMPERÍA el número.** El síntoma es real (un `GET` escribe
+      `aves_*_actual` y bumpea `updated_at`), pero `AvesHActual` tiene **6+ escritores incrementales**
+      y ese "self-heal" recalcula desde `fn_seguimiento_diario_produccion`: hoy **es lo que mantiene la
+      columna bien**. Sacarlo dejaría a todos leyendo la deriva. La corrección correcta es el patrón
+      `SaldoAlimentoEngordeAplicador` (la fn como única autoridad), con gate de paridad
+- [x] **A6 — requiere medir antes de tocar.** Hay **dos** únicos redundantes, ambos por `lote_id`.
+      Cambiar un índice único por lo que dice un plan sin verificar la colisión con datos es lo que
+      la regla de schema de CLAUDE.md prohíbe
+- [x] **A9 — pendiente y es zona minada.** Confirmado que sigue con `ORDER BY … DESC LIMIT 1` sin
+      filtro de vida del lote. Es el mismo terreno donde la ventana de alimento previo rompió Ecuador
+      y donde la marca «próximo ciclo» se intentó 4 veces y se revirtió. Exige el gate de paridad
+      multipaís antes de tocarla
+
+## A5 (primera parte) — lápidas de borrado, sin cambiar comportamiento
+- [x] Migración `20260810031057_AddSyncTombstones`: tabla `sync_tombstones` + función genérica
+      `trg_sync_tombstone()` + trigger `AFTER DELETE` en las **4 tablas operativas**
+- [x] **Puramente aditivo**: sin soft delete, sin filtro global, sin una línea de C# que lo lea. Los
+      borrados siguen funcionando igual — ahora además dejan constancia
+- [x] Se guardan **solo claves de negocio** (lote, fecha, ubicación, ítem), nunca la fila entera:
+      guardar la fila sería una copia paralela de datos operativos que nadie audita
+- [x] DDL probado en transacción + ROLLBACK: lápida creada, el borrado saca **exactamente 1 fila**,
+      `company_id`/`farm_id` capturados donde existen, idempotente
+- [x] Aplicada en local y probada **en vivo**: 4 triggers activos; borrar un seguimiento de levante
+      deja `clave={"fecha":…, "lote_id":"123", "lote_postura_levante_id":15}`
+- [x] `dotnet build` 0 errores · `dotnet test` **2.163 verdes** · cuadre de engorde **61/1**
+      (sin moverse) · stock 539 filas
+
+**Por qué se despliega ahora aunque nadie lo lea:** lo que se borra sin dejar lápida **no se puede
+reconstruir después**. Cuando exista la sincronización, ya va a haber historia de borrados en vez de
+arrancar de cero.
+
+## Orden recomendado para lo que queda
+**A5 (2ª parte: soft delete)** → **A7** (consolidar los dos escritores de levante) → **A6** (medir
+primero) → **A4** (aplicador + gate de paridad) → **A9** (último, con gate multipaís y en horario de
+baja operación).
