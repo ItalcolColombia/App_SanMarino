@@ -1,7 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { AuthSession, MenuItem } from './auth.models';
 import { resolverEmpresaActiva } from './funciones/resolver-empresa-activa.funcion';
+import { CacheConsultasService } from '../../shared/offline/cache-consultas.service';
 
 const KEY = 'auth_session';
 
@@ -9,6 +10,20 @@ const KEY = 'auth_session';
 export class TokenStorageService {
   private readonly subject = new BehaviorSubject<AuthSession | null>(this.read());
   readonly session$ = this.subject.asObservable();
+
+  // Caché de consulta offline (F2). No introduce ciclo de DI: `CacheConsultasService` no depende
+  // de nadie — recibe la identidad por parámetro justamente para poder vivir en el nivel más bajo.
+  private readonly cacheOffline = inject(CacheConsultasService);
+
+  /** Identidad de partición de la sesión actual, para purgar su caché. */
+  private identidadActual() {
+    const s = this.get();
+    return {
+      userId: s?.user?.id ?? s?.user?.userId ?? null,
+      companyId: s?.activeCompanyId ?? null,
+      paisId: s?.activePaisId ?? null
+    };
+  }
 
   // Guarda en localStorage si remember=true; caso contrario, en sessionStorage
   save(session: AuthSession, remember = false) {
@@ -93,6 +108,11 @@ export class TokenStorageService {
       return false;
     }
 
+    // Se purga la caché offline de la empresa que se está DEJANDO, antes de cambiar. El dato de
+    // una empresa no tiene por qué seguir en el dispositivo cuando el usuario pasó a otra, y
+    // esperar al TTL de 16 h sería dejarlo ahí toda la jornada.
+    void this.cacheOffline.purgarParticionDe(this.identidadActual());
+
     const updated = { ...current, ...empresa };
     const persistedInLocal = !!localStorage.getItem(KEY);
     this.save(updated, persistedInLocal);
@@ -134,6 +154,11 @@ export class TokenStorageService {
   }
 
   clear() {
+    // Logout: se borra TODA la caché de consultas, no solo la partición actual. El dispositivo
+    // puede pasar a otras manos y a esta altura no se sabe qué particiones dejaron sesiones
+    // anteriores. Se dispara antes de limpiar el storage porque después ya no habría identidad.
+    void this.cacheOffline.purgarTodo();
+
     localStorage.removeItem(KEY);
     sessionStorage.removeItem(KEY);
     this.subject.next(null);
@@ -141,6 +166,8 @@ export class TokenStorageService {
 
    /** BORRA TODO lo temporal: sessionStorage completo + la clave de localStorage */
    clearAllTemporal() {
+    void this.cacheOffline.purgarTodo();
+
     try { sessionStorage.clear(); } catch {}
     try { localStorage.removeItem(KEY); } catch {}
     this.subject.next(null);

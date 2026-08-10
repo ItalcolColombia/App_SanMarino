@@ -1,7 +1,8 @@
 # PWA de ItalGranja — operación
 
 Qué hay, cómo se prueba y qué hacer cuando algo se rompe en campo.
-Diseño y fundamentos: [`fase_de_desarrollo/pwa_f1_shell_plan.md`](../fase_de_desarrollo/pwa_f1_shell_plan.md).
+Diseño y fundamentos: [`pwa_f1_shell_plan.md`](../fase_de_desarrollo/pwa_f1_shell_plan.md) (shell) y
+[`pwa_f2_consulta_offline_plan.md`](../fase_de_desarrollo/pwa_f2_consulta_offline_plan.md) (consulta offline).
 
 ---
 
@@ -10,16 +11,20 @@ Diseño y fundamentos: [`fase_de_desarrollo/pwa_f1_shell_plan.md`](../fase_de_de
 | | Sin red |
 |---|---|
 | Abrir la app, navegar, ver la pantalla de diagnóstico | ✅ el shell está precacheado |
-| Consultar lotes, seguimientos, inventario, reportes | ❌ **requiere conexión** |
+| **Volver a ver una consulta ya hecha** (lotes, seguimientos, inventario, movimientos…) | ✅ hasta **16 h** después |
+| Consultar algo que nunca se abrió con red | ❌ **requiere conexión** |
+| Reportes, costos y liquidaciones | ❌ **nunca se guardan** (ver abajo) |
 | Guardar cualquier cosa | ❌ **requiere conexión** |
 
-**Esto es deliberado, no una limitación pendiente de pulir.** La captura offline (outbox +
+**Que no se pueda GUARDAR sin red es deliberado, no una limitación pendiente de pulir.** La captura offline (outbox +
 sincronización diferida) está bloqueada por el backend: no tiene idempotencia, ni control de
 concurrencia, ni tombstones, y todos los saldos son contadores read-modify-write con `Math.Max(0, …)`
 —o sea, no reversibles aritméticamente—. Encolar escrituras sobre ese modelo multiplicaría por N
 dispositivos un problema de integridad que hoy ya es explotable con dos pestañas. El detalle, medido
 contra el código, está en `fase_de_desarrollo/pwa_offline_first_plan.md` §4.A y §4.B; son las fases
-F0.A/F0.B, y son prerrequisito de F2 (lectura offline) y F3 (escritura offline).
+F0.A/F0.B — de los cuales **A1 y A2 ya están hechos** (`44b2400`) y A3-A10 no. Son prerrequisito de
+F3 (escritura offline); la lectura offline (F2) ya está entregada y no depende de ellos, porque no
+escribe nada.
 
 ---
 
@@ -33,14 +38,30 @@ F0.A/F0.B, y son prerrequisito de F2 (lectura offline) y F3 (escritura offline).
 | `scripts/verificar-ngsw.js` | Gate de integridad. Corre en el build y lo **hace fallar** |
 | `src/app/core/pwa/` | Servicios de actualización, instalación y conexión + funciones puras con tests |
 | `/diagnostico` | Pantalla de soporte. Sin `authGuard`, sin datos de negocio |
+| `src/app/shared/offline/` | Consulta offline (F2): caché de GET en IndexedDB, particionada por `{userId, companyId, paisId}` |
+| `scripts/verificar-lista-cacheable.js` | Contrasta la lista blanca contra los endpoints que la app pide de verdad |
+
+### Consulta offline (F2)
+
+Las respuestas **GET** de los endpoints operativos se guardan en IndexedDB y se sirven **solo cuando
+la petición falla por falta de red** (`status === 0`). Nunca se sirve caché habiendo conexión, y un
+4xx/5xx tampoco la activa: son respuestas del servidor, y taparlas escondería el problema real.
+
+- **Partición `{userId, companyId, paisId}`, fail-closed.** Sin los tres, no se guarda ni se lee.
+- **TTL duro de 16 h.** Vencida no se sirve; se propaga el error de red.
+- **Se purga** en logout (todo) y al cambiar de empresa (esa partición).
+- **Lista blanca.** Al agregar un módulo, corré `node scripts/verificar-lista-cacheable.js`: un nombre
+  mal escrito no rompe nada y solo se nota en la granja. Fuera de la lista quedan, por escrito, el
+  dinero (costos, liquidaciones, contabilidad), la identidad (auth/users/roles/permisos), los
+  reportes y las herramientas internas.
 
 ### ⛔ Prohibido: `dataGroups` sobre `/api/**`
 
 La caché del Service Worker **indexa por URL e ignora los headers**. La empresa activa viaja en
 `X-Active-Company`, así que un `dataGroup` le serviría al operario de la empresa B la respuesta
 cacheada de la empresa A: fuga entre empresas, silenciosa y sin rastro. `verificar-ngsw.js` corta el
-build si aparece alguno. Cuando llegue F2, los datos van a IndexedDB **particionada por
-`{userId, companyId}`**, que sí se puede aislar.
+build si aparece alguno. Por eso la consulta offline (F2) vive en IndexedDB **particionada por
+`{userId, companyId, paisId}`**, donde la clave la elegimos nosotros y sí se puede aislar.
 
 ---
 

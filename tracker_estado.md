@@ -3211,3 +3211,65 @@ Los dos métodos **a nivel granja de Colombia** (`RegistrarConsumoNivelGranjaAsy
 inmediato, el descuento se auto-commitearía y el movimiento quedaría pendiente ⇒ **ventana de
 escritura parcial nueva**. Cerrarla requiere primero envolver el camino de carga masiva en su propia
 transacción. Se deja anotado en vez de introducir un modo de falla que este cambio no puede verificar.
+
+---
+
+# PWA F2 — consulta offline
+
+**Plan:** [fase_de_desarrollo/pwa_f2_consulta_offline_plan.md](fase_de_desarrollo/pwa_f2_consulta_offline_plan.md)
+**Contexto:** F1 (`8ecb7c6`) dejó la app instalable con el shell sin red, pero toda pantalla con
+datos queda vacía sin conexión. **Riesgo de integridad: cero** — es solo lectura.
+
+## Capa de datos
+- [x] `shared/offline/offline-db.ts` — IndexedDB con **migraciones acumulativas**
+      (`for v = oldVersion+1..newVersion`; un salto v1→v3 debe correr los dos pasos)
+- [x] `claveParticion` **fail-closed**: `{userId}|{companyId}|{paisId}|{método} {url}`; sin alguno
+      de los tres ⇒ no se lee NI se escribe (degradar a clave parcial es cómo se filtra entre empresas)
+- [x] `decidirCacheable`: **lista blanca** de endpoints operativos + solo GET. Excluidos a propósito
+      `ReporteDiarioCostos*`, `ReporteContable`, `DbStudio`, `Auth`, `Users`, `Roles`, `session` (D3)
+- [x] `vigenciaCache`: TTL duro de 16 h (jornada offline de D4); vencida ⇒ **no se sirve**
+
+## Integración
+- [x] Interceptor: red primero, caché **solo** ante `status === 0`
+- [x] Purga de la partición en logout y en cambio de empresa
+- [x] Aviso en la UI de que se está viendo una consulta guardada
+- [x] Estado de la caché en `/diagnostico`
+
+## Validación
+- [x] Tests Karma de las 3 funciones puras + migración acumulativa de IndexedDB
+- [x] `yarn build` + `yarn test`
+- [x] En vivo: con red guarda · **sin red sirve** · sin caché previa error normal · cambio de
+      empresa y logout purgan
+
+## Hallazgo del chequeo de cobertura (el que justificó escribir el script)
+
+La lista blanca escrita "a ojo" cubría **23 de los 78** endpoints que la app realmente pide, y tenía
+**7 entradas que no existen**, una de ellas un typo (`lotepostorabase` por `loteposturabase`). Ese
+modo de falla es silencioso: no rompe el build, no rompe ningún test, y el único síntoma es que esa
+pantalla no anda sin red — cosa que no se descubre en la oficina, se descubre en la granja.
+
+`scripts/verificar-lista-cacheable.js` contrasta la lista contra los `${environment.apiUrl}/X` del
+código. Estado final: **50 cacheables · 28 excluidos con motivo escrito · 0 sin decisión · 0 fantasma**.
+No falla el build a propósito: "¿este módulo tiene que andar sin red?" es una decisión de producto,
+no algo que un script resuelva. Lo que impide es dejar un endpoint sin mirar.
+
+## Pruebas
+- [x] **Integración con IndexedDB REAL** en Chrome (`offline-cache.interceptor.spec.ts`): con red
+      guarda · **sin red sirve lo guardado** · sin nada guardado propaga el error · un **500 NO se
+      tapa** con caché · endpoint fuera de la lista blanca ni se guarda ni se sirve · la caché de
+      **otra empresa no se sirve** · purga por logout y por cambio de empresa · fail-closed sin identidad
+- [x] `yarn build` 0 errores (solo el budget preexistente) · `yarn test` **199 verdes** (155 → 199)
+- [x] `verificar-ngsw.js` OK — sigue sin `dataGroups`
+- [x] En vivo: la base `italgranja-offline v1` se crea sola, `/diagnostico` muestra la sección
+      "Consultas guardadas", y con el **servidor apagado** la app carga y el banner de sin conexión aparece
+
+### Gotcha que costó una vuelta
+El primer intento de la suite murió con **7 timeouts**. La causa no estaba en las pruebas:
+`CacheConsultasService` deja su conexión a IndexedDB abierta, y **una conexión abierta bloquea
+indefinidamente `deleteDatabase`**, así que la limpieza entre pruebas colgaba y Jasmine culpaba a la
+prueba. Se agregó `cerrarConexion()` al servicio (útil también para recrear el esquema en caliente) y
+las esperas fijas se cambiaron por sondeo con tope — un sleep calibrado en esta máquina es un test
+intermitente en el CI.
+
+## Lo que sigue para la captura offline (F3)
+Sigue bloqueada por F0.A/F0.B. Hechos: **A1 y A2** (`44b2400`). Pendientes: A3-A10 y B1/B4/B5/B6/B8/B10.

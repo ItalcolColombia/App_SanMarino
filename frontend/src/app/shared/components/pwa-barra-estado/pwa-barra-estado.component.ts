@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ConexionService } from '../../../core/pwa/conexion.service';
 import { PwaActualizacionService } from '../../../core/pwa/pwa-actualizacion.service';
 import { PwaInstalacionService } from '../../../core/pwa/pwa-instalacion.service';
+import { CacheConsultasService } from '../../offline/cache-consultas.service';
 
 /**
  * Barra flotante con los tres avisos del ciclo de vida de la PWA:
@@ -27,10 +28,15 @@ import { PwaInstalacionService } from '../../../core/pwa/pwa-instalacion.service
 export class PwaBarraEstadoComponent {
   private readonly actualizacion = inject(PwaActualizacionService);
   private readonly instalacion = inject(PwaInstalacionService);
+  private readonly cache = inject(CacheConsultasService);
   readonly conexion = inject(ConexionService);
 
   readonly hayActualizacion = this.actualizacion.actualizacionDisponible;
   readonly puedeInstalar = this.instalacion.puedeInstalar;
+
+  /** Lo que se está viendo salió de una consulta guardada, no de la red. */
+  readonly desdeCache = this.cache.sirviendoDesdeCache;
+  readonly antiguedadCache = this.cache.antiguedad;
 
   /** El usuario cerró el aviso de instalación en esta sesión. */
   instalacionDescartada = false;

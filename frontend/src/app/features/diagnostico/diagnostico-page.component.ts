@@ -4,6 +4,9 @@ import { RouterLink } from '@angular/router';
 import { ConexionService } from '../../core/pwa/conexion.service';
 import { PwaActualizacionService } from '../../core/pwa/pwa-actualizacion.service';
 import { PwaInstalacionService } from '../../core/pwa/pwa-instalacion.service';
+import { CacheConsultasService } from '../../shared/offline/cache-consultas.service';
+import { TokenStorageService } from '../../core/auth/token-storage.service';
+import type { EstadoCacheOffline } from '../../shared/offline/models/offline.model';
 import { formatearBytes } from '../../core/pwa/funciones/formatear-bytes.funcion';
 import { resumirEstadoSw } from '../../core/pwa/funciones/resumir-estado-sw.funcion';
 import type { DiagnosticoPwa, EstadoSw } from '../../core/pwa/models/pwa.model';
@@ -42,8 +45,14 @@ export class DiagnosticoPageComponent implements OnInit {
   private readonly instalacion = inject(PwaInstalacionService);
   private readonly conexion = inject(ConexionService);
 
+  private readonly cacheOffline = inject(CacheConsultasService);
+  private readonly storage = inject(TokenStorageService);
+
   cargando = true;
   diagnostico: DiagnosticoPwa | null = null;
+
+  /** Estado de la caché de consulta offline (F2). */
+  cache: EstadoCacheOffline | null = null;
   copiado = false;
   buscando = false;
   mensajeChequeo = '';
@@ -58,6 +67,14 @@ export class DiagnosticoPageComponent implements OnInit {
   async recargar(): Promise<void> {
     this.cargando = true;
     this.diagnostico = await this.construirDiagnostico();
+
+    const s = this.storage.get();
+    this.cache = await this.cacheOffline.estado({
+      userId: s?.user?.id ?? s?.user?.userId ?? null,
+      companyId: s?.activeCompanyId ?? null,
+      paisId: s?.activePaisId ?? null
+    });
+
     this.cargando = false;
   }
 

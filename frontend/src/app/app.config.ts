@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
 import { authInterceptor } from './core/auth/auth.interceptor';
+import { offlineCacheInterceptor } from './shared/offline/offline-cache.interceptor';
 import { ReactiveFormsModule } from '@angular/forms';
 
 // 👇 Mantén solo los componentes que realmente se usan por referencia directa en rutas.
@@ -53,7 +54,10 @@ import { ClienteListComponent } from './features/clientes/components/cliente-lis
 export const appConfig: ApplicationConfig = {
   providers: [
     importProvidersFrom(ReactiveFormsModule),
-    provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
+    // El orden importa: `authInterceptor` va PRIMERO para que la petición salga con sus headers
+    // (token, empresa activa, SECRET_UP) ya puestos. `offlineCacheInterceptor` envuelve por dentro
+    // y solo actúa sobre la respuesta —guardándola— o sobre el fallo de red —sirviendo lo guardado—.
+    provideHttpClient(withXhr(), withInterceptors([authInterceptor, offlineCacheInterceptor])),
 
     // =========================================================================
     // Service Worker (PWA)
