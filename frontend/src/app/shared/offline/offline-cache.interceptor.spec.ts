@@ -30,6 +30,12 @@ describe('offlineCacheInterceptor (IndexedDB real)', () => {
   };
 
   /**
+   * Sesión que ve el interceptor. Mutable para poder probar la regla D6 (una cuenta multiempresa no
+   * cachea) sin rearmar el TestBed.
+   */
+  let sesionActual: Record<string, unknown> = SESION;
+
+  /**
    * Borra la base entre pruebas: cada caso arranca de cero.
    *
    * El `race` contra un timeout no es paranoia: `deleteDatabase` queda **pendiente** mientras
@@ -49,6 +55,7 @@ describe('offlineCacheInterceptor (IndexedDB real)', () => {
 
   beforeEach(async () => {
     await borrarBd();
+    sesionActual = SESION;
 
     TestBed.configureTestingModule({
       providers: [
@@ -56,7 +63,7 @@ describe('offlineCacheInterceptor (IndexedDB real)', () => {
         provideHttpClientTesting(),
         {
           provide: TokenStorageService,
-          useValue: { get: () => SESION }
+          useValue: { get: () => sesionActual }
         }
       ]
     });
@@ -215,5 +222,90 @@ describe('offlineCacheInterceptor (IndexedDB real)', () => {
   it('sin identidad completa no se guarda nada (fail-closed)', async () => {
     const guardado = await cache.guardar({ userId: 'u', companyId: null, paisId: 1 }, 'GET', '/api/Lote', [{ id: 1 }]);
     expect(guardado).toBeFalse();
+  });
+
+  // ── D6: cuentas con alcance global o multiempresa ────────────────────────────────
+
+  it('🔴 una cuenta MULTIEMPRESA no guarda nada (D6)', async () => {
+    // La partición evita que una sesión lea lo de otra, pero no que el mismo dispositivo junte
+    // los datos de todas las empresas que este usuario visita. Y el dato en reposo no se cifra.
+    sesionActual = { ...SESION, user: { id: 'multi-1' }, companyIds: [1, 4], activeCompanyId: 61 };
+
+    http.get('/api/Lote').subscribe();
+    httpMock.expectOne('/api/Lote').flush([{ id: 1 }]);
+
+    // Se le da tiempo de sobra: lo que se afirma es que NO aparece, así que hay que esperar
+    // más de lo que tardaría en aparecer si el gate no estuviera.
+    await esperarHasta(async () =>
+      (await cache.recuperar({ userId: 'multi-1', companyId: 61, paisId: 1 }, 'GET', '/api/Lote')) !== undefined,
+      500
+    );
+
+    const guardado = await cache.recuperar({ userId: 'multi-1', companyId: 61, paisId: 1 }, 'GET', '/api/Lote');
+    expect(guardado).toBeUndefined();
+  });
+
+  it('🔴 un SUPER ADMIN no guarda nada (D6): su alcance es global', async () => {
+    sesionActual = { ...SESION, user: { id: 'super-1', isSuperAdmin: true }, activeCompanyId: 62 };
+
+    http.get('/api/Lote').subscribe();
+    httpMock.expectOne('/api/Lote').flush([{ id: 1 }]);
+
+    await esperarHasta(async () =>
+      (await cache.recuperar({ userId: 'super-1', companyId: 62, paisId: 1 }, 'GET', '/api/Lote')) !== undefined,
+      500
+    );
+
+    expect(await cache.recuperar({ userId: 'super-1', companyId: 62, paisId: 1 }, 'GET', '/api/Lote')).toBeUndefined();
+  });
+
+  it('🔴 lo que una cuenta no elegible YA tenía guardado se PURGA', async () => {
+    // Un gate que solo impide escribir dejaría intacto —y se seguiría sirviendo— lo cacheado
+    // antes del cambio. Sin la purga, el arreglo da una falsa sensación de cierre.
+    const identidad = { userId: 'multi-2', companyId: 63, paisId: 1 };
+
+    // Guardado directo, como si viniera de una versión anterior de la app.
+    await cache.guardar(identidad, 'GET', '/api/Lote', [{ id: 1 }]);
+    expect(await cache.recuperar(identidad, 'GET', '/api/Lote')).toBeDefined();
+
+    sesionActual = { ...SESION, user: { id: 'multi-2' }, companyIds: [1, 4], activeCompanyId: 63 };
+
+    http.get('/api/Lote').subscribe();
+    httpMock.expectOne('/api/Lote').flush([{ id: 2 }]);
+
+    await esperarHasta(async () => (await cache.recuperar(identidad, 'GET', '/api/Lote')) === undefined);
+
+    expect(await cache.recuperar(identidad, 'GET', '/api/Lote')).toBeUndefined();
+  });
+
+  it('🔴 una cuenta no elegible tampoco SIRVE caché sin red: propaga el error', async () => {
+    const identidad = { userId: 'multi-3', companyId: 64, paisId: 1 };
+    await cache.guardar(identidad, 'GET', '/api/Lote', [{ id: 1 }]);
+
+    sesionActual = { ...SESION, user: { id: 'multi-3' }, companyIds: [1, 4], activeCompanyId: 64 };
+
+    let error: HttpErrorResponse | null = null;
+    http.get('/api/Lote').subscribe({ error: e => (error = e) });
+    httpMock.expectOne('/api/Lote').error(new ProgressEvent('error'), { status: 0 });
+
+    await esperarHasta(() => error !== null);
+
+    expect(error).toBeTruthy();
+    expect(error!.status).toBe(0);
+  });
+
+  it('el operario de UNA sola empresa sigue cacheando igual que antes', async () => {
+    // El caso que no se puede romper: D6 restringe cuentas de alcance amplio, no al usuario de campo.
+    sesionActual = { ...SESION, user: { id: 'operario-1' }, companyIds: [7], activeCompanyId: 7 };
+
+    http.get('/api/Lote').subscribe();
+    httpMock.expectOne('/api/Lote').flush([{ id: 9 }]);
+
+    await esperarHasta(async () =>
+      (await cache.recuperar({ userId: 'operario-1', companyId: 7, paisId: 1 }, 'GET', '/api/Lote')) !== undefined
+    );
+
+    const guardado = await cache.recuperar({ userId: 'operario-1', companyId: 7, paisId: 1 }, 'GET', '/api/Lote');
+    expect(guardado?.cuerpo).toEqual([{ id: 9 }]);
   });
 });

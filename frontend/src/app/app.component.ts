@@ -3,7 +3,10 @@ import { Component, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@
 
 import { RouterOutlet, Router } from '@angular/router';
 import { PwaActualizacionService } from './core/pwa/pwa-actualizacion.service';
+import { AlmacenamientoPersistenteService } from './core/pwa/almacenamiento-persistente.service';
+import { TokenStorageService } from './core/auth/token-storage.service';
 import { SessionTimeoutService } from './core/auth/session-timeout.service';
+import { Subscription } from 'rxjs';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
 import { PwaBarraEstadoComponent } from './shared/components/pwa-barra-estado/pwa-barra-estado.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -21,6 +24,9 @@ export class AppComponent implements OnInit, OnDestroy {
   router = inject(Router);
   private pwaActualizacion = inject(PwaActualizacionService);
   private sessionTimeout = inject(SessionTimeoutService);
+  private almacenamiento = inject(AlmacenamientoPersistenteService);
+  private tokenStorage = inject(TokenStorageService);
+  private subSesion?: Subscription;
 
   faBars = faBars;
 
@@ -57,9 +63,18 @@ export class AppComponent implements OnInit, OnDestroy {
     // Sesión deslizante: auto-logout por inactividad (5 min) y por pérdida de conexión.
     // Se arranca/detiene solo según haya sesión activa en storage.
     this.sessionTimeout.init();
+
+    // Pide que el almacenamiento local sea persistente, para que el navegador no pueda desalojar
+    // la consulta offline ante presión de disco. Se engancha a la sesión —y no al arranque en
+    // frío— porque antes del login es donde más probable es que lo denieguen. `asegurar()` es
+    // idempotente, así que reaccionar a cada emisión no repite el pedido.
+    this.subSesion = this.tokenStorage.session$.subscribe(() => {
+      void this.almacenamiento.asegurar();
+    });
   }
 
   ngOnDestroy(): void {
     this.pwaActualizacion.detener();
+    this.subSesion?.unsubscribe();
   }
 }

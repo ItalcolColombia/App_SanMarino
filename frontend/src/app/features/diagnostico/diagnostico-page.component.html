@@ -93,6 +93,17 @@
                   : (diagnostico.almacenamiento.persistente ? 'sí' : 'no') }}
             </dd>
           </div>
+          <div class="flex justify-between gap-4 sm:block">
+            <dt class="text-[#6b6560]">Se pidió persistencia</dt>
+            <dd class="text-[#33302c]">
+              @switch (diagnostico.almacenamiento.gestionPersistencia) {
+                @case ('concedida') { <span>sí, concedida</span> }
+                @case ('denegada')  { <span>sí, el navegador la negó</span> }
+                @case ('sin-pedir') { <span>todavía no</span> }
+                @default            { <span>el navegador no lo soporta</span> }
+              }
+            </dd>
+          </div>
         </dl>
 
         @if (diagnostico.caches.length) {

@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { ConexionService } from '../../core/pwa/conexion.service';
 import { PwaActualizacionService } from '../../core/pwa/pwa-actualizacion.service';
 import { PwaInstalacionService } from '../../core/pwa/pwa-instalacion.service';
+import { AlmacenamientoPersistenteService } from '../../core/pwa/almacenamiento-persistente.service';
 import { CacheConsultasService } from '../../shared/offline/cache-consultas.service';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import type { EstadoCacheOffline } from '../../shared/offline/models/offline.model';
@@ -44,6 +45,7 @@ export class DiagnosticoPageComponent implements OnInit {
   private readonly actualizacionSrv = inject(PwaActualizacionService);
   private readonly instalacion = inject(PwaInstalacionService);
   private readonly conexion = inject(ConexionService);
+  private readonly almacenamiento = inject(AlmacenamientoPersistenteService);
 
   private readonly cacheOffline = inject(CacheConsultasService);
   private readonly storage = inject(TokenStorageService);
@@ -150,7 +152,8 @@ export class DiagnosticoPageComponent implements OnInit {
         cuotaBytes: cuota,
         usadoLegible: formatearBytes(usado),
         cuotaLegible: formatearBytes(cuota),
-        persistente
+        persistente,
+        gestionPersistencia: this.almacenamiento.estado()
       },
       caches: nombresCache,
       navegador: navigator.userAgent

@@ -60,6 +60,11 @@ export interface DiagnosticoPwa {
     usadoLegible: string;
     cuotaLegible: string;
     persistente: boolean | null;
+    /**
+     * Qué pasó al pedir la persistencia. Distingue "el navegador dijo que no" de "todavía no se
+     * pidió", que ante un reporte de campo llevan a diagnósticos opuestos.
+     */
+    gestionPersistencia: 'sin-api' | 'sin-pedir' | 'concedida' | 'denegada';
   };
   caches: string[];
   navegador: string;

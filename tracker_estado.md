@@ -3551,3 +3551,50 @@ HOY— y esa verificación destapó algo que el plan no menciona y pesa más que
 > los tombstones ya cubren el requisito, y no hay un solo `HasQueryFilter` en el backend. Ejecutarlo
 > al pie de la letra habría sido un cambio de comportamiento masivo para cubrir algo ya cubierto.
 > Lo que sí había era una **bomba armada** que el plan no menciona.
+
+---
+
+# PWA — alistamiento para campo (persistencia de cuota + regla dura de D6)
+
+**Plan:** [fase_de_desarrollo/pwa_alistamiento_campo_plan.md](fase_de_desarrollo/pwa_alistamiento_campo_plan.md)
+
+**Contexto medido:** F1 y F2 están construidas y probadas pero **NO desplegadas**. Verificado con
+`curl` contra el ALB: prod sirve el build del **07-ago** (`/version.json`) y `ngsw.json`,
+`manifest.webmanifest` y `ngsw-worker.js` responden **404**. `main` tiene 22 commits sin pushear y
+`main-produccion` está esos mismos 22 commits atrás.
+
+## H1 — nadie pedía que el almacenamiento fuera persistente
+- [x] `/diagnostico` **informaba** `navigator.storage.persisted()` pero **nadie llamaba nunca a
+      `persist()`**: la app miraba el estado sin pedirlo jamás
+- [x] Es el peor modo de falla que quedaba porque **es silencioso**: sin error ni log, el navegador
+      desaloja la base ante presión de disco y la pantalla aparece vacía en la granja
+- [x] `AlmacenamientoPersistenteService` + `decidirPedirPersistencia` (pura, 7 tests). Se pide **con
+      sesión** —antes del login es donde más lo deniegan— y **una sola vez** (repetirlo reabre el
+      prompt en los navegadores que preguntan)
+- [x] `/diagnostico` distingue ahora **«el navegador la negó»** de **«todavía no»**: ante un reporte
+      de campo llevan a diagnósticos opuestos
+
+## H2 — D6 no estaba implementado: una cuenta multiempresa se bajaba el snapshot de todas
+- [x] **Por qué la partición no alcanzaba**: evita que una sesión LEA lo de otra, pero no que el
+      mismo dispositivo ACUMULE lo de todas las empresas que el usuario visita — y el dato en reposo
+      no se cifra (D3). Son dos amenazas distintas y solo una estaba cubierta
+- [x] `decidirCacheOffline` (pura, 10 tests): sin sesión, super admin o más de una empresa ⇒ **no**.
+      Basta **una** señal de las tres (`isSuperAdmin`/`hasMultipleCompanies`/`companyIds`+`companies`)
+- [x] 🔴 **Y se purga lo ya guardado**: un gate que solo impide escribir dejaría intacto —y se
+      seguiría sirviendo— lo cacheado antes del cambio. Sin la purga, falsa sensación de cierre
+- [x] Alcance honesto: se hizo la mitad de D6 que **protege datos** y no depende de nadie. El
+      **opt-in por rol y dispositivo** necesita flag en BD + registro de dispositivos (que no existe)
+
+## Verificación
+- [x] **En vivo** en el build de producción servido en localhost (`pwa-preview`): sin sesión el
+      diagnóstico dice «todavía no»; con sesión pasa a **«sí, el navegador la negó»** (esperado en
+      Electron sin la app instalada) y **la app no se rompe** — el rechazo queda como estado
+- [x] 🔑 **Los tests de D6 se probaron que VEN el defecto**: con el gate desactivado fallan
+      **exactamente 4** (multiempresa no guarda · super admin no guarda · purga · no sirve caché sin
+      red) y el 5º —el operario de una sola empresa— **sigue pasando**, que es lo correcto
+- [x] `yarn build` 0 errores (solo el budget preexistente) · `yarn test` **221 verdes** (199 → 221)
+- [x] `verificar-ngsw.js` OK: 125 archivos con SHA1 coincidente, sin `dataGroups`, kill switch publicado
+
+> Un test que no falla cuando se rompe lo que dice proteger no prueba nada. Desactivar el gate y ver
+> caer exactamente los 4 casos —y ninguno más— cuesta dos minutos y es lo que separa "escribí tests"
+> de "tengo cobertura".

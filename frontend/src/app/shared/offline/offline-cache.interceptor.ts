@@ -4,8 +4,15 @@ import { Observable, catchError, from, of, switchMap, tap, throwError } from 'rx
 
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { CacheConsultasService } from './cache-consultas.service';
+import { decidirCacheOffline } from './funciones/decidir-cache-offline.funcion';
 import { decidirCacheable } from './funciones/decidir-cacheable.funcion';
 import type { IdentidadParticion } from './models/offline.model';
+
+/**
+ * Particiones ya purgadas por no ser elegibles (D6), para no lanzar un borrado por cada request.
+ * Vive a nivel de módulo porque el interceptor es una función, no una clase con estado.
+ */
+const purgadasPorNoElegible = new Set<string>();
 
 /**
  * Consulta offline (F2): guarda las respuestas operativas y las sirve **cuando no hay red**.
@@ -44,6 +51,20 @@ export const offlineCacheInterceptor: HttpInterceptorFn = (req, next): Observabl
     companyId: sesion?.activeCompanyId ?? null,
     paisId: sesion?.activePaisId ?? null
   };
+
+  // D6: las cuentas con alcance global o multiempresa no acumulan datos en el dispositivo. La
+  // partición evita que una sesión lea lo de otra, pero no que el mismo equipo junte lo de todas
+  // las empresas que ese usuario visita — y el dato en reposo no está cifrado (D3).
+  if (!decidirCacheOffline(sesion)) {
+    // Un gate que solo impide ESCRIBIR dejaría intacto —y se seguiría sirviendo— lo que la cuenta
+    // hubiera cacheado antes de este cambio. Se purga una vez por partición.
+    const marca = `${identidad.userId ?? ''}|${identidad.companyId ?? ''}|${identidad.paisId ?? ''}`;
+    if (!purgadasPorNoElegible.has(marca)) {
+      purgadasPorNoElegible.add(marca);
+      void cache.purgarParticionDe(identidad);
+    }
+    return next(req);
+  }
 
   return next(req).pipe(
     tap(evento => {

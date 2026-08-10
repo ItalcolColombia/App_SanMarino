@@ -15,6 +15,33 @@ Diseño y fundamentos: [`pwa_f1_shell_plan.md`](../fase_de_desarrollo/pwa_f1_she
 | Consultar algo que nunca se abrió con red | ❌ **requiere conexión** |
 | Reportes, costos y liquidaciones | ❌ **nunca se guardan** (ver abajo) |
 | Guardar cualquier cosa | ❌ **requiere conexión** |
+| Cuentas de **super admin** o con **varias empresas** | ❌ **no guardan nada** (ver abajo) |
+
+### Quién puede usar la consulta offline
+
+**Las cuentas con alcance global o multiempresa no guardan consultas en el dispositivo** (decisión D6).
+No es una restricción de comodidad: la partición de la caché evita que una sesión **lea** lo de otra,
+pero no evita que el mismo equipo **acumule** los datos de todas las empresas que ese usuario visita, y
+el dato en reposo **no está cifrado** (decisión D3). Un super admin con la app instalada terminaría con
+el snapshot de la operación completa en una tablet de granja.
+
+Basta una señal (`isSuperAdmin`, `hasMultipleCompanies`, o más de un id en `companyIds`/`companies`)
+para bloquear: las llena el backend por caminos distintos y el criterio conservador es el correcto
+cuando la pregunta es "¿bajo datos de más?". Al detectar una cuenta no elegible **se purga** lo que
+tuviera guardado de antes.
+
+El operario de una sola empresa —que es el destinatario de todo esto— funciona igual que siempre.
+
+### Almacenamiento persistente
+
+La app pide `navigator.storage.persist()` **cuando hay sesión**, para que el navegador no pueda
+desalojar la base ante presión de disco. Sin esa concesión el desalojo es **silencioso**: sin error ni
+log, la pantalla aparece vacía en la granja como si nunca se hubiera consultado nada.
+
+En `/diagnostico`, el campo **«Se pidió persistencia»** distingue *«el navegador la negó»* de *«todavía
+no»* — ante un reporte de campo llevan a diagnósticos opuestos. Chrome la concede automáticamente si la
+app está **instalada**, así que el alistamiento en oficina (instalar y entrar una vez con red) es lo que
+la asegura.
 
 **Que no se pueda GUARDAR sin red es deliberado, no una limitación pendiente de pulir.** La captura offline (outbox +
 sincronización diferida) está bloqueada por el backend: no tiene idempotencia, ni control de
