@@ -3396,3 +3396,43 @@ uno de los tres caminos y verificar `lote_postura_levante.aves_h_actual` en cada
 **Estado F0.A: 8 de 10 resueltos** (A1, A2, A3, A5-1ª, A6, A7, A8, A10). Quedan **A4** (refactor del
 aplicador + gate de paridad) y **A9** (zona minada, gate multipaís) — los dos exigen decisión y gate,
 no ejecución directa.
+
+---
+
+# F0.A · A9 — medición y detector (paso 1: hacer visible el defecto)
+
+**Detector:** `backend/sql/verificar_atribucion_lote_engorde.sql` (SOLO LECTURA)
+
+## Por qué hacía falta un detector nuevo
+`fn_cuadre_alimento_engorde` compara el saldo del **ciclo activo** contra el stock del galpón. Este
+defecto vive casi entero en ciclos **CERRADOS**, y una imputación equivocada *entre dos lotes del
+mismo galpón* **se cancela al agregar por galpón**. O sea: el cuadre da 61 filas / 1 descuadrado —como
+da hoy— con **4,2 millones de kg** imputados al lote equivocado. Es la advertencia G0 de la compuerta
+de las rondas fallidas: *un detector que no puede ver el defecto no prueba nada cuando sale limpio*.
+
+## Lo medido (BD local, refresh del dump de prod)
+- [x] **Topología**: Ecuador encadena ciclos en **34 de 35 galpones** (hasta 4 lotes); Panamá en 13 de 38.
+      La ambigüedad es la NORMA en Ecuador, no un caso borde
+- [x] **Mal atribuidas**: Ecuador **1.707 filas (16,8 %), 4.183.980 kg** · Panamá 65 (3,6 %), 71.305 kg
+      · Sanmarino y Demo **0** (no operan engorde en esas ubicaciones)
+- [x] **Dónde vive**: **1.705 de 1.707 en lotes CERRADOS** ⇒ invisible para el cuadre
+- [x] **Lotes liquidados involucrados**: Ecuador **41 de 43**; Panamá 0 de 10
+
+## 🔑 El hallazgo que hace A9 tratable
+Separando por la liquidación del lote correcto:
+
+| | Ecuador | Panamá |
+|---|---|---|
+| **INEQUÍVOCO** (el movimiento cae entre el encaset y la liquidación del lote al que correspondía) | **1.677 · 4.125.755 kg** | 62 · 50.339 kg |
+| Ambiguo (en el hueco entre liquidación y encaset siguiente) | 30 · 58.225 kg | 0 |
+
+**El 98,2 % del defecto es inequívoco** y NO depende de la decisión de producto del hueco
+post-liquidación — que es justo la que hizo fracasar los 4 intentos de la marca «próximo ciclo».
+Un arreglo que corrija **solo la ventana inequívoca** y conserve el comportamiento actual en el hueco
+evita por completo esa zona.
+
+## Decisiones que quedan para el usuario
+1. **Arreglar la fn** (afecta solo inserciones FUTURAS): corregir la ventana inequívoca, fail-safe en
+   el hueco. No toca historia ni liquidaciones.
+2. **¿Backfill de las 1.677 filas?** Movería 4,1 M kg entre lotes, y **41 lotes ya liquidados**
+   quedarían fuera de sintonía con su copia congelada. Es una decisión de negocio, no técnica.
