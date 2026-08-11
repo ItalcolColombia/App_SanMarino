@@ -12,9 +12,14 @@
 --   * búsqueda = observaciones lower CONTAINS search lower -> lower LIKE %..%.
 --   * orden: fecha DESC, id DESC.
 -- Columnas en PascalCase citado para mapear directo a InventarioGastoListRow (SqlQueryRaw).
--- Idempotente (CREATE OR REPLACE). Fuente/spec de esta función: este archivo.
+-- Lote PROGRAMADO (jul-2026): un gasto puede colgar de lote_base_engorde cuando el lote real todavía
+-- no existe (desinsectación previa al encaset). Se devuelven lote_base_engorde_id/lote_base_nombre y
+-- se filtra por p_lote_base_id. Cambia RETURNS TABLE ⇒ DROP + CREATE (no basta CREATE OR REPLACE).
 -- ============================================================================
-CREATE OR REPLACE FUNCTION fn_inventario_gastos_search(
+DROP FUNCTION IF EXISTS fn_inventario_gastos_search(integer, integer, text, text, integer, date, date, text, text, text);
+DROP FUNCTION IF EXISTS fn_inventario_gastos_search(integer, integer, text, text, integer, date, date, text, text, text, integer);
+
+CREATE FUNCTION fn_inventario_gastos_search(
     p_company_id  integer,
     p_farm_id     integer DEFAULT NULL,
     p_nucleo_id   text    DEFAULT NULL,
@@ -24,7 +29,8 @@ CREATE OR REPLACE FUNCTION fn_inventario_gastos_search(
     p_fecha_hasta date    DEFAULT NULL,
     p_concepto    text    DEFAULT NULL,
     p_search      text    DEFAULT NULL,
-    p_estado      text    DEFAULT NULL
+    p_estado      text    DEFAULT NULL,
+    p_lote_base_id integer DEFAULT NULL
 )
 -- Columnas snake_case: EF (EFCore.NamingConventions) mapea las props PascalCase de
 -- InventarioGastoListRow a snake_case también en SqlQueryRaw (p.ej. CreatedAt -> created_at).
@@ -39,6 +45,8 @@ RETURNS TABLE(
     galpon_nombre       text,
     lote_ave_engorde_id integer,
     lote_nombre         text,
+    lote_base_engorde_id integer,
+    lote_base_nombre    text,
     observaciones       text,
     estado              text,
     lineas              integer,
@@ -60,6 +68,8 @@ LANGUAGE sql STABLE AS $fn$
         gp.galpon_nombre,
         g.lote_ave_engorde_id,
         l.lote_nombre,
+        g.lote_base_engorde_id,
+        lb.nombre,
         g.observaciones,
         g.estado,
         COALESCE(d.lineas, 0)::int,
@@ -73,6 +83,7 @@ LANGUAGE sql STABLE AS $fn$
     LEFT JOIN nucleos n          ON n.nucleo_id = g.nucleo_id AND n.granja_id = g.farm_id
     LEFT JOIN galpones gp        ON gp.galpon_id = g.galpon_id AND gp.granja_id = g.farm_id
     LEFT JOIN lote_ave_engorde l ON l.lote_ave_engorde_id = g.lote_ave_engorde_id
+    LEFT JOIN lote_base_engorde lb ON lb.id = g.lote_base_engorde_id
     LEFT JOIN LATERAL (
         SELECT
             COUNT(*)          AS lineas,
@@ -103,6 +114,7 @@ LANGUAGE sql STABLE AS $fn$
       AND (p_nucleo_id   IS NULL OR g.nucleo_id = p_nucleo_id)
       AND (p_galpon_id   IS NULL OR g.galpon_id = p_galpon_id)
       AND (p_lote_id     IS NULL OR g.lote_ave_engorde_id = p_lote_id)
+      AND (p_lote_base_id IS NULL OR g.lote_base_engorde_id = p_lote_base_id)
       AND (p_fecha_desde IS NULL OR g.fecha >= p_fecha_desde)
       AND (p_fecha_hasta IS NULL OR g.fecha <= p_fecha_hasta)
       AND (p_estado      IS NULL OR g.estado = p_estado)
