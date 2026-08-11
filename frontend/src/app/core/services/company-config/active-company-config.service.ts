@@ -37,6 +37,19 @@ export interface CompanyFlags {
    * La fecha de encaset y la edad no cambian — solo se corre el primer día con registro.
    */
   primerRegistroSegunHoraLlegada: boolean;
+  /**
+   * Los lotes de pollo engorde se PROGRAMAN: el catálogo de lotes base (asignado por granja) es la
+   * lista de lotes a encasetar, el nombre del lote sale obligatoriamente de esa lista (numerado por
+   * corrida dentro del galpón) y un gasto de inventario puede cargarse contra un lote programado que
+   * todavía no está activo (desinsectación previa al encaset).
+   */
+  programacionLotesEngorde: boolean;
+  /**
+   * El nombre del lote lleva el sufijo de corrida desde la PRIMERA apertura ("96 - 1", Panamá).
+   * `false` = el nombre es el del lote base tal cual ("2603", Ecuador: la corrida ya está en el
+   * nombre del base) y el sufijo sólo aparece desde la segunda apertura en el mismo galpón.
+   */
+  nombreLoteIncluyeCorrida: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -46,7 +59,9 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   permiteTrasladoAvesCrossEtapa: false,
   capturaHuevosEnLevante: false,
   ventaEngordePesoDiferido: false,
-  primerRegistroSegunHoraLlegada: false
+  primerRegistroSegunHoraLlegada: false,
+  programacionLotesEngorde: false,
+  nombreLoteIncluyeCorrida: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -65,6 +80,8 @@ interface CompanyFlagsResponse {
   capturaHuevosEnLevante?: boolean | null;
   ventaEngordePesoDiferido?: boolean | null;
   primerRegistroSegunHoraLlegada?: boolean | null;
+  programacionLotesEngorde?: boolean | null;
+  nombreLoteIncluyeCorrida?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -106,6 +123,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa carga el peso de la venta de engorde al confirmarla (báscula diferida)? */
   readonly ventaEngordePesoDiferido$: Observable<boolean> = this.flags$.pipe(
     map(f => f.ventaEngordePesoDiferido),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa programa los lotes de engorde (lote base obligatorio)? */
+  readonly programacionLotesEngorde$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.programacionLotesEngorde),
     distinctUntilChanged()
   );
 
@@ -195,6 +218,11 @@ export class ActiveCompanyConfigService {
     return this.getFlags().pipe(map(f => f.primerRegistroSegunHoraLlegada));
   }
 
+  /** Azúcar: sólo el flag de programación de lotes de engorde de la empresa activa. */
+  programacionLotesEngorde(): Observable<boolean> {
+    return this.getFlags().pipe(map(f => f.programacionLotesEngorde));
+  }
+
   /** Descarta la caché (p. ej. tras editar la empresa en configuración). */
   invalidate(): void {
     this.cache.clear();
@@ -209,7 +237,9 @@ export class ActiveCompanyConfigService {
       permiteTrasladoAvesCrossEtapa: dto?.permiteTrasladoAvesCrossEtapa === true,
       capturaHuevosEnLevante: dto?.capturaHuevosEnLevante === true,
       ventaEngordePesoDiferido: dto?.ventaEngordePesoDiferido === true,
-      primerRegistroSegunHoraLlegada: dto?.primerRegistroSegunHoraLlegada === true
+      primerRegistroSegunHoraLlegada: dto?.primerRegistroSegunHoraLlegada === true,
+      programacionLotesEngorde: dto?.programacionLotesEngorde === true,
+      nombreLoteIncluyeCorrida: dto?.nombreLoteIncluyeCorrida === true
     };
   }
 
@@ -223,7 +253,9 @@ export class ActiveCompanyConfigService {
       actual.permiteTrasladoAvesCrossEtapa === flags.permiteTrasladoAvesCrossEtapa &&
       actual.capturaHuevosEnLevante === flags.capturaHuevosEnLevante &&
       actual.ventaEngordePesoDiferido === flags.ventaEngordePesoDiferido &&
-      actual.primerRegistroSegunHoraLlegada === flags.primerRegistroSegunHoraLlegada
+      actual.primerRegistroSegunHoraLlegada === flags.primerRegistroSegunHoraLlegada &&
+      actual.programacionLotesEngorde === flags.programacionLotesEngorde &&
+      actual.nombreLoteIncluyeCorrida === flags.nombreLoteIncluyeCorrida
     ) return;
     this.flagsSubject.next(flags);
   }
