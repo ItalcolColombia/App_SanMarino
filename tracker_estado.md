@@ -3598,3 +3598,101 @@ HOY— y esa verificación destapó algo que el plan no menciona y pesa más que
 > Un test que no falla cuando se rompe lo que dice proteger no prueba nada. Desactivar el gate y ver
 > caer exactamente los 4 casos —y ninguno más— cuesta dos minutos y es lo que separa "escribí tests"
 > de "tengo cobertura".
+
+---
+
+# Programación de lotes de engorde para Ecuador (lote base) + gasto contra lote programado
+
+**Plan:** [fase_de_desarrollo/programacion_lotes_engorde_ecuador_plan.md](fase_de_desarrollo/programacion_lotes_engorde_ecuador_plan.md)
+
+**Contexto medido (BD local = dump prod):** el backend de lote base YA es multi-empresa; lo único que
+gatea a Panamá es el front (`isPanama()`). Ecuador tiene **0 lotes base** y 369 gastos, todos contra
+lote real ⇒ encender el flag sin programación cargada **bloquea la creación de lotes** en Ecuador.
+
+## Auditoría
+- [x] Backend lote base country-agnostic (nada que portar); gates de front localizados
+- [x] Separados los gates de **lote base** de los del **código ERP por granja** (no se tocan)
+- [x] Medición en BD local: Ecuador id 3 / Panamá id 5; 0 bases en Ecuador
+
+## Backend
+- [x] Flag `companies.programacion_lotes_engorde` (entidad + config + DTOs + 4 proyecciones)
+- [x] `inventario_gasto.lote_base_engorde_id` + FK + índice parcial + **CHECK real XOR programado**
+      (el invariante vive en la BD, no en que cada service se acuerde)
+- [x] `fn_inventario_gastos_search` con lote programado — **DROP+CREATE** (cambia `RETURNS TABLE`) y la
+      migración se generó **desde el `.sql`**, así espejo y migración no pueden divergir
+- [x] `GastoLoteProgramadoCalculos` (puro) + **17 tests xUnit**
+- [x] Re-atribución de gastos pendientes al crear el lote real (UPDATE en BD, no en memoria)
+- [x] 4 migraciones idempotentes; **el seed de Ecuador va SEPARADO** (ver riesgo abajo)
+
+## Frontend
+- [x] `CompanyFlags.programacionLotesEngorde` (fail-closed)
+- [x] Lote engorde: pestaña «Lotes base», base obligatorio y nombre por corrida ahora salen del
+      **flag de empresa**, no de `isPanama()`. El `esPanama` que queda es SOLO del código ERP por granja
+- [x] Gastos de inventario: destino «Lote programado», columna en la lista, detalle y Excel
+
+## Verificación
+- [x] `dotnet build` 0 errores / 0 warnings · `dotnet test` **2.214 verdes** (2.197 → 2.214, +17)
+- [x] `yarn build` OK (único warning: bundle budget preexistente)
+- [x] 4 migraciones aplicadas en local :5433; Panamá y Ecuador quedan con el flag en `true`
+- [x] Smoke SQL con datos reales de Ecuador, en transacción revertida: el gasto programado se ve en el
+      listado, el filtro `p_lote_base_id` responde, **el CHECK rechaza el doble destino** y al encasetar
+      el gasto queda contra el lote real. Los 369 gastos existentes **no se movieron**
+- [ ] ⚠️ Smoke en vivo (UI + HTTP) pendiente: requiere backend y front levantados con sesión real
+
+> **Riesgo operativo documentado en la migración:** con el flag ON el lote base es OBLIGATORIO y
+> Ecuador tiene **0 lotes base** contra 121 lotes hechos a mano. Si se despliega el seed de Ecuador
+> antes de cargar la programación del año, **los técnicos no pueden crear lotes**. Por eso el seed de
+> Ecuador es una migración aparte, con su `Down` que la apaga.
+
+---
+
+## Ampliación (11-ago-2026, 2ª pasada): programación de Ecuador cargada con sus corridas
+
+- [x] **Medición primero:** los 112 lotes vivos de Ecuador se llaman **`2601` `2602` `2603` `2604`**
+      (año + corrida), 8 granjas, **un solo lote por base+galpón** y cero nombres repetidos
+- [x] 🔴 **Defecto encontrado en lo entregado en la 1ª pasada:** con el flag ON el próximo lote se
+      habría llamado **`2603 - 1`**, rompiendo la nomenclatura de los 112 lotes existentes. El usuario
+      había pedido «el nombre será el que ya esté definido» — el sufijo de Panamá no era trasladable
+- [x] Flag propio `companies.nombre_lote_incluye_corrida` (Panamá `true`, Ecuador `false`):
+      `ConstruirNombreLote(base, n, incluirSiempre)` + **7 tests** (2.214 → 2.221)
+- [x] Con el flag OFF el sufijo aparece **desde la 2ª** apertura del mismo base+galpón (`2603 - 2`):
+      sin eso, dos lotes con el mismo nombre en un galpón
+- [x] Backfill `BackfillProgramacionLotesEngordeEcuador`: 4 bases, **112/112 lotes amarrados**,
+      **112 corridas numeradas** y **28 asignaciones** que cubren las 8 granjas
+- [x] 🔑 **La numeración del backfill no es cosmética:** sin ella `MAX(numero_corrida)` es NULL y el
+      próximo lote vuelve a llamarse `2603` — nombre duplicado en el galpón
+- [x] Idempotencia probada **re-ejecutando el `DO $$` sobre la BD ya backfilleada**: sigue en
+      4 bases / 28 asignaciones / 112 corridas
+- [x] Panamá intacto (8 bases, 35 lotes con base) · Colombia/Demo/Santa Reyes con ambos flags en `false`
+- [x] **Estado de migraciones: 252 en código = 252 aplicadas, 0 pendientes**, `has-pending-model-changes`
+      sin cambios (los 7 archivos «de más» son `*.Fn.cs`/`*.Seed.cs`, partials de una misma migración)
+- [x] `dotnet test` **2.221 verdes** · `yarn build` OK
+
+> El riesgo que la 1ª pasada dejó documentado («Ecuador con 0 lotes base ⇒ técnicos bloqueados») queda
+> **cerrado**: el backfill viaja en el mismo deploy y deja la programación cargada y asignada.
+
+---
+
+## Smoke end-to-end en vivo (11-ago-2026): back :5002 + front :4200
+
+- [x] 🔴 **El smoke encontró un bloqueante antes de abrir el navegador:** **ningún rol de Ecuador**
+      tenía `lote_base_pollo_engorde.*` (solo Panamá, Demo, Santa Reyes y Sanmarino). Con el flag ON
+      pero sin permiso, Ecuador vería el lote base obligatorio en el form y **ninguna forma de
+      administrarlo**. Migración `SeedPermisosLoteBaseEcuador` (ver/crear/editar a «Ecuador
+      Administrador» y «Lider implementación - Regional Ecuador»; `.eliminar` NO, igual que Panamá)
+- [x] Sesión de un usuario **real** de Ecuador (permisos leídos de la BD, no inventados)
+- [x] **Pestaña «Lotes base»** visible con las 4 corridas: `2601` (7 granjas/33 lotes), `2602` (8/35),
+      `2603` (8/30), `2604` (5/14) — el backfill tal cual
+- [x] **«Nombre del lote» es un selector**, no un input: ofrece solo los bases asignados a la granja
+- [x] 🔑 **Preview del nombre: `2604`** en un galpón sin esa corrida y **`2604 - 2`** en un galpón que
+      ya la tiene. Es la prueba de que la numeración del backfill evita el nombre duplicado
+- [x] Gasto de desinsectación (concepto **Desinfectante**, ítem AV0304) contra el **lote programado
+      2604**: se guarda, descuenta stock (15.000 → 14.999) y la lista lo muestra **`2604 (programado)`**
+- [x] Se crea el lote real desde esa programación ⇒ nombre `2604`, corrida 1, y el gasto **se
+      re-atribuye solo** (`lote_base_engorde_id` → NULL, `lote_ave_engorde_id` = 269). La lista pasa a
+      mostrar `2604` sin la marca
+- [x] **Regresión Panamá**: preview `13 - 2` / `13 - 3` — nunca un `13` pelado. El flag preserva su
+      nomenclatura
+- [x] **BD devuelta al estado inicial**: 369 gastos, 121 lotes Ecuador, stock del ítem en 15.000
+      exactos (la anulación devolvió el consumo) y las filas del smoke borradas por id
+- [x] Migraciones **253 aplicadas / 0 pendientes** · servidores detenidos, sin procesos huérfanos
