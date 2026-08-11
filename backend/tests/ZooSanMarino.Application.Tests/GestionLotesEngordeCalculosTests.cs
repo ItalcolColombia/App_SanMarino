@@ -1,4 +1,4 @@
-using ZooSanMarino.Application.Calculos;
+﻿using ZooSanMarino.Application.Calculos;
 using static ZooSanMarino.Application.Calculos.GestionLotesEngordeCalculos;
 
 namespace ZooSanMarino.Application.Tests;
@@ -36,6 +36,40 @@ public class GestionLotesEngordeCalculosTests
     {
         Assert.Equal("96 - 1", ConstruirNombreCorrida("  96  ", 1));
     }
+
+    // ── Nombre según cómo nombra la empresa (nombre_lote_incluye_corrida) ────
+
+    [Theory]
+    [InlineData("96", 1, "96 - 1")]
+    [InlineData("96", 2, "96 - 2")]
+    public void ConstruirNombreLote_ConCorridaSiempre_MantieneElSufijoDesdeLaPrimera(string b, int n, string esperado)
+        => Assert.Equal(esperado, ConstruirNombreLote(b, n, incluirCorridaSiempre: true));
+
+    /// <summary>
+    /// Ecuador: la corrida ya está en el nombre del base (2603), así que el primer lote del galpón se
+    /// llama igual que el base — es la nomenclatura de sus 112 lotes vivos.
+    /// </summary>
+    [Fact]
+    public void ConstruirNombreLote_SinCorridaSiempre_PrimeraApertura_EsElNombreDelBase()
+        => Assert.Equal("2603", ConstruirNombreLote("2603", 1, incluirCorridaSiempre: false));
+
+    /// <summary>
+    /// …pero desde la segunda apertura del mismo base en el mismo galpón el sufijo vuelve, que es lo
+    /// único que impide dos lotes con el mismo nombre dentro del galpón.
+    /// </summary>
+    [Theory]
+    [InlineData(2, "2603 - 2")]
+    [InlineData(3, "2603 - 3")]
+    public void ConstruirNombreLote_SinCorridaSiempre_DesdeLaSegunda_LlevaSufijo(int n, string esperado)
+        => Assert.Equal(esperado, ConstruirNombreLote("2603", n, incluirCorridaSiempre: false));
+
+    [Fact]
+    public void ConstruirNombreLote_SinCorridaSiempre_RecortaEspacios()
+        => Assert.Equal("2603", ConstruirNombreLote("  2603  ", 1, incluirCorridaSiempre: false));
+
+    [Fact]
+    public void ConstruirNombreLote_BaseNuloNoRompe()
+        => Assert.Equal(string.Empty, ConstruirNombreLote(null!, 1, incluirCorridaSiempre: false));
 
     [Fact]
     public void ConstruirNombreCorrida_BaseNuloNoRompe()
