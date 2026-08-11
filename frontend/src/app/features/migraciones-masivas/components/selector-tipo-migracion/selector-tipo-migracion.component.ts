@@ -1,14 +1,13 @@
 // features/migraciones-masivas/components/selector-tipo-migracion/selector-tipo-migracion.component.ts
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TipoMigracionInfo, TipoMigracionCodigo } from '../../models/migracion.model';
-import { esTipoPolloEngorde } from '../../funciones/agrupar-tipo-migracion.funcion';
-import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 
-/** Permisos que habilitan cada línea del módulo (control interino por rol, ver plan). */
-const PERMISO_POLLO_ENGORDE = 'carga_masiva_pollo_engorde';
-const PERMISO_POSTURA = 'carga_masiva_postura';
-
+/**
+ * Grilla de tiles del paso 1. Es 100% PRESENTACIONAL: pinta exactamente los tipos que recibe.
+ * El filtrado (estructura, no implementados y permisos del usuario) lo hace la página con
+ * `filtrarTiposVisibles`, así que acá ya no hay estado de "deshabilitado" ni "sin permisos".
+ */
 @Component({
   selector: 'app-selector-tipo-migracion',
   standalone: true,
@@ -21,20 +20,14 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
         type="button"
         class="tile"
         [class.tile--active]="seleccionado === t.codigo"
-        [class.tile--soon]="!t.disponible"
-        [class.tile--locked]="t.disponible && !tienePermiso(t.codigo)"
-        [disabled]="!t.disponible || !tienePermiso(t.codigo)"
-        [title]="!t.disponible ? '' : !tienePermiso(t.codigo) ? mensajeSinPermiso(t.codigo) : ''"
-        (click)="onClick(t)">
+        (click)="seleccionar.emit(t)">
         <span class="tile__icon">{{ icono(t.codigo) }}</span>
         <span class="tile__body">
           <span class="tile__name">{{ t.nombre }}</span>
           <span class="tile__desc">{{ t.descripcion }}</span>
-        </span>
-        <span class="tile__meta">
-          <span class="tile__phase">Fase {{ t.fase }}</span>
-          <span class="tile__soon" *ngIf="!t.disponible">Próximamente</span>
-          <span class="tile__locked" *ngIf="t.disponible && !tienePermiso(t.codigo)">{{ mensajeSinPermiso(t.codigo) }}</span>
+          <span class="tile__meta">
+            <span class="tile__phase">Fase {{ t.fase }}</span>
+          </span>
         </span>
       </button>
     </div>
@@ -42,12 +35,18 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
   styles: [`
     .tiles {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
       gap: 0.85rem;
     }
+    /*
+      Icono a la izquierda y TODO el texto en una sola columna que ocupa el resto del ancho: los
+      metadatos (Fase / Próximamente / Sin permiso) van al pie del cuerpo, no en una tercera columna.
+      Como columna, el badge largo "Sin permiso para carga masiva" (nowrap) se llevaba más de la
+      mitad del tile y dejaba la descripción en una palabra por línea, montada sobre el título.
+    */
     .tile {
       display: flex;
-      align-items: flex-start;
+      align-items: stretch;
       gap: 0.7rem;
       text-align: left;
       padding: 0.95rem 1rem;
@@ -67,21 +66,11 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
       background: var(--ital-orange-50, rgba(245,130,31,0.08));
       box-shadow: 0 10px 22px rgba(245, 130, 31, 0.18);
     }
-    .tile--soon { opacity: 0.7; }
-    .tile--locked {
-      cursor: not-allowed;
-      opacity: 0.55;
-      filter: grayscale(0.6);
-    }
-    .tile--locked:hover {
-      border-color: #eef0f3;
-      transform: none;
-      box-shadow: none;
-    }
     .tile__icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      align-self: flex-start;
       width: 2.4rem; height: 2.4rem;
       flex-shrink: 0;
       font-size: 1.25rem;
@@ -91,18 +80,12 @@ const PERMISO_POSTURA = 'carga_masiva_postura';
     .tile__body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
     .tile__name { font-weight: 700; color: var(--ital-text, #1f2937); font-size: 0.95rem; }
     .tile__desc { font-size: 0.78rem; color: var(--ital-muted, #6b7280); line-height: 1.35; }
-    .tile__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; flex-shrink: 0; }
+    /* Fila de chips al pie del cuerpo; el margin-top auto los alinea entre tiles de distinto alto. */
+    .tile__meta {
+      display: flex; flex-wrap: wrap; align-items: center;
+      gap: 0.3rem 0.4rem; margin-top: auto; padding-top: 0.45rem;
+    }
     .tile__phase { font-size: 0.62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #b8bcc4; }
-    .tile__soon {
-      font-size: 0.6rem; font-weight: 700;
-      padding: 0.12rem 0.4rem; border-radius: 999px;
-      background: #f1f2f4; color: #8a8f98; white-space: nowrap;
-    }
-    .tile__locked {
-      font-size: 0.6rem; font-weight: 700; text-align: right;
-      padding: 0.12rem 0.4rem; border-radius: 999px;
-      background: #f1f2f4; color: #b3261e; white-space: nowrap;
-    }
   `]
 })
 export class SelectorTipoMigracionComponent {
@@ -110,17 +93,12 @@ export class SelectorTipoMigracionComponent {
   @Input() seleccionado: string | null = null;
   @Output() seleccionar = new EventEmitter<TipoMigracionInfo>();
 
-  private readonly permService = inject(UserPermissionService);
-
   private readonly iconos: Record<TipoMigracionCodigo, string> = {
     Granjas: '🏡',
     Nucleos: '🧩',
     Galpones: '🏭',
     SeguimientoLevante: '🐥',
     SeguimientoProduccion: '🥚',
-    Ventas: '💵',
-    MovimientoAves: '🐔',
-    MovimientoHuevos: '📦',
     LotesPolloEngorde: '🐔',
     SeguimientoPolloEngorde: '📋',
     SeguimientoReproductoraEngorde: '🐣',
@@ -129,20 +107,5 @@ export class SelectorTipoMigracionComponent {
 
   icono(codigo: string): string {
     return this.iconos[codigo as TipoMigracionCodigo] ?? '📄';
-  }
-
-  /** Control interino por línea: sin el permiso de su línea, el tile queda deshabilitado. */
-  tienePermiso(codigo: TipoMigracionCodigo): boolean {
-    return this.permService.has(esTipoPolloEngorde(codigo) ? PERMISO_POLLO_ENGORDE : PERMISO_POSTURA);
-  }
-
-  mensajeSinPermiso(codigo: TipoMigracionCodigo): string {
-    return esTipoPolloEngorde(codigo) ? 'Sin permisos' : 'Sin permiso para carga masiva';
-  }
-
-  /** Refuerzo del `[disabled]` del template (un tile bloqueado no debe poder seleccionarse). */
-  onClick(t: TipoMigracionInfo): void {
-    if (!t.disponible || !this.tienePermiso(t.codigo)) return;
-    this.seleccionar.emit(t);
   }
 }

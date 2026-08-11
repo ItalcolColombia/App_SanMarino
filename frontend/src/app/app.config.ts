@@ -1,8 +1,10 @@
 // src/app/app.config.ts
-import { ApplicationConfig, importProvidersFrom } from '@angular/core';
+import { ApplicationConfig, importProvidersFrom, isDevMode } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
+import { provideServiceWorker } from '@angular/service-worker';
 import { authInterceptor } from './core/auth/auth.interceptor';
+import { offlineCacheInterceptor } from './shared/offline/offline-cache.interceptor';
 import { ReactiveFormsModule } from '@angular/forms';
 
 // 👇 Mantén solo los componentes que realmente se usan por referencia directa en rutas.
@@ -52,7 +54,28 @@ import { ClienteListComponent } from './features/clientes/components/cliente-lis
 export const appConfig: ApplicationConfig = {
   providers: [
     importProvidersFrom(ReactiveFormsModule),
-    provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
+    // El orden importa: `authInterceptor` va PRIMERO para que la petición salga con sus headers
+    // (token, empresa activa, SECRET_UP) ya puestos. `offlineCacheInterceptor` envuelve por dentro
+    // y solo actúa sobre la respuesta —guardándola— o sobre el fallo de red —sirviendo lo guardado—.
+    provideHttpClient(withXhr(), withInterceptors([authInterceptor, offlineCacheInterceptor])),
+
+    // =========================================================================
+    // Service Worker (PWA)
+    // =========================================================================
+    // `!isDevMode()` en vez de `BUILD_ID !== 'dev'` a propósito: así un build de
+    // producción servido en localhost (que ES contexto seguro) registra el SW y la
+    // PWA se puede probar de punta a punta sin desplegar, mientras el dev server
+    // nunca lo registra. Atarlo al BUILD_ID haría que la única forma de probar el
+    // modo sin conexión fuera contra producción.
+    //
+    // `registerWhenStable:30000`: el registro espera a que la app quede estable para
+    // no competir con la carga inicial; el tope de 30 s garantiza que se registre
+    // igual, porque esta app tiene polling (heartbeat de sesión) que puede mantener
+    // la zona ocupada indefinidamente y dejar el SW sin registrar para siempre.
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000'
+    }),
 
     provideRouter([
       { path: '', redirectTo: 'home', pathMatch: 'full' },
@@ -60,6 +83,18 @@ export const appConfig: ApplicationConfig = {
       // Público
       { path: 'login', component: LoginComponent },
       { path: 'password-recovery', component: PasswordRecoveryComponent },
+
+      // Diagnóstico del dispositivo — SIN authGuard a propósito: es la pantalla a la
+      // que se recurre cuando nada más funciona (sesión vencida sin red para renovarla,
+      // Service Worker en safe mode). Un guard la haría inalcanzable justo en el
+      // escenario para el que existe. No expone ningún dato de negocio.
+      {
+        path: 'diagnostico',
+        title: 'Diagnóstico del dispositivo',
+        loadComponent: () =>
+          import('./features/diagnostico/diagnostico-page.component')
+            .then(m => m.DiagnosticoPageComponent)
+      },
 
       // Protegido
       { path: 'home', component: HomeComponent, canActivate: [authGuard] },

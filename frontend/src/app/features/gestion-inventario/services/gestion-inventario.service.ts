@@ -101,6 +101,12 @@ export interface InventarioGestionIngresoRequest {
   origenBodegaDescripcion?: string | null;
   /** Fecha del movimiento (solo día, yyyy-MM-dd). Si se omite, el backend usa fecha/hora actual. */
   fechaMovimiento?: string | null;
+  /**
+   * «Este alimento es para el PRÓXIMO encasetamiento de este galpón». Atribución explícita al ciclo
+   * siguiente (galpones encadenados donde la fecha real no alcanza para distinguir el ciclo). Solo
+   * aplica a ingresos con galpón (alimento); default false = comportamiento previo intacto.
+   */
+  paraProximoCiclo?: boolean;
 }
 
 export interface InventarioGestionTrasladoRequest {
@@ -270,12 +276,21 @@ export interface InventarioGestionIngresoListDto {
   estado: string | null;
   fechaMovimiento: string;
   createdAt: string;
+  /** Ingreso atribuido explícitamente al PRÓXIMO ciclo del galpón (editable desde el historial). */
+  paraProximoCiclo: boolean;
+  /** Instante real de captura del movimiento. Null en filas anteriores a la columna. */
+  registradoAt?: string | null;
 }
 
 /** Edita solo la fecha de movimiento de un ingreso. */
 export interface InventarioGestionActualizarFechaIngresoRequest {
   /** yyyy-MM-dd */
   fechaMovimiento: string;
+}
+
+/** Edita solo la atribución de ciclo (próximo ciclo) de un ingreso ya registrado. */
+export interface InventarioGestionActualizarDestinoCicloRequest {
+  paraProximoCiclo: boolean;
 }
 
 /** Ajuste manual de cantidad/unidad en un registro de stock. */
@@ -495,6 +510,14 @@ export class GestionInventarioService {
     req: InventarioGestionActualizarFechaIngresoRequest
   ): Observable<InventarioGestionIngresoListDto> {
     return this.http.put<InventarioGestionIngresoListDto>(`${this.api}/inventario-gestion/ingresos/${movimientoId}/fecha`, req);
+  }
+
+  /** Marca o quita la atribución «para el próximo ciclo» de un ingreso ya registrado (solo ingresos con galpón). */
+  actualizarDestinoCicloIngreso(
+    movimientoId: number,
+    req: InventarioGestionActualizarDestinoCicloRequest
+  ): Observable<InventarioGestionIngresoListDto> {
+    return this.http.put<InventarioGestionIngresoListDto>(`${this.api}/inventario-gestion/ingresos/${movimientoId}/destino-ciclo`, req);
   }
 
   /** Elimina un ingreso: revierte stock y marca anulado en el histórico unificado. */

@@ -249,7 +249,7 @@
                 </button>
                 <button type="button" class="btn-italfoods-secondary" (click)="openIngresoFechaModal()">Elegir fecha</button>
               </div>
-              <small class="hint" style="display: block; margin-top: 0.35rem">Se usa como fecha del registro en el histórico de movimientos.</small>
+              <small class="hint" style="display: block; margin-top: 0.35rem">Registrá la fecha REAL de llegada del alimento. Se usa como fecha del registro en el histórico de movimientos.</small>
             </div>
             @if (ingresoEsPorGalpon) {
               <p class="hint field-full" style="margin: 0">
@@ -331,12 +331,23 @@
                 </div>
                 <div class="field">
                   <label class="form-label">Galpón *</label>
-                  <select class="form-input" [(ngModel)]="ingresoGalponId">
+                  <select class="form-input" [(ngModel)]="ingresoGalponId" (ngModelChange)="ingresoParaProximoCiclo = false">
                     <option [ngValue]="null">Seleccione…</option>
                     @for (g of ingresoGalponesFiltered(); track g) {
                       <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
                     }
                   </select>
+                </div>
+              }
+              @if (mostrarParaProximoCicloIngreso) {
+                <div class="field field-full ingreso-proximo-ciclo">
+                  <label class="checkbox-label">
+                    <input type="checkbox" [(ngModel)]="ingresoParaProximoCiclo" />
+                    Este alimento es para el <strong>PRÓXIMO ciclo/encasetamiento</strong> de este galpón
+                  </label>
+                  <small class="hint" style="display: block; margin-top: 0.35rem">
+                    El seguimiento diario lo tomará como ingreso inicial del ciclo que viene, aunque hoy este galpón tenga un ciclo activo.
+                  </small>
                 </div>
               }
               <div class="field field-full">
@@ -414,7 +425,12 @@
                   id="traslado-fecha-movimiento"
                   class="form-input"
                   type="date"
+                  [min]="fechaMovimientoMin"
+                  [max]="fechaMovimientoMax"
                   [(ngModel)]="trasladoFechaMovimiento" />
+                <small class="hint" style="display: block; margin-top: 0.35rem">
+                  Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+                </small>
                 </div>
                 <div class="field field-full traslado-modos">
                   <span class="form-label">Tipo de traslado *</span>
@@ -1224,9 +1240,16 @@
               </div>
               <div class="field">
                 <label class="form-label" for="stock-edit-fecha">Fecha de registro (ingreso en ubicación) *</label>
-                <input id="stock-edit-fecha" class="form-input" type="date" [(ngModel)]="stockEditFechaIngreso" />
+                <input
+                  id="stock-edit-fecha"
+                  class="form-input"
+                  type="date"
+                  [min]="fechaMovimientoMin"
+                  [max]="fechaMovimientoMax"
+                  [(ngModel)]="stockEditFechaIngreso" />
                 <small class="hint" style="display: block; margin-top: 0.35rem">
                   Es la fecha mostrada en la columna «Fecha ingreso» del stock; el sistema la guarda como fecha del primer registro en esa ubicación.
+                  Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
                 </small>
               </div>
               <div class="field">
@@ -1288,7 +1311,16 @@
             </div>
             <div class="modal-italfoods__body">
               <label class="form-label" for="ingreso-fecha-input">Fecha</label>
-              <input id="ingreso-fecha-input" class="form-input" type="date" [(ngModel)]="ingresoFechaDraft" />
+              <input
+                id="ingreso-fecha-input"
+                class="form-input"
+                type="date"
+                [min]="fechaMovimientoMin"
+                [max]="fechaMovimientoMax"
+                [(ngModel)]="ingresoFechaDraft" />
+              <small class="hint" style="display: block; margin-top: 0.35rem">
+                Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+              </small>
             </div>
             <div class="modal-italfoods__footer">
               <button type="button" class="btn-italfoods-secondary" (click)="closeIngresoFechaModal()">Cancelar</button>

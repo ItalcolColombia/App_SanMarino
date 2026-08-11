@@ -31,6 +31,8 @@ interface FilaAvesView {
   fecha: string;
   fechaFmt: string;
   fase: string;
+  granjaNombre: string;
+  excluidoDelTotal: boolean;
   loteGalpon: string;
   edadDias: number | null;
   semana: number | null;
@@ -82,6 +84,10 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
   filasHuevos: ReporteDiarioCostosPosturaFila[] = [];
   /** Advertencia: filas cuya partición de huevo no cuadra con el total (defecto de datos). */
   huevosDescuadrados = 0;
+  /** Advertencia: días registrados en levante Y producción; se muestran pero no suman dos veces. */
+  diasDuplicados = 0;
+  /** El lote base elegido vivía en más granjas que la pedida y el reporte lo siguió. */
+  alcanceExpandido = false;
 
   ngOnInit(): void {
     this.cargarFilterData();
@@ -125,7 +131,13 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
     });
   }
 
-  /** Regional → granja → lote base. Se recalcula entero (referencias nuevas solo al cambiar filtros). */
+  /**
+   * Regional → granja → lote base. Se recalcula entero (referencias nuevas solo al cambiar filtros).
+   *
+   * El lote base se acota por DÓNDE ESTÁN SUS LOTES (`granjaIds`), no por el `farm_id` del catálogo:
+   * si el lote se traslada a otra granja, la base tiene que seguir apareciendo bajo la granja donde
+   * se hizo el levante.
+   */
   private aplicarCascada(): void {
     this.granjas = this.regional
       ? this.granjasTodas.filter(g => g.regional === this.regional)
@@ -135,13 +147,20 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
       this.granjaId = null;
     }
 
-    this.lotesBase = this.granjaId != null
-      ? this.lotesBaseTodos.filter(b => b.farmId === this.granjaId)
+    const granjaSel = this.granjaId;
+    this.lotesBase = granjaSel != null
+      ? this.lotesBaseTodos.filter(b => (b.granjaIds ?? []).includes(granjaSel))
       : this.lotesBaseTodos;
 
     if (this.lotePosturaBaseId != null && !this.lotesBase.some(b => b.lotePosturaBaseId === this.lotePosturaBaseId)) {
       this.lotePosturaBaseId = null;
     }
+  }
+
+  /** Etiqueta del desplegable: la base y, si vive en más de una granja, cuáles. */
+  etiquetaLoteBase(b: LotePosturaBaseOpcion): string {
+    const granjas = b.granjaNombres ?? [];
+    return granjas.length > 1 ? `${b.loteNombre} (${granjas.join(' + ')})` : b.loteNombre;
   }
 
   onRegionalChange(): void { this.aplicarCascada(); }
@@ -183,6 +202,8 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
       fecha: f.fecha,
       fechaFmt: fmtFecha(f.fecha),
       fase: f.fase,
+      granjaNombre: f.granjaNombre,
+      excluidoDelTotal: f.excluidoDelTotal === true,
       loteGalpon: f.loteGalpon,
       edadDias: f.edadDias,
       semana: f.semana,
@@ -195,6 +216,8 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
     this.filasAlimento = expandirFilasAlimento(rep.filas);
     this.filasHuevos = rep.filas.filter(f => f.fase === 'Produccion');
     this.huevosDescuadrados = this.filasHuevos.filter(f => !f.huevo.particionCuadra).length;
+    this.diasDuplicados = rep.diasDuplicados ?? 0;
+    this.alcanceExpandido = rep.alcanceExpandidoPorLoteBase === true;
 
     // La pestaña Huevos no existe sin producción: si estaba activa, se vuelve a Aves.
     if (this.pestana === 'huevos' && this.filasHuevos.length === 0) this.pestana = 'aves';
@@ -218,6 +241,8 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
     this.filasAlimento = [];
     this.filasHuevos = [];
     this.huevosDescuadrados = 0;
+    this.diasDuplicados = 0;
+    this.alcanceExpandido = false;
     this.pestana = 'aves';
   }
 
@@ -245,7 +270,9 @@ export class ReporteDiarioCostosPosturaMainComponent implements OnInit {
   }
   fechaFmt(iso: string | null): string { return fmtFecha(iso); }
 
-  trackAves = (_: number, f: FilaAvesView) => `${f.fecha}|${f.loteGalpon}|${f.fase}`;
-  trackAlimento = (i: number, f: FilaAlimentoView) => `${f.fecha}|${f.loteGalpon}|${i}`;
+  // El lote base puede vivir en dos granjas con el mismo «lote : galpón», así que la granja
+  // entra en la clave.
+  trackAves = (_: number, f: FilaAvesView) => `${f.fecha}|${f.granjaNombre}|${f.loteGalpon}|${f.fase}`;
+  trackAlimento = (i: number, f: FilaAlimentoView) => `${f.fecha}|${f.granjaNombre}|${f.loteGalpon}|${i}`;
   trackHuevo = (_: number, f: ReporteDiarioCostosPosturaFila) => `${f.fecha}|${f.loteId}`;
 }

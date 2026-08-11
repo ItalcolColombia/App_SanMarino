@@ -48,6 +48,29 @@
   input { accent-color: var(--ital-orange, #e8a06a); }
 }
 
+/* Checkbox «para el próximo ciclo» del alta de ingreso (D2). */
+.ingreso-proximo-ciclo {
+  background: var(--ital-orange-50, #fff3e8);
+  border: 1px solid var(--ital-orange, #e8a06a);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.35;
+  input[type='checkbox'] {
+    accent-color: var(--ital-orange, #e8a06a);
+    margin-top: 0.15rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: none;
+  }
+}
+
 .link-like {
   background: none;
   border: none;

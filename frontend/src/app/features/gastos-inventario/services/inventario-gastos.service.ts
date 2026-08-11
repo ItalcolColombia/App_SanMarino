@@ -38,6 +38,7 @@ interface InventarioGastoQueryParams {
   nucleoId?: string;
   galponId?: string;
   loteAveEngordeId?: number;
+  loteBaseEngordeId?: number;
   fechaDesde?: string;
   fechaHasta?: string;
   concepto?: string;
@@ -58,6 +59,7 @@ export class InventarioGastosService {
     if (params.nucleoId) httpParams = httpParams.set('nucleoId', params.nucleoId);
     if (params.galponId) httpParams = httpParams.set('galponId', params.galponId);
     if (params.loteAveEngordeId != null) httpParams = httpParams.set('loteAveEngordeId', params.loteAveEngordeId);
+    if (params.loteBaseEngordeId != null) httpParams = httpParams.set('loteBaseEngordeId', params.loteBaseEngordeId);
     if (params.fechaDesde) httpParams = httpParams.set('fechaDesde', params.fechaDesde);
     if (params.fechaHasta) httpParams = httpParams.set('fechaHasta', params.fechaHasta);
     if (params.concepto) httpParams = httpParams.set('concepto', params.concepto);

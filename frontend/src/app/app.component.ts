@@ -2,24 +2,31 @@
 import { Component, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 
 import { RouterOutlet, Router } from '@angular/router';
-import { VersionCheckService } from './core/services/version-check.service';
+import { PwaActualizacionService } from './core/pwa/pwa-actualizacion.service';
+import { AlmacenamientoPersistenteService } from './core/pwa/almacenamiento-persistente.service';
+import { TokenStorageService } from './core/auth/token-storage.service';
 import { SessionTimeoutService } from './core/auth/session-timeout.service';
+import { Subscription } from 'rxjs';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
+import { PwaBarraEstadoComponent } from './shared/components/pwa-barra-estado/pwa-barra-estado.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, SidebarComponent, FontAwesomeModule],
+  imports: [RouterOutlet, SidebarComponent, PwaBarraEstadoComponent, FontAwesomeModule],
   templateUrl: './app.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./app.component.scss']
 })
 export class AppComponent implements OnInit, OnDestroy {
   router = inject(Router);
-  private versionCheckService = inject(VersionCheckService);
+  private pwaActualizacion = inject(PwaActualizacionService);
   private sessionTimeout = inject(SessionTimeoutService);
+  private almacenamiento = inject(AlmacenamientoPersistenteService);
+  private tokenStorage = inject(TokenStorageService);
+  private subSesion?: Subscription;
 
   faBars = faBars;
 
@@ -48,18 +55,26 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Start checking for application updates
-    // This will periodically check if a new version has been deployed
-    // and force a reload if detected
-    this.versionCheckService.startVersionChecking();
+    // Vigila si se publicó una versión nueva del front. A diferencia del
+    // VersionCheckService que reemplaza, NO recarga por su cuenta: levanta un banner y
+    // el usuario aplica cuando terminó de cargar lo que estaba cargando.
+    this.pwaActualizacion.iniciar();
 
     // Sesión deslizante: auto-logout por inactividad (5 min) y por pérdida de conexión.
     // Se arranca/detiene solo según haya sesión activa en storage.
     this.sessionTimeout.init();
+
+    // Pide que el almacenamiento local sea persistente, para que el navegador no pueda desalojar
+    // la consulta offline ante presión de disco. Se engancha a la sesión —y no al arranque en
+    // frío— porque antes del login es donde más probable es que lo denieguen. `asegurar()` es
+    // idempotente, así que reaccionar a cada emisión no repite el pedido.
+    this.subSesion = this.tokenStorage.session$.subscribe(() => {
+      void this.almacenamiento.asegurar();
+    });
   }
 
   ngOnDestroy(): void {
-    // Stop version checking when component is destroyed
-    this.versionCheckService.stopVersionChecking();
+    this.pwaActualizacion.detener();
+    this.subSesion?.unsubscribe();
   }
 }

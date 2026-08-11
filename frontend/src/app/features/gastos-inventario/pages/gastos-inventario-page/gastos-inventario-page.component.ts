@@ -5,6 +5,8 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { LoteBaseEngordeApi, LoteBaseEngordeDto } from '../../../engorde-comun/services/lote-base-engorde.api';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { exportarGastosInventarioExcel } from '../../funciones/exportar-gastos-inventario-excel.funcion';
 import {
@@ -75,6 +77,11 @@ export class GastosInventarioPageComponent implements OnInit {
   formNucleoId: string | null = null;
   formGalponId: string | null = null;
   formLoteId: number | null = null;
+  /**
+   * Lote PROGRAMADO elegido en el modal (lote base aún sin encasetar). Excluyente con `formLoteId`:
+   * el gasto se carga contra el lote real O contra la programación, nunca contra ambos.
+   */
+  formLoteBaseId: number | null = null;
   formFecha: string = this.todayYmd();
   formConcepto: string = '';
   formObservaciones: string = '';
@@ -89,10 +96,22 @@ export class GastosInventarioPageComponent implements OnInit {
   // Detail modal
   detail: any = null;
 
+  /**
+   * La empresa PROGRAMA sus lotes de engorde: se puede dar de baja insumos (p. ej. desinsectación)
+   * contra un lote todavía no encasetado. Fail-closed: apagado hasta que el backend lo confirme.
+   */
+  programacionLotes = false;
+  /** Programación completa de la empresa; se filtra por la granja del modal. */
+  private lotesBase: LoteBaseEngordeDto[] = [];
+  /** Lotes programados ofrecidos en el modal (activos y asignados a `formFarmId`). Referencia estable. */
+  lotesBaseParaGranja: LoteBaseEngordeDto[] = [];
+
   constructor(
     private api: InventarioGastosService,
     private toast: ToastService,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private companyConfig: ActiveCompanyConfigService,
+    private loteBaseApi: LoteBaseEngordeApi
   ) {}
 
   get qtyExceedsStock(): boolean {
@@ -103,7 +122,49 @@ export class GastosInventarioPageComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
+    this.companyConfig.programacionLotesEngorde().subscribe(activo => {
+      this.programacionLotes = activo;
+      if (activo) this.cargarLotesProgramados();
+    });
     await this.refresh();
+  }
+
+  /** Catálogo de lotes programados (solo si la empresa los maneja). */
+  private cargarLotesProgramados(): void {
+    this.loteBaseApi.getAll().subscribe({
+      next: bases => {
+        this.lotesBase = bases ?? [];
+        this.recomputeLotesBaseParaGranja();
+      },
+      error: () => { this.lotesBase = []; this.lotesBaseParaGranja = []; }
+    });
+  }
+
+  /**
+   * Lotes programados que se pueden elegir en el modal: activos y asignados a la granja del gasto
+   * (la misma regla de visibilidad que usa el selector al crear el lote). Solo se recalcula ante
+   * eventos — nunca desde el template — para no romper el change detection.
+   */
+  private recomputeLotesBaseParaGranja(): void {
+    const granjaId = this.formFarmId;
+    this.lotesBaseParaGranja = granjaId
+      ? this.lotesBase
+          .filter(b => b.activo && (b.granjaIds ?? []).includes(granjaId))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      : [];
+    if (this.formLoteBaseId != null && !this.lotesBaseParaGranja.some(b => b.id === this.formLoteBaseId)) {
+      this.formLoteBaseId = null;
+    }
+  }
+
+  /** El gasto va contra el lote real O contra el programado: elegir uno limpia el otro. */
+  onFormLoteRealChange(loteId: number | null): void {
+    this.formLoteId = loteId;
+    if (loteId != null) this.formLoteBaseId = null;
+  }
+
+  onFormLoteBaseChange(): void {
+    if (this.formLoteBaseId != null) this.formLoteId = null;
   }
 
   private todayYmd(): string {
@@ -206,6 +267,8 @@ export class GastosInventarioPageComponent implements OnInit {
     this.formNucleoId = null;
     this.formGalponId = null;
     this.formLoteId = this.selectedLoteId;
+    this.formLoteBaseId = null;
+    this.recomputeLotesBaseParaGranja();
     this.formFecha = this.todayYmd();
     this.formConcepto = '';
     this.formObservaciones = '';
@@ -221,6 +284,7 @@ export class GastosInventarioPageComponent implements OnInit {
   /** Al cambiar la granja del formulario: recarga conceptos (con stock en esa granja) y limpia la selección previa. */
   async onFormFarmChange(): Promise<void> {
     this.formConcepto = '';
+    this.recomputeLotesBaseParaGranja();
     await this.loadConceptosParaFormFarm();
     await this.onConceptoChange();
   }
@@ -338,8 +402,10 @@ export class GastosInventarioPageComponent implements OnInit {
       this.error = 'Seleccione una granja.';
       return;
     }
-    if (!this.formLoteId) {
-      this.error = 'Seleccione un lote.';
+    if (!this.formLoteId && !this.formLoteBaseId) {
+      this.error = this.programacionLotes
+        ? 'Seleccione un lote (real o programado).'
+        : 'Seleccione un lote.';
       return;
     }
     if (!this.formConcepto?.trim()) {
@@ -366,6 +432,7 @@ export class GastosInventarioPageComponent implements OnInit {
       nucleoId: this.formNucleoId,
       galponId: this.formGalponId,
       loteAveEngordeId: this.formLoteId,
+      loteBaseEngordeId: this.formLoteBaseId,
       fecha: this.formFecha,
       observaciones: this.formObservaciones?.trim() || null,
       concepto: this.formConcepto.trim(),

@@ -517,7 +517,7 @@ public static class MigracionEsquemas
         TipoMigracion.SeguimientoPolloEngorde => SeguimientoPolloEngorde,
         TipoMigracion.SeguimientoReproductoraEngorde => SeguimientoReproductoraEngorde,
         TipoMigracion.VentaPolloEngorde => VentaPolloEngorde,
-        _ => throw new NotSupportedException($"El tipo de migración '{tipo}' no tiene esquema (Fase 3: Ventas/Movimientos, aún no implementada)."),
+        _ => throw new NotSupportedException($"El tipo de migración '{tipo}' no tiene esquema definido."),
     };
 
     /// <summary>Los 9 tipos con esquema implementado (para recorrer en tests).</summary>

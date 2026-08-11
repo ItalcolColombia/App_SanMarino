@@ -23,6 +23,25 @@ public static class GestionLotesEngordeCalculos
     public static string ConstruirNombreCorrida(string baseNombre, int numero) =>
         $"{(baseNombre ?? string.Empty).Trim()} - {numero}";
 
+    /// <summary>
+    /// Nombre final del lote según cómo nombra la empresa (flag <c>nombre_lote_incluye_corrida</c>).
+    /// <para>
+    /// <paramref name="incluirCorridaSiempre"/> = <c>true</c> (Panamá): el sufijo va desde la primera
+    /// corrida — "96 - 1", "96 - 2". Es el comportamiento histórico y no cambia.
+    /// </para>
+    /// <para>
+    /// <c>false</c> (Ecuador): el nombre del lote ES el del lote base — "2603" —, porque la corrida ya
+    /// viene codificada en el nombre del base (año + número: 2601, 2602…) y hay un solo lote por
+    /// galpón en cada corrida. El sufijo aparece <b>sólo desde la segunda</b> apertura del mismo base
+    /// en el mismo galpón ("2603 - 2"), que es lo único que impide dos lotes con el mismo nombre en el
+    /// mismo galpón si alguna vez se repite.
+    /// </para>
+    /// </summary>
+    public static string ConstruirNombreLote(string baseNombre, int numero, bool incluirCorridaSiempre) =>
+        incluirCorridaSiempre || numero > 1
+            ? ConstruirNombreCorrida(baseNombre, numero)
+            : (baseNombre ?? string.Empty).Trim();
+
     // ────────────────────────────────────────────────────────────────────────
     // Código ERP de la GRANJA (solo Panamá): "{prefijo}{lote base}" (ej. "4001017"
     // = prefijo 4001 + base 17). Los lotes nuevos lo capturan en lote_erp; al

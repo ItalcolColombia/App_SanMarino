@@ -3,6 +3,16 @@
 -- =====================================================
 -- Este script agrega la columna item_type como campo separado (no en JSONB)
 -- para facilitar el filtrado y consultas
+--
+-- ✅ APLICADO. `catalogo_items.item_type` es la FUENTE DE VERDAD del tipo de item:
+--    NOT NULL, default 'alimento', indexada, y es la que escribe CatalogItemService.
+--
+-- ⚠️ `metadata->>'type_item'` quedo VESTIGIAL: el paso 3 de abajo lo copio a la columna una sola
+--    vez y nadie lo mantiene desde entonces (CatalogItemService NO lo escribe), por lo que hoy
+--    esta NULL en el ~80% del catalogo. NO LO LEAS para decidir el tipo de un item.
+--    ReporteContableService se quedo leyendolo hasta ago-2026 y por eso no veia 257 movimientos
+--    de alimento (la granja 20 entera). El criterio unico vive ahora en
+--    Application/Calculos/ItemInventarioTipoCalculos.cs (con tests).
 
 -- 1. Agregar columna item_type
 ALTER TABLE public.catalogo_items

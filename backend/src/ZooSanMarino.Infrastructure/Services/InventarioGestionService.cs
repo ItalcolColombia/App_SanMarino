@@ -11,7 +11,10 @@ using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
-public class InventarioGestionService : IInventarioGestionService
+// `partial` desde A1/A2: las primitivas atómicas de stock viven en
+// Services/InventarioGestion/Funciones/InventarioGestionService.StockAtomico.cs.
+// Este archivo es el ANCLA (usings, campos, ctor y la interfaz), según la convención de CLAUDE.md.
+public partial class InventarioGestionService : IInventarioGestionService
 {
     /// <summary>Etiquetas de operación (coinciden con <see cref="MapTipoOperacionLabel"/>).</summary>
     private static readonly IReadOnlyList<string> TiposOperacionFiltroLabels =
@@ -472,39 +475,19 @@ public class InventarioGestionService : IInventarioGestionService
         var nucleoId = usaUbicacion ? req.NucleoId!.Trim() : null;
         var galponId = usaUbicacion ? req.GalponId!.Trim() : null;
 
-        var existing = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.FarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId, ct);
-
-        if (existing == null)
-        {
-            existing = new InventarioGestionStock
-            {
-                CompanyId = companyId,
-                PaisId = paisId,
-                FarmId = req.FarmId,
-                NucleoId = nucleoId,
-                GalponId = galponId,
-                ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
-                Quantity = req.Quantity,
-                Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-            _db.InventarioGestionStock.Add(existing);
-        }
-        else
-        {
-            existing.Quantity += req.Quantity;
-            existing.UpdatedAt = DateTimeOffset.UtcNow;
-        }
-
         var estadoIngreso = string.Equals(origenTipoNorm, "planta", StringComparison.OrdinalIgnoreCase)
             ? "Entrada planta"
             : string.Equals(origenTipoNorm, "bodega", StringComparison.OrdinalIgnoreCase)
                 ? "Entrada bodega"
                 : "Entrada granja";
         var movCreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento);
+        var unidad = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim();
 
+        // A1 — upsert ATÓMICO. Antes esto era buscar-o-insertar: dos ingresos concurrentes sobre
+        // una clave sin fila no encontraban nada y ambos insertaban, y como todas las lecturas
+        // usan FirstOrDefault, la segunda fila quedaba INVISIBLE para siempre. Con el índice
+        // único de la clave natural, el ON CONFLICT convierte esa carrera en una suma.
+        InventarioGestionStock existing = null!;
         var mov = new InventarioGestionMovimiento
         {
             CompanyId = companyId,
@@ -514,20 +497,44 @@ public class InventarioGestionService : IInventarioGestionService
             GalponId = galponId,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
             Quantity = req.Quantity,
-            Unit = existing.Unit,
+            Unit = unidad,
             MovementType = "Ingreso",
             Estado = estadoIngreso,
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             CreatedAt = movCreatedAt,
-            CreatedByUserId = _current?.UserId.ToString()
+            CreatedByUserId = _current?.UserId.ToString(),
+            ParaProximoCiclo = req.ParaProximoCiclo,
+            // Auditoría: el instante REAL de captura. `CreatedAt` lo pisa la fecha que tipea el
+            // usuario, así que no puede servir de auditoría; acá nunca se escribe esa fecha.
+            RegistradoAt = DateTimeOffset.UtcNow
         };
-        _db.InventarioGestionMovimientos.Add(mov);
-        await _db.SaveChangesAsync(ct);
+
+        // El stock y el movimiento que lo explica van juntos o no van.
+        await EnTransaccionAsync(async () =>
+        {
+            existing = await SumarStockAtomicoAsync(
+                companyId, paisId, req.FarmId, nucleoId, galponId,
+                req.ItemInventarioEcuadorId, req.Quantity, unidad, ct);
+
+            // El movimiento hereda la unidad DE LA FILA DE STOCK, no la del request: si la fila ya
+            // existía con otra unidad, manda la de la fila. Es el comportamiento previo
+            // (`Unit = existing.Unit`) y se preserva tal cual — el upsert tampoco pisa la unidad
+            // de una fila existente.
+            mov.Unit = existing.Unit;
+
+            _db.InventarioGestionMovimientos.Add(mov);
+            await _db.SaveChangesAsync(ct);
+        }, ct);
+
         await RefrescarSaldoAlimentoEngordeAsync(companyId, req.FarmId, nucleoId, galponId, mov.MovementType, ct);
 
         // Avisa —sin bloquear— si el ingreso quedó fechado fuera del ciclo vigente del galpón.
-        var aviso = await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
+        // Con la marca «para el próximo ciclo» NO se avisa: la atribución ya es explícita del
+        // usuario, así que el aviso sería ruido justo en el caso que la marca viene a resolver.
+        var aviso = req.ParaProximoCiclo
+            ? null
+            : await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
 
         var dto = (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
             .FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId)
@@ -582,42 +589,79 @@ public class InventarioGestionService : IInventarioGestionService
         string toGalponId,
         CancellationToken ct)
     {
-        var stockOrigen = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.FromFarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == fromNucleoId && x.GalponId == fromGalponId, ct);
-        if (stockOrigen == null || stockOrigen.Quantity < req.Quantity)
+        // A2 — lectura sin rastreo: la fila se modifica por SQL atómico más abajo, y una copia
+        // rastreada con la cantidad vieja haría que el SaveChanges posterior pisara el descuento.
+        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, ct);
+        if (stockOrigen == null)
             throw new InvalidOperationException("No hay stock suficiente en el origen para el traslado.");
 
         var (companyIdTo, paisIdTo) = await GetFarmCompanyAndPaisAsync(req.ToFarmId, ct);
         var transferGroupId = Guid.NewGuid();
+        var unidadTraslado = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim();
+        DateTimeOffset movAt = default;
 
-        stockOrigen.Quantity -= req.Quantity;
-        stockOrigen.UpdatedAt = DateTimeOffset.UtcNow;
+        // Las dos patas del traslado y sus dos movimientos son UNA unidad: descontar el origen sin
+        // acreditar el destino (o sin dejar el movimiento que lo explica) crea un descuadre entre
+        // granjas que después no se puede reconstruir.
+        InventarioGestionStock stockDestino = null!;
 
-        var stockDestino = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.ToFarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == toNucleoId && x.GalponId == toGalponId, ct);
-        if (stockDestino == null)
+        await EnTransaccionAsync(async () =>
         {
-            stockDestino = new InventarioGestionStock
-            {
-                CompanyId = companyIdTo,
-                PaisId = paisIdTo,
-                FarmId = req.ToFarmId,
-                NucleoId = toNucleoId,
-                GalponId = toGalponId,
-                ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
-                Quantity = req.Quantity,
-                Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-            _db.InventarioGestionStock.Add(stockDestino);
-        }
-        else
-        {
-            stockDestino.Quantity += req.Quantity;
-            stockDestino.UpdatedAt = DateTimeOffset.UtcNow;
-        }
+            if (!await DescontarStockAtomicoAsync(stockOrigen.Id, req.Quantity, ct))
+                throw new InvalidOperationException("No hay stock suficiente en el origen para el traslado.");
 
+            stockDestino = await SumarStockAtomicoAsync(
+                companyIdTo, paisIdTo, req.ToFarmId, toNucleoId, toGalponId,
+                req.ItemInventarioEcuadorId, req.Quantity, unidadTraslado, ct);
+
+            movAt = await RegistrarMovimientosTrasladoMismaGranjaAsync(
+                req, fromNucleoId, fromGalponId, toNucleoId, toGalponId,
+                stockOrigen, stockDestino, companyIdTo, paisIdTo, transferGroupId, ct);
+        }, ct);
+
+        // Traslado dentro de la misma granja: se movió alimento en DOS galpones.
+        await RefrescarSaldoAlimentoEngordeAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, "TrasladoSalida", ct);
+        await RefrescarSaldoAlimentoEngordeAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, "TrasladoEntrada", ct);
+
+        var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
+        var listDestino = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
+        // `stockOrigen` se leyó ANTES del descuento (AsNoTracking), así que el DTO de respaldo
+        // resta a mano; `stockDestino` viene del RETURNING del upsert, o sea ya acumulado.
+        var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity - req.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
+        var dtoDestino = listDestino.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt);
+
+        // Un traslado toca DOS galpones: cada uno tiene su propio ciclo vigente.
+        var avisoOrigen  = await EvaluarAvisoFechaFueraDeCicloAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, movAt, ct);
+        var avisoDestino = await EvaluarAvisoFechaFueraDeCicloAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, movAt, ct);
+        if (avisoOrigen  is not null) dtoOrigen  = dtoOrigen  with { AvisoFechaFueraDeCiclo = avisoOrigen };
+        if (avisoDestino is not null) dtoDestino = dtoDestino with { AvisoFechaFueraDeCiclo = avisoDestino };
+
+        return (dtoOrigen, dtoDestino);
+    }
+
+    /// <summary>
+    /// Graba los dos movimientos (salida y entrada) de un traslado dentro de la misma granja y
+    /// devuelve la fecha con la que quedaron.
+    ///
+    /// <para>
+    /// Extraído de <c>RegistrarTrasladoMismaGranjaAsync</c> al hacer el traslado atómico: este cuerpo
+    /// tiene que ejecutarse DENTRO de la transacción, y así se lee sin anidar cincuenta líneas en una
+    /// lambda. No cambia ni un valor respecto de la versión anterior.
+    /// </para>
+    /// </summary>
+    private async Task<DateTimeOffset> RegistrarMovimientosTrasladoMismaGranjaAsync(
+        InventarioGestionTrasladoRequest req,
+        string fromNucleoId,
+        string fromGalponId,
+        string toNucleoId,
+        string toGalponId,
+        InventarioGestionStock stockOrigen,
+        InventarioGestionStock stockDestino,
+        int companyIdTo,
+        int paisIdTo,
+        Guid transferGroupId,
+        CancellationToken ct)
+    {
         var estadoTraslado = string.Equals(req.DestinoTipo?.Trim(), "planta", StringComparison.OrdinalIgnoreCase)
             ? "Transferencia a planta"
             : "Transferencia a granja";
@@ -666,22 +710,7 @@ public class InventarioGestionService : IInventarioGestionService
         });
 
         await _db.SaveChangesAsync(ct);
-        // Traslado dentro de la misma granja: se movió alimento en DOS galpones.
-        await RefrescarSaldoAlimentoEngordeAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, "TrasladoSalida", ct);
-        await RefrescarSaldoAlimentoEngordeAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, "TrasladoEntrada", ct);
-
-        var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
-        var listDestino = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
-        var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
-        var dtoDestino = listDestino.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt);
-
-        // Un traslado toca DOS galpones: cada uno tiene su propio ciclo vigente.
-        var avisoOrigen  = await EvaluarAvisoFechaFueraDeCicloAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, movAt, ct);
-        var avisoDestino = await EvaluarAvisoFechaFueraDeCicloAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, movAt, ct);
-        if (avisoOrigen  is not null) dtoOrigen  = dtoOrigen  with { AvisoFechaFueraDeCiclo = avisoOrigen };
-        if (avisoDestino is not null) dtoDestino = dtoDestino with { AvisoFechaFueraDeCiclo = avisoDestino };
-
-        return (dtoOrigen, dtoDestino);
+        return movAt;
     }
 
     /// <summary>
@@ -716,46 +745,53 @@ public class InventarioGestionService : IInventarioGestionService
                 throw new InvalidOperationException("Para ítems que no son alimento el traslado entre granjas es solo a nivel granja (sin Núcleo/Galpón).");
         }
 
-        var stockOrigen = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.FromFarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == fromNucleoId && x.GalponId == fromGalponId, ct);
-        if (stockOrigen == null || stockOrigen.Quantity < req.Quantity)
+        // A2 — descuento atómico. Lectura sin rastreo (ver BuscarStockSinRastreoAsync).
+        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, ct);
+        if (stockOrigen == null)
             throw new InvalidOperationException("No hay stock suficiente en el origen para registrar el traslado a otra granja.");
 
         var transferGroupId = Guid.NewGuid();
-
-        stockOrigen.Quantity -= req.Quantity;
-        stockOrigen.UpdatedAt = DateTimeOffset.UtcNow;
-
         var movAt = ResolveMovimientoCreatedAt(req.FechaMovimiento);
-        _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
-        {
-            CompanyId = stockOrigen.CompanyId,
-            PaisId = stockOrigen.PaisId,
-            FarmId = req.FromFarmId,
-            NucleoId = fromNucleoId,
-            GalponId = fromGalponId,
-            ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
-            Quantity = req.Quantity,
-            Unit = stockOrigen.Unit,
-            MovementType = "TrasladoInterGranjaSalida",
-            Estado = "Tránsito",
-            FromFarmId = req.ToFarmId,
-            FromNucleoId = toNucleoHint,
-            FromGalponId = toGalponHint,
-            Reference = req.Reference?.Trim(),
-            Reason = req.Reason?.Trim(),
-            TransferGroupId = transferGroupId,
-            CreatedAt = movAt,
-            CreatedByUserId = _current?.UserId.ToString()
-        });
 
-        await _db.SaveChangesAsync(ct);
+        // El descuento del origen y el movimiento de tránsito que lo explica van juntos: si el
+        // movimiento fallara, el alimento saldría de la granja origen sin quedar en tránsito en
+        // ningún lado, y el destino nunca podría recibirlo.
+        await EnTransaccionAsync(async () =>
+        {
+            if (!await DescontarStockAtomicoAsync(stockOrigen.Id, req.Quantity, ct))
+                throw new InvalidOperationException("No hay stock suficiente en el origen para registrar el traslado a otra granja.");
+
+            _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+            {
+                CompanyId = stockOrigen.CompanyId,
+                PaisId = stockOrigen.PaisId,
+                FarmId = req.FromFarmId,
+                NucleoId = fromNucleoId,
+                GalponId = fromGalponId,
+                ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+                Quantity = req.Quantity,
+                Unit = stockOrigen.Unit,
+                MovementType = "TrasladoInterGranjaSalida",
+                Estado = "Tránsito",
+                FromFarmId = req.ToFarmId,
+                FromNucleoId = toNucleoHint,
+                FromGalponId = toGalponHint,
+                Reference = req.Reference?.Trim(),
+                Reason = req.Reason?.Trim(),
+                TransferGroupId = transferGroupId,
+                CreatedAt = movAt,
+                CreatedByUserId = _current?.UserId.ToString()
+            });
+
+            await _db.SaveChangesAsync(ct);
+        }, ct);
         // Solo el galpón ORIGEN pierde alimento acá; el destino recién suma al recibir el tránsito.
         await RefrescarSaldoAlimentoEngordeAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, "TrasladoInterGranjaSalida", ct);
 
         var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
         var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId)
-            ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
+            // `stockOrigen` se leyó ANTES del descuento (AsNoTracking): el respaldo resta a mano.
+            ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity - req.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
         var itemTypeOut = item.Concepto ?? item.TipoItem ?? "alimento";
         var dtoDestinoPendiente = new InventarioGestionStockDto(
             0,
@@ -868,19 +904,6 @@ public class InventarioGestionService : IInventarioGestionService
         if (salida.CompanyId != companyIdTo)
             throw new InvalidOperationException("La granja destino no pertenece a la misma empresa que la salida.");
 
-        // Solicitud nueva: aquí se descuenta origen. Registro antiguo (Salida): el descuento ya se hizo al enviar.
-        if (string.Equals(salida.MovementType, "TrasladoInterGranjaPendiente", StringComparison.Ordinal))
-        {
-            var stockOrigen = await _db.InventarioGestionStock
-                .FirstOrDefaultAsync(x => x.FarmId == salida.FarmId && x.ItemInventarioEcuadorId == salida.ItemInventarioEcuadorId && x.NucleoId == salida.NucleoId && x.GalponId == salida.GalponId, ct);
-            if (stockOrigen == null || stockOrigen.Quantity < salida.Quantity)
-                throw new InvalidOperationException("No hay stock suficiente en origen para completar la recepción (verifique disponibilidad).");
-            stockOrigen.Quantity -= salida.Quantity;
-            stockOrigen.UpdatedAt = DateTimeOffset.UtcNow;
-            salida.MovementType = "TrasladoInterGranjaSalida";
-            salida.Estado = "Tránsito";
-        }
-
         // Un asiento (stock + movimiento) por ubicación de destino: uno solo en el camino clásico,
         // N cuando la recepción se distribuye entre galpones.
         var ahora = DateTimeOffset.UtcNow;
@@ -888,33 +911,32 @@ public class InventarioGestionService : IInventarioGestionService
         var movimientosEntrada = new List<InventarioGestionMovimiento>(destinos.Count);
         var distribuida = destinos.Count > 1;
 
+        // A1/A2 — toda la recepción es UNA unidad: el descuento del origen, las N acreditaciones de
+        // destino y sus N movimientos. Antes, cada pata se resolvía por separado con
+        // buscar-o-insertar y read-modify-write; con la recepción distribuida eso significaba que
+        // dos destinos que apuntaran al MISMO galpón creaban dos filas de stock (la segunda
+        // invisible), porque ninguna de las dos consultas veía la fila que la otra estaba por
+        // insertar. El upsert lo resuelve acumulando.
+        await EnTransaccionAsync(async () =>
+        {
+        // Solicitud nueva: aquí se descuenta origen. Registro antiguo (Salida): el descuento ya se hizo al enviar.
+        if (string.Equals(salida.MovementType, "TrasladoInterGranjaPendiente", StringComparison.Ordinal))
+        {
+            var stockOrigen = await BuscarStockSinRastreoAsync(salida.FarmId, salida.ItemInventarioEcuadorId, salida.NucleoId, salida.GalponId, ct);
+            if (stockOrigen == null)
+                throw new InvalidOperationException("No hay stock suficiente en origen para completar la recepción (verifique disponibilidad).");
+            if (!await DescontarStockAtomicoAsync(stockOrigen.Id, salida.Quantity, ct))
+                throw new InvalidOperationException("No hay stock suficiente en origen para completar la recepción (verifique disponibilidad).");
+            salida.MovementType = "TrasladoInterGranjaSalida";
+            salida.Estado = "Tránsito";
+        }
+
         for (var i = 0; i < destinos.Count; i++)
         {
             var destino = destinos[i];
-            var stockDestino = await _db.InventarioGestionStock
-                .FirstOrDefaultAsync(x => x.FarmId == req.ToFarmId && x.ItemInventarioEcuadorId == salida.ItemInventarioEcuadorId && x.NucleoId == destino.NucleoId && x.GalponId == destino.GalponId, ct);
-            if (stockDestino == null)
-            {
-                stockDestino = new InventarioGestionStock
-                {
-                    CompanyId = companyIdTo,
-                    PaisId = paisIdTo,
-                    FarmId = req.ToFarmId,
-                    NucleoId = destino.NucleoId,
-                    GalponId = destino.GalponId,
-                    ItemInventarioEcuadorId = salida.ItemInventarioEcuadorId,
-                    Quantity = destino.Quantity,
-                    Unit = salida.Unit,
-                    CreatedAt = ahora,
-                    UpdatedAt = ahora
-                };
-                _db.InventarioGestionStock.Add(stockDestino);
-            }
-            else
-            {
-                stockDestino.Quantity += destino.Quantity;
-                stockDestino.UpdatedAt = ahora;
-            }
+            var stockDestino = await SumarStockAtomicoAsync(
+                companyIdTo, paisIdTo, req.ToFarmId, destino.NucleoId, destino.GalponId,
+                salida.ItemInventarioEcuadorId, destino.Quantity, salida.Unit, ct);
             stocksDestino.Add(stockDestino);
 
             var movEntrada = new InventarioGestionMovimiento
@@ -945,6 +967,7 @@ public class InventarioGestionService : IInventarioGestionService
         }
 
         await _db.SaveChangesAsync(ct);
+        }, ct);
 
         // La recepción puede repartirse entre VARIOS galpones del destino: refrescar todos.
         foreach (var ubic in movimientosEntrada
@@ -1009,7 +1032,9 @@ public class InventarioGestionService : IInventarioGestionService
                 origenGn,
                 "Traslado entre granjas (recepción)",
                 item.Concepto,
-                item.TipoItem));
+                item.TipoItem,
+                movEntrada.ParaProximoCiclo,
+                movEntrada.RegistradoAt));
         }
 
         return new InventarioGestionRecepcionTransitoResultDto(dtosStock, dtosMov);
@@ -1210,64 +1235,42 @@ public class InventarioGestionService : IInventarioGestionService
             throw new InvalidOperationException("No tiene acceso a la granja de este movimiento.");
 
         var mt = (mov.MovementType ?? "").Trim();
-        if (string.Equals(mt, "Consumo", StringComparison.OrdinalIgnoreCase))
-        {
-            var stock = await _db.InventarioGestionStock
-                .FirstOrDefaultAsync(x =>
-                    x.FarmId == mov.FarmId &&
-                    x.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
-                    x.NucleoId == mov.NucleoId &&
-                    x.GalponId == mov.GalponId, ct);
-            if (stock == null)
-            {
-                var (cId, pId) = await GetFarmCompanyAndPaisAsync(mov.FarmId, ct);
-                stock = new InventarioGestionStock
-                {
-                    CompanyId = cId,
-                    PaisId = pId,
-                    FarmId = mov.FarmId,
-                    NucleoId = mov.NucleoId,
-                    GalponId = mov.GalponId,
-                    ItemInventarioEcuadorId = mov.ItemInventarioEcuadorId,
-                    Quantity = mov.Quantity,
-                    Unit = mov.Unit,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                };
-                _db.InventarioGestionStock.Add(stock);
-            }
-            else
-            {
-                stock.Quantity += mov.Quantity;
-                stock.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-        }
-        else if (string.Equals(mt, "Ingreso", StringComparison.OrdinalIgnoreCase))
-        {
-            var stock = await _db.InventarioGestionStock
-                .FirstOrDefaultAsync(x =>
-                    x.FarmId == mov.FarmId &&
-                    x.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
-                    x.NucleoId == mov.NucleoId &&
-                    x.GalponId == mov.GalponId, ct);
-            if (stock == null || stock.Quantity < mov.Quantity)
-                throw new InvalidOperationException(
-                    "No se puede anular este ingreso: no hay stock suficiente en la ubicación para revertir la cantidad.");
-            stock.Quantity -= mov.Quantity;
-            stock.UpdatedAt = DateTimeOffset.UtcNow;
-        }
-        else
+        if (!string.Equals(mt, "Consumo", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(mt, "Ingreso", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
                 "Solo se pueden anular movimientos de tipo Consumo o Ingreso. Use los flujos de traslado/tránsito para corregir otros casos.");
 
-        // El movimiento se borra, así que su fila del histórico tiene que quedar ANULADA o se
-        // convierte en huérfana: el saldo de alimento seguiría contando un ingreso que ya salió del
-        // stock, y la tabla diaria mostraría kilos que no existen. Misma convención de auditoría que
-        // EliminarIngresoAsync y EliminarTrasladoAsync (marcar, no borrar).
-        await AnularHistoricoDelMovimientoAsync(mov, ct);
+        // A1/A2 — la reversión del stock, la anulación del histórico y el borrado del movimiento
+        // van juntos. Revertir el stock y fallar al anular el histórico dejaría contado un ingreso
+        // que ya salió del stock: kilos que la tabla diaria muestra y que no existen.
+        await EnTransaccionAsync(async () =>
+        {
+            if (string.Equals(mt, "Consumo", StringComparison.OrdinalIgnoreCase))
+            {
+                // Anular un consumo DEVUELVE stock: es una suma, con la misma carrera que un ingreso.
+                var (cId, pId) = await GetFarmCompanyAndPaisAsync(mov.FarmId, ct);
+                await SumarStockAtomicoAsync(
+                    cId, pId, mov.FarmId, mov.NucleoId, mov.GalponId,
+                    mov.ItemInventarioEcuadorId, mov.Quantity, mov.Unit, ct);
+            }
+            else
+            {
+                // Anular un ingreso RESTA stock: si otro movimiento ya lo consumió, no se puede anular.
+                var stock = await BuscarStockSinRastreoAsync(mov.FarmId, mov.ItemInventarioEcuadorId, mov.NucleoId, mov.GalponId, ct);
+                if (stock == null || !await DescontarStockAtomicoAsync(stock.Id, mov.Quantity, ct))
+                    throw new InvalidOperationException(
+                        "No se puede anular este ingreso: no hay stock suficiente en la ubicación para revertir la cantidad.");
+            }
 
-        _db.InventarioGestionMovimientos.Remove(mov);
-        await _db.SaveChangesAsync(ct);
+            // El movimiento se borra, así que su fila del histórico tiene que quedar ANULADA o se
+            // convierte en huérfana: el saldo de alimento seguiría contando un ingreso que ya salió del
+            // stock, y la tabla diaria mostraría kilos que no existen. Misma convención de auditoría que
+            // EliminarIngresoAsync y EliminarTrasladoAsync (marcar, no borrar).
+            await AnularHistoricoDelMovimientoAsync(mov, ct);
+
+            _db.InventarioGestionMovimientos.Remove(mov);
+            await _db.SaveChangesAsync(ct);
+        }, ct);
         await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
     }
 
@@ -1368,42 +1371,56 @@ public class InventarioGestionService : IInventarioGestionService
         var nucleoId = isAlimento ? req.NucleoId!.Trim() : null;
         var galponId = isAlimento ? req.GalponId!.Trim() : null;
 
-        var stock = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.FarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId, ct);
-        if (stock == null || stock.Quantity < req.Quantity)
-            throw new InvalidOperationException("No hay stock suficiente para el consumo.");
-
-        stock.Quantity -= req.Quantity;
-        stock.UpdatedAt = DateTimeOffset.UtcNow;
+        // A2 — descuento ATÓMICO. Antes esto era read-modify-write:
+        //     if (stock.Quantity < req.Quantity) throw;  stock.Quantity -= req.Quantity;
+        // Dos consumos de 100 sobre un stock de 150 pasaban LOS DOS la validación y el saldo
+        // terminaba en -50: se despachaba alimento que no existía. Ahora la condición viaja
+        // DENTRO del UPDATE, así que el segundo consumo ve el saldo ya descontado.
+        // La lectura es AsNoTracking() a propósito: una copia rastreada con la cantidad vieja
+        // haría que el SaveChanges de abajo pisara el descuento.
+        var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, nucleoId, galponId, ct);
+        if (stock == null)
+            throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficiente);
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
         if (_current?.CompanyId > 0 && _current.CompanyId != companyId)
             throw new InvalidOperationException("La granja no pertenece a su empresa.");
 
-        _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+        // El descuento y el movimiento que lo explica van juntos o no van: si el movimiento
+        // fallara después del UPDATE, el stock bajaría sin ningún registro que lo justifique.
+        await EnTransaccionAsync(async () =>
         {
-            CompanyId = companyId,
-            PaisId = paisId,
-            FarmId = req.FarmId,
-            NucleoId = nucleoId,
-            GalponId = galponId,
-            ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
-            Quantity = req.Quantity,
-            Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
-            MovementType = "Consumo",
-            Estado = "Consumo",
-            Reference = req.Reference?.Trim(),
-            Reason = req.Reason?.Trim(),
-            // Simetría con RegistrarIngresoAsync: sin fecha explícita se usa "ahora" (comportamiento
-            // histórico); con fecha, el movimiento queda en el día real del consumo.
-            CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento),
-            CreatedByUserId = _current?.UserId.ToString()
-        });
-        await _db.SaveChangesAsync(ct);
+            if (!await DescontarStockAtomicoAsync(stock.Id, req.Quantity, ct))
+                throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficiente);
+
+            _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+            {
+                CompanyId = companyId,
+                PaisId = paisId,
+                FarmId = req.FarmId,
+                NucleoId = nucleoId,
+                GalponId = galponId,
+                ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+                Quantity = req.Quantity,
+                Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+                MovementType = "Consumo",
+                Estado = "Consumo",
+                Reference = req.Reference?.Trim(),
+                Reason = req.Reason?.Trim(),
+                // Simetría con RegistrarIngresoAsync: sin fecha explícita se usa "ahora" (comportamiento
+                // histórico); con fecha, el movimiento queda en el día real del consumo.
+                CreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento),
+                CreatedByUserId = _current?.UserId.ToString()
+            });
+            await _db.SaveChangesAsync(ct);
+        }, ct);
 
         var list = await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct);
         return list.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId)
-            ?? new InventarioGestionStockDto(stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stock.Quantity, stock.Unit, null, null, null, stock.CreatedAt);
+            // `stock` se leyó con AsNoTracking ANTES del descuento, así que su Quantity es la
+            // anterior: el DTO de respaldo tiene que restar la cantidad consumida a mano. Antes
+            // esto salía solo porque la entidad rastreada ya venía decrementada en memoria.
+            ?? new InventarioGestionStockDto(stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stock.Quantity - req.Quantity, stock.Unit, null, null, null, stock.CreatedAt);
     }
 
     // ─── Fase 3 (paso 2) — consumo/devolución a NIVEL GRANJA (Colombia) ─────────────────────
@@ -1513,7 +1530,12 @@ public class InventarioGestionService : IInventarioGestionService
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             CreatedAt = DateTimeOffset.UtcNow,
-            CreatedByUserId = _current?.UserId.ToString()
+            CreatedByUserId = _current?.UserId.ToString(),
+            // Mismo criterio que RegistrarIngresoAsync: la marca viaja en el request y el instante de
+            // captura se guarda aparte. Sin esto, todo lo que entra por Colombia quedaría marcado
+            // como «fila anterior a la columna» para siempre.
+            ParaProximoCiclo = req.ParaProximoCiclo,
+            RegistradoAt = DateTimeOffset.UtcNow
         });
         // NO SaveChanges/tx aquí: el orquestador externo commitea.
     }
@@ -1787,7 +1809,9 @@ public class InventarioGestionService : IInventarioGestionService
                 fromGalponNombre,
                 tipoOp,
                 x.ItemInventario.Concepto,
-                x.ItemInventario.TipoItem);
+                x.ItemInventario.TipoItem,
+                x.ParaProximoCiclo,
+                x.RegistradoAt);
         }).ToList();
     }
 
@@ -2277,7 +2301,9 @@ public class InventarioGestionService : IInventarioGestionService
                 x.Reason,
                 x.Estado,
                 x.CreatedAt,
-                x.CreatedAt);
+                x.CreatedAt,
+                x.ParaProximoCiclo,
+                x.RegistradoAt);
         });
 
         var orphanedDtos = orphaned.Select(h =>
@@ -2317,7 +2343,11 @@ public class InventarioGestionService : IInventarioGestionService
                 null,
                 null,
                 new DateTimeOffset(h.FechaOperacion, TimeSpan.Zero),
-                h.CreatedAt);
+                h.CreatedAt,
+                // El movimiento ya no existe: la marca sobrevive en el espejo, el instante de captura no
+                // (`registrado_at` vive solo en inventario_gestion_movimiento).
+                h.ParaProximoCiclo,
+                null);
         });
 
         return mainDtos.Concat(orphanedDtos)
@@ -2381,6 +2411,17 @@ public class InventarioGestionService : IInventarioGestionService
         // Correr la fecha de un ingreso lo mueve de día dentro del saldo del galpón.
         await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
 
+        return await MapIngresoListDtoAsync(mov, ct);
+    }
+
+    /// <summary>
+    /// Proyección de un movimiento de ingreso ya cargado (con <c>Farm</c> e <c>ItemInventario</c>) al
+    /// DTO del listado. Extraída sin cambiar nada: las dos ediciones de un ingreso —fecha y destino de
+    /// ciclo— devuelven exactamente la misma fila.
+    /// </summary>
+    private async Task<InventarioGestionIngresoListDto> MapIngresoListDtoAsync(
+        InventarioGestionMovimiento mov, CancellationToken ct)
+    {
         string? nucleoNombre = null;
         string? galponNombre = null;
         if (mov.NucleoId != null)
@@ -2413,7 +2454,165 @@ public class InventarioGestionService : IInventarioGestionService
             mov.Reason,
             mov.Estado,
             mov.CreatedAt,
-            mov.CreatedAt);
+            mov.CreatedAt,
+            mov.ParaProximoCiclo,
+            mov.RegistradoAt);
+    }
+
+    /// <summary>
+    /// Cambia la atribución de ciclo de un ingreso ya registrado y la refleja en
+    /// <c>lote_registro_historico_unificado</c>.
+    /// <para>
+    /// El espejo se busca <b>primero</b> por <c>origen_tabla + origen_id</c>, que es la clave real
+    /// (<c>uq_lote_hist_origen</c>). El fallback por granja+núcleo+galpón+ítem+cantidad se conserva tal
+    /// cual está en <see cref="ActualizarFechaIngresoAsync"/> para no divergir, pero es <b>frágil</b>:
+    /// con dos ingresos idénticos en la misma ubicación puede marcar el otro. Se llega a él solo con
+    /// filas viejas sin <c>origen_id</c>; si se cambia, hay que cambiarlo en los dos lugares a la vez.
+    /// </para>
+    /// </summary>
+    public async Task<InventarioGestionIngresoListDto> ActualizarDestinoCicloIngresoAsync(
+        int movimientoId,
+        InventarioGestionActualizarDestinoCicloRequest req,
+        CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        if (companyId == null || companyId.Value <= 0)
+            throw new InvalidOperationException("No tiene empresa activa para esta operación.");
+
+        var allowedFarmIds = await GetAssignedFarmIdsInCompanyAsync(companyId.Value, ct).ConfigureAwait(false);
+
+        var mov = await _db.InventarioGestionMovimientos
+            .Include(x => x.ItemInventario)
+            .Include(x => x.Farm)
+            .FirstOrDefaultAsync(x => x.Id == movimientoId && x.CompanyId == companyId.Value, ct);
+
+        if (mov == null)
+            throw new InvalidOperationException("No se encontró el ingreso indicado.");
+
+        var tiposEntradaEditables = new HashSet<string>(StringComparer.Ordinal) { "Ingreso", "TrasladoEntrada", "TrasladoInterGranjaEntrada" };
+        if (!tiposEntradaEditables.Contains(mov.MovementType))
+            throw new InvalidOperationException("Solo se puede marcar el destino de ciclo de movimientos de tipo Ingreso o entrada de traslado.");
+
+        if (!allowedFarmIds.Contains(mov.FarmId))
+            throw new InvalidOperationException("No tiene acceso a este ingreso.");
+
+        if (string.IsNullOrWhiteSpace(mov.GalponId))
+            throw new InvalidOperationException("La marca «para el próximo ciclo» solo aplica a movimientos con galpón: sin galpón no hay ciclo al que atribuir el alimento.");
+
+        mov.ParaProximoCiclo = req.ParaProximoCiclo;
+        await _db.SaveChangesAsync(ct);
+
+        // Espejo: mismo patrón de búsqueda que ActualizarFechaIngresoAsync (clave real primero,
+        // fallback frágil después). El histórico se ANULA, nunca se borra, así que la fila vive.
+        var hist = await _db.LoteRegistroHistoricoUnificados
+            .FirstOrDefaultAsync(h => h.OrigenTabla == "inventario_gestion_movimiento" && h.OrigenId == movimientoId, ct);
+        if (hist == null)
+        {
+            hist = await _db.LoteRegistroHistoricoUnificados
+                .FirstOrDefaultAsync(h =>
+                    h.FarmId == mov.FarmId &&
+                    h.NucleoId == mov.NucleoId &&
+                    h.GalponId == mov.GalponId &&
+                    h.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
+                    h.CantidadKg == mov.Quantity &&
+                    !h.Anulado, ct);
+        }
+        if (hist != null)
+            hist.ParaProximoCiclo = req.ParaProximoCiclo;
+        await _db.SaveChangesAsync(ct);
+
+        // Cambiar de ciclo mueve los kg de una apertura a otra: el saldo persistido se recalcula
+        // desde la fn, igual que al correr la fecha.
+        await RefrescarSaldoAlimentoEngordeAsync(mov.CompanyId, mov.FarmId, mov.NucleoId, mov.GalponId, mov.MovementType, ct);
+
+        return await MapIngresoListDtoAsync(mov, ct);
+    }
+
+    // ─── D4: VENTANA DE ALIMENTO PREVIO AL ENCASETAMIENTO ─────────────────────
+
+    /// <inheritdoc />
+    public async Task<InventarioGestionVentanaAlimentoPrevioDto> ResolverVentanaAlimentoPrevioEncasetAsync(
+        int farmId,
+        string? nucleoId,
+        string? galponId,
+        DateTime fechaMovimiento,
+        CancellationToken ct = default)
+    {
+        var companyId = await _db.Farms.AsNoTracking()
+            .Where(f => f.Id == farmId)
+            .Select(f => (int?)f.CompanyId)
+            .FirstOrDefaultAsync(ct);
+
+        // Empresa efectiva SIEMPRE por datos (farms.company_id) y fail-closed: sin granja no hay
+        // ventana que abrir, así que la regla del mes en curso queda como única.
+        if (companyId is not { } company || company <= 0)
+            return new InventarioGestionVentanaAlimentoPrevioDto(null, 0);
+
+        var dias = await _db.Companies.AsNoTracking()
+            .Where(c => c.Id == company)
+            .Select(c => (int?)c.DiasAlimentoPrevioEncaset)
+            .FirstOrDefaultAsync(ct) ?? 10;
+
+        var galpon = (galponId ?? "").Trim();
+        if (galpon.Length == 0)
+            return new InventarioGestionVentanaAlimentoPrevioDto(null, dias);
+
+        var nucleo = (nucleoId ?? "").Trim();
+        // `fecha_encaset` es timestamptz: el límite tiene que ir anclado en UTC o Npgsql rechaza el
+        // parámetro (Kind=Unspecified). Medianoche UTC del día del movimiento incluye el encaset del
+        // MISMO día, que el front graba a mediodía UTC (FechasPuras).
+        var desde = FechasPuras.RangoDiaUtc(fechaMovimiento).Desde;
+
+        // Encaset más cercano DEL GALPÓN a partir de la fecha del movimiento. "A partir de" y no
+        // "futuro": el alimento se digita días después de llegar, así que el encaset que lo justifica
+        // ya puede haber ocurrido. Se miran las dos poblaciones porque el pedido cubre engorde y postura.
+        var encasetEngorde = await _db.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.CompanyId == company
+                     && l.DeletedAt == null
+                     && l.GranjaId == farmId
+                     && (l.NucleoId == null ? "" : l.NucleoId.Trim()) == nucleo
+                     && (l.GalponId == null ? "" : l.GalponId.Trim()) == galpon
+                     && l.FechaEncaset != null
+                     && l.FechaEncaset >= desde)
+            .MinAsync(l => l.FechaEncaset, ct);
+
+        var encasetPostura = await _db.Lotes.AsNoTracking()
+            .Where(l => l.CompanyId == company
+                     && l.DeletedAt == null
+                     && l.GranjaId == farmId
+                     && (l.NucleoId == null ? "" : l.NucleoId.Trim()) == nucleo
+                     && (l.GalponId == null ? "" : l.GalponId.Trim()) == galpon
+                     && l.FechaEncaset != null
+                     && l.FechaEncaset >= desde)
+            .MinAsync(l => l.FechaEncaset, ct);
+
+        var proximo = (encasetEngorde, encasetPostura) switch
+        {
+            (null, null) => (DateTime?)null,
+            (null, { } p) => p,
+            ({ } e, null) => e,
+            ({ } e, { } p) => e <= p ? e : p
+        };
+
+        return new InventarioGestionVentanaAlimentoPrevioDto(proximo, dias);
+    }
+
+    /// <inheritdoc />
+    public async Task<InventarioGestionVentanaAlimentoPrevioDto> ResolverVentanaAlimentoPrevioEncasetDeIngresoAsync(
+        int movimientoId,
+        DateTime fechaMovimiento,
+        CancellationToken ct = default)
+    {
+        var ubicacion = await _db.InventarioGestionMovimientos.AsNoTracking()
+            .Where(m => m.Id == movimientoId)
+            .Select(m => new { m.FarmId, m.NucleoId, m.GalponId })
+            .FirstOrDefaultAsync(ct);
+
+        if (ubicacion == null)
+            return new InventarioGestionVentanaAlimentoPrevioDto(null, 0);
+
+        return await ResolverVentanaAlimentoPrevioEncasetAsync(
+            ubicacion.FarmId, ubicacion.NucleoId, ubicacion.GalponId, fechaMovimiento, ct);
     }
 
     // ─── ELIMINAR INGRESO ─────────────────────────────────────────────────────

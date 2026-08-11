@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Application/DTOs/UpdateCompanyDto.cs
+﻿// src/ZooSanMarino.Application/DTOs/UpdateCompanyDto.cs
 namespace ZooSanMarino.Application.DTOs;
 
 /// <summary>
@@ -38,5 +38,13 @@ public record UpdateCompanyDto(
     // ¿El peso báscula de la venta de pollo engorde llega al día siguiente (se carga al confirmar)?
     bool?    VentaEngordePesoDiferido = null,
     /// <summary>La hora de llegada de las aves decide el primer día con registro del lote (≥13:00 ⇒ día siguiente).</summary>
-    bool?    PrimerRegistroSegunHoraLlegada = null
+    bool?    PrimerRegistroSegunHoraLlegada = null,
+    // Días ANTES del encasetamiento cuyo alimento ya cuenta como del lote en el saldo del reporte
+    // diario de engorde. `null` = el cliente no lo mandó ⇒ se conserva el valor actual (mismo
+    // criterio que los flags de arriba). Rango 0-30, clamp vía VentanaAlimentoPrevioCalculos.
+    int?     DiasAlimentoPrevioEncaset = null,
+    /// <summary>Los lotes de engorde se programan (lote base obligatorio + gasto contra lote programado).</summary>
+    bool?    ProgramacionLotesEngorde = null,
+    /// <summary>El nombre del lote lleva el sufijo de corrida desde la primera apertura ("96 - 1").</summary>
+    bool?    NombreLoteIncluyeCorrida = null
 );

@@ -406,8 +406,12 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
     private async Task AplicarDescuentoLevanteAsync(int? lplId, string loteIdStr,
         int mortH, int mortM, int selH, int selM, int errH, int errM, bool resta, CancellationToken ct)
     {
-        var deltaH = mortH + selH + errH;
-        var deltaM = mortM + selM + errM;
+        // Cálculo puro compartido: mortalidad + selección + error de sexaje. Vive en
+        // Application/Calculos con tests que fijan, entre otras cosas, la equivalencia entre
+        // "revertir y reaplicar" y "aplicar el delta neto" — que es lo que hizo seguro mover esta
+        // regla acá desde el módulo de levante (A7).
+        var deltaH = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortH, selH, errH);
+        var deltaM = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortM, selM, errM);
         if (deltaH == 0 && deltaM == 0) return;
 
         Domain.Entities.LotePosturaLevante? lpl = null;
@@ -426,10 +430,32 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         if (lpl == null) return;
 
         var sign = resta ? -1 : 1;
-        lpl.AvesHActual = Math.Max(0, (lpl.AvesHActual ?? 0) + sign * deltaH);
-        lpl.AvesMActual = Math.Max(0, (lpl.AvesMActual ?? 0) + sign * deltaM);
+        lpl.AvesHActual = DescuentoAvesSeguimientoCalculos.AplicarDelta(lpl.AvesHActual ?? 0, sign * deltaH);
+        lpl.AvesMActual = DescuentoAvesSeguimientoCalculos.AplicarDelta(lpl.AvesMActual ?? 0, sign * deltaM);
         lpl.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Devuelve al saldo de levante las aves que un registro había descontado (mortalidad +
+    /// selección + error de sexaje). Se usa al borrar.
+    ///
+    /// <para>
+    /// No hace nada si el registro no es de levante, así que los llamadores no tienen que
+    /// preguntarlo: es la misma forma que tiene la rama de producción de arriba.
+    /// </para>
+    /// </summary>
+    private Task RestaurarAvesLevanteAsync(Domain.Entities.SeguimientoDiario ent, CancellationToken ct)
+    {
+        if (ent.TipoSeguimiento != "levante")
+            return Task.CompletedTask;
+
+        return AplicarDescuentoLevanteAsync(
+            ent.LotePosturaLevanteId, ent.LoteId,
+            ent.MortalidadHembras ?? 0, ent.MortalidadMachos ?? 0,
+            ent.SelH ?? 0, ent.SelM ?? 0,
+            ent.ErrorSexajeHembras ?? 0, ent.ErrorSexajeMachos ?? 0,
+            resta: false, ct);
     }
 
     /// <summary>
@@ -439,8 +465,12 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
     /// </summary>
     private async Task AplicarDescuentoLppAsync(int lppId, int mortH, int mortM, int selH, int selM, int errH, int errM, bool resta, CancellationToken ct)
     {
-        var deltaH = mortH + selH + errH;
-        var deltaM = mortM + selM + errM;
+        // Cálculo puro compartido: mortalidad + selección + error de sexaje. Vive en
+        // Application/Calculos con tests que fijan, entre otras cosas, la equivalencia entre
+        // "revertir y reaplicar" y "aplicar el delta neto" — que es lo que hizo seguro mover esta
+        // regla acá desde el módulo de levante (A7).
+        var deltaH = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortH, selH, errH);
+        var deltaM = DescuentoAvesSeguimientoCalculos.TotalDescuento(mortM, selM, errM);
         if (deltaH == 0 && deltaM == 0) return;
 
         var lpp = await _ctx.LotePosturaProduccion.FindAsync(new object[] { lppId }, ct);
@@ -593,16 +623,42 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         ent.VentaAvesMotivo = dto.VentaAvesMotivo;
         ent.UpdatedAt = DateTime.UtcNow;
 
+        // Los valores nuevos los usan las DOS ramas de saldo (producción y levante).
+        var newMortH = dto.MortalidadHembras ?? 0;
+        var newMortM = dto.MortalidadMachos ?? 0;
+        var newSelH = dto.SelH ?? 0;
+        var newSelM = dto.SelM ?? 0;
+        var newErrH = dto.ErrorSexajeHembras ?? 0;
+        var newErrM = dto.ErrorSexajeMachos ?? 0;
+
         if (useLppFlow && ent.LotePosturaProduccionId.HasValue)
         {
-            var newMortH = dto.MortalidadHembras ?? 0;
-            var newMortM = dto.MortalidadMachos ?? 0;
-            var newSelH = dto.SelH ?? 0;
-            var newSelM = dto.SelM ?? 0;
-            var newErrH = dto.ErrorSexajeHembras ?? 0;
-            var newErrM = dto.ErrorSexajeMachos ?? 0;
             await AplicarDescuentoLppAsync(ent.LotePosturaProduccionId.Value, oldMortH, oldMortM, oldSelH, oldSelM, oldErrH, oldErrM, resta: false, ct);
             await AplicarDescuentoLppAsync(ent.LotePosturaProduccionId.Value, newMortH, newMortM, newSelH, newSelM, newErrH, newErrM, resta: true, ct);
+        }
+
+        // A7 — LEVANTE: mismo tratamiento que producción, revertir lo viejo y aplicar lo nuevo.
+        //
+        // Antes esto NO estaba, y el ajuste del saldo vivía en el módulo de levante
+        // (`SeguimientoLoteLevanteService.Crud.cs`), o sea DESPUÉS de llamar a este método. El
+        // efecto era que **el mismo comando producía dos estados distintos según el endpoint**:
+        // editar la mortalidad de un seguimiento de levante desde el módulo de levante movía el
+        // saldo de aves, y hacerlo desde `PUT /api/SeguimientoDiario` o desde el módulo
+        // `LoteSeguimiento` lo dejaba intacto — con la fila ya corregida y el saldo mintiendo.
+        //
+        // Ahora la regla vive donde vive la escritura de la fila, así que la cumplen los tres
+        // caminos. El módulo de levante dejó de aplicarla por su cuenta (si no, se descontaría dos
+        // veces).
+        if (tipo == "levante")
+        {
+            await AplicarDescuentoLevanteAsync(
+                ent.LotePosturaLevanteId, ent.LoteId,
+                oldMortH, oldMortM, oldSelH, oldSelM, oldErrH, oldErrM,
+                resta: false, ct);
+            await AplicarDescuentoLevanteAsync(
+                ent.LotePosturaLevanteId, ent.LoteId,
+                newMortH, newMortM, newSelH, newSelM, newErrH, newErrM,
+                resta: true, ct);
         }
 
         await _ctx.SaveChangesAsync(ct);
@@ -632,6 +688,9 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             try
             {
                 await RevertirTrasladoLevanteAsync(ent, ct);
+                // A7 — devolver las aves que este registro había descontado. Va DENTRO de la
+                // transacción: si el borrado falla, la devolución tiene que caerse con él.
+                await RestaurarAvesLevanteAsync(ent, ct);
                 _ctx.SeguimientoDiario.Remove(ent);
                 await _ctx.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
@@ -652,6 +711,11 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
                 ent.ErrorSexajeHembras ?? 0, ent.ErrorSexajeMachos ?? 0,
                 resta: false, ct);
         }
+
+        // A7 — simetría con producción. Antes, borrar un seguimiento de levante desde acá dejaba
+        // las aves descontadas para siempre: la fila se iba y el saldo se quedaba con su mortalidad.
+        // Solo el módulo de levante lo devolvía, y solo por su propio endpoint.
+        await RestaurarAvesLevanteAsync(ent, ct);
 
         _ctx.SeguimientoDiario.Remove(ent);
         await _ctx.SaveChangesAsync(ct);

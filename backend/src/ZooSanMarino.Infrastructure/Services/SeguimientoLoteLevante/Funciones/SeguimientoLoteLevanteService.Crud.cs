@@ -194,12 +194,11 @@ public partial class SeguimientoLoteLevanteService
             var refCo = $"Seguimiento lote levante #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
             await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
 
-            var newHCo = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
-            var newMCo = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
-            var deltaHCo = oldH - newHCo;
-            var deltaMCo = oldM - newMCo;
-            if (deltaHCo != 0 || deltaMCo != 0)
-                await AjustarAvesEnLotePosturaLevanteAsync(dto.LoteId, dto.LotePosturaLevanteId, deltaHCo, deltaMCo);
+            // A7 — el ajuste del saldo de aves ya NO se hace acá: lo aplica
+            // SeguimientoDiarioService.UpdateAsync (llamado arriba), igual que para producción.
+            // Antes vivía en este módulo, y por eso editar el mismo registro desde
+            // PUT /api/SeguimientoDiario o desde LoteSeguimiento dejaba el saldo intacto.
+            // Dejarlo acá además lo descontaría DOS veces.
 
             await _ctx.SaveChangesAsync();
             await tx.CommitAsync();
@@ -238,19 +237,7 @@ public partial class SeguimientoLoteLevanteService
             catch (Exception ex) { _logger?.LogError(ex, "Error al actualizar inventario (levante)"); }
         }
 
-        var newH = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
-        var newM = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
-        var deltaH = oldH - newH;
-        var deltaM = oldM - newM;
-        if (deltaH != 0 || deltaM != 0)
-        {
-            try
-            {
-                await AjustarAvesEnLotePosturaLevanteAsync(dto.LoteId, dto.LotePosturaLevanteId, deltaH, deltaM);
-            }
-            catch (Exception ex) { _logger?.LogError(ex, "Error al ajustar aves en lote postura levante (actualización)"); }
-        }
-
+        // A7 — el ajuste del saldo lo hace SeguimientoDiarioService.UpdateAsync (ver arriba).
         return MapToLevanteDto(updated);
     }
 
@@ -291,9 +278,8 @@ public partial class SeguimientoLoteLevanteService
                 var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
                 await _colombiaConsumoB.AplicarDevolucionAsync(loteRow.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento lote levante");
             }
-            if ((hembras > 0 || machos > 0) && loteIdInt.HasValue)
-                await AjustarAvesEnLotePosturaLevanteAsync(loteIdInt.Value, rec.LotePosturaLevanteId, hembras, machos);
-
+            // A7 — la devolución de aves la hace SeguimientoDiarioService.DeleteAsync, dentro de
+            // esta misma transacción.
             var okCo = await _seguimientoDiarioService.DeleteAsync((long)id);
             if (!okCo) { await tx.RollbackAsync(); return false; }
             await _ctx.SaveChangesAsync();
@@ -316,14 +302,7 @@ public partial class SeguimientoLoteLevanteService
             catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento levante"); }
         }
 
-        if ((hembras > 0 || machos > 0) && loteIdInt.HasValue)
-        {
-            try
-            {
-                await AjustarAvesEnLotePosturaLevanteAsync(loteIdInt.Value, rec.LotePosturaLevanteId, hembras, machos);
-            }
-            catch (Exception ex) { _logger?.LogError(ex, "Error al restaurar aves al eliminar seguimiento levante"); }
-        }
+        // A7 — la devolución de aves la hace SeguimientoDiarioService.DeleteAsync.
         return await _seguimientoDiarioService.DeleteAsync((long)id);
     }
 

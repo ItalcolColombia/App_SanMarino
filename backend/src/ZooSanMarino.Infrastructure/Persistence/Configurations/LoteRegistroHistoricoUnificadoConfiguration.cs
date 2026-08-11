@@ -44,6 +44,9 @@ public class LoteRegistroHistoricoUnificadoConfiguration : IEntityTypeConfigurat
 
         b.Property(x => x.Anulado).HasColumnName("anulado").IsRequired();
 
+        // Espejo de inventario_gestion_movimiento.para_proximo_ciclo (lo copia el trigger).
+        b.Property(x => x.ParaProximoCiclo).HasColumnName("para_proximo_ciclo").IsRequired();
+
         b.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").IsRequired();
     }
 }

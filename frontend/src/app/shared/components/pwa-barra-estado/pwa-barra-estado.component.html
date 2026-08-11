@@ -1,0 +1,64 @@
+<!--
+  Los tres avisos son excluyentes por diseño (ver `mostrarInstalar`): en una tablet de granja,
+  dos barras apiladas tapan el formulario que el operario está cargando.
+-->
+<div class="pwa-barra" role="status" aria-live="polite">
+
+  <!-- 1) Sin conexión -->
+  @if (sinConexion) {
+    <div class="pwa-aviso pwa-aviso--offline" data-testid="pwa-offline">
+      <span class="pwa-punto" aria-hidden="true"></span>
+      <span class="pwa-texto">
+        @if (desdeCache()) {
+          <!-- Decir de CUÁNDO es el dato, no solo que está guardado: "hace 3 h" cambia
+               qué decisiones el operario considera seguras. -->
+          <strong>Sin conexión.</strong>
+          Estás viendo la última consulta guardada ({{ antiguedadCache() }}). Para guardar necesitás señal.
+        } @else {
+          <strong>Sin conexión.</strong>
+          Podés seguir consultando lo que ya está cargado; para guardar necesitás señal.
+        }
+      </span>
+    </div>
+  }
+
+  <!-- 2) Versión nueva lista -->
+  @if (hayActualizacion()) {
+    <div class="pwa-aviso pwa-aviso--update" data-testid="pwa-actualizacion">
+      <span class="pwa-texto">
+        <strong>Hay una versión nueva.</strong>
+        Terminá lo que estás cargando y actualizá cuando puedas.
+      </span>
+      <span class="pwa-acciones">
+        <button type="button" class="pwa-btn pwa-btn--fantasma" (click)="posponer()">
+          Más tarde
+        </button>
+        <button
+          type="button"
+          class="pwa-btn pwa-btn--primario"
+          [disabled]="aplicando"
+          (click)="aplicar()"
+        >
+          {{ aplicando ? 'Actualizando…' : 'Actualizar ahora' }}
+        </button>
+      </span>
+    </div>
+  }
+
+  <!-- 3) Instalable -->
+  @if (mostrarInstalar) {
+    <div class="pwa-aviso pwa-aviso--instalar" data-testid="pwa-instalar">
+      <span class="pwa-texto">
+        <strong>Instalá ItalGranja</strong> en este dispositivo para abrirla desde el inicio.
+      </span>
+      <span class="pwa-acciones">
+        <button type="button" class="pwa-btn pwa-btn--fantasma" (click)="descartarInstalacion()">
+          Ahora no
+        </button>
+        <button type="button" class="pwa-btn pwa-btn--primario" (click)="instalar()">
+          Instalar
+        </button>
+      </span>
+    </div>
+  }
+</div>

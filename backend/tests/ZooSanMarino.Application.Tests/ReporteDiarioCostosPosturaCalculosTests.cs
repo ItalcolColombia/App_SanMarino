@@ -272,6 +272,230 @@ public class ReporteDiarioCostosPosturaCalculosTests
         Assert.Equal(0, t.Huevo.Total);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Traslape levante / producción — testigos REALES del lote K345 (NIZA III)
+    //
+    // K345 tiene 15 días con fila en las DOS etapas. En 14 de ellos el consumo y la mortalidad
+    // están duplicados exactos; en el restante (07-abr-2026) la fila de levante viene VACÍA.
+    // La regla es de CorteEtapaPosturaCalculos: solo hay doble conteo si las dos APORTAN.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private static readonly DateTime Jul16 = new(2025, 7, 16);
+    private static readonly DateTime Abr07 = new(2026, 4, 7);
+
+    // ── T12 · Día duplicado real: la fila de levante deja de sumar ───────────
+    [Fact]
+    public void MarcarDuplicados_DiaRealDuplicado_ExcluyeSoloLaFilaDeLevante()
+    {
+        // K345A, 16-jul-2025: las dos etapas traen 927,7 kg H · 92,7 kg M · 1 mortalidad hembra.
+        var filas = new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 13, mortH: 1, consumoH: 927.7, consumoM: 92.7),
+            Fila(fase: "Produccion", fecha: Jul16, loteId: 13, mortH: 1, consumoH: 927.7, consumoM: 92.7)
+        };
+
+        var marcadas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(filas);
+
+        var lev = marcadas.Single(f => f.Fase == "Levante");
+        var prod = marcadas.Single(f => f.Fase == "Produccion");
+
+        Assert.True(lev.DiaEnAmbasEtapas);
+        Assert.True(lev.ExcluidoDelTotal);
+        Assert.True(prod.DiaEnAmbasEtapas);
+        Assert.False(prod.ExcluidoDelTotal);   // producción siempre suma: es la fn diaria canónica
+        Assert.Equal(1, ReporteDiarioCostosPosturaCalculos.ContarDuplicados(marcadas));
+    }
+
+    // ── T13 · Día real con la fila de levante VACÍA: no es doble conteo ──────
+    [Fact]
+    public void MarcarDuplicados_LevanteSinConsumoNiBajas_NoExcluyeNada()
+    {
+        // K345A, 07-abr-2026: levante en 0; producción con 1.093,8 kg H, 75,3 kg M y 3 mortalidades.
+        var filas = new[]
+        {
+            Fila(fase: "Levante", fecha: Abr07, loteId: 13),
+            Fila(fase: "Produccion", fecha: Abr07, loteId: 13, mortH: 3, consumoH: 1093.8, consumoM: 75.3)
+        };
+
+        var marcadas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(filas);
+
+        Assert.All(marcadas, f => Assert.True(f.DiaEnAmbasEtapas));
+        Assert.All(marcadas, f => Assert.False(f.ExcluidoDelTotal));
+        Assert.Equal(0, ReporteDiarioCostosPosturaCalculos.ContarDuplicados(marcadas));
+    }
+
+    // ── T14 · Arrastre de huevos: producción de SOLO huevos no choca ─────────
+    [Fact]
+    public void MarcarDuplicados_ProduccionSoloHuevos_NoExcluyeElLevante()
+    {
+        var filas = new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 13, mortH: 4, consumoH: 900),
+            Fila(fase: "Produccion", fecha: Jul16, loteId: 13,
+                 huevo: ReporteDiarioCostosPosturaCalculos.ClasificarHuevo(Dia15May))
+        };
+
+        var marcadas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(filas);
+
+        Assert.False(marcadas.Single(f => f.Fase == "Levante").ExcluidoDelTotal);
+    }
+
+    // ── T15 · Lote sin producción (A374): no hay nada que decidir ────────────
+    [Fact]
+    public void MarcarDuplicados_SinFilasDeProduccion_DevuelveLasFilasIntactas()
+    {
+        var filas = new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 116, consumoH: 500),
+            Fila(fase: "Levante", fecha: Abr07, loteId: 116, consumoH: 510)
+        };
+
+        var marcadas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(filas);
+
+        Assert.All(marcadas, f => Assert.False(f.DiaEnAmbasEtapas));
+        Assert.All(marcadas, f => Assert.False(f.ExcluidoDelTotal));
+    }
+
+    // ── T16 · Otro lote / otro día no se contamina ───────────────────────────
+    [Fact]
+    public void MarcarDuplicados_DiaDeOtroLote_NoSeMarca()
+    {
+        var filas = new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 13, consumoH: 927.7),
+            Fila(fase: "Produccion", fecha: Jul16, loteId: 13, consumoH: 927.7),
+            Fila(fase: "Levante", fecha: Jul16, loteId: 14, consumoH: 1259),  // mismo día, OTRO lote
+            Fila(fase: "Levante", fecha: Abr07, loteId: 13, consumoH: 800)    // mismo lote, OTRO día
+        };
+
+        var marcadas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(filas);
+
+        Assert.Single(marcadas, f => f.ExcluidoDelTotal);
+        Assert.False(marcadas.Single(f => f.LoteId == 14).DiaEnAmbasEtapas);
+        Assert.False(marcadas.Single(f => f.LoteId == 13 && f.Fecha == Abr07).DiaEnAmbasEtapas);
+    }
+
+    // ── T17 · El total NO cuenta dos veces el día duplicado ──────────────────
+    [Fact]
+    public void ConstruirTotales_ConDiaDuplicado_NoSumaLaFilaDeLevante()
+    {
+        var filas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 13, mortH: 1, consumoH: 927.7, consumoM: 92.7,
+                 alimentos: new[] { Alimento("H", "PREPOSTURA", 927.7) }),
+            Fila(fase: "Produccion", fecha: Jul16, loteId: 13, mortH: 1, consumoH: 927.7, consumoM: 92.7,
+                 alimentos: new[] { Alimento("H", "PREPOSTURA", 927.7) })
+        });
+
+        var t = ReporteDiarioCostosPosturaCalculos.ConstruirTotales(filas);
+
+        Assert.Equal(927.7, t.ConsumoKgH, 3);        // NO 1.855,4
+        Assert.Equal(92.7, t.ConsumoKgM, 3);
+        Assert.Equal(1, t.Aves.MortalidadH);         // NO 2
+        Assert.Equal(927.7, t.Alimentos.Single().CantidadKg, 3);
+    }
+
+    // ── T18 · Sin duplicados el footer queda EXACTAMENTE como antes ──────────
+    [Fact]
+    public void ConstruirTotales_SinFilasExcluidas_QuedaIdenticoAlComportamientoPrevio()
+    {
+        var filas = new[]
+        {
+            Fila(mortH: 10, mortM: 2, consumoH: 1113.2, consumoM: 125.5,
+                 alimentos: new[] { Alimento("H", "PREPOSTURA", 1113.2) }),
+            Fila(mortH: 1, consumoH: 1113.2, consumoM: 125.5,
+                 alimentos: new[] { Alimento("H", "PREPOSTURA", 1113.2) })
+        };
+
+        var t = ReporteDiarioCostosPosturaCalculos.ConstruirTotales(filas);
+
+        Assert.Equal(2226.4, t.ConsumoKgH, 3);
+        Assert.Equal(251, t.ConsumoKgM, 3);
+        Assert.Equal(11, t.Aves.MortalidadH);
+        Assert.Equal(2226.4, t.Alimentos.Single().CantidadKg, 3);
+    }
+
+    // ── T18b · Lo excluido se CUANTIFICA, no desaparece ──────────────────────
+    [Fact]
+    public void TotalesExcluidos_DevuelveExactamenteLoQueQuedaFueraDelTotal()
+    {
+        // Caso real: el 16-jul-2025 la fila de levante de K345A trae 21 machos de selección que la
+        // de producción NO registra. Excluir la fila es correcto (si no, el alimento se duplica),
+        // pero esas 21 aves tienen que verse para poder pasarlas al registro que queda.
+        var filas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 13, mortH: 1, selM: 21,
+                 consumoH: 927.7, consumoM: 92.7),
+            Fila(fase: "Produccion", fecha: Jul16, loteId: 13, mortH: 1,
+                 consumoH: 927.7, consumoM: 92.7)
+        });
+
+        var ex = ReporteDiarioCostosPosturaCalculos.TotalesExcluidos(filas);
+
+        Assert.NotNull(ex);
+        Assert.Equal(927.7, ex!.ConsumoKgH, 3);
+        Assert.Equal(92.7, ex.ConsumoKgM, 3);
+        Assert.Equal(21, ex.Aves.SeleccionM);
+        Assert.Equal(1, ex.Aves.MortalidadH);
+
+        // Y el total del reporte NO las cuenta.
+        var t = ReporteDiarioCostosPosturaCalculos.ConstruirTotales(filas);
+        Assert.Equal(0, t.Aves.SeleccionM);
+        Assert.Equal(927.7, t.ConsumoKgH, 3);
+    }
+
+    [Fact]
+    public void TotalesExcluidos_SinFilasExcluidas_DevuelveNull()
+        => Assert.Null(ReporteDiarioCostosPosturaCalculos.TotalesExcluidos(
+            new[] { Fila(consumoH: 100), Fila(fase: "Levante", consumoH: 50) }));
+
+    // ── T19 · Ubicaciones: el levante en una granja y la producción en otra ──
+    [Fact]
+    public void Ubicaciones_LevanteYProduccionEnGranjasDistintas_DiceQuePasoDonde()
+    {
+        var filas = new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 13, granjaId: 5, granjaNombre: "NIZA III"),
+            Fila(fase: "Levante", fecha: Jul16.AddDays(1), loteId: 14, granjaId: 5, granjaNombre: "NIZA III"),
+            Fila(fase: "Produccion", fecha: Abr07, loteId: 900, granjaId: 4, granjaNombre: "NIZA I")
+        };
+
+        var u = ReporteDiarioCostosPosturaCalculos.Ubicaciones(filas);
+
+        Assert.Equal(2, u.Count);
+
+        Assert.Equal("Levante", u[0].Fase);          // orden de ciclo: levante primero
+        Assert.Equal("NIZA III", u[0].GranjaNombre);
+        Assert.Equal(2, u[0].Lotes);
+        Assert.Equal(2, u[0].Dias);
+        Assert.Equal(Jul16, u[0].Desde);
+        Assert.Equal(Jul16.AddDays(1), u[0].Hasta);
+
+        Assert.Equal("Produccion", u[1].Fase);
+        Assert.Equal("NIZA I", u[1].GranjaNombre);
+        Assert.Equal(1, u[1].Lotes);
+    }
+
+    [Fact]
+    public void Ubicaciones_MismaGranjaDosFases_DevuelveUnaEntradaPorFase()
+    {
+        var filas = new[]
+        {
+            Fila(fase: "Levante", fecha: Jul16, loteId: 13, granjaId: 5, granjaNombre: "NIZA III"),
+            Fila(fase: "Produccion", fecha: Jul16, loteId: 13, granjaId: 5, granjaNombre: "NIZA III")
+        };
+
+        var u = ReporteDiarioCostosPosturaCalculos.Ubicaciones(filas);
+
+        Assert.Equal(2, u.Count);
+        Assert.All(u, x => Assert.Equal("NIZA III", x.GranjaNombre));
+    }
+
+    [Fact]
+    public void Ubicaciones_SinFilas_DevuelveVacio()
+        => Assert.Empty(ReporteDiarioCostosPosturaCalculos.Ubicaciones(
+            Array.Empty<ReporteDiarioCostosPosturaFilaDto>()));
+
     // ── Helpers ──────────────────────────────────────────────────────────────
     private static ReporteDiarioCostosPosturaAlimentoDto Alimento(string sexo, string nombre, double kg)
         => new(sexo, nombre, kg, "metadata");
@@ -284,18 +508,22 @@ public class ReporteDiarioCostosPosturaCalculosTests
         int venH = 0, int venM = 0,
         double consumoH = 0, double consumoM = 0,
         IReadOnlyList<ReporteDiarioCostosPosturaAlimentoDto>? alimentos = null,
-        ReporteDiarioCostosPosturaHuevoDto? huevo = null)
+        ReporteDiarioCostosPosturaHuevoDto? huevo = null,
+        DateTime? fecha = null,
+        int loteId = 145,
+        int granjaId = 44,
+        string granjaNombre = "Pruebas Moises")
         => new(
-            Fecha: new DateTime(2026, 5, 15),
+            Fecha: fecha ?? new DateTime(2026, 5, 15),
             Fase: fase,
-            LoteId: 145,
+            LoteId: loteId,
             LoteNombre: "S-369B",
             GalponId: "G0443",
             GalponNombre: "G0443",
             LoteGalpon: "S-369B : G0443",
             NucleoId: "883195",
-            GranjaId: 44,
-            GranjaNombre: "Pruebas Moises",
+            GranjaId: granjaId,
+            GranjaNombre: granjaNombre,
             Regional: "",
             LotePosturaBaseId: 30,
             LoteBaseNombre: "S-369",

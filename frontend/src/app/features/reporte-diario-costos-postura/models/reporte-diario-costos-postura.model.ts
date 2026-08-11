@@ -68,6 +68,11 @@ export interface ReporteDiarioCostosPosturaFila {
   alimentos: ReporteDiarioCostosPosturaAlimento[];
 
   huevo: ReporteDiarioCostosPosturaHuevo;
+
+  /** El lote tiene fila de levante Y de producción ese día (no siempre es un error). */
+  diaEnAmbasEtapas: boolean;
+  /** Se muestra pero NO suma: su día ya lo aporta producción (regla del corte de etapa). */
+  excluidoDelTotal: boolean;
 }
 
 export interface ReporteDiarioCostosPosturaTotalesAves {
@@ -111,6 +116,21 @@ export interface ReporteDiarioCostosPosturaLote {
   loteBaseNombre: string;
 }
 
+/**
+ * Dónde ocurrió cada fase: una entrada por (fase, granja, lote base).
+ * Es lo que permite leer «el levante fue en NIZA III y la producción en NIZA I».
+ */
+export interface ReporteDiarioCostosPosturaUbicacion {
+  fase: string;
+  granjaId: number;
+  granjaNombre: string;
+  loteBaseNombre: string;
+  lotes: number;
+  desde: string;
+  hasta: string;
+  dias: number;
+}
+
 export interface ReporteDiarioCostosPosturaReporte {
   filtrosAplicados: ReporteDiarioCostosPosturaRequest;
   fechaDesdeEfectiva: string | null;
@@ -119,15 +139,26 @@ export interface ReporteDiarioCostosPosturaReporte {
   lotes: ReporteDiarioCostosPosturaLote[];
   filas: ReporteDiarioCostosPosturaFila[];
   totales: ReporteDiarioCostosPosturaTotales;
+  ubicaciones: ReporteDiarioCostosPosturaUbicacion[] | null;
+  /** Filas mostradas pero excluidas del total por estar registradas en las dos etapas. */
+  diasDuplicados: number;
+  /** Cuánto quedó FUERA del total por el traslape (null si no se excluyó nada). */
+  totalesExcluidos: ReporteDiarioCostosPosturaTotales | null;
+  /** El lote base elegido vivía fuera de la granja pedida y el reporte lo siguió. */
+  alcanceExpandidoPorLoteBase: boolean;
 }
 
-/** Lote base de postura (catálogo del filtro). Subconjunto de `LotePosturaBaseDto`. */
+/**
+ * Lote base de postura (catálogo del filtro). Viene de
+ * `GET /api/ReporteDiarioCostosPostura/lotes-base`, que lo lista por DÓNDE ESTÁN SUS LOTES
+ * (no por el `farm_id` del catálogo) ⇒ una base puede aparecer bajo varias granjas.
+ */
 export interface LotePosturaBaseOpcion {
   lotePosturaBaseId: number;
   loteNombre: string;
-  farmId: number | null;
-  farmNombre: string | null;
-  companyId: number;
+  granjaIds: number[];
+  granjaNombres: string[];
+  lotes: number;
 }
 
 /** Fila expandida de la pestaña Alimento: un ítem por fila (decisión D4). */
@@ -135,6 +166,8 @@ export interface FilaAlimentoView {
   fecha: string;
   fechaFmt: string;
   fase: string;
+  granjaNombre: string;
+  excluidoDelTotal: boolean;
   loteGalpon: string;
   /** Ítem de hembras de esta fila (puede faltar si el día tiene más ítems de machos). */
   hembraNombre: string | null;

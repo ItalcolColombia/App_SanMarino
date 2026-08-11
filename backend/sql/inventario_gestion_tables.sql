@@ -93,6 +93,16 @@ COMMENT ON TABLE public.inventario_gestion_movimiento IS 'Movimientos (ingresos/
 ALTER TABLE public.inventario_gestion_movimiento ADD COLUMN IF NOT EXISTS estado VARCHAR(80) NULL;
 COMMENT ON COLUMN public.inventario_gestion_movimiento.estado IS 'Estado para histórico: Entrada planta, Entrada granja, Transferencia a granja, Transferencia a planta, Consumo.';
 
+-- Alimento que llega ANTES del encasetamiento (migración 20260808120000_AlimentoPrevioEncasetMarcaCiclo):
+--  · para_proximo_ciclo: atribución EXPLÍCITA al ciclo siguiente del galpón. La fecha sola no alcanza
+--    en galpones encadenados, donde la llegada real cae dentro del ciclo anterior.
+--  · registrado_at: instante REAL de captura. created_at guarda la fecha del movimiento que tipea el
+--    usuario —esa fecha lo pisa—, así que la auditoría no tenía dónde vivir. NULL = fila pre-feature.
+ALTER TABLE public.inventario_gestion_movimiento ADD COLUMN IF NOT EXISTS para_proximo_ciclo BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.inventario_gestion_movimiento ADD COLUMN IF NOT EXISTS registrado_at TIMESTAMPTZ NULL;
+COMMENT ON COLUMN public.inventario_gestion_movimiento.para_proximo_ciclo IS 'El alimento es para el PROXIMO encasetamiento de este galpon: atribucion explicita al ciclo siguiente, independiente de la ventana por fecha.';
+COMMENT ON COLUMN public.inventario_gestion_movimiento.registrado_at IS 'Instante REAL de captura. created_at guarda la fecha del movimiento que tipea el usuario, asi que no sirve de auditoria. NULL = fila anterior a la columna.';
+
 -- Si ya tenía las tablas con catalog_item_id, ejecute antes un ALTER para migrar (opcional):
 -- ALTER TABLE inventario_gestion_stock RENAME COLUMN catalog_item_id TO item_inventario_ecuador_id;
 -- ALTER TABLE inventario_gestion_stock DROP CONSTRAINT IF EXISTS fk_igs_catalog_item;

@@ -25,6 +25,11 @@ import { HasPermissionDirective } from '../../../../core/auth/has-permission.dir
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { exportarStockExcel } from '../../funciones/exportar-stock-excel.funcion';
 import {
+  esFechaMovimientoPermitida,
+  mensajeFechaFueraDeVentana,
+  ventanaFechaMovimiento
+} from '../../funciones/ventana-fecha-movimiento.funcion';
+import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
   InventarioGestionHistoricoFiltrosDto,
@@ -123,6 +128,8 @@ export class GestionInventarioPageComponent implements OnInit {
   ingresoFechaMovimiento = '';
   showIngresoFechaModal = false;
   ingresoFechaDraft = '';
+  /** «Este alimento es para el PRÓXIMO ciclo/encasetamiento de este galpón» (D2). Solo aplica a alimento con galpón. */
+  ingresoParaProximoCiclo = false;
 
   // Form traslado
   fromFarmId: number | null = null;
@@ -227,6 +234,13 @@ export class GestionInventarioPageComponent implements OnInit {
    */
   readonly isColombiaInventario: boolean;
 
+  /**
+   * Extremos de la ventana de fechas de los movimientos manuales (1 del mes en curso → hoy).
+   * Campos, no getters: el template los lee en cada ciclo y tienen que ser referencias estables.
+   */
+  fechaMovimientoMin = '';
+  fechaMovimientoMax = '';
+
   constructor(
     private svc: GestionInventarioService,
     private route: ActivatedRoute,
@@ -236,6 +250,9 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    const ventana = ventanaFechaMovimiento(new Date());
+    this.fechaMovimientoMin = ventana.min;
+    this.fechaMovimientoMax = ventana.max;
     this.ingresoFechaMovimiento = this.todayYmd();
     this.trasladoFechaMovimiento = this.todayYmd();
     // Colombia: el inventario es a nivel granja → traslado siempre entre granjas (no galpón-a-galpón).
@@ -901,6 +918,26 @@ export class GestionInventarioPageComponent implements OnInit {
     return !this.isColombiaInventario;
   }
 
+  /**
+   * ⛔ DESHABILITADO (09-ago-2026) — la marca «para el próximo ciclo» NO se puede usar todavía.
+   *
+   * El checkbox se entregó en `801b14f`, pero la auditoría posterior midió que marcar un movimiento
+   * ROMPE LA CONSERVACIÓN de kilos en **729 de 2.210 casos reales** (hasta 37.467 kg que desaparecen
+   * de toda tabla diaria) y deja filas de la grilla en negativo: la fn diaria le quita el movimiento a
+   * TODO lote con seguimiento, incluidos los que CONVIVEN con el ciclo destino, y en esos galpones
+   * ninguna apertura lo vuelve a tomar. Cuatro intentos de arreglarlo terminaron revertidos porque
+   * cada guarda mudaba el defecto de lugar (ver `fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md`
+   * y el bloque «v16 ... REVERTIDA» de `tracker_estado.md`).
+   *
+   * Se oculta el checkbox en vez de borrar la feature: la columna, el endpoint y el badge del historial
+   * siguen vivos, y el historial permite QUITAR una marca existente (nunca dejar kilos invisibles).
+   * Para reactivarlo, primero tiene que estar el rediseño (atribución persistida como hecho, no
+   * recalculada en lectura) con su compuerta de no-negativos.
+   */
+  get mostrarParaProximoCicloIngreso(): boolean {
+    return false;
+  }
+
   /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
   get stockShowNucleoGalpon(): boolean {
     // Colombia: stock a nivel granja → sin columnas núcleo/galpón.
@@ -947,6 +984,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.ingresoOrigenTipo = 'planta';
       this.ingresoOrigenFarmId = null;
       this.ingresoOrigenBodegaTexto = '';
+      this.ingresoParaProximoCiclo = false;
       this.fromNucleoId = null;
       this.fromGalponId = null;
       this.toNucleoId = null;
@@ -985,10 +1023,12 @@ export class GestionInventarioPageComponent implements OnInit {
   onIngresoDestinoFarmChange(): void {
     this.ingresoNucleoId = null;
     this.ingresoGalponId = null;
+    this.ingresoParaProximoCiclo = false;
   }
 
   onIngresoDestinoNucleoChange(): void {
     this.ingresoGalponId = null;
+    this.ingresoParaProximoCiclo = false;
   }
 
   submitIngreso(): void {
@@ -996,6 +1036,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Indique la fecha del movimiento.');
       return;
     }
+    if (!this.validarVentanaFecha(this.ingresoFechaMovimiento)) return;
     if (this.ingresoFarmId == null || this.ingresoItemInventarioEcuadorId == null || this.ingresoQuantity <= 0) {
       this.openAlertModal('error', 'Validación', 'Complete granja, ítem y cantidad.');
       return;
@@ -1036,6 +1077,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Indique la fecha del traslado.');
       return;
     }
+    if (!this.validarVentanaFecha(this.trasladoFechaMovimiento)) return;
 
     if (this.trasladoModo === 'mismaGranja') {
       if (!this.showNucleoGalpon) {
@@ -1307,6 +1349,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Indique la fecha de registro (ingreso en ubicación).');
       return;
     }
+    if (!this.validarVentanaFecha(fechaIngreso)) return;
     const unit = (this.stockEditUnit ?? '').trim() || row.unit || 'kg';
     this.submittingStockEdit = true;
     this.svc
@@ -1375,6 +1418,18 @@ export class GestionInventarioPageComponent implements OnInit {
     return `${d.getFullYear()}-${mm}-${dd}`;
   }
 
+  /**
+   * Guarda de la ventana de fechas (día 1 del mes en curso → hoy) de los movimientos cargados a
+   * mano. La regla que manda es la del backend; acá se ahorra el viaje y se explica en pantalla.
+   * Devuelve `true` si la fecha sirve; si no, abre el modal de error y devuelve `false`.
+   */
+  private validarVentanaFecha(ymd: string | null | undefined): boolean {
+    const hoy = new Date();
+    if (esFechaMovimientoPermitida(ymd, hoy)) return true;
+    this.openAlertModal('error', 'Validación', mensajeFechaFueraDeVentana(hoy));
+    return false;
+  }
+
   /** Texto legible para la fecha de ingreso seleccionada. */
   formatIngresoFechaDisplay(): string {
     const ymd = (this.ingresoFechaMovimiento ?? '').trim();
@@ -1400,6 +1455,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Seleccione una fecha.');
       return;
     }
+    if (!this.validarVentanaFecha(d)) return;
     this.ingresoFechaMovimiento = d;
     this.showIngresoFechaModal = false;
   }
@@ -1453,7 +1509,8 @@ export class GestionInventarioPageComponent implements OnInit {
       origenTipo: tipoOrigen,
       origenFarmId: esAlimento && (tipoOrigen === 'granja' || tipoOrigen === 'bodega') ? this.ingresoOrigenFarmId : null,
       origenBodegaDescripcion: esAlimento && tipoOrigen === 'bodega' ? (this.ingresoOrigenBodegaTexto || null) : null,
-      fechaMovimiento: this.ingresoFechaMovimiento?.trim() || null
+      fechaMovimiento: this.ingresoFechaMovimiento?.trim() || null,
+      paraProximoCiclo: this.mostrarParaProximoCicloIngreso ? this.ingresoParaProximoCiclo : false
     }).subscribe({
       next: () => {
         this.submittingIngreso = false;
@@ -1462,6 +1519,7 @@ export class GestionInventarioPageComponent implements OnInit {
         this.ingresoReference = '';
         this.ingresoReason = '';
         this.ingresoOrigenBodegaTexto = '';
+        this.ingresoParaProximoCiclo = false;
         this.ingresoFechaMovimiento = this.todayYmd();
         this.loadStock();
       },

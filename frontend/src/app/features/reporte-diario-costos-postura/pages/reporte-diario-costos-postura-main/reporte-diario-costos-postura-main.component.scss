@@ -84,6 +84,27 @@
     font-weight: 700;
   }
 
+  // Fila que se MUESTRA pero no suma: el día quedó registrado en las dos etapas y su aporte
+  // lo pone producción. Se atenúa y se tacha para que se lea como «esto no cuenta», sin
+  // esconderlo (el área de costos necesita ver el duplicado para corregirlo en origen).
+  .rdc-tr--excluida .rdc-td {
+    color: var(--text-muted, #9ca3af);
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 6px,
+      rgba(156, 163, 175, 0.10) 6px,
+      rgba(156, 163, 175, 0.10) 12px
+    );
+    text-decoration: line-through;
+    text-decoration-color: rgba(156, 163, 175, 0.7);
+  }
+
+  .rdc-tr--excluida .rdc-td--fecha,
+  .rdc-tr--excluida .rdc-td--texto {
+    text-decoration: none;
+  }
+
   .rdc-foot .rdc-td--foot {
     background: var(--ital-cream, #faf8f5);
     font-weight: 700;

@@ -30,6 +30,7 @@ import { LoteBaseEngordeApi, LoteBaseEngordeDto, PERMISOS_LOTE_BASE } from '../.
 import { AsignarGranjasLoteBaseComponent } from '../asignar-granjas-lote-base/asignar-granjas-lote-base.component';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { ymdSinTz, ymdToIsoUtcNoon } from '../../../../shared/utils/format';
 
 @Component({
@@ -148,8 +149,23 @@ export class LoteEngordeListComponent implements OnInit {
   nuevoLoteBaseNombre = '';
   creandoLoteBase = false;
 
-  /** Panamá: nombre del lote = lote base (obligatorio) y gestión en tab. Ecuador: vista actual. */
+  /** Panamá: código ERP del lote por granja. NO decide nada del lote base (eso es el flag de empresa). */
   esPanama = false;
+
+  /**
+   * La empresa PROGRAMA sus lotes de engorde (flag `programacion_lotes_engorde`): el lote base
+   * asignado a la granja es obligatorio y da el nombre del lote (numerado por corrida en el galpón),
+   * y la gestión de la programación vive en una pestaña. Fail-closed: hasta que el backend confirme,
+   * la pantalla se comporta como siempre (nombre libre, lote base opcional en modal).
+   */
+  programacionLotes = false;
+  /**
+   * El nombre del lote lleva el sufijo de corrida desde la primera apertura ("96 - 1", Panamá).
+   * Apagado (Ecuador) el nombre es el del lote base ("2603") y el sufijo aparece desde la segunda.
+   */
+  nombreConCorrida = false;
+  /** Evita re-registrar validadores/suscripciones si el flag vuelve a emitir. */
+  private programacionAplicada = false;
   tabActiva: 'lotes' | 'lotes-base' = 'lotes';
 
   /** Panamá (solo creación): preview del nombre del lote = "{lote base} - {corrida}" (ej. "96 - 1"). */
@@ -182,6 +198,7 @@ export class LoteEngordeListComponent implements OnInit {
     private loteBaseApi: LoteBaseEngordeApi,
     private confirmDialog: ConfirmDialogService,
     private countryFilter: CountryFilterService,
+    private companyConfig: ActiveCompanyConfigService,
     private toastService: ToastService
   ) {}
 
@@ -191,15 +208,13 @@ export class LoteEngordeListComponent implements OnInit {
     this.loadLotes();
     this.loadLotesBase();
 
-    if (this.esPanama) {
-      // Panamá: el nombre del lote sale del lote base elegido (obligatorio) + número de corrida por galpón.
-      this.form.get('loteBaseEngordeId')!.addValidators(Validators.required);
-      this.form.get('loteBaseEngordeId')!.updateValueAndValidity({ emitEvent: false });
-      this.form.get('loteBaseEngordeId')!.valueChanges.subscribe(() => this.recomputeNombrePanama());
-      // El galpón puede cambiar por selección del usuario (emite) o por cascada (no emite → se
-      // recalcula manualmente en los handlers de granja/núcleo).
-      this.form.get('galponId')!.valueChanges.subscribe(() => this.recomputeNombrePanama());
-    }
+    // El comportamiento de programación es de la EMPRESA, no del país: se lee del flag y se aplica
+    // cuando llega (fail-closed mientras tanto).
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.programacionLotes = flags.programacionLotesEngorde;
+      this.nombreConCorrida = flags.nombreLoteIncluyeCorrida;
+      if (this.programacionLotes) this.aplicarProgramacionLotes();
+    });
 
     this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
       const granjaId = Number(granjaIdVal);
@@ -221,9 +236,9 @@ export class LoteEngordeListComponent implements OnInit {
       // Al cambiar de granja, el lote base debe re-elegirse entre los de esa granja.
       // (En edición, applyModalFormState vuelve a fijar el valor tras el patch de granja.)
       this.form.patchValue({ loteBaseEngordeId: null }, { emitEvent: false });
-      if (this.esPanama) this.form.patchValue({ loteNombre: '' }, { emitEvent: false });
+      if (this.programacionLotes) this.form.patchValue({ loteNombre: '' }, { emitEvent: false });
       this.recomputeLotesBaseParaGranja();
-      this.recomputeNombrePanama();
+      this.recomputeNombrePorCorrida();
       this.aplicarErpGranjaPanama();
     });
 
@@ -238,20 +253,20 @@ export class LoteEngordeListComponent implements OnInit {
           this.galponesFiltrados = [...filtrados];
           this.filteredGalpones = this.galponesFiltrados;
           this.form.patchValue({ galponId: this.galponesFiltrados[0]?.galponId ?? null }, { emitEvent: false });
-          this.recomputeNombrePanama();
+          this.recomputeNombrePorCorrida();
         } else {
           this.galponSvc.getByGranjaAndNucleo(granjaId, nucleoId).subscribe(data => {
             this.galponesFiltrados = [...data];
             this.filteredGalpones = this.galponesFiltrados;
             this.form.patchValue({ galponId: this.galponesFiltrados[0]?.galponId ?? null }, { emitEvent: false });
-            this.recomputeNombrePanama();
+            this.recomputeNombrePorCorrida();
           });
         }
       } else {
         this.galponesFiltrados = [];
         this.filteredGalpones = [];
         this.form.get('galponId')?.setValue(null, { emitEvent: false });
-        this.recomputeNombrePanama();
+        this.recomputeNombrePorCorrida();
       }
     });
 
@@ -264,6 +279,23 @@ export class LoteEngordeListComponent implements OnInit {
       this.form.patchValue({ anoTablaGenetica: null });
       if (raza) this.loadAnosDisponibles(raza);
     });
+  }
+
+  /**
+   * Empresa con programación de lotes: el lote base pasa a ser obligatorio y el nombre del lote se
+   * calcula como "{lote base} - {corrida}" por galpón. Se llama una sola vez, al resolverse el flag.
+   */
+  private aplicarProgramacionLotes(): void {
+    if (this.programacionAplicada) return;
+    this.programacionAplicada = true;
+
+    this.form.get('loteBaseEngordeId')!.addValidators(Validators.required);
+    this.form.get('loteBaseEngordeId')!.updateValueAndValidity({ emitEvent: false });
+    this.form.get('loteBaseEngordeId')!.valueChanges.subscribe(() => this.recomputeNombrePorCorrida());
+    // El galpón puede cambiar por selección del usuario (emite) o por cascada (no emite → se
+    // recalcula manualmente en los handlers de granja/núcleo).
+    this.form.get('galponId')!.valueChanges.subscribe(() => this.recomputeNombrePorCorrida());
+    this.recomputeNombrePorCorrida();
   }
 
   private initForm(): void {
@@ -355,13 +387,14 @@ export class LoteEngordeListComponent implements OnInit {
   }
 
   /**
-   * Panamá + creación: arma el nombre del lote = "{lote base} - {corrida}" (ej. "96 - 1"), donde la
-   * corrida es el siguiente número para ese lote base en el galpón elegido (MAX de los existentes + 1).
-   * El backend es la fuente de verdad al guardar; esto es solo el preview. NO aplica en edición
-   * (la corrida ya quedó fijada al crear el lote) ni en otros países (nombre libre).
+   * Empresa con programación + creación: preview del nombre del lote a partir del lote base y de la
+   * corrida (MAX de los existentes en ese base+galpón + 1). Según el flag de la empresa, el nombre es
+   * "{base} - {corrida}" desde la primera (Panamá) o el nombre del base tal cual y con sufijo sólo
+   * desde la segunda (Ecuador). El backend es la fuente de verdad al guardar; esto es solo el preview.
+   * NO aplica en edición (la corrida ya quedó fijada al crear).
    */
-  recomputeNombrePanama(): void {
-    if (!this.esPanama || this.editing) return;
+  recomputeNombrePorCorrida(): void {
+    if (!this.programacionLotes || this.editing) return;
     const baseId = Number(this.form.get('loteBaseEngordeId')?.value) || null;
     const galponIdVal = this.form.get('galponId')?.value;
     const base = baseId ? this.lotesBase.find(b => b.id === baseId) : null;
@@ -374,7 +407,9 @@ export class LoteEngordeListComponent implements OnInit {
     const maxActual = this.lotes
       .filter(l => l.loteBaseEngordeId === baseId && String(l.galponId ?? '') === gid)
       .reduce((max, l) => Math.max(max, l.numeroCorrida ?? 0), 0);
-    const nombre = `${(base.nombre ?? '').trim()} - ${maxActual + 1}`;
+    const corrida = maxActual + 1;
+    const baseNombre = (base.nombre ?? '').trim();
+    const nombre = this.nombreConCorrida || corrida > 1 ? `${baseNombre} - ${corrida}` : baseNombre;
     this.nombreCorridaPreview = nombre;
     this.form.patchValue({ loteNombre: nombre }, { emitEvent: false });
   }
@@ -895,7 +930,7 @@ export class LoteEngordeListComponent implements OnInit {
       loteErp: raw.loteErp != null && raw.loteErp !== '' ? String(raw.loteErp).trim() : undefined,
       loteBaseEngordeId: raw.loteBaseEngordeId != null && raw.loteBaseEngordeId !== '' ? Number(raw.loteBaseEngordeId) : null,
       // Solo Panamá + creación: el backend asigna la corrida (MAX+1 por base+galpón) y arma "{base} - {n}".
-      autoNombrePorCorrida: this.esPanama && !this.editing,
+      autoNombrePorCorrida: this.programacionLotes && !this.editing,
     } as CreateLoteAveEngordeDto | UpdateLoteAveEngordeDto;
     if (this.editing) {
       (dto as UpdateLoteAveEngordeDto).loteAveEngordeId = Number(raw.loteAveEngordeId) || this.editing.loteAveEngordeId;

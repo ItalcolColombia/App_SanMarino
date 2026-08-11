@@ -60,6 +60,8 @@ function base(
     fecha: f.fecha,
     fechaFmt: fechaCortaSinTz(f.fecha),
     fase: f.fase,
+    granjaNombre: f.granjaNombre,
+    excluidoDelTotal: f.excluidoDelTotal === true,
     loteGalpon: f.loteGalpon,
     hembraNombre,
     hembraKg,

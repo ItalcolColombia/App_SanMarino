@@ -645,6 +645,21 @@
                               </span>
                             </label>
                           </div>
+                          <!-- Ventana de alimento previo al encaset (engorde): días que se cuentan como ingreso inicial del ciclo -->
+                          <div class="rounded-xl border p-3 bg-white/60">
+                            <div class="text-sm font-semibold text-warm-gray-700 mb-2">Alimento previo al encaset</div>
+                            <label class="block">
+                              <span class="form-label">Días de alimento previo al encaset</span>
+                              <input type="number" formControlName="diasAlimentoPrevioEncaset" min="0" max="30" class="form-input"
+                                [class.form-input--invalid]="form.get('diasAlimentoPrevioEncaset')?.invalid && form.get('diasAlimentoPrevioEncaset')?.touched"/>
+                              @if (form.get('diasAlimentoPrevioEncaset')?.invalid && form.get('diasAlimentoPrevioEncaset')?.touched) {
+                                <p class="form-error">Debe estar entre 0 y 30</p>
+                              }
+                              <span class="block text-xs text-warm-gray-500 mt-1">
+                                El seguimiento diario cuenta como ingreso inicial del ciclo el alimento recibido hasta N días antes del encasetamiento.
+                              </span>
+                            </label>
+                          </div>
                         </section>
                       </div>
                     }

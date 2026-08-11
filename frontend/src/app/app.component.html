@@ -31,4 +31,9 @@
   <main class="app-main" [class.app-main--with-topbar]="showSidebar">
     <router-outlet></router-outlet>
   </main>
+
+  <!-- Avisos del ciclo de vida de la PWA: sin conexión · versión nueva · instalar.
+       Va FUERA de @if(showSidebar) a propósito: en el login también hace falta saber
+       que no hay red, y ahí es justamente donde el síntoma aparece primero. -->
+  <app-pwa-barra-estado></app-pwa-barra-estado>
 </div>

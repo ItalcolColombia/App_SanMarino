@@ -161,7 +161,13 @@
                 <td>{{ r.granjaNombre || '—' }}</td>
                 <td>{{ r.nucleoNombre || r.nucleoId || '—' }}</td>
                 <td>{{ r.galponNombre || r.galponId || '—' }}</td>
-                <td>{{ r.loteNombre || r.loteAveEngordeId || '—' }}</td>
+                <td>
+                  @if (r.loteBaseNombre) {
+                    {{ r.loteBaseNombre }} <span class="hint">(programado)</span>
+                  } @else {
+                    {{ r.loteNombre || r.loteAveEngordeId || '—' }}
+                  }
+                </td>
                 <td class="items-col">
                   @if (r.items?.length) {
                     <ul class="items-list">
@@ -236,10 +242,31 @@
                 (granjaChange)="formFarmId = $event; onFormFarmChange()"
                 (nucleoChange)="formNucleoId = $event"
                 (galponChange)="formGalponId = $event"
-                (loteChange)="formLoteId = $event"
+                (loteChange)="onFormLoteRealChange($event)"
                 (filterDataLoaded)="onFilterDataLoaded($event)">
               </app-filtro-select>
               <p class="hint">El consumo se descuenta a nivel granja; se referencia por corrida (lote), sin importar el galpón.</p>
+              @if (programacionLotes) {
+                <div class="modal-row">
+                  <div class="ux-field grow">
+                    <label>…o lote programado (aún sin encasetar)</label>
+                    <select [(ngModel)]="formLoteBaseId" (ngModelChange)="onFormLoteBaseChange()"
+                            [disabled]="!formFarmId">
+                      <option [ngValue]="null">— Ninguno —</option>
+                      @for (b of lotesBaseParaGranja; track b.id) {
+                        <option [ngValue]="b.id">{{ b.nombre }}</option>
+                      }
+                    </select>
+                  </div>
+                </div>
+                <p class="hint">
+                  Para insumos que se usan ANTES del encasetamiento (desinsectación): el gasto queda contra
+                  el lote programado y pasa solo al lote real cuando se encasete.
+                  @if (formFarmId && !lotesBaseParaGranja.length) {
+                    <strong>Esta granja no tiene lotes programados asignados.</strong>
+                  }
+                </p>
+              }
               <div class="modal-row">
                 <div class="ux-field">
                   <label>Fecha</label>
@@ -367,7 +394,7 @@
               <div class="detail">
                 <div class="detail__chips">
                   <div class="chip"><span class="chip__k">Fecha</span><span class="chip__v">{{ detail.fecha | date:'yyyy-MM-dd' }}</span></div>
-                  <div class="chip"><span class="chip__k">Lote</span><span class="chip__v">{{ detail.loteNombre || detail.loteAveEngordeId || '—' }}</span></div>
+                  <div class="chip"><span class="chip__k">Lote</span><span class="chip__v">{{ detail.loteBaseNombre ? detail.loteBaseNombre + ' (programado)' : (detail.loteNombre || detail.loteAveEngordeId || '—') }}</span></div>
                   <div class="chip"><span class="chip__k">Estado</span><span class="pill" [class.pill--deleted]="detail.estado === 'Eliminado'">{{ detail.estado }}</span></div>
                 </div>
                 <p class="detail__obs"><strong>Observaciones:</strong> {{ detail.observaciones || '—' }}</p>

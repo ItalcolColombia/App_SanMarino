@@ -53,10 +53,13 @@
         <select class="filter-step__select" [(ngModel)]="lotePosturaBaseId">
           <option [ngValue]="null">Todos los lotes</option>
           @for (b of lotesBase; track b.lotePosturaBaseId) {
-            <option [ngValue]="b.lotePosturaBaseId">{{ b.loteNombre }}</option>
+            <option [ngValue]="b.lotePosturaBaseId">{{ etiquetaLoteBase(b) }}</option>
           }
         </select>
-        <p class="text-xs text-gray-400">Agrupa sus sublotes (p. ej. S-369 = S-369A + S-369B).</p>
+        <p class="text-xs text-gray-400">
+          Agrupa sus sublotes (p. ej. S-369 = S-369A + S-369B). Al elegir uno, el reporte lo sigue a
+          todas las granjas donde vivió.
+        </p>
       </div>
 
       <div class="filter-field">
@@ -113,6 +116,69 @@
       </span>
     </section>
 
+    <!-- Dónde ocurrió cada fase — la respuesta a «el levante fue acá y la producción allá» -->
+    @if (reporte.ubicaciones && reporte.ubicaciones.length > 0) {
+      <section class="rounded border border-gray-200 bg-white px-4 py-3">
+        <h3 class="text-sm font-semibold text-gray-700 mb-2">Dónde se hizo cada fase</h3>
+        <div class="overflow-x-auto">
+          <table class="rdc-table text-sm">
+            <thead>
+              <tr>
+                <th class="rdc-th">Fase</th>
+                <th class="rdc-th">Granja</th>
+                <th class="rdc-th">Lote base</th>
+                <th class="rdc-th">Lotes</th>
+                <th class="rdc-th">Desde</th>
+                <th class="rdc-th">Hasta</th>
+                <th class="rdc-th">Días</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (u of reporte.ubicaciones; track u.fase + u.granjaId + u.loteBaseNombre) {
+                <tr>
+                  <td class="rdc-td rdc-td--mort">{{ u.fase }}</td>
+                  <td class="rdc-td rdc-td--texto">{{ u.granjaNombre }}</td>
+                  <td class="rdc-td rdc-td--texto">{{ u.loteBaseNombre || '—' }}</td>
+                  <td class="rdc-td">{{ ent(u.lotes) }}</td>
+                  <td class="rdc-td rdc-td--fecha">{{ fechaFmt(u.desde) }}</td>
+                  <td class="rdc-td rdc-td--fecha">{{ fechaFmt(u.hasta) }}</td>
+                  <td class="rdc-td">{{ ent(u.dias) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (alcanceExpandido) {
+          <p class="mt-2 text-xs text-blue-700">
+            El lote base elegido tiene registros fuera de la granja filtrada y el reporte los siguió,
+            dentro de las granjas asignadas a tu usuario.
+          </p>
+        }
+      </section>
+    }
+
+    <!-- Días registrados en las dos etapas: se muestran, pero no suman dos veces -->
+    @if (diasDuplicados > 0) {
+      <div class="rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        {{ ent(diasDuplicados) }} día(s) quedaron registrados en levante <strong>y</strong> en producción
+        con consumo o bajas. Las filas se muestran igual, pero la de levante aparece atenuada y
+        <strong>no suma en los totales</strong> — si no, el ciclo contaría dos veces el mismo alimento y
+        las mismas aves. Hay que corregir el registro duplicado en su módulo.
+        @if (reporte.totalesExcluidos; as ex) {
+          <div class="mt-1">
+            Queda fuera del total: <strong>{{ kg(ex.consumoKgTotal) }} kg</strong> de alimento y
+            <strong>{{ ent(ex.aves.total) }}</strong> ave(s)
+            (mortalidad {{ ent(ex.aves.mortalidadH + ex.aves.mortalidadM) }} ·
+            selección {{ ent(ex.aves.seleccionH + ex.aves.seleccionM) }} ·
+            error de sexaje {{ ent(ex.aves.errorSexajeH + ex.aves.errorSexajeM) }} ·
+            ventas {{ ent(ex.aves.ventaAvesH + ex.aves.ventaAvesM) }}).
+            El duplicado no siempre es simétrico: si la fila de levante trae bajas que producción no
+            registró, esas aves hay que pasarlas al registro que queda.
+          </div>
+        }
+      </div>
+    }
+
     <!-- Pestañas -->
     <div class="flex gap-1 border-b border-gray-200" role="tablist">
       <button role="tab" [attr.aria-selected]="pestana === 'aves'" (click)="irA('aves')"
@@ -132,6 +198,7 @@
           <thead>
             <tr>
               <th class="rdc-th" rowspan="2">Fecha</th>
+              <th class="rdc-th" rowspan="2">Granja</th>
               <th class="rdc-th" rowspan="2">Lote : Galpón</th>
               <th class="rdc-th" rowspan="2">Fase</th>
               <th class="rdc-th" rowspan="2">Edad<br />(días)</th>
@@ -150,8 +217,10 @@
           </thead>
           <tbody>
             @for (f of filasAves; track trackAves($index, f)) {
-              <tr>
+              <tr [class.rdc-tr--excluida]="f.excluidoDelTotal"
+                  [attr.title]="f.excluidoDelTotal ? 'Este día también está registrado en producción: la fila se muestra pero no suma en los totales.' : null">
                 <td class="rdc-td rdc-td--fecha">{{ f.fechaFmt }}</td>
+                <td class="rdc-td rdc-td--texto">{{ f.granjaNombre }}</td>
                 <td class="rdc-td rdc-td--texto">{{ f.loteGalpon }}</td>
                 <td class="rdc-td rdc-td--mort">{{ f.fase }}</td>
                 <td class="rdc-td">{{ ent(f.edadDias) }}</td>
@@ -169,7 +238,7 @@
           </tbody>
           <tfoot class="rdc-foot">
             <tr>
-              <td class="rdc-td rdc-td--foot" colspan="5">Total</td>
+              <td class="rdc-td rdc-td--foot" colspan="6">Total</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.mortalidadH) }}</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.mortalidadM) }}</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.seleccionH) }}</td>
@@ -180,7 +249,7 @@
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.aves.ventaAvesM) }}</td>
             </tr>
             <tr>
-              <td class="rdc-td rdc-td--foot" colspan="5">Total bajas</td>
+              <td class="rdc-td rdc-td--foot" colspan="6">Total bajas</td>
               <td class="rdc-td rdc-td--foot" colspan="4">Hembras: {{ ent(reporte.totales.aves.totalH) }}</td>
               <td class="rdc-td rdc-td--foot" colspan="2">Machos: {{ ent(reporte.totales.aves.totalM) }}</td>
               <td class="rdc-td rdc-td--foot" colspan="2">General: {{ ent(reporte.totales.aves.total) }}</td>
@@ -200,6 +269,7 @@
           <thead>
             <tr>
               <th class="rdc-th" rowspan="2">Fecha</th>
+              <th class="rdc-th" rowspan="2">Granja</th>
               <th class="rdc-th" rowspan="2">Lote : Galpón</th>
               <th class="rdc-th" rowspan="2">Fase</th>
               <th class="rdc-th rdc-th--grupo" colspan="2">Hembras</th>
@@ -212,8 +282,10 @@
           </thead>
           <tbody>
             @for (f of filasAlimento; track trackAlimento($index, f)) {
-              <tr>
+              <tr [class.rdc-tr--excluida]="f.excluidoDelTotal"
+                  [attr.title]="f.excluidoDelTotal ? 'Este día también está registrado en producción: la fila se muestra pero no suma en los totales.' : null">
                 <td class="rdc-td rdc-td--fecha">{{ f.fechaFmt }}</td>
+                <td class="rdc-td rdc-td--texto">{{ f.granjaNombre }}</td>
                 <td class="rdc-td rdc-td--texto">{{ f.loteGalpon }}</td>
                 <td class="rdc-td rdc-td--mort">{{ f.fase }}</td>
                 <td class="rdc-td rdc-td--texto">{{ f.hembraNombre ?? '—' }}</td>
@@ -225,7 +297,7 @@
           </tbody>
           <tfoot class="rdc-foot">
             <tr>
-              <td class="rdc-td rdc-td--foot" colspan="3">Total consumo (kg)</td>
+              <td class="rdc-td rdc-td--foot" colspan="4">Total consumo (kg)</td>
               <td class="rdc-td rdc-td--foot" colspan="2">{{ kg(reporte.totales.consumoKgH) }}</td>
               <td class="rdc-td rdc-td--foot" colspan="2">{{ kg(reporte.totales.consumoKgM) }}</td>
             </tr>
@@ -277,6 +349,7 @@
           <thead>
             <tr>
               <th class="rdc-th">Fecha</th>
+              <th class="rdc-th">Granja</th>
               <th class="rdc-th">Lote : Galpón</th>
               <th class="rdc-th">Huevo fértil</th>
               <th class="rdc-th">Huevo comercial</th>
@@ -290,6 +363,7 @@
             @for (f of filasHuevos; track trackHuevo($index, f)) {
               <tr>
                 <td class="rdc-td rdc-td--fecha">{{ fechaFmt(f.fecha) }}</td>
+                <td class="rdc-td rdc-td--texto">{{ f.granjaNombre }}</td>
                 <td class="rdc-td rdc-td--texto">{{ f.loteGalpon }}</td>
                 <td class="rdc-td">{{ ent(f.huevo.fertil) }}</td>
                 <td class="rdc-td">{{ ent(f.huevo.comercial) }}</td>
@@ -302,7 +376,7 @@
           </tbody>
           <tfoot class="rdc-foot">
             <tr>
-              <td class="rdc-td rdc-td--foot" colspan="2">Total</td>
+              <td class="rdc-td rdc-td--foot" colspan="3">Total</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.fertil) }}</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.comercial) }}</td>
               <td class="rdc-td rdc-td--foot">{{ ent(reporte.totales.huevo.inservible) }}</td>

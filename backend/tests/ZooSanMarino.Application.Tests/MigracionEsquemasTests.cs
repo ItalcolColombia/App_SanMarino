@@ -40,7 +40,10 @@ public class MigracionEsquemasTests
 
     [Fact]
     public void Para_TipoSinEsquema_Lanza()
-        => Assert.Throws<NotSupportedException>(() => MigracionEsquemas.Para(TipoMigracion.Ventas));
+        // Todo miembro DEFINIDO del enum tiene esquema (los tipos sueltos de Ventas/Movimientos se
+        // retiraron: viajan como hojas del seguimiento). El `_ =>` sigue siendo la red de seguridad
+        // ante un valor fuera de rango, que es exactamente lo que verifica esta prueba.
+        => Assert.Throws<NotSupportedException>(() => MigracionEsquemas.Para((TipoMigracion)999));
 
     [Fact]
     public void SeguimientoReproductoraEngorde_SoloFechaEsRequeridaEnEncabezados()

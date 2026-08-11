@@ -22,8 +22,8 @@
         }
       </div>
       <div class="le-header__actions">
-        <!-- Ecuador: gestión de lotes base en modal (Panamá la tiene en tab) -->
-        @if (!esPanama) {
+        <!-- Sin programación: gestión de lotes base en modal (con programación va en pestaña) -->
+        @if (!programacionLotes) {
           <ng-container *appHasPermission="permLoteBase.ver">
             <button type="button" (click)="abrirLotesBaseModal()" class="le-btn le-btn--muted">
               <span>Lotes base</span>
@@ -37,8 +37,8 @@
       </div>
     </header>
 
-    <!-- Panamá: tabs Lotes de engorde | Lotes base -->
-    @if (esPanama) {
+    <!-- Con programación: tabs Lotes de engorde | Lotes base (programación del año) -->
+    @if (programacionLotes) {
       <div class="flex items-center gap-1 border-b border-gray-200 mb-3">
         <button type="button" (click)="tabActiva = 'lotes'"
           class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px"
@@ -61,7 +61,7 @@
       </div>
     }
 
-    @if (!esPanama || tabActiva === 'lotes') {
+    @if (!programacionLotes || tabActiva === 'lotes') {
     <!-- Filtros -->
     <section class="le-card le-card--filters filter-card" role="group" aria-labelledby="le-filtros-title">
       <div class="filter-card__header">
@@ -297,8 +297,8 @@
       </section>
       }
 
-      <!-- Panamá: tab de gestión de lotes base -->
-      @if (esPanama && tabActiva === 'lotes-base') {
+      <!-- Con programación: pestaña de gestión de la programación (lotes base) -->
+      @if (programacionLotes && tabActiva === 'lotes-base') {
         <ng-container *appHasPermission="permLoteBase.ver">
           <section class="le-card">
             <ng-container [ngTemplateOutlet]="gestionLotesBaseTpl"></ng-container>
@@ -368,8 +368,8 @@
                   <div class="le-form-grid">
                     <div class="le-field">
                       <label class="le-label">Nombre del lote <span class="le-req">*</span></label>
-                      @if (esPanama) {
-                        <!-- Panamá: el nombre sale de un lote base ASIGNADO a la granja seleccionada -->
+                      @if (programacionLotes) {
+                        <!-- Con programación: el nombre sale de un lote base ASIGNADO a la granja seleccionada -->
                         <select formControlName="loteBaseEngordeId" class="le-input"
                           [class.le-input--invalid]="form.get('loteBaseEngordeId')?.invalid && form.get('loteBaseEngordeId')?.touched"
                           [disabled]="!form.get('granjaId')?.value">
@@ -379,7 +379,7 @@
                           }
                         </select>
                         @if (form.get('loteBaseEngordeId')?.invalid && form.get('loteBaseEngordeId')?.touched) {
-                          <small class="le-error">El lote base es requerido en Panamá</small>
+                          <small class="le-error">El lote base es requerido: el lote debe estar programado</small>
                         }
                         @if (!form.get('granjaId')?.value) {
                           <p class="le-form-hint">Seleccione primero la granja: se listan solo los lotes base asignados a ella.</p>
@@ -427,7 +427,7 @@
                         <p class="le-form-hint">Esta granja no tiene código ERP de engorde configurado; podés digitarlo o configurarlo en la granja.</p>
                       }
                     </div>
-                    @if (!esPanama) {
+                    @if (!programacionLotes) {
                     <ng-container *appHasPermission="permLoteBase.ver">
                       <div class="le-field">
                         <label class="le-label">Lote base (opcional)</label>
@@ -593,13 +593,13 @@
         </div>
       }
 
-      <!-- Gestión de lotes base (compartida por el modal de Ecuador y el tab de Panamá) -->
+      <!-- Gestión de lotes base (compartida por el modal y la pestaña de programación) -->
       <ng-template #gestionLotesBaseTpl>
         <p class="le-form-hint">
           Un lote base agrupa lotes de engorde de varios galpones bajo un mismo nombre (ej. "94").
           Aparece al crear un lote solo si está <strong>activo</strong> y está <strong>asignado a esa granja</strong>
           (usá <strong>Asignar granjas</strong>). El mismo nombre se puede repetir en distintos años.
-          @if (esPanama) { <span>En Panamá el nombre del lote se elige de esta lista (obligatorio).</span> }
+          @if (programacionLotes) { <span>Es la <strong>programación</strong> de la empresa: el nombre del lote se elige de esta lista (obligatorio) y sobre un lote programado ya se pueden dar de baja insumos aunque todavía no esté encasetado.</span> }
         </p>
 
         <!-- Form crear / editar (permiso crear; en edición, permiso editar) -->

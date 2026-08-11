@@ -3,6 +3,81 @@
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
 --
+-- v15 (2026-08-08) — El «Ingreso inicial del ciclo» deja de ser invisible + marca de atribución.
+--   Plan: fase_de_desarrollo/ingreso_alimento_fecha_real_ingreso_inicial_ciclo_plan.md (D1 y D2).
+--   Pedido de operación: el alimento llega a la granja 2-7 días ANTES del encasetamiento, pero hay
+--   que decirle a cada persona que lo registre con la fecha del PRIMER DÍA DE CONSUMO para que la
+--   tabla diaria «cuadre». Así se pierde la fecha real que necesita contabilidad. Medido en el dump:
+--   Ecuador aplica ese workaround en 110 de 110 ciclos; Panamá ya fecha real en 9 de 30.
+--
+--   (A) APERTURA VISIBLE — dos columnas ADITIVAS al final del RETURNS TABLE:
+--       `apertura_alimento_kg` y `apertura_documentos`, pobladas SOLO en la primera fila del ciclo
+--       (la de `fecha_min`). Son el escalar `apertura_alimento` que la fn ya calcula desde v9 y el
+--       STRING_AGG de los documentos de `apert_mov` que lo componen. **NO cambian el saldo, ni el
+--       universo de filas, ni ninguna columna previa: es exposición pura de un número que ya existía.**
+--       Por qué importa: el alimento previo al encaset YA entraba al saldo del día 1, pero
+--       `ingreso_alimento_kg` mostraba 0 y `documento` vacío ⇒ el saldo «aparecía de la nada» y la
+--       operación desconfiaba. Peor: mientras el lote no tiene seguimiento esos ingresos SÍ se ven
+--       como fila propia, y al cargar el primer seguimiento desaparecen dentro de la apertura. Ese
+--       parpadeo es justamente lo que empuja a re-fechar el ingreso al día 1.
+--
+--   (B) OVERRIDE POR MARCA `para_proximo_ciclo` (columna nueva del histórico unificado, migración
+--       20260808120000, espejo de `inventario_gestion_movimiento.para_proximo_ciclo`):
+--       * un movimiento marcado ENTRA a `apert_mov` aunque caiga FUERA de la ventana de
+--         `corte_apertura` (v12) y aunque `lote_ave_engorde_id` lo atribuya a un lote ajeno (v11).
+--         Es la única atribución posible en los galpones ENCADENADOS de Ecuador: 28 de 75 ciclos
+--         encadenados tienen menos de 10 días entre el fin del ciclo previo y su encaset, así que la
+--         llegada real cae DENTRO del ciclo anterior y la fecha sola no puede decidir de quién es.
+--         Guarda: la absorbe el PRIMER ciclo del galpón que arranca después del movimiento — si otro
+--         lote ya empezó su seguimiento entre la fecha del movimiento y mi `fecha_min`, la marca era
+--         para AQUÉL y no se cuela dos ciclos más tarde.
+--       * y NO aparece como fila ni como columna diaria del ciclo cuyo rango lo contenga
+--         (`hist_alimento`, `hist_full`, `docs_por_fecha`, `fechas_universo`): su lugar es la apertura
+--         del siguiente. EXCEPCIÓN deliberada: mientras el lote no tiene seguimiento
+--         (`rs.fecha_min IS NULL`) se sigue viendo como fila propia — no hay apertura donde
+--         absorberlo todavía y los kg no pueden desaparecer de la pantalla.
+--       * SIN marca (todo lo que existe hoy en producción: la columna nace en `false`) el resultado
+--         es BYTE A BYTE el de v14: los dos disyuntos del filtro dejan intacto el camino previo.
+--
+--   ⚠️ La firma CAMBIA (dos columnas OUT nuevas) ⇒ `CREATE OR REPLACE` NO alcanza: PostgreSQL
+--   responde «cannot change return type of existing function». Por eso el script empieza con
+--   `DROP FUNCTION IF EXISTS`. Verificado que ningún objeto depende de la fn (`pg_depend` vacío):
+--   los 5 consumidores la llaman por CROSS JOIN LATERAL con columnas NOMBRADAS
+--   (fn_reporte_diario_costos_engorde, fn_informe_semanal_pollo_engorde, fn_cuadre_alimento_engorde,
+--   verificar_paridad_saldo_engorde y el SqlQueryRaw del service Ecuador), y
+--   `vw_seguimiento_pollo_engorde` es una reimplementación set-based que no la invoca.
+--
+--   La rama CONGELADA (`liquidacion_lote_engorde_congelada_fila`) NO se toca: los lotes ya liquidados
+--   conservan su foto y devuelven NULL en las dos columnas nuevas (la copia no las guardó). Es una
+--   divergencia consciente: un lote congelado no vuelve a mostrar su apertura.
+--
+-- v14 (2026-08-07) — Fix: un lote que terminó SIN cerrarse absorbía el ciclo SIGUIENTE del galpón.
+--   * Ticket de operación (Ecuador): «granja KM 86 lote 01 galpón 1 y 02: tenemos ingreso del mes de
+--     julio cuando el lote cerró en abril». El lote 2601 de Kilometro 86 / Galpon-1 (id 2) tiene su
+--     último seguimiento el 2026-04-20 y la grilla llegaba hasta el 2026-08-03, con el saldo inflado
+--     de 1.600 kg a 206.450 kg. Los ingresos de julio son CORRECTOS: son del lote 2603, encasetado
+--     en ese mismo galpón el 24/06. El error es a qué lote se los mostraba.
+--   * Causa: `fecha_max` solo se cierra por saldo 0 (`saldo_close`, v5) o por
+--     `estado_operativo_lote = 'cerrado'`. Este lote nunca se liquidó, y su saldo NUNCA llega a 0
+--     justamente porque el galpón siguió recibiendo alimento para los ciclos siguientes ⇒
+--     `fecha_max = NULL` ⇒ grilla sin tope, y `fechas_universo`/`hist_alimento`/`docs_por_fecha`
+--     filtran por UBICACIÓN (granja+núcleo+galpón), no por lote. La v5 ya había descrito este mismo
+--     problema, pero su criterio es NUMÉRICO (que el saldo toque 0) y por eso tiene este agujero.
+--   * Asimetría de fondo: la fn ya sabe distinguir ciclos que no conviven —`lotes_ajenos` (v11) y
+--     `corte_apertura` (v12) lo usan— pero ese conocimiento solo se aplicaba a la APERTURA.
+--   * Solución: nuevo CTE `corte_ciclo_siguiente`, complemento exacto de `corte_apertura`. El galpón
+--     deja de ser mío el día en que OTRO lote del mismo granja+núcleo+galpón empieza a tener
+--     seguimiento después de que yo dejé de tenerlo: `fecha_max` se acota al día anterior. Criterio
+--     ESTRUCTURAL (hay otro ciclo siguiéndose ahí) y no numérico, así que no depende de que alguien
+--     se acuerde de liquidar el lote.
+--   * `LEAST` ignora los NULL, así que un lote sin ciclo posterior conserva su `fecha_max` de v13 y
+--     un lote genuinamente activo sigue con NULL (sin tope).
+--   * NO toca la rama VENTA_AVES: sigue sin tope (v7), así que una venta tardía conserva su fila.
+--   * NO toca lotes que CONVIVEN en el galpón (v10): `MIN(primer_seg_ajeno) > last_seg` es falso
+--     cuando los ciclos se solapan ⇒ el saldo compartido queda idéntico.
+--   * Verificado sobre el dump de producción: de 140 lotes solo cambian 2, los dos de Ecuador
+--     (lote 2 con 31 filas invasoras y lote 86 con 1). **ItalcolPanama NO-OP exacto.**
+--
 -- v13 (2026-07-31) — Liquidación CONGELADA (migración 20260731185300_AddLiquidacionLoteEngordeCongelada).
 --   * Problema: la fn RECALCULA en cada request — no es una foto. El fix v9→v12 del 28-jul movió
 --     solas corridas CERRADAS hacía meses, después de que Costos las había dado por cuadradas.
@@ -142,7 +217,10 @@
 -- v3 (plan #12): apertura filtrada por fecha_encaset.
 -- v2 (2026-05-28): rango_seg ::DATE; INV_TRASLADO_SALIDA con ABS(); saldo dinámico.
 -- =============================================================================
-CREATE OR REPLACE FUNCTION fn_seguimiento_diario_engorde(p_lote_id INT)
+-- ⭐ v15: la firma cambia (dos columnas OUT nuevas) ⇒ CREATE OR REPLACE no basta.
+DROP FUNCTION IF EXISTS fn_seguimiento_diario_engorde(INT);
+
+CREATE FUNCTION fn_seguimiento_diario_engorde(p_lote_id INT)
 RETURNS TABLE (
     -- Identificación
     seg_id                      BIGINT,
@@ -200,7 +278,13 @@ RETURNS TABLE (
     metadata                    JSONB,
     items_adicionales           JSONB,
     historico_consumo_alimento  JSONB,
-    created_by_user_id          TEXT
+    created_by_user_id          TEXT,
+    -- ⭐ v15: «Ingreso inicial del ciclo» — el alimento previo al encaset que la apertura ya absorbía
+    -- desde v9 y que hasta ahora era un escalar interno. Solo la PRIMERA fila del ciclo trae valor
+    -- (el resto 0 / NULL); la rama congelada devuelve NULL en las dos. DOUBLE PRECISION igual que
+    -- todas las demás columnas de kg de esta tabla (el origen `apertura_kg` ya es FLOAT8).
+    apertura_alimento_kg        DOUBLE PRECISION,
+    apertura_documentos         TEXT
 ) LANGUAGE sql STABLE AS $$
 SELECT u.seg_id, u.fecha, u.edad_dia, u.semana,
        u.mortalidad_hembras, u.mortalidad_machos, u.sel_h, u.sel_m,
@@ -215,7 +299,8 @@ SELECT u.seg_id, u.fecha, u.edad_dia, u.semana,
        u.uniformidad_hembras, u.uniformidad_machos, u.cv_hembras, u.cv_machos,
        u.consumo_agua_diario, u.consumo_agua_ph, u.consumo_agua_orp, u.consumo_agua_temperatura,
        u.observaciones, u.ciclo, u.metadata, u.items_adicionales, u.historico_consumo_alimento,
-       u.created_by_user_id
+       u.created_by_user_id,
+       u.apertura_alimento_kg, u.apertura_documentos
 FROM (
     SELECT f.seg_id, f.fecha, f.edad_dia, f.semana,
            f.mortalidad_hembras, f.mortalidad_machos, f.sel_h, f.sel_m,
@@ -230,7 +315,11 @@ FROM (
            f.uniformidad_hembras, f.uniformidad_machos, f.cv_hembras, f.cv_machos,
            f.consumo_agua_diario, f.consumo_agua_ph, f.consumo_agua_orp, f.consumo_agua_temperatura,
            f.observaciones, f.ciclo, f.metadata, f.items_adicionales, f.historico_consumo_alimento,
-           f.created_by_user_id
+           f.created_by_user_id,
+           -- ⭐ v15: la copia congelada NO guardó la apertura (se tomó con la fn v13). Un lote
+           -- liquidado conserva su foto tal cual: NULL, no un recálculo en vivo.
+           NULL::FLOAT8 AS apertura_alimento_kg,
+           NULL::TEXT   AS apertura_documentos
       FROM liquidacion_lote_engorde_congelada_fila f
      WHERE f.liquidacion_id = (SELECT c.id
                                  FROM liquidacion_lote_engorde_congelada c
@@ -301,6 +390,32 @@ corte_apertura AS (
            ) AS desde
     FROM lote_info li, rango_seg rs
     WHERE rs.fecha_min IS NOT NULL
+),
+
+-- 2e. ⭐ v14: día en que el galpón deja de ser mío = arranque del ciclo SIGUIENTE.
+--     Complemento exacto de `corte_apertura` (v12), que hace lo mismo por el otro extremo: si nada
+--     anterior al fin del ciclo previo es alimento mío, nada posterior al arranque del ciclo que me
+--     sucede lo es tampoco. Criterio ESTRUCTURAL —otro lote ya tiene seguimiento en este galpón—,
+--     no numérico: por eso funciona aunque el lote haya quedado en 'Abierto' sin liquidar y su saldo
+--     nunca toque 0 (que es justo lo que pasa cuando el galpón sigue recibiendo alimento).
+--     NULL si no hay ciclo posterior (lote genuinamente activo o último del galpón).
+corte_ciclo_siguiente AS (
+    SELECT MIN(prim.primer_seg) - 1 AS hasta
+    FROM (
+        SELECT MIN(DATE(s2.fecha)) AS primer_seg
+        FROM seguimiento_diario_aves_engorde s2
+        JOIN lote_ave_engorde l2 ON l2.lote_ave_engorde_id = s2.lote_ave_engorde_id
+                                AND l2.deleted_at IS NULL
+        JOIN lote_info li ON TRUE
+        JOIN rango_seg  rs ON rs.last_seg IS NOT NULL
+        WHERE l2.granja_id = li.granja_id
+          AND COALESCE(TRIM(l2.nucleo_id), '') = li.nucleo_id
+          AND COALESCE(TRIM(l2.galpon_id), '') = li.galpon_id
+          AND l2.lote_ave_engorde_id <> p_lote_id
+        GROUP BY l2.lote_ave_engorde_id, rs.last_seg
+        -- estrictamente POSTERIOR ⇒ los lotes que conviven conmigo (v10) nunca cortan nada
+        HAVING MIN(DATE(s2.fecha)) > rs.last_seg
+    ) prim
 ),
 
 -- 2c. ⭐ v11: lotes AJENOS = otros lotes del mismo galpón cuyo ciclo NO se solapa con el mío.
@@ -375,7 +490,10 @@ apert_mov AS (
             WHEN 'INV_TRASLADO_ENTRADA' THEN  COALESCE(h.cantidad_kg, 0)
             WHEN 'INV_TRASLADO_SALIDA'  THEN -ABS(COALESCE(h.cantidad_kg, 0))
             ELSE 0
-        END AS delta
+        END AS delta,
+        -- ⭐ v15: el documento del movimiento, para poder mostrar de DÓNDE sale la apertura.
+        -- Mismo criterio que `docs_por_fecha`: número de documento y, si no hay, la referencia.
+        NULLIF(TRIM(COALESCE(h.numero_documento, h.referencia, '')), '') AS doc
     FROM lote_registro_historico_unificado h
     JOIN lote_info li ON TRUE
     JOIN rango_seg  rs ON rs.fecha_min IS NOT NULL
@@ -391,15 +509,46 @@ apert_mov AS (
       AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
       AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
       AND DATE(h.fecha_operacion) < rs.fecha_min
-      -- ⭐ v12: la ventana arranca en el corte de v9 o el día siguiente al fin del ciclo anterior,
-      -- el que sea más tarde. Caza la limpieza que quedó etiquetada con el lote NUEVO.
-      AND (li.fecha_corte_alimento IS NULL
-           OR DATE(h.fecha_operacion) >= (SELECT desde FROM corte_apertura))
-      -- ⭐ v11: nada del ciclo anterior. Sin este filtro la ventana previa al encaset se comía
-      -- la limpieza de cierre del lote que ocupaba el galpón y la apertura salía negativa.
-      -- Caza la limpieza etiquetada con el lote VIEJO; la del NUEVO la caza el corte de arriba.
-      AND (h.lote_ave_engorde_id IS NULL
-           OR NOT EXISTS (SELECT 1 FROM lotes_ajenos la WHERE la.id = h.lote_ave_engorde_id))
+      AND (
+          -- ⭐ v15 (D2): OVERRIDE por marca explícita «este alimento es para el próximo
+          -- encasetamiento de este galpón». La pone la persona que registra el ingreso, así que
+          -- SUSTITUYE a los dos cortes por fecha: entra a la apertura aunque caiga fuera de la
+          -- ventana de `corte_apertura` (v12) y aunque `lote_ave_engorde_id` lo haya etiquetado con
+          -- un lote ajeno (v11). Es la única atribución posible en los galpones ENCADENADOS de
+          -- Ecuador —28 de 75 ciclos encadenados tienen menos de 10 días entre el fin del ciclo
+          -- previo y su encaset—, donde la llegada real cae DENTRO del ciclo anterior y la fecha
+          -- sola no alcanza para decidir de quién es el alimento.
+          -- Guarda: lo absorbe el PRIMER ciclo del galpón que arranca después del movimiento. Si
+          -- otro lote de la misma ubicación ya empezó su seguimiento entre la fecha del movimiento
+          -- y mi `fecha_min`, la marca era para AQUÉL: una marca vieja no se cuela dos ciclos
+          -- después. (Un lote sin seguimiento devuelve MIN NULL ⇒ no bloquea.)
+          (COALESCE(h.para_proximo_ciclo, FALSE)
+           AND NOT EXISTS (
+                 SELECT 1
+                 FROM lote_ave_engorde l5
+                 WHERE l5.deleted_at IS NULL
+                   AND l5.lote_ave_engorde_id <> p_lote_id
+                   AND l5.granja_id = li.granja_id
+                   AND COALESCE(TRIM(l5.nucleo_id), '') = li.nucleo_id
+                   AND COALESCE(TRIM(l5.galpon_id), '') = li.galpon_id
+                   AND (SELECT MIN(DATE(s5.fecha))
+                          FROM seguimiento_diario_aves_engorde s5
+                         WHERE s5.lote_ave_engorde_id = l5.lote_ave_engorde_id)
+                       BETWEEN DATE(h.fecha_operacion) + 1 AND rs.fecha_min - 1))
+          OR
+          -- SIN marca: exactamente el camino de v14, byte a byte. Como la columna nace en `false`
+          -- para todo el histórico existente, hoy este disyunto es el único que se evalúa.
+          (NOT COALESCE(h.para_proximo_ciclo, FALSE)
+           -- ⭐ v12: la ventana arranca en el corte de v9 o el día siguiente al fin del ciclo
+           -- anterior, el que sea más tarde. Caza la limpieza que quedó etiquetada con el lote NUEVO.
+           AND (li.fecha_corte_alimento IS NULL
+                OR DATE(h.fecha_operacion) >= (SELECT desde FROM corte_apertura))
+           -- ⭐ v11: nada del ciclo anterior. Sin este filtro la ventana previa al encaset se comía
+           -- la limpieza de cierre del lote que ocupaba el galpón y la apertura salía negativa.
+           -- Caza la limpieza etiquetada con el lote VIEJO; la del NUEVO la caza el corte de arriba.
+           AND (h.lote_ave_engorde_id IS NULL
+                OR NOT EXISTS (SELECT 1 FROM lotes_ajenos la WHERE la.id = h.lote_ave_engorde_id)))
+      )
 ),
 apert_run AS (
     SELECT
@@ -420,6 +569,17 @@ apertura_alimento AS (
                    WHERE rs.fecha_min IS NOT NULL
                      AND cg.fecha < rs.fecha_min), 0)
     )::FLOAT8 AS apertura_kg
+),
+
+-- 3a. ⭐ v15: los DOCUMENTOS de los movimientos que componen la apertura. Hoy esos ingresos entran
+--     al saldo del día 1 sin dejar rastro visible (`documento` de la primera fila sale vacío porque
+--     `docs_por_fecha` arranca en fecha_min), así que el usuario ve un saldo sin respaldo. Mismo
+--     criterio de agregación que `docs_por_fecha` (DISTINCT + ', '), con ORDER BY para que la salida
+--     sea determinista. Sin movimientos de apertura devuelve NULL, no cadena vacía.
+apertura_docs AS (
+    SELECT STRING_AGG(DISTINCT am.doc, ', ' ORDER BY am.doc) AS docs
+    FROM apert_mov am
+    WHERE am.doc IS NOT NULL
 ),
 
 -- 3b. ⭐ v5: movimientos de alimento del galpón por fecha, SIN tope superior
@@ -447,6 +607,12 @@ hist_full AS (
       AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
       AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
       AND (rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)
+      -- ⭐ v15: un movimiento marcado «para el próximo ciclo» no es mío aunque caiga en mi rango:
+      -- su lugar es la APERTURA del ciclo siguiente. Excluirlo también acá evita que sostenga
+      -- artificialmente mi saldo y me impida cerrar (`saldo_close`). EXCEPCIÓN: mientras el lote no
+      -- tiene seguimiento (fecha_min NULL) se conserva — todavía no hay apertura que lo absorba y
+      -- los kg no pueden desaparecer de la pantalla.
+      AND (rs.fecha_min IS NULL OR NOT COALESCE(h.para_proximo_ciclo, FALSE))
     GROUP BY DATE(h.fecha_operacion)
 ),
 
@@ -488,14 +654,20 @@ saldo_close AS (
 
 -- 4. ⭐ v5: rango final. fecha_max = cierre efectivo (saldo 0) o, si no lo hay,
 --    MAX(seg) para lotes 'cerrado' (fallback) o NULL para 'abierto' aún activo.
+--    ⭐ v14: y nunca más allá del día previo al arranque del ciclo SIGUIENTE del galpón.
+--    LEAST ignora los NULL (solo da NULL si TODO es NULL), así que un lote sin ciclo posterior
+--    conserva exactamente su fecha_max de v13 y uno genuinamente activo sigue sin tope.
 rango_final AS (
     SELECT
         rs.fecha_min,
-        COALESCE(
-            sc.close_date,
-            CASE WHEN rs.estado = 'cerrado' THEN rs.last_seg ELSE NULL END
+        LEAST(
+            COALESCE(
+                sc.close_date,
+                CASE WHEN rs.estado = 'cerrado' THEN rs.last_seg ELSE NULL END
+            ),
+            cc.hasta
         ) AS fecha_max
-    FROM rango_seg rs, saldo_close sc
+    FROM rango_seg rs, saldo_close sc, corte_ciclo_siguiente cc
 ),
 
 -- 5. Bajas totales en seguimiento
@@ -584,6 +756,9 @@ hist_alimento AS (
       AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
       AND (rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)
       AND (rs.fecha_max IS NULL OR DATE(h.fecha_operacion) <= rs.fecha_max)
+      -- ⭐ v15: el marcado «para el próximo ciclo» no suma kg a la fila diaria de ESTE ciclo
+      -- (ver hist_full). Se conserva mientras el lote no tenga seguimiento.
+      AND (rs.fecha_min IS NULL OR NOT COALESCE(h.para_proximo_ciclo, FALSE))
     GROUP BY DATE(h.fecha_operacion)
 ),
 
@@ -609,7 +784,10 @@ docs_por_fecha AS (
            AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
            AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
            AND (rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)
-           AND (rs.fecha_max IS NULL OR DATE(h.fecha_operacion) <= rs.fecha_max))
+           AND (rs.fecha_max IS NULL OR DATE(h.fecha_operacion) <= rs.fecha_max)
+           -- ⭐ v15: el documento del movimiento marcado viaja con la apertura del ciclo siguiente
+           -- (columna `apertura_documentos`), no con la fila diaria de éste.
+           AND (rs.fecha_min IS NULL OR NOT COALESCE(h.para_proximo_ciclo, FALSE)))
           OR
           -- ⭐ v7: VENTA_AVES del lote SIN tope fecha_min/fecha_max (ver cabecera).
           (h.tipo_evento = 'VENTA_AVES'
@@ -641,7 +819,11 @@ fechas_universo AS (
            AND COALESCE(TRIM(h.nucleo_id), '') = li.nucleo_id
            AND COALESCE(TRIM(h.galpon_id), '') = li.galpon_id
            AND (rs.fecha_min IS NULL OR DATE(h.fecha_operacion) >= rs.fecha_min)
-           AND (rs.fecha_max IS NULL OR DATE(h.fecha_operacion) <= rs.fecha_max))
+           AND (rs.fecha_max IS NULL OR DATE(h.fecha_operacion) <= rs.fecha_max)
+           -- ⭐ v15: el marcado «para el próximo ciclo» no genera fila propia en ESTE ciclo.
+           -- Mientras el lote no tenga seguimiento (fecha_min NULL) sí la genera: es lo único que
+           -- lo hace visible antes de que exista una apertura donde absorberlo.
+           AND (rs.fecha_min IS NULL OR NOT COALESCE(h.para_proximo_ciclo, FALSE)))
           OR
           -- ⭐ v7: VENTA_AVES del lote SIN tope fecha_min/fecha_max → toda venta (incluso
           -- posterior al cierre por alimento) genera su fila y el saldo cierra en 0.
@@ -812,12 +994,28 @@ SELECT
     se.metadata,
     se.items_adicionales,
     se.historico_consumo_alimento,
-    se.created_by_user_id
+    se.created_by_user_id,
+    -- ⭐ v15: «Ingreso inicial del ciclo». Es EL MISMO escalar `apertura_alimento` que ya alimenta
+    -- `saldo_alimento_kg` desde v9 — no se recalcula nada, solo se expone. Va únicamente en la
+    -- primera fila de `fecha_min` (si hay dos seguimientos ese día, en el de menor seg_id) para que
+    -- sumar la columna a lo largo del ciclo no duplique kg. Sin seguimiento (fecha_min NULL) la
+    -- comparación da NULL ⇒ ELSE ⇒ 0/NULL, que es lo correcto: ahí no hay apertura, los movimientos
+    -- previos se siguen viendo como filas propias.
+    CASE WHEN se.fecha = (SELECT fecha_min FROM rango_final) AND ROW_NUMBER() OVER w_ap = 1
+         THEN (SELECT apertura_kg FROM apertura_alimento)
+         ELSE 0::FLOAT8
+    END                                                                                AS apertura_alimento_kg,
+    CASE WHEN se.fecha = (SELECT fecha_min FROM rango_final) AND ROW_NUMBER() OVER w_ap = 1
+         THEN (SELECT docs FROM apertura_docs)
+         ELSE NULL::TEXT
+    END                                                                                AS apertura_documentos
 FROM pt_calc se
 CROSS JOIN aves_iniciales ai
 WINDOW
     w_ord  AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW),
-    w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
+    w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),
+    -- ⭐ v15: desempate dentro del día de fecha_min (un día puede traer más de un seguimiento).
+    w_ap   AS (PARTITION BY se.fecha ORDER BY COALESCE(se.seg_id, 0))
 -- (orden final: lo aplica el SELECT exterior de la union)
       ) t
      WHERE NOT EXISTS (SELECT 1

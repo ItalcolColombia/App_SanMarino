@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Application/DTOs/InventarioGastoDtos.cs
+﻿// src/ZooSanMarino.Application/DTOs/InventarioGastoDtos.cs
 using ZooSanMarino.Application.DTOs.Shared;
 
 namespace ZooSanMarino.Application.DTOs;
@@ -13,6 +13,12 @@ public sealed record CreateInventarioGastoRequest(
     string? NucleoId,
     string? GalponId,
     int? LoteAveEngordeId,
+    /// <summary>
+    /// Lote PROGRAMADO (lote base) cuando el lote real todavía no existe — desinsectación previa al
+    /// encaset. Excluyente con <see cref="LoteAveEngordeId"/>; solo lo acepta una empresa con
+    /// programación de lotes de engorde activa.
+    /// </summary>
+    int? LoteBaseEngordeId,
     DateTime Fecha,
     string? Observaciones,
     string Concepto,
@@ -40,6 +46,9 @@ public sealed record InventarioGastoDto(
     string? GalponId,
     int? LoteAveEngordeId,
     string? LoteNombre,
+    /// <summary>Lote programado (lote base) si el gasto todavía no se atribuyó a un lote real.</summary>
+    int? LoteBaseEngordeId,
+    string? LoteBaseNombre,
     string? Observaciones,
     string Estado,
     DateTimeOffset CreatedAt,
@@ -68,6 +77,9 @@ public sealed record InventarioGastoListItemDto(
     string? GalponNombre,
     int? LoteAveEngordeId,
     string? LoteNombre,
+    /// <summary>Lote programado (lote base) si el gasto todavía no se atribuyó a un lote real.</summary>
+    int? LoteBaseEngordeId,
+    string? LoteBaseNombre,
     string? Observaciones,
     string Estado,
     int Lineas,
@@ -94,6 +106,8 @@ public sealed class InventarioGastoListRow
     public string? GalponNombre { get; set; }
     public int? LoteAveEngordeId { get; set; }
     public string? LoteNombre { get; set; }
+    public int? LoteBaseEngordeId { get; set; }
+    public string? LoteBaseNombre { get; set; }
     public string? Observaciones { get; set; }
     public string Estado { get; set; } = null!;
     public int Lineas { get; set; }
@@ -110,6 +124,8 @@ public sealed record InventarioGastoSearchRequest(
     string? NucleoId = null,
     string? GalponId = null,
     int? LoteAveEngordeId = null,
+    /// <summary>Filtra los gastos cargados a un lote PROGRAMADO (aún sin atribuir).</summary>
+    int? LoteBaseEngordeId = null,
     DateTime? FechaDesde = null,
     DateTime? FechaHasta = null,
     string? Concepto = null,
@@ -187,6 +203,9 @@ public sealed record InventarioGastoExportRowDto(
     string? GalponNombre,
     int? LoteAveEngordeId,
     string? LoteNombre,
+    /// <summary>Lote programado (lote base) si el gasto todavía no se atribuyó a un lote real.</summary>
+    int? LoteBaseEngordeId,
+    string? LoteBaseNombre,
     int DetalleId,
     int ItemInventarioEcuadorId,
     string ItemCodigo,

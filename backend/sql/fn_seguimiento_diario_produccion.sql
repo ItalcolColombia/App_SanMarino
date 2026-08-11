@@ -323,7 +323,13 @@ crudos AS (
            sp.company_id,
            sp.lote_postura_produccion_id
       FROM seguimiento_diario_produccion sp
-     WHERE ( (p_lote_postura_produccion_id IS NOT NULL
+     -- A5: la fila borrada no cuenta. La fn ya filtraba el `deleted_at` de `lotes`, `lpp`, `lpl` y
+     -- `movimiento_aves`, pero NO el de la tabla de la que saca los seguimientos. La columna existe
+     -- y está mapeada en EF; hoy nadie la escribe (los borrados son físicos), así que esto es un
+     -- no-op sobre los datos actuales — y deja de haber una forma silenciosa de inflar el saldo el
+     -- día que algo empiece a marcarla.
+     WHERE sp.deleted_at IS NULL
+       AND ( (p_lote_postura_produccion_id IS NOT NULL
                 AND sp.lote_postura_produccion_id = p_lote_postura_produccion_id)
           -- v2: filas TSD del MISMO lote base con lpp NULL (traslados desde la pantalla de
           -- seguimiento no setean la FK; matching por lote crudo, igual que fn_migracion)

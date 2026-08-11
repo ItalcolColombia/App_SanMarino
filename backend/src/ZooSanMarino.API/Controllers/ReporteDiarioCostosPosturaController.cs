@@ -63,4 +63,29 @@ public class ReporteDiarioCostosPosturaController : ControllerBase
             return StatusCode(500, new { error = "Error interno al generar el reporte diario de costos de postura", message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Catálogo del filtro «Lote base». A diferencia de <c>GET /api/LotePosturaBase</c>, lista cada
+    /// base con las granjas donde REALMENTE tiene lotes, para que una base cuyo levante se hizo en una
+    /// granja y su producción en otra siga apareciendo bajo las dos.
+    /// </summary>
+    [HttpGet("lotes-base")]
+    [ProducesResponseType(typeof(IReadOnlyList<ReporteDiarioCostosPosturaLoteBaseOpcionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<ReporteDiarioCostosPosturaLoteBaseOpcionDto>>> LotesBase(
+        CancellationToken ct)
+    {
+        try
+        {
+            return Ok(await _service.LotesBaseAsync(ct));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al listar los lotes base del Reporte Diario Costos Postura.");
+            return StatusCode(500, new { error = "Error interno al listar los lotes base", message = ex.Message });
+        }
+    }
 }

@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -443,8 +444,11 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
                                           query = query.Where(m => m.MovementType == mt);
 
         var total = await query.LongCountAsync(ct);
-        var page  = q.Page <= 0 ? 1 : q.Page;
-        var size  = (q.PageSize <= 0 || q.PageSize > 200) ? 20 : q.PageSize;
+        // Log de movimientos: crece sin techo, así que el tope obliga a paginar. Pero pedir de más
+        // devuelve el TOPE, nunca el default: el clamp viejo (`> 200 ⇒ 20`) hizo que el Reporte
+        // Contable, que pedía 10.000, viera 20 movimientos por granja durante meses (commit 92cd918).
+        var page  = PaginacionCalculos.NormalizarPage(q.Page);
+        var size  = PaginacionCalculos.NormalizarPageSize(q.PageSize);
 
         var list = await query.OrderByDescending(m => m.CreatedAt)
                               .Skip((page - 1) * size)

@@ -29,6 +29,45 @@
 --     America/Bogota, gana el timestamp más temprano. Este es el ÚNICO lugar con
 --     ese criterio para levante; si algún día nace fn_seguimiento_diario_levante,
 --     esta fn debe re-sourcearse sobre ella y verificarse byte a byte.
+--
+-- v2 (2026-08-07) — FIX: el levante se keyea por `lote_id` (varchar), NO por
+--     `lote_id_int`.
+--     v1 filtraba `WHERE s.lote_id_int IS NOT NULL` y en PRODUCCIÓN esa columna
+--     está NULL en el 100 % de las filas (588/588) ⇒ la fn devolvía CERO filas de
+--     levante para toda la empresa: K345 salía mutilado (solo producción) y A374,
+--     que solo tiene levante, salía vacío.
+--     `lote_id_int` es legado: ninguna línea de C# la escribe (grep "LoteIdInt" en
+--     backend/src = 0 coincidencias); solo la setea fn_migracion_seguimiento_levante
+--     en sus INSERT nuevos, que es exactamente por qué el lote de pruebas S-369
+--     (cargado por carga masiva en local) validó y producción no.
+--     La clave viva y siempre escrita es `lote_id` varchar — la misma que usan los
+--     índices ix_sdlr_lote_id e ix_sdlr_tipo_lote_fecha.
+--   * El TRASLAPE levante/producción (un día con fila en las dos etapas) se devuelve
+--     TAL CUAL, con las dos filas. Decidir si eso es doble conteo NO es de esta fn:
+--     la regla ya tiene dueño y es C# puro y testeado
+--     (CorteEtapaPosturaCalculos.HayDobleConteo — «las dos filas aportan consumo o
+--     bajas»), y el reporte la aplica en ReporteDiarioCostosPosturaCalculos.
+--     Reimplementarla acá sería la segunda implementación del mismo número.
+--   * GRANJA POR DÍA, no granja actual. `lotes.granja_id` es un escalar PISABLE:
+--     trasladar un lote a otra granja lo reescribe (LoteService.TrasladarLoteAsync /
+--     fn_mover_lote) y un trigger propaga el cambio a los espejos de fase. Leerlo
+--     directo re-atribuía TODO el histórico a la granja nueva: el levante hecho en
+--     NIZA III aparecía en NIZA I (verificado en transacción revertida: los 602 días
+--     de K345 se mudan enteros y NIZA III queda en 0 filas).
+--     La granja del día sale de `historial_traslado_lote`, que SÍ es un hecho fechado
+--     (granja_origen_id / granja_destino_id / created_at): la granja vigente en la
+--     fecha D es el origen del PRIMER traslado posterior a D, y si no hubo ninguno,
+--     la actual. Sin traslados registrados el resultado es idéntico al de siempre.
+--     Por lo mismo el filtro p_granja_ids matchea la granja actual O CUALQUIERA por
+--     la que el lote pasó: buscar en NIZA III tiene que encontrar el lote cuyo
+--     levante se hizo ahí aunque hoy viva en NIZA I.
+--   * EDAD/SEMANA de producción salen de la fn canónica (fn.edad_dias / fn.semana),
+--     no se recalculan. La canónica ancla en COALESCE(fecha_inicio_produccion,
+--     fecha_encaset DEL PADRE, fecha_encaset propio); recalcular con el encaset
+--     propio desfasaba 3 días las 301 filas de K345B (lote_padre_id = 13) y cambiaba
+--     la SEMANA en 129 de ellas respecto de la pantalla de seguimiento — justo la
+--     paridad 1:1 que esta fn promete. Levante no tiene fn canónica y conserva el
+--     cálculo sobre su propio fecha_encaset (lo mismo que su pantalla).
 --   * NO clasifica el huevo: devuelve las 11 categorías crudas. La agrupación
 --     fértil/comercial/inservible tiene UN SOLO dueño y es C# puro y testeado
 --     (ReporteDiarioCostosPosturaCalculos.ClasificarHuevo). Calcularla también
@@ -145,7 +184,15 @@ lotes_scope AS MATERIALIZED (
      AND b.deleted_at IS NULL
     WHERE l.company_id  = p_company_id
       AND l.deleted_at IS NULL
-      AND (p_granja_ids IS NULL OR l.granja_id = ANY (p_granja_ids))
+      -- La granja pedida matchea la ACTUAL o cualquiera por la que el lote pasó: si el
+      -- levante se hizo en NIZA III y el lote se trasladó a NIZA I, buscar en NIZA III
+      -- tiene que seguir encontrándolo.
+      AND (p_granja_ids IS NULL
+           OR l.granja_id = ANY (p_granja_ids)
+           OR EXISTS (SELECT 1 FROM historial_traslado_lote h
+                      WHERE h.lote_original_id = l.lote_id
+                        AND (h.granja_origen_id = ANY (p_granja_ids)
+                          OR h.granja_destino_id = ANY (p_granja_ids))))
       AND (NULLIF(TRIM(COALESCE(p_regional, '')), '') IS NULL
            OR TRIM(COALESCE(mlo.value, '')) = TRIM(p_regional))
       AND (p_lote_postura_base_id IS NULL
@@ -154,10 +201,14 @@ lotes_scope AS MATERIALIZED (
 
 -- 2. LEVANTE — un registro por lote y día calendario Bogotá (gana el más temprano).
 --    Mismo criterio de dedup que fn_seguimiento_diario_produccion.
+--    ⚠️ La clave es `lote_id` (varchar), NO `lote_id_int`: ver la nota v2 de la cabecera.
+--    Guardas: esta tabla llegó a albergar filas de producción y de reproductoras
+--    (índices ix_sdlr_tipo / uq_sdlr_tipo_lote_rep_fecha lo atestiguan); acá solo
+--    interesa el levante del lote, sin desglose por reproductora.
 lev_dedup AS (
-    SELECT DISTINCT ON (s.lote_id_int, (s.fecha AT TIME ZONE 'America/Bogota')::date)
+    SELECT DISTINCT ON (s.lote_id, (s.fecha AT TIME ZONE 'America/Bogota')::date)
            (s.fecha AT TIME ZONE 'America/Bogota')::date  AS d,
-           s.lote_id_int                                  AS lote_id,
+           s.lote_id                                      AS lote_txt,
            s.mortalidad_hembras, s.mortalidad_machos,
            s.sel_h, s.sel_m,
            s.error_sexaje_hembras, s.error_sexaje_machos,
@@ -166,10 +217,11 @@ lev_dedup AS (
            s.tipo_alimento,
            s.metadata
     FROM seguimiento_diario_levante s
-    WHERE s.lote_id_int IS NOT NULL
-      AND EXISTS (SELECT 1 FROM lotes_scope ls WHERE ls.lote_id = s.lote_id_int)
+    WHERE s.tipo_seguimiento = 'levante'
+      AND COALESCE(s.reproductora_id, '') = ''
+      AND EXISTS (SELECT 1 FROM lotes_scope ls WHERE ls.lote_id::text = s.lote_id)
       AND EXISTS (SELECT 1 FROM cfg WHERE fase_pedida IS NULL OR fase_pedida = 'Levante')
-    ORDER BY s.lote_id_int,
+    ORDER BY s.lote_id,
              (s.fecha AT TIME ZONE 'America/Bogota')::date,
              s.fecha,
              s.id
@@ -179,6 +231,9 @@ lev AS (
         'Levante'::text                          AS fase,
         v.d                                      AS d,
         ls.*,
+        -- Levante no tiene fn diaria canónica: la edad se calcula abajo con fecha_encaset.
+        NULL::int                                AS edad_fn,
+        NULL::int                                AS semana_fn,
         COALESCE(v.mortalidad_hembras, 0)        AS mortalidad_h,
         COALESCE(v.mortalidad_machos, 0)         AS mortalidad_m,
         COALESCE(v.sel_h, 0)                     AS seleccion_h,
@@ -196,7 +251,7 @@ lev AS (
         0 AS huevo_piso, 0 AS huevo_pequeno, 0 AS huevo_roto, 0 AS huevo_desecho,
         0 AS huevo_otro
     FROM lev_dedup v
-    JOIN lotes_scope ls ON ls.lote_id = v.lote_id
+    JOIN lotes_scope ls ON ls.lote_id::text = v.lote_txt
 ),
 
 -- 3. PRODUCCIÓN — se delega en la fn diaria canónica (una llamada por lote).
@@ -214,6 +269,10 @@ prod AS (
         'Produccion'::text                       AS fase,
         fn.fecha                                 AS d,
         ls.*,
+        -- Edad/semana de la fn CANÓNICA: ancla en fecha_inicio_produccion o en el encaset
+        -- del lote PADRE. Recalcularlas acá desfasaba K345B (lote_padre_id = 13) 3 días.
+        fn.edad_dias                             AS edad_fn,
+        fn.semana                                AS semana_fn,
         COALESCE(fn.mortalidad_hembras, 0)       AS mortalidad_h,
         COALESCE(fn.mortalidad_machos, 0)        AS mortalidad_m,
         COALESCE(fn.sel_h, 0)                    AS seleccion_h,
@@ -386,15 +445,19 @@ SELECT
     b.galpon_id,
     b.galpon_nombre,
     b.nucleo_id,
-    b.granja_id,
-    b.granja_nombre,
-    b.regional,
+    -- Granja VIGENTE ESE DÍA (ver nota de cabecera), no la actual del lote.
+    COALESCE(htl.granja_origen_id, b.granja_id)           AS granja_id,
+    COALESCE(NULLIF(TRIM(fe.name), ''), b.granja_nombre)  AS granja_nombre,
+    COALESCE(NULLIF(TRIM(mloe.value), ''), b.regional)    AS regional,
     b.lote_postura_base_id,
     b.lote_base_nombre,
-    CASE WHEN b.fecha_encaset IS NULL THEN NULL
-         ELSE (b.d - b.fecha_encaset)::int END            AS edad_dias,
-    CASE WHEN b.fecha_encaset IS NULL THEN NULL
-         ELSE (((b.d - b.fecha_encaset) / 7) + 1)::int END AS semana,
+    -- Producción manda su edad desde la fn canónica; levante la calcula con su encaset.
+    COALESCE(b.edad_fn,
+             CASE WHEN b.fecha_encaset IS NULL THEN NULL
+                  ELSE (b.d - b.fecha_encaset)::int END)  AS edad_dias,
+    COALESCE(b.semana_fn,
+             CASE WHEN b.fecha_encaset IS NULL THEN NULL
+                  ELSE (((b.d - b.fecha_encaset) / 7) + 1)::int END) AS semana,
     b.mortalidad_h, b.mortalidad_m,
     b.seleccion_h,  b.seleccion_m,
     b.error_sexaje_h, b.error_sexaje_m,
@@ -413,12 +476,29 @@ LEFT JOIN alimentos_json aj
        ON aj.fase = b.fase AND aj.lote_id = b.lote_id AND aj.d = b.d
 LEFT JOIN mov_huevo mh
        ON mh.lote_txt = b.lote_id::text AND mh.d = b.d
+-- Granja vigente el día `b.d`: origen del PRIMER traslado posterior a esa fecha.
+-- Sin traslados registrados no devuelve nada y todo cae al COALESCE con la granja actual.
+LEFT JOIN LATERAL (
+    SELECT h.granja_origen_id
+    FROM historial_traslado_lote h
+    WHERE h.lote_original_id = b.lote_id
+      AND h.created_at::date > b.d
+    ORDER BY h.created_at
+    LIMIT 1
+) htl ON TRUE
+LEFT JOIN farms fe
+       ON fe.id = htl.granja_origen_id
+LEFT JOIN master_list_options mloe
+       ON mloe.id = fe.regional_id
 ORDER BY b.d, b.lote_nombre, b.galpon_id, b.fase;
 
 $$;
 
 COMMENT ON FUNCTION fn_reporte_diario_costos_postura(INT, INT[], TEXT, INT, TEXT, DATE, DATE)
-IS 'Reporte diario del área de costos para postura (levante + producción) por lote:galpón. '
+IS 'v2. Reporte diario del área de costos para postura (levante + producción) por lote:galpón. '
    'Producción delega en fn_seguimiento_diario_produccion; levante lee seguimiento_diario_levante '
-   'con el mismo corte de día America/Bogota. Devuelve el huevo CRUDO: la agrupación '
-   'fértil/comercial/inservible vive en ReporteDiarioCostosPosturaCalculos (C# puro y testeado).';
+   'con el mismo corte de día America/Bogota, keyeado por lote_id (varchar) — lote_id_int es legado '
+   'y está NULL en el 100% de las filas de producción. Devuelve el huevo CRUDO y el traslape '
+   'levante/producción TAL CUAL: tanto la clasificación fértil/comercial/inservible como la regla '
+   'de doble conteo viven en C# puro y testeado (ReporteDiarioCostosPosturaCalculos, '
+   'CorteEtapaPosturaCalculos).';

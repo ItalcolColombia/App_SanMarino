@@ -1,5 +1,6 @@
-// src/ZooSanMarino.Infrastructure/Services/LoteBaseEngordeService.cs
+﻿// src/ZooSanMarino.Infrastructure/Services/LoteBaseEngordeService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.LoteBaseEngorde;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -157,6 +158,17 @@ public class LoteBaseEngordeService : ILoteBaseEngordeService
         if (amarrados > 0)
             throw new InvalidOperationException(
                 $"No se puede eliminar: el lote base '{ent.Nombre}' tiene {amarrados} lote(s) de engorde amarrado(s). Desasígnelos primero.");
+
+        // Gastos de inventario cargados a esta PROGRAMACIÓN y todavía sin lote real: si se borra el
+        // base, esos gastos quedan huérfanos (su stock ya se descontó y nadie los reclamaría nunca).
+        var gastosPendientes = await _ctx.InventarioGastos
+            .CountAsync(g => g.LoteBaseEngordeId == id
+                          && g.LoteAveEngordeId == null
+                          && g.CompanyId == companyId
+                          && g.Estado == GastoLoteProgramadoCalculos.EstadoActivo, ct);
+        if (gastosPendientes > 0)
+            throw new InvalidOperationException(
+                $"No se puede eliminar: el lote programado '{ent.Nombre}' tiene {gastosPendientes} gasto(s) de inventario pendiente(s) de atribuir. Anúlelos o encasete el lote primero.");
 
         // Limpia las asignaciones de granja del lote base.
         var asignaciones = await _ctx.LoteBaseEngordeGranja

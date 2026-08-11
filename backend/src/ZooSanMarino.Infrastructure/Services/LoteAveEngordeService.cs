@@ -1,4 +1,4 @@
-// file: src/ZooSanMarino.Infrastructure/Services/LoteAveEngordeService.cs
+﻿// file: src/ZooSanMarino.Infrastructure/Services/LoteAveEngordeService.cs
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
@@ -269,7 +269,14 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 .Where(l => l.CompanyId == companyId && l.LoteBaseEngordeId == loteBaseId.Value && l.GalponId == galponId)
                 .MaxAsync(l => (int?)l.NumeroCorrida);
             numeroCorrida = GestionLotesEngordeCalculos.SiguienteNumeroCorrida(maxActual);
-            loteNombre = GestionLotesEngordeCalculos.ConstruirNombreCorrida(baseNombre, numeroCorrida.Value);
+            // Cómo se arma el nombre lo decide la empresa: con sufijo desde la primera corrida
+            // ("96 - 1", Panamá) o el nombre del lote base tal cual ("2603", Ecuador — la corrida ya
+            // viene en el nombre del base y hay un lote por galpón; el sufijo aparece desde la 2ª).
+            var incluirCorridaSiempre = await _ctx.Companies.AsNoTracking()
+                .Where(c => c.Id == companyId)
+                .Select(c => c.NombreLoteIncluyeCorrida)
+                .FirstOrDefaultAsync();
+            loteNombre = GestionLotesEngordeCalculos.ConstruirNombreLote(baseNombre, numeroCorrida.Value, incluirCorridaSiempre);
         }
 
         // Panamá (solo flujo interactivo, gateado por AutoNombrePorCorrida igual que la corrida):
@@ -355,8 +362,40 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         });
         await _ctx.SaveChangesAsync();
 
+        await ReatribuirGastosProgramadosAsync(companyId, id, loteBaseId, dto.GranjaId, galponId, ent.FechaEncaset);
+
         var result = await GetByIdAsync(id);
         return result ?? throw new InvalidOperationException("No fue posible leer el lote de engorde recién creado.");
+    }
+
+    /// <summary>
+    /// Traspasa al lote recién creado los gastos de inventario que se habían cargado contra su
+    /// PROGRAMACIÓN (lote base) porque el lote todavía no existía — el caso de la desinsectación
+    /// previa al encasetamiento.
+    /// <para>
+    /// NO toca stock: el descuento ya ocurrió al registrar el gasto; esto solo cambia la atribución.
+    /// La regla vive en <see cref="GastoLoteProgramadoCalculos.DebeReatribuir"/> (misma granja, mismo
+    /// base, galpón del lote o gasto de granja, fecha ≤ encaset) y acá se traduce a un UPDATE en BD
+    /// para no traer los pendientes a memoria.
+    /// </para>
+    /// </summary>
+    private async Task ReatribuirGastosProgramadosAsync(
+        int companyId, int loteId, int? loteBaseId, int granjaId, string? galponId, DateTime? fechaEncaset)
+    {
+        if (loteId <= 0 || !loteBaseId.HasValue || !fechaEncaset.HasValue) return;
+
+        var corte = fechaEncaset.Value.Date;
+        await _ctx.InventarioGastos
+            .Where(g => g.CompanyId == companyId
+                     && g.LoteBaseEngordeId == loteBaseId.Value
+                     && g.LoteAveEngordeId == null
+                     && g.FarmId == granjaId
+                     && g.Estado == GastoLoteProgramadoCalculos.EstadoActivo
+                     && (g.GalponId == null || g.GalponId == galponId)
+                     && g.Fecha.Date <= corte)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(g => g.LoteAveEngordeId, loteId)
+                .SetProperty(g => g.LoteBaseEngordeId, (int?)null));
     }
 
     public async Task<LoteAveEngordeDetailDto?> UpdateAsync(UpdateLoteAveEngordeDto dto)

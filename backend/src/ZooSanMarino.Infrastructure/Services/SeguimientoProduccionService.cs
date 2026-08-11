@@ -18,9 +18,83 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         _current = current;
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    // Acotamiento por empresa — ver SeguimientoProduccionScopeCalculos
+    // ════════════════════════════════════════════════════════════════════
+    //
+    // Antes NINGÚN método de este service filtraba por empresa: `GetAllAsync` devolvía los
+    // seguimientos de todas, y `Update`/`Delete` resolvían la fila con `FindAsync(id)`, así que
+    // cualquier usuario autenticado operaba sobre las filas de otra empresa pasando el id. No
+    // faltaba autenticación (`Program.cs` fija `FallbackPolicy = RequireAuthenticatedUser`) sino
+    // AUTORIZACIÓN. Todo acceso pasa ahora por `BaseQuery()`.
+
+    /// <summary>
+    /// Empresa de la sesión, o <c>null</c> si no hay ninguna resoluble. El <c>0</c> cuenta como
+    /// ausencia: es lo que dejaba <c>_current?.CompanyId ?? 0</c> y lo que quedó grabado en filas reales.
+    /// </summary>
+    private int? EmpresaEfectiva =>
+        SeguimientoProduccionScopeCalculos.EmpresaEfectiva(_current?.CompanyId);
+
+    /// <summary>
+    /// Los seguimientos que la sesión actual puede ver o tocar: los de lotes de su empresa.
+    /// <para>
+    /// La empresa la dicta el <b>lote</b> (join a <c>lotes</c>), no la columna <c>company_id</c> de
+    /// la fila — que no es confiable: hay filas guardadas con <c>0</c>. Mismo criterio que
+    /// <see cref="ProduccionDiariaService"/>, que escribe esta misma tabla.
+    /// </para>
+    /// <para>
+    /// <b>Fail-closed</b>: sin empresa resoluble devuelve vacío. Nunca degrada a "todas las
+    /// empresas", que es exactamente el modo de falla que se está corrigiendo.
+    /// </para>
+    /// </summary>
+    private IQueryable<SeguimientoProduccion> BaseQuery()
+    {
+        var empresa = EmpresaEfectiva;
+        if (empresa is null) return _ctx.SeguimientoProduccion.Where(_ => false);
+
+        return from s in _ctx.SeguimientoProduccion
+               join l in _ctx.Lotes on s.LoteId equals l.LoteId
+               where l.CompanyId == empresa && l.DeletedAt == null
+               select s;
+    }
+
+    /// <summary>
+    /// Los <c>LotePosturaProduccion</c> vivos de la empresa de la sesión. Fail-closed igual que
+    /// <see cref="BaseQuery"/>.
+    /// <para>
+    /// Acá sí se usa el <c>CompanyId</c> propio del LPP —y no un join a <c>lotes</c>— porque en esta
+    /// tabla la columna es confiable: coincide con la del lote en el 100 % de las filas (medido), y
+    /// es lo que ya hace <c>ProduccionService.ObtenerInformacionLoteAsync</c>.
+    /// </para>
+    /// </summary>
+    private IQueryable<LotePosturaProduccion> LppDeLaEmpresa()
+    {
+        var empresa = EmpresaEfectiva;
+        if (empresa is null) return _ctx.LotePosturaProduccion.Where(_ => false);
+
+        return _ctx.LotePosturaProduccion
+            .Where(l => l.CompanyId == empresa && l.DeletedAt == null);
+    }
+
+    /// <summary>
+    /// ¿El lote existe, está en fase Producción y pertenece a la empresa de la sesión? Devuelve
+    /// <c>false</c> también cuando no hay empresa resoluble.
+    /// </summary>
+    private async Task<bool> LoteProduccionEsDeLaEmpresaAsync(int loteId, CancellationToken ct = default)
+    {
+        var empresa = EmpresaEfectiva;
+        if (empresa is null) return false;
+
+        return await _ctx.Lotes.AsNoTracking()
+            .AnyAsync(l => l.LoteId == loteId
+                        && l.CompanyId == empresa
+                        && l.Fase == "Produccion"
+                        && l.DeletedAt == null, ct);
+    }
+
     public async Task<IEnumerable<SeguimientoProduccionDto>> GetAllAsync()
     {
-        return await _ctx.SeguimientoProduccion
+        return await BaseQuery()
             .Select(x => new SeguimientoProduccionDto(
                 x.Id,
                 x.Fecha,
@@ -44,7 +118,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<SeguimientoProduccionDto?> GetByLoteIdAsync(int loteId)
     {
-        var entity = await _ctx.SeguimientoProduccion
+        var entity = await BaseQuery()
             .Where(x => x.LoteId == loteId)
             .OrderByDescending(x => x.Fecha)
             .FirstOrDefaultAsync();
@@ -73,9 +147,10 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<SeguimientoProduccionDto> CreateAsync(CreateSeguimientoProduccionDto dto)
     {
-        var loteProd = await _ctx.Lotes.AsNoTracking()
-            .FirstOrDefaultAsync(l => l.LoteId == dto.LoteId && l.Fase == "Produccion" && l.DeletedAt == null);
-        if (loteProd == null)
+        // El lote se valida CONTRA LA EMPRESA de la sesión: sin esto, un `LoteId` ajeno pasaba el
+        // gate y la rama de "fila vacía" de más abajo llegaba a borrar el registro de otra empresa.
+        // El mensaje se conserva textual: un lote de otra empresa es, para esta sesión, inexistente.
+        if (!await LoteProduccionEsDeLaEmpresaAsync(dto.LoteId, CancellationToken.None))
             throw new InvalidOperationException(
                 "No existe lote en fase Producción con ese ID. Cree primero el lote de producción desde el lote en Levante.");
 
@@ -92,7 +167,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         // una segunda fila del día, que hoy además viola el índice único por día (500 en vez
         // del 400 histórico).
         var (diaDesde, diaHasta) = FechasPuras.RangoDiaUtc(fechaDate);
-        var existente = await _ctx.SeguimientoProduccion
+        var existente = await BaseQuery()
             .FirstOrDefaultAsync(s => s.LoteId == dto.LoteId && s.Fecha >= diaDesde && s.Fecha < diaHasta, ct);
 
         if (existente != null)
@@ -154,8 +229,15 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<SeguimientoProduccionDto?> UpdateAsync(UpdateSeguimientoProduccionDto dto)
     {
-        var entity = await _ctx.SeguimientoProduccion.FindAsync(dto.Id);
+        // Por `BaseQuery()`, no por `FindAsync(dto.Id)`: una fila de otra empresa se comporta como
+        // INEXISTENTE (null ⇒ 404). Un 403 confirmaría que ese id existe en otra empresa.
+        var entity = await BaseQuery().FirstOrDefaultAsync(s => s.Id == dto.Id);
         if (entity == null) return null;
+
+        // La edición puede mover la fila de lote: el lote DESTINO también tiene que ser de la empresa.
+        if (dto.LoteId != entity.LoteId
+            && !await LoteProduccionEsDeLaEmpresaAsync(dto.LoteId, CancellationToken.None))
+            return null;
 
         // REQ-006: no permitir edición si el lote de producción asociado está cerrado.
         await EnsureLoteProduccionAbiertoAsync(entity.LoteId, CancellationToken.None);
@@ -167,7 +249,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         // La edición puede mover fecha/lote: re-validar que no quede OTRO registro el mismo día
         // calendario (400 claro en vez del 500 por el índice único por día).
         var (updDesde, updHasta) = FechasPuras.RangoDiaUtc(dto.Fecha.Date);
-        var duplicadoDia = await _ctx.SeguimientoProduccion.AsNoTracking()
+        var duplicadoDia = await BaseQuery().AsNoTracking()
             .AnyAsync(s => s.Id != entity.Id && s.LoteId == dto.LoteId
                 && s.Fecha >= updDesde && s.Fecha < updHasta);
         if (duplicadoDia)
@@ -205,7 +287,9 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var entity = await _ctx.SeguimientoProduccion.FindAsync(id);
+        // Por `BaseQuery()`, no por `FindAsync(id)`: ese era el borrado cross-empresa — resolvía la
+        // fila por PK crudo, sin una sola comprobación de empresa ni de granja.
+        var entity = await BaseQuery().FirstOrDefaultAsync(s => s.Id == id);
         if (entity == null) return false;
 
         // REQ-006: no permitir eliminación si el lote de producción asociado está cerrado.
@@ -247,7 +331,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<IEnumerable<SeguimientoProduccionDto>> FilterAsync(FilterSeguimientoProduccionDto filter)
     {
-        var query = _ctx.SeguimientoProduccion.AsQueryable();
+        var query = BaseQuery();
 
         if (filter.LoteId.HasValue)
             query = query.Where(x => x.LoteId == filter.LoteId.Value);
@@ -299,8 +383,10 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     /// </summary>
     private async Task EnsureLoteProduccionAbiertoAsync(int loteId, CancellationToken ct = default)
     {
-        var estado = await _ctx.LotePosturaProduccion.AsNoTracking()
-            .Where(l => l.LoteId == loteId && l.DeletedAt == null)
+        // Acotado por empresa igual que el resto: el estado de cierre de un lote ajeno no es un dato
+        // que esta sesión deba poder consultar, ni siquiera de rebote.
+        var estado = await LppDeLaEmpresa()
+            .Where(l => l.LoteId == loteId)
             .Select(l => l.EstadoCierre)
             .FirstOrDefaultAsync(ct);
 
@@ -366,8 +452,10 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         var deltaM = mortM + selM + errM;
         if (deltaH == 0 && deltaM == 0) return;
 
-        var lpp = await _ctx.LotePosturaProduccion
-            .Where(l => l.LoteId == loteId && l.DeletedAt == null)
+        // Acotado por empresa: esto ESCRIBE el saldo de aves del LPP; sin el filtro, una operación
+        // sobre un lote ajeno movía el saldo de otra empresa.
+        var lpp = await LppDeLaEmpresa()
+            .Where(l => l.LoteId == loteId)
             .FirstOrDefaultAsync(ct);
         if (lpp == null) return;
 
@@ -390,14 +478,17 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         if (salH == 0 && salM == 0 && ingH == 0 && ingM == 0) return;
 
         // Identificar LPP de "este lote" via lote_id base
-        var lppEste = await _ctx.LotePosturaProduccion
-            .Where(l => l.LoteId == ent.LoteId && l.DeletedAt == null)
+        var lppEste = await LppDeLaEmpresa()
+            .Where(l => l.LoteId == ent.LoteId)
             .FirstOrDefaultAsync(ct);
 
+        // La contraparte sale de `ent.TrasladoLoteContraparteId`, un dato guardado en la fila que se
+        // está revirtiendo. Acotarla por empresa evita que un id heredado (o manipulado) mueva el
+        // saldo de aves de otra empresa; si no es de esta empresa queda en null y no se revierte.
         int lppContraId = ent.TrasladoLoteContraparteId ?? 0;
         var lppContra = lppContraId > 0
-            ? await _ctx.LotePosturaProduccion
-                .Where(l => l.LotePosturaProduccionId == lppContraId && l.DeletedAt == null)
+            ? await LppDeLaEmpresa()
+                .Where(l => l.LotePosturaProduccionId == lppContraId)
                 .FirstOrDefaultAsync(ct)
             : null;
 
@@ -418,7 +509,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 lppContra.AvesHActual = Math.Max(0, (lppContra.AvesHActual ?? 0) - salH);
                 lppContra.AvesMActual = Math.Max(0, (lppContra.AvesMActual ?? 0) - salM);
 
-                var sdContra = await _ctx.SeguimientoProduccion
+                var sdContra = await BaseQuery()
                     .Where(s => s.LoteId == lppContra.LoteId && s.Fecha == ent.Fecha
                              && (s.TrasladoIngresoHembras > 0 || s.TrasladoIngresoMachos > 0))
                     .FirstOrDefaultAsync(ct);
@@ -448,7 +539,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 lppContra.AvesHActual = (lppContra.AvesHActual ?? 0) + ingH;
                 lppContra.AvesMActual = (lppContra.AvesMActual ?? 0) + ingM;
 
-                var sdContra = await _ctx.SeguimientoProduccion
+                var sdContra = await BaseQuery()
                     .Where(s => s.LoteId == lppContra.LoteId && s.Fecha == ent.Fecha
                              && (s.TrasladoSalidaHembras > 0 || s.TrasladoSalidaMachos > 0))
                     .FirstOrDefaultAsync(ct);

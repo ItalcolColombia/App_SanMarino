@@ -133,6 +133,36 @@ public interface IInventarioGestionService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Actualiza la marca «para el próximo ciclo» de un ingreso y la sincroniza con el espejo
+    /// <c>lote_registro_historico_unificado</c>.
+    /// </summary>
+    Task<InventarioGestionIngresoListDto> ActualizarDestinoCicloIngresoAsync(
+        int movimientoId,
+        InventarioGestionActualizarDestinoCicloRequest req,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// D4 — datos para la excepción a la ventana de mes en curso: encasetamiento más cercano del
+    /// galpón a partir de <paramref name="fechaMovimiento"/> y ventana de alimento previo de la
+    /// empresa dueña de la granja. Sin galpón devuelve <c>ProximoEncaset = null</c>.
+    /// </summary>
+    Task<InventarioGestionVentanaAlimentoPrevioDto> ResolverVentanaAlimentoPrevioEncasetAsync(
+        int farmId,
+        string? nucleoId,
+        string? galponId,
+        DateTime fechaMovimiento,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Igual que <see cref="ResolverVentanaAlimentoPrevioEncasetAsync"/> pero tomando la ubicación de
+    /// un ingreso ya registrado (la edición de fecha no la trae en el request).
+    /// </summary>
+    Task<InventarioGestionVentanaAlimentoPrevioDto> ResolverVentanaAlimentoPrevioEncasetDeIngresoAsync(
+        int movimientoId,
+        DateTime fechaMovimiento,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Elimina un ingreso (Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada) sin modificar stock.
     /// Marca anulado=true en lote_registro_historico_unificado (auditoría) y borra el registro.
     /// </summary>

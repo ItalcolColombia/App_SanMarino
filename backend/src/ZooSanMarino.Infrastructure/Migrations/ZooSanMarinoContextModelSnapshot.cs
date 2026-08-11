@@ -315,6 +315,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<bool>("NombreLoteIncluyeCorrida")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("nombre_lote_incluye_corrida");
+
                     b.Property<bool>("PermiteTrasladoAvesCrossEtapa")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -331,6 +337,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("primer_registro_segun_hora_llegada");
+
+                    b.Property<bool>("ProgramacionLotesEngorde")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("programacion_lotes_engorde");
 
                     b.Property<bool>("ReporteCostosAlimentoDesdeFuentesReales")
                         .ValueGeneratedOnAdd()
@@ -2643,6 +2655,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("lote_ave_engorde_id");
 
+                    b.Property<int?>("LoteBaseEngordeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("lote_base_engorde_id");
+
                     b.Property<string>("NucleoId")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
@@ -2669,8 +2685,15 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.HasIndex("LoteAveEngordeId")
                         .HasDatabaseName("ix_inventario_gasto_lote_ave_engorde_id");
 
+                    b.HasIndex("LoteBaseEngordeId")
+                        .HasDatabaseName("ix_inventario_gasto_lote_base_engorde_id");
+
                     b.HasIndex("PaisId")
                         .HasDatabaseName("ix_inventario_gasto_pais_id");
+
+                    b.HasIndex("CompanyId", "LoteBaseEngordeId", "FarmId")
+                        .HasDatabaseName("ix_inventario_gasto_lote_base_pendiente")
+                        .HasFilter("lote_base_engorde_id IS NOT NULL AND lote_ave_engorde_id IS NULL");
 
                     b.HasIndex("CompanyId", "PaisId", "FarmId", "Fecha")
                         .HasDatabaseName("ix_inventario_gasto_company_pais_farm_fecha");
@@ -2853,6 +2876,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("pais_id");
 
+                    b.Property<bool>("ParaProximoCiclo")
+                        .HasColumnType("boolean")
+                        .HasColumnName("para_proximo_ciclo");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)")
@@ -2867,6 +2894,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("reference");
+
+                    b.Property<DateTimeOffset?>("RegistradoAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("registrado_at");
 
                     b.Property<Guid?>("TransferGroupId")
                         .HasColumnType("uuid")
@@ -5402,6 +5433,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
                         .HasColumnName("origen_tabla");
+
+                    b.Property<bool>("ParaProximoCiclo")
+                        .HasColumnType("boolean")
+                        .HasColumnName("para_proximo_ciclo");
 
                     b.Property<string>("Referencia")
                         .HasMaxLength(500)
@@ -11513,6 +11548,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_inventario_gasto_lote_ave_engorde_lote_ave_engorde_id");
 
+                    b.HasOne("ZooSanMarino.Domain.Entities.LoteBaseEngorde", "LoteBaseEngorde")
+                        .WithMany()
+                        .HasForeignKey("LoteBaseEngordeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_inventario_gasto_lote_base_engorde_lote_base_engorde_id");
+
                     b.HasOne("ZooSanMarino.Domain.Entities.Pais", "Pais")
                         .WithMany()
                         .HasForeignKey("PaisId")
@@ -11525,6 +11566,8 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("Farm");
 
                     b.Navigation("LoteAveEngorde");
+
+                    b.Navigation("LoteBaseEngorde");
 
                     b.Navigation("Pais");
                 });

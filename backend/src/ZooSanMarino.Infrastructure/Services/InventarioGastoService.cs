@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
@@ -121,7 +121,7 @@ public class InventarioGastoService : IInventarioGastoService
         // concepto/búsqueda) en fn_inventario_gastos_search. El backend solo pasa filtros y mapea a DTO.
         var rows = await _db.Database
             .SqlQueryRaw<InventarioGastoListRow>(
-                "SELECT * FROM fn_inventario_gastos_search({0}::int, {1}::int, {2}::text, {3}::text, {4}::int, {5}::date, {6}::date, {7}::text, {8}::text, {9}::text)",
+                "SELECT * FROM fn_inventario_gastos_search({0}::int, {1}::int, {2}::text, {3}::text, {4}::int, {5}::date, {6}::date, {7}::text, {8}::text, {9}::text, {10}::int)",
                 companyId.Value,
                 (object?)req.FarmId ?? DBNull.Value,
                 (object?)Trimmed(req.NucleoId) ?? DBNull.Value,
@@ -131,12 +131,14 @@ public class InventarioGastoService : IInventarioGastoService
                 (object?)req.FechaHasta?.Date ?? DBNull.Value,
                 (object?)Trimmed(req.Concepto) ?? DBNull.Value,
                 (object?)Trimmed(req.Search) ?? DBNull.Value,
-                (object?)Trimmed(req.Estado) ?? DBNull.Value)
+                (object?)Trimmed(req.Estado) ?? DBNull.Value,
+                (object?)req.LoteBaseEngordeId ?? DBNull.Value)
             .ToListAsync(ct);
 
         return rows.Select(r => new InventarioGastoListItemDto(
             r.Id, r.Fecha, r.FarmId, r.GranjaNombre, r.NucleoId, r.NucleoNombre,
             r.GalponId, r.GalponNombre, r.LoteAveEngordeId, r.LoteNombre,
+            r.LoteBaseEngordeId, r.LoteBaseNombre,
             r.Observaciones, r.Estado, r.Lineas, r.TotalCantidad, r.Unidad,
             r.CreatedAt, r.CreatedByUserId, ParseItems(r.Items))).ToList();
     }
@@ -182,6 +184,7 @@ public class InventarioGastoService : IInventarioGastoService
         if (!string.IsNullOrWhiteSpace(req.NucleoId)) q = q.Where(g => g.NucleoId == req.NucleoId!.Trim());
         if (!string.IsNullOrWhiteSpace(req.GalponId)) q = q.Where(g => g.GalponId == req.GalponId!.Trim());
         if (req.LoteAveEngordeId.HasValue) q = q.Where(g => g.LoteAveEngordeId == req.LoteAveEngordeId.Value);
+        if (req.LoteBaseEngordeId.HasValue) q = q.Where(g => g.LoteBaseEngordeId == req.LoteBaseEngordeId.Value);
         if (req.FechaDesde.HasValue) q = q.Where(g => g.Fecha >= req.FechaDesde.Value.Date);
         if (req.FechaHasta.HasValue) q = q.Where(g => g.Fecha <= req.FechaHasta.Value.Date);
         if (!string.IsNullOrWhiteSpace(req.Estado)) q = q.Where(g => g.Estado == req.Estado!.Trim());
@@ -270,6 +273,23 @@ public class InventarioGastoService : IInventarioGastoService
                     loteDict[l.LoteAveEngordeId.Value] = l.LoteNombre;
         }
 
+        // Lotes PROGRAMADOS (gastos cargados a un lote base que todavía no tiene lote real).
+        var baseIds = raw
+            .Select(x => x.g.LoteBaseEngordeId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        var baseDict = new Dictionary<int, string>();
+        if (baseIds.Count > 0)
+        {
+            var bases = await _db.LoteBaseEngorde.AsNoTracking()
+                .Where(b => baseIds.Contains(b.Id))
+                .Select(b => new { b.Id, b.Nombre })
+                .ToListAsync(ct);
+            foreach (var b in bases) baseDict[b.Id] = b.Nombre;
+        }
+
         return raw.Select(x =>
         {
             string? nucleoNombre = null;
@@ -284,6 +304,10 @@ public class InventarioGastoService : IInventarioGastoService
             if (x.g.LoteAveEngordeId.HasValue)
                 loteDict.TryGetValue(x.g.LoteAveEngordeId.Value, out loteNombre);
 
+            string? loteBaseNombre = null;
+            if (x.g.LoteBaseEngordeId.HasValue)
+                baseDict.TryGetValue(x.g.LoteBaseEngordeId.Value, out loteBaseNombre);
+
             return new InventarioGastoExportRowDto(
                 x.g.Id,
                 x.g.Fecha,
@@ -297,6 +321,8 @@ public class InventarioGastoService : IInventarioGastoService
                 galponNombre,
                 x.g.LoteAveEngordeId,
                 loteNombre,
+                x.g.LoteBaseEngordeId,
+                loteBaseNombre,
                 x.d.Id,
                 x.d.ItemInventarioEcuadorId,
                 x.i.Codigo,
@@ -362,6 +388,15 @@ public class InventarioGastoService : IInventarioGastoService
                 .FirstOrDefaultAsync(ct);
         }
 
+        string? loteBaseNombre = null;
+        if (g.LoteBaseEngordeId.HasValue)
+        {
+            loteBaseNombre = await _db.LoteBaseEngorde.AsNoTracking()
+                .Where(b => b.Id == g.LoteBaseEngordeId.Value)
+                .Select(b => b.Nombre)
+                .FirstOrDefaultAsync(ct);
+        }
+
         var det = await _db.InventarioGastoDetalles.AsNoTracking()
             .Where(d => d.InventarioGastoId == g.Id)
             .Join(_db.ItemInventario.AsNoTracking(),
@@ -391,6 +426,8 @@ public class InventarioGastoService : IInventarioGastoService
             g.GalponId,
             g.LoteAveEngordeId,
             loteNombre,
+            g.LoteBaseEngordeId,
+            loteBaseNombre,
             g.Observaciones,
             g.Estado,
             g.CreatedAt,
@@ -420,6 +457,10 @@ public class InventarioGastoService : IInventarioGastoService
         if (farm == null) throw new InvalidOperationException("La granja no existe.");
         if (farm.CompanyId != companyId.Value) throw new InvalidOperationException("La granja no pertenece a su empresa.");
 
+        // Un gasto se carga contra un lote REAL o contra uno PROGRAMADO, nunca contra ambos.
+        var errDestino = GastoLoteProgramadoCalculos.ValidarDestino(req.LoteAveEngordeId, req.LoteBaseEngordeId);
+        if (errDestino != null) throw new InvalidOperationException(errDestino);
+
         string? loteNombre = null;
         if (req.LoteAveEngordeId.HasValue)
         {
@@ -427,6 +468,24 @@ public class InventarioGastoService : IInventarioGastoService
                 .FirstOrDefaultAsync(l => l.LoteAveEngordeId == req.LoteAveEngordeId.Value, ct);
             if (lote == null) throw new InvalidOperationException("El lote no existe.");
             loteNombre = lote.LoteNombre;
+        }
+
+        // Lote PROGRAMADO: existe, es de la empresa efectiva, está activo y está asignado a la granja
+        // del gasto (la misma regla de visibilidad que usa el selector al crear el lote).
+        if (req.LoteBaseEngordeId.HasValue)
+        {
+            var baseId = req.LoteBaseEngordeId.Value;
+            var loteBase = await _db.LoteBaseEngorde.AsNoTracking()
+                .FirstOrDefaultAsync(b => b.Id == baseId && b.CompanyId == companyId.Value && b.DeletedAt == null, ct);
+            if (loteBase == null) throw new InvalidOperationException("El lote programado no existe en su empresa.");
+            if (!loteBase.Activo) throw new InvalidOperationException("El lote programado está inactivo.");
+
+            var asignado = await _db.LoteBaseEngordeGranja.AsNoTracking()
+                .AnyAsync(a => a.LoteBaseEngordeId == baseId && a.FarmId == req.FarmId, ct);
+            if (!asignado)
+                throw new InvalidOperationException("El lote programado no está asignado a esta granja.");
+
+            loteNombre = loteBase.Nombre;
         }
 
         var conceptoNorm = req.Concepto.Trim().ToLower();
@@ -461,6 +520,7 @@ public class InventarioGastoService : IInventarioGastoService
             NucleoId = string.IsNullOrWhiteSpace(req.NucleoId) ? null : req.NucleoId.Trim(),
             GalponId = string.IsNullOrWhiteSpace(req.GalponId) ? null : req.GalponId.Trim(),
             LoteAveEngordeId = req.LoteAveEngordeId,
+            LoteBaseEngordeId = req.LoteBaseEngordeId,
             Fecha = req.Fecha.Date,
             Observaciones = string.IsNullOrWhiteSpace(req.Observaciones) ? null : req.Observaciones.Trim(),
             Estado = "Activo",
@@ -508,6 +568,7 @@ public class InventarioGastoService : IInventarioGastoService
             gastoId = gasto.Id,
             farmId = gasto.FarmId,
             loteAveEngordeId = gasto.LoteAveEngordeId,
+            loteBaseEngordeId = gasto.LoteBaseEngordeId,
             concepto = req.Concepto.Trim(),
             lineas = detalles.Select(d => new { d.ItemInventarioEcuadorId, d.Cantidad, d.Unidad })
         });

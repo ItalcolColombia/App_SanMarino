@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -57,6 +57,7 @@ public class InventarioGastosController : ControllerBase
         [FromQuery] string? nucleoId = null,
         [FromQuery] string? galponId = null,
         [FromQuery] int? loteAveEngordeId = null,
+        [FromQuery] int? loteBaseEngordeId = null,
         [FromQuery] DateTime? fechaDesde = null,
         [FromQuery] DateTime? fechaHasta = null,
         [FromQuery] string? concepto = null,
@@ -69,6 +70,7 @@ public class InventarioGastosController : ControllerBase
             NucleoId: nucleoId,
             GalponId: galponId,
             LoteAveEngordeId: loteAveEngordeId,
+            LoteBaseEngordeId: loteBaseEngordeId,
             FechaDesde: fechaDesde,
             FechaHasta: fechaHasta,
             Concepto: concepto,
@@ -91,6 +93,7 @@ public class InventarioGastosController : ControllerBase
         [FromQuery] string? nucleoId = null,
         [FromQuery] string? galponId = null,
         [FromQuery] int? loteAveEngordeId = null,
+        [FromQuery] int? loteBaseEngordeId = null,
         [FromQuery] DateTime? fechaDesde = null,
         [FromQuery] DateTime? fechaHasta = null,
         [FromQuery] string? concepto = null,
@@ -103,6 +106,7 @@ public class InventarioGastosController : ControllerBase
             NucleoId: nucleoId,
             GalponId: galponId,
             LoteAveEngordeId: loteAveEngordeId,
+            LoteBaseEngordeId: loteBaseEngordeId,
             FechaDesde: fechaDesde,
             FechaHasta: fechaHasta,
             Concepto: concepto,

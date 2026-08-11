@@ -2144,3 +2144,1555 @@ productos, para así no tener que bajar todos los consumos realizados». Backend
 - [ ] Smoke en pantalla: rango aplicado ⇒ tabla acotada y Excel con las mismas filas
 - [ ] Sin rango ⇒ comportamiento idéntico al actual (nombre de archivo incluido)
 - [ ] Sin procesos huérfanos · commit acotado (sin footer de atribución)
+
+---
+
+# Manual de carga masiva de POSTURA (documento para implementación)
+📄 Entregable: [manual_carga_masiva_postura.html](fase_de_desarrollo/manual_carga_masiva_postura.html)
+
+Pedido: manual para la persona encargada de implementar la carga masiva de postura — campos de cada
+hoja, en qué estado debe estar el lote base, orden levante → cierre → producción, y el contacto con
+Gestión de Inventario (alimento) y las ventas de aves/huevos. **No toca código del repo.**
+
+## Fuente del contrato (regla «el código manda»)
+- [x] `Application/Calculos/MigracionEsquemas.cs` — columnas exactas, obligatoriedad, alias y opciones
+- [x] `Services/Migracion/Funciones/MigracionService.Historicos.cs` — elegibilidad, parseo, merge de arrastre
+- [x] `MigracionService.AlimentoPostura.cs` + `.AlimentoEngorde.cs` — gate de stock, idempotencia, `Origen`
+- [x] `DTOs/CreateLoteDto.cs` + `GuiaGeneticaRequisitoCalculos.cs` — campos del lote base y exigencia raza/año
+- [x] Archivos reales del lote S-369AB como ejemplo verificado de cada hoja
+
+## Contenido
+- [x] Ruta completa (6 pasos, cuáles son Excel y cuáles por pantalla)
+- [x] Lote base: campos, `Fase=Levante` explícito, raza/año contra la guía
+- [x] Compuerta de elegibilidad levante vs. producción (las 3 condiciones encadenadas)
+- [x] Hoja `Datos` levante (43 col.) y producción (43 col.) con extracto real renderizado
+- [x] Hoja `Alimento` (14 col.) + orden interno del importador + gate de stock
+- [x] Hoja `Movimientos Aves` (8 col.): Salida / Ingreso / Venta unilaterales
+- [x] Hoja `Movimientos Huevos` (18 col.) y hoja `Huevos` (por ítems, solo Santa Reyes)
+- [x] Las 5 trampas silenciosas + las 2 advertencias que NO descartan fila
+- [x] Checklist de entrega y cuadre esperado
+
+## Validación
+- [x] Publicado como artifact compartible
+- [x] Versión **Word** (`Manual_Carga_Masiva_Postura.docx`, 17 pág.) + PDF, con índice numerado
+- [x] Renderizado y revisado página por página (Word COM → PDF → PNG con pymupdf); corregidos:
+      nombres de columna pegados (Word descarta runs de solo espacio), filas y callouts partidos
+      por el salto de página (`cantSplit`), interlineado del título de portada
+- [ ] Capturas de pantalla del módulo en el navegador — pendiente: requiere login del usuario
+- [x] Sin procesos huérfanos (back :5002 y front :4200 los levantó otra sesión; no se detuvieron)
+
+---
+
+# Migraciones Masivas — retirar los tipos «Ventas / Movimiento de Aves / Movimiento de Huevos»
+
+**Plan:** [`fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md`](fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md)
+**Fecha:** 2026-08-07
+
+Pedido: las ventas y los traslados ya se cargan **dentro** del seguimiento diario (hojas
+`Movimientos Aves` / `Movimientos Huevos` de las plantillas de Levante y Producción), así que las
+tres cajitas «Próximamente» de la Fase 3 sobran. Además el tile queda ilegible: el badge
+«Sin permiso para carga masiva» (nowrap) aplasta la descripción a una palabra por línea.
+
+## Auditoría previa (el código manda)
+- [x] Los 3 enum members solo se referencian en `TipoMigracion.cs` + 1 test — no llegan a `ProcesarAsync`
+- [x] `MigracionService.MovimientosAves/.MovimientosHuevos` son HOJAS del seguimiento, no estos tipos — no se tocan
+- [x] `migracion_masiva.tipo` es varchar con `tipo.ToString()` ⇒ borrar miembros no corre ordinales
+- [x] `VentaPolloEngorde` está implementado y en uso ⇒ queda (pendiente confirmación del usuario)
+
+## Backend
+- [x] `TipoMigracion.cs`: borrar `Ventas`/`MovimientoAves`/`MovimientoHuevos` del enum y del catálogo
+- [x] `MigracionEsquemas.Para()`: mensaje del `_ =>` sin referencia a «Fase 3»
+- [x] `MigracionService.Operaciones.cs`: comentario de cabecera + mensaje del `_ =>` de elegibles
+- [x] `MigracionEsquemasTests.Para_TipoSinEsquema_Lanza`: usar un valor no definido del enum
+
+## Frontend
+- [x] `models/migracion.model.ts`: sacar los 3 del union `TipoMigracionCodigo`
+- [x] `selector-tipo-migracion.component.ts`: sacar sus 3 íconos
+- [x] `selector-tipo-migracion.component.ts`: layout del tile — metadatos (Fase + badge) debajo del texto
+
+## Validación
+- [x] `cd backend && dotnet build` — 0 errores; única advertencia CS8625 en `MigracionMovimientosAvesCalculosTests.cs:184`, PREEXISTENTE
+- [x] `cd backend && dotnet test` — 1.992 Application + 1 Domain, 0 fallos
+- [x] `cd frontend && yarn build` — 0 errores (solo el warning de bundle budget preexistente).
+      ⚠️ Trampa propia: puse backticks dentro de un comentario CSS del bloque `styles` inline ⇒ cortaron
+      el template literal y el compilador tiró «Failed to resolve styles at position 1 to a string».
+      **Nunca usar backticks dentro de un `styles`/`template` inline.**
+- [x] Layout verificado en el navegador con una página aislada que copia el CSS y el markup finales:
+      ANTES reproduce el defecto de la captura (badge sobre el título, descripción en 1 palabra/línea);
+      DESPUÉS: 6 tiles, descripción completa a 2 líneas y chips alineados al pie
+- [x] Plantillas intactas por código: `MigracionService.Historicos.cs:137-144` sigue agregando las hojas
+      `Movimientos Aves` (levante+producción) y `Movimientos Huevos` (producción); la aplicación en :851
+- [x] Sin procesos huérfanos (no se levantó back ni front) · commit acotado (sin footer de atribución)
+- [ ] **Pendiente de decisión del usuario**: ¿el tile «Venta Engorde» (`VentaPolloEngorde`) también sale?
+      Hoy queda: está implementado y en uso (fn `fn_migracion_venta_engorde` v2 con despachos), y la venta
+      de engorde NO se registra desde el seguimiento diario
+
+---
+
+# Tracker — Reporte Diario Costos Postura: el levante nunca salía + lote base multi-granja
+
+**Plan:** [`fase_de_desarrollo/reporte_diario_costos_postura_levante_vacio_y_multigranja_plan.md`](fase_de_desarrollo/reporte_diario_costos_postura_levante_vacio_y_multigranja_plan.md)
+**Fecha:** 2026-08-07
+
+**Pedido:** el reporte no trae nada para lotes con levante (NIZA III, granja de pruebas), y un lote base
+puede quedar repartido en varias granjas (levante en NIZA III, producción en NIZA I) — el reporte tiene
+que seguir al lote base y decir en qué granja pasó cada fase.
+
+## Diagnóstico (contra el dump de producción, BD local :5433)
+- [x] `lev_dedup` filtra `s.lote_id_int IS NOT NULL`; en prod las **588 filas** de `seguimiento_diario_levante` la tienen **NULL** (100 %) ⇒ **0 filas de levante en toda la empresa**
+- [x] `grep "LoteIdInt" backend/src` = **0 coincidencias**: ningún C# escribe esa columna; solo `fn_migracion_seguimiento_levante` la setea en sus INSERT (por eso S-369 validó en local y prod no)
+- [x] Sanmarino tiene 6 lotes: K345A/B (NIZA III, 176+175 días de levante) y A374A ×2 (LA ESMERALDA, 144+38, **sin producción** ⇒ salía vacío)
+- [x] Traslape K345: **15 días** con fila en las dos etapas; 14 son doble conteo real (16.952 kg) y 1 tiene la fila de levante vacía
+- [x] El traslado **NO crea un lote nuevo**: pisa `lotes.granja_id` ⇒ el reporte re-atribuía TODO el histórico a la granja nueva (verificado: NIZA III pasa de 953 filas a 0)
+- [x] `fn_mover_lote` pisaba la granja **sin registrar** en `historial_traslado_lote` (`TrasladarLoteAsync` sí lo hace)
+- [x] `edad_dias`/`semana` de producción no cuadraban con la fn canónica: **301/301 filas** de K345B desfasadas 3 días, 129 con semana distinta
+- [x] Ninguna pestaña ni hoja de Excel mostraba la granja por fila
+
+## BD / SQL
+- [x] `fn_reporte_diario_costos_postura` v2: `lev_dedup` por `lote_id` (texto) + guardas `tipo_seguimiento`/`reproductora_id`
+- [x] Granja **vigente el día** vía `historial_traslado_lote`; filtro `p_granja_ids` matchea la actual O cualquiera histórica
+- [x] `edad_dias`/`semana` de producción desde la fn canónica (levante conserva su `fecha_encaset`)
+- [x] `fn_mover_lote` registra el traslado en `historial_traslado_lote` cuando cambia de granja
+- [x] Migraciones EF idempotentes con el `.sql` embebido verbatim (`20260807220000` y `20260807221000`, Designer clonado, ModelSnapshot intacto)
+
+## Backend
+- [x] DTOs: `DiaEnAmbasEtapas`/`ExcluidoDelTotal` en la fila; `Ubicaciones`/`DiasDuplicados`/`TotalesExcluidos`/`AlcanceExpandidoPorLoteBase` en el reporte
+- [x] `MarcarDuplicados` delegando en `CorteEtapaPosturaCalculos.HayDobleConteo` + `Ubicaciones` + `TotalesExcluidos`
+- [x] `ConstruirTotales` ignora las filas excluidas (sin marcas queda idéntico)
+- [x] Service: el lote base expande el alcance a las granjas asignadas (fail-closed intacto)
+- [x] `GET /api/ReporteDiarioCostosPostura/lotes-base` (catálogo por dónde están los lotes, scoped al usuario)
+
+## Frontend
+- [x] Modelo + service apuntando al catálogo nuevo
+- [x] Columna **Granja** en las 3 pestañas y en las 3 hojas del Excel
+- [x] Bloque «Dónde se hizo cada fase» + aviso de días duplicados **cuantificado** + nota de alcance expandido
+- [x] Filas excluidas atenuadas (`.rdc-tr--excluida`) y marcadas «NO SUMA» en el Excel
+- [x] Cascada del filtro por `granjaIds`; `granja` en las track keys (la etiqueta lote:galpón ya colisiona entre granjas)
+
+## Tests / validación
+- [x] `ReporteDiarioCostosPosturaCalculosTests`: +11 casos (marcado, arrastre de solo huevos, cuantificación, ubicaciones, no regresión)
+- [x] `dotnet build` 0 errores / sin advertencias nuevas · `dotnet test` **2.004 en verde**
+- [x] `yarn build` OK (solo el warning de bundle preexistente)
+- [x] P1-P13 del plan: gate de paridad de producción en las **5 empresas** (0 diferencias), traslado simulado en transacción revertida, smoke API y smoke UI
+- [x] Sin procesos huérfanos (back :5002 y front :4200 detenidos, sin listeners)
+- [x] Commit acotado (sin footer de atribución)
+---
+
+# Migraciones Masivas — permiso de POSTURA, tiles por permiso y módulo solo para Sanmarino
+
+**Plan:** [`fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md`](fase_de_desarrollo/migraciones_masivas_retiro_tipos_ventas_movimientos_plan.md) (sección 7)
+**Fecha:** 2026-08-07 · Continúa el bloque commiteado en `cbc922c`
+
+Pedido: (a) en prod no se puede cargar postura «porque el permiso no existe»; (b) los cargadores sin
+permiso deben OCULTARSE, no salir en gris; (c) el módulo debe quedar solo para Sanmarino Colombia.
+
+## Diagnóstico (contra el dump de prod en la BD local)
+- [x] `carga_masiva_postura` SÍ existe como fila (la creó `20260714115357`); lo que falta es la
+      ASIGNACIÓN: ningún rol de Sanmarino la tenía. `Implementador Sanmarino Colombia` (3 usuarios)
+      tenía solo `carga_masiva_pollo_engorde` ⇒ los tiles de postura salían bloqueados
+- [x] `Menus_GetForUserAsync` arma el menú desde **`role_menus`** y NO lee `company_menus` ⇒ para
+      ocultar el módulo hay que limpiar las DOS tablas, no solo la de empresa
+- [x] `AddMigracionesMasivasMenu` lo sembró heredando de «Lotes» ⇒ quedó en las 5 empresas
+
+## Backend — migración `20260807230000_RestringirMigracionesMasivasASanmarino`
+- [x] Re-asegura que existan `carga_masiva_postura` y `carga_masiva_pollo_engorde` (NOT EXISTS)
+- [x] `company_menus`: solo «Agroavicola Sanmarino» (borra el resto, garantiza la de Sanmarino)
+- [x] `role_menus`: conserva solo roles de uso EXCLUSIVO de Sanmarino (un rol compartido se retira)
+- [x] `role_permissions`: `carga_masiva_postura` al rol exclusivo de Sanmarino que YA tenía el de engorde
+- [x] Todo por `companies.name` / `menus.route` / `permissions.key`, nunca por id (difieren local↔prod)
+- [x] `Down` restaura el punto de partida reheredando de «Lotes»
+- [x] Designer clonado del último migration; ModelSnapshot intacto (data-only)
+
+## Frontend
+- [x] `funciones/filtrar-tipos-visibles.funcion.ts` (PURA): descarta estructura, no implementados y
+      líneas sin permiso. **Fail-closed**: lista de permisos vacía ⇒ no se ofrece nada
+- [x] Página: `toSignal(permissions$)` + `tiposVisibles` = `filtrarTiposVisibles(...)` · `sinPermisos`
+- [x] Aviso «No tenés permisos de carga masiva asignados» nombrando las dos claves exactas a pedir
+- [x] Selector: queda 100% presentacional — se elimina `UserPermissionService`, `tienePermiso`,
+      `mensajeSinPermiso`, `onClick` y los estilos `tile--locked` / `tile--soon` (código muerto)
+- [x] `funciones/README.md` actualizado
+
+## Validación
+- [x] `cd backend && dotnet build` — 0 errores (solo la advertencia CS8625 preexistente)
+- [x] `cd frontend && yarn build` — 0 errores (solo el bundle budget preexistente)
+- [x] Migración simulada en la BD local **dentro de una transacción con ROLLBACK**: `company_menus`
+      5 → 1; `role_permissions` +1 (rol 32); 2ª corrida seguida = todos los contadores en 0 (idempotente)
+- [x] Filtro de `role_menus` probado rama por rama (sembrado y revertido): se retiran los roles de
+      otra empresa, el rol SIN usuarios y el rol COMPARTIDO Sanmarino+Ecuador; se conservan solo los
+      exclusivos de Sanmarino
+- [x] BD local sin cambios (todo bajo ROLLBACK) · sin procesos huérfanos
+- [ ] ⚠️ **Efecto colateral a confirmar con el usuario**: «solo Sanmarino» le quita el módulo a
+      **Santa Reyes** (2 roles que HOY tienen ambos permisos) y a **ItalcolPanama / Demo / Ecuador**.
+      Si Santa Reyes debe conservarlo, hay que agregar su nombre a la lista de empresas habilitadas
+- [ ] Smoke en prod tras el deploy: usuario de Sanmarino ve solo sus 2 tiles de postura + engorde;
+      usuario de otra empresa ya no ve el ítem de menú
+
+---
+
+# Tracker — Lote cerrado que absorbe el ciclo siguiente (KM 86) + ventana de mes actual en Inventario
+
+**Plan:** [`fase_de_desarrollo/lote_cerrado_absorbe_ciclo_siguiente_y_ventana_mes_inventario_plan.md`](fase_de_desarrollo/lote_cerrado_absorbe_ciclo_siguiente_y_ventana_mes_inventario_plan.md)
+**Fecha:** 2026-08-07 · Ticket de operación Ecuador (granja KM 86, lote 2601, Galpon-1 y Galpon-2)
+
+Pedido: (a) la grilla de un lote que terminó en ABRIL muestra ingresos de julio; (b) que en Gestión de
+Inventario solo se pueda cargar movimientos manualmente con fecha del mes actual.
+
+## Diagnóstico (contra el dump de prod en la BD local :5433)
+- [x] Captura identificada: `fn_seguimiento_diario_engorde(2)` reproduce edad y saldos byte a byte
+- [x] Causa raíz: `rango_final.fecha_max` NULL (lote `Abierto` + saldo que nunca llega a 0) ⇒ grilla sin tope
+- [x] Asimetría confirmada: v11/v12 excluyen ciclos ajenos en la APERTURA, nunca en el CIERRE
+- [x] Alcance medido en las 2 empresas con engorde: solo 2 lotes invadidos (EC 2 y 86); **Panamá 0**
+- [x] Los ingresos de julio son CORRECTOS (son del lote 2603): el error es a qué lote se los muestra
+- [x] Plan escrito + decisiones D1-D4 confirmadas por el usuario
+
+## Parte A — fn v14: corte por ciclo siguiente (la versión vigente era la v13, no la v12)
+- [x] `backend/sql/fn_seguimiento_diario_engorde.sql` v14 (CTE `corte_ciclo_siguiente` + `LEAST` en `rango_final`).
+      `LEAST` ignora los NULL ⇒ un lote sin ciclo posterior conserva su corte de v13 y uno activo sigue sin tope
+- [x] Migración `20260808010000_FnSeguimientoEngordeV14CorteCicloSiguiente` (+ `.Fn.cs` con v14 y v13 verbatim,
+      Designer clonado, ModelSnapshot intacto, `Down` = v13). Aplicada en local con `dotnet-ef` 10
+- [x] `SaldoAlimentoEngordeCalculos.ResolverInicioCicloSiguiente` / `.ResolverFechaMaxGrilla` (puro, hermanas de
+      las de v11/v12) + `CorteCicloEngordeCalculosTests` — 12 casos
+- [x] Gate multipaís antes/después: **ItalcolPanama NO-OP** (los 6 de `dif_saldo_aves`/`dif_consumo` son un
+      artefacto preexistente del script —claves (lote,fecha) duplicadas—, idéntico en la corrida de línea base)
+- [x] Comparación fila a fila de los 140 lotes: **solo cambian 2**, lote 2 (31 filas) y lote 86 (1 fila);
+      0 diferencias de saldo/aves/ingreso/consumo/documento en las filas que quedan
+- [x] **0 filas con seguimiento real perdidas** (5.722 esperadas == 5.722 presentes): solo desaparecen
+      filas movimiento-only. Los ciclos siguientes del galpón (72, 104) quedan intactos
+- [x] `fn_cuadre_alimento_engorde` 22 → 22 y `fn_cuadre_aves_engorde` 1 → 1 (sin regresión)
+- [x] Resultado: la grilla del lote 2601 / Galpon-1 termina el **2026-04-20 con 1.600 kg** (antes 2026-08-03 con 206.450)
+
+## Parte B — Ventana de mes actual (D1 todo movimiento manual · D2 todas las empresas · D3 hasta hoy)
+- [x] `Application/Calculos/VentanaFechaMovimientoInventarioCalculos.cs` (puro) + 12 tests xUnit.
+      `DiaOperativo` = UTC−5 (CO/EC/PA sin DST): sin eso, las últimas 5 h del mes el servidor ya está en el
+      mes siguiente y rechaza la fecha de HOY que el usuario ve en pantalla
+- [x] Gate en el CONTROLLER (`ValidarVentanaFecha`) en las 5 puertas manuales: `POST /ingreso`, `POST /traslado`,
+      `PUT /ingresos/{id}/fecha`, `PUT /traslados/{gid}/fecha`, `PUT /stock/{id}` (`FechaIngreso`)
+- [x] **NUNCA en el service**: `RegistrarIngreso/Traslado/ConsumoAsync` los llaman la carga masiva, los 4 services
+      de seguimiento (devoluciones al editar/borrar) e `InventarioGastoService`, que fechan histórico a propósito.
+      `POST /consumo` no se toca (el front nunca lo llama)
+- [x] Front: `funciones/ventana-fecha-movimiento.funcion.ts` (pura, espejo del backend) + `min`/`max` y leyenda en
+      los 3 datepickers de movimiento (alta de ingreso, alta de traslado, ajuste de stock) y en el de edición de
+      fecha del histórico + validación previa al submit en los 5 caminos
+- [x] Los filtros «Fecha desde/hasta» del histórico NO se tocan (son filtros, no fechas de movimiento)
+
+## Validación
+- [x] `dotnet build` — 0 errores (solo la advertencia CS8625 preexistente)
+- [x] `dotnet test` — **2.028 Application + 1 Domain, 0 fallos** (+24 nuevos)
+- [x] `yarn build` (Node portable 22.23.1) — OK, solo el warning de bundle budget preexistente
+- [x] Smoke HTTP real (back :5002 Dev, JWT + X-Secret-Up minteados) de las 5 puertas: mes anterior y mañana
+      dan **400 con el mensaje de la ventana**; hoy pasa y llega al servicio (200, o el error de dominio esperado)
+- [x] **BD local restaurada exacta**: el smoke escribió 3 movimientos, 2 registros de stock y corrió la fecha del
+      movimiento 1 (doc 52968, granja 38 / G0035). Todo revertido; la fecha original (2026-02-07) se recuperó por
+      los documentos correlativos vecinos (52912/52913/52925/52971, todos de esa fecha) y quedó **verificada por el
+      gate**: la corrida posterior es idéntica a la del cambio (5.804 filas, 0 diferencias de valor)
+- [x] Tablas temporales del gate eliminadas · sin procesos huérfanos (5002/5499/4200 sin listeners)
+- [x] Commit acotado (sin footer de atribución). ⚠️ NO se commiteó
+      `fase_de_desarrollo/ingreso_alimento_fecha_real_ingreso_inicial_ciclo_plan.md` (propuesta de OTRA
+      sesión en curso) ni `.devpilot/events.jsonl`
+
+### Aviso a la operación (fuera de alcance del código)
+- [ ] Los lotes 2601 de Galpon-1 (id 2) y Galpon-2 (id 12) siguen en estado `Abierto`: cerrarlos POR
+      PANTALLA (liquidar es una transacción de 5 pasos, no va por migración)
+- [ ] El lote 12 arrastra apertura negativa (−9.020 kg): auditoría de datos aparte
+
+
+---
+
+# Tracker — Alimento previo al encaset: fecha real para contabilidad + «ingreso inicial del ciclo» (engorde y postura)
+
+**Plan:** [fase_de_desarrollo/ingreso_alimento_fecha_real_ingreso_inicial_ciclo_plan.md](fase_de_desarrollo/ingreso_alimento_fecha_real_ingreso_inicial_ciclo_plan.md)
+**Fecha:** 2026-08-07 · **Estado: PROPUESTA entregada, pendiente decisiones D1-D4 del usuario. SIN código.**
+
+Pedido: el alimento llega 2-7 días antes del encaset; hoy la operación falsea la fecha al primer día de
+consumo para que el seguimiento diario cuadre, y contabilidad pierde el día real de llegada.
+
+## Fase 0 — Análisis y propuesta
+- [x] Exploración con workflow de 5 agentes (fn engorde/ventana previa, módulo inventario, postura, encasetamiento, evidencia BD dump prod)
+- [x] Diagnóstico: la ventana `dias_alimento_previo_encaset` YA absorbe el alimento previo en engorde pero es INVISIBLE (sin columna de apertura, sin documento, fila que «desaparece» al cargar el 1er seguimiento); postura no tiene NADA (el Reporte Contable además lo pierde por el `continue` de fechas sin dato del lote); `created_at` es la única fecha y la tipeada la pisa
+- [x] Evidencia medida: Ecuador 110/110 ciclos con ingreso fechado el día 1 (workaround), Panamá 9/30 con fecha real 2-7 días antes; 28/75 ciclos encadenados EC con gap ≤ ventana (la fecha sola no atribuye)
+- [x] ⚠️ Colisión identificada con la ventana de mes en curso (sesión paralela, sin commitear): bloquea la fecha real que cruza mes — conciliar D4 con esa sesión ANTES de que commitee
+- [x] Plan/propuesta escrito (Partes A engorde / B inventario / C postura + D1-D4)
+- [x] Revalidación pedida por el usuario («llega el 15, encaseto el 25»): SIMULADO en BD local con ROLLBACK — 10 días cae justo dentro de la ventana default y entra al saldo del día 1, pero INVISIBLE (ingreso 0, documento vacío); con 11 días el saldo BAJA en silencio al cargar el 1er seguimiento (10.000→6.800 medido). Ver §8 del plan
+
+## Decisiones (aprobadas 07-ago — el usuario pidió arrancar con las recomendaciones)
+- [x] D1 UNA fecha = la real + apertura visible como «ingreso inicial del ciclo»
+- [x] D2 marca «para el próximo ciclo» en el ingreso (editable desde el historial)
+- [x] D3 postura alcance mínimo (fix `continue` del Reporte Contable + fila de bultos con fecha real)
+- [x] D4 excepción acotada a la ventana de mes (solo ingresos con encaset próximo en el galpón; el resto de la regla de 7339c61 intacta)
+
+## Implementación (workflow multi-agente 08-ago: Opus código complejo · Sonnet código directo · QA final en Fable — 7 agentes, 0 errores)
+- [x] B1 (opus) migración `20260808120000_AlimentoPrevioEncasetMarcaCiclo`: `para_proximo_ciclo` (mov + espejo + trigger CREATE OR REPLACE) + `registrado_at` (auditoría nunca pisada) + `PUT /ingresos/{id}/destino-ciclo` + excepción D4 solo en las 2 puertas de ingreso (con tope `dia <= hoy`, desvío documentado) + 22 tests. DDL probado en tx+ROLLBACK; espejos .sql actualizados
+- [x] A2 (sonnet) `diasAlimentoPrevioEncaset` en CompanyDto/Create/Update + las 4 proyecciones (ToDto, Crud, CompanyResolver, CompanyPaisService) con clamp `NormalizarDias` + campo 0-30 en company-management (front)
+- [x] C (opus) Reporte Contable: fila solo-bultos cuando la fecha tiene kardex sin dato del lote (`ReporteContableBultosCalculos` puro + 16 tests, acumulador legado como especificación ejecutable); semana 1 absorbe filas previas al encaset; gate 6 casos lote×fase — 5 con 0 diferencias y lote 13 Levante gana EXACTAMENTE la fila del bug (retiros 150,6375 del 10-abr que Producción ya mostraba)
+- [x] A1+B2 (opus, high) fn v15: `apertura_alimento_kg`/`apertura_documentos` en la fila de fecha_min (DOUBLE PRECISION como sus hermanas; DROP FUNCTION previo porque cambia el RETURNS TABLE — pg_depend 0 dependientes) + override por marca con guarda anti-«dos ciclos después» + excepción fecha_min NULL (el flicker muere: los kg nunca desaparecen); migración `20260808130000` con Down=v14 verbatim; espejo C# + DTO; gate propio 5.804 filas/147 lotes 0 diferencias; apertura visible: Panamá 9 ciclos/70.030 kg (los que el plan predijo), Ecuador 2/7.200
+- [x] B3 (sonnet) front inventario: checkbox «para el PRÓXIMO ciclo» (solo alimento+galpón, se resetea al cambiar destino) + badge/toggle en historial con ConfirmDialog+Toast + «capturado el» (registradoAt) + hint «Registrá la fecha REAL de llegada»
+- [x] A3 (sonnet) front grilla engorde: badge «+X kg ingreso inicial (previo al encaset)» + documentos de apertura en la celda Documento, gateado por flag Y campo (levante/producción intactos)
+- [x] QA (fable, high) — **VEREDICTO GO, cero defectos**: builds 0/0 · tests **2.091 + 1 verdes** · yarn build 0 errores · migraciones aplicadas y registradas en local (idempotencia probada sobre DDL pre-aplicado) · gate PROPIO v15 vs v14 (fn v14 reinstalada bajo nombre QA, EXCEPT doble NULL-safe): **0 diferencias en 5.804 filas / 197 lotes / 2 empresas** · cuadres sin regresión (2 descuadres PREEXISTENTES de datos: PA alimento lote 182, EC aves lote 132) · CRUD E2E a-f verde (escenario 15→25 con marca: ingreso 11 días antes que la v14 PERDÍA ahora abre con 3.000 kg y su factura; DELETE → espejo anulado; D4 200/400 correctos; clamp 45→30) · Reporte Contable K345 3.632.634 EXACTO · datos QA eliminados con 0 rastro, backend abatido
+- [x] Commit acotado (sin footer de atribución)
+
+### Hallazgo BLOQUEANTE aparte (NO tocado — tarea propia con su gate)
+- `ObtenerDatosBultosAsync` pide PageSize=10000 pero `FarmInventoryMovementService.GetPagedAsync:447` clampa a **20** ⇒ el Reporte Contable solo ve los 20 movimientos de bultos más recientes de la granja (3 entradas históricas de granja 5 = 2.800 bultos invisibles). El fix C1 funciona para el caso real (alimento reciente) pero lo histórico queda estrangulado. Arreglarlo cambia números en muchos lotes ⇒ gate propio antes/después.
+
+---
+
+# Fix — Reporte Contable (postura): el kardex de BULTOS se estrangula en 20 movimientos
+
+**Plan:** [`fase_de_desarrollo/reporte_contable_bultos_sin_tope_paginacion_plan.md`](fase_de_desarrollo/reporte_contable_bultos_sin_tope_paginacion_plan.md)
+**Fecha:** 2026-08-08 · Bloque propio — no tocar desde otras sesiones
+**Origen:** «Hallazgo BLOQUEANTE aparte» del QA de `801b14f` (bloque de arriba)
+
+`ObtenerDatosBultosAsync` pide `PageSize = 10000` pero `FarmInventoryMovementService.GetPagedAsync:447`
+clampa a **20** (`> 200 ⇒ 20`) ordenado por `created_at DESC`, y el filtro por `type_item='alimento'`
+corre **en memoria después** de paginar ⇒ el reporte ve los 20 movimientos más recientes de la granja,
+de cualquier ítem.
+
+## Fase 0 — Diagnóstico (BD local, dump tipo-prod)
+- [x] Estrangulamiento medido en granja 5 / lote 13 «K345A» — **peor de lo reportado**: el reporte veía
+      **5 de los 58** movimientos de alimento de la granja y **CERO de sus 4 entradas**. Los 20 del tope
+      son de la granja entera, así que 15 cupos se los comían ítems que no son alimento
+- [x] Universo real: 4 entradas = 112.000 kg = **2.800 bultos** (2025-10-16 y 2026-01-09 de 1.250 c/u,
+      2026-02-27 de 300) + 54 retiros = 20.528,900 kg = 513,2225 bultos
+- [x] Plan escrito con paridad de filtros y criterio del gate
+
+## Fase 1 — Gate ANTES (línea base congelada)
+- [x] JSON de `GET /api/ReporteContable/generar` capturado para las 6 combinaciones lote×fase
+      (backend propio :5499 vía `PORT`, JWT + X-Secret-Up minteados, usuario Admin de company 1)
+
+## Fase 2 — Backend
+- [x] C1 `ReporteContableBultosCalculos.RangoConsulta` (puro): ventana → `[desde, hasta+1d)`, corte
+      superior **exclusivo** (created_at es timestamptz sin anclar a medianoche) y sin `.Date` sobre la
+      columna (date_trunc usaría la zona de la SESIÓN)
+- [x] C2 `ObtenerDatosBultosAsync` consulta `_ctx.FarmInventoryMovements` directo: granja + empresa +
+      país + ítems de alimento + ventana, **todo traducido a SQL y sin tope**. El filtro por empresa pasa
+      de condicional a incondicional (el método ya retornaba vacío sin `companyId` ⇒ fail-closed igual)
+- [x] C3 Limpieza: fuera el parámetro `loteIds` (nunca se usaba) y la dependencia
+      `IFarmInventoryMovementService`, que quedó sin ningún consumidor en el service (DI por
+      `Program.cs:341`, sin `new` manual ⇒ sin impacto)
+
+## Fase 3 — Tests (gate CI)
+- [x] T1-T4 `RangoConsulta`: corte exclusivo al día siguiente (un movimiento de las 16:45 del último día
+      ENTRA), normalización de hora, ventana de un día = 24 h, y `[Theory]` que verifica que el veredicto
+      de la consulta **coincide con el de `GeneraFilaSoloBultos`** aguas abajo
+- [x] Los 16 tests previos de `ReporteContableBultosCalculos` verdes sin tocarlos
+
+## Fase 4 — Validación
+- [x] `dotnet build` — 0 errores, 0 advertencias
+- [x] `dotnet test` — **2.098 Application + 1 Domain verdes** (2.091 previos + 7 nuevos)
+- [x] **Gate DESPUÉS: VEREDICTO GO.** Comparación campo a campo emparejando filas por clave
+      (fecha+loteId), no por posición — el diff posicional inventaba 3 falsos «cambios de fecha» porque
+      las filas nuevas corren los índices:
+      - **4 controles negativos (granja 20): 0 diferencias, byte a byte**
+      - lote 13 **Producción**: 333 campos modificados, **el 100 % columnas de bultos**, 0 filas nuevas
+        (esas fechas ya tenían dato del lote, solo ganaron el kardex)
+      - lote 13 **Levante**: 29 campos modificados, **todos de bultos**; 11 filas nuevas con **todas las
+        columnas de aves en cero** (filas solo-bultos del feature C1) y 4 secciones semanales que nacen
+        porque esa semana no tenía ninguna fila
+      - **Invariante de aves: idéntico** — 374 (Levante) + 620 (Producción) + 300 (lote 116) agregados
+        comparados, 0 cambios en entradas/mortalidad/selección/ventas/traslados/consumo ni en el saldo de
+        ninguna fecha preexistente. Los 10 saldos «nuevos» son el saldo vigente arrastrado publicado en
+        fechas que antes no tenían fila
+- [x] **Trazabilidad exacta**: el kardex del reporte reproduce ahora las **6 fechas de la BD una a una**
+      (1.250 / 1.250 / 300 entradas · 347,34 / 15,245 / 150,6375 retiros) en **ambas fases**;
+      totales 2.800,0000 entradas y 513,2225 retiros = los 112.000 kg y 20.528,900 kg medidos en SQL.
+      El **consumo NO se movió** (6.035,4875 Levante · 22.290,4025 Producción): viene de los seguimientos,
+      no del kardex
+- [x] Backend del smoke detenido (puerto 5499 libre), sin procesos huérfanos. BD **no modificada**
+      (el gate son solo `GET` + `SELECT`)
+- [x] Commit acotado (sin footer de atribución)
+
+### Hallazgo aparte detectado al medir (NO tocado — requiere su propia auditoría de datos)
+Los ítems de alimento de la **granja 20** (85, 89, 98, 99, 100) tienen `metadata->>'type_item'` **NULL**
+⇒ el Reporte Contable no los reconoce como alimento y no cuenta **ninguno** de sus 236 movimientos, ni
+antes ni después de este fix. Es un problema de **datos de catálogo**, no de este código — por eso esos
+lotes sirvieron como control negativo. Decidir si se saneia el metadata o si el criterio pasa a
+`farm_inventory_movements.item_type`.
+
+---
+
+# Fix — «Esto es alimento» vuelve a la columna + el clamp de paginación deja de degradar en silencio
+
+**Plan:** [`fase_de_desarrollo/criterio_item_alimento_y_clamp_paginacion_plan.md`](fase_de_desarrollo/criterio_item_alimento_y_clamp_paginacion_plan.md)
+**Fecha:** 2026-08-08 · Bloque propio — no tocar desde otras sesiones
+**Continúa:** el fix `92cd918` (bloque de arriba). Pedido del usuario: implementarlo en todo, **encontrar
+el factor donde sucede** y mejorarlo para que no vuelva a pasar.
+
+Dos defectos que son el mismo: el Reporte Contable decidía «es alimento» leyendo
+`metadata->>'type_item'`, el modelo VIEJO que ya nadie llena (NULL en el 80 %), en vez de la columna
+`catalogo_items.item_type` (`NOT NULL`, 0 nulos, 3 índices) que nació para reemplazarlo; y el clamp
+`pageSize > 200 ⇒ 20` está repetido en 3 servicios, con **7 pantallas del front pidiendo 1.000-2.000
+ítems de catálogo y recibiendo 20**.
+
+## Fase 0 — Diagnóstico
+- [x] Las 3 fuentes del tipo de ítem medidas: columna `catalogo_items.item_type` **0 nulos de 435**
+      con taxonomía completa · `metadata->>'type_item'` **NULL en el 80 %** · `farm_inventory_movements
+      .item_type` poblada al **100 %**. `ReporteContableService` era el ÚNICO lector del jsonb en todo
+      el backend (el front ya hace `item.itemType || item.metadata?.type_item`)
+- [x] Causa raíz de la reincidencia: `CatalogItemService.CreateAsync` escribe la COLUMNA y **no** el
+      metadata ⇒ todo ítem creado desde la UI moderna nacía invisible para el reporte
+- [x] Impacto medido: **257 movimientos** invisibles (granja 20 entera = 236, granja 5 = 19, granja 87 = 2)
+- [x] 🔴 **FACTOR identificado**: el clamp `pageSize > 200 ⇒ 20` degrada al MÍNIMO y está repetido en
+      **3 servicios**; `CatalogItemService` lo tenía **activo**, con **7 pantallas del front pidiendo
+      1.000-2.000 ítems y recibiendo 20** (`ajuste-form`, `conteo-fisico`, `kardex-list`,
+      `traslado-form` y los modales de seguimiento de levante y producción, que además filtran por
+      activo sobre esos 20)
+- [x] Plan escrito
+
+## Fase 1 — Gate ANTES
+- [x] Línea base de 9 combinaciones lote×fase + smoke del factor. **Bug reproducido en vivo**:
+      `catalogo?pageSize=1000` devolvía `items=20 / total=61 / pageSize=20`
+
+## Fase 2 — Backend
+- [x] C1 `ItemInventarioTipoCalculos` (puro): `EsTipoAlimento` tolerante a capitalización y espacios
+      (el catálogo tiene filas «Alimento»; el resto del sistema ya comparaba así) + `TipoEfectivo`
+      (manda el del movimiento, el catálogo respalda — patrón vigente en `FarmInventoryMovementService`)
+- [x] C2 `ObtenerDatosBultosAsync` filtra por el tipo efectivo **dentro de la query**: desaparece el
+      paso de traer el catálogo de la empresa a memoria (310 filas por llamada en Santa Reyes) y el
+      filtro cae sobre columnas indexadas. Se conservan los filtros de empresa/activo del catálogo
+- [x] C3 `PaginacionCalculos.NormalizarPageSize`: **pedir de más devuelve el TOPE, nunca el default**
+- [x] C4 Los 3 servicios usan la normalización. Topes por naturaleza de la tabla: catálogo maestro
+      **2.000** (máximo real 310, margen 6×) · movimientos y roles 200 (crecen sin techo). Las 7
+      pantallas quedan arregladas **sin tocar una línea de frontend**
+- [x] C5 `add_item_type_catalogo.sql` anotado: la columna es la fuente de verdad, el jsonb es VESTIGIAL
+
+## Fase 3 — Tests (gate CI)
+- [x] T1 `ItemInventarioTipoCalculosTests` — 33 casos: capitalización, los 9 tipos de la taxonomía real,
+      «alimentos» no cuela por prefijo, precedencia movimiento/catálogo, y el caso exacto del bug
+- [x] T2 `PaginacionCalculosTests` — 20 casos, incluido el que blinda el bug (`Assert.NotEqual(
+      PageSizePorDefecto, size)` al pedir de más) y el que fija que el tope del catálogo cubre 310×6.
+      ⚠️ Mi primer test estaba MAL formulado (esperaba que pedir 1.000 con tope 2.000 recortara a
+      2.000): falló, y el corregido documenta que ese pedido pasa igual
+
+## Fase 4 — Validación
+- [x] `dotnet build` 0 errores / 0 advertencias nuevas · `dotnet test` **2.148 Application + 1 Domain**
+      (2.098 previos + 50 nuevos)
+- [x] **Gate DESPUÉS: VEREDICTO GO.**
+      - **3 controles negativos (company 4, granjas sin movimientos): 0 diferencias byte a byte**
+      - los 6 casos afectados: **todo campo modificado es de bultos**; las filas nuevas (3 a 18 por
+        lote) tienen **todas las columnas de aves en cero**
+      - las secciones semanales que nacen y los `fechaFin` que se corren un día quedaron **validados
+        uno por uno**: cada fecha nueva corresponde a una fila de bultos real sin aves (p. ej.
+        `fechaFin 2026-06-11 → 2026-06-12` porque esa semana ganó la fila de 106,7875 bultos de retiro)
+      - **invariante de aves intacto**: 1.388 agregados comparados, 0 cambios
+- [x] **Kardex == SQL, exacto en los 6 casos**: granja 5 → 3.913,8750 entradas / 755,2825 retiros ·
+      granja 20 → 2.907,0000 / 2.608,6750, idénticos a la consulta con el criterio nuevo
+- [x] **Smoke del factor**: `catalogo?pageSize=1000` pasa de `items=20` a **`items=61` (total=61)** ·
+      `movimientos?pageSize=10000` pasa de 20 a **77** (`pageSize=200`, el tope)
+- [x] Backend detenido (5499 y 5002 libres), sin procesos huérfanos. BD **no modificada** (solo GET/SELECT)
+- [x] Commit acotado (sin footer de atribución)
+
+
+---
+
+# Auditoría de cierre — «alimento previo al encaset» + fix del chip (SOLO LECTURA, sin código)
+
+**Fecha:** 2026-08-08 · Pedido del usuario: validar si el fix del chip quedó bien y qué falta cubrir.
+**Método:** 5 lentes en paralelo + verificación adversarial de cada hallazgo (14 agentes, 39 hallazgos
+crudos → 8 verificados → **7 confirmados, 1 refutado**).
+
+## Veredicto sobre el chip (92cd918 + 8d5565c)
+- [x] **Sin defectos propios.** `item_type` cubre los 2 valores reales (`alimento` 166 / `Alimento` 2),
+      0 discrepancias columna vs jsonb, 0 movimientos con tipo contradictorio; `PaginacionCalculos`
+      coherente en los 3 services; totales del commit reproducidos exactos en SQL; borrar `loteIds`
+      fue correcto (no hay dato con qué filtrar: `galpon_destino_id` NULL en 326/326)
+- [x] **Refutado** el único cargo contra el chip (supuesto corte en medianoche UTC): la agrupación por
+      `CreatedAt.Date` ya existía y el camino nuevo ancla a MEDIODÍA UTC, que no cruza medianoche en
+      ningún huso americano
+- [x] Crítica válida: su gate comparó el reporte contra una consulta con **su mismo criterio**
+      (auto-consistencia, no corrección), y al destapar 257 movimientos volvió MATERIALES 3 defectos
+      preexistentes que estaban tapados
+
+## Confirmados — pendientes de decisión del usuario
+- [ ] 🔴 **§2.1 El saldo de bultos resta el consumo DOS VECES** (único número mal en pantalla HOY).
+      El modal de seguimiento escribe un `Exit` de kardex `reason='Consumo diario'` con los MISMOS kg
+      que graba en `consumo_kg_*`, y `AcumularSaldos` hace `− Retiros − ConsumoH − ConsumoM`.
+      Verificado a mano: granja 87, 23-jun, 500 kg en el kardex Y 500 kg en el seguimiento.
+      Escala: 253 movs / **131.778 kg**; 358 de 588 seguimientos caen el mismo día. Lo ven 9 roles.
+      ⚠️ El arreglo NO va en `AcumularSaldos` (borraría el retiro legítimo de 3.280 kg): va aguas
+      arriba (el `Exit` del modal, o excluirlos en `ObtenerDatosBultosAsync`). Falta el test con
+      `Retiros>0` Y `Consumo>0` a la vez — los helpers actuales nunca ejercen la combinación
+- [ ] 🟠 **§2.2 En postura el feature no entrega nada**: el Reporte Contable lee `farm_inventory_movements`
+      y todo el feature escribe `inventario_gestion_movimiento`. **Sin puente** (0 triggers, la única
+      pg_proc que la nombra solo LEE). Probado con ROLLBACK: el kardex queda 138 filas/146.260,5 kg
+      antes y después. PREEXISTENTE (nace 2026-07-05 con la unificación Colombia), no lo introdujo el
+      feature. Matiz: company 1 escribe en LOS DOS modelos (su último movimiento, 17-jul, fue al viejo
+      por la ruta `/inventario` que sigue registrada sin guard de rol) ⇒ inventario partido sin puente
+- [ ] 🟠 **§2.3a La excepción D4 es inalcanzable desde la UI**: backend + 184 líneas de test escritos,
+      pero el front la bloquea en 3 lugares y **no existe endpoint** que exponga la ventana del galpón.
+      El hint dice «Solo se admite el mes en curso» ⇒ instrucción activa a falsear la fecha.
+      Afecta 39/110 encasets 2026 de Ecuador (35%) y 10/60 de Panamá. Ningún número sale mal: se
+      pierde la fecha contable real, que es justo lo que contabilidad pidió
+- [ ] 🟡 **§2.3b La marca rompe `fn_cuadre_alimento_engorde`** (A/B controlado: mismo ingreso, solo
+      cambia el booleano ⇒ descuadre −5.000). CLAUDE.md declara que mover el cuadre de 0 es regresión.
+      Matiz: no hay tablero (0 archivos en el front), es endpoint + LogWarning; transitorio salvo que
+      el ciclo siguiente nunca arranque. **Impacto hoy: cero** (`para_proximo_ciclo` = 0 filas en BD)
+- [ ] 🟡 **§2.3c Hueco de trazabilidad**: `fechas_universo` dejó el corte `>= fecha_corte_alimento`
+      FUERA del disyunto de la marca ⇒ un ingreso marcado y fechado antes de `encaset−N` no genera
+      fila en ningún lote hasta el primer seguimiento. Recrea el síntoma «el sistema se comió
+      alimento» que motivó el feature. **Arreglo de UNA línea**, simétrico con `apert_mov`
+- [ ] 🟡 **§2.4 Cada lote padre muestra el kardex de la GRANJA entera** (granja 20 tiene 4 padres ⇒ los
+      4 reportes muestran los mismos 2.907 bultos; sumarlos da 11.628 vs 2.907 reales). Preexistente,
+      no arreglable en la query (la tabla no tiene columna de lote). Peor: `AcumularSaldos` resta
+      consumos POR LOTE de entradas POR GRANJA ⇒ el saldo no es ni de la granja ni del lote
+
+## Verificado OK — no re-auditar
+- [x] Infraestructura del feature: 242 migraciones BD = 242 código, 0 pendientes; trigger probado
+      (marca TRUE → espejo TRUE) · espejo `.sql` **idéntico byte a byte** a la migración (63.459 chars)
+- [x] **Gate multipaís sin regresión**: v13→v15 cambia EXACTAMENTE 32 filas (Ecuador, lotes 2 y 86,
+      todas movimiento-only = lo que v14 declara); Panamá 747=747, **0 diferencias**. El descuadre vivo
+      de Panamá es preexistente (reponiendo v13 da el mismo)
+- [x] **Subir `dias_alimento_previo_encaset` a 30 en Ecuador es SEGURO** (simulado: 0 filas con saldo
+      distinto en 5.804 filas/172 lotes, 0 negativos nuevos, cuadre sin cambios) — las guardas v11/v12
+      lo contienen. Es la prueba que nadie había hecho antes de exponer el campo por pantalla
+- [x] El caso testigo del usuario («llega el 15, encaseto el 25») **entra sin marca ni configuración**
+- [x] Con marca: el ciclo siguiente abre en 5.000 kg; sin marca ese mismo ingreso dejaba al nuevo en
+      **−300 kg**. El mecanismo nuclear funciona
+- [x] Puntos ciegos que salieron limpios: las 88 granjas con `maneja_alimento_por_galpon` NULL heredan
+      `true`; los 457 ingresos EC sin galpón son insumo/medicamento/gas (0 alimento) ⇒ el checkbox
+      está en el 100% de los ingresos de alimento; editar/borrar un ingreso marcado conserva/anula bien
+- [x] Sin datos de prueba de agentes anteriores en la BD (0 lotes/movimientos SIM/QA/TEST)
+
+## No verificado (declarado)
+- [ ] Descuadre persistido vs fn en Panamá (69 filas, hasta 23.355 kg): detectado, NO se determinó si
+      necesita la migración `Recalcular…` que sí acompañó a v11 y v12 (este lote tocó la fn 2 veces sin ella)
+- [ ] Los 31 hallazgos de severidad baja/informativa NO pasaron por verificación adversarial: son
+      sospechas, no hechos
+
+
+---
+
+# v16 de engorde (coherencia de la marca `para_proximo_ciclo`) — INTENTADA Y **REVERTIDA**
+
+**Fecha:** 2026-08-08 · Pedido: cerrar los 2 huecos §2.3b/§2.3c de la auditoría («fixes baratos»).
+**Resultado: NO-GO tras 3 rondas. Nada commiteado; working tree y BD local restaurados a `362155c`.**
+
+## Qué se intentó
+Cerrar dos incoherencias de la marca `para_proximo_ciclo` (introducida en `801b14f`, **0 filas en uso**):
+(a) `fn_cuadre_alimento_engorde` no conocía la marca ⇒ un movimiento marcado movía el cuadre de 0;
+(b) `fechas_universo` dejaba el corte `fecha_corte_alimento` fuera del disyunto de la marca ⇒ un ingreso
+marcado y fechado antes de `encaset−N` no aparecía en ninguna pantalla hasta el primer seguimiento.
+
+## Por qué se revirtió — las 3 rondas, cada una con su contraejemplo reproducido en BD
+1. **Ronda 1 (NO-GO ×2):** relajar el piso solo en `fechas_universo` hacía que la fila abierta por la marca
+   volcara **todo el galpón-día** (13.000 kg por 5.000, con el alimento ajeno mostrándose a la vez en su
+   propio lote); y un ingreso marcado se veía en **4 lotes** en vez de 1 (PA-67, 20.000 kg por 5.000) —
+   o sea la v16 **empeoraba** la v15. Causa: el predicado «¿existe algún lote con primer seguimiento
+   posterior?» no desempata entre lotes sin seguimiento, que son justo el caso de uso de la marca.
+2. **Ronda 2 (NO-GO ×2):** con el criterio corregido a «ciclo destino = menor `fecha_encaset` posterior», el
+   CTE `post` del cuadre quedó **sin cota inferior** ⇒ descontaba marcado histórico que el ciclo destino YA
+   CONSUMIÓ (y por lo tanto ya no está en stock) ⇒ descuadre **+5.000 permanente**. Testigo: granja 37 /
+   G0025 (cadena 53→70→189), mov 5.000 kg del 25-mar marcado, sin tocar stock: descuadrados 1→2; HEAD daba 0.
+   Radio: **33 de 35 galpones de Ecuador** ya tienen ciclo anterior. Además, un marcado **sin encaset
+   posterior** (= marcar antes de crear el lote siguiente, el flujo primario) quedaba invisible en el 100 %
+   de las pantallas (v16: 0 lotes lo ven; HEAD: 4).
+3. **Ronda 3 — veredicto final NO-GO:** con las 3 guardas nuevas del cuadre, el defecto se mudó al saldo:
+   `pt_calc` acumula sobre **dos bases distintas dentro del mismo lote** (con y sin el piso `solo_marca`)
+   ⇒ **6 de 59 galpones reales quedan con saldo NEGATIVO** en la tabla del lote destino, contra **0 de 59
+   en HEAD** cambiando solo el booleano. Peor caso: granja 43 / G0055, ingreso de 5.600 kg ⇒ saldo **−8.840**.
+
+## Lo que SÍ quedó probado (vale para el rediseño)
+- **Identidad sin marcas siempre dio 0/0** en las 3 rondas (5.804 filas diaria, 61 cuadre, 172 aves, 224
+  costos, 898 informe semanal, ambas empresas) ⇒ el gate de identidad **no puede ser la compuerta** de esta
+  feature: con 0 marcas todo pasa siempre.
+- **El desempate por `fecha_encaset` es el criterio correcto** (probado: 01-may→lote 121, 16-may→121,
+  18-may→122) y cierra la multiplicación entre lotes sin seguimiento.
+- **0 de 2.344 movimientos reales empeoran el cuadre** con la última versión — el problema que quedó vivo es
+  del **saldo de la grilla**, no del cuadre.
+- Topología «destino liquidado/congelado»: **no existe hoy** en la BD (búsqueda exhaustiva = 0).
+
+## Aprendizajes de método (los caros)
+- 🔴 **El que corrige no puede ser el que declara GO.** En la ronda 2 el agente de síntesis aplicó los fixes
+  de las compuertas y se autoevaluó verde; la verificación independiente posterior encontró la regresión de
+  los 6 galpones negativos.
+- 🔴 **Tests en C# que no pueden construir la topología rota son falso verde.** Los 17 tests del primer
+  intento pasaban CON los defectos adentro porque hardcodeaban `miPrimerSeguimiento: null`. `pt_calc` no
+  tiene espejo C# y los `Calculos` no tienen llamador de producción ⇒ **la compuerta útil es SQL sobre datos
+  reales**, con el invariante explícito «ninguna fila diaria queda negativa».
+- El cuadre solo mira lotes CON seguimiento ⇒ es **ciego al lote destino recién creado**, que es justo donde
+  aparecieron los negativos.
+
+## Estado dejado (verificado)
+- [x] Working tree limpio (`git status` solo `.devpilot/events.jsonl`, ajeno)
+- [x] BD local restaurada: ambas fns reinstaladas desde HEAD (0 rastros de `marca_efectiva`/`marca_propia`/
+      `marca_destino`, `apertura_alimento_kg` presente = v15 correcta), `ix_lote_hist_para_proximo_ciclo`
+      dropeado, registro `20260808140000` borrado de `__EFMigrationsHistory` (última = `20260808130000`)
+- [x] La columna `para_proximo_ciclo` y su trigger **NO se tocaron** (son de `20260808120000`, commiteada)
+- [x] Cuadre en línea base: 1 descuadrado preexistente (Panamá lote 182) · 0 movimientos marcados
+- [x] `dotnet build` Application y Infrastructure 0/0 · build servers apagados
+- [x] El intento archivado en el scratchpad de la sesión (`intento_v16_modificados.patch` + los 3 archivos
+      nuevos) por si sirve de base al rediseño
+
+## Antes de reintentar — DECISIÓN DE PRODUCTO pendiente (no es código)
+Qué debe hacer la marca cuando: (1) el galpón tiene **dos ciclos conviviendo**; (2) el lote destino queda
+**liquidado** antes de consumir el alimento; (3) alguien marca y **nunca crea** el ciclo siguiente.
+Sin esa definición, cada guarda nueva mueve el defecto de lugar (pasó 3 veces).
+⚠️ Los 2 huecos originales siguen abiertos, con **impacto cero mientras nadie use la marca**.
+
+
+---
+
+# Rediseño de la marca `para_proximo_ciclo` — v16 con ENTREGA al ciclo siguiente
+
+**Plan:** [`fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md`](fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md)
+**Fecha:** 2026-08-08 · Bloque propio — no tocar desde otras sesiones
+**Continúa:** el bloque «v16 de engorde … INTENTADA Y REVERTIDA» (commit `d6aeccb`). Ahora **sí** hay
+decisión de producto: las 3 reglas de negocio (R1 conviven / R2 liquidación / R3 sin destino) las definió
+el dueño del producto el 08-ago-2026 y son la especificación.
+
+**Cambio de modelo (no es una cuarta guarda):** el diferimiento deja de ser un **borrado** de la fila de
+ingreso y pasa a ser una **ENTREGA** —salida sintética en el último día visible del ciclo cedente, topada
+por su propio saldo— que el ciclo destino recibe en su apertura. *La marca nunca quita kg de una pantalla
+si no hay, en el mismo acto, otra pantalla que los reciba.* Con eso: R3 se cumple por construcción (nada
+desaparece nunca), no pueden nacer filas negativas (un solo delta, en el último día, topado), `pt_calc`
+conserva **una sola base**, y **`fn_cuadre_alimento_engorde` no se toca** (demostración en §2.4 del plan:
+el cedente jamás es el ciclo activo que mira el cuadre).
+
+## Fase 0 — Plan (STEP 1) · HECHO
+- [x] Exploración leída (3 lentes: convivencia / liquidación / corrección) y cruzada con el código de HEAD
+- [x] Topología de los 7 galpones testigo **verificada en la BD local** (solo lecturas, sin escrituras):
+      37/G0025 `53→70→189` · 37/Galpon-11 `25→44→85` · 43/G0055 `57→16→86→193` · 96/PA-67 4 lotes **sin
+      seguimiento y sin movimientos** · 105/G0491, 105/G0492, 106/G0479, 106/G0490 conviven
+- [x] Confirmado: **0 marcas** en `lote_registro_historico_unificado` y en `inventario_gestion_movimiento`;
+      el índice `ix_lote_hist_para_proximo_ciclo` **no existe** (quedó dropeado en la reversión)
+- [x] Plan escrito con: 3 reglas → 5 decisiones de diseño justificadas por dato · semántica completa en
+      **11 casos** (ninguno termina en «no se ve en ningún lado») · fases · compuerta · 12 casos de prueba
+      con galpones reales · qué no se toca
+
+## Fase 1 — NÚCLEO · **entra AHORA** (pendiente de implementar)
+- [ ] F1.1 `backend/sql/fn_alimento_marcado_atribucion.sql` — dueña ÚNICA de la atribución (destino por
+      `fecha_encaset` mínima posterior, cedente por `fecha_encaset` máxima anterior, convivencia por solape,
+      tope, estado) + índice parcial `ix_lote_hist_para_proximo_ciclo`
+- [ ] F1.2 `fn_seguimiento_diario_engorde` **v16**: revertir a v14 las 4 exclusiones de v15 (líneas 615,
+      761, 790, 826) · `apert_mov` por `lote_destino_id` · CTE `entrega_ciclo_siguiente` + tope · marca solo
+      en ENTRADAS · guardas de destino sin seguimiento / destino congelado / cedente sin seguimiento /
+      `d >= destino.prim_seg`. **La firma NO cambia ⇒ `CREATE OR REPLACE`, sin `DROP FUNCTION`**
+- [ ] F1.3 Espejo C#: `SaldoAlimentoEngordeCalculos` (reescribir `EntraPorMarcaProximoCiclo`, reemplazar
+      `ExcluidoDeFilaDiariaPorMarca`) + `SeguimientoAvesEngordeCalculos` (líneas 100, 164, 228)
+- [ ] F1.4 Recálculo al **cruzar el umbral**: primer seguimiento de un lote en un galpón con marcados ⇒
+      `SaldoAlimentoEngordeAplicador.RecalcularPorUbicacionAsync`
+- [ ] F1.5 Decisión registrada: **el cuadre NO se toca** en Fase 1 (la prueba es del gate, no del fix)
+- [ ] F1.6 3 migraciones EF idempotentes (índice · helper · fn v16) + espejo `.sql` **byte a byte**
+      (un `.sql` cambiado sin migración queda MUERTO)
+
+## Fase 2a — Visibilidad barata (R3) · **entra AHORA**
+- [ ] F2a.1 Columna «Próx. ciclo» en el tab **Histórico** de Gestión de Inventario (el backend ya la
+      devuelve en `InventarioGestionService.cs:1806`; el front no la pinta en ninguna de sus 15 columnas)
+- [ ] F2a.2 Verificar en pantalla la fila de **entrega** (etiqueta y signo) en la grilla de engorde
+
+## Fase 2b — Bandeja de alimento reservado · **NO entra ahora**
+- [ ] Endpoint + pantalla con `estado`/`motivo` del helper y corrección en línea (el
+      `PUT /ingresos/{id}/destino-ciclo` ya existe). Se difiere: R3 ya queda cumplido por la Fase 1
+
+## Fase 3 — Señalamiento de la anomalía R2 · **NO entra ahora**
+- [ ] F3.1 Columnas informativas en el cuadre (`marcado_no_diferible_kg`, `liquidado_con_saldo_kg`)
+      ⚠️ cambia el `RETURNS TABLE` ⇒ exige `DROP FUNCTION` y toca una fn con 5 consumidores
+- [ ] F3.2 Reporte «liquidados con alimento sin trasladar» — hoy **24 de 84 (28,6 %), 111.821 kg**
+- [ ] F3.3 Bug del aviso de liquidación: el fallback a stock de **núcleo**
+      (`modal-liquidacion-lote-engorde.component.ts:375-383`) muestra stock de galpones vecinos —
+      **7 de 11 galpones de SAN GUILLERMO** avisan con 19.160 kg ajenos
+- [ ] F3.4 `GET /api/CuadreAlimentoEngorde` no tiene **ningún** consumidor en el front
+
+## Compuerta (el gate manda; los 4 aprendizajes de las rondas fallidas van adentro)
+- [ ] **G0 — identidad SIN marcas: NECESARIA, JAMÁS SUFICIENTE.** Las 3 rondas dieron 0/0 siempre, incluida
+      la que producía negativos. `verificar_paridad_saldo_engorde.sql` antes/después, las 5 fns, ambas
+      empresas. **Nadie declara GO con esto**
+- [ ] **G1 — A/B con la marca PRENDIDA sobre movimientos REALES** (`backend/sql/verificar_marca_proximo_ciclo.sql`,
+      nuevo, LF): censo de los ~59 galpones / ~2.344 movimientos, `SAVEPOINT` por movimiento, `ROLLBACK` y
+      verificación de 0 rastro
+- [ ] I1 **ninguna fila diaria negativa** = 0 en todo el universo (ronda 3: 6 de 59)
+- [ ] I2 **conservación suma cero** por galpón (apertura + filas) invariante vs HEAD
+- [ ] I3 **visibilidad R3**: 0 movimientos marcados invisibles
+- [ ] I4 **no multiplicación**: mismo número de ciclos que lo cuentan, con y sin marca (ronda 1: 4 lotes)
+- [ ] I5 **cuadre** sin alejarse de 0 · línea base 61 filas, 1 preexistente (Panamá lote 182) (ronda 2: +5.000)
+- [ ] I6 **R1 convivencia**: `dif_saldo` = 0,00 en los 4 pares (10.699,52 · 17.761,52 · 1.576,47 · 19.393,56)
+- [ ] I7 **rendimiento** del cuadre ≤ 1,5× la línea base
+- [ ] **G3 — tests C# que CONSTRUYEN las topologías** (los 17 del primer intento pasaron con los defectos
+      adentro por hardcodear `miPrimerSeguimiento: null`): los 11 casos de la tabla + **prueba de mutación
+      registrada** (comentar cada guarda ⇒ el test tiene que ponerse rojo)
+- [ ] **G4 — el que corrige NO declara GO**: el gate lo lee una sesión que no escribió la v16
+
+## Casos de prueba con galpones reales (veredicto esperado escrito de antemano)
+- [ ] P1 96/PA-67 (4 lotes sin seguimiento) ⇒ NEUTRO, idéntico a HEAD · P2/P3 los 4 pares que conviven ⇒
+      `dif_saldo` 0,00 · P4 37/G0025 `id 6337`/`6245` ⇒ DIFERIDO limpio · P5 `id 13266` anulado ⇒ inerte ·
+      P6 37/Galpon-11 `id 9087` ⇒ NEUTRO sin destino · **P7 43/G0055 `id 14047` (04-ago, 5.600 kg) ⇒ NEUTRO:
+      es el testigo del −8.840 de la ronda 3** · P8 salidas 0173…0188 ⇒ IGNORADA_NO_ENTRADA · P9 `id 7189`
+      ⇒ DIFERIDO_PARCIAL topado · P10 destino congelado (construido en tx) ⇒ NEUTRO · P11 cruce de umbral ⇒
+      refresco del saldo persistido · **P12 granja 42/G0049 lote 132, 7.000 kg doc `005-001-000063560` ⇒ la
+      fila conserva `ingreso 7.000 / saldo 11.260 / documento`** (regresión E1 de la auditoría)
+
+## No se toca (y por qué)
+- [x] `fn_cuadre_alimento_engorde` (fórmula) — no lo necesita y tocarlo fue el error de la ronda 2; tiene
+      que seguir siendo el detector **independiente**
+- [x] Rama congelada (84 fotos) · columna `para_proximo_ciclo` + trigger (ya commiteados) ·
+      `vw_seguimiento_pollo_engorde` (Power BI, reimplementación aparte — divergencia documentada) ·
+      ventana D4 `dias_alimento_previo_encaset` (§2.3a, otro feature) · descuadre persistido de Panamá
+      (69 filas, preexistente) · decidir por país/empresa (anti-patrón prohibido por CLAUDE.md)
+- [x] `ReporteContableService.cs`, `ReporteContableBultosCalculos.cs`, `FarmInventoryMovementService.cs`,
+      `CatalogItemService.cs`, `.devpilot/` — **sesiones paralelas**
+
+---
+
+# v16 de engorde — FASE 1 IMPLEMENTADA: la marca `para_proximo_ciclo` ENTREGA en vez de borrar
+
+**Plan:** [`fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md`](fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md)
+**Fecha:** 2026-08-09 · Bloque propio — no tocar desde otras sesiones
+**Continúa** el bloque «Rediseño de la marca `para_proximo_ciclo` — v16 con ENTREGA al ciclo siguiente»
+(Fase 0 = plan). Base: HEAD `d6aeccb`. **Esta sesión NO commitea** (lo hace el orquestador).
+
+## Qué quedó implementado
+
+- [x] **F1.1** `backend/sql/fn_alimento_marcado_atribucion.sql` (NUEVO, 543 líneas) — dueño único de la
+      atribución. Dos funciones: `fn_alimento_base_cedente_engorde(INT)` (el TOPE: último día visible
+      del cedente + su saldo ahí) y `fn_alimento_marcado_atribucion(INT,TEXT,TEXT)` (el veredicto por
+      movimiento) + el índice parcial `ix_lote_hist_para_proximo_ciclo`
+- [x] **F1.2** `fn_seguimiento_diario_engorde` **v16**: las 4 exclusiones de v15 revertidas a v14 y la
+      marca convertida en dos términos **ADITIVOS** — `+kg_diferido` en la apertura del DESTINO y
+      `−kg_diferido` como `traslado_salida_kg` del CEDENTE en su último día visible
+- [x] **F1.3** espejo C# `Application/Calculos/AtribucionAlimentoMarcadoCalculos.cs` (NUEVO) +
+      `SaldoAlimentoEngordeCalculos` y `SeguimientoAvesEngordeCalculos` **revertidos a v14** (la marca
+      ya no los toca) + 33 tests nuevos que CONSTRUYEN las topologías
+- [x] **F1.4** cruce de umbral: `SaldoAlimentoEngordeAplicador.RecalcularVecinosSiHayAlimentoMarcadoAsync`,
+      llamado desde los dos services de seguimiento (carga masiva y formulario Ecuador)
+- [x] **F1.5** **el cuadre NO se tocó** — ni una línea de `fn_cuadre_alimento_engorde`
+- [x] **F1.6** 2 migraciones EF idempotentes con el SQL **byte a byte** de los `.sql`:
+      `20260809120000_FnAlimentoMarcadoAtribucionEngorde` y
+      `20260809120100_FnSeguimientoEngordeV16EntregaCicloSiguiente` (Down = v15 VERBATIM, Designer
+      clonado del último real, **ModelSnapshot intacto**)
+- [x] `backend/sql/verificar_marca_proximo_ciclo.sql` (NUEVO, 566 líneas, LF) — el gate ejecutable
+
+## El cambio de modelo, en una línea
+
+`apert_mov`, `hist_full`, `hist_alimento`, `docs_por_fecha` y `fechas_universo` vuelven a la forma de
+**v14 exacta**. La marca no quita nada de ninguna parte: agrega una **fila de entrega** al cedente y un
+**crédito de apertura** al destino, por los mismos kg. Por eso R3 («invisible» nunca es una respuesta)
+pasa de condición a vigilar a **propiedad estructural**, y una fila negativa es imposible por
+construcción (un solo delta, en el último día, topado por el saldo propio).
+
+## 🔴 DOS DEFECTOS QUE ENCONTRÓ EL GATE Y QUE NO ESTABAN EN EL PLAN
+
+1. **La entrega recibida movía el CIERRE del destino.** `saldo_close` → `rango_final.fecha_max` se
+   alimenta de la apertura; al sumarle el crédito, el ciclo destino cerraba más tarde, **ampliaba su
+   ventana visible** y absorbía movimientos que no eran suyos. Medido: **37 probes con la conservación
+   rota, hasta 14.320 kg**. Fix: `saldo_running` usa `apertura_alimento_base` (v14) y solo `pt_calc` y
+   la columna expuesta usan la apertura efectiva. Es la misma asimetría que ya obliga a dejar la
+   entrega fuera de `hist_full` (si entrara, movería la fecha donde ella misma se escribe).
+2. **Diferir alimento que el ciclo cedente estaba consumiendo descuadra el ciclo activo.** En
+   **43/G0055** el lote 86 (seg 02-jun→18-jul) cierra con **1.100 kg «de saldo»**, pero el stock físico
+   del galpón (**4.540 kg**) coincide EXACTO con el saldo del ciclo activo 193 ⇒ esos 1.100 kg son un
+   **fantasma contable** (la anomalía R2 que ya existe a escala: 24 de 84 liquidaciones congelaron con
+   saldo > 0). Entregarlos movía `fn_cuadre_alimento_engorde` de **1 → 2 galpones descuadrados** en los
+   17 probes de ese galpón — la firma exacta de la ronda 2. Fix: guarda nueva
+   **`NEUTRO_DENTRO_DEL_CEDENTE`** (`d <= cedente.ult_seg` ⇒ la marca es inerte).
+
+⚠️ **La guarda 2 se aparta del plan**: el caso de prueba **P4** (37/G0025, `id 6337` del 19-may dentro
+del rango del lote 70) esperaba `DIFERIDO` y ahora da `NEUTRO_DENTRO_DEL_CEDENTE`. Se eligió el
+invariante del cuadre por encima del veredicto escrito. **Consecuencia a decidir por producto:** el
+feature queda acotado al ingreso que cae en el **HUECO entre ciclos** —que es el caso que el propio
+plan identifica como el real (39 de 110 encasets 2026 de Ecuador, §9.3)— y NO cubre el alimento que
+llega mientras el lote anterior sigue en seguimiento.
+
+## Semántica final: 17 estados, ninguno deja kilos invisibles
+
+`DIFERIDO` · `DIFERIDO_PARCIAL` · `IGNORADA_ANULADO` · `IGNORADA_NO_ENTRADA` · `NEUTRO_SIN_DESTINO` ·
+`NEUTRO_SIN_CEDENTE` · `NEUTRO_CEDENTE_SIN_SEGUIMIENTO` · `NEUTRO_DESTINO_SIN_SEGUIMIENTO` ·
+`NEUTRO_CONVIVENCIA` · `NEUTRO_DENTRO_DEL_DESTINO` · `NEUTRO_DESTINO_LIQUIDADO` ·
+`NEUTRO_CEDENTE_LIQUIDADO` · `NEUTRO_YA_VISIBLE_EN_DESTINO` · `NEUTRO_DENTRO_DEL_CEDENTE` ·
+`NEUTRO_CEDENTE_SIN_CIERRE` · `NEUTRO_FUERA_DEL_CEDENTE` · `NEUTRO_SIN_RESPALDO`
+
+Tres estados **no anticipados por el plan** y por qué existen:
+- `NEUTRO_CEDENTE_LIQUIDADO`: una foto congelada no se reescribe ⇒ la entrega no se escribiría y el
+  destino recibiría kg sin contraparte (suma ≠ 0).
+- `NEUTRO_YA_VISIBLE_EN_DESTINO`: si el movimiento ya entra a la apertura natural del destino (v11+v12),
+  diferirlo lo contaría **dos veces**. Es lo que mantiene la conservación exacta en 0,00.
+- `NEUTRO_DENTRO_DEL_CEDENTE`: el defecto 2 de arriba.
+
+## Resultados del gate (BD local, dump tipo prod, todo en tx con ROLLBACK)
+
+**G0 — identidad SIN marcas (necesaria, jamás suficiente).** `EXCEPT ALL` bidireccional, las dos
+empresas, las 5 fns: **0 / 0 en todas**.
+`fn_seguimiento_diario_engorde` 5.804 filas · `fn_cuadre_alimento_engorde` 61 · `fn_cuadre_aves_engorde`
+172 · `fn_reporte_diario_costos_engorde` 224 · `fn_informe_semanal_pollo_engorde` 898.
+
+**G1 — censo con la marca PRENDIDA.** `backend/sql/verificar_marca_proximo_ciclo.sql`,
+**1.406 movimientos / 64 galpones**, tres fases:
+
+| | Fase A (BD tal cual) | Fase B (sin congeladas) | Fase C (ingreso sintético en el hueco) |
+|---|---|---|---|
+| I1 filas negativas nuevas | **0** de 1.406 | **0** de 1.406 | **0** de 17 |
+| I2 conservación, desvío máx. | **0,0000 kg** | **0,0000 kg** | **0,0000 kg** |
+| I3 marcados que se vuelven invisibles | **0** | **0** | **0** |
+| I4 documento en más lotes sin diferir | **0** | — | — |
+| I5 cuadre | **no se movió** en ningún probe | — | **1 → 2 sin marca, 2 → 1 CON marca** |
+| I6 convivencia (4 pares) | `dif_saldo` **0,00** con y sin marca | — | — |
+
+- Línea base del cuadre re-medida: **61 filas, 1 descuadrado preexistente (Panamá, lote 182)**.
+- Filas diarias ya negativas en HEAD: **91** — I1 mide filas negativas **nuevas**, no el total.
+- **I7 rendimiento:** `fn_cuadre_alimento_engorde(NULL)` **0,62 s** (v16) vs **0,49 s** (HEAD) = **1,27×**
+  (umbral 1,5×).
+- Rastro al terminar: **0 marcas** en `lote_registro_historico_unificado` y en
+  `inventario_gestion_movimiento`; **0 filas** del ingreso sintético.
+
+**🔴 Lo que el censo NO puede demostrar, y por eso existe la fase C.** En el dump local **ningún
+movimiento real** cae en la ventana que habilita `DIFERIDO` (después del último seguimiento del cedente
+y antes de la ventana de apertura del destino): las fases A y B terminan con **0 probes DIFERIDO**, así
+que por sí solas prueban que la marca *no rompe nada*, no que la entrega *funcione*. La fase C inyecta
+el ingreso que falta (3.000 kg) en 17 pares secuenciales reales, bombeando también
+`inventario_gestion_stock`, y compara el MISMO movimiento con el booleano en `FALSE` y en `TRUE`.
+El único par con respaldo (**43/G0055, 86 → 193, 19-jul**) da exactamente lo diseñado:
+
+| | sin marca | con marca |
+|---|---|---|
+| saldo final del cedente 86 | 4.100 kg | **1.100 kg** (entregó 3.000) |
+| `apertura_alimento_kg` del destino 193 | 0 kg | **3.000 kg** |
+| galpones descuadrados | **2** (el bug: el stock subió y el ciclo activo no lo ve) | **1** (= línea base) |
+| conservación / filas negativas nuevas | — | **0,00 kg / 0** |
+
+**G3 — tests C# que construyen las topologías.** `AtribucionAlimentoMarcadoCalculosTests` (NUEVO, 33
+tests) con un helper que arma un **galpón completo** (ciclos con encaset, primer y último seguimiento,
+congelación, ventana) y el estado del cedente como dato ⇒ se pueden expresar «destino sin seguimiento»,
+«cedente sin respaldo», «destino liquidado», «ciclos que conviven». `dotnet test`: **2.168 pasan, 0
+fallan**. Prueba de mutación registrada más abajo.
+
+**Builds:** `dotnet build` Application **0/0**, Infrastructure **0/0**. `ModelSnapshot` sin tocar.
+
+## Prueba de mutación (G3) — comentar cada guarda y ver el test en rojo
+
+Se comentó cada guarda nueva, se corrió `dotnet test` y se verificó que los tests se ponen ROJOS.
+Una guarda cuyo test sigue verde al quitarla no está testeada. **12 de 12 en rojo, 0 falsos verdes:**
+
+| guarda comentada | resultado |
+|---|---|
+| R1 convivencia (`Conviven`) | 🔴 1 test falla |
+| caso 10 · `d >= destino.PrimerSeg` | 🔴 1 |
+| caso 5 · destino congelado | 🔴 1 |
+| caso 5b · cedente congelado | 🔴 1 |
+| Option F · ya visible en la apertura del destino | 🔴 1 |
+| anti-abuso · `d <= cedente.UltimoSeg` | 🔴 1 |
+| `d > baseCedente.FechaMax` | 🔴 1 |
+| caso 3 · destino sin seguimiento | 🔴 1 |
+| caso 9 · cedente sin seguimiento | 🔴 1 |
+| caso 8 · solo entradas de alimento | 🔴 2 |
+| caso 7 · movimiento anulado | 🔴 1 |
+| tope · piso en 0 | 🔴 1 |
+
+Script reproducible: el de la sesión comenta el fragmento, corre los tests y restaura el fuente.
+
+## Estado dejado en la BD local
+
+- [x] `fn_alimento_base_cedente_engorde`, `fn_alimento_marcado_atribucion`,
+      `ix_lote_hist_para_proximo_ciclo` y `fn_seguimiento_diario_engorde` v16 **instalados**
+- [x] `__EFMigrationsHistory` **NO se tocó a mano** (última sigue siendo `20260808130000`): las dos
+      migraciones nuevas son idempotentes y las aplica EF sola al levantar el backend
+- [x] **0 marcas** y **0 filas sintéticas**: todo el gate corre en transacción con `ROLLBACK`
+- [x] Tablas temporales de línea base (`tmp_*`) eliminadas · sin procesos vivos
+
+## Lo que NO entra en esta fase (y sigue pendiente)
+
+- [ ] **Fase 2a** — columna «Próx. ciclo» en el tab Histórico (el backend ya la devuelve en
+      `InventarioGestionService.cs:1806`; el front no la pinta) y verificación en pantalla de la fila
+      de entrega
+- [ ] **Fase 2b** — bandeja de alimento reservado (el helper ya devuelve `estado` y `motivo` listos
+      para la UI)
+- [ ] **Fase 3** — señalamiento de la anomalía R2 (columnas informativas en el cuadre, reporte de
+      liquidados con alimento sin trasladar, el falso positivo del aviso de liquidación)
+- [ ] **Mensaje del endpoint** `ActualizarDestinoCicloAsync`: sigue con texto fijo; debería reportar el
+      estado resuelto por el helper («se difiere al lote X» / «queda reservado»)
+- [ ] **Decisión de producto** sobre `NEUTRO_DENTRO_DEL_CEDENTE` (ver el ⚠️ de arriba)
+
+## G4 — el que corrige NO declara GO
+
+Esta sesión **escribió** la v16, así que **no declara GO**. El gate lo tiene que ejecutar y leer una
+sesión que no la escribió: `psql ... -f backend/sql/verificar_marca_proximo_ciclo.sql`.
+
+## VEREDICTO DE LA RONDA 4: **NO-GO — REVERTIDA** (y la marca queda DESHABILITADA en la UI)
+
+El gate lo corrieron dos verificadores independientes (ninguno escribió la v16) y un juez sin permiso
+de editar. **C1 = NO-GO · C2 = GO-CON-RESERVAS · juez = NO-GO.** La diferencia entre los dos: C1 abrió
+la **foto congelada** de la liquidación y C2 no.
+
+### Lo que SÍ mejoró respecto de las 3 rondas previas
+- **Filas negativas nuevas por la marca: 0** (0 de 64 galpones reales, 0 de 75 pares sintéticos, 0 de
+  2.210 movimientos). El invariante que hundió la ronda 3 quedó cerrado.
+- **Cuadre vs HEAD: 0 movimientos empeoran** (A/B uno a uno: 0 peor · 729 mejor · 1.481 iguales).
+- **Los tests MUERDEN**: 14/14 mutantes muertos, 0 sobrevivientes (el predicado viejo pone 4 en rojo).
+- **R1 convivencia: CUMPLE** — 4 pares reales, 29 movimientos marcados, 113 filas, `EXCEPT ALL` 0 y 0.
+
+### Por qué igual es NO-GO: el handoff se parte al liquidar
+- 🔴 **Liquidar el CEDENTE esconde kilos**: tras una entrega válida (apertura destino 3.000, descuadre
+  0,00), congelar el cedente —el procedimiento normal de R2— flipea a `NEUTRO_CEDENTE_LIQUIDADO`:
+  apertura del destino 3.000→0, cuadre 0,00→−3.000, y la foto congelada del cedente sigue diciendo
+  «Entrega al ciclo siguiente, salida 3.000». **3.000 kg reales sin ninguna tabla diaria viva.** (R3 ✗)
+- 🔴 **Liquidar el DESTINO los duplica**: Σ galpón 8.640→11.640 (**+3.000 kg creados**) con
+  `descuadre_kg = 0,00 en ambos estados` ⇒ **el detector es ciego**. HEAD no puede producir esto.
+- **Causa raíz**: la atribución es un veredicto **recalculado en lectura** sobre estado mutable, pero la
+  liquidación congela **un solo** extremo ⇒ el handoff se parte. El rediseño correcto es **persistir la
+  atribución como hecho** (cedente, destino, kg, fecha) en el momento de marcar.
+- Alcance: **0 movimientos DIFERIDO** en 1.680 marcados reales ⇒ la Fase 1 verde mide un no-op; el único
+  par que alcanza el estado es justo el que rompen los dos bloqueantes.
+
+### 🔴 HALLAZGO QUE OBLIGA A ACTUAR SOBRE `801b14f` (lo ya commiteado)
+Bajo **HEAD/v15**, marcar un movimiento **rompe la conservación en 729 de 2.210 casos reales**
+(hasta **37.467 kg** que desaparecen de toda tabla diaria) y HEAD produce **208 filas negativas**.
+Motivo: los 4 guards de la fn (`hist_full`, `hist_alimento`, `docs_por_fecha`, `fechas_universo`) le
+quitan el movimiento a **TODO** lote con seguimiento —incluidos los que **CONVIVEN** con el destino— y
+en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en producción.**
+
+- [x] **Mitigación commiteada**: el checkbox del alta se oculta (`mostrarParaProximoCicloIngreso` ⇒
+      `false`) y el historial solo permite **QUITAR** una marca existente, nunca poner una nueva
+      (`puedeMarcarDestinoCiclo` exige `paraProximoCiclo === true`). La columna, el endpoint, el badge y
+      la migración `20260808120000` **quedan intactos**: se apaga la puerta de entrada, no la feature.
+      Regla del dueño del producto respetada: el alimento marcado nunca queda invisible ni sin corregir.
+- [x] `yarn build` (Node portable 22.23.1) — 0 errores, único warning el de bundle budget preexistente
+
+### Reversión (verificada)
+- [x] Working tree: `git checkout -- backend` + borrados los untracked del intento
+      (`fn_alimento_marcado_atribucion.sql`, `verificar_marca_proximo_ciclo.sql`,
+      `AtribucionAlimentoMarcadoCalculos.cs` + test, migraciones `20260809120000_*` y `20260809120100_*`).
+      **Se conservan** el plan `marca_proximo_ciclo_rediseno_plan.md` y este bloque del tracker
+- [x] BD local: fn diaria reinstalada desde HEAD (`DROP` + `CREATE`, cambió el `RETURNS TABLE`) ·
+      `fn_alimento_marcado_atribucion` y `fn_alimento_base_cedente_engorde` dropeadas ·
+      `__EFMigrationsHistory` **NO se tocó** (las migraciones nuevas nunca se registraron) · el índice
+      `ix_lote_hist_para_proximo_ciclo` **NO se tocó** (otra sesión lo estaba creando)
+- [x] Verificado: 0 marcados · 0 fns auxiliares · 0 rastros en la fn (`DIFERIDO`/`NEUTRO_`/`cedente`) ·
+      `apertura_alimento_kg` presente (= v15 correcta) · última migración `20260808130000` ·
+      cuadre 61 filas / 1 descuadrado (el preexistente de Panamá)
+
+### Lo que queda para el rediseño (con las 3 reglas ya definidas por el usuario)
+- [ ] **Persistir la atribución como hecho** en el momento de marcar (cedente, destino, kg, fecha), en
+      vez de recalcularla en lectura: es la única forma de que la liquidación de un extremo no parta el
+      handoff. Es un cambio de modelo de datos, no una guarda más
+- [ ] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
+      seguir viendo el movimiento). El predicado ya existe en el archivo: es el de `lotes_ajenos` (v11)
+      aplicado al destino en vez de a mí
+- [ ] Fase 2 (visibilidad/corrección R3) y Fase 3 (señalamiento de la anomalía R2) del plan
+
+---
+
+# PWA F1 — shell instalable, autoactualizable y con kill switch
+
+**Plan:** [fase_de_desarrollo/pwa_f1_shell_plan.md](fase_de_desarrollo/pwa_f1_shell_plan.md)
+**Contexto:** F0.C cerrada (`76a2903`), F0.B parcial (`f139dfd`). El borde ya sirve `ngsw.json`,
+`ngsw-worker.js`, `safety-worker.js` y `manifest.webmanifest` con `no-cache` — pero el Service Worker
+nunca existió. Esta entrega es la F1 del plan madre.
+
+⛔ **Fuera de alcance, explícito:** escritura offline (outbox/push). Sigue bloqueada por F0.A/F0.B
+(sin idempotencia, sin concurrencia, sin tombstones en el backend).
+
+## Shell y build
+- [x] `@angular/service-worker` en `package.json` (versión alineada a Angular 22)
+- [x] `ngsw-config.json` — assetGroups `app` (prefetch) + `assets` (lazy); **sin `dataGroups`**
+- [x] `angular.json` — `serviceWorker` en `production` y `docker`; manifest y safety-worker como assets
+- [x] `provideServiceWorker` con `!isDevMode()` + `registerWhenStable:30000`
+- [x] `scripts/verificar-ngsw.js` — el build falla si un SHA1 de `ngsw.json` no coincide con el disco
+- [x] `Dockerfile` copia `ngsw-config.json` y corre el verificador; `.dockerignore` con la lista blanca al día
+
+## Instalabilidad
+- [x] `manifest.webmanifest` (name, short_name, start_url, display standalone, theme/background)
+- [x] Iconos 192/512 `any` + 192/512 `maskable` + apple-touch 180, generados por script reproducible
+- [x] `index.html` — link al manifest, `theme-color`, metas de iOS
+
+## Ciclo de vida
+- [x] `PwaActualizacionService` con `SwUpdate` + banner (sin recarga forzada) + fallback `version.json`
+- [x] `VersionCheckService` **eliminado** (dos autoridades de recarga = bucle)
+- [x] `ConexionService` (online/offline) + indicador
+- [x] `PwaInstalacionService` (`beforeinstallprompt`) + botón de instalar
+- [x] `safety-worker.js` — desregistra y limpia CacheStorage, **NO toca IndexedDB** + `make pwa-panic`
+
+## Diagnóstico
+- [x] `/diagnostico` sin `authGuard`, sin datos de negocio: build, estado del SW (safe mode incluido),
+      `storage.estimate()`, persistencia, caches
+
+## Validación
+- [x] Tests Karma de las funciones puras (`decidirActualizacion`, `formatearBytes`, `resumirEstadoSw`)
+- [x] `yarn build` 0 errores · `yarn test` verde
+- [x] Pruebas en vivo sobre build de producción servido en localhost: SW activo, manifest, iconos,
+      **red cortada**, 404 de asset inexistente, kill switch
+
+## Resultado de las pruebas en vivo (build de producción servido en :4400 con las reglas de nginx)
+
+Servidor: `frontend/scripts/servir-pwa-local.js` (replica no-cache de control, 404 de assets y
+fallback solo en navegaciones). `localhost` es contexto seguro ⇒ el SW se registra sin HTTPS.
+
+- [x] SW registrado (`ngsw-worker.js`, scope `/`) y **controlando** tras la segunda carga ·
+      114 recursos del shell + 3 de assets precacheados (~9 MB)
+- [x] Manifest 200 con `application/manifest+json`, `display: standalone`, `theme #F5821F`;
+      los **4 iconos** declarados resuelven 200
+- [x] `ngsw.json` / `ngsw-worker.js` / `safety-worker.js` / `version.json` → 200 `no-cache`
+- [x] `/chunk-que-no-existe.js` → **404**, no el index (criterio §9 del plan madre)
+- [x] **Servidor APAGADO** ⇒ `/diagnostico` (ruta lazy) carga completa desde la caché del SW
+- [x] Banner "Sin conexión" aparece al evento `offline`
+- [x] **Ciclo de actualización real**: `prepare → build → emit → verificar-ngsw` ⇒ el banner
+      aparece solo, se aplica con el botón, el bundle cambia (`main-5R4LC3MN` → `main-6VNNBUWV`)
+      y el `buildId` en pantalla queda **igual al de `/version.json`**. Sin bucle de recarga
+- [x] **Kill switch** (procedimiento exacto de `make pwa-panic`): 0 registros de SW, 0 cachés,
+      y la base IndexedDB de prueba **INTACTA** — la regla que protege el futuro outbox
+- [x] Recuperación tras el kill switch: el SW vuelve a registrarse y activarse solo
+- [x] Consola sin errores (el único 404 es el provocado a propósito)
+
+### 🔴 Hallazgo del gate en su primera corrida
+`verificar-ngsw.js` falló apenas se escribió, con un SHA1 divergente en `/safety-worker.js`:
+**`@angular/build` escribe su propio `safety-worker.js` ENCIMA del asset, después de haberlo
+hasheado para `ngsw.json`**. Es exactamente el modo de falla que el gate existe para atrapar —
+se habría desplegado una imagen que arranca perfecto y deja el SW en **safe mode silencioso**.
+Resuelto eliminando la copia propia (la de Angular ya hace `unregister()` + borra solo cachés
+`ngsw:` y nunca toca IndexedDB) y excluyendo `safety-worker.js` y `worker-basic.min.js` de los
+`assetGroups`: el kill switch no debe servirse desde la caché del SW que viene a matar.
+
+## Fuera de alcance (explícito, no pendiente de pulir)
+Escritura offline (outbox + push). Bloqueada por F0.A/F0.B: el backend no tiene idempotencia,
+ni control de concurrencia, ni tombstones, y los saldos son contadores read-modify-write con
+`Math.Max(0,…)` (no reversibles). Al cerrar F1 la app es una PWA instalable cuyo **shell** anda
+sin red; los **datos** siguen requiriendo conexión. Documentado en `frontend/PWA.md`.
+
+---
+
+# F0.A · A1 + A2 — el stock de inventario deja de perder escrituras
+
+**Plan:** [fase_de_desarrollo/f0a_stock_atomico_plan.md](fase_de_desarrollo/f0a_stock_atomico_plan.md)
+**Contexto:** items A1 y A2 de `pwa_offline_first_plan.md` §4.A. **Son bugs de producción de HOY**,
+reproducibles con dos pestañas; el offline solo los multiplicaría por N dispositivos. Prerrequisito
+de F2/F3.
+
+## Medición previa (local, refresh del dump de prod)
+- [x] 539 filas de stock · **0 grupos duplicados** · **0 FKs** apuntando a `stock.id` ⇒ el índice
+      único se puede crear y consolidar no rompe nada
+
+## A1 — clave natural única
+- [x] Migración `AddStockClaveNaturalUnica`, idempotente: consolida duplicados (suma, se queda
+      `MIN(id)`) **antes** de crear el índice. Sin esto, duplicados vivos en prod harían fallar la
+      migración al arrancar el contenedor (`RunMigrations=true`) → exit 139 / rollback silencioso
+- [x] Índice único de **expresión** con `COALESCE(nucleo_id,'')`/`COALESCE(galpon_id,'')`: sin el
+      COALESCE, `NULL <> NULL` deja duplicarse todo el modelo a nivel granja (Colombia + granjas con
+      `maneja_alimento_por_galpon = false`)
+- [x] Se conserva el índice no único existente (el de expresión no resuelve las igualdades de las
+      consultas ⇒ quitarlo sería regresión de plan)
+- [x] Upsert `INSERT ... ON CONFLICT DO UPDATE` en los 4 sitios de buscar-o-insertar
+
+## A2 — descuento atómico
+- [x] `UPDATE ... SET quantity = quantity - @q WHERE id = @id AND quantity >= @q`; **0 filas = rechazo**
+- [x] Aplicado en los 4 sitios de read-modify-write (consumo, traslado misma granja, tránsito
+      inter-granja, distribución)
+- [x] Lecturas previas al descuento pasan a `AsNoTracking()` (que el tracker no reescriba la fila)
+- [x] Transacción explícita solo si no hay una ambiente (`CurrentTransaction is null`)
+
+## Validación
+- [x] Tests xUnit de la lógica pura
+- [x] Pruebas SQL en transacción + ROLLBACK: consolidación, rechazo del índice único (incluido el
+      caso NULL), UPDATE condicional con saldo suficiente e insuficiente
+- [x] `dotnet build` + `dotnet test`
+- [x] Cuadre de alimento de engorde sin moverse de 61 filas / 1 descuadrado (Panamá preexistente)
+
+## Pruebas de concurrencia REALES (dos sesiones psql simultáneas contra la BD local)
+
+Es el punto: los dos defectos son carreras, así que probarlos de a una operación no prueba nada.
+
+- [x] **A2 — descuento.** Fila con saldo **150**, dos consumos concurrentes de **100**:
+      sesión A → `UPDATE 1` · sesión B → **`UPDATE 0`** (se bloqueó en el lock de fila de A y al
+      liberarse reevaluó el `WHERE` contra el valor nuevo) · **saldo final 50**.
+      Con el código anterior los dos pasaban la validación en C# y el saldo quedaba en **−50**.
+- [x] **A1 — inserción.** Dos upserts concurrentes sobre la misma clave natural (40 + 40):
+      resultado **1 fila con 80**, en vez de dos filas de 40 con una invisible.
+- [x] Datos de prueba borrados; la tabla vuelve a **539 filas**.
+
+## Validación
+- [x] DDL probado en transacción + ROLLBACK con duplicados sembrados: consolidación (2 grupos,
+      3 filas absorbidas), rechazo del índice con ubicación **y a nivel granja** (`NULL,NULL`),
+      `UPDATE` condicional (1 fila con saldo / 0 sin saldo), idempotencia
+- [x] `dotnet build` 0 errores · `dotnet test` **2.163 verdes** (12 nuevos de `StockAtomicoCalculos`)
+- [x] Migración aplicada en local: índice creado, 539 filas intactas, 0 duplicados
+- [x] Cuadre de alimento de engorde **61 filas / 1 descuadrado** — idéntico al estado previo
+      (el descuadre preexistente de Panamá)
+
+## ⚠️ Brecha que queda ABIERTA, a propósito
+Los dos métodos **a nivel granja de Colombia** (`RegistrarConsumoNivelGranjaAsync` /
+`RegistrarIngresoNivelGranjaAsync`) **NO se hicieron atómicos**. Su contrato dice explícitamente
+*«NO SaveChanges/tx aquí: el orquestador externo commitea»*, y de sus cuatro llamadores, **tres**
+(`ProduccionService.Seguimiento`) abren transacción pero el de **carga masiva**
+(`MigracionService.AlimentoPostura:131`) no. Con escritura diferida eso hoy funciona; con SQL
+inmediato, el descuento se auto-commitearía y el movimiento quedaría pendiente ⇒ **ventana de
+escritura parcial nueva**. Cerrarla requiere primero envolver el camino de carga masiva en su propia
+transacción. Se deja anotado en vez de introducir un modo de falla que este cambio no puede verificar.
+
+---
+
+# PWA F2 — consulta offline
+
+**Plan:** [fase_de_desarrollo/pwa_f2_consulta_offline_plan.md](fase_de_desarrollo/pwa_f2_consulta_offline_plan.md)
+**Contexto:** F1 (`8ecb7c6`) dejó la app instalable con el shell sin red, pero toda pantalla con
+datos queda vacía sin conexión. **Riesgo de integridad: cero** — es solo lectura.
+
+## Capa de datos
+- [x] `shared/offline/offline-db.ts` — IndexedDB con **migraciones acumulativas**
+      (`for v = oldVersion+1..newVersion`; un salto v1→v3 debe correr los dos pasos)
+- [x] `claveParticion` **fail-closed**: `{userId}|{companyId}|{paisId}|{método} {url}`; sin alguno
+      de los tres ⇒ no se lee NI se escribe (degradar a clave parcial es cómo se filtra entre empresas)
+- [x] `decidirCacheable`: **lista blanca** de endpoints operativos + solo GET. Excluidos a propósito
+      `ReporteDiarioCostos*`, `ReporteContable`, `DbStudio`, `Auth`, `Users`, `Roles`, `session` (D3)
+- [x] `vigenciaCache`: TTL duro de 16 h (jornada offline de D4); vencida ⇒ **no se sirve**
+
+## Integración
+- [x] Interceptor: red primero, caché **solo** ante `status === 0`
+- [x] Purga de la partición en logout y en cambio de empresa
+- [x] Aviso en la UI de que se está viendo una consulta guardada
+- [x] Estado de la caché en `/diagnostico`
+
+## Validación
+- [x] Tests Karma de las 3 funciones puras + migración acumulativa de IndexedDB
+- [x] `yarn build` + `yarn test`
+- [x] En vivo: con red guarda · **sin red sirve** · sin caché previa error normal · cambio de
+      empresa y logout purgan
+
+## Hallazgo del chequeo de cobertura (el que justificó escribir el script)
+
+La lista blanca escrita "a ojo" cubría **23 de los 78** endpoints que la app realmente pide, y tenía
+**7 entradas que no existen**, una de ellas un typo (`lotepostorabase` por `loteposturabase`). Ese
+modo de falla es silencioso: no rompe el build, no rompe ningún test, y el único síntoma es que esa
+pantalla no anda sin red — cosa que no se descubre en la oficina, se descubre en la granja.
+
+`scripts/verificar-lista-cacheable.js` contrasta la lista contra los `${environment.apiUrl}/X` del
+código. Estado final: **50 cacheables · 28 excluidos con motivo escrito · 0 sin decisión · 0 fantasma**.
+No falla el build a propósito: "¿este módulo tiene que andar sin red?" es una decisión de producto,
+no algo que un script resuelva. Lo que impide es dejar un endpoint sin mirar.
+
+## Pruebas
+- [x] **Integración con IndexedDB REAL** en Chrome (`offline-cache.interceptor.spec.ts`): con red
+      guarda · **sin red sirve lo guardado** · sin nada guardado propaga el error · un **500 NO se
+      tapa** con caché · endpoint fuera de la lista blanca ni se guarda ni se sirve · la caché de
+      **otra empresa no se sirve** · purga por logout y por cambio de empresa · fail-closed sin identidad
+- [x] `yarn build` 0 errores (solo el budget preexistente) · `yarn test` **199 verdes** (155 → 199)
+- [x] `verificar-ngsw.js` OK — sigue sin `dataGroups`
+- [x] En vivo: la base `italgranja-offline v1` se crea sola, `/diagnostico` muestra la sección
+      "Consultas guardadas", y con el **servidor apagado** la app carga y el banner de sin conexión aparece
+
+### Gotcha que costó una vuelta
+El primer intento de la suite murió con **7 timeouts**. La causa no estaba en las pruebas:
+`CacheConsultasService` deja su conexión a IndexedDB abierta, y **una conexión abierta bloquea
+indefinidamente `deleteDatabase`**, así que la limpieza entre pruebas colgaba y Jasmine culpaba a la
+prueba. Se agregó `cerrarConexion()` al servicio (útil también para recrear el esquema en caliente) y
+las esperas fijas se cambiaron por sondeo con tope — un sleep calibrado en esta máquina es un test
+intermitente en el CI.
+
+## Lo que sigue para la captura offline (F3)
+Sigue bloqueada por F0.A/F0.B. Hechos: **A1 y A2** (`44b2400`). Pendientes: A3-A10 y B1/B4/B5/B6/B8/B10.
+
+---
+
+# F0.A — auditoría del estado real + A5 (lápidas de borrado)
+
+**Auditoría:** [fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md](fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md)
+
+## Auditoría: el inventario del plan madre estaba desactualizado en 3 de 10 ítems
+Verificado contra las funciones/triggers **vivos** en la BD y grep sobre `backend/src`, no contra el plan.
+
+- [x] **A1, A2** — hechos (`44b2400`, esta sesión)
+- [x] **A3** — ya estaba hecho por **otra sesión** (migración `20260806074742`): la rama UPDATE del
+      trigger ya corre el saldo **por delta** y no lo pisa
+- [x] **A8** — ya estaba hecho: `InventarioGestionConsumoRequest.FechaMovimiento` existe
+- [x] **A10** — ya estaba hecho: **0 triggers** en `seguimiento_diario_produccion` y no existe
+      ninguna función `%espejo%huevo%`
+- [x] **A4 — el plan pide algo que hoy ROMPERÍA el número.** El síntoma es real (un `GET` escribe
+      `aves_*_actual` y bumpea `updated_at`), pero `AvesHActual` tiene **6+ escritores incrementales**
+      y ese "self-heal" recalcula desde `fn_seguimiento_diario_produccion`: hoy **es lo que mantiene la
+      columna bien**. Sacarlo dejaría a todos leyendo la deriva. La corrección correcta es el patrón
+      `SaldoAlimentoEngordeAplicador` (la fn como única autoridad), con gate de paridad
+- [x] **A6 — requiere medir antes de tocar.** Hay **dos** únicos redundantes, ambos por `lote_id`.
+      Cambiar un índice único por lo que dice un plan sin verificar la colisión con datos es lo que
+      la regla de schema de CLAUDE.md prohíbe
+- [x] **A9 — pendiente y es zona minada.** Confirmado que sigue con `ORDER BY … DESC LIMIT 1` sin
+      filtro de vida del lote. Es el mismo terreno donde la ventana de alimento previo rompió Ecuador
+      y donde la marca «próximo ciclo» se intentó 4 veces y se revirtió. Exige el gate de paridad
+      multipaís antes de tocarla
+
+## A5 (primera parte) — lápidas de borrado, sin cambiar comportamiento
+- [x] Migración `20260810031057_AddSyncTombstones`: tabla `sync_tombstones` + función genérica
+      `trg_sync_tombstone()` + trigger `AFTER DELETE` en las **4 tablas operativas**
+- [x] **Puramente aditivo**: sin soft delete, sin filtro global, sin una línea de C# que lo lea. Los
+      borrados siguen funcionando igual — ahora además dejan constancia
+- [x] Se guardan **solo claves de negocio** (lote, fecha, ubicación, ítem), nunca la fila entera:
+      guardar la fila sería una copia paralela de datos operativos que nadie audita
+- [x] DDL probado en transacción + ROLLBACK: lápida creada, el borrado saca **exactamente 1 fila**,
+      `company_id`/`farm_id` capturados donde existen, idempotente
+- [x] Aplicada en local y probada **en vivo**: 4 triggers activos; borrar un seguimiento de levante
+      deja `clave={"fecha":…, "lote_id":"123", "lote_postura_levante_id":15}`
+- [x] `dotnet build` 0 errores · `dotnet test` **2.163 verdes** · cuadre de engorde **61/1**
+      (sin moverse) · stock 539 filas
+
+**Por qué se despliega ahora aunque nadie lo lea:** lo que se borra sin dejar lápida **no se puede
+reconstruir después**. Cuando exista la sincronización, ya va a haber historia de borrados en vez de
+arrancar de cero.
+
+## Orden recomendado para lo que queda
+**A5 (2ª parte: soft delete)** → **A7** (consolidar los dos escritores de levante) → **A6** (medir
+primero) → **A4** (aplicador + gate de paridad) → **A9** (último, con gate multipaís y en horario de
+baja operación).
+
+---
+
+# F0.A · A7 — una sola regla de saldo de aves para levante
+
+**Contexto:** item A7 de [f0a_auditoria_estado_2026-08-09.md](fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md).
+
+## El defecto, confirmado leyendo los tres caminos
+`SeguimientoDiarioService` escribía la fila pero **no** movía el saldo de levante en `Update`/`Delete`;
+lo hacía el módulo (`SeguimientoLoteLevanteService.Crud.cs`) **después** de llamarlo. Resultado:
+
+| Camino | Editar / borrar mortalidad de levante | Saldo de aves |
+|---|---|---|
+| Módulo de levante | ✅ | se movía |
+| `PUT`/`DELETE /api/SeguimientoDiario` | ✅ | **quedaba intacto** |
+| Módulo `LoteSeguimiento` | ✅ | **quedaba intacto** |
+
+O sea: la fila corregida y el saldo mintiendo. Producción **sí** lo hacía bien dentro del service —
+la asimetría era solo de levante.
+
+## Lo hecho
+- [x] `UpdateAsync` aplica el delta de levante **revirtiendo lo viejo y aplicando lo nuevo**, simétrico
+      con el bloque de producción que ya existía
+- [x] `DeleteAsync` devuelve las aves (`RestaurarAvesLevanteAsync`) en **los dos caminos**, incluido el
+      de traslado, y **dentro de la transacción** para que una falla del borrado se lleve la devolución
+- [x] Las **4** aplicaciones duplicadas del módulo de levante eliminadas (si no, se descontaría dos veces)
+- [x] Código muerto borrado: `DescontarAvesEnLotePosturaLevanteAsync` y
+      `AjustarAvesEnLotePosturaLevanteAsync` (grep: 0 llamadas restantes)
+- [x] `DescuentoAvesSeguimientoCalculos` (puro) + **18 tests xUnit**
+
+## La prueba que hace que esto sea un refactor y no un cambio de comportamiento
+El módulo aplicaba el **delta neto** (`viejo − nuevo`) y el service **revierte y reaplica**. El test
+`RevertirYAplicarEsIgualAlDeltaNeto` fija que las dos formas dan el mismo saldo en 9 escenarios,
+**clamp incluido** (saldo en cero, viejo mayor que el saldo, nuevo mayor que el saldo…). Sin esa
+equivalencia, mover la regla habría sido cambiar números históricos.
+
+Queda además fijado por test que el `Math.Max(0, …)` hace la operación **no reversible** (descontar 10
+sobre un saldo de 3 deja 0, y revertir deja 10, no 3) — es una de las razones por las que F3 sigue
+bloqueada.
+
+## Validación
+- [x] `dotnet build` 0 errores · `dotnet test` **2.181 verdes** (2.163 → 2.181)
+- [x] Cuadre de alimento de engorde **61 filas / 1 descuadrado**, sin moverse
+- [x] Grep: queda **exactamente un** aplicador del saldo de levante
+
+## ⚠️ Lo que NO se probó
+**No se corrió un smoke HTTP** de los tres endpoints: `PlatformSecretMiddleware` exige el header
+`X-Secret-Up` cifrado y montarlo no era rápido. La afirmación *"ahora los tres caminos mueven el
+saldo"* está verificada por lectura del código y por los tests de la aritmética, **no** por una
+corrida punta a punta. Antes de desplegar conviene: editar y borrar un seguimiento de levante por cada
+uno de los tres caminos y verificar `lote_postura_levante.aves_h_actual` en cada paso.
+
+---
+
+# F0.A · A6 — MEDIDO y cerrado como "no se cambia"
+
+**Detalle:** apéndice de [f0a_auditoria_estado_2026-08-09.md](fase_de_desarrollo/f0a_auditoria_estado_2026-08-09.md).
+
+- [x] **La premisa del plan no se reproduce.** `SELECT lote_id … HAVING count(*) > 1` sobre
+      `lote_postura_produccion` devuelve **0 filas**: ningún lote tiene más de un LPP, así que el único
+      por `lote_id` no puede producir la colisión que el plan describe. **No se toca el índice** —
+      cambiarlo contra la medición permitiría duplicados que hoy están correctamente prohibidos
+- [x] **Hallazgo lateral:** la entidad `SeguimientoDiario` mapea a **`seguimiento_diario_levante`**,
+      no a una tabla unificada. Razonar sobre los índices de `seguimiento_diario_produccion` **no dice
+      nada** sobre lo que escribe ese service. 588 filas, todas `levante`, 0 con LPP
+- [x] **Dos índices únicos que sobran** (anotados, NO tocados): `uq_sdlr_prod_lote_fecha` es parcial
+      sobre `lote_id_int`, columna NULL en el 100 % de prod ⇒ **no puede dispararse nunca**; y en
+      producción el índice por timestamp es redundante con el de día UTC (el estricto implica al laxo)
+
+**Estado F0.A: 8 de 10 resueltos** (A1, A2, A3, A5-1ª, A6, A7, A8, A10). Quedan **A4** (refactor del
+aplicador + gate de paridad) y **A9** (zona minada, gate multipaís) — los dos exigen decisión y gate,
+no ejecución directa.
+
+---
+
+# F0.A · A9 — medición y detector (paso 1: hacer visible el defecto)
+
+**Detector:** `backend/sql/verificar_atribucion_lote_engorde.sql` (SOLO LECTURA)
+
+## Por qué hacía falta un detector nuevo
+`fn_cuadre_alimento_engorde` compara el saldo del **ciclo activo** contra el stock del galpón. Este
+defecto vive casi entero en ciclos **CERRADOS**, y una imputación equivocada *entre dos lotes del
+mismo galpón* **se cancela al agregar por galpón**. O sea: el cuadre da 61 filas / 1 descuadrado —como
+da hoy— con **4,2 millones de kg** imputados al lote equivocado. Es la advertencia G0 de la compuerta
+de las rondas fallidas: *un detector que no puede ver el defecto no prueba nada cuando sale limpio*.
+
+## Lo medido (BD local, refresh del dump de prod)
+- [x] **Topología**: Ecuador encadena ciclos en **34 de 35 galpones** (hasta 4 lotes); Panamá en 13 de 38.
+      La ambigüedad es la NORMA en Ecuador, no un caso borde
+- [x] **Mal atribuidas**: Ecuador **1.707 filas (16,8 %), 4.183.980 kg** · Panamá 65 (3,6 %), 71.305 kg
+      · Sanmarino y Demo **0** (no operan engorde en esas ubicaciones)
+- [x] **Dónde vive**: **1.705 de 1.707 en lotes CERRADOS** ⇒ invisible para el cuadre
+- [x] **Lotes liquidados involucrados**: Ecuador **41 de 43**; Panamá 0 de 10
+
+## 🔑 El hallazgo que hace A9 tratable
+Separando por la liquidación del lote correcto:
+
+| | Ecuador | Panamá |
+|---|---|---|
+| **INEQUÍVOCO** (el movimiento cae entre el encaset y la liquidación del lote al que correspondía) | **1.677 · 4.125.755 kg** | 62 · 50.339 kg |
+| Ambiguo (en el hueco entre liquidación y encaset siguiente) | 30 · 58.225 kg | 0 |
+
+**El 98,2 % del defecto es inequívoco** y NO depende de la decisión de producto del hueco
+post-liquidación — que es justo la que hizo fracasar los 4 intentos de la marca «próximo ciclo».
+Un arreglo que corrija **solo la ventana inequívoca** y conserve el comportamiento actual en el hueco
+evita por completo esa zona.
+
+## Decisiones que quedan para el usuario
+1. **Arreglar la fn** (afecta solo inserciones FUTURAS): corregir la ventana inequívoca, fail-safe en
+   el hueco. No toca historia ni liquidaciones.
+2. **¿Backfill de las 1.677 filas?** Movería 4,1 M kg entre lotes, y **41 lotes ya liquidados**
+   quedarían fuera de sintonía con su copia congelada. Es una decisión de negocio, no técnica.
+
+## A9 · paso 2 — la fn deja de imputar a lotes liquidados
+
+**Regla del usuario:** un lote liquidado está **congelado**: no recibe atribución nueva. La
+liquidación guarda una copia congelada de sus números; si después le siguen entrando movimientos, la
+copia y el dato vivo dejan de coincidir y no hay forma de saber cuál es el bueno.
+
+- [x] Migración `20260810035730_FnLoteEngordeDesdeUbicacionExcluyeLiquidados`: `CREATE OR REPLACE`
+      con la **misma firma de 3 argumentos** (agregar un parámetro con DEFAULT habría creado una
+      **sobrecarga**, no un reemplazo, y las llamadas existentes quedarían ambiguas)
+- [x] Radio de impacto medido **antes** de tocar: **Panamá 38 de 38 galpones sin ningún cambio**
+      (no tiene un solo lote cerrado) · Ecuador 25 sin cambio y **10 pasan a NULL** ·
+      **0 galpones pasan a imputar a otro lote** — la regla nunca redirige alimento
+- [x] NULL es un estado **soportado**, no invisibilidad: `fn_seguimiento_diario_engorde` lo dice
+      explícito ("los movimientos sin lote se conservan: no se pierde alimento") y ya hay **1.453
+      filas** de Ecuador así. Es el mismo camino del alimento previo al encaset
+- [x] Solo afecta inserciones **futuras**. Las 1.677 filas ya mal atribuidas siguen igual
+
+### 🔴 El gate de paridad estaba ROTO (falso positivo) — arreglado
+La primera corrida dio **Panamá `dif_saldo_aves = 6` y `dif_consumo = 6`**, y Panamá no tiene lotes
+cerrados. En vez de justificarlo, se hizo la prueba decisiva: **restaurar la fn vieja y volver a
+comparar** ⇒ **el 6 seguía ahí**. O sea que no lo causaba el cambio.
+
+Causa: un lote puede tener **dos filas la misma fecha** (dos seguimientos el mismo día) y la fn no
+garantiza el orden entre ellas; el script unía por `(lote_id, fecha)`, que **no es único**, y armaba
+un producto cartesiano que emparejaba las filas cruzadas. Se ve en el conteo: `filas_base` de Panamá
+pasó de **753 a 747** al arreglarlo — las 6 de más eran el cartesiano.
+
+- [x] `verificar_paridad_saldo_engorde.sql` ahora captura y compara por **`(lote_id, fecha, seg_id)`**.
+      Verificado que los 3 pares duplicados del universo tienen `seg_id` distinto ⇒ desempate total
+- [x] **Corrida de control** (misma fn, sin cambio) ⇒ **todo en 0** en las dos empresas
+
+> Un gate con falsos positivos se termina ignorando, y ahí es cuando pasa la regresión de verdad.
+> Es la misma lección que G0: *«identidad NECESARIA, JAMÁS SUFICIENTE»* — pero al revés.
+
+### Validación del cambio
+- [x] Paridad: **Ecuador 0 / Panamá 0** en todas las columnas · 5.722 = 5.722 filas presentes
+- [x] Cuadre **61 filas / 1 descuadrado**, sin moverse
+- [x] La paridad compara la serie diaria fila a fila y da 0 ⇒ el cambio es un **no-op verificado
+      sobre los datos existentes**; solo cambia la atribución futura
+- [x] `dotnet build` 0 errores · `dotnet test` **2.181 verdes**
+- [x] Comentario de `SaldoAlimentoEngordeCalculos` actualizado: la fn ya no devuelve liquidados, pero
+      **sigue sin mirar la fecha** entre dos lotes vivos ⇒ los dos cortes de v12 siguen haciendo falta
+
+---
+
+# PWA F0 — scoping de empresa en seguimiento de producción + cierre de A5
+
+**Plan:** [fase_de_desarrollo/pwa_f0_scoping_produccion_y_softdelete_plan.md](fase_de_desarrollo/pwa_f0_scoping_produccion_y_softdelete_plan.md)
+
+**Contexto:** continuación de la PWA. F1 y F2 entregadas, F3 bloqueada por F0.A/F0.B. Se retomó A5
+(2ª parte) aplicando la regla de la auditoría anterior —verificar el plan contra la BD y el código de
+HOY— y esa verificación destapó algo que el plan no menciona y pesa más que los dos ítems restantes.
+
+## 🔴 El hallazgo: `SeguimientoProduccionService` no filtra por empresa en NINGÚN método
+- [x] `GetAllAsync:21` devuelve los seguimientos de **todas las empresas**; `GetByLoteId:45`,
+      `Update:157`, `Delete:208` y `Filter:250` operan **por id crudo**, sin `CompanyId`
+- [x] No es anónimo (`Program.cs:462` fija `FallbackPolicy = RequireAuthenticatedUser`): falta la
+      **autorización por empresa**, no la autenticación
+- [x] Es el ítem **B4** de la Fase 0. La PWA no lo crea pero lo multiplica por N dispositivos: un
+      outbox reproducido contra un servidor que no verifica la empresa escribe en la equivocada con 200 OK
+- [x] Evidencia de que ya corrió sin identidad: **1 fila con `company_id = 0`** (`Create:137` hace
+      `_current?.CompanyId ?? 0`) — mismo patrón que la deuda de los movimientos TSD
+- [x] Radio de rotura **medido**: el front solo usa `/filter-data`, que ya tiene scoping ⇒ los seis
+      métodos no los llama ninguna pantalla
+
+## A5 (2ª parte) — MEDIDO y cerrado como "no se hace soft delete"
+- [x] Solo `seguimiento_diario_produccion` tiene `deleted_at`; las otras 3 tablas **ni la columna**
+- [x] **`HasQueryFilter` no aparece ni una vez en todo el backend** ⇒ "agregar soft delete" sería
+      tocar cada consulta a mano o cambiar el comportamiento de todas. Y los tombstones (`60d3125`)
+      **ya cubren** el requisito que el plan invoca para A5
+- [x] 🔴 La bomba armada: `fn_seguimiento_diario_produccion` filtra el `deleted_at` de `lotes`, `lpp`,
+      `lpl` y `movimiento_aves`, pero **NO el de la tabla de la que saca los seguimientos**
+
+## Lo que se hace
+- [x] **S1** — scoping por join a `Lotes` (patrón vivo de `ProduccionDiariaService.cs:253-257`: la
+      empresa la dicta el LOTE, no la columna `company_id` de la fila, que puede valer 0), fail-closed
+- [x] **S2** — `fn_seguimiento_diario_produccion` filtra `sp.deleted_at IS NULL`, por migración EF +
+      espejo `.sql` en el mismo commit. Hoy 0 filas borradas ⇒ **no-op verificable**
+- [x] **S3** — cálculo puro + tests xUnit del scoping
+
+## A4 — medido, fuera de alcance por tamaño
+- [x] **15 escritores incrementales** en 6 archivos + 2 absolutos; el `SaveChangesAsync` del GET
+      (`ProduccionService.Consultas.cs:174-184`) **cura** la columna en cada lectura de la ficha
+- [x] Medido: **4 LPP vivos, 0 difieren** de la fn. El self-heal enmascara la deriva, así que el 0
+      prueba que el refactor sería un no-op verificable, no que los incrementales estén bien
+
+## Validación
+- [x] Gate de paridad `verificar_paridad_seguimiento_produccion.sql` antes/después ⇒ 0 en toda empresa
+- [x] `dotnet build` 0 errores · `dotnet test` sin regresión (base 2.181)
+- [x] Cuadre de engorde 61/1 sin moverse
+
+## Cómo se verificó (no por lectura de código)
+- [x] **Efecto medido del filtro**: `GET /api/SeguimientoProduccion` pasaba de **605 filas visibles
+      para cualquier sesión** a **602 (empresa 1) · 2 (empresa 4) · 0 sin empresa**
+- [x] La fila que queda fuera de toda empresa es la de `company_id = 0`: apunta a un `lote_id = 7`
+      que **no existe**. Deja de ser alcanzable por la API; **no se borró nada**, sigue en la BD
+- [x] **El filtro de `deleted_at` se probó que FILTRA**, en transacción + `ROLLBACK`: marcar una fila
+      real la saca de la serie (**301 → 300**). Un no-op que no se puede distinguir de no haber
+      hecho nada no está probado
+- [x] Espejo `backend/sql/fn_seguimiento_diario_produccion.sql` == función desplegada, con el filtro
+      en ambos (comparado carácter a carácter antes y después)
+- [x] Migración `20260810053551_FnSeguimientoProduccionExcluyeBorrados` generada **desde el `.sql`**,
+      así el espejo y la migración quedan sincronizados por construcción. ModelSnapshot **sin tocar**
+
+## Resultado
+- [x] Gate de paridad: **Sanmarino 0 · Demo 0** en todas las columnas (604 filas base)
+- [x] `dotnet build` **0 errores / 0 warnings** · `dotnet test` **2.197 verdes** (2.181 → 2.197, +16)
+- [x] Cuadre de engorde **61 filas / 1 descuadrado**, sin moverse
+- [x] **F0.A queda en 9 de 10.** Solo falta **A4**, medido y documentado, con su propio gate
+
+> El plan mandaba "soft delete en 4 tablas". La medición dijo otra cosa: 3 no tienen ni la columna,
+> los tombstones ya cubren el requisito, y no hay un solo `HasQueryFilter` en el backend. Ejecutarlo
+> al pie de la letra habría sido un cambio de comportamiento masivo para cubrir algo ya cubierto.
+> Lo que sí había era una **bomba armada** que el plan no menciona.
+
+---
+
+# PWA — alistamiento para campo (persistencia de cuota + regla dura de D6)
+
+**Plan:** [fase_de_desarrollo/pwa_alistamiento_campo_plan.md](fase_de_desarrollo/pwa_alistamiento_campo_plan.md)
+
+**Contexto medido:** F1 y F2 están construidas y probadas pero **NO desplegadas**. Verificado con
+`curl` contra el ALB: prod sirve el build del **07-ago** (`/version.json`) y `ngsw.json`,
+`manifest.webmanifest` y `ngsw-worker.js` responden **404**. `main` tiene 22 commits sin pushear y
+`main-produccion` está esos mismos 22 commits atrás.
+
+## H1 — nadie pedía que el almacenamiento fuera persistente
+- [x] `/diagnostico` **informaba** `navigator.storage.persisted()` pero **nadie llamaba nunca a
+      `persist()`**: la app miraba el estado sin pedirlo jamás
+- [x] Es el peor modo de falla que quedaba porque **es silencioso**: sin error ni log, el navegador
+      desaloja la base ante presión de disco y la pantalla aparece vacía en la granja
+- [x] `AlmacenamientoPersistenteService` + `decidirPedirPersistencia` (pura, 7 tests). Se pide **con
+      sesión** —antes del login es donde más lo deniegan— y **una sola vez** (repetirlo reabre el
+      prompt en los navegadores que preguntan)
+- [x] `/diagnostico` distingue ahora **«el navegador la negó»** de **«todavía no»**: ante un reporte
+      de campo llevan a diagnósticos opuestos
+
+## H2 — D6 no estaba implementado: una cuenta multiempresa se bajaba el snapshot de todas
+- [x] **Por qué la partición no alcanzaba**: evita que una sesión LEA lo de otra, pero no que el
+      mismo dispositivo ACUMULE lo de todas las empresas que el usuario visita — y el dato en reposo
+      no se cifra (D3). Son dos amenazas distintas y solo una estaba cubierta
+- [x] `decidirCacheOffline` (pura, 10 tests): sin sesión, super admin o más de una empresa ⇒ **no**.
+      Basta **una** señal de las tres (`isSuperAdmin`/`hasMultipleCompanies`/`companyIds`+`companies`)
+- [x] 🔴 **Y se purga lo ya guardado**: un gate que solo impide escribir dejaría intacto —y se
+      seguiría sirviendo— lo cacheado antes del cambio. Sin la purga, falsa sensación de cierre
+- [x] Alcance honesto: se hizo la mitad de D6 que **protege datos** y no depende de nadie. El
+      **opt-in por rol y dispositivo** necesita flag en BD + registro de dispositivos (que no existe)
+
+## Verificación
+- [x] **En vivo** en el build de producción servido en localhost (`pwa-preview`): sin sesión el
+      diagnóstico dice «todavía no»; con sesión pasa a **«sí, el navegador la negó»** (esperado en
+      Electron sin la app instalada) y **la app no se rompe** — el rechazo queda como estado
+- [x] 🔑 **Los tests de D6 se probaron que VEN el defecto**: con el gate desactivado fallan
+      **exactamente 4** (multiempresa no guarda · super admin no guarda · purga · no sirve caché sin
+      red) y el 5º —el operario de una sola empresa— **sigue pasando**, que es lo correcto
+- [x] `yarn build` 0 errores (solo el budget preexistente) · `yarn test` **221 verdes** (199 → 221)
+- [x] `verificar-ngsw.js` OK: 125 archivos con SHA1 coincidente, sin `dataGroups`, kill switch publicado
+
+> Un test que no falla cuando se rompe lo que dice proteger no prueba nada. Desactivar el gate y ver
+> caer exactamente los 4 casos —y ninguno más— cuesta dos minutos y es lo que separa "escribí tests"
+> de "tengo cobertura".
+
+---
+
+# Programación de lotes de engorde para Ecuador (lote base) + gasto contra lote programado
+
+**Plan:** [fase_de_desarrollo/programacion_lotes_engorde_ecuador_plan.md](fase_de_desarrollo/programacion_lotes_engorde_ecuador_plan.md)
+
+**Contexto medido (BD local = dump prod):** el backend de lote base YA es multi-empresa; lo único que
+gatea a Panamá es el front (`isPanama()`). Ecuador tiene **0 lotes base** y 369 gastos, todos contra
+lote real ⇒ encender el flag sin programación cargada **bloquea la creación de lotes** en Ecuador.
+
+## Auditoría
+- [x] Backend lote base country-agnostic (nada que portar); gates de front localizados
+- [x] Separados los gates de **lote base** de los del **código ERP por granja** (no se tocan)
+- [x] Medición en BD local: Ecuador id 3 / Panamá id 5; 0 bases en Ecuador
+
+## Backend
+- [x] Flag `companies.programacion_lotes_engorde` (entidad + config + DTOs + 4 proyecciones)
+- [x] `inventario_gasto.lote_base_engorde_id` + FK + índice parcial + **CHECK real XOR programado**
+      (el invariante vive en la BD, no en que cada service se acuerde)
+- [x] `fn_inventario_gastos_search` con lote programado — **DROP+CREATE** (cambia `RETURNS TABLE`) y la
+      migración se generó **desde el `.sql`**, así espejo y migración no pueden divergir
+- [x] `GastoLoteProgramadoCalculos` (puro) + **17 tests xUnit**
+- [x] Re-atribución de gastos pendientes al crear el lote real (UPDATE en BD, no en memoria)
+- [x] 4 migraciones idempotentes; **el seed de Ecuador va SEPARADO** (ver riesgo abajo)
+
+## Frontend
+- [x] `CompanyFlags.programacionLotesEngorde` (fail-closed)
+- [x] Lote engorde: pestaña «Lotes base», base obligatorio y nombre por corrida ahora salen del
+      **flag de empresa**, no de `isPanama()`. El `esPanama` que queda es SOLO del código ERP por granja
+- [x] Gastos de inventario: destino «Lote programado», columna en la lista, detalle y Excel
+
+## Verificación
+- [x] `dotnet build` 0 errores / 0 warnings · `dotnet test` **2.214 verdes** (2.197 → 2.214, +17)
+- [x] `yarn build` OK (único warning: bundle budget preexistente)
+- [x] 4 migraciones aplicadas en local :5433; Panamá y Ecuador quedan con el flag en `true`
+- [x] Smoke SQL con datos reales de Ecuador, en transacción revertida: el gasto programado se ve en el
+      listado, el filtro `p_lote_base_id` responde, **el CHECK rechaza el doble destino** y al encasetar
+      el gasto queda contra el lote real. Los 369 gastos existentes **no se movieron**
+- [ ] ⚠️ Smoke en vivo (UI + HTTP) pendiente: requiere backend y front levantados con sesión real
+
+> **Riesgo operativo documentado en la migración:** con el flag ON el lote base es OBLIGATORIO y
+> Ecuador tiene **0 lotes base** contra 121 lotes hechos a mano. Si se despliega el seed de Ecuador
+> antes de cargar la programación del año, **los técnicos no pueden crear lotes**. Por eso el seed de
+> Ecuador es una migración aparte, con su `Down` que la apaga.
+
+---
+
+## Ampliación (11-ago-2026, 2ª pasada): programación de Ecuador cargada con sus corridas
+
+- [x] **Medición primero:** los 112 lotes vivos de Ecuador se llaman **`2601` `2602` `2603` `2604`**
+      (año + corrida), 8 granjas, **un solo lote por base+galpón** y cero nombres repetidos
+- [x] 🔴 **Defecto encontrado en lo entregado en la 1ª pasada:** con el flag ON el próximo lote se
+      habría llamado **`2603 - 1`**, rompiendo la nomenclatura de los 112 lotes existentes. El usuario
+      había pedido «el nombre será el que ya esté definido» — el sufijo de Panamá no era trasladable
+- [x] Flag propio `companies.nombre_lote_incluye_corrida` (Panamá `true`, Ecuador `false`):
+      `ConstruirNombreLote(base, n, incluirSiempre)` + **7 tests** (2.214 → 2.221)
+- [x] Con el flag OFF el sufijo aparece **desde la 2ª** apertura del mismo base+galpón (`2603 - 2`):
+      sin eso, dos lotes con el mismo nombre en un galpón
+- [x] Backfill `BackfillProgramacionLotesEngordeEcuador`: 4 bases, **112/112 lotes amarrados**,
+      **112 corridas numeradas** y **28 asignaciones** que cubren las 8 granjas
+- [x] 🔑 **La numeración del backfill no es cosmética:** sin ella `MAX(numero_corrida)` es NULL y el
+      próximo lote vuelve a llamarse `2603` — nombre duplicado en el galpón
+- [x] Idempotencia probada **re-ejecutando el `DO $$` sobre la BD ya backfilleada**: sigue en
+      4 bases / 28 asignaciones / 112 corridas
+- [x] Panamá intacto (8 bases, 35 lotes con base) · Colombia/Demo/Santa Reyes con ambos flags en `false`
+- [x] **Estado de migraciones: 252 en código = 252 aplicadas, 0 pendientes**, `has-pending-model-changes`
+      sin cambios (los 7 archivos «de más» son `*.Fn.cs`/`*.Seed.cs`, partials de una misma migración)
+- [x] `dotnet test` **2.221 verdes** · `yarn build` OK
+
+> El riesgo que la 1ª pasada dejó documentado («Ecuador con 0 lotes base ⇒ técnicos bloqueados») queda
+> **cerrado**: el backfill viaja en el mismo deploy y deja la programación cargada y asignada.
+
+---
+
+## Smoke end-to-end en vivo (11-ago-2026): back :5002 + front :4200
+
+- [x] 🔴 **El smoke encontró un bloqueante antes de abrir el navegador:** **ningún rol de Ecuador**
+      tenía `lote_base_pollo_engorde.*` (solo Panamá, Demo, Santa Reyes y Sanmarino). Con el flag ON
+      pero sin permiso, Ecuador vería el lote base obligatorio en el form y **ninguna forma de
+      administrarlo**. Migración `SeedPermisosLoteBaseEcuador` (ver/crear/editar a «Ecuador
+      Administrador» y «Lider implementación - Regional Ecuador»; `.eliminar` NO, igual que Panamá)
+- [x] Sesión de un usuario **real** de Ecuador (permisos leídos de la BD, no inventados)
+- [x] **Pestaña «Lotes base»** visible con las 4 corridas: `2601` (7 granjas/33 lotes), `2602` (8/35),
+      `2603` (8/30), `2604` (5/14) — el backfill tal cual
+- [x] **«Nombre del lote» es un selector**, no un input: ofrece solo los bases asignados a la granja
+- [x] 🔑 **Preview del nombre: `2604`** en un galpón sin esa corrida y **`2604 - 2`** en un galpón que
+      ya la tiene. Es la prueba de que la numeración del backfill evita el nombre duplicado
+- [x] Gasto de desinsectación (concepto **Desinfectante**, ítem AV0304) contra el **lote programado
+      2604**: se guarda, descuenta stock (15.000 → 14.999) y la lista lo muestra **`2604 (programado)`**
+- [x] Se crea el lote real desde esa programación ⇒ nombre `2604`, corrida 1, y el gasto **se
+      re-atribuye solo** (`lote_base_engorde_id` → NULL, `lote_ave_engorde_id` = 269). La lista pasa a
+      mostrar `2604` sin la marca
+- [x] **Regresión Panamá**: preview `13 - 2` / `13 - 3` — nunca un `13` pelado. El flag preserva su
+      nomenclatura
+- [x] **BD devuelta al estado inicial**: 369 gastos, 121 lotes Ecuador, stock del ítem en 15.000
+      exactos (la anulación devolvió el consumo) y las filas del smoke borradas por id
+- [x] Migraciones **253 aplicadas / 0 pendientes** · servidores detenidos, sin procesos huérfanos

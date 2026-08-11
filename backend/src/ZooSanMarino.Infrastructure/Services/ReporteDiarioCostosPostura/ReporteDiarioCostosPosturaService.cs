@@ -57,13 +57,22 @@ public class ReporteDiarioCostosPosturaService : IReporteDiarioCostosPosturaServ
         // ── Alcance de granjas: SIEMPRE las asignadas al usuario (fail-closed) ──
         var farms = (await _farmService.GetAllAsync(_current.UserGuid, companyId)).ToList();
 
+        // ── El LOTE BASE manda sobre la granja ────────────────────────────────
+        // Trasladar un lote completo a otra granja crea un lote NUEVO allá (historial_traslado_lote),
+        // así que un lote base puede tener el levante en una granja y la producción en otra. Si el
+        // usuario eligió un lote base, la granja (y la regional) pasan a ser el punto de entrada y el
+        // reporte sigue al lote base a donde haya vivido — SIEMPRE dentro de las granjas asignadas,
+        // que es lo que conserva el fail-closed.
+        var seguirLoteBase = request.LotePosturaBaseId.HasValue;
+
         var granjaIds = farms.Select(f => f.Id).ToList();
         if (request.GranjaId.HasValue)
         {
             var granja = farms.FirstOrDefault(f => f.Id == request.GranjaId.Value)
                 ?? throw new InvalidOperationException(
                     "La granja no existe, no pertenece a la compañía o no está asignada a su usuario.");
-            granjaIds = new List<int> { granja.Id };
+            if (!seguirLoteBase)
+                granjaIds = new List<int> { granja.Id };
         }
 
         // Sin granjas visibles ⇒ reporte vacío. Jamás "todas" (el NULL de la fn es para scripts).
@@ -71,7 +80,9 @@ public class ReporteDiarioCostosPosturaService : IReporteDiarioCostosPosturaServ
             return Vacio(request);
 
         var fase = ReporteDiarioCostosPosturaCalculos.NormalizarFase(request.Fase);
-        var regional = string.IsNullOrWhiteSpace(request.Regional) ? null : request.Regional.Trim();
+        var regional = seguirLoteBase || string.IsNullOrWhiteSpace(request.Regional)
+            ? null
+            : request.Regional!.Trim();
 
         var rows = await _ctx.Database
             .SqlQueryRaw<ReporteDiarioCostosPosturaRow>(
@@ -95,7 +106,13 @@ public class ReporteDiarioCostosPosturaService : IReporteDiarioCostosPosturaServ
                 .ToList();
         }
 
-        var filas = rows.Select(MapearFila).ToList();
+        // ── Traslape levante/producción ───────────────────────────────────────
+        // Un día que quedó registrado en las dos etapas con consumo o bajas se contaría dos veces
+        // (K345: 14 días de 2025 con ~16.952 kg duplicados). La regla la escribe
+        // CorteEtapaPosturaCalculos; acá solo se aplica: las filas siguen visibles, la de levante
+        // deja de sumar.
+        var filas = ReporteDiarioCostosPosturaCalculos.MarcarDuplicados(
+            rows.Select(MapearFila).ToList());
 
         var lotes = filas
             .GroupBy(f => f.LoteId)
@@ -120,7 +137,76 @@ public class ReporteDiarioCostosPosturaService : IReporteDiarioCostosPosturaServ
             Fases: ReporteDiarioCostosPosturaCalculos.FasesPresentes(filas),
             Lotes: lotes,
             Filas: filas,
-            Totales: ReporteDiarioCostosPosturaCalculos.ConstruirTotales(filas));
+            Totales: ReporteDiarioCostosPosturaCalculos.ConstruirTotales(filas),
+            Ubicaciones: ReporteDiarioCostosPosturaCalculos.Ubicaciones(filas),
+            DiasDuplicados: ReporteDiarioCostosPosturaCalculos.ContarDuplicados(filas),
+            TotalesExcluidos: ReporteDiarioCostosPosturaCalculos.TotalesExcluidos(filas),
+            // Solo se avisa si la expansión REALMENTE trajo otra granja: pedir NIZA III y recibir
+            // únicamente NIZA III no es una expansión que valga la pena contar.
+            AlcanceExpandidoPorLoteBase: seguirLoteBase
+                && request.GranjaId.HasValue
+                && filas.Any(f => f.GranjaId != request.GranjaId.Value));
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ReporteDiarioCostosPosturaLoteBaseOpcionDto>> LotesBaseAsync(
+        CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync();
+
+        if (!_current.UserGuid.HasValue)
+            throw new UnauthorizedAccessException("Sesión inválida. Inicie sesión de nuevo.");
+
+        var farms = (await _farmService.GetAllAsync(_current.UserGuid, companyId)).ToList();
+        var granjaIds = farms.Select(f => f.Id).ToList();
+        if (granjaIds.Count == 0)
+            return Array.Empty<ReporteDiarioCostosPosturaLoteBaseOpcionDto>();
+
+        // El catálogo se arma por DÓNDE ESTÁN LOS LOTES, no por lote_postura_base.farm_id: si el lote
+        // se traslada, la base tiene que seguir apareciendo bajo la granja donde se hizo el levante.
+        // El filtro por empresa y granjas asignadas va a la BD; solo se agrupa en memoria (el universo
+        // ya viene recortado a los lotes de postura del usuario).
+        var crudo = await (
+            from l in _ctx.Lotes
+            join b in _ctx.LotePosturaBases on l.LotePosturaBaseId equals (int?)b.LotePosturaBaseId
+            join f in _ctx.Farms on l.GranjaId equals f.Id
+            where l.CompanyId == companyId
+               && l.DeletedAt == null
+               && b.DeletedAt == null
+               && f.DeletedAt == null
+               && granjaIds.Contains(l.GranjaId)
+            select new
+            {
+                b.LotePosturaBaseId,
+                BaseNombre = b.LoteNombre,
+                l.GranjaId,
+                GranjaNombre = f.Name,
+                l.LoteId
+            }).ToListAsync(ct);
+
+        // Alcance granular por ubicación: en granjas restringidas se recortan los lotes no visibles.
+        var restringidos = await _scopeResolver.GetRestrictedScopesAsync(granjaIds);
+        if (restringidos.Count > 0)
+        {
+            crudo = crudo
+                .Where(x => UserLocationScopeCalculos.LotePermitido(restringidos, x.GranjaId, x.LoteId))
+                .ToList();
+        }
+
+        return crudo
+            .GroupBy(x => (x.LotePosturaBaseId, x.BaseNombre))
+            .Select(g => new ReporteDiarioCostosPosturaLoteBaseOpcionDto(
+                LotePosturaBaseId: g.Key.LotePosturaBaseId,
+                LoteNombre: g.Key.BaseNombre ?? string.Empty,
+                GranjaIds: g.Select(x => x.GranjaId).Distinct().OrderBy(id => id).ToList(),
+                GranjaNombres: g.Select(x => x.GranjaNombre ?? string.Empty)
+                                .Where(n => n.Length > 0)
+                                .Distinct(StringComparer.OrdinalIgnoreCase)
+                                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                                .ToList(),
+                Lotes: g.Select(x => x.LoteId).Distinct().Count()))
+            .OrderBy(o => o.LoteNombre, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>Fila cruda de la fn → DTO: clasifica el huevo (D1) y explota el json de alimentos (D4).</summary>

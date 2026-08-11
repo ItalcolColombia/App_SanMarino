@@ -94,7 +94,10 @@ public static class SaldoAlimentoEngordeCalculos
     /// Complementa a <see cref="ResolverLotesAjenos"/>. Hacen falta los dos porque la atribución del
     /// histórico falla en ambos sentidos: <c>lote_ave_engorde_id</c> lo pone el trigger con
     /// <c>fn_lote_ave_engorde_id_desde_ubicacion</c>, que devuelve el lote de id MÁS ALTO del galpón
-    /// al momento de insertar. La limpieza del ciclo anterior queda con el id del lote viejo si se
+    /// al momento de insertar. (Desde la migración <c>FnLoteEngordeDesdeUbicacionExcluyeLiquidados</c>
+    /// esa función ya no puede devolver un lote <b>liquidado</b> —item A9—, pero sigue sin mirar la
+    /// fecha de la operación: entre dos lotes VIVOS del mismo galpón elige el de id más alto, así que
+    /// estos dos cortes siguen siendo necesarios. Y no arregla nada de lo ya grabado.) La limpieza del ciclo anterior queda con el id del lote viejo si se
     /// registró antes de crear el nuevo (la caza <c>ResolverLotesAjenos</c>) o con el id del NUEVO si
     /// se registró después (la caza este corte). Caso SAN GUILLERMO G0033: dos traslados de salida del
     /// 13/03 por 5.160 kg, el mismo día en que cerró el ciclo previo, etiquetados con el lote nuevo.
@@ -129,4 +132,122 @@ public static class SaldoAlimentoEngordeCalculos
         if (corteVentana is null) return trasElCicloAnterior;
         return corteVentana.Value.Date >= trasElCicloAnterior ? corteVentana.Value.Date : trasElCicloAnterior;
     }
+
+    /// <summary>
+    /// Primer día de seguimiento del ciclo que ocupa el galpón DESPUÉS que este (v14).
+    /// <c>null</c> si es el último ciclo del galpón o si el lote consultado todavía no tiene
+    /// seguimiento.
+    /// <para>
+    /// Espejo del CTE <c>corte_ciclo_siguiente</c> y complemento exacto de
+    /// <see cref="ResolverFinCicloAnterior"/>: si nada anterior al fin del ciclo previo es alimento
+    /// mío, nada posterior al arranque del ciclo que me sucede lo es tampoco.
+    /// </para>
+    /// <para>
+    /// La comparación es ESTRICTA a propósito: un lote que CONVIVE conmigo en el galpón (v10) empieza
+    /// antes de que yo termine, así que nunca corta nada y el saldo compartido queda intacto.
+    /// </para>
+    /// </summary>
+    /// <param name="ciclosDelGalpon">Los otros lotes del mismo (granja, núcleo, galpón).</param>
+    /// <param name="hasta">Último día de seguimiento del lote consultado.</param>
+    public static DateTime? ResolverInicioCicloSiguiente(
+        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)> ciclosDelGalpon,
+        DateTime? hasta)
+    {
+        if (hasta is null) return null;
+        DateTime? inicio = null;
+        foreach (var c in ciclosDelGalpon)
+        {
+            if (!c.SegMin.HasValue) continue;
+            var min = c.SegMin.Value.Date;
+            if (min <= hasta.Value.Date) continue;           // convive conmigo o arrancó antes
+            if (inicio is null || min < inicio.Value) inicio = min;
+        }
+        return inicio;
+    }
+
+    /// <summary>
+    /// Último día que muestra la grilla diaria del lote. Espejo del CTE <c>rango_final</c>.
+    /// <list type="bullet">
+    ///   <item>cierre efectivo por saldo de alimento en 0 (v5), si lo hay;</item>
+    ///   <item>si no, el último seguimiento cuando el lote está marcado como cerrado (v5);</item>
+    ///   <item>y nunca más allá del día previo al arranque del ciclo siguiente del galpón (v14).</item>
+    /// </list>
+    /// <c>null</c> = sin tope (lote genuinamente activo). Espeja el <c>LEAST</c> de SQL, que ignora
+    /// los NULL: un lote sin ciclo posterior conserva exactamente el corte previo a v14.
+    /// </summary>
+    public static DateTime? ResolverFechaMaxGrilla(
+        DateTime? cierrePorSaldoCero,
+        bool loteCerrado,
+        DateTime? ultimoSeguimiento,
+        DateTime? inicioCicloSiguiente)
+    {
+        var previo = cierrePorSaldoCero?.Date
+                  ?? (loteCerrado ? ultimoSeguimiento?.Date : null);
+        var porCicloSiguiente = inicioCicloSiguiente?.Date.AddDays(-1);
+
+        if (previo is null) return porCicloSiguiente;
+        if (porCicloSiguiente is null) return previo;
+        return previo.Value <= porCicloSiguiente.Value ? previo : porCicloSiguiente;
+    }
+
+    /// <summary>
+    /// ¿El movimiento entra a la APERTURA de este ciclo por la marca explícita
+    /// «este alimento es para el próximo encasetamiento del galpón»? (v15, 2026-08-08)
+    /// <para>
+    /// Espejo del primer disyunto del filtro de <c>apert_mov</c> en
+    /// <c>fn_seguimiento_diario_engorde</c>. La marca la pone la persona que registra el ingreso, así
+    /// que SUSTITUYE a los dos cortes por fecha (<see cref="ResolverCorteApertura"/> de v12 y
+    /// <see cref="EsDeCicloAjeno"/> de v11): es la única atribución posible en los galpones
+    /// ENCADENADOS de Ecuador, donde la llegada real cae DENTRO del ciclo anterior y la fecha sola no
+    /// alcanza para decidir de quién es el alimento.
+    /// </para>
+    /// <para>
+    /// Guarda: lo absorbe el PRIMER ciclo del galpón que arranca después del movimiento. Si otro lote
+    /// de la misma ubicación ya empezó su seguimiento ENTRE la fecha del movimiento y
+    /// <paramref name="miPrimerSeguimiento"/>, la marca era para aquél — una marca vieja no se cuela
+    /// dos ciclos después. Un lote sin seguimiento (<c>SegMin</c> nulo) nunca bloquea.
+    /// </para>
+    /// </summary>
+    /// <param name="marcado">Valor de <c>para_proximo_ciclo</c> del movimiento.</param>
+    /// <param name="fechaMovimiento">Fecha de operación del movimiento.</param>
+    /// <param name="miPrimerSeguimiento">Primer día de seguimiento del lote consultado.</param>
+    /// <param name="ciclosDelGalpon">Los otros lotes del mismo (granja, núcleo, galpón).</param>
+    public static bool EntraPorMarcaProximoCiclo(
+        bool marcado,
+        DateTime fechaMovimiento,
+        DateTime miPrimerSeguimiento,
+        IEnumerable<(int LoteId, DateTime? SegMin, DateTime? SegMax)> ciclosDelGalpon)
+    {
+        if (!marcado) return false;
+
+        var mov = fechaMovimiento.Date;
+        var mio = miPrimerSeguimiento.Date;
+        if (mov >= mio) return false;                       // la apertura solo mira lo anterior al día 1
+
+        foreach (var c in ciclosDelGalpon)
+        {
+            if (!c.SegMin.HasValue) continue;
+            var min = c.SegMin.Value.Date;
+            if (min > mov && min < mio) return false;        // otro ciclo se interpuso: la marca era suyo
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// ¿El movimiento debe SALIR de la fila diaria del ciclo que lo contiene? (v15, 2026-08-08)
+    /// <para>
+    /// Espejo del filtro <c>rs.fecha_min IS NULL OR NOT para_proximo_ciclo</c> que la fn aplica en
+    /// <c>hist_alimento</c>, <c>hist_full</c>, <c>docs_por_fecha</c> y <c>fechas_universo</c>: un
+    /// movimiento marcado no es kg de este ciclo aunque su fecha caiga en el rango — su lugar es la
+    /// apertura del siguiente.
+    /// </para>
+    /// <para>
+    /// EXCEPCIÓN deliberada: mientras el lote no tiene seguimiento
+    /// (<paramref name="miPrimerSeguimiento"/> nulo) el movimiento se conserva visible. Todavía no
+    /// hay apertura donde absorberlo y los kg no pueden desaparecer de la pantalla — ese parpadeo es
+    /// justamente lo que empuja a la operación a re-fechar el ingreso al día 1.
+    /// </para>
+    /// </summary>
+    public static bool ExcluidoDeFilaDiariaPorMarca(bool marcado, DateTime? miPrimerSeguimiento)
+        => marcado && miPrimerSeguimiento.HasValue;
 }

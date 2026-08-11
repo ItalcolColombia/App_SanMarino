@@ -168,7 +168,9 @@ export class CompanyManagementComponent implements OnInit {
       ),
       mobileAccess: [false],
       // Default GLOBAL: ¿el alimento se maneja a nivel GALPÓN? (cada granja puede overridear)
-      manejaAlimentoPorGalpon: [false]
+      manejaAlimentoPorGalpon: [false],
+      // Días previos al encaset cuyo alimento cuenta como «ingreso inicial del ciclo» (0-30, default 10)
+      diasAlimentoPrevioEncaset: [10, [Validators.min(0), Validators.max(30)]]
     });
 
     this.mlSvc.getByKey('type_identit').subscribe({
@@ -347,7 +349,7 @@ export class CompanyManagementComponent implements OnInit {
     if (c) {
       this.applyCompanyToModal(c);
     } else {
-      this.form.reset({ id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '', country: '', state: '', city: '', mobileAccess: false, manejaAlimentoPorGalpon: false });
+      this.form.reset({ id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '', country: '', state: '', city: '', mobileAccess: false, manejaAlimentoPorGalpon: false, diasAlimentoPrevioEncaset: 10 });
       this.geoSelects = { ...this.geoSelects, states: [], cities: [] };
     }
     this.modalOpen = true;
@@ -368,7 +370,8 @@ export class CompanyManagementComponent implements OnInit {
       phone: c.phone ?? '', email: c.email ?? '',
       country: codeCountry, state: codeDept, city: cityName,
       mobileAccess: c.mobileAccess ?? false,
-      manejaAlimentoPorGalpon: c.manejaAlimentoPorGalpon ?? false
+      manejaAlimentoPorGalpon: c.manejaAlimentoPorGalpon ?? false,
+      diasAlimentoPrevioEncaset: c.diasAlimentoPrevioEncaset ?? 10
     });
 
     const vp = this.form.get('visualPermissions') as FormGroup;
@@ -423,6 +426,7 @@ export class CompanyManagementComponent implements OnInit {
       country: v.country, state: v.state, city: v.city,
       visualPermissions: vp, mobileAccess: v.mobileAccess,
       manejaAlimentoPorGalpon: v.manejaAlimentoPorGalpon,
+      diasAlimentoPrevioEncaset: v.diasAlimentoPrevioEncaset,
       roleIds: this.roleIds,
       countryId:      toNumOrNull(v.country),
       departamentoId: stateNum,
