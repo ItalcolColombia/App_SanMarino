@@ -20,6 +20,7 @@ public class InventarioGastoConfiguration : IEntityTypeConfiguration<InventarioG
         e.Property(x => x.NucleoId).HasColumnName("nucleo_id").HasMaxLength(50);
         e.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(50);
         e.Property(x => x.LoteAveEngordeId).HasColumnName("lote_ave_engorde_id");
+        e.Property(x => x.LoteBaseEngordeId).HasColumnName("lote_base_engorde_id");
 
         e.Property(x => x.Fecha).HasColumnName("fecha").HasColumnType("date").IsRequired();
         e.Property(x => x.Observaciones).HasColumnName("observaciones").HasMaxLength(1000);
@@ -37,6 +38,13 @@ public class InventarioGastoConfiguration : IEntityTypeConfiguration<InventarioG
         e.HasOne(x => x.Pais).WithMany().HasForeignKey(x => x.PaisId).OnDelete(DeleteBehavior.Restrict);
         e.HasOne(x => x.Farm).WithMany().HasForeignKey(x => x.FarmId).OnDelete(DeleteBehavior.Restrict);
         e.HasOne(x => x.LoteAveEngorde).WithMany().HasForeignKey(x => x.LoteAveEngordeId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.LoteBaseEngorde).WithMany().HasForeignKey(x => x.LoteBaseEngordeId).OnDelete(DeleteBehavior.Restrict);
+
+        // Los "pendientes": gastos cargados a una programación que todavía no tiene lote real. Es el
+        // conjunto que barre la re-atribución al crear el lote, y el que valida el borrado del base.
+        e.HasIndex(x => new { x.CompanyId, x.LoteBaseEngordeId, x.FarmId })
+            .HasDatabaseName("ix_inventario_gasto_lote_base_pendiente")
+            .HasFilter("lote_base_engorde_id IS NOT NULL AND lote_ave_engorde_id IS NULL");
 
         e.HasMany(x => x.Detalles).WithOne(d => d.InventarioGasto).HasForeignKey(d => d.InventarioGastoId);
     }

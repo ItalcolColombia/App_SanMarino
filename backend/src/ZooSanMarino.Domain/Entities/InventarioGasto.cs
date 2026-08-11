@@ -15,6 +15,14 @@ public class InventarioGasto
     public string? GalponId { get; set; }
     public int? LoteAveEngordeId { get; set; }
 
+    /// <summary>
+    /// Lote PROGRAMADO (catálogo <c>lote_base_engorde</c>) al que se carga el gasto cuando el lote real
+    /// todavía no existe — el caso de la desinsectación previa al encasetamiento. Excluyente con
+    /// <see cref="LoteAveEngordeId"/>: al crearse el lote real desde esa programación, el gasto se
+    /// re-atribuye (queda con <c>LoteAveEngordeId</c> y este campo vuelve a <c>null</c>).
+    /// </summary>
+    public int? LoteBaseEngordeId { get; set; }
+
     public DateTime Fecha { get; set; }
     public string? Observaciones { get; set; }
 
@@ -30,6 +38,7 @@ public class InventarioGasto
     public Pais Pais { get; set; } = null!;
     public Farm Farm { get; set; } = null!;
     public LoteAveEngorde? LoteAveEngorde { get; set; }
+    public LoteBaseEngorde? LoteBaseEngorde { get; set; }
 
     public List<InventarioGastoDetalle> Detalles { get; set; } = new();
 }
