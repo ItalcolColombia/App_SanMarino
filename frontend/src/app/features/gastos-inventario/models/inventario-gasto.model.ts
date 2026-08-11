@@ -62,6 +62,12 @@ export interface CreateInventarioGastoRequest {
   nucleoId: string | null;
   galponId: string | null;
   loteAveEngordeId: number | null;
+  /**
+   * Lote PROGRAMADO (lote base) cuando el lote real todavía no existe — desinsectación previa al
+   * encaset. Excluyente con `loteAveEngordeId`. Al crearse el lote real desde esa programación, el
+   * backend re-atribuye el gasto solo.
+   */
+  loteBaseEngordeId?: number | null;
   fecha: string; // yyyy-MM-dd
   observaciones?: string | null;
   concepto: string;
@@ -87,6 +93,9 @@ export interface InventarioGastoListItemDto {
   galponNombre: string | null;
   loteAveEngordeId: number | null;
   loteNombre: string | null;
+  /** Lote programado (lote base) si el gasto todavía no se atribuyó a un lote real. */
+  loteBaseEngordeId: number | null;
+  loteBaseNombre: string | null;
   observaciones: string | null;
   estado: string;
   lineas: number;
@@ -124,6 +133,9 @@ export interface InventarioGastoExportRowDto {
   galponNombre: string | null;
   loteAveEngordeId: number | null;
   loteNombre: string | null;
+  /** Lote programado (lote base) si el gasto todavía no se atribuyó a un lote real. */
+  loteBaseEngordeId: number | null;
+  loteBaseNombre: string | null;
   detalleId: number;
   itemInventarioEcuadorId: number;
   itemCodigo: string;
@@ -166,6 +178,9 @@ export interface InventarioGastoDto {
   galponId: string | null;
   loteAveEngordeId: number | null;
   loteNombre: string | null;
+  /** Lote programado (lote base) si el gasto todavía no se atribuyó a un lote real. */
+  loteBaseEngordeId: number | null;
+  loteBaseNombre: string | null;
   observaciones: string | null;
   estado: string;
   createdAt: string;

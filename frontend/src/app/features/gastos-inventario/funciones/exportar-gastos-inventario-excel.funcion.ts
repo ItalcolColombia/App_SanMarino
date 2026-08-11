@@ -97,7 +97,11 @@ export function construirFilasConsumos(rows: InventarioGastoExportRowDto[]): Exc
     r.granjaNombre ?? '',
     r.nucleoNombre ?? r.nucleoId ?? '',
     r.galponNombre ?? r.galponId ?? '',
-    r.loteNombre ?? (r.loteAveEngordeId != null ? String(r.loteAveEngordeId) : ''),
+    // Gasto contra un lote PROGRAMADO (aún sin encasetar): la columna Lote lo muestra marcado, para
+    // que no aparezca vacío y no se confunda con un lote real.
+    r.loteBaseNombre
+      ? `${r.loteBaseNombre} (programado)`
+      : (r.loteNombre ?? (r.loteAveEngordeId != null ? String(r.loteAveEngordeId) : '')),
     r.conceptoLinea ?? '',
     r.itemCodigo,
     r.itemNombre,
