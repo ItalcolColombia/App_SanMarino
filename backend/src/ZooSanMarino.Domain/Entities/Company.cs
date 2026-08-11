@@ -1,4 +1,4 @@
-namespace ZooSanMarino.Domain.Entities
+﻿namespace ZooSanMarino.Domain.Entities
 {
     public class Company
     {
@@ -135,6 +135,32 @@ namespace ZooSanMarino.Domain.Entities
         /// </para>
         /// </summary>
         public bool PrimerRegistroSegunHoraLlegada { get; set; }
+
+        /// <summary>
+        /// <c>true</c> = en esta empresa los lotes de pollo engorde se PROGRAMAN: el catálogo de
+        /// <c>lote_base_engorde</c> (asignado por granja) es la lista de lotes que se van a encasetar, el
+        /// nombre del lote sale obligatoriamente de esa lista (numerado por corrida dentro del galpón) y
+        /// un gasto de inventario puede cargarse contra un lote PROGRAMADO que todavía no existe
+        /// (desinsectación previa al encaset), re-atribuyéndose solo al crearse el lote real.
+        /// <c>false</c> (default) = comportamiento previo: nombre libre, lote base opcional, sin
+        /// pestaña de programación y gasto solo contra lotes reales.
+        /// </summary>
+        public bool ProgramacionLotesEngorde { get; set; }
+
+        /// <summary>
+        /// Cómo nombra la empresa el lote que abre desde una programación (sólo aplica con
+        /// <see cref="ProgramacionLotesEngorde"/> activo).
+        /// <para>
+        /// <c>true</c> (Panamá): nombre = "{lote base} - {corrida}" desde la primera — "96 - 1".
+        /// </para>
+        /// <para>
+        /// <c>false</c> (default, Ecuador): el nombre del lote ES el del lote base — "2603" —, porque
+        /// la corrida ya está codificada en el nombre del base (año + número) y hay un lote por galpón
+        /// en cada corrida. El sufijo sólo aparece desde la segunda apertura del mismo base en el mismo
+        /// galpón, para no repetir nombre dentro del galpón.
+        /// </para>
+        /// </summary>
+        public bool NombreLoteIncluyeCorrida { get; set; }
 
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();

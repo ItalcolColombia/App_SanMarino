@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Infrastructure/Services/CompanyResolver.cs
+﻿// src/ZooSanMarino.Infrastructure/Services/CompanyResolver.cs
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -63,7 +63,9 @@ public class CompanyResolver : ICompanyResolver
                 c.CapturaHuevosEnLevante,
                 c.VentaEngordePesoDiferido,
                 c.PrimerRegistroSegunHoraLlegada,
-                c.DiasAlimentoPrevioEncaset
+                c.DiasAlimentoPrevioEncaset,
+                c.ProgramacionLotesEngorde,
+                c.NombreLoteIncluyeCorrida
             ))
             .FirstOrDefaultAsync();
 
@@ -109,7 +111,9 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.CapturaHuevosEnLevante,
                 uc.Company.VentaEngordePesoDiferido,
                 uc.Company.PrimerRegistroSegunHoraLlegada,
-                uc.Company.DiasAlimentoPrevioEncaset
+                uc.Company.DiasAlimentoPrevioEncaset,
+                uc.Company.ProgramacionLotesEngorde,
+                uc.Company.NombreLoteIncluyeCorrida
             ))
             .ToListAsync();
 

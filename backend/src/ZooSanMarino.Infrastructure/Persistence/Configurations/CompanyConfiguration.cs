@@ -1,4 +1,4 @@
-// file: src/ZooSanMarino.Infrastructure/Persistence/Configurations/CompanyConfiguration.cs
+﻿// file: src/ZooSanMarino.Infrastructure/Persistence/Configurations/CompanyConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
@@ -86,6 +86,20 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         // (ingresos del histórico + consumo del seguimiento) en vez del snapshot jsonb incompleto.
         builder.Property(x => x.ReporteCostosAlimentoDesdeFuentesReales)
             .HasColumnName("reporte_costos_alimento_desde_fuentes_reales")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Flag tipado por comportamiento: los lotes de engorde se programan (lote base obligatorio,
+        // nombre por corrida y gasto de inventario contra lote programado).
+        builder.Property(x => x.ProgramacionLotesEngorde)
+            .HasColumnName("programacion_lotes_engorde")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Flag tipado por comportamiento: el nombre del lote lleva el sufijo de corrida desde la
+        // primera apertura (Panamá) o es el nombre del lote base tal cual (Ecuador).
+        builder.Property(x => x.NombreLoteIncluyeCorrida)
+            .HasColumnName("nombre_lote_incluye_corrida")
             .HasDefaultValue(false)
             .IsRequired();
 

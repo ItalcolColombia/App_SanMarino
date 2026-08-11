@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Domain.Entities;
@@ -77,7 +77,9 @@ public partial class CompanyService
             CapturaHuevosEnLevante = dto.CapturaHuevosEnLevante,
             VentaEngordePesoDiferido = dto.VentaEngordePesoDiferido,
             PrimerRegistroSegunHoraLlegada = dto.PrimerRegistroSegunHoraLlegada,
-            DiasAlimentoPrevioEncaset = VentanaAlimentoPrevioCalculos.NormalizarDias(dto.DiasAlimentoPrevioEncaset)
+            DiasAlimentoPrevioEncaset = VentanaAlimentoPrevioCalculos.NormalizarDias(dto.DiasAlimentoPrevioEncaset),
+            ProgramacionLotesEngorde = dto.ProgramacionLotesEngorde,
+            NombreLoteIncluyeCorrida = dto.NombreLoteIncluyeCorrida
         };
 
         _ctx.Companies.Add(c);
@@ -123,6 +125,8 @@ public partial class CompanyService
         c.DiasAlimentoPrevioEncaset = dto.DiasAlimentoPrevioEncaset.HasValue
             ? VentanaAlimentoPrevioCalculos.NormalizarDias(dto.DiasAlimentoPrevioEncaset)
             : c.DiasAlimentoPrevioEncaset;
+        c.ProgramacionLotesEngorde = dto.ProgramacionLotesEngorde ?? c.ProgramacionLotesEngorde;
+        c.NombreLoteIncluyeCorrida = dto.NombreLoteIncluyeCorrida ?? c.NombreLoteIncluyeCorrida;
 
         await _ctx.SaveChangesAsync();
 

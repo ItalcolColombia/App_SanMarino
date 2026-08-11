@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -118,7 +118,9 @@ public class CompanyPaisService : ICompanyPaisService
             CapturaHuevosEnLevante: cp.Company.CapturaHuevosEnLevante,
             VentaEngordePesoDiferido: cp.Company.VentaEngordePesoDiferido,
             PrimerRegistroSegunHoraLlegada: cp.Company.PrimerRegistroSegunHoraLlegada,
-            DiasAlimentoPrevioEncaset: cp.Company.DiasAlimentoPrevioEncaset
+            DiasAlimentoPrevioEncaset: cp.Company.DiasAlimentoPrevioEncaset,
+            ProgramacionLotesEngorde: cp.Company.ProgramacionLotesEngorde,
+            NombreLoteIncluyeCorrida: cp.Company.NombreLoteIncluyeCorrida
         )).ToList();
     }
 

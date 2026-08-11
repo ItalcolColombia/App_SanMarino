@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -45,6 +45,8 @@ public partial class CompanyService : ICompanyService
         c.CapturaHuevosEnLevante,
         c.VentaEngordePesoDiferido,
         c.PrimerRegistroSegunHoraLlegada,
-        c.DiasAlimentoPrevioEncaset
+        c.DiasAlimentoPrevioEncaset,
+        c.ProgramacionLotesEngorde,
+        c.NombreLoteIncluyeCorrida
     );
 }
