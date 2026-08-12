@@ -3951,7 +3951,8 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
       todos con **cero filas** escritas
 - [x] Datos del smoke **borrados por la API** (no por SQL): el saldo de aves volvió exacto
       (20→34 hembras = 2+3+4+5, 0→1 machos), y `sync_operaciones` quedó en 0
-- [x] Sin procesos huérfanos: backend detenido al terminar
+- [x] Sin procesos huérfanos. El backend queda **corriendo a propósito** en :5002 (lo pidió el
+      usuario para validar en la app); se levantó como server gestionado, no suelto
 
 ### 🔴 Lo que NO se pudo probar (y por qué importa)
 - [ ] **La carrera NO reprodujo el defecto.** Con 2 y con 8 POST simultáneos del mismo `clientOpId`
