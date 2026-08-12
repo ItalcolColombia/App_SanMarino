@@ -3776,3 +3776,47 @@ Aprobada por el usuario tras la auditoría. Migración `20260812021716_AddConsum
 - [x] `seguimiento_pollo_engorde_tabla_unificada_vista.sql` reducido a puntero: definía otra vista
       con 14 columnas menos y aplicarlo las borraba. El SQL viejo queda en git (`git show 2f2a00a:…`)
 - [x] `VISTAS_POWERBI_POLLO_ENGORDE.md` apunta al archivo fiel y al patrón de cambio
+
+---
+
+# Tracker — El gate del borde del frontend bloquea el deploy desde que la PWA existe
+
+**Plan:** [`fase_de_desarrollo/gate_borde_front_pwa_plan.md`](fase_de_desarrollo/gate_borde_front_pwa_plan.md)
+**Fecha:** 2026-08-11
+**Run que falló:** `85573900056` — `##[error]La imagen del frontend no cumple 2 criterio(s) del borde. No se publica.`
+
+El paso *Validar nginx y política de caché del borde* (previo al `docker push`) exige **404** en
+`ngsw.json` y `manifest.webmanifest`. Los escribió el 27-jul, cuando el build no los emitía; desde
+`8ecb7c6` (09-ago) la app es PWA y los emite a propósito ⇒ responden 200 ⇒ el gate corta y la imagen
+nunca llega a ECR. El backend de ese mismo run sí desplegó.
+
+## Diagnóstico
+- [x] Log del run leído: 2 criterios en rojo, el resto OK; imagen construida y `verificar-ngsw.js` en verde
+- [x] Causa raíz datada (`76a2903` crea el gate 27-jul · `8ecb7c6` enciende la PWA 09-ago)
+- [x] Confirmado que `nginx.conf` y la imagen están bien (el volcado de headers del log ya muestra 200 + Content-Type correcto + no-cache)
+
+## Corrección del gate
+- [x] C2 pasa a probar el 404 con rutas que nunca existirán (`no-existe-1234.json` / `.webmanifest`)
+- [x] C4 nuevo: `ngsw.json`, `ngsw-worker.js`, `safety-worker.js`, `manifest.webmanifest` → 200 + Content-Type correcto + `no-cache`
+- [x] Sin cambios en `nginx.conf`, Dockerfile ni código de la app
+
+## Validación
+
+- [x] `no-existe-1234.json` y `no-existe-1234.webmanifest` → **404** contra el **nginx real de prod**
+      (mismo `nginx.conf`: sin cambios desde `76a2903`, 27-jul) ⇒ los reemplazos de C2 pasan
+- [x] `ngsw-worker.js` y `safety-worker.js` en prod (donde todavía no existen) → 404 con
+      `Cache-Control: no-cache`, no `immutable` ⇒ el `location =` exacto gana sobre la regla de assets;
+      con el archivo presente eso es 200 + no-cache. Contraste medido: `chunk-inexistente.js` sí cae en
+      `immutable`
+- [x] `ngsw.json` → 200 · `application/json` · `no-cache` y `manifest.webmanifest` → 200 ·
+      `application/manifest+json` · `no-cache`: lo muestra el volcado de headers del **propio run que
+      falló**, contra la imagen ya construida
+- [x] Los 4 archivos de control están en el output del build (`dist/browser`), con `ngsw.json` (13.833 B)
+      y `manifest.webmanifest` (1.413 B) del mismo tamaño exacto que los servidos en el run de CI
+- [x] Las 14 aserciones nuevas/cambiadas corridas contra el build real servido por
+      `scripts/servir-pwa-local.js` (réplica de las reglas de nginx): **14/14 OK**
+- [ ] ⚠️ **Corrida literal del gate (`docker build` + script del paso) NO hecha**: Docker Desktop no
+      levanta en esta máquina (`com.docker.service` detenido y su arranque requiere elevación).
+      Pendiente si se quiere la prueba end-to-end antes de re-desplegar
+- [x] Servidor de prueba detenido (puerto 4400 libre); sin procesos huérfanos
+- [ ] Commit acotado (sin footer de atribución)
