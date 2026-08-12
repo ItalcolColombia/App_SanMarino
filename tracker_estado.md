@@ -3696,3 +3696,34 @@ lote real ⇒ encender el flag sin programación cargada **bloquea la creación 
 - [x] **BD devuelta al estado inicial**: 369 gastos, 121 lotes Ecuador, stock del ítem en 15.000
       exactos (la anulación devolvió el consumo) y las filas del smoke borradas por id
 - [x] Migraciones **253 aplicadas / 0 pendientes** · servidores detenidos, sin procesos huérfanos
+
+---
+
+# Tracker — Columna «Consumo mixto (kg)» en el seguimiento diario pollo engorde
+
+**Plan:** [`fase_de_desarrollo/consumo_alimento_mixto_engorde_plan.md`](fase_de_desarrollo/consumo_alimento_mixto_engorde_plan.md)
+**Fecha:** 2026-08-11
+
+Objetivo: el alimento de los días 1–7 (cruce reproductora) sigue mostrándose por género; el del día 8 en
+adelante (registrado desde este módulo, mixto) deja de acumularse bajo «Consumo hembras» y pasa a una
+columna propia **Consumo mixto (kg)**, en la tabla y en el Excel. Cambio de presentación: los kg y los
+totales no se tocan; sin backend, sin SQL, sin migración.
+
+## Código
+
+- [x] `aves-engorde/funciones/modo-consumo-alimento-fila.funcion.ts` — función PURA: `SYSTEM_CRUCE` o
+      `consumoKgMachos > 0` ⇒ `'genero'`; en cualquier otro caso `'mixto'`
+- [x] Spec de la función pura con los 7 casos del plan
+- [x] `tabs-principal-engorde.component.ts` — `esConsumoPorGenero` / `esConsumoMixto` delegan en la función
+- [x] `tabs-principal-engorde.component.ts` — Excel: header `Consumo kg mixto` + las 3 celdas condicionadas
+- [x] `tabs-principal-engorde.component.ts` — `colspanRegistroDiario`: Panamá suma una columna (−2 → −1)
+- [x] `tabs-principal-engorde.component.html` — `<th>` + `<td>` de las 3 columnas de consumo
+
+## Validación
+
+- [x] `cd frontend && yarn build` — 0 errores (único warning aceptado: bundle budget preexistente)
+- [x] Smoke Panamá (lote `94 - 2`, id 163): días 1–7 con H/M, día 8+ solo en Mixto
+- [x] Smoke Ecuador: tabla en pantalla **sin cambios** (no muestra columnas por sexo) y Excel con el
+      consumo bajo Mixto
+- [x] Excel descargado: H + M + Mixto = `Consumo real día (kg)` fila a fila
+- [x] Commit acotado (sin footer de atribución)

@@ -202,11 +202,16 @@
                           <th scope="col" class="th-diario th-diario--wide">Traslado</th>
                           <th scope="col" class="th-diario th-diario--wide">Documento</th>
                           <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">día (kg)</span></th>
+                          <!-- Consumo por sexo SOLO en los días 1–7 (cruce reproductora); del día 8 en
+                          adelante el alimento es una ración mixta y va en su propia columna. -->
                           @if (isPanama) {
                             <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">hembras (kg)</span></th>
                           }
                           @if (isPanama) {
                             <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">machos (kg)</span></th>
+                          }
+                          @if (isPanama) {
+                            <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">mixto (kg)</span></th>
                           }
                           <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
                           <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
@@ -303,10 +308,13 @@
                             <td class="cell-text cell-text--wide" [title]="documentoCeldaTexto(f)">{{ documentoCeldaTexto(f) || '—' }}</td>
                             <td class="num">{{ f.consumoDiaKg != null ? (f.consumoDiaKg | number:'1.0-2') : '—' }}</td>
                             @if (isPanama) {
-                              <td class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
+                              <td class="num">{{ esConsumoPorGenero(f) && f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
                             }
                             @if (isPanama) {
-                              <td class="num">{{ f.consumoKgMachos != null ? (f.consumoKgMachos | number:'1.0-2') : '—' }}</td>
+                              <td class="num">{{ esConsumoPorGenero(f) && f.consumoKgMachos != null ? (f.consumoKgMachos | number:'1.0-2') : '—' }}</td>
+                            }
+                            @if (isPanama) {
+                              <td class="num">{{ esConsumoMixto(f) && f.consumoDiaKg != null ? (f.consumoDiaKg | number:'1.0-2') : '—' }}</td>
                             }
                             <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
                             <td class="num">{{ f.consumoAguaDiario != null ? (f.consumoAguaDiario | number:'1.0-1') : '—' }}</td>

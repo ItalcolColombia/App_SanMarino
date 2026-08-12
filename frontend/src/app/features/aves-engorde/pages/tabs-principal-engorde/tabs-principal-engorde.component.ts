@@ -20,6 +20,10 @@ import {
   diaDeNegocioDesdeEdad,
   semanaDeNegocio
 } from '../../../engorde-comun/funciones/dia-negocio-engorde.funcion';
+import {
+  esConsumoAlimentoMixto,
+  esConsumoAlimentoPorGenero
+} from '../../funciones/modo-consumo-alimento-fila.funcion';
 
 /** Texto explicativo del saldo de alimento (modal de ayuda en seguimiento diario). */
 export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fecha de registro. Ingreso/traslado/documento y despachos vienen del historial unificado. El saldo de alimento (kg) parte del stock ya registrado en el histórico con fecha anterior al primer día de seguimiento; a partir de ahí se aplican ingresos, traslados de entrada, ajustes; restas por traslado de salida, eliminaciones y consumo del día en seguimiento (hembras + machos); no se duplica INV_CONSUMO del histórico. Tras cada movimiento el saldo no baja de 0 kg: si el consumo supera lo disponible, queda en 0 y los ingresos o traslados de entrada posteriores suman sobre ese saldo disponible.`;
@@ -124,11 +128,27 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   /** Columnas de la tabla de registros diarios (sin Acciones). */
   get colspanRegistroDiario(): number {
     // Base 30 (no-Panamá).
-    // Panamá: fórmula antigua era +2 (consumo H+M extra). Esta sesión mergea 4 pares H/M en Mixto → −4.
-    // Net: +2 − 4 = −2.
+    // Panamá: fórmula antigua era +2 (consumo H+M extra). Una sesión mergeó 4 pares H/M en Mixto → −4.
+    // Ago-2026: se suma la columna «Consumo mixto (kg)» → +1. Net: +2 − 4 + 1 = −1.
     return 30
       + (this.enriquecerTablaConHistoricoInventario ? 3 : 0)
-      + (this.isPanama ? -2 : 0);
+      + (this.isPanama ? -1 : 0);
+  }
+
+  // ─── Consumo de alimento: por género (días 1–7, cruce reproductora) vs mixto ──────────────────
+  // El desglose por sexo solo existe en las filas que vienen del cruce de lotes reproductora. A
+  // partir del día 8 el registro se hace desde este módulo con una sola ración mixta que se persiste
+  // en `consumoKgHembras`; mostrarla bajo «hembras» hacía leer que solo comían las hembras.
+  // La regla vive en `funciones/modo-consumo-alimento-fila.funcion.ts` (pura, con tests).
+
+  /** true cuando la fila trae consumo desglosado H/M → se llenan las columnas Hembras y Machos. */
+  esConsumoPorGenero(f: SeguimientoDiarioTablaFilaDto): boolean {
+    return esConsumoAlimentoPorGenero(f);
+  }
+
+  /** true cuando la fila trae una ración mixta → se llena la columna Consumo mixto. */
+  esConsumoMixto(f: SeguimientoDiarioTablaFilaDto): boolean {
+    return esConsumoAlimentoMixto(f);
   }
 
   // segId puede ser null (movs sin seguimiento, fix #14) → usar fecha como fallback único para trackBy
@@ -271,8 +291,11 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       'Ingreso alimento',
       'Traslado',
       'Documento',
+      // El consumo del día cae en UNA de las tres: H/M solo en las filas del cruce reproductora
+      // (días 1–7), Mixto de ahí en adelante. Las tres suman «Consumo real día (kg)».
       'Consumo kg hembras',
       'Consumo kg machos',
+      'Consumo kg mixto',
       'Consumo real día (kg)',
       'Consumo acumulado (kg)',
       'Agua (litros)',
@@ -305,8 +328,9 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       f.ingresoAlimentoKg > 0 ? `${f.ingresoAlimentoKg} kg` : '',
       this.buildTrasladoTexto(f),
       f.documento ?? '',
-      f.consumoKgHembras ?? '',
-      f.consumoKgMachos ?? 0,
+      this.esConsumoPorGenero(f) ? (f.consumoKgHembras ?? '') : '',
+      this.esConsumoPorGenero(f) ? (f.consumoKgMachos ?? 0) : '',
+      this.esConsumoMixto(f) ? f.consumoDiaKg : '',
       f.consumoDiaKg,
       f.acumConsumoKg,
       f.consumoAguaDiario ?? '',
