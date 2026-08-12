@@ -1,4 +1,20 @@
 -- =============================================================================
+-- ⚠️ ARCHIVO DESACTUALIZADO — NO LO APLIQUES EN PRODUCCIÓN (verificado 2026-08-11)
+-- =============================================================================
+-- La vista que Power BI consume se llama `vw_seguimiento_pollo_engorde` (sin `_unificado`)
+-- y tiene 67 columnas; esta definición nombra otra vista y le faltan 14 que la desplegada SÍ
+-- tiene: tipo_fila, uniformidad_hembras/machos, cv_hembras/machos, consumo_agua_ph/orp/temperatura,
+-- ciclo, historico_consumo_alimento, despacho_peso_neto/tara, despacho_promedio_peso_ave,
+-- created_by_user_id — más consumo_kg_mixto / consumo_es_mixto (migración
+-- 20260812021716_AddConsumoMixtoVistaPowerbiEngorde). Correrlo tal cual BORRA esas columnas
+-- y rompe los reportes de Power BI.
+--
+-- La verdad es la vista viva: `SELECT pg_get_viewdef('public.vw_seguimiento_pollo_engorde', true);`
+-- Para cambiarla, migración EF que ENVUELVA esa definición (patrón de la migración citada), no un
+-- CREATE desde este archivo.
+-- =============================================================================
+
+-- =============================================================================
 -- Vista: seguimiento diario pollo de engorde unificado (tabla + histórico)
 -- =============================================================================
 -- Incluye saldo_alimento_kg_calculado: misma regla que el front / backend

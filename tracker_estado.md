@@ -3746,3 +3746,22 @@ número**, porque todos consumen el TOTAL del día, no las columnas por sexo.
       `seguimiento_pollo_engorde_tabla_unificada` sigue exponiendo `consumo_kg_hembras` crudo
       (documentado como «por sexo»), así que ahí el mixto se sigue leyendo como hembras. Alinearla es
       aditivo (columna derivada) y NO se hizo: toca un consumidor externo
+
+### Extensión: la distinción mixto/por-sexo también en Power BI — 2026-08-11
+
+Aprobada por el usuario tras la auditoría. Migración `20260812021716_AddConsumoMixtoVistaPowerbiEngorde`.
+
+- [x] Migración EF idempotente que ENVUELVE `pg_get_viewdef` (no recrea la vista: el `.sql` del repo
+      está desactualizado y borraría 14 columnas en prod) y agrega `consumo_kg_mixto` +
+      `consumo_es_mixto` al final
+- [x] `Down()` simétrico: DROP + CREATE proyectando todo menos las dos columnas nuevas
+- [x] Doc `VISTAS_POWERBI_POLLO_ENGORDE.md` con las dos columnas y cuándo usar cada una
+- [x] Aviso dentro de `backend/sql/seguimiento_pollo_engorde_tabla_unificada_vista.sql`: NO aplicarlo
+      (nombra otra vista y le faltan 14 columnas)
+- [x] `dotnet build` 0 errores · `dotnet test` 2.222 verdes
+- [x] Migración aplicada en local por el arranque del backend; columnas en posición 66/67 y
+      `created_by_user_id` intacto en la 65
+- [x] Invariante Σ(por régimen) = Σ(`consumo_real_dia_kg`): Ecuador 8.050.971,000 · Panamá
+      1.839.861,020 · 0 descuadradas
+- [x] Idempotencia (Up 2 veces) y round-trip (Down → 65 → Up → 67) verificados
+- [x] Backend detenido, sin procesos huérfanos

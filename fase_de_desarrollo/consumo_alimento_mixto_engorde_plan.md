@@ -105,3 +105,47 @@ su consumo deja de aparecer bajo «hembras» y pasa a «mixto», que es justamen
 - Smoke doble: lote de **Panamá** con cruce (`94 - 2`, id 163) → 7 filas desglosadas + resto en Mixto;
   lote de **Ecuador** → tabla en pantalla sin cambios y Excel con el consumo en Mixto.
 - Excel descargado: las 3 columnas de consumo suman exactamente `Consumo real día (kg)`.
+
+---
+
+## 8. Extensión aprobada por el usuario: la misma distinción en Power BI (2026-08-11)
+
+La auditoría dejó un único punto sin alinear: la vista que consume Power BI publicaba
+`consumo_kg_hembras` crudo, documentado como «consumo por sexo», así que la ración mixta se
+graficaba como alimento de hembras — el mismo malentendido que se corrigió en la pantalla.
+
+**Cambio (aditivo, migración `20260812021716_AddConsumoMixtoVistaPowerbiEngorde`):**
+dos columnas nuevas AL FINAL de `vw_seguimiento_pollo_engorde`:
+
+| Columna | Qué trae |
+|---|---|
+| `consumo_kg_mixto` | numeric — el consumo del día cuando fue una sola ración para el galpón; NULL si la fila tiene desglose real |
+| `consumo_es_mixto` | boolean — `true` ⇒ usar `consumo_kg_mixto`; `false` ⇒ usar `consumo_kg_hembras` / `consumo_kg_machos` |
+
+`consumo_kg_hembras`, `consumo_kg_machos` y `consumo_real_dia_kg` quedan **intactos y en su misma
+posición** ⇒ ningún reporte de Power BI ya armado cambia.
+
+**Por qué la migración ENVUELVE la vista en vez de recrearla.** El espejo del repo
+(`backend/sql/seguimiento_pollo_engorde_tabla_unificada_vista.sql`) está desactualizado: nombra la
+vista `vw_seguimiento_pollo_engorde_unificado` y le faltan **14 columnas** que la vista desplegada sí
+tiene (`tipo_fila`, `uniformidad_*`, `cv_*`, `consumo_agua_ph/orp/temperatura`, `ciclo`,
+`historico_consumo_alimento`, `despacho_peso_*`, `created_by_user_id`). Recrear desde ese archivo
+habría BORRADO esas columnas en producción. La migración lee `pg_get_viewdef` y agrega las dos
+columnas al final, así que conserva exactamente lo que cada ambiente tenga. Se dejó el aviso dentro
+del `.sql` para que nadie lo aplique creyendo que es la fuente de verdad.
+
+**Regla usada:** la misma del front — `created_by_user_id = 'SYSTEM_CRUCE'` (filas del cruce
+reproductora) **o** `consumo_kg_machos > 0` ⇒ desglose por sexo; en cualquier otro caso, mixto.
+`origen_cruce` no está en la vista, y `SYSTEM_CRUCE` es 1:1 con esa marca.
+
+**Validación ejecutada (BD local):**
+- `dotnet build` 0 errores · `dotnet test` **2.222 tests verdes** (2.221 Application + 1 Domain).
+- Migración aplicada por el arranque del backend (`Applying migration '20260812021716_…'`).
+- Columnas nuevas en posición **66 y 67**; `created_by_user_id` sigue en la 65 ⇒ nada se corrió.
+- Lote 94-2 (id 163): días 1–7 `consumo_es_mixto = false` con H/M reales y mixto NULL; del día 8,
+  `true` con el total en `consumo_kg_mixto`.
+- **Invariante en las dos empresas**: Σ(por régimen) = Σ(`consumo_real_dia_kg`) exacto —
+  Ecuador 8.050.971,000 kg (5.057 filas) · Panamá 1.839.861,020 kg (735 filas, 203 por sexo).
+  0 filas mixtas descuadradas.
+- **Idempotencia**: segunda corrida del `Up()` no duplica columnas (67 → 67).
+- **Round-trip**: `Down()` deja 65 columnas exactas y `Up()` vuelve a 67 con el invariante intacto.

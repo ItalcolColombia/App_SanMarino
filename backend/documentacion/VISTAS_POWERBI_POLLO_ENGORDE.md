@@ -59,8 +59,10 @@ sin registro de seguimiento** (ver `tipo_fila`).
 | `traslado_texto_hist` | texto | Traslados de alimento del día (texto). |
 | `documento_hist` | texto | Documentos asociados (ingresos/ventas) del día. |
 | `metadata_ingreso_alimento` / `metadata_traslado` / `metadata_documento` | texto | Datos de la captura (metadata del seguimiento). |
-| `consumo_kg_hembras` / `consumo_kg_machos` | numeric | Consumo de alimento del día por sexo (kg). |
-| `consumo_real_dia_kg` | numeric | Consumo real del día (kg) = hembras + machos. |
+| `consumo_kg_hembras` / `consumo_kg_machos` | numeric | Consumo de alimento del día por sexo (kg). **Solo tienen sentido cuando `consumo_es_mixto = false`** (ver abajo); en los días de ración mixta el total queda en `consumo_kg_hembras` por cómo se persiste, y machos en 0. |
+| `consumo_kg_mixto` | numeric | Consumo del día cuando el alimento fue **una sola ración para todo el galpón** (sin separar sexos). NULL en los días con desglose real. |
+| `consumo_es_mixto` | boolean | `true` = la fila es de ración mixta ⇒ usá `consumo_kg_mixto`. `false` = desglose real por sexo ⇒ usá `consumo_kg_hembras` / `consumo_kg_machos`. |
+| `consumo_real_dia_kg` | numeric | Consumo real del día (kg) = hembras + machos. **No cambió**: es el total en los dos regímenes y es la columna correcta para cualquier suma. |
 | `consumo_acumulado_kg` | numeric | Consumo acumulado del lote (kg) hasta el día. |
 | `consumo_bodega_kg` | numeric | Consumo registrado en bodega (INV_CONSUMO) del día. |
 | `consumo_agua_diario` | numeric | Consumo de agua del día. |
