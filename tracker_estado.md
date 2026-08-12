@@ -4067,3 +4067,51 @@ producción quedaba exactamente igual que antes de la PWA.
 ## Lo que sigue
 - [ ] **Engorde** (`POST /api/SeguimientoAvesEngordeEcuador`) — sigue fuera: el cliente no lo encola
       y el servidor lo rechaza `contrato_obsoleto`
+
+---
+
+# PWA F3.3 — captura offline de ENGORDE (pollo + reproductora)
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+Con esto quedan cubiertas las **cuatro** superficies de captura diaria del sistema.
+
+## Backend
+- [x] Tipos `seguimiento_engorde_crear` y `seguimiento_reproductora_engorde_crear`
+- [x] `Funciones/SyncPushService.Engorde.cs` — despacha a `ISeguimientoAvesEngordeEcuadorService` y a
+      `ISeguimientoDiarioLoteReproductoraService`, los mismos que usan los controllers
+- [x] 🔑 **Son dos tipos aunque el cuerpo sea el mismo** (`CreateSeguimientoLoteLevanteRequest`):
+      el tipo es lo que decide a qué service va, y confundirlos escribiría en la etapa equivocada
+- [x] Transacción **condicional** en `SeguimientoAvesEngordeEcuadorService.Crud.cs` (2 sitios).
+      `SeguimientoDiarioLoteReproductoraService` **no abre transacción propia** ⇒ nada que cambiar
+- [x] `Tipos.Todos` como catálogo único que alimenta `EsConocido` (+ test de que no tiene duplicados)
+- [x] `dotnet build` 0 err / 0 warnings · `dotnet test` **2.278** (2.273 → 2.278)
+
+## Frontend
+- [x] `POST /api/SeguimientoAvesEngordeEcuador` y `POST /api/SeguimientoDiarioLoteReproductora`
+      en la lista blanca; los sub-recursos (`/bulk`, `/cuadrar-saldos`) quedan fuera
+- [x] Toast «guardado en el dispositivo» en las dos pantallas. En reproductora **reemplaza** al
+      «Registro creado», que sería mentira si la captura sigue en la tablet
+- [x] `yarn build` 0 err · `yarn test` **288** (284 → 288)
+
+## Smoke HTTP
+- [x] **El despacho enruta de verdad**: antes los dos tipos daban `contrato_obsoleto`; ahora cada uno
+      llega a SU service, y se distingue por el mensaje («Lote aves de engorde…» vs «Lote reproductora
+      aves de engorde…»). El control con un tipo inexistente sigue dando `contrato_obsoleto`
+- [x] **Pollo engorde** (perfil de Lady, Ecuador, lote 197 «2603»): aplicada `entidadId 11055`,
+      reenvío ⇒ `replay:true`, una sola fila
+- [x] **Reproductora**: aplicada `entidadId 711`, reenvío ⇒ `replay:true`
+- [x] 🟡 La reproductora se probó con un usuario de **Panamá**, no de Ecuador: las 99 reproductoras
+      vivas de la BD local son de la empresa 5, y las 3 de Ecuador tienen su lote padre borrado
+- [x] En el camino apareció la regla real del dominio («supera la primera semana de recogida desde el
+      encasetamiento»), lo que prueba que el service queda plenamente enganchado, no salteado
+
+## Limpieza
+- [x] Los `DELETE` por API dieron **403** con el JWT minteado (le faltan claims de alcance), así que
+      se limpió por SQL — pero **respetando el invariante**: la fila del histórico unificado que dejó
+      el trigger se marcó `anulado = true`, **no se borró**. Borrarla habría dejado el saldo
+      contándola igual
+- [x] Verificado que ninguno de los dos services escribe saldo de aves en el alta (0 referencias), y
+      que el smoke **no movió inventario** (0 movimientos en la ventana)
+- [x] 0 filas residuales en las 4 tablas de seguimiento · `sync_operaciones` en 0

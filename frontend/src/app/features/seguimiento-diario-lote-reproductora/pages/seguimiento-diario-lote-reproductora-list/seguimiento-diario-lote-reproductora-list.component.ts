@@ -1,6 +1,7 @@
 // Seguimiento Diario Lote Reproductora Aves de Engorde.
 // Filtros: Granja → Núcleo → Galpón → Lote Aves Engorde → Lote Reproductora.
 // API: SeguimientoDiarioLoteReproductora (tabla seguimiento_diario_lote_reproductora_aves_engorde).
+import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -526,11 +527,18 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
     this.loading = true;
     op$.pipe(finalize(() => (this.loading = false))).subscribe({
-      next: () => {
+      next: respuesta => {
         this.modalOpen = false;
         this.editing = null;
         this.editingModal = null;
-        this.toastService.success(event.isEdit ? 'Registro actualizado.' : 'Registro creado.', 'Éxito', 4000);
+
+        // "Registro creado" seria mentira si la captura sigue en la tablet: se dice lo que paso.
+        if (esRespuestaPendiente(respuesta)) {
+          this.toastService.info(MENSAJE_GUARDADO_SIN_RED, 'Sin conexion', 6000);
+        } else {
+          this.toastService.success(event.isEdit ? 'Registro actualizado.' : 'Registro creado.', 'Éxito', 4000);
+        }
+
         this.reloadCurrent();
       },
       error: err => {

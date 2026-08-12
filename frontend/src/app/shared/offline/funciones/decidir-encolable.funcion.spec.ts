@@ -41,6 +41,29 @@ describe('decidirEncolable', () => {
       expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/Produccion/indicadores-semanales')).toBeNull();
     });
 
+    it('reconoce el alta de POLLO ENGORDE', () => {
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador'))
+        .toBe('seguimiento_engorde_crear');
+    });
+
+    it('reconoce el alta de la REPRODUCTORA de pollo engorde', () => {
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoDiarioLoteReproductora'))
+        .toBe('seguimiento_reproductora_engorde_crear');
+    });
+
+    it('🔑 engorde y levante NO se confunden aunque compartan el cuerpo', () => {
+      // Mismo payload, services distintos: si el tipo se equivocara, el seguimiento entraría en la
+      // etapa que no es.
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador'))
+        .not.toBe(resolverTipoOperacion('POST', RUTA));
+    });
+
+    it('NO encola la carga masiva ni los sub-recursos de engorde', () => {
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador/bulk')).toBeNull();
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoAvesEngordeEcuador/cuadrar-saldos')).toBeNull();
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/SeguimientoDiarioLoteReproductora/bulk')).toBeNull();
+    });
+
     it('NO encola las lecturas', () => {
       expect(resolverTipoOperacion('GET', RUTA)).toBeNull();
     });

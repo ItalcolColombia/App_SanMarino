@@ -27,6 +27,8 @@ public partial class SyncPushService : ISyncPushService
     private readonly ICurrentUser _current;
     private readonly ISeguimientoLoteLevanteService _levante;
     private readonly IProduccionService _produccion;
+    private readonly ISeguimientoAvesEngordeEcuadorService _engorde;
+    private readonly ISeguimientoDiarioLoteReproductoraService _reproductoraEngorde;
     private readonly ILogger<SyncPushService>? _logger;
 
     public SyncPushService(
@@ -34,12 +36,16 @@ public partial class SyncPushService : ISyncPushService
         ICurrentUser current,
         ISeguimientoLoteLevanteService levante,
         IProduccionService produccion,
+        ISeguimientoAvesEngordeEcuadorService engorde,
+        ISeguimientoDiarioLoteReproductoraService reproductoraEngorde,
         ILogger<SyncPushService>? logger = null)
     {
         _ctx = ctx;
         _current = current;
         _levante = levante;
         _produccion = produccion;
+        _engorde = engorde;
+        _reproductoraEngorde = reproductoraEngorde;
         _logger = logger;
     }
 

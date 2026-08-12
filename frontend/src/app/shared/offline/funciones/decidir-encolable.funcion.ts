@@ -34,6 +34,19 @@ const OPERACIONES_SOPORTADAS: ReadonlyArray<{
     // capturar `/seguimiento/{id}` ni los sub-recursos de indicadores.
     ruta: /\/api\/Produccion\/seguimiento\/?$/i,
     tipo: 'seguimiento_produccion_crear'
+  },
+  {
+    metodo: 'POST',
+    // Alta de seguimiento diario de POLLO ENGORDE.
+    ruta: /\/api\/SeguimientoAvesEngordeEcuador\/?$/i,
+    tipo: 'seguimiento_engorde_crear'
+  },
+  {
+    metodo: 'POST',
+    // Alta de seguimiento diario de la REPRODUCTORA de pollo engorde. Comparte pantalla con la
+    // anterior pero es otro service y otra tabla, asi que es otro tipo de operacion.
+    ruta: /\/api\/SeguimientoDiarioLoteReproductora\/?$/i,
+    tipo: 'seguimiento_reproductora_engorde_crear'
   }
 ];
 

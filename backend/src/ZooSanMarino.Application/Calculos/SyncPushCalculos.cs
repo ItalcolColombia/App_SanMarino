@@ -51,9 +51,23 @@ public static class SyncPushCalculos
     {
         public const string SeguimientoLevanteCrear = "seguimiento_levante_crear";
         public const string SeguimientoProduccionCrear = "seguimiento_produccion_crear";
+        public const string SeguimientoEngordeCrear = "seguimiento_engorde_crear";
+        public const string SeguimientoReproductoraEngordeCrear = "seguimiento_reproductora_engorde_crear";
 
-        public static bool EsConocido(string? tipo) =>
-            tipo == SeguimientoLevanteCrear || tipo == SeguimientoProduccionCrear;
+        /// <summary>
+        /// Las CUATRO superficies de captura diaria del sistema: postura (levante + producción) y
+        /// engorde (pollo + su reproductora). Un tipo fuera de esta lista se rechaza como contrato
+        /// obsoleto, nunca se adivina a qué service iba.
+        /// </summary>
+        public static readonly IReadOnlyCollection<string> Todos =
+        [
+            SeguimientoLevanteCrear,
+            SeguimientoProduccionCrear,
+            SeguimientoEngordeCrear,
+            SeguimientoReproductoraEngordeCrear
+        ];
+
+        public static bool EsConocido(string? tipo) => tipo is not null && Todos.Contains(tipo);
     }
 
     public enum Decision
