@@ -4121,3 +4121,49 @@ Con esto quedan cubiertas las **cuatro** superficies de captura diaria del siste
 - [x] Verificado que ninguno de los dos services escribe saldo de aves en el alta (0 referencias), y
       que el smoke **no movió inventario** (0 movimientos en la ventana)
 - [x] 0 filas residuales en las 4 tablas de seguimiento · `sync_operaciones` en 0
+
+---
+
+# PWA — auditoría de acceso offline (menú muerto · primer ingreso · acciones operativas)
+
+**Informe:** [fase_de_desarrollo/pwa_auditoria_acceso_offline_2026-08-12.md](fase_de_desarrollo/pwa_auditoria_acceso_offline_2026-08-12.md)
+**Fecha:** 2026-08-12
+
+## 1. Menú «Lote Reproductora» (id 9) — revisión aparte
+- [x] `company_menus`: **ninguna empresa**. `role_menus`: **3 roles** (Auxiliar de Granja, Líder
+      técnico, Director técnico) ⇒ **lo ven igual**, porque el sidebar sale de `role_menus`
+- [x] 🔴 **Carga `SeguimientoLoteLevanteModule`**, no un módulo de reproductora: la entrada no abre
+      lo que su nombre dice
+- [x] La reproductora de **postura** no existe como pantalla de captura (no hay endpoint propio); el
+      único `SeguimientoDiarioLoteReproductora` es el de **pollo engorde**, exclusivo de Panamá
+- [x] **Para la PWA no hay nada que apagar**: no existe captura de reproductora de postura que
+      pudiera encolarse. Mientras la ruta cargue levante, encola como levante, que es lo correcto
+- [ ] **Decisión del usuario:** quitar el menú a esos 3 roles hasta que el módulo exista, o corregir
+      la etiqueta. Hoy un técnico entra por «Lote Reproductora» y carga levante sin darse cuenta
+
+## 2. Primer ingreso y menú sin internet
+- [x] ✅ **El menú sobrevive sin red**: vive en la sesión persistida, no se re-pide. `ensureLoaded()`
+      cae a storage y `preloadMyMenu()` hace `catchError` al menú que ya tenía. Que `roles` esté
+      excluido de la caché HTTP **no lo afecta**
+- [x] ✅ Perder la red **no cierra la sesión** (B2), con tope duro de 16 h (D4)
+- [x] 🔴 **El primer ingreso exige red** (`POST /auth/login` + reCAPTCHA en prod) ⇒ alistamiento:
+      instalar y entrar una vez con señal, **por cada usuario**
+- [ ] 🔴 **El dispositivo guarda UNA sola sesión** (`auth_session`, clave única). No hay «los usuarios
+      registrados» en plural: entra el último que hizo login. Dos operarios turnándose en la misma
+      tablet ⇒ el segundo no puede entrar sin red. **Soportar varios exige sesiones multi-slot**
+      (la partición de la caché ya está preparada; el storage de sesión no)
+
+## 3. Acciones operativas sin red — se CONSULTAN, no se guardan
+- [x] Con caché de lectura (✅ ver / ❌ guardar): gastos de inventario · gestión de inventario ·
+      historial · inventario de aves · movimiento de aves · movimiento pollo engorde (+Panamá) ·
+      traslados · huevos · venta de aves
+- [x] Con outbox (✅ guardar): **solo** las 4 capturas diarias (levante, producción, pollo engorde,
+      reproductora engorde)
+- [x] No es un olvido: es la decisión **D1** («ventas y movimientos a v2»). Los movimientos tocan
+      stock y saldos, son de dos lados (origen/destino) y varios crean entidades que otras
+      referencian ⇒ necesitan la clase `requiere_cuadre` **con emisor** y el grafo `client_entity_id`
+- [ ] **F4 (movimientos offline)** queda planteado, con sus prerrequisitos: A4, B1, B8, B10
+
+## Corrección de una sospecha propia
+- [x] `movimientos-huevos` **no** es un hueco de la lista blanca: es sub-ruta de `ReporteContable`,
+      que está excluido a propósito (contabilidad). El verificador tenía razón
