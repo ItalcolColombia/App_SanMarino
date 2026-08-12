@@ -3727,3 +3727,22 @@ totales no se tocan; sin backend, sin SQL, sin migración.
       consumo bajo Mixto
 - [x] Excel descargado: H + M + Mixto = `Consumo real día (kg)` fila a fila
 - [x] Commit acotado (sin footer de atribución)
+
+### Auditoría de impacto en reportes de pollo engorde (Panamá) — 2026-08-11
+
+Pedida por el usuario antes de dar por cerrado el cambio. Resultado: **ningún reporte cambia de
+número**, porque todos consumen el TOTAL del día, no las columnas por sexo.
+
+- [x] `fn_informe_semanal_pollo_engorde` (Informe Semanal Panamá) → `consumo_dia_kg` / `acum_consumo_kg`
+- [x] `fn_reporte_diario_costos_engorde` → `consumo_dia_kg` (línea 112)
+- [x] `fn_indicadores_pollo_engorde` → `SUM(consumo_kg_hembras + consumo_kg_machos)` (línea 126)
+- [x] `indicadores_diarios_engorde_tabla_unificada` + `liquidacion_indicador_ecuador_pollo_engorde_vista` → `SUM(H + M)`
+- [x] Saldo de alimento (`SeguimientoAvesEngordeCalculos`, línea 238) y cuadre → `ch + cm`
+- [x] Tab Indicadores del front (`indicadores-diarios-engorde-compute.service`) → ya trataba `consumoKgHembras` como consumo mixto
+- [x] Gráficas de productividad Panamá → no leen consumo por sexo
+- [x] **Dos avisos (no son regresiones, son efectos a comunicar):** (1) el Excel del seguimiento gana
+      una columna en la posición V ⇒ `Consumo real día` y `Consumo acumulado` se corren a W y X —
+      rompe plantillas que peguen por posición fija; (2) la vista Power BI
+      `seguimiento_pollo_engorde_tabla_unificada` sigue exponiendo `consumo_kg_hembras` crudo
+      (documentado como «por sexo»), así que ahí el mixto se sigue leyendo como hembras. Alinearla es
+      aditivo (columna derivada) y NO se hizo: toca un consumidor externo
