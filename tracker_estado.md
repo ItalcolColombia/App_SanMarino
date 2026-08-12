@@ -4204,8 +4204,9 @@ Requiere push, que el usuario no autorizó todavía.
 
 - [ ] **Merge `main` → `main-produccion`** para desplegar la PWA (arrastra migraciones; el contenedor
       tiene `RunMigrations=true`)
-- [ ] **Menú «Lote Reproductora» (id 9)**: quitarlo de los 3 roles o corregir la etiqueta. Hoy carga
-      levante y su nombre dice otra cosa
+- [x] ~~**Menú «Lote Reproductora» (id 9)**~~ — RESUELTO: migración
+      `20260812080000_OcultarMenuLoteReproductoraPostura`. Etiqueta corregida a «Seguimiento
+      Reproductora Postura» y **desasignado de todos los roles**; la fila del menú se conserva
 - [ ] **Sesiones multi-slot por dispositivo**: es lo ÚNICO que bloquea «varios usuarios sin
       internet». Hoy `auth_session` es clave única ⇒ un usuario por tablet
 - [ ] **B8**: rotar las 4 llaves de `environment.prod.ts` — **el usuario debe generarlas**, no se
@@ -4218,9 +4219,9 @@ Requiere push, que el usuario no autorizó todavía.
 2. **B1** (jti + `sesiones_activas` + refresh) — prerrequisito de la jornada de 16 h: hoy un
    dispositivo perdido **no se puede revocar**
 3. **B5/B6/B10** completos, y **A4** con su gate de paridad
-4. **F4 — movimientos offline** (inventario, traslados, ventas, huevos). Necesita: clase
-   `requiere_cuadre` **con emisor**, grafo `client_entity_id`, y resolver las operaciones de dos
-   lados (origen/destino)
+4. **F4 — movimientos offline** → **mapeado en
+   [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)**:
+   los módulos por nivel de dificultad, sus bloqueantes y el patrón a copiar
 5. **Opt-in de D6 por rol y dispositivo** (flag en BD + registro de dispositivos)
 
 ## Trampas verificadas en esta sesión (no repetirlas)
@@ -4233,3 +4234,34 @@ Requiere push, que el usuario no autorizó todavía.
 - La carrera del índice único **no se reproduce** por HTTP: el `SELECT` previo gana. El índice está
   probado solo a nivel BD
 - Levantar el backend bloquea los DLL: hay que **detenerlo antes de compilar**
+
+
+---
+
+# PWA — menú «Lote Reproductora» corregido + mapeo de F4
+
+**Fecha:** 2026-08-12
+
+## Menú id 9 — resuelto
+- [x] Migración **data-only e idempotente** `20260812080000_OcultarMenuLoteReproductoraPostura`
+      (Designer clonado, ModelSnapshot **sin tocar**)
+- [x] Etiqueta: «Lote Reproductora» → **«Seguimiento Reproductora Postura»**, en paralelo con
+      «Seguimiento Reproductora Pollo Engorde» (menú 43)
+- [x] **Desasignado de TODOS los roles** (`role_menus`), no solo de los 3 de la BD local: en prod
+      puede haber otros. Se localiza por **ruta**, nunca por id (los ids difieren local↔prod)
+- [x] 🔑 **La fila del menú se conserva**: borrarla obligaría a recrearla con otro id cuando el
+      módulo exista, y cualquier script que la busque por id se rompería. Se quita el **acceso**,
+      que es lo único que la hacía visible
+- [x] `Down()` revierte **solo la etiqueta**: restaurar el acceso reintroduciría el defecto
+- [x] Verificado en local: migración aplicada · menú vivo con la etiqueta nueva · **0 roles** lo ven ·
+      el menú 43 de pollo engorde **intacto** (4 roles) · re-correr el `Up()` da UPDATE 0 / DELETE 0
+
+## Mapeo de F4 (los módulos que faltan)
+- [x] Documento: [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)
+- [x] **Nivel 1 (hoja):** gastos de inventario — mejor candidato, sin bloqueantes nuevos
+- [x] **Nivel 2 (mueven stock):** gestión de inventario, inventario de aves — bloqueados por el
+      **emisor de `requiere_cuadre`** (hoy modelado y sin emisor)
+- [x] **Nivel 3 (dos lados):** movimiento de aves, pollo engorde, traslados, huevos, ventas —
+      bloqueados por el **grafo `client_entity_id`**
+- [x] Prerrequisitos transversales listados con su porqué: **B1** (el más urgente), A4, B8, B10, B5/B6
+- [x] Patrón de implementación a copiar, en 7 pasos, con los sitios de transacción ya contados
