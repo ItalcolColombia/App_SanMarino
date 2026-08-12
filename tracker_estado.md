@@ -3976,13 +3976,53 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
       camino rápido y el índice el respaldo, pero **el respaldo no se ejercitó de punta a punta**
 - [ ] **Smoke por la UI real**: la captura se validó por HTTP, no abriendo el formulario de levante
       con la red cortada
-- [ ] 🟡 **Hueco de UX detectado**: `onSave` del listado ignora el cuerpo de la respuesta y recarga
-      la tabla. Sin red esa recarga la sirve la caché de F2, que **todavía no contiene la fila recién
-      capturada** ⇒ el modal se cierra y el operario no ve su captura hasta sincronizar. La operación
-      **sí** quedó encolada (se ve en `/diagnostico`), pero falta la fila optimista y un aviso
-      «guardado en el dispositivo»
+- [x] 🟢 **Hueco de UX CERRADO** (ver bloque siguiente)
 
 ## Fuera de alcance (documentado, sigue abierto)
 - [ ] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
 - [ ] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
 - [ ] B1 (revocación de sesión), B8 (rotar las 4 llaves), B10 (super admin a datos), A4
+
+
+---
+
+# PWA F3.1b — cerrar el hueco de UX de la captura offline
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+**El hueco:** sin red el modal se cerraba y la tabla se recargaba desde la caché de F2, que todavía
+no tiene la fila recién capturada ⇒ el operario no tenía **ninguna** señal de que su registro existía.
+
+## La decisión: aviso + contador, NO fila optimista en la tabla
+- [x] Se descartó meter la fila en el array `seguimientos`: viaja 3 niveles abajo a componentes
+      compartidos que **no la pueden distinguir** de una guardada, y de ahí entra al Excel, a los
+      indicadores y a la gráfica como si fuera dato real. Una fila sin distintivo es **peor** que
+      ninguna
+- [x] En su lugar, la señal va donde ya vive el estado de la PWA y sirve para **todas** las pantallas
+      (engorde la hereda gratis en F3.2)
+
+## Lo hecho
+- [x] `funciones/respuesta-pendiente.funcion.ts` (pura) + `MENSAJE_GUARDADO_SIN_RED` — una sola
+      pregunta «¿esto lo guardó el servidor o la tablet?», en un solo lugar. **11 casos** de test,
+      incluido que `__offlinePendiente: 'true'` (string) **no** cuente
+- [x] Toast al guardar sin red, en los **dos** caminos que crean levante (listado y formulario)
+- [x] `PwaBarraEstadoComponent`: el aviso de «sin conexión» ahora dice cuántas capturas hay en el
+      dispositivo, y con red aparece un aviso propio con **Ver** y **Enviar ahora**
+- [x] Prioridad entre avisos respetada (dos barras apiladas tapan el formulario en una tablet):
+      actualización > pendientes > instalar
+- [x] Naranja de acción, **no rojo**: la captura no se perdió, solo no salió todavía
+
+## Validación
+- [x] `yarn build` 0 errores · `yarn test` **281 verdes** (275 → 281)
+- [x] **Verificado en el navegador** (dev server propio en :4300, sembrando una operación en la
+      IndexedDB real): la base abre en **v2 con los dos stores**; con red la barra dice
+      «1 captura(s) sin enviar · Ver · Enviar ahora»; sin red el aviso de «sin conexión» pasa a decir
+      «Tenés 1 captura(s) guardadas en este dispositivo»; y la bandeja de `/diagnostico` la lista con
+      **«2 intento(s)»**, o sea que el envío automático y su backoff corrieron solos. Cola y servidor
+      de prueba limpiados al terminar
+- [ ] ⚠️ **Se subió el techo duro de bundle de 2.00 a 2.05 MB.** El bundle estaba a ~0,3 kB del
+      límite **antes** de esta sesión, o sea que cualquier feature lo rompía. Se recortó lo que se
+      pudo primero (`sync.service` con `import()` diferido, el `HttpContextToken` en su propio
+      archivo, `href` en vez de `RouterLink`) y aun así faltaba 1,33 kB. La deuda real —500 kB por
+      encima del budget de **warning**— es preexistente y **no** se tocó

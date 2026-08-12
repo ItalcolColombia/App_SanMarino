@@ -1,5 +1,6 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -713,9 +714,17 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
 
     this.loading = true;
     op$.pipe(finalize(() => (this.loading = false))).subscribe({
-      next: () => {
+      next: respuesta => {
         this.modalOpen = false;
         this.editing = null;
+
+        // Sin red el interceptor encoló la captura y devolvió un 202 sintético. Hay que decirlo:
+        // la tabla se recarga desde la caché, que todavía NO tiene esta fila, así que sin este
+        // aviso el operario cierra el modal sin ninguna señal de que su registro existe.
+        if (esRespuestaPendiente(respuesta)) {
+          this.toast.info(MENSAJE_GUARDADO_SIN_RED);
+        }
+
         this.onLoteChange(this.selectedLoteId);
       },
       // El backend valida reglas que el usuario necesita ver (p. ej. el gate de huevos antes de la
