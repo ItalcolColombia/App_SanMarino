@@ -4369,3 +4369,86 @@ entera. Esto es más urgente que desplegar.
 - [ ] **F4**: todo lo que no sean las 4 capturas diarias **se consulta pero no se guarda** sin red
       (inventario, movimientos, traslados, huevos, ventas). Mapeado en
       [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)
+
+---
+
+# Rediseño de los correos + recuperación de contraseña de punta a punta (12-ago-2026)
+
+> Plan: [`fase_de_desarrollo/correos_rediseno_y_recuperacion_plan.md`](fase_de_desarrollo/correos_rediseno_y_recuperacion_plan.md)
+> Contexto: se verificó que el envío SMTP funciona desde la red corporativa (probe `235`, envío real
+> en .NET 10 y flujo completo `recover-password` → cola → `sent` en 18 s). Al revisar los cuerpos
+> aparecieron defectos de **contenido**: el correo de recuperación imprime un token de 64 caracteres
+> como si fuera la contraseña, y el front no tiene pantalla para canjearlo.
+
+## A. Sistema de plantillas compartido (Application, puro y testeable)
+
+- [x] `Application/Correos/EmailTema.cs` — tokens de marca (naranja `#e85c25` acción, verde `#2d7a3e`
+      éxito, anchos, tipografía). Se abandonó el `#f4b428` suelto de las plantillas viejas
+- [x] `Application/Correos/EmailLayout.cs` — documento completo: preheader oculto, header con logo
+      (`alt` de respaldo), contenedor 600 px en tablas, footer con el motivo del envío
+- [x] `Application/Correos/EmailComponentes.cs` — botón *bulletproof*, ficha, callout, badge, cita,
+      pasos numerados, bitácora
+- [x] Maquetación válida para Outlook: tablas `role="presentation"` + estilos **inline**, sin
+      flexbox/grid ni `linear-gradient` (hay un test que lo verifica)
+
+## B. Los 7 cuerpos sobre el sistema nuevo
+
+- [x] Restablecimiento por autoservicio: enlace a `/reset-password?token=…`, vigencia 15 min, aviso de
+      «si no fuiste vos». **Nunca** imprime el token como credencial
+- [x] Restablecimiento **por administrador**: credencial asignada + aviso de cambiarla
+- [x] `welcome`: credenciales + primeros pasos numerados
+- [x] `ticket_creado` · `ticket_transferido` · `ticket_cerrado`: sobre el layout nuevo, con badges de
+      tipo y prioridad
+- [x] `ticket_solucionado`: salió del HTML inline de `TicketService` → `TicketEmailTemplates.Solucionado`
+- [x] **Decisión:** la columna `email_type` NO cambia (rompería el histórico y las consultas). Los dos
+      casos de restablecimiento siguen siendo `password_recovery` y se distinguen dentro de
+      `metadata.emailType` (`password_reset_link` / `password_reset_admin`)
+
+## C. Backend: separar las dos semánticas del mismo método
+
+- [x] `IEmailService` + `EmailService`: nació `SendPasswordResetLinkEmailAsync(email, token, nombre)`
+- [x] `AuthService.RecoverPasswordAsync` dejó de pasar el token por el parámetro `newPassword`
+- [x] `AdminResetPasswordAsync` conserva `SendPasswordRecoveryEmailAsync` (ahí sí es una contraseña real)
+- [x] El token **no** se guarda en `email_queue.metadata` (es un secreto vivo)
+
+## D. Frontend: la pantalla que faltaba
+
+- [x] `features/auth/reset-password/` — componente standalone, `changeDetection: Eager`, lee `?token=`
+- [x] `password-recovery.service.ts` — `resetPassword(token, newPassword)` contra `POST /api/Auth/reset-password`
+- [x] Ruta `reset-password` (lazy) en `app.config.ts` + menú oculto en esa ruta (`app.component.ts`)
+- [x] Corregidos los textos de `password-recovery.component.html` («te enviaremos una nueva contraseña»
+      ya no era cierto)
+
+## E. Pruebas (gate de CI) y validación
+
+- [x] `tests/ZooSanMarino.Application.Tests/CorreosCuentaTests.cs` — **18 tests, todos en verde**
+      (2.294 tests del proyecto siguen pasando)
+- [x] `dotnet build` 0 errores · `yarn build` OK (único warning: bundle budget, preexistente)
+- [x] Los 7 cuerpos renderizados a `.html` y revisados
+- [x] **Flujo real verificado de punta a punta** (backend Release en :5099 + front en :4300):
+      solicitud → correo `sent` en la cola con el asunto nuevo → pantalla → canje del token →
+      `Contraseña restablecida exitosamente`
+- [x] Token consumido (`is_used=true`, `used_at` grabado) y **reuso rechazado** con el mensaje correcto
+- [x] Hash verificado con el mismo `PasswordHasher` del login: `Success` con la contraseña nueva,
+      `Failed` con una incorrecta
+- [x] Validaciones de la pantalla probadas en el navegador: mínimo 8, letra+número, coincidencia,
+      y el estado «enlace incompleto» cuando falta el `?token=`
+- [ ] Pendiente (no bloquea): el POST desde la UI no se pudo ejercitar en el puerto de prueba porque
+      `environment.apiUrl` apunta fijo a `:5002` y el CORS rechaza el origen `:4300`. El endpoint se
+      validó por API con el header `X-Secret-Up` generado a mano. En `:4200` contra `:5002` no aplica
+
+## F. Solicitud a los administradores (el envío desde PROD no se arregla por código)
+
+- [x] `backend/documentacion/CORREO_PROD_INFORME_TECNICO.md` — informe con toda la evidencia
+- [x] `backend/documentacion/CORREO_PROD_SOLICITUD_M365.md` — correo listo para reenviar
+- [x] `backend/documentacion/CORREO_PROD_SOLICITUD_AWS.md` — correo listo para reenviar (solo si M365
+      exige autorizar por IP)
+- [x] `RECUPERACION_CONTRASENA.md` reescrito (describía un flujo que ya no existe)
+
+## Nota para quien retome
+
+- La **causa del correo caído en producción sigue abierta** y no depende del código: es una política
+  del tenant de Microsoft 365 que rechaza según el origen. Los correos de F son el camino.
+- `/api/Auth/reset-password` **no** está en las exclusiones de `PlatformSecretMiddleware` (a diferencia
+  de `recover-password`). Funciona porque el interceptor del front manda el `X-Secret-Up` siempre; se
+  dejó como estaba para no cambiar comportamiento, pero la asimetría es deliberada de anotar.

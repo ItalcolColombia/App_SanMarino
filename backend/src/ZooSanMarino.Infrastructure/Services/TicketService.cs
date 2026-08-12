@@ -1179,7 +1179,8 @@ public partial class TicketService : ITicketService
                     await _emailQueue.EnqueueEmailAsync(
                         email!,
                         $"[{ticket.Codigo}] Tu ticket fue solucionado",
-                        BuildSolucionEmailBody(ticket, nombreSol),
+                        TicketEmailTemplates.Solucionado(ticket, nombreSol,
+                            _logoUrl, _brandName, BrandLine, _applicationUrl),
                         "ticket_solucionado",
                         $"{{\"ticketId\":{ticket.Id},\"codigo\":\"{ticket.Codigo}\"}}");
                     ticket.NotificadoCorreo = true;
@@ -1374,27 +1375,9 @@ public partial class TicketService : ITicketService
             .ToList();
     }
 
-    private static string BuildSolucionEmailBody(Ticket t, string? nombreSolicitante)
-    {
-        var saludo = string.IsNullOrWhiteSpace(nombreSolicitante) ? "Hola" : $"Hola {nombreSolicitante}";
-        var solucion = System.Net.WebUtility.HtmlEncode(t.SolucionDescripcion ?? "");
-        var titulo = System.Net.WebUtility.HtmlEncode(t.Titulo);
-        return $@"
-<div style=""font-family:Arial,sans-serif;color:#1f2937;max-width:560px;margin:auto"">
-  <div style=""background:#2d7a3e;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0"">
-    <h2 style=""margin:0;font-size:18px"">Tu ticket fue solucionado</h2>
-  </div>
-  <div style=""border:1px solid #e5e7eb;border-top:0;padding:20px;border-radius:0 0 10px 10px"">
-    <p>{saludo},</p>
-    <p>El ticket <strong>{t.Codigo}</strong> — “{titulo}” fue marcado como <strong>SOLUCIONADO</strong>.</p>
-    <p style=""background:#f0fdf4;border-left:4px solid #2d7a3e;padding:10px 14px;border-radius:4px"">
-      <strong>Solución:</strong><br/>{solucion}
-    </p>
-    <p>Ingresá a la plataforma para revisar la solución y, si estás conforme, <strong>confirmar el cierre</strong> del caso.</p>
-    <p style=""color:#6b7280;font-size:13px"">Italcol · Gestión de tickets</p>
-  </div>
-</div>";
-    }
+    // El cuerpo del aviso de "solucionado" vive en TicketEmailTemplates.Solucionado junto al resto
+    // de las notificaciones de tickets: acá era el único correo que se maquetaba a mano, sin logo
+    // ni pie, y quedaba fuera de cualquier cambio de diseño.
 
     // ───────────────────────────── DELETE (lógico) ─────────────────────────────
     public async Task<bool> DeleteAsync(long id, CancellationToken ct)

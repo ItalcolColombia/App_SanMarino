@@ -30,10 +30,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
   faBars = faBars;
 
-  /** Menú visible solo en rutas protegidas (oculto en login y password-recovery). */
+  /** Menú visible solo en rutas protegidas (oculto en las pantallas públicas de acceso). */
   get showSidebar(): boolean {
     const u = this.router.url;
-    return !u.includes('/login') && !u.includes('/password-recovery');
+    return !u.includes('/login')
+        && !u.includes('/password-recovery')
+        && !u.includes('/reset-password');
   }
 
   /** Sidebar se muestra/oculta; por defecto cerrado para no consumir espacio. */

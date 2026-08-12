@@ -1,175 +1,125 @@
-# Funcionalidad de Recuperación de Contraseña
+# Recuperación de contraseña
 
-## Descripción
-Sistema completo de recuperación de contraseña que permite a los usuarios solicitar una nueva contraseña temporal por correo electrónico cuando olvidan su contraseña actual.
+> Actualizado el 12-ago-2026. La versión anterior de este documento describía un flujo que ya no
+> existe (una «contraseña temporal» enviada por correo y una sección de configuración `EmailSettings`
+> que el código no lee). Hoy el flujo es por **enlace de un solo uso**.
 
-## Características Implementadas
+## Cómo funciona
 
-### Backend (.NET Core)
-- ✅ Servicio de email con configuración flexible
-- ✅ Endpoint de recuperación de contraseña
-- ✅ Generación de contraseñas aleatorias seguras
-- ✅ Validación de usuarios existentes
-- ✅ Envío de emails HTML con diseño profesional
-- ✅ Manejo de errores robusto
-
-### Frontend (Angular)
-- ✅ Componente de recuperación de contraseña
-- ✅ Servicio para comunicación con el backend
-- ✅ Integración con el login existente
-- ✅ Diseño responsive y accesible
-- ✅ Estados de carga y feedback visual
-
-## Archivos Creados/Modificados
-
-### Backend
 ```
-src/ZooSanMarino.Application/Interfaces/IEmailService.cs
-src/ZooSanMarino.Infrastructure/Services/EmailService.cs
-src/ZooSanMarino.Application/DTOs/PasswordRecoveryDto.cs
-src/ZooSanMarino.Infrastructure/Services/AuthService.cs (modificado)
-src/ZooSanMarino.API/Controllers/AuthController.cs (modificado)
-src/ZooSanMarino.API/Program.cs (modificado)
-src/ZooSanMarino.API/appsettings.json (modificado)
-src/ZooSanMarino.API/appsettings.Development.json (modificado)
+Usuario                        Frontend                    Backend                     Correo
+  │                               │                           │                          │
+  ├─ "¿Olvidaste tu contraseña?" ─▶ /password-recovery        │                          │
+  │                               ├─ POST /api/Auth/recover-password ─▶                  │
+  │                               │                           ├─ genera token (64 car.,  │
+  │                               │                           │   CSPRNG, 15 min, 1 uso) │
+  │                               │                           ├─ invalida tokens previos │
+  │                               │                           ├─ encola el correo ───────▶ enlace
+  │                               ◀─ respuesta NEUTRA ────────┤                          │
+  │                                                                                      │
+  ├─ abre el enlace del correo ──▶ /reset-password?token=…                                │
+  │                               ├─ POST /api/Auth/reset-password ──▶                    │
+  │                               │                           ├─ valida y CONSUME token  │
+  │                               │                           ├─ re-hashea la contraseña │
+  │                               ◀─ éxito ───────────────────┤                          │
+  ├─ entra con la contraseña nueva                                                        │
 ```
 
-### Frontend
-```
-src/app/core/services/auth/password-recovery.service.ts
-src/app/features/auth/password-recovery/password-recovery.component.ts
-src/app/features/auth/password-recovery/password-recovery.component.html
-src/app/features/auth/password-recovery/password-recovery.component.scss
-src/app/features/auth/login/login.component.ts (modificado)
-src/app/features/auth/login/login.component.html (modificado)
-src/app/features/auth/login/login.component.scss (modificado)
-src/app/app.config.ts (modificado)
+### Reglas
+
+| Regla | Valor | Dónde vive |
+|---|---|---|
+| Longitud del token | 64 caracteres, CSPRNG | `AuthService.GeneratePasswordResetToken` |
+| Vigencia | **15 minutos** | `AuthService.RecoverPasswordAsync` · `CorreosCuenta.MinutosVigencia` |
+| Usos | **Uno solo** (se marca `is_used` al canjearlo) | `AuthService.ValidateAndUsePasswordResetTokenAsync` |
+| Tokens previos | Se invalidan al pedir uno nuevo | `AuthService.RecoverPasswordAsync` |
+| Contraseña nueva | Mínimo 8, máximo 100, al menos una letra y un número | `ValidatePasswordResetTokenDto` + validadores del componente |
+
+### La respuesta es neutra a propósito
+
+`POST /api/Auth/recover-password` devuelve **siempre** lo mismo, exista o no el correo:
+
+```json
+{ "success": true, "message": "Si el correo está registrado, recibirás un mensaje con instrucciones…",
+  "userFound": false, "emailSent": false }
 ```
 
-## Configuración Requerida
+Es anti-enumeración: si la respuesta distinguiera, cualquiera podría averiguar qué correos tienen
+cuenta. **Consecuencia para depurar: el resultado real NO se lee en la respuesta HTTP**, se lee en la
+tabla `email_queue`.
 
-### 1. Configuración de Email
-Agregar en `appsettings.json` o `appsettings.Development.json`:
+## Archivos
+
+**Backend**
+
+| Archivo | Rol |
+|---|---|
+| `API/Controllers/AuthController.cs` | `POST recover-password` · `POST reset-password` |
+| `Infrastructure/Services/AuthService.cs` | Emisión y canje del token |
+| `Infrastructure/Services/EmailService.cs` | Encola el correo (no envía) |
+| `Application/Correos/CorreosCuenta.cs` | Cuerpo del correo y armado del enlace |
+| `Application/Correos/EmailLayout.cs` · `EmailComponentes.cs` · `EmailTema.cs` | Sistema de plantillas |
+| `API/BackgroundServices/EmailQueueProcessorService.cs` | **Único** punto que habla con el servidor SMTP |
+
+**Frontend**
+
+| Archivo | Rol |
+|---|---|
+| `features/auth/password-recovery/` | Pedir el enlace |
+| `features/auth/reset-password/` | Canjear el token por una contraseña nueva |
+| `core/services/auth/password-recovery.service.ts` | `recoverPassword()` · `resetPassword()` |
+
+## Configuración
+
+Las claves que el código lee de verdad (`appsettings.json` o variables de entorno en ECS con `__`):
 
 ```json
 {
-  "EmailSettings": {
-    "SmtpHost": "smtp.gmail.com",
-    "SmtpPort": 587,
-    "SmtpUsername": "tu-email@gmail.com",
-    "SmtpPassword": "tu-app-password",
-    "FromEmail": "tu-email@gmail.com",
-    "FromName": "Zoo San Marino"
+  "Email": {
+    "BrandName": "ItalGranja",
+    "Tagline": "Gestión de granjas avícolas · Italcol",
+    "LogoUrl": "https://…/logo.png",
+    "ApplicationUrl": "https://zootecnico.sanmarino.com.co",
+    "Smtp": { "Host": "smtp.office365.com", "Port": "587", "Username": "…", "Password": "…", "EnableSsl": "true" },
+    "From": { "Address": "zootecnico@sanmarino.com.co", "Name": "ItalGranja" },
+    "Queue": { "Enabled": true }
   }
 }
 ```
 
-### 2. Variables de Entorno (Alternativa)
+`Email:ApplicationUrl` es la base del enlace del correo: si está mal, el enlace lleva al lugar
+equivocado. `Email:Queue:Enabled` **está en `false` en `appsettings.Development.json`**: en local los
+correos se encolan y nunca se envían salvo que se levante el backend con
+`Email__Queue__Enabled=true`.
+
+## Cómo probarlo en local
+
 ```bash
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=tu-email@gmail.com
-SMTP_PASSWORD=tu-app-password
-FROM_EMAIL=tu-email@gmail.com
-FROM_NAME=Zoo San Marino
+ASPNETCORE_ENVIRONMENT=Development PORT=5099 Email__Queue__Enabled=true dotnet run
 ```
 
-## Uso
+1. `POST http://localhost:5099/api/Auth/recover-password` con `{"email":"<un correo de la tabla logins>"}`.
+2. El resultado se mira en la base, no en la respuesta:
+   `SELECT id, to_email, status, error_type FROM email_queue ORDER BY id DESC LIMIT 1;`
+   El procesador corre cada 30 s: la fila pasa de `pending` a `sent`.
+3. El token para armar el enlace a mano:
+   `SELECT token, expires_at FROM password_reset_tokens WHERE is_used = false ORDER BY created_at DESC LIMIT 1;`
+4. Abrir `http://localhost:4200/reset-password?token=<token>` y fijar la contraseña nueva.
 
-### 1. Desde el Frontend
-1. Ir a la página de login (`/login`)
-2. Hacer clic en "¿Olvidaste tu contraseña?"
-3. Ingresar el correo electrónico
-4. Hacer clic en "Enviar Nueva Contraseña"
-5. Revisar el correo electrónico
-6. Usar la nueva contraseña para iniciar sesión
+**Nota:** `/api/Auth/reset-password` pasa por `PlatformSecretMiddleware`, así que exige el header
+`X-Secret-Up` (el interceptor del frontend lo agrega solo). Para probarlo con curl hay que generarlo:
+AES-256-CBC con clave PBKDF2(`PlatformSecret:EncryptionKey`, salt `sanmarino-salt`, 10000, SHA256),
+salida `IV(16 bytes) + ciphertext` en base64.
 
-### 2. Desde la API
-```bash
-POST /api/Auth/recover-password
-Content-Type: application/json
+## Si el correo no llega
 
-{
-  "email": "usuario@ejemplo.com"
-}
-```
+El orden correcto para diagnosticar:
 
-**Respuesta exitosa:**
-```json
-{
-  "success": true,
-  "message": "Se ha enviado una nueva contraseña a tu correo electrónico",
-  "userFound": true,
-  "emailSent": true
-}
-```
-
-## Flujo de Funcionamiento
-
-1. **Solicitud**: Usuario ingresa su email en el formulario
-2. **Validación**: Backend verifica que el usuario existe y está activo
-3. **Generación**: Se genera una contraseña aleatoria de 12 caracteres
-4. **Actualización**: Se actualiza la contraseña en la base de datos
-5. **Envío**: Se envía un email HTML con la nueva contraseña
-6. **Confirmación**: Se muestra mensaje de éxito al usuario
-
-## Seguridad
-
-- ✅ Contraseñas generadas con caracteres seguros
-- ✅ Validación de usuarios existentes
-- ✅ Verificación de estado activo del usuario
-- ✅ Manejo seguro de errores
-- ✅ No exposición de información sensible
-
-## Personalización
-
-### Email Template
-El template del email se puede personalizar en `EmailService.cs` en el método `SendPasswordRecoveryEmailAsync()`.
-
-### Estilos del Frontend
-Los estilos se pueden modificar en `password-recovery.component.scss`.
-
-### Configuración de Contraseña
-La longitud y caracteres de la contraseña se pueden modificar en el método `GenerateRandomPassword()`.
-
-## Pruebas
-
-### Backend
-1. Configurar credenciales de email
-2. Iniciar el backend
-3. Ir a `/swagger`
-4. Probar el endpoint `POST /api/Auth/recover-password`
-
-### Frontend
-1. Iniciar el frontend
-2. Ir a `/password-recovery`
-3. Ingresar un email válido
-4. Verificar que se muestre el mensaje de éxito
-5. Revisar el correo electrónico
-
-## Troubleshooting
-
-### Error de Email
-- Verificar credenciales SMTP
-- Comprobar configuración de firewall
-- Revisar logs del backend
-
-### Usuario No Encontrado
-- Verificar que el email existe en la base de datos
-- Comprobar que el usuario está activo
-
-### Frontend No Responde
-- Verificar que la ruta está configurada correctamente
-- Comprobar que el servicio está inyectado
-- Revisar la consola del navegador
-
-## Mejoras Futuras
-
-- [ ] Implementar tokens de expiración para contraseñas temporales
-- [ ] Agregar rate limiting para prevenir spam
-- [ ] Implementar logs de auditoría
-- [ ] Agregar notificaciones push
-- [ ] Implementar verificación por SMS como alternativa
-
-
-
+1. `SELECT status, error_type, error_message FROM email_queue ORDER BY created_at DESC LIMIT 5;`
+2. Si dice `smtp_auth` / `5.7.139` / `5.7.57`: **no es la contraseña ni el protocolo**. Es una política
+   del tenant de Microsoft 365 que rechaza según el origen de la conexión. Ver
+   [`CORREO_PROD_INFORME_TECNICO.md`](CORREO_PROD_INFORME_TECNICO.md).
+3. Si no hay ninguna fila nueva: el correo no llegó a encolarse — revisar los registros de la
+   aplicación al momento de la solicitud.
+4. Si la fila queda en `pending` para siempre: el procesador no está corriendo
+   (`Email:Queue:Enabled` en `false`).

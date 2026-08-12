@@ -7,10 +7,26 @@ namespace ZooSanMarino.Application.Interfaces;
 public interface IEmailService
 {
     /// <summary>
-    /// Envía un correo de recuperación de contraseña (asíncrono, usando cola)
+    /// Envía el correo de "olvidé mi contraseña": un ENLACE de un solo uso al frontend, nunca el
+    /// secreto en el cuerpo del mensaje.
+    /// </summary>
+    /// <remarks>
+    /// Existe separado de <see cref="SendPasswordRecoveryEmailAsync"/> porque hasta el 12-ago-2026
+    /// los dos casos compartían método: el token de restablecimiento viajaba por el parámetro
+    /// <c>newPassword</c> y la plantilla lo mostraba como si fuera la contraseña del usuario.
+    /// </remarks>
+    /// <param name="toEmail">Correo del destinatario</param>
+    /// <param name="resetToken">Token de un solo uso emitido por <c>AuthService</c></param>
+    /// <param name="userName">Nombre del usuario (opcional)</param>
+    /// <returns>ID del correo en la cola (null si falla al agregar a la cola)</returns>
+    Task<int?> SendPasswordResetLinkEmailAsync(string toEmail, string resetToken, string? userName = null);
+
+    /// <summary>
+    /// Envía el aviso de contraseña restablecida POR UN ADMINISTRADOR (asíncrono, usando cola).
+    /// Acá sí viaja una contraseña real: el administrador ya la fijó en la cuenta.
     /// </summary>
     /// <param name="toEmail">Correo del destinatario</param>
-    /// <param name="newPassword">Nueva contraseña generada</param>
+    /// <param name="newPassword">Contraseña que el administrador dejó asignada</param>
     /// <param name="userName">Nombre del usuario (opcional)</param>
     /// <returns>ID del correo en la cola (null si falla al agregar a la cola)</returns>
     Task<int?> SendPasswordRecoveryEmailAsync(string toEmail, string newPassword, string? userName = null);

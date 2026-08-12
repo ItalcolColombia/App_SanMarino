@@ -111,6 +111,15 @@ export const appConfig: ApplicationConfig = {
       // Público
       { path: 'login', component: LoginComponent },
       { path: 'password-recovery', component: PasswordRecoveryComponent },
+      // Aterrizaje del enlace que llega por correo (?token=...). Sin guard: por definición
+      // la abre alguien que NO puede iniciar sesión.
+      {
+        path: 'reset-password',
+        title: 'Crear contraseña nueva',
+        loadComponent: () =>
+          import('./features/auth/reset-password/reset-password.component')
+            .then(m => m.ResetPasswordComponent)
+      },
 
       // Diagnóstico del dispositivo — SIN authGuard a propósito: es la pantalla a la
       // que se recurre cuando nada más funciona (sesión vencida sin red para renovarla,

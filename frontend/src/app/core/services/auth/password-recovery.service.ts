@@ -17,6 +17,17 @@ export interface PasswordRecoveryResponse {
   emailQueueId?: number | null;
 }
 
+/** Canje del token que llega por correo: token de un solo uso + la contraseña elegida. */
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -31,6 +42,18 @@ export class PasswordRecoveryService extends BaseHttpService {
   recoverPassword(request: PasswordRecoveryRequest): Observable<PasswordRecoveryResponse> {
     return this.post<PasswordRecoveryResponse>(`${this.baseUrl}/recover-password`, request, {
       context: 'PasswordRecoveryService.recoverPassword'
+    });
+  }
+
+  /**
+   * Canjea el token del correo por una contraseña nueva.
+   *
+   * El token vive 15 minutos y sirve una sola vez; el backend responde `success: false` (HTTP 200)
+   * cuando ya venció o se usó, así que ese caso NO llega por el canal de error.
+   */
+  resetPassword(request: ResetPasswordRequest): Observable<ResetPasswordResponse> {
+    return this.post<ResetPasswordResponse>(`${this.baseUrl}/reset-password`, request, {
+      context: 'PasswordRecoveryService.resetPassword'
     });
   }
 }
