@@ -56,13 +56,18 @@ public static class EmailLayout
         // Relleno de ancho cero: evita que el cliente complete la vista previa con el cuerpo.
         var relleno = string.Concat(Enumerable.Repeat("&#847;&zwnj;&nbsp;", 60));
 
+        // El logo va como imagen remota, y buena parte de los clientes de correo (Outlook de
+        // escritorio siempre, Gmail ante un remitente desconocido) NO la descarga: el lector ve el
+        // texto alternativo. Por eso el <img> lleva tipografía propia — así el respaldo se lee como
+        // el nombre de la marca y no como una leyenda minúscula al lado de un ícono roto. La clase
+        // "txt" lo aclara en modo oscuro.
         var encabezado = string.IsNullOrWhiteSpace(logoUrl)
             ? $"""
-                  <div style="font-size:24px;font-weight:700;letter-spacing:-.02em;color:{EmailTema.Texto};">{marcaSegura}</div>
+                  <div class="txt" style="font-family:{EmailTema.Fuente};font-size:24px;font-weight:700;letter-spacing:-.02em;color:{EmailTema.Texto};">{marcaSegura}</div>
               """
             : $"""
-                  <img src="{WebUtility.HtmlEncode(logoUrl)}" alt="{marcaSegura}" width="150"
-                       style="display:block;margin:0 auto;max-height:52px;width:auto;border:0;outline:none;text-decoration:none;" />
+                  <img src="{WebUtility.HtmlEncode(logoUrl)}" alt="{marcaSegura}" width="150" class="txt"
+                       style="display:block;margin:0 auto;max-height:52px;width:auto;border:0;outline:none;text-decoration:none;font-family:{EmailTema.Fuente};font-size:22px;line-height:30px;font-weight:700;letter-spacing:-.02em;color:{EmailTema.Texto};" />
               """;
 
         return $$"""

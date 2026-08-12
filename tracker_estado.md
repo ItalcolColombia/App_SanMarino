@@ -4433,9 +4433,22 @@ entera. Esto es más urgente que desplegar.
       `Failed` con una incorrecta
 - [x] Validaciones de la pantalla probadas en el navegador: mínimo 8, letra+número, coincidencia,
       y el estado «enlace incompleto» cuando falta el `?token=`
-- [ ] Pendiente (no bloquea): el POST desde la UI no se pudo ejercitar en el puerto de prueba porque
-      `environment.apiUrl` apunta fijo a `:5002` y el CORS rechaza el origen `:4300`. El endpoint se
-      validó por API con el header `X-Secret-Up` generado a mano. En `:4200` contra `:5002` no aplica
+- [x] **Flujo desde la UI real cerrado** (`:4200` → `:5002`, los puertos donde el CORS sí aplica):
+      `POST /api/Auth/reset-password → 200 OK`, pantalla en «¡Contraseña actualizada!» y token
+      consumido en la base. En `:4300` fallaba solo porque `environment.apiUrl` apunta fijo a `:5002`
+      e ignora `--proxy-config`, así que el origen quedaba fuera del CORS
+
+## G. Ajustes tras verlo en un cliente de correo real (Gmail móvil, modo oscuro)
+
+- [x] **Respaldo del logo.** El `<img>` lleva tipografía propia (`class="txt"` + `font-size`/
+      `font-weight`/`color`), así el texto alternativo se lee como el nombre de la marca. Outlook de
+      escritorio **nunca** descarga imágenes remotas y Gmail tampoco ante un remitente desconocido:
+      ese lector veía una leyenda diminuta al lado de un ícono roto. Cubierto por un test
+- [x] Verificado que el logo de producción existe y responde `200`
+      (`https://zootecnico.sanmarino.com.co/assets/brand/logo_intalfoods_zootenico.png`). El hueco de
+      la captura era el `localhost:4200` de la configuración de desarrollo, no un enlace muerto
+- [x] Confirmado en Gmail móvil modo oscuro: contraste correcto en título, callout ámbar, botón
+      naranja y enlace de respaldo
 
 ## F. Solicitud a los administradores (el envío desde PROD no se arregla por código)
 

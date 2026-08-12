@@ -164,6 +164,23 @@ public class CorreosCuentaTests
     }
 
     [Fact]
+    public void Con_logo_el_texto_alternativo_lleva_tipografia_para_cuando_la_imagen_no_carga()
+    {
+        // Outlook de escritorio no descarga imágenes remotas nunca, y Gmail tampoco ante un
+        // remitente desconocido: ese lector ve el alt, no el logo. Sin tipografía propia queda una
+        // leyenda diminuta al lado de un ícono roto.
+        var html = EmailLayout.Documento("T", "P", Logo, Marca, Lema, "<p>x</p>");
+
+        var img = html.Substring(html.IndexOf("<img", StringComparison.Ordinal));
+        img = img.Substring(0, img.IndexOf("/>", StringComparison.Ordinal));
+
+        Assert.Contains($"alt=\"{Marca}\"", img, StringComparison.Ordinal);
+        Assert.Contains("font-weight:700", img, StringComparison.Ordinal);
+        Assert.Contains("font-size:", img, StringComparison.Ordinal);
+        Assert.Contains("class=\"txt\"", img, StringComparison.Ordinal); // lo aclara en modo oscuro
+    }
+
+    [Fact]
     public void El_layout_no_usa_recursos_que_outlook_descarta()
     {
         var html = CorreosCuenta.Bienvenida(Marca, Lema, Logo, AppUrl, "a@b.c", "p", "Ana");
