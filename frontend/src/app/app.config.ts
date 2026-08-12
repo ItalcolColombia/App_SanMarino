@@ -1,10 +1,12 @@
 // src/app/app.config.ts
-import { ApplicationConfig, importProvidersFrom, isDevMode } from '@angular/core';
+import { ApplicationConfig, EnvironmentInjector, importProvidersFrom, inject, isDevMode, provideAppInitializer, runInInjectionContext } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
 import { authInterceptor } from './core/auth/auth.interceptor';
+import { TRABAJO_PENDIENTE_OFFLINE, type ProveedorTrabajoPendiente } from './core/auth/session-timeout.service';
 import { offlineCacheInterceptor } from './shared/offline/offline-cache.interceptor';
+import { OutboxService } from './shared/offline/outbox.service';
 import { ReactiveFormsModule } from '@angular/forms';
 
 // 👇 Mantén solo los componentes que realmente se usan por referencia directa en rutas.
@@ -58,6 +60,32 @@ export const appConfig: ApplicationConfig = {
     // (token, empresa activa, SECRET_UP) ya puestos. `offlineCacheInterceptor` envuelve por dentro
     // y solo actúa sobre la respuesta —guardándola— o sobre el fallo de red —sirviendo lo guardado—.
     provideHttpClient(withXhr(), withInterceptors([authInterceptor, offlineCacheInterceptor])),
+
+    // El seam que F0.B dejó preparado, ahora con implementación real (F3). La política de sesión lo
+    // consulta antes de cerrar: cerrar sesión dispara una purga, y purgar con capturas pendientes
+    // destruye trabajo de campo que el servidor nunca vio.
+    {
+      provide: TRABAJO_PENDIENTE_OFFLINE,
+      useFactory: (): ProveedorTrabajoPendiente => {
+        const outbox = inject(OutboxService);
+        // Se refrescan los contadores al arrancar: la cola sobrevive al cierre de la app, así que
+        // en el primer load puede haber pendientes de la jornada anterior.
+        void outbox.refrescarContadores();
+        return { operacionesPendientes: () => outbox.pendientes() + outbox.rechazadas() };
+      }
+    },
+
+    // Instancia el sync al arrancar. Sin esto nadie lo inyecta y su `effect` de reconexión nunca
+    // corre: la cola se llenaría sin que nada la vacíe.
+    //
+    // Se carga con `import()` diferido a propósito: el envío no hace falta en el primer frame, y
+    // traerlo en el bundle inicial empujaba el presupuesto por encima del techo de error.
+    provideAppInitializer(() => {
+      const injector = inject(EnvironmentInjector);
+      void import('./shared/offline/sync.service').then(({ SyncService }) =>
+        runInInjectionContext(injector, () => inject(SyncService))
+      );
+    }),
 
     // =========================================================================
     // Service Worker (PWA)

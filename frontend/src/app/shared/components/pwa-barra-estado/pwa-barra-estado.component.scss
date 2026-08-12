@@ -60,6 +60,12 @@
   color: #faf8f5;
 }
 
+/* Enlace dentro del aviso oscuro de "sin conexion": tiene que leerse sobre el fondo #33302c. */
+.pwa-enlace {
+  color: var(--ital-orange-light, #fbb040);
+  text-decoration: underline;
+}
+
 .pwa-punto {
   width: 0.6rem;
   height: 0.6rem;
@@ -68,8 +74,11 @@
   flex-shrink: 0;
 }
 
-/* --- Actualización e instalación: acción -> naranja de marca --- */
+/* --- Actualizacion, instalacion y cola pendiente: accion -> naranja de marca ---
+   La cola comparte el tratamiento de "hay algo para hacer", no el de error: la captura NO se
+   perdio, solo todavia no salio del dispositivo. Rojo aca haria que el operario crea que fallo. */
 .pwa-aviso--update,
+.pwa-aviso--pendientes,
 .pwa-aviso--instalar {
   background-color: #ffffff;
   color: #33302c;

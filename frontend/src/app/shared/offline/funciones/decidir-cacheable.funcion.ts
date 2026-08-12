@@ -93,6 +93,11 @@ const EXCLUIDOS: readonly string[] = [
   'liquidaciontecnicacomparacion',
   'liquidaciontecnicaecuador',
 
+  // El push de la cola offline (F3). No es una consulta: es la escritura misma. Guardar su
+  // respuesta no tendría sentido, y servirla desde caché haría creer que se sincronizó algo que
+  // nunca salió del dispositivo.
+  'sync',
+
   // Identidad y autorización.
   'auth',
   'users',

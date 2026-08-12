@@ -1098,6 +1098,30 @@ select:focus-visible {
   margin: 0;
 }
 
+/* Aviso: permiso no habilitado por la empresa / empresa sin configurar. Ámbar = atención, no error
+   (rojo queda reservado a peligro/destructivo). */
+.rm-fieldset__hint--warn {
+  color: #92400e;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  padding: 0.5rem 0.75rem;
+  margin: 0 1rem 0.5rem;
+  border-radius: 0 6px 6px 0;
+}
+
+/* Permiso asignado que la empresa ya no habilita: se muestra apagado para que se note. */
+.rm-check-item--orphan {
+  opacity: 0.75;
+
+  .rm-check-item__key {
+    text-decoration: line-through;
+  }
+
+  .rm-check-item__desc {
+    color: #b45309;
+  }
+}
+
 .rm-fieldset__loading {
   display: flex !important;
   align-items: center;

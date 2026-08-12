@@ -1,3 +1,5 @@
+import { ToastService } from '../../../../shared/services/toast.service';
+import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -148,7 +150,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private galponSvc: GalponService,
     private catalogSvc: CatalogoAlimentosService,
-    private companyConfig: ActiveCompanyConfigService
+    private companyConfig: ActiveCompanyConfigService,
+    private toast: ToastService
   ) {}
 
   /** Total aves disponibles para seguimiento (hembras + machos, después de restar asignadas a reproductoras). */
@@ -591,10 +594,17 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       : this.segSvc.create(event.data as CreateSeguimientoLoteLevanteDto);
     this.loading = true;
     op$.pipe(finalize(() => (this.loading = false))).subscribe({
-      next: () => {
+      next: respuesta => {
         this.modalOpen = false;
         this.editing = null;
         this.loadingEdit = false;
+
+        // Sin red la captura quedo encolada: la tabla se recarga desde la cache, que todavia no la
+        // tiene, asi que sin este aviso el operario no sabe que su registro existe.
+        if (esRespuestaPendiente(respuesta)) {
+          this.toast.info(MENSAJE_GUARDADO_SIN_RED);
+        }
+
         this.onLoteChange(this.selectedLoteId);
       },
       error: err => {

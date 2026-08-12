@@ -13,7 +13,7 @@ import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontaweso
 import {
   faBuilding, faMobileAlt, faPen, faTrash, faPlus,
   faAngleLeft, faAngleRight, faMagnifyingGlass,
-  faShieldHalved, faEye, faListUl
+  faShieldHalved, faEye, faListUl, faKey
 } from '@fortawesome/free-solid-svg-icons';
 
 import { finalize, Observable, forkJoin, of } from 'rxjs';
@@ -28,6 +28,10 @@ import { CityService, CityDto } from '../../../core/services/city/city.service';
 import { RoleService, Role } from '../../../core/services/role/role.service';
 import { CompanyPaisService } from '../../../core/services/company-pais/company-pais.service';
 import { CompanyMenuService, CompanyMenuItem } from '../../../core/services/company-menu/company-menu.service';
+import {
+  CompanyPermissionService,
+  CompanyPermissionItem
+} from '../../../core/services/company-permission/company-permission.service';
 import { MenuService, MenuItem } from '../../../core/services/menu/menu.service';
 
 import { GeoMaps, GeoSelects } from './models/company-management.model';
@@ -38,6 +42,7 @@ import {
 } from './funciones/geo.funcion';
 import { filterRoles, getCombinedPermissions, getRolePermissions } from './funciones/roles.funcion';
 import { diffPaises, addPaisesOps } from './funciones/paises.funcion';
+import { filtrarPermisosEmpresa, contarPermisosEnUsoQueSeApagan } from './funciones/permisos-empresa.funcion';
 
 @Component({
   selector: 'app-company-management',
@@ -52,6 +57,7 @@ export class CompanyManagementComponent implements OnInit {
   faBuilding = faBuilding; faMobileAlt = faMobileAlt; faPen = faPen;
   faTrash = faTrash; faPlus = faPlus; faPrev = faAngleLeft; faNext = faAngleRight;
   faSearch = faMagnifyingGlass; faShield = faShieldHalved; faEye = faEye; faListUl = faListUl;
+  faKey = faKey;
 
   // Listado
   list: Company[] = [];
@@ -118,6 +124,20 @@ export class CompanyManagementComponent implements OnInit {
   menuEditSaving = false;
   selectedMenuIdsForEdit: number[] = [];
 
+  // Modal permisos de la empresa (company_permissions)
+  permEditModalOpen = false;
+  permEditCompanyName = '';
+  permEditCompanyId: number | null = null;
+  /** Catálogo completo con el estado por empresa; el checkbox escribe sobre `isEnabled`. */
+  permEditItems: CompanyPermissionItem[] = [];
+  /** Lista visible ya filtrada. Es un campo, no un getter: un array nuevo por ciclo rompe el CD. */
+  permEditItemsFiltrados: CompanyPermissionItem[] = [];
+  permEditLoading = false;
+  permEditSaving = false;
+  permEditFilter = '';
+  /** Cuántos permisos EN USO por roles quedarían apagados al guardar (aviso, no bloqueo). */
+  permEditEnUsoQueSeApagan = 0;
+
   // Confirmación eliminar
   confirmDeleteOpen = false;
   confirmDeleteId: number | null = null;
@@ -140,13 +160,14 @@ export class CompanyManagementComponent implements OnInit {
     private roleSvc: RoleService,
     private companyPaisSvc: CompanyPaisService,
     private companyMenuSvc: CompanyMenuService,
+    private companyPermissionSvc: CompanyPermissionService,
     private menuSvc: MenuService,
     library: FaIconLibrary
   ) {
     library.addIcons(
       faBuilding, faMobileAlt, faPen, faTrash, faPlus,
       faAngleLeft, faAngleRight, faMagnifyingGlass, faShieldHalved,
-      faEye, faListUl
+      faEye, faListUl, faKey
     );
   }
 
@@ -674,6 +695,83 @@ export class CompanyManagementComponent implements OnInit {
       .subscribe({
         next: () => { this.showToast('success', 'Menú guardado correctamente.'); this.closeMenuEdit(); },
         error: err => this.showToast('error', err?.error?.message || err?.message || 'Error al guardar el menú.')
+      });
+  }
+
+  // ========= Permisos de la empresa (company_permissions) =========
+  // A diferencia del menú, esta configuración manda: filtra lo asignable a un rol y se intersecta
+  // con los permisos efectivos del usuario en el login.
+
+  openPermEdit(c: Company): void {
+    this.permEditCompanyName = c.name ?? '';
+    this.permEditCompanyId = c.id ?? null;
+    this.permEditModalOpen = true;
+    this.permEditItems = [];
+    this.permEditItemsFiltrados = [];
+    this.permEditFilter = '';
+    if (this.permEditCompanyId == null) return;
+
+    this.permEditLoading = true;
+    this.companyPermissionSvc.getPermissionsForCompany(this.permEditCompanyId)
+      .pipe(finalize(() => (this.permEditLoading = false)))
+      .subscribe({
+        next: items => {
+          // Copia local: el checkbox escribe sobre `isEnabled` y se guarda al confirmar.
+          this.permEditItems = (items ?? []).map(p => ({ ...p }));
+          this.aplicarFiltroPermisos();
+        },
+        error: () => {
+          this.permEditItems = [];
+          this.permEditItemsFiltrados = [];
+          this.showToast('error', 'No se pudieron cargar los permisos de la empresa.');
+        }
+      });
+  }
+
+  closePermEdit(): void {
+    this.permEditModalOpen = false;
+    this.permEditCompanyName = '';
+    this.permEditCompanyId = null;
+    this.permEditItems = [];
+    this.permEditItemsFiltrados = [];
+    this.permEditFilter = '';
+  }
+
+  /** Recalcula la lista visible. Se llama desde el input, nunca desde un getter del template. */
+  aplicarFiltroPermisos(): void {
+    this.permEditItemsFiltrados = filtrarPermisosEmpresa(this.permEditItems, this.permEditFilter);
+    this.permEditEnUsoQueSeApagan = contarPermisosEnUsoQueSeApagan(this.permEditItems);
+  }
+
+  togglePermEnabled(item: CompanyPermissionItem): void {
+    item.isEnabled = !item.isEnabled;
+    this.permEditEnUsoQueSeApagan = contarPermisosEnUsoQueSeApagan(this.permEditItems);
+  }
+
+  marcarTodosLosPermisos(habilitar: boolean): void {
+    this.permEditItems.forEach(p => (p.isEnabled = habilitar));
+    this.aplicarFiltroPermisos();
+  }
+
+  get permEditHabilitadosCount(): number {
+    return this.permEditItems.filter(p => p.isEnabled).length;
+  }
+
+  saveCompanyPermissions(): void {
+    if (this.permEditCompanyId == null) return;
+    this.permEditSaving = true;
+    const permissionIds = this.permEditItems.filter(p => p.isEnabled).map(p => p.id);
+    this.companyPermissionSvc.setPermissionsForCompany(this.permEditCompanyId, { permissionIds })
+      .pipe(finalize(() => (this.permEditSaving = false)))
+      .subscribe({
+        next: () => {
+          this.showToast('success', 'Permisos de la empresa guardados.');
+          this.closePermEdit();
+        },
+        error: err => this.showToast(
+          'error',
+          err?.error?.message || err?.message || 'Error al guardar los permisos.'
+        )
       });
   }
 }

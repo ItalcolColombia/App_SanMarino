@@ -209,6 +209,7 @@ builder.Services.AddScoped<IUserFarmScopeService, UserFarmScopeService>();
 builder.Services.AddScoped<ILocationScopeResolver, LocationScopeResolver>(); // alcance granular núcleo/galpón/lote (caché por request)
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
+builder.Services.AddScoped<ICompanyPermissionService, CompanyPermissionService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<INucleoService, NucleoService>();
 builder.Services.AddScoped<IGalponService, GalponService>();
@@ -249,6 +250,8 @@ builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService
 builder.Services.AddScoped<IImplementacionService, ImplementacionService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
+// Push de capturas offline (PWA F3).
+builder.Services.AddScoped<ISyncPushService, SyncPushService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeEcuadorService, SeguimientoAvesEngordeEcuadorService>();
@@ -601,6 +604,15 @@ app.UseExceptionHandler(errApp =>
             ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
             ctx.Response.ContentType = "application/json";
             await ctx.Response.WriteAsJsonAsync(new { message = uex.Message });
+            return;
+        }
+        // Permiso que la empresa no habilita: es culpa del request, no del servidor. El mensaje ya
+        // dice qué permiso y qué hacer, así que va tal cual con 400.
+        if (ex is ZooSanMarino.Application.Exceptions.PermisoNoHabilitadoException pex)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            ctx.Response.ContentType = "application/json";
+            await ctx.Response.WriteAsJsonAsync(new { message = pex.Message });
             return;
         }
         ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;

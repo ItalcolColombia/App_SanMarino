@@ -124,7 +124,12 @@ public partial class SeguimientoAvesEngordeEcuadorService
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, positivos); // lanza si falta (antes de persistir)
 
-            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            // Transaccion CONDICIONAL: null cuando ya hay una ambiente (push offline de la PWA). EF lanza
+            // si se abre una segunda sobre el mismo contexto. Sin ambiente abre la suya y el
+            // comportamiento es identico al de antes.
+            await using var tx = _ctx.Database.CurrentTransaction is null
+                ? await _ctx.Database.BeginTransactionAsync()
+                : null;
             await _ctx.SaveChangesAsync();
             if (positivos.Count > 0)
             {
@@ -132,7 +137,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
                 await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr);
             }
             await _ctx.SaveChangesAsync();
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
         }
         else
         {
@@ -316,12 +321,17 @@ public partial class SeguimientoAvesEngordeEcuadorService
             }
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, incrementos); // lanza si falta (antes de persistir)
 
-            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            // Transaccion CONDICIONAL: null cuando ya hay una ambiente (push offline de la PWA). EF lanza
+            // si se abre una segunda sobre el mismo contexto. Sin ambiente abre la suya y el
+            // comportamiento es identico al de antes.
+            await using var tx = _ctx.Database.CurrentTransaction is null
+                ? await _ctx.Database.BeginTransactionAsync()
+                : null;
             await _ctx.SaveChangesAsync();
             var refCo = $"Seguimiento aves engorde #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
             await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
             await _ctx.SaveChangesAsync();
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
         }
         else
         {

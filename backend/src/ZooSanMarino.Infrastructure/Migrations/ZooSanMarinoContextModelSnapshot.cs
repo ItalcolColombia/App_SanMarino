@@ -480,6 +480,31 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("company_pais", (string)null);
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.CompanyPermission", b =>
+                {
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("permission_id");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_enabled");
+
+                    b.HasKey("CompanyId", "PermissionId")
+                        .HasName("pk_company_permissions");
+
+                    b.HasIndex("PermissionId")
+                        .HasDatabaseName("ix_company_permissions_permission_id");
+
+                    b.ToTable("company_permissions", (string)null);
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.DbStudioAudit", b =>
                 {
                     b.Property<long>("Id")
@@ -9346,6 +9371,78 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("service_tokens", "public");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.SyncOperacion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("CapturadoAtDispositivo")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("capturado_at_dispositivo");
+
+                    b.Property<Guid>("ClientOpId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_op_id");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("device_id");
+
+                    b.Property<int?>("EntidadId")
+                        .HasColumnType("integer")
+                        .HasColumnName("entidad_id");
+
+                    b.Property<string>("ErrorCodigo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("error_codigo");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("estado");
+
+                    b.Property<DateTime>("RecibidoAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recibido_at");
+
+                    b.Property<string>("RespuestaJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("respuesta_json");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("tipo");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sync_operaciones");
+
+                    b.HasIndex("ClientOpId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_sync_operaciones_client_op_id");
+
+                    b.HasIndex("UserId", "RecibidoAt")
+                        .HasDatabaseName("ix_sync_operaciones_user_recibido");
+
+                    b.ToTable("sync_operaciones", (string)null);
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.SystemConfiguration", b =>
                 {
                     b.Property<string>("Key")
@@ -11079,6 +11176,27 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("Pais");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.CompanyPermission", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.Company", "Company")
+                        .WithMany("CompanyPermissions")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_permissions_companies_company_id");
+
+                    b.HasOne("ZooSanMarino.Domain.Entities.Permission", "Permission")
+                        .WithMany("CompanyPermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_permissions_permissions_permission_id");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Permission");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Departamento", b =>
                 {
                     b.HasOne("ZooSanMarino.Domain.Entities.Pais", "Pais")
@@ -12678,6 +12796,8 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.Navigation("CompanyPaises");
 
+                    b.Navigation("CompanyPermissions");
+
                     b.Navigation("Farms");
 
                     b.Navigation("Logo");
@@ -12797,6 +12917,8 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Permission", b =>
                 {
+                    b.Navigation("CompanyPermissions");
+
                     b.Navigation("MenuPermissions");
 
                     b.Navigation("RolePermissions");

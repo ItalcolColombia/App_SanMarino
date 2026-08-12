@@ -5,7 +5,8 @@ import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog
 import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/services/toast.service';
-import { finalize, map } from 'rxjs/operators';
+import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
+import { finalize, map, tap } from 'rxjs/operators';
 
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
@@ -767,9 +768,14 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
     const isUpdate = !!this.editingSeguimiento;
     const id = this.editingSeguimiento?.id;
 
+    // Sin red el interceptor encola la captura y devuelve un 202 sintético. Hay que mirarlo ANTES
+    // del `map`, que descarta el cuerpo — y no decir "guardado", porque todavía está en la tablet.
+    let capturaPendiente = false;
+
     const request$ = isUpdate && id != null
       ? this.produccionSvc.actualizarSeguimiento(id, request)
       : this.produccionSvc.crearSeguimiento(request).pipe(
+          tap(respuesta => { capturaPendiente = esRespuestaPendiente(respuesta) !== null; }),
           map(() => undefined as void)
         );
 
@@ -777,7 +783,9 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: () => {
-          if (this.modalSeguimientoDiario) {
+          if (capturaPendiente) {
+            this.toast.info(MENSAJE_GUARDADO_SIN_RED);
+          } else if (this.modalSeguimientoDiario) {
             this.modalSeguimientoDiario.showSuccessMessage(isUpdate);
           }
           this.editingSeguimiento = null;

@@ -3696,3 +3696,676 @@ lote real ⇒ encender el flag sin programación cargada **bloquea la creación 
 - [x] **BD devuelta al estado inicial**: 369 gastos, 121 lotes Ecuador, stock del ítem en 15.000
       exactos (la anulación devolvió el consumo) y las filas del smoke borradas por id
 - [x] Migraciones **253 aplicadas / 0 pendientes** · servidores detenidos, sin procesos huérfanos
+
+---
+
+# Tracker — Columna «Consumo mixto (kg)» en el seguimiento diario pollo engorde
+
+**Plan:** [`fase_de_desarrollo/consumo_alimento_mixto_engorde_plan.md`](fase_de_desarrollo/consumo_alimento_mixto_engorde_plan.md)
+**Fecha:** 2026-08-11
+
+Objetivo: el alimento de los días 1–7 (cruce reproductora) sigue mostrándose por género; el del día 8 en
+adelante (registrado desde este módulo, mixto) deja de acumularse bajo «Consumo hembras» y pasa a una
+columna propia **Consumo mixto (kg)**, en la tabla y en el Excel. Cambio de presentación: los kg y los
+totales no se tocan; sin backend, sin SQL, sin migración.
+
+## Código
+
+- [x] `aves-engorde/funciones/modo-consumo-alimento-fila.funcion.ts` — función PURA: `SYSTEM_CRUCE` o
+      `consumoKgMachos > 0` ⇒ `'genero'`; en cualquier otro caso `'mixto'`
+- [x] Spec de la función pura con los 7 casos del plan
+- [x] `tabs-principal-engorde.component.ts` — `esConsumoPorGenero` / `esConsumoMixto` delegan en la función
+- [x] `tabs-principal-engorde.component.ts` — Excel: header `Consumo kg mixto` + las 3 celdas condicionadas
+- [x] `tabs-principal-engorde.component.ts` — `colspanRegistroDiario`: Panamá suma una columna (−2 → −1)
+- [x] `tabs-principal-engorde.component.html` — `<th>` + `<td>` de las 3 columnas de consumo
+
+## Validación
+
+- [x] `cd frontend && yarn build` — 0 errores (único warning aceptado: bundle budget preexistente)
+- [x] Smoke Panamá (lote `94 - 2`, id 163): días 1–7 con H/M, día 8+ solo en Mixto
+- [x] Smoke Ecuador: tabla en pantalla **sin cambios** (no muestra columnas por sexo) y Excel con el
+      consumo bajo Mixto
+- [x] Excel descargado: H + M + Mixto = `Consumo real día (kg)` fila a fila
+- [x] Commit acotado (sin footer de atribución)
+
+### Auditoría de impacto en reportes de pollo engorde (Panamá) — 2026-08-11
+
+Pedida por el usuario antes de dar por cerrado el cambio. Resultado: **ningún reporte cambia de
+número**, porque todos consumen el TOTAL del día, no las columnas por sexo.
+
+- [x] `fn_informe_semanal_pollo_engorde` (Informe Semanal Panamá) → `consumo_dia_kg` / `acum_consumo_kg`
+- [x] `fn_reporte_diario_costos_engorde` → `consumo_dia_kg` (línea 112)
+- [x] `fn_indicadores_pollo_engorde` → `SUM(consumo_kg_hembras + consumo_kg_machos)` (línea 126)
+- [x] `indicadores_diarios_engorde_tabla_unificada` + `liquidacion_indicador_ecuador_pollo_engorde_vista` → `SUM(H + M)`
+- [x] Saldo de alimento (`SeguimientoAvesEngordeCalculos`, línea 238) y cuadre → `ch + cm`
+- [x] Tab Indicadores del front (`indicadores-diarios-engorde-compute.service`) → ya trataba `consumoKgHembras` como consumo mixto
+- [x] Gráficas de productividad Panamá → no leen consumo por sexo
+- [x] **Dos avisos (no son regresiones, son efectos a comunicar):** (1) el Excel del seguimiento gana
+      una columna en la posición V ⇒ `Consumo real día` y `Consumo acumulado` se corren a W y X —
+      rompe plantillas que peguen por posición fija; (2) la vista Power BI
+      `seguimiento_pollo_engorde_tabla_unificada` sigue exponiendo `consumo_kg_hembras` crudo
+      (documentado como «por sexo»), así que ahí el mixto se sigue leyendo como hembras. Alinearla es
+      aditivo (columna derivada) y NO se hizo: toca un consumidor externo
+
+### Extensión: la distinción mixto/por-sexo también en Power BI — 2026-08-11
+
+Aprobada por el usuario tras la auditoría. Migración `20260812021716_AddConsumoMixtoVistaPowerbiEngorde`.
+
+- [x] Migración EF idempotente que ENVUELVE `pg_get_viewdef` (no recrea la vista: el `.sql` del repo
+      está desactualizado y borraría 14 columnas en prod) y agrega `consumo_kg_mixto` +
+      `consumo_es_mixto` al final
+- [x] `Down()` simétrico: DROP + CREATE proyectando todo menos las dos columnas nuevas
+- [x] Doc `VISTAS_POWERBI_POLLO_ENGORDE.md` con las dos columnas y cuándo usar cada una
+- [x] Aviso dentro de `backend/sql/seguimiento_pollo_engorde_tabla_unificada_vista.sql`: NO aplicarlo
+      (nombra otra vista y le faltan 14 columnas)
+- [x] `dotnet build` 0 errores · `dotnet test` 2.222 verdes
+- [x] Migración aplicada en local por el arranque del backend; columnas en posición 66/67 y
+      `created_by_user_id` intacto en la 65
+- [x] Invariante Σ(por régimen) = Σ(`consumo_real_dia_kg`): Ecuador 8.050.971,000 · Panamá
+      1.839.861,020 · 0 descuadradas
+- [x] Idempotencia (Up 2 veces) y round-trip (Down → 65 → Up → 67) verificados
+- [x] Backend detenido, sin procesos huérfanos
+
+### Espejo SQL de la vista Power BI sincronizado — 2026-08-11
+
+- [x] `backend/sql/vw_seguimiento_pollo_engorde.sql` **NUEVO**: volcado fiel de la vista desplegada
+      (67 columnas, `pg_get_viewdef`), con encabezado que explica cómo regenerarlo, cómo cambiarla
+      (migración que envuelve, no CREATE a mano) y cómo leer el consumo mixto vs por sexo
+- [x] Probado: aplicar el archivo sobre la BD deja la definición **byte a byte idéntica** (diff
+      vacío), 67 columnas y el invariante Σ(por régimen) = Σ(`consumo_real_dia_kg`) intacto
+- [x] `seguimiento_pollo_engorde_tabla_unificada_vista.sql` reducido a puntero: definía otra vista
+      con 14 columnas menos y aplicarlo las borraba. El SQL viejo queda en git (`git show 2f2a00a:…`)
+- [x] `VISTAS_POWERBI_POLLO_ENGORDE.md` apunta al archivo fiel y al patrón de cambio
+
+---
+
+# Tracker — El gate del borde del frontend bloquea el deploy desde que la PWA existe
+
+**Plan:** [`fase_de_desarrollo/gate_borde_front_pwa_plan.md`](fase_de_desarrollo/gate_borde_front_pwa_plan.md)
+**Fecha:** 2026-08-11
+**Run que falló:** `85573900056` — `##[error]La imagen del frontend no cumple 2 criterio(s) del borde. No se publica.`
+
+El paso *Validar nginx y política de caché del borde* (previo al `docker push`) exige **404** en
+`ngsw.json` y `manifest.webmanifest`. Los escribió el 27-jul, cuando el build no los emitía; desde
+`8ecb7c6` (09-ago) la app es PWA y los emite a propósito ⇒ responden 200 ⇒ el gate corta y la imagen
+nunca llega a ECR. El backend de ese mismo run sí desplegó.
+
+## Diagnóstico
+- [x] Log del run leído: 2 criterios en rojo, el resto OK; imagen construida y `verificar-ngsw.js` en verde
+- [x] Causa raíz datada (`76a2903` crea el gate 27-jul · `8ecb7c6` enciende la PWA 09-ago)
+- [x] Confirmado que `nginx.conf` y la imagen están bien (el volcado de headers del log ya muestra 200 + Content-Type correcto + no-cache)
+
+## Corrección del gate
+- [x] C2 pasa a probar el 404 con rutas que nunca existirán (`no-existe-1234.json` / `.webmanifest`)
+- [x] C4 nuevo: `ngsw.json`, `ngsw-worker.js`, `safety-worker.js`, `manifest.webmanifest` → 200 + Content-Type correcto + `no-cache`
+- [x] Sin cambios en `nginx.conf`, Dockerfile ni código de la app
+
+## Validación
+
+- [x] `no-existe-1234.json` y `no-existe-1234.webmanifest` → **404** contra el **nginx real de prod**
+      (mismo `nginx.conf`: sin cambios desde `76a2903`, 27-jul) ⇒ los reemplazos de C2 pasan
+- [x] `ngsw-worker.js` y `safety-worker.js` en prod (donde todavía no existen) → 404 con
+      `Cache-Control: no-cache`, no `immutable` ⇒ el `location =` exacto gana sobre la regla de assets;
+      con el archivo presente eso es 200 + no-cache. Contraste medido: `chunk-inexistente.js` sí cae en
+      `immutable`
+- [x] `ngsw.json` → 200 · `application/json` · `no-cache` y `manifest.webmanifest` → 200 ·
+      `application/manifest+json` · `no-cache`: lo muestra el volcado de headers del **propio run que
+      falló**, contra la imagen ya construida
+- [x] Los 4 archivos de control están en el output del build (`dist/browser`), con `ngsw.json` (13.833 B)
+      y `manifest.webmanifest` (1.413 B) del mismo tamaño exacto que los servidos en el run de CI
+- [x] Las 14 aserciones nuevas/cambiadas corridas contra el build real servido por
+      `scripts/servir-pwa-local.js` (réplica de las reglas de nginx): **14/14 OK**
+- [ ] ⚠️ **Corrida literal del gate (`docker build` + script del paso) NO hecha**: Docker Desktop no
+      levanta en esta máquina (`com.docker.service` detenido y su arranque requiere elevación).
+      Pendiente si se quiere la prueba end-to-end antes de re-desplegar
+- [x] Servidor de prueba detenido (puerto 4400 libre); sin procesos huérfanos
+- [x] Commit acotado (`6f410db`) (sin footer de atribución)
+
+---
+
+## Permisos por empresa (`company_permissions`) — 2026-08-11
+
+📄 Plan: [permisos_por_empresa_plan.md](fase_de_desarrollo/permisos_por_empresa_plan.md)
+
+El catálogo de permisos era global y plano (31 filas): al crear un rol de Ecuador se ofrecían permisos
+de Panamá y de Sanmarino Colombia. Se agrega el eje por empresa, con fuerza en los DOS puntos donde el
+permiso se usa (asignación y runtime) — a diferencia de `company_menus`, que configura pero no manda.
+
+### Auditoría previa (cerrada)
+- [x] `carga_masiva_postura` **sí** tiene migración: `20260714115357_AddPermisosCargaMasivaMigracionesMasivas`
+      la crea y `20260807230000_RestringirMigracionesMasivasASanmarino` la re-asegura
+- [x] Ambas aplicadas en local; permiso `id 59` presente y asignado a los roles 30, 31 y 32
+- [x] Lo restringido es el MÓDULO, no el permiso: `/migraciones-masivas` quedó solo en `company_menus`
+      de Sanmarino y en `role_menus` de los roles 1, 12 y 32 (decisión del 07ago26)
+
+### Backend — datos
+- [x] `CompanyPermission` + `CompanyPermissionConfiguration` + `DbSet` + navs en `Company`/`Permission`
+- [x] Migración `20260812025725_AddCompanyPermissions` (schema, `CREATE TABLE IF NOT EXISTS`; re-run verificado)
+- [x] Migración `20260812030035_SeedCompanyPermissionsDesdeRolesActuales` (data-only idempotente:
+      correrla dos veces deja las mismas 123 filas; empresa sin permisos en uso ⇒ catálogo completo)
+
+### Backend — lógica
+- [x] `Application/Calculos/CompanyPermissionCalculos.cs` (puro: R1 fail-closed, R2 intersección
+      multi-empresa, R3 runtime por par rol-empresa, R5 huérfanos, R6 case-insensitive)
+- [x] `CompanyPermissionDtos` + `ICompanyPermissionService` + `CompanyPermissionService`
+- [x] `GET`/`PUT /api/Company/{id}/permissions` + DI en `Program.cs`
+- [x] Gate runtime en `AuthService.PermisosEfectivosAsync` (login y `GetUserWithMenuAsync`)
+- [x] Siembra del catálogo completo al crear una empresa nueva, en `CompanyService.CreateAsync`
+      (R4: fail-closed no puede bloquear el primer rol de una empresa)
+- [x] `CompanyPermissionCalculosTests` — 15 casos (T1-T8 + invariante del seed)
+
+### Gate de escritura (R7/R8) — el backend también rechaza
+- [x] `CompanyPermissionCalculos.ResolverNoPermitidas`: juzga **solo lo que se agrega**, para que
+      apagar un permiso no vuelva ineditable a los roles que lo tenían
+- [x] `RoleCompositeService.EnsurePermisosHabilitadosPorEmpresaAsync` en `Roles_CreateAsync`,
+      `Roles_UpdateAsync`, `Roles_AddPermissionsAsync` y `Roles_ReplacePermissionsAsync`;
+      `Roles_RemovePermissionsAsync` NO valida a propósito (es el camino para limpiar huérfanos)
+- [x] `PermisoNoHabilitadoException` (hereda de `InvalidOperationException`, no cambia ningún `catch`)
+      + mapeo a **400** en el handler global; el mensaje nombra permiso, empresa y qué hacer
+- [x] 7 tests más del cálculo (rechazo, conservar/quitar huérfano, rol sin empresa, multi-empresa)
+- [x] Smoke HTTP: POST con permiso de Panamá en un rol de Ecuador → **400**; `assign` de uno apagado →
+      400 y de uno habilitado → 200; con el huérfano fabricado, `PUT` conservándolo → **200**,
+      limpiándolo → 200 y re-agregándolo → 400. Rol de prueba borrado y Ecuador de vuelta en 18
+- [x] `dotnet build` 0/0 · `dotnet test` **2.243 verdes** · invariante global sin cambios
+
+### Frontend
+- [x] `core/services/company-permission/company-permission.service.ts`
+- [x] Modal *Permisos* en Gestión de Empresas (junto a la de menús): buscador, marcar/desmarcar todos,
+      contador «N rol(es)» por permiso y aviso de los que se apagan estando en uso
+- [x] `role-management/funciones/filtrar-permisos-empresa.funcion.ts` (pura, espejo del cálculo del
+      back) + tab *Permisos* del modal de rol filtrado por empresa, con los huérfanos tachados y
+      desmarcables
+
+### Validación
+- [x] `dotnet build` 0 errores + `dotnet test` **2.237 verdes** (0 fallos, sin advertencias nuevas)
+- [x] `yarn build` 0 errores (único warning: bundle budget preexistente)
+- [x] **Invariante del seed**: permisos efectivos de los 49 usuarios **idénticos** antes y después
+      (diff vacío) — es la prueba de que nadie pierde acceso al desplegar
+- [x] Smoke HTTP doble contra el back real: ItalcolEcuador 18/31 (apaga los de Panamá y los de carga
+      masiva) y Santa Reyes 31/31 (cero cambios)
+- [x] `PUT` en Demo: 24→23 habilitados, `role_permissions` **intactos** (33) y los 3 usuarios de Demo
+      pierden el permiso mientras las otras 4 empresas no se mueven; estado restaurado
+- [ ] **Pendiente (bloqueado):** smoke visual de los dos modales. El backend quedó verificado de punta
+      a punta por HTTP, pero no pude autenticar en el navegador (sin credenciales, y la inyección de
+      sesión en `localStorage` la bloquea el clasificador). Abrir Empresas → 🔑 y Roles → tab Permisos
+- [x] Sin procesos huérfanos (backend y dev server detenidos)
+
+---
+
+# PWA F3.1 — Captura offline (outbox) con idempotencia real
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+**Contexto medido:** F1/F2/alistamiento construidos; prod todavía sirve el build del 07-ago porque el
+gate del borde corta el job del front (`6f410db` está en `main`, no en `main-produccion`).
+`Idempotency-Key`, `client_op_id` y outbox **no existían** en el código fuente.
+
+## Backend — datos
+- [x] Entidad `SyncOperacion` + configuración con **UNIQUE (`client_op_id`)** + `DbSet`
+- [x] Migración `20260812050558_AddSyncOperaciones` con SQL crudo `IF NOT EXISTS`; aplicada en
+      local :5433 y **re-corrida a mano**: los tres statements avisan «already exists, skipping»
+
+## Backend — lógica
+- [x] `Application/Calculos/SyncPushCalculos.cs` (puro: lote, identidad, contrato, empresa, reloj)
+- [x] `SyncPushDtos` + `ISyncPushService` + `SyncPushService` (ancla + `Funciones/SyncPushService.Levante.cs`)
+- [x] `POST /api/Sync/push` + DI
+- [x] 🔴 Transacción **condicional** en `SeguimientoLoteLevanteService.Crud.cs` (3 sitios):
+      `CurrentTransaction is null ? BeginTransaction() : null`. Sin ambiente se comporta idéntico
+      a hoy; con ella participa, que es lo que permite commitear efecto + marca de idempotencia juntos
+- [x] El push **ignora `X-Active-Company`**: la empresa sale de la operación y se valida contra
+      `user_companies`. Fail-closed, sin reasignar (B6 en el camino de sync)
+- [x] El servidor **estampa el autor** e ignora el del cuerpo (B5 en el camino de sync)
+- [x] 🔴 **Un rechazo NO deja registro**: se re-evalúa en cada intento. Grabarlo dejaría un
+      `empresa_no_autorizada` transitorio congelado para siempre
+- [x] `SyncPushCalculosTests` — 22 casos
+
+## Frontend
+- [x] `offline-db.ts` **v2** con store `outbox` (paso acumulativo)
+- [x] `models/outbox.model.ts`
+- [x] `funciones/decidir-encolable.funcion.ts` — 🔑 no es una lista de rutas sino un mapa
+      **ruta → tipo de operación**: una entrada sin tipo del lado del servidor no se puede escribir
+      sin que se note (la lista blanca «a ojo» de F2 cubría 23 de 78)
+- [x] `funciones/backoff.funcion.ts` (exponencial + jitter + `Retry-After` con prioridad)
+- [x] `funciones/clasificar-resultado-push.funcion.ts`
+- [x] `outbox.service.ts` · `sync.service.ts` (empuje al reconectar, lotes de 25, freno ante 429/503)
+- [x] Rama de mutación en `offline-cache.interceptor.ts`: **202** + `__offlinePendiente`, y si el
+      encolado falla se propaga el error de red (nunca decir «guardado» sin haber guardado)
+- [x] Bandeja de pendientes en `/diagnostico` con «Enviar ahora» y descarte con confirmación
+- [x] Seam `TRABAJO_PENDIENTE_OFFLINE` conectado al outbox (estaba sin implementar desde F0.B)
+- [x] 🔴 **El outbox NO se purga** por logout, cambio de empresa ni kill switch. `purgarTodo` solo
+      toca `consultas`; probado que la migración v1→v2 no pierde lo ya guardado
+- [x] `sync` agregado a los EXCLUIDOS de la caché: 50 cacheables / 29 excluidos / **0 sin decidir**
+
+## Validación
+- [x] `dotnet build` 0 errores / 0 warnings · `dotnet test` **2.269 verdes** (2.237 → 2.269)
+- [x] `yarn build` 0 errores (único warning: budget preexistente) · `yarn test` **275** (221 → 275)
+- [x] `verificar-ngsw.js` OK (126 archivos, sin `dataGroups`, kill switch publicado)
+- [x] **Smoke HTTP contra el back real** (JWT de dev + `X-Secret-Up`, usuario de una sola empresa):
+      push aplica y crea la fila; **reenviar el mismo lote 2 veces más devuelve `replay:true` con el
+      mismo `entidadId` y deja UNA sola fila**
+- [x] **B5 probado con datos**: el payload mandaba `createdByUserId` falso y la fila quedó con el
+      usuario del token
+- [x] Rechazos tipados verificados uno por uno: `empresa_no_autorizada` (empresa ajena y `0`),
+      `contrato_obsoleto`, `validacion` (uuid inválido), `regla_de_negocio` (lote inexistente) —
+      todos con **cero filas** escritas
+- [x] Datos del smoke **borrados por la API** (no por SQL): el saldo de aves volvió exacto
+      (20→34 hembras = 2+3+4+5, 0→1 machos), y `sync_operaciones` quedó en 0
+- [x] Sin procesos huérfanos. El backend queda **corriendo a propósito** en :5002 (lo pidió el
+      usuario para validar en la app); se levantó como server gestionado, no suelto
+
+### Validación con los dos perfiles de operario reales (12-ago)
+- [x] **Ambos son de UNA sola empresa** ⇒ D6 los deja cachear, a diferencia del super admin:
+      `alexlondono@sanmarino.com.co` → empresa 1 (Agroavicola Sanmarino) ·
+      `ladymalave@ecuitalcol.com` → empresa 3 (ItalcolEcuador)
+- [x] **Postura (Alex) funciona de punta a punta**: push contra su lote real 116 (A374A) aplica
+      (id 1108), el reenvío devuelve `replay:true`, `created_by_user_id` queda con SU guid, y el
+      intento de escribir en la empresa 3 se rechaza `empresa_no_autorizada`
+- [x] Limpieza por la API: saldo del lote 116 volvió exacto (7.402→7.405 hembras, 737→738 machos)
+- [ ] 🔴 **Engorde NO está cubierto por F3.1.** La pantalla de Lady escribe a
+      `/api/SeguimientoAvesEngordeEcuador`, que **no está en la lista blanca** ⇒ el cliente ni
+      siquiera encola y la captura falla igual que hoy. Forzado a mano, el servidor lo rechaza
+      `contrato_obsoleto`. Con ese perfil se puede **consultar** sin red, **capturar no**.
+      Agregarlo es F3.2: tipo de operación nuevo + rama de despacho + tests
+
+### 🔴 Lo que NO se pudo probar (y por qué importa)
+- [ ] **La carrera NO reprodujo el defecto.** Con 2 y con 8 POST simultáneos del mismo `clientOpId`
+      siempre salió 1 fila **incluso con el índice único borrado**: el `SELECT` previo ya ve la fila
+      commiteada del ganador, así que la ventana no se abrió. Lo que sí quedó probado es que el
+      índice **rechaza** el duplicado (23505, en transacción revertida). O sea: el `SELECT` es el
+      camino rápido y el índice el respaldo, pero **el respaldo no se ejercitó de punta a punta**
+- [ ] **Smoke por la UI real**: la captura se validó por HTTP, no abriendo el formulario de levante
+      con la red cortada
+- [x] 🟢 **Hueco de UX CERRADO** (ver bloque siguiente)
+
+## Fuera de alcance (documentado, sigue abierto)
+- [ ] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
+- [ ] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
+- [ ] B1 (revocación de sesión), B8 (rotar las 4 llaves), B10 (super admin a datos), A4
+
+
+---
+
+# PWA F3.1b — cerrar el hueco de UX de la captura offline
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+**El hueco:** sin red el modal se cerraba y la tabla se recargaba desde la caché de F2, que todavía
+no tiene la fila recién capturada ⇒ el operario no tenía **ninguna** señal de que su registro existía.
+
+## La decisión: aviso + contador, NO fila optimista en la tabla
+- [x] Se descartó meter la fila en el array `seguimientos`: viaja 3 niveles abajo a componentes
+      compartidos que **no la pueden distinguir** de una guardada, y de ahí entra al Excel, a los
+      indicadores y a la gráfica como si fuera dato real. Una fila sin distintivo es **peor** que
+      ninguna
+- [x] En su lugar, la señal va donde ya vive el estado de la PWA y sirve para **todas** las pantallas
+      (engorde la hereda gratis en F3.2)
+
+## Lo hecho
+- [x] `funciones/respuesta-pendiente.funcion.ts` (pura) + `MENSAJE_GUARDADO_SIN_RED` — una sola
+      pregunta «¿esto lo guardó el servidor o la tablet?», en un solo lugar. **11 casos** de test,
+      incluido que `__offlinePendiente: 'true'` (string) **no** cuente
+- [x] Toast al guardar sin red, en los **dos** caminos que crean levante (listado y formulario)
+- [x] `PwaBarraEstadoComponent`: el aviso de «sin conexión» ahora dice cuántas capturas hay en el
+      dispositivo, y con red aparece un aviso propio con **Ver** y **Enviar ahora**
+- [x] Prioridad entre avisos respetada (dos barras apiladas tapan el formulario en una tablet):
+      actualización > pendientes > instalar
+- [x] Naranja de acción, **no rojo**: la captura no se perdió, solo no salió todavía
+
+## Validación
+- [x] `yarn build` 0 errores · `yarn test` **281 verdes** (275 → 281)
+- [x] **Verificado en el navegador** (dev server propio en :4300, sembrando una operación en la
+      IndexedDB real): la base abre en **v2 con los dos stores**; con red la barra dice
+      «1 captura(s) sin enviar · Ver · Enviar ahora»; sin red el aviso de «sin conexión» pasa a decir
+      «Tenés 1 captura(s) guardadas en este dispositivo»; y la bandeja de `/diagnostico` la lista con
+      **«2 intento(s)»**, o sea que el envío automático y su backoff corrieron solos. Cola y servidor
+      de prueba limpiados al terminar
+- [ ] ⚠️ **Se subió el techo duro de bundle de 2.00 a 2.05 MB.** El bundle estaba a ~0,3 kB del
+      límite **antes** de esta sesión, o sea que cualquier feature lo rompía. Se recortó lo que se
+      pudo primero (`sync.service` con `import()` diferido, el `HttpContextToken` en su propio
+      archivo, `href` en vez de `RouterLink`) y aun así faltaba 1,33 kB. La deuda real —500 kB por
+      encima del budget de **warning**— es preexistente y **no** se tocó
+
+---
+
+# PWA F3.2 — captura offline de PRODUCCIÓN (la otra etapa de postura)
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+**Por qué:** F3.1 cubría solo levante. Postura tiene **dos** etapas, así que el galponero de
+producción quedaba exactamente igual que antes de la PWA.
+
+## Backend
+- [x] Tipo `seguimiento_produccion_crear` en `SyncPushCalculos.Tipos`
+- [x] `Funciones/SyncPushService.Produccion.cs` — despacha a `IProduccionService.CrearSeguimientoAsync`,
+      el mismo que usa el controller (nada de reimplementar reglas)
+- [x] Transacción **condicional** en `ProduccionService.Seguimiento.cs` (**3 sitios**), igual que en
+      levante: sin ambiente abre la suya, con ambiente participa
+- [x] 🔴 **Comprobación nueva: la empresa de la operación contra la de la SESIÓN.** Los services
+      filtran el lote por `_current.CompanyId`, así que una operación de otra empresa **no** escribiría
+      donde no debe — pero fallaría con «Lote no existe», que en campo se lee como dato corrupto.
+      Ahora el rechazo dice el motivo real. Aplica también a levante
+- [x] `dotnet build` 0 err / 0 warnings · `dotnet test` **2.273** (2.269 → 2.273)
+
+## Frontend
+- [x] `POST /api/Produccion/seguimiento` en la lista blanca, con `$` al final para **no** capturar
+      `/seguimiento/{id}` (edición) ni `/lotes` ni `/indicadores-semanales`
+- [x] Toast de «guardado en el dispositivo» en el listado de producción: se lee **antes** del
+      `map(() => undefined)` que descartaba el cuerpo, y reemplaza al «guardado» del modal
+- [x] `yarn build` 0 err · `yarn test` **284** (281 → 284)
+
+## Smoke HTTP con el perfil real de postura (Alex, empresa 1)
+- [x] Push contra el lote de producción 7 (lote 13): aplicada, `entidadId 671`
+- [x] Reenvío ⇒ `replay:true`, mismo id, **una sola fila**; empresa 1 y autor estampados por el servidor
+- [x] Limpieza por la API. **El saldo de aves no se movió (5.315 → 5.315) y está bien**: el alta de
+      producción **no escribe** `aves_h_actual` (cero referencias en el service) — esa columna la
+      recalcula la lectura. Se verificó en vez de asumir
+- [x] `sync_operaciones` y seguimientos del smoke en 0
+
+## Lo que sigue
+- [ ] **Engorde** (`POST /api/SeguimientoAvesEngordeEcuador`) — sigue fuera: el cliente no lo encola
+      y el servidor lo rechaza `contrato_obsoleto`
+
+---
+
+# PWA F3.3 — captura offline de ENGORDE (pollo + reproductora)
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+Con esto quedan cubiertas las **cuatro** superficies de captura diaria del sistema.
+
+## Backend
+- [x] Tipos `seguimiento_engorde_crear` y `seguimiento_reproductora_engorde_crear`
+- [x] `Funciones/SyncPushService.Engorde.cs` — despacha a `ISeguimientoAvesEngordeEcuadorService` y a
+      `ISeguimientoDiarioLoteReproductoraService`, los mismos que usan los controllers
+- [x] 🔑 **Son dos tipos aunque el cuerpo sea el mismo** (`CreateSeguimientoLoteLevanteRequest`):
+      el tipo es lo que decide a qué service va, y confundirlos escribiría en la etapa equivocada
+- [x] Transacción **condicional** en `SeguimientoAvesEngordeEcuadorService.Crud.cs` (2 sitios).
+      `SeguimientoDiarioLoteReproductoraService` **no abre transacción propia** ⇒ nada que cambiar
+- [x] `Tipos.Todos` como catálogo único que alimenta `EsConocido` (+ test de que no tiene duplicados)
+- [x] `dotnet build` 0 err / 0 warnings · `dotnet test` **2.278** (2.273 → 2.278)
+
+## Frontend
+- [x] `POST /api/SeguimientoAvesEngordeEcuador` y `POST /api/SeguimientoDiarioLoteReproductora`
+      en la lista blanca; los sub-recursos (`/bulk`, `/cuadrar-saldos`) quedan fuera
+- [x] Toast «guardado en el dispositivo» en las dos pantallas. En reproductora **reemplaza** al
+      «Registro creado», que sería mentira si la captura sigue en la tablet
+- [x] `yarn build` 0 err · `yarn test` **288** (284 → 288)
+
+## Smoke HTTP
+- [x] **El despacho enruta de verdad**: antes los dos tipos daban `contrato_obsoleto`; ahora cada uno
+      llega a SU service, y se distingue por el mensaje («Lote aves de engorde…» vs «Lote reproductora
+      aves de engorde…»). El control con un tipo inexistente sigue dando `contrato_obsoleto`
+- [x] **Pollo engorde** (perfil de Lady, Ecuador, lote 197 «2603»): aplicada `entidadId 11055`,
+      reenvío ⇒ `replay:true`, una sola fila
+- [x] **Reproductora**: aplicada `entidadId 711`, reenvío ⇒ `replay:true`
+- [x] ✅ La reproductora se probó con un usuario de **Panamá, que es lo correcto**: el módulo de
+      captura diaria de reproductora pollo engorde **es exclusivo de Panamá**. Verificado en
+      `company_menus`: la ruta `/daily-log/seguimiento-diario-lote-reproductora_pollo_engorde` está
+      habilitada **solo** para ItalcolPanama. Ecuador tiene únicamente
+      `/config/lote-reproductora-ave-engorde` (la configuración del lote, no la captura), y
+      `/lote-reproductora` es otra cosa (postura: Sanmarino y Santa Reyes). Por eso el perfil de
+      Ecuador no podía ejercitar ese camino — no le falta nada, no le corresponde
+- [x] Coherente con los datos: las 99 reproductoras vivas de la BD local son de la empresa 5
+- [x] En el camino apareció la regla real del dominio («supera la primera semana de recogida desde el
+      encasetamiento»), lo que prueba que el service queda plenamente enganchado, no salteado
+
+## Limpieza
+- [x] Los `DELETE` por API dieron **403** con el JWT minteado (le faltan claims de alcance), así que
+      se limpió por SQL — pero **respetando el invariante**: la fila del histórico unificado que dejó
+      el trigger se marcó `anulado = true`, **no se borró**. Borrarla habría dejado el saldo
+      contándola igual
+- [x] Verificado que ninguno de los dos services escribe saldo de aves en el alta (0 referencias), y
+      que el smoke **no movió inventario** (0 movimientos en la ventana)
+- [x] 0 filas residuales en las 4 tablas de seguimiento · `sync_operaciones` en 0
+
+---
+
+# PWA — auditoría de acceso offline (menú muerto · primer ingreso · acciones operativas)
+
+**Informe:** [fase_de_desarrollo/pwa_auditoria_acceso_offline_2026-08-12.md](fase_de_desarrollo/pwa_auditoria_acceso_offline_2026-08-12.md)
+**Fecha:** 2026-08-12
+
+## 1. Menú «Lote Reproductora» (id 9) — revisión aparte
+- [x] `company_menus`: **ninguna empresa**. `role_menus`: **3 roles** (Auxiliar de Granja, Líder
+      técnico, Director técnico) ⇒ **lo ven igual**, porque el sidebar sale de `role_menus`
+- [x] 🔴 **Carga `SeguimientoLoteLevanteModule`**, no un módulo de reproductora: la entrada no abre
+      lo que su nombre dice
+- [x] La reproductora de **postura** no existe como pantalla de captura (no hay endpoint propio); el
+      único `SeguimientoDiarioLoteReproductora` es el de **pollo engorde**, exclusivo de Panamá
+- [x] **Para la PWA no hay nada que apagar**: no existe captura de reproductora de postura que
+      pudiera encolarse. Mientras la ruta cargue levante, encola como levante, que es lo correcto
+- [ ] **Decisión del usuario:** quitar el menú a esos 3 roles hasta que el módulo exista, o corregir
+      la etiqueta. Hoy un técnico entra por «Lote Reproductora» y carga levante sin darse cuenta
+
+## 2. Primer ingreso y menú sin internet
+- [x] ✅ **El menú sobrevive sin red**: vive en la sesión persistida, no se re-pide. `ensureLoaded()`
+      cae a storage y `preloadMyMenu()` hace `catchError` al menú que ya tenía. Que `roles` esté
+      excluido de la caché HTTP **no lo afecta**
+- [x] ✅ Perder la red **no cierra la sesión** (B2), con tope duro de 16 h (D4)
+- [x] 🔴 **El primer ingreso exige red** (`POST /auth/login` + reCAPTCHA en prod) ⇒ alistamiento:
+      instalar y entrar una vez con señal, **por cada usuario**
+- [ ] 🔴 **El dispositivo guarda UNA sola sesión** (`auth_session`, clave única). No hay «los usuarios
+      registrados» en plural: entra el último que hizo login. Dos operarios turnándose en la misma
+      tablet ⇒ el segundo no puede entrar sin red. **Soportar varios exige sesiones multi-slot**
+      (la partición de la caché ya está preparada; el storage de sesión no)
+
+## 3. Acciones operativas sin red — se CONSULTAN, no se guardan
+- [x] Con caché de lectura (✅ ver / ❌ guardar): gastos de inventario · gestión de inventario ·
+      historial · inventario de aves · movimiento de aves · movimiento pollo engorde (+Panamá) ·
+      traslados · huevos · venta de aves
+- [x] Con outbox (✅ guardar): **solo** las 4 capturas diarias (levante, producción, pollo engorde,
+      reproductora engorde)
+- [x] No es un olvido: es la decisión **D1** («ventas y movimientos a v2»). Los movimientos tocan
+      stock y saldos, son de dos lados (origen/destino) y varios crean entidades que otras
+      referencian ⇒ necesitan la clase `requiere_cuadre` **con emisor** y el grafo `client_entity_id`
+- [ ] **F4 (movimientos offline)** queda planteado, con sus prerrequisitos: A4, B1, B8, B10
+
+## Corrección de una sospecha propia
+- [x] `movimientos-huevos` **no** es un hueco de la lista blanca: es sub-ruta de `ReporteContable`,
+      que está excluido a propósito (contabilidad). El verificador tenía razón
+
+---
+
+# 📍 PWA — PUNTO DE RETOMA (última actualización: 12-ago-2026)
+
+> Bloque de continuidad. Una sesión nueva empieza acá: dice dónde quedó todo, qué está bloqueado
+> y qué decisiones esperan al usuario. Los detalles viven en los bloques de arriba y en
+> `fase_de_desarrollo/`.
+
+## Estado real por fase
+
+| Fase | Estado | Commits |
+|---|---|---|
+| F0.C higiene de entrega | ✅ | `76a2903` |
+| F0.B seguridad de sesión | 🟡 **parcial** — B2, B3, B7, B4, B9 hechos · **faltan B1, B5(parcial), B6(parcial), B8, B10** | `f139dfd`, `4616dfa` |
+| F0.A integridad de datos | 🟡 **9 de 10** — falta **A4** (medido, con gate) | `44b2400`, `60d3125` |
+| F1 shell instalable | ✅ | `8ecb7c6` |
+| F2 consulta offline | ✅ | — |
+| Alistamiento de campo (persist + D6) | 🟡 mitad de D6: falta **opt-in por rol y dispositivo** | `b8821cb` |
+| Gate del borde (deploy front) | ✅ arreglado, **sin desplegar** | `6f410db` |
+| **F3.1** captura offline levante | ✅ | `c44e0a4` |
+| **F3.1b** hueco de UX | ✅ | `de3ea10` |
+| **F3.2** captura producción | ✅ | `b681a50` |
+| **F3.3** captura engorde (pollo + reproductora) | ✅ | `505c13b` |
+| Auditoría de acceso offline | ✅ | `30c6865` |
+
+## 🔴 Lo primero que hay que saber
+
+**La PWA sigue SIN desplegarse.** Prod sirve el build del **07-ago** (`/version.json`) y
+`ngsw.json` da 404. El fix del gate (`6f410db`) está en `main` y **no** en `main-produccion`; el job
+del front corta antes del push a ECR. **Verificar con `curl` antes de depurar cualquier fantasma.**
+Requiere push, que el usuario no autorizó todavía.
+
+## Decisiones que esperan al usuario (bloquean trabajo)
+
+- [ ] **Merge `main` → `main-produccion`** para desplegar la PWA (arrastra migraciones; el contenedor
+      tiene `RunMigrations=true`)
+- [x] ~~**Menú «Lote Reproductora» (id 9)**~~ — RESUELTO: migración
+      `20260812080000_OcultarMenuLoteReproductoraPostura`. Etiqueta corregida a «Seguimiento
+      Reproductora Postura» y **desasignado de todos los roles**; la fila del menú se conserva
+- [ ] **Sesiones multi-slot por dispositivo**: es lo ÚNICO que bloquea «varios usuarios sin
+      internet». Hoy `auth_session` es clave única ⇒ un usuario por tablet
+- [ ] **B8**: rotar las 4 llaves de `environment.prod.ts` — **el usuario debe generarlas**, no se
+      inventan secretos de prod
+
+## Próximos trabajos, en orden sugerido
+
+1. **Desplegar** y hacer la verificación post-deploy + instalar en un Android real (nada de F1/F2/F3
+   se probó nunca en producción)
+2. **B1** (jti + `sesiones_activas` + refresh) — prerrequisito de la jornada de 16 h: hoy un
+   dispositivo perdido **no se puede revocar**
+3. **B5/B6/B10** completos, y **A4** con su gate de paridad
+4. **F4 — movimientos offline** → **mapeado en
+   [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)**:
+   los módulos por nivel de dificultad, sus bloqueantes y el patrón a copiar
+5. **Opt-in de D6 por rol y dispositivo** (flag en BD + registro de dispositivos)
+
+## Trampas verificadas en esta sesión (no repetirlas)
+
+- El smoke HTTP local necesita **JWT minteado + `X-Secret-Up` cifrado** (AES-256-CBC, PBKDF2 con salt
+  `sanmarino-salt`, 10000 iter). El token dura **1 h**. Los `DELETE` por API dan **403** con ese JWT
+- Al limpiar por SQL: el histórico unificado se marca **`anulado = true`**, nunca se borra
+- El bundle del front está al borde del techo de error (se subió a **2.05 MB**); cualquier import
+  eager nuevo lo rompe
+- La carrera del índice único **no se reproduce** por HTTP: el `SELECT` previo gana. El índice está
+  probado solo a nivel BD
+- Levantar el backend bloquea los DLL: hay que **detenerlo antes de compilar**
+
+
+---
+
+# PWA — menú «Lote Reproductora» corregido + mapeo de F4
+
+**Fecha:** 2026-08-12
+
+## Menú id 9 — resuelto
+- [x] Migración **data-only e idempotente** `20260812080000_OcultarMenuLoteReproductoraPostura`
+      (Designer clonado, ModelSnapshot **sin tocar**)
+- [x] Etiqueta: «Lote Reproductora» → **«Seguimiento Reproductora Postura»**, en paralelo con
+      «Seguimiento Reproductora Pollo Engorde» (menú 43)
+- [x] **Desasignado de TODOS los roles** (`role_menus`), no solo de los 3 de la BD local: en prod
+      puede haber otros. Se localiza por **ruta**, nunca por id (los ids difieren local↔prod)
+- [x] 🔑 **La fila del menú se conserva**: borrarla obligaría a recrearla con otro id cuando el
+      módulo exista, y cualquier script que la busque por id se rompería. Se quita el **acceso**,
+      que es lo único que la hacía visible
+- [x] `Down()` revierte **solo la etiqueta**: restaurar el acceso reintroduciría el defecto
+- [x] Verificado en local: migración aplicada · menú vivo con la etiqueta nueva · **0 roles** lo ven ·
+      el menú 43 de pollo engorde **intacto** (4 roles) · re-correr el `Up()` da UPDATE 0 / DELETE 0
+
+## Mapeo de F4 (los módulos que faltan)
+- [x] Documento: [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)
+- [x] **Nivel 1 (hoja):** gastos de inventario — mejor candidato, sin bloqueantes nuevos
+- [x] **Nivel 2 (mueven stock):** gestión de inventario, inventario de aves — bloqueados por el
+      **emisor de `requiere_cuadre`** (hoy modelado y sin emisor)
+- [x] **Nivel 3 (dos lados):** movimiento de aves, pollo engorde, traslados, huevos, ventas —
+      bloqueados por el **grafo `client_entity_id`**
+- [x] Prerrequisitos transversales listados con su porqué: **B1** (el más urgente), A4, B8, B10, B5/B6
+- [x] Patrón de implementación a copiar, en 7 pasos, con los sitios de transacción ya contados
+
+---
+
+# PWA — validación de estado y brecha real para salir a producción
+
+**Fecha:** 2026-08-12 · **Tipo:** auditoría de cierre (no se escribió código funcional)
+**Método:** todo lo de este bloque está **medido** — build, tests, `curl` contra el ALB y logs de
+GitHub Actions. Nada se tomó del tracker sin verificarlo contra el código.
+
+## 1. Lo que está construido y verde (medido hoy)
+
+- [x] **Build del front**: `yarn build` con Node 22.23.1 → **0 errores**. Emite `ngsw.json`,
+      `manifest.webmanifest`, `ngsw-worker.js` y `safety-worker.js`
+- [x] **Bundle inicial: 2.00 MB contra un techo de error de 2.05 MB** ⇒ quedan **~50 kB**. El único
+      warning es el de budget preexistente (1.5 MB de warning, 501 kB por encima)
+- [x] **Tests del front**: `yarn test --watch=false --browsers=ChromeHeadless` → **288 verdes / 288**
+- [x] **Tests del backend**: `dotnet test` (Application.Tests) → **2278 verdes / 2278**
+- [x] **F1 shell**: SW registrado con `registerWhenStable:30000` y `enabled: !isDevMode()`;
+      `PwaBarraEstadoComponent` montado en `app.component.html` con los 3 avisos y prioridad definida
+- [x] **F2 consulta offline**: `verificar-lista-cacheable.js` → **79 endpoints, 50 cacheables, 29
+      excluidos a propósito, 0 sin decisión**. El agujero de 23/78 de F2 está cerrado
+- [x] **F3 captura offline**: los **4** tipos despachan (`levante`, `produccion`, `engorde`,
+      `reproductora_engorde`); las **5** pantallas que guardan muestran el toast de pendiente
+      (levante tiene 2 caminos). Idempotencia por `ux_sync_operaciones_client_op_id` en BD
+- [x] **El envío automático SÍ está cableado**: `provideAppInitializer` instancia `SyncService` con
+      `import()` diferido ⇒ el `effect` de reconexión queda registrado en el arranque. (Se sospechó lo
+      contrario porque la barra lo carga lazy; **es falso**, verificado en `app.config.ts:83-88`)
+- [x] **La cola sobrevive a la purga y al logout**: `purgarParticion`/`purgarTodo` tocan **solo**
+      `STORE_CONSULTAS`; `STORE_OUTBOX` no se toca nunca
+- [x] **D6 (mitad de datos)** y la persistencia de cuota, implementados y con tests
+
+## 2. 🔴 El hallazgo que corrige el modelo del tracker
+
+El tracker decía «la PWA sigue sin desplegarse». Es cierto, pero **incompleto**, y la diferencia
+importa. Del run **31546059845** (merge del PR #66, 11-ago 23:19), medido con `gh run view`:
+
+| Job | Resultado |
+|---|---|
+| Tests — Backend & Frontend | ✅ |
+| **Backend — Build & Deploy** | ✅ **desplegado** (6m28s) |
+| **Frontend — Build & Deploy** | ❌ **cortó en «Validar nginx y política de caché del borde»**, antes del push a ECR |
+
+Las dos únicas fallas del gate fueron, textual: `FALLA ngsw.json ausente -> 404` y
+`FALLA manifest.webmanifest aus. -> 404`. Todo el resto del borde (CSP, HSTS, immutable, no-cache,
+reCAPTCHA) pasó.
+
+⇒ **Prod corre hoy un frontend del 07-ago contra un backend del 11-ago.** Confirmado con `curl`:
+`/version.json` = `2026-08-07T12:47:50.194Z`; `ngsw.json`, `manifest.webmanifest` y `ngsw-worker.js`
+siguen en **404**. No es solo la PWA la que está detenida: **12 commits que tocan `frontend/`** ya
+están en `main-produccion` sin llegar al navegador (F1, F2, alistamiento, los flags de empresa, la
+programación de lotes sin `isPanama()`, el gasto contra lote programado).
+
+- [x] `nginx.conf` **ya tiene** los `location =` de `ngsw.json`, `ngsw-worker.js`, `safety-worker.js`
+      y `manifest.webmanifest` con `no-cache` y `application/manifest+json` ⇒ el bloque **C4** que
+      agrega `6f410db` debería pasar. El gate corregido no va a rebotar por esto
+
+## 3. 🔴 Riesgo #1: los 18 commits viven SOLO en este disco
+
+`origin/main` está en `df72b08`; el working tree en `6980fa3`. **18 commits sin pushear**, de los
+cuales 6 tocan el front. Ahí están **F3 completo** (las 4 capturas offline), `company_permissions` y
+**el fix del gate que desbloquea el deploy del front**. Un disco que se rompe hoy se lleva la fase 3
+entera. Esto es más urgente que desplegar.
+
+## 4. Camino mínimo para que salga a funcionar
+
+1. [ ] **`git push origin main`** — deja de haber un único punto de falla
+2. [ ] **Merge `main` → `main-produccion`** (dispara el deploy). Arrastra **5 migraciones** que se
+       aplican solas (`RunMigrations=true`); las 5 son idempotentes (`IF NOT EXISTS` /
+       `WHERE NOT EXISTS` / `IS DISTINCT FROM`), verificado archivo por archivo
+3. [ ] **Verificación post-deploy obligatoria** (ECS revierte en silencio):
+       TaskDef ↔ imagen ↔ `/version.json` con `buildId` posterior al run, y `ngsw.json` → **200**
+4. [ ] **Invariante de `company_permissions`**: correr la consulta de los permisos efectivos por
+       usuario **antes y después** del deploy; el diff debe ser vacío. Es lo único de este lote que
+       puede dejar gente sin acceso, y el gate de escritura ya rechaza con 400
+5. [ ] **Avisar del menú**: `OcultarMenuLoteReproductoraPostura` **quita** «Lote Reproductora» a todos
+       los roles que lo tuvieran en prod. Es intencional (cargaba levante), pero se nota en el sidebar
+6. [ ] **Instalar en un Android real y hacer el smoke con la red cortada.** Nada de F1/F2/F3 se probó
+       nunca fuera de local: F3 se validó **por HTTP**, no abriendo el formulario sin señal
+
+## 5. Lo que falta para que funcione BIEN en campo (no bloquea el deploy)
+
+- [ ] 🔴 **Un solo usuario por dispositivo.** `auth_session` es clave única en `localStorage`: dos
+      operarios turnándose en la misma tablet ⇒ el segundo no entra sin red. Exige sesiones
+      multi-slot
+- [ ] 🔴 **Alistamiento con red, por usuario y por dispositivo**: instalar, entrar una vez (login y
+      reCAPTCHA exigen red) y **visitar las pantallas** que se van a usar, o la caché está vacía
+- [ ] 🟠 **La bandeja de rechazos no muestra el payload.** `/diagnostico` lista tipo, fecha, empresa,
+      intentos y motivo — pero no lo capturado, y la única acción es **Descartar**. Un rechazo hoy
+      obliga al operario a acordarse de memoria de lo que cargó
+- [ ] 🟠 `/diagnostico` **no está en ningún menú**: se llega por el aviso de la barra o por el atajo
+      del manifest (solo si la app está instalada)
+- [ ] 🟠 `verificar-lista-cacheable.js` **no está atado ni al Dockerfile ni al CI** (a diferencia de
+      `verificar-ngsw.js`): la lista blanca de F2 puede desincronizarse sin que nada falle
+- [ ] 🟠 **50 kB de aire en el bundle**: cualquier import eager nuevo rompe el build de prod
+
+## 6. Deuda conocida que viaja con esto (ya documentada, sigue abierta)
+
+- [ ] **B1** revocación de sesión (`jti` + `sesiones_activas` + refresh) — el más urgente: una tablet
+      perdida no se puede revocar y la jornada offline dura 16 h
+- [ ] **B8** rotar las 4 llaves de `environment.prod.ts` · **B10** super admin por email → a datos ·
+      **A4** self-heal al patrón aplicador · **B5/B6** fuera del camino de sync
+- [ ] **F4**: todo lo que no sean las 4 capturas diarias **se consulta pero no se guarda** sin red
+      (inventario, movimientos, traslados, huevos, ventas). Mapeado en
+      [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)

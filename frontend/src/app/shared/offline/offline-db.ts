@@ -1,8 +1,19 @@
 import type { EntradaCache } from './models/offline.model';
+import type { EstadoOperacionLocal, OperacionPendiente } from './models/outbox.model';
 
 export const NOMBRE_BD = 'italgranja-offline';
-export const VERSION_BD = 1;
+export const VERSION_BD = 2;
 export const STORE_CONSULTAS = 'consultas';
+
+/**
+ * Cola de capturas hechas sin red (F3).
+ *
+ * 🔴 **Vive en la misma base que `consultas` pero NO se purga con ella.** La caché de consultas es
+ * reconstruible —se vuelve a pedir al servidor— y se borra en logout y al cambiar de empresa. La
+ * cola no: son capturas que **el servidor nunca vio**. Borrarlas es perder trabajo de campo que no
+ * existe en ningún otro lado. Es la misma razón por la que el kill switch nunca toca IndexedDB.
+ */
+export const STORE_OUTBOX = 'outbox';
 
 /**
  * Pasos de migración del esquema, **uno por versión**.
@@ -25,6 +36,13 @@ export const PASOS_MIGRACION: Record<number, (db: IDBDatabase) => void> = {
     // cambio de empresa, sin recorrer la base entera.
     store.createIndex('por_particion', 'particion', { unique: false });
     store.createIndex('por_fecha', 'guardadoEn', { unique: false });
+  },
+  2: db => {
+    // La clave es el `clientOpId`, el mismo uuid que viaja al servidor: encolar dos veces la misma
+    // operación la sobrescribe en vez de duplicarla, igual que del lado del servidor.
+    const store = db.createObjectStore(STORE_OUTBOX, { keyPath: 'clientOpId' });
+    store.createIndex('por_particion', 'particion', { unique: false });
+    store.createIndex('por_estado', 'estado', { unique: false });
   }
 };
 
@@ -120,7 +138,13 @@ export async function purgarParticion(db: IDBDatabase, particion: string): Promi
   return claves.length;
 }
 
-/** Borra TODA la caché. Se usa en logout: el dispositivo puede cambiar de manos. */
+/**
+ * Borra TODA la caché de **consultas**. Se usa en logout: el dispositivo puede cambiar de manos.
+ *
+ * 🔴 **No toca `outbox` a propósito.** Lo cacheado se puede volver a pedir; una captura encolada no
+ * existe en ningún otro lado. Si esto llegara a limpiar la cola, un galponero que cierra sesión al
+ * final de la jornada perdería el día entero sin un solo mensaje de error.
+ */
 export async function purgarTodo(db: IDBDatabase): Promise<void> {
   const tx = db.transaction(STORE_CONSULTAS, 'readwrite');
   await pedir(tx.objectStore(STORE_CONSULTAS).clear());
@@ -134,4 +158,49 @@ export async function contarEntradas(db: IDBDatabase): Promise<number> {
 export async function leerTodas(db: IDBDatabase): Promise<EntradaCache[]> {
   const tx = db.transaction(STORE_CONSULTAS, 'readonly');
   return (await pedir<EntradaCache[]>(tx.objectStore(STORE_CONSULTAS).getAll() as IDBRequest<EntradaCache[]>)) ?? [];
+}
+
+// ── Outbox (F3) ──────────────────────────────────────────────────────────────────────────────────
+
+/** Encola (o reemplaza, si ya existía ese `clientOpId`) una operación. */
+export async function guardarOperacion(db: IDBDatabase, operacion: OperacionPendiente): Promise<void> {
+  const tx = db.transaction(STORE_OUTBOX, 'readwrite');
+  await pedir(tx.objectStore(STORE_OUTBOX).put(operacion));
+}
+
+/** Todas las operaciones de una partición, más viejas primero (se envían en el orden en que se capturaron). */
+export async function leerOperaciones(db: IDBDatabase, particion: string): Promise<OperacionPendiente[]> {
+  const tx = db.transaction(STORE_OUTBOX, 'readonly');
+  const indice = tx.objectStore(STORE_OUTBOX).index('por_particion');
+  const filas = await pedir<OperacionPendiente[]>(
+    indice.getAll(IDBKeyRange.only(particion)) as IDBRequest<OperacionPendiente[]>
+  );
+  return (filas ?? []).sort((a, b) => a.creadoEn - b.creadoEn);
+}
+
+/** Toda la cola, sin filtrar por partición. Para el contador global y el diagnóstico. */
+export async function leerTodasLasOperaciones(db: IDBDatabase): Promise<OperacionPendiente[]> {
+  const tx = db.transaction(STORE_OUTBOX, 'readonly');
+  const filas = await pedir<OperacionPendiente[]>(
+    tx.objectStore(STORE_OUTBOX).getAll() as IDBRequest<OperacionPendiente[]>
+  );
+  return (filas ?? []).sort((a, b) => a.creadoEn - b.creadoEn);
+}
+
+/**
+ * Saca una operación de la cola. Se llama **solo** cuando el servidor confirmó que la aplicó, o
+ * cuando una persona la descartó explícitamente desde la bandeja.
+ */
+export async function borrarOperacion(db: IDBDatabase, clientOpId: string): Promise<void> {
+  const tx = db.transaction(STORE_OUTBOX, 'readwrite');
+  await pedir(tx.objectStore(STORE_OUTBOX).delete(clientOpId));
+}
+
+export async function contarOperaciones(db: IDBDatabase, estado?: EstadoOperacionLocal): Promise<number> {
+  const tx = db.transaction(STORE_OUTBOX, 'readonly');
+  const store = tx.objectStore(STORE_OUTBOX);
+  const req = estado
+    ? store.index('por_estado').count(IDBKeyRange.only(estado))
+    : store.count();
+  return (await pedir<number>(req)) ?? 0;
 }

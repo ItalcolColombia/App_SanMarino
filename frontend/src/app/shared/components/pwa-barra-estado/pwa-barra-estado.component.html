@@ -13,11 +13,46 @@
           <!-- Decir de CUÁNDO es el dato, no solo que está guardado: "hace 3 h" cambia
                qué decisiones el operario considera seguras. -->
           <strong>Sin conexión.</strong>
-          Estás viendo la última consulta guardada ({{ antiguedadCache() }}). Para guardar necesitás señal.
+          Estás viendo la última consulta guardada ({{ antiguedadCache() }}).
         } @else {
           <strong>Sin conexión.</strong>
-          Podés seguir consultando lo que ya está cargado; para guardar necesitás señal.
+          Podés seguir consultando lo que ya está cargado.
         }
+
+        <!-- Lo que el operario necesita saber cuando acaba de registrar algo: que su captura existe.
+             La tabla no la puede mostrar (la sirve la caché, que todavía no la tiene), así que este
+             conteo es su única señal hasta que vuelva la señal de red. -->
+        @if (totalSinEnviar > 0) {
+          <strong data-testid="pwa-pendientes-offline">
+            Tenés {{ totalSinEnviar }} captura(s) guardadas en este dispositivo.
+          </strong>
+          Se envían solas al volver la señal —
+          <a href="/diagnostico" class="pwa-enlace">verlas</a>.
+        }
+      </span>
+    </div>
+  }
+
+  <!-- 1.b) Con red, pero todavía hay cola -->
+  @if (mostrarPendientes) {
+    <div class="pwa-aviso pwa-aviso--pendientes" data-testid="pwa-pendientes">
+      <span class="pwa-texto">
+        <strong>{{ totalSinEnviar }} captura(s) sin enviar.</strong>
+        Están guardadas en este dispositivo.
+        @if (rechazadas() > 0) {
+          {{ rechazadas() }} necesita(n) tu revisión.
+        }
+      </span>
+      <span class="pwa-acciones">
+        <a href="/diagnostico" class="pwa-btn pwa-btn--fantasma">Ver</a>
+        <button
+          type="button"
+          class="pwa-btn pwa-btn--primario"
+          [disabled]="enviando"
+          (click)="enviarAhora()"
+        >
+          {{ enviando ? 'Enviando…' : 'Enviar ahora' }}
+        </button>
       </span>
     </div>
   }

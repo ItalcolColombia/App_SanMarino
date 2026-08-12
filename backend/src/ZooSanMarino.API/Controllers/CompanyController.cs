@@ -12,12 +12,18 @@ public class CompanyController : ControllerBase
 {
     private readonly ICompanyService _svc;
     private readonly ICompanyMenuService _companyMenuSvc;
+    private readonly ICompanyPermissionService _companyPermissionSvc;
     private readonly ICurrentUser _currentUser;
 
-    public CompanyController(ICompanyService svc, ICompanyMenuService companyMenuSvc, ICurrentUser currentUser)
+    public CompanyController(
+        ICompanyService svc,
+        ICompanyMenuService companyMenuSvc,
+        ICompanyPermissionService companyPermissionSvc,
+        ICurrentUser currentUser)
     {
         _svc = svc;
         _companyMenuSvc = companyMenuSvc;
+        _companyPermissionSvc = companyPermissionSvc;
         _currentUser = currentUser;
     }
 
@@ -95,6 +101,30 @@ public class CompanyController : ControllerBase
     {
         if (request == null) return BadRequest();
         await _companyMenuSvc.SetCompanyMenusAsync(id, request);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Catálogo COMPLETO de permisos con el estado (habilitado / no) para esta empresa y cuántos
+    /// roles suyos ya usan cada uno.
+    /// </summary>
+    [HttpGet("{id:int}/permissions")]
+    public async Task<IActionResult> GetCompanyPermissions(int id)
+    {
+        var permisos = await _companyPermissionSvc.GetPermissionsForCompanyAsync(id);
+        return Ok(permisos);
+    }
+
+    /// <summary>
+    /// Fija los permisos habilitados de la empresa. Lo desmarcado se apaga, NO se borra de los roles
+    /// que ya lo tenían: esas asignaciones quedan huérfanas (no se ofrecen ni viajan en el login) y
+    /// la UI de roles las muestra para que el admin las limpie a conciencia.
+    /// </summary>
+    [HttpPut("{id:int}/permissions")]
+    public async Task<IActionResult> SetCompanyPermissions(int id, [FromBody] SetCompanyPermissionsRequest request)
+    {
+        if (request == null) return BadRequest();
+        await _companyPermissionSvc.SetPermissionsForCompanyAsync(id, request);
         return NoContent();
     }
 

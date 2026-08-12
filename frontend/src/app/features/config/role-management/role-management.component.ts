@@ -58,6 +58,13 @@ import {
   UpdateCompanyMenuStructureRequest
 } from '../../../core/services/company-menu/company-menu.service';
 
+import {
+  CompanyPermissionService,
+  CompanyPermissionItem
+} from '../../../core/services/company-permission/company-permission.service';
+
+import { resolverPermisosAsignables } from './funciones/filtrar-permisos-empresa.funcion';
+
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { TicketPerfilEditorComponent } from '../../tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
 import { TicketPerfilService } from '../../tickets/services/ticket-perfil.service';
@@ -68,6 +75,7 @@ import {
   catchError,
   finalize,
   forkJoin,
+  map,
   of,
   switchMap,
   takeUntil,
@@ -142,6 +150,20 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   roleModalMenusLoading = false;
   roleModalMenusCompanyId: number | null = null;
 
+  // Permisos filtrados por empresa (modal Rol): company_permissions manda — un permiso que la
+  // empresa no habilita ni se ofrece acá ni llega a la sesión del usuario.
+  /** Catálogo ya filtrado que se ofrece en el tab Permisos. Campo, no getter (referencia estable). */
+  roleModalPerms: Permission[] = [];
+  /** Permisos que el rol tiene asignados pero su empresa ya no habilita (aviso, no se borran solos). */
+  roleModalPermsHuerfanas: string[] = [];
+  /** Empresas seleccionadas sin configuración de permisos: aportan cero (fail-closed). */
+  roleModalPermsEmpresasSinConfigurar: string[] = [];
+  roleModalPermsLoading = false;
+  /** Clave de caché: ids de empresa ya resueltos, para no repetir las llamadas. */
+  private roleModalPermsCompanyKey = '';
+  /** Keys habilitadas por empresa, cacheadas mientras dure la pantalla. */
+  private permisosPorEmpresa = new Map<number, string[]>();
+
   // UI state
   loading = false;
   isAdminUser = false;
@@ -205,6 +227,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     private permSvc: PermissionService,
     private menuSvc: MenuService,
     private companyMenuSvc: CompanyMenuService,
+    private companyPermissionSvc: CompanyPermissionService,
     private sidebarMenuSvc: SidebarMenuService,
     private authService: AuthService,
     private ticketPerfilSvc: TicketPerfilService,
@@ -254,6 +277,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       ?.pipe(takeUntil(this.destroy$))
       ?.subscribe((companyIds: number[]) => {
         this.loadRoleModalMenusByCompany(companyIds);
+        this.loadRoleModalPermsByCompany(companyIds);
       });
 
     this.page$
@@ -321,6 +345,8 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         next: (list) => {
           this.permissions = (list ?? []).map(p => ({ ...p, key: (p.key || '').toLowerCase() }));
           this.syncRoleFormPermissions();
+          // El catálogo puede llegar después de que se eligió la empresa: recalcular lo asignable.
+          this.recomputarPermisosAsignables();
         },
         error: () => this.toast.error('No se pudieron cargar los permisos.')
       });
@@ -641,6 +667,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       this.roleModalMenusCompanyId = null;
       if (defaultCompanyIds.length > 0) {
         this.loadRoleModalMenusByCompany(defaultCompanyIds);
+        this.loadRoleModalPermsByCompany(defaultCompanyIds);
       }
     }
     this.roleModalTab = 'general';
@@ -696,6 +723,84 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       });
   }
 
+  /**
+   * Carga los permisos que las empresas seleccionadas habilitan y recalcula lo asignable.
+   *
+   * Es FAIL-CLOSED: si una empresa no responde o no tiene configuración, no aporta permisos y la
+   * intersección se vacía — se avisa en pantalla en vez de ofrecer el catálogo completo.
+   */
+  loadRoleModalPermsByCompany(companyIds: number[]) {
+    const ids = Array.from(new Set(companyIds ?? [])).sort((a, b) => a - b);
+    const key = ids.join(',');
+    if (key === this.roleModalPermsCompanyKey) return;
+    this.roleModalPermsCompanyKey = key;
+
+    if (!ids.length) {
+      this.roleModalPerms = [];
+      this.roleModalPermsHuerfanas = [];
+      this.roleModalPermsEmpresasSinConfigurar = [];
+      return;
+    }
+
+    const faltantes = ids.filter(id => !this.permisosPorEmpresa.has(id));
+    if (!faltantes.length) {
+      this.recomputarPermisosAsignables(ids);
+      return;
+    }
+
+    this.roleModalPermsLoading = true;
+    forkJoin(
+      faltantes.map(id =>
+        this.companyPermissionSvc.getPermissionsForCompany(id).pipe(
+          map(items => ({ id, items: items ?? [] })),
+          catchError(() => of({ id, items: null as CompanyPermissionItem[] | null }))
+        )
+      )
+    )
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => (this.roleModalPermsLoading = false))
+      )
+      .subscribe(resultados => {
+        let huboError = false;
+        for (const { id, items } of resultados) {
+          if (items === null) { huboError = true; continue; } // sin cachear ⇒ aporta cero
+          this.permisosPorEmpresa.set(
+            id,
+            items.filter(p => p.isEnabled).map(p => (p.key || '').toLowerCase())
+          );
+        }
+        if (huboError) {
+          this.toast.error('No se pudieron cargar los permisos de alguna empresa.');
+        }
+        this.recomputarPermisosAsignables(ids);
+      });
+  }
+
+  /** Aplica las reglas (fail-closed + intersección) sobre el catálogo global ya cargado. */
+  private recomputarPermisosAsignables(companyIds?: number[]) {
+    const ids = companyIds ?? (this.form?.controls['companyIds']?.value as number[] | undefined) ?? [];
+    const yaAsignadas = (this.form?.controls['permissions']?.value as string[] | undefined) ?? [];
+
+    const habilitadasPorEmpresa = new Map<number, string[]>();
+    for (const id of ids) {
+      const keys = this.permisosPorEmpresa.get(id);
+      if (keys) habilitadasPorEmpresa.set(id, keys);
+    }
+
+    const resultado = resolverPermisosAsignables(
+      this.permissions,
+      habilitadasPorEmpresa,
+      ids,
+      yaAsignadas
+    );
+
+    this.roleModalPerms = resultado.asignables;
+    this.roleModalPermsHuerfanas = resultado.huerfanas;
+    this.roleModalPermsEmpresasSinConfigurar = resultado.empresasSinConfigurar
+      .map(id => this.companiesMap[id] || `#${id}`);
+  }
+
   closeModal() {
     this.modalOpen = false;
   }
@@ -705,6 +810,8 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     const control = this.form.controls['permissions'];
     const current = control.value as string[];
     control.setValue(current.includes(key) ? current.filter(p => p !== key) : [...current, key]);
+    // Quitar un huérfano tiene que sacarlo del aviso en el acto.
+    this.recomputarPermisosAsignables();
   }
 
   toggleCompany(cid: number) {

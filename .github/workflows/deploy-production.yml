@@ -348,10 +348,15 @@ jobs:
           echo "== C2: recursos no navegables inexistentes -> 404, NUNCA index.html =="
           # Antes del arreglo estos devolvían 200 con Content-Type text/html y el cuerpo
           # del index; un Service Worker recibe HTML donde espera JSON y se desactiva solo.
-          check "chunk-inexistente.js -> 404"      "$H/chunk-inexistente.js"    "^HTTP/[0-9.]+ 404"
-          check "ngsw.json ausente -> 404"         "$H/ngsw.json"               "^HTTP/[0-9.]+ 404"
-          check "manifest.webmanifest aus. -> 404" "$H/manifest.webmanifest"    "^HTTP/[0-9.]+ 404"
-          check "ruta del SPA -> 200"              "$H/lotes/detalle/9"         "^HTTP/[0-9.]+ 200"
+          # Las rutas son inexistentes A PROPÓSITO y tienen que seguir siéndolo: hasta el
+          # 2026-08-09 acá se pedía 404 de `ngsw.json` y `manifest.webmanifest`, que en ese
+          # momento el build no emitía. Desde que la app es PWA (8ecb7c6) los emite, empezaron
+          # a responder 200 y el gate frenó todos los deploys del front. El invariante que este
+          # bloque cuida es el de la extensión, no el de esos dos archivos: van más abajo, en C4.
+          check "chunk-inexistente.js -> 404"      "$H/chunk-inexistente.js"        "^HTTP/[0-9.]+ 404"
+          check ".json inexistente -> 404"         "$H/no-existe-1234.json"         "^HTTP/[0-9.]+ 404"
+          check ".webmanifest inexistente -> 404"  "$H/no-existe-1234.webmanifest"  "^HTTP/[0-9.]+ 404"
+          check "ruta del SPA -> 200"              "$H/lotes/detalle/9"             "^HTTP/[0-9.]+ 200"
 
           echo "== C3: archivos de control con no-cache =="
           check "version.json -> no-cache"         "$H/version.json"            "^Cache-Control:.*no-cache"
@@ -361,6 +366,26 @@ jobs:
           JS=$(curl -s "$H/" | grep -oE 'src="[^"]+\.js"' | head -1 | sed 's/src="//;s/"//')
           echo "  (asset de referencia: ${JS:-ninguno})"
           [ -n "$JS" ] && check "$JS -> immutable"  "$H/$JS"                    "^Cache-Control:.*immutable"
+
+          echo "== C4: los archivos de control del Service Worker se publican y NO se cachean =="
+          # La otra mitad de C2: lo que la PWA necesita servido, servido bien.
+          # `verificar-ngsw.js` (dentro del Dockerfile) comprueba el CONTENIDO del build;
+          # esto comprueba cómo lo sirve nginx, que es otra cosa y falla distinto:
+          #  - Content-Type text/html en vez de JSON => el SW no puede validar el manifiesto
+          #    y arranca en safe mode, en silencio: se despliega bien y no anda sin red.
+          #  - `ngsw-worker.js`/`safety-worker.js` cayendo en la regla `immutable` de assets
+          #    (bloque 2 de nginx.conf) => el navegador se queda un año con el worker viejo
+          #    y el kill switch queda inservible el día que haga falta.
+          check "ngsw.json -> 200"                  "$H/ngsw.json"              "^HTTP/[0-9.]+ 200"
+          check "ngsw.json -> application/json"     "$H/ngsw.json"              "^Content-Type:.*application/json"
+          check "ngsw.json -> no-cache"             "$H/ngsw.json"              "^Cache-Control:.*no-cache"
+          check "ngsw-worker.js -> 200"             "$H/ngsw-worker.js"         "^HTTP/[0-9.]+ 200"
+          check "ngsw-worker.js -> no-cache"        "$H/ngsw-worker.js"         "^Cache-Control:.*no-cache"
+          check "safety-worker.js -> 200"           "$H/safety-worker.js"       "^HTTP/[0-9.]+ 200"
+          check "safety-worker.js -> no-cache"      "$H/safety-worker.js"       "^Cache-Control:.*no-cache"
+          check "manifest.webmanifest -> 200"       "$H/manifest.webmanifest"   "^HTTP/[0-9.]+ 200"
+          check "manifest -> manifest+json"         "$H/manifest.webmanifest"   "^Content-Type:.*application/manifest\+json"
+          check "manifest.webmanifest -> no-cache"  "$H/manifest.webmanifest"   "^Cache-Control:.*no-cache"
 
           echo "== C5: CSP y HSTS en TODAS las respuestas =="
           check "/ -> CSP"                          "$H/"                       "^Content-Security-Policy:"

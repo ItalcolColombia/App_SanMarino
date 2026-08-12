@@ -15,6 +15,8 @@ import {
 } from '../../services/seguimiento-lote-levante.service';
 
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
+import { ToastService } from '../../../../shared/services/toast.service';
+import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 
 @Component({
   selector: 'app-seguimiento-lote-levante-form',
@@ -43,7 +45,8 @@ export class SeguimientoLoteLevanteFormComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private segSvc: SeguimientoLoteLevanteService,
-    private loteSvc: LoteService
+    private loteSvc: LoteService,
+    private toast: ToastService
   ) {}
 
   get isEdit(): boolean {
@@ -151,7 +154,14 @@ export class SeguimientoLoteLevanteFormComponent implements OnInit {
 
     op$
       .pipe(finalize(() => (this.loading = false)))
-      .subscribe(() => this.router.navigate(['/lote-levante']));
+      .subscribe(respuesta => {
+        // Sin red la captura quedó encolada y el servidor todavía no la vio: hay que decirlo antes
+        // de volver al listado, que no la va a mostrar.
+        if (esRespuestaPendiente(respuesta)) {
+          this.toast.info(MENSAJE_GUARDADO_SIN_RED);
+        }
+        this.router.navigate(['/lote-levante']);
+      });
   }
 
   cancel(): void {

@@ -776,8 +776,17 @@ MODAL: ROL (crear / editar)
                 <legend class="rm-fieldset__legend">
                   Permisos <span class="rm-form-required">*</span>
                 </legend>
+                @if (roleModalPermsLoading) {
+                  <p class="rm-fieldset__hint">Cargando permisos de la empresa…</p>
+                }
+                @if (roleModalPermsEmpresasSinConfigurar.length) {
+                  <p class="rm-fieldset__hint rm-fieldset__hint--warn">
+                    Sin permisos configurados para: {{ roleModalPermsEmpresasSinConfigurar.join(', ') }}.
+                    Configúralos en Empresas → Permisos de la empresa.
+                  </p>
+                }
                 <div class="rm-fieldset__body rm-fieldset__body--grid3">
-                  @for (perm of permissions; track perm) {
+                  @for (perm of roleModalPerms; track perm.id) {
                     <label class="rm-check-item">
                       <input type="checkbox"
                         [checked]="form.controls['permissions'].value.includes((perm.key || '').toLowerCase())"
@@ -792,6 +801,32 @@ MODAL: ROL (crear / editar)
                       </label>
                     }
                   </div>
+                  @if (!roleModalPerms.length && !roleModalPermsLoading) {
+                    <p class="rm-fieldset__hint">
+                      Ningún permiso disponible. Selecciona primero la empresa del rol (paso 3); si el
+                      rol es de varias empresas, solo se ofrecen los permisos que todas habilitan.
+                    </p>
+                  }
+                  @if (roleModalPermsHuerfanas.length) {
+                    <div class="rm-fieldset__body">
+                      <p class="rm-fieldset__hint rm-fieldset__hint--warn">
+                        Este rol tiene permisos que su empresa ya no habilita. No están activos: no se
+                        aplican al usuario. Desmárcalos para limpiarlos.
+                      </p>
+                      @for (key of roleModalPermsHuerfanas; track key) {
+                        <label class="rm-check-item rm-check-item--orphan">
+                          <input type="checkbox"
+                            [checked]="true"
+                            (change)="togglePermission(key)"
+                            class="rm-check" />
+                          <span class="rm-check-item__text">
+                            <span class="rm-check-item__key">{{ key }}</span>
+                            <small class="rm-check-item__desc">No habilitado en la empresa</small>
+                          </span>
+                        </label>
+                      }
+                    </div>
+                  }
                   <p class="rm-fieldset__hint">Selecciona uno o más permisos para este rol.</p>
                 </fieldset>
               }

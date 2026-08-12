@@ -85,6 +85,11 @@ public partial class CompanyService
         _ctx.Companies.Add(c);
         await _ctx.SaveChangesAsync();
 
+        // La empresa nueva nace con TODO el catálogo de permisos habilitado (regla R4 de
+        // company_permissions): el filtro por empresa es fail-closed, así que sin esta siembra no se
+        // podría asignar ningún permiso al primer rol de la empresa.
+        await _companyPermissionService.SembrarCatalogoCompletoSiVaciaAsync(c.Id);
+
         if (CompanyCalculos.TryExtractLogo(dto.LogoDataUrl, out var bytes, out var contentType, out var clear)
             && !clear && bytes != null)
         {
