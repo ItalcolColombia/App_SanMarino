@@ -3819,4 +3819,4 @@ nunca llega a ECR. El backend de ese mismo run sí desplegó.
       levanta en esta máquina (`com.docker.service` detenido y su arranque requiere elevación).
       Pendiente si se quiere la prueba end-to-end antes de re-desplegar
 - [x] Servidor de prueba detenido (puerto 4400 libre); sin procesos huérfanos
-- [ ] Commit acotado (sin footer de atribución)
+- [x] Commit acotado (`6f410db`) (sin footer de atribución)
