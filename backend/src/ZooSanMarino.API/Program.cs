@@ -250,6 +250,8 @@ builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService
 builder.Services.AddScoped<IImplementacionService, ImplementacionService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
+// Push de capturas offline (PWA F3).
+builder.Services.AddScoped<ISyncPushService, SyncPushService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeEcuadorService, SeguimientoAvesEngordeEcuadorService>();

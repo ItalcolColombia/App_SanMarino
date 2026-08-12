@@ -6,6 +6,9 @@ import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { CacheConsultasService } from './cache-consultas.service';
 import { decidirCacheOffline } from './funciones/decidir-cache-offline.funcion';
 import { decidirCacheable } from './funciones/decidir-cacheable.funcion';
+import { decidirEncolable } from './funciones/decidir-encolable.funcion';
+import { OutboxService } from './outbox.service';
+import { ES_PUSH_DE_SYNC } from './sync-context';
 import type { IdentidadParticion } from './models/offline.model';
 
 /**
@@ -37,10 +40,7 @@ const purgadasPorNoElegible = new Set<string>();
 export const offlineCacheInterceptor: HttpInterceptorFn = (req, next): Observable<HttpEvent<unknown>> => {
   const cache = inject(CacheConsultasService);
   const storage = inject(TokenStorageService);
-
-  if (!decidirCacheable(req.method, req.url)) {
-    return next(req);
-  }
+  const outbox = inject(OutboxService);
 
   const sesion = storage.get();
   const identidad: IdentidadParticion = {
@@ -51,6 +51,16 @@ export const offlineCacheInterceptor: HttpInterceptorFn = (req, next): Observabl
     companyId: sesion?.activeCompanyId ?? null,
     paisId: sesion?.activePaisId ?? null
   };
+
+  // ── Captura offline (F3) ───────────────────────────────────────────────────────────────────
+  // El push del propio sync se excluye: si fallara por falta de red, se encolaría a sí mismo.
+  if (!req.context.get(ES_PUSH_DE_SYNC) && decidirEncolable(req.method, req.url, identidad)) {
+    return encolarSiNoHayRed(req.method, req.urlWithParams, req.body, outbox, identidad, next(req));
+  }
+
+  if (!decidirCacheable(req.method, req.url)) {
+    return next(req);
+  }
 
   // D6: las cuentas con alcance global o multiempresa no acumulan datos en el dispositivo. La
   // partición evita que una sesión lea lo de otra, pero no que el mismo equipo junte lo de todas
@@ -102,3 +112,59 @@ export const offlineCacheInterceptor: HttpInterceptorFn = (req, next): Observabl
     })
   );
 };
+
+/**
+ * Red primero, cola solo ante `status === 0`.
+ *
+ * ## Por qué esta rama NO pasa por el gate D6
+ *
+ * `decidirCacheOffline` bloquea la caché de **lectura** para super admin y cuentas multiempresa:
+ * protege contra un dispositivo perdido con el snapshot de la operación completa. La cola es otra
+ * cosa — son capturas propias que el servidor **nunca vio**. Bloquearla no protege ningún snapshot:
+ * destruye trabajo de campo. Dos amenazas distintas, dos respuestas distintas.
+ *
+ * ## La respuesta sintética tiene que notarse
+ *
+ * Se devuelve **202** (`Accepted`) con `__offlinePendiente: true`, no un 200 con el cuerpo que
+ * habría devuelto el servidor. Una pantalla que dice "guardado" a secas cuando la operación todavía
+ * está en la tablet es peor que un error: el galponero cierra la app convencido de que el dato salió.
+ *
+ * Y si el encolado **falla** (IndexedDB no disponible, cuota llena), se propaga el error de red
+ * original. Afirmar que se guardó sin haber guardado es el único resultado inaceptable de este módulo.
+ */
+function encolarSiNoHayRed(
+  metodo: string,
+  url: string,
+  cuerpo: unknown,
+  outbox: OutboxService,
+  identidad: IdentidadParticion,
+  peticion: Observable<HttpEvent<unknown>>
+): Observable<HttpEvent<unknown>> {
+  return peticion.pipe(
+    catchError((error: unknown) => {
+      const sinRed = error instanceof HttpErrorResponse && error.status === 0;
+      if (!sinRed) {
+        // Un 4xx/5xx no se encola: hay red y el backend tiene algo que decir. Encolarlo repetiría
+        // eternamente una operación que el servidor ya rechazó.
+        return throwError(() => error);
+      }
+
+      return from(outbox.encolar(identidad, metodo, url, cuerpo)).pipe(
+        switchMap(operacion => {
+          if (!operacion) {
+            return throwError(() => error);
+          }
+
+          return of(
+            new HttpResponse({
+              body: { __offlinePendiente: true, clientOpId: operacion.clientOpId },
+              status: 202,
+              statusText: 'Accepted (guardado en el dispositivo, pendiente de enviar)',
+              url
+            })
+          );
+        })
+      );
+    })
+  );
+}

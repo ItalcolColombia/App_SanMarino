@@ -6,8 +6,12 @@ import { PwaActualizacionService } from '../../core/pwa/pwa-actualizacion.servic
 import { PwaInstalacionService } from '../../core/pwa/pwa-instalacion.service';
 import { AlmacenamientoPersistenteService } from '../../core/pwa/almacenamiento-persistente.service';
 import { CacheConsultasService } from '../../shared/offline/cache-consultas.service';
+import { OutboxService } from '../../shared/offline/outbox.service';
+import { SyncService } from '../../shared/offline/sync.service';
+import { ConfirmDialogService } from '../../shared/services/confirm-dialog.service';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import type { EstadoCacheOffline } from '../../shared/offline/models/offline.model';
+import type { OperacionPendiente } from '../../shared/offline/models/outbox.model';
 import { formatearBytes } from '../../core/pwa/funciones/formatear-bytes.funcion';
 import { resumirEstadoSw } from '../../core/pwa/funciones/resumir-estado-sw.funcion';
 import type { DiagnosticoPwa, EstadoSw } from '../../core/pwa/models/pwa.model';
@@ -48,6 +52,9 @@ export class DiagnosticoPageComponent implements OnInit {
   private readonly almacenamiento = inject(AlmacenamientoPersistenteService);
 
   private readonly cacheOffline = inject(CacheConsultasService);
+  private readonly outbox = inject(OutboxService);
+  private readonly sync = inject(SyncService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly storage = inject(TokenStorageService);
 
   cargando = true;
@@ -55,6 +62,12 @@ export class DiagnosticoPageComponent implements OnInit {
 
   /** Estado de la caché de consulta offline (F2). */
   cache: EstadoCacheOffline | null = null;
+
+  /** Capturas hechas sin red y todavía no confirmadas por el servidor (F3). */
+  pendientes: OperacionPendiente[] = [];
+  enviando = false;
+  mensajeEnvio = '';
+
   copiado = false;
   buscando = false;
   mensajeChequeo = '';
@@ -77,7 +90,43 @@ export class DiagnosticoPageComponent implements OnInit {
       paisId: s?.activePaisId ?? null
     });
 
+    // Toda la cola, no solo la de la partición activa: si el operario cambió de empresa, lo que
+    // quedó pendiente de la anterior tiene que seguir viéndose. Esconderlo sería la peor variante
+    // de "se perdió".
+    this.pendientes = await this.outbox.listarTodas();
+
     this.cargando = false;
+  }
+
+  /** Fuerza un envío desde la pantalla, sin esperar al evento de reconexión. */
+  async enviarPendientes(): Promise<void> {
+    this.enviando = true;
+    this.mensajeEnvio = '';
+
+    const confirmadas = await this.sync.sincronizar();
+    await this.recargar();
+
+    this.enviando = false;
+    this.mensajeEnvio = confirmadas > 0
+      ? `Se enviaron ${confirmadas} captura(s).`
+      : 'No se pudo enviar nada todavía (sin conexión, o esperando el próximo intento).';
+  }
+
+  /**
+   * Descarta una captura. **El único camino que borra trabajo no sincronizado**, y por eso pide
+   * confirmación: lo que se descarta no existe en ningún otro lado.
+   */
+  async descartar(operacion: OperacionPendiente): Promise<void> {
+    const confirmado = await this.confirmDialog.ask({
+      title: 'Descartar captura',
+      message: `Esta captura no llegó al servidor y no está guardada en ningún otro lado. Si la descartás, se pierde.`,
+      type: 'error',
+      confirmText: 'Descartar'
+    });
+    if (!confirmado) return;
+
+    await this.outbox.descartar(operacion.clientOpId);
+    await this.recargar();
   }
 
   async buscarActualizaciones(): Promise<void> {

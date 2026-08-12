@@ -73,7 +73,15 @@ public partial class SeguimientoLoteLevanteService
 
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, positivos); // lanza si falta (antes de persistir)
 
-            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            // Transacción CONDICIONAL: `null` cuando ya hay una ambiente (push offline de la PWA),
+            // porque EF lanza si se abre una segunda sobre el mismo contexto. Llamado desde el
+            // controller no hay ambiente ⇒ abre la suya y el comportamiento es idéntico al de antes.
+            // Lo que esto habilita: que el registro de idempotencia del push y este efecto commiteen
+            // juntos. Si no comparten transacción queda una ventana en la que el efecto se aplicó y
+            // la marca no, y el reintento vuelve a aplicar.
+            await using var tx = _ctx.Database.CurrentTransaction is null
+                ? await _ctx.Database.BeginTransactionAsync()
+                : null;
             var createdCo = await _seguimientoDiarioService.CreateAsync(createDto);
             if (positivos.Count > 0)
             {
@@ -81,7 +89,7 @@ public partial class SeguimientoLoteLevanteService
                 await _colombiaConsumoB.AplicarConsumoAsync(lote.GranjaId, positivos, refStr);
             }
             await _ctx.SaveChangesAsync();
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
             return MapToLevanteDto(createdCo);
         }
 
@@ -187,9 +195,14 @@ public partial class SeguimientoLoteLevanteService
             }
             await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, incrementos); // lanza si falta (antes de persistir)
 
-            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            // Transacción condicional — ver la nota en CreateAsync.
+            await using var tx = _ctx.Database.CurrentTransaction is null
+                ? await _ctx.Database.BeginTransactionAsync()
+                : null;
             var updatedCo = await _seguimientoDiarioService.UpdateAsync(updateDto);
-            if (updatedCo is null) { await tx.RollbackAsync(); return null; }
+            // Con transacción ambiente el rollback es del llamador: revertirla acá abortaría también
+            // las operaciones sanas del mismo lote.
+            if (updatedCo is null) { if (tx is not null) await tx.RollbackAsync(); return null; }
 
             var refCo = $"Seguimiento lote levante #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
             await _colombiaConsumoB.AplicarDiffAsync(lote.GranjaId, oldByItemCo, newByItemCo, refCo);
@@ -272,7 +285,10 @@ public partial class SeguimientoLoteLevanteService
             var byItem = rec.Metadata != null ? ParseMetadataItemsToKgPorOrigen(rec.Metadata.RootElement) : new Dictionary<ItemConsumoKey, decimal>();
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
-            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            // Transacción condicional — ver la nota en CreateAsync.
+            await using var tx = _ctx.Database.CurrentTransaction is null
+                ? await _ctx.Database.BeginTransactionAsync()
+                : null;
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
@@ -281,9 +297,9 @@ public partial class SeguimientoLoteLevanteService
             // A7 — la devolución de aves la hace SeguimientoDiarioService.DeleteAsync, dentro de
             // esta misma transacción.
             var okCo = await _seguimientoDiarioService.DeleteAsync((long)id);
-            if (!okCo) { await tx.RollbackAsync(); return false; }
+            if (!okCo) { if (tx is not null) await tx.RollbackAsync(); return false; }
             await _ctx.SaveChangesAsync();
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
             return true;
         }
 

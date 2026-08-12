@@ -67,6 +67,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<CompanyPermission> CompanyPermissions => Set<CompanyPermission>();
         public DbSet<ProduccionAvicolaRaw> ProduccionAvicolaRaw => Set<ProduccionAvicolaRaw>();
 
+        // Idempotencia del push offline (PWA F3): huella por operación capturada sin red.
+        public DbSet<SyncOperacion> SyncOperaciones => Set<SyncOperacion>();
+
         // Guía genética Ecuador (tablas mixto/hembra/macho por empresa + raza + año)
         public DbSet<GuiaGeneticaEcuadorHeader> GuiaGeneticaEcuadorHeader => Set<GuiaGeneticaEcuadorHeader>();
         public DbSet<GuiaGeneticaEcuadorDetalle> GuiaGeneticaEcuadorDetalle => Set<GuiaGeneticaEcuadorDetalle>();

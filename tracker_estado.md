@@ -3889,3 +3889,85 @@ permiso se usa (asignación y runtime) — a diferencia de `company_menus`, que 
       a punta por HTTP, pero no pude autenticar en el navegador (sin credenciales, y la inyección de
       sesión en `localStorage` la bloquea el clasificador). Abrir Empresas → 🔑 y Roles → tab Permisos
 - [x] Sin procesos huérfanos (backend y dev server detenidos)
+
+---
+
+# PWA F3.1 — Captura offline (outbox) con idempotencia real
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+**Contexto medido:** F1/F2/alistamiento construidos; prod todavía sirve el build del 07-ago porque el
+gate del borde corta el job del front (`6f410db` está en `main`, no en `main-produccion`).
+`Idempotency-Key`, `client_op_id` y outbox **no existían** en el código fuente.
+
+## Backend — datos
+- [x] Entidad `SyncOperacion` + configuración con **UNIQUE (`client_op_id`)** + `DbSet`
+- [x] Migración `20260812050558_AddSyncOperaciones` con SQL crudo `IF NOT EXISTS`; aplicada en
+      local :5433 y **re-corrida a mano**: los tres statements avisan «already exists, skipping»
+
+## Backend — lógica
+- [x] `Application/Calculos/SyncPushCalculos.cs` (puro: lote, identidad, contrato, empresa, reloj)
+- [x] `SyncPushDtos` + `ISyncPushService` + `SyncPushService` (ancla + `Funciones/SyncPushService.Levante.cs`)
+- [x] `POST /api/Sync/push` + DI
+- [x] 🔴 Transacción **condicional** en `SeguimientoLoteLevanteService.Crud.cs` (3 sitios):
+      `CurrentTransaction is null ? BeginTransaction() : null`. Sin ambiente se comporta idéntico
+      a hoy; con ella participa, que es lo que permite commitear efecto + marca de idempotencia juntos
+- [x] El push **ignora `X-Active-Company`**: la empresa sale de la operación y se valida contra
+      `user_companies`. Fail-closed, sin reasignar (B6 en el camino de sync)
+- [x] El servidor **estampa el autor** e ignora el del cuerpo (B5 en el camino de sync)
+- [x] 🔴 **Un rechazo NO deja registro**: se re-evalúa en cada intento. Grabarlo dejaría un
+      `empresa_no_autorizada` transitorio congelado para siempre
+- [x] `SyncPushCalculosTests` — 22 casos
+
+## Frontend
+- [x] `offline-db.ts` **v2** con store `outbox` (paso acumulativo)
+- [x] `models/outbox.model.ts`
+- [x] `funciones/decidir-encolable.funcion.ts` — 🔑 no es una lista de rutas sino un mapa
+      **ruta → tipo de operación**: una entrada sin tipo del lado del servidor no se puede escribir
+      sin que se note (la lista blanca «a ojo» de F2 cubría 23 de 78)
+- [x] `funciones/backoff.funcion.ts` (exponencial + jitter + `Retry-After` con prioridad)
+- [x] `funciones/clasificar-resultado-push.funcion.ts`
+- [x] `outbox.service.ts` · `sync.service.ts` (empuje al reconectar, lotes de 25, freno ante 429/503)
+- [x] Rama de mutación en `offline-cache.interceptor.ts`: **202** + `__offlinePendiente`, y si el
+      encolado falla se propaga el error de red (nunca decir «guardado» sin haber guardado)
+- [x] Bandeja de pendientes en `/diagnostico` con «Enviar ahora» y descarte con confirmación
+- [x] Seam `TRABAJO_PENDIENTE_OFFLINE` conectado al outbox (estaba sin implementar desde F0.B)
+- [x] 🔴 **El outbox NO se purga** por logout, cambio de empresa ni kill switch. `purgarTodo` solo
+      toca `consultas`; probado que la migración v1→v2 no pierde lo ya guardado
+- [x] `sync` agregado a los EXCLUIDOS de la caché: 50 cacheables / 29 excluidos / **0 sin decidir**
+
+## Validación
+- [x] `dotnet build` 0 errores / 0 warnings · `dotnet test` **2.269 verdes** (2.237 → 2.269)
+- [x] `yarn build` 0 errores (único warning: budget preexistente) · `yarn test` **275** (221 → 275)
+- [x] `verificar-ngsw.js` OK (126 archivos, sin `dataGroups`, kill switch publicado)
+- [x] **Smoke HTTP contra el back real** (JWT de dev + `X-Secret-Up`, usuario de una sola empresa):
+      push aplica y crea la fila; **reenviar el mismo lote 2 veces más devuelve `replay:true` con el
+      mismo `entidadId` y deja UNA sola fila**
+- [x] **B5 probado con datos**: el payload mandaba `createdByUserId` falso y la fila quedó con el
+      usuario del token
+- [x] Rechazos tipados verificados uno por uno: `empresa_no_autorizada` (empresa ajena y `0`),
+      `contrato_obsoleto`, `validacion` (uuid inválido), `regla_de_negocio` (lote inexistente) —
+      todos con **cero filas** escritas
+- [x] Datos del smoke **borrados por la API** (no por SQL): el saldo de aves volvió exacto
+      (20→34 hembras = 2+3+4+5, 0→1 machos), y `sync_operaciones` quedó en 0
+- [x] Sin procesos huérfanos: backend detenido al terminar
+
+### 🔴 Lo que NO se pudo probar (y por qué importa)
+- [ ] **La carrera NO reprodujo el defecto.** Con 2 y con 8 POST simultáneos del mismo `clientOpId`
+      siempre salió 1 fila **incluso con el índice único borrado**: el `SELECT` previo ya ve la fila
+      commiteada del ganador, así que la ventana no se abrió. Lo que sí quedó probado es que el
+      índice **rechaza** el duplicado (23505, en transacción revertida). O sea: el `SELECT` es el
+      camino rápido y el índice el respaldo, pero **el respaldo no se ejercitó de punta a punta**
+- [ ] **Smoke por la UI real**: la captura se validó por HTTP, no abriendo el formulario de levante
+      con la red cortada
+- [ ] 🟡 **Hueco de UX detectado**: `onSave` del listado ignora el cuerpo de la respuesta y recarga
+      la tabla. Sin red esa recarga la sirve la caché de F2, que **todavía no contiene la fila recién
+      capturada** ⇒ el modal se cierra y el operario no ve su captura hasta sincronizar. La operación
+      **sí** quedó encolada (se ve en `/diagnostico`), pero falta la fila optimista y un aviso
+      «guardado en el dispositivo»
+
+## Fuera de alcance (documentado, sigue abierto)
+- [ ] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
+- [ ] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
+- [ ] B1 (revocación de sesión), B8 (rotar las 4 llaves), B10 (super admin a datos), A4
