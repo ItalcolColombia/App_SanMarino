@@ -4265,3 +4265,107 @@ Requiere push, que el usuario no autorizó todavía.
       bloqueados por el **grafo `client_entity_id`**
 - [x] Prerrequisitos transversales listados con su porqué: **B1** (el más urgente), A4, B8, B10, B5/B6
 - [x] Patrón de implementación a copiar, en 7 pasos, con los sitios de transacción ya contados
+
+---
+
+# PWA — validación de estado y brecha real para salir a producción
+
+**Fecha:** 2026-08-12 · **Tipo:** auditoría de cierre (no se escribió código funcional)
+**Método:** todo lo de este bloque está **medido** — build, tests, `curl` contra el ALB y logs de
+GitHub Actions. Nada se tomó del tracker sin verificarlo contra el código.
+
+## 1. Lo que está construido y verde (medido hoy)
+
+- [x] **Build del front**: `yarn build` con Node 22.23.1 → **0 errores**. Emite `ngsw.json`,
+      `manifest.webmanifest`, `ngsw-worker.js` y `safety-worker.js`
+- [x] **Bundle inicial: 2.00 MB contra un techo de error de 2.05 MB** ⇒ quedan **~50 kB**. El único
+      warning es el de budget preexistente (1.5 MB de warning, 501 kB por encima)
+- [x] **Tests del front**: `yarn test --watch=false --browsers=ChromeHeadless` → **288 verdes / 288**
+- [x] **Tests del backend**: `dotnet test` (Application.Tests) → **2278 verdes / 2278**
+- [x] **F1 shell**: SW registrado con `registerWhenStable:30000` y `enabled: !isDevMode()`;
+      `PwaBarraEstadoComponent` montado en `app.component.html` con los 3 avisos y prioridad definida
+- [x] **F2 consulta offline**: `verificar-lista-cacheable.js` → **79 endpoints, 50 cacheables, 29
+      excluidos a propósito, 0 sin decisión**. El agujero de 23/78 de F2 está cerrado
+- [x] **F3 captura offline**: los **4** tipos despachan (`levante`, `produccion`, `engorde`,
+      `reproductora_engorde`); las **5** pantallas que guardan muestran el toast de pendiente
+      (levante tiene 2 caminos). Idempotencia por `ux_sync_operaciones_client_op_id` en BD
+- [x] **El envío automático SÍ está cableado**: `provideAppInitializer` instancia `SyncService` con
+      `import()` diferido ⇒ el `effect` de reconexión queda registrado en el arranque. (Se sospechó lo
+      contrario porque la barra lo carga lazy; **es falso**, verificado en `app.config.ts:83-88`)
+- [x] **La cola sobrevive a la purga y al logout**: `purgarParticion`/`purgarTodo` tocan **solo**
+      `STORE_CONSULTAS`; `STORE_OUTBOX` no se toca nunca
+- [x] **D6 (mitad de datos)** y la persistencia de cuota, implementados y con tests
+
+## 2. 🔴 El hallazgo que corrige el modelo del tracker
+
+El tracker decía «la PWA sigue sin desplegarse». Es cierto, pero **incompleto**, y la diferencia
+importa. Del run **31546059845** (merge del PR #66, 11-ago 23:19), medido con `gh run view`:
+
+| Job | Resultado |
+|---|---|
+| Tests — Backend & Frontend | ✅ |
+| **Backend — Build & Deploy** | ✅ **desplegado** (6m28s) |
+| **Frontend — Build & Deploy** | ❌ **cortó en «Validar nginx y política de caché del borde»**, antes del push a ECR |
+
+Las dos únicas fallas del gate fueron, textual: `FALLA ngsw.json ausente -> 404` y
+`FALLA manifest.webmanifest aus. -> 404`. Todo el resto del borde (CSP, HSTS, immutable, no-cache,
+reCAPTCHA) pasó.
+
+⇒ **Prod corre hoy un frontend del 07-ago contra un backend del 11-ago.** Confirmado con `curl`:
+`/version.json` = `2026-08-07T12:47:50.194Z`; `ngsw.json`, `manifest.webmanifest` y `ngsw-worker.js`
+siguen en **404**. No es solo la PWA la que está detenida: **12 commits que tocan `frontend/`** ya
+están en `main-produccion` sin llegar al navegador (F1, F2, alistamiento, los flags de empresa, la
+programación de lotes sin `isPanama()`, el gasto contra lote programado).
+
+- [x] `nginx.conf` **ya tiene** los `location =` de `ngsw.json`, `ngsw-worker.js`, `safety-worker.js`
+      y `manifest.webmanifest` con `no-cache` y `application/manifest+json` ⇒ el bloque **C4** que
+      agrega `6f410db` debería pasar. El gate corregido no va a rebotar por esto
+
+## 3. 🔴 Riesgo #1: los 18 commits viven SOLO en este disco
+
+`origin/main` está en `df72b08`; el working tree en `6980fa3`. **18 commits sin pushear**, de los
+cuales 6 tocan el front. Ahí están **F3 completo** (las 4 capturas offline), `company_permissions` y
+**el fix del gate que desbloquea el deploy del front**. Un disco que se rompe hoy se lleva la fase 3
+entera. Esto es más urgente que desplegar.
+
+## 4. Camino mínimo para que salga a funcionar
+
+1. [ ] **`git push origin main`** — deja de haber un único punto de falla
+2. [ ] **Merge `main` → `main-produccion`** (dispara el deploy). Arrastra **5 migraciones** que se
+       aplican solas (`RunMigrations=true`); las 5 son idempotentes (`IF NOT EXISTS` /
+       `WHERE NOT EXISTS` / `IS DISTINCT FROM`), verificado archivo por archivo
+3. [ ] **Verificación post-deploy obligatoria** (ECS revierte en silencio):
+       TaskDef ↔ imagen ↔ `/version.json` con `buildId` posterior al run, y `ngsw.json` → **200**
+4. [ ] **Invariante de `company_permissions`**: correr la consulta de los permisos efectivos por
+       usuario **antes y después** del deploy; el diff debe ser vacío. Es lo único de este lote que
+       puede dejar gente sin acceso, y el gate de escritura ya rechaza con 400
+5. [ ] **Avisar del menú**: `OcultarMenuLoteReproductoraPostura` **quita** «Lote Reproductora» a todos
+       los roles que lo tuvieran en prod. Es intencional (cargaba levante), pero se nota en el sidebar
+6. [ ] **Instalar en un Android real y hacer el smoke con la red cortada.** Nada de F1/F2/F3 se probó
+       nunca fuera de local: F3 se validó **por HTTP**, no abriendo el formulario sin señal
+
+## 5. Lo que falta para que funcione BIEN en campo (no bloquea el deploy)
+
+- [ ] 🔴 **Un solo usuario por dispositivo.** `auth_session` es clave única en `localStorage`: dos
+      operarios turnándose en la misma tablet ⇒ el segundo no entra sin red. Exige sesiones
+      multi-slot
+- [ ] 🔴 **Alistamiento con red, por usuario y por dispositivo**: instalar, entrar una vez (login y
+      reCAPTCHA exigen red) y **visitar las pantallas** que se van a usar, o la caché está vacía
+- [ ] 🟠 **La bandeja de rechazos no muestra el payload.** `/diagnostico` lista tipo, fecha, empresa,
+      intentos y motivo — pero no lo capturado, y la única acción es **Descartar**. Un rechazo hoy
+      obliga al operario a acordarse de memoria de lo que cargó
+- [ ] 🟠 `/diagnostico` **no está en ningún menú**: se llega por el aviso de la barra o por el atajo
+      del manifest (solo si la app está instalada)
+- [ ] 🟠 `verificar-lista-cacheable.js` **no está atado ni al Dockerfile ni al CI** (a diferencia de
+      `verificar-ngsw.js`): la lista blanca de F2 puede desincronizarse sin que nada falle
+- [ ] 🟠 **50 kB de aire en el bundle**: cualquier import eager nuevo rompe el build de prod
+
+## 6. Deuda conocida que viaja con esto (ya documentada, sigue abierta)
+
+- [ ] **B1** revocación de sesión (`jti` + `sesiones_activas` + refresh) — el más urgente: una tablet
+      perdida no se puede revocar y la jornada offline dura 16 h
+- [ ] **B8** rotar las 4 llaves de `environment.prod.ts` · **B10** super admin por email → a datos ·
+      **A4** self-heal al patrón aplicador · **B5/B6** fuera del camino de sync
+- [ ] **F4**: todo lo que no sean las 4 capturas diarias **se consulta pero no se guarda** sin red
+      (inventario, movimientos, traslados, huevos, ventas). Mapeado en
+      [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)
