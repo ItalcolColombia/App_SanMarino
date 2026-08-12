@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.Correos;
 using ZooSanMarino.Application.DTOs.Common;
 using ZooSanMarino.Application.DTOs.Tickets;
 using ZooSanMarino.Application.Interfaces;
@@ -28,6 +29,7 @@ public partial class TicketService : ITicketService
     private readonly IEmailQueueService _emailQueue;
     private readonly IConfiguration _configuration;
     private readonly string _logoUrl;
+    private readonly string _logoSecundarioUrl;
     private readonly string _brandName;
     private readonly string _brandTagline;
     private readonly string _applicationUrl;
@@ -43,7 +45,10 @@ public partial class TicketService : ITicketService
         _applicationUrl = _configuration["Email:ApplicationUrl"] ?? "http://localhost:4200";
         _brandName = _configuration["Email:BrandName"] ?? "ItalGranja";
         _brandTagline = _configuration["Email:Tagline"] ?? "Gestión de granjas avícolas · Italcol";
-        _logoUrl = _configuration["Email:LogoUrl"] ?? $"{_applicationUrl}/assets/brand/logo_intalfoods_zootenico.png";
+        // Encabezado con los logos de la pantalla de ingreso (Italcol + San Marino), no el de
+        // Italfoods que se usaba antes y no aparece en ninguna pantalla de la aplicación.
+        _logoUrl = EmailMarca.LogoPrincipal(_applicationUrl, _configuration["Email:LogoUrl"]);
+        _logoSecundarioUrl = EmailMarca.LogoSecundario(_applicationUrl, _configuration["Email:LogoSecundarioUrl"]);
     }
 
     private string BrandLine => $"{_brandName} · {_brandTagline}";
@@ -237,7 +242,7 @@ public partial class TicketService : ITicketService
             var (_, creadorNombre) = await ResolveSolicitanteEmailAsync(entity.CreatedByUserGuid, entity.CreatedByUserId, ct);
             var asignadoNombre = await ResolveNombrePorGuidAsync(entity.AssignedToUserGuid, ct);
             var body = TicketEmailTemplates.Creado(entity, creadorNombre, asignadoNombre,
-                _logoUrl, _brandName, BrandLine, _applicationUrl);
+                _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl);
 
             foreach (var notificado in notificadosPersistidos)
             {
@@ -323,7 +328,7 @@ public partial class TicketService : ITicketService
             {
                 var asignadorNombre = await ResolveNombrePorGuidAsync(_currentUser.UserGuid, ct);
                 var body = TicketEmailTemplates.Asignado(ticket, nuevoNombre, asignadorNombre,
-                    _logoUrl, _brandName, BrandLine, _applicationUrl);
+                    _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl);
                 await _emailQueue.EnqueueEmailAsync(
                     nuevoEmail!,
                     $"[{ticket.Codigo}] Te transfirieron un ticket",
@@ -1180,7 +1185,7 @@ public partial class TicketService : ITicketService
                         email!,
                         $"[{ticket.Codigo}] Tu ticket fue solucionado",
                         TicketEmailTemplates.Solucionado(ticket, nombreSol,
-                            _logoUrl, _brandName, BrandLine, _applicationUrl),
+                            _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl),
                         "ticket_solucionado",
                         $"{{\"ticketId\":{ticket.Id},\"codigo\":\"{ticket.Codigo}\"}}");
                     ticket.NotificadoCorreo = true;
@@ -1293,7 +1298,7 @@ public partial class TicketService : ITicketService
                 try
                 {
                     var body = TicketEmailTemplates.Cerrado(ticket, nombre, notasResumen,
-                        _logoUrl, _brandName, BrandLine, _applicationUrl);
+                        _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl);
                     await _emailQueue.EnqueueEmailAsync(
                         email,
                         $"[{ticket.Codigo}] Ticket cerrado",

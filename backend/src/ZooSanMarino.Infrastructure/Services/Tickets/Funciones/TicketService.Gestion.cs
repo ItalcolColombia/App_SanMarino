@@ -119,7 +119,7 @@ public partial class TicketService
             {
                 var asignadorNombre = await ResolveNombrePorGuidAsync(_currentUser.UserGuid, ct);
                 var body = TicketEmailTemplates.Asignado(ticket, nombre, asignadorNombre,
-                    _logoUrl, _brandName, BrandLine, _applicationUrl);
+                    _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl);
                 await _emailQueue.EnqueueEmailAsync(email!,
                     $"[{ticket.Codigo}] Te asignaron un caso", body, "ticket_asignado",
                     $"{{\"ticketId\":{ticket.Id},\"codigo\":\"{ticket.Codigo}\"}}");

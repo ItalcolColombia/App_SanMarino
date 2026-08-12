@@ -24,6 +24,7 @@ public class EmailService : IEmailService
     private readonly string _brandDisplayName;
     private readonly string _brandTagline;
     private readonly string _logoUrl;
+    private readonly string _logoSecundarioUrl;
 
     public EmailService(
         IConfiguration configuration,
@@ -36,7 +37,10 @@ public class EmailService : IEmailService
         _applicationUrl = _configuration["Email:ApplicationUrl"] ?? "http://localhost:4200";
         _brandDisplayName = _configuration["Email:BrandName"] ?? "ItalGranja";
         _brandTagline = _configuration["Email:Tagline"] ?? "Gestión de granjas avícolas · Italcol";
-        _logoUrl = _configuration["Email:LogoUrl"] ?? string.Empty;
+        // Encabezado con los logos de la pantalla de ingreso (Italcol + San Marino). Si la
+        // configuración no los trae, se arman sobre Email:ApplicationUrl, que es quien sirve los assets.
+        _logoUrl = EmailMarca.LogoPrincipal(_applicationUrl, _configuration["Email:LogoUrl"]);
+        _logoSecundarioUrl = EmailMarca.LogoSecundario(_applicationUrl, _configuration["Email:LogoSecundarioUrl"]);
     }
 
     private string BrandLine => $"{_brandDisplayName} · {_brandTagline}";
@@ -51,7 +55,7 @@ public class EmailService : IEmailService
         {
             var subject = $"Restablecé tu contraseña · {_brandDisplayName}";
             var body = CorreosCuenta.RestablecerContrasena(
-                _brandDisplayName, _brandTagline, _logoUrl, _applicationUrl, resetToken, userName);
+                _brandDisplayName, _brandTagline, _logoUrl, _applicationUrl, resetToken, userName, _logoSecundarioUrl);
 
             // El token NO va en la metadata: queda guardado en claro en email_queue y es un secreto vivo.
             var metadata = JsonSerializer.Serialize(new
@@ -83,7 +87,7 @@ public class EmailService : IEmailService
         {
             var subject = $"Tu contraseña fue restablecida · {_brandDisplayName}";
             var body = CorreosCuenta.ContrasenaRestablecidaPorAdmin(
-                _brandDisplayName, _brandTagline, _logoUrl, _applicationUrl, newPassword, userName);
+                _brandDisplayName, _brandTagline, _logoUrl, _applicationUrl, newPassword, userName, _logoSecundarioUrl);
 
             var metadata = JsonSerializer.Serialize(new
             {
@@ -113,7 +117,7 @@ public class EmailService : IEmailService
             var subject = $"Bienvenido a {_brandDisplayName} · Tus credenciales de acceso";
             var url = string.IsNullOrWhiteSpace(applicationUrl) ? _applicationUrl : applicationUrl;
             var body = CorreosCuenta.Bienvenida(
-                _brandDisplayName, _brandTagline, _logoUrl, url, toEmail, password, userName);
+                _brandDisplayName, _brandTagline, _logoUrl, url, toEmail, password, userName, _logoSecundarioUrl);
 
             // Crear metadata para el correo
             var metadata = JsonSerializer.Serialize(new

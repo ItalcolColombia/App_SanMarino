@@ -23,11 +23,12 @@ public static class TicketEmailTemplates
     /// "Marca · lema"; se le quita el prefijo para no repetir el nombre debajo del logo.
     /// </summary>
     public static string Wrap(string logoUrl, string brandName, string brandLine, string innerHtml)
-        => Wrap(logoUrl, brandName, brandLine, innerHtml, brandName, string.Empty, null);
+        => Wrap(logoUrl, brandName, brandLine, innerHtml, brandName, string.Empty, null, string.Empty, null);
 
     private static string Wrap(
         string logoUrl, string brandName, string brandLine, string innerHtml,
-        string titulo, string preheader, string? motivoEnvio)
+        string titulo, string preheader, string? motivoEnvio,
+        string applicationUrl, string? logoSecundarioUrl)
     {
         var prefijo = $"{brandName} · ";
         var lema = brandLine.StartsWith(prefijo, StringComparison.Ordinal)
@@ -41,7 +42,8 @@ public static class TicketEmailTemplates
             marca: brandName,
             lema: lema,
             contenidoHtml: innerHtml,
-            motivoEnvio: motivoEnvio ?? "Recibís este correo por tu participación en este ticket de soporte.");
+            motivoEnvio: motivoEnvio ?? "Recibís este correo por tu participación en este ticket de soporte.",
+            logoSecundarioUrl: EmailMarca.LogoSecundario(applicationUrl, logoSecundarioUrl));
     }
 
     /// <summary>Etiquetas de tipo y prioridad. La prioridad manda el color; el tipo va neutro.</summary>
@@ -72,7 +74,8 @@ public static class TicketEmailTemplates
     /// <summary>Correo "ticket_creado" a los notificados: info del ticket, quién lo creó y a quién se asignó.</summary>
     public static string Creado(
         Ticket ticket, string? creadorNombre, string? asignadoNombre,
-        string logoUrl, string brandName, string brandLine, string applicationUrl)
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
     {
         var codigo = Codigo(ticket);
 
@@ -91,7 +94,8 @@ public static class TicketEmailTemplates
         return Wrap(logoUrl, brandName, brandLine, inner,
             titulo: $"Nuevo ticket {codigo} · {brandName}",
             preheader: $"{codigo} — {ticket.Titulo}",
-            motivoEnvio: "Recibís este correo porque te incluyeron como notificado de este ticket.");
+            motivoEnvio: "Recibís este correo porque te incluyeron como notificado de este ticket.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
     }
 
     // ───────────────────────────── Asignado / transferido ─────────────────────────────
@@ -99,7 +103,8 @@ public static class TicketEmailTemplates
     /// <summary>Correo "ticket_transferido" al nuevo resolutor: le acaban de asignar un ticket.</summary>
     public static string Asignado(
         Ticket ticket, string? nombreDestinatario, string? asignadorNombre,
-        string logoUrl, string brandName, string brandLine, string applicationUrl)
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
     {
         var codigo = Codigo(ticket);
 
@@ -119,7 +124,8 @@ public static class TicketEmailTemplates
         return Wrap(logoUrl, brandName, brandLine, inner,
             titulo: $"Te asignaron el ticket {codigo} · {brandName}",
             preheader: $"{codigo} — {ticket.Titulo}",
-            motivoEnvio: "Recibís este correo porque quedaste como responsable de este ticket.");
+            motivoEnvio: "Recibís este correo porque quedaste como responsable de este ticket.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
     }
 
     // ───────────────────────────── Solucionado ─────────────────────────────
@@ -131,7 +137,8 @@ public static class TicketEmailTemplates
     /// </summary>
     public static string Solucionado(
         Ticket ticket, string? nombreSolicitante,
-        string logoUrl, string brandName, string brandLine, string applicationUrl)
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
     {
         var codigo = Codigo(ticket);
 
@@ -150,7 +157,8 @@ public static class TicketEmailTemplates
         return Wrap(logoUrl, brandName, brandLine, inner,
             titulo: $"Ticket {codigo} solucionado · {brandName}",
             preheader: $"{codigo} solucionado. Revisá la solución y confirmá el cierre.",
-            motivoEnvio: "Recibís este correo porque sos el solicitante de este ticket.");
+            motivoEnvio: "Recibís este correo porque sos el solicitante de este ticket.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
     }
 
     // ───────────────────────────── Cierre ─────────────────────────────
@@ -158,7 +166,8 @@ public static class TicketEmailTemplates
     /// <summary>Correo "ticket_cerrado": resumen de la solución + histórico de chat (notas públicas).</summary>
     public static string Cerrado(
         Ticket ticket, string? nombreDestinatario, IReadOnlyList<NotaResumen> notasPublicas,
-        string logoUrl, string brandName, string brandLine, string applicationUrl)
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
     {
         var codigo = Codigo(ticket);
 
@@ -179,6 +188,7 @@ public static class TicketEmailTemplates
         return Wrap(logoUrl, brandName, brandLine, inner,
             titulo: $"Ticket {codigo} cerrado · {brandName}",
             preheader: $"{codigo} cerrado. Resumen de la solución y de la bitácora.",
-            motivoEnvio: "Recibís este correo por tu participación en este ticket de soporte.");
+            motivoEnvio: "Recibís este correo por tu participación en este ticket de soporte.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
     }
 }

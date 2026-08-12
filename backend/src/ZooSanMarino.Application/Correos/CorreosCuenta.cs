@@ -32,7 +32,8 @@ public static class CorreosCuenta
     /// se reenvía o queda en un buzón compartido, el enlace ya venció o ya se usó.
     /// </summary>
     public static string RestablecerContrasena(
-        string marca, string lema, string logoUrl, string applicationUrl, string token, string? nombre)
+        string marca, string lema, string logoUrl, string applicationUrl, string token, string? nombre,
+        string? logoSecundarioUrl = null)
     {
         var enlace = ConstruirEnlaceRestablecer(applicationUrl, token);
 
@@ -59,7 +60,8 @@ public static class CorreosCuenta
             marca: marca,
             lema: lema,
             contenidoHtml: contenido,
-            motivoEnvio: "Recibís este correo porque se solicitó restablecer la contraseña de esta cuenta.");
+            motivoEnvio: "Recibís este correo porque se solicitó restablecer la contraseña de esta cuenta.",
+            logoSecundarioUrl: EmailMarca.LogoSecundario(applicationUrl, logoSecundarioUrl));
     }
 
     // ─────────────────────────── Restablecida por un administrador ───────────────────────────
@@ -69,7 +71,8 @@ public static class CorreosCuenta
     /// porque el administrador ya la fijó en la cuenta y el usuario no tiene otra forma de conocerla.
     /// </summary>
     public static string ContrasenaRestablecidaPorAdmin(
-        string marca, string lema, string logoUrl, string applicationUrl, string contrasena, string? nombre)
+        string marca, string lema, string logoUrl, string applicationUrl, string contrasena, string? nombre,
+        string? logoSecundarioUrl = null)
     {
         var contenido = string.Concat(
             EmailComponentes.Titulo("Tu contraseña fue restablecida"),
@@ -93,7 +96,8 @@ public static class CorreosCuenta
             marca: marca,
             lema: lema,
             contenidoHtml: contenido,
-            motivoEnvio: "Recibís este correo porque un administrador restableció la contraseña de tu cuenta.");
+            motivoEnvio: "Recibís este correo porque un administrador restableció la contraseña de tu cuenta.",
+            logoSecundarioUrl: EmailMarca.LogoSecundario(applicationUrl, logoSecundarioUrl));
     }
 
     // ─────────────────────────── Bienvenida ───────────────────────────
@@ -101,7 +105,7 @@ public static class CorreosCuenta
     /// <summary>Alta de usuario: credenciales de acceso y los primeros pasos.</summary>
     public static string Bienvenida(
         string marca, string lema, string logoUrl, string applicationUrl,
-        string correo, string contrasena, string? nombre)
+        string correo, string contrasena, string? nombre, string? logoSecundarioUrl = null)
     {
         var url = (applicationUrl ?? string.Empty).TrimEnd('/');
 
@@ -129,6 +133,7 @@ public static class CorreosCuenta
             marca: marca,
             lema: lema,
             contenidoHtml: contenido,
-            motivoEnvio: "Recibís este correo porque se creó una cuenta a tu nombre en la plataforma.");
+            motivoEnvio: "Recibís este correo porque se creó una cuenta a tu nombre en la plataforma.",
+            logoSecundarioUrl: EmailMarca.LogoSecundario(url, logoSecundarioUrl));
     }
 }

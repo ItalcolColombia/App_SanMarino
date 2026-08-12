@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 
 namespace ZooSanMarino.Application.Correos;
 
@@ -35,6 +36,10 @@ public static class EmailLayout
     /// Línea del pie que explica POR QUÉ le llegó el correo. Reduce reportes de spam y es lo primero
     /// que busca quien no esperaba el mensaje.
     /// </param>
+    /// <param name="logoSecundarioUrl">
+    /// Segundo logo del encabezado (San Marino), debajo del principal — igual que la pantalla de
+    /// ingreso. Si va vacío se muestra solo el principal.
+    /// </param>
     public static string Documento(
         string titulo,
         string preheader,
@@ -42,7 +47,8 @@ public static class EmailLayout
         string marca,
         string lema,
         string contenidoHtml,
-        string? motivoEnvio = null)
+        string? motivoEnvio = null,
+        string? logoSecundarioUrl = null)
     {
         var tituloSeguro = WebUtility.HtmlEncode(titulo ?? string.Empty);
         var marcaSegura = WebUtility.HtmlEncode(marca ?? string.Empty);
@@ -56,18 +62,54 @@ public static class EmailLayout
         // Relleno de ancho cero: evita que el cliente complete la vista previa con el cuerpo.
         var relleno = string.Concat(Enumerable.Repeat("&#847;&zwnj;&nbsp;", 60));
 
-        // El logo va como imagen remota, y buena parte de los clientes de correo (Outlook de
-        // escritorio siempre, Gmail ante un remitente desconocido) NO la descarga: el lector ve el
-        // texto alternativo. Por eso el <img> lleva tipografía propia — así el respaldo se lee como
-        // el nombre de la marca y no como una leyenda minúscula al lado de un ícono roto. La clase
-        // "txt" lo aclara en modo oscuro.
-        var encabezado = string.IsNullOrWhiteSpace(logoUrl)
-            ? $"""
-                  <div class="txt" style="font-family:{EmailTema.Fuente};font-size:24px;font-weight:700;letter-spacing:-.02em;color:{EmailTema.Texto};">{marcaSegura}</div>
-              """
-            : $"""
-                  <img src="{WebUtility.HtmlEncode(logoUrl)}" alt="{marcaSegura}" width="150" class="txt"
-                       style="display:block;margin:0 auto;max-height:52px;width:auto;border:0;outline:none;text-decoration:none;font-family:{EmailTema.Fuente};font-size:22px;line-height:30px;font-weight:700;letter-spacing:-.02em;color:{EmailTema.Texto};" />
+        // Encabezado = el mismo de la pantalla de ingreso: Italcol arriba, San Marino debajo y la
+        // línea naranja de la marca.
+        //
+        // Dos decisiones que no son estéticas:
+        //  · Los logos van sobre una placa BLANCA fija (sin variante oscura). Están diseñados para
+        //    fondo claro: el rojo de San Marino y el gris de "Genética avícola" se pierden sobre el
+        //    lienzo oscuro que aplica el modo noche del cliente.
+        //  · Cada <img> lleva tipografía propia porque buena parte de los clientes NO descarga
+        //    imágenes remotas (Outlook de escritorio siempre; Gmail ante un remitente desconocido).
+        //    Ese lector ve el texto alternativo, y sin estilo queda una leyenda minúscula al lado de
+        //    un ícono roto.
+        const string estiloImg = "display:block;margin:0 auto;border:0;outline:none;text-decoration:none;";
+        var estiloTextoAlt = $"font-family:{EmailTema.Fuente};font-weight:700;letter-spacing:-.02em;color:{EmailTema.Texto};";
+
+        var imagenes = new StringBuilder();
+
+        if (!string.IsNullOrWhiteSpace(logoUrl))
+        {
+            imagenes.Append($"""
+                  <img src="{WebUtility.HtmlEncode(logoUrl)}" alt="Italcol" width="112"
+                       style="{estiloImg}max-height:46px;width:auto;margin-bottom:12px;{estiloTextoAlt}font-size:20px;line-height:28px;" />
+            """);
+        }
+
+        if (!string.IsNullOrWhiteSpace(logoSecundarioUrl))
+        {
+            imagenes.Append($"""
+                  <img src="{WebUtility.HtmlEncode(logoSecundarioUrl)}" alt="San Marino · Genética Avícola" width="208"
+                       style="{estiloImg}max-height:44px;width:auto;{estiloTextoAlt}font-size:18px;line-height:26px;" />
+            """);
+        }
+
+        if (imagenes.Length == 0)
+        {
+            imagenes.Append($"""
+                  <div style="{estiloTextoAlt}font-size:24px;line-height:32px;">{marcaSegura}</div>
+            """);
+        }
+
+        var encabezado = $"""
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;background-color:#ffffff;border-radius:12px;">
+                    <tr>
+                      <td align="center" style="padding:22px 34px 18px 34px;">
+                        {imagenes}
+                        <div style="width:56px;height:3px;line-height:3px;font-size:0;background-color:{EmailTema.Accion};border-radius:2px;margin:16px auto 0 auto;">&nbsp;</div>
+                      </td>
+                    </tr>
+                  </table>
               """;
 
         return $$"""

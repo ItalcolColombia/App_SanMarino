@@ -4449,6 +4449,16 @@ entera. Esto es más urgente que desplegar.
       la captura era el `localhost:4200` de la configuración de desarrollo, no un enlace muerto
 - [x] Confirmado en Gmail móvil modo oscuro: contraste correcto en título, callout ámbar, botón
       naranja y enlace de respaldo
+- [x] **El encabezado pasa a ser el de la pantalla de ingreso**: Italcol arriba, San Marino debajo y
+      la línea naranja. El logo de Italfoods (`logo_intalfoods_zootenico.png`) no aparece en ninguna
+      pantalla de la aplicación — se saca de los 7 correos
+- [x] `Application/Correos/EmailMarca.cs`: resuelve ambos logos desde `Email:LogoUrl` /
+      `Email:LogoSecundarioUrl`, y si no están los arma sobre `Email:ApplicationUrl` (el frontend es
+      quien sirve los assets). Las dos claves quedan en los `appsettings`; **la TaskDef de ECS no
+      define `Email__LogoUrl`, así que no hay que tocarla**
+- [x] Los logos van sobre una **placa blanca fija**: están diseñados para fondo claro y el rojo de
+      San Marino se perdía sobre el lienzo del modo noche. Cubierto por un test
+- [x] `dotnet build` 0 errores · **2.303 tests en verde** · los 7 cuerpos regenerados y verificados
 
 ## F. Solicitud a los administradores (el envío desde PROD no se arregla por código)
 

@@ -174,10 +174,63 @@ public class CorreosCuentaTests
         var img = html.Substring(html.IndexOf("<img", StringComparison.Ordinal));
         img = img.Substring(0, img.IndexOf("/>", StringComparison.Ordinal));
 
-        Assert.Contains($"alt=\"{Marca}\"", img, StringComparison.Ordinal);
+        Assert.Contains("alt=\"Italcol\"", img, StringComparison.Ordinal);
         Assert.Contains("font-weight:700", img, StringComparison.Ordinal);
         Assert.Contains("font-size:", img, StringComparison.Ordinal);
-        Assert.Contains("class=\"txt\"", img, StringComparison.Ordinal); // lo aclara en modo oscuro
+    }
+
+    // ── Encabezado: los mismos logos que la pantalla de ingreso ─────────────────────────────
+
+    [Fact]
+    public void El_encabezado_lleva_los_dos_logos_del_login()
+    {
+        // El logo principal llega ya resuelto desde el servicio (así se puede configurar); el
+        // secundario lo completa el propio cuerpo si no vino.
+        var logoResuelto = EmailMarca.LogoPrincipal(AppUrl, null);
+        var html = CorreosCuenta.RestablecerContrasena(Marca, Lema, logoResuelto, AppUrl, "t", "Ana");
+
+        Assert.Contains(EmailMarca.RutaItalcol, html, StringComparison.Ordinal);
+        Assert.Contains(EmailMarca.RutaSanMarino, html, StringComparison.Ordinal);
+        // El alt es un literal del layout (no un dato del usuario), así que no pasa por HtmlEncode.
+        Assert.Contains("alt=\"San Marino · Genética Avícola\"", html, StringComparison.Ordinal);
+
+        // El de Italfoods no aparece en ninguna pantalla de la aplicación: no va en los correos.
+        Assert.DoesNotContain("intalfoods", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Los_logos_van_sobre_fondo_blanco_fijo_para_que_el_modo_oscuro_no_los_tape()
+    {
+        // Los archivos están diseñados para fondo claro: el rojo de San Marino y el gris de
+        // "Genética avícola" se pierden sobre el lienzo del modo noche.
+        var html = CorreosCuenta.Bienvenida(Marca, Lema, Logo, AppUrl, "a@b.c", "p", "Ana");
+
+        var encabezado = html.Substring(0, html.IndexOf("<img", StringComparison.Ordinal));
+        Assert.Contains("background-color:#ffffff", encabezado, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("https://app.test/", "https://app.test/assets/brand/italcol-naraanja.png")]
+    [InlineData("https://app.test", "https://app.test/assets/brand/italcol-naraanja.png")]
+    public void El_logo_se_deriva_del_frontend_cuando_no_esta_configurado(string appUrl, string esperado)
+    {
+        Assert.Equal(esperado, EmailMarca.LogoPrincipal(appUrl, null));
+        Assert.Equal(esperado, EmailMarca.LogoPrincipal(appUrl, "   "));
+    }
+
+    [Fact]
+    public void La_url_configurada_del_logo_gana_sobre_la_derivada()
+    {
+        Assert.Equal("https://cdn.test/x.png", EmailMarca.LogoSecundario("https://app.test", "https://cdn.test/x.png"));
+    }
+
+    [Fact]
+    public void Sin_logos_el_encabezado_sigue_mostrando_la_marca()
+    {
+        var html = EmailLayout.Documento("T", "P", "", Marca, Lema, "<p>x</p>", logoSecundarioUrl: "");
+
+        Assert.DoesNotContain("<img", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(Marca, html, StringComparison.Ordinal);
     }
 
     [Fact]
