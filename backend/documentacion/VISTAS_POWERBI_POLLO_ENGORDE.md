@@ -12,6 +12,15 @@ por qué columnas filtrar, qué espera recibir y el significado de cada campo.
 
 ---
 
+> **Definición SQL de la vista 1:** `backend/sql/vw_seguimiento_pollo_engorde.sql` — volcado fiel de
+> lo desplegado (67 columnas), regenerable con
+> `SELECT pg_get_viewdef('public.vw_seguimiento_pollo_engorde'::regclass, true);`. Para **cambiarla**
+> va una migración EF que envuelva esa definición (patrón `20260812021716_AddConsumoMixtoVistaPowerbiEngorde`),
+> nunca un `CREATE` escrito a mano: agregar columnas al final es lo único que `CREATE OR REPLACE VIEW`
+> admite, y así ningún ambiente pierde lo suyo.
+
+---
+
 ## 1) `vw_seguimiento_pollo_engorde` — Seguimiento diario del lote
 
 **Qué es:** el detalle día a día del lote (mortalidad, selección, consumo de alimento, pesos,

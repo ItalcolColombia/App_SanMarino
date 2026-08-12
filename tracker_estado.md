@@ -3765,3 +3765,14 @@ Aprobada por el usuario tras la auditoría. Migración `20260812021716_AddConsum
       1.839.861,020 · 0 descuadradas
 - [x] Idempotencia (Up 2 veces) y round-trip (Down → 65 → Up → 67) verificados
 - [x] Backend detenido, sin procesos huérfanos
+
+### Espejo SQL de la vista Power BI sincronizado — 2026-08-11
+
+- [x] `backend/sql/vw_seguimiento_pollo_engorde.sql` **NUEVO**: volcado fiel de la vista desplegada
+      (67 columnas, `pg_get_viewdef`), con encabezado que explica cómo regenerarlo, cómo cambiarla
+      (migración que envuelve, no CREATE a mano) y cómo leer el consumo mixto vs por sexo
+- [x] Probado: aplicar el archivo sobre la BD deja la definición **byte a byte idéntica** (diff
+      vacío), 67 columnas y el invariante Σ(por régimen) = Σ(`consumo_real_dia_kg`) intacto
+- [x] `seguimiento_pollo_engorde_tabla_unificada_vista.sql` reducido a puntero: definía otra vista
+      con 14 columnas menos y aplicarlo las borraba. El SQL viejo queda en git (`git show 2f2a00a:…`)
+- [x] `VISTAS_POWERBI_POLLO_ENGORDE.md` apunta al archivo fiel y al patrón de cambio
