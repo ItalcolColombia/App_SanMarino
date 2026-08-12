@@ -1,0 +1,31 @@
+<!-- src/app/features/silos/components/modal-asignar-silos/modal-asignar-silos.component.html -->
+<div class="modal-backdrop" (click)="onCerrar()"></div>
+
+<div class="modal-panel" role="dialog" aria-modal="true" aria-label="Asignar silos">
+  <div class="modal-header">
+    <h3>{{ destino.titulo }}</h3>
+    <button type="button" class="icon-btn" (click)="onCerrar()" aria-label="Cerrar">
+      <fa-icon [icon]="faTimes"></fa-icon>
+    </button>
+  </div>
+
+  <div class="modal-body">
+    <p class="mas-hint">{{ subtitulo }}</p>
+
+    <app-selector-silos
+      [disponibles]="disponibles"
+      [seleccionados]="seleccionados"
+      [cargando]="loading"
+      [disabled]="saving"
+      [mensajeVacio]="mensajeVacio"
+      (seleccionadosChange)="onSeleccionChange($event)">
+    </app-selector-silos>
+  </div>
+
+  <div class="modal-footer">
+    <button type="button" class="btn-subtle" (click)="onCerrar()">Cancelar</button>
+    <button type="button" class="btn-primary" (click)="guardar()" [disabled]="saving || loading">
+      {{ saving ? 'Guardando…' : 'Guardar' }}
+    </button>
+  </div>
+</div>

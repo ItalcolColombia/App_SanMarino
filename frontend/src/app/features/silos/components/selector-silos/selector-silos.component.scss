@@ -1,0 +1,105 @@
+/* Selector múltiple de silos/bodegas (compartido por galpón y lote). */
+:host {
+  --line:     var(--ital-green-100, #e9e6e3);
+  --text-900: var(--ital-text, #1f2937);
+  --text-600: var(--ital-muted, #6b7280);
+}
+
+.selector-silos { width: 100%; }
+
+.ss-empty {
+  padding: 1rem;
+  font-size: .8rem;
+  color: var(--text-600);
+  text-align: center;
+  background: var(--ital-cream);
+  border: 1px dashed var(--line);
+  border-radius: .5rem;
+}
+
+.ss-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .5rem;
+}
+
+.ss-count {
+  font-size: .75rem;
+  color: var(--text-600);
+}
+
+.ss-actions-btns { display: flex; gap: .75rem; }
+
+.ss-link {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--ital-orange-dark);
+  text-decoration: underline;
+
+  &:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
+}
+
+/* Grilla con scroll propio: con 38+ silos la lista no puede empujar el modal. */
+.ss-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: .35rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  padding: .5rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: #fff;
+}
+
+.ss-item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .4rem .55rem;
+  font-size: .8rem;
+  color: var(--text-900);
+  border: 1px solid transparent;
+  border-radius: .375rem;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+
+  &:hover { background: var(--ital-cream); }
+}
+
+.ss-item-on {
+  background: var(--ital-orange-50, #fff7ed);
+  border-color: var(--ital-orange);
+}
+
+.ss-item-off { opacity: .55; cursor: not-allowed; }
+
+.ss-item-body {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.ss-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-item-tag {
+  flex-shrink: 0;
+  padding: .05rem .4rem;
+  font-size: .65rem;
+  font-weight: 600;
+  color: var(--text-600);
+  background: var(--ital-cream);
+  border-radius: 999px;
+}
+
+/* La bodega se distingue: es la ubicación «general» de la granja, no un silo numerado. */
+.ss-tag-bodega {
+  color: var(--ital-green-dark);
+  background: var(--ital-green-50, #ecfdf5);
+}

@@ -4505,29 +4505,58 @@ el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del
 
 ## Fase A — Catálogo y asignación (sin tocar inventario · riesgo nulo para otras empresas)
 
-- [ ] Migración `AddInventarioPorSilo` (schema, idempotente): flag `maneja_inventario_por_silo`;
+- [x] Migración `AddInventarioPorSilo` (schema, idempotente): flag `maneja_inventario_por_silo`;
       `silo_catalogo`; `farm_silos` + `silo_catalogo_id`/`updated_at`/`deleted_at`; `galpon_silos`;
       `lote_silos`
-- [ ] Entidades + Configurations: `SiloCatalogo`, `GalponSilo`, `LoteSilo`, `FarmSilo` (extendida),
+- [x] Entidades + Configurations: `SiloCatalogo`, `GalponSilo`, `LoteSilo`, `FarmSilo` (extendida),
       `Company.ManejaInventarioPorSilo`; 3 `DbSet` en `ZooSanMarinoContext`
-- [ ] Flag en `CompanyDto` + **las 4 proyecciones** (`CompanyService.ToDto`, `CompanyService.Crud`,
+- [x] Flag en `CompanyDto` + **las 4 proyecciones** (`CompanyService.ToDto`, `CompanyService.Crud`,
       `CompanyResolver`, `CompanyPaisService`)
-- [ ] `Infrastructure/Services/Silos/` (namespace PLANO): `SiloCatalogoService`, `FarmSiloService`,
+- [x] `Infrastructure/Services/Silos/` (namespace PLANO): `SiloCatalogoService`, `FarmSiloService`,
       `GalponSiloService`, `LoteSiloService` — scoping **fail-closed** por `farms.company_id`
-- [ ] Controllers + DTOs de los 4 servicios (`GET /api/LoteSilo/{loteId}/disponibles` incluido)
-- [ ] Migración `SeedSilosSantaReyes` (data-only, Designer clonado): flag ON en company 6; 100 filas de
+- [x] Controllers + DTOs de los 4 servicios (`GET /api/LoteSilo/{loteId}/disponibles` incluido)
+- [x] Migración `SeedSilosSantaReyes` (data-only, Designer clonado): flag ON en company 6; 100 filas de
       catálogo; vincular los 38 `farm_silos` por nombre; `tipo 'Insumos'→'Bodega'` — `WHERE NOT EXISTS` /
       `IS DISTINCT FROM`. ⚠️ timestamp **posterior** a `20260725190000`
-- [ ] Migración `AddSilosAFnMoverUbicacion`: `UPDATE galpon_silos` en `fn_mover_galpon` y `fn_rekey_nucleo`
+- [x] Migración `AddSilosAFnMoverUbicacion`: `UPDATE galpon_silos` en `fn_mover_galpon` y `fn_rekey_nucleo`
       (+ actualizar el espejo `backend/sql/fn_mover_ubicacion.sql`, que **no** es lo desplegado)
-- [ ] Front: flag `manejaInventarioPorSilo` en `ActiveCompanyConfigService` (+ `FLAGS_APAGADOS`)
-- [ ] Front pantalla 1 — `/config/silos` (ABM lista maestra + generar rango) + menú por `route` en
+- [x] Front: flag `manejaInventarioPorSilo` en `ActiveCompanyConfigService` (+ `FLAGS_APAGADOS`)
+- [x] Front pantalla 1 — `/config/silos` (ABM lista maestra + generar rango) + menú por `route` en
       `company_menus`/`role_menus`
-- [ ] Front pantalla 2 — Silos de la granja en `farm-list`/`farm-form` (gated)
-- [ ] Front pantalla 3 — Silos del galpón en `galpon-form` (gated)
-- [ ] Front pantalla 4 — Silos de consumo del lote en **`lote-list`** (el form VIVO, no `modal-create-edit-lote`)
-- [ ] Todo componente/modal nuevo con `changeDetection: ChangeDetectionStrategy.Eager` **explícito**
-- [ ] `dotnet build` + `dotnet test` · `yarn build` · smoke doble (empresa OFF sin cambios visibles + SR)
+- [x] Front pantalla 2 — Silos de la granja en `farm-list`/`farm-form` (gated)
+- [x] Front pantalla 3 — Silos del galpón en `galpon-form` (gated)
+- [x] Front pantalla 4 — Silos de consumo del lote en **`lote-list`** (el form VIVO, no `modal-create-edit-lote`)
+- [x] Todo componente/modal nuevo con `changeDetection: ChangeDetectionStrategy.Eager` **explícito**
+- [x] `dotnet build` + `dotnet test` · `yarn build` · smoke doble (empresa OFF sin cambios visibles + SR)
+
+### Resultado de la Fase A (2026-08-12)
+
+- Migraciones aplicadas en local: `20260812224755_AddInventarioPorSiloCatalogoYAsignaciones` (schema),
+  `20260812230000_SeedSilosSantaReyes` (data), `20260812231500_SilosEnFnMoverUbicacion` (funciones),
+  `20260812233000_MenuSilosSantaReyes` (menú). Las 4 con `Up()` idempotente escrito a mano.
+- BD: flag ON **solo** en Santa Reyes · 100 filas de catálogo (1..100) · 38 `farm_silos` vinculados +
+  la bodega (`Insumos` → `tipo='Bodega'`) · idempotencia verificada (2ª corrida = `INSERT 0 0` / `UPDATE 0`).
+- `dotnet build` 0 errores · **2.345 tests** verdes (2.303 previos + 42 nuevos de `SiloCalculosTests`)
+  · `yarn build` 0 errores (único warning: bundle budget preexistente).
+- **Smoke Santa Reyes** (backend propio :5501, JWT + X-Secret-Up cifrado): catálogo 100 ✔ · 39
+  ubicaciones de La Esperanza con sus códigos ERP ✔ · **galpón 1 → silos 4, 20 + bodega** ✔ ·
+  **silo 4 COMPARTIDO por galpón 1 y 2 con una sola fila de config** ✔ · silo inexistente rechazado ✔ ·
+  reasignar el mismo set no duplica (4 filas totales) ✔.
+- **Gotcha de `fn_mover_galpon` verificado**: al mover el galpón 2 al Núcleo 2, su silo lo siguió
+  (`nucleo_id` 910001→910002) y volvió al revertir. El saneamiento cross-granja se probó en una
+  transacción con `ROLLBACK` (la fila cruzada se borra; el estado quedó intacto).
+- **Regresión flag OFF (Sanmarino)**: catálogo `[]`, silos de la granja 109 `[]`, y asignar un silo
+  ajeno devuelve «La granja 109 no pertenece a la empresa activa» ✔. `/config/silos` NO está en los
+  `company_menus` de ninguna empresa salvo Santa Reyes ✔.
+- Fail-closed de lotes verificado en los dos caminos: lote inexistente y lote de otra empresa.
+- Backend de smoke detenido (`:5501` libre); el backend del usuario en `:5002` quedó intacto.
+- ⚠️ **Dato dejado a propósito en la BD local**: las asignaciones de silos al galpón 1 y 2 de Santa
+  Reyes (el ejemplo del pedido) quedan para poder verlas por pantalla. Son configuración, no
+  movimientos; se borran con `DELETE FROM galpon_silos;` si molestan.
+- 🔎 **Hallazgo de implementación**: si un galpón / núcleo / lote cambia de GRANJA, sus silos son de
+  la granja vieja y la asignación quedaría cruzada. No se puede repuntar (en la granja destino esos
+  silos no existen) ⇒ las 3 funciones ahora la **quitan**. No estaba en el plan; se descubrió al
+  escribir la migración.
 
 ## Fase B — Inventario por silo (⚠️ acá está el riesgo)
 

@@ -248,6 +248,14 @@ export const appConfig: ApplicationConfig = {
           { path: 'master-lists/new', component: ListDetailComponent },
           { path: 'master-lists/:id', component: ListDetailComponent },
 
+          // Lista maestra de silos (empresas con inventario por silo). Lazy: no la carga quien no la usa.
+          {
+            path: 'silos',
+            loadComponent: () =>
+              import('./features/silos/pages/silo-catalogo/silo-catalogo.component')
+                .then(m => m.SiloCatalogoComponent)
+          },
+
           { path: 'companies',       component: CompanyManagementComponent },
           { path: 'role-management', component: RoleManagementComponent },
           { path: 'users',           component: UserManagementComponent },

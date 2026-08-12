@@ -490,6 +490,11 @@
                         <button (click)="openMoverUbicacion(l)" class="icon-btn" title="Mover ubicación (galpón/núcleo/granja)">
                           <fa-icon [icon]="faRightLeft" aria-hidden="true"></fa-icon>
                         </button>
+                        @if (manejaInventarioPorSilo) {
+                          <button (click)="abrirSilos(l)" class="icon-btn" title="Silos de consumo del lote">
+                            <fa-icon [icon]="faWarehouse" aria-hidden="true"></fa-icon>
+                          </button>
+                        }
                         <button (click)="delete(l)" class="icon-btn danger" title="Eliminar">
                           <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                         </button>
@@ -1533,4 +1538,12 @@
   (cancelled)="onCancelConfirmBase()"
   (closed)="onCancelConfirmBase()">
 </app-confirmation-modal>
+
+<!-- Silos de los que consume el lote (solo empresas con inventario por silo) -->
+@if (destinoSilos) {
+  <app-modal-asignar-silos
+    [destino]="destinoSilos"
+    (cerrar)="cerrarSilos()">
+  </app-modal-asignar-silos>
+}
 </div>

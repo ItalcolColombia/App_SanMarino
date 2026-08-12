@@ -36,5 +36,7 @@ public record CreateCompanyDto(
     /// <summary>Los lotes de engorde se programan (lote base obligatorio + gasto contra lote programado).</summary>
     bool     ProgramacionLotesEngorde = false,
     /// <summary>El nombre del lote lleva el sufijo de corrida desde la primera apertura ("96 - 1").</summary>
-    bool     NombreLoteIncluyeCorrida = false
+    bool     NombreLoteIncluyeCorrida = false,
+    /// <summary>El inventario se ubica en silos/bodegas de la granja, no en el galpón.</summary>
+    bool     ManejaInventarioPorSilo = false
 );

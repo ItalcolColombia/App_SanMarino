@@ -65,7 +65,8 @@ public class CompanyResolver : ICompanyResolver
                 c.PrimerRegistroSegunHoraLlegada,
                 c.DiasAlimentoPrevioEncaset,
                 c.ProgramacionLotesEngorde,
-                c.NombreLoteIncluyeCorrida
+                c.NombreLoteIncluyeCorrida,
+                c.ManejaInventarioPorSilo
             ))
             .FirstOrDefaultAsync();
 
@@ -113,7 +114,8 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.PrimerRegistroSegunHoraLlegada,
                 uc.Company.DiasAlimentoPrevioEncaset,
                 uc.Company.ProgramacionLotesEngorde,
-                uc.Company.NombreLoteIncluyeCorrida
+                uc.Company.NombreLoteIncluyeCorrida,
+                uc.Company.ManejaInventarioPorSilo
             ))
             .ToListAsync();
 

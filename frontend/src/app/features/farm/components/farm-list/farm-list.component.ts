@@ -12,9 +12,10 @@ import { finalize, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faMagnifyingGlass, faEye, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faMagnifyingGlass, faEye, faTimes, faWarehouse } from '@fortawesome/free-solid-svg-icons';
 
 import { FarmService, FarmDto, UpdateFarmDto } from '../../services/farm.service';
+import { ModalSilosGranjaComponent } from '../../../silos/components/modal-silos-granja/modal-silos-granja.component';
 import { Company, CompanyService } from '../../../../core/services/company/company.service';
 import { RegionalService, RegionalDto } from '../../services/regional.service';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -40,6 +41,7 @@ import { ClienteDto } from '../../../clientes/models/cliente.models';
     ReactiveFormsModule,
     FontAwesomeModule,
     ConfirmationModalComponent,
+    ModalSilosGranjaComponent,
   ],
   templateUrl: './farm-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -53,6 +55,7 @@ export class FarmListComponent implements OnInit {
   faMagnifyingGlass = faMagnifyingGlass;
   faEye = faEye;
   faTimes = faTimes;
+  faWarehouse = faWarehouse;
 
   // Estado general
   loading = false;
@@ -150,7 +153,26 @@ export class FarmListComponent implements OnInit {
   private loadCompanyFlags(): void {
     this.companyConfig.getFlags().subscribe(flags => {
       this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
+      this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
     });
+  }
+
+  // ================
+  // Silos de la granja (empresas con inventario por silo)
+  // ================
+
+  /** Fail-closed: apagado hasta que el backend confirme el flag. */
+  manejaInventarioPorSilo = false;
+
+  /** Granja cuyo modal de silos está abierto (null = cerrado). */
+  granjaSilos: FarmDto | null = null;
+
+  abrirSilos(g: FarmDto): void {
+    this.granjaSilos = g;
+  }
+
+  cerrarSilos(): void {
+    this.granjaSilos = null;
   }
 
   // ==================

@@ -162,6 +162,24 @@
         /// </summary>
         public bool NombreLoteIncluyeCorrida { get; set; }
 
+        /// <summary>
+        /// <c>true</c> = el inventario de esta empresa se ubica en SILOS y BODEGAS
+        /// (<see cref="FarmSilo"/>), no en el galpón. Ingresos, traslados y consumos exigen
+        /// <c>silo_id</c> y persisten <c>nucleo_id</c>/<c>galpon_id</c> en NULL: el galpón pasa a ser
+        /// el filtro que despliega qué silos se pueden elegir, no la ubicación del stock.
+        /// <para>
+        /// Nace del dato del cliente (Santa Reyes): en su ERP el galpón mueve aves, huevo e insumos,
+        /// pero el ALIMENTO se mueve en el silo, y los silos cuelgan de la bodega de la GRANJA. Como
+        /// un mismo silo puede alimentar a varios galpones, llevar el saldo por (galpón, silo)
+        /// partiría el contenido físico de un silo en dos saldos y ninguno sería el real.
+        /// </para>
+        /// <para>
+        /// <c>false</c> (default) = comportamiento previo intacto: la ubicación es granja (Colombia) o
+        /// granja/núcleo/galpón (Ecuador, Panamá) y <c>silo_id</c> es siempre NULL.
+        /// </para>
+        /// </summary>
+        public bool ManejaInventarioPorSilo { get; set; }
+
         // ← Añadimos las colecciones de navegación:
         public ICollection<Farm> Farms { get; set; } = new List<Farm>();
         public ICollection<Regional> Regionales { get; set; } = new List<Regional>();

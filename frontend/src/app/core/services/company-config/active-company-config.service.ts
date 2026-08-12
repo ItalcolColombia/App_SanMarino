@@ -50,6 +50,12 @@ export interface CompanyFlags {
    * nombre del base) y el sufijo sólo aparece desde la segunda apertura en el mismo galpón.
    */
   nombreLoteIncluyeCorrida: boolean;
+  /**
+   * El inventario se ubica en SILOS y BODEGAS de la granja, no en el galpón: ingreso, traslado y
+   * consumo exigen silo, y el galpón pasa a ser el filtro que despliega qué silos elegir.
+   * Habilita además las pantallas de asignación de silos (lista maestra, granja, galpón y lote).
+   */
+  manejaInventarioPorSilo: boolean;
 }
 
 /** FAIL-CLOSED: si no hay empresa activa, falla el HTTP o el campo no viene → todo apagado. */
@@ -61,7 +67,8 @@ const FLAGS_APAGADOS: CompanyFlags = Object.freeze({
   ventaEngordePesoDiferido: false,
   primerRegistroSegunHoraLlegada: false,
   programacionLotesEngorde: false,
-  nombreLoteIncluyeCorrida: false
+  nombreLoteIncluyeCorrida: false,
+  manejaInventarioPorSilo: false
 });
 
 /** TTL de la caché en memoria por empresa (5 minutos). */
@@ -82,6 +89,7 @@ interface CompanyFlagsResponse {
   primerRegistroSegunHoraLlegada?: boolean | null;
   programacionLotesEngorde?: boolean | null;
   nombreLoteIncluyeCorrida?: boolean | null;
+  manejaInventarioPorSilo?: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -129,6 +137,12 @@ export class ActiveCompanyConfigService {
   /** Atajo: ¿la empresa activa programa los lotes de engorde (lote base obligatorio)? */
   readonly programacionLotesEngorde$: Observable<boolean> = this.flags$.pipe(
     map(f => f.programacionLotesEngorde),
+    distinctUntilChanged()
+  );
+
+  /** Atajo: ¿la empresa activa ubica el inventario en silos/bodegas en vez del galpón? */
+  readonly manejaInventarioPorSilo$: Observable<boolean> = this.flags$.pipe(
+    map(f => f.manejaInventarioPorSilo),
     distinctUntilChanged()
   );
 
@@ -239,7 +253,8 @@ export class ActiveCompanyConfigService {
       ventaEngordePesoDiferido: dto?.ventaEngordePesoDiferido === true,
       primerRegistroSegunHoraLlegada: dto?.primerRegistroSegunHoraLlegada === true,
       programacionLotesEngorde: dto?.programacionLotesEngorde === true,
-      nombreLoteIncluyeCorrida: dto?.nombreLoteIncluyeCorrida === true
+      nombreLoteIncluyeCorrida: dto?.nombreLoteIncluyeCorrida === true,
+      manejaInventarioPorSilo: dto?.manejaInventarioPorSilo === true
     };
   }
 
@@ -255,7 +270,8 @@ export class ActiveCompanyConfigService {
       actual.ventaEngordePesoDiferido === flags.ventaEngordePesoDiferido &&
       actual.primerRegistroSegunHoraLlegada === flags.primerRegistroSegunHoraLlegada &&
       actual.programacionLotesEngorde === flags.programacionLotesEngorde &&
-      actual.nombreLoteIncluyeCorrida === flags.nombreLoteIncluyeCorrida
+      actual.nombreLoteIncluyeCorrida === flags.nombreLoteIncluyeCorrida &&
+      actual.manejaInventarioPorSilo === flags.manejaInventarioPorSilo
     ) return;
     this.flagsSubject.next(flags);
   }

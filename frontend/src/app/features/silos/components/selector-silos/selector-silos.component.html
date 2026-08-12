@@ -1,0 +1,34 @@
+<!-- src/app/features/silos/components/selector-silos/selector-silos.component.html -->
+<div class="selector-silos">
+
+  @if (cargando) {
+    <div class="ss-empty">Cargando silos…</div>
+  } @else if (!disponibles.length) {
+    <div class="ss-empty">{{ mensajeVacio }}</div>
+  } @else {
+
+    <div class="ss-actions">
+      <span class="ss-count">{{ seleccionados.length }} de {{ disponibles.length }} seleccionado(s)</span>
+      <div class="ss-actions-btns">
+        <button type="button" class="ss-link" (click)="seleccionarTodos()" [disabled]="disabled">Todos</button>
+        <button type="button" class="ss-link" (click)="limpiar()" [disabled]="disabled">Ninguno</button>
+      </div>
+    </div>
+
+    <div class="ss-list" role="group" aria-label="Silos y bodegas">
+      @for (s of disponibles; track trackById($index, s)) {
+        <label class="ss-item" [class.ss-item-on]="estaSeleccionado(s.id)" [class.ss-item-off]="disabled">
+          <input
+            type="checkbox"
+            [checked]="estaSeleccionado(s.id)"
+            [disabled]="disabled"
+            (change)="alternar(s.id)" />
+          <span class="ss-item-body">
+            <span class="ss-item-name">{{ etiqueta(s) }}</span>
+            <span class="ss-item-tag" [class.ss-tag-bodega]="s.tipo === 'Bodega'">{{ s.tipo }}</span>
+          </span>
+        </label>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,150 @@
+<!-- src/app/features/silos/components/modal-silos-granja/modal-silos-granja.component.html -->
+<div class="modal-backdrop" (click)="onCerrar()"></div>
+
+<div class="modal-panel modal-wide" role="dialog" aria-modal="true" aria-label="Silos de la granja">
+  <div class="modal-header">
+    <h3>Silos y bodega{{ granjaNombre ? ' — ' + granjaNombre : '' }}</h3>
+    <button type="button" class="icon-btn" (click)="onCerrar()" aria-label="Cerrar">
+      <fa-icon [icon]="faTimes"></fa-icon>
+    </button>
+  </div>
+
+  <div class="modal-body">
+    @if (loading) {
+      <div class="ms-empty">Cargando…</div>
+    } @else {
+
+      <!-- 1) Qué silos del catálogo tiene esta granja -->
+      <section class="ms-section">
+        <h4 class="ms-section-title">Silos de la lista maestra</h4>
+        <p class="ms-hint">
+          Marque los silos que tiene esta granja. Los que se desmarquen se dan de baja, salvo que
+          estén en uso por un galpón o un lote.
+        </p>
+
+        <app-selector-silos
+          [disponibles]="disponiblesComoSilos"
+          [seleccionados]="seleccionados"
+          [disabled]="saving"
+          (seleccionadosChange)="onSeleccionChange($event)"
+          mensajeVacio="No hay silos en la lista maestra de la empresa. Créelos primero en Configuración → Silos.">
+        </app-selector-silos>
+      </section>
+
+      <!-- 2) Bodega de la granja -->
+      <section class="ms-section">
+        <h4 class="ms-section-title">Bodega de la granja</h4>
+        @if (tieneBodega) {
+          <p class="ms-hint">Esta granja ya tiene su bodega configurada.</p>
+        } @else {
+          <label class="ms-check">
+            <input type="checkbox" [(ngModel)]="crearBodega" [disabled]="saving" />
+            <span>Crear la bodega de la granja</span>
+          </label>
+          @if (crearBodega) {
+            <label class="field mt-2">
+              <span class="field-label">Nombre de la bodega</span>
+              <input type="text" class="field-input" [(ngModel)]="nombreBodega" maxlength="120" [disabled]="saving" />
+              <span class="field-hint">
+                Guarda alimento e insumos y admite traslado interno hacia los silos.
+              </span>
+            </label>
+          }
+        }
+      </section>
+
+      <!-- 3) Códigos ERP por ubicación -->
+      @if (asignados.length) {
+        <section class="ms-section">
+          <h4 class="ms-section-title">Códigos ERP por ubicación</h4>
+          <p class="ms-hint">
+            Son propios de cada granja: el mismo silo tiene distinta ubicación en cada una.
+          </p>
+
+          <div class="table-scroll">
+            <table class="ms-table">
+              <thead>
+                <tr>
+                  <th scope="col">Ubicación</th>
+                  <th scope="col">Tipo</th>
+                  <th scope="col">Código ERP</th>
+                  <th scope="col">C.O.</th>
+                  <th scope="col">Bodega</th>
+                  <th scope="col" class="text-center">En uso</th>
+                  <th scope="col" class="text-right"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (s of asignados; track trackById($index, s)) {
+                  <tr>
+                    <td class="font-medium">{{ s.nombre }}</td>
+                    <td>
+                      <span class="ms-tag" [class.ms-tag-bodega]="s.tipo === 'Bodega'">{{ s.tipo }}</span>
+                    </td>
+                    <td class="font-mono">{{ s.codigoErpUbicacion || '—' }}</td>
+                    <td class="font-mono">{{ s.centroOperacion || '—' }}</td>
+                    <td class="font-mono">{{ s.codigoBodega || '—' }}</td>
+                    <td class="text-center text-muted">
+                      {{ s.galponesAsignados }}G / {{ s.lotesAsignados }}L
+                    </td>
+                    <td class="text-right">
+                      <button type="button" class="icon-btn" (click)="abrirErp(s)" [attr.aria-label]="'Editar códigos de ' + s.nombre">
+                        <fa-icon [icon]="faPen"></fa-icon>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+    }
+  </div>
+
+  <div class="modal-footer">
+    <button type="button" class="btn-subtle" (click)="onCerrar()">Cerrar</button>
+    <button type="button" class="btn-primary" (click)="guardar()" [disabled]="saving || loading">
+      {{ saving ? 'Guardando…' : 'Guardar silos' }}
+    </button>
+  </div>
+</div>
+
+<!-- Sub-modal: códigos ERP de una ubicación -->
+@if (editandoErp) {
+  <div class="modal-backdrop modal-backdrop-top" (click)="cerrarErp()"></div>
+  <div class="modal-panel modal-panel-top" role="dialog" aria-modal="true" aria-label="Códigos ERP">
+    <div class="modal-header">
+      <h3>Códigos ERP — {{ editandoErp.nombre }}</h3>
+      <button type="button" class="icon-btn" (click)="cerrarErp()" aria-label="Cerrar">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <label class="field">
+        <span class="field-label">Código de ubicación</span>
+        <input type="text" class="field-input" [(ngModel)]="erpUbicacion" maxlength="20" placeholder="BS60101" />
+      </label>
+      <label class="field">
+        <span class="field-label">Centro de operación</span>
+        <input type="text" class="field-input" [(ngModel)]="erpCentroOperacion" maxlength="20" placeholder="830" />
+      </label>
+      <label class="field">
+        <span class="field-label">Código de bodega</span>
+        <input type="text" class="field-input" [(ngModel)]="erpCodigoBodega" maxlength="20" placeholder="B0601" />
+      </label>
+      <label class="field">
+        <span class="field-label">Descripción</span>
+        <input type="text" class="field-input" [(ngModel)]="erpDescripcion" maxlength="200" />
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-subtle" (click)="cerrarErp()">Cancelar</button>
+      <button type="button" class="btn-primary" (click)="guardarErp()" [disabled]="saving">
+        {{ saving ? 'Guardando…' : 'Guardar' }}
+      </button>
+    </div>
+  </div>
+}

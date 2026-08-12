@@ -50,6 +50,7 @@ public partial class CompanyService : ICompanyService
         c.PrimerRegistroSegunHoraLlegada,
         c.DiasAlimentoPrevioEncaset,
         c.ProgramacionLotesEngorde,
-        c.NombreLoteIncluyeCorrida
+        c.NombreLoteIncluyeCorrida,
+        c.ManejaInventarioPorSilo
     );
 }

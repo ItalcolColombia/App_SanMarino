@@ -154,6 +154,11 @@
                       <button class="icon-btn" title="Editar" aria-label="Editar" (click)="openModal(g)">
                         <fa-icon [icon]="faPen"></fa-icon>
                       </button>
+                      @if (manejaInventarioPorSilo) {
+                        <button class="icon-btn" title="Silos y bodega" aria-label="Silos y bodega" (click)="abrirSilos(g)">
+                          <fa-icon [icon]="faWarehouse"></fa-icon>
+                        </button>
+                      }
                       <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" (click)="delete(g.id!)">
                         <fa-icon [icon]="faTrash"></fa-icon>
                       </button>
@@ -605,6 +610,15 @@
       (cancelled)="onCancelConfirm()"
       (closed)="onCancelConfirm()">
     </app-confirmation-modal>
+
+    <!-- Silos y bodega de la granja (solo empresas con inventario por silo) -->
+    @if (granjaSilos) {
+      <app-modal-silos-granja
+        [granjaId]="granjaSilos.id!"
+        [granjaNombre]="granjaSilos.name"
+        (cerrar)="cerrarSilos()">
+      </app-modal-silos-granja>
+    }
 
   </div>
 </div>
