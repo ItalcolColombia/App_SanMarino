@@ -50,8 +50,10 @@ public static class SyncPushCalculos
     public static class Tipos
     {
         public const string SeguimientoLevanteCrear = "seguimiento_levante_crear";
+        public const string SeguimientoProduccionCrear = "seguimiento_produccion_crear";
 
-        public static bool EsConocido(string? tipo) => tipo == SeguimientoLevanteCrear;
+        public static bool EsConocido(string? tipo) =>
+            tipo == SeguimientoLevanteCrear || tipo == SeguimientoProduccionCrear;
     }
 
     public enum Decision
@@ -89,6 +91,12 @@ public static class SyncPushCalculos
     /// error de captura en vez de romper el binding del lote entero.</param>
     /// <param name="empresasDelUsuario">Empresas que el JWT habilita. Vacío ⇒ nada se aplica.</param>
     /// <param name="clientOpIdsYaVistosEnLote">Ids ya procesados en este mismo lote.</param>
+    /// <param name="empresaDeLaSesion">
+    /// Empresa efectiva de ESTA petición. Los services aguas abajo filtran el lote por ella
+    /// (<c>l.CompanyId == _current.CompanyId</c>), así que una operación de otra empresa no se
+    /// aplicaría igual — pero fallaría con un "Lote no existe" que en campo se lee como un dato
+    /// corrupto. Se rechaza acá, con el motivo real. <c>null</c> omite la comprobación.
+    /// </param>
     public static Veredicto EvaluarOperacion(
         string? clientOpId,
         string? tipo,
@@ -96,7 +104,8 @@ public static class SyncPushCalculos
         DateTime? capturadoAtDispositivo,
         DateTime ahoraUtc,
         IReadOnlyCollection<int> empresasDelUsuario,
-        IReadOnlyCollection<string> clientOpIdsYaVistosEnLote)
+        IReadOnlyCollection<string> clientOpIdsYaVistosEnLote,
+        int? empresaDeLaSesion = null)
     {
         if (string.IsNullOrWhiteSpace(clientOpId))
         {
@@ -134,6 +143,14 @@ public static class SyncPushCalculos
             return Veredicto.Rechazar(
                 Errores.EmpresaNoAutorizada,
                 $"El usuario no tiene acceso a la empresa {companyId} al momento de sincronizar.");
+        }
+
+        if (empresaDeLaSesion is { } sesion && sesion > 0 && sesion != companyId)
+        {
+            return Veredicto.Rechazar(
+                Errores.EmpresaNoAutorizada,
+                $"La operación es de la empresa {companyId} y la sesión está en la {sesion}. " +
+                "Cambiá de empresa para enviarla.");
         }
 
         if (capturadoAtDispositivo is { } capturado &&

@@ -221,7 +221,12 @@ public partial class ProduccionService
 
             await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
 
-            await using var tx = await _context.Database.BeginTransactionAsync();
+            // Transaccion CONDICIONAL: null cuando ya hay una ambiente (push offline de la PWA). EF lanza
+            // si se abre una segunda sobre el mismo contexto. Sin ambiente abre la suya y el
+            // comportamiento es identico al de antes.
+            await using var tx = _context.Database.CurrentTransaction is null
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
             if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
             await _context.SaveChangesAsync();
             if (positivos.Count > 0)
@@ -230,7 +235,7 @@ public partial class ProduccionService
                 await _colombiaConsumoB.AplicarConsumoAsync(granjaId.Value, positivos, refStr);
                 await _context.SaveChangesAsync();
             }
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
             if (lotePosturaProduccionId.HasValue)
                 await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
             return entity.Id;
@@ -559,11 +564,16 @@ public partial class ProduccionService
             }
             await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, incrementos); // lanza si falta (antes de persistir)
 
-            await using var tx = await _context.Database.BeginTransactionAsync();
+            // Transaccion CONDICIONAL: null cuando ya hay una ambiente (push offline de la PWA). EF lanza
+            // si se abre una segunda sobre el mismo contexto. Sin ambiente abre la suya y el
+            // comportamiento es identico al de antes.
+            await using var tx = _context.Database.CurrentTransaction is null
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
             var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
             await _colombiaConsumoB.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr);
             await _context.SaveChangesAsync().ConfigureAwait(false);
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
             if (lotePosturaProduccionId.HasValue)
                 await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
             return;
@@ -604,7 +614,12 @@ public partial class ProduccionService
                 : new Dictionary<ItemConsumoKey, decimal>();
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
-            await using var tx = await _context.Database.BeginTransactionAsync();
+            // Transaccion CONDICIONAL: null cuando ya hay una ambiente (push offline de la PWA). EF lanza
+            // si se abre una segunda sobre el mismo contexto. Sin ambiente abre la suya y el
+            // comportamiento es identico al de antes.
+            await using var tx = _context.Database.CurrentTransaction is null
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento producción #{seguimientoId} (devolución por eliminación)";
@@ -612,7 +627,7 @@ public partial class ProduccionService
             }
             _context.SeguimientoProduccion.Remove(e);
             await _context.SaveChangesAsync().ConfigureAwait(false);
-            await tx.CommitAsync();
+            if (tx is not null) await tx.CommitAsync();
             if (lppId.HasValue)
                 await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lppId.Value).ConfigureAwait(false);
             return true;

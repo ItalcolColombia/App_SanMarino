@@ -4026,3 +4026,44 @@ no tiene la fila recién capturada ⇒ el operario no tenía **ninguna** señal 
       pudo primero (`sync.service` con `import()` diferido, el `HttpContextToken` en su propio
       archivo, `href` en vez de `RouterLink`) y aun así faltaba 1,33 kB. La deuda real —500 kB por
       encima del budget de **warning**— es preexistente y **no** se tocó
+
+---
+
+# PWA F3.2 — captura offline de PRODUCCIÓN (la otra etapa de postura)
+
+**Plan:** [fase_de_desarrollo/pwa_f3_captura_offline_plan.md](fase_de_desarrollo/pwa_f3_captura_offline_plan.md)
+**Fecha:** 2026-08-12
+
+**Por qué:** F3.1 cubría solo levante. Postura tiene **dos** etapas, así que el galponero de
+producción quedaba exactamente igual que antes de la PWA.
+
+## Backend
+- [x] Tipo `seguimiento_produccion_crear` en `SyncPushCalculos.Tipos`
+- [x] `Funciones/SyncPushService.Produccion.cs` — despacha a `IProduccionService.CrearSeguimientoAsync`,
+      el mismo que usa el controller (nada de reimplementar reglas)
+- [x] Transacción **condicional** en `ProduccionService.Seguimiento.cs` (**3 sitios**), igual que en
+      levante: sin ambiente abre la suya, con ambiente participa
+- [x] 🔴 **Comprobación nueva: la empresa de la operación contra la de la SESIÓN.** Los services
+      filtran el lote por `_current.CompanyId`, así que una operación de otra empresa **no** escribiría
+      donde no debe — pero fallaría con «Lote no existe», que en campo se lee como dato corrupto.
+      Ahora el rechazo dice el motivo real. Aplica también a levante
+- [x] `dotnet build` 0 err / 0 warnings · `dotnet test` **2.273** (2.269 → 2.273)
+
+## Frontend
+- [x] `POST /api/Produccion/seguimiento` en la lista blanca, con `$` al final para **no** capturar
+      `/seguimiento/{id}` (edición) ni `/lotes` ni `/indicadores-semanales`
+- [x] Toast de «guardado en el dispositivo» en el listado de producción: se lee **antes** del
+      `map(() => undefined)` que descartaba el cuerpo, y reemplaza al «guardado» del modal
+- [x] `yarn build` 0 err · `yarn test` **284** (281 → 284)
+
+## Smoke HTTP con el perfil real de postura (Alex, empresa 1)
+- [x] Push contra el lote de producción 7 (lote 13): aplicada, `entidadId 671`
+- [x] Reenvío ⇒ `replay:true`, mismo id, **una sola fila**; empresa 1 y autor estampados por el servidor
+- [x] Limpieza por la API. **El saldo de aves no se movió (5.315 → 5.315) y está bien**: el alta de
+      producción **no escribe** `aves_h_actual` (cero referencias en el service) — esa columna la
+      recalcula la lectura. Se verificó en vez de asumir
+- [x] `sync_operaciones` y seguimientos del smoke en 0
+
+## Lo que sigue
+- [ ] **Engorde** (`POST /api/SeguimientoAvesEngordeEcuador`) — sigue fuera: el cliente no lo encola
+      y el servidor lo rechaza `contrato_obsoleto`

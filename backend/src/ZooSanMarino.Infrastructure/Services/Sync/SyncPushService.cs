@@ -26,17 +26,20 @@ public partial class SyncPushService : ISyncPushService
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
     private readonly ISeguimientoLoteLevanteService _levante;
+    private readonly IProduccionService _produccion;
     private readonly ILogger<SyncPushService>? _logger;
 
     public SyncPushService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         ISeguimientoLoteLevanteService levante,
+        IProduccionService produccion,
         ILogger<SyncPushService>? logger = null)
     {
         _ctx = ctx;
         _current = current;
         _levante = levante;
+        _produccion = produccion;
         _logger = logger;
     }
 
@@ -66,7 +69,7 @@ public partial class SyncPushService : ISyncPushService
         {
             var veredicto = SyncPushCalculos.EvaluarOperacion(
                 op.ClientOpId, op.Tipo, op.CompanyId, op.CapturadoAtDispositivo,
-                ahoraUtc, empresasDelUsuario, vistosEnLote);
+                ahoraUtc, empresasDelUsuario, vistosEnLote, _current.CompanyId);
 
             if (veredicto.Decision == SyncPushCalculos.Decision.Rechazar)
             {

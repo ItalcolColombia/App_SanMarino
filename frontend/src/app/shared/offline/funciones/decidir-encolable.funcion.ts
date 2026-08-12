@@ -27,6 +27,13 @@ const OPERACIONES_SOPORTADAS: ReadonlyArray<{
     // Alta de seguimiento diario de levante. Sin sufijo de id: el alta va al recurso, no a un item.
     ruta: /\/api\/SeguimientoLoteLevante\/?$/i,
     tipo: 'seguimiento_levante_crear'
+  },
+  {
+    metodo: 'POST',
+    // Alta de seguimiento diario de PRODUCCIÓN — la segunda etapa de postura. `$` al final para no
+    // capturar `/seguimiento/{id}` ni los sub-recursos de indicadores.
+    ruta: /\/api\/Produccion\/seguimiento\/?$/i,
+    tipo: 'seguimiento_produccion_crear'
   }
 ];
 

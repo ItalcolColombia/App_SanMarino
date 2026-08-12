@@ -25,6 +25,22 @@ describe('decidirEncolable', () => {
       expect(resolverTipoOperacion('POST', `${RUTA}/`)).toBe('seguimiento_levante_crear');
     });
 
+    it('reconoce el alta de seguimiento de PRODUCCIÓN (la otra etapa de postura)', () => {
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/Produccion/seguimiento'))
+        .toBe('seguimiento_produccion_crear');
+    });
+
+    it('🔑 NO confunde la EDICIÓN de producción con el alta', () => {
+      // `/seguimiento/123` es un PUT de edición; encolarlo dejaría que un PUT sincronizado tarde
+      // pise columnas del sistema.
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/Produccion/seguimiento/123')).toBeNull();
+    });
+
+    it('NO encola los sub-recursos de Producción', () => {
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/Produccion/lotes')).toBeNull();
+      expect(resolverTipoOperacion('POST', 'http://localhost:5002/api/Produccion/indicadores-semanales')).toBeNull();
+    });
+
     it('NO encola las lecturas', () => {
       expect(resolverTipoOperacion('GET', RUTA)).toBeNull();
     });
