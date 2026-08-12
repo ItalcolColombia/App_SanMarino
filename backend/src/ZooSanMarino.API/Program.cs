@@ -209,6 +209,7 @@ builder.Services.AddScoped<IUserFarmScopeService, UserFarmScopeService>();
 builder.Services.AddScoped<ILocationScopeResolver, LocationScopeResolver>(); // alcance granular núcleo/galpón/lote (caché por request)
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
+builder.Services.AddScoped<ICompanyPermissionService, CompanyPermissionService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<INucleoService, NucleoService>();
 builder.Services.AddScoped<IGalponService, GalponService>();

@@ -64,6 +64,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<ProduccionResultadoLevante> ProduccionResultadoLevante => Set<ProduccionResultadoLevante>();
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
         public DbSet<CompanyMenu> CompanyMenus => Set<CompanyMenu>();
+        public DbSet<CompanyPermission> CompanyPermissions => Set<CompanyPermission>();
         public DbSet<ProduccionAvicolaRaw> ProduccionAvicolaRaw => Set<ProduccionAvicolaRaw>();
 
         // Guía genética Ecuador (tablas mixto/hembra/macho por empresa + raza + año)

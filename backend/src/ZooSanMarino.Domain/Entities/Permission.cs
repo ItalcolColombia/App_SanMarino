@@ -14,6 +14,8 @@ namespace ZooSanMarino.Domain.Entities
         public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
         // 👇 navegación inversa (nueva)
         public ICollection<MenuPermission> MenuPermissions { get; set; } = new List<MenuPermission>();
+        /// <summary>Empresas que tienen habilitado este permiso (ver <see cref="CompanyPermission"/>).</summary>
+        public ICollection<CompanyPermission> CompanyPermissions { get; set; } = new List<CompanyPermission>();
     }
 
 }

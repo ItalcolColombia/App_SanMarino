@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Shared;
 using ZooSanMarino.Application.Interfaces;
@@ -221,6 +222,57 @@ public class AuthService : IAuthService
         await _ctx.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Permisos efectivos del usuario: los que dan sus roles, intersectados con los que habilita la
+    /// EMPRESA de cada rol (<c>company_permissions</c>).
+    /// <para>
+    /// El par (rol, empresa) importa: el mismo permiso puede llegar por un rol de una empresa que lo
+    /// habilita y por otro de una que no — sobrevive por el primero, una sola vez. Por eso no se
+    /// resuelve con la "empresa activa" sino con la empresa de cada <c>user_roles</c>.
+    /// </para>
+    /// <para>
+    /// Es FAIL-CLOSED: una empresa sin ninguna fila en <c>company_permissions</c> no aporta permisos.
+    /// El seed inicial cubre todas las empresas existentes y <c>CompanyService.CreateAsync</c> siembra
+    /// el catálogo completo en cada empresa nueva, así que ese caso no debería darse en la práctica.
+    /// </para>
+    /// </summary>
+    private async Task<List<string>> PermisosEfectivosAsync(IEnumerable<(int CompanyId, int RoleId)> paresRolEmpresa)
+    {
+        var pares = paresRolEmpresa.Distinct().ToList();
+        if (pares.Count == 0) return new List<string>();
+
+        var roleIds = pares.Select(p => p.RoleId).Distinct().ToList();
+        var companyIds = pares.Select(p => p.CompanyId).Distinct().ToList();
+
+        var keysPorRol = (await _ctx.RolePermissions
+                .AsNoTracking()
+                .Where(rp => roleIds.Contains(rp.RoleId))
+                .Select(rp => new { rp.RoleId, rp.Permission.Key })
+                .ToListAsync())
+            .GroupBy(x => x.RoleId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyCollection<string>)g.Select(x => x.Key).Distinct().ToList());
+
+        var habilitadasPorEmpresa = (await _ctx.CompanyPermissions
+                .AsNoTracking()
+                .Where(cp => companyIds.Contains(cp.CompanyId) && cp.IsEnabled)
+                .Select(cp => new { cp.CompanyId, cp.Permission.Key })
+                .ToListAsync())
+            .GroupBy(x => x.CompanyId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyCollection<string>)g.Select(x => x.Key).Distinct().ToList());
+
+        var entrada = pares
+            .Where(p => keysPorRol.ContainsKey(p.RoleId))
+            .Select(p => (p.CompanyId, keysPorRol[p.RoleId]));
+
+        return CompanyPermissionCalculos
+            .ResolverEfectivos(entrada, habilitadasPorEmpresa)
+            .ToList();
+    }
+
     // Genera el JWT y arma la respuesta
     private async Task<AuthResponseDto> GenerateResponseAsync(User user, Login login)
 {
@@ -238,13 +290,10 @@ public class AuthService : IAuthService
 
     var roleIds = userRoles.Select(r => r.RoleId).Distinct().ToList();
 
-    // Permisos agregados del usuario (desde sus roles)
-    var permissions = await _ctx.RolePermissions
-        .Include(rp => rp.Permission)
-        .Where(rp => roleIds.Contains(rp.RoleId))
-        .Select(rp => rp.Permission.Key)
-        .Distinct()
-        .ToListAsync();
+    // Permisos agregados del usuario (desde sus roles), acotados por lo que habilita la empresa de
+    // cada rol (company_permissions). Ver PermisosEfectivosAsync.
+    var permissions = await PermisosEfectivosAsync(
+        userRoles.Select(ur => (ur.CompanyId, ur.RoleId)));
 
     // ===== NOTA: MenusByRole también se omite del login para reducir tamaño
     // Se cargará en una segunda petición junto con el menú
@@ -423,12 +472,15 @@ public class AuthService : IAuthService
 
         var roleIds = await rolesQuery.Select(ur => ur.RoleId).Distinct().ToListAsync();
 
-        var permissions = await _ctx.RolePermissions
-            .Include(rp => rp.Permission)
-            .Where(rp => roleIds.Contains(rp.RoleId))
-            .Select(rp => rp.Permission.Key)
+        // Mismo gate por empresa que en el login (ver PermisosEfectivosAsync). Acá los pares ya
+        // vienen filtrados por companyId cuando el llamador lo pasa.
+        var paresRolEmpresa = await rolesQuery
+            .Select(ur => new { ur.CompanyId, ur.RoleId })
             .Distinct()
             .ToListAsync();
+
+        var permissions = await PermisosEfectivosAsync(
+            paresRolEmpresa.Select(p => (p.CompanyId, p.RoleId)));
 
         // Menú desde el orquestador (antes venía de IMenuService)
         var menu = await _acl.Menus_GetForUserAsync(userId, companyId);

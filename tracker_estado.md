@@ -3820,3 +3820,58 @@ nunca llega a ECR. El backend de ese mismo run sí desplegó.
       Pendiente si se quiere la prueba end-to-end antes de re-desplegar
 - [x] Servidor de prueba detenido (puerto 4400 libre); sin procesos huérfanos
 - [x] Commit acotado (`6f410db`) (sin footer de atribución)
+
+---
+
+## Permisos por empresa (`company_permissions`) — 2026-08-11
+
+📄 Plan: [permisos_por_empresa_plan.md](fase_de_desarrollo/permisos_por_empresa_plan.md)
+
+El catálogo de permisos era global y plano (31 filas): al crear un rol de Ecuador se ofrecían permisos
+de Panamá y de Sanmarino Colombia. Se agrega el eje por empresa, con fuerza en los DOS puntos donde el
+permiso se usa (asignación y runtime) — a diferencia de `company_menus`, que configura pero no manda.
+
+### Auditoría previa (cerrada)
+- [x] `carga_masiva_postura` **sí** tiene migración: `20260714115357_AddPermisosCargaMasivaMigracionesMasivas`
+      la crea y `20260807230000_RestringirMigracionesMasivasASanmarino` la re-asegura
+- [x] Ambas aplicadas en local; permiso `id 59` presente y asignado a los roles 30, 31 y 32
+- [x] Lo restringido es el MÓDULO, no el permiso: `/migraciones-masivas` quedó solo en `company_menus`
+      de Sanmarino y en `role_menus` de los roles 1, 12 y 32 (decisión del 07ago26)
+
+### Backend — datos
+- [x] `CompanyPermission` + `CompanyPermissionConfiguration` + `DbSet` + navs en `Company`/`Permission`
+- [x] Migración `20260812025725_AddCompanyPermissions` (schema, `CREATE TABLE IF NOT EXISTS`; re-run verificado)
+- [x] Migración `20260812030035_SeedCompanyPermissionsDesdeRolesActuales` (data-only idempotente:
+      correrla dos veces deja las mismas 123 filas; empresa sin permisos en uso ⇒ catálogo completo)
+
+### Backend — lógica
+- [x] `Application/Calculos/CompanyPermissionCalculos.cs` (puro: R1 fail-closed, R2 intersección
+      multi-empresa, R3 runtime por par rol-empresa, R5 huérfanos, R6 case-insensitive)
+- [x] `CompanyPermissionDtos` + `ICompanyPermissionService` + `CompanyPermissionService`
+- [x] `GET`/`PUT /api/Company/{id}/permissions` + DI en `Program.cs`
+- [x] Gate runtime en `AuthService.PermisosEfectivosAsync` (login y `GetUserWithMenuAsync`)
+- [x] Siembra del catálogo completo al crear una empresa nueva, en `CompanyService.CreateAsync`
+      (R4: fail-closed no puede bloquear el primer rol de una empresa)
+- [x] `CompanyPermissionCalculosTests` — 15 casos (T1-T8 + invariante del seed)
+
+### Frontend
+- [x] `core/services/company-permission/company-permission.service.ts`
+- [x] Modal *Permisos* en Gestión de Empresas (junto a la de menús): buscador, marcar/desmarcar todos,
+      contador «N rol(es)» por permiso y aviso de los que se apagan estando en uso
+- [x] `role-management/funciones/filtrar-permisos-empresa.funcion.ts` (pura, espejo del cálculo del
+      back) + tab *Permisos* del modal de rol filtrado por empresa, con los huérfanos tachados y
+      desmarcables
+
+### Validación
+- [x] `dotnet build` 0 errores + `dotnet test` **2.237 verdes** (0 fallos, sin advertencias nuevas)
+- [x] `yarn build` 0 errores (único warning: bundle budget preexistente)
+- [x] **Invariante del seed**: permisos efectivos de los 49 usuarios **idénticos** antes y después
+      (diff vacío) — es la prueba de que nadie pierde acceso al desplegar
+- [x] Smoke HTTP doble contra el back real: ItalcolEcuador 18/31 (apaga los de Panamá y los de carga
+      masiva) y Santa Reyes 31/31 (cero cambios)
+- [x] `PUT` en Demo: 24→23 habilitados, `role_permissions` **intactos** (33) y los 3 usuarios de Demo
+      pierden el permiso mientras las otras 4 empresas no se mueven; estado restaurado
+- [ ] **Pendiente (bloqueado):** smoke visual de los dos modales. El backend quedó verificado de punta
+      a punta por HTTP, pero no pude autenticar en el navegador (sin credenciales, y la inyección de
+      sesión en `localStorage` la bloquea el clasificador). Abrir Empresas → 🔑 y Roles → tab Permisos
+- [x] Sin procesos huérfanos (backend y dev server detenidos)

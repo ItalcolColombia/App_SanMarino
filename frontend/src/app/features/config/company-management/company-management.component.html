@@ -150,6 +150,9 @@
                         <button (click)="openMenuEdit(c)" class="icon-btn" [attr.aria-label]="'Menú de ' + c.name" title="Asignar menú">
                           <fa-icon [icon]="faListUl" aria-hidden="true"></fa-icon>
                         </button>
+                        <button (click)="openPermEdit(c)" class="icon-btn" [attr.aria-label]="'Permisos de ' + c.name" title="Permisos de la empresa">
+                          <fa-icon [icon]="faKey" aria-hidden="true"></fa-icon>
+                        </button>
                         <button (click)="openConfirmDelete(c)" class="icon-btn danger" [attr.aria-label]="'Eliminar ' + c.name" title="Eliminar">
                           <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                         </button>
@@ -305,6 +308,99 @@
         <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cancelar</button>
         <button type="button" (click)="saveCompanyMenus()" class="btn-primary" [disabled]="menuEditSaving">
           {{ menuEditSaving ? 'Guardando…' : 'Guardar menú' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- MODAL: Permisos de la empresa (company_permissions) -->
+@if (permEditModalOpen) {
+  <div
+    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    role="dialog" aria-modal="true" aria-labelledby="perm-edit-title">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="perm-edit-title" class="text-xl font-bold text-brand-red">
+          Permisos: {{ permEditCompanyName }}
+        </h2>
+        <button type="button" (click)="closePermEdit()" class="btn-ghost">Cerrar</button>
+      </div>
+
+      <div class="p-4 overflow-auto flex-1">
+        @if (permEditLoading) {
+          <p class="text-warm-gray-600">Cargando…</p>
+        }
+        @if (!permEditLoading) {
+          <div class="space-y-3">
+            <p class="text-sm text-warm-gray-600">
+              Marque los permisos que existen para esta empresa. Solo los marcados se ofrecen al crear
+              un rol y solo ellos llegan a la sesión del usuario.
+            </p>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <input
+                type="search"
+                [(ngModel)]="permEditFilter"
+                (ngModelChange)="aplicarFiltroPermisos()"
+                [ngModelOptions]="{ standalone: true }"
+                placeholder="Buscar permiso por key o descripción…"
+                aria-label="Buscar permisos"
+                class="flex-1 min-w-[220px] rounded-lg border border-warm-gray-300 px-3 py-2 text-sm focus:ring-brand-red/60"/>
+              <button type="button" class="btn-ghost text-sm" (click)="marcarTodosLosPermisos(true)">
+                Marcar todos
+              </button>
+              <button type="button" class="btn-ghost text-sm" (click)="marcarTodosLosPermisos(false)">
+                Desmarcar todos
+              </button>
+              <span class="text-sm text-warm-gray-600">
+                {{ permEditHabilitadosCount }} / {{ permEditItems.length }} habilitados
+              </span>
+            </div>
+
+            @if (permEditEnUsoQueSeApagan > 0) {
+              <div class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {{ permEditEnUsoQueSeApagan }} permiso(s) que va(n) a quedar apagado(s) todavía están
+                asignados a roles de esta empresa. No se borran de esos roles: quedan sin efecto —
+                dejan de ofrecerse y no viajan en la sesión.
+              </div>
+            }
+
+            <ul class="list-none pl-0 divide-y divide-warm-gray-100">
+              @for (p of permEditItemsFiltrados; track p.id) {
+                <li class="py-2">
+                  <label class="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      [checked]="p.isEnabled"
+                      (change)="togglePermEnabled(p)"
+                      class="mt-1 h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+                    <span class="flex-1">
+                      <span class="font-mono text-sm">{{ p.key }}</span>
+                      @if (p.description) {
+                        <span class="block text-xs text-warm-gray-600">{{ p.description }}</span>
+                      }
+                    </span>
+                    @if (p.enUsoPorRoles > 0) {
+                      <span class="text-xs text-warm-gray-500 whitespace-nowrap">
+                        {{ p.enUsoPorRoles }} rol(es)
+                      </span>
+                    }
+                  </label>
+                </li>
+              }
+              @if (!permEditItemsFiltrados.length) {
+                <li class="py-3 text-sm text-warm-gray-600">Ningún permiso coincide con la búsqueda.</li>
+              }
+            </ul>
+          </div>
+        }
+      </div>
+
+      <div class="p-4 border-t flex justify-end gap-2">
+        <button type="button" (click)="closePermEdit()" class="btn-ghost">Cancelar</button>
+        <button type="button" (click)="saveCompanyPermissions()" class="btn-primary" [disabled]="permEditSaving">
+          {{ permEditSaving ? 'Guardando…' : 'Guardar permisos' }}
         </button>
       </div>
     </div>
