@@ -4167,3 +4167,69 @@ Con esto quedan cubiertas las **cuatro** superficies de captura diaria del siste
 ## Corrección de una sospecha propia
 - [x] `movimientos-huevos` **no** es un hueco de la lista blanca: es sub-ruta de `ReporteContable`,
       que está excluido a propósito (contabilidad). El verificador tenía razón
+
+---
+
+# 📍 PWA — PUNTO DE RETOMA (última actualización: 12-ago-2026)
+
+> Bloque de continuidad. Una sesión nueva empieza acá: dice dónde quedó todo, qué está bloqueado
+> y qué decisiones esperan al usuario. Los detalles viven en los bloques de arriba y en
+> `fase_de_desarrollo/`.
+
+## Estado real por fase
+
+| Fase | Estado | Commits |
+|---|---|---|
+| F0.C higiene de entrega | ✅ | `76a2903` |
+| F0.B seguridad de sesión | 🟡 **parcial** — B2, B3, B7, B4, B9 hechos · **faltan B1, B5(parcial), B6(parcial), B8, B10** | `f139dfd`, `4616dfa` |
+| F0.A integridad de datos | 🟡 **9 de 10** — falta **A4** (medido, con gate) | `44b2400`, `60d3125` |
+| F1 shell instalable | ✅ | `8ecb7c6` |
+| F2 consulta offline | ✅ | — |
+| Alistamiento de campo (persist + D6) | 🟡 mitad de D6: falta **opt-in por rol y dispositivo** | `b8821cb` |
+| Gate del borde (deploy front) | ✅ arreglado, **sin desplegar** | `6f410db` |
+| **F3.1** captura offline levante | ✅ | `c44e0a4` |
+| **F3.1b** hueco de UX | ✅ | `de3ea10` |
+| **F3.2** captura producción | ✅ | `b681a50` |
+| **F3.3** captura engorde (pollo + reproductora) | ✅ | `505c13b` |
+| Auditoría de acceso offline | ✅ | `30c6865` |
+
+## 🔴 Lo primero que hay que saber
+
+**La PWA sigue SIN desplegarse.** Prod sirve el build del **07-ago** (`/version.json`) y
+`ngsw.json` da 404. El fix del gate (`6f410db`) está en `main` y **no** en `main-produccion`; el job
+del front corta antes del push a ECR. **Verificar con `curl` antes de depurar cualquier fantasma.**
+Requiere push, que el usuario no autorizó todavía.
+
+## Decisiones que esperan al usuario (bloquean trabajo)
+
+- [ ] **Merge `main` → `main-produccion`** para desplegar la PWA (arrastra migraciones; el contenedor
+      tiene `RunMigrations=true`)
+- [ ] **Menú «Lote Reproductora» (id 9)**: quitarlo de los 3 roles o corregir la etiqueta. Hoy carga
+      levante y su nombre dice otra cosa
+- [ ] **Sesiones multi-slot por dispositivo**: es lo ÚNICO que bloquea «varios usuarios sin
+      internet». Hoy `auth_session` es clave única ⇒ un usuario por tablet
+- [ ] **B8**: rotar las 4 llaves de `environment.prod.ts` — **el usuario debe generarlas**, no se
+      inventan secretos de prod
+
+## Próximos trabajos, en orden sugerido
+
+1. **Desplegar** y hacer la verificación post-deploy + instalar en un Android real (nada de F1/F2/F3
+   se probó nunca en producción)
+2. **B1** (jti + `sesiones_activas` + refresh) — prerrequisito de la jornada de 16 h: hoy un
+   dispositivo perdido **no se puede revocar**
+3. **B5/B6/B10** completos, y **A4** con su gate de paridad
+4. **F4 — movimientos offline** (inventario, traslados, ventas, huevos). Necesita: clase
+   `requiere_cuadre` **con emisor**, grafo `client_entity_id`, y resolver las operaciones de dos
+   lados (origen/destino)
+5. **Opt-in de D6 por rol y dispositivo** (flag en BD + registro de dispositivos)
+
+## Trampas verificadas en esta sesión (no repetirlas)
+
+- El smoke HTTP local necesita **JWT minteado + `X-Secret-Up` cifrado** (AES-256-CBC, PBKDF2 con salt
+  `sanmarino-salt`, 10000 iter). El token dura **1 h**. Los `DELETE` por API dan **403** con ese JWT
+- Al limpiar por SQL: el histórico unificado se marca **`anulado = true`**, nunca se borra
+- El bundle del front está al borde del techo de error (se subió a **2.05 MB**); cualquier import
+  eager nuevo lo rompe
+- La carrera del índice único **no se reproduce** por HTTP: el `SELECT` previo gana. El índice está
+  probado solo a nivel BD
+- Levantar el backend bloquea los DLL: hay que **detenerlo antes de compilar**
