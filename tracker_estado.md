@@ -4475,3 +4475,110 @@ entera. Esto es más urgente que desplegar.
 - `/api/Auth/reset-password` **no** está en las exclusiones de `PlatformSecretMiddleware` (a diferencia
   de `recover-password`). Funciona porque el interceptor del front manda el `X-Secret-Up` siempre; se
   dejó como estaba para no cambiar comportamiento, pero la asimetría es deliberada de anotar.
+
+---
+
+# Tracker — SANTA REYES: silos y bodegas como ubicación real del inventario (postura)
+
+**Plan:** [`fase_de_desarrollo/santa_reyes_silos_bodegas_inventario_plan.md`](fase_de_desarrollo/santa_reyes_silos_bodegas_inventario_plan.md)
+**Fecha:** 2026-08-12 · **Empresa objetivo:** Santa Reyes (company 6, Colombia)
+
+El alimento de Santa Reyes deja de moverse «sobre el galpón» y pasa a moverse sobre **silos** y una
+**bodega** de granja. El galpón queda como filtro de navegación. El lote declara de qué silo(s) consume y
+el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del flag
+`companies.maneja_inventario_por_silo` ⇒ con el flag OFF el comportamiento es **byte a byte el de hoy**.
+
+**Condición de arranque verificada en BD:** SR tiene **0 movimientos, 0 stock y 0 lotes de seguimiento** ⇒
+**sin backfill**. Si eso cambia antes de ejecutar, hay que replanificar.
+
+## Fase 0 — Levantamiento (hecho)
+
+- [x] Mapa de impacto: `InventarioGestionService` (2.739 líneas, **único escritor** de movimientos),
+      `ColombiaInventarioConsumoService`, seguimiento levante/producción, granjas/galpones/lotes
+- [x] `Granja.xlsx` leído: silos = `Movimiento: Alimento`, galpones = `Aves, Huevo, Insumos` ⇒ **en el ERP
+      del cliente el galpón no mueve alimento**; los 38 silos cuelgan de la bodega de la granja (`B0601`)
+- [x] Decisiones confirmadas con el usuario: silo **compartido N:M**; bodega guarda **alimento + insumos**
+      con traslado bodega→silo; **todo ítem** exige ubicación silo/bodega
+- [x] BD auditada: `farm_silos` ya existe con 39 filas (38 Silo + 1 Insumos, granja 109); menús habilitados
+      de SR confirmados (gestion-inventario, farm-management, lote-management, daily-log/seguimiento y
+      /produccion); Gastos de inventario y Carga Masiva **no** están habilitados ⇒ fuera de alcance
+
+## Fase A — Catálogo y asignación (sin tocar inventario · riesgo nulo para otras empresas)
+
+- [ ] Migración `AddInventarioPorSilo` (schema, idempotente): flag `maneja_inventario_por_silo`;
+      `silo_catalogo`; `farm_silos` + `silo_catalogo_id`/`updated_at`/`deleted_at`; `galpon_silos`;
+      `lote_silos`
+- [ ] Entidades + Configurations: `SiloCatalogo`, `GalponSilo`, `LoteSilo`, `FarmSilo` (extendida),
+      `Company.ManejaInventarioPorSilo`; 3 `DbSet` en `ZooSanMarinoContext`
+- [ ] Flag en `CompanyDto` + **las 4 proyecciones** (`CompanyService.ToDto`, `CompanyService.Crud`,
+      `CompanyResolver`, `CompanyPaisService`)
+- [ ] `Infrastructure/Services/Silos/` (namespace PLANO): `SiloCatalogoService`, `FarmSiloService`,
+      `GalponSiloService`, `LoteSiloService` — scoping **fail-closed** por `farms.company_id`
+- [ ] Controllers + DTOs de los 4 servicios (`GET /api/LoteSilo/{loteId}/disponibles` incluido)
+- [ ] Migración `SeedSilosSantaReyes` (data-only, Designer clonado): flag ON en company 6; 100 filas de
+      catálogo; vincular los 38 `farm_silos` por nombre; `tipo 'Insumos'→'Bodega'` — `WHERE NOT EXISTS` /
+      `IS DISTINCT FROM`. ⚠️ timestamp **posterior** a `20260725190000`
+- [ ] Migración `AddSilosAFnMoverUbicacion`: `UPDATE galpon_silos` en `fn_mover_galpon` y `fn_rekey_nucleo`
+      (+ actualizar el espejo `backend/sql/fn_mover_ubicacion.sql`, que **no** es lo desplegado)
+- [ ] Front: flag `manejaInventarioPorSilo` en `ActiveCompanyConfigService` (+ `FLAGS_APAGADOS`)
+- [ ] Front pantalla 1 — `/config/silos` (ABM lista maestra + generar rango) + menú por `route` en
+      `company_menus`/`role_menus`
+- [ ] Front pantalla 2 — Silos de la granja en `farm-list`/`farm-form` (gated)
+- [ ] Front pantalla 3 — Silos del galpón en `galpon-form` (gated)
+- [ ] Front pantalla 4 — Silos de consumo del lote en **`lote-list`** (el form VIVO, no `modal-create-edit-lote`)
+- [ ] Todo componente/modal nuevo con `changeDetection: ChangeDetectionStrategy.Eager` **explícito**
+- [ ] `dotnet build` + `dotnet test` · `yarn build` · smoke doble (empresa OFF sin cambios visibles + SR)
+
+## Fase B — Inventario por silo (⚠️ acá está el riesgo)
+
+- [ ] `silo_id` en `InventarioGestionStock`; `silo_id` + `from_silo_id` en `InventarioGestionMovimiento`;
+      `silo_id` en `lote_registro_historico_unificado` + el `INSERT` del trigger
+- [ ] 🔴 **Swap del índice único** `ux_inventario_gestion_stock_clave_natural` (+ `COALESCE(silo_id,0)`)
+      **y** el `ON CONFLICT` de `SumarStockAtomicoAsync` **en el MISMO commit** — desalineados, revienta
+      todo ingreso de todas las empresas
+- [ ] `Application/Calculos/InventarioUbicacionSiloCalculos.cs` (puro) + tests xUnit (casos 1-5 del plan)
+- [ ] `InventarioGestion/Funciones/InventarioGestionService.Silos.cs`: `ResolverModoUbicacionAsync`,
+      `ValidarSiloDeGranjaAsync`, `GetSilosElegiblesAsync` + `GET /api/InventarioGestion/silos`
+- [ ] Primitivas atómicas con `siloId`; ingreso, traslado (misma granja e inter-granja), recepción de
+      tránsito (`Distribucion` por silo), consumo, ajuste/eliminación de stock, anulación de movimiento
+- [ ] Lecturas con silo: `GetStockAsync`, `GetMovimientosAsync`, `GetIngresosAsync`, `GetTrasladosAsync`,
+      `GetFilterDataAsync` (+ join a `farm_silos` para `SiloNombre`)
+- [ ] DTOs: campos nuevos **al final y con default** (no romper llamadores posicionales)
+- [ ] Front pantalla 5 — `/gestion-inventario`: selector Silo/Bodega en ingreso y traslado, columna Silo en
+      stock/histórico/ingresos/traslados, recepción de tránsito por silo, export a Excel por el helper de
+      `shared/utils/excel/`
+- [ ] 🔴 **Smoke de REGRESIÓN flag OFF primero**: ingreso+traslado+consumo en Sanmarino y Ecuador con
+      saldos idénticos; conteo de claves naturales antes/después del swap **igual**; `silo_id` NULL al 100 %
+- [ ] Smoke SR: casos 11-17 del plan (ingreso, upsert, bodega→silo, silo→silo, sin silo, silo ajeno,
+      silo compartido por 2 galpones con **un** saldo)
+- [ ] `GET /api/CuadreAlimentoEngorde` sigue en **0 descuadrados**
+
+## Fase C — Consumo por silo desde el seguimiento diario
+
+- [ ] `ItemConsumoKey(int Id, bool EsItemInventario, int? SiloId = null)` + tests de hash/agrupación
+      (casos 6-8: sin `siloId` ⇒ idéntico a hoy; mismo ítem en 2 silos ⇒ 2 claves)
+- [ ] `MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen` lee `siloId` (la variante plana **no se toca**)
+- [ ] `ColombiaInventarioConsumoService`: `Validar`/`Aplicar`/`Devolucion`/`Diff` propagan el silo;
+      `WHERE` de disponibilidad con `x.SiloId == key.SiloId`
+- [ ] Validación flag ON: el `siloId` de cada fila debe estar en `lote_silos` del lote ⇒ si no, rechazo
+      **antes** de persistir (dentro de la transacción atómica existente)
+- [ ] `SeguimientoLoteLevanteService.Crud.cs` (create + update) y la rama Colombia de producción
+- [ ] Front pantallas 6-7 — selector de silo por fila de alimento en `lote-levante/modal-create-edit` y
+      `lote-produccion/modal-seguimiento-diario`; el dropdown de ítems y el disponible se filtran **al silo**
+- [ ] Smoke SR: casos 18-22 y 24 (consumo por silo, silo no asignado ⇒ rechazo sin fila, 2 alimentos de
+      2 silos, stock insuficiente ⇒ rollback total, editar cambiando de silo ⇒ devuelve al viejo y descuenta
+      del nuevo, reasignar `lote_silos` no recalcula lo viejo)
+- [ ] Caso 23: mover galpón de núcleo ⇒ `galpon_silos` lo sigue, 0 huérfanos
+
+## Fase D — Cierre (aditivo)
+
+- [ ] `fn_inventario_gastos_existencias` con `SUM` + `GROUP BY` **antes** de habilitar Gastos en SR
+      (hoy el `LEFT JOIN` asume una fila de stock por granja+ítem y con N silos multiplicaría filas)
+- [ ] Columna Silo en la carga masiva (hoja Alimento) si se habilita el módulo en SR
+- [ ] Reportes (Contable, Técnico) con la dimensión silo
+
+## Cierre
+
+- [ ] Commit acotado por fase, **sin footer de atribución** (autor único moisesmurillo)
+- [ ] `make down` / procesos de smoke detenidos
+- [ ] Push y deploy **solo con OK explícito del usuario**
