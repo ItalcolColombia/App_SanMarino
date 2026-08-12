@@ -3954,6 +3954,20 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 - [x] Sin procesos huérfanos. El backend queda **corriendo a propósito** en :5002 (lo pidió el
       usuario para validar en la app); se levantó como server gestionado, no suelto
 
+### Validación con los dos perfiles de operario reales (12-ago)
+- [x] **Ambos son de UNA sola empresa** ⇒ D6 los deja cachear, a diferencia del super admin:
+      `alexlondono@sanmarino.com.co` → empresa 1 (Agroavicola Sanmarino) ·
+      `ladymalave@ecuitalcol.com` → empresa 3 (ItalcolEcuador)
+- [x] **Postura (Alex) funciona de punta a punta**: push contra su lote real 116 (A374A) aplica
+      (id 1108), el reenvío devuelve `replay:true`, `created_by_user_id` queda con SU guid, y el
+      intento de escribir en la empresa 3 se rechaza `empresa_no_autorizada`
+- [x] Limpieza por la API: saldo del lote 116 volvió exacto (7.402→7.405 hembras, 737→738 machos)
+- [ ] 🔴 **Engorde NO está cubierto por F3.1.** La pantalla de Lady escribe a
+      `/api/SeguimientoAvesEngordeEcuador`, que **no está en la lista blanca** ⇒ el cliente ni
+      siquiera encola y la captura falla igual que hoy. Forzado a mano, el servidor lo rechaza
+      `contrato_obsoleto`. Con ese perfil se puede **consultar** sin red, **capturar no**.
+      Agregarlo es F3.2: tipo de operación nuevo + rama de despacho + tests
+
 ### 🔴 Lo que NO se pudo probar (y por qué importa)
 - [ ] **La carrera NO reprodujo el defecto.** Con 2 y con 8 POST simultáneos del mismo `clientOpId`
       siempre salió 1 fila **incluso con el índice único borrado**: el `SELECT` previo ya ve la fila
