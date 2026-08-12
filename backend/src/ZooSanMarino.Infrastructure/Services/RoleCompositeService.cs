@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.Exceptions;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -59,6 +60,82 @@ public class RoleCompositeService : IRoleCompositeService
         .Select(k => k!.ToLowerInvariant())
         .Distinct()
         .ToArray();
+
+    /// <summary>
+    /// Rechaza los permisos que las empresas del rol no habilitan (<c>company_permissions</c>).
+    ///
+    /// <para>
+    /// Es el gate de ESCRITURA, hermano del de runtime (<c>AuthService.PermisosEfectivosAsync</c>):
+    /// sin él, el permiso se guardaba igual y quedaba inerte, lo que confunde — el rol "lo tiene" pero
+    /// no hace nada. Solo juzga lo que se AGREGA, así que conservar o quitar lo ya asignado nunca
+    /// falla y un rol con huérfanos se sigue pudiendo editar y limpiar.
+    /// </para>
+    /// <para>
+    /// FAIL-CLOSED: un rol sin empresas, o con una empresa sin configurar, no puede recibir permisos
+    /// nuevos. El mensaje dice qué permiso y por qué, para que sea accionable.
+    /// </para>
+    /// </summary>
+    private async Task EnsurePermisosHabilitadosPorEmpresaAsync(
+        int[] companyIds,
+        string[] keysSolicitadas,
+        string[] yaAsignadas)
+    {
+        if (keysSolicitadas.Length == 0) return;
+
+        var habilitadasPorEmpresa = companyIds.Length == 0
+            ? new Dictionary<int, IReadOnlyCollection<string>>()
+            : (await _ctx.CompanyPermissions
+                    .AsNoTracking()
+                    .Where(cp => companyIds.Contains(cp.CompanyId) && cp.IsEnabled)
+                    .Select(cp => new { cp.CompanyId, cp.Permission.Key })
+                    .ToListAsync())
+                .GroupBy(x => x.CompanyId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlyCollection<string>)g.Select(x => x.Key).Distinct().ToList());
+
+        var rechazadas = CompanyPermissionCalculos.ResolverNoPermitidas(
+            keysSolicitadas, yaAsignadas, habilitadasPorEmpresa, companyIds);
+
+        if (rechazadas.Count == 0) return;
+
+        if (companyIds.Length == 0)
+            throw new PermisoNoHabilitadoException(
+                $"No se pueden asignar permisos a un rol sin empresa: {string.Join(", ", rechazadas)}. " +
+                "Asigná primero la empresa del rol.");
+
+        var nombres = await _ctx.Companies
+            .AsNoTracking()
+            .Where(c => companyIds.Contains(c.Id))
+            .Select(c => c.Name)
+            .ToListAsync();
+
+        throw new PermisoNoHabilitadoException(
+            $"Permisos no habilitados para {string.Join(" / ", nombres)}: {string.Join(", ", rechazadas)}. " +
+            "Habilitalos en Empresas → Permisos de la empresa, o quitalos del rol.");
+    }
+
+    /// <summary>
+    /// Empresas a las que está vinculado un rol ya existente. La empresa llega al rol por
+    /// <c>role_companies</c> o por <c>user_roles.company_id</c>; los dos caminos están poblados en
+    /// producción, así que se unen (con uno solo, el gate rechazaría permisos legítimos).
+    /// </summary>
+    private async Task<int[]> CompanyIdsDelRolAsync(int roleId)
+    {
+        var porRoleCompanies = await _ctx.RoleCompanies
+            .AsNoTracking()
+            .Where(rc => rc.RoleId == roleId)
+            .Select(rc => rc.CompanyId)
+            .ToListAsync();
+
+        var porUserRoles = await _ctx.UserRoles
+            .AsNoTracking()
+            .Where(ur => ur.RoleId == roleId)
+            .Select(ur => ur.CompanyId)
+            .ToListAsync();
+
+        return porRoleCompanies.Concat(porUserRoles).Distinct().ToArray();
+    }
 
     private async Task EnsureCompaniesExist(int[] companyIds)
     {
@@ -258,6 +335,9 @@ public class RoleCompositeService : IRoleCompositeService
         await EnsureCompaniesExist(companyIds);
         var permMap = await EnsurePermissionsExistAndMap(permKeys);
 
+        // Rol nuevo: no hay nada "ya asignado", así que se juzgan todos los permisos que vienen.
+        await EnsurePermisosHabilitadosPorEmpresaAsync(companyIds, permKeys, Array.Empty<string>());
+
         // Solo el Super Admin puede marcar un rol como Administrador de Empresa/País.
         var esSuperAdmin = await IsCurrentUserSuperAdminAsync();
         var isCompanyAdmin = RoleAdminCalculos.ResolverIsCompanyAdminEnCreacion(esSuperAdmin, dto.IsCompanyAdmin);
@@ -322,6 +402,16 @@ public class RoleCompositeService : IRoleCompositeService
 
         await EnsureCompaniesExist(companyIds);
         var permMap = await EnsurePermissionsExistAndMap(permKeys);
+
+        // Se juzga contra las empresas que el rol VA A TENER (las del dto) y solo lo que se agrega:
+        // conservar o quitar un permiso ya asignado nunca falla, así un rol con huérfanos se puede
+        // seguir editando y limpiando.
+        var keysActuales = await _ctx.RolePermissions
+            .AsNoTracking()
+            .Where(rp => rp.RoleId == role.Id)
+            .Select(rp => rp.Permission.Key)
+            .ToArrayAsync();
+        await EnsurePermisosHabilitadosPorEmpresaAsync(companyIds, permKeys, keysActuales);
 
         // Solo el Super Admin puede cambiar el flag Administrador de Empresa/País (null = no tocar).
         var esSuperAdmin = await IsCurrentUserSuperAdminAsync();
@@ -426,12 +516,18 @@ public class RoleCompositeService : IRoleCompositeService
     public async Task<RoleDto?> Roles_AddPermissionsAsync(int roleId, string[] keys)
     {
         var role = await _ctx.Roles
-            .Include(r => r.RolePermissions)
+            .AsSplitQuery()
+            .Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
             .SingleOrDefaultAsync(r => r.Id == roleId);
         if (role is null) return null;
 
         var norm = NormalizeKeys(keys);
         var permMap = await EnsurePermissionsExistAndMap(norm);
+
+        await EnsurePermisosHabilitadosPorEmpresaAsync(
+            await CompanyIdsDelRolAsync(roleId),
+            norm,
+            role.RolePermissions.Select(rp => rp.Permission.Key).ToArray());
 
         return await ExecInTxAsync(async () =>
         {
@@ -448,6 +544,9 @@ public class RoleCompositeService : IRoleCompositeService
         });
     }
 
+    // OJO: quitar permisos NO pasa por EnsurePermisosHabilitadosPorEmpresaAsync, a propósito. Es
+    // justamente el camino para limpiar un permiso que la empresa dejó de habilitar; validarlo dejaría
+    // los huérfanos pegados al rol para siempre.
     public async Task<RoleDto?> Roles_RemovePermissionsAsync(int roleId, string[] keys)
     {
         var role = await _ctx.Roles
@@ -473,12 +572,18 @@ public class RoleCompositeService : IRoleCompositeService
     public async Task<RoleDto?> Roles_ReplacePermissionsAsync(int roleId, string[] keys)
     {
         var role = await _ctx.Roles
-            .Include(r => r.RolePermissions)
+            .AsSplitQuery()
+            .Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
             .SingleOrDefaultAsync(r => r.Id == roleId);
         if (role is null) return null;
 
         var norm = NormalizeKeys(keys);
         var permMap = await EnsurePermissionsExistAndMap(norm);
+
+        await EnsurePermisosHabilitadosPorEmpresaAsync(
+            await CompanyIdsDelRolAsync(roleId),
+            norm,
+            role.RolePermissions.Select(rp => rp.Permission.Key).ToArray());
 
         return await ExecInTxAsync(async () =>
         {

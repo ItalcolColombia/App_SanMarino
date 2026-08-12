@@ -139,6 +139,90 @@ public class CompanyPermissionCalculosTests
         Assert.Equal(new[] { "editar_registro", "tickets.crear" }, r.Asignables);
     }
 
+    // ── Gate de ESCRITURA: solo se juzga lo que se agrega ─────────────────────
+    [Fact]
+    public void ResolverNoPermitidas_RechazaElPermisoAjeno()
+    {
+        var rechazadas = ResolverNoPermitidas(
+            keysSolicitadas: new[] { "editar_registro", "sincronizacion_panama.ejecutar" },
+            yaAsignadas: Array.Empty<string>(),
+            Habilitadas(),
+            new[] { Ecuador });
+
+        Assert.Equal(new[] { "sincronizacion_panama.ejecutar" }, rechazadas);
+    }
+
+    [Fact]
+    public void ResolverNoPermitidas_ConservarUnHuerfanoNoFalla()
+    {
+        // El rol ya tenía el permiso de Panamá y la empresa dejó de habilitarlo: guardar el rol sin
+        // tocarlo tiene que seguir funcionando, o el rol quedaría ineditable.
+        var rechazadas = ResolverNoPermitidas(
+            keysSolicitadas: new[] { "editar_registro", "sincronizacion_panama.ejecutar" },
+            yaAsignadas: new[] { "sincronizacion_panama.ejecutar" },
+            Habilitadas(),
+            new[] { Ecuador });
+
+        Assert.Empty(rechazadas);
+    }
+
+    [Fact]
+    public void ResolverNoPermitidas_QuitarNuncaFalla()
+    {
+        // Guardar el rol SIN el huérfano (lo está limpiando).
+        var rechazadas = ResolverNoPermitidas(
+            keysSolicitadas: new[] { "editar_registro" },
+            yaAsignadas: new[] { "editar_registro", "sincronizacion_panama.ejecutar" },
+            Habilitadas(),
+            new[] { Ecuador });
+
+        Assert.Empty(rechazadas);
+    }
+
+    [Fact]
+    public void ResolverNoPermitidas_RolSinEmpresa_RechazaTodo()
+    {
+        var rechazadas = ResolverNoPermitidas(
+            keysSolicitadas: new[] { "editar_registro" },
+            yaAsignadas: Array.Empty<string>(),
+            Habilitadas(),
+            Array.Empty<int>());
+
+        Assert.Equal(new[] { "editar_registro" }, rechazadas);
+    }
+
+    [Fact]
+    public void ResolverNoPermitidas_RolMultiEmpresa_ExigeQueTodasLoHabiliten()
+    {
+        // lote_base_pollo_engorde.ver lo habilita Ecuador pero no Panamá.
+        var rechazadas = ResolverNoPermitidas(
+            keysSolicitadas: new[] { "tickets.crear", "lote_base_pollo_engorde.ver" },
+            yaAsignadas: Array.Empty<string>(),
+            Habilitadas(),
+            new[] { Ecuador, Panama });
+
+        Assert.Equal(new[] { "lote_base_pollo_engorde.ver" }, rechazadas);
+    }
+
+    [Fact]
+    public void ResolverNoPermitidas_TodoHabilitado_NoRechazaNada()
+    {
+        var rechazadas = ResolverNoPermitidas(
+            keysSolicitadas: new[] { "EDITAR_REGISTRO", "tickets.crear" }, // case-insensitive
+            yaAsignadas: Array.Empty<string>(),
+            Habilitadas(),
+            new[] { Ecuador });
+
+        Assert.Empty(rechazadas);
+    }
+
+    [Fact]
+    public void ResolverNoPermitidas_SinKeys_NoRechazaNada()
+    {
+        Assert.Empty(ResolverNoPermitidas(
+            Array.Empty<string>(), new[] { "editar_registro" }, Habilitadas(), new[] { Ecuador }));
+    }
+
     // ── T4/T5: runtime — el par (rol, empresa) es lo que decide ───────────────
     [Fact]
     public void ResolverEfectivos_PermisoNoHabilitadoEnSuEmpresa_NoViaja()

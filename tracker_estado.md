@@ -3854,6 +3854,20 @@ permiso se usa (asignación y runtime) — a diferencia de `company_menus`, que 
       (R4: fail-closed no puede bloquear el primer rol de una empresa)
 - [x] `CompanyPermissionCalculosTests` — 15 casos (T1-T8 + invariante del seed)
 
+### Gate de escritura (R7/R8) — el backend también rechaza
+- [x] `CompanyPermissionCalculos.ResolverNoPermitidas`: juzga **solo lo que se agrega**, para que
+      apagar un permiso no vuelva ineditable a los roles que lo tenían
+- [x] `RoleCompositeService.EnsurePermisosHabilitadosPorEmpresaAsync` en `Roles_CreateAsync`,
+      `Roles_UpdateAsync`, `Roles_AddPermissionsAsync` y `Roles_ReplacePermissionsAsync`;
+      `Roles_RemovePermissionsAsync` NO valida a propósito (es el camino para limpiar huérfanos)
+- [x] `PermisoNoHabilitadoException` (hereda de `InvalidOperationException`, no cambia ningún `catch`)
+      + mapeo a **400** en el handler global; el mensaje nombra permiso, empresa y qué hacer
+- [x] 7 tests más del cálculo (rechazo, conservar/quitar huérfano, rol sin empresa, multi-empresa)
+- [x] Smoke HTTP: POST con permiso de Panamá en un rol de Ecuador → **400**; `assign` de uno apagado →
+      400 y de uno habilitado → 200; con el huérfano fabricado, `PUT` conservándolo → **200**,
+      limpiándolo → 200 y re-agregándolo → 400. Rol de prueba borrado y Ecuador de vuelta en 18
+- [x] `dotnet build` 0/0 · `dotnet test` **2.243 verdes** · invariante global sin cambios
+
 ### Frontend
 - [x] `core/services/company-permission/company-permission.service.ts`
 - [x] Modal *Permisos* en Gestión de Empresas (junto a la de menús): buscador, marcar/desmarcar todos,

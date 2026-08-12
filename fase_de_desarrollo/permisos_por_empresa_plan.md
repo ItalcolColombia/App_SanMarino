@@ -57,6 +57,8 @@ xUnit; los services solo resuelven datos y delegan.
 | **R4** | **Ninguna empresa queda en cero.** El seed cubre todas las empresas existentes; una empresa sin permisos en uso recibe el catálogo completo. Y una empresa **nueva** nace con el catálogo completo habilitado (`CompanyService.CreateAsync`), para que fail-closed nunca bloquee la creación del primer rol. |
 | **R5** | **No destructivo.** Deshabilitar un permiso en la empresa **no borra** `role_permissions`. La fila queda huérfana: no se puede re-seleccionar y no viaja en el login, y la UI la marca como *"asignada pero deshabilitada en la empresa"* para que el admin la limpie a conciencia. |
 | **R6** | **Comparación case-insensitive** de keys (el front las baja a minúscula en `loadPermissions`). |
+| **R7** | **El backend rechaza la escritura**, no solo la UI. Guardar un permiso que la empresa no habilita da **400** con un mensaje que nombra el permiso, la empresa y qué hacer. Sin esto el permiso se guardaba igual y quedaba inerte — el rol "lo tiene" pero no hace nada, que es peor que un error. |
+| **R8** | **Solo se juzga lo que se AGREGA.** Conservar o quitar un permiso ya asignado nunca falla. Si se validara la lista completa, apagar un permiso en una empresa volvería **ineditable** a todo rol que lo tuviera: el formulario manda siempre la lista entera, así que el propio guardado que venía a limpiarlo sería rechazado. `Roles_RemovePermissionsAsync` no valida nada, por la misma razón. |
 
 ## 4. Archivos
 
@@ -69,7 +71,9 @@ xUnit; los services solo resuelven datos y delegan.
 | `Domain/Entities/Permission.cs` | nav `CompanyPermissions` |
 | `Infrastructure/Persistence/Configurations/CompanyPermissionConfiguration.cs` | **nuevo** — `ToTable("company_permissions")`, PK compuesta, FKs cascade |
 | `Infrastructure/Persistence/ZooSanMarinoContext.cs` | `DbSet<CompanyPermission>` |
-| `Application/Calculos/CompanyPermissionCalculos.cs` | **nuevo** — lógica pura (R1, R2, R3, R5, R6) |
+| `Application/Calculos/CompanyPermissionCalculos.cs` | **nuevo** — lógica pura (R1, R2, R3, R5, R6, R8) |
+| `Application/Exceptions/PermisoNoHabilitadoException.cs` | **nuevo** — hereda de `InvalidOperationException` (no cambia ningún `catch` existente); el handler global la mapea a 400 |
+| `Infrastructure/Services/RoleCompositeService.cs` | gate de escritura (R7) en `Roles_CreateAsync`, `Roles_UpdateAsync`, `Roles_AddPermissionsAsync` y `Roles_ReplacePermissionsAsync` |
 | `Application/DTOs/CompanyPermissionDtos.cs` | **nuevo** — `CompanyPermissionItemDto`, `SetCompanyPermissionsRequest` |
 | `Application/Interfaces/ICompanyPermissionService.cs` | **nuevo** |
 | `Infrastructure/Services/CompanyPermissionService.cs` | **nuevo** |

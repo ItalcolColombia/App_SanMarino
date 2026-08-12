@@ -93,6 +93,40 @@ public static class CompanyPermissionCalculos
     }
 
     /// <summary>
+    /// Keys que hay que RECHAZAR al escribir los permisos de un rol (gate de escritura, R1/R2).
+    ///
+    /// <para>
+    /// Solo se juzga lo que se AGREGA: <paramref name="keysSolicitadas"/> menos
+    /// <paramref name="yaAsignadas"/>. Conservar lo que el rol ya tenía nunca falla — si no, apagar un
+    /// permiso en una empresa volvería INEDITABLE a todo rol que lo tuviera, porque el formulario
+    /// manda siempre la lista completa y el propio guardado que viene a limpiarlo sería rechazado.
+    /// Quitar tampoco se valida (ver <c>Roles_RemovePermissionsAsync</c>): limpiar huérfanos tiene que
+    /// funcionar siempre.
+    /// </para>
+    /// </summary>
+    /// <returns>Las keys agregadas que ninguna/alguna empresa del rol habilita; vacío = todo OK.</returns>
+    public static IReadOnlyList<string> ResolverNoPermitidas(
+        IEnumerable<string> keysSolicitadas,
+        IEnumerable<string> yaAsignadas,
+        IReadOnlyDictionary<int, IReadOnlyCollection<string>> habilitadasPorEmpresa,
+        IEnumerable<int> empresasDelRol)
+    {
+        var solicitadas = NormalizarCatalogo(keysSolicitadas);
+        if (solicitadas.Count == 0) return Array.Empty<string>();
+
+        var conservadas = new HashSet<string>(NormalizarCatalogo(yaAsignadas), ComparadorKeys);
+        var agregadas = solicitadas.Where(k => !conservadas.Contains(k)).ToList();
+        if (agregadas.Count == 0) return Array.Empty<string>();
+
+        // Se contrasta contra el catálogo de lo agregado: lo que sobreviva es lo permitido.
+        var permitidas = new HashSet<string>(
+            ResolverAsignables(agregadas, habilitadasPorEmpresa, empresasDelRol, Array.Empty<string>()).Asignables,
+            ComparadorKeys);
+
+        return agregadas.Where(k => !permitidas.Contains(k)).ToList();
+    }
+
+    /// <summary>
     /// Permisos efectivos de un usuario en el login (R3): unión, sobre cada par (rol, empresa), de
     /// los permisos del rol intersectados con los que esa empresa habilita.
     /// <para>

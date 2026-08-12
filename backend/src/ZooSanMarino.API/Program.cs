@@ -604,6 +604,15 @@ app.UseExceptionHandler(errApp =>
             await ctx.Response.WriteAsJsonAsync(new { message = uex.Message });
             return;
         }
+        // Permiso que la empresa no habilita: es culpa del request, no del servidor. El mensaje ya
+        // dice qué permiso y qué hacer, así que va tal cual con 400.
+        if (ex is ZooSanMarino.Application.Exceptions.PermisoNoHabilitadoException pex)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            ctx.Response.ContentType = "application/json";
+            await ctx.Response.WriteAsJsonAsync(new { message = pex.Message });
+            return;
+        }
         ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
         ctx.Response.ContentType = "application/json";
 
