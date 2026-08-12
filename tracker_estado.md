@@ -4102,8 +4102,14 @@ Con esto quedan cubiertas las **cuatro** superficies de captura diaria del siste
 - [x] **Pollo engorde** (perfil de Lady, Ecuador, lote 197 «2603»): aplicada `entidadId 11055`,
       reenvío ⇒ `replay:true`, una sola fila
 - [x] **Reproductora**: aplicada `entidadId 711`, reenvío ⇒ `replay:true`
-- [x] 🟡 La reproductora se probó con un usuario de **Panamá**, no de Ecuador: las 99 reproductoras
-      vivas de la BD local son de la empresa 5, y las 3 de Ecuador tienen su lote padre borrado
+- [x] ✅ La reproductora se probó con un usuario de **Panamá, que es lo correcto**: el módulo de
+      captura diaria de reproductora pollo engorde **es exclusivo de Panamá**. Verificado en
+      `company_menus`: la ruta `/daily-log/seguimiento-diario-lote-reproductora_pollo_engorde` está
+      habilitada **solo** para ItalcolPanama. Ecuador tiene únicamente
+      `/config/lote-reproductora-ave-engorde` (la configuración del lote, no la captura), y
+      `/lote-reproductora` es otra cosa (postura: Sanmarino y Santa Reyes). Por eso el perfil de
+      Ecuador no podía ejercitar ese camino — no le falta nada, no le corresponde
+- [x] Coherente con los datos: las 99 reproductoras vivas de la BD local son de la empresa 5
 - [x] En el camino apareció la regla real del dominio («supera la primera semana de recogida desde el
       encasetamiento»), lo que prueba que el service queda plenamente enganchado, no salteado
 
