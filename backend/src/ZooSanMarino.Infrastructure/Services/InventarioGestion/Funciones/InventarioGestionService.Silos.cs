@@ -150,8 +150,15 @@ public partial class InventarioGestionService
                     (n == null || gs.NucleoId == n)));
         }
 
+        // Orden NUMÉRICO por el número del catálogo (1, 2, 3… 38), no alfabético: por nombre el
+        // selector saldría «Silo 1, Silo 10, Silo 11, …, Silo 2», que con 38 silos es inusable.
+        // La bodega va al final; los silos sin catálogo caen detrás de los numerados, por nombre.
         return await q
             .OrderBy(fs => fs.Tipo == Domain.Entities.FarmSilo.TipoBodega ? 1 : 0)
+            .ThenBy(fs => _db.SiloCatalogo
+                .Where(sc => sc.Id == fs.SiloCatalogoId)
+                .Select(sc => (int?)sc.Numero)
+                .FirstOrDefault() ?? int.MaxValue)
             .ThenBy(fs => fs.Nombre)
             .Select(fs => new InventarioGestionSiloDto(
                 fs.Id, fs.GranjaId, fs.Nombre, fs.Tipo, fs.CodigoErpUbicacion, fs.CodigoBodega))

@@ -4574,9 +4574,9 @@ el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del
 - [x] Primitivas atómicas con `siloId`; ingreso, traslado (misma granja e inter-granja), recepción de
       tránsito (`Distribucion` por silo), consumo, anulación de movimiento
 - [x] Lecturas con silo: `GetStockAsync` y `GetMovimientosAsync` (+ `SiloNombre` sin N+1)
-- [ ] Lecturas con silo pendientes: `GetIngresosAsync`, `GetTrasladosAsync`, `GetFilterDataAsync`
+- [x] Lecturas con silo: `GetIngresosAsync`, `GetTrasladosAsync`, `GetFilterDataAsync`
 - [x] DTOs: campos nuevos **al final y con default** (no romper llamadores posicionales)
-- [ ] Front pantalla 5 — `/gestion-inventario`: selector Silo/Bodega en ingreso y traslado, columna Silo en
+- [x] Front pantalla 5 — `/gestion-inventario`: selector Silo/Bodega en ingreso y traslado, columna Silo en
       stock/histórico/ingresos/traslados, recepción de tránsito por silo, export a Excel por el helper de
       `shared/utils/excel/`
 - [x] 🔴 **Smoke de REGRESIÓN flag OFF, corrida DESPUÉS del swap**: ingreso+traslado+consumo en
@@ -4584,6 +4584,45 @@ el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del
       **igual**; `silo_id` NULL al 100 %
 - [x] Smoke SR: casos 11-17 del plan (ingreso, upsert, bodega→silo, silo→silo, sin silo, silo ajeno,
       silo compartido por 2 galpones con **un** saldo)
+
+### Resultado de la Fase B — pantalla 5 y las 3 lecturas que faltaban (2026-08-13)
+
+**La Fase B queda cerrada: el silo ya se ve y se elige en `/gestion-inventario`.**
+
+- **Backend, las 3 lecturas pendientes**: `GetIngresosAsync` y `GetTrasladosAsync` proyectan el silo
+  (los traslados, los DOS extremos: `FromSilo*` del origen y `ToSilo*` del destino, que la fila de
+  salida guarda en `from_silo_id`) con **un solo** `NombresDeSilosAsync` por consulta, sin N+1.
+  `GetFilterDataAsync` devuelve `Silos` (origen + destino, la recepción elige silo de la granja que
+  recibe) y el flag `CompanyManejaInventarioPorSilo`. **Con el flag apagado no se consulta nada**:
+  el `if` envuelve la query entera.
+- ⚠️ Las filas **huérfanas** de `GetIngresosAsync` (el movimiento se borró y solo sobrevive el
+  espejo) llegan **sin silo** a propósito: `lote_registro_historico_unificado` tiene la columna pero
+  la entidad EF no la mapea, y mapearla ensuciaría el ModelSnapshot por un caso degenerado.
+- **Front pantalla 5** (`gestion-inventario-page` + `inventario-historial-page`): selector
+  **Silo / Bodega** obligatorio en ingreso y en traslado (origen y destino), columna **Silo** en la
+  grilla de stock y en el `.xlsx` (por el helper de `shared/utils/excel/`, con **6 tests** nuevos),
+  recepción de tránsito **por silo** (una sola ubicación o reparto entre varios), y el silo dentro
+  de la ubicación del histórico y del historial de ingresos/traslados.
+- 🔎 **Hallazgo que casi deja la pantalla inútil:** Santa Reyes es Colombia ⇒ `isColombiaInventario`
+  fuerza `trasladoModo = 'interGranja'` y **esconde** el radio de traslado interno. Con silos, el
+  movimiento habitual es **bodega → silo dentro de la MISMA granja**: el gate por país se levanta
+  cuando `manejaPorSilo`, y ahí el modo interno vuelve a ser el default. Sin esto no había forma de
+  cargar un silo desde la bodega por la UI.
+- 🔎 **Orden del selector** (`GetSilosElegiblesAsync`, ya entregado en la 2ª tanda): ordenaba por
+  **nombre** ⇒ «Silo 1, Silo 10, Silo 11, …, Silo 2». Con 38 silos es inusable; ahora ordena por el
+  **número del catálogo** y deja la bodega al final.
+- **Smoke UI real** (front :4300 + back :5002, Santa Reyes granja 109, sesión minteada): flag y 39
+  silos en `filter-data` ✔ · selector con «Silo 1 · BS60101 … Insumos» en orden numérico ✔ · grilla
+  de stock con columna **Silo** («Silo 4», «Insumos») y **sin** Núcleo/Galpón ✔ · `.xlsx` con la
+  columna Silo en la celda B ✔ · traslado con «Misma granja (entre silos)» + silo origen/destino ✔ ·
+  recepción con «Recibir todo en un silo / Distribuir entre varios silos», y las validaciones del
+  reparto dando **los mismos mensajes** que `InventarioGestionRecepcionDistribucionCalculos` ✔ ·
+  historial mostrando «La Esperanza › Insumos» → «La Esperanza › Silo 4» ✔. Cero errores NG en consola.
+- **Regresión flag OFF (front)**: con `companyManejaInventarioPorSilo = false` la pantalla vuelve
+  **exactamente** a la anterior — sin columna Silo, sin selectores, sin radio de traslado interno.
+- Las 2 filas de stock que se insertaron para ver la grilla se borraron: `silo_id` vuelve a estar en
+  **0 filas** de stock y de movimiento, y `max(id)` de stock volvió a 835. Backend y front
+  detenidos: **5002 y 4300 libres** (el :4200 de la otra sesión no se tocó).
 
 ### Resultado del backend de la Fase B (2026-08-12, 2ª tanda)
 

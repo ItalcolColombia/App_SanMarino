@@ -162,10 +162,10 @@
                   <div class="item-code">{{ t.itemCodigo }}</div>
                 </td>
                 <td>
-                  <div class="ubicacion-text">{{ formatUbicacion(t.fromGranjaNombre, t.fromNucleoNombre, t.fromGalponNombre) }}</div>
+                  <div class="ubicacion-text">{{ formatUbicacion(t.fromGranjaNombre, t.fromNucleoNombre, t.fromGalponNombre, t.fromSiloNombre ?? null) }}</div>
                 </td>
                 <td>
-                  <div class="ubicacion-text">{{ formatUbicacion(t.toGranjaNombre, t.toNucleoNombre, t.toGalponNombre) }}</div>
+                  <div class="ubicacion-text">{{ formatUbicacion(t.toGranjaNombre, t.toNucleoNombre, t.toGalponNombre, t.toSiloNombre ?? null) }}</div>
                 </td>
                 <td class="font-medium">{{ t.quantity | number:'1.0-2' }} {{ t.unit }}</td>
                 <td>
@@ -336,7 +336,7 @@
                   <div class="item-code">{{ i.itemCodigo }}</div>
                 </td>
                 <td>
-                  <div class="ubicacion-text">{{ formatUbicacion(i.granjaNombre, i.nucleoNombre, i.galponNombre) }}</div>
+                  <div class="ubicacion-text">{{ formatUbicacion(i.granjaNombre, i.nucleoNombre, i.galponNombre, i.siloNombre ?? null) }}</div>
                 </td>
                 <td class="font-medium">{{ i.quantity | number:'1.0-2' }} {{ i.unit }}</td>
                 <td>

@@ -376,8 +376,19 @@ export class InventarioHistorialPageComponent implements OnInit {
     }
   }
 
-  formatUbicacion(granja: string | null, nucleo: string | null, galpon: string | null): string {
-    const parts = [granja, nucleo, galpon].filter(Boolean);
-    return parts.length ? parts.join(' › ') : '—';
+  /**
+   * Ubicación legible de una fila. Con inventario por silo el saldo vive en el silo/bodega y
+   * núcleo/galpón llegan en null: se muestra `Granja › Silo 4`. La decisión sale del DATO de la
+   * fila (hay silo o no), nunca de un flag: así el histórico mezcla filas viejas y nuevas sin
+   * mentir en ninguna.
+   */
+  formatUbicacion(
+    granja: string | null,
+    nucleo: string | null,
+    galpon: string | null,
+    silo: string | null = null
+  ): string {
+    const parts = silo ? [granja, silo] : [granja, nucleo, galpon];
+    return parts.filter(Boolean).length ? parts.filter(Boolean).join(' › ') : '—';
   }
 }

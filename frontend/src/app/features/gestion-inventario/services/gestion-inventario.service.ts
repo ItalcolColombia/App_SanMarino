@@ -24,6 +24,20 @@ export interface GalponLiteDto {
   granjaId: number;
 }
 
+/**
+ * Silo o bodega ofrecido como ubicación de un movimiento. Es lo que llena el selector de
+ * ingreso/traslado y la columna «Silo» de las grillas (empresas con inventario por silo).
+ */
+export interface InventarioGestionSiloDto {
+  id: number;
+  granjaId: number;
+  nombre: string;
+  /** `Silo` | `Bodega`. */
+  tipo: string;
+  codigoErpUbicacion?: string | null;
+  codigoBodega?: string | null;
+}
+
 export interface InventarioGestionFilterDataDto {
   /** Granjas asignadas al usuario (origen / donde gestiona). */
   farmsOrigen: FarmDto[];
@@ -35,6 +49,10 @@ export interface InventarioGestionFilterDataDto {
   galponesDestino: GalponLiteDto[];
   /** Default GLOBAL de la empresa: ¿alimento a nivel galpón? (el front resuelve efectivo por granja). */
   companyManejaAlimentoPorGalpon?: boolean;
+  /** Silos y bodegas activos de las granjas visibles. Vacío si la empresa no maneja silos. */
+  silos?: InventarioGestionSiloDto[];
+  /** ¿La empresa ubica el inventario en SILOS en vez de galpones? Fail-closed: ausente = false. */
+  companyManejaInventarioPorSilo?: boolean;
 }
 
 /** Lote para filtrar histórico (granjas asignadas). */
@@ -82,6 +100,9 @@ export interface InventarioGestionStockDto {
   galponNombre?: string | null;
   /** Fecha de creación del registro de stock en esta ubicación (primera existencia). */
   fechaIngreso?: string | null;
+  /** Silo/bodega donde vive el saldo (empresas con inventario por silo). Núcleo y galpón van null. */
+  siloId?: number | null;
+  siloNombre?: string | null;
 }
 
 export interface InventarioGestionIngresoRequest {
@@ -107,6 +128,11 @@ export interface InventarioGestionIngresoRequest {
    * aplica a ingresos con galpón (alimento); default false = comportamiento previo intacto.
    */
   paraProximoCiclo?: boolean;
+  /**
+   * Silo/bodega destino. **Obligatorio** con inventario por silo (todo concepto, alimento e insumos);
+   * el backend rechaza el movimiento sin él. Núcleo/galpón viajan solo para filtrar la lista.
+   */
+  siloId?: number | null;
 }
 
 export interface InventarioGestionTrasladoRequest {
@@ -125,6 +151,10 @@ export interface InventarioGestionTrasladoRequest {
   destinoTipo?: string | null;
   /** Fecha en que se realizó el traslado (solo día, yyyy-MM-dd). Si se omite, el backend usa fecha/hora actual. */
   fechaMovimiento?: string | null;
+  /** Silo/bodega ORIGEN (inventario por silo). Habilita bodega→silo y silo→silo. */
+  fromSiloId?: number | null;
+  /** Silo/bodega DESTINO (inventario por silo). En inter-granja lo elige quien recibe. */
+  toSiloId?: number | null;
 }
 
 /** Registro del histórico de movimientos. */
@@ -162,6 +192,12 @@ export interface InventarioGestionMovimientoDto {
   itemConcepto?: string | null;
   /** Catálogo: tipo de ítem (alimento, etc.). */
   itemTipoItem?: string | null;
+  /** Silo/bodega donde ocurrió el movimiento (empresas con inventario por silo). */
+  siloId?: number | null;
+  siloNombre?: string | null;
+  /** Silo/bodega del otro extremo del traslado (espejo de `fromGalponNombre`). */
+  fromSiloId?: number | null;
+  fromSiloNombre?: string | null;
 }
 
 /** Salida inter-granja pendiente de recepción en destino. */
@@ -191,6 +227,8 @@ export interface InventarioGestionRecepcionDestino {
   nucleoId: string | null;
   galponId: string | null;
   quantity: number;
+  /** Silo/bodega de esta fila del reparto (inventario por silo). */
+  siloId?: number | null;
 }
 
 export interface InventarioGestionRecepcionTransitoRequest {
@@ -198,6 +236,8 @@ export interface InventarioGestionRecepcionTransitoRequest {
   toFarmId: number;
   toNucleoId: string | null;
   toGalponId: string | null;
+  /** Silo/bodega destino cuando se recibe todo en una sola ubicación (inventario por silo). */
+  toSiloId?: number | null;
   /**
    * Reparto de lo recibido entre varios galpones (solo alimento manejado por galpón).
    * Si trae filas, reemplaza a toNucleoId/toGalponId y la suma debe igualar la cantidad en tránsito.
@@ -245,6 +285,12 @@ export interface InventarioGestionTrasladoListDto {
   estado: string;
   fechaMovimiento: string;
   createdAt: string;
+  /** Silo/bodega de ORIGEN (inventario por silo). */
+  fromSiloId?: number | null;
+  fromSiloNombre?: string | null;
+  /** Silo/bodega de DESTINO. Null mientras el inter-granja sigue en tránsito. */
+  toSiloId?: number | null;
+  toSiloNombre?: string | null;
 }
 
 /** Edita solo la fecha de movimiento de un traslado (aplica a todos los registros del TransferGroupId). */
@@ -280,6 +326,9 @@ export interface InventarioGestionIngresoListDto {
   paraProximoCiclo: boolean;
   /** Instante real de captura del movimiento. Null en filas anteriores a la columna. */
   registradoAt?: string | null;
+  /** Silo/bodega donde entró (inventario por silo). Null en filas huérfanas del espejo. */
+  siloId?: number | null;
+  siloNombre?: string | null;
 }
 
 /** Edita solo la fecha de movimiento de un ingreso. */
@@ -343,6 +392,18 @@ export class GestionInventarioService {
     if (params.itemType) httpParams = httpParams.set('itemType', params.itemType);
     if (params.search) httpParams = httpParams.set('search', params.search);
     return this.http.get<InventarioGestionStockDto[]>(`${this.api}/inventario-gestion/stock`, { params: httpParams });
+  }
+
+  /**
+   * Silos y bodega ACTIVOS que pueden recibir o entregar un movimiento en esa granja.
+   * Con `galponId` el backend acota a los silos que alimentan ese galpón (el galpón filtra, no
+   * ubica) más la bodega, que se ofrece siempre. Devuelve `[]` si la empresa no maneja silos.
+   */
+  getSilos(farmId: number, nucleoId?: string | null, galponId?: string | null): Observable<InventarioGestionSiloDto[]> {
+    let httpParams = new HttpParams().set('farmId', farmId);
+    if (nucleoId) httpParams = httpParams.set('nucleoId', nucleoId);
+    if (galponId) httpParams = httpParams.set('galponId', galponId);
+    return this.http.get<InventarioGestionSiloDto[]>(`${this.api}/inventario-gestion/silos`, { params: httpParams });
   }
 
   actualizarStock(

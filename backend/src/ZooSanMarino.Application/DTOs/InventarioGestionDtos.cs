@@ -19,7 +19,15 @@ public sealed record InventarioGestionFilterDataDto(
     IEnumerable<GalponLiteDto> GalponesDestino,
     // Default GLOBAL de la empresa activa: ¿alimento a nivel galpón? El front resuelve el
     // efectivo por granja: farm.ManejaAlimentoPorGalpon ?? CompanyManejaAlimentoPorGalpon.
-    bool CompanyManejaAlimentoPorGalpon = false
+    bool CompanyManejaAlimentoPorGalpon = false,
+    /// <summary>
+    /// Silos y bodegas ACTIVOS de las granjas visibles (origen + destino), ya agrupables por
+    /// <c>GranjaId</c>. Va <b>vacío</b> cuando la empresa no maneja inventario por silo: en ese caso
+    /// no se consulta nada y el front no pinta la columna.
+    /// </summary>
+    IEnumerable<InventarioGestionSiloDto>? Silos = null,
+    /// <summary>¿La empresa activa ubica el inventario en SILOS en vez de galpones?</summary>
+    bool CompanyManejaInventarioPorSilo = false
 );
 
 /// <summary>Lote para filtrar el histórico por ubicación (tabla lotes, granjas asignadas).</summary>
@@ -331,7 +339,13 @@ public sealed record InventarioGestionTrasladoListDto(
     /// <summary>Estado del traslado: "Completado", "En tránsito", "Rechazado".</summary>
     string Estado,
     DateTimeOffset FechaMovimiento,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    /// <summary>Silo/bodega de ORIGEN (empresas con inventario por silo). Espejo de <c>FromGalponId</c>.</summary>
+    int? FromSiloId = null,
+    string? FromSiloNombre = null,
+    /// <summary>Silo/bodega de DESTINO. <c>null</c> mientras el inter-granja sigue en tránsito.</summary>
+    int? ToSiloId = null,
+    string? ToSiloNombre = null
 );
 
 /// <summary>Edita solo la fecha de movimiento de un traslado (aplica a todos los registros del TransferGroupId).</summary>
@@ -365,7 +379,14 @@ public sealed record InventarioGestionIngresoListDto(
     /// <summary>Ingreso atribuido explícitamente al PRÓXIMO ciclo del galpón (editable desde el historial).</summary>
     bool ParaProximoCiclo = false,
     /// <summary>Instante real de captura. <c>null</c> en las filas anteriores a la columna.</summary>
-    DateTimeOffset? RegistradoAt = null
+    DateTimeOffset? RegistradoAt = null,
+    /// <summary>
+    /// Silo/bodega donde entró el alimento (empresas con inventario por silo). Las filas huérfanas
+    /// —el movimiento se borró y solo sobrevive el espejo— llegan sin silo: el dato vive en
+    /// <c>inventario_gestion_movimiento</c>, que ya no existe.
+    /// </summary>
+    int? SiloId = null,
+    string? SiloNombre = null
 );
 
 /// <summary>Edita solo la fecha de movimiento de un ingreso.</summary>

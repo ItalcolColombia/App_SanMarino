@@ -173,14 +173,21 @@ public partial class InventarioGestionService : IInventarioGestionService
                 Array.Empty<NucleoDto>(),
                 Array.Empty<NucleoDto>(),
                 Array.Empty<GalponLiteDto>(),
-                Array.Empty<GalponLiteDto>());
+                Array.Empty<GalponLiteDto>(),
+                CompanyManejaAlimentoPorGalpon: false,
+                Silos: Array.Empty<InventarioGestionSiloDto>());
         }
 
         var cid = companyId.Value;
 
-        // Default GLOBAL de manejo de alimento de la empresa (el front resuelve el efectivo por granja).
-        var companyManejaPorGalpon = await _db.Set<Company>().AsNoTracking()
-            .Where(c => c.Id == cid).Select(c => c.ManejaAlimentoPorGalpon).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        // Defaults GLOBALES de la empresa: manejo de alimento (el front resuelve el efectivo por
+        // granja) y si el inventario se ubica en SILOS en vez de galpones.
+        var companyFlags = await _db.Set<Company>().AsNoTracking()
+            .Where(c => c.Id == cid)
+            .Select(c => new { c.ManejaAlimentoPorGalpon, c.ManejaInventarioPorSilo })
+            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        var companyManejaPorGalpon = companyFlags?.ManejaAlimentoPorGalpon ?? false;
+        var companyManejaPorSilo = companyFlags?.ManejaInventarioPorSilo ?? false;
 
         // Todas las granjas de la empresa (destino: traslado inter-granja, procedencia en ingreso "otra granja"/bodega, etc.)
         var farmsDestino = (await _farmService.GetAllAsync(userId: null, companyId: cid).ConfigureAwait(false)).ToList();
@@ -201,6 +208,36 @@ public partial class InventarioGestionService : IInventarioGestionService
         var galponesDestino = galponesDetailDestino
             .Select(g => new GalponLiteDto(g.GalponId, g.GalponNombre, g.NucleoId, g.GranjaId)).ToList();
 
+        // Silos de las granjas visibles (origen + destino: la recepción de tránsito elige el silo de
+        // la granja que recibe). Con el flag apagado no se consulta nada: cero costo para el resto.
+        var silos = new List<InventarioGestionSiloDto>();
+        if (companyManejaPorSilo)
+        {
+            var farmIdsConSilos = farmsOrigen.Select(f => f.Id)
+                .Concat(allowedDestinoIds)
+                .Distinct()
+                .ToList();
+
+            if (farmIdsConSilos.Count > 0)
+            {
+                silos = await _db.FarmSilos.AsNoTracking()
+                    .Where(fs => farmIdsConSilos.Contains(fs.GranjaId) && fs.DeletedAt == null && fs.Activo)
+                    // Mismo orden que GetSilosElegiblesAsync (bodega al final, silos por número de
+                    // catálogo) para que el front los pinte igual en el selector y en la grilla.
+                    .OrderBy(fs => fs.GranjaId)
+                    .ThenBy(fs => fs.Tipo == Domain.Entities.FarmSilo.TipoBodega ? 1 : 0)
+                    .ThenBy(fs => _db.SiloCatalogo
+                        .Where(sc => sc.Id == fs.SiloCatalogoId)
+                        .Select(sc => (int?)sc.Numero)
+                        .FirstOrDefault() ?? int.MaxValue)
+                    .ThenBy(fs => fs.Nombre)
+                    .Select(fs => new InventarioGestionSiloDto(
+                        fs.Id, fs.GranjaId, fs.Nombre, fs.Tipo, fs.CodigoErpUbicacion, fs.CodigoBodega))
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
         return new InventarioGestionFilterDataDto(
             FarmsOrigen: farmsOrigen,
             FarmsDestino: farmsDestino,
@@ -208,7 +245,9 @@ public partial class InventarioGestionService : IInventarioGestionService
             NucleosDestino: nucleosDestino,
             GalponesOrigen: galponesOrigen,
             GalponesDestino: galponesDestino,
-            CompanyManejaAlimentoPorGalpon: companyManejaPorGalpon);
+            CompanyManejaAlimentoPorGalpon: companyManejaPorGalpon,
+            Silos: silos,
+            CompanyManejaInventarioPorSilo: companyManejaPorSilo);
     }
 
     public async Task<InventarioGestionHistoricoFiltrosDto> GetHistoricoFiltrosAsync(CancellationToken ct = default)
@@ -2118,6 +2157,11 @@ public partial class InventarioGestionService : IInventarioGestionService
             : new List<Galpon>();
         var galponDict = galponRows.ToDictionary(g => (g.GalponId, g.GranjaId), g => g.GalponNombre);
 
+        // La fila de salida guarda su propio silo (ORIGEN) y el del otro extremo en from_silo_id
+        // (DESTINO), igual que hace con núcleo/galpón. Un solo viaje para los dos.
+        var siloNombres = await NombresDeSilosAsync(
+            salidas.SelectMany(s => new[] { s.SiloId, s.FromSiloId }), ct);
+
         return salidas.Select(s =>
         {
             farmNames.TryGetValue(s.FarmId, out var fromGranjaName);
@@ -2159,7 +2203,11 @@ public partial class InventarioGestionService : IInventarioGestionService
                 s.Reason,
                 estado,
                 s.CreatedAt,
-                s.CreatedAt);
+                s.CreatedAt,
+                s.SiloId,
+                s.SiloId.HasValue && siloNombres.TryGetValue(s.SiloId.Value, out var fsn) ? fsn : null,
+                s.FromSiloId,
+                s.FromSiloId.HasValue && siloNombres.TryGetValue(s.FromSiloId.Value, out var tsn) ? tsn : null);
         }).ToList();
     }
 
@@ -2393,6 +2441,10 @@ public partial class InventarioGestionService : IInventarioGestionService
                 .ToDictionaryAsync(i => i.Id, ct)
             : new Dictionary<int, ItemInventario>();
 
+        // Solo los movimientos vivos traen silo: en las filas huérfanas el dato murió con el
+        // movimiento (el espejo lo guarda, pero la entidad del histórico no lo mapea).
+        var siloNombres = await NombresDeSilosAsync(list.Select(x => x.SiloId), ct);
+
         var mainDtos = list.Select(x =>
         {
             string? nucleoNombre = x.NucleoId != null && nucleos.TryGetValue((x.NucleoId, x.FarmId), out var nn) ? nn : null;
@@ -2419,7 +2471,9 @@ public partial class InventarioGestionService : IInventarioGestionService
                 x.CreatedAt,
                 x.CreatedAt,
                 x.ParaProximoCiclo,
-                x.RegistradoAt);
+                x.RegistradoAt,
+                x.SiloId,
+                x.SiloId.HasValue && siloNombres.TryGetValue(x.SiloId.Value, out var sn) ? sn : null);
         });
 
         var orphanedDtos = orphaned.Select(h =>
