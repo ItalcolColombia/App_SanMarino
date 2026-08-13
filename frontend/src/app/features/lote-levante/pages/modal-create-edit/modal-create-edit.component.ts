@@ -30,6 +30,13 @@ import {
 } from '../../funciones/lote-levante-inventario.funcion';
 import { InventarioUbicacion } from '../../models/lote-levante-inventario.model';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { SilosService, LoteSiloDto } from '../../../silos/services/silos.service';
+import {
+  agruparStockPorItemSilo,
+  claveItemSilo,
+  itemsConStockEnSilo,
+  SaldoItem
+} from '../../../../shared/utils/inventario/stock-por-silo.funcion';
 import { CLASIFICADORA_HUEVO_KEYS } from '../../models/huevo-levante.model';
 import { totalesHuevosLevante, eficienciaHuevosLevante } from '../../funciones/totales-huevos-levante.funcion';
 import { permiteHuevosEnLevante, semanaVidaLevante } from '../../funciones/semana-vida-levante.funcion';
@@ -126,8 +133,21 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   // Mapa para guardar información de inventario (cantidad disponible) por catalogItemId
   private inventarioPorItem = new Map<number, { quantity: number; unit: string }>();
-  // Edición: consumo original por ítem en kg (para validar delta en update)
-  private originalConsumoKgByItem = new Map<number, number>();
+  /**
+   * Fase C (silos): saldo por (ítem, silo). En las empresas que ubican el inventario por silo, el
+   * disponible de una fila es el de SU silo, no el de la granja: sumarlos mostraría 2.000 kg donde el
+   * silo elegido tiene 300. Vacío en toda empresa sin el flag.
+   */
+  private stockPorItemSilo = new Map<string, SaldoItem>();
+  /** Empresa que ubica el inventario por silo. Fail-closed: false hasta que el flag responda. */
+  manejaPorSilo = false;
+  /** Silos que el lote tiene asignados: de esos —y solo de esos— puede consumir. */
+  silosDelLote: LoteSiloDto[] = [];
+  private silosLoteLoadId = 0;
+  // Edición: consumo original por (ítem, silo) en kg (para validar delta en update). La clave lleva
+  // el silo porque el backend descuenta por (ítem, silo): con la clave plana, mover 300 kg del silo 4
+  // al 20 daría delta 0 y el tope del silo nuevo no se validaría.
+  private originalConsumoKgByItem = new Map<string, number>();
 
   // Tipos de ítem (Ecuador/Panamá: se reemplaza por conceptos de item_inventario_ecuador)
   private readonly TIPOS_ITEM_DEFAULT: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
@@ -170,7 +190,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     private gestionInventarioSvc: GestionInventarioService,
     private countryFilter: CountryFilterService,
     private storage: TokenStorageService,
-    private companyConfig: ActiveCompanyConfigService
+    private companyConfig: ActiveCompanyConfigService,
+    private silosSvc: SilosService
   ) { }
 
   /** Opciones de "Tipo de ítem": en Ecuador/Panamá son los conceptos de item_inventario_ecuador; si no, la lista fija. */
@@ -274,6 +295,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     // Flag de empresa (llega async; fail-closed mientras no responda).
     this.flagsSubscription = this.companyConfig.getFlags().subscribe(flags => {
+      // El silo se resuelve ANTES del corte de abajo: ese `return` mira solo el flag de huevos, y
+      // colgar de él la lectura del silo dejaría la pantalla sin selector en media empresa.
+      if (this.manejaPorSilo !== flags.manejaInventarioPorSilo) {
+        this.manejaPorSilo = flags.manejaInventarioPorSilo;
+        this.cargarSilosDelLote(this.loteIdSeleccionado());
+      }
       if (this.capturaHuevosEnLevante === flags.capturaHuevosEnLevante) return;
       this.capturaHuevosEnLevante = flags.capturaHuevosEnLevante;
       this.recalcularVisibilidadHuevos();
@@ -420,6 +447,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             this.cargarInventarioGranja(nuevaGranjaId, undefined, u);
           }
         }
+        // Los silos son del LOTE, no de la granja: cambiar de lote dentro de la misma granja también
+        // cambia de qué silos se puede consumir.
+        this.cargarSilosDelLote(Number(loteId));
 
         // Limpiar inventario cuando cambia el lote
         this.inventarioDisponibleHembras = null;
@@ -447,6 +477,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         this.alimentosByCode.clear();
         this.alimentosByName.clear();
         this.inventarioPorItem.clear();
+        this.stockPorItemSilo.clear();
+        this.silosDelLote = [];
         this.itemsEcuadorPanama = [];
         this.conceptosEcuadorPanama = [];
         this.inventarioUbicacionActual = { nucleoId: null, galponId: null };
@@ -526,6 +558,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         this.inventarioUbicacionActual = this.getInventarioUbicacionFromLote(lote);
         this.cargarInventarioGranja(lote.granjaId, undefined, this.inventarioUbicacionActual);
       }
+      this.cargarSilosDelLote(Number(this.selectedLoteId));
     } else {
       this.granjaIdActual = null;
       this.alimentosCatalog = [];
@@ -560,7 +593,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       tipoItem: [this.isEcuadorOrPanama ? null : 'alimento'],
       catalogItemId: [null],
       cantidad: [0, [Validators.min(0)]],
-      unidad: ['kg']
+      unidad: ['kg'],
+      siloId: [this.siloPorDefecto()]
     });
 
     itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
@@ -599,7 +633,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       tipoItem: [this.isEcuadorOrPanama ? null : 'alimento'],
       catalogItemId: [null],
       cantidad: [0, [Validators.min(0)]],
-      unidad: ['kg']
+      unidad: ['kg'],
+      siloId: [this.siloPorDefecto()]
     });
 
     itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
@@ -625,7 +660,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       tipoItem: [null as string | null],
       catalogItemId: [null],
       cantidad: [0, [Validators.min(0)]],
-      unidad: ['unidades']
+      unidad: ['unidades'],
+      siloId: [this.siloPorDefecto()]
     });
 
     itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
@@ -658,9 +694,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    */
   private readonly _alimentosFiltradosCache = new Map<string, CatalogItemDto[]>();
 
-  getAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemDto[] {
-    const computed = this.computeAlimentosFiltradosPorTipo(tipoItem);
-    const key = `${tipoItem ?? ''}`;
+  getAlimentosFiltradosPorTipo(
+    tipoItem: string | null,
+    filaControl: AbstractControl | null = null
+  ): CatalogItemDto[] {
+    const siloFila = this.siloDeFila(filaControl);
+    const computed = this.computeAlimentosFiltradosPorTipo(tipoItem, siloFila);
+    // La caché se indexa TAMBIÉN por silo: sin eso, dos filas con silos distintos compartirían la
+    // lista y una de las dos ofrecería ítems que su silo no tiene.
+    const key = `${tipoItem ?? ''}|${siloFila ?? 0}`;
     const prev = this._alimentosFiltradosCache.get(key);
     if (prev && prev.length === computed.length && prev.every((a, i) => a.id === computed[i].id)) {
       return prev;
@@ -669,7 +711,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return computed;
   }
 
-  private computeAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemDto[] {
+  private computeAlimentosFiltradosPorTipo(
+    tipoItem: string | null,
+    siloId: number | null = null
+  ): CatalogItemDto[] {
+    const porTipo = this.computeAlimentosPorTipoSinSilo(tipoItem);
+    // Sin flag, o mientras la fila no diga de qué silo saca, se ofrece el catálogo completo: recién
+    // elegido el silo la lista se acota a lo que ESE silo tiene.
+    if (!this.manejaPorSilo || !siloId) return porTipo;
+    const conStock = itemsConStockEnSilo(this.stockPorItemSilo, siloId);
+    return porTipo.filter(a => conStock.has(Number(a.id)));
+  }
+
+  private computeAlimentosPorTipoSinSilo(tipoItem: string | null): CatalogItemDto[] {
     if (this.usaInventarioGestion && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
       if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i));
@@ -697,9 +751,75 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return this.inventarioPorItem.get(catalogItemId) || null;
   }
 
-  getOriginalConsumoKg(catalogItemId: number | null | undefined): number {
+  /**
+   * Disponible del ítem EN SU SILO. Con el flag apagado devuelve el de siempre (saldo de la granja);
+   * con el flag puesto, sin silo elegido no hay saldo que mostrar —el operario primero dice de dónde
+   * saca el alimento— y con silo elegido se lee la fila de ese silo.
+   */
+  private getCantidadDisponibleEnSilo(
+    catalogItemId: number | null | undefined,
+    siloId: number | null
+  ): { quantity: number; unit: string } | null {
+    if (!catalogItemId) return null;
+    if (!this.manejaPorSilo) return this.getCantidadDisponible(catalogItemId);
+    if (!siloId) return null;
+    return this.stockPorItemSilo.get(claveItemSilo(Number(catalogItemId), siloId)) ?? null;
+  }
+
+  /** Silo elegido en una fila del formulario (null si la empresa no maneja silos). */
+  siloDeFila(control: AbstractControl | null | undefined): number | null {
+    if (!this.manejaPorSilo || !control) return null;
+    const valor = Number(control.get('siloId')?.value);
+    return valor > 0 ? valor : null;
+  }
+
+  /** Silo que trae una fila nueva: si el lote consume de UN solo silo, no se le pregunta al operario. */
+  private siloPorDefecto(): number | null {
+    if (!this.manejaPorSilo) return null;
+    return this.silosDelLote.length === 1 ? this.silosDelLote[0].farmSiloId : null;
+  }
+
+  /** Lote del formulario (o el del contexto, si el campo todavía no se pobló). */
+  private loteIdSeleccionado(): number | null {
+    const raw = this.form?.get('loteId')?.value ?? this.selectedLoteId;
+    const id = Number(raw);
+    return id > 0 ? id : null;
+  }
+
+  /**
+   * Silos asignados al lote. Es la MISMA lista que valida el backend (`lote_silos`): si el operario
+   * pudiera elegir otro, el guardado fallaría recién al enviar. Fail-closed: ante error queda vacía y
+   * el modal avisa que hay que asignarle silos al lote.
+   */
+  private cargarSilosDelLote(loteId: number | null): void {
+    if (!this.manejaPorSilo || !loteId) {
+      this.silosDelLote = [];
+      return;
+    }
+    const loadId = ++this.silosLoteLoadId;
+    this.silosSvc.getSilosDeLote(loteId).pipe(
+      catchError(err => { console.error('Error al cargar los silos del lote:', err); return of([] as LoteSiloDto[]); })
+    ).subscribe(silos => {
+      if (loadId !== this.silosLoteLoadId) return;
+      this.silosDelLote = (silos ?? []).filter(x => x.activo);
+      this.aplicarSiloPorDefectoEnFilasVacias();
+    });
+  }
+
+  /** Con un solo silo asignado, las filas que aún no lo tienen lo toman: un clic menos por fila. */
+  private aplicarSiloPorDefectoEnFilasVacias(): void {
+    const porDefecto = this.siloPorDefecto();
+    if (!porDefecto) return;
+    for (const arr of [this.itemsHembrasArray, this.itemsMachosArray, this.itemsGeneralesArray]) {
+      for (const c of arr.controls) {
+        if (!c.get('siloId')?.value) c.get('siloId')?.setValue(porDefecto, { emitEvent: false });
+      }
+    }
+  }
+
+  getOriginalConsumoKg(catalogItemId: number | null | undefined, siloId: number | null = null): number {
     if (!catalogItemId) return 0;
-    return this.originalConsumoKgByItem.get(Number(catalogItemId)) ?? 0;
+    return this.originalConsumoKgByItem.get(claveItemSilo(Number(catalogItemId), siloId)) ?? 0;
   }
 
   /** Convierte cantidad a kg para validar contra inventario. */
@@ -713,7 +833,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     itemsM: any[] | null | undefined,
     itemsG: any[] | null | undefined = undefined
   ): void {
-    const map = new Map<number, number>();
+    const map = new Map<string, number>();
     const addArr = (arr: any[] | null | undefined) => {
       if (!arr || !Array.isArray(arr)) return;
       arr.forEach((it: any) => {
@@ -724,7 +844,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const cantidad = Number(it?.cantidad ?? it?.cantidadKg ?? 0);
         if (!Number.isFinite(cantidad) || cantidad <= 0) return;
         const kg = this.toKg(cantidad, it?.unidad ?? 'kg');
-        map.set(id, (map.get(id) ?? 0) + kg);
+        const clave = claveItemSilo(id, this.manejaPorSilo ? (Number(it?.siloId) || null) : null);
+        map.set(clave, (map.get(clave) ?? 0) + kg);
       });
     };
     addArr(itemsH);
@@ -742,11 +863,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    */
   private sumaReservadaEnOtrasFilas(catalogItemId: number, excludeControl: AbstractControl | null): number {
     if (!catalogItemId) return 0;
+    const siloFila = this.siloDeFila(excludeControl);
     let total = 0;
     for (const arr of [this.itemsHembrasArray, this.itemsMachosArray, this.itemsGeneralesArray]) {
       for (const c of arr.controls) {
         if (c === excludeControl) continue;
         if (Number(c.get('catalogItemId')?.value) !== catalogItemId) continue;
+        // Con silos, el backend descuenta por (ítem, silo): dos filas del mismo alimento en silos
+        // distintos NO compiten por el mismo saldo, así que no se descuentan entre sí.
+        if (this.manejaPorSilo && this.siloDeFila(c) !== siloFila) continue;
         const cantidad = Number(c.get('cantidad')?.value) || 0;
         if (cantidad <= 0) continue;
         total += this.toKg(cantidad, c.get('unidad')?.value || 'kg');
@@ -757,10 +882,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   getMaxPermitidoKg(catalogItemId: number | null | undefined, excludeControl: AbstractControl | null = null): number | null {
     if (!catalogItemId) return null;
-    const disponible = this.getCantidadDisponible(catalogItemId);
+    const siloFila = this.siloDeFila(excludeControl);
+    const disponible = this.getCantidadDisponibleEnSilo(catalogItemId, siloFila);
     if (!disponible) return null;
     const disponibleKg = this.toKg(Number(disponible.quantity || 0), disponible.unit);
-    const originalKg = this.editing ? this.getOriginalConsumoKg(catalogItemId) : 0;
+    const originalKg = this.editing ? this.getOriginalConsumoKg(catalogItemId, siloFila) : 0;
     const reservadoOtrasFilas = this.sumaReservadaEnOtrasFilas(catalogItemId, excludeControl);
     return disponibleKg + originalKg - reservadoOtrasFilas;
   }
@@ -773,7 +899,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     excludeControl: AbstractControl | null
   ): { quantity: number; unit: string } | null {
     if (!catalogItemId) return null;
-    const base = this.getCantidadDisponible(catalogItemId);
+    const base = this.getCantidadDisponibleEnSilo(catalogItemId, this.siloDeFila(excludeControl));
     if (!base) return null;
     const maxKg = this.getMaxPermitidoKg(catalogItemId, excludeControl);
     if (maxKg == null) return null;
@@ -896,12 +1022,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     if (this.originalConsumoKgByItem.size === 0) {
       if (tipoAlimentoHembras && consumoHembras > 0) {
         const kgH = this.toKg(Number(consumoHembras), unidadConsumoHembras);
-        this.originalConsumoKgByItem.set(Number(tipoAlimentoHembras), kgH);
+        this.originalConsumoKgByItem.set(claveItemSilo(Number(tipoAlimentoHembras), null), kgH);
       }
       if (tipoAlimentoMachos && consumoMachos != null && consumoMachos > 0) {
         const kgM = this.toKg(Number(consumoMachos), unidadConsumoMachos);
         const idM = Number(tipoAlimentoMachos);
-        this.originalConsumoKgByItem.set(idM, (this.originalConsumoKgByItem.get(idM) ?? 0) + kgM);
+        const claveM = claveItemSilo(idM, null);
+        this.originalConsumoKgByItem.set(claveM, (this.originalConsumoKgByItem.get(claveM) ?? 0) + kgM);
       }
     }
 
@@ -923,7 +1050,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: [tipoItem, Validators.required],
           catalogItemId: [cid, Validators.required],
           cantidad: [item.cantidad ?? item.cantidadKg ?? consumoHembras, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || unidadConsumoHembras || 'kg', Validators.required]
+          unidad: [item.unidad || unidadConsumoHembras || 'kg', Validators.required],
+          // Editar tiene que devolver el alimento al silo del que salió, no a «sin silo».
+          siloId: [item.siloId ?? null]
         }));
       });
     } else {
@@ -933,7 +1062,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: ['alimento', Validators.required],
           catalogItemId: [tipoAlimentoHembras, Validators.required],
           cantidad: [consumoHembras, [Validators.required, Validators.min(0)]],
-          unidad: [unidadConsumoHembras, Validators.required]
+          unidad: [unidadConsumoHembras, Validators.required],
+          siloId: [null]
         }));
       }
       // Legacy puro: no hay IDs de alimento. Creamos una fila sintética y resolvemos catalogItemId por texto.
@@ -942,7 +1072,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: ['alimento', Validators.required],
           catalogItemId: [null, Validators.required],
           cantidad: [consumoHembras, [Validators.required, Validators.min(0)]],
-          unidad: [unidadConsumoHembras || 'kg', Validators.required]
+          unidad: [unidadConsumoHembras || 'kg', Validators.required],
+          siloId: [null]
         }));
         this.legacyFoodTextH = this.pickLegacyFoodText(metadata, this.editing);
       }
@@ -961,7 +1092,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: [tipoItem, Validators.required],
           catalogItemId: [cid, Validators.required],
           cantidad: [item.cantidad ?? item.cantidadKg ?? consumoMachos ?? 0, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || unidadConsumoMachos || 'kg', Validators.required]
+          unidad: [item.unidad || unidadConsumoMachos || 'kg', Validators.required],
+          // Editar tiene que devolver el alimento al silo del que salió, no a «sin silo».
+          siloId: [item.siloId ?? null]
         }));
       });
     } else {
@@ -971,7 +1104,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: ['alimento', Validators.required],
           catalogItemId: [tipoAlimentoMachos, Validators.required],
           cantidad: [consumoMachos, [Validators.required, Validators.min(0)]],
-          unidad: [unidadConsumoMachos, Validators.required]
+          unidad: [unidadConsumoMachos, Validators.required],
+          siloId: [null]
         }));
       }
       // Legacy puro: no hay IDs de alimento. Creamos una fila sintética y resolvemos catalogItemId por texto.
@@ -980,7 +1114,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: ['alimento', Validators.required],
           catalogItemId: [null, Validators.required],
           cantidad: [consumoMachos, [Validators.required, Validators.min(0)]],
-          unidad: [unidadConsumoMachos || 'kg', Validators.required]
+          unidad: [unidadConsumoMachos || 'kg', Validators.required],
+          siloId: [null]
         }));
         this.legacyFoodTextM = this.pickLegacyFoodText(metadata, this.editing);
       }
@@ -996,7 +1131,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             tipoItem: [tipoItem, Validators.required],
             catalogItemId: [cid, Validators.required],
             cantidad: [item.cantidad ?? item.cantidadKg ?? 0, [Validators.required, Validators.min(0)]],
-            unidad: [item.unidad || 'unidades', Validators.required]
+            unidad: [item.unidad || 'unidades', Validators.required],
+            siloId: [item.siloId ?? null]
           })
         );
       });
@@ -1019,7 +1155,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             tipoItem: [item.tipoItem, Validators.required],
             catalogItemId: [cid, Validators.required],
             cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
-            unidad: [item.unidad || 'unidades', Validators.required]
+            unidad: [item.unidad || 'unidades', Validators.required],
+            siloId: [item.siloId ?? null]
           }));
         });
       }
@@ -1033,7 +1170,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             tipoItem: [item.tipoItem, Validators.required],
             catalogItemId: [cid, Validators.required],
             cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
-            unidad: [item.unidad || 'unidades', Validators.required]
+            unidad: [item.unidad || 'unidades', Validators.required],
+            siloId: [item.siloId ?? null]
           }));
         });
       }
@@ -1048,7 +1186,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
               tipoItem: [item.tipoItem, Validators.required],
               catalogItemId: [cid, Validators.required],
               cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
-              unidad: [item.unidad || 'unidades', Validators.required]
+              unidad: [item.unidad || 'unidades', Validators.required],
+              siloId: [item.siloId ?? null]
             })
           );
         });
@@ -1111,6 +1250,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
       // Cargar inventario de la granja (y núcleo/galpón del lote en EC/PA)
       this.cargarInventarioGranja(lote.granjaId, undefined, this.inventarioUbicacionActual);
+      this.cargarSilosDelLote(Number(loteId));
 
       // Después de cargar el inventario, establecer el tipo de ítem y alimento
       // Esto se hará en el callback de cargarInventarioGranja
@@ -1574,6 +1714,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const q = prev ? prev.quantity + r.quantity : r.quantity;
         this.inventarioPorItem.set(r.itemInventarioEcuadorId, { quantity: q, unit: r.unit });
       });
+      // El mismo stock, abierto por silo: es el saldo que ve cada fila cuando la empresa maneja silos.
+      this.stockPorItemSilo = agruparStockPorItemSilo(rows);
       this.alimentosCatalog = this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i))
         .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { numeric: true, sensitivity: 'base' }));
       this.actualizarMapasYFiltros();
@@ -2056,6 +2198,36 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * descuenta por código, camino-1); si es un ítem nuevo sin espejo (p.ej. "moises") se envía el id
    * de item_inventario_ecuador (camino-2 pass-through).
    */
+  /** El silo solo viaja cuando la empresa lo maneja: sin flag el payload es el de siempre. */
+  private siloPersistField(control: AbstractControl): { siloId?: number } {
+    const siloId = this.siloDeFila(control);
+    return siloId ? { siloId } : {};
+  }
+
+  /**
+   * Toda fila con cantidad tiene que decir de qué silo sale. Devuelve false (y avisa) si falta
+   * alguna, o si el lote todavía no tiene silos asignados —el caso en el que el operario no tendría
+   * ni qué elegir—.
+   */
+  private validarSilosDeLasFilas(): boolean {
+    if (!this.manejaPorSilo) return true;
+
+    const filasConCantidad = [this.itemsHembrasArray, this.itemsMachosArray, this.itemsGeneralesArray]
+      .flatMap(arr => arr.controls)
+      .filter(c => c.get('catalogItemId')?.value && Number(c.get('cantidad')?.value) > 0);
+    if (filasConCantidad.length === 0) return true;
+
+    if (this.silosDelLote.length === 0) {
+      this.toast.error('Este lote no tiene silos asignados. Asígnelos en «Silos de consumo del lote» antes de registrar el consumo.');
+      return false;
+    }
+    if (filasConCantidad.some(c => !this.siloDeFila(c))) {
+      this.toast.error('Indique de qué silo o bodega sale cada alimento del día.');
+      return false;
+    }
+    return true;
+  }
+
   private buildItemPersistFields(itemId: number): { catalogItemId: number; itemInventarioEcuadorId?: number; nombre?: string } {
     return buildItemPersistFields(itemId, {
       isEcuadorOrPanama: this.isEcuadorOrPanama,
@@ -2082,6 +2254,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
 
+    // Con silos, ninguna fila con cantidad puede quedar sin ubicación: el backend la rechazaría
+    // igual, pero recién después de intentar guardar y con un mensaje que no señala la fila.
+    if (!this.validarSilosDeLasFilas()) return;
+
     // Construir arrays de ítems desde FormArrays
     const itemsHembras: ItemSeguimientoDto[] = [];
     const itemsMachos: ItemSeguimientoDto[] = [];
@@ -2101,7 +2277,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: tipoH,
           ...this.buildItemPersistFields(Number(itemValue.catalogItemId)),
           cantidad: Number(itemValue.cantidad),
-          unidad: itemValue.unidad || 'kg'
+          unidad: itemValue.unidad || 'kg',
+          ...this.siloPersistField(control)
         });
       }
     });
@@ -2116,7 +2293,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         tipoItem: tipoM,
         ...this.buildItemPersistFields(Number(itemValue.catalogItemId)),
         cantidad: Number(itemValue.cantidad),
-        unidad: itemValue.unidad || 'kg'
+        unidad: itemValue.unidad || 'kg',
+        ...this.siloPersistField(control)
       });
     });
 
@@ -2127,7 +2305,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           tipoItem: itemValue.tipoItem,
           ...this.buildItemPersistFields(Number(itemValue.catalogItemId)),
           cantidad: Number(itemValue.cantidad),
-          unidad: itemValue.unidad || 'kg'
+          unidad: itemValue.unidad || 'kg',
+          ...this.siloPersistField(control)
         });
       }
     });

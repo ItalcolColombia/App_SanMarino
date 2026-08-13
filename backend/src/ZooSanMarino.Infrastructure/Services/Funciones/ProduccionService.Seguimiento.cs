@@ -219,7 +219,7 @@ public partial class ProduccionService
             var byItem = AcumularItemsRequestPorOrigen(request.ItemsHembras, request.ItemsMachos);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
-            await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
+            await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, positivos, loteId); // lanza si falta (antes de persistir)
 
             // Transaccion CONDICIONAL: null cuando ya hay una ambiente (push offline de la PWA). EF lanza
             // si se abre una segunda sobre el mismo contexto. Sin ambiente abre la suya y el
@@ -562,7 +562,7 @@ public partial class ProduccionService
                 var diff = newByItemId.GetValueOrDefault(key) - oldByItemId.GetValueOrDefault(key);
                 if (diff > 0) incrementos[key] = diff;
             }
-            await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, incrementos); // lanza si falta (antes de persistir)
+            await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, incrementos, loteId); // lanza si falta (antes de persistir)
 
             // Transaccion CONDICIONAL: null cuando ya hay una ambiente (push offline de la PWA). EF lanza
             // si se abre una segunda sobre el mismo contexto. Sin ambiente abre la suya y el

@@ -1585,6 +1585,28 @@ public partial class InventarioGestionService : IInventarioGestionService
     // Ecuador) y NucleoId/GalponId = NULL, aislados por company+pais de la granja.
 
     /// <summary>
+    /// La fila de stock de nivel granja (nucleo/galpon NULL) de un ítem, discriminando por silo.
+    ///
+    /// <para>
+    /// El silo se filtra SIEMPRE, también cuando es <c>null</c> (<c>silo_id IS NULL</c>): es la misma
+    /// clave natural que fija el índice único <c>ux_inventario_gestion_stock_clave_natural</c> con su
+    /// <c>COALESCE(silo_id,0)</c>. Para las empresas sin el flag —donde <c>silo_id</c> es NULL en el
+    /// 100 % de las filas— la consulta devuelve exactamente lo mismo que antes de la Fase C; para las
+    /// que ubican por silo, sin este filtro el consumo descontaría la primera fila que encuentre, que
+    /// puede ser la de OTRO silo.
+    /// </para>
+    /// </summary>
+    private IQueryable<InventarioGestionStock> StockNivelGranjaQuery(int farmId, int itemId, int? siloId)
+    {
+        var q = _db.InventarioGestionStock
+            .Where(x => x.FarmId == farmId && x.ItemInventarioEcuadorId == itemId && x.NucleoId == null && x.GalponId == null);
+
+        return siloId.HasValue
+            ? q.Where(x => x.SiloId == siloId.Value)
+            : q.Where(x => x.SiloId == null);
+    }
+
+    /// <summary>
     /// Fase 3 — consumo a nivel granja (Colombia): descuenta <c>inventario_gestion_stock</c> por
     /// (farm, item, nucleo=NULL, galpon=NULL) e inserta un movimiento <c>Consumo</c> sin ubicación
     /// estructurada. NO abre transacción propia (participa de la externa) ni exige galpón. Lanza si
@@ -1596,8 +1618,8 @@ public partial class InventarioGestionService : IInventarioGestionService
         var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
 
-        var stock = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.FarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == null && x.GalponId == null, ct);
+        var stock = await StockNivelGranjaQuery(req.FarmId, req.ItemInventarioEcuadorId, req.SiloId)
+            .FirstOrDefaultAsync(ct);
         if (stock == null || stock.Quantity < req.Quantity)
             throw new InvalidOperationException(
                 $"Stock insuficiente para '{item.Codigo} - {item.Nombre}' (granja {req.FarmId}): disponible {(stock?.Quantity ?? 0m):0.###}, requerido {req.Quantity:0.###}.");
@@ -1614,6 +1636,9 @@ public partial class InventarioGestionService : IInventarioGestionService
             NucleoId = null,
             GalponId = null,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+            // El silo del consumo (Fase C). Null en toda empresa sin el flag ⇒ movimiento idéntico al
+            // de siempre; con silo, el kardex dice de qué silo salió el alimento.
+            SiloId = req.SiloId,
             Quantity = req.Quantity,
             Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
             MovementType = "Consumo",
@@ -1643,8 +1668,8 @@ public partial class InventarioGestionService : IInventarioGestionService
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
 
-        var stock = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x => x.FarmId == req.FarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == null && x.GalponId == null, ct);
+        var stock = await StockNivelGranjaQuery(req.FarmId, req.ItemInventarioEcuadorId, req.SiloId)
+            .FirstOrDefaultAsync(ct);
         if (stock == null)
         {
             stock = new InventarioGestionStock
@@ -1654,6 +1679,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 FarmId = req.FarmId,
                 NucleoId = null,
                 GalponId = null,
+                SiloId = req.SiloId,
                 ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
                 Quantity = 0,
                 Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
@@ -1673,6 +1699,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             NucleoId = null,
             GalponId = null,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+            SiloId = req.SiloId,
             Quantity = req.Quantity,
             Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
             MovementType = "Ingreso",

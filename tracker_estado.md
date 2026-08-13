@@ -4680,20 +4680,50 @@ primitivas, lecturas, DTOs y pantalla 5).**
 
 ## Fase C — Consumo por silo desde el seguimiento diario
 
-- [ ] `ItemConsumoKey(int Id, bool EsItemInventario, int? SiloId = null)` + tests de hash/agrupación
+- [x] `ItemConsumoKey(int Id, bool EsItemInventario, int? SiloId = null)` + tests de hash/agrupación
       (casos 6-8: sin `siloId` ⇒ idéntico a hoy; mismo ítem en 2 silos ⇒ 2 claves)
-- [ ] `MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen` lee `siloId` (la variante plana **no se toca**)
-- [ ] `ColombiaInventarioConsumoService`: `Validar`/`Aplicar`/`Devolucion`/`Diff` propagan el silo;
+- [x] `MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen` lee `siloId` (la variante plana **no se toca**)
+- [x] `ColombiaInventarioConsumoService`: `Validar`/`Aplicar`/`Devolucion`/`Diff` propagan el silo;
       `WHERE` de disponibilidad con `x.SiloId == key.SiloId`
-- [ ] Validación flag ON: el `siloId` de cada fila debe estar en `lote_silos` del lote ⇒ si no, rechazo
+- [x] Validación flag ON: el `siloId` de cada fila debe estar en `lote_silos` del lote ⇒ si no, rechazo
       **antes** de persistir (dentro de la transacción atómica existente)
-- [ ] `SeguimientoLoteLevanteService.Crud.cs` (create + update) y la rama Colombia de producción
-- [ ] Front pantallas 6-7 — selector de silo por fila de alimento en `lote-levante/modal-create-edit` y
+- [x] `SeguimientoLoteLevanteService.Crud.cs` (create + update) y la rama Colombia de producción
+- [x] Front pantallas 6-7 — selector de silo por fila de alimento en `lote-levante/modal-create-edit` y
       `lote-produccion/modal-seguimiento-diario`; el dropdown de ítems y el disponible se filtran **al silo**
+- [x] Regresión flag OFF **end-to-end** (Sanmarino, granja 20, lote A374A): consumo de 10 kg por
+      `POST /api/SeguimientoLoteLevante` ⇒ 9.360 → 9.350 sobre la MISMA fila de stock (`silo_id NULL`),
+      `DELETE` ⇒ 9.360. Movimientos Consumo+Ingreso y sus 2 filas del espejo con `silo_id NULL`
 - [ ] Smoke SR: casos 18-22 y 24 (consumo por silo, silo no asignado ⇒ rechazo sin fila, 2 alimentos de
       2 silos, stock insuficiente ⇒ rollback total, editar cambiando de silo ⇒ devuelve al viejo y descuenta
       del nuevo, reasignar `lote_silos` no recalcula lo viejo)
+      ⚠️ **Pendiente por falta de fixture**: la BD local no tiene NINGÚN lote de Santa Reyes
+      (`lotes` de granja 109 = 0; el smoke de la Fase B se restauró). Hay que crear núcleo+galpón+lote
+      +`lote_postura_levante`+`lote_silos`+ingreso al silo antes de poder correr los casos ON
 - [ ] Caso 23: mover galpón de núcleo ⇒ `galpon_silos` lo sigue, 0 huérfanos
+
+### Resultado de la Fase C — el silo entra en la clave del consumo (2026-08-13)
+
+- **`ItemConsumoKey` gana `SiloId`** (default `null` ⇒ toda construcción previa compila y hashea igual).
+  Es la pieza que hace que dos filas del mismo alimento en dos silos sean **dos consumos**: aplanarlas
+  sumaría los kg y descontaría todo del primer silo.
+- **`ConsumoSiloCalculos`** (puro, `Application/Calculos/`) decide: flag OFF + silo ⇒ rechazo (no se
+  mezclan modelos); flag ON sin silo ⇒ rechazo; flag ON con silo que no está en `lote_silos` ⇒ rechazo
+  nombrando el silo. **13 tests nuevos** (casos 6-8 del plan + la validación) ⇒ **2.383 verdes**.
+- **`StockNivelGranjaQuery`** (Infrastructure y el espejo del service de Colombia) filtra el silo
+  SIEMPRE, también cuando es `null` (`silo_id IS NULL`): es la clave natural del índice único con su
+  `COALESCE(silo_id,0)`. Sin ese filtro el consumo descontaba la primera fila que encontrara.
+- **`siloId` en el metadata jsonb** de levante y de producción, **solo cuando viene** — escribirlo en
+  `null` cambiaría el JSON guardado de todas las empresas sin el flag. Es lo que hace que editar
+  devuelva el alimento al silo del que salió y no a «sin silo».
+- **Front (pantallas 6 y 7):** selector de silo por fila (arriba del ítem, porque el disponible
+  depende de él), lista tomada de `GET /LoteSilo/{id}`, dropdown de ítems y «disponible» filtrados al
+  stock **de ese silo**, silo por defecto cuando el lote tiene uno solo, y guarda antes de guardar.
+  La caché de `getAlimentosFiltradosPorTipo` se indexa también por silo (si no, dos filas con silos
+  distintos comparten lista) y las referencias siguen siendo estables (NG0103).
+- **La reserva entre filas ahora es por (ítem, silo):** dos filas del mismo alimento en silos distintos
+  ya no se descuentan disponible entre sí, porque no compiten por el mismo saldo.
+- `dotnet build` 0 errores (2 warnings preexistentes) · `yarn build` OK (solo el warning de bundle
+  budget preexistente) · backend del smoke detenido, **puertos 5501/5002 libres**.
 
 ## Fase D — Cierre (aditivo)
 

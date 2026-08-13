@@ -120,6 +120,8 @@ export interface ItemSeguimientoDto {
   nombre?: string | null;
   cantidad: number; // Cantidad utilizada
   unidad: string; // "kg", "g", "unidades", etc.
+  /** Silo o bodega del que sale el ítem (empresas con `manejaInventarioPorSilo`). Sin flag no viaja. */
+  siloId?: number | null;
 }
 
 export interface CreateSeguimientoLoteLevanteDto {

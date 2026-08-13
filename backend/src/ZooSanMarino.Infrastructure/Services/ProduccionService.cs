@@ -91,7 +91,9 @@ public partial class ProduccionService : IProduccionService
                 var esItemInventario = id > 0;
                 if (id <= 0) id = i.CatalogItemId;
                 if (id <= 0) continue;
-                var key = new ItemConsumoKey(id, esItemInventario);
+                // El silo entra en la clave igual que en ParseMetadataItemsToKgPorOrigen: sin él, dos
+                // filas del mismo alimento en silos distintos se sumarían y descontarían del primero.
+                var key = new ItemConsumoKey(id, esItemInventario, i.SiloId is > 0 ? i.SiloId : null);
                 byItem[key] = byItem.GetValueOrDefault(key) + ToKg(i.Cantidad, i.Unidad);
             }
         }
@@ -277,6 +279,26 @@ public partial class ProduccionService : IProduccionService
         return parts.Count > 0 ? string.Join(" / ", parts) : string.Empty;
     }
 
+    /// <summary>
+    /// Un ítem tal como se guarda en el metadata jsonb de producción (mismas claves de siempre, en el
+    /// mismo orden). <c>siloId</c> se agrega SOLO cuando viene: el metadata es la fuente del diff al
+    /// editar, así que sin esto una edición devolvería el alimento a «sin silo» en vez de al silo del
+    /// que salió. Con el flag apagado el JSON es el de antes, clave por clave.
+    /// </summary>
+    private static Dictionary<string, object?> ItemAMetadata(ItemSeguimientoDto i)
+    {
+        var item = new Dictionary<string, object?>
+        {
+            ["tipoItem"] = i.TipoItem,
+            ["catalogItemId"] = i.CatalogItemId,
+            ["itemInventarioEcuadorId"] = i.ItemInventarioEcuadorId,
+            ["cantidad"] = i.Cantidad,
+            ["unidad"] = i.Unidad
+        };
+        if (i.SiloId is > 0) item["siloId"] = i.SiloId.Value;
+        return item;
+    }
+
     private static JsonDocument? BuildMetadataFromItems(
         List<ItemSeguimientoDto>? itemsHembras,
         List<ItemSeguimientoDto>? itemsMachos,
@@ -286,9 +308,9 @@ public partial class ProduccionService : IProduccionService
     {
         var metadata = new Dictionary<string, object?>();
         if (itemsHembras != null && itemsHembras.Count > 0)
-            metadata["itemsHembras"] = itemsHembras.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, itemInventarioEcuadorId = i.ItemInventarioEcuadorId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+            metadata["itemsHembras"] = itemsHembras.Select(ItemAMetadata).ToList();
         if (itemsMachos != null && itemsMachos.Count > 0)
-            metadata["itemsMachos"] = itemsMachos.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, itemInventarioEcuadorId = i.ItemInventarioEcuadorId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+            metadata["itemsMachos"] = itemsMachos.Select(ItemAMetadata).ToList();
         if ((itemsHembras == null || itemsHembras.Count == 0) && consumoH.HasValue) { metadata["consumoOriginalHembras"] = consumoH.Value; metadata["unidadConsumoOriginalHembras"] = unidadH ?? "kg"; }
         if ((itemsMachos == null || itemsMachos.Count == 0) && consumoM.HasValue) { metadata["consumoOriginalMachos"] = consumoM.Value; metadata["unidadConsumoOriginalMachos"] = unidadM ?? "kg"; }
         if (!string.IsNullOrWhiteSpace(tipoItemHembras)) metadata["tipoItemHembras"] = tipoItemHembras;

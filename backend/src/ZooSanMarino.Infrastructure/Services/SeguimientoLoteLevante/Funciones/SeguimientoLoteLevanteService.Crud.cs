@@ -71,7 +71,7 @@ public partial class SeguimientoLoteLevanteService
             var byItem = ParseMetadataItemsToKgPorOrigen(dto.Metadata.RootElement);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
-            await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, positivos); // lanza si falta (antes de persistir)
+            await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, positivos, lote.LoteId); // lanza si falta (antes de persistir)
 
             // Transacción CONDICIONAL: `null` cuando ya hay una ambiente (push offline de la PWA),
             // porque EF lanza si se abre una segunda sobre el mismo contexto. Llamado desde el
@@ -193,7 +193,7 @@ public partial class SeguimientoLoteLevanteService
                 var diff = newByItemCo.GetValueOrDefault(key) - oldByItemCo.GetValueOrDefault(key);
                 if (diff > 0) incrementos[key] = diff;
             }
-            await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, incrementos); // lanza si falta (antes de persistir)
+            await _colombiaConsumoB.ValidarStockConsumoAsync(lote.GranjaId, incrementos, lote.LoteId); // lanza si falta (antes de persistir)
 
             // Transacción condicional — ver la nota en CreateAsync.
             await using var tx = _ctx.Database.CurrentTransaction is null

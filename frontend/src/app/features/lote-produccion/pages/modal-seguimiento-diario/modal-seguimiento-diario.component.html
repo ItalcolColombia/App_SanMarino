@@ -78,6 +78,24 @@
                       <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" style="color: #d32f2f;">🗑️ Eliminar</button>
                     }
                   </div>
+                  @if (manejaPorSilo) {
+                    <div class="form-field" style="margin-bottom: 0.75rem;">
+                      <label [for]="'f-silo-h-' + i">Silo / Bodega *</label>
+                      <select [id]="'f-silo-h-' + i" formControlName="siloId">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        @for (s of silosDelLote; track s.farmSiloId) {
+                          <option [ngValue]="s.farmSiloId">{{ s.siloNombre }}</option>
+                        }
+                      </select>
+                      @if (silosDelLote.length === 0) {
+                        <small class="ux-hint text-danger">
+                          El lote no tiene silos asignados: asígnelos en «Silos de consumo del lote».
+                        </small>
+                      } @else if (!siloDeFila($any(itemGroup))) {
+                        <small class="ux-hint">Elija el silo para ver su disponible.</small>
+                      }
+                    </div>
+                  }
                   <div class="grid grid-2">
                     <!-- REQ-012e: Colombia no expone el select "Tipo de ítem" (siempre alimento). -->
                     @if (!$any(itemGroup).get('esFijo')?.value && !isColombia) {
@@ -96,7 +114,7 @@
                         <label [for]="'f-item-h-' + i">Ítem *</label>
                         <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value, $any(itemGroup)); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>
@@ -144,6 +162,24 @@
                       <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(i)" style="color: #d32f2f;">🗑️ Eliminar</button>
                     }
                   </div>
+                  @if (manejaPorSilo) {
+                    <div class="form-field" style="margin-bottom: 0.75rem;">
+                      <label [for]="'f-silo-m-' + i">Silo / Bodega *</label>
+                      <select [id]="'f-silo-m-' + i" formControlName="siloId">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        @for (s of silosDelLote; track s.farmSiloId) {
+                          <option [ngValue]="s.farmSiloId">{{ s.siloNombre }}</option>
+                        }
+                      </select>
+                      @if (silosDelLote.length === 0) {
+                        <small class="ux-hint text-danger">
+                          El lote no tiene silos asignados: asígnelos en «Silos de consumo del lote».
+                        </small>
+                      } @else if (!siloDeFila($any(itemGroup))) {
+                        <small class="ux-hint">Elija el silo para ver su disponible.</small>
+                      }
+                    </div>
+                  }
                   <div class="grid grid-2">
                     <!-- REQ-012e: Colombia no expone el select "Tipo de ítem" (siempre alimento). -->
                     @if (!$any(itemGroup).get('esFijo')?.value && !isColombia) {
@@ -162,7 +198,7 @@
                         <label [for]="'f-item-m-' + i">Ítem *</label>
                         <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value, $any(itemGroup)); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a, $any(itemGroup)) }}</option>
                           }
                         </select>

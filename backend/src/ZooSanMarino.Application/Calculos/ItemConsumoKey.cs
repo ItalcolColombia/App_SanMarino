@@ -13,4 +13,14 @@ namespace ZooSanMarino.Application.Calculos;
 /// <c>true</c> → <paramref name="Id"/> es <c>item_inventario_ecuador.id</c> (camino 2, pass-through);
 /// <c>false</c> → es <c>catalogo_items.id</c> (camino 1, id-mapping A→B por código).
 /// </param>
-public readonly record struct ItemConsumoKey(int Id, bool EsItemInventario);
+/// <param name="SiloId">
+/// Silo o bodega (<c>farm_silos.id</c>) del que sale el consumo, en las empresas que ubican el
+/// inventario por silo. <c>null</c> = comportamiento previo (stock a nivel granja).
+/// <para>
+/// <b>Es parte de la clave a propósito.</b> El mismo ítem cargado desde dos silos distintos son dos
+/// consumos distintos —cada uno descuenta su propia fila de <c>inventario_gestion_stock</c>—, así que
+/// aplanarlos a una sola clave sumaría los kg y descontaría todo del primero. Con <c>null</c> el hash
+/// y la agrupación quedan idénticos a los de antes de la Fase C.
+/// </para>
+/// </param>
+public readonly record struct ItemConsumoKey(int Id, bool EsItemInventario, int? SiloId = null);
