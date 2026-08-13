@@ -164,7 +164,11 @@ public class ColombiaInventarioConsumoService : IColombiaInventarioConsumoServic
                 .Select(e => e.Id)
                 .ToListAsync(ct);
 
-        return ColombiaInventarioIdResolutionCalculos.Resolver(codigosPorCatalogItem, itemsB, itemsBDirectos);
+        // El mapeo se resuelve por ítem y después se replica sobre las claves reales (ítem, silo):
+        // el id de destino no cambia con el silo, pero la clave con la que el llamador consulta sí.
+        return ColombiaInventarioIdResolutionCalculos.ReplicarPorSilo(
+            ColombiaInventarioIdResolutionCalculos.Resolver(codigosPorCatalogItem, itemsB, itemsBDirectos),
+            distintas);
     }
 
     /// <summary>Mensaje de error de resolución, específico del camino de la clave.</summary>

@@ -112,4 +112,75 @@ public class ColombiaInventarioIdResolutionCalculosTests
 
         Assert.Equal(147, map[Catalogo(5)]);
     }
+
+    // ── ReplicarPorSilo — el mapeo es por ítem, la clave del consumo es (ítem, silo) ────────────
+    // Sin este paso, con `maneja_inventario_por_silo` puesto TODO consumo moría con «el ítem no
+    // existe o no pertenece a la empresa»: el diccionario venía indexado por claves sin silo y el
+    // servicio lo consultaba con la clave real. Lo detectó el smoke de Santa Reyes (caso 18).
+
+    [Fact]
+    public void ReplicarPorSilo_ClaveConSilo_HeredaElMapeoDelItem()
+    {
+        var map = ColombiaInventarioIdResolutionCalculos.Resolver(
+            catalogItemsEncontrados: Array.Empty<(int Id, string Codigo)>(),
+            itemsBPorCodigoEncontrados: Array.Empty<(int Id, string Codigo)>(),
+            itemsBDirectosValidos: new[] { 363 });
+
+        var claves = new[] { new ItemConsumoKey(363, EsItemInventario: true, SiloId: 4) };
+        var conSilo = ColombiaInventarioIdResolutionCalculos.ReplicarPorSilo(map, claves);
+
+        Assert.Equal(363, conSilo[new ItemConsumoKey(363, EsItemInventario: true, SiloId: 4)]);
+        Assert.Equal(363, conSilo[Inventario(363)]); // la entrada sin silo se conserva
+    }
+
+    [Fact]
+    public void ReplicarPorSilo_MismoItemEnDosSilos_ResuelveLasDosClaves()
+    {
+        var map = ColombiaInventarioIdResolutionCalculos.Resolver(
+            catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD1") },
+            itemsBPorCodigoEncontrados: new[] { (Id: 147, Codigo: "COD1") },
+            itemsBDirectosValidos: Array.Empty<int>());
+
+        var claves = new[]
+        {
+            new ItemConsumoKey(5, EsItemInventario: false, SiloId: 4),
+            new ItemConsumoKey(5, EsItemInventario: false, SiloId: 20)
+        };
+        var conSilo = ColombiaInventarioIdResolutionCalculos.ReplicarPorSilo(map, claves);
+
+        Assert.Equal(147, conSilo[claves[0]]);
+        Assert.Equal(147, conSilo[claves[1]]);
+    }
+
+    [Fact]
+    public void ReplicarPorSilo_ItemNoResuelto_SigueSinResolverAunqueTraigaSilo()
+    {
+        // El silo no puede «crear» un mapeo que no existe: el gap A→B tiene que seguir lanzando.
+        var map = ColombiaInventarioIdResolutionCalculos.Resolver(
+            catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD-SIN-MIGRAR") },
+            itemsBPorCodigoEncontrados: Array.Empty<(int Id, string Codigo)>(),
+            itemsBDirectosValidos: Array.Empty<int>());
+
+        var conSilo = ColombiaInventarioIdResolutionCalculos.ReplicarPorSilo(
+            map, new[] { new ItemConsumoKey(5, EsItemInventario: false, SiloId: 4) });
+
+        Assert.Empty(conSilo);
+    }
+
+    [Fact]
+    public void ReplicarPorSilo_SinClavesConSilo_DevuelveElMismoMapeo()
+    {
+        // Empresas sin el flag: el diccionario tiene que quedar idéntico, entrada por entrada.
+        var map = ColombiaInventarioIdResolutionCalculos.Resolver(
+            catalogItemsEncontrados: new[] { (Id: 5, Codigo: "COD1") },
+            itemsBPorCodigoEncontrados: new[] { (Id: 147, Codigo: "COD1") },
+            itemsBDirectosValidos: new[] { 300 });
+
+        var conSilo = ColombiaInventarioIdResolutionCalculos.ReplicarPorSilo(
+            map, new[] { Catalogo(5), Inventario(300) });
+
+        Assert.Equal(2, conSilo.Count);
+        Assert.Equal(147, conSilo[Catalogo(5)]);
+        Assert.Equal(300, conSilo[Inventario(300)]);
+    }
 }

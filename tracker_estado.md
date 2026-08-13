@@ -4693,13 +4693,12 @@ primitivas, lecturas, DTOs y pantalla 5).**
 - [x] Regresión flag OFF **end-to-end** (Sanmarino, granja 20, lote A374A): consumo de 10 kg por
       `POST /api/SeguimientoLoteLevante` ⇒ 9.360 → 9.350 sobre la MISMA fila de stock (`silo_id NULL`),
       `DELETE` ⇒ 9.360. Movimientos Consumo+Ingreso y sus 2 filas del espejo con `silo_id NULL`
-- [ ] Smoke SR: casos 18-22 y 24 (consumo por silo, silo no asignado ⇒ rechazo sin fila, 2 alimentos de
+- [x] Smoke SR: casos 18-22 y 24 (consumo por silo, silo no asignado ⇒ rechazo sin fila, 2 alimentos de
       2 silos, stock insuficiente ⇒ rollback total, editar cambiando de silo ⇒ devuelve al viejo y descuenta
-      del nuevo, reasignar `lote_silos` no recalcula lo viejo)
-      ⚠️ **Pendiente por falta de fixture**: la BD local no tiene NINGÚN lote de Santa Reyes
-      (`lotes` de granja 109 = 0; el smoke de la Fase B se restauró). Hay que crear núcleo+galpón+lote
-      +`lote_postura_levante`+`lote_silos`+ingreso al silo antes de poder correr los casos ON
-- [ ] Caso 23: mover galpón de núcleo ⇒ `galpon_silos` lo sigue, 0 huérfanos
+      del nuevo, reasignar `lote_silos` no recalcula lo viejo) — **22/22 verificaciones en verde**
+- [x] Caso 23: mover galpón de núcleo ⇒ `galpon_silos` lo sigue, 0 huérfanos
+- [x] 🔴 **Fix que destapó el smoke**: `ColombiaInventarioIdResolutionCalculos.ReplicarPorSilo` +
+      4 tests (con el flag puesto, NINGÚN consumo podía descontar)
 
 ### Resultado de la Fase C — el silo entra en la clave del consumo (2026-08-13)
 
@@ -4724,6 +4723,45 @@ primitivas, lecturas, DTOs y pantalla 5).**
   ya no se descuentan disponible entre sí, porque no compiten por el mismo saldo.
 - `dotnet build` 0 errores (2 warnings preexistentes) · `yarn build` OK (solo el warning de bundle
   budget preexistente) · backend del smoke detenido, **puertos 5501/5002 libres**.
+
+### Resultado del smoke de Santa Reyes — casos 18-24 (2026-08-13, 2ª tanda)
+
+**El smoke encontró un bug que ningún test unitario podía ver: con el flag puesto NINGÚN consumo
+descontaba.** `ColombiaInventarioIdResolutionCalculos.Resolver` devuelve el mapeo ítem→ítem B
+indexado por claves con `SiloId = null`, y el service lo consulta con la clave REAL —que trae el
+silo—; el caso 18 murió con «El ítem de inventario (id=363) no existe o no pertenece a la empresa de
+la granja». Los tests puros no lo veían porque cada pieza es correcta por separado: el defecto vive
+en la junta. Fix: **`ReplicarPorSilo`** (puro) replica el mapeo sobre las claves reales —el id de
+destino no depende del silo— con **4 tests nuevos** (clave con silo hereda el mapeo; mismo ítem en 2
+silos resuelve las 2; un ítem sin equivalente sigue sin resolver aunque traiga silo; sin claves con
+silo el diccionario queda idéntico). **2.387 tests verdes.**
+
+- **Fixture** (la BD local no tenía ningún lote de SR): lotes 130 `SMOKE-SR-LEV` (levante, G0497) y
+  131 `SMOKE-SR-PRO` (producción, G0498) en La Esperanza, con `lote_silos` = Silo 4 y Silo 20. El
+  **Silo 39 quedó fuera a propósito y con saldo**: así el caso 19 se rechaza por no estar asignado,
+  no por falta de stock. Ojo: `trg_lotes_sync_lote_postura_levante` ya crea la fila de levante — el
+  INSERT explícito la duplica.
+- **Caso 18** ✔ consumo de 200 kg desde el Silo 4: 1.000 → 800, el Silo 20 intacto, movimiento
+  `Consumo` con `silo_id=4`, espejo `INV_CONSUMO|4|200` y `"siloId": 4` en el metadata.
+- **Caso 19** ✔ Silo 39 (de la granja, no del lote): 400 «El silo o bodega indicado (id=39) no está
+  asignado a este lote», **sin fila de seguimiento** y sin tocar el saldo del 39.
+- **Caso extra** ✔ flag ON sin silo: 400 «Debe indicar de qué silo o bodega sale cada alimento».
+- **Caso 20** ✔ producción con 3 filas (A@Silo 4 100 kg, B@Silo 20 150 kg, **A@Silo 20 50 kg**):
+  **3 consumos independientes**, uno por `(ítem, silo)` — es la prueba de que la clave no se aplana.
+- **Caso 21** ✔ 5.000 kg contra 800 disponibles: 400 «Stock insuficiente … (granja 109, silo «Silo
+  4»): disponible 800 kg, requerido 5000 kg», sin seguimiento y con los dos saldos intactos.
+- **Caso 22** ✔ editar del Silo 4 al Silo 20: el 4 recupera 800 → 1.000 y el 20 descuenta 500 → 300.
+- **Caso 23** ✔ (en transacción con `ROLLBACK`): mover G0498 dentro de la granja ⇒ `galpon_silos`
+  sigue al galpón con su silo, 0 huérfanos; moverlo a **otra granja** ⇒ la fila cruzada y el
+  `lote_silos` del lote mudado se limpian solos, 0 huérfanos en ambas tablas.
+- **Caso 24** ✔ desactivar el Silo 20 del lote no recalcula nada: el saldo queda en 300, los 3
+  movimientos viejos conservan su `silo_id`, y recién el consumo NUEVO se rechaza.
+- **Regresión flag OFF post-fix** (Sanmarino, lote 116): 9.360 → 9.350 sobre la MISMA fila
+  (`silo_id IS NULL`), la fila no se partió, el metadata **no** ganó `siloId`, movimientos sin silo y
+  `DELETE` ⇒ 9.360. `GET /api/CuadreAlimentoEngorde` en **0 descuadrados** en las dos empresas.
+- **BD devuelta a su estado exacto**: los 9 conteos del snapshot coinciden fila por fila y vuelve a
+  haber **0 filas con `silo_id`** en stock, movimiento e histórico. Backend detenido, **5501 y 5002
+  libres**.
 
 ## Fase D — Cierre (aditivo)
 
