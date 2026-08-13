@@ -4568,22 +4568,42 @@ el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del
 - [x] 🔴 **Swap del índice único** `ux_inventario_gestion_stock_clave_natural` (+ `COALESCE(silo_id,0)`)
       **y** el `ON CONFLICT` de `SumarStockAtomicoAsync` **en el MISMO commit** — desalineados, revienta
       todo ingreso de todas las empresas
-- [ ] `Application/Calculos/InventarioUbicacionSiloCalculos.cs` (puro) + tests xUnit (casos 1-5 del plan)
-- [ ] `InventarioGestion/Funciones/InventarioGestionService.Silos.cs`: `ResolverModoUbicacionAsync`,
-      `ValidarSiloDeGranjaAsync`, `GetSilosElegiblesAsync` + `GET /api/InventarioGestion/silos`
-- [ ] Primitivas atómicas con `siloId`; ingreso, traslado (misma granja e inter-granja), recepción de
-      tránsito (`Distribucion` por silo), consumo, ajuste/eliminación de stock, anulación de movimiento
-- [ ] Lecturas con silo: `GetStockAsync`, `GetMovimientosAsync`, `GetIngresosAsync`, `GetTrasladosAsync`,
-      `GetFilterDataAsync` (+ join a `farm_silos` para `SiloNombre`)
-- [ ] DTOs: campos nuevos **al final y con default** (no romper llamadores posicionales)
+- [x] `Application/Calculos/InventarioUbicacionSiloCalculos.cs` (puro) + tests xUnit (casos 1-5 del plan)
+- [x] `InventarioGestion/Funciones/InventarioGestionService.Silos.cs`: `ResolverModoUbicacionAsync`,
+      `ValidarSiloDeGranjaAsync`, `GetSilosElegiblesAsync` + `GET /api/inventario-gestion/silos`
+- [x] Primitivas atómicas con `siloId`; ingreso, traslado (misma granja e inter-granja), recepción de
+      tránsito (`Distribucion` por silo), consumo, anulación de movimiento
+- [x] Lecturas con silo: `GetStockAsync` y `GetMovimientosAsync` (+ `SiloNombre` sin N+1)
+- [ ] Lecturas con silo pendientes: `GetIngresosAsync`, `GetTrasladosAsync`, `GetFilterDataAsync`
+- [x] DTOs: campos nuevos **al final y con default** (no romper llamadores posicionales)
 - [ ] Front pantalla 5 — `/gestion-inventario`: selector Silo/Bodega en ingreso y traslado, columna Silo en
       stock/histórico/ingresos/traslados, recepción de tránsito por silo, export a Excel por el helper de
       `shared/utils/excel/`
 - [x] 🔴 **Smoke de REGRESIÓN flag OFF, corrida DESPUÉS del swap**: ingreso+traslado+consumo en
       Sanmarino y Ecuador con saldos idénticos; conteo de claves naturales antes/después del swap
       **igual**; `silo_id` NULL al 100 %
-- [ ] Smoke SR: casos 11-17 del plan (ingreso, upsert, bodega→silo, silo→silo, sin silo, silo ajeno,
+- [x] Smoke SR: casos 11-17 del plan (ingreso, upsert, bodega→silo, silo→silo, sin silo, silo ajeno,
       silo compartido por 2 galpones con **un** saldo)
+
+### Resultado del backend de la Fase B (2026-08-12, 2ª tanda)
+
+- `InventarioUbicacionSiloCalculos` (puro) + **17 tests** de los casos 1-5, y la distribución de la
+  recepción aprendió a repartir **por silo** con **8 tests** más. Total **2.371 tests verdes**.
+- `InventarioGestionService.Silos.cs` (partial, namespace plano): modo por empresa DUEÑA de la granja,
+  validación de pertenencia del silo y `GET /api/inventario-gestion/silos` (el galpón filtra, la
+  bodega se ofrece siempre).
+- Ingreso, traslado (misma granja e inter-granja), recepción de tránsito y consumo escriben el silo;
+  el histórico unificado lo replica. `TrasladoSalida`/`TrasladoEntrada` guardan además el silo del
+  otro extremo (`from_silo_id`).
+- **Smoke Santa Reyes** (granja 109, empresa 6): ingreso 1.000 al Silo 4 ✔ · 2º ingreso ⇒ **una sola
+  fila** con 2.000 ✔ · Bodega→Silo 4 (300) ✔ · Silo 4→Silo 20 (200) ✔ · ingreso **sin** silo
+  rechazado ✔ · silo ajeno rechazado ✔ · **Silo 4 compartido por G0497 y G0498 con UN solo saldo** ✔
+  · consumo 250 ⇒ 1.850 ✔. `nucleo_id`/`galpon_id` NULL en las 3 filas de stock; los 8 movimientos y
+  las 8 filas del espejo con `silo_id`.
+- **Regresión flag OFF**: el guion de 20 pasos vuelve a dar `diff` **vacío** contra la línea base
+  después de TODO el cableado. 0 filas con `silo_id` fuera de Santa Reyes. Cuadre en 0 descuadrados.
+- BD local devuelta a su estado (conteo de las 129 tablas idéntico salvo `__EFMigrationsHistory` +1).
+  Backends detenidos: puerto 5501 y 5002 libres.
 - [x] `GET /api/CuadreAlimentoEngorde` sigue en **0 descuadrados**
 
 ### Resultado parcial de la Fase B — el swap del índice (2026-08-12)

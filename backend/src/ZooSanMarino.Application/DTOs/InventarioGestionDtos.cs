@@ -75,7 +75,13 @@ public sealed record InventarioGestionStockDto(
     /// </para>
     /// <para><c>null</c> cuando la fecha es normal. Ver <c>AvisoFechaFueraDeCicloCalculos</c>.</para>
     /// </summary>
-    string? AvisoFechaFueraDeCiclo = null
+    string? AvisoFechaFueraDeCiclo = null,
+    /// <summary>
+    /// Silo o bodega donde vive este saldo (empresas con <c>maneja_inventario_por_silo</c>).
+    /// <c>null</c> en todas las demás, donde la ubicación sigue siendo núcleo/galpón.
+    /// </summary>
+    int? SiloId = null,
+    string? SiloNombre = null
 );
 
 /// <summary>Request para registrar un ingreso. ItemInventarioEcuadorId referencia a config/item-inventario-ecuador.</summary>
@@ -105,7 +111,14 @@ public sealed record InventarioGestionIngresoRequest(
     /// ciclo pertenece. Default <c>false</c> ⇒ comportamiento previo intacto.
     /// </para>
     /// </summary>
-    bool ParaProximoCiclo = false
+    bool ParaProximoCiclo = false,
+    /// <summary>
+    /// Silo o bodega destino. <b>Obligatorio</b> si la empresa maneja el inventario por silo, y
+    /// rechazado si no lo maneja (no se mezclan los dos modelos en la misma tabla). Cuando viene,
+    /// <c>NucleoId</c>/<c>GalponId</c> se persisten en <c>null</c>: el galpón viaja solo para filtrar
+    /// qué silos ofrecer.
+    /// </summary>
+    int? SiloId = null
 );
 
 /// <summary>Request para registrar un traslado.</summary>
@@ -124,7 +137,11 @@ public sealed record InventarioGestionTrasladoRequest(
     /// <summary>Destino para estado en histórico: "granja" → Transferencia a granja, "planta" → Transferencia a planta.</summary>
     string? DestinoTipo = null,
     /// <summary>Fecha en que se realizó el traslado (solo día). Si es null, se usa la fecha/hora actual del servidor.</summary>
-    DateTime? FechaMovimiento = null
+    DateTime? FechaMovimiento = null,
+    /// <summary>Silo/bodega ORIGEN (empresas con inventario por silo). Admite bodega→silo y silo→silo.</summary>
+    int? FromSiloId = null,
+    /// <summary>Silo/bodega DESTINO (empresas con inventario por silo).</summary>
+    int? ToSiloId = null
 );
 
 /// <summary>Registro del histórico de movimientos (entradas, salidas, traslados).</summary>
@@ -163,14 +180,22 @@ public sealed record InventarioGestionMovimientoDto(
     /// <summary>Movimiento atribuido explícitamente al PRÓXIMO ciclo del galpón (marca del alta o del historial).</summary>
     bool ParaProximoCiclo = false,
     /// <summary>Instante real de captura. <c>null</c> en las filas anteriores a la columna.</summary>
-    DateTimeOffset? RegistradoAt = null
+    DateTimeOffset? RegistradoAt = null,
+    /// <summary>Silo/bodega donde ocurrió el movimiento (empresas con inventario por silo).</summary>
+    int? SiloId = null,
+    string? SiloNombre = null,
+    /// <summary>Silo/bodega de ORIGEN del traslado (espejo de <c>FromGalponNombre</c>).</summary>
+    int? FromSiloId = null,
+    string? FromSiloNombre = null
 );
 
 /// <summary>Una ubicación de la granja destino y cuánto de lo recibido entra en ella (alimento por galpón).</summary>
 public sealed record InventarioGestionRecepcionDestinoDto(
     string? NucleoId,
     string? GalponId,
-    decimal Quantity
+    decimal Quantity,
+    /// <summary>Silo/bodega destino de esta fila del reparto (empresas con inventario por silo).</summary>
+    int? SiloId = null
 );
 
 /// <summary>Recepción en granja destino de un traslado inter-granja que quedó en tránsito.</summary>
@@ -184,7 +209,23 @@ public sealed record InventarioGestionRecepcionTransitoRequest(
     /// Si trae filas, reemplaza a <c>ToNucleoId</c>/<c>ToGalponId</c> y la suma debe igualar la cantidad en tránsito.
     /// Null o vacío = recepción en una sola ubicación (comportamiento clásico).
     /// </summary>
-    IReadOnlyList<InventarioGestionRecepcionDestinoDto>? Distribucion = null
+    IReadOnlyList<InventarioGestionRecepcionDestinoDto>? Distribucion = null,
+    /// <summary>Silo/bodega destino de la recepción en una sola ubicación (empresas con inventario por silo).</summary>
+    int? ToSiloId = null
+);
+
+/// <summary>
+/// Silo o bodega ofrecido como ubicación de un movimiento. Es la lista que llena el selector de
+/// <c>/gestion-inventario</c>: solo silos ACTIVOS de la granja, con la bodega al final.
+/// </summary>
+public sealed record InventarioGestionSiloDto(
+    int Id,
+    int GranjaId,
+    string Nombre,
+    /// <summary><c>Silo</c> o <c>Bodega</c>.</summary>
+    string Tipo,
+    string? CodigoErpUbicacion,
+    string? CodigoBodega
 );
 
 /// <summary>
@@ -239,7 +280,9 @@ public sealed record InventarioGestionConsumoRequest(
     /// comportamiento de siempre. Se usa en cargas históricas: sin esto, el kardex fecha TODOS los
     /// consumos de un lote de 41 días el día en que se importó el archivo.
     /// </summary>
-    DateTime? FechaMovimiento = null
+    DateTime? FechaMovimiento = null,
+    /// <summary>Silo o bodega del que sale el consumo (empresas con inventario por silo).</summary>
+    int? SiloId = null
 );
 
 /// <summary>Ajuste directo de cantidad/unidad en un registro de stock (misma ubicación e ítem).</summary>

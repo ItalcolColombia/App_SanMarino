@@ -222,4 +222,111 @@ public class InventarioGestionRecepcionDistribucionCalculosTests
         Assert.Empty(destinos);
         Assert.Equal("La distribución por galpón solo aplica a alimento manejado por galpón. Esta recepción es a nivel granja.", error);
     }
+    // ─── Granja destino que ubica por SILO (Fase B) ───────────────────────────
+
+    private static (IReadOnlyList<InventarioGestionRecepcionDistribucionCalculos.Destino> Destinos, string? Error) ResolverPorSilo(
+        IReadOnlyList<InventarioGestionRecepcionDestinoDto>? distribucion = null,
+        int? toSiloId = null,
+        decimal cantidadTransito = 1000m) =>
+        InventarioGestionRecepcionDistribucionCalculos.Resolver(
+            distribucion, null, null, usaUbicacion: false, cantidadTransito, porSilo: true, toSiloId: toSiloId);
+
+    [Fact]
+    public void PorSilo_SinDistribucion_RecibeTodoEnElSiloIndicado()
+    {
+        var (destinos, error) = ResolverPorSilo(toSiloId: 4, cantidadTransito: 1000m);
+
+        Assert.Null(error);
+        var destino = Assert.Single(destinos);
+        Assert.Equal(4, destino.SiloId);
+        Assert.Equal(1000m, destino.Quantity);
+        // El galpón no participa: si viajara, la fila de stock quedaría con galpón Y silo, que es
+        // justo lo que la clave natural no puede representar.
+        Assert.Null(destino.NucleoId);
+        Assert.Null(destino.GalponId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    public void PorSilo_SinSilo_SeRechaza(int? siloId)
+    {
+        var (destinos, error) = ResolverPorSilo(toSiloId: siloId);
+
+        Assert.Empty(destinos);
+        Assert.Equal("Debe indicar el silo o la bodega de recepción en la granja destino.", error);
+    }
+
+    [Fact]
+    public void PorSilo_Distribuida_UnaFilaPorSilo()
+    {
+        var (destinos, error) = ResolverPorSilo(
+            distribucion: new[]
+            {
+                new InventarioGestionRecepcionDestinoDto(null, null, 600m, SiloId: 4),
+                new InventarioGestionRecepcionDestinoDto(null, null, 400m, SiloId: 20)
+            },
+            cantidadTransito: 1000m);
+
+        Assert.Null(error);
+        Assert.Equal(2, destinos.Count);
+        Assert.Equal([4, 20], destinos.Select(d => d.SiloId).ToArray());
+        Assert.Equal(1000m, destinos.Sum(d => d.Quantity));
+    }
+
+    [Fact]
+    public void PorSilo_Distribuida_SiloRepetido_SeRechaza()
+    {
+        var (destinos, error) = ResolverPorSilo(
+            distribucion: new[]
+            {
+                new InventarioGestionRecepcionDestinoDto(null, null, 600m, SiloId: 4),
+                new InventarioGestionRecepcionDestinoDto(null, null, 400m, SiloId: 4)
+            },
+            cantidadTransito: 1000m);
+
+        Assert.Empty(destinos);
+        Assert.Equal("No repita el mismo silo en la distribución (silo 4).", error);
+    }
+
+    [Fact]
+    public void PorSilo_Distribuida_SumaDistinta_SeRechaza()
+    {
+        var (destinos, error) = ResolverPorSilo(
+            distribucion: new[] { new InventarioGestionRecepcionDestinoDto(null, null, 600m, SiloId: 4) },
+            cantidadTransito: 1000m);
+
+        Assert.Empty(destinos);
+        Assert.Contains("debe ser igual a la cantidad en tránsito", error);
+    }
+
+    [Fact]
+    public void PorSilo_Distribuida_FilaSinSilo_SeRechaza()
+    {
+        var (destinos, error) = ResolverPorSilo(
+            distribucion: new[] { new InventarioGestionRecepcionDestinoDto("N1", "G1", 1000m) },
+            cantidadTransito: 1000m);
+
+        Assert.Empty(destinos);
+        Assert.Equal("Cada destino de la distribución debe indicar el silo o la bodega.", error);
+    }
+
+    [Fact]
+    public void SinPorSilo_ElSiloDeLasFilasSeIgnora()
+    {
+        // Red de seguridad para las empresas con el flag apagado: aunque un cliente mandara siloId,
+        // el reparto sigue siendo por galpón y ninguna fila se lleva un silo a la BD.
+        var (destinos, error) = Resolver(
+            distribucion: new[]
+            {
+                new InventarioGestionRecepcionDestinoDto("N1", "G1", 600m, SiloId: 4),
+                new InventarioGestionRecepcionDestinoDto("N1", "G2", 400m, SiloId: 20)
+            },
+            usaUbicacion: true,
+            cantidadTransito: 1000m);
+
+        Assert.Null(error);
+        Assert.Equal(2, destinos.Count);
+        Assert.All(destinos, d => Assert.Null(d.SiloId));
+    }
 }

@@ -136,6 +136,24 @@ public class InventarioGestionController : ControllerBase
         return Ok(list);
     }
 
+    /// <summary>
+    /// Silos y bodega de una granja que pueden recibir o entregar un movimiento (empresas con
+    /// <c>maneja_inventario_por_silo</c>). Con <c>galponId</c> se acota a los silos que alimentan a
+    /// ese galpón —el galpón filtra, no ubica— más la bodega, que se ofrece siempre.
+    /// <para>Devuelve lista vacía si la granja no es de la empresa activa o si la empresa no maneja silos.</para>
+    /// </summary>
+    [HttpGet("silos")]
+    [ProducesResponseType(typeof(IEnumerable<InventarioGestionSiloDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSilos(
+        [FromQuery] int farmId,
+        [FromQuery] string? nucleoId = null,
+        [FromQuery] string? galponId = null,
+        CancellationToken ct = default)
+    {
+        var list = await _service.GetSilosElegiblesAsync(farmId, nucleoId, galponId, ct);
+        return Ok(list);
+    }
+
     /// <summary>Registra un ingreso. Alimento: obligatorio Granja+Núcleo+Galpón; otros: solo Granja.</summary>
     [HttpPost("ingreso")]
     [ProducesResponseType(typeof(InventarioGestionStockDto), StatusCodes.Status200OK)]

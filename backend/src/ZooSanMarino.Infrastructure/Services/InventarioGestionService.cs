@@ -379,6 +379,7 @@ public partial class InventarioGestionService : IInventarioGestionService
 
         var nucleos = await _db.Nucleos.AsNoTracking().Where(n => list.Select(x => x.NucleoId).Contains(n.NucleoId)).ToDictionaryAsync(n => (n.NucleoId, n.GranjaId), n => n.NucleoNombre, ct);
         var galpones = await _db.Galpones.AsNoTracking().Where(g => list.Select(x => x.GalponId).Contains(g.GalponId)).ToDictionaryAsync(g => (g.GalponId, g.GranjaId), g => g.GalponNombre, ct);
+        var silos = await NombresDeSilosAsync(list.Select(x => x.SiloId), ct);
 
         return list.Select(x =>
         {
@@ -388,7 +389,10 @@ public partial class InventarioGestionService : IInventarioGestionService
             return new InventarioGestionStockDto(
                 x.Id, x.FarmId, x.NucleoId, x.GalponId, x.ItemInventarioEcuadorId,
                 x.ItemInventario.Codigo, x.ItemInventario.Nombre, itemTypeOut,
-                x.Quantity, x.Unit, x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt);
+                x.Quantity, x.Unit, x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt,
+                AvisoFechaFueraDeCiclo: null,
+                SiloId: x.SiloId,
+                SiloNombre: x.SiloId.HasValue && silos.TryGetValue(x.SiloId.Value, out var sn) ? sn : null);
         }).ToList();
     }
 
@@ -441,16 +445,35 @@ public partial class InventarioGestionService : IInventarioGestionService
         if (effectivePais > 0 && paisId != effectivePais)
             throw new InvalidOperationException("La granja no pertenece al país activo.");
 
-        // Alimento por galpón vs nivel granja: CONFIGURABLE por empresa/granja (antes era por país).
-        var nivelGranja = await EsInventarioNivelGranjaAsync(req.FarmId, ct);
         var isAlimento = IsAlimento(item);
-        var usaUbicacion = isAlimento && !nivelGranja;
-        if (usaUbicacion && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
-            throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
-        if (!usaUbicacion && (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
-            throw new InvalidOperationException(nivelGranja
-                ? "Esta granja maneja el alimento a nivel granja (no use Núcleo/Galpón)."
-                : "Para ítems que no son alimento el inventario es solo a nivel granja (no use Núcleo/Galpón).");
+
+        // ¿La empresa ubica el inventario por SILO? La decisión sale del flag de la empresa dueña de
+        // la granja (InventarioUbicacionSiloCalculos, puro y con tests). Con el flag apagado, todo lo
+        // de abajo es exactamente lo de siempre.
+        var modoUbicacion = await ResolverModoUbicacionAsync(req.FarmId, ct);
+        var errorSilo = InventarioUbicacionSiloCalculos.ValidarUbicacion(modoUbicacion, req.SiloId, req.GalponId, isAlimento);
+        if (errorSilo is not null) throw new InvalidOperationException(errorSilo);
+
+        var usaUbicacion = false;
+        if (modoUbicacion == ModoUbicacionInventario.PorSilo)
+        {
+            // El silo ES la ubicación: no se valida núcleo/galpón porque no se persisten. Lo que sí
+            // se valida es que el silo sea de ESTA granja —regla 4 del plan: nunca un descuento
+            // silencioso en el silo de otra—.
+            await ValidarSiloDeGranjaAsync(req.FarmId, req.SiloId!.Value, ct);
+        }
+        else
+        {
+            // Alimento por galpón vs nivel granja: CONFIGURABLE por empresa/granja (antes era por país).
+            var nivelGranja = await EsInventarioNivelGranjaAsync(req.FarmId, ct);
+            usaUbicacion = isAlimento && !nivelGranja;
+            if (usaUbicacion && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
+                throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
+            if (!usaUbicacion && (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
+                throw new InvalidOperationException(nivelGranja
+                    ? "Esta granja maneja el alimento a nivel granja (no use Núcleo/Galpón)."
+                    : "Para ítems que no son alimento el inventario es solo a nivel granja (no use Núcleo/Galpón).");
+        }
 
         var origenTipoNorm = req.OrigenTipo?.Trim() ?? "";
         if (string.Equals(origenTipoNorm, "granja", StringComparison.OrdinalIgnoreCase))
@@ -472,8 +495,11 @@ public partial class InventarioGestionService : IInventarioGestionService
                 throw new InvalidOperationException("La granja de la bodega de origen debe pertenecer a la misma empresa.");
         }
 
-        var nucleoId = usaUbicacion ? req.NucleoId!.Trim() : null;
-        var galponId = usaUbicacion ? req.GalponId!.Trim() : null;
+        var (nucleoId, galponId, siloId) = InventarioUbicacionSiloCalculos.NormalizarUbicacion(
+            modoUbicacion,
+            usaUbicacion ? req.NucleoId!.Trim() : null,
+            usaUbicacion ? req.GalponId!.Trim() : null,
+            req.SiloId);
 
         var estadoIngreso = string.Equals(origenTipoNorm, "planta", StringComparison.OrdinalIgnoreCase)
             ? "Entrada planta"
@@ -495,6 +521,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             FarmId = req.FarmId,
             NucleoId = nucleoId,
             GalponId = galponId,
+            SiloId = siloId,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
             Quantity = req.Quantity,
             Unit = unidad,
@@ -513,13 +540,9 @@ public partial class InventarioGestionService : IInventarioGestionService
         // El stock y el movimiento que lo explica van juntos o no van.
         await EnTransaccionAsync(async () =>
         {
-            // siloId null = ubicación clásica por núcleo/galpón. La resolución del silo desde el
-            // request (empresas con maneja_inventario_por_silo) entra con
-            // InventarioGestionService.Silos.cs; hasta entonces toda empresa escribe silo_id NULL,
-            // que es exactamente el comportamiento previo a la Fase B.
             existing = await SumarStockAtomicoAsync(
                 companyId, paisId, req.FarmId, nucleoId, galponId,
-                req.ItemInventarioEcuadorId, req.Quantity, unidad, siloId: null, ct);
+                req.ItemInventarioEcuadorId, req.Quantity, unidad, siloId, ct);
 
             // El movimiento hereda la unidad DE LA FILA DE STOCK, no la del request: si la fila ya
             // existía con otra unidad, manda la de la fila. Es el comportamiento previo
@@ -541,8 +564,9 @@ public partial class InventarioGestionService : IInventarioGestionService
             : await EvaluarAvisoFechaFueraDeCicloAsync(companyId, req.FarmId, nucleoId, galponId, movCreatedAt, ct);
 
         var dto = (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
-            .FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId)
-            ?? new InventarioGestionStockDto(existing.Id, existing.FarmId, existing.NucleoId, existing.GalponId, existing.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", existing.Quantity, existing.Unit, null, null, null);
+            .FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId
+                              && x.NucleoId == nucleoId && x.GalponId == galponId && x.SiloId == siloId)
+            ?? new InventarioGestionStockDto(existing.Id, existing.FarmId, existing.NucleoId, existing.GalponId, existing.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", existing.Quantity, existing.Unit, null, null, null, null, null, existing.SiloId);
 
         return aviso is null ? dto : dto with { AvisoFechaFueraDeCiclo = aviso };
     }
@@ -562,6 +586,38 @@ public partial class InventarioGestionService : IInventarioGestionService
 
         var mismaGranja = req.FromFarmId == req.ToFarmId;
 
+        // Empresas que ubican por silo: el traslado es entre SILOS (o bodega -> silo) de la misma
+        // granja. El nucleo/galpon no participa —un mismo silo puede alimentar a varios galpones—,
+        // asi que ni se pide ni se persiste.
+        var modoOrigen = await ResolverModoUbicacionAsync(req.FromFarmId, ct);
+        if (modoOrigen == ModoUbicacionInventario.PorSilo)
+        {
+            var errorOrigenSilo = InventarioUbicacionSiloCalculos.ValidarUbicacion(
+                modoOrigen, req.FromSiloId, req.FromGalponId, isAlimento);
+            if (errorOrigenSilo is not null)
+                throw new InvalidOperationException($"Origen: {errorOrigenSilo}");
+
+            await ValidarSiloDeGranjaAsync(req.FromFarmId, req.FromSiloId!.Value, ct);
+
+            if (mismaGranja)
+            {
+                var errorDestinoSilo = InventarioUbicacionSiloCalculos.ValidarUbicacion(
+                    modoOrigen, req.ToSiloId, req.ToGalponId, isAlimento);
+                if (errorDestinoSilo is not null)
+                    throw new InvalidOperationException($"Destino: {errorDestinoSilo}");
+                if (req.FromSiloId!.Value == req.ToSiloId!.Value)
+                    throw new InvalidOperationException("El silo de destino debe ser distinto al de origen.");
+
+                await ValidarSiloDeGranjaAsync(req.ToFarmId, req.ToSiloId!.Value, ct);
+                return await RegistrarTrasladoMismaGranjaAsync(
+                    req, item, null, null, null, null, req.FromSiloId, req.ToSiloId, ct);
+            }
+
+            // Inter-granja: el silo destino es solo una sugerencia hasta que el destino reciba el
+            // transito, igual que el galpon destino en el camino clasico.
+            return await RegistrarTrasladoInterGranjaTransitoAsync(req, item, isAlimento: false, ct);
+        }
+
         if (mismaGranja)
         {
             if (!usaUbicacion)
@@ -577,7 +633,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             var tg = req.ToGalponId.Trim();
             if (string.Equals(fg, tg, StringComparison.Ordinal) && string.Equals(fn, tn, StringComparison.Ordinal))
                 throw new InvalidOperationException("El galpón de destino debe ser distinto al de origen.");
-            return await RegistrarTrasladoMismaGranjaAsync(req, item, fn, fg, tn, tg, ct);
+            return await RegistrarTrasladoMismaGranjaAsync(req, item, fn, fg, tn, tg, null, null, ct);
         }
 
         return await RegistrarTrasladoInterGranjaTransitoAsync(req, item, usaUbicacion, ct);
@@ -587,15 +643,17 @@ public partial class InventarioGestionService : IInventarioGestionService
     private async Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoMismaGranjaAsync(
         InventarioGestionTrasladoRequest req,
         ItemInventario item,
-        string fromNucleoId,
-        string fromGalponId,
-        string toNucleoId,
-        string toGalponId,
+        string? fromNucleoId,
+        string? fromGalponId,
+        string? toNucleoId,
+        string? toGalponId,
+        int? fromSiloId,
+        int? toSiloId,
         CancellationToken ct)
     {
         // A2 — lectura sin rastreo: la fila se modifica por SQL atómico más abajo, y una copia
         // rastreada con la cantidad vieja haría que el SaveChanges posterior pisara el descuento.
-        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, siloId: null, ct);
+        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, fromSiloId, ct);
         if (stockOrigen == null)
             throw new InvalidOperationException("No hay stock suficiente en el origen para el traslado.");
 
@@ -616,10 +674,10 @@ public partial class InventarioGestionService : IInventarioGestionService
 
             stockDestino = await SumarStockAtomicoAsync(
                 companyIdTo, paisIdTo, req.ToFarmId, toNucleoId, toGalponId,
-                req.ItemInventarioEcuadorId, req.Quantity, unidadTraslado, siloId: null, ct);
+                req.ItemInventarioEcuadorId, req.Quantity, unidadTraslado, toSiloId, ct);
 
             movAt = await RegistrarMovimientosTrasladoMismaGranjaAsync(
-                req, fromNucleoId, fromGalponId, toNucleoId, toGalponId,
+                req, fromNucleoId, fromGalponId, toNucleoId, toGalponId, fromSiloId, toSiloId,
                 stockOrigen, stockDestino, companyIdTo, paisIdTo, transferGroupId, ct);
         }, ct);
 
@@ -627,8 +685,12 @@ public partial class InventarioGestionService : IInventarioGestionService
         await RefrescarSaldoAlimentoEngordeAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, "TrasladoSalida", ct);
         await RefrescarSaldoAlimentoEngordeAsync(companyIdTo, req.ToFarmId, toNucleoId, toGalponId, "TrasladoEntrada", ct);
 
-        var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
-        var listDestino = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
+        var listOrigen = (await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct))
+            // Con silo, la granja tiene varias filas del mismo item (una por silo): hay que quedarse
+            // con la del silo del movimiento o el DTO mostraria el saldo de otro silo.
+            .Where(x => x.SiloId == fromSiloId).ToList();
+        var listDestino = (await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct))
+            .Where(x => x.SiloId == toSiloId).ToList();
         // `stockOrigen` se leyó ANTES del descuento (AsNoTracking), así que el DTO de respaldo
         // resta a mano; `stockDestino` viene del RETURNING del upsert, o sea ya acumulado.
         var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity - req.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
@@ -655,10 +717,12 @@ public partial class InventarioGestionService : IInventarioGestionService
     /// </summary>
     private async Task<DateTimeOffset> RegistrarMovimientosTrasladoMismaGranjaAsync(
         InventarioGestionTrasladoRequest req,
-        string fromNucleoId,
-        string fromGalponId,
-        string toNucleoId,
-        string toGalponId,
+        string? fromNucleoId,
+        string? fromGalponId,
+        string? toNucleoId,
+        string? toGalponId,
+        int? fromSiloId,
+        int? toSiloId,
         InventarioGestionStock stockOrigen,
         InventarioGestionStock stockDestino,
         int companyIdTo,
@@ -677,14 +741,18 @@ public partial class InventarioGestionService : IInventarioGestionService
             FarmId = req.FromFarmId,
             NucleoId = fromNucleoId,
             GalponId = fromGalponId,
+            SiloId = fromSiloId,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
             Quantity = req.Quantity,
             Unit = stockOrigen.Unit,
             MovementType = "TrasladoSalida",
             Estado = estadoTraslado,
             FromFarmId = req.ToFarmId,
+            // Convencion existente: en la fila de SALIDA los campos From* guardan el OTRO extremo
+            // (el destino). El silo sigue el mismo criterio para no inventar una segunda regla.
             FromNucleoId = toNucleoId,
             FromGalponId = toGalponId,
+            FromSiloId = toSiloId,
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             TransferGroupId = transferGroupId,
@@ -698,6 +766,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             FarmId = req.ToFarmId,
             NucleoId = toNucleoId,
             GalponId = toGalponId,
+            SiloId = toSiloId,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
             Quantity = req.Quantity,
             Unit = stockDestino.Unit,
@@ -706,6 +775,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             FromFarmId = req.FromFarmId,
             FromNucleoId = fromNucleoId,
             FromGalponId = fromGalponId,
+            FromSiloId = fromSiloId,
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             TransferGroupId = transferGroupId,
@@ -749,8 +819,13 @@ public partial class InventarioGestionService : IInventarioGestionService
                 throw new InvalidOperationException("Para ítems que no son alimento el traslado entre granjas es solo a nivel granja (sin Núcleo/Galpón).");
         }
 
+        // El silo del origen ya lo valido RegistrarTrasladoAsync; el del destino es una SUGERENCIA
+        // hasta que la granja destino reciba el transito (igual que el galpon destino).
+        var fromSiloId = req.FromSiloId;
+        var toSiloHint = req.ToSiloId;
+
         // A2 — descuento atómico. Lectura sin rastreo (ver BuscarStockSinRastreoAsync).
-        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, siloId: null, ct);
+        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, fromSiloId, ct);
         if (stockOrigen == null)
             throw new InvalidOperationException("No hay stock suficiente en el origen para registrar el traslado a otra granja.");
 
@@ -772,6 +847,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 FarmId = req.FromFarmId,
                 NucleoId = fromNucleoId,
                 GalponId = fromGalponId,
+                SiloId = fromSiloId,
                 ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
                 Quantity = req.Quantity,
                 Unit = stockOrigen.Unit,
@@ -780,6 +856,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 FromFarmId = req.ToFarmId,
                 FromNucleoId = toNucleoHint,
                 FromGalponId = toGalponHint,
+                FromSiloId = toSiloHint,
                 Reference = req.Reference?.Trim(),
                 Reason = req.Reason?.Trim(),
                 TransferGroupId = transferGroupId,
@@ -792,7 +869,8 @@ public partial class InventarioGestionService : IInventarioGestionService
         // Solo el galpón ORIGEN pierde alimento acá; el destino recién suma al recibir el tránsito.
         await RefrescarSaldoAlimentoEngordeAsync(stockOrigen.CompanyId, req.FromFarmId, fromNucleoId, fromGalponId, "TrasladoInterGranjaSalida", ct);
 
-        var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
+        var listOrigen = (await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct))
+            .Where(x => x.SiloId == fromSiloId).ToList();
         var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId)
             // `stockOrigen` se leyó ANTES del descuento (AsNoTracking): el respaldo resta a mano.
             ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity - req.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
@@ -895,15 +973,24 @@ public partial class InventarioGestionService : IInventarioGestionService
         // Colombia (nivel granja): recepción de alimento sin núcleo/galpón. EC/PA sin cambios.
         // Con Distribucion (alimento por galpón) lo recibido se reparte entre varios galpones de la granja destino.
         var isAlimento = IsAlimento(item);
-        var usaUbicacion = isAlimento && !await EsInventarioNivelGranjaAsync(req.ToFarmId, ct);
+        var modoDestino = await ResolverModoUbicacionAsync(req.ToFarmId, ct);
+        var porSilo = modoDestino == ModoUbicacionInventario.PorSilo;
+        var usaUbicacion = !porSilo && isAlimento && !await EsInventarioNivelGranjaAsync(req.ToFarmId, ct);
         var (destinos, errorDistribucion) = ZooSanMarino.Application.Calculos.InventarioGestionRecepcionDistribucionCalculos.Resolver(
-            req.Distribucion, req.ToNucleoId, req.ToGalponId, usaUbicacion, salida.Quantity);
+            req.Distribucion, req.ToNucleoId, req.ToGalponId, usaUbicacion, salida.Quantity, porSilo, req.ToSiloId);
         if (errorDistribucion != null)
             throw new InvalidOperationException(errorDistribucion);
 
         // Solo el camino distribuido valida pertenencia (el de una ubicación conserva su comportamiento previo).
-        if (destinos.Count > 1)
+        if (destinos.Count > 1 && usaUbicacion)
             await ValidarGalponesDeGranjaAsync(req.ToFarmId, destinos, ct);
+
+        // Cada silo del reparto tiene que ser de la granja destino. Se valida ANTES de escribir: un
+        // silo ajeno acreditaría stock en la granja equivocada y el descuadre aparecería después,
+        // sin rastro de su origen.
+        if (porSilo)
+            foreach (var d in destinos)
+                await ValidarSiloDeGranjaAsync(req.ToFarmId, d.SiloId!.Value, ct);
 
         if (salida.CompanyId != companyIdTo)
             throw new InvalidOperationException("La granja destino no pertenece a la misma empresa que la salida.");
@@ -940,7 +1027,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             var destino = destinos[i];
             var stockDestino = await SumarStockAtomicoAsync(
                 companyIdTo, paisIdTo, req.ToFarmId, destino.NucleoId, destino.GalponId,
-                salida.ItemInventarioEcuadorId, destino.Quantity, salida.Unit, siloId: null, ct);
+                salida.ItemInventarioEcuadorId, destino.Quantity, salida.Unit, destino.SiloId, ct);
             stocksDestino.Add(stockDestino);
 
             var movEntrada = new InventarioGestionMovimiento
@@ -950,6 +1037,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 FarmId = req.ToFarmId,
                 NucleoId = destino.NucleoId,
                 GalponId = destino.GalponId,
+                SiloId = destino.SiloId,
                 ItemInventarioEcuadorId = salida.ItemInventarioEcuadorId,
                 Quantity = destino.Quantity,
                 Unit = stockDestino.Unit,
@@ -958,6 +1046,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 FromFarmId = salida.FarmId,
                 FromNucleoId = salida.NucleoId,
                 FromGalponId = salida.GalponId,
+                FromSiloId = salida.SiloId,
                 Reference = salida.Reference,
                 Reason = distribuida
                     ? $"Recepción traslado inter-granja (distribución {i + 1}/{destinos.Count})"
@@ -1367,13 +1456,29 @@ public partial class InventarioGestionService : IInventarioGestionService
         var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
         var isAlimento = IsAlimento(item);
-        if (isAlimento && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
+
+        // El lote consume de SU silo. La validacion de que el silo este entre los del lote es de la
+        // Fase C (la hace el service de consumo del seguimiento diario, que es quien conoce el lote);
+        // acá se garantiza lo que este camino sí puede garantizar: que el silo sea de esta granja.
+        var modoConsumo = await ResolverModoUbicacionAsync(req.FarmId, ct);
+        var errorSiloConsumo = InventarioUbicacionSiloCalculos.ValidarUbicacion(
+            modoConsumo, req.SiloId, req.GalponId, isAlimento);
+        if (errorSiloConsumo is not null) throw new InvalidOperationException(errorSiloConsumo);
+
+        if (modoConsumo == ModoUbicacionInventario.PorSilo)
+            await ValidarSiloDeGranjaAsync(req.FarmId, req.SiloId!.Value, ct);
+        else if (isAlimento && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
             throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
-        if (!isAlimento && (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
+
+        if (modoConsumo == ModoUbicacionInventario.Clasico && !isAlimento &&
+            (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
             req = req with { NucleoId = null, GalponId = null };
 
-        var nucleoId = isAlimento ? req.NucleoId!.Trim() : null;
-        var galponId = isAlimento ? req.GalponId!.Trim() : null;
+        var (nucleoId, galponId, siloId) = InventarioUbicacionSiloCalculos.NormalizarUbicacion(
+            modoConsumo,
+            isAlimento && modoConsumo == ModoUbicacionInventario.Clasico ? req.NucleoId!.Trim() : null,
+            isAlimento && modoConsumo == ModoUbicacionInventario.Clasico ? req.GalponId!.Trim() : null,
+            req.SiloId);
 
         // A2 — descuento ATÓMICO. Antes esto era read-modify-write:
         //     if (stock.Quantity < req.Quantity) throw;  stock.Quantity -= req.Quantity;
@@ -1382,7 +1487,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         // DENTRO del UPDATE, así que el segundo consumo ve el saldo ya descontado.
         // La lectura es AsNoTracking() a propósito: una copia rastreada con la cantidad vieja
         // haría que el SaveChanges de abajo pisara el descuento.
-        var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, nucleoId, galponId, siloId: null, ct);
+        var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, nucleoId, galponId, siloId, ct);
         if (stock == null)
             throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficiente);
 
@@ -1404,6 +1509,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 FarmId = req.FarmId,
                 NucleoId = nucleoId,
                 GalponId = galponId,
+                SiloId = siloId,
                 ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
                 Quantity = req.Quantity,
                 Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
@@ -1419,12 +1525,13 @@ public partial class InventarioGestionService : IInventarioGestionService
             await _db.SaveChangesAsync(ct);
         }, ct);
 
-        var list = await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct);
+        var list = (await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct))
+            .Where(x => x.SiloId == siloId).ToList();
         return list.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId)
             // `stock` se leyó con AsNoTracking ANTES del descuento, así que su Quantity es la
             // anterior: el DTO de respaldo tiene que restar la cantidad consumida a mano. Antes
             // esto salía solo porque la entidad rastreada ya venía decrementada en memoria.
-            ?? new InventarioGestionStockDto(stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stock.Quantity - req.Quantity, stock.Unit, null, null, null, stock.CreatedAt);
+            ?? new InventarioGestionStockDto(stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stock.Quantity - req.Quantity, stock.Unit, null, null, null, stock.CreatedAt, null, stock.SiloId);
     }
 
     // ─── Fase 3 (paso 2) — consumo/devolución a NIVEL GRANJA (Colombia) ─────────────────────
@@ -1747,6 +1854,7 @@ public partial class InventarioGestionService : IInventarioGestionService
 
         var nucleos = await _db.Nucleos.AsNoTracking().Where(n => list.Select(x => x.NucleoId).Contains(n.NucleoId)).ToDictionaryAsync(n => (n.NucleoId, n.GranjaId), n => n.NucleoNombre, ct);
         var galpones = await _db.Galpones.AsNoTracking().Where(g => list.Select(x => x.GalponId).Contains(g.GalponId)).ToDictionaryAsync(g => (g.GalponId, g.GranjaId), g => g.GalponNombre, ct);
+        var silosMov = await NombresDeSilosAsync(list.SelectMany(x => new[] { x.SiloId, x.FromSiloId }), ct);
 
         var fromFarmIds = list.Where(x => x.FromFarmId.HasValue).Select(x => x.FromFarmId!.Value).Distinct().ToList();
         var fromFarmNames = fromFarmIds.Count > 0
@@ -1815,7 +1923,11 @@ public partial class InventarioGestionService : IInventarioGestionService
                 x.ItemInventario.Concepto,
                 x.ItemInventario.TipoItem,
                 x.ParaProximoCiclo,
-                x.RegistradoAt);
+                x.RegistradoAt,
+                x.SiloId,
+                x.SiloId.HasValue && silosMov.TryGetValue(x.SiloId.Value, out var sn) ? sn : null,
+                x.FromSiloId,
+                x.FromSiloId.HasValue && silosMov.TryGetValue(x.FromSiloId.Value, out var fsn) ? fsn : null);
         }).ToList();
     }
 
