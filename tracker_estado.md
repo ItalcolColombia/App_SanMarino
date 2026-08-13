@@ -4906,39 +4906,69 @@ quedan como requisito antes de habilitarlo — el arreglo de la fn por sí solo 
 **Sesión propia — no tocar los bloques de arriba (silos / gastos, en curso en otra ventana).**
 
 Un rol de gerencia debe ver **solo** el Panel de control de ItalJira, con los indicadores de TODOS
-los casos, sin heredar nada de `tickets.admin`. Hoy no se puede por datos: el alcance global lo
-decide `AplicarFiltroTablero` (`TicketService.Gestion.cs:326`) contra `tickets.admin`, así que un rol
-con `tickets.gestionar` ve el panel **en cero** (solo sus casos asignados).
+los casos, sin heredar nada de `tickets.admin`. No se podía por datos: el alcance global lo decidía
+`AplicarFiltroTablero` (`TicketService.Gestion.cs:326`) contra `tickets.admin`, así que un rol con
+`tickets.gestionar` veía el panel **en cero** (solo sus casos asignados).
 
 ## Backend
 
-- [ ] B1 `Application/Calculos/TicketAlcancePanelCalculos.cs` — `TieneAlcanceGlobal(permisos, vistaSoloLectura)`
-- [ ] B2 `AplicarFiltroTablero(filtro, bool vistaSoloLectura = false)` delega en B1 (tablero y roadmap sin tocar)
-- [ ] B3 `GetIndicadoresAsync` / `GetReporteAsync` pasan `vistaSoloLectura: true`
-- [ ] B4 Tests xUnit `TicketAlcancePanelCalculosTests` — 9 casos, incluida la regresión de `tickets.gestionar`
-- [ ] B5 Migración data-only `MenuGerenciaPanelControl`: permiso + grupo `gerencia` + `gerencia.panel`
+- [x] B1 `Application/Calculos/TicketAlcancePanelCalculos.cs` — `TieneAlcanceGlobal(permisos, vistaSoloLectura)`
+- [x] B2 `AplicarFiltroTablero(filtro, bool vistaSoloLectura = false)` delega en B1 (tablero y roadmap sin tocar)
+- [x] B3 `GetIndicadoresAsync` / `GetReporteAsync` pasan `vistaSoloLectura: true`
+- [x] B4 Tests xUnit `TicketAlcancePanelCalculosTests` — **16 casos** (los 9 del plan, varios como `[Theory]`)
+- [x] B5 Migración data-only `20260813175406_MenuGerenciaPanelControl`: permiso + grupo `gerencia` + `gerencia.panel`
       (`/gerencia/panel`, ruta PROPIA: `parent_id` es único y las migraciones localizan por `route`)
-- [ ] B6 En la misma migración: `menu_permissions` (OR con `tickets.admin`) + **`company_permissions`**
-      ⚠️ sin esta última el permiso NO viaja en el JWT (`CompanyPermissionCalculos.cs:152`, fail-closed por empresa)
+- [x] B6 En la misma migración: `menu_permissions` (OR con `tickets.admin`) + **`company_permissions`**
 
 ## Frontend
 
-- [ ] F1 `features/gerencia/gerencia.routes.ts` — `/gerencia/panel` reutiliza `PanelComponent`
-- [ ] F2 `app.config.ts` — bloque lazy `path: 'gerencia'` con `authGuard`
-- [ ] F3 `TICKET_PERMS.indicadores`
-- [ ] F4 Revisar los `RouterLink` del panel: no dejar enlaces a vistas que el rol no puede abrir
+- [x] F1 `features/gerencia/gerencia.routes.ts` — `/gerencia/panel` reutiliza `PanelComponent`
+- [x] F2 `app.config.ts` — bloque lazy `path: 'gerencia'` con `authGuard`
+- [x] F3 `TICKET_PERMS.indicadores`
+- [x] F4 Los 3 `RouterLink` del panel (Tablero / Roadmap / Lista) van tras `@if (puedeVerItalJira)`
 
 ## Validación
 
-- [ ] V1 `dotnet build` + `dotnet test` (0 errores, sin nuevas advertencias)
-- [ ] V2 `yarn build` (solo el warning de bundle budget preexistente)
-- [ ] V3 Migración aplicada en la BD local (`dotnet ef database update`)
-- [ ] V4 Smoke **sin** el permiso: admin y resolutor exactamente igual que antes (regresión)
-- [ ] V5 Smoke **con** el permiso: solo el menú Gerencia; `/italjira/*` por URL → `/home`; totales = los del admin
-- [ ] V6 Backend local apagado y puerto libre al terminar
+- [x] V1 `dotnet build` 0 errores + `dotnet test` **2403 passed / 0 failed** (las 2 advertencias son preexistentes, en otros archivos)
+- [x] V2 `yarn build` OK (solo el warning de bundle budget preexistente)
+- [x] V3 Migración aplicada en la BD local (era la única pendiente)
+- [x] V4 Smoke **sin** el permiso: regresión intacta
+- [x] V5 Smoke **con** el permiso: abre las 2 vistas de lectura y NADA más
+- [x] V6 Backend local apagado, puerto 5002 libre
+
+### Smoke HTTP real (backend local, JWT minteado + `X-Secret-Up` cifrado)
+
+Gerente = usuario **sin** casos asignados; los 17 casos de la BD local son de otro resolutor. Así el
+contraste es limpio: si el alcance no se abre, el gerente ve 0.
+
+| escenario | `/indicadores` | `/reporte` | `/tablero` | `/roadmap` |
+|---|---|---|---|---|
+| A. gerente + `tickets.gestionar` (**HOY**) | 0 | 0 | 0 | 0 |
+| B. gerente + `tickets.indicadores` (**NUEVO**) | **17** | **17** | **0** | **0** |
+| C. admin + `tickets.admin` (referencia) | 17 | — | 17 | — |
+
+A = el bug que motivó el trabajo. B = arreglado **sin** abrir el tablero ni el roadmap ni por URL
+directa. C = sin cambios.
+
+### Hallazgos
+
+1. **`company_permissions` es fail-closed por empresa** (`CompanyPermissionCalculos.cs:152`, regla R1).
+   Un permiso que no esté habilitado ahí NO viaja en el JWT aunque el rol lo tenga. Verificado tras
+   aplicar la migración: quedó habilitado en Sanmarino, Demo, ItalcolPanama y Santa Reyes —
+   **ItalcolEcuador NO**, porque no tiene `tickets.admin` ni `tickets.gestionar` habilitados. Si el rol
+   de gerencia va a ser de Ecuador, hay que habilitarlo ahí desde la UI primero.
+2. **Los 3 accesos rápidos del panel apuntaban a vistas de ItalJira.** Un gerente los habría visto y
+   el `permissionGuard` lo habría rebotado a `/home`. Ahora se ocultan sin permiso de gestión.
+3. **`GetResolutoresAdminAsync` no tiene gate** (`TicketService.cs:414`) ⇒ la barra de filtros del
+   panel funciona completa para el rol nuevo, sin abrirle nada más.
+4. ⚠️ **Trampa del entorno:** había un `mint.py` viejo de otra sesión en `/tmp` que emitía un token
+   fijo (Santa Reyes, sin claims `permission`) e ignoraba los argumentos. Los tres escenarios daban 0
+   y parecía un bug del código. Los scripts de smoke van al scratchpad con nombre propio.
 
 ## Cierre
 
-- [ ] Commit sin footer de atribución (autor único moisesmurillo)
+- [x] Commit sin footer de atribución (autor único moisesmurillo)
 - [ ] Push y deploy **solo con OK explícito**
-- [ ] Post-deploy manual: crear/elegir el rol, asignarle `tickets.indicadores` y el menú (no lo hace la migración)
+- [ ] **Post-deploy manual** (no lo hace la migración, a propósito): en Roles y Permisos crear/elegir
+      el rol de gerencia → asignarle **solo** `tickets.indicadores` → asignarle el menú
+      **Gerencia › Panel de control**. Hasta entonces el módulo no lo ve nadie.

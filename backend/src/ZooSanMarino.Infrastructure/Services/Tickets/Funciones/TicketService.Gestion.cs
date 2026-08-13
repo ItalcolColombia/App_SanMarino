@@ -323,11 +323,17 @@ public partial class TicketService
     /// para un resolutor, solo los casos que tiene asignados. Fail-closed: sin Guid ni permiso,
     /// no se devuelve nada.
     /// </summary>
-    private IQueryable<Ticket> AplicarFiltroTablero(TicketTableroFiltro filtro)
+    /// <param name="vistaSoloLectura">
+    /// True únicamente en el panel de control y su reporte. Ahí el alcance global también lo
+    /// concede <c>tickets.indicadores</c> (gerencia mira los números sin poder gestionar); en el
+    /// tablero y el roadmap sigue haciendo falta <c>tickets.admin</c>. La regla vive en
+    /// <see cref="TicketAlcancePanelCalculos"/> y está cubierta por tests.
+    /// </param>
+    private IQueryable<Ticket> AplicarFiltroTablero(TicketTableroFiltro filtro, bool vistaSoloLectura = false)
     {
         var query = _ctx.Tickets.AsNoTracking().Where(x => x.DeletedAt == null);
 
-        if (!EsSuperAdmin())
+        if (!TicketAlcancePanelCalculos.TieneAlcanceGlobal(_currentUser.Permissions, vistaSoloLectura))
         {
             var miGuid = _currentUser.UserGuid;
             query = miGuid.HasValue

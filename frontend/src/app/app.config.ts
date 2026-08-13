@@ -211,6 +211,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ITALJIRA_ROUTES)
       },
 
+      // Gerencia — vistas de lectura de los indicadores, sin las facultades de gestión de ItalJira
+      {
+        path: 'gerencia',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/gerencia/gerencia.routes')
+            .then(m => m.GERENCIA_ROUTES)
+      },
+
       // Implementación (cronogramas de entrega por empresa con checklist confirmable)
       {
         path: 'implementacion',
