@@ -15,6 +15,17 @@ public class InventarioGastoDetalle
     /// <summary>Snapshot de la unidad (por defecto del ítem).</summary>
     public string Unidad { get; set; } = "kg";
 
+    /// <summary>
+    /// Silo o bodega del que salió la línea (<c>farm_silos.id</c>), en las empresas que ubican el
+    /// inventario por silo. <c>null</c> = comportamiento previo (stock a nivel granja).
+    /// <para>
+    /// Se guarda porque la <b>anulación devuelve al mismo silo</b>: sin el dato, eliminar un gasto
+    /// repondría el insumo en una ubicación que nadie descontó y el saldo del silo quedaría corto
+    /// para siempre.
+    /// </para>
+    /// </summary>
+    public int? SiloId { get; set; }
+
     public decimal? StockAntes { get; set; }
     public decimal? StockDespues { get; set; }
 

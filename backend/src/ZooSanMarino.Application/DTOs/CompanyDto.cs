@@ -53,5 +53,10 @@ public record CompanyDto(
     /// mostrar el selector de silo en ingreso, traslado y seguimiento diario, y para habilitar las
     /// pantallas de asignación de silos (granja, galpón y lote).
     /// </summary>
-    bool ManejaInventarioPorSilo = false
+    bool ManejaInventarioPorSilo = false,
+    /// <summary>
+    /// Los reportes Contable y Técnico leen el alimento del inventario unificado
+    /// (<c>inventario_gestion_movimiento</c>) en vez de la tabla vieja.
+    /// </summary>
+    bool ReportesAlimentoDesdeInventarioUnificado = false
 );

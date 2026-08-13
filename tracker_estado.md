@@ -4790,9 +4790,14 @@ BD restaurada de nuevo (los 9 conteos y 0 filas con `silo_id`), backend detenido
       (el `LEFT JOIN` asumía una fila de stock por granja+ítem y con N silos multiplicaba filas)
 - [x] Columna Silo en la carga masiva (hoja Alimento) — **NO aplica**, verificado con datos (abajo)
 - [x] Reportes (Contable, Técnico) con la dimensión silo — **NO la necesitan** (auditado, abajo)
-- [ ] ⚠️ **Bloqueante de go-live para SR, NO lo causaron los silos**: los dos reportes leen el
-      alimento de la tabla LEGACY `farm_inventario_movements`, donde SR tiene 0 filas ⇒ columnas de
-      alimento en cero. Requiere decisión del usuario (tocarlo cambia el reporte de Sanmarino y Demo)
+- [x] ⚠️ **Bloqueante de go-live para SR, NO lo causaron los silos**: los dos reportes leen el
+      alimento de la tabla LEGACY `farm_inventory_movements`, donde SR tiene 0 filas ⇒ columnas de
+      alimento en cero. **Resuelto con un flag por empresa** (`reportes_alimento_desde_inventario_unificado`),
+      encendido SOLO para Santa Reyes: con el flag apagado la consulta es la de siempre, así que
+      Sanmarino, Demo, Ecuador y Panamá no ven cambiar ni una celda (medido, ver abajo)
+- [ ] 🔸 **Decisión pendiente del usuario (NO bloquea a SR)**: encender el mismo flag en **Sanmarino**.
+      Su reporte ya está mostrando de menos —la tabla vieja se quedó en el **2026-07-17** y la nueva
+      llega al **2026-08-13**—, pero encenderlo mueve números ya conciliados (medición abajo)
 
 ### Reportes Contable y Técnico: no hay dimensión silo que agregar (auditado 2026-08-13)
 
@@ -4848,8 +4853,36 @@ ninguno de los dos**. O sea: se ve el nodo en el árbol y no lleva a ninguna pan
 columna Silo a la hoja Alimento sería escribir código para un flujo que hoy nadie puede abrir en SR;
 queda para el día que se habilite alguna de esas rutas (y ahí hay que hacerlo, o el alimento entraría
 sin ubicación). Los **dos reportes sí son alcanzables** por ambos roles ⇒ ese es el trabajo real.
-- [ ] **(nuevo, ver hallazgos abajo)** El resto del módulo Gastos para poder habilitarlo en SR:
+- [x] **(nuevo, ver hallazgos abajo)** El resto del módulo Gastos para poder habilitarlo en SR:
       `siloId` en el alta del gasto (DTO + form) y `GROUP BY` en `GetItemsWithStockAsync`
+
+### Gastos por silo: el módulo ya se puede habilitar en SR (2026-08-13, 4ª tanda)
+
+- **`GetItemsWithStockAsync` agrega con `GROUP BY`** (en la BD, no en memoria) y acepta `siloId`
+  opcional: sin silo devuelve UNA fila por ítem con el saldo total de la granja —lo que ven las
+  empresas sin el flag— y con silo, el saldo de ESE silo, que es de donde va a descontar.
+- **El silo viaja de punta a punta**: `InventarioGastoLineaRequest.SiloId` → `RegistrarConsumoAsync`
+  (que ya valida modo y pertenencia) → columna nueva `inventario_gasto_detalle.silo_id`
+  (migración `20260813210000_AddSiloEnGastoDetalle`, aditiva y nullable) → **la anulación devuelve al
+  MISMO silo**. Sin guardar el silo en la línea, eliminar un gasto repondría el insumo «a nivel
+  granja» y el saldo del silo quedaría corto para siempre, sin ningún error a la vista.
+- `stockAntes` se lee de la misma fila que se va a descontar (antes tomaba un silo cualquiera).
+- **Front**: selector de silo en el modal (antes del ítem, porque el saldo depende de él), columna
+  Silo en las líneas, y la línea se identifica por **(ítem, silo)** — el mismo insumo sacado de dos
+  silos son dos líneas, porque el backend descuenta dos filas de stock distintas.
+
+**Smoke HTTP real, Santa Reyes (granja 109, silos 4 y 20) — 25/25 OK:**
+ingresos 300+200 ✔ · el selector muestra **1 fila con 500** (antes: 2 filas de 300 y 200) ✔ ·
+con `siloId=4` ofrece 300 ✔ · gasto **sin** silo ⇒ 400 «Debe indicar el silo o la bodega…» y **ningún
+saldo se mueve** ✔ · gasto de 100 del silo 4 ⇒ 300→200 con el silo 20 **intacto** ✔ · el detalle
+guarda `siloId` + nombre y su antes/después es el del silo ✔ · gasto con **dos silos** ⇒ cada línea
+descuenta el suyo ✔ · 200 del silo 20 (tiene 175) ⇒ **rechazado** aunque la granja tenga 325 entre
+los dos ✔ · anular ⇒ los dos saldos vuelven exactos y **no se crea stock sin silo** ✔.
+
+**Regresión con el flag apagado (ItalcolEcuador, la empresa que realmente usa Gastos) — 12/12 OK:**
+una fila por ítem con el saldo de siempre ✔ · alta sin silo ⇒ descuenta igual que antes y la línea
+queda **sin** silo ✔ · alta **con** silo ⇒ 400 «Esta empresa no maneja el inventario por silo» ✔ ·
+anulación devuelve al mismo lugar ✔. BD restaurada: los 8 conteos vuelven al snapshot.
 
 ### `fn_inventario_gastos_existencias`: el saldo se agrega (2026-08-13)
 
@@ -4891,6 +4924,31 @@ quedan como requisito antes de habilitarlo — el arreglo de la fn por sí solo 
    **falla en voz alta** (400 «Debe indicar el silo o la bodega…», fail-closed de la Fase B): no
    corrompe saldos, pero el módulo es inusable en SR hasta que el gasto lleve `siloId` de punta a
    punta (DTO + selector en el form + `stockAntes` por silo).
+
+### Los reportes leen el alimento donde la empresa lo tenga (2026-08-13, 4ª tanda)
+
+Flag por empresa `reportes_alimento_desde_inventario_unificado` (columna en `companies`,
+`NOT NULL DEFAULT false`, migración `20260813220000_ReportesAlimentoDesdeInventarioUnificado`,
+encendida por seed **solo en Santa Reyes**). La decisión y la traducción de tipos de movimiento son
+lógica pura con tests (`ReporteAlimentoInventarioCalculos`, **26 casos**): cada `movement_type` cae en
+UNA sola categoría (entrada / traslado / retiro) —un tipo en dos listas duplicaría kilos en un reporte
+contable— y `AjusteStock`/`EliminacionStock` quedan afuera a propósito, igual que en el reporte viejo.
+
+**A/B medido contra datos reales (Sanmarino, que es la única empresa con filas en las DOS tablas):**
+
+| reporte | lote | flag OFF (hoy) | flag ON |
+|---|---|---|---|
+| Contable (bultos) | A374B, granja 20 | entradas **2.907** · retiros **2.608,675** | entradas **2.867** · retiros **2.626,975** |
+| Técnico (kg de alimento) | S369B, granja 12 | ingresos **0** | ingresos **749.580** |
+
+Y al volver a apagarlo, los dos vuelven **exactos** al baseline: el flag es el único interruptor.
+El caso de la granja 12 es el bug en estado puro — **0 kg** hoy porque su alimento entra por el módulo
+nuevo y el reporte lee el viejo, con el `catch { return 0; }` devolviéndolo en silencio.
+
+⚠️ **Lo que esto destapó y hay que decidir**: `farm_inventory_movements` de Sanmarino tiene 324 filas
+y su última es del **2026-07-17**; `inventario_gestion_movimiento` tiene **869** y llega al
+**2026-08-13**. O sea que el reporte de Sanmarino ya viene mostrando de menos. Encender su flag es
+una fila de SQL, pero mueve números conciliados: va con verificación explícita del usuario.
 
 ## Cierre
 

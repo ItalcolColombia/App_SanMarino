@@ -51,6 +51,7 @@ public partial class CompanyService : ICompanyService
         c.DiasAlimentoPrevioEncaset,
         c.ProgramacionLotesEngorde,
         c.NombreLoteIncluyeCorrida,
-        c.ManejaInventarioPorSilo
+        c.ManejaInventarioPorSilo,
+        c.ReportesAlimentoDesdeInventarioUnificado
     );
 }

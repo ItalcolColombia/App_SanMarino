@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Infrastructure/Services/ReporteContableService.cs
+﻿// src/ZooSanMarino.Infrastructure/Services/ReporteContableService.cs
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
@@ -813,6 +813,11 @@ public class ReporteContableService : IReporteContableService
         // y ya no hace falta traer el catálogo de la empresa a memoria.
         var tipoAlimento = ItemInventarioTipoCalculos.TipoAlimento;
 
+        // Las empresas que ya operan sobre el módulo unificado no tienen NI UNA fila en la tabla
+        // vieja: sin este desvío, sus columnas de bultos salen en cero sin ningún error a la vista.
+        if (await LeeInventarioUnificadoAsync(companyId, ct))
+            return await ObtenerDatosBultosUnificadoAsync(granjaId, companyId, desdeUtc, hastaUtc, tipoAlimento, ct);
+
         var queryMovimientos = _ctx.FarmInventoryMovements
             .AsNoTracking()
             .Where(m => m.FarmId == granjaId &&
@@ -873,6 +878,84 @@ public class ReporteContableService : IReporteContableService
                     : m.Quantity / FACTOR_CONVERSION_BULTO_KG);
 
             datos.Add((fecha, 0, traslados, entradas, retiros, 0, 0));
+        }
+
+        return datos;
+    }
+
+    /// <summary>
+    /// ¿Esta empresa declaró que sus reportes leen el alimento del inventario unificado? La decisión
+    /// es de <see cref="ReporteAlimentoInventarioCalculos"/>; acá solo se resuelve el dato.
+    /// Fail-closed: si la empresa no existe, se lee la tabla de siempre.
+    /// </summary>
+    private async Task<bool> LeeInventarioUnificadoAsync(int companyId, CancellationToken ct)
+    {
+        var flag = await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.ReportesAlimentoDesdeInventarioUnificado)
+            .FirstOrDefaultAsync(ct);
+
+        return ReporteAlimentoInventarioCalculos.LeeInventarioUnificado(flag);
+    }
+
+    /// <summary>
+    /// Mismo resultado que la consulta histórica —fecha, entradas, traslados y retiros en BULTOS—
+    /// pero leyendo <c>inventario_gestion_movimiento</c>.
+    ///
+    /// <para>
+    /// Dos diferencias que NO son opcionales: el tipo de ítem se resuelve contra
+    /// <c>item_inventario_ecuador</c> (el catálogo del módulo nuevo, no <c>catalogo_items</c>), y el
+    /// <c>movement_type</c> es un texto, no el enum viejo, así que la traducción a las tres
+    /// categorías vive en la clase de cálculo con sus tests.
+    /// </para>
+    ///
+    /// <para>
+    /// El silo NO participa: el grano del reporte es (granja, fecha) y el movimiento trae su cantidad
+    /// completa, así que llevar el saldo por silo no multiplica ni una fila.
+    /// </para>
+    /// </summary>
+    private async Task<List<(DateTime Fecha, decimal SaldoAnterior, decimal Traslados, decimal Entradas, decimal Retiros, decimal ConsumoHembras, decimal ConsumoMachos)>>
+        ObtenerDatosBultosUnificadoAsync(
+        int granjaId,
+        int companyId,
+        DateTimeOffset desdeUtc,
+        DateTimeOffset hastaUtc,
+        string tipoAlimento,
+        CancellationToken ct)
+    {
+        var datos = new List<(DateTime, decimal, decimal, decimal, decimal, decimal, decimal)>();
+
+        var query = _ctx.InventarioGestionMovimientos
+            .AsNoTracking()
+            .Where(m => m.FarmId == granjaId &&
+                        m.CompanyId == companyId &&
+                        m.CreatedAt >= desdeUtc &&
+                        m.CreatedAt < hastaUtc)
+            .Join(_ctx.ItemInventario.AsNoTracking(),
+                m => m.ItemInventarioEcuadorId,
+                i => i.Id,
+                (m, i) => new { m, i })
+            .Where(x => x.i.TipoItem.Trim().ToLower() == tipoAlimento && x.i.Activo);
+
+        // Mismo filtro por país condicional que la rama vieja.
+        var paisId = _currentUser?.PaisId ?? 0;
+        if (paisId > 0) query = query.Where(x => x.m.PaisId == paisId);
+
+        var movimientos = await query
+            .Select(x => new { x.m.CreatedAt, x.m.Quantity, x.m.Unit, x.m.MovementType })
+            .ToListAsync(ct);
+
+        foreach (var grupo in movimientos.GroupBy(m => m.CreatedAt.Date))
+        {
+            decimal Bultos(CategoriaMovimientoAlimento categoria) => grupo
+                .Where(m => ReporteAlimentoInventarioCalculos.Categoria(m.MovementType) == categoria)
+                .Sum(m => ReporteAlimentoInventarioCalculos.ABultos(m.Quantity, m.Unit, FACTOR_CONVERSION_BULTO_KG));
+
+            datos.Add((grupo.Key, 0,
+                Bultos(CategoriaMovimientoAlimento.Traslado),
+                Bultos(CategoriaMovimientoAlimento.Entrada),
+                Bultos(CategoriaMovimientoAlimento.Retiro),
+                0, 0));
         }
 
         return datos;

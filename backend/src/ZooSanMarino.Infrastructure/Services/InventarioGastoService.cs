@@ -74,7 +74,7 @@ public class InventarioGastoService : IInventarioGastoService
             .ToListAsync(ct);
     }
 
-    public async Task<List<InventarioGastoItemStockDto>> GetItemsWithStockAsync(int farmId, string concepto, CancellationToken ct = default)
+    public async Task<List<InventarioGastoItemStockDto>> GetItemsWithStockAsync(int farmId, string concepto, int? siloId = null, CancellationToken ct = default)
     {
         var companyId = await GetEffectiveCompanyIdAsync(ct);
         if (companyId is null or <= 0) return new List<InventarioGastoItemStockDto>();
@@ -87,9 +87,18 @@ public class InventarioGastoService : IInventarioGastoService
         var cNorm = concepto.Trim().ToLower();
 
         // Solo ítems con stock > 0 (stock por granja; nucleo/galpon null para no-alimento).
-        var rows = await _db.InventarioGestionStock.AsNoTracking()
+        var stock = _db.InventarioGestionStock.AsNoTracking()
             .Where(s => s.FarmId == farmId && s.NucleoId == null && s.GalponId == null)
-            .Where(s => s.Quantity > 0)
+            .Where(s => s.Quantity > 0);
+
+        // Con silo indicado, el saldo que se ofrece es el de ESE silo: el gasto va a descontar de
+        // ahí, así que mostrar el total de la granja prometería existencias que el silo no tiene.
+        if (siloId is > 0) stock = stock.Where(s => s.SiloId == siloId.Value);
+
+        // El SUM + GROUP BY es la diferencia entre una fila por ítem y una fila POR SILO: sin
+        // agrupar, un ítem repartido en tres silos aparecía tres veces en el selector, cada una con
+        // un saldo parcial. Se agrupa en la BD (no en memoria) para no traer el stock entero.
+        var rows = await stock
             .Join(_db.ItemInventario.AsNoTracking(),
                 s => s.ItemInventarioEcuadorId,
                 i => i.Id,
@@ -97,15 +106,16 @@ public class InventarioGastoService : IInventarioGastoService
             .Where(x => x.i.CompanyId == companyId.Value && x.i.Activo)
             .Where(x => x.i.TipoItem.ToLower() != "alimento")
             .Where(x => (x.i.Concepto ?? "").Trim().ToLower() == cNorm)
-            .OrderBy(x => x.i.Nombre)
-            .Select(x => new InventarioGastoItemStockDto(
-                x.i.Id,
-                x.i.Codigo,
-                x.i.Nombre,
-                x.i.TipoItem,
-                x.i.Unidad,
-                x.i.Concepto,
-                x.s.Quantity
+            .GroupBy(x => new { x.i.Id, x.i.Codigo, x.i.Nombre, x.i.TipoItem, x.i.Unidad, x.i.Concepto })
+            .OrderBy(g => g.Key.Nombre)
+            .Select(g => new InventarioGastoItemStockDto(
+                g.Key.Id,
+                g.Key.Codigo,
+                g.Key.Nombre,
+                g.Key.TipoItem,
+                g.Key.Unidad,
+                g.Key.Concepto,
+                g.Sum(x => x.s.Quantity)
             ))
             .ToListAsync(ct);
 
@@ -414,7 +424,11 @@ public class InventarioGastoService : IInventarioGastoService
                 x.d.Cantidad,
                 x.d.Unidad,
                 x.d.StockAntes,
-                x.d.StockDespues
+                x.d.StockDespues,
+                x.d.SiloId,
+                // El nombre del silo se resuelve en la misma consulta (subselect): sin él, el
+                // detalle mostraría un id y el usuario no sabría de qué silo salió.
+                _db.FarmSilos.Where(fs => fs.Id == x.d.SiloId).Select(fs => fs.Nombre).FirstOrDefault()
             ))
             .ToListAsync(ct);
 
@@ -536,16 +550,26 @@ public class InventarioGastoService : IInventarioGastoService
         foreach (var linea in req.Lineas)
         {
             var item = items.First(i => i.Id == linea.ItemInventarioEcuadorId);
-            var stockAntes = await _db.InventarioGestionStock.AsNoTracking()
-                .Where(s => s.FarmId == req.FarmId && s.NucleoId == null && s.GalponId == null && s.ItemInventarioEcuadorId == item.Id)
+
+            // El «antes» tiene que ser el de la MISMA fila que se va a descontar. Sin filtrar el
+            // silo, un ítem repartido en varios silos devolvía el saldo de uno cualquiera y el
+            // detalle del gasto mostraba un antes/después que no se corresponden entre sí.
+            var stockQuery = _db.InventarioGestionStock.AsNoTracking()
+                .Where(s => s.FarmId == req.FarmId && s.NucleoId == null && s.GalponId == null && s.ItemInventarioEcuadorId == item.Id);
+            stockQuery = linea.SiloId is > 0
+                ? stockQuery.Where(s => s.SiloId == linea.SiloId!.Value)
+                : stockQuery.Where(s => s.SiloId == null);
+            var stockAntes = await stockQuery
                 .Select(s => (decimal?)s.Quantity)
                 .FirstOrDefaultAsync(ct);
 
             var refStr = $"Gasto inventario #{gasto.Id} {gasto.Fecha:yyyy-MM-dd}" + (loteNombre != null ? $" · Lote {loteNombre}" : "");
             var reason = gasto.Observaciones;
 
+            // El silo viaja al movimiento: `RegistrarConsumoAsync` valida el modo de la empresa
+            // (obligatorio con el flag, rechazado sin él) y que el silo sea de esta granja.
             var stockDto = await _inventario.RegistrarConsumoAsync(
-                new InventarioGestionConsumoRequest(req.FarmId, null, null, item.Id, linea.Cantidad, item.Unidad, refStr, reason),
+                new InventarioGestionConsumoRequest(req.FarmId, null, null, item.Id, linea.Cantidad, item.Unidad, refStr, reason, SiloId: linea.SiloId),
                 ct);
 
             detalles.Add(new InventarioGastoDetalle
@@ -555,6 +579,7 @@ public class InventarioGastoService : IInventarioGastoService
                 Concepto = item.Concepto,
                 Cantidad = linea.Cantidad,
                 Unidad = item.Unidad,
+                SiloId = linea.SiloId,
                 StockAntes = stockAntes,
                 StockDespues = stockDto.Quantity
             });
@@ -620,6 +645,8 @@ public class InventarioGastoService : IInventarioGastoService
 
         foreach (var d in gasto.Detalles)
         {
+            // Vuelve al MISMO silo del que salió (guardado en la línea). Reponerlo «a nivel granja»
+            // dejaría el saldo de ese silo corto para siempre, sin ningún error a la vista.
             await _inventario.RegistrarIngresoAsync(
                 new InventarioGestionIngresoRequest(
                     gasto.FarmId,
@@ -633,7 +660,8 @@ public class InventarioGastoService : IInventarioGastoService
                     OrigenTipo: null,
                     OrigenFarmId: null,
                     OrigenBodegaDescripcion: null,
-                    FechaMovimiento: gasto.Fecha),
+                    FechaMovimiento: gasto.Fecha,
+                    SiloId: d.SiloId),
                 ct);
         }
 

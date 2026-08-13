@@ -121,7 +121,8 @@ public class CompanyPaisService : ICompanyPaisService
             DiasAlimentoPrevioEncaset: cp.Company.DiasAlimentoPrevioEncaset,
             ProgramacionLotesEngorde: cp.Company.ProgramacionLotesEngorde,
             NombreLoteIncluyeCorrida: cp.Company.NombreLoteIncluyeCorrida,
-            ManejaInventarioPorSilo: cp.Company.ManejaInventarioPorSilo
+            ManejaInventarioPorSilo: cp.Company.ManejaInventarioPorSilo,
+            ReportesAlimentoDesdeInventarioUnificado: cp.Company.ReportesAlimentoDesdeInventarioUnificado
         )).ToList();
     }
 

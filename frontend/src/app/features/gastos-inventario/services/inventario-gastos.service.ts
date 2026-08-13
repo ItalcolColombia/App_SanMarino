@@ -79,10 +79,13 @@ export class InventarioGastosService {
     return this.http.get<string[]>(`${this.api}/inventario-gastos/conceptos`, { params: httpParams });
   }
 
-  getItems(params: { farmId: number; concepto: string }): Observable<InventarioGastoItemStockDto[]> {
-    const httpParams = new HttpParams()
+  getItems(params: { farmId: number; concepto: string; siloId?: number | null }): Observable<InventarioGastoItemStockDto[]> {
+    let httpParams = new HttpParams()
       .set('farmId', params.farmId)
       .set('concepto', params.concepto);
+    // Con silo, el saldo que devuelve el backend es el de ESE silo (es de donde va a descontar);
+    // sin silo, el total de la granja ya agregado en una fila por ítem.
+    if (params.siloId) httpParams = httpParams.set('siloId', params.siloId);
     return this.http.get<InventarioGastoItemStockDto[]>(`${this.api}/inventario-gastos/items`, { params: httpParams });
   }
 

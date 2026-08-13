@@ -18,6 +18,7 @@ public class InventarioGastoDetalleConfiguration : IEntityTypeConfiguration<Inve
         e.Property(x => x.Concepto).HasColumnName("concepto").HasMaxLength(200);
         e.Property(x => x.Cantidad).HasColumnName("cantidad").HasPrecision(18, 3).IsRequired();
         e.Property(x => x.Unidad).HasColumnName("unidad").HasMaxLength(20).HasDefaultValue("kg").IsRequired();
+        e.Property(x => x.SiloId).HasColumnName("silo_id");
         e.Property(x => x.StockAntes).HasColumnName("stock_antes").HasPrecision(18, 3);
         e.Property(x => x.StockDespues).HasColumnName("stock_despues").HasPrecision(18, 3);
 

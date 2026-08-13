@@ -1,4 +1,4 @@
-// src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs
+﻿// src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
@@ -1409,6 +1409,45 @@ public class ReporteTecnicoService : IReporteTecnicoService
         return (int)Math.Ceiling(edadDias / 7.0);
     }
 
+    /// <summary>
+    /// ¿La empresa DUEÑA de la granja declaró que sus reportes leen el inventario unificado?
+    /// Se resuelve por la granja (no por el token) para que el reporte no dependa de con qué empresa
+    /// esté logueado quien lo abre. Fail-closed: sin dato, la tabla de siempre.
+    /// </summary>
+    private async Task<bool> LeeInventarioUnificadoAsync(int granjaId, CancellationToken ct)
+    {
+        var flag = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId)
+            .Join(_ctx.Companies.AsNoTracking(), f => f.CompanyId, c => c.Id,
+                (_, c) => c.ReportesAlimentoDesdeInventarioUnificado)
+            .FirstOrDefaultAsync(ct);
+
+        return ReporteAlimentoInventarioCalculos.LeeInventarioUnificado(flag);
+    }
+
+    /// <summary>
+    /// Kilos de alimento del día en <c>inventario_gestion_movimiento</c> para los tipos indicados.
+    /// El tipo de ítem se resuelve contra el catálogo del módulo nuevo
+    /// (<c>item_inventario_ecuador</c>), no por el nombre del producto: el filtro viejo buscaba la
+    /// palabra «alimento» en el nombre y se perdía todo lo que no la tuviera.
+    /// </summary>
+    private async Task<decimal> SumaAlimentoUnificadoAsync(int granjaId, DateTime fecha, string[] tipos, CancellationToken ct)
+    {
+        var desde = new DateTimeOffset(DateTime.SpecifyKind(fecha.Date, DateTimeKind.Utc));
+        var hasta = desde.AddDays(1);
+
+        return await _ctx.InventarioGestionMovimientos
+            .AsNoTracking()
+            .Where(m => m.FarmId == granjaId && m.CreatedAt >= desde && m.CreatedAt < hasta)
+            .Where(m => tipos.Contains(m.MovementType))
+            .Join(_ctx.ItemInventario.AsNoTracking(),
+                m => m.ItemInventarioEcuadorId,
+                i => i.Id,
+                (m, i) => new { m, i })
+            .Where(x => x.i.TipoItem.Trim().ToLower() == "alimento")
+            .SumAsync(x => x.m.Quantity, ct);
+    }
+
     private decimal CalcularBultos(decimal kilos)
     {
         // Asumiendo que un bulto estándar pesa 40kg
@@ -1422,6 +1461,11 @@ public class ReporteTecnicoService : IReporteTecnicoService
         // Filtrar por nombre que contenga "alimento" o códigos comunes de alimentos
         try
         {
+            // Empresas sobre el módulo unificado: su alimento no está en la tabla vieja, así que sin
+            // este desvío el reporte devolvería 0 — y el catch de abajo lo haría en silencio.
+            if (await LeeInventarioUnificadoAsync(granjaId, ct))
+                return await SumaAlimentoUnificadoAsync(granjaId, fecha, ReporteAlimentoInventarioCalculos.TiposEntrada, ct);
+
             var ingresos = await _ctx.FarmInventoryMovements
                 .AsNoTracking()
                 .Include(m => m.CatalogItem)
@@ -1448,6 +1492,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
         // Obtener traslados de alimentos (TransferOut) del día
         try
         {
+            if (await LeeInventarioUnificadoAsync(granjaId, ct))
+                return await SumaAlimentoUnificadoAsync(granjaId, fecha, ReporteAlimentoInventarioCalculos.TiposTraslado, ct);
+
             var traslados = await _ctx.FarmInventoryMovements
                 .AsNoTracking()
                 .Include(m => m.CatalogItem)

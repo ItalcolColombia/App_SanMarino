@@ -38,5 +38,7 @@ public record CreateCompanyDto(
     /// <summary>El nombre del lote lleva el sufijo de corrida desde la primera apertura ("96 - 1").</summary>
     bool     NombreLoteIncluyeCorrida = false,
     /// <summary>El inventario se ubica en silos/bodegas de la granja, no en el galpón.</summary>
-    bool     ManejaInventarioPorSilo = false
+    bool     ManejaInventarioPorSilo = false,
+    /// <summary>Los reportes leen el alimento del inventario unificado, no de la tabla vieja.</summary>
+    bool     ReportesAlimentoDesdeInventarioUnificado = false
 );
