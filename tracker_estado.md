@@ -4786,10 +4786,53 @@ BD restaurada de nuevo (los 9 conteos y 0 filas con `silo_id`), backend detenido
 
 ## Fase D — Cierre (aditivo)
 
-- [ ] `fn_inventario_gastos_existencias` con `SUM` + `GROUP BY` **antes** de habilitar Gastos en SR
-      (hoy el `LEFT JOIN` asume una fila de stock por granja+ítem y con N silos multiplicaría filas)
+- [x] `fn_inventario_gastos_existencias` con `SUM` + `GROUP BY` **antes** de habilitar Gastos en SR
+      (el `LEFT JOIN` asumía una fila de stock por granja+ítem y con N silos multiplicaba filas)
 - [ ] Columna Silo en la carga masiva (hoja Alimento) si se habilita el módulo en SR
 - [ ] Reportes (Contable, Técnico) con la dimensión silo
+- [ ] **(nuevo, ver hallazgos abajo)** El resto del módulo Gastos para poder habilitarlo en SR:
+      `siloId` en el alta del gasto (DTO + form) y `GROUP BY` en `GetItemsWithStockAsync`
+
+### `fn_inventario_gastos_existencias`: el saldo se agrega (2026-08-13)
+
+Espejo [`backend/sql/fn_inventario_gastos_existencias.sql`](backend/sql/fn_inventario_gastos_existencias.sql)
++ migración `20260813140000_FnGastosExistenciasSaldoPorSilo` (idempotente, `CREATE OR REPLACE`; el
+`Down` **restaura** la versión anterior en vez de hacer `DROP`, que dejaría el reporte sin responder).
+
+El `LEFT JOIN` directo contra `inventario_gestion_stock` se reemplaza por una CTE `saldos` con
+`SUM(quantity)` agrupada por `(farm_id, item)`, acotada a las granjas del universo para no escanear
+el stock de toda la BD. **La reproducción del bug quedó grabada**, no se dedujo: con un ítem de
+insumos de SR repartido en Silo 4 (100) + Silo 20 (250) + bodega Insumos (30), la fn vieja devolvía
+**3 filas del mismo ítem** con saldos parciales 100 / 250 / 30; la nueva devuelve **1 fila con 380**,
+y sigue siendo 1 fila filtrando por granja y por concepto.
+
+**Regresión flag OFF** — se comparó la salida completa de la fn en las 5 empresas antes y después:
+Ecuador **1.179 filas idénticas** (Sanmarino, Demo, Panamá y SR dan 0 filas: sin catálogo no-alimento
+con stock a nivel granja). Multiset byte a byte igual.
+
+⚠️ **Hallazgo lateral: el orden del reporte no era determinista.** El primer diff de Ecuador salió
+con 3 pares de filas intercambiadas *sin* cambiar ningún valor. No era la CTE: el `ORDER BY` cortaba
+en `it.nombre` y en el catálogo de Ecuador conviven **ítems distintos con el mismo nombre** (`AV0342`
+y `SM0272`, ambos «AV. HEPA INMUNO BROILER NB 2500DS»), así que el desempate lo decidía el plan de
+ejecución. Ya pasaba antes de este cambio — dos exportaciones seguidas del mismo reporte salían con
+filas movidas. Se agregó `it.codigo, it.id` como desempate: no cambia ninguna fila ni ningún valor,
+solo fija un orden que nunca estuvo garantizado. Verificado: dos corridas seguidas ⇒ salida idéntica.
+
+### Hallazgos: la fn NO alcanza para habilitar Gastos en Santa Reyes
+
+Al verificar el resto del módulo aparecieron dos puntos más con el mismo supuesto de «una fila de
+stock por granja+ítem». **Ninguno rompe nada hoy** (Gastos no está en los `company_menus` de SR), pero
+quedan como requisito antes de habilitarlo — el arreglo de la fn por sí solo no basta:
+
+1. `InventarioGastoService.GetItemsWithStockAsync` (selector de ítems del modal) proyecta
+   `x.s.Quantity` **fila a fila**: en modo silo listaría el mismo ítem una vez por silo, cada una con
+   una cantidad parcial. Es el mismo `GROUP BY` que se le hizo a la fn, en LINQ.
+   (`GetConceptosAsync` usa el stock como semi-join con `Contains` ⇒ **no** multiplica, está bien.)
+2. `InventarioGastoService.CreateAsync` llama `RegistrarConsumoAsync` con `SiloId = null` y calcula
+   `stockAntes` con un `FirstOrDefaultAsync` que en modo silo tomaría **un silo cualquiera**. El alta
+   **falla en voz alta** (400 «Debe indicar el silo o la bodega…», fail-closed de la Fase B): no
+   corrompe saldos, pero el módulo es inusable en SR hasta que el gasto lleve `siloId` de punta a
+   punta (DTO + selector en el form + `stockAntes` por silo).
 
 ## Cierre
 

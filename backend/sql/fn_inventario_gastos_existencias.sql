@@ -17,7 +17,15 @@
 -- ⚠️ Columnas snake_case en RETURNS TABLE: EF aplica la naming convention a las props del row-class
 -- también en SqlQueryRaw<T> (mismo gotcha que fn_inventario_gastos_search / fn_kardex_farm_inventory).
 --
--- Idempotente (CREATE OR REPLACE). Fuente/spec de la migración AddFnInventarioGastosExistencias.
+-- ⚠️ El saldo se AGREGA (Fase D del plan de silos). Desde la Fase B, una empresa con
+-- `maneja_inventario_por_silo` guarda una fila de stock POR SILO/BODEGA, todas con nucleo_id y
+-- galpon_id NULL: el LEFT JOIN directo contra inventario_gestion_stock devolvía N filas por
+-- (granja, ítem) y el reporte habría repetido cada ítem tantas veces como silos lo tuvieran, cada
+-- una con un saldo PARCIAL. Con el flag apagado hay exactamente una fila (silo_id NULL), así que el
+-- SUM devuelve el mismo número de siempre.
+--
+-- Idempotente (CREATE OR REPLACE). Fuente/spec de la migración AddFnInventarioGastosExistencias
+-- (+ FnGastosExistenciasSaldoPorSilo, que es la que agregó el SUM).
 
 CREATE OR REPLACE FUNCTION fn_inventario_gastos_existencias(
     p_company_id  integer,
@@ -60,6 +68,17 @@ LANGUAGE sql STABLE AS $fn$
           AND i.activo
           AND lower(i.tipo_item) <> 'alimento'
           AND (p_concepto IS NULL OR btrim(i.concepto) = btrim(p_concepto))
+    ),
+    saldos AS (
+        -- Saldo a nivel granja: la SUMA de lo que hay en cada silo/bodega. Ver la nota de arriba —
+        -- sin este GROUP BY, una empresa por silo multiplicaría las filas del reporte.
+        -- Se acota a las granjas del universo para no escanear el stock de toda la BD.
+        SELECT s.farm_id, s.item_inventario_ecuador_id, SUM(s.quantity) AS quantity
+        FROM inventario_gestion_stock s
+        WHERE s.farm_id IN (SELECT id FROM granjas)
+          AND s.nucleo_id IS NULL
+          AND s.galpon_id IS NULL
+        GROUP BY s.farm_id, s.item_inventario_ecuador_id
     )
     SELECT
         gr.id,
@@ -75,11 +94,9 @@ LANGUAGE sql STABLE AS $fn$
         COALESCE(cs.gastos, 0)::int         AS gastos_rango
     FROM granjas gr
     CROSS JOIN items it
-    LEFT JOIN inventario_gestion_stock st
+    LEFT JOIN saldos st
            ON st.farm_id = gr.id
           AND st.item_inventario_ecuador_id = it.id
-          AND st.nucleo_id IS NULL
-          AND st.galpon_id IS NULL
     LEFT JOIN LATERAL (
         SELECT SUM(d.cantidad)              AS consumido,
                COUNT(DISTINCT g.id)         AS gastos
@@ -94,7 +111,13 @@ LANGUAGE sql STABLE AS $fn$
     ) cs ON TRUE
     -- Orden por concepto NORMALIZADO (agrupa 'Otros insumos' / 'Otros Insumos', que conviven en el
     -- catálogo); los sin concepto van al final. El concepto se DEVUELVE tal cual está en el catálogo.
+    -- El desempate por codigo+id NO es cosmético: hay ítems distintos con el MISMO nombre (p. ej.
+    -- AV0342 y SM0272, ambos 'AV. HEPA INMUNO BROILER NB 2500DS' en Ecuador). Sin él, Postgres los
+    -- devuelve en el orden que le convenga al plan y dos corridas seguidas del reporte salen con las
+    -- filas intercambiadas — ruido puro al comparar exportaciones.
     ORDER BY gr.name,
              CASE WHEN COALESCE(btrim(it.concepto), '') = '' THEN '~' ELSE lower(btrim(it.concepto)) END,
-             it.nombre;
+             it.nombre,
+             it.codigo,
+             it.id;
 $fn$;
