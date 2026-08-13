@@ -529,7 +529,7 @@ se actualiza el `.sql` **y** se aplica por migración. Cambiar solo el `.sql` de
 | **A — Catálogo y asignación** | Flag; `silo_catalogo`; extensión de `farm_silos`; `galpon_silos`; `lote_silos`; 4 servicios + endpoints; pantallas 1-4 del front. **No toca inventario.** | **Ninguno**: tablas y pantallas nuevas, gateadas por flag |
 | **B — Inventario por silo** | `silo_id` en stock/movimiento/histórico; swap del índice único; `InventarioGestionService.Silos.cs`; pantalla 5. | **Acá está el riesgo** (índice + `ON CONFLICT`). Se abre con el smoke de regresión flag OFF |
 | **C — Consumo por silo** | `ItemConsumoKey`/metadata; `ColombiaInventarioConsumoService`; seguimiento levante y producción; pantallas 6-7. | Bajo: la rama Colombia modelo B con `SiloId=null` es la de hoy |
-| **D — Cierre** | `fn_inventario_gastos_existencias` con `GROUP BY`; columna Silo en carga masiva; reportes (Contable, Técnico) con silo. | Bajo, todo aditivo |
+| **D — Cierre** ✅ | `fn_inventario_gastos_existencias` con `GROUP BY` (**hecho**). Carga masiva y reportes: **auditados, no requieren cambio** — la carga masiva no tiene rutas hijas habilitadas en SR y los reportes no leen ninguna tabla con `silo_id`. Detalle y evidencia en el tracker. | Bajo, todo aditivo |
 
 Validación de **cada** fase: `cd backend && dotnet build` (0 errores, sin advertencias nuevas) +
 `dotnet test` · `cd frontend && yarn build` (único warning aceptado: bundle budget) · smoke doble

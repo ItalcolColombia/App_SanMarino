@@ -4788,8 +4788,66 @@ BD restaurada de nuevo (los 9 conteos y 0 filas con `silo_id`), backend detenido
 
 - [x] `fn_inventario_gastos_existencias` con `SUM` + `GROUP BY` **antes** de habilitar Gastos en SR
       (el `LEFT JOIN` asumía una fila de stock por granja+ítem y con N silos multiplicaba filas)
-- [ ] Columna Silo en la carga masiva (hoja Alimento) si se habilita el módulo en SR
-- [ ] Reportes (Contable, Técnico) con la dimensión silo
+- [x] Columna Silo en la carga masiva (hoja Alimento) — **NO aplica**, verificado con datos (abajo)
+- [x] Reportes (Contable, Técnico) con la dimensión silo — **NO la necesitan** (auditado, abajo)
+- [ ] ⚠️ **Bloqueante de go-live para SR, NO lo causaron los silos**: los dos reportes leen el
+      alimento de la tabla LEGACY `farm_inventario_movements`, donde SR tiene 0 filas ⇒ columnas de
+      alimento en cero. Requiere decisión del usuario (tocarlo cambia el reporte de Sanmarino y Demo)
+
+### Reportes Contable y Técnico: no hay dimensión silo que agregar (auditado 2026-08-13)
+
+**Los dos reportes están habilitados para SR** (`company_menus` + `role_menus` de los roles 30 y 31),
+así que sí había que mirarlos. El resultado es que el ítem del plan es un **no-op**: ninguno de los dos
+lee las tres tablas que ganaron `silo_id` (`inventario_gestion_stock`, `inventario_gestion_movimiento`,
+`lote_registro_historico_unificado`). En todo el backend de reportes hay **3 accesos a inventario**,
+los tres a la tabla vieja:
+
+- [`ReporteContableService.cs:816`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteContableService.cs:816) — kardex de bultos
+- [`ReporteTecnicoService.cs:1425`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs:1425) y [`:1451`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs:1451) — ingresos y traslados de alimento
+
+De ahí que **ninguno de los dos riesgos del silo aplique**: (a) no hay `LEFT JOIN` a una tabla de
+*saldos*, se agrega con `GroupBy(fecha)` / `SumAsync` sobre una tabla de *movimientos* —donde el silo
+viaja en la propia fila y no genera fan-out—; (b) no hay ningún filtro por `nucleo_id`/`galpon_id` de
+inventario, así que el escenario «en modo silo el galpón va NULL ⇒ el reporte pierde el alimento»
+tampoco se da. El grano de salida es (lote, fecha) o (lote, semana), y el núcleo/galpón que muestran
+sale del **lote**, no del inventario — el silo cambió dónde vive el ALIMENTO, no dónde vive el lote.
+
+### ⚠️ Lo que sí apareció: los reportes leen el módulo de inventario VIEJO
+
+Verificado en la BD local, no deducido:
+
+| Tabla | Empresas con filas |
+|---|---|
+| `farm_inventory_movements` (**legacy**, la que leen los reportes) | 1 Sanmarino (324, última **2026-07-17**), 4 Demo (2) |
+| `inventario_gestion_movimiento` (**nueva**, la que escribe SR) | 1 (326), 3 Ecuador (8.674), 4 (12), 5 Panamá (1.159) |
+
+**Santa Reyes no tiene ni una fila en la tabla legacy** y no la va a tener: todo su alimento entra por
+`InventarioGestionController`, que es el que conoce `maneja_inventario_por_silo`. Consecuencia concreta
+cuando SR abra estos reportes: **Entradas / Traslados / Retiros / Saldo de bultos = 0** en el Contable
+([`ReporteContableService.cs:850-875`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteContableService.cs:850))
+y `ingresosAlimentoKilos` / `trasladosAlimentoKilos` = 0 en el Técnico. No es un número mal calculado:
+es un número que no existe, y el `catch { return 0; }` de
+[`ReporteTecnicoService.cs:1440`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs:1440)
+lo devolvería en silencio igual que si no hubiera pasado nada.
+
+**Por qué no lo arreglé de una:** repuntar los reportes a `inventario_gestion_movimiento` cambia el
+número que hoy ven **Sanmarino y Demo** (las otras dos empresas con estos reportes), y las dos tablas
+no son equivalentes — la legacy tiene 324 filas de Sanmarino y la nueva 326, con una fila de julio
+(`Entry` 1.600 del 2026-07-17) que existe **solo** en la legacy. Es un cambio de comportamiento sobre
+un reporte contable vivo: va con decisión explícita y con verificación empresa por empresa, no de
+arrastre en la fase de silos. **Es anterior a este plan** (nace de la unificación de inventario de
+Colombia) y no lo introdujo ninguna de las fases A-D.
+
+### Carga Masiva en SR: no hay nada que tocar (verificado en la BD, 2026-08-13)
+
+El plan lo daba por «fuera de alcance» de memoria; lo confirmé contra `menus`/`role_menus`. El menú
+**Carga Masiva (id 66) sí está** en los dos roles de SR (30 `Santa Reyes Administrador`, 31
+`Santa Reyes Implementador`), pero es un **padre con `route` vacía** y sus dos únicos hijos —
+`/migraciones-masivas` (60) y `/migraciones/sincronizacion-panama` (65)— **no están habilitados para
+ninguno de los dos**. O sea: se ve el nodo en el árbol y no lleva a ninguna pantalla. Agregarle la
+columna Silo a la hoja Alimento sería escribir código para un flujo que hoy nadie puede abrir en SR;
+queda para el día que se habilite alguna de esas rutas (y ahí hay que hacerlo, o el alimento entraría
+sin ubicación). Los **dos reportes sí son alcanzables** por ambos roles ⇒ ese es el trabajo real.
 - [ ] **(nuevo, ver hallazgos abajo)** El resto del módulo Gastos para poder habilitarlo en SR:
       `siloId` en el alta del gasto (DTO + form) y `GROUP BY` en `GetItemsWithStockAsync`
 
@@ -4839,3 +4897,48 @@ quedan como requisito antes de habilitarlo — el arreglo de la fn por sí solo 
 - [ ] Commit acotado por fase, **sin footer de atribución** (autor único moisesmurillo)
 - [ ] `make down` / procesos de smoke detenidos
 - [ ] Push y deploy **solo con OK explícito del usuario**
+
+---
+
+# Módulo «Gerencia»: Panel de control en solo-lectura global (permiso `tickets.indicadores`)
+
+**Plan:** [`fase_de_desarrollo/gerencia_panel_control_permiso_lectura_plan.md`](fase_de_desarrollo/gerencia_panel_control_permiso_lectura_plan.md)
+**Sesión propia — no tocar los bloques de arriba (silos / gastos, en curso en otra ventana).**
+
+Un rol de gerencia debe ver **solo** el Panel de control de ItalJira, con los indicadores de TODOS
+los casos, sin heredar nada de `tickets.admin`. Hoy no se puede por datos: el alcance global lo
+decide `AplicarFiltroTablero` (`TicketService.Gestion.cs:326`) contra `tickets.admin`, así que un rol
+con `tickets.gestionar` ve el panel **en cero** (solo sus casos asignados).
+
+## Backend
+
+- [ ] B1 `Application/Calculos/TicketAlcancePanelCalculos.cs` — `TieneAlcanceGlobal(permisos, vistaSoloLectura)`
+- [ ] B2 `AplicarFiltroTablero(filtro, bool vistaSoloLectura = false)` delega en B1 (tablero y roadmap sin tocar)
+- [ ] B3 `GetIndicadoresAsync` / `GetReporteAsync` pasan `vistaSoloLectura: true`
+- [ ] B4 Tests xUnit `TicketAlcancePanelCalculosTests` — 9 casos, incluida la regresión de `tickets.gestionar`
+- [ ] B5 Migración data-only `MenuGerenciaPanelControl`: permiso + grupo `gerencia` + `gerencia.panel`
+      (`/gerencia/panel`, ruta PROPIA: `parent_id` es único y las migraciones localizan por `route`)
+- [ ] B6 En la misma migración: `menu_permissions` (OR con `tickets.admin`) + **`company_permissions`**
+      ⚠️ sin esta última el permiso NO viaja en el JWT (`CompanyPermissionCalculos.cs:152`, fail-closed por empresa)
+
+## Frontend
+
+- [ ] F1 `features/gerencia/gerencia.routes.ts` — `/gerencia/panel` reutiliza `PanelComponent`
+- [ ] F2 `app.config.ts` — bloque lazy `path: 'gerencia'` con `authGuard`
+- [ ] F3 `TICKET_PERMS.indicadores`
+- [ ] F4 Revisar los `RouterLink` del panel: no dejar enlaces a vistas que el rol no puede abrir
+
+## Validación
+
+- [ ] V1 `dotnet build` + `dotnet test` (0 errores, sin nuevas advertencias)
+- [ ] V2 `yarn build` (solo el warning de bundle budget preexistente)
+- [ ] V3 Migración aplicada en la BD local (`dotnet ef database update`)
+- [ ] V4 Smoke **sin** el permiso: admin y resolutor exactamente igual que antes (regresión)
+- [ ] V5 Smoke **con** el permiso: solo el menú Gerencia; `/italjira/*` por URL → `/home`; totales = los del admin
+- [ ] V6 Backend local apagado y puerto libre al terminar
+
+## Cierre
+
+- [ ] Commit sin footer de atribución (autor único moisesmurillo)
+- [ ] Push y deploy **solo con OK explícito**
+- [ ] Post-deploy manual: crear/elegir el rol, asignarle `tickets.indicadores` y el menú (no lo hace la migración)
