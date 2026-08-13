@@ -4894,9 +4894,31 @@ quedan como requisito antes de habilitarlo — el arreglo de la fn por sí solo 
 
 ## Cierre
 
-- [ ] Commit acotado por fase, **sin footer de atribución** (autor único moisesmurillo)
-- [ ] `make down` / procesos de smoke detenidos
+- [x] Commit acotado por fase, **sin footer de atribución** (autor único moisesmurillo) — 8 commits,
+      uno por fase/hallazgo (`503d5a3` plan → `6e3b167` cierre de la D)
+- [x] `make down` / procesos de smoke detenidos — 5002 y 5501 libres, BD restaurada a su estado exacto
 - [ ] Push y deploy **solo con OK explícito del usuario**
+
+### ⚠️ Dos precondiciones que hay que verificar EN PROD antes de desplegar
+
+Las dos fallan **en silencio** (la migración es idempotente: si no matchea, no inserta y no tira error):
+
+1. **La condición de arranque se verificó en LOCAL, no en prod.** El plan arranca de «SR tiene 0
+   movimientos, 0 stock y 0 lotes ⇒ sin backfill». Si desde entonces SR empezó a cargar inventario en
+   producción, **hay que replanificar con backfill** — el stock existente quedaría con `silo_id` NULL y
+   en modo silo ninguna pantalla lo encontraría. Verificar antes del deploy:
+   `SELECT count(*) FROM inventario_gestion_stock s JOIN farms f ON f.id=s.farm_id WHERE f.company_id=<SR>;`
+2. **El seed localiza TODO por nombre**: `companies.name = 'Santa Reyes'` y, para enlazar el catálogo,
+   `silo_catalogo.nombre = farm_silos.nombre` (`'Silo 1'..'Silo 38'`). Si en prod la empresa se llama
+   distinto (un espacio, una tilde, otra capitalización) o los silos tienen otros nombres, el seed
+   **no hace nada y nadie se entera**: el flag queda en `false` y SR sigue en modo clásico, que es
+   justamente el fail-closed que buscábamos, pero parecería que «el deploy no funcionó».
+   Post-deploy, confirmar: `SELECT maneja_inventario_por_silo FROM companies WHERE name='Santa Reyes';`
+   y `SELECT count(*) FROM farm_silos WHERE silo_catalogo_id IS NOT NULL AND granja_id=<La Esperanza>;` (esperado 38).
+
+**Lo que NO hace falta**: paso manual de menús. `MenuSilosSantaReyes` escribe `company_menus` **y**
+`role_menus`, así que el módulo Silos aparece solo en el sidebar de los roles de SR (a diferencia de
+otros módulos, que sí necesitaron asignarlo a mano post-deploy).
 
 ---
 
