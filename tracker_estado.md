@@ -4763,6 +4763,27 @@ silo el diccionario queda idéntico). **2.387 tests verdes.**
   haber **0 filas con `silo_id`** en stock, movimiento e histórico. Backend detenido, **5501 y 5002
   libres**.
 
+### Ciclo completo de la pantalla de PRODUCCIÓN (2026-08-13, 3ª tanda) — 18/18
+
+La 1ª tanda probó 5 casos en levante y solo el **alta** en producción. Producción ya estaba cableada
+igual (backend: `ProduccionService.Seguimiento.cs` lee el consumo viejo con
+`ParseMetadataItemsToKgPorOrigen`, que trae el silo, en la edición —línea 469— y en el borrado —613—;
+front: `modal-seguimiento-diario.component.ts` +171 líneas y el `[loteId]` de la lista), pero el
+smoke no lo demostraba. Ahora sí, sobre el lote 133 `SMOKE-SR-PRO`:
+
+- **P1 alta** ✔ A@Silo 4 (100) + B@Silo 20 (150), cada uno a su silo.
+- **P2 editar cambiando de silo** ✔ A pasa del Silo 4 al 20: el 4 recupera 900 → 1.000 y el 20
+  descuenta 500 → 400. Es el caso 22, en producción.
+- **P3 editar subiendo la cantidad** ✔ A@Silo 20 de 100 a 180: descuenta **solo el delta** (−80).
+- **P4 editar hacia un silo no asignado** ✔ 400 nombrando el Silo 39, sin mover ningún saldo.
+- **P5 editar sin silo** ✔ 400 «Debe indicar de qué silo o bodega sale cada alimento».
+- **P6 editar a 9.999 kg** ✔ 400 «Stock insuficiente … silo «Silo 20»: disponible 320, requerido
+  **9.819**» — el diff pide el incremento, no el total.
+- **P7 borrar** ✔ cada kg vuelve **al silo del que salió**: A al Silo 20 (el último, NO al 4, del que
+  había salido originalmente) y B al 20. Los tres saldos vuelven exactos a 1.000 / 500 / 800.
+
+BD restaurada de nuevo (los 9 conteos y 0 filas con `silo_id`), backend detenido, 5501/5002 libres.
+
 ## Fase D — Cierre (aditivo)
 
 - [ ] `fn_inventario_gastos_existencias` con `SUM` + `GROUP BY` **antes** de habilitar Gastos en SR
