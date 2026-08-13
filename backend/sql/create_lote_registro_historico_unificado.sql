@@ -11,6 +11,11 @@ CREATE TABLE IF NOT EXISTS public.lote_registro_historico_unificado (
     farm_id                     INTEGER NOT NULL,
     nucleo_id                   VARCHAR(64) NULL,
     galpon_id                   VARCHAR(64) NULL,
+    -- Silo/bodega donde paso el movimiento (empresas con maneja_inventario_por_silo). NULL en las
+    -- demas, que es lo que habia antes de la Fase B. La agrega la migracion
+    -- AddInventarioPorSiloEnStockYMovimiento; sin FK, igual que farm_id/galpon_id: el espejo
+    -- sobrevive al borrado del origen.
+    silo_id                     INTEGER NULL,
     fecha_operacion             DATE NOT NULL,
     tipo_evento                 VARCHAR(40) NOT NULL,
     -- Origen del registro: tabla + id (evita duplicados al re-ejecutar)
@@ -133,7 +138,7 @@ BEGIN
     WHERE i.id = NEW.item_inventario_ecuador_id;
 
     INSERT INTO public.lote_registro_historico_unificado (
-        company_id, lote_ave_engorde_id, farm_id, nucleo_id, galpon_id,
+        company_id, lote_ave_engorde_id, farm_id, nucleo_id, galpon_id, silo_id,
         fecha_operacion, tipo_evento, origen_tabla, origen_id,
         movement_type_original, item_inventario_ecuador_id, item_resumen,
         cantidad_kg, unidad, referencia, numero_documento,
@@ -144,6 +149,7 @@ BEGIN
         NEW.farm_id,
         NEW.nucleo_id,
         NEW.galpon_id,
+        NEW.silo_id,
         (NEW.created_at AT TIME ZONE 'UTC')::DATE,
         v_tipo,
         'inventario_gestion_movimiento',

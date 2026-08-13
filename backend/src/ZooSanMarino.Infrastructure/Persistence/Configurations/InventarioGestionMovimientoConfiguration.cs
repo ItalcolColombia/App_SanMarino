@@ -19,6 +19,8 @@ public class InventarioGestionMovimientoConfiguration : IEntityTypeConfiguration
         e.Property(x => x.FarmId).HasColumnName("farm_id").IsRequired();
         e.Property(x => x.NucleoId).HasColumnName("nucleo_id").HasMaxLength(50);
         e.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(50);
+        // Espejo de galpon_id/from_galpon_id para el inventario por silo (ver InventarioGestionStock.SiloId).
+        e.Property(x => x.SiloId).HasColumnName("silo_id");
         e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id").IsRequired();
 
         e.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 3).IsRequired();
@@ -29,6 +31,7 @@ public class InventarioGestionMovimientoConfiguration : IEntityTypeConfiguration
         e.Property(x => x.FromFarmId).HasColumnName("from_farm_id");
         e.Property(x => x.FromNucleoId).HasColumnName("from_nucleo_id").HasMaxLength(50);
         e.Property(x => x.FromGalponId).HasColumnName("from_galpon_id").HasMaxLength(50);
+        e.Property(x => x.FromSiloId).HasColumnName("from_silo_id");
 
         e.Property(x => x.Reference).HasColumnName("reference").HasMaxLength(100);
         e.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(500);

@@ -20,6 +20,10 @@ public class InventarioGestionStockConfiguration : IEntityTypeConfiguration<Inve
         e.Property(x => x.NucleoId).HasColumnName("nucleo_id").HasMaxLength(50);
         e.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(50);
         e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id").IsRequired();
+        // Ubicación real del alimento en las empresas con maneja_inventario_por_silo. Sin navegación
+        // a propósito: el silo se resuelve por servicio (scoping fail-closed por granja) y una
+        // relación acá arrastraría includes que ninguna lectura necesita.
+        e.Property(x => x.SiloId).HasColumnName("silo_id");
 
         e.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 3).IsRequired();
         e.Property(x => x.Unit).HasColumnName("unit").HasMaxLength(20).HasDefaultValue("kg").IsRequired();

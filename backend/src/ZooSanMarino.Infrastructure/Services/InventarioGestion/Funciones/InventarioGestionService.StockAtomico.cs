@@ -78,7 +78,22 @@ public partial class InventarioGestionService
     /// las columnas: Postgres exige que el inferidor del conflicto coincida exactamente con el índice,
     /// y ese índice es de expresión justamente porque <c>NULL</c> no colisiona con <c>NULL</c>.
     /// </para>
+    ///
+    /// <para>
+    /// 🔴 <b>Esta expresión y el índice son UNA sola cosa.</b> La migración
+    /// <c>AddInventarioPorSiloEnStockYMovimiento</c> le sumó <c>COALESCE(silo_id, 0)</c> a
+    /// <c>ux_inventario_gestion_stock_clave_natural</c>, y los dos se tocaron en el mismo commit: si
+    /// se cambia uno sin el otro, Postgres no encuentra el índice inferido y <b>todo ingreso de toda
+    /// empresa</b> revienta con «no unique or exclusion constraint matching the ON CONFLICT
+    /// specification». Con el flag <c>maneja_inventario_por_silo</c> apagado, <paramref name="siloId"/>
+    /// es siempre <c>null</c> ⇒ <c>COALESCE(silo_id,0)</c> vale 0 constante ⇒ la clave es
+    /// <b>equivalente</b> a la anterior y ningún saldo se parte.
+    /// </para>
     /// </summary>
+    /// <param name="siloId">
+    /// Silo o bodega de la granja (solo empresas con inventario por silo). <c>null</c> = ubicación
+    /// clásica por núcleo/galpón, que es lo que escriben todas las demás empresas.
+    /// </param>
     /// <returns>La fila de stock resultante, ya con la cantidad acumulada.</returns>
     private async Task<InventarioGestionStock> SumarStockAtomicoAsync(
         int companyId,
@@ -89,6 +104,7 @@ public partial class InventarioGestionService
         int itemInventarioId,
         decimal cantidad,
         string unidad,
+        int? siloId,
         CancellationToken ct)
     {
         if (!StockAtomicoCalculos.EsCantidadOperable(cantidad))
@@ -97,12 +113,13 @@ public partial class InventarioGestionService
         var filas = await _db.InventarioGestionStock
             .FromSql(
                 $@"INSERT INTO inventario_gestion_stock
-                       (company_id, pais_id, farm_id, nucleo_id, galpon_id,
+                       (company_id, pais_id, farm_id, nucleo_id, galpon_id, silo_id,
                         item_inventario_ecuador_id, quantity, unit, created_at, updated_at)
-                   VALUES ({companyId}, {paisId}, {farmId}, {nucleoId}, {galponId},
+                   VALUES ({companyId}, {paisId}, {farmId}, {nucleoId}, {galponId}, {siloId},
                         {itemInventarioId}, {cantidad}, {unidad}, now(), now())
                    ON CONFLICT (farm_id, item_inventario_ecuador_id,
-                                COALESCE(nucleo_id, ''), COALESCE(galpon_id, ''))
+                                COALESCE(nucleo_id, ''), COALESCE(galpon_id, ''),
+                                COALESCE(silo_id, 0))
                    DO UPDATE SET quantity   = inventario_gestion_stock.quantity + EXCLUDED.quantity,
                                  updated_at = now()
                    RETURNING *")
@@ -132,6 +149,7 @@ public partial class InventarioGestionService
         int itemInventarioId,
         string? nucleoId,
         string? galponId,
+        int? siloId,
         CancellationToken ct) =>
         _db.InventarioGestionStock
             .AsNoTracking()
@@ -139,7 +157,11 @@ public partial class InventarioGestionService
                 x => x.FarmId == farmId &&
                      x.ItemInventarioEcuadorId == itemInventarioId &&
                      x.NucleoId == nucleoId &&
-                     x.GalponId == galponId,
+                     x.GalponId == galponId &&
+                     // Con silo nulo traduce a `silo_id IS NULL`, que es la fila de siempre: la
+                     // búsqueda tiene que discriminar el silo o un consumo descontaría del saldo
+                     // de otro silo del mismo ítem.
+                     x.SiloId == siloId,
                 ct);
 
     /// <summary>

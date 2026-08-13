@@ -513,9 +513,13 @@ public partial class InventarioGestionService : IInventarioGestionService
         // El stock y el movimiento que lo explica van juntos o no van.
         await EnTransaccionAsync(async () =>
         {
+            // siloId null = ubicación clásica por núcleo/galpón. La resolución del silo desde el
+            // request (empresas con maneja_inventario_por_silo) entra con
+            // InventarioGestionService.Silos.cs; hasta entonces toda empresa escribe silo_id NULL,
+            // que es exactamente el comportamiento previo a la Fase B.
             existing = await SumarStockAtomicoAsync(
                 companyId, paisId, req.FarmId, nucleoId, galponId,
-                req.ItemInventarioEcuadorId, req.Quantity, unidad, ct);
+                req.ItemInventarioEcuadorId, req.Quantity, unidad, siloId: null, ct);
 
             // El movimiento hereda la unidad DE LA FILA DE STOCK, no la del request: si la fila ya
             // existía con otra unidad, manda la de la fila. Es el comportamiento previo
@@ -591,7 +595,7 @@ public partial class InventarioGestionService : IInventarioGestionService
     {
         // A2 — lectura sin rastreo: la fila se modifica por SQL atómico más abajo, y una copia
         // rastreada con la cantidad vieja haría que el SaveChanges posterior pisara el descuento.
-        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, ct);
+        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, siloId: null, ct);
         if (stockOrigen == null)
             throw new InvalidOperationException("No hay stock suficiente en el origen para el traslado.");
 
@@ -612,7 +616,7 @@ public partial class InventarioGestionService : IInventarioGestionService
 
             stockDestino = await SumarStockAtomicoAsync(
                 companyIdTo, paisIdTo, req.ToFarmId, toNucleoId, toGalponId,
-                req.ItemInventarioEcuadorId, req.Quantity, unidadTraslado, ct);
+                req.ItemInventarioEcuadorId, req.Quantity, unidadTraslado, siloId: null, ct);
 
             movAt = await RegistrarMovimientosTrasladoMismaGranjaAsync(
                 req, fromNucleoId, fromGalponId, toNucleoId, toGalponId,
@@ -746,7 +750,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         }
 
         // A2 — descuento atómico. Lectura sin rastreo (ver BuscarStockSinRastreoAsync).
-        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, ct);
+        var stockOrigen = await BuscarStockSinRastreoAsync(req.FromFarmId, req.ItemInventarioEcuadorId, fromNucleoId, fromGalponId, siloId: null, ct);
         if (stockOrigen == null)
             throw new InvalidOperationException("No hay stock suficiente en el origen para registrar el traslado a otra granja.");
 
@@ -922,7 +926,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         // Solicitud nueva: aquí se descuenta origen. Registro antiguo (Salida): el descuento ya se hizo al enviar.
         if (string.Equals(salida.MovementType, "TrasladoInterGranjaPendiente", StringComparison.Ordinal))
         {
-            var stockOrigen = await BuscarStockSinRastreoAsync(salida.FarmId, salida.ItemInventarioEcuadorId, salida.NucleoId, salida.GalponId, ct);
+            var stockOrigen = await BuscarStockSinRastreoAsync(salida.FarmId, salida.ItemInventarioEcuadorId, salida.NucleoId, salida.GalponId, salida.SiloId, ct);
             if (stockOrigen == null)
                 throw new InvalidOperationException("No hay stock suficiente en origen para completar la recepción (verifique disponibilidad).");
             if (!await DescontarStockAtomicoAsync(stockOrigen.Id, salida.Quantity, ct))
@@ -936,7 +940,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             var destino = destinos[i];
             var stockDestino = await SumarStockAtomicoAsync(
                 companyIdTo, paisIdTo, req.ToFarmId, destino.NucleoId, destino.GalponId,
-                salida.ItemInventarioEcuadorId, destino.Quantity, salida.Unit, ct);
+                salida.ItemInventarioEcuadorId, destino.Quantity, salida.Unit, siloId: null, ct);
             stocksDestino.Add(stockDestino);
 
             var movEntrada = new InventarioGestionMovimiento
@@ -1251,12 +1255,12 @@ public partial class InventarioGestionService : IInventarioGestionService
                 var (cId, pId) = await GetFarmCompanyAndPaisAsync(mov.FarmId, ct);
                 await SumarStockAtomicoAsync(
                     cId, pId, mov.FarmId, mov.NucleoId, mov.GalponId,
-                    mov.ItemInventarioEcuadorId, mov.Quantity, mov.Unit, ct);
+                    mov.ItemInventarioEcuadorId, mov.Quantity, mov.Unit, mov.SiloId, ct);
             }
             else
             {
                 // Anular un ingreso RESTA stock: si otro movimiento ya lo consumió, no se puede anular.
-                var stock = await BuscarStockSinRastreoAsync(mov.FarmId, mov.ItemInventarioEcuadorId, mov.NucleoId, mov.GalponId, ct);
+                var stock = await BuscarStockSinRastreoAsync(mov.FarmId, mov.ItemInventarioEcuadorId, mov.NucleoId, mov.GalponId, mov.SiloId, ct);
                 if (stock == null || !await DescontarStockAtomicoAsync(stock.Id, mov.Quantity, ct))
                     throw new InvalidOperationException(
                         "No se puede anular este ingreso: no hay stock suficiente en la ubicación para revertir la cantidad.");
@@ -1378,7 +1382,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         // DENTRO del UPDATE, así que el segundo consumo ve el saldo ya descontado.
         // La lectura es AsNoTracking() a propósito: una copia rastreada con la cantidad vieja
         // haría que el SaveChanges de abajo pisara el descuento.
-        var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, nucleoId, galponId, ct);
+        var stock = await BuscarStockSinRastreoAsync(req.FarmId, req.ItemInventarioEcuadorId, nucleoId, galponId, siloId: null, ct);
         if (stock == null)
             throw new InvalidOperationException(StockAtomicoCalculos.MensajeStockInsuficiente);
 

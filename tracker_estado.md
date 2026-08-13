@@ -4560,9 +4560,12 @@ el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del
 
 ## Fase B — Inventario por silo (⚠️ acá está el riesgo)
 
-- [ ] `silo_id` en `InventarioGestionStock`; `silo_id` + `from_silo_id` en `InventarioGestionMovimiento`;
+- [x] 🔴 **Smoke de REGRESIÓN flag OFF PRIMERO** (línea base congelada ANTES de tocar nada):
+      `backend/sql/verificar_paridad_stock_clave_natural.sql` + guion HTTP de 20 pasos en Sanmarino
+      (nivel granja ⇒ núcleo/galpón NULL) y Ecuador (por galpón ⇒ con valor)
+- [x] `silo_id` en `InventarioGestionStock`; `silo_id` + `from_silo_id` en `InventarioGestionMovimiento`;
       `silo_id` en `lote_registro_historico_unificado` + el `INSERT` del trigger
-- [ ] 🔴 **Swap del índice único** `ux_inventario_gestion_stock_clave_natural` (+ `COALESCE(silo_id,0)`)
+- [x] 🔴 **Swap del índice único** `ux_inventario_gestion_stock_clave_natural` (+ `COALESCE(silo_id,0)`)
       **y** el `ON CONFLICT` de `SumarStockAtomicoAsync` **en el MISMO commit** — desalineados, revienta
       todo ingreso de todas las empresas
 - [ ] `Application/Calculos/InventarioUbicacionSiloCalculos.cs` (puro) + tests xUnit (casos 1-5 del plan)
@@ -4576,11 +4579,45 @@ el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del
 - [ ] Front pantalla 5 — `/gestion-inventario`: selector Silo/Bodega en ingreso y traslado, columna Silo en
       stock/histórico/ingresos/traslados, recepción de tránsito por silo, export a Excel por el helper de
       `shared/utils/excel/`
-- [ ] 🔴 **Smoke de REGRESIÓN flag OFF primero**: ingreso+traslado+consumo en Sanmarino y Ecuador con
-      saldos idénticos; conteo de claves naturales antes/después del swap **igual**; `silo_id` NULL al 100 %
+- [x] 🔴 **Smoke de REGRESIÓN flag OFF, corrida DESPUÉS del swap**: ingreso+traslado+consumo en
+      Sanmarino y Ecuador con saldos idénticos; conteo de claves naturales antes/después del swap
+      **igual**; `silo_id` NULL al 100 %
 - [ ] Smoke SR: casos 11-17 del plan (ingreso, upsert, bodega→silo, silo→silo, sin silo, silo ajeno,
       silo compartido por 2 galpones con **un** saldo)
-- [ ] `GET /api/CuadreAlimentoEngorde` sigue en **0 descuadrados**
+- [x] `GET /api/CuadreAlimentoEngorde` sigue en **0 descuadrados**
+
+### Resultado parcial de la Fase B — el swap del índice (2026-08-12)
+
+**Se cerró lo que podía tumbar a todas las empresas; falta la mitad de arriba de la lista (silo en las
+primitivas, lecturas, DTOs y pantalla 5).**
+
+- Migración `20260813005101_AddInventarioPorSiloEnStockYMovimiento`, `Up()` idempotente escrito a mano:
+  4 columnas (`ADD COLUMN IF NOT EXISTS`), 3 FKs a `farm_silos` en `DO $$`, **swap del índice único** y
+  el trigger `trg_lote_hist_desde_inventario_gestion` con `NEW.silo_id`. Espejo
+  `backend/sql/create_lote_registro_historico_unificado.sql` actualizado en el mismo commit.
+- `SumarStockAtomicoAsync` y `BuscarStockSinRastreoAsync` toman `siloId`; **el `ON CONFLICT` viaja con
+  el índice en el mismo commit**. Los 9 llamadores pasan el silo del propio movimiento cuando existe
+  (anulación, recepción) y `null` donde todavía sale del request.
+- **Gate nuevo y reutilizable:** `backend/sql/verificar_paridad_stock_clave_natural.sql` (solo lectura,
+  corre antes y después; lo único que puede cambiar es el bloque 1, la definición del índice).
+- **Regresión flag OFF — 20 pasos, `diff` VACÍO antes vs. después**: Sanmarino granja 4→5 (ingreso sobre
+  clave existente, ingreso sobre clave nueva, 2º ingreso que suma sin duplicar, traslado inter-granja +
+  recepción del tránsito) y Ecuador granja 42 G0050→G0047 (los mismos + traslado galpón→galpón +
+  consumo). Verificación por SQL (filas de stock, movimientos por tipo, espejo histórico, duplicados)
+  también idéntica. `silo_id` NULL en el 100 % de stock, movimiento e histórico.
+- Paridad: bloques 2-6 idénticos; solo cambian la definición del índice y los contadores de `silo_id`
+  (−1 «no existe» → 0). **Ningún saldo se partió ni se fusionó.**
+- `dotnet build` 0 errores (2 warnings preexistentes) · **2.346 tests verdes** · cuadre de engorde en
+  **0 descuadrados** en las dos empresas.
+- ⚠️ El smoke escribe datos reales: se corrió con snapshot + restore verificado (conteo exacto de las
+  129 tablas idéntico salvo `__EFMigrationsHistory` +1, que es la migración nueva).
+- ⚠️ **El backend del usuario en :5002 quedó con el código VIEJO contra el índice NUEVO** ⇒ hay que
+  reiniciarlo o sus ingresos fallan con «no unique or exclusion constraint matching the ON CONFLICT
+  specification». Es exactamente el riesgo que documenta el plan, en su versión local.
+- 🔎 **Hallazgo de paso (preexistente, fuera de alcance):** `RegistrarConsumoAsync` exige núcleo+galpón
+  para todo ítem alimento **sin mirar** el flag «nivel granja» que sí mira `RegistrarIngresoAsync` ⇒ por
+  ese endpoint no se puede consumir alimento en Colombia (su consumo real entra por
+  `ColombiaInventarioConsumoService`). El 400 quedó congelado en la línea base.
 
 ## Fase C — Consumo por silo desde el seguimiento diario
 

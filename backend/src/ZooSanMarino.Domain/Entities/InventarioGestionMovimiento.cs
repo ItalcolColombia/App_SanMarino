@@ -14,6 +14,18 @@ public class InventarioGestionMovimiento
     public string? GalponId { get; set; }
     public int ItemInventarioEcuadorId { get; set; }
 
+    /// <summary>
+    /// Silo o bodega DESTINO del movimiento (FK → <c>farm_silos</c>). Espejo de <see cref="GalponId"/>
+    /// para las empresas con <c>maneja_inventario_por_silo</c>; <c>null</c> con el flag apagado.
+    /// </summary>
+    public int? SiloId { get; set; }
+
+    /// <summary>
+    /// Silo o bodega ORIGEN de un traslado (espejo de <see cref="FromGalponId"/>). <c>null</c> en
+    /// ingresos y con el flag apagado.
+    /// </summary>
+    public int? FromSiloId { get; set; }
+
     public decimal Quantity { get; set; }
     public string Unit { get; set; } = "kg";
     /// <summary>Ingreso, TrasladoEntrada, TrasladoSalida, Consumo</summary>
