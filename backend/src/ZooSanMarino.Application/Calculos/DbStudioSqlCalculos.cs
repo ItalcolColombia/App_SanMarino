@@ -292,6 +292,126 @@ public static class DbStudioSqlCalculos
         return $"ARRAY[{string.Join(", ", items)}]";
     }
 
+    // ===================== Orden de rutinas para el backup =====================
+
+    /// <summary>Una rutina exportada por el backup: su OID (orden de creación), su nombre y su <c>CREATE ... FUNCTION</c> completo.</summary>
+    public sealed record RoutineDef(long Oid, string Name, string Definition);
+
+    /// <summary>
+    /// Ordena las rutinas para que cada una se cree DESPUÉS de las que su cuerpo invoca. El cuerpo de una
+    /// función <c>LANGUAGE sql</c> se valida contra el catálogo AL CREARSE (a diferencia de <c>plpgsql</c>,
+    /// opaco hasta ejecutarse): si llama a una que todavía no existe, el restore falla con 42883.
+    ///
+    /// El orden por OID (creación) NO alcanza: <c>DROP FUNCTION</c> + <c>CREATE</c> —obligatorio para
+    /// cambiarle el <c>RETURNS TABLE</c> a una función— le asigna un OID nuevo, más alto que el de sus
+    /// llamadores, y la manda al final. <c>pg_depend</c> tampoco sirve: Postgres no registra ahí las
+    /// llamadas dentro del cuerpo de una función SQL clásica (verificado contra la base: 2 filas
+    /// <c>pg_proc→pg_proc</c> en todo el esquema). Leer los cuerpos es la única señal disponible.
+    ///
+    /// Kahn con desempate por OID, para que el resultado sea determinista y se mantenga lo más cerca
+    /// posible del orden de creación. Si queda un ciclo —solo puede venir de una arista falsa, porque un
+    /// ciclo real entre funciones SQL es imposible de crear— esos nodos se emiten al final en orden de
+    /// OID, o sea el comportamiento previo. La salida es SIEMPRE una permutación exacta de la entrada:
+    /// ninguna rutina se pierde ni se duplica.
+    /// </summary>
+    public static IReadOnlyList<RoutineDef> OrdenarRutinasPorDependencia(IReadOnlyList<RoutineDef> rutinas)
+    {
+        if (rutinas.Count < 2) return rutinas;
+
+        // Un mismo nombre puede tener varios overloads: la arista va a todos (sobre-restringe, nunca
+        // sub-restringe), porque el cuerpo no dice a qué firma le está llamando.
+        var porNombre = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        for (var i = 0; i < rutinas.Count; i++)
+        {
+            if (string.IsNullOrEmpty(rutinas[i].Name)) continue;
+            if (!porNombre.TryGetValue(rutinas[i].Name, out var lista))
+                porNombre[rutinas[i].Name] = lista = new List<int>();
+            lista.Add(i);
+        }
+
+        // dependientes[j] = rutinas que esperan a j; pendientes[i] = cuántas le faltan a i.
+        var dependientes = new List<int>[rutinas.Count];
+        var pendientes = new int[rutinas.Count];
+        for (var i = 0; i < rutinas.Count; i++) dependientes[i] = new List<int>();
+
+        for (var i = 0; i < rutinas.Count; i++)
+        {
+            var yaContadas = new HashSet<int>();
+            foreach (var (nombre, indices) in porNombre)
+            {
+                // Autorreferencia (recursivas) fuera: se esperaría a sí misma y nunca entraría a la cola.
+                if (string.Equals(nombre, rutinas[i].Name, StringComparison.Ordinal)) continue;
+                if (!RutinaInvocaA(rutinas[i].Definition, nombre)) continue;
+
+                foreach (var j in indices)
+                    if (j != i && yaContadas.Add(j))
+                    {
+                        dependientes[j].Add(i);
+                        pendientes[i]++;
+                    }
+            }
+        }
+
+        // Cola ordenada por OID: entre varias rutinas listas, sale primero la creada antes.
+        var listas = new SortedSet<(long Oid, int Idx)>();
+        for (var i = 0; i < rutinas.Count; i++)
+            if (pendientes[i] == 0) listas.Add((rutinas[i].Oid, i));
+
+        var salida = new List<RoutineDef>(rutinas.Count);
+        var emitida = new bool[rutinas.Count];
+        while (listas.Count > 0)
+        {
+            var (_, idx) = listas.Min;
+            listas.Remove(listas.Min);
+            salida.Add(rutinas[idx]);
+            emitida[idx] = true;
+
+            foreach (var dep in dependientes[idx])
+                if (--pendientes[dep] == 0) listas.Add((rutinas[dep].Oid, dep));
+        }
+
+        // Ciclo (arista falsa): al final en orden de OID — el comportamiento de siempre.
+        if (salida.Count < rutinas.Count)
+        {
+            var restantes = new List<RoutineDef>();
+            for (var i = 0; i < rutinas.Count; i++)
+                if (!emitida[i]) restantes.Add(rutinas[i]);
+            restantes.Sort((a, b) => a.Oid.CompareTo(b.Oid));
+            salida.AddRange(restantes);
+        }
+
+        return salida;
+    }
+
+    /// <summary>
+    /// ¿El cuerpo <paramref name="definicion"/> invoca a <paramref name="nombre"/>? Exige frontera de
+    /// palabra a la izquierda —admitiendo el punto, para capturar el calificado <c>public.fn_x(</c>— y un
+    /// paréntesis de apertura a la derecha (con espacios en medio). Ese paréntesis es lo que descarta los
+    /// prefijos: <c>fn_cuadre</c> no matchea dentro de <c>fn_cuadre_alimento_engorde(</c>, porque le sigue
+    /// <c>_</c>. Un nombre citado en un comentario genera una arista de más, no de menos.
+    /// </summary>
+    public static bool RutinaInvocaA(string? definicion, string nombre)
+    {
+        if (string.IsNullOrEmpty(definicion) || string.IsNullOrEmpty(nombre)) return false;
+
+        var desde = 0;
+        while (desde <= definicion.Length - nombre.Length)
+        {
+            var pos = definicion.IndexOf(nombre, desde, StringComparison.Ordinal);
+            if (pos < 0) return false;
+            desde = pos + 1;
+
+            if (pos > 0 && EsCaracterDeIdentificador(definicion[pos - 1])) continue;
+
+            var k = pos + nombre.Length;
+            while (k < definicion.Length && char.IsWhiteSpace(definicion[k])) k++;
+            if (k < definicion.Length && definicion[k] == '(') return true;
+        }
+        return false;
+    }
+
+    private static bool EsCaracterDeIdentificador(char c) => c == '_' || char.IsLetterOrDigit(c);
+
     private static string PgArrayTypeCast(Type? elementType)
     {
         var underlying = elementType is null ? null : Nullable.GetUnderlyingType(elementType) ?? elementType;

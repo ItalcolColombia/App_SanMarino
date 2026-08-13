@@ -4994,3 +4994,43 @@ directa. C = sin cambios.
 - [ ] **Post-deploy manual** (no lo hace la migración, a propósito): en Roles y Permisos crear/elegir
       el rol de gerencia → asignarle **solo** `tickets.indicadores` → asignarle el menú
       **Gerencia › Panel de control**. Hasta entonces el módulo no lo ve nadie.
+
+---
+
+# Backup DB Studio — orden de funciones por dependencia
+
+Plan: [db_studio_backup_orden_funciones_plan.md](fase_de_desarrollo/db_studio_backup_orden_funciones_plan.md)
+
+El backup descargable falla al restaurar con 42883 en 4 funciones `LANGUAGE sql`. Causa: se emiten
+ordenadas por OID y `fn_seguimiento_diario_engorde` fue recreada (DROP+CREATE obligatorio al cambiar su
+`RETURNS TABLE`) ⇒ OID nuevo ⇒ queda después de sus llamadores.
+
+## Diagnóstico
+- [x] D1 Ubicar el generador (`DbStudioService.Backup.cs` → `WriteRoutinesAsync`, orden por `p.oid`)
+- [x] D2 Confirmar que solo rompen los llamadores `LANGUAGE sql` (el `plpgsql` pasa)
+- [x] D3 Verificar contra la BD que `pg_depend` NO sirve (2 filas fn→fn en toda la base)
+- [x] D4 Descartar "correr el archivo 2 veces": los INSERT no son idempotentes (tablas `_backup_*` sin PK)
+
+## Implementación
+- [x] I1 `DbStudioSqlCalculos`: `RoutineDef` + `OrdenarRutinasPorDependencia` (Kahn, desempate por OID)
+- [x] I2 `DbStudioSqlCalculos`: helper `RutinaInvocaA` con fronteras de palabra y calificado `public.x(`
+- [x] I3 `WriteRoutinesAsync`: traer `proname`, bufferear, ordenar y escribir
+- [x] I4 Encabezado del backup: hoy indica re-correr el archivo entero (peligroso) — corregirlo
+
+## Tests
+- [x] T1 Caso real: llamador con OID menor ⇒ el callee sale primero
+- [x] T2 Sin dependencias ⇒ orden de OID intacto
+- [x] T3 Cadena A→B→C declarada al revés
+- [x] T4 Recursiva: no cuelga ni duplica
+- [x] T5 Ciclo: no pierde rutinas, caen al final por OID
+- [x] T6 Invariante: salida = permutación exacta de la entrada
+- [x] T7 Prefijos (`fn_cuadre` vs `fn_cuadre_alimento_engorde(`)
+- [x] T8 Calificado con esquema cuenta como invocación
+- [x] T9 Mención en comentario no rompe el orden
+
+## Validación
+- [x] V1 `dotnet build` 0 errores, sin advertencias nuevas
+- [x] V2 `dotnet test` verde
+- [x] V3 Contra los 55 cuerpos reales: las 4 funciones quedan después de `fn_seguimiento_diario_engorde`
+- [x] V4 Backup regenerado restaura en UNA pasada con `ON_ERROR_STOP=1` y 0 errores
+- [x] V5 Backend local apagado, puerto 5002 libre
