@@ -4795,9 +4795,12 @@ BD restaurada de nuevo (los 9 conteos y 0 filas con `silo_id`), backend detenido
       alimento en cero. **Resuelto con un flag por empresa** (`reportes_alimento_desde_inventario_unificado`),
       encendido SOLO para Santa Reyes: con el flag apagado la consulta es la de siempre, así que
       Sanmarino, Demo, Ecuador y Panamá no ven cambiar ni una celda (medido, ver abajo)
-- [ ] 🔸 **Decisión pendiente del usuario (NO bloquea a SR)**: encender el mismo flag en **Sanmarino**.
-      Su reporte ya está mostrando de menos —la tabla vieja se quedó en el **2026-07-17** y la nueva
-      llega al **2026-08-13**—, pero encenderlo mueve números ya conciliados (medición abajo)
+- [x] 🔸 **Decisión tomada por el usuario (2026-08-13): encendido también en Sanmarino**
+      (migración `20260814000000_ReportesUnificadoSanmarino`, localiza por `identifier='100063'` —el
+      NIT— y no por nombre, que es texto libre y fallaría en silencio). Su reporte venía mostrando de
+      menos: la tabla vieja se quedó en el **2026-07-17** y la nueva llega al **2026-08-13**.
+      Verificado sobre la BD ya migrada: Contable A374B entradas **2.867** / retiros **2.626,975**;
+      Técnico S369B **249.860 kg** donde antes mostraba **0**. Demo, Ecuador y Panamá siguen apagados
 
 ### Reportes Contable y Técnico: no hay dimensión silo que agregar (auditado 2026-08-13)
 
@@ -4939,16 +4942,20 @@ contable— y `AjusteStock`/`EliminacionStock` quedan afuera a propósito, igual
 | reporte | lote | flag OFF (hoy) | flag ON |
 |---|---|---|---|
 | Contable (bultos) | A374B, granja 20 | entradas **2.907** · retiros **2.608,675** | entradas **2.867** · retiros **2.626,975** |
-| Técnico (kg de alimento) | S369B, granja 12 | ingresos **0** | ingresos **749.580** |
+| Técnico (kg de alimento) | S369B, granja 12 | ingresos **0** | ingresos **249.860** |
 
 Y al volver a apagarlo, los dos vuelven **exactos** al baseline: el flag es el único interruptor.
 El caso de la granja 12 es el bug en estado puro — **0 kg** hoy porque su alimento entra por el módulo
 nuevo y el reporte lee el viejo, con el `catch { return 0; }` devolviéndolo en silencio.
 
-⚠️ **Lo que esto destapó y hay que decidir**: `farm_inventory_movements` de Sanmarino tiene 324 filas
-y su última es del **2026-07-17**; `inventario_gestion_movimiento` tiene **869** y llega al
-**2026-08-13**. O sea que el reporte de Sanmarino ya viene mostrando de menos. Encender su flag es
-una fila de SQL, pero mueve números conciliados: va con verificación explícita del usuario.
+⚠️ **Lo que esto destapó**: `farm_inventory_movements` de Sanmarino tiene 324 filas y su última es del
+**2026-07-17**; `inventario_gestion_movimiento` tiene **869** y llega al **2026-08-13**. O sea que el
+reporte de Sanmarino venía mostrando de menos. **El usuario decidió encenderlo** (migración
+`20260814000000_...`, ya aplicada y verificada en local). Demo, Ecuador y Panamá quedan apagados.
+
+🔎 **Trampa al medir el Técnico:** hay que sumar **solo `datosDiarios`**. Un recorrido recursivo del
+payload cuenta los mismos kilos **3 veces** (las filas diarias se repiten dentro de
+`sublotesIncluidos`) — así salió el 749.580 de la primera medición, donde el número real es 249.860.
 
 ## Cierre
 
