@@ -5206,3 +5206,21 @@ Capturas tomadas en LOCAL con `admin.ecuador@italcol.com`.
 - [x] P4 Segunda ejecución de la función: mismos números (idempotente)
 - [x] P5 Escenario real del deploy: migración EF aplicada ENCIMA de lo sembrado a mano ⇒ 0 cambios (345/39/99/98)
 - [x] P6 Función de prueba eliminada de la BD local
+
+## Casos (tickets) cerrados — pedido 14ago
+
+**Plan:** el mismo bloque; migración `20260814030000_SeedCasosCerradosBitacora`.
+Motivo: la bitácora vivía solo en ItalJira y las bandejas de Tickets leen `tickets`, no `ticket_tareas`.
+
+- [x] C1 Un caso por trabajo: **135 CERRADO + 2 EN_ANALISIS** (solo se cierra lo que quedó en LISTO)
+- [x] C2 `descripcion` = pedido del usuario · `solucion_descripcion` = qué se hizo + bugs + evidencia + estimación
+- [x] C3 Enlace `ticket_tareas.ticket_id` de la tarea y sus subtareas BUG (240 filas enlazadas)
+- [x] C4 Correlativo `TK-2026-NNNNNN` continuado desde el máximo de la base (local: 000024→000160, 160 códigos únicos)
+- [x] C5 `notificado_correo = false` en los 137 — no se envió ni un correo
+- [x] C6 `fecha_limite` NULL: no ensucia el semáforo de SLA
+- [x] C7 `dotnet build` 0 errores · `dotnet test` verde (2.439)
+- [x] C8 Idempotencia: 2ª pasada deja 160/137 sin cambios
+- [x] C9 **`Down` sin CASCADE**: desenlaza antes de borrar ⇒ tickets vuelven a 23 y las 345 tareas (39 SES + 99 BUG) quedan intactas
+- [x] C10 Re-aplicada: 137 casos, 240 enlaces
+- [x] C11 `backend/sql/casos_cerrados_bitacora_prod.sql` (variante función para alinear prod a mano)
+- [x] C12 Funciones de prueba eliminadas de la BD local

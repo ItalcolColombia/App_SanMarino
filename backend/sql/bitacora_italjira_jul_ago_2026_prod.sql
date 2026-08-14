@@ -1,39 +1,33 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Bitácora ItalJira de julio y agosto 2026 — alineación MANUAL de producción
+-- Bitácora de julio y agosto 2026 — alineación MANUAL de producción
+-- Contenido: las horas, el pedido, la solución y los bugs sobre las historias y tareas de ItalJira.
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Equivale, línea por línea, a la migración 20260814010000_SeedBitacoraSesionesJulAgo2026.
 -- Generado por fase_de_desarrollo/generadores/italjira_bitacora/generar_sql_prod.py — no editar
--- a mano: si hay que cambiar algo, se cambia la migración y se regenera este archivo.
+-- a mano: se cambia la migración y se regenera.
 --
 -- ¿POR QUÉ UNA FUNCIÓN? La consola de DB Studio rechaza cualquier ';' interno
--- (DbStudioSqlCalculos.ContainsMultipleStatements), así que un bloque DO no entra. El PASO 1
--- (crear la función) hay que correrlo con psql / pgAdmin / DBeaver una sola vez; el PASO 2 es
--- una sentencia sola y esa sí entra por DB Studio.
+-- (DbStudioSqlCalculos.ContainsMultipleStatements), así que un bloque DO no entra. El PASO 1 hay
+-- que correrlo con psql / pgAdmin / DBeaver una sola vez; el PASO 2 sí entra por DB Studio.
 --
--- ES IDEMPOTENTE: correrlo dos veces no cambia una sola fila la segunda vez. Y no choca con el
--- despliegue: cuando la migración corra al arrancar la app, encontrará todo hecho y no tocará
--- nada — EF solo registrará la migración en __EFMigrationsHistory.
---
--- NO PISA TRABAJO HUMANO: el UPDATE exige que la descripción siga siendo exactamente la que
--- escribió el seed del 07ago. Cualquier tarjeta editada a mano queda intacta.
+-- ES IDEMPOTENTE y no choca con el despliegue: cuando la migración corra al arrancar la app va a
+-- encontrar todo hecho y no va a tocar nada — EF solo la registra en __EFMigrationsHistory.
 --
 -- ───────────────────────────────────────────────────────────────────────────────
--- PASO 0 (opcional, una sentencia — sirve para DB Studio). Verificar el punto de partida:
+-- PASO 0 (opcional, una sentencia). Verificar el punto de partida:
 --
 --   SELECT (SELECT count(*) FROM public.historias WHERE codigo LIKE 'HIS-2026-%') AS historias,
 --          (SELECT count(*) FROM public.ticket_tareas WHERE codigo LIKE 'HIS-2026-%') AS tareas_sembradas,
 --          (SELECT count(*) FROM public.ticket_tareas WHERE codigo LIKE 'SES-2026%') AS ya_aplicado
 --
---   Esperado ANTES de correr: historias = 20, tareas_sembradas = 203, ya_aplicado = 0.
---   Si tareas_sembradas = 0, falta el seed del 07ago y este script solo creará las 39 tareas
---   nuevas: hay que desplegar antes.
+--   Esperado ANTES de correr: 20 / 203 / 0.
 --
--- PASO 1 — crear la función (psql / pgAdmin / DBeaver; es todo lo que sigue en este archivo).
--- PASO 2 — ejecutarla (una sentencia sola; entra por DB Studio):
+-- PASO 1 — crear la función (todo lo que sigue en este archivo).
+-- PASO 2 — ejecutarla (una sentencia sola):
 --
 --   SELECT * FROM public.fn_bitacora_italjira_jul_ago_2026()
 --
--- PASO 3 — opcional, soltar la función cuando ya no haga falta:
+-- PASO 3 — opcional, soltarla cuando ya no haga falta:
 --
 --   DROP FUNCTION public.fn_bitacora_italjira_jul_ago_2026()
 -- ───────────────────────────────────────────────────────────────────────────────
@@ -66,7 +60,7 @@ BEGIN
 
     -- Fail-open silencioso: sin el usuario no se siembra nada y la app arranca igual.
     IF v_user_guid IS NULL THEN
-        RETURN QUERY SELECT 'OMITIDO: no existe moiesbbuga@gmail.com en este entorno'::text, 0::bigint;
+        RETURN QUERY SELECT 'OMITIDO: ItalJira bitácora: no existe moiesbbuga@gmail.com en este entorno; omitida.'::text, 0::bigint;
         RETURN;
     END IF;
 
@@ -3222,24 +3216,16 @@ Causa/detalle registrado en el commit: El backup emitia las funciones ordenadas 
      WHERE h.id = s.historia_id
        AND h.codigo ~ '^HIS-2026-[0-9]{4}$'
        AND h.horas_estimadas IS DISTINCT FROM s.total;
-
-
-    -- Reporte de cierre: lo que quedó en la base después de correr todo.
     RETURN QUERY
-    SELECT 'tareas enriquecidas (horas + bitácora)'::text,
-           count(*) FROM public.ticket_tareas
-     WHERE codigo LIKE 'HIS-2026-%' AND horas_estimadas IS NOT NULL
-    UNION ALL
-    SELECT 'tareas nuevas de sesión (SES-*)'::text,
-           count(*) FROM public.ticket_tareas WHERE codigo LIKE 'SES-2026%'
-    UNION ALL
-    SELECT 'subtareas BUG (una por commit fix)'::text,
-           count(*) FROM public.ticket_tareas WHERE codigo LIKE 'BUG-%'
-    UNION ALL
-    SELECT 'historias con horas'::text,
-           count(*) FROM public.historias WHERE horas_estimadas IS NOT NULL
-    UNION ALL
-    SELECT 'horas estimadas totales'::text,
+    SELECT 'tareas enriquecidas (horas + bitácora)'::text, count(*)
+      FROM public.ticket_tareas WHERE codigo LIKE 'HIS-2026-%' AND horas_estimadas IS NOT NULL
+    UNION ALL SELECT 'tareas nuevas de sesión (SES-*)'::text, count(*)
+      FROM public.ticket_tareas WHERE codigo LIKE 'SES-2026%'
+    UNION ALL SELECT 'subtareas BUG (una por commit fix)'::text, count(*)
+      FROM public.ticket_tareas WHERE codigo LIKE 'BUG-%'
+    UNION ALL SELECT 'historias con horas'::text, count(*)
+      FROM public.historias WHERE horas_estimadas IS NOT NULL
+    UNION ALL SELECT 'horas estimadas totales'::text,
            COALESCE(round(sum(horas_estimadas)), 0)::bigint FROM public.historias;
 
 END
