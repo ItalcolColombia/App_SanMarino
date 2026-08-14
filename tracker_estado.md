@@ -5197,3 +5197,12 @@ Capturas tomadas en LOCAL con `admin.ecuador@italcol.com`.
   en 5.800 kg. Residuo esperado y consistente: el gasto de la demo queda en estado `Eliminado`
   (con su stock ya devuelto) y el lote `2605` soft-deleted, tal como los deja el propio sistema.
 - Sin cambios en código de producto.
+
+## Alineación manual de producción (pedido 14ago)
+
+- [x] P1 `backend/sql/bitacora_italjira_jul_ago_2026_prod.sql` — el mismo SQL envuelto en `fn_bitacora_italjira_jul_ago_2026()`
+- [x] P2 Motivo verificado: `DbStudioSqlCalculos.ContainsMultipleStatements` rechaza CUALQUIER `;` interno ⇒ ni `DO` ni `CREATE FUNCTION` entran por la consola; `SELECT fn()` sí
+- [x] P3 Probado en local desde cero (migración revertida): la función deja 98 / 39 / 99 / 1.313 h, idéntico a la migración
+- [x] P4 Segunda ejecución de la función: mismos números (idempotente)
+- [x] P5 Escenario real del deploy: migración EF aplicada ENCIMA de lo sembrado a mano ⇒ 0 cambios (345/39/99/98)
+- [x] P6 Función de prueba eliminada de la BD local
