@@ -5143,3 +5143,57 @@ pedido real + solución + evidencia), COMPLETA ~39 sesiones que no tenían tarea
 - 98 tareas enriquecidas · 39 tareas nuevas (`SES-AAAAMMDD-xxxx`) · 99 subtareas `BUG-<sha>` · 20 historias con horas
 - Total estimado **1.313 h** (por juicio) frente a **202 h** de sesión medidas — la diferencia queda visible ítem por ítem
 - Atribución: 351 de 447 commits con dueño; 96 (`docs(tracker)`/merges) quedaron sin atribuir a propósito
+
+---
+
+# Tracker — Manual de usuario: Lote base (programación) Pollo Engorde · Ecuador
+
+**Plan:** [`fase_de_desarrollo/manual_lote_base_engorde_ecuador_plan.md`](fase_de_desarrollo/manual_lote_base_engorde_ecuador_plan.md)
+**Fecha:** 2026-08-14
+
+Entregable de documentación: manual con capturas reales del flujo completo (crear lote base →
+asignar granjas → amarrarlo al crear el Lote de Pollo Engorde → gasto contra lote programado →
+quitar la granja que terminó su ciclo y su efecto en Inventario, Ventas y Seguimiento).
+Capturas tomadas en LOCAL con `admin.ecuador@italcol.com`.
+
+## Auditoría del comportamiento (fuente = código actual)
+- [x] A1 Flag `programacion_lotes_engorde` de la empresa (Ecuador ON) y `nombre_lote_incluye_corrida` (OFF)
+- [x] A2 Filtro del selector: base `activo` + asignado a la granja
+- [x] A3 `UnassignGranjaAsync` no toca lotes, gastos, ventas ni seguimiento
+- [x] A4 Re-atribución de gastos programados al encasetar (corte `fecha <= fecha_encaset`)
+- [x] A5 Permisos del rol Ecuador Administrador (sin `eliminar`)
+
+## Captura en vivo (local)
+- [x] C1 Backend `:5002` + front `:4200` arriba y login OK
+- [x] C2 Pestaña Lotes base + creación de `2605`
+- [x] C3 Modal Asignar granjas
+- [x] C4 Crear Lote de Pollo Engorde con base y nombre automático
+- [x] C5 Gasto de inventario contra lote programado + re-atribución
+- [x] C6 Quitar granja y efecto en el selector
+- [x] C7 No-efecto en Seguimiento / Inventario / Ventas del lote existente
+
+## Entregable
+- [x] E1 `Manual_Lote_Base_Pollo_Engorde_Ecuador.docx` con capturas en el Escritorio
+- [x] E2 Asunto + descripción de la entrega
+- [x] E3 Carpeta `capturas/` con los PNG numerados
+
+## Validación
+- [x] V1 BD local devuelta al estado inicial (conteos iguales)
+- [x] V2 Backend local apagado, puerto 5002 libre
+
+## Resultado
+
+- Entregable en `C:\Users\SAN MARINO\Desktop\Manual_Lote_Base_Engorde_Ecuador\`:
+  `Manual_Lote_Base_Pollo_Engorde_Ecuador.docx` (29 páginas, 25 capturas, 19 tablas) + el mismo
+  manual en `.pdf`, `ENTREGA_asunto_y_descripcion.md` y `capturas/` con los 37 PNG originales.
+- Capturas tomadas manejando Chrome por **CDP** (headless, 2400x1500) porque el panel del navegador
+  devuelve la imagen en contexto pero no escribe archivos en disco.
+- Demo real ejecutada en local: lote base `2605` → granja `Kilometro 22` → gasto de desinsectación
+  contra el programado → lote de engorde `2605` (corrida 1) → **re-atribución automática verificada
+  en BD** (`inventario_gasto.lote_ave_engorde_id` = 210, `lote_base_engorde_id` NULL) → granja quitada
+  → la corrida desaparece del selector y el lote sigue vivo en Seguimiento / Ventas / Inventario.
+- **BD local devuelta a su estado inicial** por los flujos de la app: 4 lotes base activos,
+  28 asignaciones, 118 lotes activos, 400 gastos activos, stock `SM0210` en Kilometro 22 de vuelta
+  en 5.800 kg. Residuo esperado y consistente: el gasto de la demo queda en estado `Eliminado`
+  (con su stock ya devuelto) y el lote `2605` soft-deleted, tal como los deja el propio sistema.
+- Sin cambios en código de producto.
