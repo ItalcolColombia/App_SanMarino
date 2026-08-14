@@ -5,7 +5,13 @@ namespace ZooSanMarino.Application.DTOs;
 
 public sealed record InventarioGastoLineaRequest(
     int ItemInventarioEcuadorId,
-    decimal Cantidad
+    decimal Cantidad,
+    /// <summary>
+    /// Silo o bodega del que sale el insumo. <b>Obligatorio</b> en las empresas que ubican el
+    /// inventario por silo (si falta, el consumo se rechaza con el mensaje de la Fase B) y
+    /// rechazado en las que no lo manejan. <c>null</c> = comportamiento previo.
+    /// </summary>
+    int? SiloId = null
 );
 
 public sealed record CreateInventarioGastoRequest(
@@ -35,7 +41,10 @@ public sealed record InventarioGastoDetalleDto(
     decimal Cantidad,
     string Unidad,
     decimal? StockAntes,
-    decimal? StockDespues
+    decimal? StockDespues,
+    /// <summary>Silo o bodega del que salió la línea (empresas con inventario por silo).</summary>
+    int? SiloId = null,
+    string? SiloNombre = null
 );
 
 public sealed record InventarioGastoDto(

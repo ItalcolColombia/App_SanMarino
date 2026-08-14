@@ -24,7 +24,7 @@ public partial class TicketService
 
     public async Task<TicketIndicadoresDto> GetIndicadoresAsync(TicketTableroFiltro filtro, CancellationToken ct)
     {
-        var filas = await ProyectarFilasIndicadorAsync(AplicarFiltroTablero(filtro), ct);
+        var filas = await ProyectarFilasIndicadorAsync(AplicarFiltroTablero(filtro, vistaSoloLectura: true), ct);
         return ConstruirIndicadores(filas);
     }
 
@@ -107,7 +107,7 @@ public partial class TicketService
 
     public async Task<TicketReporteDto> GetReporteAsync(TicketTableroFiltro filtro, CancellationToken ct)
     {
-        var query = AplicarFiltroTablero(filtro);
+        var query = AplicarFiltroTablero(filtro, vistaSoloLectura: true);
 
         // Los indicadores se calculan sobre el conjunto COMPLETO, aunque el detalle se recorte.
         var filasIndicador = await ProyectarFilasIndicadorAsync(query, ct);

@@ -191,6 +191,8 @@ export interface ItemSeguimientoDto {
   nombre?: string | null;
   cantidad: number;
   unidad: string;
+  /** Silo o bodega del que sale el ítem (empresas con `manejaInventarioPorSilo`). Sin flag no viaja. */
+  siloId?: number | null;
 }
 
 export interface SeguimientoItemDto {

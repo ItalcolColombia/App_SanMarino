@@ -388,4 +388,9 @@ export const TICKET_PERMS = {
   crear: 'tickets.crear',
   gestionar: 'tickets.gestionar',
   admin: 'tickets.admin',
+  /**
+   * Lectura global del Panel de control y su reporte, SIN gestión (módulo Gerencia).
+   * No abre el tablero ni el roadmap: el backend lo valida por vista, no por endpoint.
+   */
+  indicadores: 'tickets.indicadores',
 } as const;

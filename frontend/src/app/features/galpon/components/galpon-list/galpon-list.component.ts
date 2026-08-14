@@ -9,7 +9,7 @@ import { catchError, takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faEye, faMagnifyingGlass, faRightLeft } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faEye, faMagnifyingGlass, faRightLeft, faWarehouse } from '@fortawesome/free-solid-svg-icons';
 
 import { GalponService } from '../../services/galpon.service';
 import { GalponDetailDto, CreateGalponDto, UpdateGalponDto } from '../../models/galpon.models';
@@ -21,6 +21,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { GestionGranjasRefreshService } from '../../../farm/services/gestion-granjas-refresh.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { ModalAsignarSilosComponent, DestinoAsignacionSilos } from '../../../silos/components/modal-asignar-silos/modal-asignar-silos.component';
 
 interface NucleoOption { id: string; label: string; granjaId: number; }
 
@@ -33,6 +34,7 @@ interface NucleoOption { id: string; label: string; granjaId: number; }
     FontAwesomeModule,
     FormsModule,
     ConfirmationModalComponent,
+    ModalAsignarSilosComponent,
   ],
   templateUrl: './galpon-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -40,7 +42,7 @@ interface NucleoOption { id: string; label: string; granjaId: number; }
 })
 export class GalponListComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
-  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faEye = faEye; faMagnifyingGlass = faMagnifyingGlass; faRightLeft = faRightLeft;
+  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faEye = faEye; faMagnifyingGlass = faMagnifyingGlass; faRightLeft = faRightLeft; faWarehouse = faWarehouse;
 
   loading = false;
   filtro = '';
@@ -95,6 +97,12 @@ export class GalponListComponent implements OnInit, OnDestroy {
 
   /** Flag de la empresa activa: muestra los campos de ubicación ERP. Fail-closed. */
   manejaCodigosErp = false;
+
+  /** Flag: la empresa ubica el inventario en silos ⇒ el galpón declara de qué silos se alimenta. */
+  manejaInventarioPorSilo = false;
+
+  /** Destino del modal de asignación de silos (null = cerrado). */
+  destinoSilos: DestinoAsignacionSilos | null = null;
 
   private destroy$ = new Subject<void>();
 
@@ -163,7 +171,10 @@ export class GalponListComponent implements OnInit, OnDestroy {
   private loadCompanyFlags(): void {
     this.companyConfig.getFlags()
       .pipe(takeUntil(this.destroy$))
-      .subscribe(flags => { this.manejaCodigosErp = flags.manejaCodigosErpAvicola; });
+      .subscribe(flags => {
+        this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
+        this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
+      });
   }
 
   /** Solo carga galpones; filtros se derivan de estos datos. Actualiza allGalpones y viewGalpones. */
@@ -463,6 +474,24 @@ export class GalponListComponent implements OnInit, OnDestroy {
   // ======================
   // Mover galpón (a otro núcleo/granja)
   // ======================
+  /**
+   * Abre la asignación de silos del galpón: qué silos/bodegas lo alimentan. Es navegación —define
+   * qué ubicaciones se le ofrecen al usuario al filtrar por este galpón—, no dónde vive el stock.
+   */
+  abrirSilos(g: GalponDetailDto): void {
+    this.destinoSilos = {
+      tipo: 'galpon',
+      granjaId: g.granjaId,
+      nucleoId: g.nucleoId,
+      galponId: g.galponId,
+      titulo: `Silos del galpón ${g.galponNombre}`
+    };
+  }
+
+  cerrarSilos(): void {
+    this.destinoSilos = null;
+  }
+
   openMover(g: GalponDetailDto): void {
     this.moverGalpon = g;
     this.moverGranjaDestId = null;

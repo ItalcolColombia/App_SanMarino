@@ -7,6 +7,7 @@ import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LoteBaseEngordeApi, LoteBaseEngordeDto } from '../../../engorde-comun/services/lote-base-engorde.api';
+import { GestionInventarioService, InventarioGestionSiloDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog.service';
 import { exportarGastosInventarioExcel } from '../../funciones/exportar-gastos-inventario-excel.funcion';
 import {
@@ -87,11 +88,20 @@ export class GastosInventarioPageComponent implements OnInit {
   formObservaciones: string = '';
 
   items: InventarioGastoItemStockDto[] = [];
+  /**
+   * Empresa que ubica el inventario por silo (Santa Reyes). Fail-closed: apagado hasta que el flag
+   * responda, así que la pantalla arranca igual que para todas las demás empresas.
+   */
+  manejaPorSilo = false;
+  /** Silos y bodegas de la granja del modal: el gasto sale de uno de ellos. */
+  silosDeGranja: InventarioGestionSiloDto[] = [];
+  /** Silo elegido para la PRÓXIMA línea. Cada línea guarda el suyo. */
+  formSiloId: number | null = null;
   selectedItemId: number | null = null;
   selectedItem: InventarioGastoItemStockDto | null = null;
   qtyToAdd: number | null = null;
 
-  lineas: Array<InventarioGastoLineaRequest & { codigo: string; nombre: string; unidad: string; stockCantidad: number }> = [];
+  lineas: Array<InventarioGastoLineaRequest & { codigo: string; nombre: string; unidad: string; stockCantidad: number; siloNombre?: string | null }> = [];
 
   // Detail modal
   detail: any = null;
@@ -111,7 +121,8 @@ export class GastosInventarioPageComponent implements OnInit {
     private toast: ToastService,
     private confirmDialog: ConfirmDialogService,
     private companyConfig: ActiveCompanyConfigService,
-    private loteBaseApi: LoteBaseEngordeApi
+    private loteBaseApi: LoteBaseEngordeApi,
+    private gestionInventarioSvc: GestionInventarioService
   ) {}
 
   get qtyExceedsStock(): boolean {
@@ -125,6 +136,10 @@ export class GastosInventarioPageComponent implements OnInit {
     this.companyConfig.programacionLotesEngorde().subscribe(activo => {
       this.programacionLotes = activo;
       if (activo) this.cargarLotesProgramados();
+    });
+    this.companyConfig.getFlags().subscribe(flags => {
+      this.manejaPorSilo = flags.manejaInventarioPorSilo;
+      if (this.manejaPorSilo && this.formFarmId) this.cargarSilosDeGranja();
     });
     await this.refresh();
   }
@@ -277,15 +292,41 @@ export class GastosInventarioPageComponent implements OnInit {
     this.selectedItemId = null;
     this.selectedItem = null;
     this.qtyToAdd = null;
+    this.formSiloId = null;
+    this.silosDeGranja = [];
     this.lineas = [];
+    this.cargarSilosDeGranja();
     void this.loadConceptosParaFormFarm();
   }
 
   /** Al cambiar la granja del formulario: recarga conceptos (con stock en esa granja) y limpia la selección previa. */
   async onFormFarmChange(): Promise<void> {
     this.formConcepto = '';
+    this.formSiloId = null;
     this.recomputeLotesBaseParaGranja();
+    this.cargarSilosDeGranja();
     await this.loadConceptosParaFormFarm();
+    await this.onConceptoChange();
+  }
+
+  /**
+   * Silos y bodegas de la granja. Es la MISMA lista que valida el backend al registrar el consumo
+   * (`farm_silos` de esa granja, activos): ofrecer otra terminaría en un 400 al guardar.
+   * Fail-closed: ante error queda vacía y el modal avisa que la granja no tiene silos.
+   */
+  private cargarSilosDeGranja(): void {
+    if (!this.manejaPorSilo || !this.formFarmId) {
+      this.silosDeGranja = [];
+      return;
+    }
+    this.gestionInventarioSvc.getSilos(this.formFarmId).subscribe({
+      next: silos => { this.silosDeGranja = silos ?? []; },
+      error: () => { this.silosDeGranja = []; }
+    });
+  }
+
+  /** Cambiar de silo cambia el saldo ofrecido: los ítems se recargan acotados a ESE silo. */
+  async onSiloChange(): Promise<void> {
     await this.onConceptoChange();
   }
 
@@ -350,8 +391,15 @@ export class GastosInventarioPageComponent implements OnInit {
     if (!this.formFarmId || !this.formConcepto?.trim()) {
       return;
     }
+    // Con el flag puesto, sin silo elegido no se piden ítems: el saldo que se mostraría sería el de
+    // toda la granja y el gasto descuenta de UN silo.
+    if (this.manejaPorSilo && !this.formSiloId) return;
     try {
-      this.items = await firstValueFrom(this.api.getItems({ farmId: this.formFarmId, concepto: this.formConcepto.trim() }));
+      this.items = await firstValueFrom(this.api.getItems({
+        farmId: this.formFarmId,
+        concepto: this.formConcepto.trim(),
+        siloId: this.manejaPorSilo ? this.formSiloId : null
+      }));
     } catch {
       this.items = [];
     }
@@ -364,7 +412,16 @@ export class GastosInventarioPageComponent implements OnInit {
 
   addLinea(): void {
     if (!this.selectedItem || !this.qtyToAdd || this.qtyToAdd <= 0) return;
-    const existing = this.lineas.find(l => l.itemInventarioEcuadorId === this.selectedItem!.itemInventarioEcuadorId);
+    if (this.manejaPorSilo && !this.formSiloId) {
+      this.error = 'Seleccione el silo o la bodega de la que sale el insumo.';
+      return;
+    }
+    const siloLinea = this.manejaPorSilo ? this.formSiloId : null;
+    // La línea se identifica por (ítem, silo): el mismo insumo sacado de dos silos son dos líneas,
+    // porque el backend descuenta una fila de stock distinta por cada una.
+    const existing = this.lineas.find(l =>
+      l.itemInventarioEcuadorId === this.selectedItem!.itemInventarioEcuadorId &&
+      (l.siloId ?? null) === siloLinea);
     const stock = this.selectedItem.stockCantidad ?? 0;
     this.error = null;
     if (existing) {
@@ -383,16 +440,19 @@ export class GastosInventarioPageComponent implements OnInit {
     this.lineas.push({
       itemInventarioEcuadorId: this.selectedItem.itemInventarioEcuadorId,
       cantidad: this.qtyToAdd,
+      siloId: siloLinea,
       codigo: this.selectedItem.codigo,
       nombre: this.selectedItem.nombre,
       unidad: this.selectedItem.unidad,
-      stockCantidad: this.selectedItem.stockCantidad
+      stockCantidad: this.selectedItem.stockCantidad,
+      siloNombre: this.silosDeGranja.find(s => s.id === siloLinea)?.nombre ?? null
     });
     this.toast.success('Ítem agregado.', 'Gasto inventario', 2500);
   }
 
-  removeLinea(itemId: number): void {
-    this.lineas = this.lineas.filter(l => l.itemInventarioEcuadorId !== itemId);
+  removeLinea(itemId: number, siloId: number | null = null): void {
+    this.lineas = this.lineas.filter(l =>
+      !(l.itemInventarioEcuadorId === itemId && (l.siloId ?? null) === (siloId ?? null)));
     this.toast.info('Ítem removido.', 'Gasto inventario', 2500);
   }
 
@@ -436,7 +496,12 @@ export class GastosInventarioPageComponent implements OnInit {
       fecha: this.formFecha,
       observaciones: this.formObservaciones?.trim() || null,
       concepto: this.formConcepto.trim(),
-      lineas: this.lineas.map(l => ({ itemInventarioEcuadorId: l.itemInventarioEcuadorId, cantidad: l.cantidad }))
+      lineas: this.lineas.map(l => ({
+        itemInventarioEcuadorId: l.itemInventarioEcuadorId,
+        cantidad: l.cantidad,
+        // El silo solo viaja cuando la empresa lo maneja: sin flag el payload es el de siempre.
+        ...(l.siloId ? { siloId: l.siloId } : {})
+      }))
     };
     try {
       await firstValueFrom(this.api.create(payload));

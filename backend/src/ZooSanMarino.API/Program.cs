@@ -278,6 +278,12 @@ builder.Services.AddScoped<IFarmInventoryConsumoService, FarmInventoryConsumoSer
 builder.Services.AddScoped<IColombiaInventarioConsumoService, ColombiaInventarioConsumoService>();
 builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
 builder.Services.AddScoped<IInventarioGestionService, InventarioGestionService>();
+// Silos y bodegas: lista maestra + asignación a granja, galpón y lote (empresas con
+// ManejaInventarioPorSilo). GalponSilo y LoteSilo dependen de IFarmSiloService, así que va primero.
+builder.Services.AddScoped<ISiloCatalogoService, SiloCatalogoService>();
+builder.Services.AddScoped<IFarmSiloService, FarmSiloService>();
+builder.Services.AddScoped<IGalponSiloService, GalponSiloService>();
+builder.Services.AddScoped<ILoteSiloService, LoteSiloService>();
 builder.Services.AddScoped<ICuadreAlimentoEngordeService, CuadreAlimentoEngordeService>();
 builder.Services.AddScoped<IItemInventarioService, ItemInventarioService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>(); 

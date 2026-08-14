@@ -26,6 +26,11 @@ public interface IInventarioGastoService
 
     Task<List<string>> GetConceptosAsync(int? farmId = null, CancellationToken ct = default);
 
-    Task<List<InventarioGastoItemStockDto>> GetItemsWithStockAsync(int farmId, string concepto, CancellationToken ct = default);
+    /// <param name="siloId">
+    /// Silo o bodega del que se va a consumir (empresas con inventario por silo): acota el saldo
+    /// ofrecido al de ESE silo. Sin él, el saldo es el total de la granja —ya agregado, una fila por
+    /// ítem—, que es lo que ven las empresas sin el flag.
+    /// </param>
+    Task<List<InventarioGastoItemStockDto>> GetItemsWithStockAsync(int farmId, string concepto, int? siloId = null, CancellationToken ct = default);
 }
 

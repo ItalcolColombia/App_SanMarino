@@ -9,7 +9,7 @@ import { finalize } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight, faMagnifyingGlass, faRightLeft } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight, faMagnifyingGlass, faRightLeft, faWarehouse } from '@fortawesome/free-solid-svg-icons';
 import { ModalTrasladoLoteComponent } from '../modal-traslado-lote/modal-traslado-lote.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -30,6 +30,7 @@ import { Company, CompanyService } from '../../../../core/services/company/compa
 import { GuiaGeneticaService } from '../../services/guia-genetica.service';
 import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto, UpdateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { ModalAsignarSilosComponent, DestinoAsignacionSilos } from '../../../silos/components/modal-asignar-silos/modal-asignar-silos.component';
 
 /* ============================================================
    Directiva standalone: separador de miles (es-CO) y enteros
@@ -139,7 +140,8 @@ export class ThousandSeparatorDirective {
     ThousandSeparatorDirective,
     ModalTrasladoLoteComponent,
     FiltroSelectComponent,
-    ConfirmationModalComponent
+    ConfirmationModalComponent,
+    ModalAsignarSilosComponent
   ],
   templateUrl: './lote-list.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -150,6 +152,7 @@ export class LoteListComponent implements OnInit {
   faPlus = faPlus; faPen = faPen; faTrash = faTrash; faTimes = faTimes; faEye = faEye; faArrowRight = faArrowRight;
   faMagnifyingGlass = faMagnifyingGlass;
   faRightLeft = faRightLeft;
+  faWarehouse = faWarehouse;
 
   // Estado UI
   loading = false;
@@ -225,6 +228,12 @@ export class LoteListComponent implements OnInit {
 
   /** Flag de la empresa activa: muestra el bloque de centro de costo ERP. Fail-closed. */
   manejaCodigosErp = false;
+
+  /** Flag: la empresa ubica el inventario en silos ⇒ el lote declara de qué silos consume. */
+  manejaInventarioPorSilo = false;
+
+  /** Destino del modal de asignación de silos del lote (null = cerrado). */
+  destinoSilos: DestinoAsignacionSilos | null = null;
 
   // Opciones de letra A-F cuando hay lote base seleccionado
   letrasOptions: { nombre: string; ocupada: boolean }[] = [];
@@ -491,6 +500,7 @@ export class LoteListComponent implements OnInit {
   private loadCompanyFlags(): void {
     this.companyConfig.getFlags().subscribe(flags => {
       this.manejaCodigosErp = flags.manejaCodigosErpAvicola;
+      this.manejaInventarioPorSilo = flags.manejaInventarioPorSilo;
     });
   }
 
@@ -1636,6 +1646,22 @@ export class LoteListComponent implements OnInit {
   }
 
   // ===================== Mover ubicación del lote (sin traslado de aves) =====================
+  /**
+   * Abre la asignación de silos del lote: de qué silos/bodegas consume. El seguimiento diario solo
+   * ofrecerá estos, y es acá donde se reasigna cuando un silo se queda sin alimento.
+   */
+  abrirSilos(lote: LoteDto): void {
+    this.destinoSilos = {
+      tipo: 'lote',
+      loteId: lote.loteId,
+      titulo: `Silos de consumo — ${lote.loteNombre}`
+    };
+  }
+
+  cerrarSilos(): void {
+    this.destinoSilos = null;
+  }
+
   openMoverUbicacion(lote: LoteDto): void {
     this.moverUbicLote = lote;
     this.moverUbicGranjaId = null;

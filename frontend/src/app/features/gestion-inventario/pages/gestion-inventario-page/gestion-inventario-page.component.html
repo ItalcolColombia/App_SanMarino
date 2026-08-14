@@ -159,6 +159,9 @@
                       @if (stockShowNucleoGalpon) {
                         <th>Galpón</th>
                       }
+                      @if (manejaPorSilo) {
+                        <th>Silo</th>
+                      }
                       <th>Código</th>
                       <th>Producto</th>
                       <th>Tipo</th>
@@ -177,6 +180,9 @@
                         }
                         @if (stockShowNucleoGalpon) {
                           <td>{{ s.galponNombre ?? s.galponId ?? '—' }}</td>
+                        }
+                        @if (manejaPorSilo) {
+                          <td>{{ s.siloNombre ?? '—' }}</td>
                         }
                         <td>{{ s.itemCodigo }}</td>
                         <td>{{ s.itemNombre }}</td>
@@ -251,12 +257,17 @@
               </div>
               <small class="hint" style="display: block; margin-top: 0.35rem">Registrá la fecha REAL de llegada del alimento. Se usa como fecha del registro en el histórico de movimientos.</small>
             </div>
-            @if (ingresoEsPorGalpon) {
+            @if (manejaPorSilo) {
+              <p class="hint field-full" style="margin: 0">
+                Este ingreso se aplica sobre el <strong>silo o la bodega</strong> de la granja. El núcleo y el galpón no se guardan: solo sirven para acotar qué silos se ofrecen.
+              </p>
+            }
+            @if (!manejaPorSilo && ingresoEsPorGalpon) {
               <p class="hint field-full" style="margin: 0">
                 <strong>Alimento:</strong> indique de dónde proviene el material y luego el destino (granja → núcleo → galpón). Este ingreso se aplica sobre el <strong>galpón</strong>.
               </p>
             }
-            @if (!ingresoEsPorGalpon) {
+            @if (!manejaPorSilo && !ingresoEsPorGalpon) {
               <p class="hint field-full" style="margin: 0">
                 Este ingreso se aplica sobre la <strong>granja</strong> (sin núcleo/galpón).
               </p>
@@ -330,13 +341,28 @@
                   </select>
                 </div>
                 <div class="field">
-                  <label class="form-label">Galpón *</label>
-                  <select class="form-input" [(ngModel)]="ingresoGalponId" (ngModelChange)="ingresoParaProximoCiclo = false">
+                  <label class="form-label">Galpón {{ manejaPorSilo ? '(filtra los silos)' : '*' }}</label>
+                  <select class="form-input" [(ngModel)]="ingresoGalponId" (ngModelChange)="onIngresoDestinoGalponChange()">
                     <option [ngValue]="null">Seleccione…</option>
                     @for (g of ingresoGalponesFiltered(); track g) {
                       <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
                     }
                   </select>
+                </div>
+              }
+              @if (manejaPorSilo) {
+                <div class="field">
+                  <label class="form-label">Silo / Bodega *</label>
+                  <select class="form-input" [(ngModel)]="ingresoSiloId">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (s of ingresoSilos; track s.id) {
+                      <option [ngValue]="s.id">{{ siloOptionLabel(s) }}</option>
+                    }
+                  </select>
+                  <small class="hint" style="display: block; margin-top: 0.35rem">
+                    El saldo queda en el <strong>silo o la bodega</strong>, no en el galpón: un mismo silo puede alimentar a varios galpones.
+                    Si elige un galpón, la lista se acota a los silos que lo alimentan (la bodega se ofrece siempre).
+                  </small>
                 </div>
               }
               @if (mostrarParaProximoCicloIngreso) {
@@ -434,11 +460,11 @@
                 </div>
                 <div class="field field-full traslado-modos">
                   <span class="form-label">Tipo de traslado *</span>
-                  @if (!isColombiaInventario) {
+                  @if (!isColombiaInventario || manejaPorSilo) {
                     <div class="radio-row">
                       <label class="radio-pill">
                         <input type="radio" name="trasladoModo" [value]="'mismaGranja'" [(ngModel)]="trasladoModo" (ngModelChange)="onTrasladoModoChange()" />
-                        Misma granja (entre galpones)
+                        {{ manejaPorSilo ? 'Misma granja (entre silos)' : 'Misma granja (entre galpones)' }}
                       </label>
                       <label class="radio-pill">
                         <input type="radio" name="trasladoModo" [value]="'interGranja'" [(ngModel)]="trasladoModo" (ngModelChange)="onTrasladoModoChange()" />
@@ -449,8 +475,11 @@
                   @if (isColombiaInventario) {
                     <p class="hint"><strong>Colombia:</strong> traslado entre granjas distintas (inventario a nivel granja).</p>
                   }
-                  @if (!isColombiaInventario && trasladoModo === 'mismaGranja') {
+                  @if (!isColombiaInventario && trasladoModo === 'mismaGranja' && !manejaPorSilo) {
                     <p class="hint">Solo aplica a <strong>Alimento</strong>: misma granja, galpón destino distinto al de origen.</p>
+                  }
+                  @if (trasladoModo === 'mismaGranja' && manejaPorSilo) {
+                    <p class="hint">Misma granja, <strong>silo destino distinto al de origen</strong>. Sirve para cualquier concepto (bodega → silo también mueve insumos).</p>
                   }
                   @if (trasladoModo === 'interGranja') {
                     <p class="hint">Granja destino distinta a la de origen. El stock se <strong>descuenta en origen</strong> al guardar; en <strong>Tránsito</strong> la granja destino confirma la recepción para sumar el ítem allí (mismo ID de catálogo).</p>
@@ -468,8 +497,8 @@
                 </div>
                 @if (showNucleoGalpon) {
                   <div class="field">
-                    <label class="form-label">Núcleo origen *</label>
-                    <select class="form-input" [(ngModel)]="fromNucleoId" (ngModelChange)="loadOriginStock()">
+                    <label class="form-label">Núcleo origen {{ manejaPorSilo ? '(filtra los silos)' : '*' }}</label>
+                    <select class="form-input" [(ngModel)]="fromNucleoId" (ngModelChange)="onTrasladoFromUbicacionChange()">
                       <option [ngValue]="null">Seleccione…</option>
                       @for (n of fromNucleosFiltered(); track n) {
                         <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
@@ -477,13 +506,27 @@
                     </select>
                   </div>
                   <div class="field">
-                    <label class="form-label">Galpón origen *</label>
-                    <select class="form-input" [(ngModel)]="fromGalponId" (ngModelChange)="loadOriginStock()">
+                    <label class="form-label">Galpón origen {{ manejaPorSilo ? '(filtra los silos)' : '*' }}</label>
+                    <select class="form-input" [(ngModel)]="fromGalponId" (ngModelChange)="onTrasladoFromUbicacionChange()">
                       <option [ngValue]="null">Seleccione…</option>
                       @for (g of fromGalponesFiltered(); track g) {
                         <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
                       }
                     </select>
+                  </div>
+                }
+                @if (manejaPorSilo) {
+                  <div class="field">
+                    <label class="form-label">Silo / Bodega origen *</label>
+                    <select class="form-input" [(ngModel)]="fromSiloId" (ngModelChange)="onTrasladoFromSiloChange()">
+                      <option [ngValue]="null">Seleccione…</option>
+                      @for (s of trasladoSilosOrigen; track s.id) {
+                        <option [ngValue]="s.id">{{ siloOptionLabel(s) }}</option>
+                      }
+                    </select>
+                    <small class="hint" style="display: block; margin-top: 0.35rem">
+                      De acá sale el saldo. La <strong>bodega</strong> también entrega: bodega → silo es el movimiento habitual al recibir alimento.
+                    </small>
                   </div>
                 }
                 <div class="section-label field-full">Destino</div>
@@ -504,7 +547,7 @@
                 @if (trasladoModo === 'interGranja') {
                   <div class="field">
                     <label class="form-label">Granja destino *</label>
-                    <select class="form-input" [(ngModel)]="toFarmId">
+                    <select class="form-input" [(ngModel)]="toFarmId" (ngModelChange)="onTrasladoToFarmChange()">
                       <option [ngValue]="null">Seleccione…</option>
                       @for (f of farmsDestino; track f) {
                         <option [ngValue]="f.id">{{ f.name }}</option>
@@ -514,7 +557,7 @@
                 }
                 @if (showNucleoGalpon) {
                   <div class="field">
-                    <label class="form-label">Núcleo destino {{ trasladoModo === 'interGranja' ? '(opcional)' : '*' }}</label>
+                    <label class="form-label">Núcleo destino {{ manejaPorSilo ? '(filtra los silos)' : (trasladoModo === 'interGranja' ? '(opcional)' : '*') }}</label>
                     <select class="form-input" [(ngModel)]="toNucleoId" (ngModelChange)="onToDestinoNucleoChange(); loadOriginStock()">
                       <option [ngValue]="null">Seleccione…</option>
                       @for (n of toNucleosFiltered(); track n) {
@@ -523,17 +566,38 @@
                     </select>
                   </div>
                   <div class="field">
-                    <label class="form-label">Galpón destino {{ trasladoModo === 'interGranja' ? '(opcional)' : '*' }}</label>
-                    <select class="form-input" [(ngModel)]="toGalponId" (ngModelChange)="loadOriginStock()">
+                    <label class="form-label">Galpón destino {{ manejaPorSilo ? '(filtra los silos)' : (trasladoModo === 'interGranja' ? '(opcional)' : '*') }}</label>
+                    <select class="form-input" [(ngModel)]="toGalponId" (ngModelChange)="onToDestinoGalponChange(); loadOriginStock()">
                       <option [ngValue]="null">Seleccione…</option>
                       @for (g of toGalponesFiltered(); track g) {
                         <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
                       }
                     </select>
                   </div>
-                  @if (trasladoModo === 'interGranja') {
+                  @if (!manejaPorSilo && trasladoModo === 'interGranja') {
                     <p class="hint field-full">Si indica núcleo/galpón en destino, queda como referencia para la recepción (la ubicación final la confirma la granja destino en la pestaña Tránsito).</p>
                   }
+                }
+                @if (manejaPorSilo) {
+                  <div class="field">
+                    <label class="form-label">Silo / Bodega destino {{ trasladoModo === 'interGranja' ? '(opcional)' : '*' }}</label>
+                    <select class="form-input" [(ngModel)]="toSiloId">
+                      <option [ngValue]="null">Seleccione…</option>
+                      @for (s of trasladoSilosDestino; track s.id) {
+                        <option [ngValue]="s.id">{{ siloOptionLabel(s) }}</option>
+                      }
+                    </select>
+                    @if (trasladoModo === 'interGranja') {
+                      <small class="hint" style="display: block; margin-top: 0.35rem">
+                        Queda como referencia: el silo definitivo lo confirma la granja destino al recibir en <strong>Tránsito</strong>.
+                      </small>
+                    }
+                    @if (trasladoModo === 'mismaGranja') {
+                      <small class="hint" style="display: block; margin-top: 0.35rem">
+                        Debe ser distinto al de origen. Admite <strong>bodega → silo</strong> y <strong>silo → silo</strong>.
+                      </small>
+                    }
+                  </div>
                 }
                 <div class="field field-full">
                   <label class="form-label">Ítem (catálogo inventario) *</label>
@@ -662,6 +726,92 @@
                               <p class="hint">Origen ya descontado al enviar el traslado; al confirmar solo se suma el stock en esta granja.</p>
                             }
                           </div>
+                          @if (recepcionNeedsSilo()) {
+                            <div class="recepcion-modo">
+                              <button
+                                type="button"
+                                class="recepcion-modo__btn"
+                                [class.recepcion-modo__btn--active]="!recepcionDistribuir"
+                                (click)="setRecepcionDistribuir(false)"
+                                [disabled]="submittingRecepcion">
+                                Recibir todo en un silo
+                              </button>
+                              <button
+                                type="button"
+                                class="recepcion-modo__btn"
+                                [class.recepcion-modo__btn--active]="recepcionDistribuir"
+                                (click)="setRecepcionDistribuir(true)"
+                                [disabled]="submittingRecepcion">
+                                Distribuir entre varios silos
+                              </button>
+                            </div>
+
+                            @if (!recepcionDistribuir) {
+                              <div class="transito-recepcion-form__grid">
+                                <div class="field">
+                                  <label class="form-label">Silo / Bodega destino *</label>
+                                  <select class="form-input" [(ngModel)]="recepcionToSiloId">
+                                    <option [ngValue]="null">Seleccione…</option>
+                                    @for (s of recepcionSilos; track s.id) {
+                                      <option [ngValue]="s.id">{{ siloOptionLabel(s) }}</option>
+                                    }
+                                  </select>
+                                </div>
+                              </div>
+                              <p class="hint transito-recepcion-form__hint-alimento">Indique en qué <strong>silo o bodega</strong> de su granja destino ingresa el material.</p>
+                            }
+
+                            @if (recepcionDistribuir) {
+                              <div class="recepcion-distribucion">
+                                <div class="recepcion-distribucion__rows">
+                                  @for (d of recepcionDestinos; track $index) {
+                                    <div class="recepcion-distribucion__row">
+                                      <div class="field">
+                                        <label class="form-label">Silo / Bodega *</label>
+                                        <select class="form-input" [(ngModel)]="d.siloId">
+                                          <option [ngValue]="null">Seleccione…</option>
+                                          @for (s of recepcionSilos; track s.id) {
+                                            <option [ngValue]="s.id">{{ siloOptionLabel(s) }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                      <div class="field">
+                                        <label class="form-label">Cantidad ({{ t.unit }}) *</label>
+                                        <input class="form-input" type="number" min="0" step="0.001" [(ngModel)]="d.quantity" />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        class="recepcion-distribucion__remove"
+                                        (click)="removeRecepcionDestino($index)"
+                                        [disabled]="submittingRecepcion || recepcionDestinos.length === 1"
+                                        title="Quitar silo">
+                                        <fa-icon [icon]="faTrash"></fa-icon>
+                                      </button>
+                                    </div>
+                                  }
+                                </div>
+
+                                <div class="recepcion-distribucion__footer">
+                                  <button type="button" class="btn-italfoods-secondary" (click)="addRecepcionDestino()" [disabled]="submittingRecepcion">
+                                    + Agregar silo
+                                  </button>
+                                  <div class="recepcion-distribucion__totales" [class.recepcion-distribucion__totales--ok]="recepcionRestante() === 0">
+                                    <span>Distribuido: <strong>{{ recepcionDistribuido() }}</strong> de {{ t.quantity }} {{ t.unit }}</span>
+                                    @if (recepcionRestante() > 0) {
+                                      <span class="recepcion-distribucion__falta">Falta asignar {{ recepcionRestante() }} {{ t.unit }}</span>
+                                    }
+                                    @if (recepcionRestante() < 0) {
+                                      <span class="recepcion-distribucion__falta">Se pasó por {{ -recepcionRestante() }} {{ t.unit }}</span>
+                                    }
+                                    @if (recepcionRestante() === 0) {
+                                      <span class="recepcion-distribucion__ok">Cuadra con la cantidad en tránsito</span>
+                                    }
+                                  </div>
+                                </div>
+                                <p class="hint">Reparta los {{ t.quantity }} {{ t.unit }} entre los silos de <strong>su granja destino</strong>. La suma debe ser exacta: no hay recepción parcial.</p>
+                              </div>
+                            }
+                          }
                           @if (recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
                             <div class="recepcion-modo">
                               <button
@@ -766,7 +916,7 @@
                               </div>
                             }
                           }
-                          @if (!recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId)) {
+                          @if (!recepcionNeedsNucleoGalpon(t.itemInventarioEcuadorId) && !recepcionNeedsSilo()) {
                             <p class="hint">Este ítem se recibe solo a nivel granja (la granja destino ya está indicada arriba).</p>
                           }
                           <div class="transito-recepcion-form__actions">

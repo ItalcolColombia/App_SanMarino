@@ -28,10 +28,11 @@ public sealed partial class DbStudioService
             await writer.WriteLineAsync("-- Formato SQL plano. Restaurar con: psql -h <host> -U <usuario> -d <bd> -f <archivo>.sql");
             await writer.WriteLineAsync("-- Alcance: tablas + datos completos + índices + FKs + secuencias + vistas + funciones + triggers.");
             await writer.WriteLineAsync("-- No incluye: roles/grants de Postgres, extensiones, comentarios, CHECK constraints.");
-            await writer.WriteLineAsync("-- Funciones en orden de creación (resuelve casi todas las dependencias entre ellas), vistas alfabéticas.");
-            await writer.WriteLineAsync("-- Si una vista/función depende de otra aún no creada al restaurar, falla solo esa sentencia (psql -f sigue con el resto).");
-            await writer.WriteLineAsync("-- Si eso pasa, volvé a correr este mismo archivo una segunda vez: CREATE OR REPLACE es idempotente y la 2da pasada");
-            await writer.WriteLineAsync("-- resuelve cualquier referencia cruzada entre funciones/vistas (para entonces ya existen todas).");
+            await writer.WriteLineAsync("-- Funciones en orden topológico (cada una después de las que invoca), vistas alfabéticas al final.");
+            await writer.WriteLineAsync("-- Restaurar sobre una base VACÍA y con -v ON_ERROR_STOP=1: no deberían quedar errores.");
+            await writer.WriteLineAsync("-- ⚠ NO re-ejecutes este archivo completo sobre una base ya cargada: los INSERT no llevan ON CONFLICT y las");
+            await writer.WriteLineAsync("--   tablas sin PK quedarían con filas duplicadas. Si alguna vez fallara una función/vista por dependencias,");
+            await writer.WriteLineAsync("--   re-corré SOLO el tramo entre '-- Funciones/procedimientos' y '-- Triggers' (todo CREATE OR REPLACE).");
             await writer.WriteLineAsync("SET client_encoding = 'UTF8';");
             await writer.FlushAsync(ct);
 
@@ -187,36 +188,49 @@ public sealed partial class DbStudioService
     /// explorador donde el usuario ya eligió un overload puntual), acá se consulta por <c>oid</c>
     /// directamente: si hay funciones con overloads (mismo nombre, distinta firma), cada una se exporta
     /// con su propio cuerpo en vez de duplicar el primer overload que Postgres devuelva y perder el resto.
-    /// Orden por <c>oid</c> (orden de creación), no alfabético: una función <c>LANGUAGE SQL</c> que llama a
-    /// otra se valida contra el catálogo AL CREARSE (a diferencia de <c>plpgsql</c>, cuyo cuerpo es opaco
-    /// hasta ejecutarse) — si "fn_a" (creada después) llama a "fn_z" (creada antes), el orden alfabético
-    /// fallaría; el de creación no, porque "fn_z" no podría haberse escrito llamando a algo que no existía
-    /// todavía. <c>pg_depend</c> no sirve acá: Postgres no registra ahí las llamadas a función dentro del
-    /// cuerpo de una función SQL (comprobado empíricamente), así que no hay forma de armar un orden
-    /// topológico real — el de creación es la única señal disponible.
+    ///
+    /// El orden de emisión NO es el de <c>oid</c> ni el alfabético, sino el topológico que calcula
+    /// <see cref="DbStudioSqlCalculos.OrdenarRutinasPorDependencia"/> leyendo los cuerpos: una función
+    /// <c>LANGUAGE sql</c> se valida contra el catálogo AL CREARSE, así que tiene que ir después de las
+    /// que invoca o el restore falla con 42883. El orden por <c>oid</c> (creación) parece suficiente pero
+    /// no lo es: <c>DROP FUNCTION</c> + <c>CREATE</c> —obligatorio para cambiarle el <c>RETURNS TABLE</c> a
+    /// una función— le da un OID nuevo, más alto que el de sus llamadores, y la manda al final del archivo.
+    /// Pasó de verdad con <c>fn_seguimiento_diario_engorde</c> (backup del 13ago26, 4 funciones sin crear).
+    /// Ver plan: fase_de_desarrollo/db_studio_backup_orden_funciones_plan.md.
+    ///
+    /// Se bufferean las definiciones antes de escribir (a diferencia del resto del backup, que va en
+    /// streaming puro): ordenar exige tenerlas todas. Son las rutinas del esquema, no las filas — el peso
+    /// del backup lo domina el volumen de datos.
     /// </summary>
     private async Task WriteRoutinesAsync(StreamWriter writer, List<string> schemas, CancellationToken ct)
     {
         const string sql = @"
-            select pg_get_functiondef(p.oid) as def
+            select p.oid::bigint as oid, p.proname as name, pg_get_functiondef(p.oid) as def
             from pg_proc p
             join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = @schema
             order by p.oid;";
 
         await writer.WriteLineAsync();
-        await writer.WriteLineAsync("-- Funciones/procedimientos (best-effort)");
+        await writer.WriteLineAsync("-- Funciones/procedimientos (orden topológico: cada una después de las que invoca)");
         await using var conn = await _rt.OpenReadAsync(ct);
         foreach (var schema in schemas)
         {
-            await using var cmd = new NpgsqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("schema", schema);
-            await using var rd = await cmd.ExecuteReaderAsync(ct);
-            while (await rd.ReadAsync(ct))
+            var rutinas = new List<RoutineDef>();
+            await using (var cmd = new NpgsqlCommand(sql, conn))
             {
-                if (await rd.IsDBNullAsync(0, ct)) continue;
-                await writer.WriteLineAsync($"{rd.GetString(0)};");
+                cmd.Parameters.AddWithValue("schema", schema);
+                await using var rd = await cmd.ExecuteReaderAsync(ct);
+                while (await rd.ReadAsync(ct))
+                {
+                    if (await rd.IsDBNullAsync(2, ct)) continue;
+                    rutinas.Add(new RoutineDef(rd.GetInt64(0), rd.GetString(1), rd.GetString(2)));
+                }
             }
+
+            foreach (var r in OrdenarRutinasPorDependencia(rutinas))
+                await writer.WriteLineAsync($"{r.Definition};");
+            await writer.FlushAsync(ct);
         }
     }
 

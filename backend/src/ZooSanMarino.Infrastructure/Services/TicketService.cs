@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using ZooSanMarino.Application.Calculos;
+using ZooSanMarino.Application.Correos;
 using ZooSanMarino.Application.DTOs.Common;
 using ZooSanMarino.Application.DTOs.Tickets;
 using ZooSanMarino.Application.Interfaces;
@@ -28,6 +29,7 @@ public partial class TicketService : ITicketService
     private readonly IEmailQueueService _emailQueue;
     private readonly IConfiguration _configuration;
     private readonly string _logoUrl;
+    private readonly string _logoSecundarioUrl;
     private readonly string _brandName;
     private readonly string _brandTagline;
     private readonly string _applicationUrl;
@@ -43,7 +45,10 @@ public partial class TicketService : ITicketService
         _applicationUrl = _configuration["Email:ApplicationUrl"] ?? "http://localhost:4200";
         _brandName = _configuration["Email:BrandName"] ?? "ItalGranja";
         _brandTagline = _configuration["Email:Tagline"] ?? "Gestión de granjas avícolas · Italcol";
-        _logoUrl = _configuration["Email:LogoUrl"] ?? $"{_applicationUrl}/assets/brand/logo_intalfoods_zootenico.png";
+        // Encabezado con los logos de la pantalla de ingreso (Italcol + San Marino), no el de
+        // Italfoods que se usaba antes y no aparece en ninguna pantalla de la aplicación.
+        _logoUrl = EmailMarca.LogoPrincipal(_applicationUrl, _configuration["Email:LogoUrl"]);
+        _logoSecundarioUrl = EmailMarca.LogoSecundario(_applicationUrl, _configuration["Email:LogoSecundarioUrl"]);
     }
 
     private string BrandLine => $"{_brandName} · {_brandTagline}";
@@ -237,7 +242,7 @@ public partial class TicketService : ITicketService
             var (_, creadorNombre) = await ResolveSolicitanteEmailAsync(entity.CreatedByUserGuid, entity.CreatedByUserId, ct);
             var asignadoNombre = await ResolveNombrePorGuidAsync(entity.AssignedToUserGuid, ct);
             var body = TicketEmailTemplates.Creado(entity, creadorNombre, asignadoNombre,
-                _logoUrl, _brandName, BrandLine, _applicationUrl);
+                _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl);
 
             foreach (var notificado in notificadosPersistidos)
             {
@@ -323,7 +328,7 @@ public partial class TicketService : ITicketService
             {
                 var asignadorNombre = await ResolveNombrePorGuidAsync(_currentUser.UserGuid, ct);
                 var body = TicketEmailTemplates.Asignado(ticket, nuevoNombre, asignadorNombre,
-                    _logoUrl, _brandName, BrandLine, _applicationUrl);
+                    _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl);
                 await _emailQueue.EnqueueEmailAsync(
                     nuevoEmail!,
                     $"[{ticket.Codigo}] Te transfirieron un ticket",
@@ -1179,7 +1184,8 @@ public partial class TicketService : ITicketService
                     await _emailQueue.EnqueueEmailAsync(
                         email!,
                         $"[{ticket.Codigo}] Tu ticket fue solucionado",
-                        BuildSolucionEmailBody(ticket, nombreSol),
+                        TicketEmailTemplates.Solucionado(ticket, nombreSol,
+                            _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl),
                         "ticket_solucionado",
                         $"{{\"ticketId\":{ticket.Id},\"codigo\":\"{ticket.Codigo}\"}}");
                     ticket.NotificadoCorreo = true;
@@ -1292,7 +1298,7 @@ public partial class TicketService : ITicketService
                 try
                 {
                     var body = TicketEmailTemplates.Cerrado(ticket, nombre, notasResumen,
-                        _logoUrl, _brandName, BrandLine, _applicationUrl);
+                        _logoUrl, _brandName, BrandLine, _applicationUrl, _logoSecundarioUrl);
                     await _emailQueue.EnqueueEmailAsync(
                         email,
                         $"[{ticket.Codigo}] Ticket cerrado",
@@ -1374,27 +1380,9 @@ public partial class TicketService : ITicketService
             .ToList();
     }
 
-    private static string BuildSolucionEmailBody(Ticket t, string? nombreSolicitante)
-    {
-        var saludo = string.IsNullOrWhiteSpace(nombreSolicitante) ? "Hola" : $"Hola {nombreSolicitante}";
-        var solucion = System.Net.WebUtility.HtmlEncode(t.SolucionDescripcion ?? "");
-        var titulo = System.Net.WebUtility.HtmlEncode(t.Titulo);
-        return $@"
-<div style=""font-family:Arial,sans-serif;color:#1f2937;max-width:560px;margin:auto"">
-  <div style=""background:#2d7a3e;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0"">
-    <h2 style=""margin:0;font-size:18px"">Tu ticket fue solucionado</h2>
-  </div>
-  <div style=""border:1px solid #e5e7eb;border-top:0;padding:20px;border-radius:0 0 10px 10px"">
-    <p>{saludo},</p>
-    <p>El ticket <strong>{t.Codigo}</strong> — “{titulo}” fue marcado como <strong>SOLUCIONADO</strong>.</p>
-    <p style=""background:#f0fdf4;border-left:4px solid #2d7a3e;padding:10px 14px;border-radius:4px"">
-      <strong>Solución:</strong><br/>{solucion}
-    </p>
-    <p>Ingresá a la plataforma para revisar la solución y, si estás conforme, <strong>confirmar el cierre</strong> del caso.</p>
-    <p style=""color:#6b7280;font-size:13px"">Italcol · Gestión de tickets</p>
-  </div>
-</div>";
-    }
+    // El cuerpo del aviso de "solucionado" vive en TicketEmailTemplates.Solucionado junto al resto
+    // de las notificaciones de tickets: acá era el único correo que se maquetaba a mano, sin logo
+    // ni pie, y quedaba fuera de cualquier cambio de diseño.
 
     // ───────────────────────────── DELETE (lógico) ─────────────────────────────
     public async Task<bool> DeleteAsync(long id, CancellationToken ct)

@@ -22,6 +22,12 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<Farm> Farms { get; set; } = null!;
         /// <summary>Catálogo de silos de alimento / bodegas de insumos por granja (no son galpones).</summary>
         public DbSet<FarmSilo> FarmSilos => Set<FarmSilo>();
+        /// <summary>Lista maestra de silos por empresa (1..100); de acá se asignan a cada granja.</summary>
+        public DbSet<SiloCatalogo> SiloCatalogo => Set<SiloCatalogo>();
+        /// <summary>N:M galpón ↔ silo: qué silos alimentan a un galpón (navegación, no contención).</summary>
+        public DbSet<GalponSilo> GalponSilos => Set<GalponSilo>();
+        /// <summary>N:M lote ↔ silo: de qué silos consume un lote en el seguimiento diario.</summary>
+        public DbSet<LoteSilo> LoteSilos => Set<LoteSilo>();
         public DbSet<Nucleo> Nucleos { get; set; } = null!;
         public DbSet<Galpon> Galpones { get; set; } = null!;
         public DbSet<Lote> Lotes { get; set; } = null!;

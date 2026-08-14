@@ -20,7 +20,7 @@ public static class InventarioGestionRecepcionDistribucionCalculos
     public const decimal ToleranciaSuma = 0.0001m;
 
     /// <summary>Ubicación resuelta de destino. Núcleo/galpón nulos = recepción a nivel granja.</summary>
-    public sealed record Destino(string? NucleoId, string? GalponId, decimal Quantity);
+    public sealed record Destino(string? NucleoId, string? GalponId, decimal Quantity, int? SiloId = null);
 
     /// <summary>
     /// Resuelve las ubicaciones de destino de la recepción.
@@ -30,17 +30,61 @@ public static class InventarioGestionRecepcionDistribucionCalculos
     /// <param name="toGalponId">Galpón destino del camino clásico (una sola ubicación).</param>
     /// <param name="usaUbicacion">true = alimento manejado por galpón en la granja destino.</param>
     /// <param name="cantidadTransito">Cantidad que viaja en el tránsito (se recibe completa).</param>
+    /// <param name="porSilo">
+    /// true = la granja destino ubica el inventario por SILO. El reparto es entre silos/bodegas y el
+    /// núcleo/galpón deja de participar; <paramref name="usaUbicacion"/> se ignora. Con false, todo
+    /// lo de abajo es exactamente el comportamiento previo a la Fase B.
+    /// </param>
+    /// <param name="toSiloId">Silo destino del camino de una sola ubicación (solo con <paramref name="porSilo"/>).</param>
     /// <returns>Destinos a aplicar, o el mensaje de error de validación (nunca ambos).</returns>
     public static (IReadOnlyList<Destino> Destinos, string? Error) Resolver(
         IReadOnlyList<InventarioGestionRecepcionDestinoDto>? distribucion,
         string? toNucleoId,
         string? toGalponId,
         bool usaUbicacion,
-        decimal cantidadTransito)
+        decimal cantidadTransito,
+        bool porSilo = false,
+        int? toSiloId = null)
     {
         var filas = (distribucion ?? Array.Empty<InventarioGestionRecepcionDestinoDto>())
             .Where(d => !EsFilaVacia(d))
             .ToList();
+
+        // ─── Granja destino que ubica por SILO ───
+        // Se resuelve ANTES que todo lo demás y no comparte una línea de código con el camino
+        // clásico: mezclar los dos repartos en el mismo if terminaría con un galpón y un silo
+        // conviviendo en la misma fila de stock, que es justo lo que la clave natural no admite.
+        if (porSilo)
+        {
+            if (filas.Count == 0)
+            {
+                if (!toSiloId.HasValue || toSiloId.Value <= 0)
+                    return (Array.Empty<Destino>(), "Debe indicar el silo o la bodega de recepción en la granja destino.");
+                return (new[] { new Destino(null, null, cantidadTransito, toSiloId) }, null);
+            }
+
+            var porSiloDestinos = new List<Destino>(filas.Count);
+            var silosVistos = new HashSet<int>();
+            decimal sumaSilos = 0m;
+
+            foreach (var fila in filas)
+            {
+                if (!fila.SiloId.HasValue || fila.SiloId.Value <= 0)
+                    return (Array.Empty<Destino>(), "Cada destino de la distribución debe indicar el silo o la bodega.");
+                if (fila.Quantity <= 0)
+                    return (Array.Empty<Destino>(), "Las cantidades de la distribución deben ser mayores a cero.");
+                if (!silosVistos.Add(fila.SiloId.Value))
+                    return (Array.Empty<Destino>(), $"No repita el mismo silo en la distribución (silo {fila.SiloId.Value}).");
+
+                sumaSilos += fila.Quantity;
+                porSiloDestinos.Add(new Destino(null, null, fila.Quantity, fila.SiloId));
+            }
+
+            if (Math.Abs(sumaSilos - cantidadTransito) > ToleranciaSuma)
+                return (Array.Empty<Destino>(), $"La suma de la distribución ({sumaSilos:0.###}) debe ser igual a la cantidad en tránsito ({cantidadTransito:0.###}).");
+
+            return (porSiloDestinos, null);
+        }
 
         // ─── Camino clásico: una sola ubicación (mensajes idénticos a los históricos) ───
         if (filas.Count == 0)

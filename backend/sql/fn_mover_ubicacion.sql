@@ -98,6 +98,14 @@ BEGIN
             'Movimiento de ubicación', COALESCE(v_company_id, 0),
             COALESCE(p_user_id, 0), CURRENT_TIMESTAMP);
     END IF;
+
+    -- Silos del lote: si se mudo de granja, los que tenia son de la granja vieja y ya no
+    -- pueden alimentarlo. Se quitan; el usuario reasigna en la granja nueva.
+    DELETE FROM public.lote_silos ls
+     USING public.farm_silos fs
+     WHERE ls.lote_id      = p_lote_id
+       AND ls.farm_silo_id = fs.id
+       AND fs.granja_id   <> p_granja_dest;
 END;
 $$;
 
@@ -138,6 +146,23 @@ BEGIN
     UPDATE public.inventario_gestion_movimiento    SET nucleo_id = p_nucleo_dest WHERE galpon_id = p_galpon_id;
     UPDATE public.inventario_gestion_stock         SET nucleo_id = p_nucleo_dest WHERE galpon_id = p_galpon_id;
     UPDATE public.lote_registro_historico_unificado SET nucleo_id = p_nucleo_dest WHERE galpon_id = p_galpon_id;
+
+    -- Asignacion de silos del galpon: sigue al galpon...
+    UPDATE public.galpon_silos
+       SET granja_id = p_granja_dest, nucleo_id = p_nucleo_dest
+     WHERE galpon_id = p_galpon_id;
+
+    -- ...y se limpia la que quedo cruzada de granja (el silo es de la granja vieja).
+    DELETE FROM public.galpon_silos gs
+     USING public.farm_silos fs
+     WHERE gs.farm_silo_id = fs.id
+       AND gs.granja_id   <> fs.granja_id;
+
+    DELETE FROM public.lote_silos ls
+     USING public.farm_silos fs, public.lotes l
+     WHERE ls.farm_silo_id = fs.id
+       AND ls.lote_id      = l.lote_id
+       AND fs.granja_id   <> l.granja_id;
 
     -- lesiones, lote_galpones, plan_gramaje_galpon: solo galpon_id → siguen por FK, nada que reescribir.
 END;
@@ -198,6 +223,23 @@ BEGIN
     UPDATE public.vacunacion_cronograma_item SET granja_id = p_granja_dest WHERE nucleo_id = p_nucleo_id AND granja_id = p_granja_origen;
     -- Tablas con nucleo_id sin granja_id (inventario_gasto, inventario_gestion_*, lote_registro_historico_unificado):
     -- no guardan granja → el nucleo_id no cambia, siguen al núcleo automáticamente.
+
+    -- Los galpones del nucleo cambiaron de granja: sus silos eran de la granja ORIGEN y alla se
+    -- quedan. La asignacion se quita en vez de repuntarse: en la granja destino no existen.
+    UPDATE public.galpon_silos
+       SET granja_id = p_granja_dest
+     WHERE nucleo_id = p_nucleo_id AND granja_id = p_granja_origen;
+
+    DELETE FROM public.galpon_silos gs
+     USING public.farm_silos fs
+     WHERE gs.farm_silo_id = fs.id
+       AND gs.granja_id   <> fs.granja_id;
+
+    DELETE FROM public.lote_silos ls
+     USING public.farm_silos fs, public.lotes l
+     WHERE ls.farm_silo_id = fs.id
+       AND ls.lote_id      = l.lote_id
+       AND fs.granja_id   <> l.granja_id;
 
     -- 4) Borrar el núcleo origen (ya sin hijos apuntando)
     DELETE FROM public.nucleos WHERE nucleo_id = p_nucleo_id AND granja_id = p_granja_origen;

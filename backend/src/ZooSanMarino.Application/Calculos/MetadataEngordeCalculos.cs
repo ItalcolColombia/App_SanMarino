@@ -56,6 +56,11 @@ public static class MetadataEngordeCalculos
     /// Lo usan las ramas Colombia (IColombiaInventarioConsumoService), donde ambos tipos de id
     /// conviven y sus rangos colisionan — el parser plano sigue siendo el correcto para
     /// Ecuador/Panamá (allí ambos campos traen el mismo id de item_inventario_ecuador).
+    /// <para>
+    /// Fase C (silos): si el ítem trae <c>siloId</c>, viaja en la clave. Dos filas del mismo ítem en
+    /// silos distintos son DOS claves y se descuentan por separado; sin <c>siloId</c> la clave es
+    /// exactamente la de antes (hash y agrupación idénticos).
+    /// </para>
     /// </summary>
     public static Dictionary<ItemConsumoKey, decimal> ParseMetadataItemsToKgPorOrigen(JsonElement root)
     {
@@ -75,7 +80,7 @@ public static class MetadataEngordeCalculos
                 if (id <= 0) continue;
                 var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
                 var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                var key = new ItemConsumoKey(id, esItemInventario);
+                var key = new ItemConsumoKey(id, esItemInventario, LeerSiloId(e));
                 byItem[key] = byItem.GetValueOrDefault(key) + ToKg(cant, un);
             }
         }
@@ -83,6 +88,23 @@ public static class MetadataEngordeCalculos
         Acumular("itemsMachos");
         Acumular("itemsGenerales");
         return byItem;
+    }
+
+    /// <summary>
+    /// <c>siloId</c> de un ítem del metadata. Tolera que falte, que sea <c>null</c> o que venga como
+    /// string (lo que manda un form a medio serializar); cualquier valor no positivo se trata como
+    /// «sin silo», que es el comportamiento de todas las empresas sin el flag.
+    /// </summary>
+    private static int? LeerSiloId(JsonElement item)
+    {
+        if (!item.TryGetProperty("siloId", out var s)) return null;
+        int? valor = s.ValueKind switch
+        {
+            JsonValueKind.Number => s.TryGetInt32(out var n) ? n : null,
+            JsonValueKind.String => int.TryParse(s.GetString(), out var n) ? n : null,
+            _ => null
+        };
+        return valor is > 0 ? valor : null;
     }
 
     /// <summary>Mezcla un patch clave→valor sobre el metadata existente (el patch pisa claves).</summary>

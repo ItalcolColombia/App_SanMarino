@@ -1,0 +1,185 @@
+<!-- src/app/features/silos/pages/silo-catalogo/silo-catalogo.component.html -->
+<div class="silos-container flex">
+  <div class="flex-1 p-6 bg-warm-gray-100 min-h-screen">
+
+    <!-- Encabezado -->
+    <div class="silos-toolbar flex items-center justify-between mb-6">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faLayerGroup" class="title-icon" aria-hidden="true"></fa-icon>
+        <h2 class="title">Lista maestra de silos</h2>
+        <span class="counter-pill">{{ silos.length }} silo(s)</span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button type="button" class="btn-subtle" (click)="abrirRango()" [disabled]="!manejaInventarioPorSilo">
+          <fa-icon [icon]="faLayerGroup" class="mr-2" aria-hidden="true"></fa-icon>
+          Generar rango
+        </button>
+        <button type="button" class="btn-primary" (click)="nuevo()" [disabled]="!manejaInventarioPorSilo">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+          Nuevo silo
+        </button>
+      </div>
+    </div>
+
+    <!-- La empresa activa no maneja silos: se explica en vez de mostrar una tabla vacía sin motivo -->
+    @if (!manejaInventarioPorSilo) {
+      <div class="silos-card p-6">
+        <div class="empty-state">
+          <div class="empty-illustration">🏢</div>
+          <p><strong>La empresa activa no maneja el inventario por silos.</strong></p>
+          <p class="text-sm">
+            Esta pantalla define la lista de silos que después se asigna a cada granja, galpón y lote.
+            Se habilita para las empresas configuradas con inventario por silo.
+          </p>
+        </div>
+      </div>
+    } @else {
+
+      <div class="silos-card">
+        <div class="table-scroll">
+          <table class="silos-table" role="grid" aria-label="Lista maestra de silos">
+            <thead>
+              <tr>
+                <th scope="col" class="w-20"># </th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Descripción</th>
+                <th scope="col" class="text-center">Granjas</th>
+                <th scope="col" class="text-center">Estado</th>
+                <th scope="col" class="text-right">Acciones</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              @if (loading) {
+                <tr><td colspan="6" class="empty-state">Cargando…</td></tr>
+              } @else if (!silos.length) {
+                <tr>
+                  <td colspan="6" class="empty-state">
+                    <div class="empty-illustration">🗄️</div>
+                    <p>Todavía no hay silos en la lista maestra.</p>
+                    <button class="btn-subtle" type="button" (click)="abrirRango()">
+                      <fa-icon [icon]="faLayerGroup" class="mr-2"></fa-icon>
+                      Generar del 1 al 100
+                    </button>
+                  </td>
+                </tr>
+              } @else {
+                @for (s of silos; track trackById($index, s)) {
+                  <tr>
+                    <td class="font-mono">{{ s.numero }}</td>
+                    <td class="font-medium">{{ s.nombre }}</td>
+                    <td class="text-muted">{{ s.descripcion || '—' }}</td>
+                    <td class="text-center">
+                      @if (s.granjasAsignadas > 0) {
+                        <span class="counter-pill">{{ s.granjasAsignadas }}</span>
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                    <td class="text-center">
+                      <span class="badge" [class.badge-ok]="s.activo" [class.badge-off]="!s.activo">
+                        {{ s.activo ? 'Activo' : 'Inactivo' }}
+                      </span>
+                    </td>
+                    <td class="text-right">
+                      <button type="button" class="icon-btn" (click)="editar(s)" [attr.aria-label]="'Editar ' + s.nombre">
+                        <fa-icon [icon]="faPen"></fa-icon>
+                      </button>
+                      <button type="button" class="icon-btn icon-btn-danger" (click)="eliminar(s)" [attr.aria-label]="'Eliminar ' + s.nombre">
+                        <fa-icon [icon]="faTrash"></fa-icon>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Modal alta / edición -->
+@if (modalAbierto) {
+  <div class="modal-backdrop" (click)="cerrarModal()"></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Silo">
+    <div class="modal-header">
+      <h3>{{ editando ? 'Editar silo' : 'Nuevo silo' }}</h3>
+      <button type="button" class="icon-btn" (click)="cerrarModal()" aria-label="Cerrar">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <label class="field">
+        <span class="field-label">Número</span>
+        <input type="number" class="field-input" [(ngModel)]="formNumero" [disabled]="!!editando" min="1" max="999" />
+        @if (editando) {
+          <span class="field-hint">El número identifica al silo y no se cambia.</span>
+        }
+      </label>
+
+      <label class="field">
+        <span class="field-label">Nombre</span>
+        <input type="text" class="field-input" [(ngModel)]="formNombre" [placeholder]="'Silo ' + (formNumero ?? '')" maxlength="120" />
+        <span class="field-hint">Si se deja vacío se usa «Silo {{ formNumero ?? 'N' }}».</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Descripción</span>
+        <input type="text" class="field-input" [(ngModel)]="formDescripcion" maxlength="200" />
+      </label>
+
+      <label class="field-check">
+        <input type="checkbox" [(ngModel)]="formActivo" />
+        <span>Activo</span>
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-subtle" (click)="cerrarModal()">Cancelar</button>
+      <button type="button" class="btn-primary" (click)="guardar()" [disabled]="saving">
+        {{ saving ? 'Guardando…' : 'Guardar' }}
+      </button>
+    </div>
+  </div>
+}
+
+<!-- Modal generar rango -->
+@if (rangoAbierto) {
+  <div class="modal-backdrop" (click)="cerrarRango()"></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Generar rango de silos">
+    <div class="modal-header">
+      <h3>Generar rango de silos</h3>
+      <button type="button" class="icon-btn" (click)="cerrarRango()" aria-label="Cerrar">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <p class="text-sm text-muted mb-3">
+        Crea de una vez todos los silos del rango. Los números que ya existan se omiten, así que se
+        puede volver a ejecutar sin duplicar nada.
+      </p>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="field">
+          <span class="field-label">Desde</span>
+          <input type="number" class="field-input" [(ngModel)]="rangoDesde" min="1" max="999" />
+        </label>
+        <label class="field">
+          <span class="field-label">Hasta</span>
+          <input type="number" class="field-input" [(ngModel)]="rangoHasta" min="1" max="999" />
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-subtle" (click)="cerrarRango()">Cancelar</button>
+      <button type="button" class="btn-primary" (click)="generarRango()" [disabled]="saving">
+        {{ saving ? 'Generando…' : 'Generar' }}
+      </button>
+    </div>
+  </div>
+}

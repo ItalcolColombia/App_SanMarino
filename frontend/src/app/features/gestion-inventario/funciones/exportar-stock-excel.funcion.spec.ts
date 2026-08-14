@@ -287,3 +287,81 @@ describe('cabecerasStockExcel', () => {
     expect(cabecerasStockExcel(false)).not.toContain('Galpón');
   });
 });
+
+// ─── Inventario por SILO (Santa Reyes) ───────────────────────────────────────
+// El silo/bodega ES la ubicación: núcleo y galpón llegan en null a propósito, así que la columna
+// Silo los reemplaza. Con `incluirSilo` ausente el archivo tiene que quedar idéntico al de siempre.
+
+/** Fila de una empresa que ubica por silo: sin núcleo/galpón y con el silo resuelto. */
+function porSilo(over: Partial<InventarioGestionStockDto> = {}): InventarioGestionStockDto {
+  return stock({
+    itemType: 'Alimento',
+    nucleoId: null,
+    galponId: null,
+    nucleoNombre: null,
+    galponNombre: null,
+    siloId: 4,
+    siloNombre: 'Silo 4',
+    ...over
+  });
+}
+
+describe('exportación con inventario por silo', () => {
+  it('agrega la columna Silo en la cabecera, después de la granja', () => {
+    expect(cabecerasStockExcel(false, true)).toEqual([
+      'Granja',
+      'Silo',
+      'Código',
+      'Producto',
+      'Tipo',
+      'Fecha de ingreso',
+      'Cantidad',
+      'Unidad'
+    ]);
+  });
+
+  it('la cabecera y la fila siguen midiendo lo mismo', () => {
+    const fila = construirFilasStockExcel([porSilo()], { incluirUbicacion: false, incluirSilo: true })[0];
+    expect(cabecerasStockExcel(false, true).length).toBe(fila.length);
+  });
+
+  it('escribe el nombre del silo y cae al id solo si el nombre no vino', () => {
+    const [conNombre] = construirFilasStockExcel([porSilo()], { incluirUbicacion: false, incluirSilo: true });
+    expect(conNombre[1]).toBe('Silo 4');
+
+    const [sinNombre] = construirFilasStockExcel([porSilo({ siloNombre: null })], {
+      incluirUbicacion: false,
+      incluirSilo: true
+    });
+    expect(sinNombre[1]).toBe('4');
+
+    const [sinSilo] = construirFilasStockExcel([porSilo({ siloId: null, siloNombre: null })], {
+      incluirUbicacion: false,
+      incluirSilo: true
+    });
+    expect(sinSilo[1]).toBe('—');
+  });
+
+  it('el silo va en las DOS hojas: la bodega de insumos también es una ubicación con saldo', () => {
+    const hojas = construirHojasStockExcel(
+      [porSilo(), porSilo({ itemType: 'Otros insumos', siloId: 99, siloNombre: 'Bodega' })],
+      { filtros: [], incluirUbicacion: false, incluirSilo: true }
+    );
+
+    const alimento = hojas.find((h) => h.sheetName === HOJA_ALIMENTO)!;
+    const otros = hojas.find((h) => h.sheetName === HOJA_OTROS)!;
+    expect(alimento.headers).toContain('Silo');
+    expect(otros.headers).toContain('Silo');
+    expect(alimento.rows[0][1]).toBe('Silo 4');
+    expect(otros.rows[0][1]).toBe('Bodega');
+  });
+
+  it('sin la bandera, el archivo queda idéntico al de las empresas sin silo', () => {
+    const conFlagApagado = construirFilasStockExcel([porSilo()], { incluirUbicacion: false });
+    const comoSiempre = construirFilasStockExcel([porSilo()], { incluirUbicacion: false, incluirSilo: false });
+
+    expect(conFlagApagado).toEqual(comoSiempre);
+    expect(cabecerasStockExcel(false)).not.toContain('Silo');
+    expect(conFlagApagado[0].length).toBe(cabecerasStockExcel(false).length);
+  });
+});

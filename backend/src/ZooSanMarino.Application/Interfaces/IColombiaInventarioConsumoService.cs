@@ -30,7 +30,13 @@ public interface IColombiaInventarioConsumoService
     /// stock. NO muta nada. Llamar antes de guardar el seguimiento.
     /// </summary>
     /// <param name="byItem">clave del ítem (camino 1/2) → kg a consumir (solo &gt; 0 se validan).</param>
-    Task ValidarStockConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, CancellationToken ct = default);
+    /// <param name="loteId">
+    /// Lote del seguimiento. Solo lo usan las empresas que ubican el inventario por silo: el silo de
+    /// cada clave tiene que estar en <c>lote_silos</c> de ESE lote, y si no, se rechaza acá —antes de
+    /// persistir— con un mensaje que dice qué silo falta asignar. Sin él (llamadores que no lo pasan)
+    /// la exigencia baja a que el silo sea de la granja. En las empresas sin el flag no cambia nada.
+    /// </param>
+    Task ValidarStockConsumoAsync(int farmId, IReadOnlyDictionary<ItemConsumoKey, decimal> byItem, int? loteId = null, CancellationToken ct = default);
 
     /// <summary>
     /// Aplica el consumo en B nivel granja: descuenta stock e inserta un movimiento <c>Consumo</c>

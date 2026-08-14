@@ -103,6 +103,20 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: el inventario se ubica en SILOS/BODEGAS de la granja, no
+        // en el galpón (ingreso, traslado y consumo exigen silo_id y dejan núcleo/galpón en NULL).
+        builder.Property(x => x.ManejaInventarioPorSilo)
+            .HasColumnName("maneja_inventario_por_silo")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Flag tipado por comportamiento: los reportes Contable y Técnico leen el alimento del
+        // módulo unificado. Default false = la consulta de siempre contra la tabla vieja.
+        builder.Property(x => x.ReportesAlimentoDesdeInventarioUnificado)
+            .HasColumnName("reportes_alimento_desde_inventario_unificado")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

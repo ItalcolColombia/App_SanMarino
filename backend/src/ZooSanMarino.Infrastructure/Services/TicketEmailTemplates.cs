@@ -1,14 +1,15 @@
-using System.Net;
-using System.Text;
+using ZooSanMarino.Application.Correos;
 using ZooSanMarino.Domain.Entities;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
-/// Plantillas HTML "pro" para las notificaciones de tickets (creación, transferencia/asignación,
-/// cierre). Comparten el layout branded de <see cref="EmailService"/> (marca <c>#f4b428</c>,
-/// contenedor redondeado, footer con año) pero con el logo como IMAGEN (no texto), configurable
-/// vía <c>Email:LogoUrl</c>.
+/// Notificaciones de tickets (creación, asignación/transferencia, solución y cierre).
+///
+/// Desde el 12-ago-2026 no traen su propio HTML: arman el cuerpo con <see cref="EmailComponentes"/>
+/// y lo envuelven con <see cref="EmailLayout"/>, el mismo layout que usan los correos de cuenta.
+/// Antes convivían tres maquetados distintos y el aviso de "solucionado" ni siquiera pasaba por acá
+/// — se armaba a mano dentro de <c>TicketService</c>, sin logo ni pie.
 /// </summary>
 public static class TicketEmailTemplates
 {
@@ -17,211 +18,84 @@ public static class TicketEmailTemplates
 
     // ───────────────────────────── Layout compartido ─────────────────────────────
 
-    /// <summary>Envuelve el contenido interno en el layout branded (header con logo + footer).</summary>
+    /// <summary>
+    /// Envuelve el contenido en el layout branded. <paramref name="brandLine"/> llega como
+    /// "Marca · lema"; se le quita el prefijo para no repetir el nombre debajo del logo.
+    /// </summary>
     public static string Wrap(string logoUrl, string brandName, string brandLine, string innerHtml)
-    {
-        var safeLogo = WebUtility.HtmlEncode(logoUrl);
-        var safeBrandName = WebUtility.HtmlEncode(brandName);
-        var safeBrandLine = WebUtility.HtmlEncode(brandLine);
+        => Wrap(logoUrl, brandName, brandLine, innerHtml, brandName, string.Empty, null, string.Empty, null);
 
-        return $@"
-<!DOCTYPE html>
-<html lang='es'>
-<head>
-    <meta charset='UTF-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>{safeBrandName}</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f4f4f4;
-        }}
-        .container {{
-            background-color: #ffffff;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }}
-        .header {{
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 3px solid #f4b428;
-        }}
-        .header img {{
-            max-height: 48px;
-            margin-bottom: 10px;
-        }}
-        .subtitle {{
-            color: #6b7280;
-            font-size: 14px;
-        }}
-        .content {{
-            margin: 30px 0;
-        }}
-        .greeting {{
-            font-size: 18px;
-            color: #2b2b2b;
-            margin-bottom: 20px;
-        }}
-        .message {{
-            font-size: 16px;
-            color: #4b5563;
-            margin-bottom: 25px;
-            line-height: 1.8;
-        }}
-        .info-box {{
-            background-color: #f9fafb;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 25px 0;
-        }}
-        .info-item {{
-            margin: 12px 0;
-            padding: 12px;
-            background-color: #ffffff;
-            border-radius: 6px;
-            border-left: 4px solid #f4b428;
-        }}
-        .info-label {{
-            font-weight: 600;
-            color: #374151;
-            font-size: 13px;
-            margin-bottom: 4px;
-        }}
-        .info-value {{
-            font-size: 15px;
-            color: #1f2937;
-            word-break: break-word;
-        }}
-        .solucion-box {{
-            background-color: #f0fdf4;
-            border-left: 4px solid #2d7a3e;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 6px;
-        }}
-        .chat-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-            font-size: 13px;
-        }}
-        .chat-table th {{
-            text-align: left;
-            background-color: #f9fafb;
-            padding: 8px 10px;
-            border-bottom: 2px solid #e5e7eb;
-            color: #374151;
-        }}
-        .chat-table td {{
-            padding: 8px 10px;
-            border-bottom: 1px solid #f1f5f9;
-            color: #4b5563;
-            vertical-align: top;
-        }}
-        .button-container {{
-            text-align: center;
-            margin: 30px 0;
-        }}
-        .button {{
-            display: inline-block;
-            background: linear-gradient(180deg, #f4b428, #e6a41c);
-            color: #1a1a1a !important;
-            padding: 14px 30px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-            box-shadow: 0 4px 6px rgba(244, 180, 40, 0.3);
-        }}
-        .footer {{
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
-            text-align: center;
-            color: #6b7280;
-            font-size: 12px;
-        }}
-        .footer-text {{
-            margin: 5px 0;
-        }}
-    </style>
-</head>
-<body>
-    <div class='container'>
-        <div class='header'>
-            <img src='{safeLogo}' alt='{safeBrandName}'/>
-            <div class='subtitle'>{safeBrandLine}</div>
-        </div>
-        <div class='content'>
-            {innerHtml}
-        </div>
-        <div class='footer'>
-            <p class='footer-text'>© {DateTime.Now.Year} {safeBrandName}</p>
-            <p class='footer-text'>Todos los derechos reservados</p>
-            <p class='footer-text'>Este es un correo automático, por favor no responder.</p>
-        </div>
-    </div>
-</body>
-</html>";
+    private static string Wrap(
+        string logoUrl, string brandName, string brandLine, string innerHtml,
+        string titulo, string preheader, string? motivoEnvio,
+        string applicationUrl, string? logoSecundarioUrl)
+    {
+        var prefijo = $"{brandName} · ";
+        var lema = brandLine.StartsWith(prefijo, StringComparison.Ordinal)
+            ? brandLine[prefijo.Length..]
+            : brandLine;
+
+        return EmailLayout.Documento(
+            titulo: titulo,
+            preheader: preheader,
+            logoUrl: logoUrl,
+            marca: brandName,
+            lema: lema,
+            contenidoHtml: innerHtml,
+            motivoEnvio: motivoEnvio ?? "Recibís este correo por tu participación en este ticket de soporte.",
+            logoSecundarioUrl: EmailMarca.LogoSecundario(applicationUrl, logoSecundarioUrl));
     }
+
+    /// <summary>Etiquetas de tipo y prioridad. La prioridad manda el color; el tipo va neutro.</summary>
+    private static string Etiquetas(Ticket ticket)
+    {
+        var (color, fondo) = (ticket.Prioridad ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "critica" or "crítica" or "urgente" => (EmailTema.Peligro, EmailTema.PeligroFondo),
+            "alta"                              => (EmailTema.Aviso, EmailTema.AvisoFondo),
+            "baja"                              => (EmailTema.TextoTenue, EmailTema.SuperficieSuave),
+            _                                   => (EmailTema.Info, EmailTema.InfoFondo)
+        };
+
+        var etiquetas = EmailComponentes.Badge(ticket.Tipo ?? "—", EmailTema.Info, EmailTema.InfoFondo);
+        if (!string.IsNullOrWhiteSpace(ticket.Prioridad))
+            etiquetas += EmailComponentes.Badge($"Prioridad {ticket.Prioridad}", color, fondo);
+
+        return $"<div style=\"margin:0 0 18px 0;\">{etiquetas}</div>";
+    }
+
+    private static string Codigo(Ticket ticket) => ticket.Codigo ?? $"TK-{ticket.Id}";
+
+    private static string UrlTickets(string applicationUrl) =>
+        $"{(applicationUrl ?? string.Empty).TrimEnd('/')}/tickets";
 
     // ───────────────────────────── Creación ─────────────────────────────
 
     /// <summary>Correo "ticket_creado" a los notificados: info del ticket, quién lo creó y a quién se asignó.</summary>
     public static string Creado(
         Ticket ticket, string? creadorNombre, string? asignadoNombre,
-        string logoUrl, string brandName, string brandLine, string applicationUrl)
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
     {
-        var codigo = WebUtility.HtmlEncode(ticket.Codigo ?? $"TK-{ticket.Id}");
-        var titulo = WebUtility.HtmlEncode(ticket.Titulo);
-        var tipo = WebUtility.HtmlEncode(ticket.Tipo);
-        var descripcion = WebUtility.HtmlEncode(ticket.Descripcion);
-        var creador = WebUtility.HtmlEncode(creadorNombre ?? "—");
-        var asignado = WebUtility.HtmlEncode(asignadoNombre ?? "—");
-        var safeUrl = WebUtility.HtmlEncode(applicationUrl);
+        var codigo = Codigo(ticket);
 
-        var inner = $@"
-            <div class='greeting'>Se creó un nuevo ticket</div>
-            <div class='message'>Te incluyeron como notificado en el siguiente ticket:</div>
-            <div class='info-box'>
-                <div class='info-item'>
-                    <div class='info-label'>Código</div>
-                    <div class='info-value'>{codigo}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Título</div>
-                    <div class='info-value'>{titulo}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Tipo</div>
-                    <div class='info-value'>{tipo}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Descripción</div>
-                    <div class='info-value'>{descripcion}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Creado por</div>
-                    <div class='info-value'>{creador}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Asignado a</div>
-                    <div class='info-value'>{asignado}</div>
-                </div>
-            </div>
-            <div class='button-container'>
-                <a href='{safeUrl}/tickets' class='button'>Ver ticket</a>
-            </div>";
+        var inner = string.Concat(
+            EmailComponentes.Titulo($"Nuevo ticket {codigo}"),
+            Etiquetas(ticket),
+            EmailComponentes.Parrafo("Te incluyeron como notificado en el siguiente caso:"),
+            EmailComponentes.Ficha(
+                ("Código", codigo),
+                ("Título", ticket.Titulo ?? "—"),
+                ("Creado por", creadorNombre ?? "—"),
+                ("Asignado a", asignadoNombre ?? "—")),
+            EmailComponentes.Cita("Descripción", ticket.Descripcion ?? "—", EmailTema.Info),
+            EmailComponentes.Boton(UrlTickets(applicationUrl), "Ver ticket"));
 
-        return Wrap(logoUrl, brandName, brandLine, inner);
+        return Wrap(logoUrl, brandName, brandLine, inner,
+            titulo: $"Nuevo ticket {codigo} · {brandName}",
+            preheader: $"{codigo} — {ticket.Titulo}",
+            motivoEnvio: "Recibís este correo porque te incluyeron como notificado de este ticket.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
     }
 
     // ───────────────────────────── Asignado / transferido ─────────────────────────────
@@ -229,41 +103,62 @@ public static class TicketEmailTemplates
     /// <summary>Correo "ticket_transferido" al nuevo resolutor: le acaban de asignar un ticket.</summary>
     public static string Asignado(
         Ticket ticket, string? nombreDestinatario, string? asignadorNombre,
-        string logoUrl, string brandName, string brandLine, string applicationUrl)
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
     {
-        var saludo = string.IsNullOrWhiteSpace(nombreDestinatario) ? "Hola" : $"Hola {WebUtility.HtmlEncode(nombreDestinatario)}";
-        var codigo = WebUtility.HtmlEncode(ticket.Codigo ?? $"TK-{ticket.Id}");
-        var titulo = WebUtility.HtmlEncode(ticket.Titulo);
-        var tipo = WebUtility.HtmlEncode(ticket.Tipo);
-        var transferidoPor = WebUtility.HtmlEncode(asignadorNombre ?? "—");
-        var safeUrl = WebUtility.HtmlEncode(applicationUrl);
+        var codigo = Codigo(ticket);
 
-        var inner = $@"
-            <div class='greeting'>{saludo},</div>
-            <div class='message'>Te asignaron/transfirieron un ticket para que lo gestiones:</div>
-            <div class='info-box'>
-                <div class='info-item'>
-                    <div class='info-label'>Código</div>
-                    <div class='info-value'>{codigo}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Título</div>
-                    <div class='info-value'>{titulo}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Tipo</div>
-                    <div class='info-value'>{tipo}</div>
-                </div>
-                <div class='info-item'>
-                    <div class='info-label'>Transferido/asignado por</div>
-                    <div class='info-value'>{transferidoPor}</div>
-                </div>
-            </div>
-            <div class='button-container'>
-                <a href='{safeUrl}/tickets' class='button'>Ver ticket</a>
-            </div>";
+        var inner = string.Concat(
+            EmailComponentes.Titulo($"Te asignaron el ticket {codigo}"),
+            EmailComponentes.Saludo(nombreDestinatario),
+            Etiquetas(ticket),
+            EmailComponentes.ParrafoHtml(
+                $"<strong>{System.Net.WebUtility.HtmlEncode(asignadorNombre ?? "Un compañero")}</strong> te transfirió este caso para que lo gestiones."),
+            EmailComponentes.Ficha(
+                ("Código", codigo),
+                ("Título", ticket.Titulo ?? "—"),
+                ("Estado actual", ticket.Estado ?? "—")),
+            EmailComponentes.Cita("Descripción", ticket.Descripcion ?? "—", EmailTema.Info),
+            EmailComponentes.Boton(UrlTickets(applicationUrl), "Gestionar ticket"));
 
-        return Wrap(logoUrl, brandName, brandLine, inner);
+        return Wrap(logoUrl, brandName, brandLine, inner,
+            titulo: $"Te asignaron el ticket {codigo} · {brandName}",
+            preheader: $"{codigo} — {ticket.Titulo}",
+            motivoEnvio: "Recibís este correo porque quedaste como responsable de este ticket.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
+    }
+
+    // ───────────────────────────── Solucionado ─────────────────────────────
+
+    /// <summary>
+    /// Correo "ticket_solucionado" al solicitante: la solución y el pedido explícito de confirmar el
+    /// cierre. Es el paso donde la plataforma necesita una acción del usuario, así que el botón
+    /// nombra esa acción y no un genérico "ver ticket".
+    /// </summary>
+    public static string Solucionado(
+        Ticket ticket, string? nombreSolicitante,
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
+    {
+        var codigo = Codigo(ticket);
+
+        var inner = string.Concat(
+            EmailComponentes.Titulo("Tu ticket fue solucionado"),
+            EmailComponentes.Saludo(nombreSolicitante),
+            EmailComponentes.ParrafoHtml(
+                $"El ticket <strong>{System.Net.WebUtility.HtmlEncode(codigo)}</strong> — " +
+                $"“{System.Net.WebUtility.HtmlEncode(ticket.Titulo ?? "—")}” fue marcado como <strong>solucionado</strong>."),
+            EmailComponentes.Cita("Solución aplicada", ticket.SolucionDescripcion ?? "—", EmailTema.Exito),
+            EmailComponentes.CalloutExito(
+                "Falta tu confirmación",
+                "Revisá la solución y confirmá el cierre. Si algo quedó pendiente, podés reabrir el caso desde la plataforma."),
+            EmailComponentes.Boton(UrlTickets(applicationUrl), "Revisar y confirmar", EmailTema.Exito, "#20602f"));
+
+        return Wrap(logoUrl, brandName, brandLine, inner,
+            titulo: $"Ticket {codigo} solucionado · {brandName}",
+            preheader: $"{codigo} solucionado. Revisá la solución y confirmá el cierre.",
+            motivoEnvio: "Recibís este correo porque sos el solicitante de este ticket.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
     }
 
     // ───────────────────────────── Cierre ─────────────────────────────
@@ -271,50 +166,29 @@ public static class TicketEmailTemplates
     /// <summary>Correo "ticket_cerrado": resumen de la solución + histórico de chat (notas públicas).</summary>
     public static string Cerrado(
         Ticket ticket, string? nombreDestinatario, IReadOnlyList<NotaResumen> notasPublicas,
-        string logoUrl, string brandName, string brandLine, string applicationUrl)
+        string logoUrl, string brandName, string brandLine, string applicationUrl,
+        string? logoSecundarioUrl = null)
     {
-        var saludo = string.IsNullOrWhiteSpace(nombreDestinatario) ? "Hola" : $"Hola {WebUtility.HtmlEncode(nombreDestinatario)}";
-        var codigo = WebUtility.HtmlEncode(ticket.Codigo ?? $"TK-{ticket.Id}");
-        var titulo = WebUtility.HtmlEncode(ticket.Titulo);
-        var solucion = WebUtility.HtmlEncode(ticket.SolucionDescripcion ?? "—");
-        var safeUrl = WebUtility.HtmlEncode(applicationUrl);
+        var codigo = Codigo(ticket);
 
-        var chatRows = new StringBuilder();
-        foreach (var n in notasPublicas)
-        {
-            var autor = WebUtility.HtmlEncode(n.Autor ?? "—");
-            var fecha = n.CreatedAt.ToString("dd/MM/yyyy HH:mm");
-            var texto = WebUtility.HtmlEncode(n.Texto);
-            chatRows.Append($@"
-                <tr>
-                    <td>{autor}</td>
-                    <td>{fecha}</td>
-                    <td>{texto}</td>
-                </tr>");
-        }
+        var inner = string.Concat(
+            EmailComponentes.Titulo($"Ticket {codigo} cerrado"),
+            EmailComponentes.Saludo(nombreDestinatario),
+            EmailComponentes.ParrafoHtml(
+                $"El caso “{System.Net.WebUtility.HtmlEncode(ticket.Titulo ?? "—")}” quedó <strong>cerrado</strong>. Este es el resumen:"),
+            EmailComponentes.Cita("Solución", ticket.SolucionDescripcion ?? "—", EmailTema.Exito),
+            EmailComponentes.Separador(),
+            EmailComponentes.ParrafoHtml("<strong>Bitácora pública del caso</strong>"),
+            EmailComponentes.Bitacora(notasPublicas.Select(n => (
+                Autor: n.Autor ?? "—",
+                Fecha: n.CreatedAt.ToString("dd/MM/yyyy HH:mm"),
+                Texto: n.Texto))),
+            EmailComponentes.Boton(UrlTickets(applicationUrl), "Ver historial completo"));
 
-        var chatHtml = notasPublicas.Count == 0
-            ? "<p class='message'>Sin novedades registradas en la bitácora pública.</p>"
-            : $@"
-                <table class='chat-table'>
-                    <thead>
-                        <tr><th>Autor</th><th>Fecha</th><th>Nota</th></tr>
-                    </thead>
-                    <tbody>{chatRows}</tbody>
-                </table>";
-
-        var inner = $@"
-            <div class='greeting'>{saludo},</div>
-            <div class='message'>El ticket <strong>{codigo}</strong> — “{titulo}” fue <strong>cerrado</strong>. Este es el resumen:</div>
-            <div class='solucion-box'>
-                <strong>Solución:</strong><br/>{solucion}
-            </div>
-            <div class='message'><strong>Histórico de la bitácora (público):</strong></div>
-            {chatHtml}
-            <div class='button-container'>
-                <a href='{safeUrl}/tickets' class='button'>Ver ticket</a>
-            </div>";
-
-        return Wrap(logoUrl, brandName, brandLine, inner);
+        return Wrap(logoUrl, brandName, brandLine, inner,
+            titulo: $"Ticket {codigo} cerrado · {brandName}",
+            preheader: $"{codigo} cerrado. Resumen de la solución y de la bitácora.",
+            motivoEnvio: "Recibís este correo por tu participación en este ticket de soporte.",
+            applicationUrl: applicationUrl, logoSecundarioUrl: logoSecundarioUrl);
     }
 }

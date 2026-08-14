@@ -24,6 +24,13 @@ public class ItemSeguimientoDto
     public double Cantidad { get; set; } // Cantidad utilizada
     [JsonPropertyName("unidad")]
     public string Unidad { get; set; } = "kg"; // "kg", "g", "unidades", etc.
+    /// <summary>
+    /// Silo o bodega del que sale este ítem (<c>farm_silos.id</c>), en las empresas con
+    /// <c>maneja_inventario_por_silo</c>. Null = comportamiento actual (descuento a nivel granja).
+    /// Dos filas del mismo ítem con silos distintos descuentan de silos distintos.
+    /// </summary>
+    [JsonPropertyName("siloId")]
+    public int? SiloId { get; set; }
 }
 
 /// <summary>
@@ -419,6 +426,26 @@ public class CreateSeguimientoLoteLevanteRequest
     /// Construye el objeto Metadata JSONB con los campos adicionales.
     /// AHORA: Guarda TODOS los items (incluyendo alimentos) en metadata para poder cargarlos al editar.
     /// </summary>
+    /// <summary>
+    /// Un ítem tal como se guarda en el metadata jsonb. <c>siloId</c> se agrega SOLO cuando viene:
+    /// escribirlo en <c>null</c> cambiaría el JSON almacenado de todas las empresas sin el flag, que
+    /// es exactamente lo que este cambio no puede hacer. El orden de las claves es el histórico.
+    /// </summary>
+    private static Dictionary<string, object?> ItemAMetadata(ItemSeguimientoDto i)
+    {
+        var item = new Dictionary<string, object?>
+        {
+            ["tipoItem"] = i.TipoItem,
+            ["catalogItemId"] = i.CatalogItemId,
+            ["itemInventarioEcuadorId"] = i.ItemInventarioEcuadorId,
+            ["nombre"] = i.Nombre,
+            ["cantidad"] = i.Cantidad,
+            ["unidad"] = i.Unidad
+        };
+        if (i.SiloId is > 0) item["siloId"] = i.SiloId.Value;
+        return item;
+    }
+
     private static JsonDocument? BuildMetadata(
         List<ItemSeguimientoDto>? itemsHembras,
         List<ItemSeguimientoDto>? itemsMachos,
@@ -433,44 +460,14 @@ public class CreateSeguimientoLoteLevanteRequest
         
         // NUEVO: Guardar TODOS los items en metadata (incluyendo alimentos) para poder cargarlos al editar
         if (itemsHembras != null && itemsHembras.Count > 0)
-        {
-            metadata["itemsHembras"] = itemsHembras.Select(i => new
-            {
-                tipoItem = i.TipoItem,
-                catalogItemId = i.CatalogItemId,
-                itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
-                nombre = i.Nombre,
-                cantidad = i.Cantidad,
-                unidad = i.Unidad
-            }).ToList();
-        }
+            metadata["itemsHembras"] = itemsHembras.Select(ItemAMetadata).ToList();
 
         if (itemsMachos != null && itemsMachos.Count > 0)
-        {
-            metadata["itemsMachos"] = itemsMachos.Select(i => new
-            {
-                tipoItem = i.TipoItem,
-                catalogItemId = i.CatalogItemId,
-                itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
-                nombre = i.Nombre,
-                cantidad = i.Cantidad,
-                unidad = i.Unidad
-            }).ToList();
-        }
+            metadata["itemsMachos"] = itemsMachos.Select(ItemAMetadata).ToList();
 
         if (itemsGenerales != null && itemsGenerales.Count > 0)
-        {
-            metadata["itemsGenerales"] = itemsGenerales.Select(i => new
-            {
-                tipoItem = i.TipoItem,
-                catalogItemId = i.CatalogItemId,
-                itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
-                nombre = i.Nombre,
-                cantidad = i.Cantidad,
-                unidad = i.Unidad
-            }).ToList();
-        }
-        
+            metadata["itemsGenerales"] = itemsGenerales.Select(ItemAMetadata).ToList();
+
         // COMPATIBILIDAD HACIA ATRÁS: Mantener campos antiguos si no hay arrays
         if ((itemsHembras == null || itemsHembras.Count == 0) && consumoHembras.HasValue)
         {

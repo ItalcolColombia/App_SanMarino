@@ -47,5 +47,16 @@ public record CompanyDto(
     bool ProgramacionLotesEngorde = false,
     /// <summary>El nombre del lote lleva el sufijo de corrida desde la primera apertura ("96 - 1").
     /// Con <c>false</c> el nombre es el del lote base ("2603") y el sufijo aparece desde la segunda.</summary>
-    bool NombreLoteIncluyeCorrida = false
+    bool NombreLoteIncluyeCorrida = false,
+    /// <summary>
+    /// El inventario se ubica en SILOS y BODEGAS de la granja, no en el galpón. El front lo usa para
+    /// mostrar el selector de silo en ingreso, traslado y seguimiento diario, y para habilitar las
+    /// pantallas de asignación de silos (granja, galpón y lote).
+    /// </summary>
+    bool ManejaInventarioPorSilo = false,
+    /// <summary>
+    /// Los reportes Contable y Técnico leen el alimento del inventario unificado
+    /// (<c>inventario_gestion_movimiento</c>) en vez de la tabla vieja.
+    /// </summary>
+    bool ReportesAlimentoDesdeInventarioUnificado = false
 );

@@ -19,6 +19,20 @@ public interface IInventarioGestionService
         string? search = null,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Silos y bodega ACTIVOS de una granja que pueden recibir o entregar un movimiento.
+    /// <para>
+    /// Con <paramref name="galponId"/> se acota a los silos que alimentan a ese galpón —el galpón
+    /// filtra, no ubica— más la bodega de la granja, que se ofrece siempre. Devuelve vacío si la
+    /// granja no es de la empresa activa (fail-closed).
+    /// </para>
+    /// </summary>
+    Task<IEnumerable<InventarioGestionSiloDto>> GetSilosElegiblesAsync(
+        int farmId,
+        string? nucleoId = null,
+        string? galponId = null,
+        CancellationToken ct = default);
+
     Task<InventarioGestionStockDto> RegistrarIngresoAsync(InventarioGestionIngresoRequest req, CancellationToken ct = default);
 
     Task<(InventarioGestionStockDto Origen, InventarioGestionStockDto Destino)> RegistrarTrasladoAsync(InventarioGestionTrasladoRequest req, CancellationToken ct = default);

@@ -4369,3 +4369,777 @@ entera. Esto es más urgente que desplegar.
 - [ ] **F4**: todo lo que no sean las 4 capturas diarias **se consulta pero no se guarda** sin red
       (inventario, movimientos, traslados, huevos, ventas). Mapeado en
       [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)
+
+---
+
+# Rediseño de los correos + recuperación de contraseña de punta a punta (12-ago-2026)
+
+> Plan: [`fase_de_desarrollo/correos_rediseno_y_recuperacion_plan.md`](fase_de_desarrollo/correos_rediseno_y_recuperacion_plan.md)
+> Contexto: se verificó que el envío SMTP funciona desde la red corporativa (probe `235`, envío real
+> en .NET 10 y flujo completo `recover-password` → cola → `sent` en 18 s). Al revisar los cuerpos
+> aparecieron defectos de **contenido**: el correo de recuperación imprime un token de 64 caracteres
+> como si fuera la contraseña, y el front no tiene pantalla para canjearlo.
+
+## A. Sistema de plantillas compartido (Application, puro y testeable)
+
+- [x] `Application/Correos/EmailTema.cs` — tokens de marca (naranja `#e85c25` acción, verde `#2d7a3e`
+      éxito, anchos, tipografía). Se abandonó el `#f4b428` suelto de las plantillas viejas
+- [x] `Application/Correos/EmailLayout.cs` — documento completo: preheader oculto, header con logo
+      (`alt` de respaldo), contenedor 600 px en tablas, footer con el motivo del envío
+- [x] `Application/Correos/EmailComponentes.cs` — botón *bulletproof*, ficha, callout, badge, cita,
+      pasos numerados, bitácora
+- [x] Maquetación válida para Outlook: tablas `role="presentation"` + estilos **inline**, sin
+      flexbox/grid ni `linear-gradient` (hay un test que lo verifica)
+
+## B. Los 7 cuerpos sobre el sistema nuevo
+
+- [x] Restablecimiento por autoservicio: enlace a `/reset-password?token=…`, vigencia 15 min, aviso de
+      «si no fuiste vos». **Nunca** imprime el token como credencial
+- [x] Restablecimiento **por administrador**: credencial asignada + aviso de cambiarla
+- [x] `welcome`: credenciales + primeros pasos numerados
+- [x] `ticket_creado` · `ticket_transferido` · `ticket_cerrado`: sobre el layout nuevo, con badges de
+      tipo y prioridad
+- [x] `ticket_solucionado`: salió del HTML inline de `TicketService` → `TicketEmailTemplates.Solucionado`
+- [x] **Decisión:** la columna `email_type` NO cambia (rompería el histórico y las consultas). Los dos
+      casos de restablecimiento siguen siendo `password_recovery` y se distinguen dentro de
+      `metadata.emailType` (`password_reset_link` / `password_reset_admin`)
+
+## C. Backend: separar las dos semánticas del mismo método
+
+- [x] `IEmailService` + `EmailService`: nació `SendPasswordResetLinkEmailAsync(email, token, nombre)`
+- [x] `AuthService.RecoverPasswordAsync` dejó de pasar el token por el parámetro `newPassword`
+- [x] `AdminResetPasswordAsync` conserva `SendPasswordRecoveryEmailAsync` (ahí sí es una contraseña real)
+- [x] El token **no** se guarda en `email_queue.metadata` (es un secreto vivo)
+
+## D. Frontend: la pantalla que faltaba
+
+- [x] `features/auth/reset-password/` — componente standalone, `changeDetection: Eager`, lee `?token=`
+- [x] `password-recovery.service.ts` — `resetPassword(token, newPassword)` contra `POST /api/Auth/reset-password`
+- [x] Ruta `reset-password` (lazy) en `app.config.ts` + menú oculto en esa ruta (`app.component.ts`)
+- [x] Corregidos los textos de `password-recovery.component.html` («te enviaremos una nueva contraseña»
+      ya no era cierto)
+
+## E. Pruebas (gate de CI) y validación
+
+- [x] `tests/ZooSanMarino.Application.Tests/CorreosCuentaTests.cs` — **18 tests, todos en verde**
+      (2.294 tests del proyecto siguen pasando)
+- [x] `dotnet build` 0 errores · `yarn build` OK (único warning: bundle budget, preexistente)
+- [x] Los 7 cuerpos renderizados a `.html` y revisados
+- [x] **Flujo real verificado de punta a punta** (backend Release en :5099 + front en :4300):
+      solicitud → correo `sent` en la cola con el asunto nuevo → pantalla → canje del token →
+      `Contraseña restablecida exitosamente`
+- [x] Token consumido (`is_used=true`, `used_at` grabado) y **reuso rechazado** con el mensaje correcto
+- [x] Hash verificado con el mismo `PasswordHasher` del login: `Success` con la contraseña nueva,
+      `Failed` con una incorrecta
+- [x] Validaciones de la pantalla probadas en el navegador: mínimo 8, letra+número, coincidencia,
+      y el estado «enlace incompleto» cuando falta el `?token=`
+- [x] **Flujo desde la UI real cerrado** (`:4200` → `:5002`, los puertos donde el CORS sí aplica):
+      `POST /api/Auth/reset-password → 200 OK`, pantalla en «¡Contraseña actualizada!» y token
+      consumido en la base. En `:4300` fallaba solo porque `environment.apiUrl` apunta fijo a `:5002`
+      e ignora `--proxy-config`, así que el origen quedaba fuera del CORS
+
+## G. Ajustes tras verlo en un cliente de correo real (Gmail móvil, modo oscuro)
+
+- [x] **Respaldo del logo.** El `<img>` lleva tipografía propia (`class="txt"` + `font-size`/
+      `font-weight`/`color`), así el texto alternativo se lee como el nombre de la marca. Outlook de
+      escritorio **nunca** descarga imágenes remotas y Gmail tampoco ante un remitente desconocido:
+      ese lector veía una leyenda diminuta al lado de un ícono roto. Cubierto por un test
+- [x] Verificado que el logo de producción existe y responde `200`
+      (`https://zootecnico.sanmarino.com.co/assets/brand/logo_intalfoods_zootenico.png`). El hueco de
+      la captura era el `localhost:4200` de la configuración de desarrollo, no un enlace muerto
+- [x] Confirmado en Gmail móvil modo oscuro: contraste correcto en título, callout ámbar, botón
+      naranja y enlace de respaldo
+- [x] **El encabezado pasa a ser el de la pantalla de ingreso**: Italcol arriba, San Marino debajo y
+      la línea naranja. El logo de Italfoods (`logo_intalfoods_zootenico.png`) no aparece en ninguna
+      pantalla de la aplicación — se saca de los 7 correos
+- [x] `Application/Correos/EmailMarca.cs`: resuelve ambos logos desde `Email:LogoUrl` /
+      `Email:LogoSecundarioUrl`, y si no están los arma sobre `Email:ApplicationUrl` (el frontend es
+      quien sirve los assets). Las dos claves quedan en los `appsettings`; **la TaskDef de ECS no
+      define `Email__LogoUrl`, así que no hay que tocarla**
+- [x] Los logos van sobre una **placa blanca fija**: están diseñados para fondo claro y el rojo de
+      San Marino se perdía sobre el lienzo del modo noche. Cubierto por un test
+- [x] `dotnet build` 0 errores · **2.303 tests en verde** · los 7 cuerpos regenerados y verificados
+
+## F. Solicitud a los administradores (el envío desde PROD no se arregla por código)
+
+- [x] `backend/documentacion/CORREO_PROD_INFORME_TECNICO.md` — informe con toda la evidencia
+- [x] `backend/documentacion/CORREO_PROD_SOLICITUD_M365.md` — correo listo para reenviar
+- [x] `backend/documentacion/CORREO_PROD_SOLICITUD_AWS.md` — correo listo para reenviar (solo si M365
+      exige autorizar por IP)
+- [x] `RECUPERACION_CONTRASENA.md` reescrito (describía un flujo que ya no existe)
+
+## Nota para quien retome
+
+- La **causa del correo caído en producción sigue abierta** y no depende del código: es una política
+  del tenant de Microsoft 365 que rechaza según el origen. Los correos de F son el camino.
+- `/api/Auth/reset-password` **no** está en las exclusiones de `PlatformSecretMiddleware` (a diferencia
+  de `recover-password`). Funciona porque el interceptor del front manda el `X-Secret-Up` siempre; se
+  dejó como estaba para no cambiar comportamiento, pero la asimetría es deliberada de anotar.
+
+---
+
+# Tracker — SANTA REYES: silos y bodegas como ubicación real del inventario (postura)
+
+**Plan:** [`fase_de_desarrollo/santa_reyes_silos_bodegas_inventario_plan.md`](fase_de_desarrollo/santa_reyes_silos_bodegas_inventario_plan.md)
+**Fecha:** 2026-08-12 · **Empresa objetivo:** Santa Reyes (company 6, Colombia)
+
+El alimento de Santa Reyes deja de moverse «sobre el galpón» y pasa a moverse sobre **silos** y una
+**bodega** de granja. El galpón queda como filtro de navegación. El lote declara de qué silo(s) consume y
+el seguimiento diario (levante y producción) solo ofrece esos. Todo detrás del flag
+`companies.maneja_inventario_por_silo` ⇒ con el flag OFF el comportamiento es **byte a byte el de hoy**.
+
+**Condición de arranque verificada en BD:** SR tiene **0 movimientos, 0 stock y 0 lotes de seguimiento** ⇒
+**sin backfill**. Si eso cambia antes de ejecutar, hay que replanificar.
+
+## Fase 0 — Levantamiento (hecho)
+
+- [x] Mapa de impacto: `InventarioGestionService` (2.739 líneas, **único escritor** de movimientos),
+      `ColombiaInventarioConsumoService`, seguimiento levante/producción, granjas/galpones/lotes
+- [x] `Granja.xlsx` leído: silos = `Movimiento: Alimento`, galpones = `Aves, Huevo, Insumos` ⇒ **en el ERP
+      del cliente el galpón no mueve alimento**; los 38 silos cuelgan de la bodega de la granja (`B0601`)
+- [x] Decisiones confirmadas con el usuario: silo **compartido N:M**; bodega guarda **alimento + insumos**
+      con traslado bodega→silo; **todo ítem** exige ubicación silo/bodega
+- [x] BD auditada: `farm_silos` ya existe con 39 filas (38 Silo + 1 Insumos, granja 109); menús habilitados
+      de SR confirmados (gestion-inventario, farm-management, lote-management, daily-log/seguimiento y
+      /produccion); Gastos de inventario y Carga Masiva **no** están habilitados ⇒ fuera de alcance
+
+## Fase A — Catálogo y asignación (sin tocar inventario · riesgo nulo para otras empresas)
+
+- [x] Migración `AddInventarioPorSilo` (schema, idempotente): flag `maneja_inventario_por_silo`;
+      `silo_catalogo`; `farm_silos` + `silo_catalogo_id`/`updated_at`/`deleted_at`; `galpon_silos`;
+      `lote_silos`
+- [x] Entidades + Configurations: `SiloCatalogo`, `GalponSilo`, `LoteSilo`, `FarmSilo` (extendida),
+      `Company.ManejaInventarioPorSilo`; 3 `DbSet` en `ZooSanMarinoContext`
+- [x] Flag en `CompanyDto` + **las 4 proyecciones** (`CompanyService.ToDto`, `CompanyService.Crud`,
+      `CompanyResolver`, `CompanyPaisService`)
+- [x] `Infrastructure/Services/Silos/` (namespace PLANO): `SiloCatalogoService`, `FarmSiloService`,
+      `GalponSiloService`, `LoteSiloService` — scoping **fail-closed** por `farms.company_id`
+- [x] Controllers + DTOs de los 4 servicios (`GET /api/LoteSilo/{loteId}/disponibles` incluido)
+- [x] Migración `SeedSilosSantaReyes` (data-only, Designer clonado): flag ON en company 6; 100 filas de
+      catálogo; vincular los 38 `farm_silos` por nombre; `tipo 'Insumos'→'Bodega'` — `WHERE NOT EXISTS` /
+      `IS DISTINCT FROM`. ⚠️ timestamp **posterior** a `20260725190000`
+- [x] Migración `AddSilosAFnMoverUbicacion`: `UPDATE galpon_silos` en `fn_mover_galpon` y `fn_rekey_nucleo`
+      (+ actualizar el espejo `backend/sql/fn_mover_ubicacion.sql`, que **no** es lo desplegado)
+- [x] Front: flag `manejaInventarioPorSilo` en `ActiveCompanyConfigService` (+ `FLAGS_APAGADOS`)
+- [x] Front pantalla 1 — `/config/silos` (ABM lista maestra + generar rango) + menú por `route` en
+      `company_menus`/`role_menus`
+- [x] Front pantalla 2 — Silos de la granja en `farm-list`/`farm-form` (gated)
+- [x] Front pantalla 3 — Silos del galpón en `galpon-form` (gated)
+- [x] Front pantalla 4 — Silos de consumo del lote en **`lote-list`** (el form VIVO, no `modal-create-edit-lote`)
+- [x] Todo componente/modal nuevo con `changeDetection: ChangeDetectionStrategy.Eager` **explícito**
+- [x] `dotnet build` + `dotnet test` · `yarn build` · smoke doble (empresa OFF sin cambios visibles + SR)
+
+### Resultado de la Fase A (2026-08-12)
+
+- Migraciones aplicadas en local: `20260812224755_AddInventarioPorSiloCatalogoYAsignaciones` (schema),
+  `20260812230000_SeedSilosSantaReyes` (data), `20260812231500_SilosEnFnMoverUbicacion` (funciones),
+  `20260812233000_MenuSilosSantaReyes` (menú). Las 4 con `Up()` idempotente escrito a mano.
+- BD: flag ON **solo** en Santa Reyes · 100 filas de catálogo (1..100) · 38 `farm_silos` vinculados +
+  la bodega (`Insumos` → `tipo='Bodega'`) · idempotencia verificada (2ª corrida = `INSERT 0 0` / `UPDATE 0`).
+- `dotnet build` 0 errores · **2.345 tests** verdes (2.303 previos + 42 nuevos de `SiloCalculosTests`)
+  · `yarn build` 0 errores (único warning: bundle budget preexistente).
+- **Smoke Santa Reyes** (backend propio :5501, JWT + X-Secret-Up cifrado): catálogo 100 ✔ · 39
+  ubicaciones de La Esperanza con sus códigos ERP ✔ · **galpón 1 → silos 4, 20 + bodega** ✔ ·
+  **silo 4 COMPARTIDO por galpón 1 y 2 con una sola fila de config** ✔ · silo inexistente rechazado ✔ ·
+  reasignar el mismo set no duplica (4 filas totales) ✔.
+- **Gotcha de `fn_mover_galpon` verificado**: al mover el galpón 2 al Núcleo 2, su silo lo siguió
+  (`nucleo_id` 910001→910002) y volvió al revertir. El saneamiento cross-granja se probó en una
+  transacción con `ROLLBACK` (la fila cruzada se borra; el estado quedó intacto).
+- **Regresión flag OFF (Sanmarino)**: catálogo `[]`, silos de la granja 109 `[]`, y asignar un silo
+  ajeno devuelve «La granja 109 no pertenece a la empresa activa» ✔. `/config/silos` NO está en los
+  `company_menus` de ninguna empresa salvo Santa Reyes ✔.
+- Fail-closed de lotes verificado en los dos caminos: lote inexistente y lote de otra empresa.
+- Backend de smoke detenido (`:5501` libre); el backend del usuario en `:5002` quedó intacto.
+- ⚠️ **Dato dejado a propósito en la BD local**: las asignaciones de silos al galpón 1 y 2 de Santa
+  Reyes (el ejemplo del pedido) quedan para poder verlas por pantalla. Son configuración, no
+  movimientos; se borran con `DELETE FROM galpon_silos;` si molestan.
+- 🔎 **Hallazgo de implementación**: si un galpón / núcleo / lote cambia de GRANJA, sus silos son de
+  la granja vieja y la asignación quedaría cruzada. No se puede repuntar (en la granja destino esos
+  silos no existen) ⇒ las 3 funciones ahora la **quitan**. No estaba en el plan; se descubrió al
+  escribir la migración.
+
+## Fase B — Inventario por silo (⚠️ acá está el riesgo)
+
+- [x] 🔴 **Smoke de REGRESIÓN flag OFF PRIMERO** (línea base congelada ANTES de tocar nada):
+      `backend/sql/verificar_paridad_stock_clave_natural.sql` + guion HTTP de 20 pasos en Sanmarino
+      (nivel granja ⇒ núcleo/galpón NULL) y Ecuador (por galpón ⇒ con valor)
+- [x] `silo_id` en `InventarioGestionStock`; `silo_id` + `from_silo_id` en `InventarioGestionMovimiento`;
+      `silo_id` en `lote_registro_historico_unificado` + el `INSERT` del trigger
+- [x] 🔴 **Swap del índice único** `ux_inventario_gestion_stock_clave_natural` (+ `COALESCE(silo_id,0)`)
+      **y** el `ON CONFLICT` de `SumarStockAtomicoAsync` **en el MISMO commit** — desalineados, revienta
+      todo ingreso de todas las empresas
+- [x] `Application/Calculos/InventarioUbicacionSiloCalculos.cs` (puro) + tests xUnit (casos 1-5 del plan)
+- [x] `InventarioGestion/Funciones/InventarioGestionService.Silos.cs`: `ResolverModoUbicacionAsync`,
+      `ValidarSiloDeGranjaAsync`, `GetSilosElegiblesAsync` + `GET /api/inventario-gestion/silos`
+- [x] Primitivas atómicas con `siloId`; ingreso, traslado (misma granja e inter-granja), recepción de
+      tránsito (`Distribucion` por silo), consumo, anulación de movimiento
+- [x] Lecturas con silo: `GetStockAsync` y `GetMovimientosAsync` (+ `SiloNombre` sin N+1)
+- [x] Lecturas con silo: `GetIngresosAsync`, `GetTrasladosAsync`, `GetFilterDataAsync`
+- [x] DTOs: campos nuevos **al final y con default** (no romper llamadores posicionales)
+- [x] Front pantalla 5 — `/gestion-inventario`: selector Silo/Bodega en ingreso y traslado, columna Silo en
+      stock/histórico/ingresos/traslados, recepción de tránsito por silo, export a Excel por el helper de
+      `shared/utils/excel/`
+- [x] 🔴 **Smoke de REGRESIÓN flag OFF, corrida DESPUÉS del swap**: ingreso+traslado+consumo en
+      Sanmarino y Ecuador con saldos idénticos; conteo de claves naturales antes/después del swap
+      **igual**; `silo_id` NULL al 100 %
+- [x] Smoke SR: casos 11-17 del plan (ingreso, upsert, bodega→silo, silo→silo, sin silo, silo ajeno,
+      silo compartido por 2 galpones con **un** saldo)
+
+### Resultado de la Fase B — pantalla 5 y las 3 lecturas que faltaban (2026-08-13)
+
+**La Fase B queda cerrada: el silo ya se ve y se elige en `/gestion-inventario`.**
+
+- **Backend, las 3 lecturas pendientes**: `GetIngresosAsync` y `GetTrasladosAsync` proyectan el silo
+  (los traslados, los DOS extremos: `FromSilo*` del origen y `ToSilo*` del destino, que la fila de
+  salida guarda en `from_silo_id`) con **un solo** `NombresDeSilosAsync` por consulta, sin N+1.
+  `GetFilterDataAsync` devuelve `Silos` (origen + destino, la recepción elige silo de la granja que
+  recibe) y el flag `CompanyManejaInventarioPorSilo`. **Con el flag apagado no se consulta nada**:
+  el `if` envuelve la query entera.
+- ⚠️ Las filas **huérfanas** de `GetIngresosAsync` (el movimiento se borró y solo sobrevive el
+  espejo) llegan **sin silo** a propósito: `lote_registro_historico_unificado` tiene la columna pero
+  la entidad EF no la mapea, y mapearla ensuciaría el ModelSnapshot por un caso degenerado.
+- **Front pantalla 5** (`gestion-inventario-page` + `inventario-historial-page`): selector
+  **Silo / Bodega** obligatorio en ingreso y en traslado (origen y destino), columna **Silo** en la
+  grilla de stock y en el `.xlsx` (por el helper de `shared/utils/excel/`, con **6 tests** nuevos),
+  recepción de tránsito **por silo** (una sola ubicación o reparto entre varios), y el silo dentro
+  de la ubicación del histórico y del historial de ingresos/traslados.
+- 🔎 **Hallazgo que casi deja la pantalla inútil:** Santa Reyes es Colombia ⇒ `isColombiaInventario`
+  fuerza `trasladoModo = 'interGranja'` y **esconde** el radio de traslado interno. Con silos, el
+  movimiento habitual es **bodega → silo dentro de la MISMA granja**: el gate por país se levanta
+  cuando `manejaPorSilo`, y ahí el modo interno vuelve a ser el default. Sin esto no había forma de
+  cargar un silo desde la bodega por la UI.
+- 🔎 **Orden del selector** (`GetSilosElegiblesAsync`, ya entregado en la 2ª tanda): ordenaba por
+  **nombre** ⇒ «Silo 1, Silo 10, Silo 11, …, Silo 2». Con 38 silos es inusable; ahora ordena por el
+  **número del catálogo** y deja la bodega al final.
+- **Smoke UI real** (front :4300 + back :5002, Santa Reyes granja 109, sesión minteada): flag y 39
+  silos en `filter-data` ✔ · selector con «Silo 1 · BS60101 … Insumos» en orden numérico ✔ · grilla
+  de stock con columna **Silo** («Silo 4», «Insumos») y **sin** Núcleo/Galpón ✔ · `.xlsx` con la
+  columna Silo en la celda B ✔ · traslado con «Misma granja (entre silos)» + silo origen/destino ✔ ·
+  recepción con «Recibir todo en un silo / Distribuir entre varios silos», y las validaciones del
+  reparto dando **los mismos mensajes** que `InventarioGestionRecepcionDistribucionCalculos` ✔ ·
+  historial mostrando «La Esperanza › Insumos» → «La Esperanza › Silo 4» ✔. Cero errores NG en consola.
+- **Regresión flag OFF (front)**: con `companyManejaInventarioPorSilo = false` la pantalla vuelve
+  **exactamente** a la anterior — sin columna Silo, sin selectores, sin radio de traslado interno.
+- Las 2 filas de stock que se insertaron para ver la grilla se borraron: `silo_id` vuelve a estar en
+  **0 filas** de stock y de movimiento, y `max(id)` de stock volvió a 835. Backend y front
+  detenidos: **5002 y 4300 libres** (el :4200 de la otra sesión no se tocó).
+
+### Resultado del backend de la Fase B (2026-08-12, 2ª tanda)
+
+- `InventarioUbicacionSiloCalculos` (puro) + **17 tests** de los casos 1-5, y la distribución de la
+  recepción aprendió a repartir **por silo** con **8 tests** más. Total **2.371 tests verdes**.
+- `InventarioGestionService.Silos.cs` (partial, namespace plano): modo por empresa DUEÑA de la granja,
+  validación de pertenencia del silo y `GET /api/inventario-gestion/silos` (el galpón filtra, la
+  bodega se ofrece siempre).
+- Ingreso, traslado (misma granja e inter-granja), recepción de tránsito y consumo escriben el silo;
+  el histórico unificado lo replica. `TrasladoSalida`/`TrasladoEntrada` guardan además el silo del
+  otro extremo (`from_silo_id`).
+- **Smoke Santa Reyes** (granja 109, empresa 6): ingreso 1.000 al Silo 4 ✔ · 2º ingreso ⇒ **una sola
+  fila** con 2.000 ✔ · Bodega→Silo 4 (300) ✔ · Silo 4→Silo 20 (200) ✔ · ingreso **sin** silo
+  rechazado ✔ · silo ajeno rechazado ✔ · **Silo 4 compartido por G0497 y G0498 con UN solo saldo** ✔
+  · consumo 250 ⇒ 1.850 ✔. `nucleo_id`/`galpon_id` NULL en las 3 filas de stock; los 8 movimientos y
+  las 8 filas del espejo con `silo_id`.
+- **Regresión flag OFF**: el guion de 20 pasos vuelve a dar `diff` **vacío** contra la línea base
+  después de TODO el cableado. 0 filas con `silo_id` fuera de Santa Reyes. Cuadre en 0 descuadrados.
+- BD local devuelta a su estado (conteo de las 129 tablas idéntico salvo `__EFMigrationsHistory` +1).
+  Backends detenidos: puerto 5501 y 5002 libres.
+- [x] `GET /api/CuadreAlimentoEngorde` sigue en **0 descuadrados**
+
+### Resultado parcial de la Fase B — el swap del índice (2026-08-12)
+
+**Se cerró lo que podía tumbar a todas las empresas; falta la mitad de arriba de la lista (silo en las
+primitivas, lecturas, DTOs y pantalla 5).**
+
+- Migración `20260813005101_AddInventarioPorSiloEnStockYMovimiento`, `Up()` idempotente escrito a mano:
+  4 columnas (`ADD COLUMN IF NOT EXISTS`), 3 FKs a `farm_silos` en `DO $$`, **swap del índice único** y
+  el trigger `trg_lote_hist_desde_inventario_gestion` con `NEW.silo_id`. Espejo
+  `backend/sql/create_lote_registro_historico_unificado.sql` actualizado en el mismo commit.
+- `SumarStockAtomicoAsync` y `BuscarStockSinRastreoAsync` toman `siloId`; **el `ON CONFLICT` viaja con
+  el índice en el mismo commit**. Los 9 llamadores pasan el silo del propio movimiento cuando existe
+  (anulación, recepción) y `null` donde todavía sale del request.
+- **Gate nuevo y reutilizable:** `backend/sql/verificar_paridad_stock_clave_natural.sql` (solo lectura,
+  corre antes y después; lo único que puede cambiar es el bloque 1, la definición del índice).
+- **Regresión flag OFF — 20 pasos, `diff` VACÍO antes vs. después**: Sanmarino granja 4→5 (ingreso sobre
+  clave existente, ingreso sobre clave nueva, 2º ingreso que suma sin duplicar, traslado inter-granja +
+  recepción del tránsito) y Ecuador granja 42 G0050→G0047 (los mismos + traslado galpón→galpón +
+  consumo). Verificación por SQL (filas de stock, movimientos por tipo, espejo histórico, duplicados)
+  también idéntica. `silo_id` NULL en el 100 % de stock, movimiento e histórico.
+- Paridad: bloques 2-6 idénticos; solo cambian la definición del índice y los contadores de `silo_id`
+  (−1 «no existe» → 0). **Ningún saldo se partió ni se fusionó.**
+- `dotnet build` 0 errores (2 warnings preexistentes) · **2.346 tests verdes** · cuadre de engorde en
+  **0 descuadrados** en las dos empresas.
+- ⚠️ El smoke escribe datos reales: se corrió con snapshot + restore verificado (conteo exacto de las
+  129 tablas idéntico salvo `__EFMigrationsHistory` +1, que es la migración nueva).
+- ⚠️ **El backend del usuario en :5002 quedó con el código VIEJO contra el índice NUEVO** ⇒ hay que
+  reiniciarlo o sus ingresos fallan con «no unique or exclusion constraint matching the ON CONFLICT
+  specification». Es exactamente el riesgo que documenta el plan, en su versión local.
+- 🔎 **Hallazgo de paso (preexistente, fuera de alcance):** `RegistrarConsumoAsync` exige núcleo+galpón
+  para todo ítem alimento **sin mirar** el flag «nivel granja» que sí mira `RegistrarIngresoAsync` ⇒ por
+  ese endpoint no se puede consumir alimento en Colombia (su consumo real entra por
+  `ColombiaInventarioConsumoService`). El 400 quedó congelado en la línea base.
+
+## Fase C — Consumo por silo desde el seguimiento diario
+
+- [x] `ItemConsumoKey(int Id, bool EsItemInventario, int? SiloId = null)` + tests de hash/agrupación
+      (casos 6-8: sin `siloId` ⇒ idéntico a hoy; mismo ítem en 2 silos ⇒ 2 claves)
+- [x] `MetadataEngordeCalculos.ParseMetadataItemsToKgPorOrigen` lee `siloId` (la variante plana **no se toca**)
+- [x] `ColombiaInventarioConsumoService`: `Validar`/`Aplicar`/`Devolucion`/`Diff` propagan el silo;
+      `WHERE` de disponibilidad con `x.SiloId == key.SiloId`
+- [x] Validación flag ON: el `siloId` de cada fila debe estar en `lote_silos` del lote ⇒ si no, rechazo
+      **antes** de persistir (dentro de la transacción atómica existente)
+- [x] `SeguimientoLoteLevanteService.Crud.cs` (create + update) y la rama Colombia de producción
+- [x] Front pantallas 6-7 — selector de silo por fila de alimento en `lote-levante/modal-create-edit` y
+      `lote-produccion/modal-seguimiento-diario`; el dropdown de ítems y el disponible se filtran **al silo**
+- [x] Regresión flag OFF **end-to-end** (Sanmarino, granja 20, lote A374A): consumo de 10 kg por
+      `POST /api/SeguimientoLoteLevante` ⇒ 9.360 → 9.350 sobre la MISMA fila de stock (`silo_id NULL`),
+      `DELETE` ⇒ 9.360. Movimientos Consumo+Ingreso y sus 2 filas del espejo con `silo_id NULL`
+- [x] Smoke SR: casos 18-22 y 24 (consumo por silo, silo no asignado ⇒ rechazo sin fila, 2 alimentos de
+      2 silos, stock insuficiente ⇒ rollback total, editar cambiando de silo ⇒ devuelve al viejo y descuenta
+      del nuevo, reasignar `lote_silos` no recalcula lo viejo) — **22/22 verificaciones en verde**
+- [x] Caso 23: mover galpón de núcleo ⇒ `galpon_silos` lo sigue, 0 huérfanos
+- [x] 🔴 **Fix que destapó el smoke**: `ColombiaInventarioIdResolutionCalculos.ReplicarPorSilo` +
+      4 tests (con el flag puesto, NINGÚN consumo podía descontar)
+
+### Resultado de la Fase C — el silo entra en la clave del consumo (2026-08-13)
+
+- **`ItemConsumoKey` gana `SiloId`** (default `null` ⇒ toda construcción previa compila y hashea igual).
+  Es la pieza que hace que dos filas del mismo alimento en dos silos sean **dos consumos**: aplanarlas
+  sumaría los kg y descontaría todo del primer silo.
+- **`ConsumoSiloCalculos`** (puro, `Application/Calculos/`) decide: flag OFF + silo ⇒ rechazo (no se
+  mezclan modelos); flag ON sin silo ⇒ rechazo; flag ON con silo que no está en `lote_silos` ⇒ rechazo
+  nombrando el silo. **13 tests nuevos** (casos 6-8 del plan + la validación) ⇒ **2.383 verdes**.
+- **`StockNivelGranjaQuery`** (Infrastructure y el espejo del service de Colombia) filtra el silo
+  SIEMPRE, también cuando es `null` (`silo_id IS NULL`): es la clave natural del índice único con su
+  `COALESCE(silo_id,0)`. Sin ese filtro el consumo descontaba la primera fila que encontrara.
+- **`siloId` en el metadata jsonb** de levante y de producción, **solo cuando viene** — escribirlo en
+  `null` cambiaría el JSON guardado de todas las empresas sin el flag. Es lo que hace que editar
+  devuelva el alimento al silo del que salió y no a «sin silo».
+- **Front (pantallas 6 y 7):** selector de silo por fila (arriba del ítem, porque el disponible
+  depende de él), lista tomada de `GET /LoteSilo/{id}`, dropdown de ítems y «disponible» filtrados al
+  stock **de ese silo**, silo por defecto cuando el lote tiene uno solo, y guarda antes de guardar.
+  La caché de `getAlimentosFiltradosPorTipo` se indexa también por silo (si no, dos filas con silos
+  distintos comparten lista) y las referencias siguen siendo estables (NG0103).
+- **La reserva entre filas ahora es por (ítem, silo):** dos filas del mismo alimento en silos distintos
+  ya no se descuentan disponible entre sí, porque no compiten por el mismo saldo.
+- `dotnet build` 0 errores (2 warnings preexistentes) · `yarn build` OK (solo el warning de bundle
+  budget preexistente) · backend del smoke detenido, **puertos 5501/5002 libres**.
+
+### Resultado del smoke de Santa Reyes — casos 18-24 (2026-08-13, 2ª tanda)
+
+**El smoke encontró un bug que ningún test unitario podía ver: con el flag puesto NINGÚN consumo
+descontaba.** `ColombiaInventarioIdResolutionCalculos.Resolver` devuelve el mapeo ítem→ítem B
+indexado por claves con `SiloId = null`, y el service lo consulta con la clave REAL —que trae el
+silo—; el caso 18 murió con «El ítem de inventario (id=363) no existe o no pertenece a la empresa de
+la granja». Los tests puros no lo veían porque cada pieza es correcta por separado: el defecto vive
+en la junta. Fix: **`ReplicarPorSilo`** (puro) replica el mapeo sobre las claves reales —el id de
+destino no depende del silo— con **4 tests nuevos** (clave con silo hereda el mapeo; mismo ítem en 2
+silos resuelve las 2; un ítem sin equivalente sigue sin resolver aunque traiga silo; sin claves con
+silo el diccionario queda idéntico). **2.387 tests verdes.**
+
+- **Fixture** (la BD local no tenía ningún lote de SR): lotes 130 `SMOKE-SR-LEV` (levante, G0497) y
+  131 `SMOKE-SR-PRO` (producción, G0498) en La Esperanza, con `lote_silos` = Silo 4 y Silo 20. El
+  **Silo 39 quedó fuera a propósito y con saldo**: así el caso 19 se rechaza por no estar asignado,
+  no por falta de stock. Ojo: `trg_lotes_sync_lote_postura_levante` ya crea la fila de levante — el
+  INSERT explícito la duplica.
+- **Caso 18** ✔ consumo de 200 kg desde el Silo 4: 1.000 → 800, el Silo 20 intacto, movimiento
+  `Consumo` con `silo_id=4`, espejo `INV_CONSUMO|4|200` y `"siloId": 4` en el metadata.
+- **Caso 19** ✔ Silo 39 (de la granja, no del lote): 400 «El silo o bodega indicado (id=39) no está
+  asignado a este lote», **sin fila de seguimiento** y sin tocar el saldo del 39.
+- **Caso extra** ✔ flag ON sin silo: 400 «Debe indicar de qué silo o bodega sale cada alimento».
+- **Caso 20** ✔ producción con 3 filas (A@Silo 4 100 kg, B@Silo 20 150 kg, **A@Silo 20 50 kg**):
+  **3 consumos independientes**, uno por `(ítem, silo)` — es la prueba de que la clave no se aplana.
+- **Caso 21** ✔ 5.000 kg contra 800 disponibles: 400 «Stock insuficiente … (granja 109, silo «Silo
+  4»): disponible 800 kg, requerido 5000 kg», sin seguimiento y con los dos saldos intactos.
+- **Caso 22** ✔ editar del Silo 4 al Silo 20: el 4 recupera 800 → 1.000 y el 20 descuenta 500 → 300.
+- **Caso 23** ✔ (en transacción con `ROLLBACK`): mover G0498 dentro de la granja ⇒ `galpon_silos`
+  sigue al galpón con su silo, 0 huérfanos; moverlo a **otra granja** ⇒ la fila cruzada y el
+  `lote_silos` del lote mudado se limpian solos, 0 huérfanos en ambas tablas.
+- **Caso 24** ✔ desactivar el Silo 20 del lote no recalcula nada: el saldo queda en 300, los 3
+  movimientos viejos conservan su `silo_id`, y recién el consumo NUEVO se rechaza.
+- **Regresión flag OFF post-fix** (Sanmarino, lote 116): 9.360 → 9.350 sobre la MISMA fila
+  (`silo_id IS NULL`), la fila no se partió, el metadata **no** ganó `siloId`, movimientos sin silo y
+  `DELETE` ⇒ 9.360. `GET /api/CuadreAlimentoEngorde` en **0 descuadrados** en las dos empresas.
+- **BD devuelta a su estado exacto**: los 9 conteos del snapshot coinciden fila por fila y vuelve a
+  haber **0 filas con `silo_id`** en stock, movimiento e histórico. Backend detenido, **5501 y 5002
+  libres**.
+
+### Ciclo completo de la pantalla de PRODUCCIÓN (2026-08-13, 3ª tanda) — 18/18
+
+La 1ª tanda probó 5 casos en levante y solo el **alta** en producción. Producción ya estaba cableada
+igual (backend: `ProduccionService.Seguimiento.cs` lee el consumo viejo con
+`ParseMetadataItemsToKgPorOrigen`, que trae el silo, en la edición —línea 469— y en el borrado —613—;
+front: `modal-seguimiento-diario.component.ts` +171 líneas y el `[loteId]` de la lista), pero el
+smoke no lo demostraba. Ahora sí, sobre el lote 133 `SMOKE-SR-PRO`:
+
+- **P1 alta** ✔ A@Silo 4 (100) + B@Silo 20 (150), cada uno a su silo.
+- **P2 editar cambiando de silo** ✔ A pasa del Silo 4 al 20: el 4 recupera 900 → 1.000 y el 20
+  descuenta 500 → 400. Es el caso 22, en producción.
+- **P3 editar subiendo la cantidad** ✔ A@Silo 20 de 100 a 180: descuenta **solo el delta** (−80).
+- **P4 editar hacia un silo no asignado** ✔ 400 nombrando el Silo 39, sin mover ningún saldo.
+- **P5 editar sin silo** ✔ 400 «Debe indicar de qué silo o bodega sale cada alimento».
+- **P6 editar a 9.999 kg** ✔ 400 «Stock insuficiente … silo «Silo 20»: disponible 320, requerido
+  **9.819**» — el diff pide el incremento, no el total.
+- **P7 borrar** ✔ cada kg vuelve **al silo del que salió**: A al Silo 20 (el último, NO al 4, del que
+  había salido originalmente) y B al 20. Los tres saldos vuelven exactos a 1.000 / 500 / 800.
+
+BD restaurada de nuevo (los 9 conteos y 0 filas con `silo_id`), backend detenido, 5501/5002 libres.
+
+## Fase D — Cierre (aditivo)
+
+- [x] `fn_inventario_gastos_existencias` con `SUM` + `GROUP BY` **antes** de habilitar Gastos en SR
+      (el `LEFT JOIN` asumía una fila de stock por granja+ítem y con N silos multiplicaba filas)
+- [x] Columna Silo en la carga masiva (hoja Alimento) — **NO aplica**, verificado con datos (abajo)
+- [x] Reportes (Contable, Técnico) con la dimensión silo — **NO la necesitan** (auditado, abajo)
+- [x] ⚠️ **Bloqueante de go-live para SR, NO lo causaron los silos**: los dos reportes leen el
+      alimento de la tabla LEGACY `farm_inventory_movements`, donde SR tiene 0 filas ⇒ columnas de
+      alimento en cero. **Resuelto con un flag por empresa** (`reportes_alimento_desde_inventario_unificado`),
+      encendido SOLO para Santa Reyes: con el flag apagado la consulta es la de siempre, así que
+      Sanmarino, Demo, Ecuador y Panamá no ven cambiar ni una celda (medido, ver abajo)
+- [x] 🔸 **Decisión tomada por el usuario (2026-08-13): encendido también en Sanmarino**
+      (migración `20260814000000_ReportesUnificadoSanmarino`, localiza por `identifier='100063'` —el
+      NIT— y no por nombre, que es texto libre y fallaría en silencio). Su reporte venía mostrando de
+      menos: la tabla vieja se quedó en el **2026-07-17** y la nueva llega al **2026-08-13**.
+      Verificado sobre la BD ya migrada: Contable A374B entradas **2.867** / retiros **2.626,975**;
+      Técnico S369B **249.860 kg** donde antes mostraba **0**. Demo, Ecuador y Panamá siguen apagados
+
+### Reportes Contable y Técnico: no hay dimensión silo que agregar (auditado 2026-08-13)
+
+**Los dos reportes están habilitados para SR** (`company_menus` + `role_menus` de los roles 30 y 31),
+así que sí había que mirarlos. El resultado es que el ítem del plan es un **no-op**: ninguno de los dos
+lee las tres tablas que ganaron `silo_id` (`inventario_gestion_stock`, `inventario_gestion_movimiento`,
+`lote_registro_historico_unificado`). En todo el backend de reportes hay **3 accesos a inventario**,
+los tres a la tabla vieja:
+
+- [`ReporteContableService.cs:816`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteContableService.cs:816) — kardex de bultos
+- [`ReporteTecnicoService.cs:1425`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs:1425) y [`:1451`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs:1451) — ingresos y traslados de alimento
+
+De ahí que **ninguno de los dos riesgos del silo aplique**: (a) no hay `LEFT JOIN` a una tabla de
+*saldos*, se agrega con `GroupBy(fecha)` / `SumAsync` sobre una tabla de *movimientos* —donde el silo
+viaja en la propia fila y no genera fan-out—; (b) no hay ningún filtro por `nucleo_id`/`galpon_id` de
+inventario, así que el escenario «en modo silo el galpón va NULL ⇒ el reporte pierde el alimento»
+tampoco se da. El grano de salida es (lote, fecha) o (lote, semana), y el núcleo/galpón que muestran
+sale del **lote**, no del inventario — el silo cambió dónde vive el ALIMENTO, no dónde vive el lote.
+
+### ⚠️ Lo que sí apareció: los reportes leen el módulo de inventario VIEJO
+
+Verificado en la BD local, no deducido:
+
+| Tabla | Empresas con filas |
+|---|---|
+| `farm_inventory_movements` (**legacy**, la que leen los reportes) | 1 Sanmarino (324, última **2026-07-17**), 4 Demo (2) |
+| `inventario_gestion_movimiento` (**nueva**, la que escribe SR) | 1 (326), 3 Ecuador (8.674), 4 (12), 5 Panamá (1.159) |
+
+**Santa Reyes no tiene ni una fila en la tabla legacy** y no la va a tener: todo su alimento entra por
+`InventarioGestionController`, que es el que conoce `maneja_inventario_por_silo`. Consecuencia concreta
+cuando SR abra estos reportes: **Entradas / Traslados / Retiros / Saldo de bultos = 0** en el Contable
+([`ReporteContableService.cs:850-875`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteContableService.cs:850))
+y `ingresosAlimentoKilos` / `trasladosAlimentoKilos` = 0 en el Técnico. No es un número mal calculado:
+es un número que no existe, y el `catch { return 0; }` de
+[`ReporteTecnicoService.cs:1440`](backend/src/ZooSanMarino.Infrastructure/Services/ReporteTecnicoService.cs:1440)
+lo devolvería en silencio igual que si no hubiera pasado nada.
+
+**Por qué no lo arreglé de una:** repuntar los reportes a `inventario_gestion_movimiento` cambia el
+número que hoy ven **Sanmarino y Demo** (las otras dos empresas con estos reportes), y las dos tablas
+no son equivalentes — la legacy tiene 324 filas de Sanmarino y la nueva 326, con una fila de julio
+(`Entry` 1.600 del 2026-07-17) que existe **solo** en la legacy. Es un cambio de comportamiento sobre
+un reporte contable vivo: va con decisión explícita y con verificación empresa por empresa, no de
+arrastre en la fase de silos. **Es anterior a este plan** (nace de la unificación de inventario de
+Colombia) y no lo introdujo ninguna de las fases A-D.
+
+### Carga Masiva en SR: no hay nada que tocar (verificado en la BD, 2026-08-13)
+
+El plan lo daba por «fuera de alcance» de memoria; lo confirmé contra `menus`/`role_menus`. El menú
+**Carga Masiva (id 66) sí está** en los dos roles de SR (30 `Santa Reyes Administrador`, 31
+`Santa Reyes Implementador`), pero es un **padre con `route` vacía** y sus dos únicos hijos —
+`/migraciones-masivas` (60) y `/migraciones/sincronizacion-panama` (65)— **no están habilitados para
+ninguno de los dos**. O sea: se ve el nodo en el árbol y no lleva a ninguna pantalla. Agregarle la
+columna Silo a la hoja Alimento sería escribir código para un flujo que hoy nadie puede abrir en SR;
+queda para el día que se habilite alguna de esas rutas (y ahí hay que hacerlo, o el alimento entraría
+sin ubicación). Los **dos reportes sí son alcanzables** por ambos roles ⇒ ese es el trabajo real.
+- [x] **(nuevo, ver hallazgos abajo)** El resto del módulo Gastos para poder habilitarlo en SR:
+      `siloId` en el alta del gasto (DTO + form) y `GROUP BY` en `GetItemsWithStockAsync`
+
+### Gastos por silo: el módulo ya se puede habilitar en SR (2026-08-13, 4ª tanda)
+
+- **`GetItemsWithStockAsync` agrega con `GROUP BY`** (en la BD, no en memoria) y acepta `siloId`
+  opcional: sin silo devuelve UNA fila por ítem con el saldo total de la granja —lo que ven las
+  empresas sin el flag— y con silo, el saldo de ESE silo, que es de donde va a descontar.
+- **El silo viaja de punta a punta**: `InventarioGastoLineaRequest.SiloId` → `RegistrarConsumoAsync`
+  (que ya valida modo y pertenencia) → columna nueva `inventario_gasto_detalle.silo_id`
+  (migración `20260813210000_AddSiloEnGastoDetalle`, aditiva y nullable) → **la anulación devuelve al
+  MISMO silo**. Sin guardar el silo en la línea, eliminar un gasto repondría el insumo «a nivel
+  granja» y el saldo del silo quedaría corto para siempre, sin ningún error a la vista.
+- `stockAntes` se lee de la misma fila que se va a descontar (antes tomaba un silo cualquiera).
+- **Front**: selector de silo en el modal (antes del ítem, porque el saldo depende de él), columna
+  Silo en las líneas, y la línea se identifica por **(ítem, silo)** — el mismo insumo sacado de dos
+  silos son dos líneas, porque el backend descuenta dos filas de stock distintas.
+
+**Smoke HTTP real, Santa Reyes (granja 109, silos 4 y 20) — 25/25 OK:**
+ingresos 300+200 ✔ · el selector muestra **1 fila con 500** (antes: 2 filas de 300 y 200) ✔ ·
+con `siloId=4` ofrece 300 ✔ · gasto **sin** silo ⇒ 400 «Debe indicar el silo o la bodega…» y **ningún
+saldo se mueve** ✔ · gasto de 100 del silo 4 ⇒ 300→200 con el silo 20 **intacto** ✔ · el detalle
+guarda `siloId` + nombre y su antes/después es el del silo ✔ · gasto con **dos silos** ⇒ cada línea
+descuenta el suyo ✔ · 200 del silo 20 (tiene 175) ⇒ **rechazado** aunque la granja tenga 325 entre
+los dos ✔ · anular ⇒ los dos saldos vuelven exactos y **no se crea stock sin silo** ✔.
+
+**Regresión con el flag apagado (ItalcolEcuador, la empresa que realmente usa Gastos) — 12/12 OK:**
+una fila por ítem con el saldo de siempre ✔ · alta sin silo ⇒ descuenta igual que antes y la línea
+queda **sin** silo ✔ · alta **con** silo ⇒ 400 «Esta empresa no maneja el inventario por silo» ✔ ·
+anulación devuelve al mismo lugar ✔. BD restaurada: los 8 conteos vuelven al snapshot.
+
+### `fn_inventario_gastos_existencias`: el saldo se agrega (2026-08-13)
+
+Espejo [`backend/sql/fn_inventario_gastos_existencias.sql`](backend/sql/fn_inventario_gastos_existencias.sql)
++ migración `20260813140000_FnGastosExistenciasSaldoPorSilo` (idempotente, `CREATE OR REPLACE`; el
+`Down` **restaura** la versión anterior en vez de hacer `DROP`, que dejaría el reporte sin responder).
+
+El `LEFT JOIN` directo contra `inventario_gestion_stock` se reemplaza por una CTE `saldos` con
+`SUM(quantity)` agrupada por `(farm_id, item)`, acotada a las granjas del universo para no escanear
+el stock de toda la BD. **La reproducción del bug quedó grabada**, no se dedujo: con un ítem de
+insumos de SR repartido en Silo 4 (100) + Silo 20 (250) + bodega Insumos (30), la fn vieja devolvía
+**3 filas del mismo ítem** con saldos parciales 100 / 250 / 30; la nueva devuelve **1 fila con 380**,
+y sigue siendo 1 fila filtrando por granja y por concepto.
+
+**Regresión flag OFF** — se comparó la salida completa de la fn en las 5 empresas antes y después:
+Ecuador **1.179 filas idénticas** (Sanmarino, Demo, Panamá y SR dan 0 filas: sin catálogo no-alimento
+con stock a nivel granja). Multiset byte a byte igual.
+
+⚠️ **Hallazgo lateral: el orden del reporte no era determinista.** El primer diff de Ecuador salió
+con 3 pares de filas intercambiadas *sin* cambiar ningún valor. No era la CTE: el `ORDER BY` cortaba
+en `it.nombre` y en el catálogo de Ecuador conviven **ítems distintos con el mismo nombre** (`AV0342`
+y `SM0272`, ambos «AV. HEPA INMUNO BROILER NB 2500DS»), así que el desempate lo decidía el plan de
+ejecución. Ya pasaba antes de este cambio — dos exportaciones seguidas del mismo reporte salían con
+filas movidas. Se agregó `it.codigo, it.id` como desempate: no cambia ninguna fila ni ningún valor,
+solo fija un orden que nunca estuvo garantizado. Verificado: dos corridas seguidas ⇒ salida idéntica.
+
+### Hallazgos: la fn NO alcanza para habilitar Gastos en Santa Reyes
+
+Al verificar el resto del módulo aparecieron dos puntos más con el mismo supuesto de «una fila de
+stock por granja+ítem». **Ninguno rompe nada hoy** (Gastos no está en los `company_menus` de SR), pero
+quedan como requisito antes de habilitarlo — el arreglo de la fn por sí solo no basta:
+
+1. `InventarioGastoService.GetItemsWithStockAsync` (selector de ítems del modal) proyecta
+   `x.s.Quantity` **fila a fila**: en modo silo listaría el mismo ítem una vez por silo, cada una con
+   una cantidad parcial. Es el mismo `GROUP BY` que se le hizo a la fn, en LINQ.
+   (`GetConceptosAsync` usa el stock como semi-join con `Contains` ⇒ **no** multiplica, está bien.)
+2. `InventarioGastoService.CreateAsync` llama `RegistrarConsumoAsync` con `SiloId = null` y calcula
+   `stockAntes` con un `FirstOrDefaultAsync` que en modo silo tomaría **un silo cualquiera**. El alta
+   **falla en voz alta** (400 «Debe indicar el silo o la bodega…», fail-closed de la Fase B): no
+   corrompe saldos, pero el módulo es inusable en SR hasta que el gasto lleve `siloId` de punta a
+   punta (DTO + selector en el form + `stockAntes` por silo).
+
+### Los reportes leen el alimento donde la empresa lo tenga (2026-08-13, 4ª tanda)
+
+Flag por empresa `reportes_alimento_desde_inventario_unificado` (columna en `companies`,
+`NOT NULL DEFAULT false`, migración `20260813220000_ReportesAlimentoDesdeInventarioUnificado`,
+encendida por seed **solo en Santa Reyes**). La decisión y la traducción de tipos de movimiento son
+lógica pura con tests (`ReporteAlimentoInventarioCalculos`, **26 casos**): cada `movement_type` cae en
+UNA sola categoría (entrada / traslado / retiro) —un tipo en dos listas duplicaría kilos en un reporte
+contable— y `AjusteStock`/`EliminacionStock` quedan afuera a propósito, igual que en el reporte viejo.
+
+**A/B medido contra datos reales (Sanmarino, que es la única empresa con filas en las DOS tablas):**
+
+| reporte | lote | flag OFF (hoy) | flag ON |
+|---|---|---|---|
+| Contable (bultos) | A374B, granja 20 | entradas **2.907** · retiros **2.608,675** | entradas **2.867** · retiros **2.626,975** |
+| Técnico (kg de alimento) | S369B, granja 12 | ingresos **0** | ingresos **249.860** |
+
+Y al volver a apagarlo, los dos vuelven **exactos** al baseline: el flag es el único interruptor.
+El caso de la granja 12 es el bug en estado puro — **0 kg** hoy porque su alimento entra por el módulo
+nuevo y el reporte lee el viejo, con el `catch { return 0; }` devolviéndolo en silencio.
+
+⚠️ **Lo que esto destapó**: `farm_inventory_movements` de Sanmarino tiene 324 filas y su última es del
+**2026-07-17**; `inventario_gestion_movimiento` tiene **869** y llega al **2026-08-13**. O sea que el
+reporte de Sanmarino venía mostrando de menos. **El usuario decidió encenderlo** (migración
+`20260814000000_...`, ya aplicada y verificada en local). Demo, Ecuador y Panamá quedan apagados.
+
+🔎 **Trampa al medir el Técnico:** hay que sumar **solo `datosDiarios`**. Un recorrido recursivo del
+payload cuenta los mismos kilos **3 veces** (las filas diarias se repiten dentro de
+`sublotesIncluidos`) — así salió el 749.580 de la primera medición, donde el número real es 249.860.
+
+## Cierre
+
+- [x] Commit acotado por fase, **sin footer de atribución** (autor único moisesmurillo) — 8 commits,
+      uno por fase/hallazgo (`503d5a3` plan → `6e3b167` cierre de la D)
+- [x] `make down` / procesos de smoke detenidos — 5002 y 5501 libres, BD restaurada a su estado exacto
+- [ ] Push y deploy **solo con OK explícito del usuario**
+
+### ⚠️ Dos precondiciones que hay que verificar EN PROD antes de desplegar
+
+Las dos fallan **en silencio** (la migración es idempotente: si no matchea, no inserta y no tira error):
+
+1. **La condición de arranque se verificó en LOCAL, no en prod.** El plan arranca de «SR tiene 0
+   movimientos, 0 stock y 0 lotes ⇒ sin backfill». Si desde entonces SR empezó a cargar inventario en
+   producción, **hay que replanificar con backfill** — el stock existente quedaría con `silo_id` NULL y
+   en modo silo ninguna pantalla lo encontraría. Verificar antes del deploy:
+   `SELECT count(*) FROM inventario_gestion_stock s JOIN farms f ON f.id=s.farm_id WHERE f.company_id=<SR>;`
+2. **El seed localiza TODO por nombre**: `companies.name = 'Santa Reyes'` y, para enlazar el catálogo,
+   `silo_catalogo.nombre = farm_silos.nombre` (`'Silo 1'..'Silo 38'`). Si en prod la empresa se llama
+   distinto (un espacio, una tilde, otra capitalización) o los silos tienen otros nombres, el seed
+   **no hace nada y nadie se entera**: el flag queda en `false` y SR sigue en modo clásico, que es
+   justamente el fail-closed que buscábamos, pero parecería que «el deploy no funcionó».
+   Post-deploy, confirmar: `SELECT maneja_inventario_por_silo FROM companies WHERE name='Santa Reyes';`
+   y `SELECT count(*) FROM farm_silos WHERE silo_catalogo_id IS NOT NULL AND granja_id=<La Esperanza>;` (esperado 38).
+
+**Lo que NO hace falta**: paso manual de menús. `MenuSilosSantaReyes` escribe `company_menus` **y**
+`role_menus`, así que el módulo Silos aparece solo en el sidebar de los roles de SR (a diferencia de
+otros módulos, que sí necesitaron asignarlo a mano post-deploy).
+
+---
+
+# Módulo «Gerencia»: Panel de control en solo-lectura global (permiso `tickets.indicadores`)
+
+**Plan:** [`fase_de_desarrollo/gerencia_panel_control_permiso_lectura_plan.md`](fase_de_desarrollo/gerencia_panel_control_permiso_lectura_plan.md)
+**Sesión propia — no tocar los bloques de arriba (silos / gastos, en curso en otra ventana).**
+
+Un rol de gerencia debe ver **solo** el Panel de control de ItalJira, con los indicadores de TODOS
+los casos, sin heredar nada de `tickets.admin`. No se podía por datos: el alcance global lo decidía
+`AplicarFiltroTablero` (`TicketService.Gestion.cs:326`) contra `tickets.admin`, así que un rol con
+`tickets.gestionar` veía el panel **en cero** (solo sus casos asignados).
+
+## Backend
+
+- [x] B1 `Application/Calculos/TicketAlcancePanelCalculos.cs` — `TieneAlcanceGlobal(permisos, vistaSoloLectura)`
+- [x] B2 `AplicarFiltroTablero(filtro, bool vistaSoloLectura = false)` delega en B1 (tablero y roadmap sin tocar)
+- [x] B3 `GetIndicadoresAsync` / `GetReporteAsync` pasan `vistaSoloLectura: true`
+- [x] B4 Tests xUnit `TicketAlcancePanelCalculosTests` — **16 casos** (los 9 del plan, varios como `[Theory]`)
+- [x] B5 Migración data-only `20260813175406_MenuGerenciaPanelControl`: permiso + grupo `gerencia` + `gerencia.panel`
+      (`/gerencia/panel`, ruta PROPIA: `parent_id` es único y las migraciones localizan por `route`)
+- [x] B6 En la misma migración: `menu_permissions` (OR con `tickets.admin`) + **`company_permissions`**
+
+## Frontend
+
+- [x] F1 `features/gerencia/gerencia.routes.ts` — `/gerencia/panel` reutiliza `PanelComponent`
+- [x] F2 `app.config.ts` — bloque lazy `path: 'gerencia'` con `authGuard`
+- [x] F3 `TICKET_PERMS.indicadores`
+- [x] F4 Los 3 `RouterLink` del panel (Tablero / Roadmap / Lista) van tras `@if (puedeVerItalJira)`
+
+## Validación
+
+- [x] V1 `dotnet build` 0 errores + `dotnet test` **2403 passed / 0 failed** (las 2 advertencias son preexistentes, en otros archivos)
+- [x] V2 `yarn build` OK (solo el warning de bundle budget preexistente)
+- [x] V3 Migración aplicada en la BD local (era la única pendiente)
+- [x] V4 Smoke **sin** el permiso: regresión intacta
+- [x] V5 Smoke **con** el permiso: abre las 2 vistas de lectura y NADA más
+- [x] V6 Backend local apagado, puerto 5002 libre
+
+### Smoke HTTP real (backend local, JWT minteado + `X-Secret-Up` cifrado)
+
+Gerente = usuario **sin** casos asignados; los 17 casos de la BD local son de otro resolutor. Así el
+contraste es limpio: si el alcance no se abre, el gerente ve 0.
+
+| escenario | `/indicadores` | `/reporte` | `/tablero` | `/roadmap` |
+|---|---|---|---|---|
+| A. gerente + `tickets.gestionar` (**HOY**) | 0 | 0 | 0 | 0 |
+| B. gerente + `tickets.indicadores` (**NUEVO**) | **17** | **17** | **0** | **0** |
+| C. admin + `tickets.admin` (referencia) | 17 | — | 17 | — |
+
+A = el bug que motivó el trabajo. B = arreglado **sin** abrir el tablero ni el roadmap ni por URL
+directa. C = sin cambios.
+
+### Hallazgos
+
+1. **`company_permissions` es fail-closed por empresa** (`CompanyPermissionCalculos.cs:152`, regla R1).
+   Un permiso que no esté habilitado ahí NO viaja en el JWT aunque el rol lo tenga. Verificado tras
+   aplicar la migración: quedó habilitado en Sanmarino, Demo, ItalcolPanama y Santa Reyes —
+   **ItalcolEcuador NO**, porque no tiene `tickets.admin` ni `tickets.gestionar` habilitados. Si el rol
+   de gerencia va a ser de Ecuador, hay que habilitarlo ahí desde la UI primero.
+2. **Los 3 accesos rápidos del panel apuntaban a vistas de ItalJira.** Un gerente los habría visto y
+   el `permissionGuard` lo habría rebotado a `/home`. Ahora se ocultan sin permiso de gestión.
+3. **`GetResolutoresAdminAsync` no tiene gate** (`TicketService.cs:414`) ⇒ la barra de filtros del
+   panel funciona completa para el rol nuevo, sin abrirle nada más.
+4. ⚠️ **Trampa del entorno:** había un `mint.py` viejo de otra sesión en `/tmp` que emitía un token
+   fijo (Santa Reyes, sin claims `permission`) e ignoraba los argumentos. Los tres escenarios daban 0
+   y parecía un bug del código. Los scripts de smoke van al scratchpad con nombre propio.
+
+## Cierre
+
+- [x] Commit sin footer de atribución (autor único moisesmurillo)
+- [ ] Push y deploy **solo con OK explícito**
+- [ ] **Post-deploy manual** (no lo hace la migración, a propósito): en Roles y Permisos crear/elegir
+      el rol de gerencia → asignarle **solo** `tickets.indicadores` → asignarle el menú
+      **Gerencia › Panel de control**. Hasta entonces el módulo no lo ve nadie.
+
+---
+
+# Backup DB Studio — orden de funciones por dependencia
+
+Plan: [db_studio_backup_orden_funciones_plan.md](fase_de_desarrollo/db_studio_backup_orden_funciones_plan.md)
+
+El backup descargable falla al restaurar con 42883 en 4 funciones `LANGUAGE sql`. Causa: se emiten
+ordenadas por OID y `fn_seguimiento_diario_engorde` fue recreada (DROP+CREATE obligatorio al cambiar su
+`RETURNS TABLE`) ⇒ OID nuevo ⇒ queda después de sus llamadores.
+
+## Diagnóstico
+- [x] D1 Ubicar el generador (`DbStudioService.Backup.cs` → `WriteRoutinesAsync`, orden por `p.oid`)
+- [x] D2 Confirmar que solo rompen los llamadores `LANGUAGE sql` (el `plpgsql` pasa)
+- [x] D3 Verificar contra la BD que `pg_depend` NO sirve (2 filas fn→fn en toda la base)
+- [x] D4 Descartar "correr el archivo 2 veces": los INSERT no son idempotentes (tablas `_backup_*` sin PK)
+
+## Implementación
+- [x] I1 `DbStudioSqlCalculos`: `RoutineDef` + `OrdenarRutinasPorDependencia` (Kahn, desempate por OID)
+- [x] I2 `DbStudioSqlCalculos`: helper `RutinaInvocaA` con fronteras de palabra y calificado `public.x(`
+- [x] I3 `WriteRoutinesAsync`: traer `proname`, bufferear, ordenar y escribir
+- [x] I4 Encabezado del backup: hoy indica re-correr el archivo entero (peligroso) — corregirlo
+
+## Tests
+- [x] T1 Caso real: llamador con OID menor ⇒ el callee sale primero
+- [x] T2 Sin dependencias ⇒ orden de OID intacto
+- [x] T3 Cadena A→B→C declarada al revés
+- [x] T4 Recursiva: no cuelga ni duplica
+- [x] T5 Ciclo: no pierde rutinas, caen al final por OID
+- [x] T6 Invariante: salida = permutación exacta de la entrada
+- [x] T7 Prefijos (`fn_cuadre` vs `fn_cuadre_alimento_engorde(`)
+- [x] T8 Calificado con esquema cuenta como invocación
+- [x] T9 Mención en comentario no rompe el orden
+
+## Validación
+- [x] V1 `dotnet build` 0 errores, sin advertencias nuevas
+- [x] V2 `dotnet test` verde
+- [x] V3 Contra los 55 cuerpos reales: las 4 funciones quedan después de `fn_seguimiento_diario_engorde`
+- [x] V4 Backup regenerado restaura en UNA pasada con `ON_ERROR_STOP=1` y 0 errores
+- [x] V5 Backend local apagado, puerto 5002 libre
+
+---
+
+# Tracker — ItalJira: bitácora real de julio y agosto 2026 (horas, solución y bugs)
+
+**Plan:** [`fase_de_desarrollo/italjira_bitacora_sesiones_jul_ago_2026_plan.md`](fase_de_desarrollo/italjira_bitacora_sesiones_jul_ago_2026_plan.md)
+**Fecha:** 2026-08-13
+
+Migración data-only que ENRIQUECE las 98 tareas ya sembradas de jul-ago (horas estimadas +
+pedido real + solución + evidencia), COMPLETA ~39 sesiones que no tenían tarea y registra los
+~109 bugs (`fix(...)`) como subtareas. Fuente: 134 transcripciones de sesión + 447 commits.
+
+## Extracción (fuente real)
+- [x] E1 `extraer_sesiones.py` — 139 sesiones, timestamps, pedido real, archivos tocados
+- [x] E2 `cruzar.py` — commits atribuidos por ventana temporal + solape de archivos (447/447)
+- [x] E3 Parseo del seed anterior: 19 historias + 198 tareas con su plan
+- [x] E4 Clasificar las 39 sesiones sin tarea en su historia de módulo
+- [x] E5 Detectar y adjuntar los bugs (`fix`) a la tarea de su sesión
+
+## Estimación por juicio
+- [x] J1 Rúbrica escrita en el plan (§5)
+- [x] J2 Horas asignadas ítem por ítem en `italjira_bitacora_sesiones_jul_ago_2026_horas.json`
+- [x] J3 Revisión de outliers (sesiones de > 5 h reales y de < 15 min)
+
+## Migración
+- [x] M1 `generar_seed.py` que emite el SQL (idempotente, fail-open, identidad por email)
+- [x] M2 Migración `.cs` documentada + `Down` reversible
+- [x] M3 Designer clonado, **ModelSnapshot intacto** (data-only)
+
+## Validación
+- [x] V1 `dotnet build` 0 errores, sin advertencias nuevas
+- [x] V2 `dotnet test` verde
+- [x] V3 Aplicar en BD local y contar filas: 98 enriquecidas / 39 nuevas / 99 bugs
+- [x] V4 Segunda pasada: 0 filas afectadas (idempotencia)
+- [x] V5 `Down` + re-aplicar deja el mismo estado
+- [x] V6 Tarea con descripción editada a mano: el UPDATE no la toca
+- [x] V7 `orden` del kanban sin huecos ni repetidos por columna
+- [x] V8 Backend local apagado, puerto 5002 libre (nunca se levantó: la validación fue por psql + dotnet-ef)
+
+## Resultado medido (BD local `sanmarinoapplocal`)
+
+- 98 tareas enriquecidas · 39 tareas nuevas (`SES-AAAAMMDD-xxxx`) · 99 subtareas `BUG-<sha>` · 20 historias con horas
+- Total estimado **1.313 h** (por juicio) frente a **202 h** de sesión medidas — la diferencia queda visible ítem por ítem
+- Atribución: 351 de 447 commits con dueño; 96 (`docs(tracker)`/merges) quedaron sin atribuir a propósito

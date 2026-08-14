@@ -55,6 +55,11 @@ export interface InventarioGastoItemStockDto {
 export interface InventarioGastoLineaRequest {
   itemInventarioEcuadorId: number;
   cantidad: number;
+  /**
+   * Silo o bodega del que sale el insumo. Obligatorio en las empresas con
+   * `manejaInventarioPorSilo` (el backend rechaza el consumo sin él) y ausente en las demás.
+   */
+  siloId?: number | null;
 }
 
 export interface CreateInventarioGastoRequest {
@@ -117,6 +122,9 @@ export interface InventarioGastoDetalleDto {
   unidad: string;
   stockAntes: number | null;
   stockDespues: number | null;
+  /** Silo o bodega del que salió la línea (empresas con inventario por silo). */
+  siloId?: number | null;
+  siloNombre?: string | null;
 }
 
 /** Una fila por línea de consumo del reporte. El backend NUNCA devuelve gastos eliminados acá. */

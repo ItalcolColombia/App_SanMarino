@@ -37,11 +37,15 @@ public class InventarioGastosController : ControllerBase
     [HttpGet("items")]
     [ProducesResponseType(typeof(IEnumerable<InventarioGastoItemStockDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetItems([FromQuery] int farmId, [FromQuery] string concepto, CancellationToken ct = default)
+    public async Task<IActionResult> GetItems(
+        [FromQuery] int farmId,
+        [FromQuery] string concepto,
+        [FromQuery] int? siloId = null,
+        CancellationToken ct = default)
     {
         try
         {
-            var list = await _svc.GetItemsWithStockAsync(farmId, concepto, ct);
+            var list = await _svc.GetItemsWithStockAsync(farmId, concepto, siloId, ct);
             return Ok(list);
         }
         catch (Exception ex)

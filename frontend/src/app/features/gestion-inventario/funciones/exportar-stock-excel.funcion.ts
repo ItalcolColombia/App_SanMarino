@@ -32,6 +32,12 @@ export interface ExportarStockExcelMeta {
    * `stockShowNucleoGalpon`.
    */
   incluirUbicacion: boolean;
+  /**
+   * `true` = las hojas incluyen la columna **Silo** (empresas con inventario por silo, donde el
+   * silo/bodega ES la ubicación y núcleo/galpón van vacíos). Excluyente con `incluirUbicacion`.
+   * Ausente = `false`: el archivo queda idéntico al de siempre.
+   */
+  incluirSilo?: boolean;
 }
 
 export const HOJA_ALIMENTO = 'Alimento';
@@ -67,11 +73,12 @@ export function particionarStockPorConcepto(rows: InventarioGestionStockDto[]): 
   return { alimento, otros };
 }
 
-/** Cabeceras de una hoja; con Núcleo/Galpón solo si la ubicación aplica. */
-export function cabecerasStockExcel(incluirUbicacion: boolean): ExcelCell[] {
+/** Cabeceras de una hoja; con Núcleo/Galpón —o con Silo— solo si esa ubicación aplica. */
+export function cabecerasStockExcel(incluirUbicacion: boolean, incluirSilo = false): ExcelCell[] {
   return [
     'Granja',
     ...(incluirUbicacion ? ['Núcleo', 'Galpón'] : []),
+    ...(incluirSilo ? ['Silo'] : []),
     'Código',
     'Producto',
     'Tipo',
@@ -87,13 +94,14 @@ export function cabecerasStockExcel(incluirUbicacion: boolean): ExcelCell[] {
  */
 export function construirFilasStockExcel(
   rows: InventarioGestionStockDto[],
-  opts: { incluirUbicacion: boolean }
+  opts: { incluirUbicacion: boolean; incluirSilo?: boolean }
 ): ExcelCell[][] {
   return rows.map((s) => [
     s.granjaNombre ?? String(s.farmId),
     ...(opts.incluirUbicacion
       ? [textoUbicacion(s.nucleoNombre, s.nucleoId), textoUbicacion(s.galponNombre, s.galponId)]
       : []),
+    ...(opts.incluirSilo ? [s.siloNombre ?? (s.siloId != null ? String(s.siloId) : '—')] : []),
     s.itemCodigo,
     s.itemNombre,
     s.itemType,
@@ -114,10 +122,11 @@ function armarHoja(
   title: string,
   rows: InventarioGestionStockDto[],
   incluirUbicacion: boolean,
-  filtros: string[]
+  filtros: string[],
+  incluirSilo = false
 ): HojaExcel {
-  const headers = cabecerasStockExcel(incluirUbicacion);
-  const filas = construirFilasStockExcel(rows, { incluirUbicacion });
+  const headers = cabecerasStockExcel(incluirUbicacion, incluirSilo);
+  const filas = construirFilasStockExcel(rows, { incluirUbicacion, incluirSilo });
   return {
     sheetName,
     headers,
@@ -139,9 +148,12 @@ export function construirHojasStockExcel(
 ): HojaExcel[] {
   const { alimento, otros } = particionarStockPorConcepto(rows);
   const otrosConUbicacion = meta.incluirUbicacion && otros.some((s) => !!s.nucleoId || !!s.galponId);
+  // El silo sí va en las DOS hojas: con este modelo hasta la bodega de insumos es una ubicación
+  // con saldo propio, así que ocultarlo en «Otros conceptos» dejaría filas sin dónde están.
+  const silo = meta.incluirSilo === true;
   return [
-    armarHoja(HOJA_ALIMENTO, TITULO_ALIMENTO, alimento, meta.incluirUbicacion, meta.filtros),
-    armarHoja(HOJA_OTROS, TITULO_OTROS, otros, otrosConUbicacion, meta.filtros)
+    armarHoja(HOJA_ALIMENTO, TITULO_ALIMENTO, alimento, meta.incluirUbicacion, meta.filtros, silo),
+    armarHoja(HOJA_OTROS, TITULO_OTROS, otros, otrosConUbicacion, meta.filtros, silo)
   ];
 }
 

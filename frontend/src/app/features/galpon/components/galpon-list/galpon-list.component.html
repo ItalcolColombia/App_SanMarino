@@ -142,6 +142,12 @@
                     <button (click)="openModal(g)" class="icon-btn" title="Editar" aria-label="Editar">
                       <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                     </button>
+                    @if (manejaInventarioPorSilo) {
+                      <button (click)="abrirSilos(g)" class="icon-btn" title="Silos que lo alimentan" aria-label="Silos del galpón">
+                        <fa-icon [icon]="faWarehouse" aria-hidden="true"></fa-icon>
+                      </button>
+                    }
+
                     <button (click)="openMover(g)" class="icon-btn" title="Mover a otro núcleo/granja" aria-label="Mover galpón">
                       <fa-icon [icon]="faRightLeft" aria-hidden="true"></fa-icon>
                     </button>
@@ -524,6 +530,14 @@
       (cancelled)="onCancelConfirm()"
       (closed)="onCancelConfirm()">
     </app-confirmation-modal>
+
+    <!-- Silos que alimentan al galpón (solo empresas con inventario por silo) -->
+    @if (destinoSilos) {
+      <app-modal-asignar-silos
+        [destino]="destinoSilos"
+        (cerrar)="cerrarSilos()">
+      </app-modal-asignar-silos>
+    }
 
   </div>
 </div>

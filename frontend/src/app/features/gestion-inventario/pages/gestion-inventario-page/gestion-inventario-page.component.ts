@@ -36,17 +36,20 @@ import {
   InventarioGestionStockDto,
   InventarioGestionMovimientoDto,
   ItemInventarioDto,
-  InventarioGestionTransitoPendienteDto
+  InventarioGestionTransitoPendienteDto,
+  InventarioGestionSiloDto
 } from '../../services/gestion-inventario.service';
 
 type TabKey = 'stock' | 'ingresos' | 'traslados' | 'transito' | 'historico' | 'items';
 type TrasladoModo = 'mismaGranja' | 'interGranja';
 
-/** Fila del reparto de una recepción de tránsito entre galpones de la granja destino. */
+/** Fila del reparto de una recepción de tránsito entre galpones (o silos) de la granja destino. */
 interface RecepcionDestinoRow {
   nucleoId: string | null;
   galponId: string | null;
   quantity: number | null;
+  /** Silo/bodega destino de esta fila (empresas con inventario por silo). */
+  siloId: number | null;
 }
 
 @Component({
@@ -225,6 +228,26 @@ export class GestionInventarioPageComponent implements OnInit {
   pendingAnularMovimiento: InventarioGestionMovimientoDto | null = null;
 
   private allCatalogItems: ItemInventarioDto[] = [];
+
+  // ── Inventario por SILO (Santa Reyes) ───────────────────────────────────────
+  // El silo/bodega ES la ubicación del saldo: núcleo y galpón solo acotan qué silos se ofrecen
+  // (un silo puede alimentar varios galpones, así que el saldo NO se parte por galpón).
+  // Con el flag apagado nada de esto se pinta ni se envía: `manejaPorSilo` es false y el backend
+  // rechaza cualquier silo que llegue igual.
+
+  /** Silos elegibles para el ingreso (según granja y, si hay, galpón de destino). */
+  ingresoSilos: InventarioGestionSiloDto[] = [];
+  ingresoSiloId: number | null = null;
+
+  /** Silos elegibles en el origen y el destino del traslado. */
+  trasladoSilosOrigen: InventarioGestionSiloDto[] = [];
+  trasladoSilosDestino: InventarioGestionSiloDto[] = [];
+  fromSiloId: number | null = null;
+  toSiloId: number | null = null;
+
+  /** Silos de la granja que recibe un tránsito inter-granja. */
+  recepcionSilos: InventarioGestionSiloDto[] = [];
+  recepcionToSiloId: number | null = null;
 
   /**
    * Fase 3 (paso 3) — Colombia opera el inventario modelo B unificado a NIVEL GRANJA:
@@ -595,9 +618,14 @@ export class GestionInventarioPageComponent implements OnInit {
     return `${d.getFullYear()}-${mm}-${dd}`;
   }
 
-  /** Ubicación del movimiento (granja de registro + núcleo/galpón si aplica). */
+  /**
+   * Ubicación del movimiento (granja de registro + núcleo/galpón, o el silo si la empresa ubica
+   * por silo). El silo se decide por el DATO de la fila, no por el flag: así el histórico de una
+   * empresa que migró sigue mostrando bien las filas viejas y las nuevas.
+   */
   ubicacionRegistroMovimiento(m: InventarioGestionMovimientoDto): string {
     const g = m.granjaNombre ?? String(m.farmId);
+    if (m.siloId != null) return `${g} · Silo ${m.siloNombre ?? m.siloId}`;
     const n = m.nucleoNombre ?? m.nucleoId ?? '';
     const gp = m.galponNombre ?? m.galponId ?? '';
     if (!n && !gp) return g;
@@ -608,6 +636,7 @@ export class GestionInventarioPageComponent implements OnInit {
   otroExtremoMovimiento(m: InventarioGestionMovimientoDto): string {
     if (m.fromFarmId == null && !m.fromGranjaNombre) return '—';
     const g = m.fromGranjaNombre ?? (m.fromFarmId != null ? String(m.fromFarmId) : '');
+    if (m.fromSiloId != null) return `${g} · Silo ${m.fromSiloNombre ?? m.fromSiloId}`;
     const n = m.fromNucleoNombre ?? m.fromNucleoId ?? '';
     const gp = m.fromGalponNombre ?? m.fromGalponId ?? '';
     if (!n && !gp) return g;
@@ -691,6 +720,20 @@ export class GestionInventarioPageComponent implements OnInit {
         }
         this.loading = false;
         this.applyInventoryQueryParamsFromRoute();
+        // Recién acá se sabe si la empresa maneja silos: si preseleccionó granja, ya se pueden
+        // ofrecer sus silos sin que el usuario tenga que tocar el selector de granja.
+        if (this.manejaPorSilo) {
+          // El gate por país de `ngOnInit` (Colombia ⇒ solo inter-granja, porque el inventario es
+          // a nivel granja) NO aplica acá: con silos, bodega → silo DENTRO de la misma granja es
+          // el movimiento habitual. Se vuelve al modo interno como default.
+          if (this.trasladoModo === 'interGranja' && this.isColombiaInventario) {
+            this.trasladoModo = 'mismaGranja';
+            if (this.fromFarmId != null) this.toFarmId = this.fromFarmId;
+          }
+          this.loadIngresoSilos();
+          this.loadTrasladoSilosOrigen();
+          this.loadTrasladoSilosDestino();
+        }
       },
       error: () => {
         this.loading = false;
@@ -785,7 +828,10 @@ export class GestionInventarioPageComponent implements OnInit {
           return;
         }
         exportarStockExcel(list, {
-          incluirUbicacion: !this.isColombiaInventario,
+          // Inventario por silo: núcleo/galpón van NULL en el 100 % de las filas → sale la columna
+          // Silo en su lugar. Para el resto de empresas, exactamente lo de antes.
+          incluirUbicacion: !this.isColombiaInventario && !this.manejaPorSilo,
+          incluirSilo: this.manejaPorSilo,
           filtros: this.filtrosStockExport(list)
         });
       },
@@ -892,10 +938,79 @@ export class GestionInventarioPageComponent implements OnInit {
     return this.listaEstable(`ingG|${this.ingresoFarmId}|${this.ingresoNucleoId ?? ''}`, computed, x => x.galponId);
   }
 
+  /**
+   * ¿La empresa activa ubica el inventario en SILOS? Fail-closed: si `filter-data` no trae el flag
+   * (backend viejo, error de red) queda en `false` y la pantalla es exactamente la de siempre.
+   */
+  get manejaPorSilo(): boolean {
+    return this.filterData?.companyManejaInventarioPorSilo === true;
+  }
+
   get showNucleoGalpon(): boolean {
     // Colombia: inventario a nivel granja → nunca núcleo/galpón (aunque sea alimento).
     if (this.isColombiaInventario) return false;
     return this.isAlimentoConcept(this.selectedConcept);
+  }
+
+  /**
+   * Con inventario por silo, núcleo y galpón siguen en pantalla pero como FILTRO de la lista de
+   * silos: dejan de ser obligatorios porque no se persisten (el backend los anula).
+   */
+  get ubicacionEsFiltroDeSilo(): boolean {
+    return this.manejaPorSilo;
+  }
+
+  /** Carga los silos elegibles de una ubicación; con el flag apagado el API devuelve `[]`. */
+  private cargarSilos(
+    farmId: number | null,
+    nucleoId: string | null,
+    galponId: string | null,
+    asignar: (list: InventarioGestionSiloDto[]) => void
+  ): void {
+    if (!this.manejaPorSilo || farmId == null) {
+      asignar([]);
+      return;
+    }
+    this.svc.getSilos(farmId, nucleoId, galponId).subscribe({
+      next: (list) => asignar(list ?? []),
+      error: () => asignar([])
+    });
+  }
+
+  /** Silos del destino del ingreso. Si el silo elegido ya no está en la lista, se limpia. */
+  loadIngresoSilos(): void {
+    this.cargarSilos(this.ingresoFarmId, this.ingresoNucleoId, this.ingresoGalponId, (list) => {
+      this.ingresoSilos = list;
+      if (this.ingresoSiloId != null && !list.some(s => s.id === this.ingresoSiloId)) {
+        this.ingresoSiloId = null;
+      }
+    });
+  }
+
+  loadTrasladoSilosOrigen(): void {
+    this.cargarSilos(this.fromFarmId, this.fromNucleoId, this.fromGalponId, (list) => {
+      this.trasladoSilosOrigen = list;
+      if (this.fromSiloId != null && !list.some(s => s.id === this.fromSiloId)) {
+        this.fromSiloId = null;
+      }
+    });
+  }
+
+  loadTrasladoSilosDestino(): void {
+    const farmId = this.trasladoModo === 'mismaGranja' ? this.fromFarmId : this.toFarmId;
+    this.cargarSilos(farmId, this.toNucleoId, this.toGalponId, (list) => {
+      this.trasladoSilosDestino = list;
+      if (this.toSiloId != null && !list.some(s => s.id === this.toSiloId)) {
+        this.toSiloId = null;
+      }
+    });
+  }
+
+  /** Etiqueta del selector: la bodega se distingue del silo porque no cuelga de ningún galpón. */
+  siloOptionLabel(s: InventarioGestionSiloDto): string {
+    const erp = (s.codigoErpUbicacion ?? '').trim();
+    const sufijo = erp ? ` · ${erp}` : '';
+    return `${s.nombre}${sufijo}`;
   }
 
   /**
@@ -940,6 +1055,9 @@ export class GestionInventarioPageComponent implements OnInit {
 
   /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
   get stockShowNucleoGalpon(): boolean {
+    // Inventario por silo: núcleo y galpón se persisten NULL a propósito → las columnas irían
+    // vacías en el 100 % de las filas. En su lugar se muestra la columna Silo.
+    if (this.manejaPorSilo) return false;
     // Colombia: stock a nivel granja → sin columnas núcleo/galpón.
     if (this.isColombiaInventario) return false;
     const c = (this.stockConceptFilter ?? '').trim();
@@ -990,7 +1108,9 @@ export class GestionInventarioPageComponent implements OnInit {
       this.toNucleoId = null;
       this.toGalponId = null;
     }
-    if (this.trasladoModo === 'mismaGranja' && !this.showNucleoGalpon) {
+    // Con inventario por silo el traslado interno NO es cosa de alimento: bodega→silo mueve
+    // insumos igual. Solo el modelo clásico obliga a salir de «misma granja» fuera de alimento.
+    if (this.trasladoModo === 'mismaGranja' && !this.showNucleoGalpon && !this.manejaPorSilo) {
       this.trasladoModo = 'interGranja';
     }
   }
@@ -998,16 +1118,37 @@ export class GestionInventarioPageComponent implements OnInit {
   onTrasladoModoChange(): void {
     this.toNucleoId = null;
     this.toGalponId = null;
+    this.toSiloId = null;
     if (this.trasladoModo === 'mismaGranja' && this.fromFarmId != null) {
       this.toFarmId = this.fromFarmId;
     }
     this.loadOriginStock();
+    this.loadTrasladoSilosDestino();
   }
 
   onTrasladoFromFarmChange(): void {
     if (this.trasladoModo === 'mismaGranja' && this.fromFarmId != null) {
       this.toFarmId = this.fromFarmId;
     }
+    this.fromSiloId = null;
+    this.loadOriginStock();
+    this.loadTrasladoSilosOrigen();
+    this.loadTrasladoSilosDestino();
+  }
+
+  /** Origen del traslado: núcleo/galpón acotan la lista de silos y el stock disponible. */
+  onTrasladoFromUbicacionChange(): void {
+    this.loadOriginStock();
+    this.loadTrasladoSilosOrigen();
+  }
+
+  onTrasladoToFarmChange(): void {
+    this.toSiloId = null;
+    this.loadTrasladoSilosDestino();
+  }
+
+  /** Con inventario por silo el disponible se lee del SILO de origen, no del galpón. */
+  onTrasladoFromSiloChange(): void {
     this.loadOriginStock();
   }
 
@@ -1024,11 +1165,19 @@ export class GestionInventarioPageComponent implements OnInit {
     this.ingresoNucleoId = null;
     this.ingresoGalponId = null;
     this.ingresoParaProximoCiclo = false;
+    this.ingresoSiloId = null;
+    this.loadIngresoSilos();
   }
 
   onIngresoDestinoNucleoChange(): void {
     this.ingresoGalponId = null;
     this.ingresoParaProximoCiclo = false;
+    this.loadIngresoSilos();
+  }
+
+  onIngresoDestinoGalponChange(): void {
+    this.ingresoParaProximoCiclo = false;
+    this.loadIngresoSilos();
   }
 
   submitIngreso(): void {
@@ -1057,7 +1206,14 @@ export class GestionInventarioPageComponent implements OnInit {
         return;
       }
     }
-    if (this.ingresoEsPorGalpon && (!this.ingresoNucleoId || !this.ingresoGalponId)) {
+    if (this.manejaPorSilo) {
+      // El silo es obligatorio para TODO concepto (alimento e insumos): en este modelo hasta la
+      // bodega es una ubicación con saldo propio, no hay movimiento «a nivel granja».
+      if (this.ingresoSiloId == null) {
+        this.openAlertModal('error', 'Validación', 'Debe indicar el silo o la bodega donde queda el ingreso.');
+        return;
+      }
+    } else if (this.ingresoEsPorGalpon && (!this.ingresoNucleoId || !this.ingresoGalponId)) {
       this.openAlertModal('error', 'Validación', 'Para alimento debe seleccionar Núcleo y Galpón.');
       return;
     }
@@ -1079,7 +1235,30 @@ export class GestionInventarioPageComponent implements OnInit {
     }
     if (!this.validarVentanaFecha(this.trasladoFechaMovimiento)) return;
 
-    if (this.trasladoModo === 'mismaGranja') {
+    if (this.manejaPorSilo) {
+      // El silo ES la ubicación: núcleo y galpón no se validan porque no se persisten.
+      if (this.fromSiloId == null) {
+        this.openAlertModal('error', 'Validación', 'Debe indicar el silo o la bodega de ORIGEN.');
+        return;
+      }
+      if (this.trasladoModo === 'mismaGranja') {
+        if (this.fromFarmId !== this.toFarmId) {
+          this.openAlertModal('error', 'Validación', 'En este modo origen y destino deben ser la misma granja.');
+          return;
+        }
+        if (this.toSiloId == null) {
+          this.openAlertModal('error', 'Validación', 'Debe indicar el silo o la bodega de DESTINO.');
+          return;
+        }
+        if (this.fromSiloId === this.toSiloId) {
+          this.openAlertModal('error', 'Validación', 'El silo de destino debe ser distinto al de origen.');
+          return;
+        }
+      } else if (this.fromFarmId === this.toFarmId) {
+        this.openAlertModal('error', 'Validación', 'En traslado entre granjas la granja destino debe ser distinta a la de origen.');
+        return;
+      }
+    } else if (this.trasladoModo === 'mismaGranja') {
       if (!this.showNucleoGalpon) {
         this.openAlertModal('error', 'Validación', 'Entre galpones de la misma granja solo aplica a concepto Alimento.');
         return;
@@ -1145,20 +1324,29 @@ export class GestionInventarioPageComponent implements OnInit {
       this.originStockQuantity = null;
       return;
     }
-    if (this.showNucleoGalpon && (!this.fromNucleoId || !this.fromGalponId)) {
+    // Con inventario por silo el disponible vive en el SILO: sin silo elegido no hay nada que medir
+    // (y el saldo de la granja entera sería un número que nadie va a poder trasladar).
+    if (this.manejaPorSilo && this.fromSiloId == null) {
+      this.originStockQuantity = null;
+      return;
+    }
+    if (!this.manejaPorSilo && this.showNucleoGalpon && (!this.fromNucleoId || !this.fromGalponId)) {
       this.originStockQuantity = null;
       return;
     }
     this.loadingOriginStock = true;
     this.originStockQuantity = null;
     const params: any = { farmId: this.fromFarmId };
-    if (this.showNucleoGalpon) {
+    if (!this.manejaPorSilo && this.showNucleoGalpon) {
       params.nucleoId = this.fromNucleoId;
       params.galponId = this.fromGalponId;
     }
+    const siloId = this.manejaPorSilo ? this.fromSiloId : null;
     this.svc.getStock(params).subscribe({
       next: (list) => {
-        const row = list.find(s => s.itemInventarioEcuadorId === itemId);
+        const row = list.find(
+          s => s.itemInventarioEcuadorId === itemId && (siloId == null || s.siloId === siloId)
+        );
         this.originStockQuantity = row ? Number(row.quantity) : 0;
         this.loadingOriginStock = false;
       },
@@ -1198,6 +1386,11 @@ export class GestionInventarioPageComponent implements OnInit {
 
   onToDestinoNucleoChange(): void {
     this.toGalponId = null;
+    this.loadTrasladoSilosDestino();
+  }
+
+  onToDestinoGalponChange(): void {
+    this.loadTrasladoSilosDestino();
   }
 
   /** Motivo cuando origen es Planta (solo lectura). */
@@ -1510,7 +1703,9 @@ export class GestionInventarioPageComponent implements OnInit {
       origenFarmId: esAlimento && (tipoOrigen === 'granja' || tipoOrigen === 'bodega') ? this.ingresoOrigenFarmId : null,
       origenBodegaDescripcion: esAlimento && tipoOrigen === 'bodega' ? (this.ingresoOrigenBodegaTexto || null) : null,
       fechaMovimiento: this.ingresoFechaMovimiento?.trim() || null,
-      paraProximoCiclo: this.mostrarParaProximoCicloIngreso ? this.ingresoParaProximoCiclo : false
+      paraProximoCiclo: this.mostrarParaProximoCicloIngreso ? this.ingresoParaProximoCiclo : false,
+      // Solo se manda con el flag encendido: con el flag apagado el backend rechaza el silo.
+      siloId: this.manejaPorSilo ? this.ingresoSiloId : null
     }).subscribe({
       next: () => {
         this.submittingIngreso = false;
@@ -1550,6 +1745,15 @@ export class GestionInventarioPageComponent implements OnInit {
     this.recepcionToGalponId = row.destinoGalponIdHint;
     this.recepcionDistribuir = false;
     this.recepcionDestinos = [];
+    // Los silos son los de la granja QUE RECIBE, no los del origen del tránsito.
+    this.recepcionToSiloId = null;
+    if (this.manejaPorSilo) {
+      // El hint de núcleo/galpón que trae el tránsito no aplica: acá la ubicación es el silo, y
+      // dejarlo puesto haría que la validación de «solo a nivel granja» rechazara la recepción.
+      this.recepcionToNucleoId = null;
+      this.recepcionToGalponId = null;
+    }
+    this.cargarSilos(row.toFarmId, null, null, (list) => (this.recepcionSilos = list));
     // Tras pintar el formulario inline en la tarjeta, acercar la vista (listas largas).
     setTimeout(() => {
       const id = `transito-recepcion-${row.transferGroupId}`;
@@ -1563,6 +1767,8 @@ export class GestionInventarioPageComponent implements OnInit {
     this.recepcionToGalponId = null;
     this.recepcionDistribuir = false;
     this.recepcionDestinos = [];
+    this.recepcionToSiloId = null;
+    this.recepcionSilos = [];
   }
 
   // ===== Recepción distribuida entre galpones =====
@@ -1579,7 +1785,8 @@ export class GestionInventarioPageComponent implements OnInit {
         {
           nucleoId: this.recepcionToNucleoId,
           galponId: this.recepcionToGalponId,
-          quantity: this.recepcionPendiente?.quantity ?? null
+          quantity: this.recepcionPendiente?.quantity ?? null,
+          siloId: this.recepcionToSiloId
         }
       ];
     }
@@ -1589,7 +1796,7 @@ export class GestionInventarioPageComponent implements OnInit {
     const restante = this.recepcionRestante();
     this.recepcionDestinos = [
       ...this.recepcionDestinos,
-      { nucleoId: null, galponId: null, quantity: restante > 0 ? restante : null }
+      { nucleoId: null, galponId: null, quantity: restante > 0 ? restante : null, siloId: null }
     ];
   }
 
@@ -1630,6 +1837,8 @@ export class GestionInventarioPageComponent implements OnInit {
 
   /** Valida el reparto con las mismas reglas (y mensajes) del backend. Devuelve el error o null. */
   private validarRecepcionDistribucion(cantidadTransito: number): string | null {
+    if (this.manejaPorSilo) return this.validarRecepcionDistribucionPorSilo(cantidadTransito);
+
     const filas = this.recepcionDestinos.filter(d => !!d.nucleoId || !!d.galponId || (Number(d.quantity) || 0) !== 0);
     if (filas.length === 0) return 'Agregue al menos un galpón a la distribución.';
 
@@ -1649,7 +1858,37 @@ export class GestionInventarioPageComponent implements OnInit {
     return null;
   }
 
+  /**
+   * Espejo por silo de {@link validarRecepcionDistribucion}: mismos mensajes que
+   * `InventarioGestionRecepcionDistribucionCalculos.Resolver` con `porSilo = true`.
+   */
+  private validarRecepcionDistribucionPorSilo(cantidadTransito: number): string | null {
+    const filas = this.recepcionDestinos.filter(d => d.siloId != null || (Number(d.quantity) || 0) !== 0);
+    if (filas.length === 0) return 'Agregue al menos un silo a la distribución.';
+
+    const vistos = new Set<number>();
+    for (const fila of filas) {
+      if (fila.siloId == null) return 'Cada destino de la distribución debe indicar el silo o la bodega.';
+      if (!(Number(fila.quantity) > 0)) return 'Las cantidades de la distribución deben ser mayores a cero.';
+      if (vistos.has(fila.siloId)) return `No repita el mismo silo en la distribución (silo ${fila.siloId}).`;
+      vistos.add(fila.siloId);
+    }
+
+    const suma = this.recepcionDistribuido();
+    if (Math.abs(suma - cantidadTransito) > this.recepcionToleranciaSuma) {
+      return `La suma de la distribución (${suma}) debe ser igual a la cantidad en tránsito (${cantidadTransito}).`;
+    }
+    return null;
+  }
+
+  /** Con inventario por silo el reparto es SIEMPRE por silo, sea alimento o insumo. */
+  recepcionNeedsSilo(): boolean {
+    return this.manejaPorSilo;
+  }
+
   recepcionNeedsNucleoGalpon(itemId: number): boolean {
+    // Inventario por silo: la ubicación es el silo; núcleo/galpón no se piden ni se guardan.
+    if (this.manejaPorSilo) return false;
     // Colombia: recepción a nivel granja → sin núcleo/galpón.
     if (this.isColombiaInventario) return false;
     const item = this.allCatalogItems.find(i => i.id === itemId);
@@ -1661,7 +1900,13 @@ export class GestionInventarioPageComponent implements OnInit {
     const row = this.recepcionPendiente;
     if (!row) return;
     const needNg = this.recepcionNeedsNucleoGalpon(row.itemInventarioEcuadorId);
-    const distribuye = needNg && this.recepcionDistribuir;
+    const needSilo = this.recepcionNeedsSilo();
+    const distribuye = (needNg || needSilo) && this.recepcionDistribuir;
+
+    if (needSilo && !distribuye && this.recepcionToSiloId == null) {
+      this.openAlertModal('error', 'Validación', 'Debe indicar el silo o la bodega de recepción en la granja destino.');
+      return;
+    }
 
     if (distribuye) {
       const error = this.validarRecepcionDistribucion(row.quantity);
@@ -1674,7 +1919,7 @@ export class GestionInventarioPageComponent implements OnInit {
         this.openAlertModal('error', 'Validación', 'Para alimento indique Núcleo y Galpón de recepción en la granja destino.');
         return;
       }
-      if (!needNg && (this.recepcionToNucleoId || this.recepcionToGalponId)) {
+      if (!needNg && !needSilo && (this.recepcionToNucleoId || this.recepcionToGalponId)) {
         this.openAlertModal('error', 'Validación', 'Para ítems no alimento la recepción es solo a nivel granja (sin Núcleo/Galpón).');
         return;
       }
@@ -1684,8 +1929,9 @@ export class GestionInventarioPageComponent implements OnInit {
       row.pendienteDespachoOrigen === true
         ? ' (Solicitud antigua) Se descontará origen si aún no se hizo y se sumará en destino.'
         : ' El origen ya fue descontado al enviar el traslado; solo se sumará el stock en destino.';
+    const unidadReparto = needSilo ? 'silo(s)' : 'galpón(es)';
     const reparto = distribuye
-      ? ` Se repartirá entre ${this.recepcionDestinos.length} galpón(es).`
+      ? ` Se repartirá entre ${this.recepcionDestinos.length} ${unidadReparto}.`
       : '';
     this.openConfirmModal(
       'Confirmar recepción',
@@ -1698,7 +1944,8 @@ export class GestionInventarioPageComponent implements OnInit {
     const row = this.recepcionPendiente;
     if (!row?.transferGroupId) return;
     const needNg = this.recepcionNeedsNucleoGalpon(row.itemInventarioEcuadorId);
-    const distribuye = needNg && this.recepcionDistribuir;
+    const needSilo = this.recepcionNeedsSilo();
+    const distribuye = (needNg || needSilo) && this.recepcionDistribuir;
     this.submittingRecepcion = true;
     this.svc
       .registrarRecepcionTransito({
@@ -1706,24 +1953,27 @@ export class GestionInventarioPageComponent implements OnInit {
         toFarmId: row.toFarmId,
         toNucleoId: distribuye ? null : needNg ? this.recepcionToNucleoId : null,
         toGalponId: distribuye ? null : needNg ? this.recepcionToGalponId : null,
+        toSiloId: distribuye || !needSilo ? null : this.recepcionToSiloId,
         distribucion: distribuye
           ? this.recepcionDestinos.map(d => ({
-              nucleoId: d.nucleoId,
-              galponId: d.galponId,
-              quantity: Number(d.quantity) || 0
+              nucleoId: needSilo ? null : d.nucleoId,
+              galponId: needSilo ? null : d.galponId,
+              quantity: Number(d.quantity) || 0,
+              siloId: needSilo ? d.siloId : null
             }))
           : null
       })
       .subscribe({
         next: () => {
           this.submittingRecepcion = false;
-          const galpones = this.recepcionDestinos.length;
+          const destinos = this.recepcionDestinos.length;
+          const unidad = needSilo ? 'silo(s)' : 'galpón(es)';
           this.cancelRecepcion();
           this.openAlertModal(
             'success',
             'Listo',
             distribuye
-              ? `Recepción registrada y distribuida en ${galpones} galpón(es). El inventario ya figura en destino.`
+              ? `Recepción registrada y distribuida en ${destinos} ${unidad}. El inventario ya figura en destino.`
               : 'Recepción registrada. El inventario ya figura en destino.'
           );
           this.loadTransitos();
@@ -1761,7 +2011,9 @@ export class GestionInventarioPageComponent implements OnInit {
     const inter = this.trasladoModo === 'interGranja';
     let toNucleo: string | null = null;
     let toGalpon: string | null = null;
-    if (this.showNucleoGalpon) {
+    // Modo por silo: núcleo/galpón viajan en null porque el backend los anula igual; mandarlos
+    // solo agregaría ruido al request y confundiría al próximo lector.
+    if (this.showNucleoGalpon && !this.manejaPorSilo) {
       if (inter) {
         toNucleo = this.toNucleoId?.trim() ? this.toNucleoId : null;
         toGalpon = this.toGalponId?.trim() ? this.toGalponId : null;
@@ -1772,8 +2024,8 @@ export class GestionInventarioPageComponent implements OnInit {
     }
     this.svc.registrarTraslado({
       fromFarmId: this.fromFarmId!,
-      fromNucleoId: this.showNucleoGalpon ? this.fromNucleoId : null,
-      fromGalponId: this.showNucleoGalpon ? this.fromGalponId : null,
+      fromNucleoId: this.showNucleoGalpon && !this.manejaPorSilo ? this.fromNucleoId : null,
+      fromGalponId: this.showNucleoGalpon && !this.manejaPorSilo ? this.fromGalponId : null,
       toFarmId: this.toFarmId!,
       toNucleoId: toNucleo,
       toGalponId: toGalpon,
@@ -1783,7 +2035,9 @@ export class GestionInventarioPageComponent implements OnInit {
       reference: this.trasladoReference || null,
       reason: this.trasladoReason || null,
       destinoTipo: this.trasladoDestinoTipo,
-      fechaMovimiento: this.trasladoFechaMovimiento?.trim() || null
+      fechaMovimiento: this.trasladoFechaMovimiento?.trim() || null,
+      fromSiloId: this.manejaPorSilo ? this.fromSiloId : null,
+      toSiloId: this.manejaPorSilo ? this.toSiloId : null
     }).subscribe({
       next: () => {
         this.submittingTraslado = false;

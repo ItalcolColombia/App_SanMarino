@@ -5,7 +5,10 @@ import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { TicketService } from '../../../tickets/services/ticket.service';
-import { ESTADO_DOT, ESTADO_LABEL, EstadoTicket, TIPO_LABEL, TipoTicket } from '../../../tickets/models/ticket.models';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
+import {
+  ESTADO_DOT, ESTADO_LABEL, EstadoTicket, TICKET_PERMS, TIPO_LABEL, TipoTicket,
+} from '../../../tickets/models/ticket.models';
 import {
   PRIORIDAD_ACENTO, PRIORIDAD_LABEL, PrioridadTicket,
   SLA_LABEL, TicketIndicadores, TicketReporte, TicketTableroFiltro,
@@ -19,6 +22,10 @@ import { fechaHoraCorta } from '../../../../shared/utils/format';
  * Panel de control del administrador: indicadores del conjunto filtrado (volumen, efectividad,
  * tiempos y desgloses por país / estado / tipo / prioridad / responsable) y la descarga del
  * reporte detallado a Excel. Estado mutable + subscribe ⇒ `Eager` obligatorio.
+ *
+ * Lo monta ItalJira (`/italjira/panel`) y también Gerencia (`/gerencia/panel`), que llega con
+ * `tickets.indicadores`: ve los mismos números pero NO puede abrir el resto de ItalJira, así que
+ * los accesos a tablero / roadmap / lista se ocultan si no tiene permiso de gestión.
  */
 @Component({
   selector: 'app-tickets-panel',
@@ -31,6 +38,13 @@ export class PanelComponent implements OnInit {
   private readonly svc = inject(TicketService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly perm = inject(UserPermissionService);
+
+  /**
+   * Los enlaces al resto de ItalJira solo se dibujan para quien puede entrar. Un gerente
+   * (`tickets.indicadores`) los vería y el `permissionGuard` lo rebotaría a `/home`.
+   */
+  readonly puedeVerItalJira = this.perm.hasAny([TICKET_PERMS.gestionar, TICKET_PERMS.admin]);
 
   readonly data = signal<TicketIndicadores | null>(null);
   readonly cargando = signal(false);

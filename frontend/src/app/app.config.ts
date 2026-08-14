@@ -111,6 +111,15 @@ export const appConfig: ApplicationConfig = {
       // Público
       { path: 'login', component: LoginComponent },
       { path: 'password-recovery', component: PasswordRecoveryComponent },
+      // Aterrizaje del enlace que llega por correo (?token=...). Sin guard: por definición
+      // la abre alguien que NO puede iniciar sesión.
+      {
+        path: 'reset-password',
+        title: 'Crear contraseña nueva',
+        loadComponent: () =>
+          import('./features/auth/reset-password/reset-password.component')
+            .then(m => m.ResetPasswordComponent)
+      },
 
       // Diagnóstico del dispositivo — SIN authGuard a propósito: es la pantalla a la
       // que se recurre cuando nada más funciona (sesión vencida sin red para renovarla,
@@ -202,6 +211,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ITALJIRA_ROUTES)
       },
 
+      // Gerencia — vistas de lectura de los indicadores, sin las facultades de gestión de ItalJira
+      {
+        path: 'gerencia',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/gerencia/gerencia.routes')
+            .then(m => m.GERENCIA_ROUTES)
+      },
+
       // Implementación (cronogramas de entrega por empresa con checklist confirmable)
       {
         path: 'implementacion',
@@ -238,6 +256,14 @@ export const appConfig: ApplicationConfig = {
           { path: 'master-lists',     component: MasterListsComponent },
           { path: 'master-lists/new', component: ListDetailComponent },
           { path: 'master-lists/:id', component: ListDetailComponent },
+
+          // Lista maestra de silos (empresas con inventario por silo). Lazy: no la carga quien no la usa.
+          {
+            path: 'silos',
+            loadComponent: () =>
+              import('./features/silos/pages/silo-catalogo/silo-catalogo.component')
+                .then(m => m.SiloCatalogoComponent)
+          },
 
           { path: 'companies',       component: CompanyManagementComponent },
           { path: 'role-management', component: RoleManagementComponent },

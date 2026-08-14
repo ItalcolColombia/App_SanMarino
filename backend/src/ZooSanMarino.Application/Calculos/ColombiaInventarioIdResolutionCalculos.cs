@@ -37,4 +37,36 @@ public static class ColombiaInventarioIdResolutionCalculos
 
         return map;
     }
+
+    /// <summary>
+    /// Replica el mapeo —que es por ÍTEM— sobre las claves reales del consumo cuando traen silo.
+    ///
+    /// <para>
+    /// A qué tabla y a qué id apunta un ítem no depende del silo del que salga: el mapeo A→B se
+    /// resuelve una sola vez por ítem y vale para las N claves <c>(ítem, silo)</c> que lo usen. Sin
+    /// este paso el diccionario queda indexado por claves con <c>SiloId = null</c>, el service busca
+    /// por la clave real —que sí trae el silo— y no la encuentra: con el flag puesto, TODO consumo
+    /// muere con «el ítem no existe o no pertenece a la empresa», que es exactamente el error que no
+    /// pasa.
+    /// </para>
+    ///
+    /// <para>
+    /// Sin claves con silo (toda empresa sin el flag) el diccionario vuelve tal cual, entrada por
+    /// entrada. Las claves sin silo se conservan siempre: el mismo consumo puede traer filas con silo
+    /// y sin silo si la validación previa las dejó pasar.
+    /// </para>
+    /// </summary>
+    public static Dictionary<ItemConsumoKey, int> ReplicarPorSilo(
+        Dictionary<ItemConsumoKey, int> mapeoPorItem,
+        IEnumerable<ItemConsumoKey> claves)
+    {
+        foreach (var clave in claves)
+        {
+            if (clave.SiloId is null) continue;
+            if (mapeoPorItem.TryGetValue(clave with { SiloId = null }, out var itemBId))
+                mapeoPorItem[clave] = itemBId;
+        }
+
+        return mapeoPorItem;
+    }
 }

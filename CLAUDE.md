@@ -292,6 +292,19 @@ descuadrados**, es una regresión.
 - **Backend:** al crear/modificar endpoint, controller o handler → tests de integración o requests reales validando inputs, reglas de negocio, salidas y status codes. Cálculo puro → xUnit en `tests/ZooSanMarino.Application.Tests/` verificando equivalencia con el comportamiento previo.
 - **Frontend:** validá la estructura del payload contra el **contrato de la API antes** de enviar/mapear desde Angular.
 - **Sin procesos huérfanos:** todo servicio/contenedor/runner/compilador que levantes para validar, **detenelo al terminar** (`make down` o el comando que corresponda). No dejes procesos en background vivos.
+
+#### 🔌 Ciclo de vida del backend local — regla dura
+
+> Nace de la Fase B de silos (12ago26): un backend viejo quedó vivo en `:5002` durante todo el trabajo, **bloqueó el `bin/`** (`dotnet build` → MSB3027 «file locked by ZooSanMarino.API») y, tras el swap del índice único, quedó corriendo **código viejo contra la BD ya migrada** — o sea, con todo ingreso roto y sin que nadie lo notara.
+
+1. **Antes de empezar: matá cualquier backend que esté corriendo.** No trabajes con uno vivo «por si acaso».
+   ```bash
+   netstat -ano | grep LISTENING | grep ":5002" | awk '{print $NF}' | xargs -r -I{} taskkill //PID {} //F
+   ```
+2. **Levantalo solo para la verificación**, al final, cuando el código ya compila y los tests pasan. No lo dejes prendido mientras editás.
+3. **Apagalo apenas termina la prueba** y confirmá que el puerto quedó libre (`netstat`). Un smoke termina con el puerto libre, siempre.
+4. **Si hay que convivir con un backend ajeno** (otra ventana de Claude Code, ver §⚙️), no lo mates a ciegas: redirigí TU salida de build para no pelear por el `bin/` — `dotnet build --artifacts-path <dir>` (o las variables `UseArtifactsOutput=true` + `ArtifactsPath`, que además sirven con `dotnet-ef migrations add`), y corré el dll con `PORT=5501` + `--contentRoot <dir del API>`. `Program.cs` toma el puerto de la config `PORT`: `ASPNETCORE_URLS` no hace nada.
+5. **Migración aplicada = binario viejo inválido.** Toda migración que cambie un índice, una constraint o una firma que el código nombre por expresión (caso `ON CONFLICT`) deja inservible a cualquier backend que siga levantado con el código anterior. Reiniciá el backend en el mismo paso en que aplicás la migración.
 - **Ubicación de tests:** backend `backend/tests/` · frontend `frontend/src/tests/`.
 
 ---

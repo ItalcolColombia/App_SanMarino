@@ -613,7 +613,9 @@ public class AuthService : IAuthService
                 if (string.IsNullOrWhiteSpace(userName))
                     userName = null;
 
-                await _emailService.SendPasswordRecoveryEmailAsync(dto.Email, resetToken, userName);
+                // Enlace de un solo uso, NO el token presentado como contraseña: el correo se manda
+                // con SendPasswordResetLinkEmailAsync justamente para no volver a confundirlos.
+                await _emailService.SendPasswordResetLinkEmailAsync(dto.Email, resetToken, userName);
             }
             catch (Exception)
             {

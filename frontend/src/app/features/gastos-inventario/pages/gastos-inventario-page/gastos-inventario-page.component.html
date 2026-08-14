@@ -299,6 +299,26 @@
                     }
                   </p>
                 </div>
+                @if (manejaPorSilo) {
+                  <div class="ux-field grow">
+                    <label>Silo / Bodega</label>
+                    <select [(ngModel)]="formSiloId" (change)="onSiloChange()" [disabled]="!formFarmId || !silosDeGranja.length">
+                      <option [ngValue]="null" disabled>— Seleccione silo —</option>
+                      @for (s of silosDeGranja; track s.id) {
+                        <option [ngValue]="s.id">{{ s.nombre }}</option>
+                      }
+                    </select>
+                    <p class="hint">
+                      @if (!silosDeGranja.length) {
+                        Esta granja no tiene silos activos: configúrelos en «Silos de la granja».
+                      } @else if (!formSiloId) {
+                        El gasto descuenta del silo que elija: el stock que se muestra es el de ese silo.
+                      } @else {
+                        Stock mostrado: el del silo seleccionado.
+                      }
+                    </p>
+                  </div>
+                }
                 <div class="ux-field grow">
                   <label>Ítem (con stock)</label>
                   <select [(ngModel)]="selectedItemId" (change)="onItemChange()" [disabled]="!items.length">
@@ -345,6 +365,9 @@
                   <thead>
                     <tr>
                       <th>Ítem</th>
+                      @if (manejaPorSilo) {
+                        <th>Silo</th>
+                      }
                       <th class="num">Stock (granja)</th>
                       <th class="num">Cantidad</th>
                       <th>Unidad</th>
@@ -355,17 +378,20 @@
                     @for (l of lineas; track l) {
                       <tr>
                         <td>{{ l.codigo }} · {{ l.nombre }}</td>
+                        @if (manejaPorSilo) {
+                          <td>{{ l.siloNombre ?? '—' }}</td>
+                        }
                         <td class="num">{{ formatNum(l.stockCantidad, 3) }}</td>
                         <td class="num">{{ formatNum(l.cantidad, 3) }}</td>
                         <td>{{ l.unidad }}</td>
                         <td class="actions">
-                          <button type="button" class="btn-ghost" (click)="removeLinea(l.itemInventarioEcuadorId)">Quitar</button>
+                          <button type="button" class="btn-ghost" (click)="removeLinea(l.itemInventarioEcuadorId, l.siloId ?? null)">Quitar</button>
                         </td>
                       </tr>
                     }
                     @if (lineas.length === 0) {
                       <tr>
-                        <td colspan="5" class="ux-muted">Agrega ítems para registrar el gasto.</td>
+                        <td [attr.colspan]="manejaPorSilo ? 6 : 5" class="ux-muted">Agrega ítems para registrar el gasto.</td>
                       </tr>
                     }
                   </tbody>
