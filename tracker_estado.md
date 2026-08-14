@@ -5143,3 +5143,84 @@ pedido real + solución + evidencia), COMPLETA ~39 sesiones que no tenían tarea
 - 98 tareas enriquecidas · 39 tareas nuevas (`SES-AAAAMMDD-xxxx`) · 99 subtareas `BUG-<sha>` · 20 historias con horas
 - Total estimado **1.313 h** (por juicio) frente a **202 h** de sesión medidas — la diferencia queda visible ítem por ítem
 - Atribución: 351 de 447 commits con dueño; 96 (`docs(tracker)`/merges) quedaron sin atribuir a propósito
+
+---
+
+# Tracker — Manual de usuario: Lote base (programación) Pollo Engorde · Ecuador
+
+**Plan:** [`fase_de_desarrollo/manual_lote_base_engorde_ecuador_plan.md`](fase_de_desarrollo/manual_lote_base_engorde_ecuador_plan.md)
+**Fecha:** 2026-08-14
+
+Entregable de documentación: manual con capturas reales del flujo completo (crear lote base →
+asignar granjas → amarrarlo al crear el Lote de Pollo Engorde → gasto contra lote programado →
+quitar la granja que terminó su ciclo y su efecto en Inventario, Ventas y Seguimiento).
+Capturas tomadas en LOCAL con `admin.ecuador@italcol.com`.
+
+## Auditoría del comportamiento (fuente = código actual)
+- [x] A1 Flag `programacion_lotes_engorde` de la empresa (Ecuador ON) y `nombre_lote_incluye_corrida` (OFF)
+- [x] A2 Filtro del selector: base `activo` + asignado a la granja
+- [x] A3 `UnassignGranjaAsync` no toca lotes, gastos, ventas ni seguimiento
+- [x] A4 Re-atribución de gastos programados al encasetar (corte `fecha <= fecha_encaset`)
+- [x] A5 Permisos del rol Ecuador Administrador (sin `eliminar`)
+
+## Captura en vivo (local)
+- [x] C1 Backend `:5002` + front `:4200` arriba y login OK
+- [x] C2 Pestaña Lotes base + creación de `2605`
+- [x] C3 Modal Asignar granjas
+- [x] C4 Crear Lote de Pollo Engorde con base y nombre automático
+- [x] C5 Gasto de inventario contra lote programado + re-atribución
+- [x] C6 Quitar granja y efecto en el selector
+- [x] C7 No-efecto en Seguimiento / Inventario / Ventas del lote existente
+
+## Entregable
+- [x] E1 `Manual_Lote_Base_Pollo_Engorde_Ecuador.docx` con capturas en el Escritorio
+- [x] E2 Asunto + descripción de la entrega
+- [x] E3 Carpeta `capturas/` con los PNG numerados
+
+## Validación
+- [x] V1 BD local devuelta al estado inicial (conteos iguales)
+- [x] V2 Backend local apagado, puerto 5002 libre
+
+## Resultado
+
+- Entregable en `C:\Users\SAN MARINO\Desktop\Manual_Lote_Base_Engorde_Ecuador\`:
+  `Manual_Lote_Base_Pollo_Engorde_Ecuador.docx` (29 páginas, 25 capturas, 19 tablas) + el mismo
+  manual en `.pdf`, `ENTREGA_asunto_y_descripcion.md` y `capturas/` con los 37 PNG originales.
+- Capturas tomadas manejando Chrome por **CDP** (headless, 2400x1500) porque el panel del navegador
+  devuelve la imagen en contexto pero no escribe archivos en disco.
+- Demo real ejecutada en local: lote base `2605` → granja `Kilometro 22` → gasto de desinsectación
+  contra el programado → lote de engorde `2605` (corrida 1) → **re-atribución automática verificada
+  en BD** (`inventario_gasto.lote_ave_engorde_id` = 210, `lote_base_engorde_id` NULL) → granja quitada
+  → la corrida desaparece del selector y el lote sigue vivo en Seguimiento / Ventas / Inventario.
+- **BD local devuelta a su estado inicial** por los flujos de la app: 4 lotes base activos,
+  28 asignaciones, 118 lotes activos, 400 gastos activos, stock `SM0210` en Kilometro 22 de vuelta
+  en 5.800 kg. Residuo esperado y consistente: el gasto de la demo queda en estado `Eliminado`
+  (con su stock ya devuelto) y el lote `2605` soft-deleted, tal como los deja el propio sistema.
+- Sin cambios en código de producto.
+
+## Alineación manual de producción (pedido 14ago)
+
+- [x] P1 `backend/sql/bitacora_italjira_jul_ago_2026_prod.sql` — el mismo SQL envuelto en `fn_bitacora_italjira_jul_ago_2026()`
+- [x] P2 Motivo verificado: `DbStudioSqlCalculos.ContainsMultipleStatements` rechaza CUALQUIER `;` interno ⇒ ni `DO` ni `CREATE FUNCTION` entran por la consola; `SELECT fn()` sí
+- [x] P3 Probado en local desde cero (migración revertida): la función deja 98 / 39 / 99 / 1.313 h, idéntico a la migración
+- [x] P4 Segunda ejecución de la función: mismos números (idempotente)
+- [x] P5 Escenario real del deploy: migración EF aplicada ENCIMA de lo sembrado a mano ⇒ 0 cambios (345/39/99/98)
+- [x] P6 Función de prueba eliminada de la BD local
+
+## Casos (tickets) cerrados — pedido 14ago
+
+**Plan:** el mismo bloque; migración `20260814030000_SeedCasosCerradosBitacora`.
+Motivo: la bitácora vivía solo en ItalJira y las bandejas de Tickets leen `tickets`, no `ticket_tareas`.
+
+- [x] C1 Un caso por trabajo: **135 CERRADO + 2 EN_ANALISIS** (solo se cierra lo que quedó en LISTO)
+- [x] C2 `descripcion` = pedido del usuario · `solucion_descripcion` = qué se hizo + bugs + evidencia + estimación
+- [x] C3 Enlace `ticket_tareas.ticket_id` de la tarea y sus subtareas BUG (240 filas enlazadas)
+- [x] C4 Correlativo `TK-2026-NNNNNN` continuado desde el máximo de la base (local: 000024→000160, 160 códigos únicos)
+- [x] C5 `notificado_correo = false` en los 137 — no se envió ni un correo
+- [x] C6 `fecha_limite` NULL: no ensucia el semáforo de SLA
+- [x] C7 `dotnet build` 0 errores · `dotnet test` verde (2.439)
+- [x] C8 Idempotencia: 2ª pasada deja 160/137 sin cambios
+- [x] C9 **`Down` sin CASCADE**: desenlaza antes de borrar ⇒ tickets vuelven a 23 y las 345 tareas (39 SES + 99 BUG) quedan intactas
+- [x] C10 Re-aplicada: 137 casos, 240 enlaces
+- [x] C11 `backend/sql/casos_cerrados_bitacora_prod.sql` (variante función para alinear prod a mano)
+- [x] C12 Funciones de prueba eliminadas de la BD local
