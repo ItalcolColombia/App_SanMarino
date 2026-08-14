@@ -5099,3 +5099,47 @@ ordenadas por OID y `fn_seguimiento_diario_engorde` fue recreada (DROP+CREATE ob
 - [x] V3 Contra los 55 cuerpos reales: las 4 funciones quedan después de `fn_seguimiento_diario_engorde`
 - [x] V4 Backup regenerado restaura en UNA pasada con `ON_ERROR_STOP=1` y 0 errores
 - [x] V5 Backend local apagado, puerto 5002 libre
+
+---
+
+# Tracker — ItalJira: bitácora real de julio y agosto 2026 (horas, solución y bugs)
+
+**Plan:** [`fase_de_desarrollo/italjira_bitacora_sesiones_jul_ago_2026_plan.md`](fase_de_desarrollo/italjira_bitacora_sesiones_jul_ago_2026_plan.md)
+**Fecha:** 2026-08-13
+
+Migración data-only que ENRIQUECE las 98 tareas ya sembradas de jul-ago (horas estimadas +
+pedido real + solución + evidencia), COMPLETA ~39 sesiones que no tenían tarea y registra los
+~109 bugs (`fix(...)`) como subtareas. Fuente: 134 transcripciones de sesión + 447 commits.
+
+## Extracción (fuente real)
+- [x] E1 `extraer_sesiones.py` — 139 sesiones, timestamps, pedido real, archivos tocados
+- [x] E2 `cruzar.py` — commits atribuidos por ventana temporal + solape de archivos (447/447)
+- [x] E3 Parseo del seed anterior: 19 historias + 198 tareas con su plan
+- [x] E4 Clasificar las 39 sesiones sin tarea en su historia de módulo
+- [x] E5 Detectar y adjuntar los bugs (`fix`) a la tarea de su sesión
+
+## Estimación por juicio
+- [x] J1 Rúbrica escrita en el plan (§5)
+- [x] J2 Horas asignadas ítem por ítem en `italjira_bitacora_sesiones_jul_ago_2026_horas.json`
+- [x] J3 Revisión de outliers (sesiones de > 5 h reales y de < 15 min)
+
+## Migración
+- [x] M1 `generar_seed.py` que emite el SQL (idempotente, fail-open, identidad por email)
+- [x] M2 Migración `.cs` documentada + `Down` reversible
+- [x] M3 Designer clonado, **ModelSnapshot intacto** (data-only)
+
+## Validación
+- [x] V1 `dotnet build` 0 errores, sin advertencias nuevas
+- [x] V2 `dotnet test` verde
+- [x] V3 Aplicar en BD local y contar filas: 98 enriquecidas / 39 nuevas / 99 bugs
+- [x] V4 Segunda pasada: 0 filas afectadas (idempotencia)
+- [x] V5 `Down` + re-aplicar deja el mismo estado
+- [x] V6 Tarea con descripción editada a mano: el UPDATE no la toca
+- [x] V7 `orden` del kanban sin huecos ni repetidos por columna
+- [x] V8 Backend local apagado, puerto 5002 libre (nunca se levantó: la validación fue por psql + dotnet-ef)
+
+## Resultado medido (BD local `sanmarinoapplocal`)
+
+- 98 tareas enriquecidas · 39 tareas nuevas (`SES-AAAAMMDD-xxxx`) · 99 subtareas `BUG-<sha>` · 20 historias con horas
+- Total estimado **1.313 h** (por juicio) frente a **202 h** de sesión medidas — la diferencia queda visible ítem por ítem
+- Atribución: 351 de 447 commits con dueño; 96 (`docs(tracker)`/merges) quedaron sin atribuir a propósito
