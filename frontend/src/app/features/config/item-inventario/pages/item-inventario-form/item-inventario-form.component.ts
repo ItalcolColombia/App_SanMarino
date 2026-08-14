@@ -32,7 +32,8 @@ export class ItemInventarioFormComponent implements OnInit {
   concepto = '';
 
   readonly tipos: string[] = ['alimento', 'medicamento', 'insumo', 'otro'];
-  readonly unidades: string[] = ['kg', 'und', 'l', 'ml', 'g', 'lb', 'saco'];
+  // Mismo vocabulario que item-inventario-list (TK-2026-000019: + `dosis` y `gal`).
+  readonly unidades: string[] = ['kg', 'und', 'l', 'ml', 'g', 'lb', 'saco', 'dosis', 'gal'];
 
   constructor(
     private svc: ItemInventarioService,

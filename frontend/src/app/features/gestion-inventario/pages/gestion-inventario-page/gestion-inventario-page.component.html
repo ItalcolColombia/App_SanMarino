@@ -52,7 +52,8 @@
           <p class="hint filters-note">
             El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
             <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
-            Puede <strong>editar cantidad, unidad y fecha de registro</strong> desde Editar (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
+            Puede <strong>editar cantidad y fecha de registro</strong> desde Editar (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
+            La <strong>unidad la define el ítem</strong> en Ítems de inventario y el stock la toma sola.
             <strong>Descargar Excel</strong> baja el stock completo de <strong>todas sus granjas y todos los conceptos</strong> (sin importar la granja ni el concepto seleccionados arriba), en un archivo con dos hojas: <strong>Alimento</strong> (con su núcleo y galpón) y <strong>Otros conceptos</strong> (a nivel granja).
           </p>
 
@@ -196,7 +197,7 @@
                               type="button"
                               class="btn-italfoods-secondary btn-sm"
                               (click)="openStockEdit(s)"
-                              title="Editar cantidad o unidad"
+                              title="Editar cantidad o fecha de registro"
                               >
                               <fa-icon [icon]="faPen"></fa-icon>
                             </button>
@@ -1386,7 +1387,11 @@
               </div>
               <div class="field">
                 <label class="form-label" for="stock-edit-unit">Unidad</label>
-                <input id="stock-edit-unit" class="form-input" type="text" [(ngModel)]="stockEditUnit" maxlength="20" />
+                <input id="stock-edit-unit" class="form-input" type="text" [value]="stockEditUnit" readonly disabled />
+                <small class="hint" style="display: block; margin-top: 0.35rem">
+                  La unidad la define el ítem en <strong>Ítems de inventario</strong>: si hay que cambiarla, se cambia
+                  ahí y el stock la toma sola.
+                </small>
               </div>
               <div class="field">
                 <label class="form-label" for="stock-edit-fecha">Fecha de registro (ingreso en ubicación) *</label>

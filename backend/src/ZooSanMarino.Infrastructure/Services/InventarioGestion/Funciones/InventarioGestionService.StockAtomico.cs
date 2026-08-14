@@ -94,6 +94,11 @@ public partial class InventarioGestionService
     /// Silo o bodega de la granja (solo empresas con inventario por silo). <c>null</c> = ubicación
     /// clásica por núcleo/galpón, que es lo que escriben todas las demás empresas.
     /// </param>
+    /// <param name="unidad">
+    /// La del CATÁLOGO del ítem, resuelta por el llamador con
+    /// <see cref="UnidadInventarioCalculos.Resolver"/>. El <c>DO UPDATE</c> la escribe también sobre
+    /// la fila existente: es lo que corrige TK-2026-000019.
+    /// </param>
     /// <returns>La fila de stock resultante, ya con la cantidad acumulada.</returns>
     private async Task<InventarioGestionStock> SumarStockAtomicoAsync(
         int companyId,
@@ -121,6 +126,11 @@ public partial class InventarioGestionService
                                 COALESCE(nucleo_id, ''), COALESCE(galpon_id, ''),
                                 COALESCE(silo_id, 0))
                    DO UPDATE SET quantity   = inventario_gestion_stock.quantity + EXCLUDED.quantity,
+                                 -- TK-2026-000019: la unidad viene del catálogo del ítem (la
+                                 -- resuelve el llamador), así que la fila existente se REALINEA en
+                                 -- vez de conservar el 'kg' con el que nació. Antes esto no se
+                                 -- pisaba y una fila torcida se quedaba torcida para siempre.
+                                 unit       = EXCLUDED.unit,
                                  updated_at = now()
                    RETURNING *")
             .AsNoTracking()

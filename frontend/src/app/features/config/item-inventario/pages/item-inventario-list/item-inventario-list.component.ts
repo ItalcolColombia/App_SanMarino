@@ -59,7 +59,12 @@ export class ItemInventarioListComponent implements OnInit {
     descripcionItem: '',
     concepto: ''
   };
-  readonly unidades: string[] = ['kg', 'und', 'l', 'ml', 'g', 'lb', 'saco'];
+  /**
+   * Vocabulario de unidades del catálogo. Es la ÚNICA fuente de la unidad que se ve en Stock,
+   * Movimientos y Gastos (TK-2026-000019): `dosis` y `gal` se sumaron para poder representar las
+   * vacunas y el diésel, que operación venía escribiendo a mano sobre la fila de stock.
+   */
+  readonly unidades: string[] = ['kg', 'und', 'l', 'ml', 'g', 'lb', 'saco', 'dosis', 'gal'];
 
   // Modal: Editar ítem
   showEditarModal = false;

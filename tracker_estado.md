@@ -5224,3 +5224,52 @@ Motivo: la bitácora vivía solo en ItalJira y las bandejas de Tickets leen `tic
 - [x] C10 Re-aplicada: 137 casos, 240 enlaces
 - [x] C11 `backend/sql/casos_cerrados_bitacora_prod.sql` (variante función para alinear prod a mano)
 - [x] C12 Funciones de prueba eliminadas de la BD local
+
+---
+
+## Unidad de medida en el stock de inventario — TK-2026-000019 (pedido 14ago)
+
+**Plan:** [fase_de_desarrollo/unidad_medida_stock_inventario_plan.md](fase_de_desarrollo/unidad_medida_stock_inventario_plan.md)
+Causa raíz: `inventario_gestion_stock.unit` es una columna propia con default `kg` que nunca se
+sincroniza con `item_inventario_ecuador.unidad`. 145/569 filas divergen; operación las venía
+parchando a mano (de ahí `LT`, `UND`, `GALONES`, `DOSIS`).
+
+- [x] U1 `UnidadInventarioCalculos` (Resolver + Normalizar) + tests xUnit
+- [x] U2 `GetStockAsync` proyecta la unidad del catálogo
+- [x] U3 Escrituras (ingreso, traslado, recepción, consumo, nivel granja, ajuste, eliminación) graban la del catálogo
+- [x] U4 `SumarStockAtomicoAsync`: `unit = EXCLUDED.unit` en el `DO UPDATE` (sin tocar la clave del índice)
+- [x] U5 Front: unidad del modal de ajuste a SOLO LECTURA
+- [x] U6 Front: selector del catálogo suma `dosis` y `gal`
+- [x] U7 Migración `AlinearUnidadInventarioConCatalogo` (promoción 10 ítems Ecuador + alineación stock/movimiento/histórico)
+- [x] U8 Gate de datos: divergentes 145→0, **0 filas de alimento tocadas**, `sum(quantity)` idéntico
+- [x] U9 Migración `SolucionarTicketUnidadStockTK19` → SOLUCIONADO + solución para el usuario, sin correos
+- [x] U10 `dotnet build` + `dotnet test` + `yarn build`
+- [x] U11 Smoke local: Stock de Ecuador muestra `l` en AV0373/AV0374 y el modal ya no deja tipear unidad
+
+**Resultado del gate (dump de producción del 14ago26):**
+
+| | antes | después |
+|---|---|---|
+| Stock divergente | 145 / 569 | **0** |
+| Movimientos divergentes | 532 / 11.617 | **0** |
+| Histórico unificado divergente | 540 / 11.869 | **0** |
+| Filas de ALIMENTO divergentes (todas las empresas) | 0 | **0** |
+| `sum(quantity)` por empresa | 695.541,8 · 100.800 · 1.370.525,07 · 245.461,952 | **idéntico** |
+
+- Vocabulario final 100 % dentro del selector del catálogo: `kg, l, und, ml, dosis, g, gal, saco`.
+  Desaparecen `LT`, `UND`, `GALONES`, `Gr`, `Ml`, `DOSIS` escritos a mano.
+- Idempotencia: 2ª pasada de los 5 UPDATE ⇒ `UPDATE 0` en todos.
+- Smoke del `ON CONFLICT` con `unit = EXCLUDED.unit`: fila desalineada a mano + ingreso real por la
+  API (empresa Demo) ⇒ cantidad suma (500→501) y la unidad se realinea sola; el `unit` del request
+  («loQueSea») se ignora. Movimiento, fila de histórico y tombstone del smoke **borrados**: la BD
+  quedó como estaba (821 = 500,000 kg).
+- Smoke de lectura: fila 377 forzada a `kg` en BD ⇒ la API devuelve `l` igual (la proyección no
+  depende del backfill).
+- Smoke UI: Stock de Ecuador muestra `l` en AV0373 / AV0374 / AV0376 y `ml` en AV0372; el modal
+  Editar abre (sin quedarse en «Cargando…»), con Unidad `l` **readonly+disabled** y Cantidad
+  editable; el catálogo ya ofrece `dosis` y `gal`.
+- `dotnet build` 0 errores (2 warnings preexistentes) · `dotnet test` **2.480 verdes** ·
+  `yarn build` OK (solo el warning de bundle budget preexistente).
+- Backend y front dev **apagados**: puertos 5002 y 4200 libres.
+- ⚠️ Pendiente de decisión del usuario: **ItalcolPanamá** tiene los mismos 10 ítems clonados con la
+  unidad por defecto y 0 divergencias en su stock ⇒ no se promovió su catálogo.
