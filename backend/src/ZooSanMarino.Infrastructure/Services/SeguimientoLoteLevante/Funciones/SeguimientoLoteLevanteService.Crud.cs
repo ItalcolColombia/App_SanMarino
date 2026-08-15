@@ -256,7 +256,10 @@ public partial class SeguimientoLoteLevanteService
             // Dejarlo acá además lo descontaría DOS veces.
 
             await _ctx.SaveChangesAsync();
-            await tx.CommitAsync();
+            // `tx` es null cuando ya había una transacción ambiente (push offline de la PWA): commitear
+            // sin preguntar tiraba NullReference justo en ese camino. Los otros dos commits de este
+            // archivo ya tenían la guarda; a este se le había pasado.
+            if (tx is not null) await tx.CommitAsync();
             return MapToLevanteDto(updatedCo);
         }
 

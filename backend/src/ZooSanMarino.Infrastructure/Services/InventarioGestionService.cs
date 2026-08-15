@@ -420,8 +420,34 @@ public partial class InventarioGestionService : IInventarioGestionService
         var galpones = await _db.Galpones.AsNoTracking().Where(g => list.Select(x => x.GalponId).Contains(g.GalponId)).ToDictionaryAsync(g => (g.GalponId, g.GranjaId), g => g.GalponNombre, ct);
         var silos = await NombresDeSilosAsync(list.Select(x => x.SiloId), ct);
 
+        // Separación pendiente de validar: kilos que un seguimiento diario ya comprometió pero que
+        // todavía no se descontaron. Se resuelve acá, en la ÚNICA consulta que responde el saldo, para
+        // que ninguna pantalla tenga que acordarse de restarlo por su cuenta.
+        var farmsEnVista = list.Select(x => x.FarmId).Distinct().ToList();
+        var reservas = farmsEnVista.Count == 0
+            ? new List<(int FarmId, int ItemId, string? NucleoId, string? GalponId, int? SiloId, decimal Kg)>()
+            : (await _db.SeguimientoReservaAlimento.AsNoTracking()
+                .Where(r => farmsEnVista.Contains(r.FarmId) && r.Estado == EstadoReservaSeguimiento.Activa)
+                .GroupBy(r => new { r.FarmId, r.ItemInventarioEcuadorId, r.NucleoId, r.GalponId, r.SiloId })
+                .Select(g => new
+                {
+                    g.Key.FarmId, g.Key.ItemInventarioEcuadorId, g.Key.NucleoId, g.Key.GalponId, g.Key.SiloId,
+                    Kg = g.Sum(r => r.CantidadKg)
+                })
+                .ToListAsync(ct))
+                .Select(g => (FarmId: g.FarmId, ItemId: g.ItemInventarioEcuadorId, NucleoId: g.NucleoId, GalponId: g.GalponId, SiloId: g.SiloId, Kg: g.Kg))
+                .ToList();
+
+        static string NormUbic(string? v) => (v ?? "").Trim();
+        var reservadoPorUbicacion = reservas.ToDictionary(
+            r => (r.FarmId, r.ItemId, NormUbic(r.NucleoId), NormUbic(r.GalponId), r.SiloId ?? 0),
+            r => r.Kg);
+
         return list.Select(x =>
         {
+            var reservado = reservadoPorUbicacion.TryGetValue(
+                (x.FarmId, x.ItemInventarioEcuadorId, NormUbic(x.NucleoId), NormUbic(x.GalponId), x.SiloId ?? 0),
+                out var kgReservado) ? kgReservado : 0m;
             string? nucleoNombre = x.NucleoId != null && nucleos.TryGetValue((x.NucleoId, x.FarmId), out var nn) ? nn : null;
             string? galponNombre = x.GalponId != null && galpones.TryGetValue((x.GalponId, x.FarmId), out var gn) ? gn : null;
             var itemTypeOut = x.ItemInventario.Concepto ?? x.ItemInventario.TipoItem ?? "alimento";
@@ -436,7 +462,9 @@ public partial class InventarioGestionService : IInventarioGestionService
                 x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt,
                 AvisoFechaFueraDeCiclo: null,
                 SiloId: x.SiloId,
-                SiloNombre: x.SiloId.HasValue && silos.TryGetValue(x.SiloId.Value, out var sn) ? sn : null);
+                SiloNombre: x.SiloId.HasValue && silos.TryGetValue(x.SiloId.Value, out var sn) ? sn : null,
+                ReservadoKg: reservado,
+                DisponibleKg: ReservaSeguimientoCalculos.DisponibleAlimento(x.Quantity, reservado));
         }).ToList();
     }
 

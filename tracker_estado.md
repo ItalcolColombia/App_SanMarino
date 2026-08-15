@@ -5416,18 +5416,18 @@ quedan **separados (reservados)**, no descontados. Decisiones del usuario: flag 
 defecto), reproductora se unifica al modelo nuevo, los vencidos **bloquean** días nuevos, y el
 histórico se marca validado.
 
-- [ ] V1.1 Flag `requiere_validacion_seguimiento_diario` en `companies` + las 4 proyecciones de `CompanyDto` + `ActiveCompanyConfigService`
-- [ ] V1.2 Columnas `validado/validado_at/validado_por` en las 4 tablas + backfill `true` de lo existente
-- [ ] V1.3 Tablas `seguimiento_reserva_alimento` y `seguimiento_reserva_aves` + índices únicos parciales
+- [x] V1.1 Flag `requiere_validacion_seguimiento_diario` en `companies` + las 4 proyecciones de `CompanyDto` + `ActiveCompanyConfigService`
+- [x] V1.2 Columnas `validado/validado_at/validado_por` en las 4 tablas + backfill `true` de lo existente
+- [x] V1.3 Tablas `seguimiento_reserva_alimento` y `seguimiento_reserva_aves` + índices únicos parciales
 - [x] V1.4 Cálculos puros `ValidacionSeguimientoCalculos`, `AlimentoObligatorioCalculos`, `ReservaSeguimientoCalculos` + tests xUnit
-- [ ] V1.5 `ValidacionSeguimientoService` (validar / des-validar / pendientes) + endpoints
-- [ ] V1.6 Descuento diferido tras el flag en los 5 Crud (levante, producción, engorde CO, engorde EC, reproductora)
-- [ ] V1.7 Disponible = stock − reservas activas (inventario + formularios de los 4 módulos)
-- [ ] V1.8 Alimento obligatorio (mixto en engorde; H/M en postura) back + front
-- [ ] V1.9 Modal compartido con el motivo del rechazo (fecha duplicada, campos vacíos, 400 del backend)
+- [x] V1.5 `ValidacionSeguimientoService` (validar / des-validar / pendientes) + endpoints
+- [x] V1.6 Descuento diferido tras el flag en los 5 Crud (levante, producción, engorde CO, engorde EC, reproductora)
+- [x] V1.7 Disponible = stock − reservas activas (inventario + formularios de los 4 módulos)
+- [x] V1.8 Alimento obligatorio (mixto en engorde; H/M en postura) back + front
+- [x] V1.9 Modal compartido con el motivo del rechazo (fecha duplicada, campos vacíos, 400 del backend)
 - [ ] V1.10 Estado por registro: fila roja, badge «En retraso», alarma y modal de pendientes al entrar al lote
-- [ ] V1.11 Bloqueo de días nuevos mientras haya vencidos sin validar
-- [ ] V1.12 Permisos `seguimiento_{levante,produccion,engorde}.validar` + seed idempotente
+- [x] V1.11 Bloqueo de días nuevos mientras haya vencidos sin validar
+- [x] V1.12 Permisos `seguimiento_{levante,produccion,engorde}.validar` + seed idempotente
 - [x] V1.13 Ticket ItalJira: caso + historia + tareas con tiempos, asignado a moiesbbuga@gmail.com
 - [ ] V1.14 `dotnet build` + `dotnet test` + `yarn build`, gate de paridad multipaís y smoke doble (flag OFF y ON)
 - [ ] V1.15 Backend local apagado, `:5002` libre + commit

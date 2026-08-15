@@ -89,7 +89,22 @@ public sealed record InventarioGestionStockDto(
     /// <c>null</c> en todas las demás, donde la ubicación sigue siendo núcleo/galpón.
     /// </summary>
     int? SiloId = null,
-    string? SiloNombre = null
+    string? SiloNombre = null,
+    /// <summary>
+    /// Kilos <b>separados</b> (reservados) por seguimientos diarios que todavía no se validaron.
+    /// <para>
+    /// No se descontaron del stock: están comprometidos. Existe porque el mismo galpón alimenta a dos
+    /// lotes y, sin esto, los dos ven el saldo completo y los dos creen tenerlo. Siempre 0 en las
+    /// empresas sin doble validación.
+    /// </para>
+    /// </summary>
+    decimal ReservadoKg = 0,
+    /// <summary>
+    /// Lo que realmente se puede comprometer: <c>Quantity − ReservadoKg</c>. Puede quedar NEGATIVO si
+    /// se separó de más; no se recorta a cero porque ese número es la señal de que dos lotes se
+    /// pisaron sobre el mismo galpón.
+    /// </summary>
+    decimal DisponibleKg = 0
 );
 
 /// <summary>Request para registrar un ingreso. ItemInventarioEcuadorId referencia a config/item-inventario-ecuador.</summary>
