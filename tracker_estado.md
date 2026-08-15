@@ -5300,7 +5300,7 @@ Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el 
 - [x] T22.6 Fuera Eficiencia, IP y VPI. Los null se pintan `—` (antes 0, que se leía como medición real)
 - [x] T22.7 `dotnet build` 0 err · `dotnet test` 2.480 verdes · `yarn build` OK
 - [x] T22.8 Verificado por endpoint real (`GET /por-lote/142/indicadores`, JWT Sanmarino): sem 8 ⇒ H 889 g / M 1.487 g / unif 81,3 % y 85,3 % · `pesoCierre` mixto 1.188 g
-- [ ] T22.9 ⚠️ **Pendiente**: smoke visual de la pestaña Indicadores. El usuario del smoke solo alcanza NIZA I/III y ahí la cascada no llega a un lote de levante con datos; la validación quedó a nivel API + compilación de plantilla
+- [x] T22.9 **Smoke visual hecho** (14ago, con `moiesbbuga@gmail.com`, que sí tiene MANGOS): pestaña Indicadores del lote S369A, 24 filas × 34 columnas, cada bloque rotulado HEMBRAS/MACHOS, sin Eficiencia/IP/VPI. Semana 20 en pantalla: aves H 9.688→9.685 · M 1.244→1.236 · peso H 2.284 g (guía 2.215, dif 3,1 %) · peso M 3.133 g (guía 3.035, dif 3,2 %) · unif H 86,4 % / M 84,2 %. Semana 1 muestra `—` en ganancia (no hay semana previa)
 - [x] T22.10 Migración de cierre + commit
 
 ### T23 · TK-2026-000023 — Producción: consumos duplicados, Unif./CV, dif. mortalidad
@@ -5337,3 +5337,34 @@ Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el 
 - [ ] T20.1 Confirmar el bloqueo real del cierre (semana 25 / guía genética / plantilla)
 - [ ] T20.2 Fix o respuesta operativa documentada
 - [ ] T20.3 Migración de cierre + commit
+
+---
+
+## Validación visual de los 5 casos (pedido 14ago, con datos de ejemplo insertados)
+
+Se resolvió el acceso que faltaba: el usuario del smoke anterior no tenía MANGOS. Con
+`moiesbbuga@gmail.com` (33 granjas, incluida MANGOS) la cascada llega al lote **S369A**.
+
+**Ejemplos insertados y REVERTIDOS.** Se respaldaron 6 filas de `seguimiento_diario_levante` del lote
+142 en `smoke_tk21_backup`, se les cargó C.V. por sexo (8,4 a 10,6 / 9,1 a 11,9 — la columna estaba
+vacía en ese lote) y una salida de machos el 15/01 (mort 4 + sel 2) para que las columnas nuevas se
+vieran distintas entre sexos. Al terminar se restauraron: **0 filas distintas del respaldo**, tabla
+de respaldo borrada, 0 tablas `smoke_*` en la BD.
+
+| Caso | Lo que se vio en pantalla |
+|---|---|
+| **TK-21** | Cabeceras: `TOTAL MORT+ SEL hembras / día` · `machos / día` · `Saldo hembras` · `Saldo machos` · `Uniformidad hembras/machos (%)` · `C.V. hembras/machos (%)`, **sin columnas de huevos**. Fila 15/01: H `1` (1 mort + 0 sel) y M `6` (4 mort + 2 sel); saldos 9.685 / 1.236; unif 86,4 / 84,2; C.V. 10,1 / 11,2 |
+| **TK-21 Excel** | `Seguimiento_Diario_de_Levante_S369A_20260814.xlsx`: las 7 cabeceras nuevas presentes; `Huevos Tot.`, `H. Limpio`, `Saldo aves vivas` y `TOTAL MORT+ SEL / DÍA` **ausentes**; los valores 10,1 · 11,2 · 8,4 · 9.685 · 1.236 viajan al archivo |
+| **TK-22** | 24 filas × 34 columnas, todos los bloques rotulados HEMBRAS/MACHOS; sin Eficiencia/IP/VPI. Sem 1 con `—` en ganancia. Excel `levante-lote-S369A-…`: las 16 columnas por sexo presentes, `Eficiencia`/`IP`/`VPI` ausentes |
+| **TK-23** | Seguimiento de P-K345A: 35 cabeceras = 35 celdas, **sin `Cons. orig`** y **sin `Uniformidad`/`Coef. Var`**. Indicadores: `DIF MORT H (PP)` y `(M)`; sem 26 `-0,26 pp` y `+0,25 pp` (antes -80,05 % y +2.212,10 %), sem 27 `+0,02` / `+0,11`, sem 29 `+0,25` / `+0,77` |
+| **TK-24** | Formulario de Lote Base con **solo** `Cantidad hembras *` y `Cantidad machos *`; el form valida OK sin mixtas y el botón Guardar queda habilitado. Al **editar** un lote con valor previo simulado 777, el payload sigue llevando `777` (no lo pisa con 0). Lote Reproductora: modal con Machos/Hembras/Peso M/Peso H, sin `Mixtas`, y el control sigue vivo en el FormGroup (que es lo que conserva el valor) |
+
+### ⚠️ Hallazgo nuevo que destapó el desglose por sexo (TK-22)
+
+La guía genética de Sanmarino tiene **mortalidad semanal de machos corrupta** en filas puntuales:
+`mort_sem_m = 8.881583551549891` en la edad 20, con vecinas en `0,15`. El patrón se repite en
+**las 12 combinaciones raza/año** y siempre en las mismas edades (5, 9, 15, 20, 25, 25P, 31, 36, 41,
+51 — 3 a 10 filas por tabla); las hembras nunca lo tienen. Parecen valores **acumulados** metidos en
+la columna semanal. Antes quedaba diluido porque la tabla promediaba con hembras
+(`(0,10 + 8,88)/2 = 4,49 %`); ahora la columna «Guía Mort M» lo muestra crudo. **No se tocó**: es
+dato de su tabla genética y la corrección es de ellos.
