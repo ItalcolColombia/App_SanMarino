@@ -5304,9 +5304,15 @@ Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el 
 - [x] T22.10 Migración de cierre + commit
 
 ### T23 · TK-2026-000023 — Producción: consumos duplicados, Unif./CV, dif. mortalidad
-- [ ] T23.1 Analizar CONS. H/M vs CONS. ORIG H/M y la fórmula de DIF MORT
-- [ ] T23.2 Fix + tests
-- [ ] T23.3 Migración de cierre + commit
+- [x] T23.1 «Cons. orig H/M» sale de `metadata.consumoOriginal*`, que **no existe en ninguna de las 604 filas** ⇒ el fallback devolvía `consKgH/M`: el mismo kg dos veces
+- [x] T23.2 Uniformidad en producción: **0 de 605 filas** con valor. CV: 1 fila con 0,02 (prueba). La guía genética ni define uniformidad para edades de producción
+- [x] T23.3 `DIF MORT` = `fn_dif_pct` = % relativo sobre dos porcentajes ⇒ los valores de la imagen del ticket reproducidos 1:1 (-80,05 · +2.212,10 · +14,19 · +73,84 · +164,41 · +510,82 · +289,35 · +164,20)
+- [x] T23.4 Nuevo `fn_dif_pp` (diferencia directa en pp) solo para mortalidad; consumo/peso/huevos siguen relativos
+- [x] T23.5 ⚠️ **El espejo `backend/sql/fn_indicadores_produccion_postura.sql` estaba DESINCRONIZADO**: le faltaba la columna de salida `porcentaje_seleccion_machos`. La migración falló con `42P13: cannot change return type` — se regeneró desde `pg_get_functiondef` y el espejo quedó corregido
+- [x] T23.6 Front: fuera las 4 columnas de consumo original y Unif/CV (tabla de seguimiento, tabla de indicadores y los dos Excel); `Dif Mort (pp)` sin semáforo (los umbrales 5/15 son de % relativo)
+- [x] T23.7 Verificado: sem 26 pasa de -80,05 % a **-0,26 pp** y de +2.212,10 % a **+0,25 pp**; `diferencia_consumo_hembras` sigue relativa (-2,67 %)
+- [x] T23.8 `dotnet build` 0 err · `dotnet test` 2.480 verdes · `yarn build` OK
+- [x] T23.9 Migración de cierre + commit
 
 ### T21 · TK-2026-000021 — Levante: saldo por sexo, Unif./CV, huevos
 - [ ] T21.1 Analizar el seguimiento y su Excel

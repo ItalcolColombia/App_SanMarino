@@ -1,21 +1,67 @@
--- ============================================================================
--- fn_indicadores_produccion_postura(company, lote_produccion, lote, semanas, fechas)
--- Indicadores semanales de PRODUCCION (postura Colombia).
---
--- ⚠️ Este archivo se REGENERO el 14ago26 desde la funcion DESPLEGADA
---    (pg_get_functiondef), porque la version anterior del espejo estaba
---    DESINCRONIZADA: le faltaba la columna de salida `porcentaje_seleccion_machos`,
---    que si existe en la base. Aplicarlo tal cual habria fallado con
---    «42P13: cannot change return type of existing function» — y de hecho fallo,
---    que es como se detecto. Antes de tocar este archivo, comparalo contra
---    pg_get_functiondef; el espejo NO es automaticamente lo desplegado.
---
--- Cambio de esta version (TK-2026-000023): `diferencia_mortalidad_hembras/machos`
--- pasan de fn_dif_pct (porcentaje relativo) a fn_dif_pp (diferencia directa en
--- puntos porcentuales). El resto de las diferencias no se toca.
--- ============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
 
-CREATE OR REPLACE FUNCTION public.fn_indicadores_produccion_postura(p_company_id integer, p_lote_postura_produccion_id integer DEFAULT NULL::integer, p_lote_id integer DEFAULT NULL::integer, p_semana_desde integer DEFAULT NULL::integer, p_semana_hasta integer DEFAULT NULL::integer, p_fecha_desde date DEFAULT NULL::date, p_fecha_hasta date DEFAULT NULL::date)
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// TK-2026-000023 — la <b>diferencia de mortalidad vs guia</b> de los indicadores de produccion
+    /// pasa a ser <b>diferencia DIRECTA</b> (puntos porcentuales), no porcentaje diferencial.
+    /// </summary>
+    /// <remarks>
+    /// <b>El defecto.</b> Mortalidad real y mortalidad de guia YA son porcentajes, y la columna
+    /// mostraba <c>((real - guia) / guia) * 100</c>. Sobre numeros tan chicos ese cociente explota:
+    /// con 0,26 % real contra 0,01 % de guia la pantalla mostraba <b>+2.212,10 %</b>, y con 0,07 %
+    /// contra 0,33 % mostraba <b>-80,05 %</b>. Lo que el tecnico necesita leer es la distancia
+    /// directa: <c>real - guia</c> = -0,26 <b>puntos porcentuales</b>.
+    ///
+    /// <b>Alcance.</b> Solo las dos diferencias de mortalidad. Consumo, peso y huevos siguen con el
+    /// porcentaje relativo (<c>fn_dif_pct</c>) porque ahi real y guia son magnitudes —kg, gramos,
+    /// unidades—, no porcentajes.
+    ///
+    /// <b>Nuevo helper <c>fn_dif_pp</c>:</b> NULL si falta cualquiera de los dos lados (misma
+    /// convencion que <c>fn_dif_pct</c>) pero SI calcula con guia = 0: la resta ahi sigue teniendo
+    /// sentido (0,26 - 0 = +0,26 pp) mientras que la division no.
+    ///
+    /// <b>⚠️ El texto de la funcion se tomo de la version DESPLEGADA</b>, no del espejo
+    /// <c>backend/sql/fn_indicadores_produccion_postura.sql</c>: el espejo estaba desincronizado
+    /// (le faltaba la columna de salida <c>porcentaje_seleccion_machos</c>) y aplicarlo fallaba con
+    /// «42P13: cannot change return type of existing function». El espejo quedo regenerado desde la
+    /// funcion real, con este mismo cambio encima.
+    ///
+    /// El <c>RETURNS TABLE</c> no cambia ⇒ <c>CREATE OR REPLACE</c>, sin DROP.
+    /// </remarks>
+    public partial class DifMortalidadProduccionDirecta : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"
+CREATE OR REPLACE FUNCTION fn_dif_pp(p_real double precision, p_guia double precision)
+RETURNS double precision
+LANGUAGE sql
+IMMUTABLE
+AS $$
+    -- Diferencia DIRECTA en puntos porcentuales, para magnitudes que YA son porcentajes.
+    -- A diferencia de fn_dif_pct, con guia = 0 no devuelve NULL: la resta sigue siendo valida.
+    SELECT CASE
+        WHEN p_real IS NULL OR p_guia IS NULL THEN NULL
+        ELSE p_real - p_guia
+    END;
+$$;");
+            migrationBuilder.Sql(FN_SQL);
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// No revierte la funcion (volver atras significa reaplicar la migracion anterior). El
+        /// helper se deja creado: es aditivo y nadie mas lo usa.
+        /// </remarks>
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+        }
+
+        private const string FN_SQL = @"CREATE OR REPLACE FUNCTION public.fn_indicadores_produccion_postura(p_company_id integer, p_lote_postura_produccion_id integer DEFAULT NULL::integer, p_lote_id integer DEFAULT NULL::integer, p_semana_desde integer DEFAULT NULL::integer, p_semana_hasta integer DEFAULT NULL::integer, p_fecha_desde date DEFAULT NULL::date, p_fecha_hasta date DEFAULT NULL::date)
  RETURNS TABLE(semana integer, fecha_inicio_semana date, fecha_fin_semana date, total_registros integer, mortalidad_hembras integer, mortalidad_machos integer, porcentaje_mortalidad_hembras double precision, porcentaje_mortalidad_machos double precision, mortalidad_guia_hembras double precision, mortalidad_guia_machos double precision, diferencia_mortalidad_hembras double precision, diferencia_mortalidad_machos double precision, seleccion_hembras integer, porcentaje_seleccion_hembras double precision, seleccion_machos integer, porcentaje_seleccion_machos double precision, consumo_kg_hembras double precision, consumo_kg_machos double precision, consumo_total_kg double precision, consumo_promedio_diario_kg double precision, consumo_guia_hembras double precision, consumo_guia_machos double precision, diferencia_consumo_hembras double precision, diferencia_consumo_machos double precision, huevos_totales integer, huevos_incubables integer, promedio_huevos_por_dia double precision, eficiencia_produccion double precision, huevos_totales_guia double precision, huevos_incubables_guia double precision, porcentaje_produccion_guia double precision, diferencia_huevos_totales double precision, diferencia_huevos_incubables double precision, diferencia_porcentaje_produccion double precision, peso_huevo_promedio double precision, peso_huevo_guia double precision, diferencia_peso_huevo double precision, peso_promedio_hembras double precision, peso_promedio_machos double precision, peso_guia_hembras double precision, peso_guia_machos double precision, diferencia_peso_hembras double precision, diferencia_peso_machos double precision, uniformidad_promedio double precision, uniformidad_guia double precision, diferencia_uniformidad double precision, coeficiente_variacion_promedio double precision, huevos_limpios integer, huevos_tratados integer, huevos_sucios integer, huevos_deformes integer, huevos_blancos integer, huevos_doble_yema integer, huevos_piso integer, huevos_pequenos integer, huevos_rotos integer, huevos_desecho integer, huevos_otro integer, aves_hembras_inicio_semana integer, aves_machos_inicio_semana integer, aves_hembras_fin_semana integer, aves_machos_fin_semana integer, htaa_real double precision, hiaa_real double precision, retiro_sem_h double precision, retiro_sem_m double precision, retiro_ac_h double precision, retiro_ac_m double precision, retiro_ac_h_guia double precision, retiro_ac_m_guia double precision)
  LANGUAGE plpgsql
 AS $function$
@@ -170,7 +216,7 @@ BEGIN
                COALESCE(f.mov_traslado_in_h,0) AS mv_in_h, COALESCE(f.mov_traslado_in_m,0) AS mv_in_m
           FROM fn_seguimiento_diario_produccion(p_lote_postura_produccion_id, NULL) f
          WHERE f.seg_id IS NOT NULL
-           AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
+           AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son ""dia con registro""
 
     ELSIF p_lote_id IS NOT NULL AND p_lote_id > 0 THEN
         -- ── Flujo legacy: Lote en fase Producción ──
@@ -254,7 +300,7 @@ BEGIN
                COALESCE(f.mov_traslado_in_h,0) AS mv_in_h, COALESCE(f.mov_traslado_in_m,0) AS mv_in_m
           FROM fn_seguimiento_diario_produccion(NULL, v_lote_id_int) f
          WHERE f.seg_id IS NOT NULL
-           AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son "dia con registro"
+           AND NOT f.fila_sin_lpp;   -- v2 fn diaria: los dias solo-traslado TSD no son ""dia con registro""
 
     ELSE
         RETURN;  -- ni LPP ni loteId válido
@@ -399,7 +445,7 @@ BEGIN
 
         IF g_found THEN
             -- ParseDouble => 0 cuando el string es vacío/no numérico (no NULL). Las columnas de la
-            -- guía "obtenerGuiaGeneticaProduccion" pasan por ParseDouble (0 si vacío); las del raw
+            -- guía ""obtenerGuiaGeneticaProduccion"" pasan por ParseDouble (0 si vacío); las del raw
             -- (huevos/%prod/pesoHuevo) por ParseDecimal (NULL si vacío). Se respeta esa diferencia:
             g_cons_h := COALESCE(g_cons_h, 0);
             g_cons_m := COALESCE(g_cons_m, 0);
@@ -527,4 +573,6 @@ BEGIN
 
     RETURN;
 END;
-$function$
+$function$";
+    }
+}
