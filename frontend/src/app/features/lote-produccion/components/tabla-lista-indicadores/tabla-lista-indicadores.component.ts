@@ -254,21 +254,10 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     return out;
   }
 
-  /**
-   * ¿La guía trae uniformidad para esta semana? La guía genética normalmente NO define uniformidad
-   * para las edades de PRODUCCIÓN (solo la trae en las de levante), así que lo habitual es que
-   * `uniformidadGuia` llegue null y la celda muestre «—».
-   *
-   * El chequeo contra 0 se conserva a propósito: `fn_indicadores_produccion_postura` emitía ese
-   * campo como 0 en vez de NULL (paridad histórica con un `ParseDouble` viejo del C#) hasta la
-   * migración `20260807140000_UniformidadGuiaProduccionNull`. Pintar ese 0 se lee como «la guía
-   * exige 0 % de uniformidad», que es falso: es «sin dato». Un 0 real tampoco existe como
-   * objetivo, así que tratarlo como ausencia sigue siendo correcto y cubre backends sin la migración.
-   */
-  hayGuiaUniformidad(ind: IndicadorProduccionSemanalDto): boolean {
-    const g = ind?.uniformidadGuia;
-    return g !== null && g !== undefined && Number(g) !== 0;
-  }
+  // TK-2026-000023 — se elimino `hayGuiaUniformidad`: Uniformidad y Coeficiente de Variacion
+  // salieron de la tabla y del Excel de PRODUCCION. Son parametros de LEVANTE (la guia genetica
+  // ni siquiera define uniformidad para las edades de produccion) y en la base no hay un solo
+  // registro de produccion con uniformidad cargada. El dato sigue en la BD y en el DTO.
 
   /** Filas de la hoja "Indicadores" (métricas semanales + comparación con guía). */
   private buildIndicadoresRows(): any[] {
@@ -284,8 +273,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       PorcMortM: ind.porcentajeMortalidadMachos,
       GuiaMortH: ind.mortalidadGuiaHembras,
       GuiaMortM: ind.mortalidadGuiaMachos,
-      DifMortH: ind.diferenciaMortalidadHembras,
-      DifMortM: ind.diferenciaMortalidadMachos,
+      DifMortHpp: ind.diferenciaMortalidadHembras,
+      DifMortMpp: ind.diferenciaMortalidadMachos,
 
       SeleccionH: ind.seleccionHembras,
       PorcSelH: ind.porcentajeSeleccionHembras,
@@ -334,10 +323,6 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       PesoM: ind.pesoPromedioMachos,
       PesoMGuia: ind.pesoGuiaMachos,
       DifPesoM: ind.diferenciaPesoMachos,
-      UnifReal: ind.uniformidadPromedio,
-      UnifGuia: ind.uniformidadGuia,
-      DifUnif: ind.diferenciaUniformidad,
-      CvProm: ind.coeficienteVariacionPromedio,
 
       HIni: ind.avesHembrasInicioSemana,
       MIni: ind.avesMachosInicioSemana,
@@ -364,6 +349,18 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     if (valor === null || valor === undefined) return '—';
     const signo = valor > 0 ? '+' : '';
     return `${signo}${valor.toFixed(2)}%`;
+  }
+
+  /**
+   * TK-2026-000023 — diferencia DIRECTA en puntos porcentuales (real − guía), para magnitudes que
+   * ya son porcentajes. Se rotula «pp» y no «%» a propósito: un «%» acá se leería como porcentaje
+   * relativo, que es justamente la lectura que se venía mostrando y que sobre mortalidades de
+   * décimas llegaba a números como +2.212,10 %.
+   */
+  formatearPuntosPorcentuales(valor?: number | null): string {
+    if (valor === null || valor === undefined) return '—';
+    const signo = valor > 0 ? '+' : '';
+    return `${signo}${valor.toFixed(2)} pp`;
   }
 
   getDiferenciaClass(diferencia?: number | null): string {

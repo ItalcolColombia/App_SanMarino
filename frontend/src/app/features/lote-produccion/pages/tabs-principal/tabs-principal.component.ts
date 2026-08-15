@@ -248,10 +248,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       ConsKgM: s.consKgM,
       AlimentoH: this.getTipoAlimentoH(s),
       AlimentoM: this.getTipoAlimentoM(s),
-      ConsumoOriginalH: this.getConsumoOriginalH(s),
-      UnidadH: this.getUnidadConsumoOriginalH(s),
-      ConsumoOriginalM: this.getConsumoOriginalM(s),
-      UnidadM: this.getUnidadConsumoOriginalM(s),
       HuevosTotales: s.huevosTotales,
       HuevosIncubables: s.huevosIncubables,
       HuevoLimpio: (s as any).huevoLimpio ?? 0,
@@ -268,8 +264,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       PesoHuevo: s.pesoHuevo,
       PesoH: (s as any).pesoH ?? null,
       PesoM: (s as any).pesoM ?? null,
-      Uniformidad: (s as any).uniformidad ?? null,
-      CoeficienteVariacion: (s as any).coeficienteVariacion ?? null,
       ObservacionesPesaje: (s as any).observacionesPesaje ?? null
     }));
 
@@ -378,27 +372,11 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     return (s?.tipoAlimento || '').trim() || '—';
   }
 
-  getConsumoOriginalH(s: SeguimientoItemDto): number {
-    const m = this.meta(s);
-    const v = m?.consumoOriginalHembras ?? m?.consumo_original_hembras ?? null;
-    return typeof v === 'number' ? v : (s?.consKgH ?? 0);
-  }
-
-  getConsumoOriginalM(s: SeguimientoItemDto): number {
-    const m = this.meta(s);
-    const v = m?.consumoOriginalMachos ?? m?.consumo_original_machos ?? null;
-    return typeof v === 'number' ? v : (s?.consKgM ?? 0);
-  }
-
-  getUnidadConsumoOriginalH(s: SeguimientoItemDto): string {
-    const m = this.meta(s);
-    return (m?.unidadConsumoOriginalHembras ?? m?.unidad_consumo_original_hembras ?? 'kg') || 'kg';
-  }
-
-  getUnidadConsumoOriginalM(s: SeguimientoItemDto): string {
-    const m = this.meta(s);
-    return (m?.unidadConsumoOriginalMachos ?? m?.unidad_consumo_original_machos ?? 'kg') || 'kg';
-  }
+  // TK-2026-000023 — se eliminaron getConsumoOriginalH/M y getUnidadConsumoOriginalH/M.
+  // Mostraban el consumo «tal como lo tecleó el usuario» desde `metadata`, pero esa clave no
+  // existe en NINGUNA de las 604 filas de producción, así que el fallback devolvía consKgH/M:
+  // la tabla repetía el mismo kg dos veces. Si algún día se captura en otra unidad, la columna
+  // se vuelve a agregar leyendo la metadata (y solo entonces aporta algo).
 }
 
 

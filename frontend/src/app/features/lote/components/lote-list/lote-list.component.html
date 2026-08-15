@@ -305,7 +305,6 @@
                 <th scope="col">Fecha ERP</th>
                 <th scope="col">Hembras</th>
                 <th scope="col">Machos</th>
-                <th scope="col">Mixtas</th>
                 <th scope="col">Creado</th>
                 <th scope="col" class="text-center">Acciones</th>
               </tr>
@@ -414,7 +413,6 @@
                   <td>{{ b.erpCreate ? (b.erpCreate | date:'dd/MM/yyyy') : '—' }}</td>
                   <td>{{ formatNumber(b.cantidadHembras) }}</td>
                   <td>{{ formatNumber(b.cantidadMachos) }}</td>
-                  <td>{{ formatNumber(b.cantidadMixtas) }}</td>
                   <td>{{ b.createdAt ? (b.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
                   <td class="text-center">
                     <div class="inline-flex items-center gap-2">
@@ -596,10 +594,6 @@
                 <label class="ux-label">Cantidad machos <span class="req">*</span></label>
                 <input type="number" min="0" formControlName="cantidadMachos" class="ux-input" />
               </div>
-              <div class="md:col-span-2">
-                <label class="ux-label">Cantidad mixtas <span class="req">*</span></label>
-                <input type="number" min="0" formControlName="cantidadMixtas" class="ux-input" />
-              </div>
             </div>
             <div class="ux-actions">
               <button type="button" (click)="baseModalOpen = false; editingBase = null" class="btn-muted">Cancelar</button>
@@ -634,7 +628,6 @@
               <div><strong>Fecha creación ERP:</strong> {{ viewingBase.erpCreate ? (viewingBase.erpCreate | date:'dd/MM/yyyy') : '—' }}</div>
               <div><strong>Hembras:</strong> {{ formatNumber(viewingBase.cantidadHembras) }}</div>
               <div><strong>Machos:</strong> {{ formatNumber(viewingBase.cantidadMachos) }}</div>
-              <div><strong>Mixtas:</strong> {{ formatNumber(viewingBase.cantidadMixtas) }}</div>
               <div><strong>Creado:</strong> {{ viewingBase.createdAt ? (viewingBase.createdAt | date:'dd/MM/yyyy HH:mm') : '—' }}</div>
             </div>
             <div class="ux-actions mt-4">

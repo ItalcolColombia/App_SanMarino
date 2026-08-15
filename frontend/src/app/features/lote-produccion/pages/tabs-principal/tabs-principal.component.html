@@ -224,10 +224,6 @@
                       <th>Cons. M (kg)</th>
                       <th>Alimento H</th>
                       <th>Alimento M</th>
-                      <th>Cons. orig H</th>
-                      <th>U</th>
-                      <th>Cons. orig M</th>
-                      <th>U</th>
                       <th>Huevos Tot.</th>
                       <!-- Empresas que clasifican por ÍTEM del catálogo (flag clasificacion_huevo_por_items):
                            las 11 columnas fijas y "Huevos Inc." están siempre en 0 → Primera / Pnc. -->
@@ -251,8 +247,6 @@
                       <th>Peso huevo (g)</th>
                       <th>Peso H (kg)</th>
                       <th>Peso M (kg)</th>
-                      <th>Uniformidad (%)</th>
-                      <th>Coef. Var (%)</th>
                       <th>Obs. pesaje</th>
                       <th class="sticky-actions text-right">Acciones</th>
                     </tr>
@@ -304,10 +298,6 @@
                         <td>{{ s.consKgM | number:'1.0-2' }}</td>
                         <td class="truncate" [title]="getTipoAlimentoH(s)">{{ getTipoAlimentoH(s) }}</td>
                         <td class="truncate" [title]="getTipoAlimentoM(s)">{{ getTipoAlimentoM(s) }}</td>
-                        <td>{{ getConsumoOriginalH(s) | number:'1.0-2' }}</td>
-                        <td class="mono">{{ getUnidadConsumoOriginalH(s) }}</td>
-                        <td>{{ getConsumoOriginalM(s) | number:'1.0-2' }}</td>
-                        <td class="mono">{{ getUnidadConsumoOriginalM(s) }}</td>
                         <td>{{ s.huevosTotales }}</td>
                         <!-- Clasificación por ítem (flag de empresa): Primera / Pnc desde metadata.huevoItems -->
                         @if (!clasificacionHuevoPorItems) {
@@ -330,8 +320,6 @@
                         <td>{{ s.pesoHuevo | number:'1.0-2' }}</td>
                         <td>{{ s.pesoH ?? '—' }}</td>
                         <td>{{ s.pesoM ?? '—' }}</td>
-                        <td>{{ s.uniformidad ?? '—' }}</td>
-                        <td>{{ s.coeficienteVariacion ?? '—' }}</td>
                         <td class="truncate" [title]="s.observacionesPesaje || ''">{{ s.observacionesPesaje || '—' }}</td>
                         <td class="sticky-actions text-right">
                           <!-- Ver detalle siempre; editar y eliminar solo con el lote abierto -->

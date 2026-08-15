@@ -41,6 +41,41 @@ interface IndicadorSemanal {
   eficiencia: number;
   ip: number;
   vpi: number;
+  // ── TK-2026-000022: series POR SEXO ───────────────────────────────────────
+  // La tabla mostraba una sola serie sin decir de qué sexo era, y `pesoCierre`/`unifReal` son
+  // el promedio aritmético de hembras y machos: un número que no le corresponde a ninguna ave.
+  // Todas llegan de la fn (el front no calcula) y son `null` cuando el sexo no tiene aves, la
+  // semana no tuvo pesaje o la guía no trae el dato del sexo.
+  avesInicioHembras?: number | null;
+  avesFinHembras?: number | null;
+  avesInicioMachos?: number | null;
+  avesFinMachos?: number | null;
+  consumoDiarioHembras?: number | null;
+  consumoDiarioMachos?: number | null;
+  consumoTablaHembras?: number | null;
+  consumoTablaMachos?: number | null;
+  consumoTotalSemanaHembras?: number | null;
+  consumoTotalSemanaMachos?: number | null;
+  gananciaHembras?: number | null;
+  gananciaMachos?: number | null;
+  pesoHembras?: number | null;
+  pesoMachos?: number | null;
+  pesoTablaHembras?: number | null;
+  pesoTablaMachos?: number | null;
+  difPesoPctHembras?: number | null;
+  difPesoPctMachos?: number | null;
+  unifHembras?: number | null;
+  unifMachos?: number | null;
+  mortPctHembras?: number | null;
+  mortPctMachos?: number | null;
+  mortTablaHembras?: number | null;
+  mortTablaMachos?: number | null;
+  seleccionPctHembras?: number | null;
+  seleccionPctMachos?: number | null;
+  errorSexajePctHembras?: number | null;
+  errorSexajePctMachos?: number | null;
+  retiroPctHembras?: number | null;
+  retiroPctMachos?: number | null;
   // Otros
   saldoAvesSemanal: number;
   mortalidadAcum: number;
@@ -112,24 +147,52 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       CvH: s.cvH ?? null,
       CvM: s.cvM ?? null
     }));
+    // TK-2026-000022 - el Excel sale con las mismas columnas que la pantalla: cada parametro
+    // dice de que sexo es. Al final se conservan las columnas del lote completo que ya venian,
+    // para no romper las planillas que alguien tenga armadas encima.
     const ind = (this.indicadoresSemanales || []).map((i: any) => ({
       Semana: i.semana,
-      AvesInicio: i.avesInicioSemana,
-      AvesFin: i.avesFinSemana,
-      ConsumoDiaGrAve: i.consumoDiario,
-      ConsumoGuiaGrAve: i.consumoTabla,
-      PesoReal: i.pesoCierre,
-      PesoGuia: i.pesoTabla,
-      DifPesoPct: i.difPesoPct,
-      GananciaSem: i.gananciaSemana,
-      GananciaGuia: i.gananciaTabla,
-      UnifReal: i.unifReal,
+      AvesInicioH: i.avesInicioHembras,
+      AvesFinH: i.avesFinHembras,
+      AvesInicioM: i.avesInicioMachos,
+      AvesFinM: i.avesFinMachos,
+      ConsumoDiaGrAveH: i.consumoDiarioHembras,
+      ConsumoGuiaGrAveH: i.consumoTablaHembras,
+      ConsumoDiaGrAveM: i.consumoDiarioMachos,
+      ConsumoGuiaGrAveM: i.consumoTablaMachos,
+      ConsumoLoteSemanaG: i.consumoTotalSemana,
+      ConsumoSemanaGH: i.consumoTotalSemanaHembras,
+      ConsumoSemanaGM: i.consumoTotalSemanaMachos,
+      GananciaSemH: i.gananciaHembras,
+      GananciaSemM: i.gananciaMachos,
+      PesoRealH: i.pesoHembras,
+      PesoGuiaH: i.pesoTablaHembras,
+      DifPesoPctH: i.difPesoPctHembras,
+      PesoRealM: i.pesoMachos,
+      PesoGuiaM: i.pesoTablaMachos,
+      DifPesoPctM: i.difPesoPctMachos,
+      UnifRealH: i.unifHembras,
+      UnifRealM: i.unifMachos,
       UnifGuia: i.unifTabla,
-      PorcMortSem: i.mortalidadSem,
-      MortGuia: i.mortTabla,
-      PorcSelSem: i.seleccionSem,
-      PorcErrSexajeSem: i.errorSexajeSem,
-      PorcRetiroSem: i.mortalidadMasSeleccion
+      PorcMortSemH: i.mortPctHembras,
+      MortGuiaH: i.mortTablaHembras,
+      PorcMortSemM: i.mortPctMachos,
+      MortGuiaM: i.mortTablaMachos,
+      PorcSelSemH: i.seleccionPctHembras,
+      PorcSelSemM: i.seleccionPctMachos,
+      PorcErrSexajeSemH: i.errorSexajePctHembras,
+      PorcErrSexajeSemM: i.errorSexajePctMachos,
+      PorcRetiroSemH: i.retiroPctHembras,
+      PorcRetiroSemM: i.retiroPctMachos,
+      // Lote completo (H+M). Ojo: PesoLotePromedio y UnifLotePromedio son el promedio
+      // aritmetico de los dos sexos, no un peso ni una uniformidad de ave real.
+      AvesInicioLote: i.avesInicioSemana,
+      AvesFinLote: i.avesFinSemana,
+      PesoLotePromedio: i.pesoCierre,
+      UnifLotePromedio: i.unifReal,
+      PorcMortSemLote: i.mortalidadSem,
+      PorcSelSemLote: i.seleccionSem,
+      PorcRetiroSemLote: i.mortalidadMasSeleccion
     }));
     exportarObjetosMultiHojaExcel([
       ...(seg.length ? [{ sheetName: 'Seguimiento', rows: seg }] : []),
@@ -237,6 +300,37 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       eficiencia: d.eficiencia,
       ip: d.ip,
       vpi: d.vpi,
+      // TK-2026-000022: se pasan tal cual (el front no calcula, solo pinta).
+      avesInicioHembras: d.avesInicioHembras ?? null,
+      avesFinHembras: d.avesFinHembras ?? null,
+      avesInicioMachos: d.avesInicioMachos ?? null,
+      avesFinMachos: d.avesFinMachos ?? null,
+      consumoDiarioHembras: d.consumoDiarioHembras ?? null,
+      consumoDiarioMachos: d.consumoDiarioMachos ?? null,
+      consumoTablaHembras: d.consumoTablaHembras ?? null,
+      consumoTablaMachos: d.consumoTablaMachos ?? null,
+      consumoTotalSemanaHembras: d.consumoTotalSemanaHembras ?? null,
+      consumoTotalSemanaMachos: d.consumoTotalSemanaMachos ?? null,
+      gananciaHembras: d.gananciaHembras ?? null,
+      gananciaMachos: d.gananciaMachos ?? null,
+      pesoHembras: d.pesoHembras ?? null,
+      pesoMachos: d.pesoMachos ?? null,
+      pesoTablaHembras: d.pesoTablaHembras ?? null,
+      pesoTablaMachos: d.pesoTablaMachos ?? null,
+      difPesoPctHembras: d.difPesoPctHembras ?? null,
+      difPesoPctMachos: d.difPesoPctMachos ?? null,
+      unifHembras: d.unifHembras ?? null,
+      unifMachos: d.unifMachos ?? null,
+      mortPctHembras: d.mortPctHembras ?? null,
+      mortPctMachos: d.mortPctMachos ?? null,
+      mortTablaHembras: d.mortTablaHembras ?? null,
+      mortTablaMachos: d.mortTablaMachos ?? null,
+      seleccionPctHembras: d.seleccionPctHembras ?? null,
+      seleccionPctMachos: d.seleccionPctMachos ?? null,
+      errorSexajePctHembras: d.errorSexajePctHembras ?? null,
+      errorSexajePctMachos: d.errorSexajePctMachos ?? null,
+      retiroPctHembras: d.retiroPctHembras ?? null,
+      retiroPctMachos: d.retiroPctMachos ?? null,
       saldoAvesSemanal: d.saldoAvesSemanal,
       mortalidadAcum: d.mortalidadAcum,
       seleccionAcum: d.seleccionAcum,
@@ -275,11 +369,16 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   // ================== VALIDACIONES Y ALERTAS ==================
-  validarConsumo(consumoDiario: number, consumoTabla: number): { 
+  validarConsumo(consumoDiario: number | null | undefined, consumoTabla: number | null | undefined): { 
     esValido: boolean; 
     mensaje: string; 
     tipo: 'success' | 'warning' | 'error' 
   } {
+    // Sin dato del sexo (o sin guía) no hay nada que validar: se pinta el guion sin alerta.
+    if (consumoDiario === null || consumoDiario === undefined ||
+        consumoTabla === null || consumoTabla === undefined) {
+      return { esValido: true, mensaje: '', tipo: 'success' };
+    }
     const diferencia = Math.abs(consumoDiario - consumoTabla);
     const porcentajeDiferencia = consumoTabla > 0 ? (diferencia / consumoTabla) * 100 : 0;
     
@@ -380,11 +479,14 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     }
   }
 
-  validarMortalidad(mortalidadSemana: number, semana: number, mortalidadTabla?: number): { 
+  validarMortalidad(mortalidadSemana: number | null | undefined, semana: number, mortalidadTabla?: number | null): { 
     esValido: boolean; 
     mensaje: string; 
     tipo: 'success' | 'warning' | 'error' 
   } {
+    if (mortalidadSemana === null || mortalidadSemana === undefined) {
+      return { esValido: true, mensaje: '', tipo: 'success' };
+    }
     if (mortalidadTabla && mortalidadTabla > 0) {
       const diff = mortalidadSemana - mortalidadTabla;
       const pct = (Math.abs(diff) / mortalidadTabla) * 100;
@@ -500,6 +602,18 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     return `${value.toFixed(decimals)}%`;
   };
 
+  /**
+   * TK-2026-000022 — las series POR SEXO llegan en `null` cuando ese sexo no tiene saldo en el
+   * lote, la semana no tuvo pesaje o la guía no trae el dato. Se pinta un guion, NO un cero: un
+   * cero en una columna de peso o de uniformidad se lee como medición real.
+   */
+  formatOpcional = (value: number | null | undefined, decimals: number = 2): string =>
+    value === null || value === undefined ? '—' : Number(value).toFixed(decimals);
+
+  /** Igual que {@link formatOpcional} pero con el `%` (mismo criterio de guion para el null). */
+  formatOpcionalPct = (value: number | null | undefined, decimals: number = 2): string =>
+    value === null || value === undefined ? '—' : `${Number(value).toFixed(decimals)}%`;
+
   formatDate = (date: string): string => {
     return new Date(date).toLocaleDateString('es-ES');
   };
@@ -608,19 +722,19 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
         ]
       },
       {
-        titulo: '⚡ Indicadores de Rendimiento',
+        titulo: '♀♂ Lectura por sexo',
         formulas: [
           {
-            nombre: 'Eficiencia',
-            formula: 'Ganancia de Peso por Ave (g) / Consumo Total por Ave (g)'
+            nombre: 'Todos los parámetros',
+            formula: 'Cada bloque dice si es de HEMBRAS o de MACHOS. Se calculan con el saldo del propio sexo (aves al inicio de la semana de ese sexo), sin promediar con el otro.'
           },
           {
-            nombre: 'IP (Índice de Productividad)',
-            formula: 'Eficiencia × Supervivencia\nDonde: Supervivencia = Aves Fin / Aves Inicio'
+            nombre: 'Guión (—)',
+            formula: 'El sexo no tiene aves en el lote, la semana no tuvo pesaje o la guía genética no trae ese dato para el sexo. No es un cero.'
           },
           {
-            nombre: 'VPI (Índice de Vitalidad)',
-            formula: 'Supervivencia × Eficiencia\nDonde: Supervivencia = Aves Fin / Aves Inicio'
+            nombre: 'Uniformidad Guía',
+            formula: 'La guía genética trae UNA sola columna de uniformidad (no la abre por sexo), así que la referencia es la misma para hembras y machos.'
           }
         ]
       },

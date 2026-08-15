@@ -1518,6 +1518,9 @@ export class GestionInventarioPageComponent implements OnInit {
   openStockEdit(row: InventarioGestionStockDto): void {
     this.stockEditRow = row;
     this.stockEditQuantity = Number(row.quantity);
+    // TK-2026-000019 — la unidad es SOLO LECTURA: viene del catálogo del ítem (el backend la
+    // resuelve así e ignora la que se mande). Cuando este campo era editable, operación lo usaba
+    // para tapar el «kg» que mostraba el stock y por eso la base quedó con «LT», «UND», «GALONES».
     this.stockEditUnit = (row.unit ?? 'kg').trim() || 'kg';
     this.stockEditFechaIngreso = this.fechaIngresoStockToYmd(row.fechaIngreso) || this.todayYmd();
     this.stockEditReason = '';

@@ -69,4 +69,26 @@ public sealed class IndicadorSemanalLevanteDto
     // por sexo no existe en Colombia ⇒ sin columna guía (serie Guía = NULL en el chart).
     public decimal? RetiroPctHembras { get; set; }
     public decimal? RetiroPctMachos { get; set; }
+
+    // TK-2026-000022: el RESTO de los parámetros por sexo, para que la TABLA de indicadores
+    // pueda decir de qué sexo es cada número. Las columnas mixtas de arriba siguen intactas,
+    // pero ojo: PesoCierre y UnifReal son el promedio aritmético simple de los dos sexos —un
+    // valor que no le corresponde a ninguna ave real cuando hembra y macho pesan distinto—.
+    // Mismo criterio de NULL que las series de arriba (sexo sin saldo / sin pesaje / sin guía).
+    public decimal? AvesInicioHembras { get; set; }
+    public decimal? AvesFinHembras { get; set; }
+    public decimal? AvesInicioMachos { get; set; }
+    public decimal? AvesFinMachos { get; set; }
+    public decimal? ConsumoTotalSemanaHembras { get; set; }
+    public decimal? ConsumoTotalSemanaMachos { get; set; }
+    public decimal? UnifHembras { get; set; }
+    public decimal? UnifMachos { get; set; }
+    public decimal? GananciaHembras { get; set; }
+    public decimal? GananciaMachos { get; set; }
+    public decimal? DifPesoPctHembras { get; set; }
+    public decimal? DifPesoPctMachos { get; set; }
+    public decimal? SeleccionPctHembras { get; set; }
+    public decimal? SeleccionPctMachos { get; set; }
+    public decimal? ErrorSexajePctHembras { get; set; }
+    public decimal? ErrorSexajePctMachos { get; set; }
 }

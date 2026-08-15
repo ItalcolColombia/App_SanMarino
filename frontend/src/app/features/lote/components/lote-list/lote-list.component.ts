@@ -539,7 +539,10 @@ export class LoteListComponent implements OnInit {
       fechaEncaset:    [null],   // Fecha de encasetamiento declarada
       cantidadHembras: [0, [Validators.required, Validators.min(0)]],
       cantidadMachos:  [0, [Validators.required, Validators.min(0)]],
-      cantidadMixtas:  [0, [Validators.required, Validators.min(0)]],
+      // TK-2026-000024: las aves mixtas son un concepto de POLLO DE ENGORDE. En reproductoras
+      // nunca se diligencian (0 filas con valor en toda la base) y acá encima el campo era
+      // `required`, o sea obligaba a llenar algo que no aplica. El valor sigue viajando en el
+      // payload —lo arma `payloadBaseConMixtasPreservadas`— para no pisar el histórico al editar.
       farmId:          [null],   // Granja asignada al lote base
       erpCreate:       [null],   // Fecha de creación en ERP externo
     });
@@ -1214,7 +1217,6 @@ export class LoteListComponent implements OnInit {
         : null,
       cantidadHembras: b?.cantidadHembras ?? 0,
       cantidadMachos:  b?.cantidadMachos  ?? 0,
-      cantidadMixtas:  b?.cantidadMixtas  ?? 0,
       farmId:          b?.farmId          ?? null,
       erpCreate:       b?.erpCreate
         ? new Date(b.erpCreate).toISOString().substring(0, 10)
@@ -1243,7 +1245,10 @@ export class LoteListComponent implements OnInit {
       fechaEncaset:    v.fechaEncaset ? String(v.fechaEncaset) : null,
       cantidadHembras: Number(v.cantidadHembras) || 0,
       cantidadMachos:  Number(v.cantidadMachos)  || 0,
-      cantidadMixtas:  Number(v.cantidadMixtas)  || 0,
+      // TK-2026-000024: el campo salió de la pantalla, pero el valor que ya tenía el registro se
+      // conserva. Mandar 0 fijo pisaría el histórico de cualquier lote que lo tuviera cargado
+      // —quitar un campo de la vista no puede borrar un dato—. En un lote nuevo va 0.
+      cantidadMixtas:  Number(this.editingBase?.cantidadMixtas ?? 0) || 0,
       farmId:          v.farmId   ? Number(v.farmId)   : null,
       erpCreate:       v.erpCreate ? String(v.erpCreate) : null,
     };

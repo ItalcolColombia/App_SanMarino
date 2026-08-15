@@ -1,86 +1,51 @@
--- ============================================================================
--- fn_indicadores_levante_postura(lote_id)
--- Indicadores semanales de LEVANTE (postura Colombia) calculados en la BD.
--- Reemplaza el cómputo del front (lote-levante/tabla-lista-indicadores +
--- graficas-principal): el front solo debe pintar.
---
--- Replica EXACTO el algoritmo del front (double precision, mismo orden) e
--- incorpora las correcciones ya acordadas:
---   * Peso/uniformidad del PESAJE semanal: último registro de la semana con
---     peso>0 (no el último día, que suele venir en 0) + arrastre del último
---     peso conocido cuando la semana no tiene pesaje (evita ganancia negativa
---     y dif -100%).  [bug histórico corregido]
---   * Guía genética REAL desde guia_genetica_sanmarino_colombia por
---     raza + año + company + semana (no valores hardcodeados / no Ecuador).
---
--- Correcciones matriz Verenice rev 6-jul-26:
---   * REQ-002e — Consumo por sexo: además del consumo mixto (compatibilidad),
---     se exponen consumo_diario_hembras / consumo_diario_machos (g/ave/día reales
---     por sexo = consumo_kg_sexo*1000 / saldo_prom_sexo / días) y
---     consumo_tabla_hembras / consumo_tabla_machos (gr_ave_dia_h/_m de la guía, SIN
---     promediar). Requiere llevar el saldo de aves POR GÉNERO dentro de la fn.
---     (Columnas renombradas de _h/_m a _hembras/_machos por el mapeo EF, ver nota abajo.)
---   * REQ-002f — Acumulados reales: mortalidad/selección acumuladas =
---     bajas_acumuladas / aves_encasetadas * 100 (acumulado real sobre aves
---     iniciales), no la suma de % semanales sobre base decreciente.
---   * REQ-002f/B36 — Semana fantasma: se EXCLUYEN las filas de PURO traslado
---     (sin mortalidad/selección/error/consumo/pesaje) posteriores a la
---     semana 25; ya no se clampean con LEAST(25) generando una "semana 25"
---     falsa con el salto de saldo del traslado post-levante.
---   * REQ-002B36 — Defensas:
---       - Base de aves con fallback: COALESCE(aves_encasetadas,
---         hembras_l+machos_l, primer traslado_ingreso, 0).
---       - Encaset futuro/ausente: si fecha_encaset es NULL o es POSTERIOR al
---         primer registro (encaset tecleado a futuro, p. ej. lote 116), se
---         devuelven CERO filas en lugar de colapsar 140+ días en una
---         "semana 1" absurda con base 0 y %pérdidas 100%. Se eligió devolver
---         cero filas (y no "usar el primer registro como referencia") porque
---         con un encaset inconsistente NINGÚN indicador es confiable: es más
---         seguro que el front muestre su empty-state a mostrar cifras
---         engañosas. Al devolver cero filas ya no hace falta GREATEST(1,…)
---         (no quedan semanas negativas que clampear).
---       - Idempotencia intra-transacción: DROP TABLE IF EXISTS _seg_sem antes
---         del CREATE TEMP TABLE (permite llamar la fn 2+ veces en la misma
---         transacción sin 'relation _seg_sem already exists').
---
--- Fuente de verdad del algoritmo: tabla-lista-indicadores.component.ts
--- Zona horaria: America/Bogota para el corte de semanas (calendario local).
---
--- Fase 3 (convergencia levante a Feature-13): lee la tabla CANÓNICA
--- seguimiento_diario_levante (tipo_seguimiento='levante') y las
--- salidas de la semana incluyen error de sexaje y traslados dedicados:
---   out = mort + sel + err + traslado_salida - traslado_ingreso;  aves_fin = aves - out.
--- ============================================================================
---   * REQ-010b — Series POR SEXO para el selector Hembras/Machos/Ambos de la
---     pestaña Gráfica: además del consumo por sexo, se exponen peso (real +
---     guía), mortalidad % (real + guía) y retiro % (real; la guía por sexo no
---     existe ⇒ NULL) por sexo, para que el control cambie las series Real/Guía.
---     Aritmética por sexo consistente con la mixta (mismo denominador = aves al
---     inicio de la semana del sexo; NULL cuando el sexo no tiene saldo/pesaje).
---
---   * TK-2026-000022 — TODOS los parametros por sexo en la TABLA de indicadores.
---     El usuario reporto que «los parametros aparecen solo para un grupo de aves y
---     no identifica si se refieren a hembras o machos». Peor: varias columnas
---     mixtas son un PROMEDIO ARITMETICO simple de los dos sexos (peso_cierre y
---     unif_real: (H+M)/2, sin ponderar por cantidad de aves), o sea un valor que
---     no le corresponde a ninguna ave del galpon —en reproductoras la hembra y el
---     macho tienen pesos muy distintos—. Se exponen aves inicio/fin, consumo total,
---     uniformidad, ganancia, dif % de peso vs guia, seleccion % y error de sexaje %
---     por sexo. NO se agrega aritmetica nueva: son las mismas variables internas
---     con las que ya se arman las columnas mixtas, publicadas sin promediar.
---
--- IMPORTANTE (mapeo EF): los nombres de las columnas por sexo son el snake_case
--- EXACTO de las props del DTO (…Hembras→…_hembras, …Machos→…_machos). EF Core
--- (SqlQueryRaw<IndicadorSemanalLevanteDto> con convención snake_case) mapea
--- ConsumoDiarioHembras↔consumo_diario_hembras, PesoHembras↔peso_hembras, etc.
--- Un nombre abreviado (_h/_m) NO mapearía a props …Hembras/…Machos (mismo patrón
--- probado en fn_indicadores_produccion_postura: porcentaje_mortalidad_hembras…).
--- Por eso las columnas de consumo por sexo se renombran de _h/_m a _hembras/_machos.
---
--- DROP previo: la firma cambió (se renombraron/agregaron columnas OUT por sexo),
--- y CREATE OR REPLACE no puede alterar el tipo de retorno.
-DROP FUNCTION IF EXISTS fn_indicadores_levante_postura(integer);
-CREATE OR REPLACE FUNCTION fn_indicadores_levante_postura(p_lote_id integer)
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// TK-2026-000022 — <c>fn_indicadores_levante_postura</c> pasa a exponer <b>todos</b> los
+    /// parametros POR SEXO.
+    /// </summary>
+    /// <remarks>
+    /// <b>El defecto.</b> La tabla «Indicadores Semanales de Levante» mostraba una sola serie de
+    /// numeros sin decir de que sexo eran, y en el caso del <b>peso</b> y la <b>uniformidad</b> ese
+    /// numero unico es un <b>promedio aritmetico simple</b> de hembras y machos —sin ponderar por
+    /// cantidad de aves—, o sea un valor que no le corresponde a ninguna ave del galpon. En el lote
+    /// S369A de la semana 8, por ejemplo, las hembras pesaban 889 g y los machos 1.487 g: la tabla
+    /// mostraba 1.188 g.
+    ///
+    /// <b>La correccion.</b> Se agregan 16 columnas OUT (aves inicio/fin, consumo total,
+    /// uniformidad, ganancia, dif % de peso vs guia, seleccion % y error de sexaje % por sexo).
+    /// <b>No hay aritmetica nueva</b>: todas salen de variables que la funcion ya calculaba para
+    /// armar las columnas mixtas; lo unico que faltaba era publicarlas sin promediar. Las columnas
+    /// mixtas se conservan intactas (las usa el selector «Ambos» de la pestana Grafica y el reporte
+    /// tecnico semanal), asi que ningun consumidor previo cambia de valor.
+    ///
+    /// <b>DROP + CREATE:</b> cambiar el <c>RETURNS TABLE</c> obliga a soltar la funcion primero
+    /// (<c>CREATE OR REPLACE</c> no puede alterar el tipo de retorno). Espejo actualizado en
+    /// <c>backend/sql/fn_indicadores_levante_postura.sql</c> — es el mismo texto.
+    /// </remarks>
+    public partial class IndicadoresLevantePorSexo : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql("DROP FUNCTION IF EXISTS fn_indicadores_levante_postura(integer);");
+            migrationBuilder.Sql(FN_SQL);
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// No revierte: la version anterior de la funcion vive en la migracion que la creo. Volver
+        /// atras significa reaplicar aquella, no dejar el modulo sin funcion.
+        /// </remarks>
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+        }
+
+        private const string FN_SQL = @"CREATE OR REPLACE FUNCTION fn_indicadores_levante_postura(p_lote_id integer)
 RETURNS TABLE(
     semana                          integer,
     aves_inicio_semana              double precision,
@@ -545,7 +510,7 @@ BEGIN
         aves_fin_machos               := CASE WHEN v_aves_enc_m > 0 THEN r_aves_fin_m  ELSE NULL END;
         consumo_total_semana_hembras  := CASE WHEN v_aves_enc_h > 0 THEN r_cons_kg_h * 1000 ELSE NULL END;
         consumo_total_semana_machos   := CASE WHEN v_aves_enc_m > 0 THEN r_cons_kg_m * 1000 ELSE NULL END;
-        -- Uniformidad: 0 significa "no hubo pesaje esta semana", no "0 % de uniformidad".
+        -- Uniformidad: 0 significa ""no hubo pesaje esta semana"", no ""0 % de uniformidad"".
         unif_hembras                  := CASE WHEN r_uH > 0 THEN r_uH ELSE NULL END;
         unif_machos                   := CASE WHEN r_uM > 0 THEN r_uM ELSE NULL END;
         ganancia_hembras              := CASE WHEN r_peso_h IS NOT NULL AND v_peso_ant_h IS NOT NULL
@@ -576,3 +541,6 @@ BEGIN
     RETURN;
 END;
 $$;
+";
+    }
+}

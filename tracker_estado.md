@@ -5224,3 +5224,147 @@ Motivo: la bitácora vivía solo en ItalJira y las bandejas de Tickets leen `tic
 - [x] C10 Re-aplicada: 137 casos, 240 enlaces
 - [x] C11 `backend/sql/casos_cerrados_bitacora_prod.sql` (variante función para alinear prod a mano)
 - [x] C12 Funciones de prueba eliminadas de la BD local
+
+---
+
+## Unidad de medida en el stock de inventario — TK-2026-000019 (pedido 14ago)
+
+**Plan:** [fase_de_desarrollo/unidad_medida_stock_inventario_plan.md](fase_de_desarrollo/unidad_medida_stock_inventario_plan.md)
+Causa raíz: `inventario_gestion_stock.unit` es una columna propia con default `kg` que nunca se
+sincroniza con `item_inventario_ecuador.unidad`. 145/569 filas divergen; operación las venía
+parchando a mano (de ahí `LT`, `UND`, `GALONES`, `DOSIS`).
+
+- [x] U1 `UnidadInventarioCalculos` (Resolver + Normalizar) + tests xUnit
+- [x] U2 `GetStockAsync` proyecta la unidad del catálogo
+- [x] U3 Escrituras (ingreso, traslado, recepción, consumo, nivel granja, ajuste, eliminación) graban la del catálogo
+- [x] U4 `SumarStockAtomicoAsync`: `unit = EXCLUDED.unit` en el `DO UPDATE` (sin tocar la clave del índice)
+- [x] U5 Front: unidad del modal de ajuste a SOLO LECTURA
+- [x] U6 Front: selector del catálogo suma `dosis` y `gal`
+- [x] U7 Migración `AlinearUnidadInventarioConCatalogo` (promoción 10 ítems Ecuador + alineación stock/movimiento/histórico)
+- [x] U8 Gate de datos: divergentes 145→0, **0 filas de alimento tocadas**, `sum(quantity)` idéntico
+- [x] U9 Migración `SolucionarTicketUnidadStockTK19` → SOLUCIONADO + solución para el usuario, sin correos
+- [x] U10 `dotnet build` + `dotnet test` + `yarn build`
+- [x] U11 Smoke local: Stock de Ecuador muestra `l` en AV0373/AV0374 y el modal ya no deja tipear unidad
+
+**Resultado del gate (dump de producción del 14ago26):**
+
+| | antes | después |
+|---|---|---|
+| Stock divergente | 145 / 569 | **0** |
+| Movimientos divergentes | 532 / 11.617 | **0** |
+| Histórico unificado divergente | 540 / 11.869 | **0** |
+| Filas de ALIMENTO divergentes (todas las empresas) | 0 | **0** |
+| `sum(quantity)` por empresa | 695.541,8 · 100.800 · 1.370.525,07 · 245.461,952 | **idéntico** |
+
+- Vocabulario final 100 % dentro del selector del catálogo: `kg, l, und, ml, dosis, g, gal, saco`.
+  Desaparecen `LT`, `UND`, `GALONES`, `Gr`, `Ml`, `DOSIS` escritos a mano.
+- Idempotencia: 2ª pasada de los 5 UPDATE ⇒ `UPDATE 0` en todos.
+- Smoke del `ON CONFLICT` con `unit = EXCLUDED.unit`: fila desalineada a mano + ingreso real por la
+  API (empresa Demo) ⇒ cantidad suma (500→501) y la unidad se realinea sola; el `unit` del request
+  («loQueSea») se ignora. Movimiento, fila de histórico y tombstone del smoke **borrados**: la BD
+  quedó como estaba (821 = 500,000 kg).
+- Smoke de lectura: fila 377 forzada a `kg` en BD ⇒ la API devuelve `l` igual (la proyección no
+  depende del backfill).
+- Smoke UI: Stock de Ecuador muestra `l` en AV0373 / AV0374 / AV0376 y `ml` en AV0372; el modal
+  Editar abre (sin quedarse en «Cargando…»), con Unidad `l` **readonly+disabled** y Cantidad
+  editable; el catálogo ya ofrece `dosis` y `gal`.
+- `dotnet build` 0 errores (2 warnings preexistentes) · `dotnet test` **2.480 verdes** ·
+  `yarn build` OK (solo el warning de bundle budget preexistente).
+- Backend y front dev **apagados**: puertos 5002 y 4200 libres.
+- ⚠️ Pendiente de decisión del usuario: **ItalcolPanamá** tiene los mismos 10 ítems clonados con la
+  unidad por defecto y 0 divergencias en su stock ⇒ no se promovió su catálogo.
+
+---
+
+## Tickets pendientes de agosto 2026 (pedido 14ago) — un commit por caso
+
+**Plan:** [fase_de_desarrollo/tickets_pendientes_ago2026_plan.md](fase_de_desarrollo/tickets_pendientes_ago2026_plan.md)
+Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el ticket en
+`SOLUCIONADO` con la solución escrita para el usuario, sin correos.
+
+### T24 · TK-2026-000024 — Aves Mixtas fuera de reproductoras
+- [x] T24.1 Verificado en el dump: mixtas ≠ 0 en 0 filas (levante 0/22, base 0/30, lotes 0/22, producción 0/6)
+- [x] T24.2 Lote base (`lote-list`): fuera el input obligatorio, la columna y el detalle
+- [x] T24.3 Lote reproductora: fuera los 2 inputs (individual + masivo) y las columnas Mixtas / Peso Mixto
+- [x] T24.4 Al EDITAR se conserva el valor previo (no se pisa con 0) — sin spec: el harness de Karma del repo compila 0 specs
+- [x] T24.5 `yarn build` + smoke UI
+- [x] T24.6 Migración de cierre del ticket
+- [x] T24.7 Commit independiente
+
+### T22 · TK-2026-000022 — Indicadores levante sin H/M + columna Eficiencia
+- [x] T22.1 EFICIENCIA = ganancia semana (g) / consumo por ave (g) — la inversa de la conversión. Alimentaba IP = efic × supervivencia, y **VPI devolvía el MISMO número que IP** (`vpi := r_ip`)
+- [x] T22.2 Hallazgo mayor: `peso_cierre` y `unif_real` son el **promedio aritmético simple** de H y M (sin ponderar). Lote S369A sem 20: H 2.284 g / M 3.133 g ⇒ la tabla mostraba **2.708 g**, peso que no tiene ninguna ave
+- [x] T22.3 `fn_indicadores_levante_postura` v2 (DROP+CREATE): +16 columnas por sexo (aves inicio/fin, consumo semana, uniformidad, ganancia, dif % peso, selección, error sexaje). **Sin aritmética nueva**: son las variables que ya calculaba, publicadas sin promediar
+- [x] T22.4 Espejo `backend/sql/fn_indicadores_levante_postura.sql` verificado en sincronía ANTES de tocarlo, y actualizado con el mismo texto que la migración
+- [x] T22.5 DTO backend + interfaz front + tabla (33 columnas, cada bloque rotulado H/M) + Excel + modal de fórmulas
+- [x] T22.6 Fuera Eficiencia, IP y VPI. Los null se pintan `—` (antes 0, que se leía como medición real)
+- [x] T22.7 `dotnet build` 0 err · `dotnet test` 2.480 verdes · `yarn build` OK
+- [x] T22.8 Verificado por endpoint real (`GET /por-lote/142/indicadores`, JWT Sanmarino): sem 8 ⇒ H 889 g / M 1.487 g / unif 81,3 % y 85,3 % · `pesoCierre` mixto 1.188 g
+- [x] T22.9 **Smoke visual hecho** (14ago, con `moiesbbuga@gmail.com`, que sí tiene MANGOS): pestaña Indicadores del lote S369A, 24 filas × 34 columnas, cada bloque rotulado HEMBRAS/MACHOS, sin Eficiencia/IP/VPI. Semana 20 en pantalla: aves H 9.688→9.685 · M 1.244→1.236 · peso H 2.284 g (guía 2.215, dif 3,1 %) · peso M 3.133 g (guía 3.035, dif 3,2 %) · unif H 86,4 % / M 84,2 %. Semana 1 muestra `—` en ganancia (no hay semana previa)
+- [x] T22.10 Migración de cierre + commit
+
+### T23 · TK-2026-000023 — Producción: consumos duplicados, Unif./CV, dif. mortalidad
+- [x] T23.1 «Cons. orig H/M» sale de `metadata.consumoOriginal*`, que **no existe en ninguna de las 604 filas** ⇒ el fallback devolvía `consKgH/M`: el mismo kg dos veces
+- [x] T23.2 Uniformidad en producción: **0 de 605 filas** con valor. CV: 1 fila con 0,02 (prueba). La guía genética ni define uniformidad para edades de producción
+- [x] T23.3 `DIF MORT` = `fn_dif_pct` = % relativo sobre dos porcentajes ⇒ los valores de la imagen del ticket reproducidos 1:1 (-80,05 · +2.212,10 · +14,19 · +73,84 · +164,41 · +510,82 · +289,35 · +164,20)
+- [x] T23.4 Nuevo `fn_dif_pp` (diferencia directa en pp) solo para mortalidad; consumo/peso/huevos siguen relativos
+- [x] T23.5 ⚠️ **El espejo `backend/sql/fn_indicadores_produccion_postura.sql` estaba DESINCRONIZADO**: le faltaba la columna de salida `porcentaje_seleccion_machos`. La migración falló con `42P13: cannot change return type` — se regeneró desde `pg_get_functiondef` y el espejo quedó corregido
+- [x] T23.6 Front: fuera las 4 columnas de consumo original y Unif/CV (tabla de seguimiento, tabla de indicadores y los dos Excel); `Dif Mort (pp)` sin semáforo (los umbrales 5/15 son de % relativo)
+- [x] T23.7 Verificado: sem 26 pasa de -80,05 % a **-0,26 pp** y de +2.212,10 % a **+0,25 pp**; `diferencia_consumo_hembras` sigue relativa (-2,67 %)
+- [x] T23.8 `dotnet build` 0 err · `dotnet test` 2.480 verdes · `yarn build` OK
+- [x] T23.9 Migración de cierre + commit
+
+### T21 · TK-2026-000021 — Levante: saldo por sexo, Unif./CV, huevos
+- [x] T21.1 Analizada la tabla `lote-levante/tabs-principal`: hoy `TOTAL MORT+SEL / DÍA` y `Saldo aves vivas` son **una sola cifra H+M**; no hay columnas de uniformidad ni de CV; las 3 de huevos están detrás del flag de empresa
+- [x] T21.2 Los datos existen: `seguimiento_diario_levante` tiene `uniformidad_hembras/machos` y `cv_hembras/machos`
+- [x] T21.3 **Decisión del usuario: solo ocultar las columnas.** Los huevos salen de la tabla y del Excel de levante; la captura, el detalle y el **arrastre hacia producción al cerrar** quedan intactos. El flag `captura_huevos_en_levante` sigue vivo gobernando eso
+- [x] T21.4 `TOTAL MORT+SEL / DÍA` → dos columnas (hembras / machos) · `Saldo aves vivas` → `Saldo hembras` / `Saldo machos` (el saldo por sexo ya se calculaba, solo no se mostraba) · +4 columnas de Uniformidad y C.V. por sexo · mismo cambio en el Excel
+- [x] T21.5 ⚠️ Advertido en la solución: los lotes cargados **antes del 07ago26** no tienen C.V. porque la plantilla de carga masiva no traía la columna hasta entonces
+- [x] T21.6 `yarn build` OK · migración de cierre + commit
+
+### T20 (cierre) — respuesta operativa entregada
+- [x] T20.6 **Decisión del usuario: asumir que faltan los 7 días del archivo.** La solución explica que la carga trae lo que trae el archivo (168 de 175 días), que la importación es idempotente por lote+fecha (se puede resubir el archivo completo) y que **el cierre NO está bloqueado por semana**; se pide la captura del error exacto si al intentar cerrar les aparece uno
+- [x] T20.7 Migración de cierre + commit
+
+### T20 · TK-2026-000020 — S369 llega a la semana 24 y no cierra  ⏸️ FALTA EL ERROR EXACTO
+- [x] T20.1 Datos: S369A (`lote_postura_levante` 34, lote 142) tiene **168 registros** = 24 semanas exactas (29/08/2025 → 12/02/2026), `estado_cierre='Abierto'` y **no existe** `lote_postura_produccion`. S369B (35) igual, 168 registros
+- [x] T20.2 **El sistema NO bloquea el cierre por semana**: `CerrarLoteYCrearProduccionAsync` solo valida usuario, huevos ≥ 0, que no esté ya cerrado y que no exista un lote de producción. El botón «Cerrar lote» tampoco tiene condición de edad
+- [x] T20.3 Dato llamativo: los 4 registros de S369 tienen `estado='Produccion'` y `etapa='Produccion'` en `lote_postura_levante`, pero `estado_cierre='Abierto'` y sin lote de producción — quedaron así desde la carga del 12ago
+- [x] T20.4 La semana 25 sí aparece en la **liquidación** (`LiquidacionCierreLoteLevanteService` recorta a encaset+175 días y busca la fila de guía de la semana 25); con 168 días el lote llega 7 días corto de ese corte
+- [ ] T20.5 **Falta el mensaje de error exacto que ve el usuario** al intentar cerrar (o si el lote no le aparece en la lista). Con eso se decide si es un fix de código o faltan los 7 días en el archivo
+
+### T20 · TK-2026-000020 — S369 llega a la semana 24 y no cierra
+- [ ] T20.1 Confirmar el bloqueo real del cierre (semana 25 / guía genética / plantilla)
+- [ ] T20.2 Fix o respuesta operativa documentada
+- [ ] T20.3 Migración de cierre + commit
+
+---
+
+## Validación visual de los 5 casos (pedido 14ago, con datos de ejemplo insertados)
+
+Se resolvió el acceso que faltaba: el usuario del smoke anterior no tenía MANGOS. Con
+`moiesbbuga@gmail.com` (33 granjas, incluida MANGOS) la cascada llega al lote **S369A**.
+
+**Ejemplos insertados y REVERTIDOS.** Se respaldaron 6 filas de `seguimiento_diario_levante` del lote
+142 en `smoke_tk21_backup`, se les cargó C.V. por sexo (8,4 a 10,6 / 9,1 a 11,9 — la columna estaba
+vacía en ese lote) y una salida de machos el 15/01 (mort 4 + sel 2) para que las columnas nuevas se
+vieran distintas entre sexos. Al terminar se restauraron: **0 filas distintas del respaldo**, tabla
+de respaldo borrada, 0 tablas `smoke_*` en la BD.
+
+| Caso | Lo que se vio en pantalla |
+|---|---|
+| **TK-21** | Cabeceras: `TOTAL MORT+ SEL hembras / día` · `machos / día` · `Saldo hembras` · `Saldo machos` · `Uniformidad hembras/machos (%)` · `C.V. hembras/machos (%)`, **sin columnas de huevos**. Fila 15/01: H `1` (1 mort + 0 sel) y M `6` (4 mort + 2 sel); saldos 9.685 / 1.236; unif 86,4 / 84,2; C.V. 10,1 / 11,2 |
+| **TK-21 Excel** | `Seguimiento_Diario_de_Levante_S369A_20260814.xlsx`: las 7 cabeceras nuevas presentes; `Huevos Tot.`, `H. Limpio`, `Saldo aves vivas` y `TOTAL MORT+ SEL / DÍA` **ausentes**; los valores 10,1 · 11,2 · 8,4 · 9.685 · 1.236 viajan al archivo |
+| **TK-22** | 24 filas × 34 columnas, todos los bloques rotulados HEMBRAS/MACHOS; sin Eficiencia/IP/VPI. Sem 1 con `—` en ganancia. Excel `levante-lote-S369A-…`: las 16 columnas por sexo presentes, `Eficiencia`/`IP`/`VPI` ausentes |
+| **TK-23** | Seguimiento de P-K345A: 35 cabeceras = 35 celdas, **sin `Cons. orig`** y **sin `Uniformidad`/`Coef. Var`**. Indicadores: `DIF MORT H (PP)` y `(M)`; sem 26 `-0,26 pp` y `+0,25 pp` (antes -80,05 % y +2.212,10 %), sem 27 `+0,02` / `+0,11`, sem 29 `+0,25` / `+0,77` |
+| **TK-24** | Formulario de Lote Base con **solo** `Cantidad hembras *` y `Cantidad machos *`; el form valida OK sin mixtas y el botón Guardar queda habilitado. Al **editar** un lote con valor previo simulado 777, el payload sigue llevando `777` (no lo pisa con 0). Lote Reproductora: modal con Machos/Hembras/Peso M/Peso H, sin `Mixtas`, y el control sigue vivo en el FormGroup (que es lo que conserva el valor) |
+
+### ⚠️ Hallazgo nuevo que destapó el desglose por sexo (TK-22)
+
+La guía genética de Sanmarino tiene **mortalidad semanal de machos corrupta** en filas puntuales:
+`mort_sem_m = 8.881583551549891` en la edad 20, con vecinas en `0,15`. El patrón se repite en
+**las 12 combinaciones raza/año** y siempre en las mismas edades (5, 9, 15, 20, 25, 25P, 31, 36, 41,
+51 — 3 a 10 filas por tabla); las hembras nunca lo tienen. Parecen valores **acumulados** metidos en
+la columna semanal. Antes quedaba diluido porque la tabla promediaba con hembras
+(`(0,10 + 8,88)/2 = 4,49 %`); ahora la columna «Guía Mort M» lo muestra crudo. **No se tocó**: es
+dato de su tabla genética y la corrección es de ellos.

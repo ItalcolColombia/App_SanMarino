@@ -147,6 +147,10 @@ export class LoteReproductoraListComponent implements OnInit {
       fechaEncasetamiento: [''],
       m: [0, [optionalMin0]],
       h: [0, [optionalMin0]],
+      // TK-2026-000024: «mixtas» ya NO tiene input — es un concepto de pollo de engorde, no de
+      // reproductoras (0 filas con valor en toda la base). El control se conserva sin vista a
+      // propósito: al editar un registro viejo, `patchValue` lo carga y el DTO lo devuelve tal
+      // cual, así quitar el campo de la pantalla no puede borrar un dato ya guardado.
       mixtas: [0, [optionalMin0]],
       mortCajaH: [0, [optionalMin0]],
       mortCajaM: [0, [optionalMin0]],
@@ -626,10 +630,12 @@ export class LoteReproductoraListComponent implements OnInit {
         }
       }
 
+      // `mixtas` sigue contando para no bloquear la edición de un registro viejo que solo tenga
+      // mixtas cargadas, pero el mensaje ya no la ofrece: no hay dónde escribirla (TK-2026-000024).
       const mixtas = Number(this.form.get('mixtas')?.value) || 0;
       if (h === 0 && m === 0 && mixtas === 0) {
         this.toastService.warning(
-          'Debe asignar al menos 1 hembra, 1 macho o 1 mixta.',
+          'Debe asignar al menos 1 hembra o 1 macho.',
           'Cantidad inválida'
         );
         return;

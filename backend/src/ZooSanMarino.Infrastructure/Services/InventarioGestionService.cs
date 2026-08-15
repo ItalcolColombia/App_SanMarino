@@ -428,7 +428,12 @@ public partial class InventarioGestionService : IInventarioGestionService
             return new InventarioGestionStockDto(
                 x.Id, x.FarmId, x.NucleoId, x.GalponId, x.ItemInventarioEcuadorId,
                 x.ItemInventario.Codigo, x.ItemInventario.Nombre, itemTypeOut,
-                x.Quantity, x.Unit, x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt,
+                // TK-2026-000019 — la unidad la manda el CATÁLOGO, no la columna de la fila. La fila
+                // arrastra el default 'kg' de cuando se creó y nadie la sincronizaba, así que un
+                // producto creado en litros salía en kilos en esta misma pantalla. El backfill
+                // realinea la columna, pero la proyección no depende de que se haya corrido.
+                x.Quantity, UnidadInventarioCalculos.Resolver(x.ItemInventario.Unidad, x.Unit),
+                x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt,
                 AvisoFechaFueraDeCiclo: null,
                 SiloId: x.SiloId,
                 SiloNombre: x.SiloId.HasValue && silos.TryGetValue(x.SiloId.Value, out var sn) ? sn : null);
@@ -546,7 +551,10 @@ public partial class InventarioGestionService : IInventarioGestionService
                 ? "Entrada bodega"
                 : "Entrada granja";
         var movCreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento);
-        var unidad = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim();
+        // TK-2026-000019 — la unidad la fija el catálogo del ítem. Antes era `req.Unit ?? "kg"`: el
+        // front manda la del ítem, pero cualquier otro llamador (o un request sin unidad) grababa
+        // kilos sobre un producto que se vende en litros.
+        var unidad = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit);
 
         // A1 — upsert ATÓMICO. Antes esto era buscar-o-insertar: dos ingresos concurrentes sobre
         // una clave sin fila no encontraban nada y ambos insertaban, y como todas las lecturas
@@ -583,10 +591,9 @@ public partial class InventarioGestionService : IInventarioGestionService
                 companyId, paisId, req.FarmId, nucleoId, galponId,
                 req.ItemInventarioEcuadorId, req.Quantity, unidad, siloId, ct);
 
-            // El movimiento hereda la unidad DE LA FILA DE STOCK, no la del request: si la fila ya
-            // existía con otra unidad, manda la de la fila. Es el comportamiento previo
-            // (`Unit = existing.Unit`) y se preserva tal cual — el upsert tampoco pisa la unidad
-            // de una fila existente.
+            // El movimiento y la fila de stock quedan con la MISMA unidad, la del catálogo: el
+            // upsert ya realineó la fila (`unit = EXCLUDED.unit`). Antes acá se heredaba la unidad
+            // vieja de la fila, que es cómo el 'kg' original se propagaba a cada movimiento nuevo.
             mov.Unit = existing.Unit;
 
             _db.InventarioGestionMovimientos.Add(mov);
@@ -698,7 +705,8 @@ public partial class InventarioGestionService : IInventarioGestionService
 
         var (companyIdTo, paisIdTo) = await GetFarmCompanyAndPaisAsync(req.ToFarmId, ct);
         var transferGroupId = Guid.NewGuid();
-        var unidadTraslado = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim();
+        // TK-2026-000019 — el traslado no cambia de unidad por el camino: la del catálogo.
+        var unidadTraslado = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit);
         DateTimeOffset movAt = default;
 
         // Las dos patas del traslado y sus dos movimientos son UNA unidad: descontar el origen sin
@@ -717,7 +725,7 @@ public partial class InventarioGestionService : IInventarioGestionService
 
             movAt = await RegistrarMovimientosTrasladoMismaGranjaAsync(
                 req, fromNucleoId, fromGalponId, toNucleoId, toGalponId, fromSiloId, toSiloId,
-                stockOrigen, stockDestino, companyIdTo, paisIdTo, transferGroupId, ct);
+                stockOrigen, unidadTraslado, companyIdTo, paisIdTo, transferGroupId, ct);
         }, ct);
 
         // Traslado dentro de la misma granja: se movió alimento en DOS galpones.
@@ -763,7 +771,7 @@ public partial class InventarioGestionService : IInventarioGestionService
         int? fromSiloId,
         int? toSiloId,
         InventarioGestionStock stockOrigen,
-        InventarioGestionStock stockDestino,
+        string unidad,
         int companyIdTo,
         int paisIdTo,
         Guid transferGroupId,
@@ -783,7 +791,10 @@ public partial class InventarioGestionService : IInventarioGestionService
             SiloId = fromSiloId,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
             Quantity = req.Quantity,
-            Unit = stockOrigen.Unit,
+            // Las dos patas del traslado llevan la unidad del CATÁLOGO (TK-2026-000019). Antes cada
+            // una copiaba la de su fila de stock, así que una fila torcida seguía escribiendo
+            // movimientos torcidos.
+            Unit = unidad,
             MovementType = "TrasladoSalida",
             Estado = estadoTraslado,
             FromFarmId = req.ToFarmId,
@@ -808,7 +819,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             SiloId = toSiloId,
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
             Quantity = req.Quantity,
-            Unit = stockDestino.Unit,
+            Unit = unidad,
             MovementType = "TrasladoEntrada",
             Estado = estadoTraslado,
             FromFarmId = req.FromFarmId,
@@ -870,6 +881,9 @@ public partial class InventarioGestionService : IInventarioGestionService
 
         var transferGroupId = Guid.NewGuid();
         var movAt = ResolveMovimientoCreatedAt(req.FechaMovimiento);
+        // TK-2026-000019 — la unidad del catálogo, no la de la fila de origen (que puede arrastrar
+        // el 'kg' con el que nació) ni la del request.
+        var unidadTransito = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit);
 
         // El descuento del origen y el movimiento de tránsito que lo explica van juntos: si el
         // movimiento fallara, el alimento saldría de la granja origen sin quedar en tránsito en
@@ -889,7 +903,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 SiloId = fromSiloId,
                 ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
                 Quantity = req.Quantity,
-                Unit = stockOrigen.Unit,
+                Unit = unidadTransito,
                 MovementType = "TrasladoInterGranjaSalida",
                 Estado = "Tránsito",
                 FromFarmId = req.ToFarmId,
@@ -924,7 +938,7 @@ public partial class InventarioGestionService : IInventarioGestionService
             item.Nombre,
             itemTypeOut,
             0,
-            string.IsNullOrWhiteSpace(req.Unit) ? stockOrigen.Unit : req.Unit.Trim(),
+            unidadTransito,
             null,
             null,
             null,
@@ -1066,7 +1080,9 @@ public partial class InventarioGestionService : IInventarioGestionService
             var destino = destinos[i];
             var stockDestino = await SumarStockAtomicoAsync(
                 companyIdTo, paisIdTo, req.ToFarmId, destino.NucleoId, destino.GalponId,
-                salida.ItemInventarioEcuadorId, destino.Quantity, salida.Unit, destino.SiloId, ct);
+                salida.ItemInventarioEcuadorId, destino.Quantity,
+                // TK-2026-000019 — la unidad del catálogo, no la que traía el movimiento de salida.
+                UnidadInventarioCalculos.Resolver(item.Unidad, salida.Unit), destino.SiloId, ct);
             stocksDestino.Add(stockDestino);
 
             var movEntrada = new InventarioGestionMovimiento
@@ -1259,9 +1275,12 @@ public partial class InventarioGestionService : IInventarioGestionService
         var item = stock.ItemInventario;
         var oldQty = stock.Quantity;
         var oldUnit = stock.Unit;
-        var newUnit = string.IsNullOrWhiteSpace(req.Unit) ? stock.Unit : req.Unit.Trim();
-        if (string.IsNullOrWhiteSpace(newUnit))
-            newUnit = "kg";
+        // TK-2026-000019 — la unidad DEJA de ser editable acá: la manda el catálogo del ítem. Este
+        // campo era texto libre y es el que llenó la base de `LT`, `UND`, `GALONES` y `DOSIS`,
+        // porque operación lo usaba para tapar el `kg` que mostraba el stock. `req.Unit` se sigue
+        // aceptando en el contrato (no rompe clientes viejos) pero ya no decide nada; si la fila
+        // venía torcida, este ajuste la realinea y queda escrito en el motivo.
+        var newUnit = UnidadInventarioCalculos.Resolver(item.Unidad, stock.Unit);
 
         DateTimeOffset? newCreated = null;
         if (req.FechaIngreso.HasValue)
@@ -1338,7 +1357,8 @@ public partial class InventarioGestionService : IInventarioGestionService
                 GalponId = stock.GalponId,
                 ItemInventarioEcuadorId = stock.ItemInventarioEcuadorId,
                 Quantity = stock.Quantity,
-                Unit = stock.Unit,
+                // La unidad del catálogo (TK-2026-000019): `GetStockForMutationAsync` trae el ítem.
+                Unit = UnidadInventarioCalculos.Resolver(stock.ItemInventario?.Unidad, stock.Unit),
                 MovementType = "EliminacionStock",
                 Estado = "Eliminación registro",
                 Reference = null,
@@ -1381,9 +1401,16 @@ public partial class InventarioGestionService : IInventarioGestionService
             {
                 // Anular un consumo DEVUELVE stock: es una suma, con la misma carrera que un ingreso.
                 var (cId, pId) = await GetFarmCompanyAndPaisAsync(mov.FarmId, ct);
+                // TK-2026-000019 — al devolver el stock, la unidad la fija el catálogo del ítem;
+                // el movimiento anulado puede traer una unidad vieja.
+                var unidadCatalogo = await _db.ItemInventario.AsNoTracking()
+                    .Where(i => i.Id == mov.ItemInventarioEcuadorId)
+                    .Select(i => i.Unidad)
+                    .FirstOrDefaultAsync(ct);
                 await SumarStockAtomicoAsync(
                     cId, pId, mov.FarmId, mov.NucleoId, mov.GalponId,
-                    mov.ItemInventarioEcuadorId, mov.Quantity, mov.Unit, mov.SiloId, ct);
+                    mov.ItemInventarioEcuadorId, mov.Quantity,
+                    UnidadInventarioCalculos.Resolver(unidadCatalogo, mov.Unit), mov.SiloId, ct);
             }
             else
             {
@@ -1551,7 +1578,9 @@ public partial class InventarioGestionService : IInventarioGestionService
                 SiloId = siloId,
                 ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
                 Quantity = req.Quantity,
-                Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+                // TK-2026-000019 — la del catálogo. Con `req.Unit ?? "kg"`, todo consumo disparado
+                // por un seguimiento (que no manda unidad) quedaba en kilos.
+                Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
                 MovementType = "Consumo",
                 Estado = "Consumo",
                 Reference = req.Reference?.Trim(),
@@ -1640,7 +1669,8 @@ public partial class InventarioGestionService : IInventarioGestionService
             // de siempre; con silo, el kardex dice de qué silo salió el alimento.
             SiloId = req.SiloId,
             Quantity = req.Quantity,
-            Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+            // TK-2026-000019 — la del catálogo (Colombia manda "kg" fijo en el request).
+            Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
             MovementType = "Consumo",
             Estado = "Consumo",
             Reference = req.Reference?.Trim(),
@@ -1682,7 +1712,7 @@ public partial class InventarioGestionService : IInventarioGestionService
                 SiloId = req.SiloId,
                 ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
                 Quantity = 0,
-                Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+                Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -1701,7 +1731,8 @@ public partial class InventarioGestionService : IInventarioGestionService
             ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
             SiloId = req.SiloId,
             Quantity = req.Quantity,
-            Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+            // TK-2026-000019 — la del catálogo, igual que el consumo de nivel granja.
+            Unit = UnidadInventarioCalculos.Resolver(item.Unidad, req.Unit),
             MovementType = "Ingreso",
             Estado = "Ingreso",
             Reference = req.Reference?.Trim(),

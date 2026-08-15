@@ -33,6 +33,12 @@ export interface RegistroDiarioTablaFila {
   diaCorto: string;
   /** Solo mortalidad + selección (como TOTAL MORT+ SEL / DÍA). */
   totalMortSelDia: number;
+  /**
+   * TK-2026-000021 — salidas del día POR SEXO (mortalidad + selección de cada uno). La columna
+   * única sumaba los dos y no dejaba ver de qué lado se estaban yendo las aves.
+   */
+  totalMortSelDiaH: number;
+  totalMortSelDiaM: number;
   saldoAves: number;
   /** Saldo de aves vivas (hembras) — REQ-008a: necesario para gr/ave/día por sexo en Reporte semana. */
   saldoAvesH: number;
@@ -112,10 +118,13 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
 
   /**
-   * Flag `companies.captura_huevos_en_levante`: habilita las columnas de huevos en la tabla de
-   * registros diarios y en su Excel. **Fail-closed**: arranca apagado y sólo se prende si el
-   * backend lo confirma, así las empresas que no capturan huevos en levante ven la tabla igual
-   * que antes.
+   * Flag `companies.captura_huevos_en_levante`.
+   *
+   * TK-2026-000021: ya NO gobierna columnas — los huevos salieron de la tabla de registros
+   * diarios y de su Excel porque son tema de PRODUCCIÓN. El campo se conserva porque el flag
+   * sigue vivo y gobernando lo que importa: la captura de huevos en el registro diario, su
+   * desglose en el detalle y el arrastre hacia el lote de producción al cerrar el levante.
+   * **Fail-closed**: arranca apagado y sólo se prende si el backend lo confirma.
    */
   mostrarColumnasHuevos = false;
 
@@ -154,7 +163,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   get colspanRegistroDiario(): number {
     // 26 columnas base (se quitó "Día (calendario)"; la fecha ya lo cubre — REQ-007e;
     // se sumaron "Consumo acum. hembras/machos (kg)" — REQ-007c).
-    return 26 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0) + (this.mostrarColumnasHuevos ? 3 : 0);
+    // TK-2026-000021: +1 por abrir «TOTAL MORT+SEL» en H/M, +1 por abrir «Saldo aves» en H/M,
+    // +4 por uniformidad y C.V. de cada sexo; los huevos salieron de la grilla (siguen en el
+    // Excel y en el detalle), así que ya no suman columnas acá.
+    return 32 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   /** Cantidad de registros cuya fecha es anterior al encasetamiento del lote (REQ-011d). */
@@ -234,7 +246,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       const selm = seg.selM ?? 0;
       const erh = seg.errorSexajeHembras ?? 0;
       const erm = seg.errorSexajeMachos ?? 0;
-      const totalMortSelDia = mh + mm + selh + selm;
+      const totalMortSelDiaH = mh + selh;
+      const totalMortSelDiaM = mm + selm;
+      const totalMortSelDia = totalMortSelDiaH + totalMortSelDiaM;
       const perdidasTodasDia = totalMortSelDia + erh + erm;
       acumTodasPerdidas += perdidasTodasDia;
       acumPerdidasH += mh + selh + erh;
@@ -314,6 +328,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         semana,
         diaCorto: this.formatDiaSemanaCorto(seg.fechaRegistro),
         totalMortSelDia,
+        totalMortSelDiaH,
+        totalMortSelDiaM,
         saldoAves: saldo,
         saldoAvesH: saldoH,
         saldoAvesM: saldoM,
@@ -580,7 +596,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Selección machos',
       'Error sexaje hembras',
       'Error sexaje machos',
-      'TOTAL MORT+ SEL / DÍA',
+      'TOTAL MORT+ SEL hembras / día',
+      'TOTAL MORT+ SEL machos / día',
       // 🔀 Feature 13 — traslados dedicados por género
       'Ingreso traslado hembras',
       'Ingreso traslado machos',
@@ -589,7 +606,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       ...(this.enriquecerTablaConHistoricoInventario
         ? ['Despacho mixtas', 'Consumo bodega (kg)', 'Saldo alimento (kg)']
         : []),
-      'Saldo aves vivas',
+      'Saldo hembras',
+      'Saldo machos',
       'Tipo alimento',
       'Consumo kg hembras',
       'Consumo kg machos',
@@ -600,14 +618,14 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       '% Retiro (Mort+Sel)/aves',
       'Peso prom. hembras (kg)',
       'Peso prom. machos (kg)',
+      'Uniformidad hembras (%)',
+      'Uniformidad machos (%)',
+      'C.V. hembras (%)',
+      'C.V. machos (%)',
       'Observaciones',
-      // Huevos (levante semana 14+, empresas con captura_huevos_en_levante). En el Excel va el
-      // desglose COMPLETO (es para análisis); la grilla en pantalla muestra sólo Tot/Inc/Peso.
-      ...(this.mostrarColumnasHuevos
-        ? ['Huevos Tot.', 'Huevos Inc.', 'H. Limpio', 'H. Tratado', 'H. Sucio', 'H. Deforme',
-           'H. Blanco', 'H. Doble yema', 'H. Piso', 'H. Pequeño', 'H. Roto', 'H. Desecho',
-           'H. Otro', 'Peso huevo (g)']
-        : []),
+      // 🥚 TK-2026-000021: los huevos son tema de PRODUCCIÓN y salieron de este seguimiento (tabla
+      // y Excel). Lo que NO se toca: la captura en el registro diario, el desglose en el detalle
+      // (👁️) y el arrastre de huevos hacia el lote de producción al cerrar el levante.
       // Auditoría
       'Registrado por',
       'Fecha registro',
@@ -627,7 +645,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         s.selM ?? 0,
         s.errorSexajeHembras ?? 0,
         s.errorSexajeMachos ?? 0,
-        f.totalMortSelDia,
+        f.totalMortSelDiaH,
+        f.totalMortSelDiaM,
         s.trasladoIngresoHembras ?? 0,
         s.trasladoIngresoMachos  ?? 0,
         s.trasladoSalidaHembras  ?? 0,
@@ -639,7 +658,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
               f.seg.saldoAlimentoKg != null ? f.seg.saldoAlimentoKg : ''
             ]
           : []),
-        f.saldoAves,
+        f.saldoAvesH,
+        f.saldoAvesM,
         f.tipoAlimentoCorto,
         s.consumoKgHembras ?? 0,
         s.consumoKgMachos ?? 0,
@@ -650,14 +670,11 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         f.pctRetiroSemana != null ? Math.round(f.pctRetiroSemana * 100) / 100 : '',
         s.pesoPromH != null ? s.pesoPromH : '',
         s.pesoPromM != null ? s.pesoPromM : '',
+        s.uniformidadH != null ? s.uniformidadH : '',
+        s.uniformidadM != null ? s.uniformidadM : '',
+        s.cvH != null ? s.cvH : '',
+        s.cvM != null ? s.cvM : '',
         (s.observaciones || '').trim() || '—',
-        // Huevos — MISMO orden y MISMA posición que en `headers` (si se desalinean, el Excel sale corrido).
-        ...(this.mostrarColumnasHuevos
-          ? [s.huevoTot ?? 0, s.huevoInc ?? 0, s.huevoLimpio ?? 0, s.huevoTratado ?? 0,
-             s.huevoSucio ?? 0, s.huevoDeforme ?? 0, s.huevoBlanco ?? 0, s.huevoDobleYema ?? 0,
-             s.huevoPiso ?? 0, s.huevoPequeno ?? 0, s.huevoRoto ?? 0, s.huevoDesecho ?? 0,
-             s.huevoOtro ?? 0, s.pesoHuevo != null ? s.pesoHuevo : '']
-          : []),
         s.createdByUserId ?? '—',
         s.createdAt ? this.formatDMY(s.createdAt) : '—',
         s.updatedAt ? this.formatDMY(s.updatedAt) : '—',
