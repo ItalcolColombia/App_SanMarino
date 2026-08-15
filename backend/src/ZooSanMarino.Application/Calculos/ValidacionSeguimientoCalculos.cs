@@ -109,6 +109,23 @@ public static class ValidacionSeguimientoCalculos
     public static bool EstaEnRetraso(bool validado, DateOnly fechaSeguimiento, DateOnly hoy) =>
         Estado(validado, fechaSeguimiento, hoy) == EstadoValidacionSeguimiento.EnRetraso;
 
+    /// <summary>
+    /// Literal del estado tal como viaja al front (<c>VALIDADO</c> | <c>PENDIENTE</c> |
+    /// <c>EN_RETRASO</c>). Existe para que el guion bajo no dependa de cómo se llame el miembro del
+    /// enum: <c>EnRetraso.ToString()</c> da <c>EnRetraso</c> y el front compara contra
+    /// <c>EN_RETRASO</c>.
+    /// </summary>
+    public static string Etiqueta(EstadoValidacionSeguimiento estado) => estado switch
+    {
+        EstadoValidacionSeguimiento.Validado => "VALIDADO",
+        EstadoValidacionSeguimiento.EnRetraso => "EN_RETRASO",
+        _ => "PENDIENTE"
+    };
+
+    /// <summary>Atajo: estado de un registro ya como literal para el DTO.</summary>
+    public static string EtiquetaEstado(bool validado, DateOnly fechaSeguimiento, DateOnly hoy) =>
+        Etiqueta(Estado(validado, fechaSeguimiento, hoy));
+
     // ─── Qué se puede hacer con el registro ───────────────────────────────────
 
     /// <summary>

@@ -214,7 +214,21 @@ public partial class ProduccionService
         // Validación previa de stock B ANTES de persistir; guardado + consumo en UNA tx. Si falta
         // stock/ítem → throw por ítem → rollback → NO se guarda el seguimiento.
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
-        if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0 && useItems)
+
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // Con la empresa en doble validación no se descuenta al guardar: se separa. Con el flag
+        // apagado `separa` queda en false y todo lo que sigue corre igual que antes.
+        var separa = _validacion is not null
+                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separa)
+        {
+            await _validacion!.AsegurarPuedeRegistrarDiaAsync(
+                ModuloSeguimiento.Produccion, lotePosturaProduccionId ?? loteId);
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro);
+        }
+
+        if (!separa && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0 && useItems)
         {
             var byItem = AcumularItemsRequestPorOrigen(request.ItemsHembras, request.ItemsMachos);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -243,6 +257,19 @@ public partial class ProduccionService
 
         if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
         await _context.SaveChangesAsync();
+
+        // La separación va DESPUÉS de persistir: necesita el id para poder liberarla o aplicarla.
+        if (separa)
+        {
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Produccion, entity.Id, null,
+                granjaId ?? 0, null, null,
+                lotePosturaProduccionId ?? loteId, loteId.ToString(), request.FechaRegistro, metadata,
+                entity.MortalidadH, entity.SelH, entity.ErrorSexajeHembras,
+                entity.MortalidadM, entity.SelM, entity.ErrorSexajeMachos,
+                loteEsMixto: false));
+        }
+
         if (lotePosturaProduccionId.HasValue)
             await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
         return entity.Id;

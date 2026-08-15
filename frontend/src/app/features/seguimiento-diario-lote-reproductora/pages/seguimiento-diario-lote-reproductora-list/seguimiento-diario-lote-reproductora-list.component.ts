@@ -25,6 +25,7 @@ import { UserPermissionService } from '../../../../core/auth/user-permission.ser
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
 import { ymdSinTz } from '../../../../shared/utils/format';
 import { LesionService } from '../../../lesiones/services/lesion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -207,6 +208,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     private segSvc: SeguimientoDiarioLoteReproductoraService,
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private toastService: ToastService,
+    /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
+    private aviso: AvisoValidacionService,
     private lesionSvc: LesionService,
     private permSvc: UserPermissionService,
     private companyConfig: ActiveCompanyConfigService
@@ -542,11 +545,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
         this.reloadCurrent();
       },
       error: err => {
-        this.toastService.error(
-          err?.error?.message || err?.message || 'Error al guardar.',
-          'Error',
-          6000
-        );
+        // Modal, no toast: acá caen la fecha repetida y el alimento obligatorio.
+        void this.aviso.error(err, 'Error al guardar.', 'No se pudo guardar el seguimiento');
       }
     });
   }
@@ -579,7 +579,7 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
         this.reloadCurrent();
       },
       error: err => {
-        this.toastService.error(err?.error?.message || err?.message || 'Error al confirmar.', 'Error', 6000);
+        void this.aviso.error(err, 'Error al confirmar.', 'No se pudo confirmar el registro');
       }
     });
   }
@@ -649,7 +649,7 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
         this.reloadCurrent();
       },
       error: err => {
-        this.toastService.error(err?.error?.message || err?.message || 'Error al eliminar.', 'Error', 6000);
+        void this.aviso.error(err, 'Error al eliminar.', 'No se pudo eliminar el registro');
       }
     });
   }

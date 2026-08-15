@@ -32,6 +32,8 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
     private readonly IInventarioGestionService? _inventarioGestionService;
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;  // Fase 3 paso 2: modelo B nivel granja (Colombia) — defensivo si un lote Colombia entra por este servicio
     private readonly ILogger<SeguimientoAvesEngordeEcuadorService>? _logger;
+    /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
+    private readonly IValidacionSeguimientoService? _validacion;
 
     public SeguimientoAvesEngordeEcuadorService(
         ZooSanMarinoContext ctx,
@@ -42,7 +44,8 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
         ILocationScopeResolver scopeResolver,
         IInventarioGestionService? inventarioGestionService = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
-        ILogger<SeguimientoAvesEngordeEcuadorService>? logger = null)
+        ILogger<SeguimientoAvesEngordeEcuadorService>? logger = null,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _current = current;
@@ -53,6 +56,7 @@ public partial class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngo
         _inventarioGestionService = inventarioGestionService;
         _colombiaConsumoB = colombiaConsumoB;
         _logger = logger;
+        _validacion = validacion;
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -180,7 +181,10 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   private galponNameById = new Map<string, string>();
 
-  constructor(private toast: ToastService, 
+  constructor(private toast: ToastService,
+    /** Rechazos que el usuario TIENE que leer van en modal, no en toast (ver AvisoValidacionService). */
+    private aviso: AvisoValidacionService,
+
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
@@ -690,6 +694,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
         this.loading = false;
         console.error('Error al eliminar registro:', err);
         const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
+        void this.aviso.mensaje('No se pudo eliminar el registro', errorMessage);
         this.toast.error(errorMessage);
         this.onLoteChange(this.selectedLoteId);
       }
@@ -730,8 +735,10 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
       // El backend valida reglas que el usuario necesita ver (p. ej. el gate de huevos antes de la
       // semana 14, o el lote cerrado). Sin toast el 400 quedaba invisible y el modal se cerraba
       // como si hubiera guardado.
+      // El motivo del rechazo va en MODAL: fecha repetida, alimento faltante o registros vencidos
+      // sin validar son cosas que hay que corregir, y un toast que se va solo las escondía.
       error: (err: unknown) => {
-        this.toast.error(this.mensajeDeError(err, 'No se pudo guardar el seguimiento.'));
+        void this.aviso.error(err, 'No se pudo guardar el seguimiento.', 'No se pudo guardar el seguimiento');
       }
     });
   }

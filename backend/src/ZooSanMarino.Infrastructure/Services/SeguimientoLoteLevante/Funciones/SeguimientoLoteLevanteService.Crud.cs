@@ -25,6 +25,20 @@ public partial class SeguimientoLoteLevanteService
         // Corte de etapa: ese día no puede aportar consumo/bajas también desde producción (K345).
         await EnsureDiaSinAporteDeProduccionAsync(dto);
 
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // Con la empresa en doble validación no se descuenta al guardar: se separa. Con el flag
+        // apagado `separa` queda en false y el método corre exactamente como antes.
+        var separa = _validacion is not null
+                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separa)
+        {
+            await _validacion!.AsegurarPuedeRegistrarDiaAsync(
+                ModuloSeguimiento.Levante, dto.LotePosturaLevanteId ?? dto.LoteId);
+            // Postura nunca es mixta: el alimento va por sexo (hembras y/o machos).
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Levante, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+        }
+
         // Huevos en levante (semana 14+): gate por flag de empresa + edad del lote. Neutraliza o
         // lanza ANTES de tocar inventario/consumo, para no dejar efectos a medias.
         dto = await AplicarGateHuevosLevanteAsync(dto, lote);
@@ -66,7 +80,7 @@ public partial class SeguimientoLoteLevanteService
         // los ítems ANTES de persistir; guardado del seguimiento (+ ajuste de aves dentro de
         // CreateAsync) + descuento en UNA IDbContextTransaction. Si falta stock/ítem → throw por
         // ítem → rollback → NO se guarda. (Antes Fase 2: modelo A vía _farmInventoryConsumo.)
-        if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && dto.Metadata != null)
+        if (!separa && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && dto.Metadata != null)
         {
             var byItem = ParseMetadataItemsToKgPorOrigen(dto.Metadata.RootElement);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -98,7 +112,7 @@ public partial class SeguimientoLoteLevanteService
         // Ecuador/Panamá: consumo por ítems en metadata (item_inventario_ecuador) → inventario_gestion.
         // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B (flujo tolerante,
         // sin tx nueva). Para lotes Colombia se usó el bloque modelo A de arriba.
-        if (_inventarioGestionService != null && dto.Metadata != null && modelo == ModeloInventarioConsumo.ModeloB)
+        if (!separa && _inventarioGestionService != null && dto.Metadata != null && modelo == ModeloInventarioConsumo.ModeloB)
         {
             try
             {
@@ -116,6 +130,19 @@ public partial class SeguimientoLoteLevanteService
         // LotePosturaLevante ahora está centralizado dentro de SeguimientoDiarioService.CreateAsync
         // — se aplica tanto en alta nueva como en merge sobre traslado. Ya no se repite aquí.
 
+        // Con separación, ese descuento centralizado ya se saltó (SeguimientoDiarioService consulta el
+        // mismo flag) y acá solo queda registrar la reserva.
+        if (separa)
+        {
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Levante, created.Id, lote.PaisId,
+                lote.GranjaId, lote.NucleoId, lote.GalponId,
+                dto.LotePosturaLevanteId ?? dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
+                dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+                dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
+                loteEsMixto: false));
+        }
+
         return MapToLevanteDto(created);
     }
 
@@ -128,6 +155,21 @@ public partial class SeguimientoLoteLevanteService
 
         // REQ-006: bloqueo backend — el guard antes era solo UI; un request directo editaba lotes cerrados.
         await EnsureLoteLevanteAbiertoAsync(dto.LoteId, dto.LotePosturaLevanteId);
+
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        var separa = _validacion is not null
+                  && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separa)
+        {
+            var yaValidado = await _ctx.SeguimientoDiario.AsNoTracking()
+                .Where(sd => sd.Id == dto.Id).Select(sd => sd.Validado).FirstOrDefaultAsync();
+            if (!ValidacionSeguimientoCalculos.EsEditable(true, yaValidado))
+                throw new InvalidOperationException(
+                    ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
+
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Levante, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+        }
 
         // Huevos en levante (semana 14+): mismo gate que en el alta.
         dto = await AplicarGateHuevosLevanteAsync(dto, lote);
@@ -179,7 +221,7 @@ public partial class SeguimientoLoteLevanteService
         // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.
         // Validación previa del stock B de los diff POSITIVOS ANTES de persistir; update + diff +
         // ajuste de aves envueltos en UNA tx (todo-o-nada). Si falta stock → rollback, NO se guarda.
-        if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null)
+        if (!separa && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null)
         {
             // Parseo TIPADO (conserva el origen del id, camino 1/2) — el diff plano de arriba
             // (oldByItemId) sigue siendo el de la rama Ecuador/Panamá.
@@ -222,7 +264,7 @@ public partial class SeguimientoLoteLevanteService
         if (updated is null) return null;
 
         // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B (flujo tolerante).
-        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+        if (!separa && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
             modelo == ModeloInventarioConsumo.ModeloB)
         {
             try
@@ -250,6 +292,18 @@ public partial class SeguimientoLoteLevanteService
             catch (Exception ex) { _logger?.LogError(ex, "Error al actualizar inventario (levante)"); }
         }
 
+        // Editar un pendiente REESCRIBE la separación: nada que devolver, porque nunca se descontó.
+        if (separa)
+        {
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Levante, dto.Id, lote.PaisId,
+                lote.GranjaId, lote.NucleoId, lote.GalponId,
+                dto.LotePosturaLevanteId ?? dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
+                dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
+                dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
+                loteEsMixto: false));
+        }
+
         // A7 — el ajuste del saldo lo hace SeguimientoDiarioService.UpdateAsync (ver arriba).
         return MapToLevanteDto(updated);
     }
@@ -262,6 +316,21 @@ public partial class SeguimientoLoteLevanteService
 
         int? loteIdInt = int.TryParse(rec.LoteId, out var lid) ? lid : null;
 
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // Borrar un pendiente solo libera la separación: el inventario y el saldo nunca se movieron.
+        var separaDel = _validacion is not null
+                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separaDel)
+        {
+            var yaValidado = await _ctx.SeguimientoDiario.AsNoTracking()
+                .Where(sd => sd.Id == id).Select(sd => sd.Validado).FirstOrDefaultAsync();
+            if (!ValidacionSeguimientoCalculos.EsEditable(true, yaValidado))
+                throw new InvalidOperationException(
+                    ValidacionSeguimientoCalculos.MensajeRegistroValidado("eliminar"));
+
+            await _validacion!.LiberarAsync(ModuloSeguimiento.Levante, id);
+        }
+
         // REQ-006: bloqueo backend — no permitir eliminar seguimiento de un lote de levante cerrado.
         if (loteIdInt.HasValue)
             await EnsureLoteLevanteAbiertoAsync(loteIdInt.Value, rec.LotePosturaLevanteId);
@@ -272,7 +341,7 @@ public partial class SeguimientoLoteLevanteService
                 .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId, l.PaisId })
                 .FirstOrDefaultAsync()
             : null;
-        var modelo = loteRow != null
+        var modelo = loteRow != null && !separaDel
             ? InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(loteRow.GranjaId, loteRow.PaisId))
             : ModeloInventarioConsumo.Ninguno;
 

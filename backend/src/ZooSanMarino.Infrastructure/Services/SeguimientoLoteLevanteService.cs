@@ -39,6 +39,8 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
     private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;   // Fase 2: modelo A (Colombia) — sin uso tras Fase 3 paso 2
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;  // Fase 3 paso 2: modelo B nivel granja (Colombia)
     private readonly ILogger<SeguimientoLoteLevanteService>? _logger;
+    /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
+    private readonly IValidacionSeguimientoService? _validacion;
 
     public SeguimientoLoteLevanteService(
         ZooSanMarinoContext ctx,
@@ -51,7 +53,8 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         IInventarioGestionService? inventarioGestionService = null,
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
         IColombiaInventarioConsumoService? colombiaConsumoB = null,
-        ILogger<SeguimientoLoteLevanteService>? logger = null)
+        ILogger<SeguimientoLoteLevanteService>? logger = null,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _seguimientoDiarioService = seguimientoDiarioService;
@@ -64,6 +67,7 @@ public partial class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteServ
         _farmInventoryConsumo = farmInventoryConsumo;
         _colombiaConsumoB = colombiaConsumoB;
         _logger = logger;
+        _validacion = validacion;
     }
 
     /// <summary>

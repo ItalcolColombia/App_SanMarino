@@ -43,6 +43,17 @@ public class SeguimientoReservaAlimento
     public int ItemInventarioEcuadorId { get; set; }
 
     /// <summary>
+    /// <c>true</c> = el id es de <c>item_inventario_ecuador</c> (camino 2); <c>false</c> = es de
+    /// <c>catalogo_items</c> (camino 1, Colombia).
+    /// <para>
+    /// Hay que persistirlo: en Colombia los dos rangos de id COLISIONAN, así que al validar no se
+    /// puede adivinar contra cuál resolver. Ecuador y Panamá mandan el mismo id por los dos campos,
+    /// donde esto queda siempre en <c>true</c> y no cambia nada.
+    /// </para>
+    /// </summary>
+    public bool EsItemInventario { get; set; } = true;
+
+    /// <summary>
     /// Módulo que originó la separación — ver <c>ModuloSeguimiento</c>. Se guarda el string porque los
     /// cinco seguimientos viven en tablas distintas y no hay una FK única que los alcance.
     /// </summary>

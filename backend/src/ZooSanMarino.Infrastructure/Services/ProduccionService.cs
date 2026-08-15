@@ -23,6 +23,8 @@ public partial class ProduccionService : IProduccionService
     private readonly ILocationScopeResolver _scopeResolver;
     private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;      // Fase 2: modelo A (Colombia) — sin uso tras Fase 3 paso 2
     private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;     // Fase 3 paso 2: modelo B nivel granja (Colombia)
+    /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
+    private readonly IValidacionSeguimientoService? _validacion;
 
     /// <summary>
     /// Fase 3 (paso 2): producción postura Colombia descuenta inventario en el MODELO B unificado a
@@ -38,7 +40,8 @@ public partial class ProduccionService : IProduccionService
         IEspejoHuevoProduccionSyncService espejoHuevoSync,
         ILocationScopeResolver scopeResolver,
         IFarmInventoryConsumoService? farmInventoryConsumo = null,
-        IColombiaInventarioConsumoService? colombiaConsumoB = null)
+        IColombiaInventarioConsumoService? colombiaConsumoB = null,
+        IValidacionSeguimientoService? validacion = null)
     {
         _context = context;
         _currentUser = currentUser;
@@ -47,6 +50,7 @@ public partial class ProduccionService : IProduccionService
         _scopeResolver = scopeResolver;
         _farmInventoryConsumo = farmInventoryConsumo;
         _colombiaConsumoB = colombiaConsumoB;
+        _validacion = validacion;
     }
 
     /// <summary>

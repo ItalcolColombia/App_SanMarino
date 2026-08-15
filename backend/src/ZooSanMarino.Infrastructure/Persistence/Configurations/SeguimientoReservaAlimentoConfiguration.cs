@@ -23,6 +23,9 @@ public class SeguimientoReservaAlimentoConfiguration : IEntityTypeConfiguration<
         // por servicio y una relación acá arrastraría includes que ninguna lectura necesita.
         e.Property(x => x.SiloId).HasColumnName("silo_id");
         e.Property(x => x.ItemInventarioEcuadorId).HasColumnName("item_inventario_ecuador_id").IsRequired();
+        // Camino 1 (catalogo_items) vs camino 2 (item_inventario_ecuador). En Colombia los rangos de
+        // id colisionan, así que el origen tiene que viajar con la reserva.
+        e.Property(x => x.EsItemInventario).HasColumnName("es_item_inventario").HasDefaultValue(true).IsRequired();
 
         e.Property(x => x.OrigenModulo).HasColumnName("origen_modulo").HasMaxLength(24).IsRequired();
         e.Property(x => x.OrigenSeguimientoId).HasColumnName("origen_seguimiento_id").IsRequired();

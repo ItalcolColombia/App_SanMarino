@@ -5,6 +5,7 @@ import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog
 import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { finalize, map, tap } from 'rxjs/operators';
 
@@ -157,6 +158,8 @@ export class LoteProduccionListComponent implements OnInit {
   private galponNameById = new Map<string, string>();
   private readonly http = inject(HttpClient);
   private readonly toast = inject(ToastService);
+  /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
+  private readonly aviso = inject(AvisoValidacionService);
   private readonly auth = inject(AuthService);
 
   constructor(private confirmDialog: ConfirmDialogService, 
@@ -798,6 +801,9 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
           if (this.modalSeguimientoDiario) {
             this.modalSeguimientoDiario.showErrorMessage(errorMessage);
           }
+          // Además del mensaje dentro del modal de captura: si el formulario ya se cerró (o el
+          // usuario no lo está mirando), el motivo del rechazo tiene que aparecer igual.
+          void this.aviso.mensaje('No se pudo guardar el seguimiento', errorMessage);
           console.error('Error al guardar seguimiento diario:', err);
         }
       });
@@ -1073,7 +1079,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el lote 
         this.loading = false;
         console.error('Error al eliminar registro:', err);
         const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
-        this.toast.error(errorMessage);
+        void this.aviso.mensaje('No se pudo eliminar el registro', errorMessage);
         this.onLoteChange(this.selectedLoteId);
       }
     });

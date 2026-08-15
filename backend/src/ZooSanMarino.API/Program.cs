@@ -285,6 +285,8 @@ builder.Services.AddScoped<IFarmSiloService, FarmSiloService>();
 builder.Services.AddScoped<IGalponSiloService, GalponSiloService>();
 builder.Services.AddScoped<ILoteSiloService, LoteSiloService>();
 builder.Services.AddScoped<ICuadreAlimentoEngordeService, CuadreAlimentoEngordeService>();
+// Doble validación de los seguimientos diarios: separa al guardar, descuenta al validar.
+builder.Services.AddScoped<IValidacionSeguimientoService, ValidacionSeguimientoService>();
 builder.Services.AddScoped<IItemInventarioService, ItemInventarioService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>(); 
 

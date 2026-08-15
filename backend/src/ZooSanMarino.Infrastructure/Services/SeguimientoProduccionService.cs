@@ -12,10 +12,17 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser? _current;
 
-    public SeguimientoProduccionService(ZooSanMarinoContext ctx, ICurrentUser? current = null)
+    /// <summary>Doble validación: separa en vez de descontar cuando la empresa la tiene activa.</summary>
+    private readonly IValidacionSeguimientoService? _validacion;
+
+    public SeguimientoProduccionService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser? current = null,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _current = current;
+        _validacion = validacion;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -448,6 +455,11 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
     private async Task AplicarDescuentoLppAsync(int loteId, int mortH, int mortM,
         int selH, int selM, int errH, int errM, bool resta, CancellationToken ct)
     {
+        // Doble validación: en las empresas que la usan el saldo no se mueve al guardar. El gate va
+        // dentro del método porque este service descuenta desde cuatro vías distintas (alta, edición,
+        // borrado y merge sobre traslado) y basta con que una se olvide para descontar dos veces.
+        if (await RequiereValidacionSeguimientoAsync(ct)) return;
+
         var deltaH = mortH + selH + errH;
         var deltaM = mortM + selM + errM;
         if (deltaH == 0 && deltaM == 0) return;
@@ -579,6 +591,20 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             s.FechaTraslado = null;
         }
     }
+    /// <summary>
+    /// ¿La empresa activa difiere el descuento hasta validar el registro? Fail-closed: sin empresa
+    /// resoluble devuelve <c>false</c>, que es el comportamiento previo (descontar al guardar).
+    /// </summary>
+    private async Task<bool> RequiereValidacionSeguimientoAsync(CancellationToken ct)
+    {
+        var companyId = _current?.CompanyId ?? 0;
+        if (companyId <= 0) return false;
+        return await _ctx.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(c => c.RequiereValidacionSeguimientoDiario)
+            .FirstOrDefaultAsync(ct);
+    }
+
 
     private static SeguimientoProduccionDto MapToDto(SeguimientoProduccion e) =>
         new SeguimientoProduccionDto(
