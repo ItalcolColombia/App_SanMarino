@@ -84,7 +84,9 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             x.CreatedByUserId, x.CreatedAt, x.UpdatedAt, x.UpdatedByUserId,
             x.EsTraslado, x.TrasladoLoteContraparteId, x.TrasladoGranjaContraparteId, x.TrasladoDireccion,
             x.TrasladoIngresoHembras, x.TrasladoIngresoMachos, x.TrasladoSalidaHembras, x.TrasladoSalidaMachos,
-            x.TipoAlimentoHembrasNombre, x.TipoAlimentoMachosNombre
+            x.TipoAlimentoHembrasNombre, x.TipoAlimentoMachosNombre,
+            // Doble validación: el estado viaja hasta el front para pintar la fila.
+            x.Validado, x.ValidadoAt, x.ValidadoPor
         );
     }
 

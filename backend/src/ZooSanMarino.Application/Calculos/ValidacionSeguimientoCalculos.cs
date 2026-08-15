@@ -180,9 +180,14 @@ public static class ValidacionSeguimientoCalculos
         var resto = ordenadas.Count - Math.Min(maximoFechas, ordenadas.Count);
         if (resto > 0) lista += $" y {resto} más";
 
-        var plural = ordenadas.Count == 1 ? "un registro" : $"{ordenadas.Count} registros";
-        return $"No se puede registrar un día nuevo: el lote tiene {plural} sin validar que superaron el plazo " +
-               $"({lista}). Validá esos registros y volvé a intentar.";
+        // La concordancia se arma entera, no solo el sustantivo: con "un registro ... que superaron"
+        // el mensaje se lee como un error del sistema y le resta credibilidad al resto del aviso.
+        var (sujeto, verbo, cierre) = ordenadas.Count == 1
+            ? ("un registro", "superó", "Validá ese registro y volvé a intentar.")
+            : ($"{ordenadas.Count} registros", "superaron", "Validá esos registros y volvé a intentar.");
+
+        return $"No se puede registrar un día nuevo: el lote tiene {sujeto} sin validar que {verbo} el plazo " +
+               $"({lista}). {cierre}";
     }
 
     /// <summary>

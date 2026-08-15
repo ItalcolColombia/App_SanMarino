@@ -267,7 +267,7 @@ public partial class ProduccionService
                 lotePosturaProduccionId ?? loteId, loteId.ToString(), request.FechaRegistro, metadata,
                 entity.MortalidadH, entity.SelH, entity.ErrorSexajeHembras,
                 entity.MortalidadM, entity.SelM, entity.ErrorSexajeMachos,
-                loteEsMixto: false));
+                poblacionEsMixta: false));
         }
 
         if (lotePosturaProduccionId.HasValue)

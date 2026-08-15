@@ -140,7 +140,7 @@ public partial class SeguimientoLoteLevanteService
                 dto.LotePosturaLevanteId ?? dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
                 dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
-                loteEsMixto: false));
+                poblacionEsMixta: false));
         }
 
         return MapToLevanteDto(created);
@@ -304,7 +304,7 @@ public partial class SeguimientoLoteLevanteService
                 dto.LotePosturaLevanteId ?? dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
                 dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
-                loteEsMixto: false));
+                poblacionEsMixta: false));
         }
 
         // A7 — el ajuste del saldo lo hace SeguimientoDiarioService.UpdateAsync (ver arriba).

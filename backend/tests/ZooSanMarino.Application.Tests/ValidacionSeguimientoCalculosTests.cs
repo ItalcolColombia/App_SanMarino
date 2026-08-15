@@ -189,4 +189,32 @@ public class ValidacionSeguimientoCalculosTests
         Assert.False(ModuloSeguimiento.EsValido("VACUNACION"));
         Assert.False(ModuloSeguimiento.EsValido(null));
     }
+    // ─── Concordancia del mensaje de bloqueo ────────────────────────────────
+    // Nace de un smoke real: con UNA fecha vencida el texto decía «un registro ... que superaron el
+    // plazo». Un mensaje mal concordado se lee como un error del sistema y le resta credibilidad al
+    // aviso justo cuando se le está pidiendo al usuario que actúe.
+
+    [Fact]
+    public void MensajeBloqueo_ConUnaSolaFecha_ConcuerdaEnSingular()
+    {
+        var msg = ValidacionSeguimientoCalculos.MensajeBloqueoPorVencidos(
+            new[] { new DateOnly(2026, 8, 11) });
+
+        Assert.Contains("un registro", msg);
+        Assert.Contains("que superó el plazo", msg);
+        Assert.Contains("Validá ese registro", msg);
+        Assert.DoesNotContain("superaron", msg);
+    }
+
+    [Fact]
+    public void MensajeBloqueo_ConVariasFechas_ConcuerdaEnPlural()
+    {
+        var msg = ValidacionSeguimientoCalculos.MensajeBloqueoPorVencidos(
+            new[] { new DateOnly(2026, 8, 11), new DateOnly(2026, 8, 12) });
+
+        Assert.Contains("2 registros", msg);
+        Assert.Contains("que superaron el plazo", msg);
+        Assert.Contains("Validá esos registros", msg);
+    }
+
 }

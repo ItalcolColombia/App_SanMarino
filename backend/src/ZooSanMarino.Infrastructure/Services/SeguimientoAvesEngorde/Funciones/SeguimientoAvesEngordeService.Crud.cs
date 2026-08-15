@@ -84,8 +84,11 @@ public partial class SeguimientoAvesEngordeService
         // al guardar, se separa. Con el flag apagado queda en false y el método corre igual que antes.
         var separa = _validacion is not null
                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
-        var loteEsMixto = RetiroAvesEngordeCalculos.EsLoteMixto(
-            new RetiroAvesEngordeCalculos.MaestroAves(lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0));
+        // Panamá captura en Mixto aunque el lote tenga sexos: el mensaje tiene que nombrar el
+        // campo que el usuario realmente ve.
+        var loteEsMixto = SeparacionSeguimientoHelper.FormularioCapturaEnMixto(
+            await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId),
+            lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0);
 
         if (separa)
         {
@@ -267,7 +270,10 @@ public partial class SeguimientoAvesEngordeService
                 dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
                 dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
-                loteEsMixto));
+                // POBLACIÓN, no formulario: es lo que decide de qué bucket del maestro salen
+                // las bajas. En Panamá el formulario es mixto pero el lote puede tener sexos.
+                RetiroAvesEngordeCalculos.EsLoteMixto(
+                    new RetiroAvesEngordeCalculos.MaestroAves(lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0))));
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, _current.CompanyId);
@@ -295,8 +301,11 @@ public partial class SeguimientoAvesEngordeService
         // ── Doble validación ───────────────────────────────────────────────────────────────────
         var separa = _validacion is not null
                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
-        var loteEsMixto = RetiroAvesEngordeCalculos.EsLoteMixto(
-            new RetiroAvesEngordeCalculos.MaestroAves(lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0));
+        // Panamá captura en Mixto aunque el lote tenga sexos: el mensaje tiene que nombrar el
+        // campo que el usuario realmente ve.
+        var loteEsMixto = SeparacionSeguimientoHelper.FormularioCapturaEnMixto(
+            await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId),
+            lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0);
 
         if (separa)
         {
@@ -496,7 +505,10 @@ public partial class SeguimientoAvesEngordeService
                 dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
                 dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
-                loteEsMixto));
+                // POBLACIÓN, no formulario: es lo que decide de qué bucket del maestro salen
+                // las bajas. En Panamá el formulario es mixto pero el lote puede tener sexos.
+                RetiroAvesEngordeCalculos.EsLoteMixto(
+                    new RetiroAvesEngordeCalculos.MaestroAves(lote.HembrasL ?? 0, lote.MachosL ?? 0, lote.Mixtas ?? 0))));
         }
 
         await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, companyId);

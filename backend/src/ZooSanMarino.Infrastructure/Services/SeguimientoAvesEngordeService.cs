@@ -276,6 +276,7 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
             Validado: e.Validado,
             ValidadoAt: e.ValidadoAt,
             ValidadoPor: e.ValidadoPor
+        );
     }
 
     private static LoteRegistroHistoricoUnificadoDto MapHistoricoUnificado(LoteRegistroHistoricoUnificado e) =>

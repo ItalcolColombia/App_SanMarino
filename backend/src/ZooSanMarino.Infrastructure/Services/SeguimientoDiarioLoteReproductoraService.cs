@@ -77,6 +77,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             Validado: e.Confirmado,
             ValidadoAt: e.ConfirmadoAt,
             ValidadoPor: e.ConfirmadoPor
+        );
     }
 
     // ─── Helpers de inventario ────────────────────────────────────────────────
@@ -274,7 +275,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                 dto.LoteId, dto.LoteId.ToString(), dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
                 dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
-                loteEsMixto: false));
+                poblacionEsMixta: false));
         }
 
         // Descontar inventario por ítems consumidos
@@ -419,7 +420,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                 dto.LoteId, dto.LoteId.ToString(), dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
                 dto.MortalidadMachos, dto.SelM, dto.ErrorSexajeMachos,
-                loteEsMixto: false));
+                poblacionEsMixta: false));
         }
 
         // Ajustar inventario: consumir diferencia positiva, devolver diferencia negativa
