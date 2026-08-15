@@ -1793,7 +1793,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SelH = selH,
                 ErrorH = errorH,
                 ConsKgH = consKgH,
-                PesoH = pesoH > 0 ? pesoH : null,
+                // El seguimiento guarda gramos y la columna del reporte es «kg Real», al lado de
+                // la guía en kg — ver PesoLevanteCalculos.
+                PesoH = PesoLevanteCalculos.AKilos(pesoH),
                 UniformH = uniformH > 0 ? uniformH : null,
                 CvH = cvH > 0 ? cvH : null,
                 KcalAlH = kcalAlH > 0 ? kcalAlH : null,
@@ -1805,7 +1807,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SelM = selM,
                 ErrorM = errorM,
                 ConsKgM = consKgM,
-                PesoM = pesoM > 0 ? pesoM : null,
+                PesoM = PesoLevanteCalculos.AKilos(pesoM),
                 UniformM = uniformM > 0 ? uniformM : null,
                 CvM = cvM > 0 ? cvM : null,
                 KcalAlM = kcalAlM > 0 ? kcalAlM : null,
@@ -1853,9 +1855,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 // Poblar desde guiaRaw (ProduccionAvicolaRaw) que resuelve confiablemente por raza+año+edad,
                 // igual que ConsAcGrHGUIA; guiaGenetica (ObtenerGuiaGeneticaRangoAsync) a veces viene vacío
                 // y dejaba PesoHGUIA/UnifHGUIA en null pese a haber guía.
-                PesoHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.PesoH) / 1000.0 : null, // guía peso_h (g) → kg
-                PorcDifPesoH = guiaRaw != null && ParseGuiaRaw(guiaRaw.PesoH) > 0 && pesoH > 0
-                    ? (pesoH - (ParseGuiaRaw(guiaRaw.PesoH) / 1000.0)) / (ParseGuiaRaw(guiaRaw.PesoH) / 1000.0) * 100
+                PesoHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.PesoH) / PesoLevanteCalculos.GramosPorKilo : null, // guía peso_h (g) → kg
+                PorcDifPesoH = guiaRaw != null
+                    ? PesoLevanteCalculos.PorcDiferencia(pesoH, ParseGuiaRaw(guiaRaw.PesoH))
                     : null,
                 UnifHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.Uniformidad) : null,
 
@@ -1891,9 +1893,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
                     ? ((acConsM * 1000) / machoIni) - ParseGuiaRaw(guiaRaw.ConsAcM)
                     : null,
 
-                PesoMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.PesoM) / 1000.0 : null, // guía peso_m (g) → kg
-                PorcDifPesoM = guiaRaw != null && ParseGuiaRaw(guiaRaw.PesoM) > 0 && pesoM > 0
-                    ? (pesoM - (ParseGuiaRaw(guiaRaw.PesoM) / 1000.0)) / (ParseGuiaRaw(guiaRaw.PesoM) / 1000.0) * 100
+                PesoMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.PesoM) / PesoLevanteCalculos.GramosPorKilo : null, // guía peso_m (g) → kg
+                PorcDifPesoM = guiaRaw != null
+                    ? PesoLevanteCalculos.PorcDiferencia(pesoM, ParseGuiaRaw(guiaRaw.PesoM))
                     : null,
                 UnifMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.Uniformidad) : null,
 
@@ -3099,7 +3101,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SelH = selH,
                 ErrorH = errH,
                 ConsKgH = Math.Round(consKgH, 3),
-                PesoH = pesoH > 0 ? pesoH : null,
+                // Gramos del seguimiento → kg, la unidad de la columna y de la guía de al lado.
+                PesoH = PesoLevanteCalculos.AKilos(pesoH),
                 UniformH = unifH > 0 ? unifH : null,
                 CvH = cvH > 0 ? cvH : null,
                 KcalAlH = kcalAlH > 0 ? kcalAlH : null,
@@ -3113,7 +3116,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SelM = selM,
                 ErrorM = errM,
                 ConsKgM = Math.Round(consKgM, 3),
-                PesoM = pesoM > 0 ? pesoM : null,
+                PesoM = PesoLevanteCalculos.AKilos(pesoM),
                 UniformM = unifM > 0 ? unifM : null,
                 CvM = cvM > 0 ? cvM : null,
 
@@ -3167,9 +3170,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 IncrConsHGUIA = incrConsHGUIA.HasValue ? Math.Round(incrConsHGUIA.Value, 2) : null,
                 PorcDifConsH = consAcGrHGUIA.HasValue && consAcGrHGUIA.Value > 0
                     ? Math.Round((consAcGrH - consAcGrHGUIA.Value) / consAcGrHGUIA.Value * 100, 2) : null,
-                PesoHGUIA = guiaRaw != null ? ParseGuiaV(guiaRaw.PesoH) / 1000.0 : null,
-                PorcDifPesoH = guiaRaw != null && ParseGuiaV(guiaRaw.PesoH) > 0 && pesoH > 0
-                    ? Math.Round((pesoH - ParseGuiaV(guiaRaw.PesoH) / 1000.0) / (ParseGuiaV(guiaRaw.PesoH) / 1000.0) * 100, 2) : null,
+                PesoHGUIA = guiaRaw != null ? ParseGuiaV(guiaRaw.PesoH) / PesoLevanteCalculos.GramosPorKilo : null,
+                PorcDifPesoH = guiaRaw != null
+                    ? PesoLevanteCalculos.PorcDiferencia(pesoH, ParseGuiaV(guiaRaw.PesoH), 2)
+                    : null,
                 UnifHGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.Uniformidad) : null,
 
                 PorcMortMGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.MortSemM) : null,
@@ -3180,9 +3184,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 IncrConsMGUIA = incrConsMGUIA.HasValue ? Math.Round(incrConsMGUIA.Value, 2) : null,
                 DifConsM = consAcGrMGUIA.HasValue
                     ? Math.Round(consAcGrM - consAcGrMGUIA.Value, 2) : null,
-                PesoMGUIA = guiaRaw != null ? ParseGuiaV(guiaRaw.PesoM) / 1000.0 : null,
-                PorcDifPesoM = guiaRaw != null && ParseGuiaV(guiaRaw.PesoM) > 0 && pesoM > 0
-                    ? Math.Round((pesoM - ParseGuiaV(guiaRaw.PesoM) / 1000.0) / (ParseGuiaV(guiaRaw.PesoM) / 1000.0) * 100, 2) : null,
+                PesoMGUIA = guiaRaw != null ? ParseGuiaV(guiaRaw.PesoM) / PesoLevanteCalculos.GramosPorKilo : null,
+                PorcDifPesoM = guiaRaw != null
+                    ? PesoLevanteCalculos.PorcDiferencia(pesoM, ParseGuiaV(guiaRaw.PesoM), 2)
+                    : null,
                 UnifMGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.Uniformidad) : null,
 
                 DifConsAcH = consAcGrHGUIA.HasValue

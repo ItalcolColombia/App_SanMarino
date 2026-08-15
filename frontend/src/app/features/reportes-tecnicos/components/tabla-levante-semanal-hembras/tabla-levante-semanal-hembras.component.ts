@@ -52,8 +52,13 @@ export class TablaLevanteSemanalHembrasComponent {
     return valorDto ?? null;
   }
 
-  getPesoTabla(_semana: number, valorDto?: number | null): number | null {
-    return valorDto ?? null;
+  /**
+   * Peso de la guía. Llega en KILOS (misma unidad que `pesoH`, ver PesoLevanteCalculos en el
+   * backend) y esta hoja muestra el bloque «PESO CORPORAL Grs.», así que se pasa a gramos —
+   * igual que la celda del peso real, que ya multiplicaba por 1000.
+   */
+  getPesoTabla(_semana: number, valorKg?: number | null): number | null {
+    return valorKg != null ? valorKg * 1000 : null;
   }
 
   getGananciaTabla(_semana: number, valorDto?: number | null): number | null {

@@ -5387,3 +5387,18 @@ Plan: [reportes_postura_lote_fase_produccion_plan.md](fase_de_desarrollo/reporte
 - [x] R1.7 Smoke HTTP de los 10 reportes de postura (levante, producción, semanal, costos, contable)
 - [x] R1.8 No regresión en K345 y A374; documentar que A374 pasa de 2 a 4 sublotes de levante
 - [x] R1.9 Backend local apagado y `:5002` libre + commit
+
+---
+
+## R2 · %Dif Peso del reporte de levante: gramos contra kilos (14ago26)
+
+Plan: [reporte_levante_peso_gramos_vs_kg_plan.md](fase_de_desarrollo/reporte_levante_peso_gramos_vs_kg_plan.md)
+
+`%Dif Peso H` daba 104.037,93 % en S369A sem 1: la guía se pasaba a kg y el peso real seguía en gramos.
+
+- [x] R2.1 `PesoLevanteCalculos` (AKilos + PorcDiferencia) + tests xUnit
+- [x] R2.2 `ReporteTecnicoService`: `PesoH`/`PesoM` en kg y `%Dif` por el cálculo puro (los 2 armados)
+- [x] R2.3 Front: celda de guía en gramos en las tablas semanales H/M; rotular la tabla diaria
+- [x] R2.4 `dotnet build` + `dotnet test` + `yarn build`
+- [x] R2.5 Smoke: S369 y K345 con %Dif en rango y Excel con Real/Guía en la misma unidad
+- [x] R2.6 Backend apagado, `:5002` libre + commit
