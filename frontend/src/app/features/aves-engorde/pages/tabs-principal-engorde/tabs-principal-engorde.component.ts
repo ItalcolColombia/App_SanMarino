@@ -59,6 +59,17 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   /** Hora de llegada de las aves del lote seleccionado (HH:mm). Solo pesa si el flag está activo. */
   @Input() horaEncasetamiento: string | null = null;
 
+  /**
+   * Doble validación. La tabla no decide nada: recibe el mapa `seguimientoId → estado` que arma el
+   * contenedor desde el backend, que es el único que conoce el flag de la empresa y el plazo.
+   */
+  @Input() requiereValidacion = false;
+  /** Si el usuario tiene el permiso de validar. Sin él la columna se ve, pero sin el botón. */
+  @Input() puedeValidar = false;
+  /** seguimientoId → VALIDADO | PENDIENTE | EN_RETRASO. Lo que no está en el mapa, está validado. */
+  @Input() estadoValidacionPorId = new Map<number, string>();
+
+  @Output() validar = new EventEmitter<number>();
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
   @Output() delete = new EventEmitter<number>();
@@ -443,5 +454,67 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     if (!ymd) return '';
     const [y, m, day] = ymd.split('-');
     return `${day}/${m}/${y}`;
+  }
+
+  // ─── Doble validación ───────────────────────────────────────────────────────
+
+  /**
+   * Estado de la fila. Lo que no está en el mapa se considera VALIDADO: el backend solo devuelve los
+   * pendientes, así que ausencia es "ya se descontó" — y con el flag apagado el mapa viene vacío, que
+   * deja toda la tabla como estaba.
+   */
+  estadoValidacionFila(segId: number | null | undefined): string {
+    if (segId == null) return 'VALIDADO';
+    return this.estadoValidacionPorId.get(segId) ?? 'VALIDADO';
+  }
+
+  /** Texto del badge. */
+  etiquetaValidacionFila(segId: number | null | undefined): string {
+    switch (this.estadoValidacionFila(segId)) {
+      case 'EN_RETRASO': return 'En retraso';
+      case 'PENDIENTE':  return 'Pendiente';
+      default:           return 'Validado';
+    }
+  }
+
+  /** Clase del badge. */
+  claseBadgeValidacion(segId: number | null | undefined): string {
+    switch (this.estadoValidacionFila(segId)) {
+      case 'EN_RETRASO': return 'badge-validacion badge-validacion--retraso';
+      case 'PENDIENTE':  return 'badge-validacion badge-validacion--pendiente';
+      default:           return 'badge-validacion badge-validacion--validado';
+    }
+  }
+
+  /** Clase de la FILA: solo se pinta la vencida, para que el rojo siga significando algo. */
+  claseFilaValidacion(segId: number | null | undefined): string {
+    return this.estadoValidacionFila(segId) === 'EN_RETRASO' ? 'fila-validacion--retraso' : '';
+  }
+
+  /** Tooltip: dice qué implica el estado, que es lo que el usuario necesita saber. */
+  tooltipValidacionFila(segId: number | null | undefined): string {
+    switch (this.estadoValidacionFila(segId)) {
+      case 'EN_RETRASO':
+        return 'En retraso — superó el plazo de validación. Mientras no se valide, el lote no acepta días nuevos.';
+      case 'PENDIENTE':
+        return 'Pendiente de validar — el alimento y las aves están separados, todavía no descontados. Se puede editar y eliminar.';
+      default:
+        return 'Validado — el alimento y las aves ya se descontaron. El registro es de solo lectura.';
+    }
+  }
+
+  /** ¿Esta fila puede validarse? Solo las que siguen pendientes y con permiso. */
+  puedeValidarFila(segId: number | null | undefined): boolean {
+    return this.puedeValidar && this.estadoValidacionFila(segId) !== 'VALIDADO';
+  }
+
+  /** Un registro validado es de solo lectura: hay que quitarle la validación para corregirlo. */
+  esSoloLecturaPorValidacion(segId: number | null | undefined): boolean {
+    return this.requiereValidacion && this.estadoValidacionFila(segId) === 'VALIDADO';
+  }
+
+  onValidar(segId: number | null | undefined): void {
+    if (segId == null) return;
+    this.validar.emit(segId);
   }
 }

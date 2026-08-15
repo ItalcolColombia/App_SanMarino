@@ -74,7 +74,14 @@ public record SeguimientoItemDto(
     int? SaldoAvesM = null,
     long? HuevoTotAcum = null,
     long? HuevoIncAcum = null,
-    double? PctPosturaDia = null
+    double? PctPosturaDia = null,
+    // ── Doble validación ──
+    // Mientras Validado es false, el registro se puede editar y eliminar, y su alimento y sus
+    // aves están SEPARADOS (reservados), no descontados. El literal del estado lo deriva el
+    // front con la función compartida, que es la única que conoce el día del usuario.
+    bool Validado = false,
+    DateTime? ValidadoAt = null,
+    string? ValidadoPor = null
 );
 
 

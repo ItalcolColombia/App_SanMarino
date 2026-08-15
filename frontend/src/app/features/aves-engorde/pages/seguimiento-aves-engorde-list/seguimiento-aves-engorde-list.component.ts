@@ -38,6 +38,7 @@ import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
 import { ValidacionSeguimientoService } from '../../../../shared/services/validacion-seguimiento.service';
@@ -157,8 +158,24 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
     private aviso: AvisoValidacionService,
     /** Doble validación: alerta de registros vencidos al entrar al lote. */
-    private validacionSvc: ValidacionSeguimientoService
+    private validacionSvc: ValidacionSeguimientoService,
+    private permSvc: UserPermissionService
   ) {}
+
+  // ─── Doble validación ───────────────────────────────────────────────────────
+
+  readonly PERM_VALIDAR = 'seguimiento_engorde.validar';
+
+  /** Flag de la empresa. En false la columna Estado no se muestra y nada cambia. */
+  requiereValidacion = false;
+
+  /** seguimientoId → estado. Solo trae los NO validados: lo ausente ya se descontó. */
+  estadoValidacionPorId = new Map<number, string>();
+
+  /** Permiso de validar. Sin él la columna se ve pero el ✓ no aparece. */
+  get puedeValidar(): boolean {
+    return this.permSvc.has(this.PERM_VALIDAR);
+  }
 
   /**
    * Modal rojo con los registros pendientes de validar del lote. Solo aparece si la empresa opera
@@ -167,8 +184,37 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
    */
   private avisarPendientesDeValidacion(loteId: number): void {
     this.validacionSvc.pendientes('ENGORDE', loteId).subscribe(p => {
+      this.requiereValidacion = p.requiereValidacion;
+
+      // Se reemplaza el mapa entero en vez de mutarlo: una fila que acaba de validarse tiene que
+      // DESAPARECER del mapa, y limpiar+rellenar deja una ventana en la que la tabla ve el estado
+      // a medias.
+      const mapa = new Map<number, string>();
+      for (const r of p.registros ?? []) mapa.set(r.seguimientoId, r.estado);
+      this.estadoValidacionPorId = mapa;
+
       if (!p.requiereValidacion || p.vencidos <= 0 || !p.mensaje) return;
       void this.aviso.alertaPendientes(p.mensaje);
+    });
+  }
+
+  /**
+   * Valida un registro: aplica el consumo de alimento y el descuento de aves que estaban separados.
+   * Se recarga el lote entero porque el descuento mueve saldos que la tabla ya está mostrando.
+   */
+  onValidarSeguimiento(seguimientoId: number): void {
+    this.loading = true;
+    this.validacionSvc.validar('ENGORDE', seguimientoId).subscribe({
+      next: r => {
+        this.toast.success(
+          `Registro validado. Se aplicaron ${r.kgAplicados ?? 0} kg de alimento y ${r.avesDescontadas ?? 0} aves.`,
+          'Validado', 5000);
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: err => {
+        this.loading = false;
+        void this.aviso.error(err, 'No se pudo validar el registro.', 'No se pudo validar');
+      }
     });
   }
 

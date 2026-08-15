@@ -72,8 +72,11 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             QqMachos: e.QqMachos,
             Confirmado: e.Confirmado,
             ConfirmadoAt: e.ConfirmadoAt,
-            ConfirmadoPor: e.ConfirmadoPor
-        );
+            ConfirmadoPor: e.ConfirmadoPor,
+            // Reproductora no tiene columna propia: su `confirmado` ES la validación.
+            Validado: e.Confirmado,
+            ValidadoAt: e.ConfirmadoAt,
+            ValidadoPor: e.ConfirmadoPor
     }
 
     // ─── Helpers de inventario ────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
 import { ValidacionSeguimientoService } from '../../../../shared/services/validacion-seguimiento.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -187,6 +188,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     private aviso: AvisoValidacionService,
     /** Doble validación: alerta de registros vencidos al entrar al lote. */
     private validacionSvc: ValidacionSeguimientoService,
+    private permSvc: UserPermissionService,
 
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
@@ -757,6 +759,14 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
    */
   private avisarPendientesDeValidacion(loteId: number): void {
     this.validacionSvc.pendientes('LEVANTE', loteId).subscribe(p => {
+      this.requiereValidacion = p.requiereValidacion;
+
+      // Se reemplaza el mapa entero en vez de mutarlo: una fila recién validada tiene que
+      // DESAPARECER, y limpiar+rellenar deja una ventana con el estado a medias.
+      const mapa = new Map<number, string>();
+      for (const r of p.registros ?? []) mapa.set(r.seguimientoId, r.estado);
+      this.estadoValidacionPorId = mapa;
+
       if (!p.requiereValidacion || p.vencidos <= 0 || !p.mensaje) return;
       void this.aviso.alertaPendientes(p.mensaje);
     });
@@ -1177,5 +1187,40 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
     }
     // Fase 3: el lote sigue siendo el mismo, así que las cohortes se refrescan por trigger.
     this.cohortesRefreshTrigger++;
+  }
+
+  // ─── Doble validación ───────────────────────────────────────────────────────
+
+  readonly PERM_VALIDAR = 'seguimiento_levante.validar';
+
+  /** Flag de la empresa. En false la columna Estado no se muestra y nada cambia. */
+  requiereValidacion = false;
+
+  /** seguimientoId → estado. Solo trae los NO validados: lo ausente ya se descontó. */
+  estadoValidacionPorId = new Map<number, string>();
+
+  /** Permiso de validar. Sin él la columna se ve pero el ✓ no aparece. */
+  get puedeValidar(): boolean {
+    return this.permSvc.has(this.PERM_VALIDAR);
+  }
+
+  /**
+   * Valida un registro: aplica el consumo de alimento y el descuento de aves que estaban separados.
+   * Se recarga el lote entero porque el descuento mueve saldos que la tabla ya está mostrando.
+   */
+  onValidarSeguimiento(seguimientoId: number): void {
+    this.loading = true;
+    this.validacionSvc.validar('LEVANTE', seguimientoId).subscribe({
+      next: r => {
+        this.toast.success(
+          `Registro validado. Se aplicaron ${r.kgAplicados ?? 0} kg de alimento y ${r.avesDescontadas ?? 0} aves.`,
+          'Validado', 5000);
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: err => {
+        this.loading = false;
+        void this.aviso.error(err, 'No se pudo validar el registro.', 'No se pudo validar');
+      }
+    });
   }
 }

@@ -268,8 +268,14 @@ public partial class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeServ
             HistoricoConsumoAlimento: e.HistoricoConsumoAlimento,
             QqMixtas: e.QqMixtas,
             QqHembras: e.QqHembras,
-            QqMachos: e.QqMachos
-        );
+            QqMachos: e.QqMachos,
+            // Doble validación: el front necesita el estado para pintar la fila y ofrecer el ✓.
+            // `EstadoValidacion` va nulo a propósito: el literal lo deriva el front con la función
+            // compartida, que es la única que conoce el día del usuario (acá el server podría estar
+            // en otra zona y un registro de ayer se vería vencido o al revés).
+            Validado: e.Validado,
+            ValidadoAt: e.ValidadoAt,
+            ValidadoPor: e.ValidadoPor
     }
 
     private static LoteRegistroHistoricoUnificadoDto MapHistoricoUnificado(LoteRegistroHistoricoUnificado e) =>

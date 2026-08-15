@@ -377,6 +377,70 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   // existe en NINGUNA de las 604 filas de producción, así que el fallback devolvía consKgH/M:
   // la tabla repetía el mismo kg dos veces. Si algún día se captura en otra unidad, la columna
   // se vuelve a agregar leyendo la metadata (y solo entonces aporta algo).
+
+  // ─── Doble validación ───────────────────────────────────────────────────────
+  // La tabla no decide nada: recibe el mapa `seguimientoId → estado` que arma el contenedor desde el
+  // backend, que es el único que conoce el flag de la empresa y el plazo.
+
+  /** Flag de la empresa. En false la columna Estado no se muestra y nada cambia. */
+  @Input() requiereValidacion = false;
+  /** Permiso de validar. Sin él la columna se ve, pero sin el botón. */
+  @Input() puedeValidar = false;
+  /** seguimientoId → estado. Solo trae los NO validados: lo ausente ya se descontó. */
+  @Input() estadoValidacionPorId = new Map<number, string>();
+
+  @Output() validar = new EventEmitter<number>();
+
+  estadoValidacionFila(id: number | null | undefined): string {
+    if (id == null) return 'VALIDADO';
+    return this.estadoValidacionPorId.get(id) ?? 'VALIDADO';
+  }
+
+  etiquetaValidacionFila(id: number | null | undefined): string {
+    switch (this.estadoValidacionFila(id)) {
+      case 'EN_RETRASO': return 'En retraso';
+      case 'PENDIENTE':  return 'Pendiente';
+      default:           return 'Validado';
+    }
+  }
+
+  claseBadgeValidacion(id: number | null | undefined): string {
+    switch (this.estadoValidacionFila(id)) {
+      case 'EN_RETRASO': return 'badge-validacion badge-validacion--retraso';
+      case 'PENDIENTE':  return 'badge-validacion badge-validacion--pendiente';
+      default:           return 'badge-validacion badge-validacion--validado';
+    }
+  }
+
+  /** Clase de la FILA: solo se pinta la vencida, para que el rojo siga significando algo. */
+  claseFilaValidacion(id: number | null | undefined): string {
+    return this.estadoValidacionFila(id) === 'EN_RETRASO' ? 'fila-validacion--retraso' : '';
+  }
+
+  tooltipValidacionFila(id: number | null | undefined): string {
+    switch (this.estadoValidacionFila(id)) {
+      case 'EN_RETRASO':
+        return 'En retraso — superó el plazo de validación. Mientras no se valide, el lote no acepta días nuevos.';
+      case 'PENDIENTE':
+        return 'Pendiente de validar — el alimento y las aves están separados, todavía no descontados. Se puede editar y eliminar.';
+      default:
+        return 'Validado — el alimento y las aves ya se descontaron. El registro es de solo lectura.';
+    }
+  }
+
+  puedeValidarFila(id: number | null | undefined): boolean {
+    return this.puedeValidar && this.estadoValidacionFila(id) !== 'VALIDADO';
+  }
+
+  /** Un registro validado es de solo lectura: hay que quitarle la validación para corregirlo. */
+  esSoloLecturaPorValidacion(id: number | null | undefined): boolean {
+    return this.requiereValidacion && this.estadoValidacionFila(id) === 'VALIDADO';
+  }
+
+  onValidar(id: number | null | undefined): void {
+    if (id == null) return;
+    this.validar.emit(id);
+  }
 }
 
 

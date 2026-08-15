@@ -227,6 +227,9 @@
                             <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
                           }
                           <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
+                          @if (requiereValidacion) {
+                            <th scope="col" class="th-diario">Estado</th>
+                          }
                           <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                         </tr>
                       </thead>
@@ -250,7 +253,7 @@
                           </tr>
                         }
                         @for (f of diarioFilasFiltradas; track trackByDiarioFila($index, f)) {
-                          <tr class="ux-row">
+                          <tr class="ux-row" [ngClass]="claseFilaValidacion(f.segId)">
                             <td>{{ formatDMY(f.fecha) }}</td>
                             <td>{{ semanaNegocio(f) }}</td>
                             <td>{{ diaNegocio(f) }}</td>
@@ -330,6 +333,18 @@
                               <td class="num">{{ f.pesoPromMachos != null ? (f.pesoPromMachos | number:'1.0-2') : '—' }}</td>
                             }
                             <td class="cell-text cell-text--obs" [title]="f.observaciones || ''">{{ (f.observaciones || '').trim() || '—' }}</td>
+                            @if (requiereValidacion) {
+                              <td>
+                                @if (f.segId != null) {
+                                  <span [ngClass]="claseBadgeValidacion(f.segId)" [title]="tooltipValidacionFila(f.segId)">
+                                    @if (estadoValidacionFila(f.segId) === 'EN_RETRASO') { <span aria-hidden="true">⚠️</span> }
+                                    {{ etiquetaValidacionFila(f.segId) }}
+                                  </span>
+                                } @else {
+                                  <span class="text-muted">—</span>
+                                }
+                              </td>
+                            }
                             <td class="text-right">
                               <!-- Fix #14: si segId es null, la fila representa un movimiento de inventario/venta
                               sin seguimiento diario asociado → ocultar acciones (no hay nada que editar). -->
@@ -340,11 +355,20 @@
                                   @if (f.createdByUserId === 'SYSTEM_CRUCE') {
                                     <span class="badge-cruce" title="Generado automáticamente desde los lotes reproductora. Para corregir, edite el lote reproductora.">🔄 Auto</span>
                                   } @else {
+                                    @if (puedeValidarFila(f.segId)) {
+                                      <button type="button" (click)="onValidar(f.segId)" class="icon-btn icon-btn--validar"
+                                        [disabled]="disableEditDelete"
+                                        title="Validar: aplica el consumo de alimento y el descuento de aves. Después queda de solo lectura.">✓</button>
+                                    }
                                     <ng-container *appHasPermission="'editar_registro'">
-                                      <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
+                                      <button type="button" (click)="onEditById(f.segId)" class="icon-btn"
+                                        [disabled]="disableEditDelete || esSoloLecturaPorValidacion(f.segId)"
+                                        [title]="esSoloLecturaPorValidacion(f.segId) ? 'Registro validado: quítele la validación para corregirlo' : 'Editar'">✎</button>
                                     </ng-container>
                                     <ng-container *appHasPermission="'eliminar_registro'">
-                                      <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
+                                      <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger"
+                                        [disabled]="disableEditDelete || esSoloLecturaPorValidacion(f.segId)"
+                                        [title]="esSoloLecturaPorValidacion(f.segId) ? 'Registro validado: quítele la validación para poder eliminarlo' : 'Eliminar'">🗑️</button>
                                     </ng-container>
                                   }
                                 </div>
