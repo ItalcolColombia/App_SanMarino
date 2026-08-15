@@ -213,16 +213,10 @@
                   <td>{{ loteSeleccionado.machosL ?? 0 }}</td>
                 </tr>
                 <tr class="lote-datos-table__row--accent">
-                  <th scope="row">Mixtas</th>
-                  <td>{{ loteSeleccionado.mixtas ?? 0 }}</td>
                   <th scope="row">Peso H</th>
                   <td>{{ (loteSeleccionado.pesoInicialH ?? 0) | number:'1.0-3' }}</td>
-                </tr>
-                <tr>
                   <th scope="row">Peso M</th>
                   <td>{{ (loteSeleccionado.pesoInicialM ?? 0) | number:'1.0-3' }}</td>
-                  <th scope="row">Peso Mixto</th>
-                  <td>{{ (loteSeleccionado.pesoMixto ?? 0) | number:'1.0-3' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -247,8 +241,8 @@
               <tr>
                 <th scope="col">Lote Reproductora</th>
                 <th scope="col">Incubadora</th>
-                <th scope="col" colspan="3">Cantidad de aves</th>
-                <th scope="col" colspan="3">Peso llegada</th>
+                <th scope="col" colspan="2">Cantidad de aves</th>
+                <th scope="col" colspan="2">Peso llegada</th>
                 <th scope="col" class="seguimiento-table__actions">Acciones</th>
               </tr>
               <tr class="seguimiento-table__subhead">
@@ -256,17 +250,15 @@
                 <th scope="col"></th>
                 <th scope="col">M</th>
                 <th scope="col">H</th>
-                <th scope="col">Mixtas</th>
                 <th scope="col">Peso M</th>
                 <th scope="col">Peso H</th>
-                <th scope="col">Peso Mixto</th>
                 <th scope="col"></th>
               </tr>
             </thead>
             <tbody>
               @if (!loading && (!registros || !registros.length)) {
                 <tr class="seguimiento-table__empty">
-                  <td colspan="9">
+                  <td colspan="7">
                     <div class="empty-state">
                       <div class="empty-state__icon" aria-hidden="true">📋</div>
                       @if (!selectedLoteId) {
@@ -292,10 +284,8 @@
                   <td data-label="Incubadora">{{ r.reproductoraId }}</td>
                   <td data-label="Machos"><span class="cell-chip">{{ r.m ?? 0 }}</span></td>
                   <td data-label="Hembras"><span class="cell-chip">{{ r.h ?? 0 }}</span></td>
-                  <td data-label="Mixtas"><span class="cell-chip">{{ r.mixtas ?? 0 }}</span></td>
                   <td data-label="Peso M">{{ (r.pesoInicialM ?? 0) | number:'1.0-3' }}</td>
                   <td data-label="Peso H">{{ (r.pesoInicialH ?? 0) | number:'1.0-3' }}</td>
-                  <td data-label="Peso Mixto">{{ (r.pesoMixto ?? 0) | number:'1.0-3' }}</td>
                   <td class="seguimiento-table__actions" data-label="Acciones">
                     <div class="btn-group">
                       <button type="button" class="icon-btn" title="Ver" aria-label="Ver" (click)="view(r)">
@@ -380,10 +370,6 @@
                   <span class="detail-label">Hembras</span>
                   <span class="detail-value detail-value--bird detail-value--female">{{ detalleData?.h ?? 0 | number }}</span>
                 </div>
-                <div class="detail-item detail-item--bird">
-                  <span class="detail-label">Mixtas</span>
-                  <span class="detail-value detail-value--bird detail-value--mixed">{{ detalleData?.mixtas ?? 0 | number }}</span>
-                </div>
               </div>
             </section>
             <!-- Pesos -->
@@ -401,12 +387,6 @@
                   <span class="detail-label">Peso Hembras (kg)</span>
                   <span class="detail-value">{{ (detalleData?.pesoInicialH ?? 0) | number:'1.0-3' }}</span>
                 </div>
-                @if (detalleData?.pesoMixto) {
-                  <div class="detail-item">
-                    <span class="detail-label">Peso Mixto (kg)</span>
-                    <span class="detail-value">{{ detalleData?.pesoMixto | number:'1.0-3' }}</span>
-                  </div>
-                }
               </div>
             </section>
             <!-- Mortalidad en Caja -->
@@ -691,23 +671,6 @@
                                       </small>
                                     }
                                   </div>
-                                  <div class="form-field">
-                                    <label class="ux-label" for="inp-mixtas">Mixtas</label>
-                                    <input
-                                      id="inp-mixtas"
-                                      type="number"
-                                      class="ux-input"
-                                      [class.ux-input--error]="form.get('mixtas')?.invalid && form.get('mixtas')?.touched"
-                                      formControlName="mixtas"
-                                      inputmode="numeric"
-                                      min="0"
-                                      placeholder="0" />
-                                      @if (form.get('mixtas')?.invalid && form.get('mixtas')?.touched) {
-                                        <small class="field-error">
-                                          El valor debe ser mayor o igual a 0
-                                        </small>
-                                      }
-                                    </div>
                                   </div>
                                 </section>
                                 <!-- Peso llegada -->
@@ -1008,18 +971,6 @@
                                                                 </small>
                                                               }
                                                             </div>
-                                                            <div class="form-field">
-                                                              <label class="ux-label" [for]="'bulk-mixtas-' + i">Mixtas</label>
-                                                              <input
-                                                                [id]="'bulk-mixtas-' + i"
-                                                                type="number"
-                                                                class="ux-input"
-                                                                [class.ux-input--error]="g.get('mixtas')?.invalid && g.get('mixtas')?.touched"
-                                                                formControlName="mixtas"
-                                                                inputmode="numeric"
-                                                                min="0"
-                                                                placeholder="0" />
-                                                              </div>
                                                             </div>
                                                           </div>
                                                           <!-- Pesos -->

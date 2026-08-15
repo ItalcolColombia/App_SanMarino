@@ -5273,3 +5273,40 @@ parchando a mano (de ahí `LT`, `UND`, `GALONES`, `DOSIS`).
 - Backend y front dev **apagados**: puertos 5002 y 4200 libres.
 - ⚠️ Pendiente de decisión del usuario: **ItalcolPanamá** tiene los mismos 10 ítems clonados con la
   unidad por defecto y 0 divergencias en su stock ⇒ no se promovió su catálogo.
+
+---
+
+## Tickets pendientes de agosto 2026 (pedido 14ago) — un commit por caso
+
+**Plan:** [fase_de_desarrollo/tickets_pendientes_ago2026_plan.md](fase_de_desarrollo/tickets_pendientes_ago2026_plan.md)
+Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el ticket en
+`SOLUCIONADO` con la solución escrita para el usuario, sin correos.
+
+### T24 · TK-2026-000024 — Aves Mixtas fuera de reproductoras
+- [x] T24.1 Verificado en el dump: mixtas ≠ 0 en 0 filas (levante 0/22, base 0/30, lotes 0/22, producción 0/6)
+- [x] T24.2 Lote base (`lote-list`): fuera el input obligatorio, la columna y el detalle
+- [x] T24.3 Lote reproductora: fuera los 2 inputs (individual + masivo) y las columnas Mixtas / Peso Mixto
+- [x] T24.4 Al EDITAR se conserva el valor previo (no se pisa con 0) — sin spec: el harness de Karma del repo compila 0 specs
+- [x] T24.5 `yarn build` + smoke UI
+- [x] T24.6 Migración de cierre del ticket
+- [x] T24.7 Commit independiente
+
+### T22 · TK-2026-000022 — Indicadores levante sin H/M + columna Eficiencia
+- [ ] T22.1 Analizar de dónde sale EFICIENCIA y qué sexo muestra cada bloque
+- [ ] T22.2 Fix + tests
+- [ ] T22.3 Migración de cierre + commit
+
+### T23 · TK-2026-000023 — Producción: consumos duplicados, Unif./CV, dif. mortalidad
+- [ ] T23.1 Analizar CONS. H/M vs CONS. ORIG H/M y la fórmula de DIF MORT
+- [ ] T23.2 Fix + tests
+- [ ] T23.3 Migración de cierre + commit
+
+### T21 · TK-2026-000021 — Levante: saldo por sexo, Unif./CV, huevos
+- [ ] T21.1 Analizar el seguimiento y su Excel
+- [ ] T21.2 Fix + tests
+- [ ] T21.3 Migración de cierre + commit
+
+### T20 · TK-2026-000020 — S369 llega a la semana 24 y no cierra
+- [ ] T20.1 Confirmar el bloqueo real del cierre (semana 25 / guía genética / plantilla)
+- [ ] T20.2 Fix o respuesta operativa documentada
+- [ ] T20.3 Migración de cierre + commit
