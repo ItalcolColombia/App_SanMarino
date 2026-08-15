@@ -5314,10 +5314,19 @@ Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el 
 - [x] T23.8 `dotnet build` 0 err · `dotnet test` 2.480 verdes · `yarn build` OK
 - [x] T23.9 Migración de cierre + commit
 
-### T21 · TK-2026-000021 — Levante: saldo por sexo, Unif./CV, huevos
-- [ ] T21.1 Analizar el seguimiento y su Excel
-- [ ] T21.2 Fix + tests
-- [ ] T21.3 Migración de cierre + commit
+### T21 · TK-2026-000021 — Levante: saldo por sexo, Unif./CV, huevos  ⏸️ ESPERA DECISIÓN
+- [x] T21.1 Analizada la tabla `lote-levante/tabs-principal`: hoy `TOTAL MORT+SEL / DÍA` y `Saldo aves vivas` son **una sola cifra H+M**; no hay columnas de uniformidad ni de CV; las 3 de huevos están detrás del flag de empresa
+- [x] T21.2 Los datos existen: `seguimiento_diario_levante` tiene `uniformidad_hembras/machos` y `cv_hembras/machos`
+- [ ] T21.3 **Bloqueado por una decisión del usuario**: las columnas de huevos las enciende `companies.captura_huevos_en_levante`, que está en **`true` SOLO para Agroavicola Sanmarino** — el flag se creó a pedido de ellos (huevos en levante desde la semana 14) y alimenta el **arrastre de huevos al cerrar** hacia producción. Apagarlo no es solo esconder columnas: hay que definir qué pasa con esa captura y con el arrastre
+- [ ] T21.4 Fix del resto (salidas y saldo por sexo + uniformidad/CV en tabla y Excel)
+- [ ] T21.5 Migración de cierre + commit
+
+### T20 · TK-2026-000020 — S369 llega a la semana 24 y no cierra  ⏸️ FALTA EL ERROR EXACTO
+- [x] T20.1 Datos: S369A (`lote_postura_levante` 34, lote 142) tiene **168 registros** = 24 semanas exactas (29/08/2025 → 12/02/2026), `estado_cierre='Abierto'` y **no existe** `lote_postura_produccion`. S369B (35) igual, 168 registros
+- [x] T20.2 **El sistema NO bloquea el cierre por semana**: `CerrarLoteYCrearProduccionAsync` solo valida usuario, huevos ≥ 0, que no esté ya cerrado y que no exista un lote de producción. El botón «Cerrar lote» tampoco tiene condición de edad
+- [x] T20.3 Dato llamativo: los 4 registros de S369 tienen `estado='Produccion'` y `etapa='Produccion'` en `lote_postura_levante`, pero `estado_cierre='Abierto'` y sin lote de producción — quedaron así desde la carga del 12ago
+- [x] T20.4 La semana 25 sí aparece en la **liquidación** (`LiquidacionCierreLoteLevanteService` recorta a encaset+175 días y busca la fila de guía de la semana 25); con 168 días el lote llega 7 días corto de ese corte
+- [ ] T20.5 **Falta el mensaje de error exacto que ve el usuario** al intentar cerrar (o si el lote no le aparece en la lista). Con eso se decide si es un fix de código o faltan los 7 días en el archivo
 
 ### T20 · TK-2026-000020 — S369 llega a la semana 24 y no cierra
 - [ ] T20.1 Confirmar el bloqueo real del cierre (semana 25 / guía genética / plantilla)
