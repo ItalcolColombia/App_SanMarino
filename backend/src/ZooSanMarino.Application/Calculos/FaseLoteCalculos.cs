@@ -1,4 +1,7 @@
 // src/ZooSanMarino.Application/Calculos/FaseLoteCalculos.cs
+using System.Linq.Expressions;
+using ZooSanMarino.Domain.Entities;
+
 namespace ZooSanMarino.Application.Calculos;
 
 /// <summary>
@@ -56,4 +59,34 @@ public static class FaseLoteCalculos
     /// </summary>
     public static string Resolver(string? faseIndicada, int semanasDesdeEncaset) =>
         NormalizarFaseIndicada(faseIndicada) ?? DerivarPorEdad(semanasDesdeEncaset);
+
+    /// <summary>
+    /// ¿Este lote es un registro de LEVANTE, a los efectos de los reportes de levante?
+    ///
+    /// <para>
+    /// La fase NO sirve para responderlo por sí sola: sólo toma el valor <c>Produccion</c> en la
+    /// derivación por edad al crear el lote (<see cref="DerivarPorEdad"/>), y el paso real
+    /// levante → producción no la actualiza — crea una fila en <c>lote_postura_produccion</c> y un
+    /// lote hijo con <c>LotePadreId</c>. Testigo: los lotes K345A/B siguen en fase <c>Levante</c>
+    /// con su producción P-K345A/B ya andando.
+    /// </para>
+    ///
+    /// <para>
+    /// Filtrar por <c>fase == "Levante"</c> no separa levante de producción: esconde exactamente los
+    /// lotes cargados con historia (encaset de hace más de 26 semanas), que nacen en
+    /// <c>Produccion</c> aunque toda su data sea de levante. El único registro que legítimamente
+    /// NO es levante es el lote hijo de producción (fase <c>Produccion</c> <b>y</b> con padre),
+    /// el mismo criterio que ya usa el listado de lotes.
+    /// </para>
+    /// </summary>
+    public static bool EsRegistroLevante(string? fase, int? lotePadreId) =>
+        !(fase == Produccion && lotePadreId != null);
+
+    /// <summary>
+    /// <see cref="EsRegistroLevante"/> como expresión, para empujar el filtro a la BD en vez de
+    /// traer los lotes y filtrarlos en memoria. Es la misma regla: <c>FaseLoteCalculosTests</c>
+    /// verifica que la expresión compilada y el método coinciden en todas las combinaciones.
+    /// </summary>
+    public static Expression<Func<Lote, bool>> LoteEsRegistroLevante =>
+        l => !(l.Fase == Produccion && l.LotePadreId != null);
 }
