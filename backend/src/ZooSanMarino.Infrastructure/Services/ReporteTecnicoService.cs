@@ -2610,14 +2610,18 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 $"No hay lotes asociados al LotePosturaBase {request.LotePosturaBaseId}.");
 
         // --- 3. Obtener lotes levante ---
+        // Toda fila viva de lote_postura_levante ES el registro de levante del lote: la columna
+        // `etapa` sólo queda en "Produccion" por la derivación por edad al crear el lote (un
+        // encaset de hace más de 26 semanas ⇒ carga de histórico) y el paso real a producción
+        // nunca la actualiza. Filtrar por etapa == "Levante" escondía justamente los lotes
+        // cargados con historia — ver FaseLoteCalculos.EsRegistroLevante.
         var lotesLevanteQuery = _ctx.LotePosturaLevante
             .AsNoTracking()
             .Include(lpl => lpl.Farm)
             .Include(lpl => lpl.Nucleo)
             .Where(lpl => lotesIds.Contains(lpl.LoteId)
                        && lpl.CompanyId == _currentUser.CompanyId
-                       && lpl.DeletedAt == null
-                       && lpl.Etapa == "Levante");
+                       && lpl.DeletedAt == null);
 
         if (request.LoteLevanteId.HasValue)
             lotesLevanteQuery = lotesLevanteQuery

@@ -5368,3 +5368,22 @@ La guía genética de Sanmarino tiene **mortalidad semanal de machos corrupta** 
 la columna semanal. Antes quedaba diluido porque la tabla promediaba con hembras
 (`(0,10 + 8,88)/2 = 4,49 %`); ahora la columna «Guía Mort M» lo muestra crudo. **No se tocó**: es
 dato de su tabla genética y la corrección es de ellos.
+
+---
+
+## R1 · Reportes de postura ciegos a los lotes cargados como «Produccion» (14ago26, prod)
+
+Plan: [reportes_postura_lote_fase_produccion_plan.md](fase_de_desarrollo/reportes_postura_lote_fase_produccion_plan.md)
+
+`POST /api/ReporteTecnico/levante/obtener` con el lote base 30 (S369) responde
+«No se encontraron lotes levante para LotePosturaBase 30» aunque hay 168 seguimientos por sublote.
+
+- [x] R1.1 Diagnóstico contra la BD: los 4 `lote_postura_levante` de S369 tienen `etapa='Produccion'` sin fila en `lote_postura_produccion`
+- [x] R1.2 Confirmar que la transición real levante→producción NO toca `lpl.etapa` (testigo: K345)
+- [x] R1.3 `FaseLoteCalculos.EsRegistroLevante(fase, lotePadreId)` + tests xUnit
+- [x] R1.4 `ReporteTecnicoService` (~2620): quitar `lpl.Etapa == "Levante"`
+- [x] R1.5 `ReporteTecnicoSemanalService.Levante` (~25): excluir sólo el hijo de producción
+- [x] R1.6 `dotnet build` + `dotnet test` en verde
+- [x] R1.7 Smoke HTTP de los 10 reportes de postura (levante, producción, semanal, costos, contable)
+- [x] R1.8 No regresión en K345 y A374; documentar que A374 pasa de 2 a 4 sublotes de levante
+- [x] R1.9 Backend local apagado y `:5002` libre + commit

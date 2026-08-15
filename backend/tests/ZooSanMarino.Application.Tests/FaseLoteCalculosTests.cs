@@ -79,4 +79,64 @@ public class FaseLoteCalculosTests
     {
         Assert.Equal(new[] { "Levante", "Produccion" }, FaseLoteCalculos.Validas);
     }
+
+    // ── EsRegistroLevante: qué ve el reporte de levante ────────────────────────
+    // Motivo: el lote base S369 (encaset ago-2025, cargado ago-2026) nació en «Produccion» por
+    // edad, sin haber pasado nunca a producción, y los reportes de levante lo escondían pese a
+    // tener 168 seguimientos diarios por sublote.
+
+    [Fact]
+    public void EsRegistroLevante_un_lote_en_levante_es_levante()
+    {
+        Assert.True(FaseLoteCalculos.EsRegistroLevante("Levante", lotePadreId: null));
+    }
+
+    [Fact]
+    public void EsRegistroLevante_un_historico_cargado_como_produccion_sigue_siendo_levante()
+    {
+        // S369: fase «Produccion» derivada por edad, sin lote hijo de producción.
+        Assert.True(FaseLoteCalculos.EsRegistroLevante("Produccion", lotePadreId: null));
+    }
+
+    [Fact]
+    public void EsRegistroLevante_el_lote_hijo_de_produccion_NO_es_levante()
+    {
+        // El único registro que legítimamente no es levante: nace en CrearProduccionLoteAsync
+        // con fase «Produccion» y el levante como padre.
+        Assert.False(FaseLoteCalculos.EsRegistroLevante("Produccion", lotePadreId: 13));
+    }
+
+    [Fact]
+    public void EsRegistroLevante_un_sublote_de_levante_con_padre_sigue_siendo_levante()
+    {
+        // Caso K345B: LotePadreId = 13 (el sublote hermano), fase «Levante».
+        Assert.True(FaseLoteCalculos.EsRegistroLevante("Levante", lotePadreId: 13));
+    }
+
+    [Fact]
+    public void EsRegistroLevante_sin_fase_es_levante()
+    {
+        Assert.True(FaseLoteCalculos.EsRegistroLevante(null, lotePadreId: null));
+        Assert.True(FaseLoteCalculos.EsRegistroLevante(null, lotePadreId: 13));
+    }
+
+    [Fact]
+    public void LoteEsRegistroLevante_la_expresion_y_el_metodo_son_la_misma_regla()
+    {
+        // Una sola fórmula por número: la expresión que se empuja a la BD no puede divergir del
+        // predicado que cubren los tests de arriba.
+        var expr = FaseLoteCalculos.LoteEsRegistroLevante.Compile();
+
+        foreach (var fase in new string?[] { null, "", "Levante", "Produccion" })
+        foreach (var padre in new int?[] { null, 0, 13 })
+        {
+            var lote = new ZooSanMarino.Domain.Entities.Lote
+            {
+                LoteNombre = "X",
+                Fase = fase!,   // la columna fase es nullable en la BD, la propiedad no
+                LotePadreId = padre
+            };
+            Assert.Equal(FaseLoteCalculos.EsRegistroLevante(fase, padre), expr(lote));
+        }
+    }
 }

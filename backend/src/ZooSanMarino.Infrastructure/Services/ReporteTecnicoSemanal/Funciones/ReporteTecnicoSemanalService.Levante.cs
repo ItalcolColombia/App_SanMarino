@@ -17,13 +17,16 @@ public partial class ReporteTecnicoSemanalService
         var loteBase = await ResolverLoteBaseAsync(request.LotePosturaBaseId, companyId, ct);
 
         // Sublotes de levante del lote base (un lote por galpón).
+        // El descarte va por FaseLoteCalculos: se excluye el lote HIJO de producción, no todo lo
+        // que tenga fase "Produccion" — esa fase también la traen los lotes cargados con historia
+        // (encaset de hace más de 26 semanas), cuya data es de levante.
         var sublotes = await _ctx.Lotes
             .AsNoTracking()
             .Where(l => l.LotePosturaBaseId == request.LotePosturaBaseId
                         && l.CompanyId == companyId
                         && l.DeletedAt == null
-                        && l.Fase != "Produccion"
                         && l.LoteId != null)
+            .Where(FaseLoteCalculos.LoteEsRegistroLevante)
             .OrderBy(l => l.LoteNombre)
             .ToListAsync(ct);
 
