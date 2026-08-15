@@ -5314,12 +5314,17 @@ Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el 
 - [x] T23.8 `dotnet build` 0 err · `dotnet test` 2.480 verdes · `yarn build` OK
 - [x] T23.9 Migración de cierre + commit
 
-### T21 · TK-2026-000021 — Levante: saldo por sexo, Unif./CV, huevos  ⏸️ ESPERA DECISIÓN
+### T21 · TK-2026-000021 — Levante: saldo por sexo, Unif./CV, huevos
 - [x] T21.1 Analizada la tabla `lote-levante/tabs-principal`: hoy `TOTAL MORT+SEL / DÍA` y `Saldo aves vivas` son **una sola cifra H+M**; no hay columnas de uniformidad ni de CV; las 3 de huevos están detrás del flag de empresa
 - [x] T21.2 Los datos existen: `seguimiento_diario_levante` tiene `uniformidad_hembras/machos` y `cv_hembras/machos`
-- [ ] T21.3 **Bloqueado por una decisión del usuario**: las columnas de huevos las enciende `companies.captura_huevos_en_levante`, que está en **`true` SOLO para Agroavicola Sanmarino** — el flag se creó a pedido de ellos (huevos en levante desde la semana 14) y alimenta el **arrastre de huevos al cerrar** hacia producción. Apagarlo no es solo esconder columnas: hay que definir qué pasa con esa captura y con el arrastre
-- [ ] T21.4 Fix del resto (salidas y saldo por sexo + uniformidad/CV en tabla y Excel)
-- [ ] T21.5 Migración de cierre + commit
+- [x] T21.3 **Decisión del usuario: solo ocultar las columnas.** Los huevos salen de la tabla y del Excel de levante; la captura, el detalle y el **arrastre hacia producción al cerrar** quedan intactos. El flag `captura_huevos_en_levante` sigue vivo gobernando eso
+- [x] T21.4 `TOTAL MORT+SEL / DÍA` → dos columnas (hembras / machos) · `Saldo aves vivas` → `Saldo hembras` / `Saldo machos` (el saldo por sexo ya se calculaba, solo no se mostraba) · +4 columnas de Uniformidad y C.V. por sexo · mismo cambio en el Excel
+- [x] T21.5 ⚠️ Advertido en la solución: los lotes cargados **antes del 07ago26** no tienen C.V. porque la plantilla de carga masiva no traía la columna hasta entonces
+- [x] T21.6 `yarn build` OK · migración de cierre + commit
+
+### T20 (cierre) — respuesta operativa entregada
+- [x] T20.6 **Decisión del usuario: asumir que faltan los 7 días del archivo.** La solución explica que la carga trae lo que trae el archivo (168 de 175 días), que la importación es idempotente por lote+fecha (se puede resubir el archivo completo) y que **el cierre NO está bloqueado por semana**; se pide la captura del error exacto si al intentar cerrar les aparece uno
+- [x] T20.7 Migración de cierre + commit
 
 ### T20 · TK-2026-000020 — S369 llega a la semana 24 y no cierra  ⏸️ FALTA EL ERROR EXACTO
 - [x] T20.1 Datos: S369A (`lote_postura_levante` 34, lote 142) tiene **168 registros** = 24 semanas exactas (29/08/2025 → 12/02/2026), `estado_cierre='Abierto'` y **no existe** `lote_postura_produccion`. S369B (35) igual, 168 registros

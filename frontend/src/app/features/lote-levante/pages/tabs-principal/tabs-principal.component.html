@@ -215,7 +215,9 @@
                       <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
                       <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
                       <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
-                      <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
+                      <!-- TK-2026-000021: las salidas del día se totalizan POR SEXO. -->
+                      <th scope="col" class="th-diario th-diario--num th-diario--mort" title="Mortalidad + selección de hembras del día">TOTAL MORT+ SEL <span class="th-diario__sub">hembras / día</span></th>
+                      <th scope="col" class="th-diario th-diario--num th-diario--mort" title="Mortalidad + selección de machos del día">TOTAL MORT+ SEL <span class="th-diario__sub">machos / día</span></th>
                       @if (enriquecerTablaConHistoricoInventario) {
                         <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixtas</span></th>
                       }
@@ -225,7 +227,9 @@
                       @if (enriquecerTablaConHistoricoInventario) {
                         <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
                       }
-                      <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
+                      <!-- TK-2026-000021: el saldo de aves vivas se abre por sexo. -->
+                      <th scope="col" class="th-diario th-diario--num" title="Aves vivas hembras al cierre del día">Saldo <span class="th-diario__sub">hembras</span></th>
+                      <th scope="col" class="th-diario th-diario--num" title="Aves vivas machos al cierre del día">Saldo <span class="th-diario__sub">machos</span></th>
                       <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
                       <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
                       <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
@@ -236,20 +240,22 @@
                       <th scope="col" class="th-diario th-diario--num">% Retiro <span class="th-diario__sub">(Mort+Sel)/aves</span></th>
                       <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
                       <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+                      <!-- TK-2026-000021: uniformidad y coeficiente de variación, que se capturan
+                           en el registro diario pero no se estaban mostrando. -->
+                      <th scope="col" class="th-diario th-diario--num" title="Uniformidad de hembras del pesaje del día">Uniformidad <span class="th-diario__sub">hembras (%)</span></th>
+                      <th scope="col" class="th-diario th-diario--num" title="Uniformidad de machos del pesaje del día">Uniformidad <span class="th-diario__sub">machos (%)</span></th>
+                      <th scope="col" class="th-diario th-diario--num" title="Coeficiente de variación de hembras">C.V. <span class="th-diario__sub">hembras (%)</span></th>
+                      <th scope="col" class="th-diario th-diario--num" title="Coeficiente de variación de machos">C.V. <span class="th-diario__sub">machos (%)</span></th>
                       <!-- 🔀 Feature 13 — traslados por género (4 columnas dedicadas) -->
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Hembras recibidas por traslado">↘ Ing. <span class="th-diario__sub">hembras</span></th>
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Machos recibidos por traslado">↘ Ing. <span class="th-diario__sub">machos</span></th>
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Hembras enviadas por traslado">↗ Sal. <span class="th-diario__sub">hembras</span></th>
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">↗ Sal. <span class="th-diario__sub">machos</span></th>
                       <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">Venta <span class="th-diario__sub">aves</span></th>
-                      <!-- 🥚 Huevos (semana 14+) — sólo empresas con captura_huevos_en_levante.
-                           En pantalla van los 3 agregados; el desglose de las 11 categorías está en
-                           el modal de detalle (👁️) y en el Excel. -->
-                      @if (mostrarColumnasHuevos) {
-                        <th scope="col" class="th-diario th-diario--num" title="Huevos totales del día">🥚 Huevos <span class="th-diario__sub">total</span></th>
-                        <th scope="col" class="th-diario th-diario--num" title="Huevos incubables del día (limpio + tratado)">🥚 Huevos <span class="th-diario__sub">incubables</span></th>
-                        <th scope="col" class="th-diario th-diario--num" title="Peso promedio del huevo (g)">🥚 Peso <span class="th-diario__sub">huevo (g)</span></th>
-                      }
+                      <!-- 🥚 TK-2026-000021: los huevos son tema de PRODUCCIÓN y salieron de esta
+                           tabla. La captura sigue existiendo (el modal de registro, el detalle 👁️ y
+                           el Excel), y el arrastre de huevos al cerrar el levante hacia producción
+                           no se toca: solo se dejan de mostrar acá. -->
                       <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
                       <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                     </tr>
@@ -275,7 +281,8 @@
                         <td>{{ f.seg.mortalidadMachos }}</td>
                         <td>{{ f.seg.selH }}</td>
                         <td>{{ f.seg.selM }}</td>
-                        <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
+                        <td class="num">{{ f.totalMortSelDiaH | number:'1.0-0' }}</td>
+                        <td class="num">{{ f.totalMortSelDiaM | number:'1.0-0' }}</td>
                         @if (enriquecerTablaConHistoricoInventario) {
                           <td class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
                         }
@@ -285,7 +292,8 @@
                         @if (enriquecerTablaConHistoricoInventario) {
                           <td class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.0-3') : '—' }}</td>
                         }
-                        <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
+                        <td class="num">{{ f.saldoAvesH | number:'1.0-0' }}</td>
+                        <td class="num">{{ f.saldoAvesM | number:'1.0-0' }}</td>
                         <td>{{ f.tipoAlimentoCorto }}</td>
                         <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
                         <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
@@ -296,6 +304,10 @@
                         <td class="num">{{ f.pctRetiroSemana != null ? (f.pctRetiroSemana | number:'1.0-2') + '%' : '—' }}</td>
                         <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
                         <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
+                        <td class="num">{{ f.seg.uniformidadH != null ? (f.seg.uniformidadH | number:'1.0-2') : '—' }}</td>
+                        <td class="num">{{ f.seg.uniformidadM != null ? (f.seg.uniformidadM | number:'1.0-2') : '—' }}</td>
+                        <td class="num">{{ f.seg.cvH != null ? (f.seg.cvH | number:'1.0-2') : '—' }}</td>
+                        <td class="num">{{ f.seg.cvM != null ? (f.seg.cvM | number:'1.0-2') : '—' }}</td>
                         <!-- 🔀 Feature 13 — traslados por género -->
                         <td class="num cell-mov cell-mov--entrada"
                           [class.cell-mov--valor]="(f.seg.trasladoIngresoHembras || 0) > 0"
@@ -322,11 +334,6 @@
                           [title]="f.seg.ventaAvesCantidad ? 'Venta: ' + f.seg.ventaAvesCantidad + ' aves' + (f.seg.ventaAvesMotivo ? ' — ' + f.seg.ventaAvesMotivo : '') : ''">
                           {{ f.seg.ventaAvesCantidad != null && f.seg.ventaAvesCantidad > 0 ? (f.seg.ventaAvesCantidad | number:'1.0-0') : '—' }}
                         </td>
-                        @if (mostrarColumnasHuevos) {
-                          <td class="num">{{ f.seg.huevoTot != null && f.seg.huevoTot > 0 ? (f.seg.huevoTot | number:'1.0-0') : '—' }}</td>
-                          <td class="num">{{ f.seg.huevoInc != null && f.seg.huevoInc > 0 ? (f.seg.huevoInc | number:'1.0-0') : '—' }}</td>
-                          <td class="num">{{ f.seg.pesoHuevo != null && f.seg.pesoHuevo > 0 ? (f.seg.pesoHuevo | number:'1.0-2') : '—' }}</td>
-                        }
                         <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
                         <td class="text-right">
                           <div class="btn-group">
