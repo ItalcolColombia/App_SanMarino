@@ -1,6 +1,7 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
+import { ValidacionSeguimientoService } from '../../../../shared/services/validacion-seguimiento.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -184,6 +185,8 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   constructor(private toast: ToastService,
     /** Rechazos que el usuario TIENE que leer van en modal, no en toast (ver AvisoValidacionService). */
     private aviso: AvisoValidacionService,
+    /** Doble validación: alerta de registros vencidos al entrar al lote. */
+    private validacionSvc: ValidacionSeguimientoService,
 
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
@@ -380,6 +383,10 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.resumenSelected = null;
 
     if (!this.selectedLoteId) return;
+
+    // Alarma al entrar al lote: si hay registros vencidos sin validar hay que verlo ANTES de
+    // ponerse a cargar el día siguiente, porque además el backend va a rechazar ese alta.
+    this.avisarPendientesDeValidacion(this.selectedLoteId);
 
     this.loading = true;
     this.segSvc.getByLoteId(this.selectedLoteId)
@@ -740,6 +747,18 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
       error: (err: unknown) => {
         void this.aviso.error(err, 'No se pudo guardar el seguimiento.', 'No se pudo guardar el seguimiento');
       }
+    });
+  }
+
+  /**
+   * Modal rojo con los registros pendientes de validar del lote. Solo aparece si la empresa opera
+   * con doble validación y hay al menos uno VENCIDO: avisar por los que todavía están en plazo
+   * convertiría la alarma en ruido diario y dejaría de mirarse.
+   */
+  private avisarPendientesDeValidacion(loteId: number): void {
+    this.validacionSvc.pendientes('LEVANTE', loteId).subscribe(p => {
+      if (!p.requiereValidacion || p.vencidos <= 0 || !p.mensaje) return;
+      void this.aviso.alertaPendientes(p.mensaje);
     });
   }
 

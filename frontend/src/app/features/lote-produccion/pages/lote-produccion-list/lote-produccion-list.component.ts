@@ -6,6 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
+import { ValidacionSeguimientoService } from '../../../../shared/services/validacion-seguimiento.service';
 import { MENSAJE_GUARDADO_SIN_RED, esRespuestaPendiente } from '../../../../shared/offline/funciones/respuesta-pendiente.funcion';
 import { finalize, map, tap } from 'rxjs/operators';
 
@@ -160,6 +161,8 @@ export class LoteProduccionListComponent implements OnInit {
   private readonly toast = inject(ToastService);
   /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
   private readonly aviso = inject(AvisoValidacionService);
+  /** Doble validación: alerta de registros vencidos al entrar al lote. */
+  private readonly validacionSvc = inject(ValidacionSeguimientoService);
   private readonly auth = inject(AuthService);
 
   constructor(private confirmDialog: ConfirmDialogService, 
@@ -401,6 +404,10 @@ export class LoteProduccionListComponent implements OnInit {
     this.filtroHasta = null;
 
     if (!this.selectedLoteId) return;
+
+    // Alarma al entrar al lote: si hay registros vencidos sin validar hay que verlo ANTES de
+    // ponerse a cargar el día siguiente, porque además el backend va a rechazar ese alta.
+    this.avisarPendientesDeValidacion(this.selectedLoteId);
 
     this.loading = true;
 
@@ -960,6 +967,18 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
           this.toast.error(msg);
         }
       });
+  }
+
+  /**
+   * Modal rojo con los registros pendientes de validar del lote. Solo aparece si la empresa opera
+   * con doble validación y hay al menos uno VENCIDO: avisar por los que todavía están en plazo
+   * convertiría la alarma en ruido diario y dejaría de mirarse.
+   */
+  private avisarPendientesDeValidacion(loteId: number): void {
+    this.validacionSvc.pendientes('PRODUCCION', loteId).subscribe(p => {
+      if (!p.requiereValidacion || p.vencidos <= 0 || !p.mensaje) return;
+      void this.aviso.alertaPendientes(p.mensaje);
+    });
   }
 
   openDetailModal(seguimiento: SeguimientoItemDto): void {

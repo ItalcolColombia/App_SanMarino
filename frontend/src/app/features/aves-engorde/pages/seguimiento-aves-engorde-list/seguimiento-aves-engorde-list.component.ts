@@ -39,6 +39,8 @@ import { expand, map, reduce } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { ActiveCompanyConfigService } from '../../../../core/services/company-config/active-company-config.service';
+import { AvisoValidacionService } from '../../../../shared/services/aviso-validacion.service';
+import { ValidacionSeguimientoService } from '../../../../shared/services/validacion-seguimiento.service';
 
 @Component({
   selector: 'app-seguimiento-aves-engorde-list',
@@ -151,8 +153,24 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     private galponSvc: GalponService,
     private catalogSvc: CatalogoAlimentosService,
     private companyConfig: ActiveCompanyConfigService,
-    private toast: ToastService
+    private toast: ToastService,
+    /** Rechazos que el usuario TIENE que leer van en modal, no en toast. */
+    private aviso: AvisoValidacionService,
+    /** Doble validación: alerta de registros vencidos al entrar al lote. */
+    private validacionSvc: ValidacionSeguimientoService
   ) {}
+
+  /**
+   * Modal rojo con los registros pendientes de validar del lote. Solo aparece si la empresa opera
+   * con doble validación y hay al menos uno VENCIDO: avisar por los que todavía están en plazo
+   * convertiría la alarma en ruido diario y dejaría de mirarse.
+   */
+  private avisarPendientesDeValidacion(loteId: number): void {
+    this.validacionSvc.pendientes('ENGORDE', loteId).subscribe(p => {
+      if (!p.requiereValidacion || p.vencidos <= 0 || !p.mensaje) return;
+      void this.aviso.alertaPendientes(p.mensaje);
+    });
+  }
 
   /** Total aves disponibles para seguimiento (hembras + machos, después de restar asignadas a reproductoras). */
   get avesDisponiblesTotal(): number {
@@ -344,6 +362,11 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.avesDisponibles = null;
     this.lotesReproductora = [];
     if (!this.selectedLoteId) return;
+
+    // Alarma al entrar al lote: si hay registros vencidos sin validar hay que verlo ANTES de
+    // ponerse a cargar el día siguiente, porque además el backend va a rechazar ese alta.
+    this.avisarPendientesDeValidacion(this.selectedLoteId);
+
     this.loading = true;
     const id = this.selectedLoteId;
     // Lote seleccionado = lote_ave_engorde. Cargar detalle, seguimientos, aves disponibles y lotes reproductora.
