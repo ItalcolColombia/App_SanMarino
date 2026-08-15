@@ -5402,3 +5402,32 @@ Plan: [reporte_levante_peso_gramos_vs_kg_plan.md](fase_de_desarrollo/reporte_lev
 - [x] R2.4 `dotnet build` + `dotnet test` + `yarn build`
 - [x] R2.5 Smoke: S369 y K345 con %Dif en rango y Excel con Real/Guía en la misma unidad
 - [x] R2.6 Backend apagado, `:5002` libre + commit
+
+---
+
+## V1 · Doble validación de los seguimientos diarios (14ago26)
+
+Plan: [doble_validacion_seguimientos_diarios_plan.md](fase_de_desarrollo/doble_validacion_seguimientos_diarios_plan.md)
+
+Los 4 seguimientos diarios descuentan alimento y aves al guardar; se corrige a mano por debajo cuando
+la captura sale mal. Se agrega alimento obligatorio, modal con el motivo del rechazo, y una **doble
+validación** con permiso: hasta validar, el registro se puede editar/eliminar y el alimento y las aves
+quedan **separados (reservados)**, no descontados. Decisiones del usuario: flag por empresa (OFF por
+defecto), reproductora se unifica al modelo nuevo, los vencidos **bloquean** días nuevos, y el
+histórico se marca validado.
+
+- [ ] V1.1 Flag `requiere_validacion_seguimiento_diario` en `companies` + las 4 proyecciones de `CompanyDto` + `ActiveCompanyConfigService`
+- [ ] V1.2 Columnas `validado/validado_at/validado_por` en las 4 tablas + backfill `true` de lo existente
+- [ ] V1.3 Tablas `seguimiento_reserva_alimento` y `seguimiento_reserva_aves` + índices únicos parciales
+- [x] V1.4 Cálculos puros `ValidacionSeguimientoCalculos`, `AlimentoObligatorioCalculos`, `ReservaSeguimientoCalculos` + tests xUnit
+- [ ] V1.5 `ValidacionSeguimientoService` (validar / des-validar / pendientes) + endpoints
+- [ ] V1.6 Descuento diferido tras el flag en los 5 Crud (levante, producción, engorde CO, engorde EC, reproductora)
+- [ ] V1.7 Disponible = stock − reservas activas (inventario + formularios de los 4 módulos)
+- [ ] V1.8 Alimento obligatorio (mixto en engorde; H/M en postura) back + front
+- [ ] V1.9 Modal compartido con el motivo del rechazo (fecha duplicada, campos vacíos, 400 del backend)
+- [ ] V1.10 Estado por registro: fila roja, badge «En retraso», alarma y modal de pendientes al entrar al lote
+- [ ] V1.11 Bloqueo de días nuevos mientras haya vencidos sin validar
+- [ ] V1.12 Permisos `seguimiento_{levante,produccion,engorde}.validar` + seed idempotente
+- [x] V1.13 Ticket ItalJira: caso + historia + tareas con tiempos, asignado a moiesbbuga@gmail.com
+- [ ] V1.14 `dotnet build` + `dotnet test` + `yarn build`, gate de paridad multipaís y smoke doble (flag OFF y ON)
+- [ ] V1.15 Backend local apagado, `:5002` libre + commit

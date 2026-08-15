@@ -72,5 +72,24 @@ public class SeguimientoDiarioAvesEngorde
     /// </summary>
     public bool OrigenCruce { get; set; }
 
+    // ── Doble validación ───────────────────────────────────────────
+    /// <summary>
+    /// Segunda confirmación del registro. Mientras está en <c>false</c> el seguimiento se puede
+    /// editar y eliminar, y el alimento y las aves quedan SEPARADOS (ver
+    /// <see cref="SeguimientoReservaAlimento"/>) en vez de descontados; al validar se aplica el
+    /// consumo real y el descuento de aves.
+    /// <para>
+    /// Solo tiene efecto en empresas con <c>requiere_validacion_seguimiento_diario</c>. En las demás
+    /// quedó en <c>true</c> por el backfill y nada lo lee.
+    /// </para>
+    /// <para>
+    /// Los registros con <see cref="OrigenCruce"/> nacen validados: los escribe el trigger de BD
+    /// desde reproductora, ya confirmados en su origen, y nadie los edita a mano.
+    /// </para>
+    /// </summary>
+    public bool Validado { get; set; }
+    public DateTime? ValidadoAt { get; set; }
+    public string? ValidadoPor { get; set; }
+
     public virtual LoteAveEngorde? LoteAveEngorde { get; set; }
 }

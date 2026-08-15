@@ -81,7 +81,8 @@ public partial class CompanyService
             ProgramacionLotesEngorde = dto.ProgramacionLotesEngorde,
             NombreLoteIncluyeCorrida = dto.NombreLoteIncluyeCorrida,
             ManejaInventarioPorSilo = dto.ManejaInventarioPorSilo,
-            ReportesAlimentoDesdeInventarioUnificado = dto.ReportesAlimentoDesdeInventarioUnificado
+            ReportesAlimentoDesdeInventarioUnificado = dto.ReportesAlimentoDesdeInventarioUnificado,
+            RequiereValidacionSeguimientoDiario = dto.RequiereValidacionSeguimientoDiario
         };
 
         _ctx.Companies.Add(c);
@@ -137,6 +138,8 @@ public partial class CompanyService
         c.ManejaInventarioPorSilo = dto.ManejaInventarioPorSilo ?? c.ManejaInventarioPorSilo;
         c.ReportesAlimentoDesdeInventarioUnificado =
             dto.ReportesAlimentoDesdeInventarioUnificado ?? c.ReportesAlimentoDesdeInventarioUnificado;
+        c.RequiereValidacionSeguimientoDiario =
+            dto.RequiereValidacionSeguimientoDiario ?? c.RequiereValidacionSeguimientoDiario;
 
         await _ctx.SaveChangesAsync();
 

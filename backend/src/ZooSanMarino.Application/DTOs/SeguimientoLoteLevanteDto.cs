@@ -74,5 +74,14 @@ public record SeguimientoLoteLevanteDto(
     int? HuevoOtro = null,
     double? PesoHuevo = null,
     int? HuevoTot = null,
-    int? HuevoInc = null
+    int? HuevoInc = null,
+    // ── Doble validación (empresas con companies.requiere_validacion_seguimiento_diario) ──────────
+    // Mientras Validado es false el registro se puede editar y eliminar, y su alimento y aves están
+    // SEPARADOS (reservados), no descontados. Estado es derivado — VALIDADO | PENDIENTE | EN_RETRASO —
+    // y lo calcula el backend con la fecha del registro: el front lo usa para el badge, la fila roja
+    // y el ícono de alarma, sin repetir la regla del plazo.
+    bool Validado = false,
+    DateTime? ValidadoAt = null,
+    string? ValidadoPor = null,
+    string? EstadoValidacion = null
 );

@@ -39,3 +39,57 @@
   cursor: grabbing;
   user-select: none;
 }
+
+// ─── Doble validación de los seguimientos diarios ────────────────────────────
+// Estado por FILA de las tablas diarias (levante, producción, pollo engorde y reproductora).
+// Vive acá y no en el .scss de cada módulo porque los cuatro tienen que verse igual: un registro
+// vencido en levante no puede leerse distinto que uno vencido en engorde.
+// Los colores salen de los tokens de marca — rojo = peligro, y esto lo es: el registro no descontó
+// nada todavía y ya pasó su plazo.
+
+.fila-validacion--retraso {
+  background-color: #fef2f2; // rojo 50
+  box-shadow: inset 3px 0 0 0 #dc2626; // barra izquierda: se ve incluso con la fila seleccionada
+}
+
+.fila-validacion--retraso:hover {
+  background-color: #fee2e2; // rojo 100
+}
+
+// Pendiente dentro del plazo: se señala, no se alarma.
+.fila-validacion--pendiente {
+  box-shadow: inset 3px 0 0 0 #f59e0b; // ámbar 500
+}
+
+.badge-validacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.badge-validacion--validado  { background-color: #dcfce7; color: #15803d; } // verde = éxito
+.badge-validacion--pendiente { background-color: #f1f5f9; color: #475569; } // gris = neutro
+.badge-validacion--retraso   { background-color: #fee2e2; color: #b91c1c; } // rojo = peligro
+
+// Campanita de alarma del registro vencido.
+.icono-alarma-validacion {
+  color: #dc2626;
+  animation: parpadeo-alarma 1.6s ease-in-out infinite;
+}
+
+@keyframes parpadeo-alarma {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+// Respeta la preferencia del sistema: el parpadeo es señal, no decoración, pero no se le impone a
+// quien pidió menos movimiento.
+@media (prefers-reduced-motion: reduce) {
+  .icono-alarma-validacion { animation: none; }
+}

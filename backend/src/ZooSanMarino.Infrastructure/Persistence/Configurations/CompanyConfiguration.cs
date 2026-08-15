@@ -117,6 +117,13 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .HasDefaultValue(false)
             .IsRequired();
 
+        // Flag tipado por comportamiento: los seguimientos diarios separan al guardar y descuentan al
+        // validar. Default false = se descuenta al guardar, como siempre.
+        builder.Property(x => x.RequiereValidacionSeguimientoDiario)
+            .HasColumnName("requiere_validacion_seguimiento_diario")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(x => x.Identifier);
     }
 }

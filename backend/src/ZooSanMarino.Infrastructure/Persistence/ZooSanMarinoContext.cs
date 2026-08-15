@@ -66,6 +66,10 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<FarmInventoryMovement> FarmInventoryMovements => Set<FarmInventoryMovement>();
         public DbSet<InventarioGestionStock> InventarioGestionStock => Set<InventarioGestionStock>();
         public DbSet<InventarioGestionMovimiento> InventarioGestionMovimientos => Set<InventarioGestionMovimiento>();
+        // Separación (reserva) de un seguimiento diario pendiente de validar: compromete disponible
+        // sin tocar stock ni movimientos. Ver SeguimientoReservaAlimento.
+        public DbSet<SeguimientoReservaAlimento> SeguimientoReservaAlimento => Set<SeguimientoReservaAlimento>();
+        public DbSet<SeguimientoReservaAves> SeguimientoReservaAves => Set<SeguimientoReservaAves>();
         public DbSet<ItemInventario> ItemInventario => Set<ItemInventario>();
         public DbSet<ProduccionResultadoLevante> ProduccionResultadoLevante => Set<ProduccionResultadoLevante>();
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();

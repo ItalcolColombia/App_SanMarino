@@ -58,5 +58,11 @@ public record CompanyDto(
     /// Los reportes Contable y Técnico leen el alimento del inventario unificado
     /// (<c>inventario_gestion_movimiento</c>) en vez de la tabla vieja.
     /// </summary>
-    bool ReportesAlimentoDesdeInventarioUnificado = false
+    bool ReportesAlimentoDesdeInventarioUnificado = false,
+    /// <summary>
+    /// Los seguimientos diarios exigen doble validación: al guardar se separa (reserva) el alimento y
+    /// las aves, y el descuento real ocurre al validar. El front lo usa para mostrar la columna
+    /// Estado, el botón Validar, el semáforo de retraso y el modal de pendientes.
+    /// </summary>
+    bool RequiereValidacionSeguimientoDiario = false
 );
