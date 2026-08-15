@@ -42,5 +42,7 @@ public record CreateCompanyDto(
     /// <summary>Los reportes leen el alimento del inventario unificado, no de la tabla vieja.</summary>
     bool     ReportesAlimentoDesdeInventarioUnificado = false,
     /// <summary>Los seguimientos diarios exigen doble validación (separan al guardar, descuentan al validar).</summary>
-    bool     RequiereValidacionSeguimientoDiario = false
+    bool     RequiereValidacionSeguimientoDiario = false,
+    bool     SeguimientoEngordeMixto = false,
+    bool     ReporteCostosAlimentoDesdeFuentesReales = false
 );

@@ -123,7 +123,9 @@ public class CompanyPaisService : ICompanyPaisService
             NombreLoteIncluyeCorrida: cp.Company.NombreLoteIncluyeCorrida,
             ManejaInventarioPorSilo: cp.Company.ManejaInventarioPorSilo,
             ReportesAlimentoDesdeInventarioUnificado: cp.Company.ReportesAlimentoDesdeInventarioUnificado,
-            RequiereValidacionSeguimientoDiario: cp.Company.RequiereValidacionSeguimientoDiario
+            RequiereValidacionSeguimientoDiario: cp.Company.RequiereValidacionSeguimientoDiario,
+            SeguimientoEngordeMixto: cp.Company.SeguimientoEngordeMixto,
+            ReporteCostosAlimentoDesdeFuentesReales: cp.Company.ReporteCostosAlimentoDesdeFuentesReales
         )).ToList();
     }
 

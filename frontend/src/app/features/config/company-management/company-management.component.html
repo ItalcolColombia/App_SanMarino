@@ -730,16 +730,36 @@
                               <span class="text-sm text-warm-gray-700">Acceso móvil</span>
                             </label>
                           </div>
-                          <!-- Default global: manejo de alimento (galpón vs granja). Cada granja puede overridear. -->
+                          <!-- Comportamiento del sistema para esta empresa.
+                               Los checkboxes salen del catálogo funciones/flags-empresa.funcion.ts:
+                               agregar un flag nuevo NO requiere tocar esta plantilla. -->
                           <div class="rounded-xl border p-3 bg-white/60">
-                            <div class="text-sm font-semibold text-warm-gray-700 mb-2">Manejo de alimento</div>
-                            <label class="inline-flex items-start gap-2">
-                              <input type="checkbox" formControlName="manejaAlimentoPorGalpon" class="h-4 w-4 mt-0.5 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
-                              <span class="text-sm text-warm-gray-700">
-                                Manejar alimento a nivel <b>galpón</b>
-                                <span class="block text-xs text-warm-gray-500">Si se desactiva, el alimento se maneja a nivel <b>granja</b>. Cada granja puede cambiarlo individualmente.</span>
-                              </span>
-                            </label>
+                            <div class="flex items-center justify-between mb-1">
+                              <div class="text-sm font-semibold text-warm-gray-700">Comportamiento del sistema</div>
+                              <span class="text-xs text-warm-gray-500">{{ flagsActivosEnFormulario }} de {{ totalFlags }} activos</span>
+                            </div>
+                            <p class="text-xs text-warm-gray-500 mb-3">
+                              Cada opción cambia cómo funciona la aplicación <b>solo para esta empresa</b>. Todas
+                              nacen apagadas: apagada, el comportamiento es el de siempre.
+                            </p>
+
+                            @for (grupo of gruposFlags; track grupo) {
+                              <div class="mb-3 last:mb-0">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-warm-gray-500 mb-2">{{ grupo }}</div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  @for (flag of flagsDe(grupo); track trackByFlag($index, flag)) {
+                                    <label class="inline-flex items-start gap-2 rounded-lg border border-warm-gray-200 p-2 hover:bg-warm-gray-50">
+                                      <input type="checkbox" [formControlName]="flag.key"
+                                        class="h-4 w-4 mt-0.5 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+                                      <span class="text-sm text-warm-gray-700">
+                                        {{ flag.titulo }}
+                                        <span class="block text-xs text-warm-gray-500 mt-0.5">{{ flag.descripcion }}</span>
+                                      </span>
+                                    </label>
+                                  }
+                                </div>
+                              </div>
+                            }
                           </div>
                           <!-- Ventana de alimento previo al encaset (engorde): días que se cuentan como ingreso inicial del ciclo -->
                           <div class="rounded-xl border p-3 bg-white/60">

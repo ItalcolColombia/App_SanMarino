@@ -53,6 +53,8 @@ public partial class CompanyService : ICompanyService
         c.NombreLoteIncluyeCorrida,
         c.ManejaInventarioPorSilo,
         c.ReportesAlimentoDesdeInventarioUnificado,
-        c.RequiereValidacionSeguimientoDiario
+        c.RequiereValidacionSeguimientoDiario,
+        c.SeguimientoEngordeMixto,
+        c.ReporteCostosAlimentoDesdeFuentesReales
     );
 }

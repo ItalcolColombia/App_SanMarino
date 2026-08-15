@@ -5498,3 +5498,20 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
 
 ### Hallazgo lateral (preexistente, fuera de esta entrega)
 - [ ] X.1 `DELETE /planes/{id}` hace soft-delete del plan pero **deja vivas sus tareas y firmas**. No hay fuga (todas las consultas filtran por `Plan.DeletedAt == null`), pero acumula huérfanos en BD
+
+---
+
+## V2 · Los flags por empresa se administran desde la pantalla de Empresas (15ago26)
+
+El formulario de empresa exponía **1 de 13** flags de comportamiento; el resto se encendía por SQL,
+así que operación no podía ver ni cambiar la configuración de su propia empresa. Además dos flags
+(`seguimiento_engorde_mixto`, `reporte_costos_alimento_desde_fuentes_reales`) ni siquiera llegaban a
+los DTO: vivían solo en la base.
+
+- [x] V2.1 Los 2 flags que faltaban, agregados a `CompanyDto`/`Create`/`Update` y a las 4 proyecciones
+- [x] V2.2 Catálogo `funciones/flags-empresa.funcion.ts`: los 14 flags como DATO, con título, explicación y grupo
+- [x] V2.3 Formulario: controles, precarga al editar y payload armados desde el catálogo
+- [x] V2.4 Sección «Comportamiento del sistema» agrupada (Inventario · Postura · Engorde · Operación) con contador de activos
+- [x] V2.5 `CompanyDto` del front con los 14 flags
+- [x] V2.6 Flag de doble validación ENCENDIDO para ItalcolPanama (local)
+- [x] V2.7 `dotnet build` + 2574 tests + `yarn build` sin errores de TypeScript ni de plantilla

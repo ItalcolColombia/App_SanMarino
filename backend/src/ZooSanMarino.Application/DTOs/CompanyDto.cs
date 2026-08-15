@@ -64,5 +64,9 @@ public record CompanyDto(
     /// las aves, y el descuento real ocurre al validar. El front lo usa para mostrar la columna
     /// Estado, el botón Validar, el semáforo de retraso y el modal de pendientes.
     /// </summary>
-    bool RequiereValidacionSeguimientoDiario = false
+    bool RequiereValidacionSeguimientoDiario = false,
+    /// <summary>Pollo engorde en modo MIXTO: una sola columna en vez de hembras/machos.</summary>
+    bool SeguimientoEngordeMixto = false,
+    /// <summary>El reporte de costos toma el alimento de las fuentes reales de inventario.</summary>
+    bool ReporteCostosAlimentoDesdeFuentesReales = false
 );

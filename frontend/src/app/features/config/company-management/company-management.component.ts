@@ -43,6 +43,11 @@ import {
 import { filterRoles, getCombinedPermissions, getRolePermissions } from './funciones/roles.funcion';
 import { diffPaises, addPaisesOps } from './funciones/paises.funcion';
 import { filtrarPermisosEmpresa, contarPermisosEnUsoQueSeApagan } from './funciones/permisos-empresa.funcion';
+import {
+  FLAGS_EMPRESA, GRUPOS_FLAGS_EMPRESA, flagsDelGrupo, controlesDeFlags,
+  valoresDeFlags, flagsDelFormulario, contarFlagsActivos,
+  type FlagEmpresa, type GrupoFlagEmpresa
+} from './funciones/flags-empresa.funcion';
 
 @Component({
   selector: 'app-company-management',
@@ -188,8 +193,9 @@ export class CompanyManagementComponent implements OnInit {
         this.allModules.reduce((acc, mod) => { acc[mod.key] = [false]; return acc; }, {} as Record<string, unknown>)
       ),
       mobileAccess: [false],
-      // Default GLOBAL: ¿el alimento se maneja a nivel GALPÓN? (cada granja puede overridear)
-      manejaAlimentoPorGalpon: [false],
+      // Los flags de comportamiento salen del catálogo (funciones/flags-empresa.funcion.ts):
+      // agregar uno nuevo es una línea allá, sin tocar el formulario ni el guardado.
+      ...controlesDeFlags(),
       // Días previos al encaset cuyo alimento cuenta como «ingreso inicial del ciclo» (0-30, default 10)
       diasAlimentoPrevioEncaset: [10, [Validators.min(0), Validators.max(30)]]
     });
@@ -370,7 +376,12 @@ export class CompanyManagementComponent implements OnInit {
     if (c) {
       this.applyCompanyToModal(c);
     } else {
-      this.form.reset({ id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '', country: '', state: '', city: '', mobileAccess: false, manejaAlimentoPorGalpon: false, diasAlimentoPrevioEncaset: 10 });
+      // Empresa nueva: todos los flags apagados, que es el default de todas las columnas.
+      this.form.reset({
+        id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '',
+        country: '', state: '', city: '', mobileAccess: false, diasAlimentoPrevioEncaset: 10,
+        ...valoresDeFlags(null)
+      });
       this.geoSelects = { ...this.geoSelects, states: [], cities: [] };
     }
     this.modalOpen = true;
@@ -391,8 +402,8 @@ export class CompanyManagementComponent implements OnInit {
       phone: c.phone ?? '', email: c.email ?? '',
       country: codeCountry, state: codeDept, city: cityName,
       mobileAccess: c.mobileAccess ?? false,
-      manejaAlimentoPorGalpon: c.manejaAlimentoPorGalpon ?? false,
-      diasAlimentoPrevioEncaset: c.diasAlimentoPrevioEncaset ?? 10
+      diasAlimentoPrevioEncaset: c.diasAlimentoPrevioEncaset ?? 10,
+      ...valoresDeFlags(c as unknown as Record<string, unknown>)
     });
 
     const vp = this.form.get('visualPermissions') as FormGroup;
@@ -446,8 +457,10 @@ export class CompanyManagementComponent implements OnInit {
       phone: v.phone, email: v.email,
       country: v.country, state: v.state, city: v.city,
       visualPermissions: vp, mobileAccess: v.mobileAccess,
-      manejaAlimentoPorGalpon: v.manejaAlimentoPorGalpon,
       diasAlimentoPrevioEncaset: v.diasAlimentoPrevioEncaset,
+      // Los 14 flags viajan SIEMPRE con su valor booleano. Mandar solo los encendidos haría que
+      // apagar uno no llegara al backend (que interpreta la ausencia como «no lo toques»).
+      ...flagsDelFormulario(v as Record<string, unknown>),
       roleIds: this.roleIds,
       countryId:      toNumOrNull(v.country),
       departamentoId: stateNum,
@@ -774,4 +787,31 @@ export class CompanyManagementComponent implements OnInit {
         )
       });
   }
+
+  // ─── Flags de comportamiento por empresa ────────────────────────────────────
+
+  /** Grupos del catálogo, para las secciones del formulario. */
+  readonly gruposFlags = GRUPOS_FLAGS_EMPRESA;
+
+  /** Los flags de un grupo. */
+  flagsDe(grupo: GrupoFlagEmpresa): readonly FlagEmpresa[] {
+    return flagsDelGrupo(grupo);
+  }
+
+  /** Cuántos flags tiene encendidos una empresa de la lista. */
+  flagsActivosDe(c: Company): number {
+    return contarFlagsActivos(c as unknown as Record<string, unknown>);
+  }
+
+  /** Cuántos hay encendidos en el formulario abierto. Va en el encabezado de la sección. */
+  get flagsActivosEnFormulario(): number {
+    return contarFlagsActivos(this.form?.value as Record<string, unknown>);
+  }
+
+  /** Total de flags administrables. */
+  get totalFlags(): number {
+    return FLAGS_EMPRESA.length;
+  }
+
+  trackByFlag = (_: number, f: FlagEmpresa) => f.key;
 }

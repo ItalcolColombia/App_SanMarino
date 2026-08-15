@@ -35,6 +35,30 @@ export interface Company {
   permiteTrasladoAvesCrossEtapa?: boolean;
   /** Días ANTES del encasetamiento cuyo alimento cuenta como «ingreso inicial del ciclo» en el reporte diario de engorde. Rango 0-30, default 10. */
   diasAlimentoPrevioEncaset?: number;
+
+  // ── Resto de los flags de comportamiento por empresa ──
+  // Se administran desde la pantalla de Empresas (ver funciones/flags-empresa.funcion.ts). Antes
+  // vivían solo en la base de datos y había que encenderlos por SQL.
+  /** El alimento se ubica en silos/bodega en vez del galpón. */
+  manejaInventarioPorSilo?: boolean;
+  /** Los reportes de alimento leen el inventario unificado. */
+  reportesAlimentoDesdeInventarioUnificado?: boolean;
+  /** El reporte de costos toma el alimento de los movimientos reales. */
+  reporteCostosAlimentoDesdeFuentesReales?: boolean;
+  /** Levante captura huevos desde la semana 14 y los arrastra al liquidar. */
+  capturaHuevosEnLevante?: boolean;
+  /** Pollo engorde con una sola columna Mixto en vez de hembras/machos. */
+  seguimientoEngordeMixto?: boolean;
+  /** La venta de engorde se registra sin peso y se completa con la báscula. */
+  ventaEngordePesoDiferido?: boolean;
+  /** Permite crear lotes de engorde antes del encasetamiento. */
+  programacionLotesEngorde?: boolean;
+  /** El nombre del lote se arma con el número de corrida del galpón. */
+  nombreLoteIncluyeCorrida?: boolean;
+  /** Doble validación: guardar separa; el descuento se aplica al validar. */
+  requiereValidacionSeguimientoDiario?: boolean;
+  /** El primer día con registro depende de la hora de llegada de las aves. */
+  primerRegistroSegunHoraLlegada?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

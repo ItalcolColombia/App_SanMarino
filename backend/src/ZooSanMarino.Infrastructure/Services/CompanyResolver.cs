@@ -68,7 +68,9 @@ public class CompanyResolver : ICompanyResolver
                 c.NombreLoteIncluyeCorrida,
                 c.ManejaInventarioPorSilo,
                 c.ReportesAlimentoDesdeInventarioUnificado,
-                c.RequiereValidacionSeguimientoDiario
+                c.RequiereValidacionSeguimientoDiario,
+                c.SeguimientoEngordeMixto,
+                c.ReporteCostosAlimentoDesdeFuentesReales
             ))
             .FirstOrDefaultAsync();
 
@@ -119,7 +121,9 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.NombreLoteIncluyeCorrida,
                 uc.Company.ManejaInventarioPorSilo,
                 uc.Company.ReportesAlimentoDesdeInventarioUnificado,
-                uc.Company.RequiereValidacionSeguimientoDiario
+                uc.Company.RequiereValidacionSeguimientoDiario,
+                uc.Company.SeguimientoEngordeMixto,
+                uc.Company.ReporteCostosAlimentoDesdeFuentesReales
             ))
             .ToListAsync();
 
