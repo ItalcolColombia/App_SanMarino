@@ -5513,5 +5513,5 @@ los DTO: vivían solo en la base.
 - [x] V2.3 Formulario: controles, precarga al editar y payload armados desde el catálogo
 - [x] V2.4 Sección «Comportamiento del sistema» agrupada (Inventario · Postura · Engorde · Operación) con contador de activos
 - [x] V2.5 `CompanyDto` del front con los 14 flags
-- [x] V2.6 Flag de doble validación ENCENDIDO para ItalcolPanama (local)
+- [x] V2.6 Flag de doble validación ENCENDIDO para ItalcolPanama: en local y, por migración idempotente, en **producción al desplegar**
 - [x] V2.7 `dotnet build` + 2574 tests + `yarn build` sin errores de TypeScript ni de plantilla
