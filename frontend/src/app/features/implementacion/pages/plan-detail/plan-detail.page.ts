@@ -1,5 +1,5 @@
 // src/app/features/implementacion/pages/plan-detail/plan-detail.page.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -41,6 +41,7 @@ import {
 } from '../../models/implementacion.models';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-implementacion-plan-detail',
   standalone: true,
   imports: [

@@ -1,5 +1,5 @@
 // src/app/features/implementacion/components/modal-tarea/modal-tarea.component.ts
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -12,6 +12,7 @@ import {
 } from '../../models/implementacion.models';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-modal-tarea-implementacion',
   standalone: true,
   imports: [CommonModule, FormsModule],

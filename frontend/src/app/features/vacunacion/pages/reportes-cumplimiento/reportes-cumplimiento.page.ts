@@ -1,5 +1,5 @@
 // src/app/features/vacunacion/pages/reportes-cumplimiento/reportes-cumplimiento.page.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -25,6 +25,7 @@ interface FilaDetalle {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-reportes-cumplimiento',
   standalone: true,
   imports: [CommonModule, FormsModule],

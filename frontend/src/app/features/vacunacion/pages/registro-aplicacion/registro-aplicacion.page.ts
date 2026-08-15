@@ -1,5 +1,5 @@
 // src/app/features/vacunacion/pages/registro-aplicacion/registro-aplicacion.page.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -19,6 +19,7 @@ import {
 } from '../../models/vacunacion.model';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-registro-aplicacion',
   standalone: true,
   imports: [CommonModule, FormsModule, HasPermissionDirective, ModalRegistroAplicacionComponent],

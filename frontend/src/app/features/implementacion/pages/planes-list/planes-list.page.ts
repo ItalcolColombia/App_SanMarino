@@ -1,5 +1,5 @@
 // src/app/features/implementacion/pages/planes-list/planes-list.page.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -22,6 +22,7 @@ import {
 } from '../../models/implementacion.models';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-implementacion-planes-list',
   standalone: true,
   imports: [CommonModule, FormsModule, ModalPlanImplementacionComponent],

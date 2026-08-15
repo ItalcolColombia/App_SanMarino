@@ -1,5 +1,5 @@
 // src/app/features/vacunacion/components/modal-registro-aplicacion/modal-registro-aplicacion.component.ts
-import { Component, EventEmitter, HostListener, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -8,6 +8,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { VacunacionCronogramaItemDto, VacunacionUsuarioOpcionDto } from '../../models/vacunacion.model';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-modal-registro-aplicacion',
   standalone: true,
   imports: [CommonModule, FormsModule],
