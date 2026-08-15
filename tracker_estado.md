@@ -5292,9 +5292,16 @@ Cada caso se cierra como TK-2026-000019: fix + migración data-only que deja el 
 - [x] T24.7 Commit independiente
 
 ### T22 · TK-2026-000022 — Indicadores levante sin H/M + columna Eficiencia
-- [ ] T22.1 Analizar de dónde sale EFICIENCIA y qué sexo muestra cada bloque
-- [ ] T22.2 Fix + tests
-- [ ] T22.3 Migración de cierre + commit
+- [x] T22.1 EFICIENCIA = ganancia semana (g) / consumo por ave (g) — la inversa de la conversión. Alimentaba IP = efic × supervivencia, y **VPI devolvía el MISMO número que IP** (`vpi := r_ip`)
+- [x] T22.2 Hallazgo mayor: `peso_cierre` y `unif_real` son el **promedio aritmético simple** de H y M (sin ponderar). Lote S369A sem 20: H 2.284 g / M 3.133 g ⇒ la tabla mostraba **2.708 g**, peso que no tiene ninguna ave
+- [x] T22.3 `fn_indicadores_levante_postura` v2 (DROP+CREATE): +16 columnas por sexo (aves inicio/fin, consumo semana, uniformidad, ganancia, dif % peso, selección, error sexaje). **Sin aritmética nueva**: son las variables que ya calculaba, publicadas sin promediar
+- [x] T22.4 Espejo `backend/sql/fn_indicadores_levante_postura.sql` verificado en sincronía ANTES de tocarlo, y actualizado con el mismo texto que la migración
+- [x] T22.5 DTO backend + interfaz front + tabla (33 columnas, cada bloque rotulado H/M) + Excel + modal de fórmulas
+- [x] T22.6 Fuera Eficiencia, IP y VPI. Los null se pintan `—` (antes 0, que se leía como medición real)
+- [x] T22.7 `dotnet build` 0 err · `dotnet test` 2.480 verdes · `yarn build` OK
+- [x] T22.8 Verificado por endpoint real (`GET /por-lote/142/indicadores`, JWT Sanmarino): sem 8 ⇒ H 889 g / M 1.487 g / unif 81,3 % y 85,3 % · `pesoCierre` mixto 1.188 g
+- [ ] T22.9 ⚠️ **Pendiente**: smoke visual de la pestaña Indicadores. El usuario del smoke solo alcanza NIZA I/III y ahí la cascada no llega a un lote de levante con datos; la validación quedó a nivel API + compilación de plantilla
+- [x] T22.10 Migración de cierre + commit
 
 ### T23 · TK-2026-000023 — Producción: consumos duplicados, Unif./CV, dif. mortalidad
 - [ ] T23.1 Analizar CONS. H/M vs CONS. ORIG H/M y la fórmula de DIF MORT

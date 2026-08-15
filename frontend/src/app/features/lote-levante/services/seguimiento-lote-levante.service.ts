@@ -317,6 +317,26 @@ export interface IndicadorSemanalLevanteDto {
   mortTablaHembras?: number | null;
   mortTablaMachos?: number | null;
   // % Retiro semanal por sexo real (la guía de retiro por sexo no existe ⇒ solo real).
+  // TK-2026-000022: el resto de los parámetros por sexo, para que la TABLA de indicadores diga
+  // de qué sexo es cada número (las columnas mixtas de peso y uniformidad son el promedio
+  // aritmético de los dos sexos, que no le corresponde a ninguna ave real).
+  avesInicioHembras?: number | null;
+  avesFinHembras?: number | null;
+  avesInicioMachos?: number | null;
+  avesFinMachos?: number | null;
+  consumoTotalSemanaHembras?: number | null;
+  consumoTotalSemanaMachos?: number | null;
+  unifHembras?: number | null;
+  unifMachos?: number | null;
+  gananciaHembras?: number | null;
+  gananciaMachos?: number | null;
+  difPesoPctHembras?: number | null;
+  difPesoPctMachos?: number | null;
+  seleccionPctHembras?: number | null;
+  seleccionPctMachos?: number | null;
+  errorSexajePctHembras?: number | null;
+  errorSexajePctMachos?: number | null;
+
   retiroPctHembras?: number | null;
   retiroPctMachos?: number | null;
 }

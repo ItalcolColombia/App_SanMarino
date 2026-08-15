@@ -98,43 +98,65 @@
   <div class="ux-scroll">
     <table class="ux-table indicadores-table">
       <thead>
+        <!-- TK-2026-000022: cada bloque dice HEMBRAS o MACHOS. Antes habia una sola serie sin
+             sexo, y en peso/uniformidad ese numero unico era el promedio aritmetico de los dos
+             (no ponderado): un valor que no le corresponde a ninguna ave del galpon. -->
         <tr>
           <th rowspan="2" class="header-group-basic">Semana</th>
           <th rowspan="2" class="header-group-basic">Período</th>
-          <th rowspan="2" class="header-group-aves">Aves Inicio</th>
-          <th rowspan="2" class="header-group-aves">Aves Fin</th>
-          <th colspan="3" class="header-group-main">Consumo</th>
-          <th colspan="2" class="header-group-main">Ganancia</th>
-          <th colspan="3" class="header-group-main">Peso (Real vs Tabla)</th>
-          <th colspan="2" class="header-group-main">Uniformidad (Real vs Tabla)</th>
-          <th colspan="4" class="header-group-main">Mortalidad & Selección</th>
-          <th rowspan="2" class="header-group-indicadores">Eficiencia</th>
-          <th rowspan="2" class="header-group-indicadores">IP</th>
-          <th rowspan="2" class="header-group-indicadores">VPI</th>
+          <th colspan="2" class="header-group-aves">Aves hembras</th>
+          <th colspan="2" class="header-group-aves">Aves machos</th>
+          <th colspan="2" class="header-group-main">Consumo hembras (g/ave/día)</th>
+          <th colspan="2" class="header-group-main">Consumo machos (g/ave/día)</th>
+          <th rowspan="2" class="header-group-main">Consumo lote semana (g)</th>
+          <th colspan="2" class="header-group-main">Ganancia (g/semana)</th>
+          <th colspan="3" class="header-group-main">Peso hembras</th>
+          <th colspan="3" class="header-group-main">Peso machos</th>
+          <th colspan="3" class="header-group-main">Uniformidad (%)</th>
+          <th colspan="2" class="header-group-main">Mortalidad hembras (%)</th>
+          <th colspan="2" class="header-group-main">Mortalidad machos (%)</th>
+          <th colspan="2" class="header-group-main">Selección (%)</th>
+          <th colspan="2" class="header-group-main">Error sexaje (%)</th>
+          <th colspan="2" class="header-group-main">Retiro (%)</th>
           <th rowspan="2" class="header-group-otros">Piso Térmico</th>
           <th rowspan="2" class="header-group-otros">Observaciones</th>
         </tr>
         <tr>
-          <th class="header-sub">Diario (g)</th>
-          <th class="header-sub">Tabla (g)</th>
-          <th class="header-sub">Real Total Semana (g)</th>
-          <th class="header-sub">Semana (g)</th>
-          <th class="header-sub">Diaria (g/día)</th>
+          <th class="header-sub">Inicio</th>
+          <th class="header-sub">Fin</th>
+          <th class="header-sub">Inicio</th>
+          <th class="header-sub">Fin</th>
+          <th class="header-sub">Real</th>
+          <th class="header-sub">Guía</th>
+          <th class="header-sub">Real</th>
+          <th class="header-sub">Guía</th>
+          <th class="header-sub">Hembras</th>
+          <th class="header-sub">Machos</th>
           <th class="header-sub">Real (g)</th>
-          <th class="header-sub">Tabla (g)</th>
+          <th class="header-sub">Guía (g)</th>
           <th class="header-sub">Dif (%)</th>
-          <th class="header-sub">Real (%)</th>
-          <th class="header-sub">Tabla (%)</th>
-          <th class="header-sub">Mortalidad (%)</th>
-          <th class="header-sub">Tabla (%)</th>
-          <th class="header-sub">Selección (%)</th>
-          <th class="header-sub">Error Sexaje (%)</th>
+          <th class="header-sub">Real (g)</th>
+          <th class="header-sub">Guía (g)</th>
+          <th class="header-sub">Dif (%)</th>
+          <th class="header-sub">Hembras</th>
+          <th class="header-sub">Machos</th>
+          <th class="header-sub">Guía</th>
+          <th class="header-sub">Real</th>
+          <th class="header-sub">Guía</th>
+          <th class="header-sub">Real</th>
+          <th class="header-sub">Guía</th>
+          <th class="header-sub">Hembras</th>
+          <th class="header-sub">Machos</th>
+          <th class="header-sub">Hembras</th>
+          <th class="header-sub">Machos</th>
+          <th class="header-sub">Hembras</th>
+          <th class="header-sub">Machos</th>
         </tr>
       </thead>
       <tbody>
         @if (!indicadoresSemanales || indicadoresSemanales.length === 0) {
           <tr>
-            <td colspan="23" class="empty-state">
+            <td colspan="33" class="empty-state">
               <div class="empty-illustration" aria-hidden="true">📊</div>
               <p>No hay datos de indicadores disponibles.</p>
             </td>
@@ -147,57 +169,68 @@
             <td class="periodo-cell">
               {{ formatDate(ind.fechaInicio) }} - {{ formatDate(ind.fechaFin) }}
             </td>
-            <td>{{ ind.avesInicioSemana | number:'1.0-0' }}</td>
-            <td>{{ ind.avesFinSemana | number:'1.0-0' }}</td>
+            <!-- Aves por sexo -->
+            <td>{{ formatOpcional(ind.avesInicioHembras, 0) }}</td>
+            <td>{{ formatOpcional(ind.avesFinHembras, 0) }}</td>
+            <td>{{ formatOpcional(ind.avesInicioMachos, 0) }}</td>
+            <td>{{ formatOpcional(ind.avesFinMachos, 0) }}</td>
+            <!-- Consumo por sexo -->
             <td class="consumo-diario"
-              [class]="'consumo-' + validarConsumo(ind.consumoDiario, ind.consumoTabla).tipo">
-              {{ formatNumber(ind.consumoDiario, 1) }}
-              @if (!validarConsumo(ind.consumoDiario, ind.consumoTabla).esValido) {
-                <span class="alert-icon"
-                  [title]="validarConsumo(ind.consumoDiario, ind.consumoTabla).mensaje"
-                  >
-                  ⚠️
-                </span>
+              [class]="'consumo-' + validarConsumo(ind.consumoDiarioHembras, ind.consumoTablaHembras).tipo">
+              {{ formatOpcional(ind.consumoDiarioHembras, 1) }}
+              @if (!validarConsumo(ind.consumoDiarioHembras, ind.consumoTablaHembras).esValido) {
+                <span class="alert-icon" [title]="validarConsumo(ind.consumoDiarioHembras, ind.consumoTablaHembras).mensaje">⚠️</span>
               }
             </td>
-            <td>{{ formatNumber(ind.consumoTabla, 1) }}</td>
-            <td class="consumo-total-semana">
-              {{ ind.consumoTotalSemana | number:'1.0-0' }}
-            </td>
-            <td class="ganancia-semana"
-              [class]="'ganancia-' + validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).tipo">
-              {{ formatNumber(ind.gananciaSemana, 2) }}
-              @if (!validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).esValido) {
-                <span class="alert-icon"
-                  [title]="validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).mensaje"
-                  >
-                  ⚠️
-                </span>
+            <td>{{ formatOpcional(ind.consumoTablaHembras, 1) }}</td>
+            <td class="consumo-diario"
+              [class]="'consumo-' + validarConsumo(ind.consumoDiarioMachos, ind.consumoTablaMachos).tipo">
+              {{ formatOpcional(ind.consumoDiarioMachos, 1) }}
+              @if (!validarConsumo(ind.consumoDiarioMachos, ind.consumoTablaMachos).esValido) {
+                <span class="alert-icon" [title]="validarConsumo(ind.consumoDiarioMachos, ind.consumoTablaMachos).mensaje">⚠️</span>
               }
             </td>
-            <td>{{ formatNumber(ind.gananciaDiariaAcumulada, 2) }}</td>
-            <td>{{ formatNumber(ind.pesoCierre, 0) }}</td>
-            <td>{{ formatNumber(ind.pesoTabla, 0) }}</td>
-            <td>{{ formatPercentage(ind.difPesoPct, 1) }}</td>
-            <td>{{ formatPercentage(ind.unifReal, 1) }}</td>
+            <td>{{ formatOpcional(ind.consumoTablaMachos, 1) }}</td>
+            <td class="consumo-total-semana">{{ ind.consumoTotalSemana | number:'1.0-0' }}</td>
+            <!-- Ganancia por sexo -->
+            <td>{{ formatOpcional(ind.gananciaHembras, 1) }}</td>
+            <td>{{ formatOpcional(ind.gananciaMachos, 1) }}</td>
+            <!-- Peso hembras -->
+            <td>{{ formatOpcional(ind.pesoHembras, 0) }}</td>
+            <td>{{ formatOpcional(ind.pesoTablaHembras, 0) }}</td>
+            <td>{{ formatOpcionalPct(ind.difPesoPctHembras, 1) }}</td>
+            <!-- Peso machos -->
+            <td>{{ formatOpcional(ind.pesoMachos, 0) }}</td>
+            <td>{{ formatOpcional(ind.pesoTablaMachos, 0) }}</td>
+            <td>{{ formatOpcionalPct(ind.difPesoPctMachos, 1) }}</td>
+            <!-- Uniformidad: la guía trae UNA sola columna (no la abre por sexo) -->
+            <td>{{ formatOpcionalPct(ind.unifHembras, 1) }}</td>
+            <td>{{ formatOpcionalPct(ind.unifMachos, 1) }}</td>
             <td>{{ formatPercentage(ind.unifTabla, 1) }}</td>
+            <!-- Mortalidad por sexo -->
             <td class="mortalidad-semana"
-              [class]="'mortalidad-' + validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).tipo">
-              {{ formatPercentage(ind.mortalidadSem) }}
-              @if (!validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).esValido) {
-                <span class="alert-icon"
-                  [title]="validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).mensaje"
-                  >
-                  ⚠️
-                </span>
+              [class]="'mortalidad-' + validarMortalidad(ind.mortPctHembras, ind.semana, ind.mortTablaHembras).tipo">
+              {{ formatOpcionalPct(ind.mortPctHembras) }}
+              @if (!validarMortalidad(ind.mortPctHembras, ind.semana, ind.mortTablaHembras).esValido) {
+                <span class="alert-icon" [title]="validarMortalidad(ind.mortPctHembras, ind.semana, ind.mortTablaHembras).mensaje">⚠️</span>
               }
             </td>
-            <td>{{ formatPercentage(ind.mortTabla) }}</td>
-            <td>{{ formatPercentage(ind.seleccionSem) }}</td>
-            <td>{{ formatPercentage(ind.errorSexajeSem) }}</td>
-            <td>{{ formatNumber(ind.eficiencia, 2) }}</td>
-            <td>{{ formatNumber(ind.ip, 2) }}</td>
-            <td>{{ formatNumber(ind.vpi, 2) }}</td>
+            <td>{{ formatOpcionalPct(ind.mortTablaHembras) }}</td>
+            <td class="mortalidad-semana"
+              [class]="'mortalidad-' + validarMortalidad(ind.mortPctMachos, ind.semana, ind.mortTablaMachos).tipo">
+              {{ formatOpcionalPct(ind.mortPctMachos) }}
+              @if (!validarMortalidad(ind.mortPctMachos, ind.semana, ind.mortTablaMachos).esValido) {
+                <span class="alert-icon" [title]="validarMortalidad(ind.mortPctMachos, ind.semana, ind.mortTablaMachos).mensaje">⚠️</span>
+              }
+            </td>
+            <td>{{ formatOpcionalPct(ind.mortTablaMachos) }}</td>
+            <!-- Selección / error de sexaje / retiro por sexo -->
+            <td>{{ formatOpcionalPct(ind.seleccionPctHembras) }}</td>
+            <td>{{ formatOpcionalPct(ind.seleccionPctMachos) }}</td>
+            <td>{{ formatOpcionalPct(ind.errorSexajePctHembras) }}</td>
+            <td>{{ formatOpcionalPct(ind.errorSexajePctMachos) }}</td>
+            <td>{{ formatOpcionalPct(ind.retiroPctHembras) }}</td>
+            <td>{{ formatOpcionalPct(ind.retiroPctMachos) }}</td>
             <td class="piso-termico">
               <span class="badge" [class.visible]="ind.pisoTermicoVisible">
                 {{ ind.pisoTermicoVisible ? 'Sí' : 'No' }}
