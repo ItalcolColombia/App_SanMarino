@@ -25,6 +25,8 @@ public class ImplementacionTareaConfiguration : IEntityTypeConfiguration<Impleme
 
         b.Property(x => x.RoleId).HasColumnName("role_id");
         b.Property(x => x.AsignadoUserId).HasColumnName("asignado_user_id");
+        // Vínculo suelto con la tarea de ItalJira (sin FK: los dos tableros viven por separado).
+        b.Property(x => x.TicketTareaId).HasColumnName("ticket_tarea_id");
 
         b.Property(x => x.Estado).HasColumnName("estado").HasMaxLength(20)
             .HasDefaultValue("pendiente").IsRequired();
@@ -45,6 +47,9 @@ public class ImplementacionTareaConfiguration : IEntityTypeConfiguration<Impleme
         b.HasIndex(x => x.PlanId).HasDatabaseName("ix_implementacion_tareas_plan");
         b.HasIndex(x => x.CompanyId).HasDatabaseName("ix_implementacion_tareas_company");
         b.HasIndex(x => x.AsignadoUserId).HasDatabaseName("ix_implementacion_tareas_asignado");
+        b.HasIndex(x => x.TicketTareaId)
+            .HasDatabaseName("ix_implementacion_tareas_ticket_tarea")
+            .HasFilter("ticket_tarea_id IS NOT NULL");
 
         b.ToTable(t => t.HasCheckConstraint(
             "ck_implementacion_tarea_estado",

@@ -1,22 +1,24 @@
 // src/app/features/implementacion/components/modal-firmar/modal-firmar.component.ts
-// El participante VE el detalle de lo realizado y responde: firma digitada del recibido (con
-// observación opcional) o "no firmo" → novedad con motivo obligatorio (la página luego lo guía a
-// crear un ticket con ese motivo).
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+// El participante VE el detalle de lo realizado y responde: firma del recibido (manuscrita con el
+// dedo/mouse, más su nombre digitado, con observación opcional) o "no firmo" → novedad con motivo
+// obligatorio (la página luego lo guía a crear un ticket con ese motivo).
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ImplementacionService } from '../../services/implementacion.service';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { FirmaCanvasComponent } from '../../../../shared/components/firma-canvas/firma-canvas.component';
 import { mensajeErrorHttp } from '../../funciones/resumen-firmas.funcion';
 import { ImplementacionMiFirmaDto } from '../../models/implementacion.models';
 
 export type ResultadoFirma = { accion: 'firmada' | 'rechazada'; firma: ImplementacionMiFirmaDto };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-modal-firmar-implementacion',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, FirmaCanvasComponent],
   styleUrls: ['../../styles/implementacion-shared.scss'],
   template: `
     <div
@@ -62,10 +64,25 @@ export type ResultadoFirma = { accion: 'firmada' | 'rechazada'; firma: Implement
             </div>
           </div>
 
+          <!-- Punto todavía no realizado: se ve, pero no se firma -->
+          <div
+            *ngIf="!puedeFirmar"
+            class="rounded-xl border p-3 text-xs"
+            style="border-color: var(--ital-orange); color: var(--ital-orange-dark); background: color-mix(in srgb, var(--ital-orange) 8%, transparent)"
+          >
+            Este punto todavía está <strong>programado</strong>. Vas a poder firmarlo cuando el encargado
+            lo dé por realizado.
+          </div>
+
           <!-- Modo firma -->
-          <ng-container *ngIf="!modoNovedad">
+          <ng-container *ngIf="!modoNovedad && puedeFirmar">
+            <app-firma-canvas
+              label="Firmá acá *"
+              ayuda="Firmá con el dedo o el mouse"
+              (firmaCambio)="firmaImagen = $event"
+            ></app-firma-canvas>
             <div>
-              <label class="form-label" for="mf-firma">Tu firma (digitá tu nombre completo) *</label>
+              <label class="form-label" for="mf-firma">Tu nombre completo *</label>
               <input
                 id="mf-firma"
                 type="text"
@@ -86,7 +103,7 @@ export type ResultadoFirma = { accion: 'firmada' | 'rechazada'; firma: Implement
           </ng-container>
 
           <!-- Modo novedad -->
-          <ng-container *ngIf="modoNovedad">
+          <ng-container *ngIf="modoNovedad && puedeFirmar">
             <div
               class="rounded-xl border p-3 text-xs"
               style="border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 6%, transparent)"
@@ -113,7 +130,7 @@ export type ResultadoFirma = { accion: 'firmada' | 'rechazada'; firma: Implement
           style="border-color: var(--ital-green-100); background: var(--ital-cream)"
         >
           <button
-            *ngIf="!modoNovedad"
+            *ngIf="!modoNovedad && puedeFirmar"
             type="button"
             class="btn-italfoods-secondary text-sm"
             style="border-color: var(--danger); color: var(--danger)"
@@ -121,16 +138,24 @@ export type ResultadoFirma = { accion: 'firmada' | 'rechazada'; firma: Implement
           >
             No firmo · tengo una novedad
           </button>
-          <button *ngIf="modoNovedad" type="button" class="btn-italfoods-secondary text-sm" (click)="modoNovedad = false">
+          <button *ngIf="modoNovedad && puedeFirmar" type="button" class="btn-italfoods-secondary text-sm" (click)="modoNovedad = false">
             ← Volver a firmar
           </button>
 
           <div class="flex gap-2">
-            <button type="button" class="btn-italfoods-secondary text-sm" (click)="cerrar()">Cancelar</button>
-            <button *ngIf="!modoNovedad" type="button" class="btn-italfoods-primary text-sm" [disabled]="guardando" (click)="firmar()">
+            <button type="button" class="btn-italfoods-secondary text-sm" (click)="cerrar()">
+              {{ puedeFirmar ? 'Cancelar' : 'Cerrar' }}
+            </button>
+            <button
+              *ngIf="!modoNovedad && puedeFirmar"
+              type="button"
+              class="btn-italfoods-primary text-sm"
+              [disabled]="guardando"
+              (click)="firmar()"
+            >
               {{ guardando ? 'Firmando…' : '✍️ Firmar recibido' }}
             </button>
-            <button *ngIf="modoNovedad" type="button" class="btn-danger text-sm" [disabled]="guardando" (click)="rechazar()">
+            <button *ngIf="modoNovedad && puedeFirmar" type="button" class="btn-danger text-sm" [disabled]="guardando" (click)="rechazar()">
               {{ guardando ? 'Guardando…' : 'Registrar novedad' }}
             </button>
           </div>
@@ -148,9 +173,20 @@ export class ModalFirmarImplementacionComponent implements OnChanges {
 
   modoNovedad = false;
   firmaTexto = '';
+  firmaImagen: string | null = null;
   nota = '';
   motivo = '';
   guardando = false;
+
+  /**
+   * El backend rechaza firmar un punto que sigue programado; acá se refleja para que el modal
+   * muestre el detalle en modo lectura en vez de ofrecer un botón que va a fallar. Los ítems
+   * anteriores a este campo (undefined) se tratan como habilitados: el backend sigue siendo la
+   * autoridad y el estado de la tarea ya lo determina.
+   */
+  get puedeFirmar(): boolean {
+    return this.item?.habilitadaParaFirmar !== false;
+  }
 
   constructor(private svc: ImplementacionService, private toast: ToastService) {}
 
@@ -158,6 +194,7 @@ export class ModalFirmarImplementacionComponent implements OnChanges {
     if (changes['open']?.currentValue) {
       this.modoNovedad = false;
       this.firmaTexto = '';
+      this.firmaImagen = null;
       this.nota = '';
       this.motivo = '';
       this.guardando = false;
@@ -170,8 +207,12 @@ export class ModalFirmarImplementacionComponent implements OnChanges {
 
   async firmar(): Promise<void> {
     if (!this.item) return;
+    if (!this.firmaImagen) {
+      this.toast.warning('Dibujá tu firma en el recuadro antes de aceptar.');
+      return;
+    }
     if (this.firmaTexto.trim().length < 3) {
-      this.toast.warning('Digitá tu nombre completo como firma (mínimo 3 caracteres).');
+      this.toast.warning('Escribí tu nombre completo (mínimo 3 caracteres).');
       return;
     }
     this.guardando = true;
@@ -180,6 +221,7 @@ export class ModalFirmarImplementacionComponent implements OnChanges {
         this.svc.firmarTarea(this.item.tareaId, {
           firmaTexto: this.firmaTexto.trim(),
           nota: this.nota.trim() || null,
+          firmaImagen: this.firmaImagen,
         })
       );
       this.respondido.emit({ accion: 'firmada', firma });

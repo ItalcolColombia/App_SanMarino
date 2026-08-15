@@ -5,6 +5,8 @@ export type EstadoPlan = 'borrador' | 'en_progreso' | 'completado' | 'cancelado'
 export type EstadoTarea = 'pendiente' | 'completada' | 'confirmada';
 export type TipoPlan = 'implementacion' | 'capacitacion' | 'mixto';
 export type EstadoFirma = 'pendiente' | 'firmada' | 'rechazada';
+/** Con qué trazo firmó el participante. Null en las firmas anteriores a la firma manuscrita. */
+export type TipoFirma = 'digitada' | 'manuscrita';
 
 export interface ImplementacionPlanDto {
   id: number;
@@ -63,6 +65,8 @@ export interface ImplementacionFirmaDto {
   email: string | null;
   estado: EstadoFirma;
   firmaTexto: string | null;
+  firmaImagen: string | null;
+  firmaTipo: TipoFirma | null;
   nota: string | null;
   fechaRespuesta: string | null;
 }
@@ -115,6 +119,8 @@ export interface ImplementacionParticipantesRequest {
 export interface ImplementacionFirmarRequest {
   firmaTexto: string;
   nota: string | null;
+  /** Trazo manuscrito en data URL PNG (dedo o mouse). Opcional: sin él la firma queda "digitada". */
+  firmaImagen?: string | null;
 }
 
 export interface ImplementacionRechazarRequest {
@@ -154,8 +160,15 @@ export interface ImplementacionMiFirmaDto {
   implementadorNombre: string | null;
   miEstado: EstadoFirma;
   firmaTexto: string | null;
+  /** PNG base64 del trazo manuscrito; null si se firmó solo con el nombre digitado. */
+  firmaImagen: string | null;
+  firmaTipo: TipoFirma | null;
   nota: string | null;
   fechaRespuesta: string | null;
+  /** El encargado ya dio por realizado el punto: recién ahí se habilita firmar. */
+  habilitadaParaFirmar: boolean;
+  /** El punto se editó DESPUÉS de firmado (no invalida la firma, la marca). */
+  contenidoCambio: boolean;
 }
 
 export interface ImplementacionUsuarioAsignableDto {

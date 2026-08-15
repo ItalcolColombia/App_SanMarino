@@ -49,6 +49,8 @@ public record ImplementacionPlanUpdateRequest(
     string? Estado);
 
 /// <summary>Firma/participación de un asistente en una tarea (quién estuvo, si firmó el recibido o registró novedad).</summary>
+/// <param name="FirmaImagen">PNG base64 del trazo manuscrito; null si firmó digitando su nombre.</param>
+/// <param name="FirmaTipo">"digitada" | "manuscrita" | null (firmas anteriores a la firma manuscrita).</param>
 public record ImplementacionFirmaDto(
     int Id,
     int TareaId,
@@ -58,6 +60,8 @@ public record ImplementacionFirmaDto(
     string? Email,
     string Estado,
     string? FirmaTexto,
+    string? FirmaImagen,
+    string? FirmaTipo,
     string? Nota,
     DateTime? FechaRespuesta);
 
@@ -109,8 +113,12 @@ public record ImplementacionConfirmarRequest(string? Observaciones);
 /// <summary>Lista completa de participantes de la tarea (sincroniza: agrega nuevos, quita pendientes).</summary>
 public record ImplementacionParticipantesRequest(List<Guid> UserIds);
 
-/// <summary>Firma digitada del participante actual (+ observación opcional).</summary>
-public record ImplementacionFirmarRequest(string FirmaTexto, string? Nota);
+/// <summary>
+/// Firma del participante actual. <paramref name="FirmaTexto"/> sigue siendo obligatoria (queda como
+/// el nombre en claro de quien acepta, y es el camino accesible); <paramref name="FirmaImagen"/> es
+/// el trazo manuscrito opcional en data URL PNG (dedo en celular o mouse en escritorio).
+/// </summary>
+public record ImplementacionFirmarRequest(string FirmaTexto, string? Nota, string? FirmaImagen = null);
 
 /// <summary>Novedad del participante actual: motivo de por qué no firma (obligatorio).</summary>
 public record ImplementacionRechazarRequest(string Motivo);
@@ -135,6 +143,14 @@ public record ImplementacionMiTareaDto(
 /// Punto donde el usuario actual es participante (vista "Por firmar" de Mis tareas): detalle de la
 /// tarea (qué se realizó, cuándo, quién la completó y quién es el encargado) + su propia firma.
 /// </summary>
+/// <param name="HabilitadaParaFirmar">
+/// El encargado ya dio por terminado el punto (tarea completada/confirmada) y por eso se puede
+/// firmar. En false el participante lo ve como "programado": se firma lo realizado, no lo pendiente.
+/// </param>
+/// <param name="ContenidoCambio">
+/// True cuando el punto se editó DESPUÉS de firmado (el hash guardado ya no coincide con el texto
+/// actual). No invalida la firma: la marca para que se vea que lo aceptado no es lo que hoy se lee.
+/// </param>
 public record ImplementacionMiFirmaDto(
     int FirmaId,
     int TareaId,
@@ -151,8 +167,12 @@ public record ImplementacionMiFirmaDto(
     string? ImplementadorNombre,
     string MiEstado,
     string? FirmaTexto,
+    string? FirmaImagen,
+    string? FirmaTipo,
     string? Nota,
-    DateTime? FechaRespuesta);
+    DateTime? FechaRespuesta,
+    bool HabilitadaParaFirmar,
+    bool ContenidoCambio);
 
 public record ImplementacionUsuarioAsignableDto(Guid Id, string Nombre, string Cedula, string? Email);
 

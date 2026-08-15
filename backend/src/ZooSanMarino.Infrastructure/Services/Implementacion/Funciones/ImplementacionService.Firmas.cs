@@ -76,9 +76,15 @@ public partial class ImplementacionService
     }
 
     /// <summary>
-    /// Firma digitada del participante actual: confirma que estuvo/recibió el punto. Vale desde
-    /// pendiente o rechazada (se retracta de la novedad). Solo el propio participante (fail-closed).
+    /// Firma del participante actual: confirma que estuvo/recibió el punto. Vale desde pendiente o
+    /// rechazada (se retracta de la novedad). Solo el propio participante (fail-closed).
     /// </summary>
+    /// <remarks>
+    /// Dos cosas que no son opcionales: (1) <b>solo se firma lo ya realizado</b> — mientras el
+    /// encargado no marque el punto como completado, firmar devuelve error; (2) el
+    /// <b>hash del contenido se calcula acá</b>, nunca se acepta del cliente: es la prueba de QUÉ
+    /// texto aceptó el participante, y sin eso el trazo manuscrito sería una imagen sin objeto.
+    /// </remarks>
     public async Task<ImplementacionMiFirmaDto?> FirmarAsync(int tareaId, ImplementacionFirmarRequest req, CancellationToken ct = default)
     {
         var firma = await GetFirmaDelUsuarioActualAsync(tareaId, ct);
@@ -86,10 +92,24 @@ public partial class ImplementacionService
 
         if (firma.Tarea.Plan.Estado == ImplementacionCalculos.PlanCancelado)
             throw new InvalidOperationException("El plan está cancelado; no se pueden firmar sus puntos.");
+        if (!ImplementacionCalculos.TareaHabilitadaParaFirmar(firma.Tarea.Estado))
+            throw new InvalidOperationException(
+                "Este punto todavía no está terminado: el encargado debe darlo por realizado antes de que puedas firmarlo.");
         if (!ImplementacionCalculos.PuedeFirmar(firma.Estado))
             throw new InvalidOperationException("Ya firmaste este punto.");
 
+        var imagen = ImplementacionCalculos.ValidarFirmaImagen(req.FirmaImagen);
+
         firma.FirmaTexto     = ImplementacionCalculos.ValidarFirmaTexto(req.FirmaTexto);
+        firma.FirmaImagen    = imagen;
+        firma.FirmaTipo      = imagen is null
+            ? ImplementacionCalculos.FirmaTipoDigitada
+            : ImplementacionCalculos.FirmaTipoManuscrita;
+        firma.ContenidoHash  = ImplementacionCalculos.CalcularContenidoHash(
+            firma.Tarea.Plan.Nombre, firma.Tarea.Categoria, firma.Tarea.Titulo,
+            firma.Tarea.Descripcion, firma.Tarea.FechaCompletada);
+        firma.FirmadoUserAgent = Recortar(UserAgentActual(), 400);
+        firma.FirmadoIp        = Recortar(IpActual(), 45);
         firma.Nota           = string.IsNullOrWhiteSpace(req.Nota) ? null : req.Nota.Trim();
         firma.Estado         = ImplementacionCalculos.FirmaFirmada;
         firma.FechaRespuesta = DateTime.UtcNow;
@@ -97,6 +117,13 @@ public partial class ImplementacionService
 
         await _ctx.SaveChangesAsync(ct);
         return await GetMiFirmaDtoAsync(firma.Id, ct);
+    }
+
+    private static string? Recortar(string? valor, int max)
+    {
+        var v = (valor ?? "").Trim();
+        if (v.Length == 0) return null;
+        return v.Length <= max ? v : v[..max];
     }
 
     /// <summary>
@@ -110,6 +137,11 @@ public partial class ImplementacionService
 
         if (firma.Tarea.Plan.Estado == ImplementacionCalculos.PlanCancelado)
             throw new InvalidOperationException("El plan está cancelado; no se pueden registrar novedades.");
+        // Mismo gate que firmar: la novedad es sobre algo que se dio por realizado, no sobre lo que
+        // todavía está programado (para eso está el ticket).
+        if (!ImplementacionCalculos.TareaHabilitadaParaFirmar(firma.Tarea.Estado))
+            throw new InvalidOperationException(
+                "Este punto todavía no está terminado: el encargado debe darlo por realizado antes de registrar una novedad.");
         if (!ImplementacionCalculos.PuedeRechazar(firma.Estado))
             throw new InvalidOperationException(firma.Estado == ImplementacionCalculos.FirmaFirmada
                 ? "Ya firmaste este punto; no se puede registrar una novedad sobre una firma."
@@ -140,7 +172,7 @@ public partial class ImplementacionService
         var uid = _current.UserGuid;
         if (uid is null) return new List<ImplementacionMiFirmaDto>();
 
-        return await _ctx.ImplementacionTareaFirmas.AsNoTracking()
+        var filas = await _ctx.ImplementacionTareaFirmas.AsNoTracking()
             .Where(f => f.DeletedAt == null
                         && f.CompanyId == _current.CompanyId
                         && f.UserId == uid
@@ -153,6 +185,38 @@ public partial class ImplementacionService
             .ThenBy(f => f.Id)
             .Select(MiFirmaProjection)
             .ToListAsync(ct);
+
+        return filas.Select(ToMiFirmaDto).ToList();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// El filtro por estado de la tarea va en SQL con los mismos literales que
+    /// <see cref="ImplementacionCalculos.TareaHabilitadaParaFirmar"/> (una constante compartida no
+    /// se traduce a SQL si se la invoca como método). Si ahí se agrega un estado, agregarlo acá.
+    /// </remarks>
+    public async Task<List<ImplementacionMiFirmaDto>> GetMisPendientesFirmaAsync(CancellationToken ct = default)
+    {
+        var uid = _current.UserGuid;
+        if (uid is null) return new List<ImplementacionMiFirmaDto>();
+
+        var filas = await _ctx.ImplementacionTareaFirmas.AsNoTracking()
+            .Where(f => f.DeletedAt == null
+                        && f.CompanyId == _current.CompanyId
+                        && f.UserId == uid
+                        && f.Estado == ImplementacionCalculos.FirmaPendiente
+                        && f.Tarea.DeletedAt == null
+                        && f.Tarea.Plan.DeletedAt == null
+                        && f.Tarea.Plan.Estado != ImplementacionCalculos.PlanCancelado
+                        && (f.Tarea.Estado == ImplementacionCalculos.TareaCompletada
+                            || f.Tarea.Estado == ImplementacionCalculos.TareaConfirmada))
+            .OrderBy(f => f.Tarea.FechaCompletada == null)
+            .ThenByDescending(f => f.Tarea.FechaCompletada)
+            .ThenBy(f => f.Id)
+            .Select(MiFirmaProjection)
+            .ToListAsync(ct);
+
+        return filas.Select(ToMiFirmaDto).ToList();
     }
 
     /// <summary>Firma viva del usuario actual para la tarea, scoped a empresa (con tarea+plan cargados).</summary>
@@ -172,19 +236,59 @@ public partial class ImplementacionService
     }
 
     private async Task<ImplementacionMiFirmaDto?> GetMiFirmaDtoAsync(int firmaId, CancellationToken ct)
-        => await _ctx.ImplementacionTareaFirmas.AsNoTracking()
+    {
+        var fila = await _ctx.ImplementacionTareaFirmas.AsNoTracking()
             .Where(f => f.Id == firmaId)
             .Select(MiFirmaProjection)
             .FirstOrDefaultAsync(ct);
+        return fila is null ? null : ToMiFirmaDto(fila);
+    }
+
+    /// <summary>
+    /// Fila cruda de "mi firma" tal como sale de la BD. Los dos flags derivados
+    /// (<c>HabilitadaParaFirmar</c> y <c>ContenidoCambio</c>) se calculan después en memoria porque
+    /// el segundo necesita rehacer el SHA-256 del contenido, que no se traduce a SQL. El volumen es
+    /// el de UN usuario, así que no vuelve al anti-patrón de traer todo y filtrar en el backend.
+    /// </summary>
+    private sealed record MiFirmaRow(
+        int FirmaId, int TareaId, int PlanId, string PlanNombre, string PlanTipo,
+        string Categoria, string TareaTitulo, string? TareaDescripcion,
+        DateTime? FechaProgramada, string TareaEstado, DateTime? FechaCompletada,
+        string? CompletadaPorNombre, string? ImplementadorNombre,
+        string MiEstado, string? FirmaTexto, string? FirmaImagen, string? FirmaTipo,
+        string? Nota, DateTime? FechaRespuesta, string? ContenidoHash);
 
     /// <summary>Proyección SQL de la vista "mi firma" (compartida entre lista y detalle; se traduce en la BD).</summary>
-    private static readonly System.Linq.Expressions.Expression<Func<ImplementacionTareaFirma, ImplementacionMiFirmaDto>> MiFirmaProjection =
-        f => new ImplementacionMiFirmaDto(
+    private static readonly System.Linq.Expressions.Expression<Func<ImplementacionTareaFirma, MiFirmaRow>> MiFirmaProjection =
+        f => new MiFirmaRow(
             f.Id, f.TareaId, f.Tarea.PlanId, f.Tarea.Plan.Nombre, f.Tarea.Plan.Tipo,
             f.Tarea.Categoria, f.Tarea.Titulo, f.Tarea.Descripcion,
             f.Tarea.FechaProgramada, f.Tarea.Estado,
             f.Tarea.FechaCompletada,
             f.Tarea.CompletadaPorUser == null ? null : f.Tarea.CompletadaPorUser.firstName + " " + f.Tarea.CompletadaPorUser.surName,
             f.Tarea.Plan.ImplementadorUser == null ? null : f.Tarea.Plan.ImplementadorUser.firstName + " " + f.Tarea.Plan.ImplementadorUser.surName,
-            f.Estado, f.FirmaTexto, f.Nota, f.FechaRespuesta);
+            f.Estado, f.FirmaTexto, f.FirmaImagen, f.FirmaTipo, f.Nota, f.FechaRespuesta, f.ContenidoHash);
+
+    /// <summary>
+    /// Completa la fila con los dos flags derivados. <c>ContenidoCambio</c> solo tiene sentido sobre
+    /// una firma ya dada y con hash guardado: las firmas anteriores a esta versión no lo tienen y se
+    /// reportan como "sin cambios" (no se puede afirmar lo contrario sin la huella original).
+    /// </summary>
+    private static ImplementacionMiFirmaDto ToMiFirmaDto(MiFirmaRow r)
+    {
+        var contenidoCambio =
+            r.MiEstado == ImplementacionCalculos.FirmaFirmada
+            && !string.IsNullOrWhiteSpace(r.ContenidoHash)
+            && r.ContenidoHash != ImplementacionCalculos.CalcularContenidoHash(
+                   r.PlanNombre, r.Categoria, r.TareaTitulo, r.TareaDescripcion, r.FechaCompletada);
+
+        return new ImplementacionMiFirmaDto(
+            r.FirmaId, r.TareaId, r.PlanId, r.PlanNombre, r.PlanTipo,
+            r.Categoria, r.TareaTitulo, r.TareaDescripcion,
+            r.FechaProgramada, r.TareaEstado, r.FechaCompletada,
+            r.CompletadaPorNombre, r.ImplementadorNombre,
+            r.MiEstado, r.FirmaTexto, r.FirmaImagen, r.FirmaTipo, r.Nota, r.FechaRespuesta,
+            ImplementacionCalculos.TareaHabilitadaParaFirmar(r.TareaEstado),
+            contenidoCambio);
+    }
 }

@@ -21,6 +21,12 @@ public class ImplementacionTareaFirmaConfiguration : IEntityTypeConfiguration<Im
             .HasDefaultValue("pendiente").IsRequired();
 
         b.Property(x => x.FirmaTexto).HasColumnName("firma_texto").HasMaxLength(300);
+        // PNG base64 del canvas: sin límite de columna (text), acotado en ImplementacionCalculos.
+        b.Property(x => x.FirmaImagen).HasColumnName("firma_imagen");
+        b.Property(x => x.FirmaTipo).HasColumnName("firma_tipo").HasMaxLength(12);
+        b.Property(x => x.ContenidoHash).HasColumnName("contenido_hash").HasMaxLength(64);
+        b.Property(x => x.FirmadoUserAgent).HasColumnName("firmado_user_agent").HasMaxLength(400);
+        b.Property(x => x.FirmadoIp).HasColumnName("firmado_ip").HasMaxLength(45);
         b.Property(x => x.Nota).HasColumnName("nota").HasMaxLength(2000);
         b.Property(x => x.FechaRespuesta).HasColumnName("fecha_respuesta");
 
@@ -39,9 +45,16 @@ public class ImplementacionTareaFirmaConfiguration : IEntityTypeConfiguration<Im
             .HasDatabaseName("ux_implementacion_tarea_firmas_tarea_user")
             .HasFilter("deleted_at IS NULL");
 
-        b.ToTable(t => t.HasCheckConstraint(
-            "ck_implementacion_firma_estado",
-            "estado IN ('pendiente', 'firmada', 'rechazada')"));
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint(
+                "ck_implementacion_firma_estado",
+                "estado IN ('pendiente', 'firmada', 'rechazada')");
+            // NULL permitido: las firmas anteriores a la firma manuscrita y las novedades no lo traen.
+            t.HasCheckConstraint(
+                "ck_implementacion_firma_tipo",
+                "firma_tipo IS NULL OR firma_tipo IN ('digitada', 'manuscrita')");
+        });
 
         b.HasOne(x => x.Tarea).WithMany(t => t.Firmas)
             .HasForeignKey(x => x.TareaId)

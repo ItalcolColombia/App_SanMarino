@@ -30,6 +30,13 @@ public interface IImplementacionService
     Task<ImplementacionMiFirmaDto?> RechazarAsync(int tareaId, ImplementacionRechazarRequest req, CancellationToken ct = default);
     Task<List<ImplementacionMiFirmaDto>> GetMisFirmasAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Solo lo que el usuario tiene REALMENTE por firmar hoy: puntos donde es participante, sigue
+    /// sin responder y el encargado ya los dio por realizados. Es lo que alimenta el panel de
+    /// pendientes del inicio, por eso no arrastra el historial de firmas ya dadas.
+    /// </summary>
+    Task<List<ImplementacionMiFirmaDto>> GetMisPendientesFirmaAsync(CancellationToken ct = default);
+
     // Consultas de apoyo
     Task<List<ImplementacionMiTareaDto>> GetMisTareasAsync(CancellationToken ct = default);
     Task<List<ImplementacionUsuarioAsignableDto>> GetUsuariosAsignablesAsync(CancellationToken ct = default);

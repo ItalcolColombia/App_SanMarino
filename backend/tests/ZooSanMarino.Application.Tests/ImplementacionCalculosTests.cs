@@ -221,4 +221,113 @@ public class ImplementacionCalculosTests
     public void FirmaTexto_MayorA300Lanza()
         => Assert.Throws<InvalidOperationException>(
             () => ImplementacionCalculos.ValidarFirmaTexto(new string('a', 301)));
+
+    // ── TareaHabilitadaParaFirmar (gate: se firma lo ya realizado) ───────────
+
+    [Fact]
+    public void Gate_TareaPendienteNoSeFirma()
+        => Assert.False(ImplementacionCalculos.TareaHabilitadaParaFirmar("pendiente"));
+
+    [Theory]
+    [InlineData("completada")]
+    [InlineData("confirmada")]
+    public void Gate_DesdeCompletadaSeHabilita(string estado)
+        => Assert.True(ImplementacionCalculos.TareaHabilitadaParaFirmar(estado));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("cualquier_cosa")]
+    public void Gate_EstadoDesconocidoEsFailClosed(string? estado)
+        => Assert.False(ImplementacionCalculos.TareaHabilitadaParaFirmar(estado));
+
+    // ── ValidarFirmaImagen ───────────────────────────────────────────────────
+
+    /// <summary>Data URL PNG válida con payload suficientemente largo (trazo real).</summary>
+    private static string ImagenValida(int payloadChars = 400)
+        => "data:image/png;base64," + Convert.ToBase64String(new byte[payloadChars]);
+
+    [Fact]
+    public void FirmaImagen_VaciaDevuelveNull()
+    {
+        Assert.Null(ImplementacionCalculos.ValidarFirmaImagen(null));
+        Assert.Null(ImplementacionCalculos.ValidarFirmaImagen("   "));
+    }
+
+    [Fact]
+    public void FirmaImagen_ValidaSeNormaliza()
+    {
+        var img = ImagenValida();
+        Assert.Equal(img, ImplementacionCalculos.ValidarFirmaImagen("  " + img + "  "));
+    }
+
+    [Fact]
+    public void FirmaImagen_OtroFormatoLanza()
+        => Assert.Throws<InvalidOperationException>(
+            () => ImplementacionCalculos.ValidarFirmaImagen("data:image/jpeg;base64,AAAA"));
+
+    [Fact]
+    public void FirmaImagen_CanvasEnBlancoLanza()
+        => Assert.Throws<InvalidOperationException>(
+            () => ImplementacionCalculos.ValidarFirmaImagen("data:image/png;base64,AAAA"));
+
+    [Fact]
+    public void FirmaImagen_Base64CorruptoLanza()
+        => Assert.Throws<InvalidOperationException>(
+            () => ImplementacionCalculos.ValidarFirmaImagen("data:image/png;base64," + new string('!', 300)));
+
+    [Fact]
+    public void FirmaImagen_DemasiadoPesadaLanza()
+        => Assert.Throws<InvalidOperationException>(
+            () => ImplementacionCalculos.ValidarFirmaImagen(
+                "data:image/png;base64," + new string('A', ImplementacionCalculos.FirmaImagenMaxChars)));
+
+    // ── CalcularContenidoHash (evidencia de QUÉ se firmó) ────────────────────
+
+    [Fact]
+    public void Hash_MismoContenidoMismoHash()
+    {
+        var f = new DateTime(2026, 8, 12, 15, 30, 0, DateTimeKind.Utc);
+        var a = ImplementacionCalculos.CalcularContenidoHash("Plan A", "Capacitación", "Módulo inventario", "Detalle", f);
+        var b = ImplementacionCalculos.CalcularContenidoHash("Plan A", "Capacitación", "Módulo inventario", "Detalle", f);
+        Assert.Equal(a, b);
+        Assert.Equal(64, a.Length);           // SHA-256 en hex
+        Assert.Equal(a, a.ToLowerInvariant()); // siempre minúsculas
+    }
+
+    [Fact]
+    public void Hash_CambiarElTituloCambiaElHash()
+    {
+        var f = new DateTime(2026, 8, 12, 15, 30, 0, DateTimeKind.Utc);
+        var antes   = ImplementacionCalculos.CalcularContenidoHash("Plan A", "Capacitación", "Módulo inventario", "Detalle", f);
+        var despues = ImplementacionCalculos.CalcularContenidoHash("Plan A", "Capacitación", "Módulo INVENTARIO v2", "Detalle", f);
+        Assert.NotEqual(antes, despues);
+    }
+
+    [Fact]
+    public void Hash_TrimNoCambiaElResultado()
+    {
+        var f = new DateTime(2026, 8, 12, 15, 30, 0, DateTimeKind.Utc);
+        var a = ImplementacionCalculos.CalcularContenidoHash("Plan A", "Capacitación", "Módulo", "Detalle", f);
+        var b = ImplementacionCalculos.CalcularContenidoHash("  Plan A ", " Capacitación", " Módulo  ", "Detalle ", f);
+        Assert.Equal(a, b);
+    }
+
+    [Fact]
+    public void Hash_DescripcionNulaYVaciaSonEquivalentes()
+    {
+        var a = ImplementacionCalculos.CalcularContenidoHash("P", "C", "T", null, null);
+        var b = ImplementacionCalculos.CalcularContenidoHash("P", "C", "T", "   ", null);
+        Assert.Equal(a, b);
+    }
+
+    [Fact]
+    public void Hash_LaFechaSeNormalizaAUtc()
+    {
+        var utc   = new DateTime(2026, 8, 12, 15, 30, 0, DateTimeKind.Utc);
+        var local = utc.ToLocalTime();
+        Assert.Equal(
+            ImplementacionCalculos.CalcularContenidoHash("P", "C", "T", "D", utc),
+            ImplementacionCalculos.CalcularContenidoHash("P", "C", "T", "D", local));
+    }
 }

@@ -33,6 +33,13 @@ public class ImplementacionPlan : AuditableEntity
     /// <summary>Guid real del creador (la auditoría int heredada no permite joinear nombre/correo).</summary>
     public Guid? CreadoPorUserGuid { get; set; }
 
+    /// <summary>
+    /// Historia (épica) de ItalJira donde se ejecuta el trabajo de esta implementación. Null = el
+    /// plan vive solo acá (comportamiento previo). El vínculo es informativo: borrar el plan no
+    /// borra la historia, porque el trabajo hecho es evidencia propia del tablero.
+    /// </summary>
+    public long? HistoriaId { get; set; }
+
     public ICollection<ImplementacionTarea> Tareas { get; set; } = new List<ImplementacionTarea>();
 
     public User? ImplementadorUser { get; set; }

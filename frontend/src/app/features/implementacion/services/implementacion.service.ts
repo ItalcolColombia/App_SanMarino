@@ -98,6 +98,11 @@ export class ImplementacionService {
     return this.conTimeout(this.http.get<ImplementacionMiFirmaDto[]>(`${this.base}/mis-firmas`));
   }
 
+  /** Solo lo pendiente de firmar hoy (puntos ya realizados). Alimenta el panel del inicio. */
+  getMisPendientesFirma(): Observable<ImplementacionMiFirmaDto[]> {
+    return this.conTimeout(this.http.get<ImplementacionMiFirmaDto[]>(`${this.base}/mis-pendientes-firma`));
+  }
+
   // Consultas de apoyo
   getMisTareas(): Observable<ImplementacionMiTareaDto[]> {
     return this.conTimeout(this.http.get<ImplementacionMiTareaDto[]>(`${this.base}/mis-tareas`));

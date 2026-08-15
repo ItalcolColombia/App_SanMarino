@@ -1,5 +1,6 @@
 // Implementacion/ImplementacionService.cs
 // Partial 'ancla': campos, ctor, helpers compartidos y la interfaz. La lógica por concern vive en Funciones/.
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
@@ -13,11 +14,33 @@ public partial class ImplementacionService : IImplementacionService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
+    private readonly IHttpContextAccessor _http;
 
-    public ImplementacionService(ZooSanMarinoContext ctx, ICurrentUser current)
+    public ImplementacionService(ZooSanMarinoContext ctx, ICurrentUser current, IHttpContextAccessor http)
     {
         _ctx = ctx;
         _current = current;
+        _http = http;
+    }
+
+    /// <summary>Navegador desde el que llega la petición (evidencia de la firma; nunca del body).</summary>
+    private string? UserAgentActual()
+        => _http.HttpContext?.Request.Headers.UserAgent.ToString();
+
+    /// <summary>
+    /// IP del cliente. Detrás del ALB la real viaja en <c>X-Forwarded-For</c> (primer valor);
+    /// si no hay proxy se usa la conexión directa.
+    /// </summary>
+    private string? IpActual()
+    {
+        var ctx = _http.HttpContext;
+        if (ctx is null) return null;
+
+        var fwd = ctx.Request.Headers["X-Forwarded-For"].ToString();
+        if (!string.IsNullOrWhiteSpace(fwd))
+            return fwd.Split(',')[0].Trim();
+
+        return ctx.Connection.RemoteIpAddress?.ToString();
     }
 
     private static string NombreCompleto(User? u)
@@ -38,6 +61,8 @@ public partial class ImplementacionService : IImplementacionService
         EmailDe(f.User),
         f.Estado,
         f.FirmaTexto,
+        f.FirmaImagen,
+        f.FirmaTipo,
         f.Nota,
         f.FechaRespuesta);
 

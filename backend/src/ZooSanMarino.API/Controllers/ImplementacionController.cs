@@ -246,6 +246,15 @@ public class ImplementacionController : ControllerBase
     public async Task<IActionResult> GetMisFirmas(CancellationToken ct)
         => Ok(await _svc.GetMisFirmasAsync(ct));
 
+    /// <summary>
+    /// Lo que el usuario tiene pendiente de firmar ahora (puntos ya realizados por el encargado).
+    /// Alimenta el panel de pendientes del inicio; no trae el historial de firmas ya dadas.
+    /// </summary>
+    [HttpGet("mis-pendientes-firma")]
+    [ProducesResponseType(typeof(List<ImplementacionMiFirmaDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMisPendientesFirma(CancellationToken ct)
+        => Ok(await _svc.GetMisPendientesFirmaAsync(ct));
+
     // ── Consultas de apoyo ───────────────────────────────────────────────────
 
     /// <summary>Tareas asignadas al usuario actual en la empresa activa (vista "Mis tareas").</summary>

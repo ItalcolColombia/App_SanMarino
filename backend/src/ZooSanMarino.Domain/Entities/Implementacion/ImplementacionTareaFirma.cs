@@ -23,6 +23,28 @@ public class ImplementacionTareaFirma : AuditableEntity
     /// <summary>Firma digitada por el participante (texto libre, normalmente su nombre completo).</summary>
     public string? FirmaTexto { get; set; }
 
+    /// <summary>
+    /// Trazo manuscrito del participante como data URL PNG (canvas firmado con el dedo en celular o
+    /// con el mouse en escritorio). Null cuando firmó solo digitando su nombre.
+    /// </summary>
+    public string? FirmaImagen { get; set; }
+
+    /// <summary>"digitada" | "manuscrita". Null en las firmas anteriores a la firma manuscrita.</summary>
+    public string? FirmaTipo { get; set; }
+
+    /// <summary>
+    /// SHA-256 (hex) del contenido que el participante aceptó — plan + punto + fecha de realización.
+    /// Se calcula SIEMPRE en el servidor al firmar. Si después se edita el punto, el hash deja de
+    /// coincidir y el detalle muestra que el contenido cambió: es lo que ata la firma a un texto.
+    /// </summary>
+    public string? ContenidoHash { get; set; }
+
+    /// <summary>Navegador/dispositivo desde el que se firmó (evidencia complementaria).</summary>
+    public string? FirmadoUserAgent { get; set; }
+
+    /// <summary>IP remota al momento de firmar (evidencia complementaria).</summary>
+    public string? FirmadoIp { get; set; }
+
     /// <summary>Observación al firmar, o motivo de la novedad al rechazar.</summary>
     public string? Nota { get; set; }
 

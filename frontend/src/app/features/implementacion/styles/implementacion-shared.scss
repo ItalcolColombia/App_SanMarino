@@ -157,6 +157,18 @@
     font-style: italic;
     color: var(--ital-text);
   }
+
+  // Trazo manuscrito: alto fijo para que no descoloque la fila; el ancho lo da la proporción.
+  .firma-detalle__trazo {
+    display: block;
+    height: 48px;
+    width: auto;
+    max-width: 100%;
+    margin-bottom: 0.2rem;
+    background: #fff;
+    border: 1px solid var(--ital-green-100);
+    border-radius: 0.4rem;
+  }
 }
 
 // Acciones compactas por fila
@@ -165,4 +177,110 @@
   align-items: center;
   gap: 0.15rem;
   white-space: nowrap;
+}
+
+// ── Panel de pendientes de firma (inicio) ────────────────────────────────────
+// Desplegable que el usuario ve al entrar: lo que ya se le entregó/capacitó y debe aceptar.
+.pendientes-panel {
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--ital-orange);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+
+  &__head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas: 'chevron titulo' 'chevron sub';
+    align-items: center;
+    gap: 0 0.6rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    text-align: left;
+    cursor: pointer;
+    background: color-mix(in srgb, var(--ital-orange) 8%, transparent);
+    border: 0;
+  }
+
+  &__chevron {
+    grid-area: chevron;
+    font-size: 1rem;
+    color: var(--ital-orange-dark);
+    transition: transform 0.15s ease;
+
+    &--abierto { transform: rotate(90deg); }
+  }
+
+  &__titulo {
+    grid-area: titulo;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 800;
+    color: var(--ital-orange-dark);
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding: 0 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #fff;
+    background: var(--ital-orange);
+    border-radius: 999px;
+  }
+
+  &__sub {
+    grid-area: sub;
+    font-size: 0.78rem;
+    color: var(--ital-muted);
+  }
+
+  &__body { padding: 0.25rem 1rem 1rem; }
+
+  &__link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ital-muted);
+    text-decoration: underline;
+  }
+}
+
+.pendientes-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--ital-green-100);
+
+  &:last-of-type { border-bottom: 0; }
+
+  &__info { flex: 1 1 16rem; min-width: 0; }
+
+  &__meta {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ital-muted);
+  }
+
+  &__titulo {
+    font-weight: 700;
+    color: var(--ital-text);
+  }
+
+  &__desc,
+  &__fecha {
+    font-size: 0.78rem;
+    color: var(--ital-muted);
+  }
 }

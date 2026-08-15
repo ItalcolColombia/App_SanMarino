@@ -30,6 +30,8 @@ public class ImplementacionPlanConfiguration : IEntityTypeConfiguration<Implemen
 
         b.Property(x => x.ImplementadorUserId).HasColumnName("implementador_user_id");
         b.Property(x => x.CreadoPorUserGuid).HasColumnName("creado_por_user_guid");
+        // Vínculo suelto con ItalJira: sin FK para que borrar una historia no arrastre el plan.
+        b.Property(x => x.HistoriaId).HasColumnName("historia_id");
 
         b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();
@@ -39,6 +41,9 @@ public class ImplementacionPlanConfiguration : IEntityTypeConfiguration<Implemen
 
         b.HasIndex(x => new { x.CompanyId, x.PaisId }).HasDatabaseName("ix_implementacion_planes_company_pais");
         b.HasIndex(x => x.ImplementadorUserId).HasDatabaseName("ix_implementacion_planes_implementador");
+        b.HasIndex(x => x.HistoriaId)
+            .HasDatabaseName("ix_implementacion_planes_historia")
+            .HasFilter("historia_id IS NOT NULL");
 
         b.ToTable(t =>
         {

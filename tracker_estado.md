@@ -5431,3 +5431,70 @@ histórico se marca validado.
 - [x] V1.13 Ticket ItalJira: caso + historia + tareas con tiempos, asignado a moiesbbuga@gmail.com
 - [ ] V1.14 `dotnet build` + `dotnet test` + `yarn build`, gate de paridad multipaís y smoke doble (flag OFF y ON)
 - [ ] V1.15 Backend local apagado, `:5002` libre + commit
+
+---
+
+## W/I · Vacunación viva + Implementación con firma en Home (15ago26)
+
+Planes: [vacunacion_cronograma_vivo_plantillas_plan.md](fase_de_desarrollo/vacunacion_cronograma_vivo_plantillas_plan.md) ·
+[implementacion_italjira_firma_home_plan.md](fase_de_desarrollo/implementacion_italjira_firma_home_plan.md)
+
+Reporte: los combos de Vacunación e Implementación se quedaban en «Cargando…». **No era el backend**:
+son los únicos 13 componentes del repo (de 222) que omitían `changeDetection` ⇒ en Angular 22 eso es
+OnPush ⇒ el `finally { cargando = false }` tras el `await` nunca repintaba. Encima, el usuario pide
+que el cronograma de vacunación se programe por empresa/línea/raza y avise cuándo toca, y que el plan
+de implementación viva en ItalJira y termine con una firma manuscrita del usuario en Home.
+
+### F0 — Fix de la demora (cerrado)
+- [x] F0.1 Auditoría: 208/222 componentes declaran `changeDetection`; los 13 sin declarar son Vacunación (5) e Implementación (8)
+- [x] F0.2 `ChangeDetectionStrategy.Eager` explícito en los 13 (convención del repo: 184 Eager / 24 OnPush)
+- [x] F0.3 `yarn build` con node portable 22.23.1 — 0 errores (único warning: budget preexistente)
+- [x] F0.4 Smoke visual: Cronograma pinta las **29 granjas** (antes «Cargando granjas…») y la cascada carga los lotes de MANGOS al instante; Registro y Reportes igual; Planes muestra «1 de 1 cronogramas»
+- [ ] F0.5 Gate anti-regresión: check que falle si un `@Component` nuevo omite `changeDetection`
+
+### W1 — Plantillas de vacunación por empresa/línea/raza
+- [ ] W1.1 Tablas `vacunacion_plan_plantilla` + `_items` (migración EF idempotente)
+- [ ] W1.2 `VacunacionPlantillaCalculos` (resolución raza exacta > comodín > `vigente_desde`) + tests xUnit
+- [ ] W1.3 CRUD backend + permisos
+- [ ] W1.4 Front: pantalla de plantillas (levante/producción por semana, engorde por día)
+
+### W2 — Materializador a los lotes
+- [ ] W2.1 `origen_plantilla_item_id` + `generado_automatico` en `vacunacion_cronograma_items`
+- [ ] W2.2 `VacunacionMaterializadorCalculos` puro (faltantes / actualizables / preservados) + tests
+- [ ] W2.3 Servicio idempotente; **nunca** toca ítems ya aplicados ni los creados a mano
+- [ ] W2.4 Enganche al encaset + botón «aplicar a lotes activos» + preview de impacto antes de guardar
+
+### W3 — Bandeja de pendientes y novedad fuera de rango
+- [ ] W3.1 `GET /api/VacunacionRegistro/pendientes` (SQL, scoped por usuario)
+- [ ] W3.2 Front: la novedad se despliega sola al aplicar fuera de franja (hoy el back ya la exige y devuelve 400)
+- [ ] W3.3 Rótulo «Fuera de rango» con días de desviación (sin estados nuevos en BD)
+
+### W4 — Scoping por núcleo/galpón/lote
+- [ ] W4.1 `fn_vacunacion_filter_data` respeta `farms.restrict_locations` + `user_farm_scopes` (fail-closed)
+- [ ] W4.2 Mismo scoping en reportes de cumplimiento + smoke con usuario restringido
+
+### I1..I5 — Implementación (elegido por el usuario como primera entrega)
+- [x] I1.1 Columnas `implementacion_planes.historia_id` + `implementacion_tareas.ticket_tarea_id` (entidad, configuration, migración idempotente `20260815000000`, snapshot y Designer)
+- [ ] I1.2 Crear/enlazar la historia de ItalJira al crear el plan + tarea por punto (**lógica pendiente**: hoy solo existe el vínculo en el modelo)
+- [ ] I1.3 Tarea de ItalJira en LISTO ⇒ el punto del plan pasa a `completada`
+- [x] I2.1 `ImplementacionCalculos.TareaHabilitadaParaFirmar` (fail-closed) + tests xUnit
+- [x] I2.2 `FirmarAsync`/`RechazarAsync` rechazan un punto todavía programado (backend, no solo UI)
+- [x] I2.3 Front: el modal muestra el punto en lectura y «Aún no te toca firmar» en Mis tareas
+- [x] I3.1 Columnas `firma_imagen` · `firma_tipo` · `contenido_hash` · `firmado_user_agent` · `firmado_ip` + CHECK del tipo
+- [x] I3.2 `ValidarFirmaImagen` (PNG, canvas en blanco, base64 corrupto, tope de peso) + `CalcularContenidoHash` SHA-256 server-side + tests
+- [x] I3.3 `FirmaCanvasComponent` compartido (pointer events: dedo, mouse y lápiz; export 600×200 con fondo blanco)
+- [x] I3.4 El modal de firma pide trazo + nombre; el detalle muestra el trazo y avisa si el punto se editó después de firmado
+- [x] I4.1 `GET /api/Implementacion/mis-pendientes-firma` (solo pendientes ya realizados, scoped al usuario)
+- [x] I4.2 `PanelPendientesFirmaComponent` desplegable en el inicio (no se dibuja si no hay nada)
+- [ ] I5 Selección de participantes por rol / empresa
+
+### Cierre de la entrega I2/I3/I4
+- [x] Z.1 `dotnet build` 0 errores (el único warning, CS8602 en `SeguimientoLoteLevanteService.Crud.cs:217`, es preexistente y de un archivo que nadie tocó) + `dotnet test` **2572 en verde** + `yarn build` 0 errores
+- [x] Z.2 Migración `20260815000000` aplicada en la BD local por psql — **sin** disparar las migraciones pendientes de la sesión paralela (trabajo ajeno sin commitear)
+- [x] Z.3 Smoke HTTP del flujo: **14/14** (gate rechaza firmar un punto programado · aparece al completar · canvas en blanco rechazado · firma manuscrita persiste · el hash detecta la edición posterior · sale de pendientes al firmar)
+- [x] Z.4 Smoke UI real: firma dibujada con eventos pointer en el canvas → PNG de **17 KB**, `firma_tipo=manuscrita`, hash, user-agent e IP guardados; el panel del inicio desaparece al quedar sin pendientes; el trazo se ve en el historial
+- [x] Z.5 Datos de prueba borrados (BD vuelve a 1 plan / 11 tareas / 0 firmas) · backend apagado · `:5002` libre
+- [ ] Z.6 Commit
+
+### Hallazgo lateral (preexistente, fuera de esta entrega)
+- [ ] X.1 `DELETE /planes/{id}` hace soft-delete del plan pero **deja vivas sus tareas y firmas**. No hay fuga (todas las consultas filtran por `Plan.DeletedAt == null`), pero acumula huérfanos en BD

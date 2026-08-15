@@ -28,6 +28,10 @@ public static class ImplementacionCalculos
     public const string FirmaFirmada   = "firmada";
     public const string FirmaRechazada = "rechazada";
 
+    // Tipo de trazo con el que el participante firmó
+    public const string FirmaTipoDigitada   = "digitada";
+    public const string FirmaTipoManuscrita = "manuscrita";
+
     public sealed record ResumenPlan(
         int TotalTareas,
         int Completadas,
@@ -138,6 +142,77 @@ public static class ImplementacionCalculos
         if (f.Length > 300)
             throw new InvalidOperationException("La firma supera el máximo de 300 caracteres.");
         return f;
+    }
+
+    /// <summary>
+    /// El participante recién puede firmar cuando el encargado dio por terminado el punto
+    /// (<c>completada</c>) — o cuando ya se confirmó. Mientras la tarea siga <c>pendiente</c> el
+    /// punto se ve como "programado" y la firma queda cerrada: se firma lo que ya se hizo, no lo
+    /// que está por hacerse. Estado desconocido → false (fail-closed).
+    /// </summary>
+    public static bool TareaHabilitadaParaFirmar(string? estadoTarea)
+        => estadoTarea is TareaCompletada or TareaConfirmada;
+
+    /// <summary>
+    /// Longitud máxima del PNG en base64 de la firma manuscrita (~700 KB de data URL ≈ 512 KB de
+    /// imagen). Un canvas de 600×200 comprimido pesa 10–25 KB: el tope solo frena payloads absurdos.
+    /// </summary>
+    public const int FirmaImagenMaxChars = 700_000;
+
+    /// <summary>
+    /// Valida y normaliza el trazo manuscrito: data URL PNG (<c>data:image/png;base64,…</c>) con
+    /// contenido real. Devuelve la data URL normalizada, o null si no se envió trazo (el llamador
+    /// decide si eso es válido según el tipo de firma).
+    /// </summary>
+    public static string? ValidarFirmaImagen(string? imagen)
+    {
+        var img = (imagen ?? "").Trim();
+        if (img.Length == 0) return null;
+
+        const string prefijo = "data:image/png;base64,";
+        if (!img.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("La firma debe ser una imagen PNG (data:image/png;base64,…).");
+        if (img.Length > FirmaImagenMaxChars)
+            throw new InvalidOperationException("La firma dibujada es demasiado pesada; volvé a firmarla.");
+
+        var payload = img[prefijo.Length..];
+        // Un canvas en blanco produce un PNG muy chico: exigimos trazo real, no una hoja vacía.
+        if (payload.Length < 200)
+            throw new InvalidOperationException("La firma está vacía; dibujá tu firma antes de aceptar.");
+        if (!IsBase64(payload))
+            throw new InvalidOperationException("La firma dibujada llegó corrupta; volvé a firmarla.");
+
+        return prefijo + payload;
+    }
+
+    private static bool IsBase64(string s)
+    {
+        Span<byte> buffer = new byte[s.Length];
+        return Convert.TryFromBase64String(s, buffer, out _);
+    }
+
+    /// <summary>
+    /// Huella de LO QUE SE FIRMÓ (plan + punto + fecha en que se dio por realizado). Se guarda junto
+    /// a la firma para que, si alguien edita el título o la descripción del punto después, el detalle
+    /// pueda mostrar que el contenido cambió respecto de lo aceptado. Sin esto una firma manuscrita
+    /// prueba menos que la digitada: sería una imagen sin objeto.
+    /// </summary>
+    /// <remarks>
+    /// Los campos van separados por <c>\n</c> con etiqueta fija, de modo que reordenar o renombrar
+    /// una propiedad del DTO no cambie el hash de firmas viejas. Se calcula SIEMPRE en el servidor.
+    /// </remarks>
+    public static string CalcularContenidoHash(
+        string planNombre, string categoria, string titulo, string? descripcion, DateTime? fechaCompletada)
+    {
+        var canon = string.Join('\n',
+            "plan="        + (planNombre ?? "").Trim(),
+            "categoria="   + (categoria  ?? "").Trim(),
+            "titulo="      + (titulo     ?? "").Trim(),
+            "descripcion=" + (descripcion ?? "").Trim(),
+            "completada="  + (fechaCompletada?.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") ?? ""));
+
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canon));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     /// <summary>
