@@ -5425,12 +5425,12 @@ histórico se marca validado.
 - [x] V1.7 Disponible = stock − reservas activas (inventario + formularios de los 4 módulos)
 - [x] V1.8 Alimento obligatorio (mixto en engorde; H/M en postura) back + front
 - [x] V1.9 Modal compartido con el motivo del rechazo (fecha duplicada, campos vacíos, 400 del backend)
-- [ ] V1.10 Estado por registro: fila roja, badge «En retraso», alarma y modal de pendientes al entrar al lote
+- [~] V1.10 Modal de pendientes al entrar al lote **hecho** en levante, producción y engorde; falta la **columna Estado con badge, fila roja y botón ✓ Validar** en esas 3 tablas (reproductora ya la tiene)
 - [x] V1.11 Bloqueo de días nuevos mientras haya vencidos sin validar
 - [x] V1.12 Permisos `seguimiento_{levante,produccion,engorde}.validar` + seed idempotente
 - [x] V1.13 Ticket ItalJira: caso + historia + tareas con tiempos, asignado a moiesbbuga@gmail.com
-- [ ] V1.14 `dotnet build` + `dotnet test` + `yarn build`, gate de paridad multipaís y smoke doble (flag OFF y ON)
-- [ ] V1.15 Backend local apagado, `:5002` libre + commit
+- [~] V1.14 `dotnet build` 0 err/0 warn + `dotnet test` 2572 ✓ + `yarn build` sin errores TS + migraciones aplicadas y verificadas en local (flag OFF en 5 empresas, backfill 100 %); **falta** el gate de paridad multipaís y el smoke con el flag ON
+- [x] V1.15 Backend local apagado, `:5002` libre + commit
 
 ---
 
