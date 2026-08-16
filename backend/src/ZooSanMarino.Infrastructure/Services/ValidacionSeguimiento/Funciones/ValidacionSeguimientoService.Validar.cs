@@ -29,6 +29,9 @@ public partial class ValidacionSeguimientoService
         if (!ModuloSeguimiento.EsValido(modulo))
             throw new InvalidOperationException($"Módulo de seguimiento desconocido: '{modulo}'.");
 
+        // Canónico: ENGORDE y ENGORDE_EC son el mismo registro y la misma reserva.
+        modulo = ModuloSeguimiento.Canonico(modulo);
+
         var permiso = PermisoValidar(modulo);
         if (!_current.Permissions.Contains(permiso))
             throw new UnauthorizedAccessException($"No tiene el permiso '{permiso}' para validar este registro.");
@@ -85,6 +88,8 @@ public partial class ValidacionSeguimientoService
     {
         if (!ModuloSeguimiento.EsValido(modulo))
             throw new InvalidOperationException($"Módulo de seguimiento desconocido: '{modulo}'.");
+
+        modulo = ModuloSeguimiento.Canonico(modulo);
 
         var permiso = PermisoDesvalidar(modulo);
         if (!_current.Permissions.Contains(permiso))

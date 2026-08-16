@@ -31,6 +31,26 @@ public static class ModuloSeguimiento
     public static bool EsEngorde(string modulo) =>
         Engorde.Equals(modulo, StringComparison.OrdinalIgnoreCase) ||
         EngordeEcuador.Equals(modulo, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Literal con el que se GUARDAN y se BUSCAN las reservas y el estado de un registro.
+    ///
+    /// <para>
+    /// <see cref="EngordeEcuador"/> colapsa a <see cref="Engorde"/> porque los dos services de pollo
+    /// engorde escriben en la MISMA tabla (<c>seguimiento_diario_aves_engorde</c>): son dos services
+    /// sobre un solo esquema, no dos esquemas. Sin colapsar, un registro creado por el service de
+    /// Ecuador reservaba como <c>ENGORDE_EC</c> y el front lo validaba como <c>ENGORDE</c> — la
+    /// consulta de reservas no encontraba nada y el registro quedaba <c>validado = true</c> sin haber
+    /// descontado ni un kilo, con la reserva activa para siempre.
+    /// </para>
+    ///
+    /// <para>
+    /// Los dos literales siguen siendo válidos en la API: lo que se unifica es la CLAVE, no el
+    /// vocabulario que aceptan los endpoints ni el service que llama.
+    /// </para>
+    /// </summary>
+    public static string Canonico(string modulo) =>
+        EngordeEcuador.Equals(modulo, StringComparison.OrdinalIgnoreCase) ? Engorde : modulo;
 }
 
 /// <summary>Estado de un registro de seguimiento frente a la doble validación.</summary>

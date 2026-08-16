@@ -111,18 +111,15 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                 if (r is null) return (false, false, default, 0);
                 return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), r.LotePosturaProduccionId ?? 0);
             }
+            // Los DOS módulos de engorde leen la misma tabla: `SeguimientoAvesEngordeEcuadorService`
+            // persiste en `_ctx.SeguimientoDiarioAvesEngorde` igual que el de Colombia/Panamá. La tabla
+            // partida `seguimiento_diario_aves_engorde_ecuador` no es la fuente —no existe en todos los
+            // entornos, y donde existe está vacía—, así que apuntar ahí devolvía "no existe" para un
+            // registro que sí estaba.
             case ModuloSeguimiento.Engorde:
-            {
-                var r = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
-                    .Where(s => s.Id == seguimientoId)
-                    .Select(s => new { s.Validado, s.Fecha, s.LoteAveEngordeId })
-                    .FirstOrDefaultAsync(ct);
-                if (r is null) return (false, false, default, 0);
-                return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), r.LoteAveEngordeId);
-            }
             case ModuloSeguimiento.EngordeEcuador:
             {
-                var r = await _ctx.SeguimientoDiarioAvesEngordeEcuador.AsNoTracking()
+                var r = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                     .Where(s => s.Id == seguimientoId)
                     .Select(s => new { s.Validado, s.Fecha, s.LoteAveEngordeId })
                     .FirstOrDefaultAsync(ct);
@@ -171,19 +168,11 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                 e.UpdatedAt = ahora;
                 break;
             }
+            // Ídem LeerEstadoAsync: una sola tabla para los dos módulos de engorde.
             case ModuloSeguimiento.Engorde:
-            {
-                var e = await _ctx.SeguimientoDiarioAvesEngorde.FirstOrDefaultAsync(s => s.Id == seguimientoId, ct);
-                if (e is null) return false;
-                e.Validado = validado;
-                e.ValidadoAt = validado ? ahora : null;
-                e.ValidadoPor = validado ? quien : null;
-                e.UpdatedAt = ahora;
-                break;
-            }
             case ModuloSeguimiento.EngordeEcuador:
             {
-                var e = await _ctx.SeguimientoDiarioAvesEngordeEcuador.FirstOrDefaultAsync(s => s.Id == seguimientoId, ct);
+                var e = await _ctx.SeguimientoDiarioAvesEngorde.FirstOrDefaultAsync(s => s.Id == seguimientoId, ct);
                 if (e is null) return false;
                 e.Validado = validado;
                 e.ValidadoAt = validado ? ahora : null;
@@ -236,17 +225,12 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .ToListAsync(ct);
                 return filas.Select(f => ((long)f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
             }
+            // Ídem: la tabla partida devolvía SIEMPRE vacío (o 42P01 donde ni existe), así que el
+            // semáforo no pintaba nada y el bloqueo por vencidos nunca se disparaba en engorde.
             case ModuloSeguimiento.Engorde:
-            {
-                var filas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
-                    .Where(s => !s.Validado && s.LoteAveEngordeId == loteId)
-                    .Select(s => new { s.Id, s.Fecha })
-                    .ToListAsync(ct);
-                return filas.Select(f => (f.Id, DateOnly.FromDateTime(f.Fecha))).ToList();
-            }
             case ModuloSeguimiento.EngordeEcuador:
             {
-                var filas = await _ctx.SeguimientoDiarioAvesEngordeEcuador.AsNoTracking()
+                var filas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
                     .Where(s => !s.Validado && s.LoteAveEngordeId == loteId)
                     .Select(s => new { s.Id, s.Fecha })
                     .ToListAsync(ct);

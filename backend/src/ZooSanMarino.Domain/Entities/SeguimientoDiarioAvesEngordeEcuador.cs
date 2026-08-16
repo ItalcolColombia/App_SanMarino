@@ -5,6 +5,26 @@ namespace ZooSanMarino.Domain.Entities;
 /// <summary>
 /// Seguimiento diario por lote aves de engorde (Ecuador). Tabla: seguimiento_diario_aves_engorde_ecuador.
 /// Un registro por lote_ave_engorde_id por fecha.
+///
+/// <para>
+/// ⚠️ <b>SIN USO — no es la fuente del seguimiento de engorde de Ecuador.</b> La tabla la creó
+/// <c>20260517104629_SplitSeguimientoDiarioAvesEngordeByCountry</c>, pero el split se abandonó:
+/// <c>SeguimientoAvesEngordeEcuadorService</c> persiste en <c>_ctx.SeguimientoDiarioAvesEngorde</c>
+/// —la tabla COMPARTIDA— igual que el service de Colombia/Panamá. En la base local la tabla partida
+/// ni siquiera existe pese a que su migración figura aplicada, y donde existe está vacía.
+/// </para>
+///
+/// <para>
+/// Leer por acá costó el bug de agosto-2026: las ramas <c>ENGORDE_EC</c> de
+/// <c>ValidacionSeguimientoService</c> consultaban esta entidad, así que con la doble validación
+/// encendida el alta reventaba con 42P01 y validar marcaba el registro sin encontrar sus reservas.
+/// <b>Si necesitás el seguimiento de engorde, usá <c>SeguimientoDiarioAvesEngorde</c>.</b>
+/// </para>
+///
+/// <para>
+/// Se deja mapeada a propósito: desmapearla cambia el ModelSnapshot y obliga a una migración de
+/// esquema sobre una tabla que en unos entornos existe y en otros no.
+/// </para>
 /// </summary>
 public class SeguimientoDiarioAvesEngordeEcuador
 {

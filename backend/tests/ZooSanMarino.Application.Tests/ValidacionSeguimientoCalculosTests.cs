@@ -189,6 +189,54 @@ public class ValidacionSeguimientoCalculosTests
         Assert.False(ModuloSeguimiento.EsValido("VACUNACION"));
         Assert.False(ModuloSeguimiento.EsValido(null));
     }
+
+    // ─── Literal canónico: los dos engordes son UN solo registro ──────────────
+    // Nace del bug de agosto-2026: el formulario de engorde hace su CRUD contra el controller de
+    // Ecuador (que separaba como ENGORDE_EC) pero pide pendientes y valida como ENGORDE. Al filtrar
+    // las reservas por módulo no encontraba ninguna, así que validar marcaba `validado = true` sin
+    // descontar un solo kilo y la reserva quedaba activa para siempre.
+
+    [Fact]
+    public void Canonico_EngordeEcuadorColapsaAEngorde()
+    {
+        Assert.Equal(ModuloSeguimiento.Engorde, ModuloSeguimiento.Canonico(ModuloSeguimiento.EngordeEcuador));
+        Assert.Equal(ModuloSeguimiento.Engorde, ModuloSeguimiento.Canonico("engorde_ec"));
+    }
+
+    [Theory]
+    [InlineData(ModuloSeguimiento.Levante)]
+    [InlineData(ModuloSeguimiento.Produccion)]
+    [InlineData(ModuloSeguimiento.Engorde)]
+    [InlineData(ModuloSeguimiento.Reproductora)]
+    public void Canonico_NoTocaAlResto(string modulo)
+    {
+        Assert.Equal(modulo, ModuloSeguimiento.Canonico(modulo));
+    }
+
+    /// <summary>
+    /// La clave canónica es lo que hace que separar por una vía y validar por la otra se encuentren:
+    /// separar como <c>ENGORDE_EC</c> y validar como <c>ENGORDE</c> tienen que dar la MISMA clave.
+    /// </summary>
+    [Fact]
+    public void Canonico_SepararPorEcuadorYValidarPorEngordeDanLaMismaClave()
+    {
+        var claveAlSeparar = ModuloSeguimiento.Canonico(ModuloSeguimiento.EngordeEcuador);
+        var claveAlValidar = ModuloSeguimiento.Canonico(ModuloSeguimiento.Engorde);
+
+        Assert.Equal(claveAlSeparar, claveAlValidar);
+    }
+
+    /// <summary>
+    /// Colapsar la clave no puede colapsar el vocabulario: los dos literales siguen siendo válidos en
+    /// la API y siguen clasificando como engorde.
+    /// </summary>
+    [Fact]
+    public void Canonico_NoInvalidaElLiteralDeEcuador()
+    {
+        Assert.True(ModuloSeguimiento.EsValido(ModuloSeguimiento.EngordeEcuador));
+        Assert.True(ModuloSeguimiento.EsEngorde(ModuloSeguimiento.EngordeEcuador));
+        Assert.False(ModuloSeguimiento.EsPostura(ModuloSeguimiento.EngordeEcuador));
+    }
     // ─── Concordancia del mensaje de bloqueo ────────────────────────────────
     // Nace de un smoke real: con UNA fecha vencida el texto decía «un registro ... que superaron el
     // plazo». Un mensaje mal concordado se lee como un error del sistema y le resta credibilidad al

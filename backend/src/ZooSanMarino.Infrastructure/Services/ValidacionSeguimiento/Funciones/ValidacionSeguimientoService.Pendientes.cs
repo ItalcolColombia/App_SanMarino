@@ -26,6 +26,10 @@ public partial class ValidacionSeguimientoService
             return new PendientesValidacionDto(modulo, loteId, requiere, 0, 0, false, string.Empty,
                 Array.Empty<RegistroValidacionDto>());
 
+        // Se responde con el literal canónico para que el módulo que el front reciba sea el mismo con
+        // el que después va a llamar a validar.
+        modulo = ModuloSeguimiento.Canonico(modulo);
+
         var pendientes = await LeerPendientesDelLoteAsync(modulo, loteId, ct);
         var hoy = Hoy;
 
@@ -66,6 +70,8 @@ public partial class ValidacionSeguimientoService
     {
         if (!await RequiereValidacionAsync(ct)) return;
         if (!ModuloSeguimiento.EsValido(modulo)) return;
+
+        modulo = ModuloSeguimiento.Canonico(modulo);
 
         var pendientes = await LeerPendientesDelLoteAsync(modulo, loteId, ct);
         if (pendientes.Count == 0) return;

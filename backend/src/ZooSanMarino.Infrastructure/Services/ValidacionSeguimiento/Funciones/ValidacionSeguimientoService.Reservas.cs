@@ -23,7 +23,11 @@ public partial class ValidacionSeguimientoService
     {
         if (contexto is null || !ModuloSeguimiento.EsValido(contexto.Modulo)) return;
 
-        await LiberarAsync(contexto.Modulo, contexto.SeguimientoId, ct);
+        // La reserva se guarda con el literal CANÓNICO: el service de engorde de Ecuador separaba como
+        // ENGORDE_EC y el front valida como ENGORDE, así que la reserva no se encontraba al validar.
+        var modulo = ModuloSeguimiento.Canonico(contexto.Modulo);
+
+        await LiberarAsync(modulo, contexto.SeguimientoId, ct);
 
         var ahora = DateTimeOffset.UtcNow;
         var quien = _current.UserId > 0 ? _current.UserId.ToString() : null;
@@ -41,7 +45,7 @@ public partial class ValidacionSeguimientoService
                 SiloId = linea.Item.SiloId,
                 ItemInventarioEcuadorId = linea.Item.Id,
                 EsItemInventario = linea.Item.EsItemInventario,
-                OrigenModulo = contexto.Modulo,
+                OrigenModulo = modulo,
                 OrigenSeguimientoId = contexto.SeguimientoId,
                 LoteRef = contexto.LoteRef,
                 FechaSeguimiento = contexto.FechaSeguimiento,
@@ -59,7 +63,7 @@ public partial class ValidacionSeguimientoService
             _ctx.SeguimientoReservaAves.Add(new SeguimientoReservaAves
             {
                 CompanyId = companyId,
-                OrigenModulo = contexto.Modulo,
+                OrigenModulo = modulo,
                 OrigenSeguimientoId = contexto.SeguimientoId,
                 LoteRefInt = contexto.LoteRefInt,
                 LoteRef = contexto.LoteRef,
@@ -87,6 +91,7 @@ public partial class ValidacionSeguimientoService
     /// </summary>
     public async Task LiberarAsync(string modulo, long seguimientoId, CancellationToken ct = default)
     {
+        modulo = ModuloSeguimiento.Canonico(modulo);
         var ahora = DateTimeOffset.UtcNow;
 
         var alimento = await _ctx.SeguimientoReservaAlimento
@@ -142,6 +147,8 @@ public partial class ValidacionSeguimientoService
     /// </summary>
     public async Task<ReservaAvesLineas> ReservadoDeAvesAsync(string modulo, int loteId, CancellationToken ct = default)
     {
+        modulo = ModuloSeguimiento.Canonico(modulo);
+
         var filas = await _ctx.SeguimientoReservaAves.AsNoTracking()
             .Where(r => r.OrigenModulo == modulo && r.LoteRefInt == loteId
                      && r.Estado == EstadoReservaSeguimiento.Activa)

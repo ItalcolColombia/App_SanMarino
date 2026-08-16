@@ -259,8 +259,14 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         var separa = _validacion is not null
                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
         if (separa)
+        {
+            // Era el único de los cinco módulos que no cortaba el alta con días vencidos sin confirmar,
+            // aunque el flag lo promete por escrito. Sin esto, un lote acumula días sin confirmar y el
+            // alimento queda separado sin techo.
+            await _validacion!.AsegurarPuedeRegistrarDiaAsync(ModuloSeguimiento.Reproductora, dto.LoteId);
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
                 ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
+        }
 
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();

@@ -5515,3 +5515,29 @@ los DTO: vivían solo en la base.
 - [x] V2.5 `CompanyDto` del front con los 14 flags
 - [x] V2.6 Flag de doble validación ENCENDIDO para ItalcolPanama: en local y, por migración idempotente, en **producción al desplegar**
 - [x] V2.7 `dotnet build` + 2574 tests + `yarn build` sin errores de TypeScript ni de plantilla
+
+---
+
+## V3 · `ENGORDE_EC` apuntaba a una tabla fantasma (15ago26)
+
+Plan: [fix_engorde_ec_tabla_compartida_plan.md](fase_de_desarrollo/fix_engorde_ec_tabla_compartida_plan.md)
+
+Validando los 14 flags módulo por módulo apareció que el formulario de engorde hace su CRUD contra el
+controller **Ecuador** (que escribe en la tabla compartida y reserva como `ENGORDE_EC`) pero pide
+pendientes y valida como `'ENGORDE'`. Las 3 ramas `ENGORDE_EC` de `ValidacionSeguimientoService` leen
+`seguimiento_diario_aves_engorde_ecuador`, tabla que **no existe** aunque su migración figure aplicada.
+Con el flag ON (ItalcolPanama): guardar revienta (42P01) y validar marcaría `validado=true` sin
+descontar nada, dejando la reserva activa para siempre.
+
+- [x] V3.1 Las 3 ramas `ENGORDE_EC` leen `_ctx.SeguimientoDiarioAvesEngorde` (tabla compartida)
+- [x] V3.2 `ModuloSeguimiento.Canonico()`: la reserva se guarda y se busca con `ENGORDE`, así separar por Ecuador y validar por Colombia se encuentran (colapsar la tabla no alcanzaba — `ValidarAsync` filtra por `OrigenModulo`)
+- [x] V3.3 `AsegurarPuedeRegistrarDiaAsync` en reproductora (único de los 5 sin bloqueo por vencidos)
+- [x] V3.4 Doc en `SeguimientoDiarioAvesEngordeEcuador`: entidad sin uso, la tabla partida no es la fuente
+- [x] V3.5 Tests xUnit del literal canónico (7 nuevos): colapsa, no toca al resto, misma clave separando y validando, y no invalida el literal en la API
+- [x] V3.6 Ticket ItalJira `20260815140000` data-only: historia `LISTO` + caso `SOLUCIONADO` con 6 tareas y horas, **y caso aparte `EN_ANALISIS`** por el hallazgo que no se resolvió. Dry-run en transacción revertida: OK; 3 corridas seguidas no duplican nada
+- [x] V3.7 `dotnet build` 0 errores 0 warnings · `dotnet test` **2581 en verde** (2574 + 7) · ModelSnapshot intacto · sin cambios en el front (el `'ENGORDE'` que ya mandaba pasa a ser correcto)
+- [ ] V3.8 Smoke con el flag ON: **requiere reiniciar el backend de `:5002`** (que es el del usuario y está corriendo el binario viejo). El reinicio además aplica la migración del ticket
+- [x] V3.9 Commit
+
+### Hallazgo pendiente (NO entra en esta entrega)
+- [ ] V3.X «Disponible = stock − reservas activas»: `ReservadoPorItemAsync`/`ReservadoDeAvesAsync` están implementados pero **nadie los llama**. Exige decidir si se le resta la reserva a `Quantity` en `GET /api/InventarioGestion/stock` o se agrega un campo `Disponible` al DTO + front de los 4 módulos
