@@ -64,6 +64,9 @@ import {
 } from '../../../core/services/company-permission/company-permission.service';
 
 import { resolverPermisosAsignables } from './funciones/filtrar-permisos-empresa.funcion';
+import {
+  esAdminDeAplicacion, puedeVerTab, tabPorDefecto, type TabRoles
+} from './funciones/catalogos-globales.funcion';
 
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { TicketPerfilEditorComponent } from '../../tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
@@ -120,7 +123,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   faGripVertical = faGripVertical;
 
   // Tabs y filtros
-  activeTab: 'roles' | 'perms' | 'menus' = 'roles';
+  activeTab: TabRoles = 'roles';
   filterRoles = '';
   filterPerms = '';
   filterMenus = '';
@@ -166,6 +169,12 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
 
   // UI state
   loading = false;
+  /**
+   * Administrador de la APLICACIÓN (rol `Admin`), no administrador de una empresa. Es la llave de
+   * los catálogos globales: los tabs Permisos y Menús administran estructuras compartidas por todas
+   * las empresas. Arranca en `false` a propósito — si la sesión no llega o falla, el módulo muestra
+   * solo Roles. Ver `funciones/catalogos-globales.funcion.ts`.
+   */
   isAdminUser = false;
   isSuperAdminUser = false; // Super Admin: puede ver/editar el flag "Administrador de Empresa/País"
   activeCompanyId: number | null = null;
@@ -189,6 +198,22 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   get roleModalTabIndex(): number { return this.roleTabs.indexOf(this.roleModalTab); }
   get isFirstRoleTab(): boolean   { return this.roleModalTabIndex === 0; }
   get isLastRoleTab(): boolean    { return this.roleModalTabIndex === this.roleTabs.length - 1; }
+
+  /**
+   * Cambia de tab de primer nivel. Único punto de entrada: la plantilla ya no asigna `activeTab`
+   * a mano. Un tab reservado (Permisos / Menús) sin ser admin simplemente no se activa — ocultar el
+   * botón no alcanza si el estado se puede escribir desde cualquier lado.
+   */
+  irATab(tab: TabRoles): void {
+    if (!puedeVerTab(tab, this.isAdminUser)) return;
+    this.activeTab = tab;
+    if (tab === 'menus') this.loadMenusForTab();
+  }
+
+  /** ¿Se dibuja este tab? Lo usa la plantilla para los botones y para cada cuerpo. */
+  verTab(tab: TabRoles): boolean {
+    return puedeVerTab(tab, this.isAdminUser);
+  }
 
   setRoleTab(tab: 'general' | 'permisos' | 'empresas' | 'tickets'): void {
     this.roleModalTab = tab;
@@ -299,11 +324,12 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         take(1),
         switchMap((session) => {
           const userRoles = session?.user?.roles || [];
-          this.isAdminUser = userRoles.some(role =>
-            role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'administrador')
-          );
+          this.isAdminUser = esAdminDeAplicacion(userRoles);
           this.isSuperAdminUser = session?.user?.isSuperAdmin ?? false;
           this.activeCompanyId = session?.activeCompanyId ?? null;
+          // La sesión puede resolverse con el módulo ya abierto: si el tab activo dejó de estar
+          // permitido, se vuelve a Roles en vez de quedar mostrando un catálogo global.
+          if (!puedeVerTab(this.activeTab, this.isAdminUser)) this.activeTab = tabPorDefecto();
 
           return this.isAdminUser
             ? this.companySvc.getAllForAdmin()
@@ -913,6 +939,8 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   // MODAL PERMISOS
   // =========================
   abrirModalPermisos() {
+    // Catálogo global: si no es el admin de la aplicación, no se abre ni por código.
+    if (!puedeVerTab('perms', this.isAdminUser)) return;
     this.permEditing = false;
     this.permForm.reset({ id: null, key: '', description: '' });
     this.permModalOpen = true;
@@ -974,6 +1002,8 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   // MODAL MENÚS (CRUD)
   // =========================
   abrirModalMenu(m?: MenuItem) {
+    // Catálogo global: si no es el admin de la aplicación, no se abre ni por código.
+    if (!puedeVerTab('menus', this.isAdminUser)) return;
     this.menuEditing = !!m;
 
     if (m) {

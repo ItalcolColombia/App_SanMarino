@@ -563,6 +563,195 @@
   }
 }
 
+/* ====== Primitivas de modal (cm-modal*) ======
+   Calcadas de las `rm-modal*` de role-management: overlay con padding, caja con alto máximo y
+   scroll SOLO en el cuerpo. Sin esto el modal crece con su contenido, se centra igual y se sale de
+   la pantalla — que es justo lo que le pasaba al wizard desde que el paso 2 sumó los 14 flags: el
+   footer con «Guardar Empresa» quedaba fuera de alcance y no había forma de scrollear hasta él. */
+.cm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 1rem;
+}
+
+.cm-modal {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cm-modal--sm { max-width: 25rem; }
+.cm-modal--md { max-width: 42rem; }
+.cm-modal--lg { max-width: 52rem; }
+.cm-modal--xl { max-width: 64rem; }
+
+.cm-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ital-green-100);
+  background: #fff;
+}
+
+.cm-modal__header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cm-modal__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ital-orange-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El formulario del wizard es el que reparte el alto: cuerpo elástico + footer fijo. */
+.cm-modal__form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* `min-height: 0` es obligatorio: sin él un hijo flex no se deja encoger y el scroll nunca aparece. */
+.cm-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ital-green-100) transparent;
+}
+
+.cm-modal__body::-webkit-scrollbar { width: 6px; }
+.cm-modal__body::-webkit-scrollbar-thumb {
+  background: var(--ital-green-100);
+  border-radius: 4px;
+}
+
+.cm-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--ital-green-100);
+  background: #fff;
+}
+
+.cm-modal__footer--split { justify-content: space-between; }
+
+/* Stepper del wizard: viaja con el header, así el paso actual siempre queda a la vista. */
+.cm-steps {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--ital-green-100);
+  background: var(--ital-cream);
+}
+
+.cm-step {
+  flex: 1;
+  border: 1px solid var(--ital-green-100);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: #fff;
+}
+
+.cm-step--active {
+  border-color: var(--ital-orange);
+  box-shadow: 0 0 0 3px var(--ital-orange-100);
+}
+
+.cm-step__index {
+  font-size: 11px;
+  color: var(--ital-muted);
+}
+
+.cm-step__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ital-orange-dark);
+}
+
+/* Bloque de opciones del paso 2 (roles, permisos, módulos, flags, alimento previo). */
+.cm-block {
+  border: 1px solid var(--ital-green-100);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px;
+}
+
+.cm-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.cm-block__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ital-orange-dark);
+}
+
+.cm-block__count {
+  font-size: 11px;
+  color: var(--ital-muted);
+  white-space: nowrap;
+}
+
+.cm-block__hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--ital-muted);
+  line-height: 1.5;
+}
+
+.cm-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .cm-grid-2 { grid-template-columns: 1fr; }
+  .cm-steps { flex-direction: column; }
+}
+
+@media (max-width: 640px) {
+  .cm-modal { max-height: 96vh; }
+  .cm-modal-overlay { padding: 0.5rem; }
+  .cm-modal__body { padding: 14px; }
+}
+
 /* ====== Modal confirmación ====== */
 .modal-confirm {
   background: #fff;

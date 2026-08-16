@@ -215,7 +215,7 @@
 <!-- MODAL: Confirmar eliminar empresa -->
 @if (confirmDeleteOpen) {
   <div
-    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    class="cm-modal-overlay"
     role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">
     <div class="modal-confirm">
       <h2 id="confirm-delete-title" class="modal-confirm-title">Confirmar eliminación</h2>
@@ -235,16 +235,19 @@
 <!-- MODAL: Ver menú de la empresa (solo lectura) -->
 @if (menuViewModalOpen) {
   <div
-    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    class="cm-modal-overlay"
     role="dialog" aria-modal="true" aria-labelledby="menu-view-title">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-      <div class="flex items-center justify-between p-4 border-b">
-        <h2 id="menu-view-title" class="text-xl font-bold text-brand-red">
-          Menú de la empresa: {{ menuViewCompanyName }}
-        </h2>
+    <div class="cm-modal cm-modal--md">
+      <div class="cm-modal__header">
+        <div class="cm-modal__header-left">
+          <fa-icon [icon]="faEye" class="text-brand-red" aria-hidden="true"></fa-icon>
+          <h2 id="menu-view-title" class="cm-modal__title">
+            Menú de la empresa: {{ menuViewCompanyName }}
+          </h2>
+        </div>
         <button type="button" (click)="closeMenuView()" class="btn-ghost">Cerrar</button>
       </div>
-      <div class="p-4 overflow-auto flex-1">
+      <div class="cm-modal__body">
         @if (menuViewLoading) {
           <p class="text-warm-gray-600">Cargando…</p>
         }
@@ -282,16 +285,19 @@
 <!-- MODAL: Asignar menú a la empresa (edición) -->
 @if (menuEditModalOpen) {
   <div
-    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    class="cm-modal-overlay"
     role="dialog" aria-modal="true" aria-labelledby="menu-edit-title">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-      <div class="flex items-center justify-between p-4 border-b">
-        <h2 id="menu-edit-title" class="text-xl font-bold text-brand-red">
-          Asignar menú: {{ menuEditCompanyName }}
-        </h2>
+    <div class="cm-modal cm-modal--md">
+      <div class="cm-modal__header">
+        <div class="cm-modal__header-left">
+          <fa-icon [icon]="faListUl" class="text-brand-red" aria-hidden="true"></fa-icon>
+          <h2 id="menu-edit-title" class="cm-modal__title">
+            Asignar menú: {{ menuEditCompanyName }}
+          </h2>
+        </div>
         <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cerrar</button>
       </div>
-      <div class="p-4 overflow-auto flex-1">
+      <div class="cm-modal__body">
         @if (menuEditLoading) {
           <p class="text-warm-gray-600">Cargando…</p>
         }
@@ -304,7 +310,7 @@
           </div>
         }
       </div>
-      <div class="p-4 border-t flex justify-end gap-2">
+      <div class="cm-modal__footer">
         <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cancelar</button>
         <button type="button" (click)="saveCompanyMenus()" class="btn-primary" [disabled]="menuEditSaving">
           {{ menuEditSaving ? 'Guardando…' : 'Guardar menú' }}
@@ -317,17 +323,20 @@
 <!-- MODAL: Permisos de la empresa (company_permissions) -->
 @if (permEditModalOpen) {
   <div
-    class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+    class="cm-modal-overlay"
     role="dialog" aria-modal="true" aria-labelledby="perm-edit-title">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
-      <div class="flex items-center justify-between p-4 border-b">
-        <h2 id="perm-edit-title" class="text-xl font-bold text-brand-red">
-          Permisos: {{ permEditCompanyName }}
-        </h2>
+    <div class="cm-modal cm-modal--lg">
+      <div class="cm-modal__header">
+        <div class="cm-modal__header-left">
+          <fa-icon [icon]="faKey" class="text-brand-red" aria-hidden="true"></fa-icon>
+          <h2 id="perm-edit-title" class="cm-modal__title">
+            Permisos: {{ permEditCompanyName }}
+          </h2>
+        </div>
         <button type="button" (click)="closePermEdit()" class="btn-ghost">Cerrar</button>
       </div>
 
-      <div class="p-4 overflow-auto flex-1">
+      <div class="cm-modal__body">
         @if (permEditLoading) {
           <p class="text-warm-gray-600">Cargando…</p>
         }
@@ -397,7 +406,7 @@
         }
       </div>
 
-      <div class="p-4 border-t flex justify-end gap-2">
+      <div class="cm-modal__footer">
         <button type="button" (click)="closePermEdit()" class="btn-ghost">Cancelar</button>
         <button type="button" (click)="saveCompanyPermissions()" class="btn-primary" [disabled]="permEditSaving">
           {{ permEditSaving ? 'Guardando…' : 'Guardar permisos' }}
@@ -426,38 +435,40 @@
     }
   </ng-template>
 
-  <!-- MODAL: Wizard Empresa -->
+  <!-- MODAL: Wizard Empresa.
+       Estructura cm-modal: header y stepper fijos arriba, footer fijo abajo y scroll SOLO en el
+       cuerpo. Antes la caja no tenía alto máximo: con el paso 2 (roles + permisos + módulos + los
+       14 flags + alimento previo) el modal superaba la altura de la ventana, se centraba igual y
+       el botón «Guardar Empresa» quedaba fuera de pantalla, sin forma de llegar hasta él. -->
   @if (modalOpen) {
     <div
-      class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+      class="cm-modal-overlay"
       role="dialog" aria-modal="true" aria-labelledby="company-title">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl p-6 relative">
-        <!-- Header modal -->
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
+      <div class="cm-modal cm-modal--xl">
+        <!-- Header modal (fijo) -->
+        <div class="cm-modal__header">
+          <div class="cm-modal__header-left">
             <fa-icon [icon]="faBuilding" class="text-xl text-brand-red" aria-hidden="true"></fa-icon>
-            <h2 id="company-title" class="text-xl font-bold text-brand-red">
+            <h2 id="company-title" class="cm-modal__title">
               {{ editing ? 'Editar Empresa' : 'Nueva Empresa' }}
             </h2>
           </div>
           <button type="button" (click)="closeModal()" class="btn-ghost">Cerrar</button>
         </div>
-        <!-- Stepper simple -->
-        <div class="flex flex-col sm:flex-row gap-3 mb-5">
-          <div class="flex-1 rounded-xl border p-3" [class.border-brand-red]="step===1" [class.bg-warm-gray-50]="step===1">
-            <div class="text-xs text-warm-gray-600 mb-1">Paso 1</div>
-            <div class="font-semibold">Datos de la empresa</div>
+        <!-- Stepper (fijo): el paso actual siempre queda a la vista aunque el cuerpo scrollee -->
+        <div class="cm-steps">
+          <div class="cm-step" [class.cm-step--active]="step===1">
+            <div class="cm-step__index">Paso 1</div>
+            <div class="cm-step__label">Datos de la empresa</div>
           </div>
-          <div class="hidden sm:flex items-center justify-center px-1 text-warm-gray-400">
-            <fa-icon [icon]="faNext" aria-hidden="true"></fa-icon>
-          </div>
-          <div class="flex-1 rounded-xl border p-3" [class.border-brand-red]="step===2" [class.bg-warm-gray-50]="step===2">
-            <div class="text-xs text-warm-gray-600 mb-1">Paso 2</div>
-            <div class="font-semibold">Roles & Permisos</div>
+          <div class="cm-step" [class.cm-step--active]="step===2">
+            <div class="cm-step__index">Paso 2</div>
+            <div class="cm-step__label">Roles, permisos y comportamiento</div>
           </div>
         </div>
         <!-- Form Wizard -->
-        <form [formGroup]="form" (ngSubmit)="step===2 ? save() : nextStep()" class="space-y-5" novalidate>
+        <form [formGroup]="form" (ngSubmit)="step===2 ? save() : nextStep()" class="cm-modal__form" novalidate>
+          <div class="cm-modal__body space-y-5">
           <!-- PASO 1 -->
           @if (step===1) {
             <div class="grid grid-cols-12 gap-4">
@@ -610,11 +621,13 @@
                         </div>
                       </div>
                     }
-                    <!-- PASO 2 -->
+                    <!-- PASO 2 · las opciones van por filas, de lo específico de la empresa a lo
+                         transversal: resumen → roles y permisos → módulos → comportamiento → engorde.
+                         Antes todo lo que no eran roles se apilaba en UNA sola media columna. -->
                     @if (step===2) {
-                      <div class="grid grid-cols-12 gap-5">
+                      <div class="space-y-4">
                         <!-- Resumen -->
-                        <aside class="col-span-12">
+                        <aside>
                           <div class="flex flex-col md:flex-row gap-2 md:items-center md:justify-between rounded-xl border p-3 bg-white/60">
                             <div class="text-sm">
                               <strong>Empresa:</strong> {{ form.get('name')?.value || '—' }} ·
@@ -624,11 +637,15 @@
                             <button type="button" (click)="prevStep()" class="btn-ghost">Editar datos</button>
                           </div>
                         </aside>
-                        <!-- Roles -->
-                        <section class="col-span-12 lg:col-span-6 space-y-3">
-                          <div class="flex items-center gap-2">
-                            <fa-icon [icon]="faShield" class="text-lg text-warm-gray-700" aria-hidden="true"></fa-icon>
-                            <div class="font-semibold">Roles de la empresa</div>
+                        <!-- Fila 1 · Roles de la empresa | Permisos que resultan de esos roles -->
+                        <div class="cm-grid-2">
+                        <section class="cm-block space-y-3">
+                          <div class="cm-block__head">
+                            <div class="cm-block__title">
+                              <fa-icon [icon]="faShield" aria-hidden="true"></fa-icon>
+                              Roles de la empresa
+                            </div>
+                            <span class="cm-block__count">{{ roleIds.length }} seleccionado(s)</span>
                           </div>
                           <div class="ux-search">
                             <fa-icon [icon]="faSearch" class="ux-search__icon" aria-hidden="true"></fa-icon>
@@ -669,8 +686,8 @@
                               </div>
                             }
                           </section>
-                          <!-- Permisos + módulos -->
-                          <section class="col-span-12 lg:col-span-6 space-y-3">
+                          <!-- Permisos que resultan de los roles marcados (lectura) -->
+                          <section class="cm-block space-y-3">
                             <div class="rounded-xl border bg-gray-50 p-3 shadow-inner">
                               <div class="flex items-center justify-between">
                                 <div class="text-sm font-semibold text-warm-gray-700 mb-2">Permisos (asignación resultante)</div>
@@ -715,11 +732,23 @@
                               }
                             </div>
                           </div>
-                          <div class="rounded-xl border p-3 bg-white/60" formGroupName="visualPermissions">
-                            <div class="text-sm font-semibold text-warm-gray-700 mb-2">Permisos de módulos</div>
-                            <div class="grid grid-cols-2 gap-2">
+                          </section>
+                          </div>
+
+                          <!-- Fila 2 · Accesos y módulos.
+                               `mobileAccess` vive en la RAÍZ del formulario y por eso queda FUERA
+                               del `formGroupName`: Angular resuelve `formControlName` contra el
+                               contenedor más cercano, así que dentro del grupo buscaba
+                               `visualPermissions.mobileAccess` —que no existe— y reventaba el
+                               render del paso 2 entero. Cubierto por
+                               src/tests/company-mobile-access-binding.spec.ts. -->
+                          <section class="cm-block">
+                            <div class="cm-block__head">
+                              <div class="cm-block__title">Accesos y módulos</div>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2" formGroupName="visualPermissions">
                               @for (mod of allModules; track mod) {
-                                <label class="inline-flex items-center gap-2">
+                                <label class="inline-flex items-center gap-2 rounded-lg border border-warm-gray-200 p-2 hover:bg-warm-gray-50">
                                   <input type="checkbox" [formControlName]="mod.key" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
                                   <span class="text-sm">{{ mod.label }}</span>
                                 </label>
@@ -729,16 +758,17 @@
                               <input type="checkbox" formControlName="mobileAccess" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
                               <span class="text-sm text-warm-gray-700">Acceso móvil</span>
                             </label>
-                          </div>
-                          <!-- Comportamiento del sistema para esta empresa.
+                          </section>
+                          <!-- Fila 3 · Comportamiento del sistema para esta empresa.
                                Los checkboxes salen del catálogo funciones/flags-empresa.funcion.ts:
-                               agregar un flag nuevo NO requiere tocar esta plantilla. -->
-                          <div class="rounded-xl border p-3 bg-white/60">
-                            <div class="flex items-center justify-between mb-1">
-                              <div class="text-sm font-semibold text-warm-gray-700">Comportamiento del sistema</div>
-                              <span class="text-xs text-warm-gray-500">{{ flagsActivosEnFormulario }} de {{ totalFlags }} activos</span>
+                               agregar un flag nuevo NO requiere tocar esta plantilla. A ancho
+                               completo entran hasta 3 por fila, en vez de apilarse de a uno. -->
+                          <section class="cm-block">
+                            <div class="cm-block__head">
+                              <div class="cm-block__title">Comportamiento del sistema</div>
+                              <span class="cm-block__count">{{ flagsActivosEnFormulario }} de {{ totalFlags }} activos</span>
                             </div>
-                            <p class="text-xs text-warm-gray-500 mb-3">
+                            <p class="cm-block__hint">
                               Cada opción cambia cómo funciona la aplicación <b>solo para esta empresa</b>. Todas
                               nacen apagadas: apagada, el comportamiento es el de siempre.
                             </p>
@@ -746,7 +776,7 @@
                             @for (grupo of gruposFlags; track grupo) {
                               <div class="mb-3 last:mb-0">
                                 <div class="text-xs font-semibold uppercase tracking-wide text-warm-gray-500 mb-2">{{ grupo }}</div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                                   @for (flag of flagsDe(grupo); track trackByFlag($index, flag)) {
                                     <label class="inline-flex items-start gap-2 rounded-lg border border-warm-gray-200 p-2 hover:bg-warm-gray-50">
                                       <input type="checkbox" [formControlName]="flag.key"
@@ -760,11 +790,13 @@
                                 </div>
                               </div>
                             }
-                          </div>
-                          <!-- Ventana de alimento previo al encaset (engorde): días que se cuentan como ingreso inicial del ciclo -->
-                          <div class="rounded-xl border p-3 bg-white/60">
-                            <div class="text-sm font-semibold text-warm-gray-700 mb-2">Alimento previo al encaset</div>
-                            <label class="block">
+                          </section>
+                          <!-- Fila 4 · Ventana de alimento previo al encaset (engorde): días que cuentan como ingreso inicial del ciclo -->
+                          <section class="cm-block">
+                            <div class="cm-block__head">
+                              <div class="cm-block__title">Alimento previo al encaset</div>
+                            </div>
+                            <label class="block max-w-sm">
                               <span class="form-label">Días de alimento previo al encaset</span>
                               <input type="number" formControlName="diasAlimentoPrevioEncaset" min="0" max="30" class="form-input"
                                 [class.form-input--invalid]="form.get('diasAlimentoPrevioEncaset')?.invalid && form.get('diasAlimentoPrevioEncaset')?.touched"/>
@@ -775,33 +807,36 @@
                                 El seguimiento diario cuenta como ingreso inicial del ciclo el alimento recibido hasta N días antes del encasetamiento.
                               </span>
                             </label>
-                          </div>
-                        </section>
+                          </section>
                       </div>
                     }
-                    <!-- Footer acciones -->
-                    <div class="flex justify-between pt-2">
-                      @if (step===2) {
-                        <button type="button" (click)="prevStep()" class="btn-ghost">
-                          <fa-icon [icon]="faPrev" class="mr-2" aria-hidden="true"></fa-icon>
-                          Volver
-                        </button>
-                      }
-                      <span></span>
-                      @if (step===1) {
-                        <button type="button" (click)="nextStep()"
-                          [disabled]="form.get('name')?.invalid || form.get('identifier')?.invalid || form.get('documentType')?.invalid"
-                          class="btn-primary">
-                          Siguiente
-                          <fa-icon [icon]="faNext" class="ml-2" aria-hidden="true"></fa-icon>
-                        </button>
-                      }
-                      @if (step===2) {
-                        <button type="submit" class="btn-primary">
-                          <fa-icon [icon]="faBuilding" aria-hidden="true"></fa-icon>
-                          Guardar Empresa
-                        </button>
-                      }
+                  </div>
+                    <!-- Footer acciones (fijo: nunca queda fuera de pantalla) -->
+                    <div class="cm-modal__footer cm-modal__footer--split">
+                      <div>
+                        @if (step===2) {
+                          <button type="button" (click)="prevStep()" class="btn-ghost">
+                            <fa-icon [icon]="faPrev" class="mr-2" aria-hidden="true"></fa-icon>
+                            Volver
+                          </button>
+                        }
+                      </div>
+                      <div class="flex items-center gap-2">
+                        @if (step===1) {
+                          <button type="button" (click)="nextStep()"
+                            [disabled]="form.get('name')?.invalid || form.get('identifier')?.invalid || form.get('documentType')?.invalid"
+                            class="btn-primary">
+                            Siguiente
+                            <fa-icon [icon]="faNext" class="ml-2" aria-hidden="true"></fa-icon>
+                          </button>
+                        }
+                        @if (step===2) {
+                          <button type="submit" class="btn-primary">
+                            <fa-icon [icon]="faBuilding" aria-hidden="true"></fa-icon>
+                            Guardar Empresa
+                          </button>
+                        }
+                      </div>
                     </div>
                   </form>
                   <!-- Overlay de proceso -->

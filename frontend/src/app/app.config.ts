@@ -20,8 +20,8 @@ import { HomeComponent } from './features/home/home.component';
 import { ConfigComponent }            from './features/config/config.component';
 import { MasterListsComponent }       from './features/config/master-lists/master-lists.component';
 import { ListDetailComponent }        from './features/config/master-lists/list-detail/list-detail.component';
-import { CompanyManagementComponent } from './features/config/company-management/company-management.component';
-import { RoleManagementComponent }    from './features/config/role-management/role-management.component';
+// Empresas y Roles se cargan con `loadComponent` más abajo: importarlas acá las devolvería al
+// bundle inicial, que es justo lo que hacía fallar el build por presupuesto.
 import { UserManagementComponent }    from './features/config/user-management/user-management.component';
 import { authGuard } from './core/auth/auth.guard';
 
@@ -265,8 +265,22 @@ export const appConfig: ApplicationConfig = {
                 .then(m => m.SiloCatalogoComponent)
           },
 
-          { path: 'companies',       component: CompanyManagementComponent },
-          { path: 'role-management', component: RoleManagementComponent },
+          // Empresas y Roles son pantallas de administración: las abre poca gente y muy de vez en
+          // cuando, pero al estar importadas de forma estática viajaban en el bundle INICIAL de
+          // todos. Entre las dos empujaban el inicial por encima del presupuesto de error (2.05 MB)
+          // y `ng build` fallaba. Lazy, como el resto de la app.
+          {
+            path: 'companies',
+            loadComponent: () =>
+              import('./features/config/company-management/company-management.component')
+                .then(m => m.CompanyManagementComponent)
+          },
+          {
+            path: 'role-management',
+            loadComponent: () =>
+              import('./features/config/role-management/role-management.component')
+                .then(m => m.RoleManagementComponent)
+          },
           { path: 'users',           component: UserManagementComponent },
 
           // geografía

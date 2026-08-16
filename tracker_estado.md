@@ -5579,7 +5579,7 @@ solo `[Authorize]`; `CanManageMenus` definida como «usuario autenticado» con u
 ### Cierre
 - [x] C4.1 `dotnet build` + `dotnet test` + `yarn build`
 - [x] C4.2 Migración aplicada en local y corrida dos veces (idempotencia)
-- [ ] C4.3 Commit
+- [x] C4.3 Commit
 
 ---
 

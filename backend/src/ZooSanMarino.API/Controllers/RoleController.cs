@@ -195,8 +195,10 @@ public class RolesController : ControllerBase
     public async Task<IActionResult> MenusForUser(Guid userId, [FromQuery] int? companyId = null)
         => Ok(await _svc.Menus_GetForUserAsync(userId, companyId));
 
+    // Las tres escrituras de abajo tocan el árbol de menús GLOBAL (el mismo que MenuController):
+    // reservado al administrador de la aplicación. `CanManageMenus` solo exige sesión válida.
     [HttpPost("menus")]
-    [Authorize(Policy = "CanManageMenus")]
+    [Authorize(Policy = "AdminAplicacion")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(MenuItemDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -208,7 +210,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpPut("menus/{id:int}")]
-    [Authorize(Policy = "CanManageMenus")]
+    [Authorize(Policy = "AdminAplicacion")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(MenuItemDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -222,7 +224,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpDelete("menus/{id:int}")]
-    [Authorize(Policy = "CanManageMenus")]
+    [Authorize(Policy = "AdminAplicacion")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

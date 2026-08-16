@@ -506,9 +506,13 @@ export class CompanyManagementComponent implements OnInit {
           return forkJoin(ops).pipe(map(() => company));
         }
       }),
-      finalize(() => { this.loading = false; this.modalOpen = false; })
+      // Solo el spinner va en `finalize`. Cerrar el modal acá lo cerraba TAMBIÉN cuando el guardado
+      // fallaba: el usuario perdía todo lo cargado y solo le quedaba un toast rojo diciéndole
+      // «intente de nuevo» sobre un formulario que ya no existía. El cierre va en el `next`.
+      finalize(() => { this.loading = false; })
     ).subscribe({
       next: () => {
+        this.modalOpen = false;
         this.loadCompanies();
         this.loadAvailablePaises();
         this.showToast('success', this.editing ? 'Empresa actualizada correctamente.' : 'Empresa creada correctamente.');
