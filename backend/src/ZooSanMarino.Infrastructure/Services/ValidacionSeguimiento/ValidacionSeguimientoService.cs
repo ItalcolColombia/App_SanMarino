@@ -87,7 +87,7 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
     /// duplicarla dejaría el cruce mirando un flag que ya nadie escribe.
     /// </para>
     /// </summary>
-    private async Task<(bool Existe, bool Validado, DateOnly Fecha, int LoteRefInt)> LeerEstadoAsync(
+    private async Task<(bool Existe, bool Validado, DateOnly Fecha, int LoteRefInt, int CompanyId)> LeerEstadoAsync(
         string modulo, long seguimientoId, CancellationToken ct)
     {
         switch (modulo)
@@ -98,18 +98,27 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Where(s => s.Id == seguimientoId)
                     .Select(s => new { s.Validado, s.Fecha, s.LotePosturaLevanteId, s.LoteId })
                     .FirstOrDefaultAsync(ct);
-                if (r is null) return (false, false, default, 0);
+                if (r is null) return (false, false, default, 0, 0);
                 var loteRef = r.LotePosturaLevanteId ?? (int.TryParse(r.LoteId, out var li) ? li : 0);
-                return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), loteRef);
+                var companyLev = r.LotePosturaLevanteId.HasValue
+                    ? await _ctx.LotePosturaLevante.AsNoTracking()
+                        .Where(l => l.LotePosturaLevanteId == r.LotePosturaLevanteId.Value)
+                        .Select(l => l.CompanyId).FirstOrDefaultAsync(ct)
+                    : await _ctx.Lotes.AsNoTracking()
+                        .Where(l => l.LoteId == loteRef)
+                        .Select(l => l.CompanyId).FirstOrDefaultAsync(ct);
+                return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), loteRef, companyLev);
             }
             case ModuloSeguimiento.Produccion:
             {
+                // `company_id` está en la propia fila de producción (es la única tabla de seguimiento
+                // que lo lleva), así que no hace falta ir al maestro para saber de quién es.
                 var r = await _ctx.SeguimientoProduccion.AsNoTracking()
                     .Where(s => s.Id == seguimientoId && s.DeletedAt == null)
-                    .Select(s => new { s.Validado, s.Fecha, s.LotePosturaProduccionId })
+                    .Select(s => new { s.Validado, s.Fecha, s.LotePosturaProduccionId, s.CompanyId })
                     .FirstOrDefaultAsync(ct);
-                if (r is null) return (false, false, default, 0);
-                return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), r.LotePosturaProduccionId ?? 0);
+                if (r is null) return (false, false, default, 0, 0);
+                return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), r.LotePosturaProduccionId ?? 0, r.CompanyId);
             }
             // Los DOS módulos de engorde leen la misma tabla: `SeguimientoAvesEngordeEcuadorService`
             // persiste en `_ctx.SeguimientoDiarioAvesEngorde` igual que el de Colombia/Panamá. La tabla
@@ -123,8 +132,11 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Where(s => s.Id == seguimientoId)
                     .Select(s => new { s.Validado, s.Fecha, s.LoteAveEngordeId })
                     .FirstOrDefaultAsync(ct);
-                if (r is null) return (false, false, default, 0);
-                return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), r.LoteAveEngordeId);
+                if (r is null) return (false, false, default, 0, 0);
+                var companyEng = await _ctx.LoteAveEngorde.AsNoTracking()
+                    .Where(l => l.LoteAveEngordeId == r.LoteAveEngordeId)
+                    .Select(l => l.CompanyId).FirstOrDefaultAsync(ct);
+                return (true, r.Validado, DateOnly.FromDateTime(r.Fecha), r.LoteAveEngordeId, companyEng);
             }
             case ModuloSeguimiento.Reproductora:
             {
@@ -132,13 +144,33 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
                     .Where(s => s.Id == seguimientoId)
                     .Select(s => new { s.Confirmado, s.Fecha, s.LoteReproductoraAveEngordeId })
                     .FirstOrDefaultAsync(ct);
-                if (r is null) return (false, false, default, 0);
-                return (true, r.Confirmado, DateOnly.FromDateTime(r.Fecha), r.LoteReproductoraAveEngordeId);
+                if (r is null) return (false, false, default, 0, 0);
+                // El lote de reproductora no lleva empresa propia: cuelga del lote de engorde.
+                var companyRep = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                    .Where(l => l.Id == r.LoteReproductoraAveEngordeId)
+                    .Join(_ctx.LoteAveEngorde.AsNoTracking(),
+                        l => l.LoteAveEngordeId, e => e.LoteAveEngordeId, (l, e) => e.CompanyId)
+                    .FirstOrDefaultAsync(ct);
+                return (true, r.Confirmado, DateOnly.FromDateTime(r.Fecha), r.LoteReproductoraAveEngordeId, companyRep);
             }
             default:
-                return (false, false, default, 0);
+                return (false, false, default, 0, 0);
         }
     }
+
+    /// <summary>
+    /// El registro es de la empresa activa. <b>Fail-closed</b>: una empresa que no se resuelve (0) o que
+    /// no coincide se trata como «no existe».
+    ///
+    /// <para>
+    /// Sin esto, <c>ValidarAsync</c> y <c>DesvalidarAsync</c> buscaban el registro <b>solo por id</b>
+    /// —el mensaje decía «no pertenece a la compañía» pero nada lo comprobaba—, así que un usuario con
+    /// el permiso de validar podía aplicar el consumo y el descuento de aves de un lote de otra
+    /// empresa. Regla 3 de la guía multi-empresa: la empresa efectiva sale de los datos.
+    /// </para>
+    /// </summary>
+    private bool EsDeLaEmpresaActiva(int companyIdDelRegistro) =>
+        companyIdDelRegistro > 0 && companyIdDelRegistro == _current.CompanyId;
 
     /// <summary>Escribe la marca de validación en la tabla del módulo. Devuelve false si no existe.</summary>
     private async Task<bool> MarcarValidadoAsync(string modulo, long seguimientoId, bool validado, CancellationToken ct)

@@ -37,7 +37,7 @@ public partial class ValidacionSeguimientoService
             throw new UnauthorizedAccessException($"No tiene el permiso '{permiso}' para validar este registro.");
 
         var estado = await LeerEstadoAsync(modulo, seguimientoId, ct);
-        if (!estado.Existe)
+        if (!estado.Existe || !EsDeLaEmpresaActiva(estado.CompanyId))
             throw new InvalidOperationException("El registro de seguimiento no existe o no pertenece a la compañía.");
 
         if (estado.Validado)
@@ -97,7 +97,7 @@ public partial class ValidacionSeguimientoService
                 $"No tiene el permiso '{permiso}' para quitarle la validación a este registro.");
 
         var estado = await LeerEstadoAsync(modulo, seguimientoId, ct);
-        if (!estado.Existe)
+        if (!estado.Existe || !EsDeLaEmpresaActiva(estado.CompanyId))
             throw new InvalidOperationException("El registro de seguimiento no existe o no pertenece a la compañía.");
 
         if (!estado.Validado)
@@ -112,6 +112,20 @@ public partial class ValidacionSeguimientoService
             .Where(r => r.OrigenModulo == modulo && r.OrigenSeguimientoId == seguimientoId
                      && r.Estado == EstadoReservaSeguimiento.Aplicada)
             .ToListAsync(ct);
+
+        // Un registro ANTERIOR al encendido del flag está validado porque descontó al guardar, no
+        // porque haya pasado por acá: no tiene ni una fila de reserva. Des-validarlo devolvería CERO
+        // —no hay reserva que revertir— y lo dejaría marcado como pendiente con su efecto aplicado.
+        // A partir de ahí, editarlo separa de nuevo y al validar el consumo se descuenta DOS veces.
+        // Preferimos negarnos: lo que hay que corregir es el registro, no la marca.
+        if (reservasAlimento.Count == 0 && reservasAves.Count == 0
+            && !await TieneAlgunaReservaAsync(modulo, seguimientoId, ct))
+        {
+            throw new InvalidOperationException(
+                "Este registro es anterior a la doble validación: su consumo y sus bajas ya se " +
+                "aplicaron al guardarlo, así que no hay nada que devolver. Para corregirlo hay que " +
+                "editar el registro, no quitarle la validación.");
+        }
 
         await using var tx = _ctx.Database.CurrentTransaction is null
             ? await _ctx.Database.BeginTransactionAsync(ct)
@@ -145,7 +159,9 @@ public partial class ValidacionSeguimientoService
     {
         if (reservas.Count == 0) return 0m;
 
-        var total = reservas.Sum(r => r.CantidadKg);
+        // El total se acumula con lo REALMENTE aplicado, no con lo separado: devolver la suma de las
+        // reservas hacía que un descuento que no ocurrió se reportara como ocurrido.
+        var total = 0m;
         var refStr = $"Seguimiento {modulo.ToLowerInvariant()} #{seguimientoId} " +
                      $"{reservas[0].FechaSeguimiento:yyyy-MM-dd}" +
                      (devolver ? " (devolución por quitar la validación)" : " (validado)");
@@ -153,6 +169,14 @@ public partial class ValidacionSeguimientoService
         foreach (var grupo in reservas.GroupBy(r => new { r.PaisId, r.FarmId, r.NucleoId, r.GalponId }))
         {
             var modelo = InventarioConsumoGate.ResolverModelo(grupo.Key.PaisId);
+            var kgGrupo = grupo.Sum(r => r.CantidadKg);
+
+            // País sin resolver con kilos separados ⇒ se cae la transacción entera. Antes era un
+            // `continue` mudo que dejaba el registro validado y el inventario sin tocar.
+            var motivo = ReservaSeguimientoCalculos.MotivoAlimentoNoAplicable(
+                modelo, kgGrupo, grupo.Key.PaisId, reservas[0].LoteRef);
+            if (motivo is not null) throw new InvalidOperationException(motivo);
+
             if (modelo == ModeloInventarioConsumo.Ninguno) continue;
 
             if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null)
@@ -170,17 +194,25 @@ public partial class ValidacionSeguimientoService
                     await _colombiaConsumoB.ValidarStockConsumoAsync(grupo.Key.FarmId, porItem, null, ct);
                     await _colombiaConsumoB.AplicarConsumoAsync(grupo.Key.FarmId, porItem, refStr, ct);
                 }
+                total += kgGrupo;
                 continue;
             }
 
-            if (modelo != ModeloInventarioConsumo.ModeloB || _inventarioGestion is null) continue;
+            // Modelo B sin el servicio de inventario en el contenedor: preferimos caernos a marcar el
+            // registro como validado sobre un inventario que nadie tocó.
+            if (modelo == ModeloInventarioConsumo.ModeloB && _inventarioGestion is null)
+                throw new InvalidOperationException(
+                    $"No se puede validar: hay {kgGrupo:0.###} kg separados y el servicio de inventario " +
+                    "no está disponible para aplicarlos.");
+
+            if (modelo != ModeloInventarioConsumo.ModeloB) continue;
 
             foreach (var r in grupo)
             {
                 if (r.CantidadKg <= 0) continue;
                 if (devolver)
                 {
-                    await _inventarioGestion.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                    await _inventarioGestion!.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
                         r.FarmId, r.NucleoId?.Trim(), r.GalponId?.Trim(), r.ItemInventarioEcuadorId,
                         r.CantidadKg, r.Unit, refStr, "Devolución por quitar la validación del seguimiento"));
                 }
@@ -189,11 +221,12 @@ public partial class ValidacionSeguimientoService
                     // El movimiento se fecha en el DÍA DEL SEGUIMIENTO, no en el de la validación: si
                     // se validan cinco días juntos, el kardex del galpón tiene que seguir mostrando un
                     // consumo por día y no cinco el mismo día.
-                    await _inventarioGestion.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                    await _inventarioGestion!.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
                         r.FarmId, r.NucleoId?.Trim(), r.GalponId?.Trim(), r.ItemInventarioEcuadorId,
                         r.CantidadKg, r.Unit, refStr, null,
                         FechaMovimiento: r.FechaSeguimiento.ToDateTime(TimeOnly.MinValue)));
                 }
+                total += r.CantidadKg;
             }
         }
 
@@ -212,6 +245,20 @@ public partial class ValidacionSeguimientoService
     {
         if (reservas.Count == 0) return 0;
 
+        // El par (lote_postura_levante_id, lote_id) sale del REGISTRO, no de la reserva.
+        //
+        // `SeguimientoReservaAves` guarda un solo entero (`lote_ref_int`) que en levante vale
+        // `LotePosturaLevanteId ?? LoteId` — dos espacios de ids distintos colapsados en una columna.
+        // El aplicador prueba primero `lote_postura_levante_id == <ese entero>`, así que un valor que
+        // en realidad era un `lote_id` podía casar con el LPL de OTRO lote (y de otra empresa: esa
+        // consulta no filtra por compañía) y descontarle la mortalidad al lote equivocado.
+        var loteLevante = ModuloSeguimiento.Levante.Equals(modulo, StringComparison.OrdinalIgnoreCase)
+            ? await _ctx.SeguimientoDiario.AsNoTracking()
+                .Where(s => s.Id == seguimientoId)
+                .Select(s => new { s.LotePosturaLevanteId, s.LoteId })
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         var total = 0;
         foreach (var r in reservas)
         {
@@ -226,22 +273,36 @@ public partial class ValidacionSeguimientoService
             {
                 case ModuloSeguimiento.Levante:
                     await DescuentoAvesPosturaAplicador.AplicarLevanteAsync(
-                        _ctx, r.LoteRefInt, r.LoteRefInt.ToString(),
+                        _ctx,
+                        loteLevante?.LotePosturaLevanteId,
+                        loteLevante?.LoteId ?? r.LoteRefInt.ToString(),
                         hembras, machos, 0, 0, 0, 0, resta: !devolver, ct);
                     break;
 
                 case ModuloSeguimiento.Produccion:
-                    await DescuentoAvesPosturaAplicador.AplicarProduccionAsync(
-                        _ctx, r.LoteRefInt,
-                        hembras, machos, 0, 0, 0, 0, resta: !devolver, ct);
+                    // NO se mueve `lote_postura_produccion.aves_h_actual`: esa columna no es el maestro
+                    // del saldo, es una CACHÉ que `ProduccionService.Consultas` reescribe con el
+                    // resultado de `fn_seguimiento_diario_produccion`. Esa fn suma las bajas de todas
+                    // las filas sin mirar `validado` —ninguna fn del esquema lo mira—, así que las bajas
+                    // ya están descontadas desde que se guarda el registro. Restarlas otra vez acá
+                    // dejaba la caché con el doble hasta la siguiente consulta del módulo, y en esa
+                    // ventana el traslado veía menos aves de las que hay.
+                    //
+                    // Consecuencia asumida y documentada: en producción la doble validación difiere el
+                    // ALIMENTO, no el saldo de aves. Diferirlo también exigiría que la fn filtre por
+                    // `validado`, y eso cambia el número de TODAS las empresas — cambio que pide el gate
+                    // de paridad multipaís, no este arreglo.
                     break;
 
                 case ModuloSeguimiento.Engorde:
                 case ModuloSeguimiento.EngordeEcuador:
                     // El aplicador de engorde es idempotente por (lote, origen): lleva el baseline ya
                     // aplicado, así que devolver es sincronizar contra CERO, no restar al revés.
+                    // La empresa sale de la RESERVA (es la del lote): `SincronizarAsync` filtra el lote
+                    // por company_id y RETORNA EN SILENCIO si no lo encuentra, así que con la del
+                    // usuario un desfase dejaba el registro validado sin descontar un ave.
                     await RetiroAvesEngordeAplicador.SincronizarAsync(
-                        _ctx, _current.CompanyId, r.LoteRefInt, seguimientoId,
+                        _ctx, r.CompanyId, r.LoteRefInt, seguimientoId,
                         fecha.ToDateTime(TimeOnly.MinValue),
                         bajasHembrasNuevas: devolver ? 0 : hembras,
                         bajasMachosNuevas: devolver ? 0 : machos);

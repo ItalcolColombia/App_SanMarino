@@ -5643,3 +5643,63 @@ las 5 superficies, 3 ya restaban las bajas sin validar y solo 2 no.
 Hoy el hueco es **latente**: la única empresa con el flag ON (ItalcolPanama) tiene 0 lotes de postura.
 Por eso **no hay smoke con datos reales** — se cubre con tests y queda dicho, no se declara una prueba
 que no se corrió.
+
+---
+
+## V7 · Bugs de la doble validación por empresa + validación en las 5 (16ago26)
+
+Plan: [doble_validacion_bugs_por_empresa_plan.md](fase_de_desarrollo/doble_validacion_bugs_por_empresa_plan.md)
+
+Retoma el V6.X que quedó abierto: *el camino con el flag ON en postura nunca se ejecutó*. Auditoría de
+7 superficies + verificación adversarial (65 agentes): el hueco no era solo de prueba, había defectos
+reales esperando ahí.
+
+### V7.0 — `main` no compilaba
+- [x] El commit anterior (`bebac18`) dejó `TrasladoAvesDesdeSegService.cs` usando `ReservaSeguimientoCalculos` y `ModuloSeguimiento` **sin el `using`**. `dotnet build` fallaba con 10 errores CS0103/CS8130. El reporte de «0 errores, 2602 tests en verde» de esa sesión no es reproducible desde el commit
+
+### H1 — El `pais_id` de la reserva no era el resuelto ⇒ validar no descontaba alimento
+- [x] V7.1 `ProduccionService.ResolverGranjaYModeloAsync` devuelve también el `paisId` resuelto
+- [x] V7.2 Producción pasa ese país a la separación (mandaba `null` literal ⇒ roto en el 100 % de los casos, toda empresa)
+- [x] V7.3 Levante (2 sitios), engorde (2) y engorde EC (2) pasan el país resuelto en vez de `lote.PaisId` crudo. Sanmarino tiene 2 de 10 lotes con `pais_id` NULL (K345A/K345B)
+- [x] V7.4 `AplicarAlimentoAsync` **lanza** cuando el país no resuelve y hay kilos separados, en vez del `continue` mudo; y el total devuelto es el realmente aplicado (antes informaba los kilos aunque no se moviera nada)
+- [x] V7.5 `ReservaSeguimientoCalculos.MotivoAlimentoNoAplicable` + 6 tests xUnit
+
+### H2 — Producción con el flag ON estaba rota en las tres operaciones
+- [x] V7.6 `SeguimientoProduccionService`: frenaba el descuento de aves y **no separaba nada** ⇒ la mortalidad se evaporaba. Ahora separa en alta y edición, y libera al borrar
+- [x] V7.7 `ProduccionService` **editar**: aplicaba el diff de inventario aunque el alta solo hubiera reservado (doble descuento al validar). Ahora reescribe la reserva
+- [x] V7.8 `ProduccionService` **borrar**: devolvía stock que nunca salió (inflaba el inventario) y dejaba la reserva ACTIVA para siempre. Ahora libera
+- [x] V7.9 Guard de editable en las dos: un registro validado no se edita ni se borra
+
+### H3 — El saldo de aves de producción tenía TRES escritores
+- [x] V7.10 `lote_postura_produccion.aves_h_actual` **no es un maestro, es una caché**: `ProduccionService.Consultas` la reescribe con `fn_seguimiento_diario_produccion`, y **ninguna fn del esquema mira `validado`** (verificado: `prosrc ILIKE '%validado%'` = 0 filas). O sea que las bajas sin validar ya están adentro
+- [x] V7.11 El disponible de traslado en producción restaba la reserva **sobre un saldo que ya la incluía** — regresión introducida por `bebac18`, el mismo doble descuento que ese commit decía estar evitando. Quitada
+- [x] V7.12 Validar ya no mueve esa caché (dejaba el número al doble hasta la siguiente consulta). Queda **documentado**: en producción la doble validación difiere el alimento, no el saldo de aves
+
+### H4 — Empresa efectiva por datos
+- [x] V7.13 `LeerEstadoAsync` resuelve y compara la empresa del lote (fail-closed). Validar/desvalidar buscaban **solo por id**: con el permiso puesto se podía aplicar el consumo de otra empresa
+- [x] V7.14 Validar engorde usa el `company_id` de la reserva, no el del usuario (`SincronizarAsync` retorna en silencio si no matchea ⇒ validado sin descontar)
+
+### H5 — La columna del ítem es polimórfica y tenía FK a una sola tabla
+- [x] V7.15 **Bloqueaba a Colombia entero**: 208 de 435 `catalogo_items` no existen como `item_inventario_ecuador.id`, así que guardar un seguimiento de postura con el flag ON daba 500 por violación de FK. Migración `20260816225138_QuitarFkPolimorficaReservaAlimento`, idempotente, aplicada en local y verificada
+- [x] V7.16 Entidad y configuración EF alineadas con el diseño (sin navegación al ítem)
+
+### H6 — `validado` nacía en false con el flag APAGADO
+- [x] V7.17 Los Crud nunca seteaban la columna: todo registro creado desde el backfill nacía `false`. El día que una empresa encendiera el flag, esos registros aparecían pendientes, pasaban a EN RETRASO a las 24 h y **bloqueaban el alta de días nuevos** de cada lote. Ahora `Validado = !separa` en los 4 Crud
+- [x] V7.18 Desvalidar un registro **anterior** al flag se niega: no tiene reservas que devolver, y marcarlo pendiente habilitaba el doble descuento al reeditarlo
+
+### H7 — Levante: una sola clave para dos espacios de ids
+- [x] V7.19 Al validar, el aplicador recibía `LoteRefInt` como `lote_postura_levante_id` **y** como `lote_id`. En la base local los LPL 13/14 están soft-deleted mientras los `lote_id` 13/14 (K345A/B) viven: la colisión descontaba del lote equivocado, sin filtro de empresa. Ahora el par sale del registro
+
+### Cierre
+- [x] V7.20 `dotnet build` 0 errores (1 warning preexistente ajeno) · `dotnet test` **2608 en verde**
+- [x] V7.21 Migración aplicada en local, FK confirmada eliminada, base sin residuos, flags en su valor original, `:5501` y `:5002` libres
+
+### Validación por empresa — BLOQUEADA, no hecha
+- [ ] V7.22 Smoke HTTP con el flag ON/OFF en las 5 empresas. **El clasificador de permisos bloqueó la generación del header `X-Secret-Up` y la llamada autenticada al backend local.** No se corrió y **no se declara como hecho**. Falta: Sanmarino (levante K345A + producción), Demo, ItalcolPanama (regresión), ItalcolEcuador, Santa Reyes
+
+### Hallazgos confirmados que NO entran en esta entrega
+- [ ] V7.23 El bloqueo por vencidos corta la **carga masiva histórica** y el **puente Panamá** después del primer día insertado: el gate se evalúa por fila. Necesita evaluarse una vez por import
+- [ ] V7.24 El guard de alimento obligatorio mide solo el metadata, y el puente Panamá manda los kg en `ConsumoKgHembras/Machos` ⇒ con el flag ON no importa un solo día
+- [ ] V7.25 Los escritores alternos de `seguimiento_diario_produccion` (traslados) crean filas `validado=false` sin reserva: a las 24 h bloquean el lote
+- [ ] V7.26 Front: el botón Validar de producción se muestra con el flag APAGADO
+- [ ] V7.27 El saldo de alimento y el cuadre de engorde se recalculan ignorando `validado`. Tocarlo exige el **gate de paridad multipaís**, no entra acá

@@ -93,6 +93,12 @@ public partial class SeguimientoAvesEngordeEcuadorService
         var ent = new SeguimientoDiarioAvesEngorde
         {
             LoteAveEngordeId = dto.LoteId,
+            // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
+            // apagado el registro descuenta AL GUARDAR, así que nace validado. Dejarlo en false —el
+            // default— hacía que el día que la empresa encendiera la doble validación todos sus
+            // registros previos aparecieran pendientes, pasaran a EN RETRASO a las 24 h y bloquearan
+            // el alta de días nuevos de cada lote, sin tener nada que validar.
+            Validado = !separa,
             Fecha = FechasPuras.AnclarMediodiaUtc(dto.FechaRegistro),
             MortalidadHembras = dto.MortalidadHembras,
             MortalidadMachos = dto.MortalidadMachos,
@@ -129,8 +135,11 @@ public partial class SeguimientoAvesEngordeEcuadorService
         };
         _ctx.SeguimientoDiarioAvesEngorde.Add(ent);
 
-        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2).
-        var modeloInv = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2). El país RESUELTO se reusa en la
+        // reserva de la doble validación: `lote.PaisId` crudo puede venir NULL, y una reserva con país 0
+        // se aplica contra el modelo `Ninguno` ⇒ registro validado sin descontar un kilo.
+        var paisIdLote = await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId);
+        var modeloInv = InventarioConsumoGate.ResolverModelo(paisIdLote);
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (defensivo; mirror levante) ──
         if (!separa && modeloInv == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && dto.Metadata != null)
@@ -196,7 +205,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
         if (separa)
         {
             await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
-                ModuloSeguimiento.EngordeEcuador, ent.Id, lote.PaisId,
+                ModuloSeguimiento.EngordeEcuador, ent.Id, paisIdLote,
                 lote.GranjaId, lote.NucleoId, lote.GalponId,
                 dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
@@ -346,8 +355,11 @@ public partial class SeguimientoAvesEngordeEcuadorService
         _ctx.Entry(ent).Property(e => e.ItemsAdicionales).IsModified = true;
         _ctx.Entry(ent).Property(e => e.HistoricoConsumoAlimento).IsModified = true;
 
-        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2).
-        var modeloInv = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+        // Modelo de inventario según país del lote (S1 / Fase 3 paso 2). El país RESUELTO se reusa en la
+        // reserva de la doble validación: `lote.PaisId` crudo puede venir NULL, y una reserva con país 0
+        // se aplica contra el modelo `Ninguno` ⇒ registro validado sin descontar un kilo.
+        var paisIdLote = await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId);
+        var modeloInv = InventarioConsumoGate.ResolverModelo(paisIdLote);
         var newByItemIdInv = dto.Metadata != null
             ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
             : new Dictionary<int, decimal>();
@@ -434,7 +446,7 @@ public partial class SeguimientoAvesEngordeEcuadorService
         if (separaUpd)
         {
             await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
-                ModuloSeguimiento.EngordeEcuador, ent.Id, lote.PaisId,
+                ModuloSeguimiento.EngordeEcuador, ent.Id, paisIdLote,
                 lote.GranjaId, lote.NucleoId, lote.GalponId,
                 dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,

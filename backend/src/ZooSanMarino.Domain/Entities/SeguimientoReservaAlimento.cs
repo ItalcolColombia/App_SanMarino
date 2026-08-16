@@ -81,7 +81,12 @@ public class SeguimientoReservaAlimento
 
     public Company Company { get; set; } = null!;
     public Farm Farm { get; set; } = null!;
-    public ItemInventario ItemInventario { get; set; } = null!;
+
+    // Sin navegación al ítem A PROPÓSITO: `item_inventario_ecuador_id` es POLIMÓRFICA —la tabla la
+    // decide `es_item_inventario`—, así que no hay una sola entidad a la que apuntar. La FK que
+    // había rechazaba con violación de clave foránea cualquier separación de Colombia cuyo
+    // catalogo_items.id no existiera también como item_inventario_ecuador.id —208 de 435 ítems—,
+    // así que guardar un seguimiento de levante o producción con el flag encendido daba 500.
 }
 
 /// <summary>

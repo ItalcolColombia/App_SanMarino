@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -183,17 +184,23 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
 
             if (lpp is null) return null;
 
-            // Producción siempre lee el maestro, así que siempre hay que restarle lo separado por
-            // seguimientos sin validar. Con el flag apagado la reserva es 0 y el número no se mueve.
-            var (resProdH, resProdM) = await ReservadoSinValidarAsync(
-                ModuloSeguimiento.Produccion, loteId, ct);
+            // NO se resta la separación: en producción `aves_h_actual` NO es un maestro, es una CACHÉ.
+            // `ProduccionService.Consultas` recalcula el saldo con `fn_seguimiento_diario_produccion` y
+            // lo PERSISTE de vuelta en la columna, y esa fn suma las bajas de todas las filas sin mirar
+            // `validado` (ninguna fn del esquema lo mira). O sea que las bajas sin validar ya están
+            // adentro del número, igual que en levante con lote base: restarlas otra vez las contaría
+            // dos veces y bloquearía traslados de aves que sí existen.
+            //
+            // Es el mismo error que dio origen a AvesDisponiblesEngordeCalculos, y no se detectó antes
+            // porque la única empresa con el flag encendido no tiene lotes de postura: con el flag
+            // apagado la reserva es 0 y la resta de más no se ve.
 
             return new DisponibilidadAvesDto(
                 LoteId: loteId,
                 LoteNombre: lpp.LoteNombre,
                 TipoLote: "Produccion",
-                AvesHActual: ReservaSeguimientoCalculos.DisponibleAves(lpp.AvesHActual ?? 0, resProdH),
-                AvesMActual: ReservaSeguimientoCalculos.DisponibleAves(lpp.AvesMActual ?? 0, resProdM),
+                AvesHActual: lpp.AvesHActual ?? 0,
+                AvesMActual: lpp.AvesMActual ?? 0,
                 GranjaId: lpp.GranjaId,
                 GranjaNombre: lpp.Farm?.Name,
                 GalponId: lpp.GalponId,

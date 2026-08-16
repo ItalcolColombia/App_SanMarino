@@ -58,6 +58,7 @@ public class SeguimientoReservaAlimentoConfiguration : IEntityTypeConfiguration<
 
         e.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         e.HasOne(x => x.Farm).WithMany().HasForeignKey(x => x.FarmId).OnDelete(DeleteBehavior.Restrict);
-        e.HasOne(x => x.ItemInventario).WithMany().HasForeignKey(x => x.ItemInventarioEcuadorId).OnDelete(DeleteBehavior.Restrict);
+        // `ItemInventarioEcuadorId` NO lleva FK: es polimórfica (ver la entidad). El discriminador
+        // es `EsItemInventario`, y la resolución A→B por código la hace el aplicador al validar.
     }
 }

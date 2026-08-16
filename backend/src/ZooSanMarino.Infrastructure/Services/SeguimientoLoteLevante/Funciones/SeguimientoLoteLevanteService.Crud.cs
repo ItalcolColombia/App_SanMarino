@@ -72,7 +72,12 @@ public partial class SeguimientoLoteLevanteService
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var createDto = MapToCreateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
 
-        var modelo = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+        // El país va RESUELTO una sola vez y se reusa: lo consume el gate del descuento Y la reserva de
+        // la doble validación. `lote.PaisId` crudo puede venir NULL (K345A/K345B de Sanmarino lo están)
+        // y una reserva con país 0 se aplica contra el modelo `Ninguno`: el registro queda validado sin
+        // que se descuente un kilo.
+        var paisIdLote = await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId);
+        var modelo = InventarioConsumoGate.ResolverModelo(paisIdLote);
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2) ────────────
         // Colombia unifica con Ecuador/Panamá sobre el modelo B, pero a NIVEL GRANJA (id-mapping
@@ -135,7 +140,7 @@ public partial class SeguimientoLoteLevanteService
         if (separa)
         {
             await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
-                ModuloSeguimiento.Levante, created.Id, lote.PaisId,
+                ModuloSeguimiento.Levante, created.Id, paisIdLote,
                 lote.GranjaId, lote.NucleoId, lote.GalponId,
                 dto.LotePosturaLevanteId ?? dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,
@@ -215,7 +220,9 @@ public partial class SeguimientoLoteLevanteService
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var updateDto = MapToUpdateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
 
-        var modelo = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+        // Ídem el alta: país resuelto una sola vez, para el gate y para la reserva.
+        var paisIdLote = await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId);
+        var modelo = InventarioConsumoGate.ResolverModelo(paisIdLote);
 
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (Fase 3 paso 2) ──
         // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.
@@ -299,7 +306,7 @@ public partial class SeguimientoLoteLevanteService
         if (separa)
         {
             await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
-                ModuloSeguimiento.Levante, dto.Id, lote.PaisId,
+                ModuloSeguimiento.Levante, dto.Id, paisIdLote,
                 lote.GranjaId, lote.NucleoId, lote.GalponId,
                 dto.LotePosturaLevanteId ?? dto.LoteId, lote.LoteNombre, dto.FechaRegistro, dto.Metadata,
                 dto.MortalidadHembras, dto.SelH, dto.ErrorSexajeHembras,

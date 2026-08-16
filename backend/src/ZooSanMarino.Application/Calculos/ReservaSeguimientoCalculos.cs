@@ -147,4 +147,41 @@ public static class ReservaSeguimientoCalculos
     /// </para>
     /// </summary>
     public static int DisponibleAves(int saldo, int reservadoActivo) => saldo - reservadoActivo;
+
+    // ─── Aplicabilidad de la reserva ──────────────────────────────────────────
+
+    /// <summary>
+    /// Motivo por el que una reserva de alimento <b>no se puede aplicar</b>, o <c>null</c> si sí.
+    ///
+    /// <para>
+    /// Existe porque el modo de fallar importaba más que el fallo. La aplicación recorría los grupos de
+    /// reserva y hacía <c>continue</c> sobre <see cref="ModeloInventarioConsumo.Ninguno"/>: el registro
+    /// quedaba <c>validado = true</c>, las reservas <c>APLICADA</c> y el inventario intacto —y el
+    /// endpoint devolvía igual el total de kilos, porque se sumaba antes del bucle—. Un descuento que no
+    /// ocurre y encima se reporta como ocurrido no se descubre nunca; solo aparece meses después en el
+    /// cuadre.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>Ninguno</c> no es un caso legítimo: la tabla <c>paises</c> tiene tres filas y las tres mapean
+    /// a un modelo (Colombia a nivel granja, Ecuador y Panamá con núcleo/galpón). Que el gate devuelva
+    /// <c>Ninguno</c> significa siempre <b>país sin resolver</b> — la reserva se guardó con
+    /// <c>pais_id</c> 0 o nulo—, y contra eso lo correcto es no validar.
+    /// </para>
+    /// </summary>
+    /// <param name="modelo">Modelo resuelto desde el <c>pais_id</c> que la reserva persistió.</param>
+    /// <param name="kg">Kilos del grupo. En cero no hay nada que aplicar y nada que reclamar.</param>
+    /// <param name="paisId">País guardado, para nombrarlo en el mensaje.</param>
+    /// <param name="loteRef">Lote legible, para que el mensaje diga sobre qué hay que actuar.</param>
+    public static string? MotivoAlimentoNoAplicable(
+        ModeloInventarioConsumo modelo, decimal kg, int paisId, string? loteRef)
+    {
+        if (kg <= 0) return null;
+        if (modelo != ModeloInventarioConsumo.Ninguno) return null;
+
+        var lote = string.IsNullOrWhiteSpace(loteRef) ? "" : $" del lote '{loteRef}'";
+        return $"No se puede validar: los {kg:0.###} kg separados{lote} quedaron guardados con el país sin " +
+               $"resolver (pais_id {paisId}), así que no hay inventario contra el cual descontarlos. " +
+               "Corregí el país del lote o de su granja y volvé a guardar el registro.";
+    }
 }

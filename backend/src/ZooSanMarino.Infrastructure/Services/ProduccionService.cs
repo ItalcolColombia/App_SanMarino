@@ -54,16 +54,24 @@ public partial class ProduccionService : IProduccionService
     }
 
     /// <summary>
-    /// Resuelve (GranjaId, ModeloInventarioConsumo) del lote de producción para gatear el descuento.
+    /// Resuelve (GranjaId, PaisId, ModeloInventarioConsumo) del lote de producción para gatear el descuento.
     /// País: lote.PaisId si está poblado; si no, granja→departamento→pais (misma cadena que el inventario).
+    ///
+    /// <para>
+    /// El <c>PaisId</c> sale además del modelo porque la <b>separación</b> de la doble validación lo
+    /// persiste en la reserva y es con él que se decide el modelo al validar. Devolver solo el modelo
+    /// obligaba al llamador a mandar el país crudo (o <c>null</c>), y una reserva con país sin resolver
+    /// se aplica contra <see cref="ModeloInventarioConsumo.Ninguno"/>: el registro queda validado sin
+    /// haber descontado un kilo.
+    /// </para>
     /// </summary>
-    private async Task<(int? GranjaId, ModeloInventarioConsumo Modelo)> ResolverGranjaYModeloAsync(int loteId)
+    private async Task<(int? GranjaId, int? PaisId, ModeloInventarioConsumo Modelo)> ResolverGranjaYModeloAsync(int loteId)
     {
         var lote = await _context.Lotes.AsNoTracking()
             .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
             .Select(l => new { l.GranjaId, l.PaisId })
             .FirstOrDefaultAsync();
-        if (lote == null) return (null, ModeloInventarioConsumo.Ninguno);
+        if (lote == null) return (null, null, ModeloInventarioConsumo.Ninguno);
 
         int? paisId = lote.PaisId;
         if (paisId is not > 0)
@@ -73,7 +81,7 @@ public partial class ProduccionService : IProduccionService
                     f => f.DepartamentoId, d => d.DepartamentoId, (f, d) => (int?)d.PaisId)
                 .FirstOrDefaultAsync();
 
-        return (lote.GranjaId, InventarioConsumoGate.ResolverModelo(paisId));
+        return (lote.GranjaId, paisId, InventarioConsumoGate.ResolverModelo(paisId));
     }
 
     /// <summary>

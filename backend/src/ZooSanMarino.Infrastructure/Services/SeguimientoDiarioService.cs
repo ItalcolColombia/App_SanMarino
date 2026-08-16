@@ -301,8 +301,16 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
 
         var createdBy = dto.CreatedByUserId ?? _current.UserGuid?.ToString() ?? _current.UserId.ToString();
 
+        // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
+        // apagado el registro descuenta AL GUARDAR, así que nace validado. Dejarlo en el default
+        // (false) hacía que el día que la empresa encendiera la doble validación todos los registros
+        // creados desde el backfill aparecieran pendientes, pasaran a EN RETRASO a las 24 h y
+        // bloquearan el alta de días nuevos —sin tener nada que validar—.
+        var separaEsteRegistro = await RequiereValidacionSeguimientoAsync(ct);
+
         var ent = new SeguimientoDiario
         {
+            Validado = !separaEsteRegistro,
             TipoSeguimiento = tipo,
             LoteId = loteId,
             LotePosturaLevanteId = dto.LotePosturaLevanteId,

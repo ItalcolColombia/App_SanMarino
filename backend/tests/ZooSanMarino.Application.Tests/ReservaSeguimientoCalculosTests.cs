@@ -204,4 +204,52 @@ public class ReservaSeguimientoCalculosTests
         Assert.Equal(4_700, dobleResta);
         Assert.NotEqual(desdeMaestro, dobleResta);   // 150 aves que existen y no se podrían trasladar
     }
+
+    // ─── Aplicabilidad: validar no puede "pasar" sin descontar ────────────────
+    // El bug que motivó esto: la separación guardaba el `pais_id` CRUDO del lote (y producción
+    // guardaba `null` fijo). Con el país sin resolver el gate devuelve `Ninguno`, la aplicación hacía
+    // `continue` y el registro quedaba validado, las reservas APLICADAS y el inventario intacto —con
+    // el endpoint informando igual los kilos, porque el total se sumaba antes del bucle—.
+
+    [Fact]
+    public void PaisSinResolverConKilos_NoSePuedeAplicar()
+    {
+        var motivo = ReservaSeguimientoCalculos.MotivoAlimentoNoAplicable(
+            ModeloInventarioConsumo.Ninguno, kg: 120m, paisId: 0, loteRef: "K345A");
+
+        Assert.NotNull(motivo);
+        Assert.Contains("K345A", motivo);
+        Assert.Contains("120", motivo);   // el mensaje dice CUÁNTO quedó sin descontar
+    }
+
+    [Fact]
+    public void PaisSinResolverSinKilos_NoReclamaNada()
+    {
+        // Un día sin consumo no tiene nada que descontar: exigirle un país sería bloquear por nada.
+        Assert.Null(ReservaSeguimientoCalculos.MotivoAlimentoNoAplicable(
+            ModeloInventarioConsumo.Ninguno, kg: 0m, paisId: 0, loteRef: "K345A"));
+    }
+
+    [Theory]
+    [InlineData(InventarioConsumoGate.PaisColombia, ModeloInventarioConsumo.ModeloBNivelGranja)]
+    [InlineData(InventarioConsumoGate.PaisEcuador, ModeloInventarioConsumo.ModeloB)]
+    [InlineData(InventarioConsumoGate.PaisPanama, ModeloInventarioConsumo.ModeloB)]
+    public void LosTresPaisesResuelvenAUnModelo_YSeAplican(int paisId, ModeloInventarioConsumo esperado)
+    {
+        // `paises` tiene tres filas y las tres mapean a un modelo. Por eso `Ninguno` NUNCA es un caso
+        // legítimo: significa siempre país sin resolver, y contra eso lo correcto es no validar.
+        Assert.Equal(esperado, InventarioConsumoGate.ResolverModelo(paisId));
+        Assert.Null(ReservaSeguimientoCalculos.MotivoAlimentoNoAplicable(
+            esperado, kg: 120m, paisId, loteRef: "A374A"));
+    }
+
+    [Fact]
+    public void FlagApagado_NoHayReservasYNadaQueAplicar()
+    {
+        // Sin doble validación no se separa nada, así que la aplicabilidad ni se consulta: el
+        // comportamiento previo queda intacto. Se fija acá para que el invariante no dependa de que
+        // alguien recuerde no llamar al método.
+        Assert.False(ValidacionSeguimientoCalculos.SeparaAlGuardar(empresaRequiereValidacion: false));
+        Assert.True(ValidacionSeguimientoCalculos.DescuentaAlGuardar(empresaRequiereValidacion: false));
+    }
 }

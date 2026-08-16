@@ -119,6 +119,27 @@ public partial class ValidacionSeguimientoService
     }
 
     /// <summary>
+    /// ¿El registro pasó alguna vez por la separación? Mira los tres estados, no solo el activo: una
+    /// reserva <c>LIBERADA</c> también prueba que el registro nació bajo doble validación.
+    ///
+    /// <para>
+    /// Sirve para distinguir un registro <b>anterior</b> al encendido del flag —validado porque
+    /// descontó al guardar, sin una sola fila de reserva— de uno que se validó por este mecanismo.
+    /// La diferencia importa: al primero no se le puede quitar la validación sin dejar el número
+    /// mintiendo.
+    /// </para>
+    /// </summary>
+    private async Task<bool> TieneAlgunaReservaAsync(string modulo, long seguimientoId, CancellationToken ct)
+    {
+        modulo = ModuloSeguimiento.Canonico(modulo);
+
+        return await _ctx.SeguimientoReservaAlimento.AsNoTracking()
+                   .AnyAsync(r => r.OrigenModulo == modulo && r.OrigenSeguimientoId == seguimientoId, ct)
+            || await _ctx.SeguimientoReservaAves.AsNoTracking()
+                   .AnyAsync(r => r.OrigenModulo == modulo && r.OrigenSeguimientoId == seguimientoId, ct);
+    }
+
+    /// <summary>
     /// Kilos comprometidos por ítem en una ubicación. El inventario se lo resta al stock para
     /// responder el disponible real — es lo que hace que dos lotes sobre el mismo galpón dejen de ver
     /// los mismos kilos.

@@ -213,7 +213,7 @@ public partial class ProduccionService
         // Descuento desde los DTOs del request (TODOS los ítems), id-mapping catalogItemId→ítem B.
         // Validación previa de stock B ANTES de persistir; guardado + consumo en UNA tx. Si falta
         // stock/ítem → throw por ítem → rollback → NO se guarda el seguimiento.
-        var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
+        var (granjaId, paisId, modelo) = await ResolverGranjaYModeloAsync(loteId);
 
         // ── Doble validación ───────────────────────────────────────────────────────────────────
         // Con la empresa en doble validación no se descuenta al guardar: se separa. Con el flag
@@ -255,14 +255,25 @@ public partial class ProduccionService
             return entity.Id;
         }
 
+        // `validado` significa «su efecto ya se aplicó», no «alguien apretó el botón». Con el flag
+        // apagado el registro descuenta AL GUARDAR, así que nace validado. Dejarlo en el default
+        // (false) hacía que el día que la empresa encendiera la doble validación todos los registros
+        // creados desde el backfill aparecieran pendientes, pasaran a EN RETRASO a las 24 h y
+        // bloquearan el alta de días nuevos —sin tener nada que validar—.
+        entity.Validado = !separa;
+
         if (filaArrastre is null) _context.SeguimientoProduccion.Add(entity);
         await _context.SaveChangesAsync();
 
         // La separación va DESPUÉS de persistir: necesita el id para poder liberarla o aplicarla.
         if (separa)
         {
+            // El país va RESUELTO (columna del lote o, si viene vacía, granja→departamento→país). Es el
+            // que la reserva persiste y con el que se elige el modelo de inventario al validar: con
+            // `null` la validación resolvía `Ninguno`, se saltaba el descuento y aun así marcaba el
+            // registro validado y la reserva aplicada. El alimento no se descontaba nunca.
             await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
-                ModuloSeguimiento.Produccion, entity.Id, null,
+                ModuloSeguimiento.Produccion, entity.Id, paisId,
                 granjaId ?? 0, null, null,
                 lotePosturaProduccionId ?? loteId, loteId.ToString(), request.FechaRegistro, metadata,
                 entity.MortalidadH, entity.SelH, entity.ErrorSexajeHembras,
@@ -577,8 +588,26 @@ public partial class ProduccionService
         // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (Fase 3 paso 2) ──
         // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.
         // Validación previa del stock B de los diff POSITIVOS ANTES de persistir; save + diff en UNA tx.
-        var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
-        if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
+        var (granjaId, paisId, modelo) = await ResolverGranjaYModeloAsync(loteId);
+
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // La edición NO puede aplicar el diff de inventario cuando la empresa separa: el alta solo
+        // reservó, así que aplicar acá descontaría kilos que después la validación vuelve a descontar
+        // leyendo la reserva. Con el flag ON se reescribe la reserva y listo — que es toda la ventaja
+        // del modelo: como nunca se descontó, editar no necesita calcular `nuevo − viejo`.
+        var separaEd = _validacion is not null
+                    && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separaEd)
+        {
+            if (!ValidacionSeguimientoCalculos.EsEditable(true, entity.Validado))
+                throw new InvalidOperationException(
+                    ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
+
+            SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
+                ModuloSeguimiento.Produccion, loteEsMixto: false, metadata, request.FechaRegistro);
+        }
+
+        if (!separaEd && modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
         {
             var newByItemId = AcumularItemsRequestPorOrigen(request.ItemsHembras, request.ItemsMachos);
             var incrementos = new Dictionary<ItemConsumoKey, decimal>();
@@ -607,6 +636,20 @@ public partial class ProduccionService
         }
 
         await _context.SaveChangesAsync().ConfigureAwait(false);
+
+        // Reescribir la reserva va DESPUÉS de persistir: `SepararAsync` libera lo que el registro
+        // tuviera activo y escribe lo nuevo, así que la edición queda cubierta sin diff.
+        if (separaEd)
+        {
+            await _validacion!.SepararAsync(SeparacionSeguimientoHelper.Contexto(
+                ModuloSeguimiento.Produccion, entity.Id, paisId,
+                granjaId ?? 0, null, null,
+                lotePosturaProduccionId ?? loteId, loteId.ToString(), request.FechaRegistro, metadata,
+                entity.MortalidadH, entity.SelH, entity.ErrorSexajeHembras,
+                entity.MortalidadM, entity.SelM, entity.ErrorSexajeMachos,
+                poblacionEsMixta: false));
+        }
+
         if (lotePosturaProduccionId.HasValue)
             await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
     }
@@ -633,7 +676,28 @@ public partial class ProduccionService
 
         await EnsureLoteProduccionAbiertoAsync(loteId, lppId);
 
-        var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
+        // ── Doble validación ───────────────────────────────────────────────────────────────────
+        // Con el flag ON el registro nunca descontó: solo separó. Devolver stock acá sería INFLAR el
+        // inventario con kilos que jamás salieron. Lo correcto es liberar la reserva — y sin eso el
+        // disponible quedaba comprometido para siempre por un registro que ya no existe.
+        var separaDel = _validacion is not null
+                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+        if (separaDel)
+        {
+            if (!ValidacionSeguimientoCalculos.EsEditable(true, e.Validado))
+                throw new InvalidOperationException(
+                    ValidacionSeguimientoCalculos.MensajeRegistroValidado("eliminar"));
+
+            await _validacion!.LiberarAsync(ModuloSeguimiento.Produccion, seguimientoId);
+
+            _context.SeguimientoProduccion.Remove(e);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
+            if (lppId.HasValue)
+                await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lppId.Value).ConfigureAwait(false);
+            return true;
+        }
+
+        var (granjaId, _, modelo) = await ResolverGranjaYModeloAsync(loteId);
         if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
         {
             var byItem = e.Metadata != null
