@@ -127,6 +127,24 @@ public static class ReservaSeguimientoCalculos
     /// Aves realmente disponibles: el saldo del lote menos las que un seguimiento sin validar ya dio
     /// de baja. Sin esto, un traslado o una venta pueden despachar aves que ya están muertas en un
     /// registro pendiente. Tampoco se recorta a cero, por el mismo motivo.
+    ///
+    /// <para>
+    /// ⚠️ <b>Aplicar SOLO cuando el saldo sale del MAESTRO</b> (<c>lote_postura_levante.aves_h_actual</c>,
+    /// <c>lote_postura_produccion.aves_h_actual</c>), que con doble validación no se descontó.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>NO aplicar donde el saldo ya se calcula desde las filas del seguimiento</b>, porque ahí las
+    /// bajas sin validar ya están adentro y restarlas otra vez las cuenta DOS VECES. Eso pasa en:
+    /// <list type="bullet">
+    /// <item><c>LoteService.GetMortalidadResumenAsync</c> (levante con lote base): el saldo es
+    /// <c>base − mortCaja − mort − sel − err + trasIn − trasOut</c> sumando <c>seguimiento_diario</c>.</item>
+    /// <item><c>AvesDisponiblesEngordeCalculos.DisponiblesPorSexo</c> (engorde y reproductora): resta
+    /// <c>registradas − aplicadas</c>, y un registro sin validar es registrado-pero-no-aplicado.</item>
+    /// </list>
+    /// El doble descuento no es hipotético: <c>AvesDisponiblesEngordeCalculos</c> existe porque ya
+    /// ocurrió, bloqueando despachos de lotes que sí tenían aves.
+    /// </para>
     /// </summary>
     public static int DisponibleAves(int saldo, int reservadoActivo) => saldo - reservadoActivo;
 }

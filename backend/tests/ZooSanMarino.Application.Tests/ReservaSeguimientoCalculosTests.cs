@@ -171,4 +171,37 @@ public class ReservaSeguimientoCalculosTests
         Assert.Equal(4_850, ReservaSeguimientoCalculos.DisponibleAves(5_000, 150));
         Assert.Equal(-10, ReservaSeguimientoCalculos.DisponibleAves(0, 10));
     }
+
+    // ─── Dónde NO va la resta: el riesgo real es contar dos veces ─────────────
+    // Tres de las cinco superficies de «aves disponibles» ya traen las bajas sin validar dentro del
+    // saldo (engorde y reproductora por `registradas − aplicadas`; levante con lote base porque el
+    // resumen las suma desde `seguimiento_diario`). Restarles además la reserva bloquearía traslados
+    // de aves que sí existen. El doble descuento no es hipotético: `AvesDisponiblesEngordeCalculos`
+    // nació de uno.
+
+    [Fact]
+    public void FlagApagado_DisponibleAvesEsElSaldoTalCual()
+    {
+        // Sin doble validación no hay reservas activas: el número no se mueve ni un ave.
+        Assert.Equal(5_000, ReservaSeguimientoCalculos.DisponibleAves(5_000, 0));
+    }
+
+    [Fact]
+    public void DisponibleAves_SobreUnSaldoQueYaIncluyeLasBajas_RestariaDosVeces()
+    {
+        // Documenta por qué la resta va SOLO donde el saldo sale del maestro.
+        // Maestro 5.000, un registro sin validar con 150 bajas.
+        const int maestro = 5_000, bajasSinValidar = 150;
+
+        // Camino correcto: el saldo viene del maestro (no descontado) ⇒ se resta una vez.
+        var desdeMaestro = ReservaSeguimientoCalculos.DisponibleAves(maestro, bajasSinValidar);
+        Assert.Equal(4_850, desdeMaestro);
+
+        // Camino equivocado: el saldo ya venía con las bajas adentro (4.850) y se vuelve a restar.
+        var saldoQueYaLasIncluye = maestro - bajasSinValidar;
+        var dobleResta = ReservaSeguimientoCalculos.DisponibleAves(saldoQueYaLasIncluye, bajasSinValidar);
+
+        Assert.Equal(4_700, dobleResta);
+        Assert.NotEqual(desdeMaestro, dobleResta);   // 150 aves que existen y no se podrían trasladar
+    }
 }

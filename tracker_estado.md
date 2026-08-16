@@ -5618,3 +5618,28 @@ que nunca leyó esos dos campos.
 ### Sigue abierto (NO entra acá)
 - [ ] V5.X El lado de **AVES**: `ReservaSeguimientoCalculos.DisponibleAves` no tiene ningún llamador. Un traslado o una venta todavía pueden despachar aves que un seguimiento sin validar ya dio de baja. Es otra superficie (traslados y ventas), no los 4 formularios de seguimiento
 - [ ] V5.Y `ReservadoPorItemAsync` / `ReservadoDeAvesAsync` quedan como código muerto en la interfaz: o se enganchan, o se borran para que nadie los lea como «la conexión»
+
+---
+
+## V6 · Aves disponibles menos lo separado sin validar (15ago26)
+
+Plan: [disponible_aves_menos_reservas_plan.md](fase_de_desarrollo/disponible_aves_menos_reservas_plan.md)
+
+Cierra el hallazgo de V5 (`DisponibleAves` sin llamadores). **La auditoría corrigió el enunciado:** de
+las 5 superficies, 3 ya restaban las bajas sin validar y solo 2 no.
+
+- [x] V6.0 Auditoría por superficie. Ya cubiertas: engorde (venta/despacho) y reproductora vía `registradas − aplicadas`; levante **con** lote base vía `GetMortalidadResumenAsync`, que suma las filas del seguimiento. **Verificado contra el backend**: lote 168 con maestro 8.523, al guardar 7 bajas sin validar el endpoint devolvió 8.516 y al borrarlas 8.523
+- [x] V6.1 `TrasladoAvesDesdeSegService`: `IValidacionSeguimientoService?` inyectado (opcional) y reserva restada en las 2 ramas que leen el maestro (levante SIN lote base, y producción)
+- [x] V6.2 **No se resta** en levante con lote base: ese saldo ya trae las bajas sin validar. La rama lleva el flag `saldoSaleDelMaestro`, no un comentario
+- [x] V6.3 Doc de `DisponibleAves` (dónde sí y dónde no, con los 3 casos ya cubiertos nombrados) + 2 tests xUnit, uno de ellos documentando la doble resta (4.850 correcto vs 4.700 equivocado)
+- [x] V6.4 `dotnet build` 0 errores · `dotnet test` **2602 en verde**
+- [x] V6.5 Sin ciclo de DI: nadie de la cadena de `ValidacionSeguimientoService` depende del traslado. **Verificado en runtime**: `GET /api/traslados/disponibilidad-aves/7?tipo=Produccion` respondió 200 con 5315/581, idéntico al maestro (Sanmarino, flag OFF)
+- [x] V6.6 Commit · `:5501` y `:5002` libres · base sin residuos (0 reservas activas, lote 168 con sus 42 seguimientos, aves 8523, stock 10609,560)
+
+### Lo que NO se probó (y por qué)
+- [ ] V6.X Smoke del camino con el flag **ON** en postura: no es reproducible hoy sin encender el flag en una empresa de postura, y la BD local está compartida con una sesión paralela activa. Queda cubierto por tests unitarios; **no se declara una prueba que no se corrió**
+
+### Nota de alcance
+Hoy el hueco es **latente**: la única empresa con el flag ON (ItalcolPanama) tiene 0 lotes de postura.
+Por eso **no hay smoke con datos reales** — se cubre con tests y queda dicho, no se declara una prueba
+que no se corrió.

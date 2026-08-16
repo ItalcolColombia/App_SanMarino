@@ -33,16 +33,44 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
     private readonly ICompanyResolver _companyResolver;
     private readonly ILoteService _loteService;
 
+    /// <summary>
+    /// Doble validación. Opcional a propósito: con el flag apagado —o si no está registrado, como en
+    /// los tests— el disponible es el de siempre. No hay ciclo de DI: nada de la cadena de
+    /// <c>ValidacionSeguimientoService</c> (inventario-gestión y consumo Colombia) depende de este
+    /// service.
+    /// </summary>
+    private readonly IValidacionSeguimientoService? _validacion;
+
     public TrasladoAvesDesdeSegService(
         ZooSanMarinoContext ctx,
         ICurrentUser current,
         ICompanyResolver companyResolver,
-        ILoteService loteService)
+        ILoteService loteService,
+        IValidacionSeguimientoService? validacion = null)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _loteService = loteService;
+        _validacion = validacion;
+    }
+
+    /// <summary>
+    /// Aves que un seguimiento SIN validar ya dio de baja en este lote y que todavía no salieron del
+    /// maestro. Es lo que hay que restarle al saldo para no ofrecer aves ya muertas.
+    ///
+    /// <para>
+    /// <c>Mixtas</c> se suma a hembras: en postura la separación nunca las usa
+    /// (<c>ReservaSeguimientoCalculos.LineasDeAves</c> solo manda al bucket mixto en lotes de engorde
+    /// mixtos), pero ignorarlas convertiría una reserva mixta en saldo fantasma.
+    /// </para>
+    /// </summary>
+    private async Task<(int Hembras, int Machos)> ReservadoSinValidarAsync(
+        string modulo, int loteId, CancellationToken ct)
+    {
+        if (_validacion is null) return (0, 0);
+        var r = await _validacion.ReservadoDeAvesAsync(modulo, loteId, ct);
+        return (r.Hembras + r.Mixtas, r.Machos);
     }
 
     /// <summary>
@@ -105,6 +133,7 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
             // ── Saldo REAL: si el LPL tiene Lote base asociado, usar resumen-mortalidad
             int avesHReal = lpl.AvesHActual ?? 0;
             int avesMReal = lpl.AvesMActual ?? 0;
+            var saldoSaleDelMaestro = true;
             if (lpl.LoteId is int loteBaseId)
             {
                 var resumen = await _loteService.GetMortalidadResumenAsync(loteBaseId);
@@ -112,7 +141,22 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
                 {
                     avesHReal = resumen.SaldoHembras;
                     avesMReal = resumen.SaldoMachos;
+                    // Ese resumen es `base − mortCaja − mort − sel − err + trasIn − trasOut` sumando
+                    // las filas de seguimiento_diario, así que las bajas SIN VALIDAR ya están adentro.
+                    saldoSaleDelMaestro = false;
                 }
+            }
+
+            // Solo se resta la separación cuando el saldo vino del MAESTRO, que con doble validación no
+            // se descontó. Restarla también sobre el resumen contaría las bajas dos veces y bloquearía
+            // traslados de aves que sí existen — el mismo error que dio origen a
+            // AvesDisponiblesEngordeCalculos.
+            if (saldoSaleDelMaestro)
+            {
+                var (resH, resM) = await ReservadoSinValidarAsync(
+                    ModuloSeguimiento.Levante, loteId, ct);
+                avesHReal = ReservaSeguimientoCalculos.DisponibleAves(avesHReal, resH);
+                avesMReal = ReservaSeguimientoCalculos.DisponibleAves(avesMReal, resM);
             }
 
             return new DisponibilidadAvesDto(
@@ -139,12 +183,17 @@ public partial class TrasladoAvesDesdeSegService : ITrasladoAvesDesdeSegService
 
             if (lpp is null) return null;
 
+            // Producción siempre lee el maestro, así que siempre hay que restarle lo separado por
+            // seguimientos sin validar. Con el flag apagado la reserva es 0 y el número no se mueve.
+            var (resProdH, resProdM) = await ReservadoSinValidarAsync(
+                ModuloSeguimiento.Produccion, loteId, ct);
+
             return new DisponibilidadAvesDto(
                 LoteId: loteId,
                 LoteNombre: lpp.LoteNombre,
                 TipoLote: "Produccion",
-                AvesHActual: lpp.AvesHActual ?? 0,
-                AvesMActual: lpp.AvesMActual ?? 0,
+                AvesHActual: ReservaSeguimientoCalculos.DisponibleAves(lpp.AvesHActual ?? 0, resProdH),
+                AvesMActual: ReservaSeguimientoCalculos.DisponibleAves(lpp.AvesMActual ?? 0, resProdM),
                 GranjaId: lpp.GranjaId,
                 GranjaNombre: lpp.Farm?.Name,
                 GalponId: lpp.GalponId,
