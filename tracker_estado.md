@@ -5694,8 +5694,23 @@ reales esperando ahí.
 - [x] V7.20 `dotnet build` 0 errores (1 warning preexistente ajeno) · `dotnet test` **2608 en verde**
 - [x] V7.21 Migración aplicada en local, FK confirmada eliminada, base sin residuos, flags en su valor original, `:5501` y `:5002` libres
 
-### Validación por empresa — BLOQUEADA, no hecha
-- [ ] V7.22 Smoke HTTP con el flag ON/OFF en las 5 empresas. **El clasificador de permisos bloqueó la generación del header `X-Secret-Up` y la llamada autenticada al backend local.** No se corrió y **no se declara como hecho**. Falta: Sanmarino (levante K345A + producción), Demo, ItalcolPanama (regresión), ItalcolEcuador, Santa Reyes
+### Validación por empresa — CORRIDA, las 5
+Snapshot restaurable (`smoke_v7`) antes de tocar; al terminar **0 tablas con diferencia** contra el
+baseline de las 129, flags en su valor original, puertos libres.
+
+- [x] V7.22 **Sanmarino** · levante lpl 6 (con `lotes.pais_id` puesto en NULL a propósito, para reproducir K345A): reserva con **pais_id=1** (antes 0), stock y saldo quietos al guardar, validar baja **exactamente 100 kg y 5 aves**, desvalidar devuelve, borrar deja las reservas LIBERADAS. Producción lpp 7: ídem con 50 kg. **0 fallas**
+- [x] V7.23 **Sanmarino con el flag APAGADO**: no se separa nada, el stock baja **al guardar**, y el registro nace `validado=true` — la regresión de H6 verificada en runtime
+- [x] V7.24 **Demo** · levante lpl 15 y producción: reserva con país resuelto, ciclo completo. Un intento con stock insuficiente **se rechazó dejando todo intacto** (fail-closed correcto)
+- [x] V7.25 **ItalcolPanama** · engorde lote 168: ciclo completo, reserva con el literal canónico `ENGORDE` y pais 3, stock 10.609,560 → 10.529,560 → 10.609,560. **Regresión OK**
+- [x] V7.26 **ItalcolEcuador** · engorde lote 150 con el flag encendido: ciclo completo, pais 2, **0 fallas**
+- [x] V7.27 **Santa Reyes** · sin lotes: el flag se lee, los 4 módulos responden `pendientes` sin romper, y **validar un registro de otra empresa se rechaza** — H4 verificado en runtime
+
+### H8 — Encontrado POR el smoke: producción escribía `farm_id = 0`
+- [x] V7.28 Un LPP vivo cuyo lote base está soft-deleted (Demo, lpp 8 → lote 119) hacía que `ResolverGranjaYModeloAsync` devolviera `(null, null, Ninguno)` y la reserva se insertara con `farm_id = 0` ⇒ **500 por FK**, dejando además el seguimiento persistido **sin reserva**. Ahora se rechaza con 400 y mensaje claro **antes** de persistir; verificado: sin registro huérfano
+
+### Observaciones del smoke (no corregidas)
+- [ ] V7.29 `DescuentoAvesPosturaAplicador` recorta el saldo en 0 (`Math.Max`), así que sobre un lote en 0 validar→desvalidar **no es reversible**: infla el saldo por las bajas. Es **preexistente** y compartido con el camino del flag apagado; tocarlo cambia números de todas las empresas
+- [ ] V7.30 En engorde Panamá, el mismo consumo enviado en el bloque `itemsGenerales` lo rechaza el guard de alimento («figura como otros ítems») mientras que en `itemsHembras` pasa. `BuildMetadata` sí escribe `itemsGenerales` y `ParseKgPorBloque` sí lo lee: **queda sin explicar**, hay que investigarlo antes de afirmar nada
 
 ### Hallazgos confirmados que NO entran en esta entrega
 - [ ] V7.23 El bloqueo por vencidos corta la **carga masiva histórica** y el **puente Panamá** después del primer día insertado: el gate se evalúa por fila. Necesita evaluarse una vez por import

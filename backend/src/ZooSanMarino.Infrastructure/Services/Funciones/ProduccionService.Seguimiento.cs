@@ -220,6 +220,17 @@ public partial class ProduccionService
         // apagado `separa` queda en false y todo lo que sigue corre igual que antes.
         var separa = _validacion is not null
                   && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+
+        // Sin granja resuelta no hay separación posible: `farm_id` es NOT NULL con FK a `farms`, así que
+        // `granjaId ?? 0` revienta con 23503 y el usuario ve un 500 opaco. Pasa de verdad —un LPP vivo
+        // cuyo lote base está soft-deleted resuelve (null, null, Ninguno)—. Y si la FK no estuviera,
+        // sería peor: una reserva sin ubicación que al validar no descuenta nada.
+        if (separa && granjaId is not > 0)
+            throw new InvalidOperationException(
+                "No se puede registrar el seguimiento: no se pudo resolver la granja del lote. " +
+                "Sin granja, lo que se separe no tiene ubicación contra la cual descontar al validar. " +
+                "Verificá que el lote base exista y esté activo.");
+
         if (separa)
         {
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(
@@ -597,6 +608,17 @@ public partial class ProduccionService
         // del modelo: como nunca se descontó, editar no necesita calcular `nuevo − viejo`.
         var separaEd = _validacion is not null
                     && ValidacionSeguimientoCalculos.SeparaAlGuardar(await _validacion.RequiereValidacionAsync());
+
+        // Sin granja resuelta no hay separación posible: `farm_id` es NOT NULL con FK a `farms`, así que
+        // `granjaId ?? 0` revienta con 23503 y el usuario ve un 500 opaco. Pasa de verdad —un LPP vivo
+        // cuyo lote base está soft-deleted resuelve (null, null, Ninguno)—. Y si la FK no estuviera,
+        // sería peor: una reserva sin ubicación que al validar no descuenta nada.
+        if (separaEd && granjaId is not > 0)
+            throw new InvalidOperationException(
+                "No se puede registrar el seguimiento: no se pudo resolver la granja del lote. " +
+                "Sin granja, lo que se separe no tiene ubicación contra la cual descontar al validar. " +
+                "Verificá que el lote base exista y esté activo.");
+
         if (separaEd)
         {
             if (!ValidacionSeguimientoCalculos.EsEditable(true, entity.Validado))
