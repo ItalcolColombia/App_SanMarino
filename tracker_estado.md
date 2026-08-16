@@ -5536,8 +5536,15 @@ descontar nada, dejando la reserva activa para siempre.
 - [x] V3.5 Tests xUnit del literal canónico (7 nuevos): colapsa, no toca al resto, misma clave separando y validando, y no invalida el literal en la API
 - [x] V3.6 Ticket ItalJira `20260815140000` data-only: historia `LISTO` + caso `SOLUCIONADO` con 6 tareas y horas, **y caso aparte `EN_ANALISIS`** por el hallazgo que no se resolvió. Dry-run en transacción revertida: OK; 3 corridas seguidas no duplican nada
 - [x] V3.7 `dotnet build` 0 errores 0 warnings · `dotnet test` **2581 en verde** (2574 + 7) · ModelSnapshot intacto · sin cambios en el front (el `'ENGORDE'` que ya mandaba pasa a ser correcto)
-- [ ] V3.8 Smoke con el flag ON: **requiere reiniciar el backend de `:5002`** (que es el del usuario y está corriendo el binario viejo). El reinicio además aplica la migración del ticket
-- [x] V3.9 Commit
+- [x] V3.8 Smoke HTTP con el flag ON (ItalcolPanama, lote 168 `60 - 3` / galpón G0490), backend ya reiniciado:
+  - `GET /SeguimientoValidacion/configuracion` → `requiereValidacion: true`
+  - `GET /ENGORDE_EC/pendientes` → **HTTP 200** devolviendo `modulo: ENGORDE`. **Antes moría con 42P01**
+  - `POST /SeguimientoAvesEngordeEcuador` (el camino del front) → creó el id 11595 **sin reventar**; la reserva quedó con `origen_modulo = ENGORDE` (canónico) pese a entrar por Ecuador; stock 10609,560 y aves 8523 **sin moverse**; `validado = f`
+  - `POST /ENGORDE/{id}/validar` (el módulo que manda el front) → `itemsAplicados 1 · kgAplicados 250,000 · avesDescontadas 5`. **Antes devolvía ceros y marcaba validado igual.** Stock 10609,560 → 10359,560 y aves 8523 → 8518; reservas a `APLICADA`
+  - `DELETE` sobre un registro validado → rechazado; `desvalidar` devolvió los 250 kg y las 5 aves; `DELETE` tras des-validar liberó la reserva
+  - **Base restituida al baseline**: stock 10609,560 · aves 8523 · 0 reservas activas · 42 seguimientos en el lote
+- [x] V3.9 Migración `20260815140000` aplicada en el reinicio: **TK-2026-000167 SOLUCIONADO** · **TK-2026-000168 EN_ANALISIS** (el disponible) · **HIS-2026-0024 LISTO** con 6/6 tareas
+- [x] V3.10 Commit
 
 ### Hallazgo pendiente (NO entra en esta entrega)
 - [ ] V3.X «Disponible = stock − reservas activas»: `ReservadoPorItemAsync`/`ReservadoDeAvesAsync` están implementados pero **nadie los llama**. Exige decidir si se le resta la reserva a `Quantity` en `GET /api/InventarioGestion/stock` o se agrega un campo `Disponible` al DTO + front de los 4 módulos
