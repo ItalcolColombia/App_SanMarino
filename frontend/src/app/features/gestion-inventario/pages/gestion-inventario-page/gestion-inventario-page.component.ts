@@ -79,6 +79,17 @@ export class GestionInventarioPageComponent implements OnInit {
   activeTab: TabKey = 'stock';
   filterData: InventarioGestionFilterDataDto | null = null;
   stockList: InventarioGestionStockDto[] = [];
+
+  /**
+   * ¿Alguna fila del stock tiene kilos SEPARADOS por un seguimiento sin validar?
+   *
+   * Se calcula una sola vez al cargar la lista y no en un getter: el template lo evalúa en cada ciclo
+   * de detección de cambios y recorrer el arreglo ahí es trabajo repetido por nada.
+   *
+   * Cuando es `false` —toda empresa sin doble validación— las columnas Separado y Disponible no se
+   * dibujan y la tabla queda exactamente como estaba.
+   */
+  stockConReservas = false;
   movimientosList: InventarioGestionMovimientoDto[] = [];
   // Paginación client-side del histórico (perf: no renderizar miles de filas de una).
   // El export CSV sigue usando movimientosList completo.
@@ -793,6 +804,7 @@ export class GestionInventarioPageComponent implements OnInit {
     this.svc.getStock(params).subscribe({
       next: (list) => {
         this.stockList = list;
+        this.stockConReservas = list.some(s => Number(s.reservadoKg ?? 0) !== 0);
         this.loading = false;
       },
       error: () => {

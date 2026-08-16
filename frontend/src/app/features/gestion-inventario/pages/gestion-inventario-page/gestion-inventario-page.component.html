@@ -168,6 +168,10 @@
                       <th>Tipo</th>
                       <th>Fecha de ingreso</th>
                       <th>Cantidad</th>
+                      @if (stockConReservas) {
+                        <th title="Kilos que un seguimiento diario ya comprometió y todavía no se validaron. NO salieron del stock.">Separado</th>
+                        <th title="Lo que realmente se puede comprometer: cantidad menos separado.">Disponible</th>
+                      }
                       <th>Unidad</th>
                       <th>Acciones</th>
                     </tr>
@@ -190,6 +194,12 @@
                         <td>{{ s.itemType }}</td>
                         <td>{{ formatFechaIngresoStock(s.fechaIngreso) }}</td>
                         <td>{{ s.quantity }}</td>
+                        @if (stockConReservas) {
+                          <td>{{ s.reservadoKg ?? 0 }}</td>
+                          <!-- Un disponible negativo se muestra en rojo y NO se recorta: significa que
+                               dos lotes se separaron alimento de más sobre el mismo galpón. -->
+                          <td [class.text-danger]="(s.disponibleKg ?? s.quantity) < 0">{{ s.disponibleKg ?? s.quantity }}</td>
+                        }
                         <td>{{ s.unit }}</td>
                         <td class="actions-cell">
                           <ng-container *appHasPermission="'editar_registro'">

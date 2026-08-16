@@ -103,6 +103,29 @@ export interface InventarioGestionStockDto {
   /** Silo/bodega donde vive el saldo (empresas con inventario por silo). Núcleo y galpón van null. */
   siloId?: number | null;
   siloNombre?: string | null;
+  /**
+   * Kilos SEPARADOS por seguimientos diarios que todavía no se validaron (doble validación).
+   * No salieron del stock: están comprometidos. Siempre 0 en empresas sin el flag.
+   */
+  reservadoKg?: number | null;
+  /**
+   * Lo que realmente se puede comprometer: `quantity - reservadoKg`. **Este es el número que hay que
+   * mostrar y validar en los formularios**, no `quantity` — que es la existencia física del galpón.
+   *
+   * Puede venir NEGATIVO si se separó de más; no se recorta, porque ese número es la señal de que dos
+   * lotes se pisaron sobre el mismo galpón.
+   */
+  disponibleKg?: number | null;
+}
+
+/**
+ * Saldo que un formulario puede comprometer sobre una fila de stock.
+ *
+ * Fail-safe hacia el comportamiento previo: si el backend no manda `disponibleKg` (respuesta vieja,
+ * o uno de los DTO que arman ingreso/traslado/consumo), cae en `quantity`. Nunca inventa saldo.
+ */
+export function saldoComprometible(row: Pick<InventarioGestionStockDto, 'quantity' | 'disponibleKg'>): number {
+  return row.disponibleKg == null ? Number(row.quantity ?? 0) : Number(row.disponibleKg);
 }
 
 export interface InventarioGestionIngresoRequest {

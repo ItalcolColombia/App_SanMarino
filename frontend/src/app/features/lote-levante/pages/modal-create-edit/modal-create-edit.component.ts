@@ -8,7 +8,7 @@ import { SeguimientoLoteLevanteDto, CreateSeguimientoLoteLevanteDto, UpdateSegui
 import { LoteDto } from '../../../lote/services/lote.service';
 import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { GestionInventarioService, ItemInventarioDto, InventarioGestionStockDto, saldoComprometible } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
@@ -1710,8 +1710,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       if (loadId !== this.inventarioLoadId) return;
       this.inventarioPorItem.clear();
       rows.forEach(r => {
+        // Se acumula el DISPONIBLE, no la existencia física: con doble validación, los kilos que otro
+        // registro ya separó no se pueden volver a comprometer. El mismo galpón alimenta a dos lotes y
+        // sin esto los dos veían el saldo completo. Sin el flag, `disponibleKg` llega igual a
+        // `quantity` y el número no se mueve.
         const prev = this.inventarioPorItem.get(r.itemInventarioEcuadorId);
-        const q = prev ? prev.quantity + r.quantity : r.quantity;
+        const q = (prev?.quantity ?? 0) + saldoComprometible(r);
         this.inventarioPorItem.set(r.itemInventarioEcuadorId, { quantity: q, unit: r.unit });
       });
       // El mismo stock, abierto por silo: es el saldo que ve cada fila cuando la empresa maneja silos.

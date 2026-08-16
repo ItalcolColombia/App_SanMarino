@@ -98,14 +98,24 @@ public sealed record InventarioGestionStockDto(
     /// empresas sin doble validación.
     /// </para>
     /// </summary>
-    decimal ReservadoKg = 0,
+    decimal ReservadoKg = 0
+)
+{
     /// <summary>
     /// Lo que realmente se puede comprometer: <c>Quantity − ReservadoKg</c>. Puede quedar NEGATIVO si
     /// se separó de más; no se recorta a cero porque ese número es la señal de que dos lotes se
     /// pisaron sobre el mismo galpón.
+    ///
+    /// <para>
+    /// <b>Es DERIVADA, no un parámetro más.</b> Hay nueve sitios en <c>InventarioGestionService</c>
+    /// que arman este DTO a mano para las respuestas de ingreso, traslado y consumo; ninguno llegaba
+    /// hasta el último parámetro, así que como parámetro posicional todos habrían devuelto
+    /// <c>disponible = 0</c> y el front habría leído «no hay nada» sobre un galpón lleno. Derivada, es
+    /// imposible de olvidar y la fórmula tiene un solo dueño.
+    /// </para>
     /// </summary>
-    decimal DisponibleKg = 0
-);
+    public decimal DisponibleKg => Quantity - ReservadoKg;
+}
 
 /// <summary>Request para registrar un ingreso. ItemInventarioEcuadorId referencia a config/item-inventario-ecuador.</summary>
 public sealed record InventarioGestionIngresoRequest(

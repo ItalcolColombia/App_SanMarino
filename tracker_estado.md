@@ -5548,3 +5548,73 @@ descontar nada, dejando la reserva activa para siempre.
 
 ### Hallazgo pendiente (NO entra en esta entrega)
 - [ ] V3.X «Disponible = stock − reservas activas»: `ReservadoPorItemAsync`/`ReservadoDeAvesAsync` están implementados pero **nadie los llama**. Exige decidir si se le resta la reserva a `Quantity` en `GET /api/InventarioGestion/stock` o se agrega un campo `Disponible` al DTO + front de los 4 módulos
+
+---
+
+## V4 · Empresas: modales desbordados · Roles: catálogos globales solo para Admin (15ago26)
+
+Plan: [empresa_modales_y_catalogos_globales_plan.md](fase_de_desarrollo/empresa_modales_y_catalogos_globales_plan.md)
+
+El wizard de Empresa no tiene alto máximo ni scroll propio: desde que el paso 2 sumó los 14 flags
+(bloque V2) el modal se sale de la pantalla y el botón «Guardar Empresa» queda fuera de alcance.
+Aparte, los tabs **Permisos** y **Menús** de Roles administran catálogos GLOBALES del sistema y hoy
+los ve cualquiera con el módulo — y el backend tampoco los protege (`PermissionController` sin un
+solo `[Authorize]`; `CanManageMenus` definida como «usuario autenticado» con un TODO al lado).
+
+### C1 — Modales del módulo Empresas
+- [x] C1.1 Primitivas `cm-modal*` en el SCSS del módulo (calcadas de `rm-modal*` de Roles)
+- [x] C1.2 Los 4 modales pasan a la estructura header fijo / cuerpo scrollable / footer fijo
+- [x] C1.3 Paso 2 del wizard reorganizado: Roles | Permisos arriba; módulos, los 14 flags y alimento previo a ancho completo
+- [x] C1.4 El modal deja de cerrarse cuando falla el guardado (el `finalize` corría también en error)
+
+### C2 — Permisos y Menús, solo para el perfil Admin
+- [x] C2.1 Front: función pura `catalogos-globales.funcion.ts` (fail-closed) + `irATab()` guardado
+- [x] C2.2 Front: tabs, botones de acción, filtros, cuerpos de tabla y los 2 modales CRUD bajo `esAdminApp`
+- [x] C2.3 Back: `CatalogoGlobalAutorizacionCalculos` + tests xUnit
+- [x] C2.4 Back: policy `AdminAplicacion` aplicada a las ESCRITURAS de Permission/Menu/Role-menus (las lecturas quedan abiertas o se rompe el módulo para los no admin)
+
+### C3 — ItalJira
+- [x] C3.1 Migración data-only: historia LISTO + 2 casos CERRADO con tareas y horas + 1 caso abierto por el hallazgo no resuelto
+
+### Cierre
+- [x] C4.1 `dotnet build` + `dotnet test` + `yarn build`
+- [x] C4.2 Migración aplicada en local y corrida dos veces (idempotencia)
+- [ ] C4.3 Commit
+
+---
+
+## V5 · Disponible = stock − reservas activas — TK-2026-000168 (15ago26)
+
+Plan: [disponible_menos_reservas_inventario_plan.md](fase_de_desarrollo/disponible_menos_reservas_inventario_plan.md)
+
+El hallazgo que V3 dejó abierto. Decisión del usuario: **campo `Disponible` en el DTO + front**, no
+restarle la reserva a `Quantity` (que es la existencia física que operación concilia). `DisponibleKg`
+pasa a ser **derivado** porque hay 9 sitios que construyen el DTO a mano y ninguno lo llenaría.
+
+### ⚠️ Corrección del hallazgo: el backend YA lo hacía
+
+Al abrir el código apareció que V3 lo había diagnosticado a medias. Es cierto que
+`ReservadoPorItemAsync` y `ReservadoDeAvesAsync` no tienen un solo llamador, pero de ahí se concluyó
+mal que el disponible no se calculaba: **`GetStockAsync` ya lo resuelve inline** —una consulta
+agrupada, con el silo en la clave, normalizando núcleo/galpón y contando solo reservas `ACTIVA`— y ya
+llenaba `ReservadoKg`/`DisponibleKg` con `ReservaSeguimientoCalculos.DisponibleAlimento`.
+
+Así que V5.2 a V5.5 **no se hacen**: escribirlos habría sido una segunda implementación del mismo
+número, justo lo que prohíbe *Una sola fórmula por número*. Lo que faltaba de verdad era el **front**,
+que nunca leyó esos dos campos.
+
+- [x] V5.1 `DisponibleKg` deja de ser parámetro posicional y pasa a propiedad calculada `Quantity − ReservadoKg`. **Era necesario**: los 9 sitios que arman el DTO a mano para ingreso/traslado/consumo lo dejaban en 0, y en cuanto el front lo leyera habrían dicho «no hay nada» sobre un galpón lleno
+- [x] V5.2–V5.5 **descartados** (ver corrección de arriba). Se borró el `ReservaUbicacionCalculos` que ya había escrito
+- [x] V5.6 Front: `reservadoKg`/`disponibleKg` + helper `saldoComprometible()` (cae a `quantity` si el campo no viene) · los 4 modales y `agruparStockPorItemSilo` acumulan el disponible
+- [x] V5.7 Front: columnas **Separado** y **Disponible** en gestión de inventario, solo si alguna fila tiene reserva (campo calculado al cargar, no un getter que recorra el arreglo en cada ciclo); disponible negativo en rojo y sin recortar
+- [x] V5.8 `dotnet build` 0 errores · `dotnet test` verde · `yarn build` con node 22.23.1, único warning el de budget preexistente
+- [x] V5.9 Smoke sobre build propio en `:5501` (el `:5002` del usuario estaba caído y hay sesión paralela):
+  - flag ON, tras guardar 400 kg sin validar → `quantity 10609,560` **intacto**, `reservado 400`, `disponible 10209,560`
+  - tras borrar el registro → `reservado 0`, `disponible 10609,560`
+  - flag OFF (Sanmarino, 20 filas) → **0 filas** con `disponible ≠ quantity` y **0** con `reservado ≠ 0`
+  - base en el baseline · `:5501` liberado
+- [x] V5.10 Commit
+
+### Sigue abierto (NO entra acá)
+- [ ] V5.X El lado de **AVES**: `ReservaSeguimientoCalculos.DisponibleAves` no tiene ningún llamador. Un traslado o una venta todavía pueden despachar aves que un seguimiento sin validar ya dio de baja. Es otra superficie (traslados y ventas), no los 4 formularios de seguimiento
+- [ ] V5.Y `ReservadoPorItemAsync` / `ReservadoDeAvesAsync` quedan como código muerto en la interfaz: o se enganchan, o se borran para que nadie los lea como «la conexión»

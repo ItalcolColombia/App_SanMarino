@@ -770,3 +770,7 @@ button.ingreso-fecha-trigger:hover {
 @media (max-width: 600px) {
   .tabs .tab { flex: 1 1 auto; min-width: 0; justify-content: center; }
 }
+
+// Disponible negativo: se separó más alimento del que hay en el galpón. Se pinta en rojo (peligro,
+// no marca) porque es un descuadre real entre dos lotes, no un aviso decorativo.
+.text-danger { color: #dc2626; font-weight: 600; }

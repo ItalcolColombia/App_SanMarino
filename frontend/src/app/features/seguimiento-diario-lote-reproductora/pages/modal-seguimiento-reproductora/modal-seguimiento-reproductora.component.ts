@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { LoteSeguimientoDto, CreateLoteSeguimientoDto, UpdateLoteSeguimientoDto } from '../../services/lote-seguimiento.service';
 import { LoteReproductoraDto } from '../../../lote-reproductora/services/lote-reproductora.service';
-import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { GestionInventarioService, InventarioGestionStockDto, saldoComprometible } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
@@ -368,7 +368,9 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
           this.alimentosById.set(cat.id, cat);
           this.alimentosByCode.set(cat.codigo, cat);
           this.alimentosByName.set(cat.nombre.toLowerCase(), cat);
-          this.inventarioPorItem.set(cat.id, { quantity: item.quantity, unit: item.unit });
+          // DISPONIBLE, no existencia física: lo separado por un registro sin confirmar ya está
+          // comprometido. Sin doble validación, `disponibleKg` == `quantity`.
+          this.inventarioPorItem.set(cat.id, { quantity: saldoComprometible(item), unit: item.unit });
           return cat;
         });
 

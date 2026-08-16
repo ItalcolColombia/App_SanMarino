@@ -463,8 +463,11 @@ public partial class InventarioGestionService : IInventarioGestionService
                 AvisoFechaFueraDeCiclo: null,
                 SiloId: x.SiloId,
                 SiloNombre: x.SiloId.HasValue && silos.TryGetValue(x.SiloId.Value, out var sn) ? sn : null,
-                ReservadoKg: reservado,
-                DisponibleKg: ReservaSeguimientoCalculos.DisponibleAlimento(x.Quantity, reservado));
+                // DisponibleKg ya no se pasa: es una propiedad DERIVADA del DTO (Quantity − ReservadoKg,
+                // la misma cuenta que hacía ReservaSeguimientoCalculos.DisponibleAlimento). Como
+                // parámetro, los nueve sitios que arman este DTO a mano para las respuestas de ingreso,
+                // traslado y consumo lo dejaban en 0 y el front habría leído «no hay nada».
+                ReservadoKg: reservado);
         }).ToList();
     }
 
