@@ -2250,6 +2250,35 @@ doble validación **apagado**, que es el camino donde vivía el hueco—, lote 1
 - [x] V14.4.3 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.763 + 1
       en verde** (+8) · clon dropeado · puertos libres
 
+## V14.6 — Panamá con la doble validación APAGADA (17ago26, pedido del usuario)
+
+El flag se apagó **en un clon** (`sanmarinoapp_pa`), no en la base compartida: es estado que otras
+sesiones usan, y V7 dejó como norma restaurarlo. La base compartida quedó verificada con
+`ItalcolPanama = true`, igual que antes.
+
+Lote 168, granja 106 / núcleo 791385 / galpón G0490. Stock: ítem 213 = 10.609,560 kg · ítem 214 = 0.
+
+| Caso | Respuesta | ¿Se guardó? |
+|---|---|---|
+| Ítem con stock en **0** (214, 50 kg) | **400** · *«AV. SUPER POLLITO INICIACION»: se piden 50 kg y hay 0 kg* | **no** (42 → 42) |
+| **99.999 kg** sobre 10.609 (213) | **400** con las dos cifras | **no** |
+| 80 kg con stock (213) | **201** | sí · 42 → 43 · stock 10.609,560 → **10.529,560** |
+
+- [x] V14.6.1 **Con el flag apagado Panamá entra por el camino que tenía el hueco** y ahora queda
+      cerrado: el rechazo no deja ni el seguimiento ni el movimiento de inventario
+- [x] V14.6.2 **Descuenta, no separa**: `reservas ACTIVA = 0` después del alta buena y el registro nace
+      `validado = true`, que es exactamente lo que V7.17 fijó para el flag apagado
+      (`Validado = !separa`). O sea que apagar el flag devuelve el comportamiento clásico completo
+- [x] V14.6.3 **Clon dropeado · flag compartido intacto en `true` · puertos libres**
+
+## Decisión pendiente del usuario
+- [ ] V14.7.1 **¿Se apaga el flag de Panamá de verdad?** Lo de arriba fue una prueba en un clon. Dejarlo
+      apagado en serio es una **migración data-only** y significa que Panamá **deja de usar la doble
+      validación** que entregó V7: los seguimientos vuelven a descontar al guardar, se acaban las
+      reservas y el botón Validar desaparece de sus pantallas (`requiereValidacion` es fail-closed).
+      No es reversible sin más: los registros que hoy tengan reservas ACTIVAS quedarían separados sin
+      nadie que los aplique, así que antes hay que confirmar que no haya ninguna
+
 ## Lo que quedó fuera, dicho
 - [x] V14.5.1 **Panamá no cambia hoy**: tiene la doble validación **encendida**, así que el alta
       separa en vez de descontar y su comprobación de stock la hace `RegistrarConsumoAsync` dentro de
