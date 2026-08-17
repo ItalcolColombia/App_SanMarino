@@ -20,7 +20,9 @@ Cada una decide algo cuyo error se paga caro y no se nota:
   y herramientas internas.
   ⚠️ **Los nombres son cadenas sueltas y nada los ata a las URL reales.** Un typo no rompe el build ni
   ningún test: solo hace que esa pantalla no ande sin red, y eso se descubre en la granja. Por eso
-  existe `frontend/scripts/verificar-lista-cacheable.js` — corrélo al tocar esta lista.
+  existe `frontend/scripts/verificar-lista-cacheable.js`, que **corre en CI y corta el gate de
+  tests** si aparece un endpoint sin decisión o una entrada que la app nunca pide. Corrélo al tocar
+  esta lista (`--informe` para mirar sin bloquear).
 
 - **`vigencia-cache.funcion.ts`** — TTL **duro** de 16 h (la jornada offline de la decisión D4).
   Vencida no se sirve. La alternativa —mostrar siempre lo último con un cartel de "datos de hace 3

@@ -13,11 +13,20 @@
  * La primera corrida de este script encontró que la lista cubría 23 de 78 endpoints reales y tenía
  * 7 entradas que no existían, una de ellas un typo (`lotepostorabase` por `loteposturabase`).
  *
- * No falla el build: las decisiones de qué cachear son de producto (¿este módulo tiene que andar sin
- * red?), no algo que un script pueda resolver solo. Informa para que la decisión se tome mirando
- * datos.
+ * ## Qué falla y qué no
  *
- * Uso:  node scripts/verificar-lista-cacheable.js
+ * La decisión de *qué* cachear es de producto (¿este módulo tiene que andar sin red?) y el script no
+ * la puede tomar. Lo que sí es objetivamente un defecto —y por eso corta— es que la lista y el código
+ * queden **desincronizados**:
+ *
+ *   - una entrada de la lista blanca que la app nunca pide (typo: no hace nada y nadie se entera);
+ *   - un endpoint que la app pide y no está ni en la lista blanca ni en EXCLUIDOS (nadie lo miró).
+ *
+ * Arreglar el segundo es agregar una línea al archivo correspondiente, no implementar nada. El
+ * mensaje dice exactamente dónde. Con `--informe` no falla nunca (el comportamiento viejo), para
+ * poder mirar el estado sin bloquear.
+ *
+ * Uso:  node scripts/verificar-lista-cacheable.js [--informe]
  */
 
 const fs = require('fs');
@@ -91,8 +100,19 @@ if (fantasma.length) {
   for (const r of fantasma) console.warn(`[lista-cacheable]      - ${r}`);
 }
 
-console.log(
-  `\n[lista-cacheable] Recordatorio: "sin decisión tomada" NO es un error. Cada uno se agrega a la ` +
-    `lista blanca si tiene que funcionar sin red, o a EXCLUIDOS si no debe guardarse (dinero, ` +
-    `identidad, herramientas internas). Lo que no se puede es dejarlo sin mirar.`
+const soloInforme = process.argv.includes('--informe');
+
+if (!sinCubrir.length && !fantasma.length) {
+  console.log('\n[lista-cacheable] OK: lista y código sincronizados.');
+  process.exit(0);
+}
+
+console.error(
+  `\n[lista-cacheable] FALLA: la lista blanca y el código están desincronizados.\n` +
+    `   Cada endpoint "sin decisión tomada" se agrega a ENDPOINTS_OPERATIVOS si tiene que funcionar\n` +
+    `   sin red, o a EXCLUIDOS si no debe guardarse (dinero, identidad, herramientas internas), en\n` +
+    `   src/app/shared/offline/funciones/decidir-cacheable.funcion.ts. Es una línea, con su comentario.\n` +
+    `   Las entradas "fantasma" se corrigen o se borran: hoy no hacen nada.`
 );
+
+process.exit(soloInforme ? 0 : 1);

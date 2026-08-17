@@ -247,9 +247,10 @@ alcance por considerarla una hipótesis. Esta sesión la cierra con evidencia.
 - [x] D9 Sin procesos huérfanos · sin push ni deploy (siguen requiriendo pedido explícito)
 
 ### Pendiente de coordinación con la rama hermana
-- [ ] Al integrar con `claude/priceless-bhabha-c60ee5`: el comentario de la consulta 4 de
-      `backend/sql/verificar_conceptos_catalogo_inventario.sql` («Deuda conocida al 05-ago-2026:
-      10 líneas con 'insumo'…») queda **obsoleto** — esa deuda ya está cerrada por esta migración
+- [x] ~~Al integrar con `claude/priceless-bhabha-c60ee5`: el comentario de la consulta 4 de
+      `backend/sql/verificar_conceptos_catalogo_inventario.sql` queda obsoleto~~ — **sin objeto
+      (revalidado 17ago26)**: ese archivo **ya no existe** en `backend/sql/`, así que no hay comentario
+      que corregir
 
 ---
 
@@ -1354,8 +1355,14 @@ entera. Esto es más urgente que desplegar.
       obliga al operario a acordarse de memoria de lo que cargó
 - [ ] 🟠 `/diagnostico` **no está en ningún menú**: se llega por el aviso de la barra o por el atajo
       del manifest (solo si la app está instalada)
-- [ ] 🟠 `verificar-lista-cacheable.js` **no está atado ni al Dockerfile ni al CI** (a diferencia de
-      `verificar-ngsw.js`): la lista blanca de F2 puede desincronizarse sin que nada falle
+- [x] 🟠 ~~`verificar-lista-cacheable.js` no está atado ni al Dockerfile ni al CI~~ — **cerrado
+      17ago26**: corre en el job de tests del CI y **corta**. La deriva que el tracker anticipaba ya
+      había pasado: al atarlo aparecieron **5 endpoints sin decisión** (`silocatalogo`, `farmsilo`,
+      `galponsilo`, `lotesilo` de Santa Reyes + `seguimientovalidacion`). Los 4 de silo entran a la
+      lista blanca (en esa empresa el silo ES la ubicación del alimento ⇒ es estructura) y
+      `seguimientovalidacion` va a EXCLUIDOS (es un gate de negocio; cachearlo congelaría un flag que
+      la empresa puede apagar, y el cliente ya cae a `SIN_PENDIENTES` sin red). 84 endpoints:
+      **54 cacheables / 30 excluidos / 0 sin decisión**
 - [ ] 🟠 **Aire en el bundle** — ⚠️ **cifra corregida 16ago26**: el build de hoy da **initial 1,84 MB**
       contra un techo de error de **2,05 MB** (`angular.json:62`) ⇒ quedan **~210 kB de aire**, no 50 kB.
       El riesgo sigue (un import eager grande rompe el build de prod) pero el margen es 4× el anotado.
@@ -1470,7 +1477,11 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
 - [x] F0.2 `ChangeDetectionStrategy.Eager` explícito en los 13 (convención del repo: 184 Eager / 24 OnPush)
 - [x] F0.3 `yarn build` con node portable 22.23.1 — 0 errores (único warning: budget preexistente)
 - [x] F0.4 Smoke visual: Cronograma pinta las **29 granjas** (antes «Cargando granjas…») y la cascada carga los lotes de MANGOS al instante; Registro y Reportes igual; Planes muestra «1 de 1 cronogramas»
-- [ ] F0.5 Gate anti-regresión: check que falle si un `@Component` nuevo omite `changeDetection`
+- [x] F0.5 Gate anti-regresión: `frontend/scripts/verificar-change-detection.js` — cuenta paréntesis
+      para leer el literal del decorador (una regex se corta con los `template`/`styles` inline),
+      exige `changeDetection` explícito y **rechaza `Default`** (deprecado en v22). Atado al job de
+      tests del CI y a `make gates-front`. Hoy: **223 componentes, 0 faltantes, 0 con `Default`**;
+      probado por mutación (un componente sin la propiedad ⇒ exit 1 nombrando archivo y línea)
 
 ### W1 — Plantillas de vacunación por empresa/línea/raza
 - [ ] W1.1 Tablas `vacunacion_plan_plantilla` + `_items` (migración EF idempotente)
@@ -1773,8 +1784,66 @@ solo dato. Aviso: el lote 168 es el que usaron los smokes de V7 — su baseline 
 - [ ] V8.6 Simular toda corrección en transacción + revertir, y correr el gate de paridad antes y después
 
 ### Hallazgos confirmados que NO entran en esta entrega
-- [ ] V7.23 El bloqueo por vencidos corta la **carga masiva histórica** y el **puente Panamá** después del primer día insertado: el gate se evalúa por fila. Necesita evaluarse una vez por import
-- [ ] V7.24 El guard de alimento obligatorio mide solo el metadata, y el puente Panamá manda los kg en `ConsumoKgHembras/Machos` ⇒ con el flag ON no importa un solo día
-- [ ] V7.25 Los escritores alternos de `seguimiento_diario_produccion` (traslados) crean filas `validado=false` sin reserva: a las 24 h bloquean el lote
-- [ ] V7.26 Front: el botón Validar de producción se muestra con el flag APAGADO
+
+> ⚠️ **Revalidado 17ago26 contra el código: los 4 primeros ya estaban resueltos** en la misma entrega
+> que los listó — la numeración se pisó (estos V7.23-V7.26 son los hallazgos; V7.31/32/35/36 son los
+> arreglos). Se marcan con su evidencia. El único que sigue abierto es V7.27.
+
+- [x] V7.23 El bloqueo por vencidos corta la carga masiva histórica y el puente Panamá — **cerrado por
+      V7.35**: `ModoCargaHistorica()` envuelve `MigracionService.SeguimientoEngorde.cs` y
+      `PuentePanamaService.Sincronizar.cs` (verificado: son los 2 llamadores)
+- [x] V7.24 El guard de alimento obligatorio medía solo el metadata — **cerrado por V7.36**:
+      `SeparacionSeguimientoHelper.ValidarAlimentoObligatorio` recibe `kgHembrasDirecto` /
+      `kgMachosDirecto` (`SeparacionSeguimientoHelper.cs:35-37`)
+- [x] V7.25 Los traslados creaban filas `validado=false` — **cerrado por V7.31**: las 4 filas nacen con
+      `Validado = true` (`TrasladoAvesDesdeSegService.Traslado.cs:365,423,482,541`)
+- [x] V7.26 El botón Validar con el flag apagado — **cerrado por V7.32**: `requiereValidacion` está en
+      las 3 listas (levante, producción y engorde) y en sus 3 plantillas
 - [ ] V7.27 El saldo de alimento y el cuadre de engorde se recalculan ignorando `validado`. Tocarlo exige el **gate de paridad multipaís**, no entra acá
+
+---
+
+# V9 · Barrido de pendientes del tracker (17ago26)
+
+Pedido: «con el tracker iniciemos el trabajo hasta finalizar todas las tareas anotadas pendientes».
+Bloque propio — no tocar desde otras sesiones. **V8 sigue reservada para otra sesión.**
+
+## V9.0 — Triage de los ~80 pendientes
+
+Antes de escribir código, cada pendiente se clasificó contra el código de hoy. Tres grupos:
+
+| grupo | qué es | qué se hace |
+|---|---|---|
+| **ya resuelto** | el arreglo está en el código y el checkbox se quedó sin marcar | se marca con su evidencia (archivo:línea) |
+| **accionable** | trabajo de código, sin dependencias externas | se hace en este bloque |
+| **bloqueado** | espera una decisión del usuario, un admin externo, o toca producción | se lista al final, sin tocarlo |
+
+- [x] V9.0.1 **4 pendientes ya estaban resueltos** — V7.23/24/25/26 son los *hallazgos* y
+      V7.35/36/31/32 sus *arreglos*: la numeración se pisó dentro de la misma entrega. Verificado uno
+      por uno contra el código, marcados arriba con la línea exacta
+- [x] V9.0.2 El comentario obsoleto de `verificar_conceptos_catalogo_inventario.sql` quedó **sin
+      objeto**: ese archivo ya no existe en `backend/sql/`
+
+## V9.1 — Los dos gates de máquina que faltaban (F0.5 + lista cacheable)
+
+Los dos defectos que motivan estos gates comparten una propiedad: **compilan, pasan los tests y solo
+se ven abriendo la pantalla** (o abriéndola sin red). Una convención escrita ya falló dos veces con
+el primero, así que van como gate.
+
+- [x] V9.1.1 `frontend/scripts/verificar-change-detection.js` — exige `changeDetection` explícito en
+      cada `@Component` y rechaza `Default` (deprecado en v22). Lee el literal del decorador contando
+      paréntesis, porque una regex se corta con los `template`/`styles` inline. **223 componentes,
+      0 faltantes**; probado por mutación (exit 1 nombrando archivo y línea)
+- [x] V9.1.2 `verificar-lista-cacheable.js` deja de ser informativo y **corta** ante deriva: endpoint
+      sin decisión, o entrada de la lista que la app nunca pide. `--informe` conserva el
+      comportamiento viejo para mirar sin bloquear
+- [x] V9.1.3 🔴 **La deriva ya había ocurrido**: al atarlo salieron **5 endpoints sin decisión**.
+      `silocatalogo` / `farmsilo` / `galponsilo` / `lotesilo` → lista blanca (en Santa Reyes el silo
+      ES la ubicación del alimento ⇒ es estructura, igual que núcleo y galpón).
+      `seguimientovalidacion` → EXCLUIDOS: es un gate de negocio, cachearlo congelaría en la tablet un
+      flag que la empresa puede apagar, validar exige red igual, y el cliente ya cae a
+      `SIN_PENDIENTES` (fail-closed) sin caché. Queda **54 cacheables / 30 excluidos / 0 sin decisión**
+- [x] V9.1.4 Los dos atados al job «Tests — Backend & Frontend» del CI y a `make gates-front`.
+      Documentados en `frontend/PWA.md` y en el README de `shared/offline/funciones/`
+- [x] V9.1.5 `yarn build` (Node portable 22.23.1) — **0 errores**, único warning el de bundle budget
+      preexistente (initial 1,84 MB contra el techo de error de 2,05 MB)

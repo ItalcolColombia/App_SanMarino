@@ -28,6 +28,13 @@ const ENDPOINTS_OPERATIVOS: readonly string[] = [
   'userfarm',
   'regional',
 
+  // Silos: en Santa Reyes el silo ES la ubicación del alimento, así que para esa empresa son
+  // estructura igual que núcleo y galpón — sin ellos el inventario no puede pintar sus selectores.
+  'silocatalogo',
+  'farmsilo',
+  'galponsilo',
+  'lotesilo',
+
   // Geografía: la usan los formularios de granja y de cliente.
   'countries',
   'cities',
@@ -97,6 +104,11 @@ const EXCLUIDOS: readonly string[] = [
   // respuesta no tendría sentido, y servirla desde caché haría creer que se sincronizó algo que
   // nunca salió del dispositivo.
   'sync',
+
+  // Doble validación: es un gate de negocio, no un dato de operación. Cachear `configuracion`
+  // congelaría en la tablet un flag que la empresa puede apagar, y `validar` exige red igual, así
+  // que guardarlo no habilita nada. Sin caché el cliente ya cae a `SIN_PENDIENTES` (fail-closed).
+  'seguimientovalidacion',
 
   // Identidad y autorización.
   'auth',
