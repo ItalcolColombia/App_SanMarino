@@ -110,6 +110,12 @@ const EXCLUIDOS: readonly string[] = [
   // que guardarlo no habilita nada. Sin caché el cliente ya cae a `SIN_PENDIENTES` (fail-closed).
   'seguimientovalidacion',
 
+  // Plan de vacunación de la EMPRESA (plantillas). Lo que el galponero consulta en el galpón es el
+  // cronograma de SU lote —ese sí se cachea—; la plantilla es la fuente aguas arriba, se edita desde
+  // una oficina con red y alcanza a todos los lotes futuros. Servirla desde caché mostraría un plan
+  // viejo como si fuera el vigente, que es justo el problema que el módulo vino a resolver.
+  'vacunacionplantilla',
+
   // Identidad y autorización.
   'auth',
   'users',

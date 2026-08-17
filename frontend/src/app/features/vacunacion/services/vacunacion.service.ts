@@ -16,6 +16,16 @@ import {
   VacunacionCumplimientoDetalleDto,
   LineaProductiva,
 } from '../models/vacunacion.model';
+import {
+  VacunacionPlantillaDto,
+  VacunacionPlantillaDetalleDto,
+  VacunacionPlantillaItemDto,
+  VacunacionPlantillaCreateRequest,
+  VacunacionPlantillaUpdateRequest,
+  VacunacionPlantillaItemCreateRequest,
+  VacunacionPlantillaItemUpdateRequest,
+  VacunacionPlantillaEfectivaDto,
+} from '../models/vacunacion-plantilla.model';
 
 /** Vida de la caché de filter-data: navegar entre las páginas del módulo no re-descarga;
  *  un cambio de empresa/granja hecho en otro módulo se ve como muy tarde a los 5 minutos. */
@@ -26,6 +36,7 @@ export class VacunacionService {
   private readonly cronogramaBase = `${environment.apiUrl}/VacunacionCronograma`;
   private readonly registroBase = `${environment.apiUrl}/VacunacionRegistro`;
   private readonly reportesBase = `${environment.apiUrl}/VacunacionReportes`;
+  private readonly plantillaBase = `${environment.apiUrl}/VacunacionPlantilla`;
 
   private filterData$: Observable<VacunacionFilterDataDto> | null = null;
   private filterDataTs = 0;
@@ -90,5 +101,55 @@ export class VacunacionService {
   /** Detalle ítem a ítem del reporte (una fila por vacuna programada). */
   getCumplimientoDetalle(req: VacunacionCumplimientoFiltroRequest): Observable<VacunacionCumplimientoDetalleDto[]> {
     return this.http.post<VacunacionCumplimientoDetalleDto[]>(`${this.reportesBase}/detalle`, req);
+  }
+
+  // ─── Plantillas del plan (W1.3/W1.4) ──────────────────────────────────────
+  // Sin caché a propósito: es una pantalla de administración y el usuario acaba de escribir lo que
+  // está mirando. Cachearla mostraría su propio cambio con retraso.
+
+  getPlantillas(lineaProductiva?: LineaProductiva | null, soloActivas = false): Observable<VacunacionPlantillaDto[]> {
+    const params: Record<string, string> = {};
+    if (lineaProductiva) params['lineaProductiva'] = lineaProductiva;
+    if (soloActivas) params['soloActivas'] = 'true';
+    return this.http.get<VacunacionPlantillaDto[]>(this.plantillaBase, { params });
+  }
+
+  getPlantilla(id: number): Observable<VacunacionPlantillaDetalleDto> {
+    return this.http.get<VacunacionPlantillaDetalleDto>(`${this.plantillaBase}/${id}`);
+  }
+
+  crearPlantilla(req: VacunacionPlantillaCreateRequest): Observable<VacunacionPlantillaDetalleDto> {
+    return this.http.post<VacunacionPlantillaDetalleDto>(this.plantillaBase, req);
+  }
+
+  actualizarPlantilla(id: number, req: VacunacionPlantillaUpdateRequest): Observable<VacunacionPlantillaDetalleDto> {
+    return this.http.put<VacunacionPlantillaDetalleDto>(`${this.plantillaBase}/${id}`, req);
+  }
+
+  eliminarPlantilla(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.plantillaBase}/${id}`);
+  }
+
+  crearItemPlantilla(plantillaId: number, req: VacunacionPlantillaItemCreateRequest): Observable<VacunacionPlantillaItemDto> {
+    return this.http.post<VacunacionPlantillaItemDto>(`${this.plantillaBase}/${plantillaId}/items`, req);
+  }
+
+  actualizarItemPlantilla(
+    plantillaId: number,
+    itemId: number,
+    req: VacunacionPlantillaItemUpdateRequest
+  ): Observable<VacunacionPlantillaItemDto> {
+    return this.http.put<VacunacionPlantillaItemDto>(`${this.plantillaBase}/${plantillaId}/items/${itemId}`, req);
+  }
+
+  eliminarItemPlantilla(plantillaId: number, itemId: number): Observable<void> {
+    return this.http.delete<void>(`${this.plantillaBase}/${plantillaId}/items/${itemId}`);
+  }
+
+  /** Vista previa: qué plantilla le tocaría al lote y por qué. No escribe cronograma. */
+  getPlantillaEfectiva(lineaProductiva: LineaProductiva, loteId: number): Observable<VacunacionPlantillaEfectivaDto> {
+    return this.http.get<VacunacionPlantillaEfectivaDto>(`${this.plantillaBase}/efectiva`, {
+      params: { lineaProductiva, loteId },
+    });
   }
 }

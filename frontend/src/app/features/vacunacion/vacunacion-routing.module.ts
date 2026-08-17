@@ -4,6 +4,11 @@ import { RouterModule, Routes } from '@angular/router';
 const routes: Routes = [
   { path: '', redirectTo: 'cronograma', pathMatch: 'full' },
   {
+    path: 'plantillas',
+    loadComponent: () => import('./pages/plantillas/plantillas.page').then((m) => m.PlantillasPage),
+    title: 'Vacunación — Plantillas del plan',
+  },
+  {
     path: 'cronograma',
     loadComponent: () =>
       import('./pages/cronograma-administracion/cronograma-administracion.page').then(

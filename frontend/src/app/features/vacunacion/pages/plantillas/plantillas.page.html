@@ -1,0 +1,320 @@
+<div class="mx-auto max-w-7xl p-4 sm:p-6">
+  <!-- Header de página -->
+  <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div
+        class="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
+        style="background: var(--ital-orange-100)"
+        aria-hidden="true"
+      >
+        📋
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold" style="color: var(--ital-text)">Plantillas del plan de vacunación</h1>
+        <p class="text-sm" style="color: var(--ital-muted)">
+          El plan sanitario de la empresa, definido una vez por línea y raza. Cada lote sabe cuál le toca.
+        </p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button type="button" class="btn-ghost text-sm" (click)="cargar()" [disabled]="cargando">⟳ Actualizar</button>
+      <button type="button" class="btn-ghost text-sm" (click)="exportar()">⬇ Exportar Excel</button>
+      <button
+        type="button"
+        *appHasPermission="'vacunacion.plantillas.administrar'"
+        class="btn-primary text-sm"
+        (click)="abrirNuevaPlantilla()"
+      >
+        + Nueva plantilla
+      </button>
+    </div>
+  </header>
+
+  <!-- Filtros -->
+  <section class="ux-card filter-card mb-4">
+    <div class="filter-card__header">
+      <div class="filter-card__header-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v2.586a1 1 0 01-.293.707l-4.414 4.414a1 1 0 00-.293.707V15a1 1 0 01-.447.832l-2 1.333A1 1 0 018 16.333v-4.919a1 1 0 00-.293-.707L3.293 6.293A1 1 0 013 5.586V3z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h3 class="filter-card__title">Filtros</h3>
+        <p class="filter-card__subtitle">Acotá la lista por línea, nombre o estado</p>
+      </div>
+    </div>
+
+    <div class="filter-fields">
+      <div class="filter-field">
+        <label class="filter-step__label" for="pl-linea">Línea productiva</label>
+        <select id="pl-linea" class="filter-step__select" [(ngModel)]="filtroLinea" (ngModelChange)="onFiltroLineaChange()">
+          <option [ngValue]="null">Todas</option>
+          <option *ngFor="let l of lineas" [ngValue]="l">{{ lineaLabel[l] }}</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-step__label" for="pl-buscar">Buscar</label>
+        <input
+          id="pl-buscar"
+          type="text"
+          class="filter-step__input"
+          placeholder="🔍 Nombre o raza…"
+          [(ngModel)]="filtroNombre"
+          (ngModelChange)="construirFilas()"
+        />
+      </div>
+      <div class="filter-field">
+        <span class="filter-step__label">Estado</span>
+        <label class="flex items-center gap-2 pt-1.5 text-sm" style="color: var(--ital-text)">
+          <input type="checkbox" [(ngModel)]="soloActivas" (ngModelChange)="onSoloActivasChange()" />
+          Sólo activas
+        </label>
+      </div>
+    </div>
+
+    <div *ngIf="cargando" class="loading-toast mt-3" role="status">
+      <span class="spinner spinner--sm"></span> Cargando plantillas…
+    </div>
+  </section>
+
+  <!-- Lista de plantillas -->
+  <div class="ux-card mb-4 overflow-hidden">
+    <div class="ux-scroll overflow-x-auto">
+      <table class="ux-table min-w-[820px]">
+        <thead>
+          <tr>
+            <th>Plantilla</th>
+            <th>Alcance</th>
+            <th>Vigencia</th>
+            <th class="text-right">Vacunas</th>
+            <th>Estado</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            *ngFor="let fila of filas; trackBy: trackByFila"
+            class="cursor-pointer"
+            [class.bg-orange-50]="seleccionada?.id === fila.plantilla.id"
+            (click)="seleccionar(fila)"
+          >
+            <td class="font-semibold">{{ fila.plantilla.nombre }}</td>
+            <td>{{ fila.alcance }}</td>
+            <td>{{ fila.vigencia }}</td>
+            <td class="text-right">{{ fila.plantilla.cantidadItems }}</td>
+            <td>
+              <span
+                *ngIf="fila.advertencia; else okEstado"
+                class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                [title]="fila.advertencia"
+              >
+                {{ fila.advertencia }}
+              </span>
+              <ng-template #okEstado>
+                <span class="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                  Lista
+                </span>
+              </ng-template>
+            </td>
+            <td class="text-right">
+              <button
+                type="button"
+                *appHasPermission="'vacunacion.plantillas.administrar'"
+                class="rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors hover:brightness-95"
+                style="color: var(--danger); background: rgba(220, 38, 38, 0.08)"
+                (click)="eliminarPlantilla(fila); $event.stopPropagation()"
+              >
+                🗑 Eliminar
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="!filas.length && !cargando">
+            <td colspan="6">
+              <div class="empty-state">
+                <div class="empty-illustration" aria-hidden="true">📋</div>
+                Todavía no hay plantillas. Con “+ Nueva plantilla” definís el plan una vez y deja de vivir en la cabeza
+                del técnico.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Detalle de la plantilla seleccionada -->
+  <div *ngIf="seleccionada" class="ux-card mb-4 overflow-hidden">
+    <div
+      class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3"
+      style="border-color: var(--ital-green-100)"
+    >
+      <div>
+        <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">{{ seleccionada.nombre }}</h2>
+        <p class="text-xs" style="color: var(--ital-muted)">
+          {{ lineaLabel[seleccionada.lineaProductiva] }} · {{ seleccionada.raza ?? 'todas las razas' }}
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" class="btn-ghost text-sm" (click)="cerrarDetalle()">Cerrar</button>
+        <button
+          type="button"
+          *appHasPermission="'vacunacion.plantillas.administrar'"
+          class="btn-ghost text-sm"
+          (click)="abrirEditarPlantilla(seleccionada)"
+        >
+          ✎ Editar cabecera
+        </button>
+        <button
+          type="button"
+          *appHasPermission="'vacunacion.plantillas.administrar'"
+          class="btn-primary text-sm"
+          (click)="abrirNuevoItem()"
+        >
+          + Agregar vacuna
+        </button>
+      </div>
+    </div>
+
+    <div class="relative">
+      <div class="ux-scroll overflow-x-auto">
+        <table class="ux-table min-w-[720px]">
+          <thead>
+            <tr>
+              <th class="text-right">Orden</th>
+              <th>Vacuna</th>
+              <th>Programado</th>
+              <th>Franja</th>
+              <th>Notas</th>
+              <th class="text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let fila of filasItems; trackBy: trackByItem">
+              <td class="text-right">{{ fila.item.orden }}</td>
+              <td>{{ fila.item.itemInventarioNombre }}</td>
+              <td>{{ fila.objetivo }}</td>
+              <td>{{ fila.franja }}</td>
+              <td class="max-w-[220px] truncate" [title]="fila.item.notas ?? ''">{{ fila.item.notas ?? '—' }}</td>
+              <td class="text-right">
+                <div class="inline-flex gap-1.5">
+                  <button
+                    type="button"
+                    *appHasPermission="'vacunacion.plantillas.administrar'"
+                    class="rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors hover:brightness-95"
+                    style="color: var(--ital-orange-dark); background: var(--ital-orange-50)"
+                    (click)="abrirEditarItem(fila)"
+                  >
+                    ✎ Editar
+                  </button>
+                  <button
+                    type="button"
+                    *appHasPermission="'vacunacion.plantillas.administrar'"
+                    class="rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors hover:brightness-95"
+                    style="color: var(--danger); background: rgba(220, 38, 38, 0.08)"
+                    (click)="eliminarItem(fila)"
+                  >
+                    🗑 Quitar
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="!filasItems.length && !cargandoDetalle">
+              <td colspan="6">
+                <div class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">💉</div>
+                  Esta plantilla no tiene vacunas todavía: ningún lote va a recibir cronograma de ella.
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div *ngIf="cargandoDetalle" class="loading-overlay" role="status" aria-label="Cargando detalle">
+        <span class="spinner"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista previa: qué plantilla le toca a un lote -->
+  <section class="ux-card overflow-hidden">
+    <div class="border-b px-4 py-3" style="border-color: var(--ital-green-100)">
+      <h2 class="text-sm font-bold" style="color: var(--ital-orange-dark)">¿Qué plantilla le toca a un lote?</h2>
+      <p class="text-xs" style="color: var(--ital-muted)">
+        Sólo consulta: <b>no</b> escribe el cronograma del lote. Sirve para verificar la resolución antes de
+        materializar.
+      </p>
+    </div>
+
+    <div class="filter-fields px-4 py-3">
+      <div class="filter-field">
+        <label class="filter-step__label" for="pl-granja">Granja</label>
+        <select
+          id="pl-granja"
+          class="filter-step__select"
+          [(ngModel)]="granjaPreviewId"
+          (ngModelChange)="onGranjaPreviewChange()"
+        >
+          <option [ngValue]="null">Seleccione…</option>
+          <option *ngFor="let g of granjas; trackBy: trackByGranja" [ngValue]="g.id">{{ g.name }}</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-step__label" for="pl-lote">Lote</label>
+        <select
+          id="pl-lote"
+          class="filter-step__select"
+          [ngModel]="lotePreview"
+          (ngModelChange)="onLotePreviewChange($event)"
+          [disabled]="!granjaPreviewId"
+        >
+          <option [ngValue]="null">
+            {{ lotesFiltrados.length ? 'Seleccione…' : granjaPreviewId ? 'Sin lotes para esta granja' : 'Elija una granja primero' }}
+          </option>
+          <option *ngFor="let l of lotesFiltrados; trackBy: trackByLote" [ngValue]="l">
+            {{ l.loteNombre }} — {{ lineaLabel[l.lineaProductiva] }}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <div *ngIf="cargandoPreview" class="loading-toast mx-4 mb-3" role="status">
+      <span class="spinner spinner--sm"></span> Resolviendo la plantilla del lote…
+    </div>
+
+    <div *ngIf="efectiva && !cargandoPreview" class="px-4 pb-4">
+      <div
+        class="rounded-xl p-3 text-sm"
+        [style.background]="efectiva.plantilla ? 'var(--ital-green-50, #f0f7f1)' : 'var(--ital-cream)'"
+        style="border: 1px solid var(--ital-green-100)"
+      >
+        <p class="font-semibold" style="color: var(--ital-text)">
+          {{ efectiva.loteNombre }} · {{ lineaLabel[efectiva.lineaProductiva] }}
+          <span style="color: var(--ital-muted)">
+            — raza {{ efectiva.raza ?? 'sin cargar' }}, encaset
+            {{ efectiva.fechaEncaset ? (efectiva.fechaEncaset | date: 'dd/MM/yyyy') : 'sin fecha' }}
+          </span>
+        </p>
+        <p class="mt-1" style="color: var(--ital-text)">{{ efectiva.motivo }}</p>
+        <p *ngIf="efectiva.plantilla" class="mt-1 text-xs" style="color: var(--ital-muted)">
+          {{ efectiva.plantilla.items.length }} vacuna(s) en el plan.
+        </p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<app-modal-plantilla
+  [open]="modalPlantillaAbierto"
+  [plantillaEditar]="plantillaEditar"
+  (cerrado)="cerrarModalPlantilla()"
+  (guardado)="onPlantillaGuardada($event)"
+></app-modal-plantilla>
+
+<app-modal-item-plantilla
+  [open]="modalItemAbierto"
+  [plantillaId]="seleccionada?.id ?? 0"
+  [lineaProductiva]="seleccionada?.lineaProductiva ?? 'Levante'"
+  [vacunas]="vacunas"
+  [itemEditar]="itemEditar"
+  [cantidadItems]="filasItems.length"
+  (cerrado)="cerrarModalItem()"
+  (guardado)="onItemGuardado()"
+></app-modal-item-plantilla>

@@ -13,6 +13,8 @@ Los componentes/páginas quedan delgados: juntan estado, llaman la función y ma
 | `exportar-cronograma-excel.funcion.ts` | Excel del cronograma de un lote. |
 | `exportar-historial-excel.funcion.ts` | Excel del historial de aplicaciones de un lote. |
 | `exportar-cumplimiento-excel.funcion.ts` | Excel multi-hoja del reporte (Resumen + Cumplimiento por lote + Detalle por vacuna). |
+| `describir-plantilla.funcion.ts` | Plantilla del plan → alcance, vigencia, objetivo, franja, advertencia y orden de ítems. El "hoy" y las fechas entran por parámetro: **nada de `new Date()` adentro**, para que el resultado sea reproducible. |
+| `exportar-plantillas-excel.funcion.ts` | Excel de 2 hojas del plan de la empresa (cabeceras + todas las vacunas programadas). |
 
 Exportaciones: siempre vía helpers compartidos de `shared/utils/excel/exportar-tabla-excel.funcion.ts`
 y formato vía `shared/utils/format.ts` — prohibido `XLSX.utils.*` inline.

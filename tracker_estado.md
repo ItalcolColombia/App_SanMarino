@@ -2011,3 +2011,108 @@ del técnico y dos lotes iguales podían quedar distintos sin que nada lo notara
       **2.656 Application + 1 Domain en verde** (2.628 + 28)
 - [ ] W1.3 CRUD backend + permisos — **pendiente**
 - [ ] W1.4 Front: pantalla de plantillas — **pendiente**
+
+---
+
+# V10 · Vacunación W1.3 + W1.4 — la plantilla deja de ser una tabla vacía (17ago26)
+
+**Plan:** [`fase_de_desarrollo/vacunacion_w1_3_w1_4_plantillas_crud_plan.md`](fase_de_desarrollo/vacunacion_w1_3_w1_4_plantillas_crud_plan.md)
+Bloque propio — no tocar desde otras sesiones. **V8 sigue reservada.**
+**Fuera de alcance por pedido del usuario:** el bloque de correo (lo destraba el admin de Microsoft 365,
+el código ya envía bien).
+
+W1.1 dejó las tablas y W1.2 la regla de resolución con sus 28 tests. Falta lo que las vuelve usables:
+un CRUD y una pantalla. Sin esto la plantilla es un dato que nadie puede cargar.
+
+## W1.3 — CRUD backend + permisos ✔
+- [x] W1.3.1 `VacunacionPlantillaDtos` (9 records, incl. `Efectiva`) + `IVacunacionPlantillaService`
+- [x] W1.3.2 **4 funciones puras nuevas** en `VacunacionPlantillaCalculos` + **26 tests xUnit**
+      (`VacunacionPlantillaCrudCalculosTests`): `MotivoPlantillaDuplicada`, `MotivoItemDuplicado`,
+      `MotivoUnidadNoCorrespondeALinea` y `DescribirResolucion`
+- [x] W1.3.3 🔑 **`DescribirResolucion` no es cosmética.** `ResolverEfectiva` devuelve un id, y un id
+      no se puede auditar: «este lote quedó sin plan» tiene causas distintas (la empresa no cargó
+      ninguna · el lote no tiene raza · todas rigen desde una fecha posterior) y **cada una se corrige
+      en otro lado**. Sin el motivo el usuario ve un vacío y no sabe qué hacer con él
+- [x] W1.3.4 `VacunacionPlantillaService` = ancla (validaciones + mapeos) + `Funciones/Crud` +
+      `Funciones/Efectiva`. Servicio **aparte** del cronograma: ese escribe el plan de UN lote, este
+      el de la EMPRESA — dos sujetos y dos permisos en la misma clase habrían quedado mezclados
+- [x] W1.3.5 **Borrar es soft-delete en cascada con el mismo sello** (patrón V9.3): plantilla e ítems
+      comparten `deleted_at`, así cada fila dice por sí sola que está borrada y se reconoce después
+      qué se borró junto con qué
+- [x] W1.3.6 🔒 **`efectiva` es SOLO LECTURA**: responde qué plantilla le tocaría al lote y por qué,
+      sin escribir una fila de cronograma. Es la vista previa que vuelve auditable a W2 antes de que
+      W2 exista
+- [x] W1.3.7 `VacunacionPlantillaController` (10 endpoints) + DI. Quien administra también ve, sin
+      necesitar las dos claves
+- [x] W1.3.8 Migración `20260817200000_AddPermisosYMenuVacunacionPlantillas` (data-only, Designer
+      clonado, ModelSnapshot intacto): 2 permisos + `role_permissions` **heredados de los de
+      cronograma** ⇒ hoy nadie gana ni pierde acceso, y mañana se pueden separar + menú
+      `vacunacion.plantillas`
+- [x] W1.3.9 `dotnet build` **0 errores** (8 advertencias, las preexistentes) · `dotnet test`
+      **2.682 Application + 1 Domain en verde** (2.656 + 26)
+
+## W1.4 — Front: pantalla de plantillas ✔
+- [x] W1.4.1 `models/vacunacion-plantilla.model.ts` (tipos 1:1 con los DTOs) + 9 métodos en
+      `VacunacionService`. **Sin caché a propósito**: es una pantalla de administración y el usuario
+      acaba de escribir lo que está mirando; cachearla mostraría su propio cambio con retraso
+- [x] W1.4.2 `funciones/describir-plantilla.funcion.ts` (6 puras: alcance, vigencia, objetivo, franja,
+      advertencia y orden de ítems — las fechas entran por parámetro, nada de `new Date()` adentro) +
+      `funciones/exportar-plantillas-excel.funcion.ts` (2 hojas, vía el helper compartido)
+- [x] W1.4.3 Página maestro-detalle + `modal-plantilla` + `modal-item-plantilla`, los 3 con
+      `changeDetection: ChangeDetectionStrategy.Eager` explícito. Las filas llevan sus textos
+      **precalculados** (referencias estables, sin funciones en el template)
+- [x] W1.4.4 Ruta `plantillas` + `yarn build` **0 errores** (único warning el de bundle budget
+      preexistente, 1,84 MB) + gate de change detection: **226 componentes, 0 sin declarar**
+- [x] W1.4.5 🔴 **El gate de lista cacheable CORTÓ el build** por el endpoint nuevo sin decisión.
+      Resuelto como **EXCLUIDO**: lo que el galponero consulta en el galpón es el cronograma de SU lote
+      (ese sí se cachea); la plantilla es la fuente aguas arriba, se edita con red y alcanza a todos
+      los lotes futuros — servirla desde caché mostraría un plan viejo como si fuera el vigente, que es
+      justo lo que el módulo vino a evitar. Queda **54 cacheables / 31 excluidos / 0 sin decisión**
+
+## Validación
+- [x] V10.1 **Migración de permisos validada por transacción** (`BEGIN … ROLLBACK`, dos pasadas):
+      2 permisos · **3 roles heredan `plantillas.ver`** (los mismos 3 de `cronograma.ver`) y **4
+      heredan `plantillas.administrar`** (los mismos 4) ⇒ *nadie gana ni pierde acceso* · menú bajo el
+      grupo `vacunacion` · **segunda pasada `INSERT 0` en las cuatro** · tras el `ROLLBACK`, 0 rastros
+- [x] V10.2 🔴 **Bug real que sólo se veía pegándole al endpoint**: `DateOnly.FromDateTime` dentro de
+      una proyección LINQ **compila y pasa los tests**, pero Npgsql no lo traduce sobre una columna
+      `date` ⇒ **500 en todo POST/PUT**. Se materializa antes de convertir. Los GET no lo tocaban, así
+      que la lista y `efectiva` respondían bien: sin el smoke esto llegaba a producción
+- [x] V10.3 **Smoke HTTP: 48 verificaciones, 0 fallos** (backend propio :5499, JWT y `X-Secret-Up`
+      minteados). Ciclo completo en 2 empresas: sin plantillas → crear → duplicada **400 nombrando la
+      existente** → 3 ítems (carga doble **400 diciendo la semana**, refuerzo en otra semana OK, otra
+      vacuna en la misma semana OK) → orden `0:8 1:3 2:3` → conteo en la lista → `efectiva` elige la de
+      raza y **dice que le ganó a la comodín** → versión fechada no le roba el lote de 2025 → pasar a
+      Engorde con ítems por semana **400** → en ItalcolEcuador, Engorde por semana **400** y por día OK
+- [x] V10.4 **Aislamiento por empresa probado, no declarado**: Sanmarino no lee la plantilla de
+      Ecuador (404), no aparece en su lista, y no puede usar una vacuna del catálogo ajeno (400)
+- [x] V10.5 **Permisos**: sin `plantillas.administrar` ⇒ 403 al crear; sin `plantillas.ver` ⇒ 403 al listar
+- [x] V10.6 **El sello del soft-delete verificado en la BD**, no en el código: la plantilla y sus 3
+      ítems quedaron con el **mismo `deleted_at`** (`2026-08-17 07:01:07.521193-05`, 1 valor distinto)
+- [x] V10.7 **Regresión del cronograma**: responde 200 con el mismo contenido, y —más fuerte que el
+      conteo— `grep` sobre los 4 archivos nuevos da **cero referencias** a `VacunacionCronogramaItem`
+      ⇒ el CRUD de plantillas **no puede** tocar el cronograma. ⚠️ Honestidad: la tabla
+      `vacunacion_cronograma_item` está **vacía en toda la BD local**, así que el conteo por sí solo
+      probaba poco; el gate real es el estructural
+- [x] V10.8 **Smoke UI** (front :4200 + backend :5002, sesión inyectada en `localStorage`): crear
+      plantilla Engorde → el modal de ítem **deshabilita «Semana» y marca «Día»** porque la línea lo
+      manda → agregar vacuna del catálogo real (18 de Ecuador) → tabla con «Día 12 · −0/+1 días» →
+      **los 2 modales abren y cierran DOS veces** sin colgarse (Escape incluido) y el `orden` por
+      defecto salta a 1 (va al final, no encima del primero) → vista previa de un lote real:
+      *«Aplica «SMOKE UI Plan engorde EC»: es la plantilla general de la línea (no hay una específica
+      para Ross 308-AP)»* → quitar vacuna y borrar plantilla por `ConfirmDialogService` → la vista
+      previa se re-resuelve sola y pasa a *«Esta empresa no tiene plantillas activas para Engorde»*
+- [x] V10.9 `dotnet build` **0 errores** (8 advertencias preexistentes) · `dotnet test` **2.682 + 1
+      verdes** · `yarn build` 0 errores
+- [x] V10.10 **BD local devuelta a su estado exacto**: 129 tablas, historial en `20260814130000`
+      (**cero migraciones ajenas aplicadas** — el smoke corrió con `Database__RunMigrations=false`),
+      0 permisos de plantillas, `vacunacion_cronograma_item` intacta. Las 2 tablas de W1.1 se crearon
+      sólo para el smoke y se dropearon **con guarda**: se verificó antes que su migración no estuviera
+      registrada en `__EFMigrationsHistory` (si lo estuviera, borrarlas dejaría el historial mintiendo)
+- [x] V10.11 Sin procesos huérfanos: `:5002`, `:5499`, `:4200` y `:4300` libres
+
+### Observación al pasar (preexistente, NO tocada)
+- El selector de vacunas sale de `fn_vacunacion_filter_data`, que filtra por `tipo_item = 'vacuna'`.
+  **Agroavícola Sanmarino no tiene ni un ítem así** en su catálogo (61 ítems, 0 vacunas), así que su
+  selector aparece vacío — en la pantalla nueva y también en la de Cronograma, que ya estaba en prod.
+  Se cargan vacunas al catálogo o se relaja el filtro; no es de esta entrega.
