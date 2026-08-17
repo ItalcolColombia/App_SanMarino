@@ -1918,15 +1918,29 @@ audita la mitad del **saldo**.
       flags en su valor original, puertos 5002/5499/5501 libres
 
 ## Lo que NO se hizo, dicho explícitamente
-- [ ] V12.4.1 **Verificar en PROD si hay filas con los literales viejos** antes de mergear. En local
-      hay **cero** (el flag sólo estuvo encendido durante los smokes de V7 y la base se restauró),
-      pero `ItalcolPanama` tiene `requiere_validacion_seguimiento_diario = true` por la migración
-      `20260815130000_ActivarDobleValidacionItalcolPanama`, así que **si esa migración ya corrió en
-      prod, el defecto es alcanzable ahí**. Si aparecen filas, van por migración data-only aparte
-      (`UPDATE ... SET referencia = replace(referencia, 'Seguimiento engorde #', 'Seguimiento aves engorde #')`)
-- [ ] V12.4.2 **No se filtró la fn por `validado`** — ver V12.0.1. Diferir también el saldo es un
+- [x] V12.4.1 **PROD: no puede haber filas con los literales viejos — y no hace falta consultar la BD
+      para saberlo.** La doble validación **nunca se desplegó**. Verificado contra AWS: el servicio
+      `sanmarino-back-task-service-75khncfa` corre la TaskDef **158**, único deployment (PRIMARY /
+      COMPLETED, 14-ago-2026 22:36), imagen `…backend:cdd5561`. Ese commit (`cdd5561`, merge del PR
+      #71, 14-ago 22:31) **no contiene**: las 4 migraciones de doble validación, la carpeta
+      `Services/ValidacionSeguimiento/` ni la entidad `SeguimientoReservaAlimento`. Sin
+      `AplicarAlimentoAsync` en el binario **no hay camino de código que escriba esos literales**, así
+      que el resultado no depende del esquema de la BD: aunque las migraciones se hubieran aplicado
+      por otra vía, sin el código no se genera ni una fila. En local también hay **cero**
+- [x] V12.4.2 **Corolario: el defecto nunca llega a producción.** El arreglo y la feature están los
+      dos en `main` sin desplegar, así que el primer deploy que lleve la doble validación ya lleva el
+      literal correcto. **No hace falta migración data-only** — la que se había previsto
+      (`replace(referencia, 'Seguimiento engorde #', 'Seguimiento aves engorde #')`) queda sin objeto
+- [ ] V12.4.3 ⚠️ **A confirmar con el usuario**: dijo «la base de datos está actualizada en AWS». Si
+      eso significa que las **migraciones** se aplicaron por fuera del deploy, prod tendría el esquema
+      **por delante** del binario de 14-ago — que es justo el modo de falla que documenta CLAUDE.md
+      («migración aplicada = binario viejo inválido»). No cambia la respuesta de V12.4.1, pero es un
+      riesgo aparte que vale mirar. No pude verificarlo: la RDS está en VPC privada (resuelve a
+      `10.4.6.6`, psql da timeout), ECS Exec está **deshabilitado** en el servicio, y el usuario IAM
+      no tiene `rds:DescribeDBInstances` ni `ssm:DescribeInstanceInformation`
+- [ ] V12.4.4 **No se filtró la fn por `validado`** — ver V12.0.1. Diferir también el saldo es un
       cambio de modelo que pide su propio plan y su propio gate
-- [ ] V12.4.3 Levante/producción/reproductora que devuelvan sobre un galpón donde vive un lote de
+- [ ] V12.4.5 Levante/producción/reproductora que devuelvan sobre un galpón donde vive un lote de
       engorde quedan cubiertos sólo por su prefijo propio, no por el filtro de engorde. Es una
       asimetría **anterior** a la doble validación (le pasa igual al `devolución por eliminación` de
       esos módulos) y no entra acá
