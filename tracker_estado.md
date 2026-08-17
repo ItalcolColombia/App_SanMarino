@@ -1,10 +1,10 @@
 # Tracker de estado
 
-> **Depurado el 16-ago-2026** (47 bloques cerrados + 28 pendientes obsoletos) y luego **revalidado
-> contra el código el mismo día**: se verificó uno por uno si los pendientes que quedaban ya estaban
-> resueltos. Los que lo estaban se marcaron `- [x]` con la evidencia (archivo y línea, o el commit);
-> los que cambiaron de tamaño llevan una nota **`revalidado 16ago26`** con la cifra corregida.
-> Nada se perdió: el tracker previo a la depuración está en `git show fd542b9:tracker_estado.md`.
+> **Depurado el 16-ago-2026** (47 bloques cerrados + 28 pendientes obsoletos), **revalidado contra
+> el código** ese mismo día, y **limpiado de nuevo el 17-ago-2026** (V11): los bloques que quedaron
+> 100 % `- [x]` y commiteados salieron del archivo y viven abajo, en una línea cada uno.
+> Nada se perdió: el texto completo está en git (`git show <commit>:tracker_estado.md`); el tracker
+> previo a la primera depuración, en `git show fd542b9:tracker_estado.md`.
 >
 > Regla de sesiones en paralelo: cada sesión toca **sólo su bloque**; los bloques nuevos van **al
 > final**. ⚠️ **V8 (descuadres de alimento de Panamá) está reservada para otra sesión — no tocar.**
@@ -16,7 +16,6 @@
 | 1 | Consolidado de sublotes y paridad de reportes por fase | saldo negativo preexistente |
 | 2 | ItalJira: barrido de sobregiro de aves | **decisión** (correr el detector contra prod) |
 | 2 | Reporte Contable — Selección en RESUMEN + Movimientos de Huevo | **decisión** (corte 24/25 sem · K345) |
-| 2 | Gastos de inventario — rango de fechas | falta el smoke en pantalla |
 | 1 | Migraciones Masivas — retirar tipos | **decisión** (¿sale «Venta Engorde»?) |
 | 1 | Migraciones Masivas — sólo Sanmarino | **decisión** (¿Santa Reyes conserva el módulo?) |
 | 2 | Lote cerrado que absorbe el ciclo siguiente (KM 86) | operación (cerrar por pantalla) |
@@ -27,13 +26,26 @@
 | 3 | PWA — punto de retoma | **push + merge a `main-produccion`** |
 | 6 | PWA — brecha para salir a producción | **push + merge** + B1/B8 |
 | 1 | Gerencia: Panel de control | post-deploy manual (rol + menú en la UI) |
-| 9 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** · Vacunación **cerrada** (W1-W4) |
-| 4 | **V9 · Barrido de pendientes (17ago26)** | W1.3, W1.4 y 2 smokes |
+| 7 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** (6) + V7.27 (gate multipaís) |
 
-> **67 pendientes al 17-ago-2026.** De esos, **~25 esperan una decisión del usuario, un admin
-> externo o un deploy**, y el resto es código. **Vacunación quedó CERRADA el 17ago26** (W1, W2, W3 y
-> W4): lo que sigue vivo y accionable es **V7.27** (cuadre que ignora `validado`, exige gate
-> multipaís) y los smokes en pantalla.
+> **51 pendientes al 17-ago-2026** (eran 67). De esos, **~25 esperan una decisión del usuario, un
+> admin externo o un deploy**, y el resto es código. **Ya no queda ningún smoke pendiente**: los dos
+> que seguían vivos se corrieron en V11. Lo único accionable sin dependencias externas es **V7.27**
+> (el cuadre que ignora `validado`), y exige el **gate de paridad multipaís** antes de tocarse.
+
+## Entregado y archivado
+
+Bloques cerrados al 100 % y commiteados. Se resumen acá; el detalle completo está en el commit.
+
+| Fecha | Bloque | Commit | Qué dejó |
+|---|---|---|---|
+| 05ago26 | Gastos de inventario — las 10 líneas con `concepto = 'insumo'` | `2cab258` | Migración data-only con regla dinámica; el catálogo y la auditoría intactos |
+| 16ago26 | Gastos de inventario — rango de fechas del consumo | `90f97ad` | Rango Desde/Hasta que acota **igual** la tabla y el Excel · smoke en pantalla en V11 |
+| 17ago26 | **V9 · Barrido de pendientes** | `1771bd0` `aadd97b` `4a070e8` `f6d2f56` `a19807b` | 2 gates de CI que cortan lo que sólo se ve en pantalla · guard del despacho de aves reservadas en postura · soft-delete en cascada · Implementación ↔ ItalJira · vacunación W1.1-W1.2 |
+| 17ago26 | **V10 · Vacunación W1.3 + W1.4** | `bd935cb` | CRUD de plantillas + pantalla; `efectiva` explica **por qué** un lote quedó sin plan |
+| 17ago26 | **Vacunación W2** — materializador | `f2794c6` | La plantilla baja al cronograma; idempotente y **nunca borra** |
+| 17ago26 | **Vacunación W3** — bandeja de «hoy me toca» | `59496a8` | `fn_vacunacion_pendientes` + aviso de fuera de rango antes del 400 |
+| 17ago26 | **Vacunación W4** — alcance por ubicación | `056a371` | Las 2 fns respetan `restrict_locations` (fail-closed) · **cierra la serie W** |
 
 ---
 
@@ -202,60 +214,6 @@ Y el mismo síntoma ya había ocurrido en nov-2025/ene-2026, resolviéndose **de
 - [x] B4 Orden obligatorio verificado: el *Gate B1* impide editar `aves_encasetadas` de un lote liquidado ⇒ **corregir ANTES de cerrar** (por eso el lote 30 se corrigió primero)
 - [ ] ⏸️ **Esperando confirmación:** cerrar el grupo A (39 lotes de Ecuador) recorriendo el endpoint real de cierre. Irreversible sobre producción ⇒ requiere OK explícito sobre la lista
 - [ ] ⏸️ Grupos B y C (14 lotes con aves pendientes) — revisión aparte · Panamá **no se toca**
-
----
-
-# Gastos de inventario — las 10 líneas con `concepto = 'insumo'` (item 57 · AV0351)
-
-**Plan:** [`fase_de_desarrollo/concepto_insumo_snapshot_gastos_plan.md`](fase_de_desarrollo/concepto_insumo_snapshot_gastos_plan.md)
-**Fecha:** 2026-08-05 · **Alcance:** datos (empresa 3 ItalcolEcuador)
-**Antecedente:** deuda que la sesión `claude/priceless-bhabha-c60ee5` (commit `84bf74f`) dejó fuera de
-alcance por considerarla una hipótesis. Esta sesión la cierra con evidencia.
-
-## Fase 1 — Investigación del origen
-- [x] A1 Reproducido en BD local: 10 filas, `concepto = 'insumo'` exacto (6 bytes, sin caracteres ocultos), repartidas en **10 cabeceras distintas** (una línea cada una)
-- [x] A2 **Un solo escritor**: `InventarioGastoService.CreateAsync` (491/503). Sin carga masiva, sin seed, sin `INSERT` crudo (los 2 `.sql` del módulo solo leen)
-- [x] A3 **Entró por pantalla**: 10 auditorías `Crear` con payload de UI, 8 días (2026-07-14 → 2026-07-27), **4 usuarios** distintos; una con `Eliminar` motivo «Eliminación desde UI (gasto #135)»
-- [x] A4 **El writer nunca cambió**: `git log -S` sobre `Concepto = item.Concepto` y sobre el mensaje del guard ⇒ un único commit, `b6f5d16` (2026-03-25, alta del módulo). Con el código de hoy esas filas **son imposibles**
-- [x] A5 ⇒ el `concepto` del item 57 **sí fue distinto**: era `insumo`. El guard de la línea 447 habría rechazado el request si no
-- [x] A6 **Testigo independiente**: `20260717192803_SeedItemInventarioPanamaDesdeEcuador` clona el catálogo 3→5 copiando `src.concepto` sin transformar, el **2026-07-17 15:34** (en plena ventana). Su copia de AV0351 (item 356) **sigue hoy en `insumo`** y es la **única divergencia entre los 148 códigos compartidos**
-- [x] A7 `insumo` **nunca fue un concepto**: es un `tipo_item` (29 ítems de la empresa 3 lo tienen). El item 467 (alta 2026-08-04) muestra la combinación correcta `tipo_item = insumo` + `concepto = Otros insumos`
-- [x] A8 Mientras duró, `GetConceptosAsync` **ofrecía `insumo`** en el desplegable: los usuarios lo eligieron de la lista, no lo inventaron
-- [x] A9 **La corrección del catálogo ya ocurrió**, entre las 08:17 y las 17:05 del **2026-07-27** (última línea `insumo` vs. primera del mismo ítem con `Otros insumos`)
-- [x] A10 …y fue **por fuera de la aplicación**: `updated_at` del item 57 sigue en 2026-03-23 (seed masivo) aunque `UpdateAsync` (177-178) y la importación por Excel (249-250) **siempre** lo tocan ⇒ SQL crudo, sin auditoría
-- [x] A11 `xmin` descartado como fechador: las 467 filas comparten `xmin = 52338` (restauración de dump en bloque)
-- [x] A12 ⚠️ **CORRECCIÓN de atribución** (el mensaje del commit `2cab258` dice otra cosa): el cambio de datos a mitad de la investigación —467→469 líneas, reaparición de los duplicados de capitalización, item 356 de vuelta en `insumo`— **no** lo causó la rama hermana aplicando y revirtiendo su `20260805180000`, sino la **restauración de la BD local desde prod** que hizo el usuario a las **18:42:30** del 2026-08-05 (confirmado: el directorio de `sanmarinoapplocal` fue recreado a esa hora). La conclusión operativa no cambia: la `20260805180000` **no** estaba aplicada en ninguna de las dos lecturas (no está desplegada, así que el dump de prod no la trae)
-
-## Fase 2 — Decisión
-- [x] B1 **Opción (a) confirmada por el usuario**: corregir las 10 filas a `Otros insumos`. El motivo del «fuera de alcance» ya no aplica — está probado que `insumo` es el `tipo_item` mal cargado del mismo producto, no una categorización de negocio distinta
-
-## Fase 3 — Implementación de (a)
-- [x] C1 Simulación `BEGIN; … ROLLBACK`: **UPDATE 10**, segunda pasada **UPDATE 0**, total invariante, detector a 0, y verificado que tras el `ROLLBACK` las 10 filas siguen en `insumo`
-- [x] C2 Migración `20260805190000_CorregirConceptoInsumoSnapshotGastos` (data-only, Designer clonado de la `…170000`, `ModelSnapshot` **sin tocar** — verificado con `git diff`). Regla dinámica de 4 condiciones, sin ids ni etiquetas de negocio. `Down()` no restaura (irreversible por diseño, documentado)
-- [x] C3 Aplicada a la BD local con `ASPNETCORE_ENVIRONMENT=Development` forzado — ⚠️ el `appsettings.json` base apunta a **RDS prod**; EF confirmó `Host: 127.0.0.1 | Port: 5433`. Una sola migración pendiente (la mía)
-- [x] C4 `verificar_conceptos_catalogo_inventario.sql` **consulta 4: de 10 líneas a 0**. Las consultas 1 y 2 siguen con filas a propósito: son el alcance de la migración hermana (`20260805180000`), que **no está desplegada** y por eso tampoco viene en el dump de prod
-- [x] C5 Conteos empresa 3: `Otros insumos` **196 → 206**, `insumo` **desaparece**, total de líneas **469 invariante** (T6)
-- [x] C6 T1 las 10 filas en `Otros insumos` · T2 idempotencia `UPDATE 0` · T3 cero líneas de sola capitalización tocadas · el **catálogo no se tocó** (items 57 y 356 intactos)
-- [x] C7 **El rastro histórico sobrevive**: `inventario_gasto_auditoria` conserva `"concepto":"insumo"` en el payload `Crear` de las 10 cabeceras
-- [x] C8 `dotnet build` **0 errores / 0 warnings** · `dotnet test` **1602/1602 verdes** (1601 Application + 1 Domain)
-- [x] C9 Sin procesos huérfanos (no se levantaron servicios)
-
-## Fase 4 — Integración en `main` y validación sobre BD restaurada de prod (2026-08-05)
-- [x] D1 `main` adelantado por **fast-forward** a `2cab258` (estaba limpio en `abe3643`; la rama ya tenía main incluido, sin merge commit)
-- [x] D2 ✅ **La migración corrió contra el dump fresco de producción**, no contra datos locales viejos: la restauración fue a las 18:42:30 y el `database update` después. O sea las 10 filas existían tal cual en **prod** y quedaron corregidas
-- [x] D3 `dotnet build` desde main: **0 errores / 0 warnings**
-- [x] D4 `dotnet ef database update` desde main: *«No migrations were applied. The database is already up to date.»* · `Host: 127.0.0.1 | Port: 5433` confirmado
-- [x] D5 **Historial alineado exacto**: 214 migraciones en el código de main = 214 en `__EFMigrationsHistory`; **cero** en la BD que no estén en el código y **cero** sin aplicar. ⇒ prod venía con las 213 de main y la 214ª es la nueva
-- [x] D6 `dotnet ef migrations has-pending-model-changes`: *«No changes have been made to the model since the last migration»* ⇒ el `ModelSnapshot` quedó sano pese al Designer clonado
-- [x] D7 `dotnet test` desde main: **1602/1602 verdes**
-- [x] D8 Datos revalidados sobre la BD restaurada: 10 filas en `Otros insumos`, `insumo` en cero, total **469 invariante**, idempotencia `UPDATE 0`, catálogo intacto, auditoría conserva el valor viejo
-- [x] D9 Sin procesos huérfanos · sin push ni deploy (siguen requiriendo pedido explícito)
-
-### Pendiente de coordinación con la rama hermana
-- [x] ~~Al integrar con `claude/priceless-bhabha-c60ee5`: el comentario de la consulta 4 de
-      `backend/sql/verificar_conceptos_catalogo_inventario.sql` queda obsoleto~~ — **sin objeto
-      (revalidado 17ago26)**: ese archivo **ya no existe** en `backend/sql/`, así que no hay comentario
-      que corregir
 
 ---
 
@@ -560,41 +518,6 @@ Análisis: [validacion_informes_verenice_s369_analisis.md](fase_de_desarrollo/va
 ## Entrega
 - [x] Respuesta final para costos con las correcciones aplicadas:
       [conciliacion_k345_respuesta_final_con_correcciones.md](fase_de_desarrollo/conciliacion_k345_respuesta_final_con_correcciones.md)
-
----
-
-# Gastos de inventario — elegir el rango de fechas del consumo (tabla + Excel)
-📄 Plan: [gastos_inventario_rango_fechas_plan.md](fase_de_desarrollo/gastos_inventario_rango_fechas_plan.md)
-
-Pedido: «al momento de descargar pueda elegir de qué fecha hasta qué fecha necesito el consumo de
-productos, para así no tener que bajar todos los consumos realizados». Backend y BD **no se tocan**:
-`search`, `export` y `existencias` ya aceptan `fechaDesde`/`fechaHasta` — la UI nunca los enviaba.
-
-> ✅ **ENTREGADO** — revalidado 16ago26. Lo implementó el commit `90f97ad` («ecuador agregar fechas
-> rangos en gastos de inventario»), no esta sesión; el tracker se había quedado sin marcar. Sólo
-> queda el smoke en pantalla.
-
-## Diagnóstico
-- [x] Confirmado: los 3 endpoints ya filtran por rango; `buildParams` del servicio ya los serializa
-- [x] Confirmado: `FiltrosReporteGastos.fechaDesde/Hasta` ya existían y `describirFiltros` ya los imprime
-- [x] Confirmado: `inventario_gasto.fecha` es columna `date` ⇒ sin corrimiento de zona, filtro inclusivo
-
-## Frontend
-- [x] `funciones/rango-fechas-gastos.funcion.ts` (PURA): presets, validación y sufijo de archivo.
-      Verificado: `calcularRangoPreset` / `validarRangoFechas` / `sufijoArchivoRango`, con `hoy` por
-      parámetro (nada de `new Date()` adentro)
-- [x] `funciones/exportar-gastos-inventario-excel.funcion.ts`: rango en el nombre del archivo + subtítulo
-- [x] Página: estado `fechaDesde`/`fechaHasta` (`:63`) propagado a `refresh()` (`:257`),
-      `exportExcel()` (`:566`, `:573`, `:583`) y `limpiarFiltros()` (`:375-381`)
-- [x] HTML: campos Desde/Hasta + atajos + aviso de rango inválido · SCSS de los chips
-- [x] `funciones/README.md`: índice actualizado (la entrada de `rango-fechas-gastos` está)
-
-## Validación
-- [x] `cd frontend && yarn build` — **CORRIDO 16ago26: 0 errores**, único warning el de bundle budget
-      preexistente (initial 1,84 MB vs warning 1,50 MB; el techo de error es 2,05 MB)
-- [ ] Smoke en pantalla: rango aplicado ⇒ tabla acotada y Excel con las mismas filas
-- [ ] Sin rango ⇒ comportamiento idéntico al actual (nombre de archivo incluido)
-- [x] Commit acotado: `90f97ad`
 
 ---
 
@@ -1578,13 +1501,15 @@ descontar nada, dejando la reserva activa para siempre.
 - [x] V3.10 Commit
 
 ### Hallazgo pendiente (NO entra en esta entrega)
-- [ ] V3.X «Disponible = stock − reservas activas» — ⚠️ **PARCIALMENTE RESUELTO** (revalidado 16ago26):
-      `ReservadoDeAvesAsync` **ya tiene llamador real** (`TrasladoAvesDesdeSegService.cs:73`), así que
-      la mitad de AVES dejó de ser código muerto. Lo que **sigue abierto es el lado de ÍTEMS**:
-      `ReservadoPorItemAsync` sólo aparece en su interfaz y en su propia definición
-      (`ValidacionSeguimientoService.Reservas.cs:147`) ⇒ ningún consumidor. Sigue exigiendo decidir si
-      se le resta la reserva a `Quantity` en `GET /api/InventarioGestion/stock` o se agrega un campo
-      `Disponible` al DTO + front de los 4 módulos
+- [x] V3.X «Disponible = stock − reservas activas» — **CERRADO 17ago26 (revalidado contra el código)**.
+      Las dos mitades quedaron resueltas por entregas posteriores, y el checkbox se había quedado sin
+      marcar: **AVES** tiene hoy **dos** consumidores reales (`TrasladoAvesDesdeSegService.cs:73` y
+      `MovimientoAvesService.Postura.cs:71`, este último el guard de la venta que agregó V9.2);
+      **ÍTEMS** ya no exige decidir nada porque `ReservadoPorItemAsync` **fue eliminado** (V5.Y /
+      V9.2.6) — `GetStockAsync` resuelve el disponible inline y con el silo en la clave, y la
+      decisión pendiente («¿restar a `Quantity` o campo aparte?») la tomó V5: campo `Disponible`
+      derivado en el DTO, leído por el front desde V5.6/V5.7. Verificado con `grep`: cero
+      referencias vivas a `ReservadoPorItemAsync` fuera de un comentario y de dos migraciones
 
 ---
 
@@ -1820,507 +1745,88 @@ solo dato. Aviso: el lote 168 es el que usaron los smokes de V7 — su baseline 
 
 ---
 
-# V9 · Barrido de pendientes del tracker (17ago26)
+# V11 · Cierre de los smokes pendientes + limpieza del tracker (17ago26)
 
-Pedido: «con el tracker iniciemos el trabajo hasta finalizar todas las tareas anotadas pendientes».
-Bloque propio — no tocar desde otras sesiones. **V8 sigue reservada para otra sesión.**
+**Plan:** [`fase_de_desarrollo/v11_cierre_smokes_y_limpieza_tracker_plan.md`](fase_de_desarrollo/v11_cierre_smokes_y_limpieza_tracker_plan.md)
+Pedido: «continuá con el track y limpiá lo que completó». Bloque propio — no tocar desde otras
+sesiones. **V8 sigue reservada.**
 
-## V9.0 — Triage de los ~80 pendientes
+Del triage de V9.0 sobrevive poco accionable: casi todo lo abierto espera una decisión del usuario, un
+admin externo o un deploy. Lo que **sí** se puede hacer sin dependencias son **dos smokes** (los únicos
+que el tracker declara vivos) y una revalidación.
 
-Antes de escribir código, cada pendiente se clasificó contra el código de hoy. Tres grupos:
+## V11.0 — Revalidación de pendientes contra el código ✔
+- [x] V11.0.1 **V3.X cerrado sin escribir una línea**: las dos mitades ya estaban resueltas por V5 y
+      V9.2, y el checkbox se había quedado sin marcar (evidencia en su bloque, arriba)
 
-| grupo | qué es | qué se hace |
-|---|---|---|
-| **ya resuelto** | el arreglo está en el código y el checkbox se quedó sin marcar | se marca con su evidencia (archivo:línea) |
-| **accionable** | trabajo de código, sin dependencias externas | se hace en este bloque |
-| **bloqueado** | espera una decisión del usuario, un admin externo, o toca producción | se lista al final, sin tocarlo |
+## V11.1 — Smoke A: el ciclo Implementación ↔ ItalJira ✔ (cierra V9.5.17)
+- [x] V11.1.1 🔴 **El primer intento de aislamiento FALLÓ y hay que saberlo**: levanté el backend con
+      `ConnectionStrings__ZooSanMarinoContext` apuntando al clon y **la variable no tuvo efecto**.
+      `Program.cs:112-123` **pisa a propósito** el connection string con el de
+      `appsettings.Development.json` cuando el entorno es Development («para que la conexión local no
+      sea sobrescrita por env vars»). Resultado: el backend fue a la BD **compartida** y, con
+      `RunMigrations: true`, le aplicó las **12 migraciones pendientes**. El `PORT` sí se respeta, así
+      que nada avisó. **Decisión del usuario: dejarlas aplicadas** — es el mismo estado al que llega
+      cualquier `make back` sobre `main`, y revertir exigía correr 12 `Down()` (seeds que borran filas,
+      tablas de vacunación que se dropean)
+- [x] V11.1.2 Filas del smoke **revertidas quirúrgicamente**: plan 2, sus 4 puntos, historias 24-25 y
+      tareas 375-379. **NO se tocaron** las historias 21-23 ni las tareas 346-374: ésas las creó el
+      seed de las migraciones (16:34), no el smoke (16:37) — la hora de creación las separa
+- [x] V11.1.3 **Aislamiento que sí funciona** (y es el único que funciona en Development): content
+      root propio en el scratchpad con su copia de `appsettings.Development.json` apuntando al clon
+      (`SetBasePath(ContentRootPath)` es lo que lee esa ruta). **Verificado por `pg_stat_activity`
+      antes de correr**: la única conexión iba al clon y la compartida tenía cero
+- [x] V11.1.4 **Ciclo completo: 44 verificaciones, 0 fallas.** Plan + 3 puntos → enlaza los 3 → 2.ª
+      pasada **no recrea nada** → punto nuevo enlaza **sólo el nuevo** → tarjeta a LISTO ⇒ punto
+      **completado con fecha y autor** → sacarla ⇒ vuelve a pendiente y **limpia el sello** → punto
+      **confirmado NO lo desconfirma el tablero** → historia borrada ⇒ la rehace **sin duplicar las
+      tarjetas vivas** → tarjeta borrada ⇒ rehace **una sola**
+- [x] V11.1.5 🔴 **Bug real que cazó el smoke**: `POST /planes/{id}/italjira` respondía **200 a un
+      usuario sin `tickets.gestionar`** cuando el plan ya estaba enlazado. El permiso se apoyaba en que
+      los servicios de ItalJira lanzaran **al crear**; sin nada que crear no se los llamaba, nadie
+      miraba el permiso —y encima le sellaba `updated_by` al plan—. La misma llamada, el mismo usuario,
+      **contestaba distinto según el estado de los datos**
+- [x] V11.1.6 Arreglo **sin duplicar la regla**: `IHistoriaService.PuedeGestionarItalJira()` expone la
+      que ya existía (`HistoriaService.PuedeGestionar`) y `SincronizarConItalJiraAsync` la exige antes
+      de tocar nada. Probado en los dos caminos (con trabajo pendiente y sin él ⇒ **400 con motivo**),
+      y que el camino bueno sigue igual (`tickets.gestionar` 200 · `tickets.admin` 200 · idempotencia)
 
-- [x] V9.0.1 **4 pendientes ya estaban resueltos** — V7.23/24/25/26 son los *hallazgos* y
-      V7.35/36/31/32 sus *arreglos*: la numeración se pisó dentro de la misma entrega. Verificado uno
-      por uno contra el código, marcados arriba con la línea exacta
-- [x] V9.0.2 El comentario obsoleto de `verificar_conceptos_catalogo_inventario.sql` quedó **sin
-      objeto**: ese archivo ya no existe en `backend/sql/`
+## V11.2 — Smoke B: rango de fechas en Gastos de inventario ✔
+- [x] V11.2.1 **Con rango** (2026-07-01 → 07-31): la tabla baja de **401 a 224** cabeceras y **la BD
+      dice exactamente 224**, con mín/máx dentro del rango. El Excel trae **300 líneas** contra las
+      **300 que cuenta la BD**, subtítulo *«Filtros — Rango: 2026-07-01 a 2026-07-31»* en las dos
+      hojas, **cero fechas fuera del rango** en todo el libro y el rango en el nombre del archivo
+      (`gastos-inventario_2026-07-01_a_2026-07-31_20260817.xlsx`)
+- [x] V11.2.2 **Sin rango**: 401 filas, 522 líneas en el Excel (= las 522 de la BD), subtítulo
+      *«Filtros — todos»* y nombre **sin sufijo** (`gastos-inventario_20260817.xlsx`) ⇒ comportamiento
+      idéntico al previo. «Limpiar» vuelve a este estado exacto
+- [x] V11.2.3 Extra no pedido pero que valía probar: **rango invertido** ⇒ aviso *«La fecha «Desde» no
+      puede ser mayor que la fecha «Hasta»»* y **«Actualizar» y «Exportar Excel» deshabilitados** —
+      no consulta ni descarga con un rango inválido
+- [x] V11.2.4 El Excel se leyó **sin abrirlo** (hook de `createObjectURL` + `click`; SheetJS escribe
+      el libro sin comprimir ⇒ el XML se lee directo), así se probó el contenido y no sólo que bajó
 
-## V9.1 — Los dos gates de máquina que faltaban (F0.5 + lista cacheable)
+## V11.3 — Limpieza del tracker ✔
+- [x] V11.3.1 **7 bloques archivados** (596 líneas: 2.359 → 1.763), cada uno con su commit verificado
+      con `git log` antes de borrarlo. Quedan resumidos en la tabla «Entregado y archivado»
+- [x] V11.3.2 **Todo bloque con al menos un `- [ ]` quedó entero**, sin excepción — incluida **V8**,
+      que sigue reservada para otra sesión. De 67 pendientes a **51**
 
-Los dos defectos que motivan estos gates comparten una propiedad: **compilan, pasan los tests y solo
-se ven abriendo la pantalla** (o abriéndola sin red). Una convención escrita ya falló dos veces con
-el primero, así que van como gate.
-
-- [x] V9.1.1 `frontend/scripts/verificar-change-detection.js` — exige `changeDetection` explícito en
-      cada `@Component` y rechaza `Default` (deprecado en v22). Lee el literal del decorador contando
-      paréntesis, porque una regex se corta con los `template`/`styles` inline. **223 componentes,
-      0 faltantes**; probado por mutación (exit 1 nombrando archivo y línea)
-- [x] V9.1.2 `verificar-lista-cacheable.js` deja de ser informativo y **corta** ante deriva: endpoint
-      sin decisión, o entrada de la lista que la app nunca pide. `--informe` conserva el
-      comportamiento viejo para mirar sin bloquear
-- [x] V9.1.3 🔴 **La deriva ya había ocurrido**: al atarlo salieron **5 endpoints sin decisión**.
-      `silocatalogo` / `farmsilo` / `galponsilo` / `lotesilo` → lista blanca (en Santa Reyes el silo
-      ES la ubicación del alimento ⇒ es estructura, igual que núcleo y galpón).
-      `seguimientovalidacion` → EXCLUIDOS: es un gate de negocio, cachearlo congelaría en la tablet un
-      flag que la empresa puede apagar, validar exige red igual, y el cliente ya cae a
-      `SIN_PENDIENTES` (fail-closed) sin caché. Queda **54 cacheables / 30 excluidos / 0 sin decisión**
-- [x] V9.1.4 Los dos atados al job «Tests — Backend & Frontend» del CI y a `make gates-front`.
-      Documentados en `frontend/PWA.md` y en el README de `shared/offline/funciones/`
-- [x] V9.1.5 `yarn build` (Node portable 22.23.1) — **0 errores**, único warning el de bundle budget
-      preexistente (initial 1,84 MB contra el techo de error de 2,05 MB)
-
-## V9.2 — V5.X / V5.Y: el disponible de AVES en la venta
-
-- [x] V9.2.1 🔎 **El diagnóstico heredado estaba a medias.** V5.X concluía «ventas sin guard» de un
-      `grep` por nombre de archivo (`*Venta*.cs`). Contra el código: en **engorde** la venta ya lo
-      tiene, por otra vía — `MovimientoPolloEngordeService.ResumenDisponibilidad` resta
-      `registradas − aplicadas`, y un registro sin validar es **registrado y no aplicado** (con el flag
-      ON el aplicador se saltea, `SeguimientoAvesEngordeService.Crud.cs:260`), así que las bajas
-      pendientes ya bajan el disponible. Ahí **no hay nada que arreglar**
-- [x] V9.2.2 🔴 **El hueco real estaba en POSTURA**: `MovimientoAvesService.ActualizarAvesActualesEnPostura`
-      descuenta `aves_h_actual`/`aves_m_actual` —el **maestro**, que con doble validación no se tocó—
-      con `Math.Max(0, saldo − pedido)`. O sea que la venta no fallaba ante el sobregiro: lo
-      **recortaba en silencio** y dejaba el lote en cero. El único chequeo previo era contra
-      `inventario_aves`, que es un espejo que ninguna pantalla de seguimiento escribe
-- [x] V9.2.3 `ReservaSeguimientoCalculos.MotivoDespachoNoDisponible` (puro) + guard
-      `AsegurarNoDespachaAvesReservadasAsync` en las **dos** ramas (levante y producción), con el
-      `LoteRefInt` correcto de cada una (LPL / LPP, los mismos que escribe `SepararAsync`)
-- [x] V9.2.4 🔑 **Sólo mira lo RESERVADO**, y por eso es seguro meterlo en un camino que ya estaba en
-      producción: sin reservas activas devuelve `null` **siempre**, incluso si el pedido excede el
-      saldo. Ese caso es preexistente, es de `inventario_aves`, y meterlo acá habría cambiado el
-      comportamiento de las 5 empresas por un motivo que no es este. Con el flag apagado: idéntico
-- [x] V9.2.5 Se evalúa **por sexo** (100 hembras separadas no habilitan despachar 100 machos) y las
-      mixtas van al bucket de hembras, mismo criterio que `TrasladoAvesDesdeSegService`
-- [x] V9.2.6 **`ReservadoPorItemAsync` eliminado** (interfaz + implementación): `GetStockAsync` ya
-      resuelve el disponible de alimento inline y **con el silo en la clave**; el método muerto
-      agrupaba sin el silo ⇒ para Santa Reyes habría dado otro número para el mismo ítem. No era
-      código muerto inocuo: era una segunda fórmula esperando que alguien la enchufara
-- [x] V9.2.7 `dotnet build` (SDK 10.0.301 portable) **0 errores**; las 9 advertencias son
-      preexistentes y de archivos que esta sesión no tocó · `dotnet test` **2.621 Application + 1
-      Domain en verde** (2.616 previos + 5 nuevos)
-
-## V9.3 — X.1: el soft-delete del plan de implementación dejaba huérfanas
-
-- [x] V9.3.1 `DeletePlanAsync` marca el plan **y** sus tareas **y** las firmas de esas tareas con el
-      **mismo `deleted_at`**; `DeleteTareaAsync` hace lo propio con sus firmas
-- [x] V9.3.2 El sello único no es decorativo: permite reconocer después qué se borró junto con qué, y
-      es lo que haría reversible un `UPDATE … SET deleted_at = NULL WHERE deleted_at = '…'`
-- [x] V9.3.3 Por qué importaba aunque «no hubiera fuga»: que las hijas quedaran ocultas dependía de
-      que **cada consulta** se acordara de encadenar `Plan.DeletedAt == null`. Ahora cada fila dice
-      por sí sola que está borrada
-- [x] V9.3.4 `dotnet build` **0 errores** (las 9 advertencias siguen siendo las preexistentes)
-
-## V9.4 — PWA: llegar a `/diagnostico` y ver qué se está por descartar
-
-- [x] V9.4.1 Link fijo a `/diagnostico` en el pie del sidebar. **No** va por `role_menus`: es la
-      pantalla de rescate (sesión vencida, SW en safe mode, capturas sin enviar) y atarla a un
-      permiso la volvería inalcanzable justo en el escenario para el que existe — el mismo motivo por
-      el que tampoco tiene `authGuard`
-- [x] V9.4.2 La bandeja muestra **lo capturado**: `<details>` «Ver lo capturado» con método, URL y el
-      JSON del payload, más «Copiar captura» (incluye el motivo del rechazo) para pegarlo en soporte
-      o rehacerlo a mano. El payload **ya venía guardándose** desde F3.1; el hueco era de UI
-- [x] V9.4.3 El diálogo de descarte nombra **el tipo y la fecha** de la captura que se pierde, y
-      recuerda copiarla antes. Era la única acción posible sobre un rechazo y se hacía a ciegas
-- [x] V9.4.4 Smoke en pantalla (dev server :4300, operación inyectada en IndexedDB y borrada al
-      terminar): el link aparece en el sidebar, el `<details>` abre y el `<pre>` pinta el JSON
-      completo. Dato de prueba eliminado (**0 operaciones** en la cola) y `:4300` liberado
-- [x] V9.4.5 `yarn build` (Node portable 22.23.1) **0 errores**, sólo el warning de bundle budget
-
-## V9.5 — I1.2 / I1.3 / I5: Implementación enganchada a ItalJira
-
-El vínculo existía **sólo en el modelo** desde I1.1 (`implementacion_planes.historia_id` y
-`implementacion_tareas.ticket_tarea_id`, sin una línea de lógica que los llenara ni los leyera).
-
-### I1.2 — del plan al tablero
-- [x] V9.5.1 `POST /api/Implementacion/planes/{id}/italjira` +
-      `ImplementacionService.ItalJira.cs`: crea la historia del plan y una tarea del tablero por cada
-      punto que no tenga la suya
-- [x] V9.5.2 🔑 **Explícito, no automático.** Un plan de implementación no siempre es trabajo del
-      área de desarrollo —hay entregas que se coordinan sólo con el cliente—, y crear la épica en cada
-      alta llenaría el backlog compartido de historias que nadie va a mover
-- [x] V9.5.3 **Idempotente**, y devuelve el desglose (`historiaCreada` / `puntosEnlazadosAhora` /
-      `puntosYaEnlazados`): sin separarlos, «ya estaba todo enlazado» y «no hizo nada» se leen igual
-- [x] V9.5.4 **Sin abrir un segundo escritor**: la historia la crea `IHistoriaService` y las tareas
-      `ITicketTareaService.CrearTareaItalJiraAsync` — los mismos que usa el tablero, con su mismo
-      permiso (`tickets.gestionar`, que lanza si falta ⇒ 400 con motivo, no 500)
-- [x] V9.5.5 Autocura los enlaces rotos: si la historia o la tarjeta se borraron desde el tablero, el
-      plan las vuelve a crear en vez de fallar — que es lo que el usuario espera del botón
-
-### I1.3 — del tablero al plan
-- [x] V9.5.6 `ImplementacionCalculos.EstadoPuntoSegunTareaItalJira` (pura, **5 tests nuevos**) +
-      `TicketTareaService.ReflejarEnChecklistImplementacionAsync`, llamado desde los **4** sitios que
-      mueven una tarjeta de columna (editar y mover, en el camino del caso y en el de ItalJira)
-- [x] V9.5.7 Se llama **antes** de `SaveChangesAsync`: el punto y la tarjeta commitean juntos, así no
-      queda una tarea en LISTO con su punto pendiente porque el proceso se cayó en el medio
-- [x] V9.5.8 **Salir de LISTO devuelve el punto a pendiente** (si se reabrió, no estaba terminado y
-      dejarlo completado habilitaría firmar algo que se está rehaciendo), y limpia el sello de fecha
-      y autor
-- [x] V9.5.9 🔒 **Un punto CONFIRMADO no lo toca nadie desde el tablero.** Confirmar es un acto de una
-      persona y detrás vienen las firmas con su hash de contenido; un drag & drop no puede deshacer eso
-- [x] V9.5.10 Front: botón «Enlazar / Actualizar en ItalJira» en el detalle del plan, con confirmación
-      (crea trabajo visible para todo el equipo) y una leyenda que dice quién manda el estado
-
-### I5 — participantes por rol
-- [x] V9.5.11 `ImplementacionUsuarioAsignableDto` trae los `RolIds` **de la empresa activa** (no todos
-      los del sistema: ofrecerlos dejaría elegir gente por un rol que en esta empresa no ejerce)
-- [x] V9.5.12 `filtrar-usuarios-asignables.funcion.ts` (PURA) + selector de rol y «marcar los N
-      visibles» en el modal de participantes
-- [x] V9.5.13 🔑 **El rol filtra, nunca selecciona solo.** Un rol de la empresa incluye gente que no
-      estuvo en esa capacitación, y una firma de más es una persona afirmando algo que no vio. El
-      atajo agrega, jamás desmarca lo que quedó fuera del filtro
-- [x] V9.5.14 «Por empresa» ya estaba: `SetParticipantesAsync` rechaza usuarios que no estén en
-      `user_companies` de la empresa activa
-
-### Validación de V9.5
-- [x] V9.5.15 `dotnet build` **0 errores** (las 9 advertencias son las preexistentes, de archivos que
-      esta sesión no tocó) · `dotnet test` **2.628 Application + 1 Domain en verde** (2.621 + 7)
-- [x] V9.5.16 `yarn build` (Node portable 22.23.1) **0 errores**, único warning el de bundle budget
-- [ ] V9.5.17 ⏸️ **Falta el smoke HTTP del ciclo completo** (enlazar un plan → mover la tarjeta a
-      LISTO → ver el punto completado → sacarla de LISTO → ver el punto pendiente). Requiere backend
-      levantado y un usuario con `tickets.gestionar`; el cálculo puro sí está cubierto por tests
-
-## V9.6 — Vacunación W1.1 + W1.2: la plantilla como dato
-
-Hasta hoy el cronograma se cargaba **lote por lote**, así que el plan sanitario vivía en la cabeza
-del técnico y dos lotes iguales podían quedar distintos sin que nada lo notara.
-
-- [x] V9.6.1 **W1.1** Entidades `VacunacionPlanPlantilla` + `...Item`, configurations EF, DbSets y
-      migración `20260817050949_AddVacunacionPlanPlantilla`. **Aditiva pura**: dos tablas nuevas,
-      ninguna existente se toca ⇒ una empresa sin plantillas se comporta byte a byte como hoy
-- [x] V9.6.2 `Up()` reescrito a SQL **idempotente** (`CREATE TABLE/INDEX IF NOT EXISTS`), como manda
-      la guía: el deploy las aplica solo al arrancar y una que falla a mitad deja el historial roto
-- [x] V9.6.3 El ítem de plantilla **no admite la unidad `Fecha`** (CHECK + mensaje): una fecha fija
-      no se puede plantillar —sería la misma para lotes encasetados en meses distintos—. Las fechas
-      fijas siguen siendo ítems manuales del lote
-- [x] V9.6.4 **W1.2** `VacunacionPlantillaCalculos.ResolverEfectiva` (pura) — **28 tests xUnit**.
-      Lo que fijan no es «que elija bien» sino que elija **siempre lo mismo**: sin una regla total,
-      cuál plantilla gana dependería del orden en que la base devuelva las filas, y el síntoma sería
-      dos lotes iguales con cronogramas distintos sin explicación. Varios tests corren la misma
-      entrada en dos órdenes y exigen el mismo resultado
-- [x] V9.6.5 Reglas: raza exacta > comodín > `vigente_desde` más reciente > id mayor. **La
-      especificidad pesa más que la vigencia** (una comodín recién versionada no le gana a la de la
-      raza del lote). Un lote **sin raza** no puede tomar una plantilla de raza —adivinar sería
-      inventarle un plan sanitario, que es peor que no tener plan porque se ve igual de correcto—, y
-      un lote **sin fecha de encaset** sólo toma plantillas sin vigencia (fail-closed)
-- [x] V9.6.6 Sin candidata ⇒ `null`, que significa «este lote no tiene cronograma automático».
-      **Nunca se inventa uno** (regla 7 del plan)
-- [x] V9.6.7 **Simulación en transacción con `ROLLBACK`**: las 2 tablas, 5 índices y 4 CHECKs se
-      crean; la **segunda pasada avisa «already exists, skipping»** (idempotencia probada, no
-      declarada); un INSERT de prueba entra. Tras el `ROLLBACK` la BD queda en **129 tablas, 0
-      rastros**
-- [x] V9.6.8 `ModelSnapshot` revisado: **200 líneas, todas insertadas y todas de las dos tablas
-      nuevas** — cero deleciones ⇒ no arrastró deriva de las sesiones paralelas
-- [ ] V9.6.9 ⏸️ **La migración NO se aplicó a la BD local a propósito**: la base está en
-      `20260814130000` y le faltan **3 migraciones de otras sesiones** ya commiteadas
-      (`20260815140000`, `20260815160000`, `20260816225138`). `dotnet ef database update` las
-      aplicaría todas, y eso no es decisión de esta sesión. La validación se hizo por transacción
-- [x] V9.6.10 `dotnet build` **0 errores** (8 advertencias preexistentes) · `dotnet test`
-      **2.656 Application + 1 Domain en verde** (2.628 + 28)
-- [x] W1.3 CRUD backend + permisos — **hecho 17ago26** (`bd935cb`)
-- [x] W1.4 Front: pantalla de plantillas — **hecho 17ago26** (`bd935cb`)
-
----
-
-# V10 · Vacunación W1.3 + W1.4 — la plantilla deja de ser una tabla vacía (17ago26)
-
-**Plan:** [`fase_de_desarrollo/vacunacion_w1_3_w1_4_plantillas_crud_plan.md`](fase_de_desarrollo/vacunacion_w1_3_w1_4_plantillas_crud_plan.md)
-Bloque propio — no tocar desde otras sesiones. **V8 sigue reservada.**
-**Fuera de alcance por pedido del usuario:** el bloque de correo (lo destraba el admin de Microsoft 365,
-el código ya envía bien).
-
-W1.1 dejó las tablas y W1.2 la regla de resolución con sus 28 tests. Falta lo que las vuelve usables:
-un CRUD y una pantalla. Sin esto la plantilla es un dato que nadie puede cargar.
-
-## W1.3 — CRUD backend + permisos ✔
-- [x] W1.3.1 `VacunacionPlantillaDtos` (9 records, incl. `Efectiva`) + `IVacunacionPlantillaService`
-- [x] W1.3.2 **4 funciones puras nuevas** en `VacunacionPlantillaCalculos` + **26 tests xUnit**
-      (`VacunacionPlantillaCrudCalculosTests`): `MotivoPlantillaDuplicada`, `MotivoItemDuplicado`,
-      `MotivoUnidadNoCorrespondeALinea` y `DescribirResolucion`
-- [x] W1.3.3 🔑 **`DescribirResolucion` no es cosmética.** `ResolverEfectiva` devuelve un id, y un id
-      no se puede auditar: «este lote quedó sin plan» tiene causas distintas (la empresa no cargó
-      ninguna · el lote no tiene raza · todas rigen desde una fecha posterior) y **cada una se corrige
-      en otro lado**. Sin el motivo el usuario ve un vacío y no sabe qué hacer con él
-- [x] W1.3.4 `VacunacionPlantillaService` = ancla (validaciones + mapeos) + `Funciones/Crud` +
-      `Funciones/Efectiva`. Servicio **aparte** del cronograma: ese escribe el plan de UN lote, este
-      el de la EMPRESA — dos sujetos y dos permisos en la misma clase habrían quedado mezclados
-- [x] W1.3.5 **Borrar es soft-delete en cascada con el mismo sello** (patrón V9.3): plantilla e ítems
-      comparten `deleted_at`, así cada fila dice por sí sola que está borrada y se reconoce después
-      qué se borró junto con qué
-- [x] W1.3.6 🔒 **`efectiva` es SOLO LECTURA**: responde qué plantilla le tocaría al lote y por qué,
-      sin escribir una fila de cronograma. Es la vista previa que vuelve auditable a W2 antes de que
-      W2 exista
-- [x] W1.3.7 `VacunacionPlantillaController` (10 endpoints) + DI. Quien administra también ve, sin
-      necesitar las dos claves
-- [x] W1.3.8 Migración `20260817200000_AddPermisosYMenuVacunacionPlantillas` (data-only, Designer
-      clonado, ModelSnapshot intacto): 2 permisos + `role_permissions` **heredados de los de
-      cronograma** ⇒ hoy nadie gana ni pierde acceso, y mañana se pueden separar + menú
-      `vacunacion.plantillas`
-- [x] W1.3.9 `dotnet build` **0 errores** (8 advertencias, las preexistentes) · `dotnet test`
-      **2.682 Application + 1 Domain en verde** (2.656 + 26)
-
-## W1.4 — Front: pantalla de plantillas ✔
-- [x] W1.4.1 `models/vacunacion-plantilla.model.ts` (tipos 1:1 con los DTOs) + 9 métodos en
-      `VacunacionService`. **Sin caché a propósito**: es una pantalla de administración y el usuario
-      acaba de escribir lo que está mirando; cachearla mostraría su propio cambio con retraso
-- [x] W1.4.2 `funciones/describir-plantilla.funcion.ts` (6 puras: alcance, vigencia, objetivo, franja,
-      advertencia y orden de ítems — las fechas entran por parámetro, nada de `new Date()` adentro) +
-      `funciones/exportar-plantillas-excel.funcion.ts` (2 hojas, vía el helper compartido)
-- [x] W1.4.3 Página maestro-detalle + `modal-plantilla` + `modal-item-plantilla`, los 3 con
-      `changeDetection: ChangeDetectionStrategy.Eager` explícito. Las filas llevan sus textos
-      **precalculados** (referencias estables, sin funciones en el template)
-- [x] W1.4.4 Ruta `plantillas` + `yarn build` **0 errores** (único warning el de bundle budget
-      preexistente, 1,84 MB) + gate de change detection: **226 componentes, 0 sin declarar**
-- [x] W1.4.5 🔴 **El gate de lista cacheable CORTÓ el build** por el endpoint nuevo sin decisión.
-      Resuelto como **EXCLUIDO**: lo que el galponero consulta en el galpón es el cronograma de SU lote
-      (ese sí se cachea); la plantilla es la fuente aguas arriba, se edita con red y alcanza a todos
-      los lotes futuros — servirla desde caché mostraría un plan viejo como si fuera el vigente, que es
-      justo lo que el módulo vino a evitar. Queda **54 cacheables / 31 excluidos / 0 sin decisión**
-
-## Validación
-- [x] V10.1 **Migración de permisos validada por transacción** (`BEGIN … ROLLBACK`, dos pasadas):
-      2 permisos · **3 roles heredan `plantillas.ver`** (los mismos 3 de `cronograma.ver`) y **4
-      heredan `plantillas.administrar`** (los mismos 4) ⇒ *nadie gana ni pierde acceso* · menú bajo el
-      grupo `vacunacion` · **segunda pasada `INSERT 0` en las cuatro** · tras el `ROLLBACK`, 0 rastros
-- [x] V10.2 🔴 **Bug real que sólo se veía pegándole al endpoint**: `DateOnly.FromDateTime` dentro de
-      una proyección LINQ **compila y pasa los tests**, pero Npgsql no lo traduce sobre una columna
-      `date` ⇒ **500 en todo POST/PUT**. Se materializa antes de convertir. Los GET no lo tocaban, así
-      que la lista y `efectiva` respondían bien: sin el smoke esto llegaba a producción
-- [x] V10.3 **Smoke HTTP: 48 verificaciones, 0 fallos** (backend propio :5499, JWT y `X-Secret-Up`
-      minteados). Ciclo completo en 2 empresas: sin plantillas → crear → duplicada **400 nombrando la
-      existente** → 3 ítems (carga doble **400 diciendo la semana**, refuerzo en otra semana OK, otra
-      vacuna en la misma semana OK) → orden `0:8 1:3 2:3` → conteo en la lista → `efectiva` elige la de
-      raza y **dice que le ganó a la comodín** → versión fechada no le roba el lote de 2025 → pasar a
-      Engorde con ítems por semana **400** → en ItalcolEcuador, Engorde por semana **400** y por día OK
-- [x] V10.4 **Aislamiento por empresa probado, no declarado**: Sanmarino no lee la plantilla de
-      Ecuador (404), no aparece en su lista, y no puede usar una vacuna del catálogo ajeno (400)
-- [x] V10.5 **Permisos**: sin `plantillas.administrar` ⇒ 403 al crear; sin `plantillas.ver` ⇒ 403 al listar
-- [x] V10.6 **El sello del soft-delete verificado en la BD**, no en el código: la plantilla y sus 3
-      ítems quedaron con el **mismo `deleted_at`** (`2026-08-17 07:01:07.521193-05`, 1 valor distinto)
-- [x] V10.7 **Regresión del cronograma**: responde 200 con el mismo contenido, y —más fuerte que el
-      conteo— `grep` sobre los 4 archivos nuevos da **cero referencias** a `VacunacionCronogramaItem`
-      ⇒ el CRUD de plantillas **no puede** tocar el cronograma. ⚠️ Honestidad: la tabla
-      `vacunacion_cronograma_item` está **vacía en toda la BD local**, así que el conteo por sí solo
-      probaba poco; el gate real es el estructural
-- [x] V10.8 **Smoke UI** (front :4200 + backend :5002, sesión inyectada en `localStorage`): crear
-      plantilla Engorde → el modal de ítem **deshabilita «Semana» y marca «Día»** porque la línea lo
-      manda → agregar vacuna del catálogo real (18 de Ecuador) → tabla con «Día 12 · −0/+1 días» →
-      **los 2 modales abren y cierran DOS veces** sin colgarse (Escape incluido) y el `orden` por
-      defecto salta a 1 (va al final, no encima del primero) → vista previa de un lote real:
-      *«Aplica «SMOKE UI Plan engorde EC»: es la plantilla general de la línea (no hay una específica
-      para Ross 308-AP)»* → quitar vacuna y borrar plantilla por `ConfirmDialogService` → la vista
-      previa se re-resuelve sola y pasa a *«Esta empresa no tiene plantillas activas para Engorde»*
-- [x] V10.9 `dotnet build` **0 errores** (8 advertencias preexistentes) · `dotnet test` **2.682 + 1
-      verdes** · `yarn build` 0 errores
-- [x] V10.10 **BD local devuelta a su estado exacto**: 129 tablas, historial en `20260814130000`
-      (**cero migraciones ajenas aplicadas** — el smoke corrió con `Database__RunMigrations=false`),
-      0 permisos de plantillas, `vacunacion_cronograma_item` intacta. Las 2 tablas de W1.1 se crearon
-      sólo para el smoke y se dropearon **con guarda**: se verificó antes que su migración no estuviera
-      registrada en `__EFMigrationsHistory` (si lo estuviera, borrarlas dejaría el historial mintiendo)
-- [x] V10.11 Sin procesos huérfanos: `:5002`, `:5499`, `:4200` y `:4300` libres
-
-### Observación al pasar (preexistente, NO tocada)
-- El selector de vacunas sale de `fn_vacunacion_filter_data`, que filtra por `tipo_item = 'vacuna'`.
-  **Agroavícola Sanmarino no tiene ni un ítem así** en su catálogo (61 ítems, 0 vacunas), así que su
-  selector aparece vacío — en la pantalla nueva y también en la de Cronograma, que ya estaba en prod.
-  Se cargan vacunas al catálogo o se relaja el filtro; no es de esta entrega.
-
----
-
-# Vacunación W2 — el materializador: la plantilla baja al cronograma de los lotes
-
-**Plan:** [`fase_de_desarrollo/vacunacion_w2_materializador_plan.md`](fase_de_desarrollo/vacunacion_w2_materializador_plan.md)
-**Continúa:** W1.1-W1.4 (`a19807b`, `bd935cb`). Hasta hoy el plan sanitario se cargaba, se veía y se
-resolvía por lote — y **no bajaba a una sola fila de cronograma**.
-
-> 🔶 **Riesgo MEDIO declarado:** primera fase que escribe en datos de lotes vivos. Nada se escribe sin
-> que alguien lo pida y vea antes el impacto; el materializador **no borra jamás**.
-
-### W2.1 — Las dos columnas de origen
-- [x] W2.1.1 `OrigenPlantillaItemId` + `GeneradoAutomatico` en `VacunacionCronogramaItem` + configuration
-- [x] W2.1.2 FK a `vacunacion_plan_plantilla_item` con **`ON DELETE SET NULL`** (el ítem del lote es historia sanitaria: sobrevive al borrado del plan) — verificado en la BD: `confdeltype = n`
-- [x] W2.1.3 Índice único parcial con **`COALESCE(...,0)` en los 3 FK de línea** — sin eso no bloquea ni un duplicado
-- [x] W2.1.4 Migración `20260817133833_AddOrigenPlantillaAVacunacionCronograma`, idempotente y aditiva pura (`DEFAULT false` deja todo lo existente como «hecho a mano»)
-
-### W2.2 — `VacunacionMaterializadorCalculos` (puro, sin EF)
-- [x] W2.2.1 `Planificar` → `Faltantes` / `Actualizables` / `Preservados` / `Sobrantes`
-- [x] W2.2.2 Los 3 motivos de preservación separados: `YaAplicado`, `Manual`, `SinCambios` (+ 2 de sobrante: `PlantillaSinEseItem`, `Duplicado`, para que la función sea **total** y ninguna fila desaparezca del informe)
-- [x] W2.2.3 **25 tests xUnit**: idempotencia (2ª y 3ª pasada), aplicado intocable aun con la plantilla cambiada, manual intocable, los 6 campos que cuentan como cambio, sobrantes, listas disjuntas, determinismo ante el orden de entrada, entradas nulas
-
-### W2.3 — Servicio idempotente + preview
-- [x] W2.3.1 Ancla + `Funciones/Planificar` (lectura), `Funciones/Aplicar` (escritura) y `Funciones/Lotes` (consultas)
-- [x] W2.3.2 **Preview y aplicación comparten la misma función pura** — un preview que miente es peor que no tenerlo
-- [x] W2.3.3 Lotes vivos con **`estado IS DISTINCT FROM 'Cerrado'`**, nunca `= 'Abierto'` (el dato dice `'Abierto'` *y* `'Abierta'` según quién lo creó)
-- [x] W2.3.4 Masivo tolerante: el lote que falla queda reportado con su error y el recorrido sigue. `EscribirAsync` **reusa la transacción del llamador** si ya hay una (el enganche corre dentro del alta del lote) y deshace **sólo lo suyo** al fallar — limpiar el `ChangeTracker` entero descartaría el lote que el llamador todavía no guardó
-- [x] W2.3.5 `UpdateAsync` del cronograma **emancipa** el ítem (`generado_automatico → false`): una corrección a mano no la deshace el plan
-- [x] W2.3.6 Sin N+1: una consulta de plantillas, una de ítems y una de cronograma para **todos** los lotes del masivo
-
-### W2.4 — Endpoints, pantalla y enganche
-- [x] W2.4.1 `VacunacionMaterializadorController` (4 endpoints) + DI · escribir exige las **dos** claves (`plantillas.administrar` + `cronograma.administrar`): hoy misma población, mañana separables
-- [x] W2.4.2 Front: `modal-aplicar-plantilla` con preview obligatorio + botón «⇩ Aplicar a los lotes» en el detalle de la plantilla (`changeDetection: Eager`)
-- [x] W2.4.3 Front: el cronograma **avisa** «este lote tiene vacunas del plan sin programar» con botón por lote — ⛔ descartado el materializar-en-GET del plan madre (crearía filas a nombre de quien pasó a mirar)
-- [x] W2.4.4 Enganche al crear el lote en los 3 caminos normales, **fail-soft** (Levante `LoteService` · Producción `LotePosturaLevanteService` · Engorde `LoteAveEngordeService`). En la transición a producción va **después del commit**: adentro, un `SaveChanges` fallido abortaría la transacción en Postgres y se llevaría puesta la transición entera
-- [x] W2.4.5 Declarado, no omitido: carga masiva, puente Panamá y migraciones masivas **no** se enganchan — se cubren con el botón masivo
-
-### W2.5 — Validación
-- [x] W2.5.1 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.707 + 1 verdes** (2.682 previos + 25 nuevos) · `yarn build` 0 errores (único warning: el bundle budget preexistente) · `verificar-change-detection.js`: **227 componentes, 0 sin estrategia**
-- [x] W2.5.2 🔴 **Bug real que sólo se veía ejecutando la consulta**: filtrar por id (y por «no cerrado») **después** del `Select` a un record proyectado compila, pasa los tests y **revienta en runtime** — `PreviewLoteAsync` habría sido un 500 en **todos** los lotes. Los dos filtros pasaron a aplicarse sobre la entidad, antes de proyectar. Es el mismo golpe que V10.2 con `DateOnly`: sin ejecutar la query, llegaba a producción
-- [x] W2.5.3 **Smoke sobre el servicio REAL contra la BD local: 33/33 verificaciones, 0 fallas** (empresa 1, lote abierto A374A, raza AP). Sin plantillas ⇒ cero escrituras · aplicar ⇒ 3 filas con origen y `generado_automatico` · **2ª pasada: 0 altas, 0 updates y `updated_at` sin tocar** · registrar aplicación + mover la semana de las 3 ⇒ **la aplicada conserva la suya** y las otras 2 se alinean · editar por el CRUD ⇒ emancipa y la corrección sobrevive · quitar una vacuna del plan ⇒ sobrante, **no borrada** · masivo sobre 10 lotes sin errores y **re-correrlo no escribe** · otra empresa ⇒ «no existe» · plantilla inactiva ⇒ 400 con motivo
-- [x] W2.5.4 **Gate del índice único con filas reales** (la tabla está vacía en local, así que el conteo por sí solo no probaba nada): el mismo ítem 2× en el mismo lote ⇒ **bloqueado por la base**; el mismo ítem en otro lote ⇒ entra; dos ítems a mano (origen `NULL`) en el mismo lote ⇒ entran (el índice es parcial); borrar el ítem de plantilla y borrar la plantilla entera ⇒ **las 4 filas de cronograma sobreviven** con origen `NULL`
-- [x] W2.5.5 Migración validada **por transacción** (idempotencia probada corriendo el `Up()` dos veces) · **BD local devuelta a su estado exacto**: 0 filas de cronograma, sin tablas de W1.1, sin columnas de W2.1, historial en `20260814130000` (279 migraciones, **ninguna ajena aplicada**) · puertos `5002/5499/5501/4200/4300` libres
+## V11.4 — Validación y cierre ✔
+- [x] V11.4.1 `dotnet build` **0 errores** (9 advertencias, las preexistentes) · `dotnet test`
+      **2.745 Application + 1 Domain en verde**. El cambio es una delegación de permiso a una regla
+      que ya tenía dueño y sus tests: lo que lo cubre es el smoke, no un test nuevo — decirlo así en
+      vez de inventar un unitario que no probaría nada
+- [x] V11.4.2 **BD compartida verificada al terminar**: 0 filas del smoke, `implementacion_planes` 1,
+      `inventario_gasto` 401 intactos. Clon **dropeado**. Puertos `5002/5499/5501/4200/4300` libres.
+      Sesión de prueba borrada del `localStorage`
+- [x] V11.4.3 El build de smoke salió a `--artifacts-path` en el scratchpad: el `bin/` del repo **no
+      se tocó**, así que no pelea con el backend de otra sesión
 
 ### Honestidad sobre lo que NO se probó
-- El smoke corre el servicio con `ICurrentUser` y `ILocationScopeResolver` **falsos**: prueba el LINQ→SQL,
-  las escrituras y las reglas, pero **no** los permisos del controller ni el alcance por ubicación real.
-- El enganche al crear el lote se probó **llamando a `MaterializarAlCrearLoteAsync` directo** (devuelve 0
-  sin plantilla), no creando un lote por la API. Los 3 puntos de llamada están compilados y son fail-soft.
-- `vacunacion_cronograma_item` está **vacía en toda la BD local**, así que el «no rompe lo existente» se
-  apoya en el `DEFAULT false` de la migración y en el diseño (origen `NULL` ⇒ invisible para el
-  materializador), no en un conteo sobre datos viejos.
-
----
-
-# Vacunación W3 — la bandeja de «hoy me toca» y la novedad que se despliega sola
-
-**Plan:** [`fase_de_desarrollo/vacunacion_w3_pendientes_y_fuera_de_rango_plan.md`](fase_de_desarrollo/vacunacion_w3_pendientes_y_fuera_de_rango_plan.md)
-**Continúa:** W1.1-W1.4 (`a19807b`, `bd935cb`) y W2 (`f2794c6`). Fecha: 17-ago-2026 · bloque propio.
-
-> 🟢 **Riesgo bajo declarado:** W3 **no escribe una fila nueva**. Agrega una lectura (fn SQL), una
-> validación de UI y un rótulo. Ninguna tabla, columna ni índice.
-
-### W3.0 — Extracción neutra del «¿requiere motivo?» ✔
-- [x] W3.0.1 `VacunacionCalculos.ProyectarAplicacion(franja, fecha)` — la parte que NO depende del umbral
-      de la empresa, que es justo la que un pre-chequeo de UI puede responder
-- [x] W3.0.2 `CalcularEstadoAplicacion` pasa a **delegar** (mismo resultado, una sola fórmula) + test que
-      barre 40 días alrededor de la franja exigiendo salida idéntica por los dos caminos
-
-### W3.1 — `GET /api/VacunacionRegistro/pendientes` ✔
-- [x] W3.1.1 `VacunacionPendientesCalculos.Clasificar` + **17 tests**: los 3 bordes exactos (hoy = inicio,
-      hoy = fin ⇒ **todavía cumple**, hoy = fin+1 ⇒ vencido), horizonte inclusivo, franja de un solo día,
-      franja invertida, hora ignorada, y el contrato cruzado contra `ProyectarAplicacion`
-- [x] W3.1.2 `fn_vacunacion_pendientes` + espejo `.sql` + migración `20260817210000_AddFnVacunacionPendientes`
-      (data-only, Designer clonado, `DROP … IF EXISTS` + `CREATE OR REPLACE` ⇒ re-ejecutable)
-- [x] W3.1.3 Servicio (`SqlQueryRaw`) + endpoint con gate `vacunacion.registro.aplicar`
-- [x] W3.1.4 🔑 **`p_hoy` viaja desde C# con `DateTime.UtcNow.Date`**, no `CURRENT_DATE`: con la zona de
-      la sesión, la bandeja podría decir un día distinto del que sella el registro
-- [x] W3.1.5 Scoping = **copia** del de `fn_vacunacion_filter_data` de hoy, con la nota en el encabezado
-      del `.sql` para que **W4 suba las dos juntas** (si sube una sola, la bandeja muestra lotes que el
-      resto del módulo ya no deja ver)
-- [x] W3.1.6 Deuda ajena cerrada al pasar: `vacunacionmaterializador` (endpoint de W2) estaba **sin
-      decisión** en la lista de caché offline y **cortaba el gate `verificar-lista-cacheable`**. Va a
-      EXCLUIDOS con su motivo: es acción de oficina y de escritura, y un preview servido de caché mentiría
-
-### W3.2 — La novedad se despliega sola (se acabó el 400 sorpresa) ✔
-- [x] W3.2.1 🔑 `evaluar-aplicacion-hoy.funcion.ts` en **base UTC**, la del servidor. Con la fecha local,
-      entre las 19:00 y la medianoche en Ecuador/Colombia la UI diría «dentro de franja» y el backend
-      contestaría 400 — el mismo error que W3.2 vino a eliminar, pero con la UI jurando que todo iba bien.
-      **11 tests Karma** (mismos bordes que el xUnit + el caso de las 20:30 en Bogotá)
-- [x] W3.2.2 Modal: aviso ámbar con el porqué, `Motivo (obligatorio)` y **Confirmar deshabilitado** hasta
-      llenarlo. El backend sigue siendo la autoridad: la UI adelanta el aviso, no reemplaza la validación
-
-### W3.3 — Rótulo «Fuera de rango» con los días ✔
-- [x] W3.3.1 `calcular-estado-visual`: el **adelantado ya dice cuánto** (antes era «Aplicado adelantado»,
-      sin número, mientras el tardío sí lo mostraba). `Incumplido` conserva su rótulo y su rojo
-- [x] W3.3.2 Panel de pendientes en Home, gemelo del de Implementación (arranca abierto, no se dibuja si
-      no hay nada, falla en silencio). Las clases `.pendientes-*` se **mudaron** a
-      `shared/styles/pendientes-panel.scss` sin tocar una declaración; los dos componentes la comparten
-- [x] W3.3.3 La fila abre el registro del lote (`/vacunacion/registro?linea=&loteId=`) y la página
-      preselecciona granja + lote; si el lote no está en su lista, no pasa nada
-
-### W3.4 — Validación ✔
-- [x] W3.4.1 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.726 + 1
-      verdes** (2.707 previos + 19 nuevos) · `yarn build` 0 errores (único warning: bundle budget
-      preexistente) · `verificar-change-detection.js` **228 componentes, 0 sin estrategia** ·
-      `verificar-lista-cacheable.js` **0 sin decisión** · Karma del `.spec` nuevo **11/11**
-- [x] W3.4.2 **Smoke SQL en transacción revertida** (11 casos sembrados sobre un lote real de la empresa 3):
-      esperado_no_visto **0** · visto_no_esperado **0** · fugas de alcance (otra empresa + lote cerrado)
-      **0** · horizonte 0 tapa los próximos pero **no** los vencidos · usuario sin granjas ⇒ **0 filas** ·
-      paridad de franja contra `fn_vacunacion_cronograma_lote`: **8 ítems, 0 diferencias**
-- [x] W3.4.3 **Smoke del SERVICIO REAL** (`GetPendientesAsync` vía EF, no sólo psql): **13/13
-      verificaciones**. Incluye el contraste fila a fila contra `VacunacionPendientesCalculos` (0
-      divergencias) y que el mapeo `SqlQueryRaw` trajo **todos** los campos — el error que compila,
-      pasa los tests y sólo aparece ejecutando (lección de W2.5.2)
-- [x] W3.4.4 **Smoke UI** (front :4300, sin backend): el panel pinta las 4 filas con «Vencida hace 16
-      días / Toca ahora / En 3 días», subtítulo «2 vencidas · 1 para hoy» y el link
-      `?linea=Engorde&loteId=2`; el modal fuera de franja muestra el aviso, exige motivo y **deshabilita
-      Confirmar**, con motivo escrito lo habilita, dentro de franja no avisa y «No aplicado» sigue
-      exigiendo motivo; la tabla rotula `Fuera de rango (+6 d)` / `(−2 d)` / `Incumplido (+20 d)`
-- [x] W3.4.5 BD local **devuelta a su estado exacto**: 0 ítems, 0 registros, la fn **no quedó creada**,
-      279 migraciones con la última en `20260814130000` (ninguna ajena aplicada) · puertos
-      `5002/5499/5501/4200/4300` libres · sesión de prueba borrada del `localStorage`
-
-### Honestidad sobre lo que NO se probó
-- El smoke del servicio corre con un `ICurrentUser` falso: prueba el LINQ→SQL, el mapeo y las reglas,
-  **no** el gate de permisos del controller ni el alcance por ubicación real (eso es W4).
-- El smoke UI corrió **sin backend**, sustituyendo la llamada HTTP del servicio por datos de la misma
-  forma que devuelve la fn (ya verificada aparte). Prueba el render y las reglas de la pantalla, no el
-  cable HTTP extremo a extremo.
-- `vacunacion_cronograma_item` está **vacía** en toda la BD local, así que la bandeja se probó con filas
-  sembradas y revertidas, no con datos históricos.
-
----
-
-# Vacunación W4 — el alcance por núcleo/galpón/lote llega a las dos funciones SQL
-
-**Plan:** [`fase_de_desarrollo/vacunacion_w4_scoping_ubicacion_plan.md`](fase_de_desarrollo/vacunacion_w4_scoping_ubicacion_plan.md)
-**Continúa:** W1 (`bd935cb`), W2 (`f2794c6`), W3 (`59496a8`). Fecha: 17-ago-2026 · bloque propio.
-
-> ✅ **CIERRA LA SERIE W.** El módulo ya respetaba `user_farms.restrict_locations` +
-> `user_farm_scopes` en todo lo que pasa por C# (cronograma, materializador y los 2 reportes);
-> faltaba en las dos lecturas que hace la BD. Con **0 usuarios restringidos** hoy en la base, el
-> cambio es no-op hasta que un admin restrinja a alguien.
-
-### W4.0 — Auditoría y decisión de arquitectura ✔
-- [x] W4.0.1 Mapa de los 5 caminos de lectura: 3 ya scopeados en C#, 2 (las fns) sólo por granja.
-      Efecto real: el combo ofrecía lotes de toda la granja y la bandeja avisaba de vacunas que el
-      guard del cronograma después rechazaba
-- [x] W4.0.2 La regla «con lote manda el nivel LOTE; si no, galpón; si no, núcleo» estaba **copiada a
-      mano en 3 services** ⇒ extraída a `UserLocationScopeCalculos.PermiteUbicacion`; los 3 delegan
-      (misma salida, un solo dueño)
-- [x] W4.0.3 Decisión: el **cierre se calcula en C#** (`ComputeScope`, ya con 20 tests) y viaja a la
-      fn como 4 arrays. Replicarlo en SQL lo duplicaba, y un helper SQL aparte habría roto la
-      restauración de dumps (ordena funciones por OID, y los llamadores `LANGUAGE sql` validan su
-      cuerpo al crearse). El filtro va **una sola vez** por fn, después del UNION
-
-### W4.1 — Las dos fns respetan el alcance granular (fail-closed) ✔
-- [x] W4.1.1 `PermiteUbicacion` + `AplanarParaSql` + `ClaveNucleo` (clave **compuesta**
-      `granjaId|nucleoId`: `nucleo_id` se repite entre granjas) + **19 tests xUnit**, incluido el
-      contrato «pertenencia a los arrays == la regla», que es lo que implementa la SQL
-- [x] W4.1.2 `fn_vacunacion_filter_data` con los 4 `p_scope_*` **sin DEFAULT**: un llamador que se
-      los olvide debe fallar, no ver toda la empresa
-- [x] W4.1.3 `fn_vacunacion_pendientes` con los mismos 4 (van **antes** de `p_dias_horizonte`: en
-      Postgres, después de un parámetro con DEFAULT todos los siguientes deben tenerlo) y se retiró
-      su nota «leer antes de W4»
-- [x] W4.1.4 Migración `20260817220000_ScopingUbicacionVacunacionFns` (data-only, Designer clonado,
-      **ModelSnapshot intacto**, `DROP … IF EXISTS` de la firma vieja **y** la nueva ⇒ re-ejecutable)
-- [x] W4.1.5 `VacunacionRegistroService` recibe `ILocationScopeResolver`; los parámetros los arma
-      `VacunacionScopeSqlParams`, compartido, para que las dos fns reciban **siempre el mismo cierre**
-- [x] W4.1.6 🔎 **Hallazgo**: el orden del combo nunca fue determinístico (`ORDER BY fecha_encaset`
-      a secas ⇒ los empates salían como quisiera el plan). Se agregó el desempate por línea+id
-
-### W4.2 — Mismo scoping en reportes + smoke con usuario restringido ✔
-- [x] W4.2.1 Los 3 services delegan en la regla única; en reportes la ubicación pasa a salir del
-      **lote** (dónde está hoy) y no de la copia que el ítem selló al crearse — un lote que cambia de
-      galpón dejaba al reporte decidiendo con la ubicación vieja y discrepando de la bandeja
-- [x] W4.2.2 **Smoke SQL en transacción revertida, 18/18**: sin restricción ⇒ granjas/vacunas/usuarios
-      idénticos y los **121 lotes con 0 diferencias fila a fila** (en los dos sentidos) · grant de
-      galpón ⇒ 4 de 40 · grant de núcleo ⇒ el cierre baja a sus galpones y vuelven los 40 ·
-      `restrict_locations` sin grants ⇒ **0** · el mismo `nucleo_id` de otra granja **no** otorga ·
-      un lote con galpón no se cuela por el núcleo · grant de LOTE ⇒ sólo ese (los hermanos del
-      galpón, fuera) · pendientes sin restricción idénticos a la previa
-- [x] W4.2.3 **Smoke del SERVICIO REAL (EF + `SqlQueryRaw`), 14/14** con un usuario restringido
-      sembrado y revertido: combo, bandeja y los **2 reportes** muestran el mismo alcance
-      (reporte ⊆ combo, bandeja ⊆ reporte, 0 huérfanos) · C# y SQL deciden igual en los 40 lotes de
-      la granja, **0 divergencias** · quitar los grants deja combo y bandeja en 0 (fail-closed) ·
-      apagar el flag devuelve los 40
-- [x] W4.2.4 🔴 **Bug preexistente que cazó el smoke**: `GET /cumplimiento` (reporte por lote)
-      **reventaba en runtime para todas las empresas** — la fn devuelve `total_tardio_1_semana` y la
-      convención de EF exige `total_tardio1semana` (no mete guión bajo tras un dígito). Arreglado con
-      dos alias en la consulta: no se toca la fn (la comparten reportes desplegados) ni el DTO (viaja
-      al front). El reporte de detalle no estaba afectado: ninguna columna suya tiene dígitos
-- [x] W4.2.5 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **2.745 Application + 1
-      Domain verdes** (2.726 previos + 19 nuevos) · BD local **devuelta a su estado exacto** (4 fns,
-      279 migraciones con la última en `20260814130000`, 0 ítems de cronograma, 0 grants, 0 usuarios
-      restringidos) · puertos `5002/5499/5501/4200/4300` libres
-
-### Honestidad sobre lo que NO se probó
-- **Front sin tocar y sin smoke de pantalla**: el combo se acota solo (misma respuesta, menos lotes).
-- El smoke corre con un `ICurrentUser` falso ⇒ prueba el alcance real por ubicación, **no** el gate
-  de permisos del controller.
-- La BD local **no tiene ni un usuario restringido**: todo el escenario se sembró y se revirtió. En
-  producción el cambio no altera lo que ve nadie hasta que un admin encienda `restrict_locations`.
+- El smoke A corre con **JWT minteado**: prueba el gate de permiso del servicio (que es donde vive),
+  **no** el login real ni el middleware de empresa activa.
+- El smoke B corrió contra un **clon** de la BD: los datos son reales (401 gastos de ItalcolEcuador),
+  pero es una copia — nada de lo que se miró venía de producción.
+- El arreglo de permiso **no tiene test unitario nuevo**: `PuedeGestionarItalJira()` delega en una
+  regla ya testeada y el punto del arreglo es *dónde* se la llama, que sólo se ve ejecutando.
