@@ -13,7 +13,7 @@
 |---|---|---|
 | 4 | Envío de correo: SMTP rechazado por política del tenant | **admin de Microsoft 365** |
 | 4 | Referencia `Inicio` + liquidación de corridas anteriores (engorde) | **decisión de negocio** |
-| 1 | Consolidado de sublotes y paridad de reportes por fase | saldo negativo preexistente |
+| 1 | Consolidado de sublotes — C12 · `LOTE 235A` en −460 | **operación**: 500 muertes sobre 40 aves |
 | 2 | ItalJira: barrido de sobregiro de aves | **decisión** (correr el detector contra prod) |
 | 2 | Reporte Contable — Selección en RESUMEN + Movimientos de Huevo | **decisión** (corte 24/25 sem · K345) |
 | 1 | Migraciones Masivas — retirar tipos | **decisión** (¿sale «Venta Engorde»?) |
@@ -305,8 +305,39 @@ distintas; al unirlos el consolidado debe cuadrar. Validá en reportes y descarg
       responden 200 con datos. Único desvío contra el Excel: los 5 huevos del galpón 9 del 24-jun,
       descuadre del propio informe
 - [x] C11 `dotnet build` **0 errores** · `dotnet test` **1.715 verdes**
-- [ ] C12 Pendiente ajeno: `A374A` y `LOTE 235A` tienen **saldo de hembras negativo**, lo que deja
-      sin `part` a las semanas donde son el único lote. Preexistente, fuera del alcance de esta tarea
+- [x] C12 **Revalidado el 17-ago-2026 a pedido del usuario. Se parte en dos: `A374A` ya no reproduce,
+      `LOTE 235A` sí — y ahora se sabe exactamente por qué.**
+
+      **Medición** (`fn_resumen_semanal_ra_pesadas_levante`, las 5 empresas × 2025 y 2026, que es
+      donde vive `part`): Sanmarino **145 filas, 0 saldos negativos, 0 `part` nulos**. Demo 2026:
+      **1 fila negativa y 1 `part` nulo**. El resto de las empresas no devuelve filas.
+
+      **`A374A` — cerrado.** No hay ni un saldo negativo en Sanmarino. Lo que sí daba negativo era
+      otra pantalla: el endpoint `/levante/completo/{loteId}` mostraba **−212** para ese lote porque
+      su fórmula propia ignoraba el traslado de ENTRADA (medido hoy, antes de corregirlo; ver V13.7).
+      Ese endpoint ya delega en `SaldoAvesLevanteCalculos` y A374A queda en **7.405**, que cuadra con
+      los **7.408** que dice esta misma fn.
+
+      **`LOTE 235A` — SIGUE ABIERTO, pero no es un problema de cálculo: son los datos.** Es el lote
+      **123** (LA CAROLINA; el 124 de LA PRIMAVERA está sano), semana 21, `saldo_hembras = -460` y
+      `part` nulo. El kardex lo explica solo:
+
+      | Fecha | Movimiento | Saldo |
+      |---|---|---|
+      | 2026-07-06 | traslado de **salida 5.100** | 5.172 → **72** |
+      | 2026-07-28 | 20 mortalidades | 52 |
+      | 2026-07-30 | 10 mort + 1 sel + 1 err | **40** |
+      | 2026-08-03 | **500 mortalidades** | **−460** |
+
+      5.303 − 648 mort − 14 sel − 1 err − 5.100 trasladadas = −460, exacto. O sea: **se cargaron 500
+      muertes sobre un lote que tenía 40 aves.** El lote 124, que recibió esas 5.100, deja de
+      registrar mortalidad el 10-jul.
+
+      **Qué necesita: una decisión de operación, no código.** O esas 500 son del lote **124** y se
+      imputaron al lote equivocado, o es un error de digitación. ⛔ No se tocó el dato: la guía manda
+      simular en transacción y revertir antes de corregir, y elegir entre las dos hipótesis no es una
+      decisión técnica. ⛔ Tampoco se le puso piso 0 a la fn: el negativo es **la señal** de que el
+      dato está mal; taparlo lo esconde (mismo criterio que el clamp de engorde)
 
 ---
 
@@ -2082,12 +2113,13 @@ implementaciones distintas** del saldo dentro del mismo archivo y **una cuarta m
       mueven, y son exactamente los que tienen traslado o venta. Ningún lote sin movimientos cambia
 
 ### Señalamiento a otro bloque (NO toco su checkbox)
-- [ ] V13.7.12 **C12 del bloque «Consolidado de sublotes»** dice: «`A374A` y `LOTE 235A` tienen saldo
-      de hembras negativo — preexistente, fuera de alcance». Son **exactamente** los dos lotes que
-      salían en −212 y −230 por esta fórmula, y ahora dan 7.405 y 4.870. Muy probablemente C12 ya no
-      reproduce; que lo revalide quien lleva ese bloque. Ojo: en
-      `fn_resumen_semanal_ra_pesadas_levante` esos lotes **nunca** dieron negativo ni perdieron `part`,
-      así que el síntoma que describe C12 puede venir de otra pantalla
+- [x] V13.7.12 **C12 revalidado a pedido del usuario y actualizado en su propio bloque.** Se parte en
+      dos: **`A374A` cerrado** (0 saldos negativos en Sanmarino; el −212 venía del endpoint
+      `/levante/completo`, que este cambio corrigió a 7.405 ⇒ cuadra con los 7.408 de la fn) y
+      **`LOTE 235A` sigue abierto pero deja de ser un misterio**: el lote 123 trasladó 5.100 de sus
+      5.172 aves el 06-jul y el **03-ago le cargaron 500 mortalidades cuando tenía 40**. No es cálculo,
+      son datos, y elegir entre «son del lote 124» o «es un error de digitación» es una decisión de
+      operación. Ver el detalle en el bloque «Consolidado de sublotes»
 
 ### Lo que queda igual, a propósito
 - [x] V13.7.13 `RetiroAcumulado` **sigue sin contar la venta** — es correcto y está documentado en la
