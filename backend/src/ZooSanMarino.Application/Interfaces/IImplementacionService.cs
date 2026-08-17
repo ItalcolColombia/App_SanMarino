@@ -16,6 +16,13 @@ public interface IImplementacionService
     Task<ImplementacionPlanDto?> UpdatePlanAsync(int planId, ImplementacionPlanUpdateRequest req, CancellationToken ct = default);
     Task<bool> DeletePlanAsync(int planId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Enlaza el plan con ItalJira: crea su historia si no la tiene y una tarea del tablero por cada
+    /// punto que todavía no tenga la suya. Idempotente. Exige <c>tickets.gestionar</c> (lo aplican
+    /// los propios servicios de ItalJira). <c>null</c> si el plan no existe o no es de la empresa.
+    /// </summary>
+    Task<ImplementacionItalJiraDto?> SincronizarConItalJiraAsync(int planId, CancellationToken ct = default);
+
     // Tareas del checklist
     Task<ImplementacionTareaDto?> CreateTareaAsync(int planId, ImplementacionTareaCreateRequest req, CancellationToken ct = default);
     Task<ImplementacionTareaDto?> UpdateTareaAsync(int tareaId, ImplementacionTareaUpdateRequest req, CancellationToken ct = default);

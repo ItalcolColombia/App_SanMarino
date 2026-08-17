@@ -233,4 +233,45 @@ public static class ImplementacionCalculos
         new PlantillaTarea("Puesta en marcha",  "Acompañamiento primera semana de operación",          10),
         new PlantillaTarea("Puesta en marcha",  "Acta de entrega y cierre de implementación",          11),
     };
+
+    // ─── Vínculo con ItalJira (I1.3) ──────────────────────────────────────────
+
+    /// <summary>
+    /// Estado que debe tomar un punto del checklist cuando su tarea de ItalJira cambia de columna, o
+    /// <c>null</c> si no hay que tocarlo.
+    ///
+    /// <para>
+    /// El punto y la tarea del tablero son el <b>mismo trabajo contado dos veces</b>: quien lo ejecuta
+    /// lo mueve en el tablero y quien lo recibe lo firma en el plan. Que haya que marcarlo a mano en
+    /// los dos lados garantiza que tarde o temprano queden distintos — y el que manda es el tablero,
+    /// porque es donde está la persona que lo hizo.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Una tarea que sale de LISTO devuelve el punto a pendiente</b>: si se reabrió es porque no
+    /// estaba terminado, y dejarlo completado habilitaría firmar algo que se está rehaciendo.
+    /// </para>
+    ///
+    /// <para>
+    /// 🔒 <b>Una punto CONFIRMADO no se toca nunca.</b> Confirmar es un acto de una persona —el
+    /// asignado dijo que lo recibió— y detrás vienen las firmas, con su hash de contenido. Un cambio
+    /// de columna en el tablero no puede deshacer eso; si hay que reabrirlo, se reabre a mano y queda
+    /// el rastro de quién lo hizo.
+    /// </para>
+    /// </summary>
+    /// <param name="estadoTareaItalJiraEsTerminal">
+    /// Si la columna del tablero cuenta como terminada (<c>TicketTareaEstados.EsTerminal</c>). Se
+    /// recibe ya evaluado para no atar Application a las constantes de Domain.
+    /// </param>
+    /// <param name="estadoPuntoActual">Estado de hoy del punto del checklist.</param>
+    public static string? EstadoPuntoSegunTareaItalJira(
+        bool estadoTareaItalJiraEsTerminal, string? estadoPuntoActual)
+    {
+        var actual = (estadoPuntoActual ?? "").Trim().ToLowerInvariant();
+
+        if (actual == TareaConfirmada) return null;
+
+        var objetivo = estadoTareaItalJiraEsTerminal ? TareaCompletada : TareaPendiente;
+        return actual == objetivo ? null : objetivo;
+    }
 }

@@ -1509,8 +1509,11 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
 
 ### I1..I5 — Implementación (elegido por el usuario como primera entrega)
 - [x] I1.1 Columnas `implementacion_planes.historia_id` + `implementacion_tareas.ticket_tarea_id` (entidad, configuration, migración idempotente `20260815000000`, snapshot y Designer)
-- [ ] I1.2 Crear/enlazar la historia de ItalJira al crear el plan + tarea por punto (**lógica pendiente**: hoy solo existe el vínculo en el modelo)
-- [ ] I1.3 Tarea de ItalJira en LISTO ⇒ el punto del plan pasa a `completada`
+- [x] I1.2 **HECHO 17ago26** (ver V9.5): `POST /api/Implementacion/planes/{id}/italjira` crea la
+      historia del plan y una tarea del tablero por punto. **Explícito, no automático** —hay entregas
+      que no son trabajo de desarrollo y llenarían el backlog de épicas muertas— e **idempotente**
+- [x] I1.3 **HECHO 17ago26**: los 4 sitios que mueven una tarjeta de columna reflejan el estado en
+      el punto enlazado, **dentro de la misma transacción**. Un punto ya CONFIRMADO no se toca nunca
 - [x] I2.1 `ImplementacionCalculos.TareaHabilitadaParaFirmar` (fail-closed) + tests xUnit
 - [x] I2.2 `FirmarAsync`/`RechazarAsync` rechazan un punto todavía programado (backend, no solo UI)
 - [x] I2.3 Front: el modal muestra el punto en lectura y «Aún no te toca firmar» en Mis tareas
@@ -1520,7 +1523,9 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
 - [x] I3.4 El modal de firma pide trazo + nombre; el detalle muestra el trazo y avisa si el punto se editó después de firmado
 - [x] I4.1 `GET /api/Implementacion/mis-pendientes-firma` (solo pendientes ya realizados, scoped al usuario)
 - [x] I4.2 `PanelPendientesFirmaComponent` desplegable en el inicio (no se dibuja si no hay nada)
-- [ ] I5 Selección de participantes por rol / empresa
+- [x] I5 **HECHO 17ago26**: el modal de participantes filtra por **rol de la empresa activa** y
+      ofrece «marcar los N visibles». La empresa ya estaba: `SetParticipantesAsync` rechaza usuarios
+      de otra (`UserCompanies`)
 
 ### Cierre de la entrega I2/I3/I4
 - [x] Z.1 `dotnet build` 0 errores (el único warning, CS8602 en `SeguimientoLoteLevanteService.Crud.cs:217`, es preexistente y de un archivo que nadie tocó) + `dotnet test` **2572 en verde** + `yarn build` 0 errores
@@ -1909,3 +1914,56 @@ el primero, así que van como gate.
       terminar): el link aparece en el sidebar, el `<details>` abre y el `<pre>` pinta el JSON
       completo. Dato de prueba eliminado (**0 operaciones** en la cola) y `:4300` liberado
 - [x] V9.4.5 `yarn build` (Node portable 22.23.1) **0 errores**, sólo el warning de bundle budget
+
+## V9.5 — I1.2 / I1.3 / I5: Implementación enganchada a ItalJira
+
+El vínculo existía **sólo en el modelo** desde I1.1 (`implementacion_planes.historia_id` y
+`implementacion_tareas.ticket_tarea_id`, sin una línea de lógica que los llenara ni los leyera).
+
+### I1.2 — del plan al tablero
+- [x] V9.5.1 `POST /api/Implementacion/planes/{id}/italjira` +
+      `ImplementacionService.ItalJira.cs`: crea la historia del plan y una tarea del tablero por cada
+      punto que no tenga la suya
+- [x] V9.5.2 🔑 **Explícito, no automático.** Un plan de implementación no siempre es trabajo del
+      área de desarrollo —hay entregas que se coordinan sólo con el cliente—, y crear la épica en cada
+      alta llenaría el backlog compartido de historias que nadie va a mover
+- [x] V9.5.3 **Idempotente**, y devuelve el desglose (`historiaCreada` / `puntosEnlazadosAhora` /
+      `puntosYaEnlazados`): sin separarlos, «ya estaba todo enlazado» y «no hizo nada» se leen igual
+- [x] V9.5.4 **Sin abrir un segundo escritor**: la historia la crea `IHistoriaService` y las tareas
+      `ITicketTareaService.CrearTareaItalJiraAsync` — los mismos que usa el tablero, con su mismo
+      permiso (`tickets.gestionar`, que lanza si falta ⇒ 400 con motivo, no 500)
+- [x] V9.5.5 Autocura los enlaces rotos: si la historia o la tarjeta se borraron desde el tablero, el
+      plan las vuelve a crear en vez de fallar — que es lo que el usuario espera del botón
+
+### I1.3 — del tablero al plan
+- [x] V9.5.6 `ImplementacionCalculos.EstadoPuntoSegunTareaItalJira` (pura, **5 tests nuevos**) +
+      `TicketTareaService.ReflejarEnChecklistImplementacionAsync`, llamado desde los **4** sitios que
+      mueven una tarjeta de columna (editar y mover, en el camino del caso y en el de ItalJira)
+- [x] V9.5.7 Se llama **antes** de `SaveChangesAsync`: el punto y la tarjeta commitean juntos, así no
+      queda una tarea en LISTO con su punto pendiente porque el proceso se cayó en el medio
+- [x] V9.5.8 **Salir de LISTO devuelve el punto a pendiente** (si se reabrió, no estaba terminado y
+      dejarlo completado habilitaría firmar algo que se está rehaciendo), y limpia el sello de fecha
+      y autor
+- [x] V9.5.9 🔒 **Un punto CONFIRMADO no lo toca nadie desde el tablero.** Confirmar es un acto de una
+      persona y detrás vienen las firmas con su hash de contenido; un drag & drop no puede deshacer eso
+- [x] V9.5.10 Front: botón «Enlazar / Actualizar en ItalJira» en el detalle del plan, con confirmación
+      (crea trabajo visible para todo el equipo) y una leyenda que dice quién manda el estado
+
+### I5 — participantes por rol
+- [x] V9.5.11 `ImplementacionUsuarioAsignableDto` trae los `RolIds` **de la empresa activa** (no todos
+      los del sistema: ofrecerlos dejaría elegir gente por un rol que en esta empresa no ejerce)
+- [x] V9.5.12 `filtrar-usuarios-asignables.funcion.ts` (PURA) + selector de rol y «marcar los N
+      visibles» en el modal de participantes
+- [x] V9.5.13 🔑 **El rol filtra, nunca selecciona solo.** Un rol de la empresa incluye gente que no
+      estuvo en esa capacitación, y una firma de más es una persona afirmando algo que no vio. El
+      atajo agrega, jamás desmarca lo que quedó fuera del filtro
+- [x] V9.5.14 «Por empresa» ya estaba: `SetParticipantesAsync` rechaza usuarios que no estén en
+      `user_companies` de la empresa activa
+
+### Validación de V9.5
+- [x] V9.5.15 `dotnet build` **0 errores** (las 9 advertencias son las preexistentes, de archivos que
+      esta sesión no tocó) · `dotnet test` **2.628 Application + 1 Domain en verde** (2.621 + 7)
+- [x] V9.5.16 `yarn build` (Node portable 22.23.1) **0 errores**, único warning el de bundle budget
+- [ ] V9.5.17 ⏸️ **Falta el smoke HTTP del ciclo completo** (enlazar un plan → mover la tarjeta a
+      LISTO → ver el punto completado → sacarla de LISTO → ver el punto pendiente). Requiere backend
+      levantado y un usuario con `tickets.gestionar`; el cálculo puro sí está cubierto por tests

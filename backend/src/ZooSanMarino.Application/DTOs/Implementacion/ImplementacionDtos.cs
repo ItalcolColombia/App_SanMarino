@@ -26,7 +26,12 @@ public record ImplementacionPlanDto(
     int TareasConfirmadas,
     decimal PorcentajeAvance,
     decimal PorcentajeConfirmado,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    /// <summary>
+    /// Historia (épica) de ItalJira donde se ejecuta este plan. Null = el plan no está enlazado y el
+    /// front ofrece el botón para enlazarlo.
+    /// </summary>
+    long? HistoriaId = null);
 
 /// <summary>ImplementadorUserId null → el encargado queda el creador (mismo usuario).</summary>
 public record ImplementacionPlanCreateRequest(
@@ -84,7 +89,12 @@ public record ImplementacionTareaDto(
     DateTime? FechaConfirmada,
     string? ConfirmadaPorNombre,
     string? Observaciones,
-    List<ImplementacionFirmaDto> Firmas);
+    List<ImplementacionFirmaDto> Firmas,
+    /// <summary>
+    /// Tarea de ItalJira que ejecuta este punto. Null = el punto no se sigue en el tablero y su
+    /// estado se maneja a mano desde acá.
+    /// </summary>
+    long? TicketTareaId = null);
 
 public record ImplementacionPlanDetalleDto(
     ImplementacionPlanDto Plan,
@@ -174,6 +184,33 @@ public record ImplementacionMiFirmaDto(
     bool HabilitadaParaFirmar,
     bool ContenidoCambio);
 
-public record ImplementacionUsuarioAsignableDto(Guid Id, string Nombre, string Cedula, string? Email);
+/// <summary>
+/// Usuario que se puede asignar o poner como participante.
+///
+/// <para>
+/// <paramref name="RolIds"/> son sus roles <b>en la empresa activa</b> — no todos los que tenga en el
+/// sistema—, y es lo que permite elegir participantes por rol («todos los de Auxiliar de Granja»)
+/// sin una segunda consulta ni un endpoint aparte. Un usuario sin roles en esta empresa viene con la
+/// lista vacía y sólo se puede elegir a mano.
+/// </para>
+/// </summary>
+public record ImplementacionUsuarioAsignableDto(
+    Guid Id, string Nombre, string Cedula, string? Email, List<int> RolIds);
 
 public record ImplementacionRolAsignableDto(int Id, string Nombre);
+
+/// <summary>
+/// Resultado de enlazar un plan de implementación con ItalJira.
+///
+/// <para>
+/// Devuelve los conteos separados —lo que ya estaba enlazado y lo que se creó en esta corrida—
+/// porque la operación es idempotente y sin ese desglose no se distingue «no hizo falta hacer nada»
+/// de «no hizo nada».
+/// </para>
+/// </summary>
+public record ImplementacionItalJiraDto(
+    long HistoriaId,
+    string HistoriaCodigo,
+    bool HistoriaCreada,
+    int PuntosYaEnlazados,
+    int PuntosEnlazadosAhora);

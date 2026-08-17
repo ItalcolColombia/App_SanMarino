@@ -238,6 +238,7 @@ public partial class ImplementacionService
             p.CreadoPorUserGuid, creadoPorNombre?.Trim(), creadoPorEmail,
             r.TotalTareas, r.Completadas, r.Confirmadas,
             r.PorcentajeAvance, r.PorcentajeConfirmado,
-            p.CreatedAt);
+            p.CreatedAt,
+            p.HistoriaId);
     }
 }

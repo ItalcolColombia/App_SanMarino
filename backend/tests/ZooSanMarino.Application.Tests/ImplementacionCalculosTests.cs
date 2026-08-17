@@ -330,4 +330,55 @@ public class ImplementacionCalculosTests
             ImplementacionCalculos.CalcularContenidoHash("P", "C", "T", "D", utc),
             ImplementacionCalculos.CalcularContenidoHash("P", "C", "T", "D", local));
     }
+
+    // ─── Vínculo con ItalJira (I1.3) ──────────────────────────────────────────
+
+    [Fact]
+    public void TareaEnListo_CompletaElPuntoPendiente()
+    {
+        Assert.Equal(
+            ImplementacionCalculos.TareaCompletada,
+            ImplementacionCalculos.EstadoPuntoSegunTareaItalJira(true, ImplementacionCalculos.TareaPendiente));
+    }
+
+    [Fact]
+    public void TareaQueSaleDeListo_DevuelveElPuntoAPendiente()
+    {
+        // Si se reabrio en el tablero es porque no estaba terminado; dejarlo completado habilitaria
+        // firmar algo que se esta rehaciendo.
+        Assert.Equal(
+            ImplementacionCalculos.TareaPendiente,
+            ImplementacionCalculos.EstadoPuntoSegunTareaItalJira(false, ImplementacionCalculos.TareaCompletada));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UnPuntoCONFIRMADO_NoLoToca_NingunMovimientoDelTablero(bool terminal)
+    {
+        // Confirmar es un acto de una persona y detras vienen las firmas con su hash de contenido.
+        // Un drag & drop en el tablero no puede deshacer eso.
+        Assert.Null(ImplementacionCalculos.EstadoPuntoSegunTareaItalJira(
+            terminal, ImplementacionCalculos.TareaConfirmada));
+    }
+
+    [Theory]
+    [InlineData(true, ImplementacionCalculos.TareaCompletada)]
+    [InlineData(false, ImplementacionCalculos.TareaPendiente)]
+    public void SiElPuntoYaEstaComoCorresponde_NoDevuelveCambio(bool terminal, string estadoActual)
+    {
+        // Evita escrituras (y sellos de fecha/autor) por movimientos entre columnas no terminales.
+        Assert.Null(ImplementacionCalculos.EstadoPuntoSegunTareaItalJira(terminal, estadoActual));
+    }
+
+    [Fact]
+    public void UnEstadoDesconocidoOVacio_SeTrataComoPendiente()
+    {
+        Assert.Equal(
+            ImplementacionCalculos.TareaCompletada,
+            ImplementacionCalculos.EstadoPuntoSegunTareaItalJira(true, null));
+        Assert.Equal(
+            ImplementacionCalculos.TareaPendiente,
+            ImplementacionCalculos.EstadoPuntoSegunTareaItalJira(false, "  "));
+    }
 }

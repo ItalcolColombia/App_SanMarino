@@ -30,6 +30,12 @@ export interface ImplementacionPlanDto {
   porcentajeAvance: number;
   porcentajeConfirmado: number;
   createdAt: string;
+
+  /**
+   * Historia (épica) de ItalJira donde se ejecuta el plan. `null` = todavía no está enlazado y la
+   * pantalla ofrece el botón para hacerlo.
+   */
+  historiaId?: number | null;
 }
 
 export interface ImplementacionPlanCreateRequest {
@@ -91,6 +97,12 @@ export interface ImplementacionTareaDto {
   confirmadaPorNombre: string | null;
   observaciones: string | null;
   firmas: ImplementacionFirmaDto[];
+
+  /**
+   * Tarea de ItalJira que ejecuta este punto. Cuando existe, el estado del punto lo manda el
+   * tablero: al pasarla a LISTO el punto queda completado y habilita las firmas.
+   */
+  ticketTareaId?: number | null;
 }
 
 export interface ImplementacionPlanDetalleDto {
@@ -176,6 +188,12 @@ export interface ImplementacionUsuarioAsignableDto {
   nombre: string;
   cedula: string;
   email: string | null;
+
+  /**
+   * Roles del usuario **en la empresa activa**. Permite elegir participantes por rol sin otra
+   * consulta. Vacío = no tiene rol en esta empresa (sólo se lo puede elegir a mano).
+   */
+  rolIds?: number[];
 }
 
 export interface ImplementacionRolAsignableDto {
@@ -207,3 +225,17 @@ export const ESTADO_FIRMA_LABEL: Record<EstadoFirma, string> = {
   firmada: 'Firmada',
   rechazada: 'Con novedad',
 };
+
+/**
+ * Resultado de enlazar un plan con ItalJira.
+ *
+ * Los conteos vienen separados porque la operación es idempotente: sin distinguir lo que ya estaba
+ * de lo que se creó ahora, "no hizo falta hacer nada" y "no hizo nada" se ven igual en pantalla.
+ */
+export interface ImplementacionItalJiraDto {
+  historiaId: number;
+  historiaCodigo: string;
+  historiaCreada: boolean;
+  puntosYaEnlazados: number;
+  puntosEnlazadosAhora: number;
+}

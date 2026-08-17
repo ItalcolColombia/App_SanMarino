@@ -49,8 +49,24 @@
                 <span *ngIf="plan.creadoPorEmail" style="color: var(--ital-muted)"> · {{ plan.creadoPorEmail }}</span>
               </span>
             </div>
+            <p class="mt-2 text-xs" style="color: var(--ital-muted)">
+              @if (plan.historiaId) {
+                🔗 Enlazado a ItalJira: el estado de cada punto lo manda el tablero (una tarea en
+                <strong>LISTO</strong> completa su punto y habilita las firmas).
+              } @else {
+                Este plan no está enlazado a ItalJira: los puntos se completan a mano desde acá.
+              }
+            </p>
           </div>
-          <button type="button" class="btn-italfoods-primary text-sm" (click)="abrirNuevaTarea()">＋ Agregar ítem</button>
+          <div class="flex flex-wrap items-start gap-2">
+            <button type="button"
+                    class="btn-italfoods-secondary text-sm"
+                    [disabled]="enlazandoItalJira"
+                    (click)="enlazarConItalJira()">
+              {{ enlazandoItalJira ? 'Enlazando…' : (plan.historiaId ? 'Actualizar en ItalJira' : 'Enlazar con ItalJira') }}
+            </button>
+            <button type="button" class="btn-italfoods-primary text-sm" (click)="abrirNuevaTarea()">＋ Agregar ítem</button>
+          </div>
         </div>
       </div>
     </header>
@@ -320,6 +336,7 @@
       [open]="modalParticipantesAbierto"
       [tarea]="tareaSeleccionada"
       [usuarios]="usuarios"
+      [roles]="roles"
       (cerrado)="cerrarModales()"
       (guardado)="onGuardado()"
     />

@@ -16,11 +16,27 @@ public partial class ImplementacionService : IImplementacionService
     private readonly ICurrentUser _current;
     private readonly IHttpContextAccessor _http;
 
-    public ImplementacionService(ZooSanMarinoContext ctx, ICurrentUser current, IHttpContextAccessor http)
+    /// <summary>
+    /// Los dos servicios de ItalJira, para el enlace del plan con el tablero (I1.2). Opcionales
+    /// porque el plan puede vivir sin tablero, que es el comportamiento previo; el enlace es un
+    /// pedido explícito. Se usan los MISMOS servicios que el tablero para no abrir un segundo
+    /// escritor de <c>historias</c> ni de <c>ticket_tareas</c>.
+    /// </summary>
+    private readonly IHistoriaService? _historias;
+    private readonly ITicketTareaService? _ticketTareas;
+
+    public ImplementacionService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser current,
+        IHttpContextAccessor http,
+        IHistoriaService? historias = null,
+        ITicketTareaService? ticketTareas = null)
     {
         _ctx = ctx;
         _current = current;
         _http = http;
+        _historias = historias;
+        _ticketTareas = ticketTareas;
     }
 
     /// <summary>Navegador desde el que llega la petición (evidencia de la firma; nunca del body).</summary>
@@ -89,7 +105,8 @@ public partial class ImplementacionService : IImplementacionService
             .Where(f => f.DeletedAt == null)
             .OrderBy(f => f.Id)
             .Select(MapFirma)
-            .ToList());
+            .ToList(),
+        t.TicketTareaId);
 
     /// <summary>Nombre completo + correo de un usuario por Guid (una consulta; (null, null) si no existe).</summary>
     private async Task<(string? Nombre, string? Email)> NombreYEmailAsync(Guid? userId, CancellationToken ct)

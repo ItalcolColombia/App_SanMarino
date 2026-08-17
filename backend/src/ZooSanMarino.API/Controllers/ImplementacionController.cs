@@ -80,6 +80,32 @@ public class ImplementacionController : ControllerBase
     public async Task<IActionResult> DeletePlan(int id, CancellationToken ct)
         => await _svc.DeletePlanAsync(id, ct) ? NoContent() : NotFound();
 
+    /// <summary>
+    /// Enlaza el plan con ItalJira: crea su historia si no la tiene y una tarea del tablero por cada
+    /// punto del checklist que todavía no tenga la suya. Idempotente: volver a llamarlo después de
+    /// agregar puntos crea sólo los que faltan.
+    /// </summary>
+    /// <remarks>
+    /// El permiso lo aplican los servicios de ItalJira (<c>tickets.gestionar</c>): un usuario que
+    /// gestiona la implementación pero no el tablero recibe 400 con el motivo, no un 500.
+    /// </remarks>
+    [HttpPost("planes/{id:int}/italjira")]
+    [ProducesResponseType(typeof(ImplementacionItalJiraDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SincronizarConItalJira(int id, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _svc.SincronizarConItalJiraAsync(id, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     // ── Tareas del checklist ─────────────────────────────────────────────────
 
     [HttpPost("planes/{id:int}/tareas")]
