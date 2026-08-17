@@ -2116,3 +2116,56 @@ un CRUD y una pantalla. Sin esto la plantilla es un dato que nadie puede cargar.
   **Agroavícola Sanmarino no tiene ni un ítem así** en su catálogo (61 ítems, 0 vacunas), así que su
   selector aparece vacío — en la pantalla nueva y también en la de Cronograma, que ya estaba en prod.
   Se cargan vacunas al catálogo o se relaja el filtro; no es de esta entrega.
+
+---
+
+# Vacunación W2 — el materializador: la plantilla baja al cronograma de los lotes
+
+**Plan:** [`fase_de_desarrollo/vacunacion_w2_materializador_plan.md`](fase_de_desarrollo/vacunacion_w2_materializador_plan.md)
+**Continúa:** W1.1-W1.4 (`a19807b`, `bd935cb`). Hasta hoy el plan sanitario se cargaba, se veía y se
+resolvía por lote — y **no bajaba a una sola fila de cronograma**.
+
+> 🔶 **Riesgo MEDIO declarado:** primera fase que escribe en datos de lotes vivos. Nada se escribe sin
+> que alguien lo pida y vea antes el impacto; el materializador **no borra jamás**.
+
+### W2.1 — Las dos columnas de origen
+- [x] W2.1.1 `OrigenPlantillaItemId` + `GeneradoAutomatico` en `VacunacionCronogramaItem` + configuration
+- [x] W2.1.2 FK a `vacunacion_plan_plantilla_item` con **`ON DELETE SET NULL`** (el ítem del lote es historia sanitaria: sobrevive al borrado del plan) — verificado en la BD: `confdeltype = n`
+- [x] W2.1.3 Índice único parcial con **`COALESCE(...,0)` en los 3 FK de línea** — sin eso no bloquea ni un duplicado
+- [x] W2.1.4 Migración `20260817133833_AddOrigenPlantillaAVacunacionCronograma`, idempotente y aditiva pura (`DEFAULT false` deja todo lo existente como «hecho a mano»)
+
+### W2.2 — `VacunacionMaterializadorCalculos` (puro, sin EF)
+- [x] W2.2.1 `Planificar` → `Faltantes` / `Actualizables` / `Preservados` / `Sobrantes`
+- [x] W2.2.2 Los 3 motivos de preservación separados: `YaAplicado`, `Manual`, `SinCambios` (+ 2 de sobrante: `PlantillaSinEseItem`, `Duplicado`, para que la función sea **total** y ninguna fila desaparezca del informe)
+- [x] W2.2.3 **25 tests xUnit**: idempotencia (2ª y 3ª pasada), aplicado intocable aun con la plantilla cambiada, manual intocable, los 6 campos que cuentan como cambio, sobrantes, listas disjuntas, determinismo ante el orden de entrada, entradas nulas
+
+### W2.3 — Servicio idempotente + preview
+- [x] W2.3.1 Ancla + `Funciones/Planificar` (lectura), `Funciones/Aplicar` (escritura) y `Funciones/Lotes` (consultas)
+- [x] W2.3.2 **Preview y aplicación comparten la misma función pura** — un preview que miente es peor que no tenerlo
+- [x] W2.3.3 Lotes vivos con **`estado IS DISTINCT FROM 'Cerrado'`**, nunca `= 'Abierto'` (el dato dice `'Abierto'` *y* `'Abierta'` según quién lo creó)
+- [x] W2.3.4 Masivo tolerante: el lote que falla queda reportado con su error y el recorrido sigue. `EscribirAsync` **reusa la transacción del llamador** si ya hay una (el enganche corre dentro del alta del lote) y deshace **sólo lo suyo** al fallar — limpiar el `ChangeTracker` entero descartaría el lote que el llamador todavía no guardó
+- [x] W2.3.5 `UpdateAsync` del cronograma **emancipa** el ítem (`generado_automatico → false`): una corrección a mano no la deshace el plan
+- [x] W2.3.6 Sin N+1: una consulta de plantillas, una de ítems y una de cronograma para **todos** los lotes del masivo
+
+### W2.4 — Endpoints, pantalla y enganche
+- [x] W2.4.1 `VacunacionMaterializadorController` (4 endpoints) + DI · escribir exige las **dos** claves (`plantillas.administrar` + `cronograma.administrar`): hoy misma población, mañana separables
+- [x] W2.4.2 Front: `modal-aplicar-plantilla` con preview obligatorio + botón «⇩ Aplicar a los lotes» en el detalle de la plantilla (`changeDetection: Eager`)
+- [x] W2.4.3 Front: el cronograma **avisa** «este lote tiene vacunas del plan sin programar» con botón por lote — ⛔ descartado el materializar-en-GET del plan madre (crearía filas a nombre de quien pasó a mirar)
+- [x] W2.4.4 Enganche al crear el lote en los 3 caminos normales, **fail-soft** (Levante `LoteService` · Producción `LotePosturaLevanteService` · Engorde `LoteAveEngordeService`). En la transición a producción va **después del commit**: adentro, un `SaveChanges` fallido abortaría la transacción en Postgres y se llevaría puesta la transición entera
+- [x] W2.4.5 Declarado, no omitido: carga masiva, puente Panamá y migraciones masivas **no** se enganchan — se cubren con el botón masivo
+
+### W2.5 — Validación
+- [x] W2.5.1 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.707 + 1 verdes** (2.682 previos + 25 nuevos) · `yarn build` 0 errores (único warning: el bundle budget preexistente) · `verificar-change-detection.js`: **227 componentes, 0 sin estrategia**
+- [x] W2.5.2 🔴 **Bug real que sólo se veía ejecutando la consulta**: filtrar por id (y por «no cerrado») **después** del `Select` a un record proyectado compila, pasa los tests y **revienta en runtime** — `PreviewLoteAsync` habría sido un 500 en **todos** los lotes. Los dos filtros pasaron a aplicarse sobre la entidad, antes de proyectar. Es el mismo golpe que V10.2 con `DateOnly`: sin ejecutar la query, llegaba a producción
+- [x] W2.5.3 **Smoke sobre el servicio REAL contra la BD local: 33/33 verificaciones, 0 fallas** (empresa 1, lote abierto A374A, raza AP). Sin plantillas ⇒ cero escrituras · aplicar ⇒ 3 filas con origen y `generado_automatico` · **2ª pasada: 0 altas, 0 updates y `updated_at` sin tocar** · registrar aplicación + mover la semana de las 3 ⇒ **la aplicada conserva la suya** y las otras 2 se alinean · editar por el CRUD ⇒ emancipa y la corrección sobrevive · quitar una vacuna del plan ⇒ sobrante, **no borrada** · masivo sobre 10 lotes sin errores y **re-correrlo no escribe** · otra empresa ⇒ «no existe» · plantilla inactiva ⇒ 400 con motivo
+- [x] W2.5.4 **Gate del índice único con filas reales** (la tabla está vacía en local, así que el conteo por sí solo no probaba nada): el mismo ítem 2× en el mismo lote ⇒ **bloqueado por la base**; el mismo ítem en otro lote ⇒ entra; dos ítems a mano (origen `NULL`) en el mismo lote ⇒ entran (el índice es parcial); borrar el ítem de plantilla y borrar la plantilla entera ⇒ **las 4 filas de cronograma sobreviven** con origen `NULL`
+- [x] W2.5.5 Migración validada **por transacción** (idempotencia probada corriendo el `Up()` dos veces) · **BD local devuelta a su estado exacto**: 0 filas de cronograma, sin tablas de W1.1, sin columnas de W2.1, historial en `20260814130000` (279 migraciones, **ninguna ajena aplicada**) · puertos `5002/5499/5501/4200/4300` libres
+
+### Honestidad sobre lo que NO se probó
+- El smoke corre el servicio con `ICurrentUser` y `ILocationScopeResolver` **falsos**: prueba el LINQ→SQL,
+  las escrituras y las reglas, pero **no** los permisos del controller ni el alcance por ubicación real.
+- El enganche al crear el lote se probó **llamando a `MaterializarAlCrearLoteAsync` directo** (devuelve 0
+  sin plantilla), no creando un lote por la API. Los 3 puntos de llamada están compilados y son fail-soft.
+- `vacunacion_cronograma_item` está **vacía en toda la BD local**, así que el «no rompe lo existente» se
+  apoya en el `DEFAULT false` de la migración y en el diseño (origen `NULL` ⇒ invisible para el
+  materializador), no en un conteo sobre datos viejos.

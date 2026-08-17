@@ -248,6 +248,7 @@ builder.Services.AddScoped<IVacunacionCronogramaService, VacunacionCronogramaSer
 builder.Services.AddScoped<IVacunacionRegistroService, VacunacionRegistroService>();
 builder.Services.AddScoped<IVacunacionReportesService, VacunacionReportesService>();
 builder.Services.AddScoped<IVacunacionPlantillaService, VacunacionPlantillaService>();
+builder.Services.AddScoped<IVacunacionMaterializadorService, VacunacionMaterializadorService>();
 builder.Services.AddScoped<IImplementacionService, ImplementacionService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();

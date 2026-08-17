@@ -9,6 +9,7 @@ import { ConfirmDialogService } from '../../../../shared/services/confirm-dialog
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { ModalPlantillaComponent } from '../../components/modal-plantilla/modal-plantilla.component';
 import { ModalItemPlantillaComponent } from '../../components/modal-item-plantilla/modal-item-plantilla.component';
+import { ModalAplicarPlantillaComponent } from '../../components/modal-aplicar-plantilla/modal-aplicar-plantilla.component';
 import {
   advertenciaPlantilla,
   describirAlcance,
@@ -51,7 +52,14 @@ interface FilaItemPlantilla {
   changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-vacunacion-plantillas',
   standalone: true,
-  imports: [CommonModule, FormsModule, HasPermissionDirective, ModalPlantillaComponent, ModalItemPlantillaComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    HasPermissionDirective,
+    ModalPlantillaComponent,
+    ModalItemPlantillaComponent,
+    ModalAplicarPlantillaComponent,
+  ],
   templateUrl: './plantillas.page.html',
 })
 export class PlantillasPage implements OnInit {
@@ -84,8 +92,10 @@ export class PlantillasPage implements OnInit {
 
   modalPlantillaAbierto = false;
   modalItemAbierto = false;
+  modalAplicarAbierto = false;
   plantillaEditar: VacunacionPlantillaDetalleDto | null = null;
   itemEditar: VacunacionPlantillaItemDto | null = null;
+  plantillaAplicar: VacunacionPlantillaDto | null = null;
 
   /** Crudo, para el export (las filas son solo presentación). */
   private plantillas: VacunacionPlantillaDto[] = [];
@@ -280,6 +290,39 @@ export class PlantillasPage implements OnInit {
     } catch {
       this.toast.error('No se pudo quitar la vacuna del plan.');
     }
+  }
+
+  // ─── Bajar el plan a los lotes (W2) ───────────────────────────────────────
+
+  /**
+   * Abre la vista previa. El botón que escribe está dentro del modal, después del impacto: es la
+   * única acción del módulo que toca cronogramas de lotes vivos y no se dispara desde una lista.
+   */
+  abrirAplicarPlan(): void {
+    if (!this.seleccionada) return;
+    // El modal solo necesita id y nombre; se arma desde el detalle para no depender de que la fila
+    // de la lista esté sincronizada con lo que se acaba de editar.
+    this.plantillaAplicar = this.filas.find((f) => f.plantilla.id === this.seleccionada!.id)?.plantilla ?? {
+      id: this.seleccionada.id,
+      nombre: this.seleccionada.nombre,
+      lineaProductiva: this.seleccionada.lineaProductiva,
+      raza: this.seleccionada.raza,
+      vigenteDesde: this.seleccionada.vigenteDesde,
+      activa: this.seleccionada.activa,
+      notas: this.seleccionada.notas,
+      cantidadItems: this.seleccionada.items.length,
+    };
+    this.modalAplicarAbierto = true;
+  }
+
+  cerrarModalAplicar(): void {
+    this.modalAplicarAbierto = false;
+    this.plantillaAplicar = null;
+  }
+
+  /** Se escribieron cronogramas: la vista previa del lote elegido puede haber cambiado. */
+  async onPlanAplicado(): Promise<void> {
+    await this.refrescarPreview();
   }
 
   // ─── Vista previa: qué plantilla le toca a un lote ─────────────────────────

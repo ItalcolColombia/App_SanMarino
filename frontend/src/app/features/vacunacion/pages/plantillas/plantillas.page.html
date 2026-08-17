@@ -162,6 +162,21 @@
         >
           ✎ Editar cabecera
         </button>
+        <!-- Abre la vista previa; el botón que escribe vive adentro, después del impacto. -->
+        <button
+          type="button"
+          *appHasPermission="'vacunacion.cronograma.administrar'"
+          class="btn-ghost text-sm"
+          [disabled]="!seleccionada.items.length"
+          [title]="
+            seleccionada.items.length
+              ? 'Ver qué pasaría con el cronograma de los lotes que toman esta plantilla'
+              : 'Agregá al menos una vacuna antes de aplicar el plan'
+          "
+          (click)="abrirAplicarPlan()"
+        >
+          ⇩ Aplicar a los lotes
+        </button>
         <button
           type="button"
           *appHasPermission="'vacunacion.plantillas.administrar'"
@@ -318,3 +333,10 @@
   (cerrado)="cerrarModalItem()"
   (guardado)="onItemGuardado()"
 ></app-modal-item-plantilla>
+
+<app-modal-aplicar-plantilla
+  [open]="modalAplicarAbierto"
+  [plantilla]="plantillaAplicar"
+  (cerrado)="cerrarModalAplicar()"
+  (aplicadoOk)="onPlanAplicado()"
+></app-modal-aplicar-plantilla>

@@ -18,6 +18,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     private readonly IUserPermissionService _userPermissionService;
     private readonly IUserFarmService _userFarmService;
     private readonly ILocationScopeResolver _scopeResolver;
+    private readonly IVacunacionMaterializadorService _vacunacionMaterializador;
     private readonly IArrastreHuevosLevanteService? _arrastreHuevos;
 
     public LotePosturaLevanteService(
@@ -27,6 +28,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         IUserPermissionService userPermissionService,
         IUserFarmService userFarmService,
         ILocationScopeResolver scopeResolver,
+        IVacunacionMaterializadorService vacunacionMaterializador,
         IArrastreHuevosLevanteService? arrastreHuevos = null)
     {
         _ctx = ctx;
@@ -35,6 +37,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         _userPermissionService = userPermissionService;
         _userFarmService = userFarmService;
         _scopeResolver = scopeResolver;
+        _vacunacionMaterializador = vacunacionMaterializador;
         _arrastreHuevos = arrastreHuevos;
     }
 
@@ -449,6 +452,13 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
             await tx.RollbackAsync(ct);
             throw;
         }
+
+        // Plan sanitario de PRODUCCIÓN → cronograma del lote que acaba de nacer. Va DESPUÉS del commit
+        // a propósito: adentro, un SaveChanges que fallara abortaría la transacción a nivel Postgres y
+        // se llevaría puesta la transición entera, que es justo lo que el fail-soft quiere evitar.
+        // MaterializarAlCrearLoteAsync nunca lanza y no escribe nada si la empresa no tiene plantilla.
+        if (prod.LotePosturaProduccionId is { } prodId)
+            await _vacunacionMaterializador.MaterializarAlCrearLoteAsync("Produccion", prodId, ct);
 
         return await GetByIdAsync(lotePosturaLevanteId, ct);
     }

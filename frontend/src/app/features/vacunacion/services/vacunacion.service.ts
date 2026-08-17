@@ -26,6 +26,10 @@ import {
   VacunacionPlantillaItemUpdateRequest,
   VacunacionPlantillaEfectivaDto,
 } from '../models/vacunacion-plantilla.model';
+import {
+  VacunacionMaterializacionLoteDto,
+  VacunacionMaterializacionMasivaDto,
+} from '../models/vacunacion-materializador.model';
 
 /** Vida de la caché de filter-data: navegar entre las páginas del módulo no re-descarga;
  *  un cambio de empresa/granja hecho en otro módulo se ve como muy tarde a los 5 minutos. */
@@ -37,6 +41,7 @@ export class VacunacionService {
   private readonly registroBase = `${environment.apiUrl}/VacunacionRegistro`;
   private readonly reportesBase = `${environment.apiUrl}/VacunacionReportes`;
   private readonly plantillaBase = `${environment.apiUrl}/VacunacionPlantilla`;
+  private readonly materializadorBase = `${environment.apiUrl}/VacunacionMaterializador`;
 
   private filterData$: Observable<VacunacionFilterDataDto> | null = null;
   private filterDataTs = 0;
@@ -151,5 +156,47 @@ export class VacunacionService {
     return this.http.get<VacunacionPlantillaEfectivaDto>(`${this.plantillaBase}/efectiva`, {
       params: { lineaProductiva, loteId },
     });
+  }
+
+  // ─── Materializador: del plan al cronograma (W2) ───────────────────────────
+  //
+  // Cada preview y su aplicar devuelven el MISMO informe: el backend los calcula con la misma función
+  // pura, así que lo que la pantalla muestra antes de confirmar es lo que se escribe. Aplicar es
+  // idempotente y nunca borra una fila del cronograma.
+
+  /** Qué pasaría con el cronograma de un lote. No escribe. */
+  previewMaterializacionLote(
+    lineaProductiva: LineaProductiva,
+    loteId: number
+  ): Observable<VacunacionMaterializacionLoteDto> {
+    return this.http.get<VacunacionMaterializacionLoteDto>(`${this.materializadorBase}/preview`, {
+      params: { lineaProductiva, loteId },
+    });
+  }
+
+  /** Aplica el plan a un lote. Correrlo de nuevo no escribe nada. */
+  aplicarMaterializacionLote(
+    lineaProductiva: LineaProductiva,
+    loteId: number
+  ): Observable<VacunacionMaterializacionLoteDto> {
+    return this.http.post<VacunacionMaterializacionLoteDto>(`${this.materializadorBase}/lote`, {
+      lineaProductiva,
+      loteId,
+    });
+  }
+
+  /** Qué pasaría con todos los lotes abiertos a los que hoy les toca esta plantilla. No escribe. */
+  previewMaterializacionPlantilla(plantillaId: number): Observable<VacunacionMaterializacionMasivaDto> {
+    return this.http.get<VacunacionMaterializacionMasivaDto>(`${this.materializadorBase}/preview-masivo`, {
+      params: { plantillaId },
+    });
+  }
+
+  /** Aplica la plantilla a sus lotes, uno por transacción: el que falle no arrastra a los otros. */
+  aplicarMaterializacionPlantilla(plantillaId: number): Observable<VacunacionMaterializacionMasivaDto> {
+    return this.http.post<VacunacionMaterializacionMasivaDto>(
+      `${this.materializadorBase}/plantilla/${plantillaId}/aplicar`,
+      {}
+    );
   }
 }
