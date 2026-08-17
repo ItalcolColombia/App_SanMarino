@@ -1199,9 +1199,17 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el segui
   /** seguimientoId → estado. Solo trae los NO validados: lo ausente ya se descontó. */
   estadoValidacionPorId = new Map<number, string>();
 
-  /** Permiso de validar. Sin él la columna se ve pero el ✓ no aparece. */
+  /**
+   * Permiso de validar Y empresa en doble validación.
+   *
+   * El flag hacía falta: sin él, un usuario con el permiso veía el ✓ en una empresa que NO opera con
+   * doble validación, donde el registro ya descontó al guardar. Apretarlo no rompe nada en el backend
+   * —no hay reservas que aplicar— pero marca el registro como validado y lo deja de solo lectura sin
+   * que nadie lo haya pedido. `requiereValidacion` viene de `/pendientes` y es fail-closed: ante error
+   * queda en false y el botón no se muestra.
+   */
   get puedeValidar(): boolean {
-    return this.permSvc.has(this.PERM_VALIDAR);
+    return this.requiereValidacion && this.permSvc.has(this.PERM_VALIDAR);
   }
 
   /**

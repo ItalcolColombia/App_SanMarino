@@ -243,6 +243,68 @@ public class ReservaSeguimientoCalculosTests
             esperado, kg: 120m, paisId, loteRef: "A374A"));
     }
 
+    // ─── Aves: validar no puede recortar, porque des-validar no recorta ──────
+    // El descuento de aves recorta en cero y ese clamp es histórico (no se toca: movería saldos de
+    // todas las empresas). Pero el clamp hace la operación NO reversible, así que la doble validación
+    // se niega a validar cuando el saldo no alcanza. Verificado en runtime: un lote en 0 quedó en 5
+    // después de validar y des-validar.
+
+    [Fact]
+    public void SaldoInsuficiente_NoSePuedeValidar()
+    {
+        var motivo = ReservaSeguimientoCalculos.MotivoAvesNoAplicable(
+            disponibleTotal: 0, bajasTotal: 5, loteRef: "LOTE 235A");
+
+        Assert.NotNull(motivo);
+        Assert.Contains("LOTE 235A", motivo);
+        Assert.Contains("5", motivo);
+    }
+
+    [Fact]
+    public void SaldoJusto_SePuedeValidar()
+    {
+        // El borde exacto sí pasa: descontar las últimas aves del lote es legítimo.
+        Assert.Null(ReservaSeguimientoCalculos.MotivoAvesNoAplicable(5, 5, "A374A"));
+        Assert.Null(ReservaSeguimientoCalculos.MotivoAvesNoAplicable(5_000, 150, "A374A"));
+    }
+
+    [Fact]
+    public void DiaSinBajas_NoReclamaSaldo()
+    {
+        // Un registro que solo carga alimento no tiene por qué exigir aves.
+        Assert.Null(ReservaSeguimientoCalculos.MotivoAvesNoAplicable(0, 0, "A374A"));
+    }
+
+    [Fact]
+    public void ElClampEsLoQueRompeLaReversibilidad()
+    {
+        // Documenta el porqué del guard, con la aritmética a la vista: saldo 0, bajas 5.
+        // Validar recorta a 0; des-validar suma 5 sin recortar ⇒ el lote gana 5 aves que no existen.
+        const int saldo = 0, bajas = 5;
+
+        var trasValidar = DescuentoAvesSeguimientoCalculos.AplicarDelta(saldo, -bajas);
+        var trasDesvalidar = DescuentoAvesSeguimientoCalculos.AplicarDelta(trasValidar, bajas);
+
+        Assert.Equal(0, trasValidar);
+        Assert.Equal(5, trasDesvalidar);
+        Assert.NotEqual(saldo, trasDesvalidar);   // el número infló: por eso se rechaza antes
+
+        Assert.NotNull(ReservaSeguimientoCalculos.MotivoAvesNoAplicable(saldo, bajas, "LOTE 235A"));
+    }
+
+    [Fact]
+    public void ConSaldoSuficiente_ValidarYDesvalidarSonReversibles()
+    {
+        const int saldo = 7_544, bajas = 5;
+
+        var trasValidar = DescuentoAvesSeguimientoCalculos.AplicarDelta(saldo, -bajas);
+        var trasDesvalidar = DescuentoAvesSeguimientoCalculos.AplicarDelta(trasValidar, bajas);
+
+        Assert.Equal(7_539, trasValidar);
+        Assert.Equal(saldo, trasDesvalidar);
+        Assert.Null(ReservaSeguimientoCalculos.MotivoAvesNoAplicable(saldo, bajas, "A374A"));
+    }
+
     [Fact]
     public void FlagApagado_NoHayReservasYNadaQueAplicar()
     {

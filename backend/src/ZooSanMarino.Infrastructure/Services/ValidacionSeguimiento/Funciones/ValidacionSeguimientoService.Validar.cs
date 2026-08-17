@@ -148,6 +148,42 @@ public partial class ValidacionSeguimientoService
     // ─── Aplicación del efecto ────────────────────────────────────────────────
 
     /// <summary>
+    /// Aves que el maestro del lote tiene HOY, sumando los tres buckets. <c>null</c> cuando el módulo
+    /// no escribe un maestro de aves (producción, cuyo saldo lo manda la fn SQL, y reproductora, cuyas
+    /// bajas las produce el cruce) — ahí no hay nada que comprobar.
+    /// </summary>
+    private async Task<int?> LeerSaldoAvesDelLoteAsync(
+        string modulo, SeguimientoReservaAves r, int? lotePosturaLevanteId, CancellationToken ct)
+    {
+        switch (modulo)
+        {
+            case ModuloSeguimiento.Levante:
+            {
+                var lplId = lotePosturaLevanteId ?? r.LoteRefInt;
+                var saldo = await _ctx.LotePosturaLevante.AsNoTracking()
+                    .Where(l => l.LotePosturaLevanteId == lplId && l.DeletedAt == null)
+                    .Select(l => new { l.AvesHActual, l.AvesMActual })
+                    .FirstOrDefaultAsync(ct);
+                if (saldo is null) return null;
+                return (saldo.AvesHActual ?? 0) + (saldo.AvesMActual ?? 0);
+            }
+            case ModuloSeguimiento.Engorde:
+            case ModuloSeguimiento.EngordeEcuador:
+            {
+                var saldo = await _ctx.LoteAveEngorde.AsNoTracking()
+                    .Where(l => l.LoteAveEngordeId == r.LoteRefInt && l.CompanyId == r.CompanyId
+                             && l.DeletedAt == null)
+                    .Select(l => new { l.HembrasL, l.MachosL, l.Mixtas })
+                    .FirstOrDefaultAsync(ct);
+                if (saldo is null) return null;
+                return (saldo.HembrasL ?? 0) + (saldo.MachosL ?? 0) + (saldo.Mixtas ?? 0);
+            }
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
     /// Descuenta (o devuelve) el alimento de las reservas, por el mismo camino de inventario que
     /// habría usado el Crud: Colombia por el servicio atómico a nivel granja, Ecuador y Panamá por
     /// inventario_gestion con núcleo y galpón. El modelo se resuelve con el <c>pais_id</c> que la
@@ -268,6 +304,20 @@ public partial class ValidacionSeguimientoService
             var machos = r.Machos;
             if (hembras <= 0 && machos <= 0) continue;
             total += hembras + machos;
+
+            // Al VALIDAR se exige saldo suficiente. Sin esto el descuento recorta en cero y
+            // des-validar suma de vuelta el número entero: el lote termina con más aves de las que
+            // tenía. Al DEVOLVER no se comprueba nada — devolver siempre puede.
+            if (!devolver)
+            {
+                var disponible = await LeerSaldoAvesDelLoteAsync(modulo, r, loteLevante?.LotePosturaLevanteId, ct);
+                if (disponible is int saldo)
+                {
+                    var motivo = ReservaSeguimientoCalculos.MotivoAvesNoAplicable(
+                        saldo, hembras + machos, r.LoteRef);
+                    if (motivo is not null) throw new InvalidOperationException(motivo);
+                }
+            }
 
             switch (modulo)
             {

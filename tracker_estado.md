@@ -5708,9 +5708,24 @@ baseline de las 129, flags en su valor original, puertos libres.
 ### H8 — Encontrado POR el smoke: producción escribía `farm_id = 0`
 - [x] V7.28 Un LPP vivo cuyo lote base está soft-deleted (Demo, lpp 8 → lote 119) hacía que `ResolverGranjaYModeloAsync` devolviera `(null, null, Ninguno)` y la reserva se insertara con `farm_id = 0` ⇒ **500 por FK**, dejando además el seguimiento persistido **sin reserva**. Ahora se rechaza con 400 y mensaje claro **antes** de persistir; verificado: sin registro huérfano
 
-### Observaciones del smoke (no corregidas)
-- [ ] V7.29 `DescuentoAvesPosturaAplicador` recorta el saldo en 0 (`Math.Max`), así que sobre un lote en 0 validar→desvalidar **no es reversible**: infla el saldo por las bajas. Es **preexistente** y compartido con el camino del flag apagado; tocarlo cambia números de todas las empresas
-- [ ] V7.30 En engorde Panamá, el mismo consumo enviado en el bloque `itemsGenerales` lo rechaza el guard de alimento («figura como otros ítems») mientras que en `itemsHembras` pasa. `BuildMetadata` sí escribe `itemsGenerales` y `ParseKgPorBloque` sí lo lee: **queda sin explicar**, hay que investigarlo antes de afirmar nada
+### Las dos observaciones del smoke: investigadas y cerradas
+- [x] V7.29 **Corregida.** El clamp de `DescuentoAvesSeguimientoCalculos.AplicarDelta` recorta en 0 y su propio doc ya decía que eso hace la operación **no reversible** —y que cambiarlo movería saldos históricos, así que no se toca—. El arreglo va donde corresponde: **validar exige saldo suficiente y se rechaza si no alcanza**, igual que el alimento ya se rechaza con `ValidarStockConsumoAsync`. Así el clamp nunca se alcanza desde este camino. `ReservaSeguimientoCalculos.MotivoAvesNoAplicable` + 5 tests. Verificado en runtime: 8.554 bajas sobre un saldo de 8.544 → **400**, saldo intacto, registro sin validar; y el lote de Demo que antes se inflaba de 0 a 5 ahora queda en **0**
+- [x] V7.30 **No era un bug.** `AlimentoObligatorioCalculos` documenta que `itemsGenerales` es la bolsa de «otros ítems» y **nunca satisface la regla** (`KgQueCuentan = KgHembras + KgMachos`), y el modal de engorde solo tiene los arrays `itemsHembras`/`itemsMachos`: en Panamá la columna Mixto escribe en **`itemsHembras`**. Mi smoke usó el bloque equivocado. Sin cambios
+
+### H9 — Los traslados creaban filas que bloqueaban el lote
+- [x] V7.31 Las 4 filas que arma `TrasladoAvesDesdeSegService.Traslado` (salida/ingreso de levante y de producción) nacían con `validado=false` sin reserva: en una empresa con el flag encendido aparecían pendientes y a las 24 h **bloqueaban el alta de días nuevos** sin haber nada que validar. El traslado ya movió el maestro ⇒ nacen validadas
+
+### H10 — El botón Validar se veía con el flag apagado (y en más pantallas de las reportadas)
+- [x] V7.32 `puedeValidar` miraba **solo el permiso** en las tres listas —producción, **levante** y **engorde**, no solo producción como decía el reporte—. Con el flag apagado el ✓ aparecía sobre registros que ya habían descontado al guardar, y apretarlo los dejaba de solo lectura sin que nadie lo pidiera. Ahora exige además `requiereValidacion`, que es fail-closed
+
+### Barrido final
+- [x] V7.33 **Las 5 empresas, de nuevo y completo.** Sanmarino (levante con `pais_id` NULL + producción + flag OFF + saldo insuficiente), Demo, ItalcolPanama, ItalcolEcuador, Santa Reyes (aislamiento entre empresas). Restaurado con **0 tablas con diferencia** sobre las 129
+- [x] V7.34 `dotnet build` 0 errores · `dotnet test` **2613 en verde** · `yarn build` OK (único warning, el de budget preexistente) · flags originales, 0 reservas activas, puertos libres
+
+### Sigue abierto (necesita diseño propio, no entra acá)
+- [ ] V7.35 El bloqueo por vencidos se evalúa **por fila**: corta la carga masiva histórica y el puente Panamá después del primer día insertado. Necesita evaluarse una vez por import
+- [ ] V7.36 El guard de alimento mide solo el metadata; el puente Panamá manda los kg en `ConsumoKgHembras/Machos` ⇒ con el flag ON no importa un solo día
+- [ ] V7.37 El saldo de alimento y el cuadre de engorde se recalculan ignorando `validado`. Tocar `fn_seguimiento_diario_engorde` exige el **gate de paridad multipaís**
 
 ### Hallazgos confirmados que NO entran en esta entrega
 - [ ] V7.23 El bloqueo por vencidos corta la **carga masiva histórica** y el **puente Panamá** después del primer día insertado: el gate se evalúa por fila. Necesita evaluarse una vez por import

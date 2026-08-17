@@ -184,4 +184,36 @@ public static class ReservaSeguimientoCalculos
                $"resolver (pais_id {paisId}), así que no hay inventario contra el cual descontarlos. " +
                "Corregí el país del lote o de su granja y volvé a guardar el registro.";
     }
+
+    /// <summary>
+    /// Motivo por el que las aves separadas <b>no se pueden descontar</b>, o <c>null</c> si sí.
+    ///
+    /// <para>
+    /// El descuento de aves <b>recorta en cero</b> (<c>DescuentoAvesSeguimientoCalculos.AplicarDelta</c>
+    /// y <c>RetiroAvesEngordeCalculos</c>), y ese clamp es histórico: cambiarlo movería saldos de todas
+    /// las empresas, así que no se toca. Pero el clamp hace que la operación <b>no sea reversible</b>:
+    /// si el saldo llega a 0 y se sigue descontando, des-validar suma de vuelta el número completo y
+    /// deja el lote con MÁS aves de las que tenía. Verificado en runtime: un lote en 0 pasó a 5 tras
+    /// validar y des-validar.
+    /// </para>
+    ///
+    /// <para>
+    /// Por eso la doble validación no valida a medias: si el saldo no alcanza, se rechaza — igual que
+    /// el alimento, que ya se rechaza con <c>ValidarStockConsumoAsync</c> cuando falta stock. Así el
+    /// clamp nunca se alcanza desde este camino y validar/des-validar es reversible por construcción.
+    /// Con el flag apagado nada de esto corre: el comportamiento previo queda intacto.
+    /// </para>
+    /// </summary>
+    /// <param name="disponibleTotal">Aves del maestro, sumando los tres buckets.</param>
+    /// <param name="bajasTotal">Aves separadas por el registro, sumando los tres buckets.</param>
+    /// <param name="loteRef">Lote legible, para que el mensaje diga sobre qué actuar.</param>
+    public static string? MotivoAvesNoAplicable(int disponibleTotal, int bajasTotal, string? loteRef)
+    {
+        if (bajasTotal <= 0) return null;
+        if (disponibleTotal >= bajasTotal) return null;
+
+        var lote = string.IsNullOrWhiteSpace(loteRef) ? "" : $" del lote '{loteRef}'";
+        return $"No se puede validar: el registro da de baja {bajasTotal} aves{lote} y el saldo tiene " +
+               $"{disponibleTotal}. Corregí las bajas del registro, o el saldo del lote, antes de validar.";
+    }
 }

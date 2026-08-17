@@ -358,6 +358,11 @@ public partial class TrasladoAvesDesdeSegService
         {
             segSalida = new SeguimientoDiario
             {
+                // El traslado YA movió el maestro y no separa nada: la fila nace validada. Con
+                // `validado = false` (el default) estas filas aparecían pendientes en las empresas con
+                // doble validación y, a las 24 h, BLOQUEABAN el alta de días nuevos del lote sin que
+                // hubiera nada que validar — mismo defecto que tenían los Crud.
+                Validado = true,
                 TipoSeguimiento = "levante",
                 LoteId = lplOrigen.LoteId!.Value.ToString(),
                 LotePosturaLevanteId = lplOrigen.LotePosturaLevanteId,
@@ -411,6 +416,11 @@ public partial class TrasladoAvesDesdeSegService
         {
             segIngreso = new SeguimientoDiario
             {
+                // El traslado YA movió el maestro y no separa nada: la fila nace validada. Con
+                // `validado = false` (el default) estas filas aparecían pendientes en las empresas con
+                // doble validación y, a las 24 h, BLOQUEABAN el alta de días nuevos del lote sin que
+                // hubiera nada que validar — mismo defecto que tenían los Crud.
+                Validado = true,
                 TipoSeguimiento = "levante",
                 LoteId = lplDestino.LoteId!.Value.ToString(),
                 LotePosturaLevanteId = lplDestino.LotePosturaLevanteId,
@@ -465,6 +475,11 @@ public partial class TrasladoAvesDesdeSegService
         {
             segSalidaP = new SeguimientoProduccion
             {
+                // El traslado YA movió el maestro y no separa nada: la fila nace validada. Con
+                // `validado = false` (el default) estas filas aparecían pendientes en las empresas con
+                // doble validación y, a las 24 h, BLOQUEABAN el alta de días nuevos del lote sin que
+                // hubiera nada que validar — mismo defecto que tenían los Crud.
+                Validado = true,
                 LoteId = lppOrigen.LoteId!.Value,
                 Fecha = fechaAncla,
                 MortalidadH = 0, MortalidadM = 0,
@@ -519,6 +534,11 @@ public partial class TrasladoAvesDesdeSegService
         {
             segIngresoP = new SeguimientoProduccion
             {
+                // El traslado YA movió el maestro y no separa nada: la fila nace validada. Con
+                // `validado = false` (el default) estas filas aparecían pendientes en las empresas con
+                // doble validación y, a las 24 h, BLOQUEABAN el alta de días nuevos del lote sin que
+                // hubiera nada que validar — mismo defecto que tenían los Crud.
+                Validado = true,
                 LoteId = lppDestino.LoteId!.Value,
                 Fecha = fechaAncla,
                 MortalidadH = 0, MortalidadM = 0,

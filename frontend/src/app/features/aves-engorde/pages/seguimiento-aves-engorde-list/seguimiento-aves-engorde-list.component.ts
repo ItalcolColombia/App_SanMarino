@@ -172,9 +172,13 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   /** seguimientoId → estado. Solo trae los NO validados: lo ausente ya se descontó. */
   estadoValidacionPorId = new Map<number, string>();
 
-  /** Permiso de validar. Sin él la columna se ve pero el ✓ no aparece. */
+  /**
+   * Permiso de validar Y empresa en doble validación. Sin el flag, un usuario con el permiso veía el
+   * ✓ en una empresa donde el registro ya descontó al guardar, y apretarlo lo dejaba de solo lectura
+   * sin que nadie lo pidiera. `requiereValidacion` sale de `/pendientes` y es fail-closed.
+   */
   get puedeValidar(): boolean {
-    return this.permSvc.has(this.PERM_VALIDAR);
+    return this.requiereValidacion && this.permSvc.has(this.PERM_VALIDAR);
   }
 
   /**
