@@ -1,10 +1,12 @@
 # Informe técnico — La plataforma no puede enviar correos desde producción
 
-**Fecha:** 12 de agosto de 2026
+**Fecha:** 12 de agosto de 2026 · **cifras actualizadas al 17 de agosto de 2026**
 **Sistema afectado:** ItalGranja / Zootécnico San Marino (`https://zootecnico.sanmarino.com.co`)
 **Buzón emisor:** `zootecnico@sanmarino.com.co`
-**Impacto:** ningún correo automático sale desde producción desde el **3 de junio de 2026**.
-Afecta la recuperación de contraseña, el alta de usuarios y las notificaciones de tickets.
+**Impacto:** ningún correo automático sale desde producción desde el **3 de junio de 2026** — a hoy,
+**75 días y 71 correos sin entregar**: 20 recuperaciones de contraseña, 16 altas de usuario y 35
+notificaciones de tickets. El último intento fallido es del **15 de agosto de 2026**, así que el
+problema sigue activo.
 
 ---
 
@@ -41,7 +43,7 @@ que hoy usa el sistema.
 | 2 | Envío real de un correo con el mismo código del sistema (.NET 10) | ✅ **Entregado** a un buzón de Gmail |
 | 3 | Flujo completo de la aplicación (solicitud de recuperación → cola → envío) | ✅ `sent` en **18 segundos**, sin reintentos |
 | 4 | Configuración desplegada en producción (definición de tarea ECS, revisión 154) | ✅ **Idéntica** a la usada en las pruebas 1-3 |
-| 5 | Comportamiento en producción (registro de la cola de correos) | ❌ 73 correos fallidos desde el 3-jun-2026 |
+| 5 | Comportamiento en producción (registro de la cola de correos) | ❌ **71 correos fallidos** desde el 3-jun-2026 (medido el 17-ago) |
 
 **Conclusión:** credenciales correctas ✅ · código correcto ✅ · protocolo correcto ✅ ·
 configuración de producción correcta ✅. La única variable que difiere entre el caso que funciona y
