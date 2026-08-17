@@ -1550,32 +1550,13 @@ public partial class InventarioGestionService : IInventarioGestionService
     public async Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad de consumo debe ser positiva.");
-        var item = await _db.ItemInventario.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
-        if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
-        var isAlimento = IsAlimento(item);
 
-        // El lote consume de SU silo. La validacion de que el silo este entre los del lote es de la
-        // Fase C (la hace el service de consumo del seguimiento diario, que es quien conoce el lote);
-        // acá se garantiza lo que este camino sí puede garantizar: que el silo sea de esta granja.
-        var modoConsumo = await ResolverModoUbicacionAsync(req.FarmId, ct);
-        var errorSiloConsumo = InventarioUbicacionSiloCalculos.ValidarUbicacion(
-            modoConsumo, req.SiloId, req.GalponId, isAlimento);
-        if (errorSiloConsumo is not null) throw new InvalidOperationException(errorSiloConsumo);
-
-        if (modoConsumo == ModoUbicacionInventario.PorSilo)
-            await ValidarSiloDeGranjaAsync(req.FarmId, req.SiloId!.Value, ct);
-        else if (isAlimento && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
-            throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
-
-        if (modoConsumo == ModoUbicacionInventario.Clasico && !isAlimento &&
-            (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
-            req = req with { NucleoId = null, GalponId = null };
-
-        var (nucleoId, galponId, siloId) = InventarioUbicacionSiloCalculos.NormalizarUbicacion(
-            modoConsumo,
-            isAlimento && modoConsumo == ModoUbicacionInventario.Clasico ? req.NucleoId!.Trim() : null,
-            isAlimento && modoConsumo == ModoUbicacionInventario.Clasico ? req.GalponId!.Trim() : null,
-            req.SiloId);
+        // La resolución de la ubicación vive en un solo lugar porque `ValidarStockConsumoAsync` la
+        // necesita IDÉNTICA: si la validación previa buscara el stock en otra clave que el descuento,
+        // aprobaría un consumo que después falla —o al revés— y volveríamos a tener dos verdades
+        // sobre el mismo número.
+        var (item, nucleoId, galponId, siloId) = await ResolverUbicacionConsumoAsync(req, ct);
+        req = AjustarUbicacionRequest(req, item);
 
         // A2 — descuento ATÓMICO. Antes esto era read-modify-write:
         //     if (stock.Quantity < req.Quantity) throw;  stock.Quantity -= req.Quantity;

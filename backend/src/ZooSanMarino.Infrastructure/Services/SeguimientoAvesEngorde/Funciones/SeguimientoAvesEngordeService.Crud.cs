@@ -229,6 +229,14 @@ public partial class SeguimientoAvesEngordeService
         }
         else
         {
+            // El stock se comprueba ANTES de guardar. Antes el registro se persistía primero y el
+            // consumo iba después dentro de un catch que se comía el rechazo: se podía cargar un día
+            // de un alimento sin un solo kilo en el galpón.
+            if (!separa && _inventarioGestionService != null && dto.Metadata != null && modeloInv == ModeloInventarioConsumo.ModeloB)
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(),
+                    ParseMetadataItemsToKg(dto.Metadata.RootElement));
+
             await _ctx.SaveChangesAsync();
 
             // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B (con núcleo/galpón).
@@ -462,6 +470,21 @@ public partial class SeguimientoAvesEngordeService
         }
         else
         {
+            // Solo los INCREMENTOS consumen: una edición a la baja devuelve, y devolver nunca puede
+            // quedarse sin stock. Se comprueban antes de guardar, igual que en el alta.
+            if (!separa && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+                modeloInv == ModeloInventarioConsumo.ModeloB)
+            {
+                var incrementos = new Dictionary<int, decimal>();
+                foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(newByItemIdInv.Keys)))
+                {
+                    var diff = newByItemIdInv.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                    if (diff > 0) incrementos[itemId] = diff;
+                }
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), incrementos);
+            }
+
             await _ctx.SaveChangesAsync();
 
             // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B (con núcleo/galpón).

@@ -268,6 +268,22 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                 ModuloSeguimiento.Reproductora, loteEsMixto: false, dto.Metadata, dto.FechaRegistro);
         }
 
+        // El stock se comprueba ANTES de guardar. Antes el registro se persistía primero y el consumo
+        // iba después dentro de un catch que ni siquiera logueaba (Console.WriteLine): se podía cargar
+        // un día de un alimento sin un solo kilo en el galpón y nadie se enteraba.
+        if (!separa && _inventarioGestionService != null && dto.Metadata != null)
+        {
+            var ubicacionPrev = await GetLoteUbicacionAsync(dto.LoteId);
+            if (ubicacionPrev.HasValue &&
+                InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrev.Value.FarmId)))
+            {
+                var (farmPrev, nucPrev, galPrev) = ubicacionPrev.Value;
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    farmPrev, nucPrev?.Trim(), galPrev?.Trim(),
+                    ParseMetadataItemsToKg(dto.Metadata.RootElement));
+            }
+        }
+
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
 
@@ -409,6 +425,29 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         // La entidad se cargó con una query con joins AsNoTracking → NO queda rastreada,
         // por lo que asignar propiedades no emite UPDATE. Forzar el estado Modified para
         // persistir TODAS las columnas (incl. fecha y jsonb) y disparar el trigger de cruce.
+        // Solo los INCREMENTOS consumen: la edición a la baja devuelve, y devolver nunca se queda sin
+        // stock. Se comprueban ANTES de guardar, igual que en el alta.
+        if (!separaUpd && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        {
+            var ubicacionPrev = await GetLoteUbicacionAsync(dto.LoteId);
+            if (ubicacionPrev.HasValue &&
+                InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacionPrev.Value.FarmId)))
+            {
+                var nuevos = dto.Metadata != null
+                    ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
+                    : new Dictionary<int, decimal>();
+                var incrementos = new Dictionary<int, decimal>();
+                foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(nuevos.Keys)))
+                {
+                    var diff = nuevos.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                    if (diff > 0) incrementos[itemId] = diff;
+                }
+                var (farmPrev, nucPrev, galPrev) = ubicacionPrev.Value;
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    farmPrev, nucPrev?.Trim(), galPrev?.Trim(), incrementos);
+            }
+        }
+
         // Mismo patrón que SeguimientoAvesEngordeService.UpdateAsync.
         _ctx.Entry(ent).State = EntityState.Modified;
         _ctx.Entry(ent).Property(e => e.Metadata).IsModified = true;

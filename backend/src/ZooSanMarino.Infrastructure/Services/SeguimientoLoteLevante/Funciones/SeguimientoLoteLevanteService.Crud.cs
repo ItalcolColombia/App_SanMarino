@@ -113,11 +113,20 @@ public partial class SeguimientoLoteLevanteService
             return MapToLevanteDto(createdCo);
         }
 
+        // Ecuador/Panamá: el stock se comprueba ANTES de persistir, igual que Colombia. Antes el
+        // registro se guardaba primero y el consumo iba después dentro de un catch que se comía el
+        // rechazo ⇒ se podía cargar un día de un alimento sin un solo kilo en el galpón. Lanza con el
+        // ítem y el faltante; el controller lo devuelve como 400.
+        if (!separa && _inventarioGestionService != null && dto.Metadata != null && modelo == ModeloInventarioConsumo.ModeloB)
+            await _inventarioGestionService.ValidarStockConsumoAsync(
+                lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(),
+                ParseMetadataItemsToKg(dto.Metadata.RootElement));
+
         var created = await _seguimientoDiarioService.CreateAsync(createDto);
 
         // Ecuador/Panamá: consumo por ítems en metadata (item_inventario_ecuador) → inventario_gestion.
-        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B (flujo tolerante,
-        // sin tx nueva). Para lotes Colombia se usó el bloque modelo A de arriba.
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B (sin tx nueva).
+        // Para lotes Colombia se usó el bloque modelo A de arriba.
         if (!separa && _inventarioGestionService != null && dto.Metadata != null && modelo == ModeloInventarioConsumo.ModeloB)
         {
             try
@@ -272,10 +281,27 @@ public partial class SeguimientoLoteLevanteService
             return MapToLevanteDto(updatedCo);
         }
 
+        // Igual que en el alta: los INCREMENTOS de consumo se comprueban contra el stock ANTES de
+        // persistir. Solo los diff positivos consumen; una edición a la baja devuelve y nunca puede
+        // faltar stock para devolver.
+        if (!separa && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+            modelo == ModeloInventarioConsumo.ModeloB)
+        {
+            var nuevos = dto.Metadata != null ? ParseMetadataItemsToKg(dto.Metadata.RootElement) : new Dictionary<int, decimal>();
+            var incrementos = new Dictionary<int, decimal>();
+            foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(nuevos.Keys)))
+            {
+                var diff = nuevos.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                if (diff > 0) incrementos[itemId] = diff;
+            }
+            await _inventarioGestionService.ValidarStockConsumoAsync(
+                lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), incrementos);
+        }
+
         var updated = await _seguimientoDiarioService.UpdateAsync(updateDto);
         if (updated is null) return null;
 
-        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B (flujo tolerante).
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B.
         if (!separa && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
             modelo == ModeloInventarioConsumo.ModeloB)
         {

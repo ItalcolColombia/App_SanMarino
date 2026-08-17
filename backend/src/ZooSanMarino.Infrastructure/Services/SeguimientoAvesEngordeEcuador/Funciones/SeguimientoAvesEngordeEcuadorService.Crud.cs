@@ -166,6 +166,13 @@ public partial class SeguimientoAvesEngordeEcuadorService
         }
         else
         {
+            // El stock se comprueba ANTES de guardar: rechazar después dejaría el día cargado con sus
+            // kilos y el inventario sin tocar, que es lo que hacía el catch de abajo.
+            if (!separa && _inventarioGestionService != null && dto.Metadata != null && modeloInv == ModeloInventarioConsumo.ModeloB)
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(),
+                    ParseMetadataItemsToKg(dto.Metadata.RootElement));
+
             await _ctx.SaveChangesAsync();
 
             // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B (con núcleo/galpón).
@@ -396,6 +403,21 @@ public partial class SeguimientoAvesEngordeEcuadorService
         }
         else
         {
+            // Solo los INCREMENTOS consumen; la edición a la baja devuelve y nunca falta stock para
+            // devolver. Se comprueban antes de guardar.
+            if (!separaUpd && _inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+                modeloInv == ModeloInventarioConsumo.ModeloB)
+            {
+                var incrementos = new Dictionary<int, decimal>();
+                foreach (var itemId in new HashSet<int>(oldByItemId.Keys.Concat(newByItemIdInv.Keys)))
+                {
+                    var diff = newByItemIdInv.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                    if (diff > 0) incrementos[itemId] = diff;
+                }
+                await _inventarioGestionService.ValidarStockConsumoAsync(
+                    lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), incrementos);
+            }
+
             await _ctx.SaveChangesAsync();
 
             // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B (con núcleo/galpón).

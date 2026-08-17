@@ -41,6 +41,37 @@ public interface IInventarioGestionService
     Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default);
 
     /// <summary>
+    /// Comprueba que haya stock suficiente para TODOS los ítems ANTES de persistir, y lanza con un
+    /// mensaje que nombra el ítem y el faltante. No modifica nada.
+    ///
+    /// <para>
+    /// Es el tercer validador de stock del sistema: ya existían el de nivel granja
+    /// (<see cref="IColombiaInventarioConsumoService.ValidarStockConsumoAsync"/>) y el de modelo A
+    /// (<see cref="IFarmInventoryConsumoService.ValidarStockConsumoAsync"/>); éste cubre el modelo B
+    /// <b>con ubicación</b> (núcleo + galpón o silo), que es Ecuador y Panamá.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Se llama antes de guardar, no después.</b> Los seguimientos diarios de esos países
+    /// persistían el registro primero y aplicaban el consumo dentro de un <c>catch</c> que se comía el
+    /// rechazo: quedaba un día cargado con sus kilos y el inventario sin tocar. Validar acá es lo que
+    /// permite rechazar dejando la base intacta.
+    /// </para>
+    ///
+    /// <para>
+    /// No reemplaza al descuento atómico de <c>RegistrarConsumoAsync</c>: la carrera entre dos
+    /// consumos concurrentes la sigue cerrando el <c>UPDATE … WHERE quantity &gt;= …</c>.
+    /// </para>
+    /// </summary>
+    Task ValidarStockConsumoAsync(
+        int farmId,
+        string? nucleoId,
+        string? galponId,
+        IReadOnlyDictionary<int, decimal> byItem,
+        int? siloId = null,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Fase 3 — consumo a NIVEL GRANJA (Colombia): descuenta stock por (farm, item, nucleo=NULL,
     /// galpon=NULL) sin exigir galpón; NO abre transacción propia (participa de la externa); lanza si
     /// no hay stock suficiente (bloqueo). Aditivo: NO cambia RegistrarConsumoAsync (EC/PA con galpón).

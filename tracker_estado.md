@@ -2211,20 +2211,51 @@ tiene stock del alimento seleccionado». Bloque propio — no tocar desde otras 
       esto se ataja antes de que aparezca — no es una limpieza
 
 ## V14.1 — Implementación
-- [ ] V14.1.1 `IInventarioGestionService.ValidarStockConsumoAsync(farmId, nucleo, galpón, byItem)` —
+- [x] V14.1.1 `IInventarioGestionService.ValidarStockConsumoAsync(farmId, nucleo, galpón, byItem)` —
       el tercer validador, el que faltaba para modelo B con ubicación. Mensaje que **nombra el ítem y
       el faltante**, no un genérico
-- [ ] V14.1.2 La validación corre **ANTES de persistir** en los 10 sitios (hoy el bloque va después
+- [x] V14.1.2 La validación corre **ANTES de persistir** en los 10 sitios (hoy el bloque va después
       del `CreateAsync`): es lo que hace que el rechazo deje la base intacta
-- [ ] V14.1.3 El `catch` deja de tragar el stock insuficiente; se conserva el manejo de otros fallos
-- [ ] V14.1.4 Tests del cálculo puro del mensaje + de la decisión (T1-T5 del plan)
+- [x] V14.1.3 El `catch` deja de tragar el stock insuficiente; se conserva el manejo de otros fallos
+- [x] V14.1.4 Tests del cálculo puro del mensaje + de la decisión (T1-T5 del plan)
 
 ## V14.2 — Verificación
-- [ ] V14.2.1 `dotnet build` 0 errores · `dotnet test` en verde
-- [ ] V14.2.2 Smoke: alta con alimento sin stock ⇒ **400** y **ni seguimiento ni inventario** cambian;
+- [x] V14.2.1 `dotnet build` 0 errores · `dotnet test` en verde
+- [x] V14.2.2 Smoke: alta con alimento sin stock ⇒ **400** y **ni seguimiento ni inventario** cambian;
       con stock ⇒ 201 y stock descontado; edición que sube el consumo por encima del stock ⇒ 400
-- [ ] V14.2.3 Colombia **sin cambios** (su camino ya bloqueaba)
+- [x] V14.2.3 Colombia **sin cambios** (su camino ya bloqueaba)
 
 ## Fuera de alcance, dicho
 - [ ] V14.3.1 `MigracionService.AlimentoEngorde/AlimentoPostura` (carga histórica, entra por
       `ModoCargaHistorica`) e `InventarioGastoService` (ya llama sin tragar el error)
+
+## V14.4 — Resultado del smoke (17ago26)
+
+Contra un **clon** (`sanmarinoapp_stock`, backend en `:5501` con content root propio; aislamiento
+verificado por `pg_stat_activity`: 1 conexión al clon, **0 a la compartida**). ItalcolEcuador —flag de
+doble validación **apagado**, que es el camino donde vivía el hueco—, lote 150, galpón G0048, con
+2.080 kg del ítem 2 y 0 kg del ítem 4.
+
+| Caso | Respuesta | ¿Se guardó? |
+|---|---|---|
+| Alimento con stock en **0** | **400** · *«AV. POLLITO PREINICIADOR»: se piden 50 kg y hay 0 kg* | **no** (24 → 24 registros) |
+| Ítem inexistente | **400** · *el ítem no existe* (validación previa, ya estaba) | **no** |
+| Más kilos de los que hay (5.000 vs 2.080) | **400** con las dos cifras | **no** |
+| Con stock suficiente (80 kg) | **201** | sí · stock 2.080 → **2.000** |
+
+- [x] V14.4.1 El rechazo deja la base **intacta**: ni el seguimiento ni el stock se mueven. Es lo que
+      no se podía lograr desde el `catch`, que corría cuando el registro ya estaba guardado
+- [x] V14.4.2 El mensaje nombra el **producto real** («AV. POLLITO PREINICIADOR»), no el id ni un
+      genérico, y dice qué hacer: registrar el ingreso antes del consumo
+- [x] V14.4.3 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.763 + 1
+      en verde** (+8) · clon dropeado · puertos libres
+
+## Lo que quedó fuera, dicho
+- [x] V14.5.1 **Panamá no cambia hoy**: tiene la doble validación **encendida**, así que el alta
+      separa en vez de descontar y su comprobación de stock la hace `RegistrarConsumoAsync` dentro de
+      la transacción de `ValidarAsync`. El guard nuevo lo cubre igual el día que se apague el flag
+- [x] V14.5.2 **Colombia sin cambios**: su camino (`ModeloBNivelGranja`) ya validaba antes de
+      persistir. Se verificó que no se tocó ninguna de sus dos llamadas
+- [x] V14.5.3 El `catch` **se conserva** para otros fallos: no se convierte un problema transitorio de
+      inventario en un 500 al guardar el día. Lo que ya no puede llegar ahí es el stock insuficiente,
+      porque lo cortó la validación previa
