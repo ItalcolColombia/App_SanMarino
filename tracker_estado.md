@@ -13,7 +13,7 @@
 |---|---|---|
 | 4 | Envío de correo: SMTP rechazado por política del tenant | **admin de Microsoft 365** |
 | 4 | Referencia `Inicio` + liquidación de corridas anteriores (engorde) | **decisión de negocio** |
-| 1 | Consolidado de sublotes — C12 · `LOTE 235A` en −460 | **operación**: 500 muertes sobre 40 aves |
+| 1 | Consolidado de sublotes — C12 cerrado; queda la pata de inventario | **operación**: ¿qué alimento eran esos 750 kg? |
 | 2 | ItalJira: barrido de sobregiro de aves | **decisión** (correr el detector contra prod) |
 | 2 | Reporte Contable — Selección en RESUMEN + Movimientos de Huevo | **decisión** (corte 24/25 sem · K345) |
 | 1 | Migraciones Masivas — retirar tipos | **decisión** (¿sale «Venta Engorde»?) |
@@ -345,8 +345,24 @@ distintas; al unirlos el consolidado debe cuadrar. Validá en reportes y descarg
       mayor a 40 lo deja negativo. **A es la única que cierra**, y encaja con el patrón: el lote 124
       recibió las 5.100 y **dejó de registrar mortalidad el 10-jul**.
 
-      **Pendiente: el OK del usuario para aplicar A.** ⛔ No se tocó el dato — la guía manda simular y
-      revertir antes de corregir, y la reimputación de una fila entre lotes es decisión de operación.
+      **APLICADA la hipótesis A** (OK del usuario, 17ago26) — migración data-only
+      `20260818000000_ReimputarSeguimiento235ALoteCorrecto`, idempotente y **por lookup de nombres**
+      (empresa `Demo` + lote `LOTE 235A` + granja `LA CAROLINA`/`LA PRIMAVERA`), porque los ids de
+      lote y granja difieren entre local y prod. Mueve el registro del 03-ago al sublote correcto y
+      corrige los dos maestros (0 → **40** y 4.870 → **4.370**), que no se derivan: los mantiene la
+      app de forma incremental.
+
+      **Resultado verificado:** Demo en RA Pesadas queda en **0 `part` nulos y 0 saldos negativos**, y
+      la base entera en **0 negativos** por las tres fuentes (`fn_indicadores_levante_postura`,
+      maestro `lote_postura_levante`, kardex crudo). Segunda pasada de la migración: **sin efecto**
+      (idempotencia probada). `dotnet build` 0 errores · `dotnet test` 2.755 + 1 en verde.
+
+      🟠 **Lo que NO se tocó, y hay que decidir aparte:** esa misma fila arrastra un **Consumo de 750
+      kg del ítem 208** asentado en la granja **95 (LA CAROLINA)**. Re-apuntarlo a la 90
+      (LA PRIMAVERA) crearía **stock negativo de un ítem que esa granja nunca tuvo** — su stock es del
+      ítem **412**. Corregir esa pata exige saber qué alimento se consumió realmente, que es decisión
+      de operación.
+
       ⚠️ **Es la empresa Demo, no Sanmarino** (verificado: `lotes.company_id = 4` y la granja
       `LA CAROLINA` id 95 también es Demo; existen `CAROLINA` id 45 de Ecuador y `PRIMAVERA` id 9 de
       Sanmarino, nombres parecidos en otras empresas). ⛔ Tampoco se le puso piso 0 a la fn: el
