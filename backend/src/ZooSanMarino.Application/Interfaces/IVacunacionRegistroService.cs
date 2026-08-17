@@ -10,4 +10,10 @@ public interface IVacunacionRegistroService
 
     /// <summary>Marca no aplicado; motivo obligatorio.</summary>
     Task<VacunacionCronogramaItemDto> RegistrarNoAplicadoAsync(int cronogramaItemId, VacunacionRegistrarNoAplicadoRequest req, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bandeja "hoy me toca": vacunas sin registrar de los lotes vivos que el usuario ve, vencidas,
+    /// en franja o por abrir dentro de <paramref name="diasHorizonte"/> días. Sólo lectura.
+    /// </summary>
+    Task<List<VacunacionPendienteDto>> GetPendientesAsync(int diasHorizonte, CancellationToken ct = default);
 }

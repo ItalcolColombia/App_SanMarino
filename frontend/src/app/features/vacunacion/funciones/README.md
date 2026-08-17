@@ -15,6 +15,9 @@ Los componentes/páginas quedan delgados: juntan estado, llaman la función y ma
 | `exportar-cumplimiento-excel.funcion.ts` | Excel multi-hoja del reporte (Resumen + Cumplimiento por lote + Detalle por vacuna). |
 | `describir-plantilla.funcion.ts` | Plantilla del plan → alcance, vigencia, objetivo, franja, advertencia y orden de ítems. El "hoy" y las fechas entran por parámetro: **nada de `new Date()` adentro**, para que el resultado sea reproducible. |
 | `exportar-plantillas-excel.funcion.ts` | Excel de 2 hojas del plan de la empresa (cabeceras + todas las vacunas programadas). |
+| `resumir-impacto-materializacion.funcion.ts` | Preview del materializador → líneas de impacto legibles antes de aplicar el plan a los lotes. |
+| `evaluar-aplicacion-hoy.funcion.ts` | ¿Registrar HOY cae fuera de la franja? **Espejo de `VacunacionCalculos.ProyectarAplicacion`** y en base **UTC**, la del servidor: con la fecha local, de noche la UI diría "dentro" y el backend respondería 400. Tiene `.spec.ts`. |
+| `describir-pendiente.funcion.ts` | Pendiente de la bandeja → rótulo con días, color del chip, ubicación y objetivo. |
 
 Exportaciones: siempre vía helpers compartidos de `shared/utils/excel/exportar-tabla-excel.funcion.ts`
 y formato vía `shared/utils/format.ts` — prohibido `XLSX.utils.*` inline.

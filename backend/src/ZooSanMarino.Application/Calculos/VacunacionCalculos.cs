@@ -24,6 +24,14 @@ public static class VacunacionCalculos
         string Estado, int DiasDesviacion, bool Incumplido, bool RequiereMotivo);
 
     /// <summary>
+    /// Proyección de una aplicación SIN el umbral de incumplimiento: estado, desviación y si exige
+    /// motivo. Es la parte de <see cref="CalcularEstadoAplicacion"/> que no depende de la
+    /// configuración por empresa, y por eso puede responderse antes de guardar (pre-chequeo de la UI).
+    /// </summary>
+    public readonly record struct ProyeccionAplicacion(
+        string Estado, int DiasDesviacion, bool RequiereMotivo);
+
+    /// <summary>
     /// Franja válida del ítem de cronograma. "Semana" y "Dia" se resuelven contra
     /// <paramref name="fechaEncaset"/> (edad en días desde encaset); "Fecha" usa
     /// <paramref name="fechaObjetivo"/> directamente, sin importar la fase.
@@ -48,13 +56,15 @@ public static class VacunacionCalculos
     }
 
     /// <summary>
-    /// Estado + desviación de una aplicación confirmada frente a la franja del ítem.
-    /// Desviación positiva = tardía (después del fin de franja); negativa = adelantada (antes del
-    /// inicio); cero = dentro de franja. Incumplido ("rojo") solo aplica a tardanza que alcanza el
-    /// umbral configurado por empresa/país.
+    /// Estado + desviación de una aplicación frente a la franja, SIN resolver el incumplimiento
+    /// (eso necesita el umbral de la empresa). Desviación positiva = tardía (después del fin de
+    /// franja); negativa = adelantada (antes del inicio); cero = dentro de franja.
+    ///
+    /// <para>Dueña única de la regla "¿esto queda fuera de franja?": la usa el registro al guardar y
+    /// la UI para desplegar la novedad ANTES de guardar. El espejo del front
+    /// (<c>evaluar-aplicacion-hoy.funcion.ts</c>) debe mantenerse idéntico.</para>
     /// </summary>
-    public static ResultadoAplicacion CalcularEstadoAplicacion(
-        Franja franja, DateTime fechaAplicacion, int diasUmbralIncumplido)
+    public static ProyeccionAplicacion ProyectarAplicacion(Franja franja, DateTime fechaAplicacion)
     {
         var fecha = fechaAplicacion.Date;
         int diasDesviacion;
@@ -76,10 +86,23 @@ public static class VacunacionCalculos
             estado = EstadoAplicado;
         }
 
-        var incumplido = diasDesviacion >= diasUmbralIncumplido;
-        var requiereMotivo = diasDesviacion != 0;
+        return new ProyeccionAplicacion(estado, diasDesviacion, RequiereMotivo: diasDesviacion != 0);
+    }
 
-        return new ResultadoAplicacion(estado, diasDesviacion, incumplido, requiereMotivo);
+    /// <summary>
+    /// Estado + desviación de una aplicación confirmada frente a la franja del ítem.
+    /// Desviación positiva = tardía (después del fin de franja); negativa = adelantada (antes del
+    /// inicio); cero = dentro de franja. Incumplido ("rojo") solo aplica a tardanza que alcanza el
+    /// umbral configurado por empresa/país.
+    /// </summary>
+    public static ResultadoAplicacion CalcularEstadoAplicacion(
+        Franja franja, DateTime fechaAplicacion, int diasUmbralIncumplido)
+    {
+        var p = ProyectarAplicacion(franja, fechaAplicacion);
+        return new ResultadoAplicacion(
+            p.Estado, p.DiasDesviacion,
+            Incumplido: p.DiasDesviacion >= diasUmbralIncumplido,
+            RequiereMotivo: p.RequiereMotivo);
     }
 
     /// <summary>No aplicado: siempre exige motivo, nunca se marca incumplido por desviación (no hay fecha de aplicación).</summary>

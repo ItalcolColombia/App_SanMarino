@@ -14,6 +14,7 @@ import {
   VacunacionCumplimientoFiltroRequest,
   VacunacionCumplimientoLoteDto,
   VacunacionCumplimientoDetalleDto,
+  VacunacionPendienteDto,
   LineaProductiva,
 } from '../models/vacunacion.model';
 import {
@@ -97,6 +98,15 @@ export class VacunacionService {
 
   registrarNoAplicado(cronogramaItemId: number, req: VacunacionRegistrarNoAplicadoRequest): Observable<VacunacionCronogramaItemDto> {
     return this.http.post<VacunacionCronogramaItemDto>(`${this.registroBase}/${cronogramaItemId}/no-aplicar`, req);
+  }
+
+  /** Bandeja "hoy me toca": lo que falta registrar en todos los lotes vivos que el usuario ve.
+   *  Sin caché a propósito — es la pantalla de "qué hay AHORA", y el panel del inicio se monta
+   *  una vez por visita. */
+  getPendientes(diasHorizonte = 7): Observable<VacunacionPendienteDto[]> {
+    return this.http.get<VacunacionPendienteDto[]>(`${this.registroBase}/pendientes`, {
+      params: { diasHorizonte },
+    });
   }
 
   getCumplimiento(req: VacunacionCumplimientoFiltroRequest): Observable<VacunacionCumplimientoLoteDto[]> {

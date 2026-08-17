@@ -27,12 +27,13 @@
 | 3 | PWA — punto de retoma | **push + merge a `main-produccion`** |
 | 6 | PWA — brecha para salir a producción | **push + merge** + B1/B8 |
 | 1 | Gerencia: Panel de control | post-deploy manual (rol + menú en la UI) |
-| 19 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** · W1.3-W4 y V7.27 son código |
+| 11 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** · de Vacunación sólo queda **W4** |
 | 4 | **V9 · Barrido de pendientes (17ago26)** | W1.3, W1.4 y 2 smokes |
 
 > **69 pendientes al 17-ago-2026.** De esos, **~25 esperan una decisión del usuario, un admin
 > externo o un deploy**, y el resto es código: lo que queda vivo y accionable es **Vacunación
-> W1.3-W4**, **V7.27** (cuadre que ignora `validado`, exige gate multipaís) y los smokes en pantalla.
+> W4** (scoping por núcleo/galpón/lote — W1, W2 y W3 quedaron cerrados el 17ago26), **V7.27**
+> (cuadre que ignora `validado`, exige gate multipaís) y los smokes en pantalla.
 
 ---
 
@@ -1493,19 +1494,19 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
 ### W1 — Plantillas de vacunación por empresa/línea/raza
 - [x] W1.1 Tablas `vacunacion_plan_plantilla` + `_item` + migración EF **idempotente** (V9.6)
 - [x] W1.2 `VacunacionPlantillaCalculos` (raza exacta > comodín > `vigente_desde` > id) + **28 tests xUnit** (V9.6)
-- [ ] W1.3 CRUD backend + permisos
-- [ ] W1.4 Front: pantalla de plantillas (levante/producción por semana, engorde por día)
+- [x] W1.3 CRUD backend + permisos — **cerrado 17ago26**, ver bloque «V10 · Vacunación W1.3 + W1.4»
+- [x] W1.4 Front: pantalla de plantillas (levante/producción por semana, engorde por día) — **cerrado 17ago26** (mismo bloque)
 
-### W2 — Materializador a los lotes
-- [ ] W2.1 `origen_plantilla_item_id` + `generado_automatico` en `vacunacion_cronograma_items`
-- [ ] W2.2 `VacunacionMaterializadorCalculos` puro (faltantes / actualizables / preservados) + tests
-- [ ] W2.3 Servicio idempotente; **nunca** toca ítems ya aplicados ni los creados a mano
-- [ ] W2.4 Enganche al encaset + botón «aplicar a lotes activos» + preview de impacto antes de guardar
+### W2 — Materializador a los lotes — **CERRADO 17ago26** (`f2794c6`, bloque «Vacunación W2 — el materializador»)
+- [x] W2.1 `origen_plantilla_item_id` + `generado_automatico` en `vacunacion_cronograma_items`
+- [x] W2.2 `VacunacionMaterializadorCalculos` puro (faltantes / actualizables / preservados) + tests
+- [x] W2.3 Servicio idempotente; **nunca** toca ítems ya aplicados ni los creados a mano
+- [x] W2.4 Enganche al encaset + botón «aplicar a lotes activos» + preview de impacto antes de guardar
 
-### W3 — Bandeja de pendientes y novedad fuera de rango
-- [ ] W3.1 `GET /api/VacunacionRegistro/pendientes` (SQL, scoped por usuario)
-- [ ] W3.2 Front: la novedad se despliega sola al aplicar fuera de franja (hoy el back ya la exige y devuelve 400)
-- [ ] W3.3 Rótulo «Fuera de rango» con días de desviación (sin estados nuevos en BD)
+### W3 — Bandeja de pendientes y novedad fuera de rango — **CERRADO 17ago26** (bloque «Vacunación W3», al final del tracker)
+- [x] W3.1 `GET /api/VacunacionRegistro/pendientes` (SQL, scoped por usuario)
+- [x] W3.2 Front: la novedad se despliega sola al aplicar fuera de franja (hoy el back ya la exige y devuelve 400)
+- [x] W3.3 Rótulo «Fuera de rango» con días de desviación (sin estados nuevos en BD)
 
 ### W4 — Scoping por núcleo/galpón/lote
 - [ ] W4.1 `fn_vacunacion_filter_data` respeta `farms.restrict_locations` + `user_farm_scopes` (fail-closed)
@@ -2009,8 +2010,8 @@ del técnico y dos lotes iguales podían quedar distintos sin que nada lo notara
       aplicaría todas, y eso no es decisión de esta sesión. La validación se hizo por transacción
 - [x] V9.6.10 `dotnet build` **0 errores** (8 advertencias preexistentes) · `dotnet test`
       **2.656 Application + 1 Domain en verde** (2.628 + 28)
-- [ ] W1.3 CRUD backend + permisos — **pendiente**
-- [ ] W1.4 Front: pantalla de plantillas — **pendiente**
+- [x] W1.3 CRUD backend + permisos — **hecho 17ago26** (`bd935cb`)
+- [x] W1.4 Front: pantalla de plantillas — **hecho 17ago26** (`bd935cb`)
 
 ---
 
@@ -2169,3 +2170,83 @@ resolvía por lote — y **no bajaba a una sola fila de cronograma**.
 - `vacunacion_cronograma_item` está **vacía en toda la BD local**, así que el «no rompe lo existente» se
   apoya en el `DEFAULT false` de la migración y en el diseño (origen `NULL` ⇒ invisible para el
   materializador), no en un conteo sobre datos viejos.
+
+---
+
+# Vacunación W3 — la bandeja de «hoy me toca» y la novedad que se despliega sola
+
+**Plan:** [`fase_de_desarrollo/vacunacion_w3_pendientes_y_fuera_de_rango_plan.md`](fase_de_desarrollo/vacunacion_w3_pendientes_y_fuera_de_rango_plan.md)
+**Continúa:** W1.1-W1.4 (`a19807b`, `bd935cb`) y W2 (`f2794c6`). Fecha: 17-ago-2026 · bloque propio.
+
+> 🟢 **Riesgo bajo declarado:** W3 **no escribe una fila nueva**. Agrega una lectura (fn SQL), una
+> validación de UI y un rótulo. Ninguna tabla, columna ni índice.
+
+### W3.0 — Extracción neutra del «¿requiere motivo?» ✔
+- [x] W3.0.1 `VacunacionCalculos.ProyectarAplicacion(franja, fecha)` — la parte que NO depende del umbral
+      de la empresa, que es justo la que un pre-chequeo de UI puede responder
+- [x] W3.0.2 `CalcularEstadoAplicacion` pasa a **delegar** (mismo resultado, una sola fórmula) + test que
+      barre 40 días alrededor de la franja exigiendo salida idéntica por los dos caminos
+
+### W3.1 — `GET /api/VacunacionRegistro/pendientes` ✔
+- [x] W3.1.1 `VacunacionPendientesCalculos.Clasificar` + **17 tests**: los 3 bordes exactos (hoy = inicio,
+      hoy = fin ⇒ **todavía cumple**, hoy = fin+1 ⇒ vencido), horizonte inclusivo, franja de un solo día,
+      franja invertida, hora ignorada, y el contrato cruzado contra `ProyectarAplicacion`
+- [x] W3.1.2 `fn_vacunacion_pendientes` + espejo `.sql` + migración `20260817210000_AddFnVacunacionPendientes`
+      (data-only, Designer clonado, `DROP … IF EXISTS` + `CREATE OR REPLACE` ⇒ re-ejecutable)
+- [x] W3.1.3 Servicio (`SqlQueryRaw`) + endpoint con gate `vacunacion.registro.aplicar`
+- [x] W3.1.4 🔑 **`p_hoy` viaja desde C# con `DateTime.UtcNow.Date`**, no `CURRENT_DATE`: con la zona de
+      la sesión, la bandeja podría decir un día distinto del que sella el registro
+- [x] W3.1.5 Scoping = **copia** del de `fn_vacunacion_filter_data` de hoy, con la nota en el encabezado
+      del `.sql` para que **W4 suba las dos juntas** (si sube una sola, la bandeja muestra lotes que el
+      resto del módulo ya no deja ver)
+- [x] W3.1.6 Deuda ajena cerrada al pasar: `vacunacionmaterializador` (endpoint de W2) estaba **sin
+      decisión** en la lista de caché offline y **cortaba el gate `verificar-lista-cacheable`**. Va a
+      EXCLUIDOS con su motivo: es acción de oficina y de escritura, y un preview servido de caché mentiría
+
+### W3.2 — La novedad se despliega sola (se acabó el 400 sorpresa) ✔
+- [x] W3.2.1 🔑 `evaluar-aplicacion-hoy.funcion.ts` en **base UTC**, la del servidor. Con la fecha local,
+      entre las 19:00 y la medianoche en Ecuador/Colombia la UI diría «dentro de franja» y el backend
+      contestaría 400 — el mismo error que W3.2 vino a eliminar, pero con la UI jurando que todo iba bien.
+      **11 tests Karma** (mismos bordes que el xUnit + el caso de las 20:30 en Bogotá)
+- [x] W3.2.2 Modal: aviso ámbar con el porqué, `Motivo (obligatorio)` y **Confirmar deshabilitado** hasta
+      llenarlo. El backend sigue siendo la autoridad: la UI adelanta el aviso, no reemplaza la validación
+
+### W3.3 — Rótulo «Fuera de rango» con los días ✔
+- [x] W3.3.1 `calcular-estado-visual`: el **adelantado ya dice cuánto** (antes era «Aplicado adelantado»,
+      sin número, mientras el tardío sí lo mostraba). `Incumplido` conserva su rótulo y su rojo
+- [x] W3.3.2 Panel de pendientes en Home, gemelo del de Implementación (arranca abierto, no se dibuja si
+      no hay nada, falla en silencio). Las clases `.pendientes-*` se **mudaron** a
+      `shared/styles/pendientes-panel.scss` sin tocar una declaración; los dos componentes la comparten
+- [x] W3.3.3 La fila abre el registro del lote (`/vacunacion/registro?linea=&loteId=`) y la página
+      preselecciona granja + lote; si el lote no está en su lista, no pasa nada
+
+### W3.4 — Validación ✔
+- [x] W3.4.1 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.726 + 1
+      verdes** (2.707 previos + 19 nuevos) · `yarn build` 0 errores (único warning: bundle budget
+      preexistente) · `verificar-change-detection.js` **228 componentes, 0 sin estrategia** ·
+      `verificar-lista-cacheable.js` **0 sin decisión** · Karma del `.spec` nuevo **11/11**
+- [x] W3.4.2 **Smoke SQL en transacción revertida** (11 casos sembrados sobre un lote real de la empresa 3):
+      esperado_no_visto **0** · visto_no_esperado **0** · fugas de alcance (otra empresa + lote cerrado)
+      **0** · horizonte 0 tapa los próximos pero **no** los vencidos · usuario sin granjas ⇒ **0 filas** ·
+      paridad de franja contra `fn_vacunacion_cronograma_lote`: **8 ítems, 0 diferencias**
+- [x] W3.4.3 **Smoke del SERVICIO REAL** (`GetPendientesAsync` vía EF, no sólo psql): **13/13
+      verificaciones**. Incluye el contraste fila a fila contra `VacunacionPendientesCalculos` (0
+      divergencias) y que el mapeo `SqlQueryRaw` trajo **todos** los campos — el error que compila,
+      pasa los tests y sólo aparece ejecutando (lección de W2.5.2)
+- [x] W3.4.4 **Smoke UI** (front :4300, sin backend): el panel pinta las 4 filas con «Vencida hace 16
+      días / Toca ahora / En 3 días», subtítulo «2 vencidas · 1 para hoy» y el link
+      `?linea=Engorde&loteId=2`; el modal fuera de franja muestra el aviso, exige motivo y **deshabilita
+      Confirmar**, con motivo escrito lo habilita, dentro de franja no avisa y «No aplicado» sigue
+      exigiendo motivo; la tabla rotula `Fuera de rango (+6 d)` / `(−2 d)` / `Incumplido (+20 d)`
+- [x] W3.4.5 BD local **devuelta a su estado exacto**: 0 ítems, 0 registros, la fn **no quedó creada**,
+      279 migraciones con la última en `20260814130000` (ninguna ajena aplicada) · puertos
+      `5002/5499/5501/4200/4300` libres · sesión de prueba borrada del `localStorage`
+
+### Honestidad sobre lo que NO se probó
+- El smoke del servicio corre con un `ICurrentUser` falso: prueba el LINQ→SQL, el mapeo y las reglas,
+  **no** el gate de permisos del controller ni el alcance por ubicación real (eso es W4).
+- El smoke UI corrió **sin backend**, sustituyendo la llamada HTTP del servicio por datos de la misma
+  forma que devuelve la fn (ya verificada aparte). Prueba el render y las reglas de la pantalla, no el
+  cable HTTP extremo a extremo.
+- `vacunacion_cronograma_item` está **vacía** en toda la BD local, así que la bandeja se probó con filas
+  sembradas y revertidas, no con datos históricos.

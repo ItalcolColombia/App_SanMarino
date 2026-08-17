@@ -2,6 +2,7 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { VacunacionService } from '../../services/vacunacion.service';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -51,7 +52,11 @@ export class RegistroAplicacionPage implements OnInit {
 
   private items: VacunacionCronogramaItemDto[] = [];
 
-  constructor(private vacunacionSvc: VacunacionService, private toast: ToastService) {}
+  constructor(
+    private vacunacionSvc: VacunacionService,
+    private toast: ToastService,
+    private route: ActivatedRoute,
+  ) {}
 
   async ngOnInit(): Promise<void> {
     this.cargandoFiltros = true;
@@ -66,6 +71,27 @@ export class RegistroAplicacionPage implements OnInit {
     } finally {
       this.cargandoFiltros = false;
     }
+
+    await this.preseleccionarDesdeLaUrl();
+  }
+
+  /**
+   * Llegada desde la bandeja del inicio (`?linea=&loteId=`): deja la pantalla abierta en el lote que
+   * el usuario tocó, sin que tenga que volver a elegir granja y lote. Si el lote no está en su lista
+   * (alcance, empresa activa distinta, lote cerrado) no pasa nada: queda la pantalla normal.
+   */
+  private async preseleccionarDesdeLaUrl(): Promise<void> {
+    const qp = this.route.snapshot.queryParamMap;
+    const linea = qp.get('linea');
+    const loteId = Number(qp.get('loteId'));
+    if (!linea || !loteId) return;
+
+    const lote = this.lotes.find((l) => l.lineaProductiva === linea && l.loteId === loteId);
+    if (!lote) return;
+
+    this.granjaSeleccionadaId = lote.granjaId;
+    this.aplicarFiltroLotes();
+    await this.onLoteChange(lote);
   }
 
   onGranjaChange(): void {

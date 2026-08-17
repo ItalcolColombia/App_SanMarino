@@ -116,6 +116,11 @@ const EXCLUIDOS: readonly string[] = [
   // viejo como si fuera el vigente, que es justo el problema que el módulo vino a resolver.
   'vacunacionplantilla',
 
+  // Bajar el plan de la empresa a los lotes (materializador). Es una acción de oficina y de
+  // ESCRITURA: el preview tiene que ser fresco —uno servido de caché diría que va a crear filas
+  // que ya existen— y aplicar exige red igual. Mismo criterio que la plantilla de la que sale.
+  'vacunacionmaterializador',
+
   // Identidad y autorización.
   'auth',
   'users',

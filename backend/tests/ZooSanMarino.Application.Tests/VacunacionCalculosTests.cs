@@ -119,4 +119,39 @@ public class VacunacionCalculosTests
         Assert.False(r.Incumplido);
         Assert.True(r.RequiereMotivo);
     }
+
+    /// <summary>
+    /// W3.0 — la extracción de <c>ProyectarAplicacion</c> tiene que ser NEUTRA: barre 40 días
+    /// alrededor de la franja y exige que estado, desviación y "requiere motivo" salgan idénticos
+    /// por los dos caminos. Es el gate de que el pre-chequeo de la UI y el guardado no puedan
+    /// divergir nunca.
+    /// </summary>
+    [Fact]
+    public void ProyectarAplicacion_EsLaMismaFormulaQueCalcularEstadoAplicacion()
+    {
+        var f = VacunacionCalculos.CalcularFranja(Encaset, "Semana", 4, null, 0, 6);
+
+        for (var offset = 0; offset <= 40; offset++)
+        {
+            var fecha = Encaset.AddDays(offset);
+            var completo = VacunacionCalculos.CalcularEstadoAplicacion(f, fecha, diasUmbralIncumplido: 14);
+            var proyeccion = VacunacionCalculos.ProyectarAplicacion(f, fecha);
+
+            Assert.Equal(completo.Estado, proyeccion.Estado);
+            Assert.Equal(completo.DiasDesviacion, proyeccion.DiasDesviacion);
+            Assert.Equal(completo.RequiereMotivo, proyeccion.RequiereMotivo);
+        }
+    }
+
+    [Fact]
+    public void ProyectarAplicacion_NoDependeDelUmbral_NoDiceNadaDeIncumplimiento()
+    {
+        // El pre-chequeo de la UI no tiene el umbral de la empresa: por eso la proyección no lo pide.
+        var f = VacunacionCalculos.CalcularFranja(Encaset, "Semana", 4, null, 0, 6);
+        var p = VacunacionCalculos.ProyectarAplicacion(f, Encaset.AddDays(40));
+
+        Assert.Equal(VacunacionCalculos.EstadoAplicadoTardio, p.Estado);
+        Assert.Equal(13, p.DiasDesviacion); // fin de franja = día 27
+        Assert.True(p.RequiereMotivo);
+    }
 }

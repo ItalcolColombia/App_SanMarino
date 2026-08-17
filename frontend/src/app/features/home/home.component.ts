@@ -6,12 +6,13 @@ import { faHome } from '@fortawesome/free-solid-svg-icons';
 import { AuthService } from '../../core/auth/auth.service';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { PanelPendientesFirmaComponent } from '../implementacion/components/panel-pendientes-firma/panel-pendientes-firma.component';
+import { PanelPendientesVacunacionComponent } from '../vacunacion/components/panel-pendientes-vacunacion/panel-pendientes-vacunacion.component';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RouterModule, FontAwesomeModule, PanelPendientesFirmaComponent],
+  imports: [RouterModule, FontAwesomeModule, PanelPendientesFirmaComponent, PanelPendientesVacunacionComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./home.component.scss']

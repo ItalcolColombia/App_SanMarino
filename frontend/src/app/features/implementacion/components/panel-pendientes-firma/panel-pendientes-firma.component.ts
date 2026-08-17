@@ -16,7 +16,9 @@ import { ImplementacionMiFirmaDto, TIPO_PLAN_LABEL } from '../../models/implemen
   selector: 'app-panel-pendientes-firma',
   standalone: true,
   imports: [CommonModule, RouterModule, ModalFirmarImplementacionComponent],
-  styleUrls: ['../../styles/implementacion-shared.scss'],
+  // Las clases .pendientes-* se mudaron a shared/ al sumarse la bandeja de Vacunación (W3):
+  // mismas declaraciones, un solo dueño.
+  styleUrls: ['../../../../shared/styles/pendientes-panel.scss'],
   template: `
     <section *ngIf="cargando || pendientes.length" class="pendientes-panel">
       <button type="button" class="pendientes-panel__head" [attr.aria-expanded]="abierto" (click)="abierto = !abierto">
