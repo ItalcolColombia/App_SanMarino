@@ -1974,3 +1974,63 @@ recién cuando haya un deploy de por medio.
       privada (`10.4.6.6`, psql timeout), **ECS Exec deshabilitado** en el servicio, y el usuario IAM
       sin `rds:DescribeDBInstances` ni `ssm:DescribeInstanceInformation`. Habilitar ECS Exec exige
       redeploy de producción ⇒ sólo con pedido explícito. Para consultas puntuales, DB Studio
+
+---
+
+# V13 · Saldo de aves de levante — cuatro consumidores, dos fórmulas (17ago26)
+
+**Plan:** [`fase_de_desarrollo/saldo_levante_una_sola_formula_plan.md`](fase_de_desarrollo/saldo_levante_una_sola_formula_plan.md)
+Pedido: «seguí en todo lo que es desarrollo». Bloque propio — no tocar desde otras sesiones.
+**V8 sigue reservada.**
+
+Sale del re-triage de los pendientes: retoma el hallazgo abierto del bloque ItalJira («Tres fórmulas
+distintas para el saldo de levante»), que resultó ser **cuatro consumidores** y estar **divergiendo
+hoy**, no en el futuro.
+
+## V13.0 — Re-triage de lo que quedaba abierto ✔
+- [ ] V13.0.1 Repasados los 16 bloques abiertos: casi todo espera **decisión del usuario**, un **admin
+      externo** o un **deploy**. Lo único accionable en código sin dependencias es este hallazgo
+- [ ] V13.0.2 Verificado que sigue vivo (no como V11.0.1, que ya estaba resuelto): la línea 396 de
+      `fn_indicadores_levante_postura` es `r_aves_fin := v_aves_acum − mort − sel − err − tras_sal +
+      tras_ing`, sin venta, y la fn ni siquiera declara una variable de venta
+
+## V13.1 — El estado real: son CUATRO, no tres
+- [ ] V13.1.1 **Descuentan la venta:** `fn_reporte_semanal_levante_extras` y
+      `fn_resumen_semanal_ra_pesadas_levante` (comentario propio: *«el saldo tiene que descontarla o el
+      reporte sobrestima el lote»*)
+- [ ] V13.1.2 **NO la descuentan:** `fn_indicadores_levante_postura` y **`ReporteTecnicoService`** —
+      este último no estaba en el hallazgo original: sus 4 call sites construyen
+      `MovimientoDia(mort, sel, err, trasSal, trasIng)` y dejan `Venta` en su default `0`
+- [ ] V13.1.3 `SaldoAvesLevanteCalculos` (la especificación ejecutable) **sí** contempla la venta en
+      `BajasNetas`, pero **su único consumidor nunca se la pasa**: la spec está bien y nadie la usa
+      completa
+
+## V13.2 — La divergencia es visible HOY (medida)
+- [ ] V13.2.1 Mismo lote, misma semana, dos conteos (Sanmarino): lote **143** sem 23 → 10.626 vs
+      10.476 (**150**), sem 24 → 10.619 vs 10.329 (**290**); lote **142** sem 24 → 10.646 vs 10.450
+      (**196**). La diferencia es **exactamente** la venta acumulada
+- [ ] V13.2.2 Sólo 2 lotes tienen ventas hoy (143: 290 aves en 2 filas · 142: 196 en 1), y en los dos
+      `venta_aves_cantidad` coincide con `venta_aves_hembras + venta_aves_machos`. Por eso «no se
+      notaba»: no porque no pase, sino porque casi nadie registró ventas de levante todavía
+
+## V13.3 — Arreglo
+- [ ] V13.3.1 `fn_indicadores_levante_postura` descuenta la venta en el mixto y por sexo, con la misma
+      convención que el resto de la fn (el total mixto se arma como `h + m`)
+- [ ] V13.3.2 Migración EF con `CREATE OR REPLACE` (la firma no cambia); `Down()` = cuerpo actual
+      VERBATIM
+- [ ] V13.3.3 Tests: la venta es una baja como cualquier otra (venta y traslado de salida por la misma
+      cantidad ⇒ mismo saldo)
+
+## V13.4 — Verificación
+- [ ] V13.4.1 **Paridad** `fn_indicadores_levante_postura` vs `fn_reporte_semanal_levante_extras` en
+      TODOS los lotes, antes y después: antes 3 filas con diferencia (142 y 143), después **0**
+- [ ] V13.4.2 **Lotes sin ventas: 0 filas cambiadas.** El arreglo no puede mover un número donde no
+      hubo venta
+- [ ] V13.4.3 El resto de las columnas de la fn (peso, uniformidad, consumo, % mortalidad) intactas
+- [ ] V13.4.4 `dotnet build` 0 errores · `dotnet test` en verde · BD sin residuos, puertos libres
+
+## Fuera de alcance, con su evidencia
+- [ ] V13.5.1 **`ReporteTecnicoService` NO se toca en esta entrega.** Alimenta el Reporte Técnico
+      Semanal, que operación y costos ya leen; moverle el saldo pide verificación contra el informe
+      impreso, no un cambio al pasar. Queda el hallazgo documentado con sus 4 call sites
+      (`ReporteTecnicoService.cs:2828`, `:2830`, `:3007`, `:3009`)
