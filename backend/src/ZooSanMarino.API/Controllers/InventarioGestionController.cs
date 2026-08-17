@@ -68,6 +68,82 @@ public class InventarioGestionController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Arma la respuesta del GET de ventana a partir de la ventana ya resuelta. Sin lógica propia:
+    /// los extremos y el texto salen de <see cref="VentanaFechaMovimientoInventarioCalculos"/>, que
+    /// es la misma clase que decide el 400 de las dos puertas de ingreso.
+    /// </summary>
+    private static InventarioGestionVentanaFechaIngresoDto ArmarVentanaFechaIngreso(
+        InventarioGestionVentanaAlimentoPrevioDto ventana)
+    {
+        var hoy = VentanaFechaMovimientoInventarioCalculos.DiaOperativo(DateTimeOffset.UtcNow);
+        var (min, max) = VentanaFechaMovimientoInventarioCalculos.ExtremosVentanaIngreso(
+            hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa);
+
+        return new InventarioGestionVentanaFechaIngresoDto(
+            DateOnly.FromDateTime(min),
+            DateOnly.FromDateTime(max),
+            ventana.ProximoEncaset is { } e ? DateOnly.FromDateTime(e) : null,
+            ventana.DiasVentanaEmpresa,
+            VentanaFechaMovimientoInventarioCalculos.TextoAyudaVentanaIngreso(
+                hoy, ventana.ProximoEncaset, ventana.DiasVentanaEmpresa));
+    }
+
+    /// <summary>
+    /// Fecha con la que se resuelve el encasetamiento cuando el que pregunta es el DATEPICKER y no
+    /// una fecha concreta: el piso de retroactividad.
+    /// <para>
+    /// ⚠️ No es un detalle: el resolver devuelve el encaset más cercano <c>&gt;= fecha</c>, así que
+    /// preguntar con HOY no encuentra el encaset de hace una semana —justo el que justifica la
+    /// fecha que la pantalla necesita ofrecer— y la ventana volvería a quedar recortada. Preguntando
+    /// desde el piso se obtiene el encaset cuya ventana llega más atrás, que es el envolvente
+    /// correcto: cualquier encaset posterior abre menos.
+    /// </para>
+    /// </summary>
+    private static DateTime FechaBaseVentanaDatepicker() =>
+        VentanaFechaMovimientoInventarioCalculos
+            .DiaOperativo(DateTimeOffset.UtcNow)
+            .AddDays(-VentanaFechaMovimientoInventarioCalculos.DiasMaximosRetroactividadEncaset);
+
+    /// <summary>
+    /// D4 — ventana de fechas ofrecible para un ingreso NUEVO en esa ubicación. Es informativa: deja
+    /// que el datepicker no recorte la fecha real del alimento previo al encasetamiento y que el
+    /// hint nombre el encaset concreto. La que rechaza sigue siendo la guarda de <c>POST /ingreso</c>.
+    /// <para>
+    /// <paramref name="fecha"/> es opcional: sin ella se resuelve desde el piso de retroactividad
+    /// (ver <see cref="FechaBaseVentanaDatepicker"/>), que es lo que el datepicker necesita.
+    /// </para>
+    /// </summary>
+    [HttpGet("ventana-fecha-ingreso")]
+    [ProducesResponseType(typeof(InventarioGestionVentanaFechaIngresoDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetVentanaFechaIngreso(
+        [FromQuery] int farmId,
+        [FromQuery] string? nucleoId = null,
+        [FromQuery] string? galponId = null,
+        [FromQuery] DateTime? fecha = null,
+        CancellationToken ct = default)
+    {
+        var ventana = await _service.ResolverVentanaAlimentoPrevioEncasetAsync(
+            farmId, nucleoId, galponId, fecha ?? FechaBaseVentanaDatepicker(), ct);
+        return Ok(ArmarVentanaFechaIngreso(ventana));
+    }
+
+    /// <summary>
+    /// D4 — igual que <see cref="GetVentanaFechaIngreso"/> pero para EDITAR la fecha de un ingreso ya
+    /// registrado, que es de donde sale su ubicación (el modal no la tiene).
+    /// </summary>
+    [HttpGet("ingresos/{movimientoId:int}/ventana-fecha")]
+    [ProducesResponseType(typeof(InventarioGestionVentanaFechaIngresoDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetVentanaFechaIngresoExistente(
+        int movimientoId,
+        [FromQuery] DateTime? fecha = null,
+        CancellationToken ct = default)
+    {
+        var ventana = await _service.ResolverVentanaAlimentoPrevioEncasetDeIngresoAsync(
+            movimientoId, fecha ?? FechaBaseVentanaDatepicker(), ct);
+        return Ok(ArmarVentanaFechaIngreso(ventana));
+    }
+
     /// <summary>Datos para filtros: Granja → Núcleo → Galpón (usado en Panama/Ecuador).</summary>
     [HttpGet("filter-data")]
     [ProducesResponseType(typeof(InventarioGestionFilterDataDto), StatusCodes.Status200OK)]

@@ -136,5 +136,69 @@ public static class VentanaFechaMovimientoInventarioCalculos
                $"{DiasMaximosRetroactividadEncaset} días hacia atrás.";
     }
 
+    // ─── Extremos del datepicker (lo que la pantalla puede ofrecer) ─────────────
+    //
+    // El conjunto admitido NO es contiguo: es `[1 del mes, hoy]` ∪ `[encaset − dias, encaset]`, y el
+    // segundo intervalo puede caer entero en el mes anterior, con un hueco en el medio. Un
+    // `input[type=date]` sólo sabe de `min`/`max`, así que la pantalla ofrece el RANGO ENVOLVENTE y
+    // el rechazo fino lo sigue haciendo el controller con `EsFechaPermitidaConEncasetProximo`.
+    // Ofrecer de más es correcto acá y ofrecer de menos no: recortar el `min` es justo lo que
+    // impedía tipear la fecha real del alimento previo al encaset.
+
+    /// <summary>
+    /// Extremos que la pantalla puede ofrecer para la fecha de un INGRESO: <c>min</c> se corre hacia
+    /// atrás sólo si la ventana del encasetamiento del galpón alcanza a intersectar
+    /// <c>[hoy − <see cref="DiasMaximosRetroactividadEncaset"/>, hoy]</c>; <c>max</c> es SIEMPRE hoy,
+    /// porque el futuro no lo abre ninguna de las dos vías.
+    /// </summary>
+    /// <param name="proximoEncasetEnGalpon">
+    /// Encasetamiento más cercano del galpón, o <c>null</c> si no hay ⇒ extremos de la regla vigente.
+    /// </param>
+    /// <param name="diasVentanaEmpresa"><c>companies.dias_alimento_previo_encaset</c>; los negativos van a 0.</param>
+    public static (DateTime Min, DateTime Max) ExtremosVentanaIngreso(
+        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa)
+    {
+        var max = hoy.Date;
+        var min = PrimerDiaAdmitido(hoy);
+
+        if (proximoEncasetEnGalpon is not { } encaset) return (min, max);
+
+        var enc = encaset.Date;
+        var dias = Math.Max(0, diasVentanaEmpresa);
+        var desde = enc.AddDays(-dias);
+        var piso = max.AddDays(-DiasMaximosRetroactividadEncaset);
+
+        // ¿La ventana del encaset toca el tramo que la excepción puede abrir? Si arranca después de
+        // hoy o termina antes del piso de 30 días, no hay ni un día nuevo que ofrecer.
+        if (desde > max || enc < piso) return (min, max);
+
+        // Nunca se achica el mínimo vigente, y nunca se pasa del piso de 30 días.
+        var candidato = desde < piso ? piso : desde;
+        return (candidato < min ? candidato : min, max);
+    }
+
+    /// <summary>
+    /// Texto de ayuda del datepicker de un INGRESO. Sale de acá y no del template para que la
+    /// pantalla y el 400 del controller cuenten la misma regla, y para que el hint deje de decir
+    /// «solo el mes en curso» cuando el galpón tiene un encasetamiento que admite más.
+    /// </summary>
+    public static string TextoAyudaVentanaIngreso(
+        DateTime hoy, DateTime? proximoEncasetEnGalpon, int diasVentanaEmpresa)
+    {
+        var desdeMes = Fecha(PrimerDiaAdmitido(hoy));
+        var hasta = Fecha(hoy.Date);
+        var basico = $"Se admite el mes en curso (del {desdeMes} al {hasta}).";
+
+        var (min, _) = ExtremosVentanaIngreso(hoy, proximoEncasetEnGalpon, diasVentanaEmpresa);
+        if (proximoEncasetEnGalpon is not { } encaset || min >= PrimerDiaAdmitido(hoy))
+            return basico;
+
+        var enc = encaset.Date;
+        var dias = Math.Max(0, diasVentanaEmpresa);
+        return basico +
+               $" Y además, por el encasetamiento del {Fecha(enc)} de este galpón, el alimento que " +
+               $"llegó antes: del {Fecha(enc.AddDays(-dias))} al {Fecha(enc)}.";
+    }
+
     private static string Fecha(DateTime d) => d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
 }

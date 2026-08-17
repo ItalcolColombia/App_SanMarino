@@ -440,3 +440,22 @@ public sealed record InventarioGestionVentanaAlimentoPrevioDto(
     DateTime? ProximoEncaset,
     int DiasVentanaEmpresa
 );
+
+/// <summary>
+/// Ventana de fechas que la PANTALLA puede ofrecer para un ingreso (D4). Es informativa: la que
+/// decide sigue siendo la del controller —el conjunto admitido no es contiguo y esto es su rango
+/// envolvente—, pero permite que el datepicker no recorte la fecha real del alimento previo al
+/// encasetamiento y que el hint nombre el encaset concreto en vez de una promesa vaga.
+/// </summary>
+/// <param name="Min">Primera fecha ofrecible (<c>yyyy-MM-dd</c>).</param>
+/// <param name="Max">Última fecha ofrecible: siempre hoy, el futuro no lo abre ninguna vía.</param>
+/// <param name="ProximoEncaset">Encasetamiento que justifica la apertura, o <c>null</c> si no hay.</param>
+/// <param name="DiasVentanaEmpresa"><c>companies.dias_alimento_previo_encaset</c> de la empresa de la granja.</param>
+/// <param name="Ayuda">Texto ya armado para el hint, para que backend y front digan lo mismo.</param>
+public sealed record InventarioGestionVentanaFechaIngresoDto(
+    DateOnly Min,
+    DateOnly Max,
+    DateOnly? ProximoEncaset,
+    int DiasVentanaEmpresa,
+    string Ayuda
+);

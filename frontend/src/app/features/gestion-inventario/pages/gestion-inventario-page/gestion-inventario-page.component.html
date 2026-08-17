@@ -1480,11 +1480,11 @@
                 id="ingreso-fecha-input"
                 class="form-input"
                 type="date"
-                [min]="fechaMovimientoMin"
-                [max]="fechaMovimientoMax"
+                [min]="fechaIngresoMin"
+                [max]="fechaIngresoMax"
                 [(ngModel)]="ingresoFechaDraft" />
               <small class="hint" style="display: block; margin-top: 0.35rem">
-                Solo se admite el mes en curso (del {{ fechaMovimientoMin }} al {{ fechaMovimientoMax }}).
+                {{ hintFechaIngresoTexto }}
               </small>
             </div>
             <div class="modal-italfoods__footer">

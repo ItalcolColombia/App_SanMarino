@@ -522,7 +522,9 @@ escrituras históricas quedarían rechazadas y en qué empresas?
       confirma un número parecido, el bloqueo es de riesgo bajo
 
 ### Hallazgo lateral del barrido (NO tocado)
-- [ ] **Tres fórmulas distintas para el saldo de levante**: `fn_indicadores_levante_postura`
+- [x] **Tres fórmulas distintas para el saldo de levante** — **CERRADO en V13/V13.7** (17ago26):
+      resultaron ser **cuatro** consumidores y hoy las cuatro descuentan la venta. Texto original:
+      `fn_indicadores_levante_postura`
       **NO descuenta ventas** (`r_aves_fin := v_aves_acum - mort - sel - err - tras_sal + tras_ing`),
       mientras que `fn_resumen_semanal_ra_pesadas_levante` y `fn_reporte_semanal_levante_extras`
       **sí** desde `b315612` / `20260806235000`, y `SaldoAvesLevanteCalculos.BajasNetas` también.
@@ -772,7 +774,9 @@ crudos → 8 verificados → **7 confirmados, 1 refutado**).
       preexistentes que estaban tapados
 
 ## Confirmados — pendientes de decisión del usuario
-- [ ] 🟠 **§2.3a La excepción D4 es inalcanzable desde la UI**: backend + 184 líneas de test escritos,
+- [x] 🟠 **§2.3a La excepción D4 es inalcanzable desde la UI** — **CERRADO en V15** (17ago26): se
+      agregaron los dos GET que exponen la ventana del galpón y el front dejó de ser más estricto que
+      el backend. Ver el bloque «V15 · La excepción D4…» al final. Texto original: backend + 184 líneas de test escritos,
       pero el front la bloquea en 3 lugares y **no existe endpoint** que exponga la ventana del galpón.
       El hint dice «Solo se admite el mes en curso» ⇒ instrucción activa a falsear la fecha.
       Afecta 39/110 encasets 2026 de Ecuador (35%) y 10/60 de Panamá. Ningún número sale mal: se
@@ -2292,3 +2296,100 @@ Lote 168, granja 106 / núcleo 791385 / galpón G0490. Stock: ítem 213 = 10.609
 - [x] V14.5.3 El `catch` **se conserva** para otros fallos: no se convierte un problema transitorio de
       inventario en un 500 al guardar el día. Lo que ya no puede llegar ahí es el stock insuficiente,
       porque lo cortó la validación previa
+
+---
+
+# V15 · La excepción D4 (alimento previo al encaset) es inalcanzable desde la UI (17ago26)
+
+**Plan:** [`fase_de_desarrollo/ventana_fecha_ingreso_alimento_previo_ui_plan.md`](fase_de_desarrollo/ventana_fecha_ingreso_alimento_previo_ui_plan.md)
+Pedido: «seguí con el siguiente pendiente del tracker». Bloque propio — no tocar desde otras sesiones.
+**V8 sigue reservada.**
+
+## V15.0 — Re-triage de lo que quedaba abierto ✔
+- [x] V15.0.1 Repasados los bloques abiertos tras cerrar V14: la mayoría espera **decisión del
+      usuario** (lotes 132 / 3,4,6,8; cierre del grupo A; K345; tile Venta Engorde; Santa Reyes y
+      Migraciones Masivas), un **admin externo** (correo Office 365) o un **deploy** (P.1-P.3, PWA)
+- [x] V15.0.2 🔑 **Descartado el bloque de la marca `para_proximo_ciclo` (§2.3b, §2.3c, los 4 guards,
+      «persistir la atribución»)**: no es sólo que hoy valga 0 (0 marcas en BD, puerta de entrada
+      cerrada por la mitigación de la ronda 4). Es que **el rediseño ya declarado devuelve
+      `apert_mov`, `hist_full`, `hist_alimento`, `docs_por_fecha` y `fechas_universo` a la forma de
+      v14 exacta** ⇒ arreglar §2.3c hoy es trabajo que ese rediseño tira. Se deja como estaba
+- [x] V15.0.3 Queda **§2.3a**, el 🟠 de mayor severidad del bloque de auditoría, y es el único
+      accionable sin dependencias: **no es una decisión de producto pendiente, es una feature a
+      medio terminar**. El backend YA acepta la fecha (D4 vivo en las 2 puertas de ingreso, con 184
+      líneas de test); el front es **más estricto que el backend** y encima empuja a falsear la fecha
+
+## V15.1 — Diagnóstico
+- [x] V15.1.1 Verificado sitio por sitio: `EsFechaPermitidaConEncasetProximo` +
+      `MensajeFueraDeVentanaConEncaset` escritos, `ResolverVentanaAlimentoPrevioEncasetAsync` y
+      `…DeIngresoAsync` implementados, y `POST /ingreso` (:163) + `PUT /ingresos/{id}/fecha` (:401)
+      los usan. **Lo único que falta es el GET que exponga la ventana** y que el front la respete
+- [x] V15.1.2 Censo del front: **4** datepickers atan la ventana, pero sólo **2** son puertas D4
+      (modal de fecha del ingreso y «Nueva fecha» del historial). **Traslado y stock conservan la
+      regla dura**, igual que el backend
+- [x] V15.1.3 🔴 **Por qué NO se replica la regla completa en TS**: el encaset que manda es el más
+      cercano con `fecha_encaset >= fecha del movimiento` ⇒ **depende de la fecha que el usuario
+      elija**. Un espejo en el front resolvería otro encaset y rechazaría fechas que el backend
+      acepta — el mismo defecto, del otro lado
+
+## V15.2 — Implementación
+- [x] V15.2.1 `ExtremosVentanaIngreso(hoy, proximoEncaset, dias)` — cálculo **puro** nuevo: corre el
+      `min` hacia atrás sólo si el intervalo del encaset intersecta `[hoy−30, hoy]`; el `max` es
+      siempre hoy
+- [x] V15.2.2 Dos GET nuevos en `InventarioGestionController`, delegando en los resolvers existentes
+- [x] V15.2.3 Front: extremos dinámicos en los 2 datepickers D4 + hint que nombra el encaset real;
+      la guarda deja de bloquear dentro de los 30 días y deja hablar al controller
+- [x] V15.2.4 Tests T1-T7 del cálculo puro
+
+## V15.3 — Verificación
+- [x] V15.3.1 `dotnet build` 0 errores · `dotnet test` en verde
+- [x] V15.3.2 `yarn build` sin errores nuevos
+- [x] V15.3.3 Smoke: alta de ingreso con fecha del mes anterior **dentro** de la ventana ⇒ 200; la
+      misma **fuera** ⇒ 400 nombrando el encaset; traslado y stock siguen cortando en el día 1
+
+## Fuera de alcance, dicho
+- [x] V15.4.1 No se toca ninguna función SQL ⇒ **no aplica el gate multipaís**. No se toca la marca
+      `para_proximo_ciclo` ni `dias_alimento_previo_encaset` de ninguna empresa
+
+## V15.5 — Lo que el smoke corrigió del diseño (17ago26)
+
+- [x] V15.5.1 🔴 **El primer endpoint resolvía la ventana con HOY y no encontraba nada.** El resolver
+      devuelve el encaset más cercano **`>= fecha`**, así que preguntando con hoy el encaset de la
+      semana pasada —justo el que justifica la fecha que hay que ofrecer— queda invisible y la ventana
+      volvía a salir recortada. Se corrigió: sin `fecha` explícita el GET resuelve desde el **piso de
+      30 días**, que da el encaset cuya ventana llega más atrás (cualquier posterior abre menos).
+      Lo cazó el smoke, no la lectura del código
+
+## V15.6 — Resultado del smoke (17ago26)
+
+Contra un **clon** (`sanmarinoapp_d4`, backend en `:5501` con content root propio; aislamiento
+verificado por `pg_stat_activity`: 1 conexión al clon, **0 a la compartida**). ItalcolEcuador
+(`dias_alimento_previo_encaset` = 10), hoy = 17-ago-2026.
+
+| Caso | Ubicación | Respuesta |
+|---|---|---|
+| `GET ventana-fecha-ingreso` con encaset del **10-ago** | granja 37 / G0031 | `min 2026-07-31` · ayuda nombra el encaset y el rango |
+| `GET` **sin galpón** | granja 37 | `min 2026-08-01` · `proximoEncaset: null` · ayuda genérica |
+| `GET` con encaset del **18-ago** (ventana entera dentro del mes) | granja 45 / G0057 | `min 2026-08-01` — **no promete una excepción que no agrega días** |
+| `POST /ingreso` fecha **31-jul** (mes anterior, DENTRO) | granja 37 / G0031 | **200** ✅ *lo que el front no dejaba tipear* |
+| `POST /ingreso` fecha **25-jul** (FUERA) | granja 37 / G0031 | **400** nombrando encaset y rango |
+| `POST /ingreso` fecha **31-jul** en galpón cuya ventana no llega a julio | granja 45 / G0057 | **400** — la excepción es **por galpón**, no por empresa |
+| `PUT /ingresos/{id}/fecha` a **01-ago** / a **20-jul** | granja 37 / G0031 | **200** / **400** |
+| `POST /traslado` y `PUT /stock/{id}` con **31-jul** | granja 37 / G0031 | **400** con el mensaje **sin** mención a la excepción |
+
+- [x] V15.6.1 **El `min` que ofrece la pantalla es exactamente la primera fecha que el backend
+      acepta** (31-jul en G0031): no ofrece de menos —que era el defecto— ni promete lo que el
+      controller va a rechazar
+- [x] V15.6.2 **Las tres puertas de regla dura no se movieron**: traslado, fecha de traslado y stock
+      siguen cortando en el día 1 del mes, con su mensaje original
+- [x] V15.6.3 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.774 + 1
+      en verde** (+11, los T1-T7) · `yarn build` OK (único warning, el de bundle budget preexistente)
+- [x] V15.6.4 **Clon dropeado · BD compartida sin una sola fila del smoke · puertos 5002/5501/4200 libres**
+
+## Observación honesta, fuera de alcance
+- [ ] V15.7.1 El alta con fecha del mes anterior devuelve **200 + `avisoFechaFueraDeCiclo`**: la
+      ventana D4 (`encaset − dias`) puede arrancar **un día antes** que el corte efectivo de la fn,
+      que además respeta el fin del ciclo anterior (`corte_apertura` de v12). En el smoke el 31-jul se
+      admite pero el aviso dice que el ciclo 2604 cuenta el alimento desde el 01-ago. **No es un
+      defecto de esta entrega** —el aviso es preexistente y hace justo lo que debe: avisar sin
+      bloquear—, pero queda escrito por si se decide alinear las dos fechas

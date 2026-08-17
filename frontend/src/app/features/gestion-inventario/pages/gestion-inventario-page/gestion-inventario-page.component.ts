@@ -25,9 +25,14 @@ import { HasPermissionDirective } from '../../../../core/auth/has-permission.dir
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { exportarStockExcel } from '../../funciones/exportar-stock-excel.funcion';
 import {
+  esFechaIngresoOfrecible,
   esFechaMovimientoPermitida,
+  extremosFechaIngreso,
+  hintFechaIngreso,
   mensajeFechaFueraDeVentana,
-  ventanaFechaMovimiento
+  mensajeFechaIngresoFueraDeVentana,
+  ventanaFechaMovimiento,
+  type VentanaFechaIngreso
 } from '../../funciones/ventana-fecha-movimiento.funcion';
 import {
   GestionInventarioService,
@@ -275,6 +280,16 @@ export class GestionInventarioPageComponent implements OnInit {
   fechaMovimientoMin = '';
   fechaMovimientoMax = '';
 
+  /**
+   * D4 — ventana del INGRESO informada por el backend para la ubicación elegida. `null` mientras no
+   * se consultó: ahí manda la ventana clásica. Los extremos y el hint son campos, no getters, por lo
+   * mismo que los de arriba (referencias estables para el template).
+   */
+  ventanaIngreso: VentanaFechaIngreso | null = null;
+  fechaIngresoMin = '';
+  fechaIngresoMax = '';
+  hintFechaIngresoTexto = '';
+
   constructor(
     private svc: GestionInventarioService,
     private route: ActivatedRoute,
@@ -287,6 +302,7 @@ export class GestionInventarioPageComponent implements OnInit {
     const ventana = ventanaFechaMovimiento(new Date());
     this.fechaMovimientoMin = ventana.min;
     this.fechaMovimientoMax = ventana.max;
+    this.aplicarVentanaIngreso(null);
     this.ingresoFechaMovimiento = this.todayYmd();
     this.trasladoFechaMovimiento = this.todayYmd();
     // Colombia: el inventario es a nivel granja → traslado siempre entre granjas (no galpón-a-galpón).
@@ -1179,17 +1195,56 @@ export class GestionInventarioPageComponent implements OnInit {
     this.ingresoParaProximoCiclo = false;
     this.ingresoSiloId = null;
     this.loadIngresoSilos();
+    this.loadVentanaIngreso();
   }
 
   onIngresoDestinoNucleoChange(): void {
     this.ingresoGalponId = null;
     this.ingresoParaProximoCiclo = false;
     this.loadIngresoSilos();
+    this.loadVentanaIngreso();
   }
 
   onIngresoDestinoGalponChange(): void {
     this.ingresoParaProximoCiclo = false;
     this.loadIngresoSilos();
+    this.loadVentanaIngreso();
+  }
+
+  /**
+   * D4 — trae del backend la ventana de fechas del ingreso para la ubicación elegida. Es lo que hace
+   * que el datepicker deje tipear la fecha REAL del alimento que llegó antes del encasetamiento, en
+   * vez de empujar a falsearla al primer día del mes.
+   *
+   * Fail-OPEN a propósito (al revés que los flags de empresa): si no hay granja o la consulta falla,
+   * se vuelve a la ventana clásica y el rechazo lo hace el controller, que es quien manda. Cerrar
+   * acá sería reponer el bloqueo que este cambio viene a sacar.
+   */
+  private loadVentanaIngreso(): void {
+    if (this.ingresoFarmId == null) {
+      this.aplicarVentanaIngreso(null);
+      return;
+    }
+    this.svc
+      .getVentanaFechaIngreso({
+        farmId: this.ingresoFarmId,
+        nucleoId: this.ingresoNucleoId,
+        galponId: this.ingresoGalponId
+      })
+      .subscribe({
+        next: (v) => this.aplicarVentanaIngreso(v ?? null),
+        error: () => this.aplicarVentanaIngreso(null)
+      });
+  }
+
+  /** Deja los extremos y el hint listos para el template (referencias estables). */
+  private aplicarVentanaIngreso(ventana: VentanaFechaIngreso | null): void {
+    const hoy = new Date();
+    this.ventanaIngreso = ventana;
+    const extremos = extremosFechaIngreso(hoy, ventana);
+    this.fechaIngresoMin = extremos.min;
+    this.fechaIngresoMax = extremos.max;
+    this.hintFechaIngresoTexto = hintFechaIngreso(hoy, ventana);
   }
 
   submitIngreso(): void {
@@ -1197,7 +1252,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Indique la fecha del movimiento.');
       return;
     }
-    if (!this.validarVentanaFecha(this.ingresoFechaMovimiento)) return;
+    if (!this.validarVentanaFechaIngreso(this.ingresoFechaMovimiento)) return;
     if (this.ingresoFarmId == null || this.ingresoItemInventarioEcuadorId == null || this.ingresoQuantity <= 0) {
       this.openAlertModal('error', 'Validación', 'Complete granja, ítem y cantidad.');
       return;
@@ -1638,6 +1693,18 @@ export class GestionInventarioPageComponent implements OnInit {
     return false;
   }
 
+  /**
+   * D4 — guarda de las puertas de INGRESO. Sólo corta lo que ninguna ventana admite (el futuro, o
+   * antes del mínimo ofrecido); el hueco entre el mes en curso y la ventana del encasetamiento viaja
+   * y lo resuelve el controller, que es la única punta que sabe qué encaset corresponde a esa fecha.
+   */
+  private validarVentanaFechaIngreso(ymd: string | null | undefined): boolean {
+    const hoy = new Date();
+    if (esFechaIngresoOfrecible(ymd, hoy, this.ventanaIngreso)) return true;
+    this.openAlertModal('error', 'Validación', mensajeFechaIngresoFueraDeVentana(hoy, this.ventanaIngreso));
+    return false;
+  }
+
   /** Texto legible para la fecha de ingreso seleccionada. */
   formatIngresoFechaDisplay(): string {
     const ymd = (this.ingresoFechaMovimiento ?? '').trim();
@@ -1663,7 +1730,7 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Seleccione una fecha.');
       return;
     }
-    if (!this.validarVentanaFecha(d)) return;
+    if (!this.validarVentanaFechaIngreso(d)) return;
     this.ingresoFechaMovimiento = d;
     this.showIngresoFechaModal = false;
   }
