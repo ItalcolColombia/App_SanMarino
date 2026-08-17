@@ -588,6 +588,13 @@ public partial class MigracionService
 
         var fallos = new List<MigracionErrorDto>();
 
+        // Un archivo histórico NO son días pendientes de validar: sus consumos ya ocurrieron. Dentro
+        // de este alcance la empresa se comporta como si no usara doble validación —descuenta al
+        // guardar y las filas nacen validadas—. Sin esto el import moría en la segunda fila: la
+        // primera insertada queda vencida en el acto (el plazo es de un día) y el gate de vencidos
+        // rechazaba el resto. El `using` lo apaga también si el import se cae a la mitad.
+        using var _cargaHistorica = _validacion?.ModoCargaHistorica();
+
         // El alimento ENTRA primero: el consumo de cada día descuenta de un stock que ya tiene que
         // existir. Invertir el orden es el bug que dejaba el galpón en cero.
         var (movAplicados, movOmitidos) = await AplicarMovimientosAlimentoAsync(movimientosAlimento, fallos, ct);

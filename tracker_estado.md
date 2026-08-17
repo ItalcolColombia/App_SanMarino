@@ -5722,10 +5722,31 @@ baseline de las 129, flags en su valor original, puertos libres.
 - [x] V7.33 **Las 5 empresas, de nuevo y completo.** Sanmarino (levante con `pais_id` NULL + producción + flag OFF + saldo insuficiente), Demo, ItalcolPanama, ItalcolEcuador, Santa Reyes (aislamiento entre empresas). Restaurado con **0 tablas con diferencia** sobre las 129
 - [x] V7.34 `dotnet build` 0 errores · `dotnet test` **2613 en verde** · `yarn build` OK (único warning, el de budget preexistente) · flags originales, 0 reservas activas, puertos libres
 
-### Sigue abierto (necesita diseño propio, no entra acá)
-- [ ] V7.35 El bloqueo por vencidos se evalúa **por fila**: corta la carga masiva histórica y el puente Panamá después del primer día insertado. Necesita evaluarse una vez por import
-- [ ] V7.36 El guard de alimento mide solo el metadata; el puente Panamá manda los kg en `ConsumoKgHembras/Machos` ⇒ con el flag ON no importa un solo día
-- [ ] V7.37 El saldo de alimento y el cuadre de engorde se recalculan ignorando `validado`. Tocar `fn_seguimiento_diario_engorde` exige el **gate de paridad multipaís**
+### Los 3 que quedaban: resueltos
+
+**V7.35 + V7.36 — un solo concepto: `ModoCargaHistorica()`.**
+Una carga histórica no son días pendientes de validar: son días que ya pasaron y cuyo alimento ya se
+consumió. Dentro del alcance que devuelve el método, la empresa se comporta como si no usara doble
+validación (descuenta al guardar, las filas nacen validadas). Es un `IDisposable` y no un setter para
+que se apague solo si el import se cae a la mitad; el contador es anidable y el servicio es `Scoped`,
+así que el modo nunca cruza de una request a otra.
+- [x] V7.35 `MigracionService` (import de engorde por Excel) y `PuentePanamaService.SincronizarAsync` envueltos. **Reproducido el defecto en runtime**: con el flag ON, el día histórico 1 entra y el día 2 devuelve *«el lote tiene un registro sin validar que superó el plazo (10/08/2026)»* — un lote de 40 días entraba con una sola fila
+- [x] V7.36 Y de fondo: `ValidarAlimentoObligatorio` ahora **también mira los kg directos** (`ConsumoKgHembras/Machos`), no solo los ítems del metadata. Se toma el **máximo** por bloque, no la suma: cuando vienen los dos son el mismo alimento expresado dos veces. Aplicado en los 6 llamadores de levante y engorde
+
+**V7.37 — el cuadre ya no cuenta lo separado como descuadre.**
+Ninguna fn del esquema mira `validado`, así que `fn_seguimiento_diario_engorde` ya descontó el consumo
+de un registro pendiente mientras el inventario todavía no lo movió: cada pendiente aparecía como un
+descuadre por sus propios kilos. La reserva ACTIVA **es** ese movimiento pendiente, así que el stock
+comparable es `stock − reservado` — el mismo «disponible» que ya muestra el inventario—.
+- [x] V7.37 `CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas` + el service agrupa las reservas activas por ubicación. **No se toca ninguna fn SQL**, así que no hace falta el gate de paridad multipaís. Con el flag apagado no hay reservas ⇒ el número es idéntico al de antes (test) y un descuadre REAL sigue apareciendo aunque haya reservas (test)
+- [x] V7.38 **Verificado en runtime** (ItalcolPanama, flag ON): con 80 kg separados el cuadre queda **byte a byte igual** — 6 descuadrados y 55.045,359 kg de error absoluto antes y después. Sin el ajuste ese galpón habría saltado a Descuadrado
+
+### Cierre de los 3
+- [x] V7.39 `dotnet build` 0 errores · `dotnet test` **2616 en verde** · base restaurada con **0 tablas con diferencia**, flags originales, 0 reservas activas, puertos libres
+
+### Nota aparte (dato preexistente, no de esta entrega)
+ItalcolPanama arrastra **6 galpones descuadrados y 55.045 kg** de error absoluto de antes de todo esto.
+No lo toca esta entrega; queda dicho porque el cuadre es el termómetro que hay que mirar.
 
 ### Hallazgos confirmados que NO entran en esta entrega
 - [ ] V7.23 El bloqueo por vencidos corta la **carga masiva histórica** y el **puente Panamá** después del primer día insertado: el gate se evalúa por fila. Necesita evaluarse una vez por import

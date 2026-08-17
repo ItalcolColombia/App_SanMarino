@@ -25,6 +25,11 @@ public partial class PuentePanamaService : IPuentePanamaService
     private readonly IGalponService _galponService;
     private readonly ILoteAveEngordeService _loteAveEngordeService;
     private readonly ISeguimientoAvesEngordeService _seguimientoEngordeService;
+    /// <summary>
+    /// Doble validación. Solo se usa para <b>suspenderla</b> mientras corre la sincronización: lo que
+    /// trae el puente son días que ya ocurrieron en el origen, no capturas pendientes de validar.
+    /// </summary>
+    private readonly IValidacionSeguimientoService? _validacion;
     private readonly ILoteReproductoraAveEngordeService _loteReproService;
     private readonly ISeguimientoDiarioLoteReproductoraService _seguimientoReproService;
     private readonly IGuiaGeneticaEcuadorService _guiaGeneticaService;
@@ -43,8 +48,10 @@ public partial class PuentePanamaService : IPuentePanamaService
         ISeguimientoAvesEngordeService seguimientoEngordeService,
         ILoteReproductoraAveEngordeService loteReproService,
         ISeguimientoDiarioLoteReproductoraService seguimientoReproService,
-        IGuiaGeneticaEcuadorService guiaGeneticaService)
+        IGuiaGeneticaEcuadorService guiaGeneticaService,
+        IValidacionSeguimientoService? validacion = null)
     {
+        _validacion = validacion;
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;

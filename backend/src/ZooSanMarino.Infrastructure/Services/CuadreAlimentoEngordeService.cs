@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
@@ -72,9 +73,25 @@ public class CuadreAlimentoEngordeService : ICuadreAlimentoEngordeService
             .SqlQueryRaw<FilaCruda>("SELECT * FROM fn_cuadre_alimento_engorde({0}::int)", companyId)
             .ToListAsync(ct);
 
+        // Kilos SEPARADOS y todavia sin aplicar, por ubicacion. Con doble validacion el consumo de un
+        // registro pendiente ya esta dentro de `saldo_tabla` (ninguna fn mira `validado`) pero todavia
+        // no salio del inventario: sin restarlo del stock, cada pendiente se reportaba como descuadre.
+        // Con el flag apagado no hay reservas ACTIVAS y este diccionario queda vacio.
+        var reservado = (await _db.SeguimientoReservaAlimento.AsNoTracking()
+                .Where(x => x.CompanyId == companyId && x.Estado == EstadoReservaSeguimiento.Activa)
+                .GroupBy(x => new { x.FarmId, x.NucleoId, x.GalponId })
+                .Select(g => new { g.Key.FarmId, g.Key.NucleoId, g.Key.GalponId, Kg = g.Sum(x => x.CantidadKg) })
+                .ToListAsync(ct))
+            .ToDictionary(
+                x => (x.FarmId, (x.NucleoId ?? "").Trim(), (x.GalponId ?? "").Trim()),
+                x => x.Kg);
+
         var filas = crudas.Select(r =>
         {
-            var descuadre = (decimal)r.descuadre_kg;
+            reservado.TryGetValue((r.granja_id, (r.nucleo_id ?? "").Trim(), (r.galpon_id ?? "").Trim()),
+                out var reservadoKg);
+            var descuadre = CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(
+                (decimal)r.descuadre_kg, reservadoKg);
             return new CuadreAlimentoEngordeFilaDto(
                 r.company_id, r.empresa, r.granja_id, r.granja, r.nucleo_id, r.galpon_id,
                 r.lote_ave_engorde_id, r.lote_nombre, r.estado_operativo_lote, r.ultimo_seguimiento,

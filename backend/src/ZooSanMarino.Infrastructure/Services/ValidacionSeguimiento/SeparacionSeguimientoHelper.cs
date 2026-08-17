@@ -26,15 +26,28 @@ public static class SeparacionSeguimientoHelper
     /// PWA entran por este mismo service sin pasar por la pantalla.
     /// </para>
     /// </summary>
+    /// <param name="kgHembrasDirecto">
+    /// Kilos que el cliente mandó en el campo suelto de consumo (<c>ConsumoKgHembras</c>), en vez de
+    /// como ítems del metadata. No es un caso raro: es como cargan los clientes que no pasan por el
+    /// formulario. Sin mirarlo, el guard rechazaba un registro que SÍ traía alimento.
+    /// </param>
+    /// <param name="kgMachosDirecto">Ídem para machos (<c>ConsumoKgMachos</c>).</param>
     public static void ValidarAlimentoObligatorio(
-        string modulo, bool loteEsMixto, JsonDocument? metadata, DateTime fechaRegistro)
+        string modulo, bool loteEsMixto, JsonDocument? metadata, DateTime fechaRegistro,
+        decimal kgHembrasDirecto = 0m, decimal kgMachosDirecto = 0m)
     {
         var (h, m, g) = metadata is null
             ? (0m, 0m, 0m)
             : MetadataEngordeCalculos.ParseKgPorBloque(metadata.RootElement);
 
+        // MÁXIMO, no suma: cuando el registro trae las dos cosas son el MISMO alimento expresado dos
+        // veces (el formulario llena el campo suelto además de los ítems). Sumarlos duplicaría los kg.
+        // Para lo único que se usan acá es para decidir si hay alimento o no, así que el máximo basta
+        // y no inventa cantidades.
         var motivo = AlimentoObligatorioCalculos.Motivo(
-            modulo, loteEsMixto, new AlimentoCapturado(h, m, g), DateOnly.FromDateTime(fechaRegistro));
+            modulo, loteEsMixto,
+            new AlimentoCapturado(Math.Max(h, kgHembrasDirecto), Math.Max(m, kgMachosDirecto), g),
+            DateOnly.FromDateTime(fechaRegistro));
 
         if (motivo is not null)
             throw new InvalidOperationException(motivo);

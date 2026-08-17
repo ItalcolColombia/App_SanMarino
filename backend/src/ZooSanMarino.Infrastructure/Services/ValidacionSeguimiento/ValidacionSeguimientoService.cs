@@ -67,8 +67,40 @@ public partial class ValidacionSeguimientoService : IValidacionSeguimientoServic
     public async Task<bool> RequiereValidacionAsync(CancellationToken ct = default)
         => await RequiereValidacionAsync(_current.CompanyId, ct);
 
+    // ─── Carga histórica ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Anidable a propósito: si un import llama a otro, apagar el interno no puede apagar el externo.
+    /// Por eso es un contador y no un bool.
+    /// </summary>
+    private int _cargaHistorica;
+
+    /// <inheritdoc />
+    public IDisposable ModoCargaHistorica()
+    {
+        _cargaHistorica++;
+        return new AlcanceCargaHistorica(this);
+    }
+
+    private sealed class AlcanceCargaHistorica : IDisposable
+    {
+        private ValidacionSeguimientoService? _duenio;
+        public AlcanceCargaHistorica(ValidacionSeguimientoService duenio) => _duenio = duenio;
+
+        public void Dispose()
+        {
+            // Idempotente: un `using` que se disponga dos veces no puede desbalancear el contador.
+            if (_duenio is null) return;
+            if (_duenio._cargaHistorica > 0) _duenio._cargaHistorica--;
+            _duenio = null;
+        }
+    }
+
     private async Task<bool> RequiereValidacionAsync(int companyId, CancellationToken ct)
     {
+        // Dentro de una carga histórica la empresa se comporta como si no usara doble validación:
+        // los días importados ya ocurrieron, así que descuentan al guardar y nacen validados.
+        if (_cargaHistorica > 0) return false;
         if (companyId <= 0) return false;
         return await _ctx.Companies.AsNoTracking()
             .Where(c => c.Id == companyId)

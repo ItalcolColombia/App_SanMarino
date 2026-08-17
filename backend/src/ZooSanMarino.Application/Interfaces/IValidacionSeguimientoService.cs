@@ -49,6 +49,28 @@ public interface IValidacionSeguimientoService
     Task<bool> RequiereValidacionAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Suspende la doble validación mientras dure el alcance devuelto: dentro, los seguimientos
+    /// descuentan al guardar y nacen validados, como en las empresas que no la usan.
+    ///
+    /// <para>
+    /// <b>Para qué.</b> La doble validación modela la captura del día a día: se separa, y alguien
+    /// valida dentro del plazo. Una <b>carga histórica</b> —el Excel de migración, el puente de
+    /// Panamá— no es eso: son días que ya pasaron y cuyo alimento ya se consumió de verdad. Tratarlos
+    /// como pendientes es incorrecto de fondo y además rompía el import: la primera fila insertada
+    /// queda vencida en el acto (el plazo es de un día) y <see cref="AsegurarPuedeRegistrarDiaAsync"/>
+    /// rechazaba la segunda. Un lote de 40 días entraba con una sola fila.
+    /// </para>
+    ///
+    /// <para>
+    /// Se devuelve un <see cref="IDisposable"/> y no un setter para que el modo se apague solo, también
+    /// si el import se cae a la mitad: un flag que queda encendido convertiría al resto de la request
+    /// en una empresa sin doble validación. El servicio es <c>Scoped</c>, así que el modo nunca cruza
+    /// de una request a otra.
+    /// </para>
+    /// </summary>
+    IDisposable ModoCargaHistorica();
+
+    /// <summary>
     /// Separa alimento y aves del registro. <b>Idempotente por registro</b>: libera lo que ese
     /// seguimiento tuviera separado y escribe lo nuevo, que es lo que hace que editar no necesite
     /// ningún cálculo de retorno.

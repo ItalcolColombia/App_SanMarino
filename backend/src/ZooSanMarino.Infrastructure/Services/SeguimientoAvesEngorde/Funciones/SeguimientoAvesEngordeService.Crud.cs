@@ -95,7 +95,8 @@ public partial class SeguimientoAvesEngordeService
             // Los vencidos bloquean el día nuevo: el mensaje nombra las fechas que hay que validar.
             await _validacion!.AsegurarPuedeRegistrarDiaAsync(ModuloSeguimiento.Engorde, dto.LoteId);
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro);
+                ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos);
         }
 
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
@@ -325,7 +326,8 @@ public partial class SeguimientoAvesEngordeService
                     ValidacionSeguimientoCalculos.MensajeRegistroValidado("editar"));
 
             SeparacionSeguimientoHelper.ValidarAlimentoObligatorio(
-                ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro);
+                ModuloSeguimiento.Engorde, loteEsMixto, dto.Metadata, dto.FechaRegistro,
+                (decimal)dto.ConsumoKgHembras, (decimal)dto.ConsumoKgMachos);
         }
 
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;

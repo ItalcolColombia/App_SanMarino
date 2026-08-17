@@ -38,6 +38,33 @@ public static class CuadreAlimentoEngordeCalculos
     public const decimal ToleranciaKg = 1m;
 
     /// <summary>
+    /// Descuadre corregido por lo que la doble validación tiene <b>separado y todavía sin aplicar</b>.
+    ///
+    /// <para>
+    /// <b>Por qué hace falta.</b> El invariante es
+    /// <c>saldo_tabla − (stock − movimientos_posteriores)</c>, y ninguna función del esquema mira
+    /// <c>validado</c>: <c>fn_seguimiento_diario_engorde</c> ya descontó el consumo de un registro
+    /// pendiente, pero el inventario todavía no lo movió —justamente porque está separado—. Con el
+    /// flag encendido, cada registro sin validar aparecía como un descuadre por sus propios kilos.
+    /// </para>
+    ///
+    /// <para>
+    /// La reserva ACTIVA <b>es</b> ese movimiento pendiente, así que el stock comparable es
+    /// <c>stock − reservado</c> — el mismo «disponible» que ya muestra el inventario—. Sustituyéndolo
+    /// en el invariante, el descuadre queda <c>descuadre + reservado</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// No se toca <c>fn_cuadre_alimento_engorde</c> ni <c>fn_seguimiento_diario_engorde</c>: cambiar
+    /// esas funciones mueve el número de TODAS las empresas y exige el gate de paridad multipaís. Con
+    /// el flag apagado no hay reservas activas ⇒ <paramref name="reservadoActivoKg"/> es 0 y el
+    /// descuadre es exactamente el de antes.
+    /// </para>
+    /// </summary>
+    public static decimal DescuadreAjustadoPorReservas(decimal descuadreKg, decimal reservadoActivoKg)
+        => descuadreKg + reservadoActivoKg;
+
+    /// <summary>
     /// Clasifica un galpón. <paramref name="descuadreKg"/> es
     /// <c>saldo_tabla − (stock − movimientos_posteriores)</c>, tal como lo devuelve
     /// <c>fn_cuadre_alimento_engorde</c>.

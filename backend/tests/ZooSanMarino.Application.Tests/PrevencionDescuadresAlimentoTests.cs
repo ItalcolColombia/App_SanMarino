@@ -145,4 +145,42 @@ public class PrevencionDescuadresAlimentoTests
         Assert.Null(AvisoFechaFueraDeCicloCalculos.Evaluar(new DateTime(2026, 6, 5), unico, 0));
         Assert.NotNull(AvisoFechaFueraDeCicloCalculos.Evaluar(new DateTime(2026, 6, 4), unico, 0));
     }
+
+    // ─── El cuadre y la doble validación ──────────────────────────────────────
+    // Ninguna fn del esquema mira `validado`, así que `fn_seguimiento_diario_engorde` ya descuenta el
+    // consumo de un registro PENDIENTE mientras el inventario todavía no lo movió. La reserva ACTIVA
+    // es exactamente ese movimiento pendiente: el stock comparable es `stock − reservado`.
+
+    [Fact]
+    public void UnRegistroPendiente_NoEsUnDescuadre()
+    {
+        // El galpón separó 80 kg sin validar: la fn los descontó, el inventario no. Crudo da -80.
+        const decimal descuadreCrudo = -80m, reservado = 80m;
+
+        var ajustado = CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(descuadreCrudo, reservado);
+
+        Assert.Equal(0m, ajustado);
+        Assert.Equal(EstadoCuadreAlimento.Ok, CuadreAlimentoEngordeCalculos.Clasificar(ajustado, 0));
+        // Sin el ajuste, el mismo galpón se reportaba como defecto.
+        Assert.Equal(EstadoCuadreAlimento.Descuadrado,
+            CuadreAlimentoEngordeCalculos.Clasificar(descuadreCrudo, 0));
+    }
+
+    [Fact]
+    public void FlagApagado_ElDescuadreEsExactamenteElDeAntes()
+    {
+        // Sin doble validación no hay reservas activas ⇒ reservado = 0 ⇒ el número no se mueve.
+        foreach (var crudo in new[] { 0m, -480m, 37_880m, 0.4m })
+            Assert.Equal(crudo, CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(crudo, 0m));
+    }
+
+    [Fact]
+    public void UnDescuadreREAL_SigueSiendoDescuadreAunqueHayaReservas()
+    {
+        // 80 kg separados y además 480 kg que faltan de verdad: el ajuste no puede taparlos.
+        var ajustado = CuadreAlimentoEngordeCalculos.DescuadreAjustadoPorReservas(-560m, 80m);
+
+        Assert.Equal(-480m, ajustado);
+        Assert.Equal(EstadoCuadreAlimento.Descuadrado, CuadreAlimentoEngordeCalculos.Clasificar(ajustado, 0));
+    }
 }
