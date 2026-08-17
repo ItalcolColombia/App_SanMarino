@@ -1931,19 +1931,13 @@ audita la mitad del **saldo**.
       dos en `main` sin desplegar, así que el primer deploy que lleve la doble validación ya lleva el
       literal correcto. **No hace falta migración data-only** — la que se había previsto
       (`replace(referencia, 'Seguimiento engorde #', 'Seguimiento aves engorde #')`) queda sin objeto
-- [ ] V12.4.3 ⚠️ **A confirmar con el usuario**: dijo «la base de datos está actualizada en AWS». Si
-      eso significa que las **migraciones** se aplicaron por fuera del deploy, prod tendría el esquema
-      **por delante** del binario de 14-ago — que es justo el modo de falla que documenta CLAUDE.md
-      («migración aplicada = binario viejo inválido»). No cambia la respuesta de V12.4.1, pero es un
-      riesgo aparte que vale mirar. No pude verificarlo: la RDS está en VPC privada (resuelve a
-      `10.4.6.6`, psql da timeout), ECS Exec está **deshabilitado** en el servicio, y el usuario IAM
-      no tiene `rds:DescribeDBInstances` ni `ssm:DescribeInstanceInformation`
+- [x] V12.4.3 **La asimetría de levante/producción/reproductora NO es alcanzable — medido, ya no es
+      una corazonada.** Una devolución de esos módulos sólo inflaría el saldo de engorde si compartiera
+      `(granja, núcleo, galpón)` con un lote de engorde. En la base: **15 galpones de postura y 76 de
+      engorde, cero solapados** en las 5 empresas. Queda documentado como condición a vigilar, no como
+      deuda: si algún día un galpón se reusa entre fases, revisar este filtro
 - [ ] V12.4.4 **No se filtró la fn por `validado`** — ver V12.0.1. Diferir también el saldo es un
       cambio de modelo que pide su propio plan y su propio gate
-- [ ] V12.4.5 Levante/producción/reproductora que devuelvan sobre un galpón donde vive un lote de
-      engorde quedan cubiertos sólo por su prefijo propio, no por el filtro de engorde. Es una
-      asimetría **anterior** a la doble validación (le pasa igual al `devolución por eliminación` de
-      esos módulos) y no entra acá
 
 ## Dos observaciones que NO son de esta entrega
 - [ ] V12.5.1 **Para el bloque «v16 de engorde — marca `para_proximo_ciclo`»**: ese bloque declara
@@ -1956,3 +1950,27 @@ audita la mitad del **saldo**.
       stock 10.609,560 · descuadre 0,000`. El cuadre de ItalcolPanama está hoy en **5 descuadrados /
       54.795,359 kg**, no en los 6 / 55.045,359 del baseline de V8. Revalidar esa tabla antes de
       trabajarla
+
+---
+
+# Cola de baja prioridad — mirar sólo cuando se toque producción
+
+Va al final a propósito: **nada de acá bloquea desarrollo**. La verificación contra prod resultó
+innecesaria (V12.4.1: sin el código desplegado no hay fila que buscar), así que estos puntos se miran
+recién cuando haya un deploy de por medio.
+
+- [ ] P.1 ⚠️ **¿El esquema de prod quedó por delante del binario?** El usuario dijo «la base de datos
+      está actualizada en AWS» mientras el servicio corría la imagen del 14-ago (TaskDef 158). Si las
+      migraciones se aplicaron por fuera del deploy, es el modo de falla que documenta CLAUDE.md
+      («migración aplicada = binario viejo inválido» → exit 139 / SIGSEGV al arrancar). **Se resuelve
+      solo con el próximo deploy**, que lleva el código que corresponde a esas migraciones.
+      Comprobación de un renglón cuando haya acceso:
+      `SELECT migration_id FROM "__EFMigrationsHistory" WHERE migration_id LIKE '202608%' ORDER BY 1 DESC LIMIT 10;`
+- [ ] P.2 **Verificación post-deploy obligatoria** cuando salga la doble validación (CLAUDE.md §🚀):
+      `describe-services` → TaskDef y `rolloutState`, `describe-task-definition` → imagen, y comparar
+      contra la que se pretendía desplegar. ECS hace rollback silencioso y el CLI igual dice
+      «completado»
+- [ ] P.3 **Desde esta máquina no se puede consultar prod** y no vale la pena forzarlo: RDS en VPC
+      privada (`10.4.6.6`, psql timeout), **ECS Exec deshabilitado** en el servicio, y el usuario IAM
+      sin `rds:DescribeDBInstances` ni `ssm:DescribeInstanceInformation`. Habilitar ECS Exec exige
+      redeploy de producción ⇒ sólo con pedido explícito. Para consultas puntuales, DB Studio
