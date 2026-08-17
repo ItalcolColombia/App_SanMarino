@@ -333,11 +333,31 @@ distintas; al unirlos el consolidado debe cuadrar. Validá en reportes y descarg
       muertes sobre un lote que tenía 40 aves.** El lote 124, que recibió esas 5.100, deja de
       registrar mortalidad el 10-jul.
 
-      **Qué necesita: una decisión de operación, no código.** O esas 500 son del lote **124** y se
-      imputaron al lote equivocado, o es un error de digitación. ⛔ No se tocó el dato: la guía manda
-      simular en transacción y revertir antes de corregir, y elegir entre las dos hipótesis no es una
-      decisión técnica. ⛔ Tampoco se le puso piso 0 a la fn: el negativo es **la señal** de que el
-      dato está mal; taparlo lo esconde (mismo criterio que el clamp de engorde)
+      **Las dos hipótesis, SIMULADAS en transacción y revertidas** (17ago26):
+
+      | Hipótesis | Lote 123 | Lote 124 |
+      |---|---|---|
+      | Hoy | **−460** | 4.870 |
+      | **A** — las 500 son del lote 124 y se imputaron mal | **40** ✓ | 4.370 ✓ |
+      | **B** — error de digitación (500 → 50) | **−10** ✗ | — |
+
+      **B queda descartada por aritmética**: el lote tenía **40** aves vivas, así que cualquier cifra
+      mayor a 40 lo deja negativo. **A es la única que cierra**, y encaja con el patrón: el lote 124
+      recibió las 5.100 y **dejó de registrar mortalidad el 10-jul**.
+
+      **Pendiente: el OK del usuario para aplicar A.** ⛔ No se tocó el dato — la guía manda simular y
+      revertir antes de corregir, y la reimputación de una fila entre lotes es decisión de operación.
+      ⚠️ **Es la empresa Demo, no Sanmarino** (verificado: `lotes.company_id = 4` y la granja
+      `LA CAROLINA` id 95 también es Demo; existen `CAROLINA` id 45 de Ecuador y `PRIMAVERA` id 9 de
+      Sanmarino, nombres parecidos en otras empresas). ⛔ Tampoco se le puso piso 0 a la fn: el
+      negativo es **la señal** de que el dato está mal; taparlo lo esconde (criterio del clamp de
+      engorde)
+
+      **Barrido de respaldo (17ago26): no hay ningún otro negativo en ninguna empresa.**
+      `fn_indicadores_levante_postura` 0 · `fn_reporte_semanal_levante_extras` 0 ·
+      `fn_resumen_semanal_ra_pesadas_levante` 0 en Sanmarino · maestro `lote_postura_levante` 0 en las
+      5 empresas · kardex crudo: **el lote 123 es el único** en toda la base cuyas bajas superan su
+      base
 
 ---
 
