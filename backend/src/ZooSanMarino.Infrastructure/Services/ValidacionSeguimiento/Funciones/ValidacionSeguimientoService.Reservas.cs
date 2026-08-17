@@ -140,29 +140,6 @@ public partial class ValidacionSeguimientoService
     }
 
     /// <summary>
-    /// Kilos comprometidos por ítem en una ubicación. El inventario se lo resta al stock para
-    /// responder el disponible real — es lo que hace que dos lotes sobre el mismo galpón dejen de ver
-    /// los mismos kilos.
-    /// </summary>
-    public async Task<IReadOnlyDictionary<int, decimal>> ReservadoPorItemAsync(
-        int farmId, string? nucleoId, string? galponId, CancellationToken ct = default)
-    {
-        var n = (nucleoId ?? "").Trim();
-        var g = (galponId ?? "").Trim();
-
-        var filas = await _ctx.SeguimientoReservaAlimento.AsNoTracking()
-            .Where(r => r.FarmId == farmId
-                     && r.Estado == EstadoReservaSeguimiento.Activa
-                     && (r.NucleoId == null ? "" : r.NucleoId.Trim()) == n
-                     && (r.GalponId == null ? "" : r.GalponId.Trim()) == g)
-            .GroupBy(r => r.ItemInventarioEcuadorId)
-            .Select(gr => new { ItemId = gr.Key, Kg = gr.Sum(x => x.CantidadKg) })
-            .ToListAsync(ct);
-
-        return filas.ToDictionary(f => f.ItemId, f => f.Kg);
-    }
-
-    /// <summary>
     /// Aves comprometidas de un lote. Sin esto, un traslado o una venta pueden despachar aves que un
     /// registro sin validar ya dio de baja.
     /// </summary>

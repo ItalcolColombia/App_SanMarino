@@ -216,4 +216,60 @@ public static class ReservaSeguimientoCalculos
         return $"No se puede validar: el registro da de baja {bajasTotal} aves{lote} y el saldo tiene " +
                $"{disponibleTotal}. Corregí las bajas del registro, o el saldo del lote, antes de validar.";
     }
+
+    /// <summary>
+    /// Motivo por el que un despacho (venta o traslado) <b>no puede salir</b> del saldo MAESTRO de un
+    /// lote de postura, o <c>null</c> si sí puede.
+    ///
+    /// <para>
+    /// Es el mismo agujero que el traslado desde seguimiento ya cerró, del otro lado: con doble
+    /// validación el maestro (<c>aves_h_actual</c>) <b>no se descontó</b>, así que las aves que un
+    /// registro pendiente ya dio de baja siguen figurando como disponibles y se pueden vender. La
+    /// venta después las resta con <c>Math.Max(0, …)</c>, o sea que el sobregiro no falla: se recorta
+    /// en silencio y el lote queda mintiendo en cero.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠️ <b>Sólo mira lo RESERVADO.</b> Sin reservas activas devuelve <c>null</c> siempre, aunque el
+    /// pedido exceda el saldo: ese caso es preexistente, lo cubre (mal) el chequeo contra
+    /// <c>inventario_aves</c>, y meterlo acá cambiaría el comportamiento de las cinco empresas por un
+    /// motivo que no es este. Con el flag apagado no hay reservas ⇒ resultado idéntico al de hoy.
+    /// </para>
+    ///
+    /// <para>
+    /// Se evalúa <b>por sexo</b>: 100 hembras reservadas no habilitan despachar 100 machos.
+    /// </para>
+    /// </summary>
+    /// <param name="saldoHembras">Hembras del maestro del lote, antes de este movimiento.</param>
+    /// <param name="saldoMachos">Machos del maestro del lote, antes de este movimiento.</param>
+    /// <param name="reservadasHembras">Hembras que un seguimiento sin validar ya dio de baja.</param>
+    /// <param name="reservadasMachos">Machos que un seguimiento sin validar ya dio de baja.</param>
+    /// <param name="pedidasHembras">Hembras que el movimiento quiere sacar.</param>
+    /// <param name="pedidasMachos">Machos que el movimiento quiere sacar.</param>
+    /// <param name="loteRef">Lote legible, para que el mensaje diga sobre qué actuar.</param>
+    public static string? MotivoDespachoNoDisponible(
+        int saldoHembras, int saldoMachos,
+        int reservadasHembras, int reservadasMachos,
+        int pedidasHembras, int pedidasMachos,
+        string? loteRef)
+    {
+        if (reservadasHembras <= 0 && reservadasMachos <= 0) return null;
+
+        var faltaH = pedidasHembras > 0 && pedidasHembras > DisponibleAves(saldoHembras, reservadasHembras);
+        var faltaM = pedidasMachos > 0 && pedidasMachos > DisponibleAves(saldoMachos, reservadasMachos);
+        if (!faltaH && !faltaM) return null;
+
+        var lote = string.IsNullOrWhiteSpace(loteRef) ? "" : $" del lote '{loteRef}'";
+        var detalle = faltaH && faltaM
+            ? $"hembras {pedidasHembras} sobre {DisponibleAves(saldoHembras, reservadasHembras)} y " +
+              $"machos {pedidasMachos} sobre {DisponibleAves(saldoMachos, reservadasMachos)}"
+            : faltaH
+                ? $"hembras {pedidasHembras} sobre {DisponibleAves(saldoHembras, reservadasHembras)}"
+                : $"machos {pedidasMachos} sobre {DisponibleAves(saldoMachos, reservadasMachos)}";
+
+        return $"No hay aves disponibles{lote}: se piden {detalle}. " +
+               $"El saldo es {saldoHembras} H / {saldoMachos} M, pero {reservadasHembras} H / " +
+               $"{reservadasMachos} M ya están dadas de baja en registros de seguimiento sin validar. " +
+               "Validá esos registros (o corregilos) antes de despachar.";
+    }
 }

@@ -314,4 +314,77 @@ public class ReservaSeguimientoCalculosTests
         Assert.False(ValidacionSeguimientoCalculos.SeparaAlGuardar(empresaRequiereValidacion: false));
         Assert.True(ValidacionSeguimientoCalculos.DescuentaAlGuardar(empresaRequiereValidacion: false));
     }
+
+    // ─── Despacho contra el maestro (venta / traslado de postura) ─────────────
+
+    [Fact]
+    public void SinReservas_ElDespachoNuncaSeBloquea_AunquePidaDeMas()
+    {
+        // El invariante que hace seguro meter el guard en un camino que ya estaba en produccion:
+        // con el flag apagado no hay reservas, asi que el resultado es identico al de hoy. El pedido
+        // mayor que el saldo es un caso PREEXISTENTE y no es lo que este guard vino a resolver.
+        Assert.Null(ReservaSeguimientoCalculos.MotivoDespachoNoDisponible(
+            saldoHembras: 100, saldoMachos: 10,
+            reservadasHembras: 0, reservadasMachos: 0,
+            pedidasHembras: 500, pedidasMachos: 500,
+            loteRef: "A374A"));
+    }
+
+    [Fact]
+    public void ConReservas_ElDespachoQueEntraEnLoDisponible_Pasa()
+    {
+        Assert.Null(ReservaSeguimientoCalculos.MotivoDespachoNoDisponible(
+            saldoHembras: 100, saldoMachos: 20,
+            reservadasHembras: 30, reservadasMachos: 5,
+            pedidasHembras: 70, pedidasMachos: 15,
+            loteRef: "A374A"));
+    }
+
+    [Fact]
+    public void ConReservas_ElDespachoQueSeComeLoSeparado_SeRechaza()
+    {
+        var motivo = ReservaSeguimientoCalculos.MotivoDespachoNoDisponible(
+            saldoHembras: 100, saldoMachos: 20,
+            reservadasHembras: 30, reservadasMachos: 0,
+            pedidasHembras: 71, pedidasMachos: 0,
+            loteRef: "A374A");
+
+        Assert.NotNull(motivo);
+        Assert.Contains("71", motivo);
+        Assert.Contains("70", motivo);   // el disponible real: 100 - 30
+        Assert.Contains("A374A", motivo);
+    }
+
+    [Fact]
+    public void LaReservaDeUnSexoNoHabilitaNiBloqueaAlOtro()
+    {
+        // Se evalua por sexo: 30 hembras separadas no pueden frenar un despacho de machos que si hay,
+        // ni tapar uno de hembras que no.
+        Assert.Null(ReservaSeguimientoCalculos.MotivoDespachoNoDisponible(
+            saldoHembras: 100, saldoMachos: 20,
+            reservadasHembras: 30, reservadasMachos: 0,
+            pedidasHembras: 0, pedidasMachos: 20,
+            loteRef: null));
+
+        Assert.NotNull(ReservaSeguimientoCalculos.MotivoDespachoNoDisponible(
+            saldoHembras: 100, saldoMachos: 20,
+            reservadasHembras: 0, reservadasMachos: 5,
+            pedidasHembras: 0, pedidasMachos: 16,
+            loteRef: null));
+    }
+
+    [Fact]
+    public void ElDisponibleNegativo_BloqueaCualquierDespacho()
+    {
+        // Se separo mas de lo que hay (dos registros pendientes sobre el mismo lote): el disponible es
+        // negativo y no se recorta a cero, asi que ni una sola ave puede salir.
+        var motivo = ReservaSeguimientoCalculos.MotivoDespachoNoDisponible(
+            saldoHembras: 40, saldoMachos: 0,
+            reservadasHembras: 500, reservadasMachos: 0,
+            pedidasHembras: 1, pedidasMachos: 0,
+            loteRef: "LOTE 235A");
+
+        Assert.NotNull(motivo);
+        Assert.Equal(-460, ReservaSeguimientoCalculos.DisponibleAves(40, 500));
+    }
 }

@@ -101,12 +101,11 @@ public interface IValidacionSeguimientoService
     /// </summary>
     Task AsegurarPuedeRegistrarDiaAsync(string modulo, int loteId, CancellationToken ct = default);
 
-    /// <summary>
-    /// Kilos separados y todavía activos por ítem en una ubicación. Es lo que el inventario tiene que
-    /// restarle al stock para responder el disponible real.
-    /// </summary>
-    Task<IReadOnlyDictionary<int, decimal>> ReservadoPorItemAsync(
-        int farmId, string? nucleoId, string? galponId, CancellationToken ct = default);
+    // El disponible de ALIMENTO no se pide por acá: lo resuelve `InventarioGestionService.GetStockAsync`
+    // inline, agrupando las reservas activas con el SILO en la clave. Hubo un `ReservadoPorItemAsync`
+    // en esta interfaz que hacía la misma cuenta SIN el silo y nunca tuvo un llamador; se eliminó el
+    // 17-ago-2026 porque no era sólo redundante —en Santa Reyes, donde el silo es la ubicación del
+    // alimento, habría devuelto un número distinto para el mismo ítem—. Una sola fórmula por número.
 
     /// <summary>Aves separadas y activas de un lote, para descontarlas del disponible.</summary>
     Task<ReservaAvesLineas> ReservadoDeAvesAsync(string modulo, int loteId, CancellationToken ct = default);

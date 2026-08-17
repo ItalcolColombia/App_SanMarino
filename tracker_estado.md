@@ -1603,16 +1603,15 @@ que nunca leyó esos dos campos.
 - [x] V5.10 Commit
 
 ### Sigue abierto (NO entra acá)
-- [ ] V5.X El lado de **AVES** — ⚠️ **MITAD RESUELTA** (revalidado 16ago26). **TRASLADOS: enganchado.**
-      `TrasladoAvesDesdeSegService.cs:159-160` ya llama a `ReservaSeguimientoCalculos.DisponibleAves`
-      sobre las dos cifras (H y M), y lo hace **sólo cuando `saldoSaleDelMaestro`** — el guard correcto,
-      porque restar la separación también sobre el resumen contaría las bajas dos veces (el mismo error
-      que originó `AvesDisponiblesEngordeCalculos`). **VENTAS: sigue sin el guard** — 0 archivos
-      `*Venta*.cs` nombran `DisponibleAves` ni `ReservadoDeAvesAsync` ⇒ una venta todavía puede
-      despachar aves que un seguimiento sin validar ya dio de baja. **Eso es lo que queda de V5.X**
-- [ ] V5.Y ⚠️ **la mitad dejó de ser código muerto**: `ReservadoDeAvesAsync` tiene consumidor
-      (traslados). El que sigue muerto es **`ReservadoPorItemAsync`** (sólo interfaz + definición):
-      o se engancha, o se borra para que nadie lo lea como «la conexión»
+- [x] V5.X El lado de **AVES** — **CERRADO 17ago26** (ver V9.2). El diagnóstico por nombre de archivo
+      («0 archivos `*Venta*.cs`…») era **incompleto**: en engorde la venta ya está cubierta por otro
+      mecanismo (`registradas − aplicadas`), y el hueco real estaba en **postura**, donde la venta
+      descuenta el maestro con un `Math.Max(0, …)` que se come el sobregiro en silencio
+- [x] V5.Y **`ReservadoPorItemAsync` eliminado** (17ago26): `GetStockAsync` ya resuelve el disponible
+      inline y **con el silo en la clave**; el método muerto agrupaba SIN el silo ⇒ no era sólo
+      redundante, en Santa Reyes habría devuelto otro número para el mismo ítem. En su lugar quedó el
+      comentario que explica dónde vive la fórmula. `ReservadoDeAvesAsync` **se conserva**: tiene dos
+      consumidores (traslados y, desde hoy, la venta de postura)
 
 ---
 
@@ -1847,3 +1846,33 @@ el primero, así que van como gate.
       Documentados en `frontend/PWA.md` y en el README de `shared/offline/funciones/`
 - [x] V9.1.5 `yarn build` (Node portable 22.23.1) — **0 errores**, único warning el de bundle budget
       preexistente (initial 1,84 MB contra el techo de error de 2,05 MB)
+
+## V9.2 — V5.X / V5.Y: el disponible de AVES en la venta
+
+- [x] V9.2.1 🔎 **El diagnóstico heredado estaba a medias.** V5.X concluía «ventas sin guard» de un
+      `grep` por nombre de archivo (`*Venta*.cs`). Contra el código: en **engorde** la venta ya lo
+      tiene, por otra vía — `MovimientoPolloEngordeService.ResumenDisponibilidad` resta
+      `registradas − aplicadas`, y un registro sin validar es **registrado y no aplicado** (con el flag
+      ON el aplicador se saltea, `SeguimientoAvesEngordeService.Crud.cs:260`), así que las bajas
+      pendientes ya bajan el disponible. Ahí **no hay nada que arreglar**
+- [x] V9.2.2 🔴 **El hueco real estaba en POSTURA**: `MovimientoAvesService.ActualizarAvesActualesEnPostura`
+      descuenta `aves_h_actual`/`aves_m_actual` —el **maestro**, que con doble validación no se tocó—
+      con `Math.Max(0, saldo − pedido)`. O sea que la venta no fallaba ante el sobregiro: lo
+      **recortaba en silencio** y dejaba el lote en cero. El único chequeo previo era contra
+      `inventario_aves`, que es un espejo que ninguna pantalla de seguimiento escribe
+- [x] V9.2.3 `ReservaSeguimientoCalculos.MotivoDespachoNoDisponible` (puro) + guard
+      `AsegurarNoDespachaAvesReservadasAsync` en las **dos** ramas (levante y producción), con el
+      `LoteRefInt` correcto de cada una (LPL / LPP, los mismos que escribe `SepararAsync`)
+- [x] V9.2.4 🔑 **Sólo mira lo RESERVADO**, y por eso es seguro meterlo en un camino que ya estaba en
+      producción: sin reservas activas devuelve `null` **siempre**, incluso si el pedido excede el
+      saldo. Ese caso es preexistente, es de `inventario_aves`, y meterlo acá habría cambiado el
+      comportamiento de las 5 empresas por un motivo que no es este. Con el flag apagado: idéntico
+- [x] V9.2.5 Se evalúa **por sexo** (100 hembras separadas no habilitan despachar 100 machos) y las
+      mixtas van al bucket de hembras, mismo criterio que `TrasladoAvesDesdeSegService`
+- [x] V9.2.6 **`ReservadoPorItemAsync` eliminado** (interfaz + implementación): `GetStockAsync` ya
+      resuelve el disponible de alimento inline y **con el silo en la clave**; el método muerto
+      agrupaba sin el silo ⇒ para Santa Reyes habría dado otro número para el mismo ítem. No era
+      código muerto inocuo: era una segunda fórmula esperando que alguien la enchufara
+- [x] V9.2.7 `dotnet build` (SDK 10.0.301 portable) **0 errores**; las 9 advertencias son
+      preexistentes y de archivos que esta sesión no tocó · `dotnet test` **2.621 Application + 1
+      Domain en verde** (2.616 previos + 5 nuevos)

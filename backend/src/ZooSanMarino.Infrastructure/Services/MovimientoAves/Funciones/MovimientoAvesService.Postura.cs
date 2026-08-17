@@ -45,6 +45,43 @@ public partial class MovimientoAvesService
     }
 
     /// <summary>
+    /// Rechaza el movimiento si sacaría aves que un seguimiento SIN VALIDAR ya dio de baja.
+    ///
+    /// <para>
+    /// El saldo que este método está por descontar sale del <b>maestro</b>
+    /// (<c>aves_h_actual</c>/<c>aves_m_actual</c>), y con doble validación el maestro no se tocó al
+    /// guardar el seguimiento: las bajas están separadas, no aplicadas. Sin este guard esas aves se
+    /// pueden vender, y la resta de abajo —que recorta con <c>Math.Max(0, …)</c>— se come el sobregiro
+    /// en silencio, dejando el lote en cero y el número mintiendo. Es el mismo agujero que
+    /// <c>TrasladoAvesDesdeSegService</c> ya cierra del lado de la consulta de disponibilidad.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Sin reservas activas no hace nada</b> (empresa sin el flag, o sin registros pendientes):
+    /// el comportamiento queda idéntico al de antes, incluido el caso —preexistente— de un pedido
+    /// mayor que el saldo. Ese lo cubre el chequeo contra <c>inventario_aves</c> y no se toca acá.
+    /// </para>
+    /// </summary>
+    private async Task AsegurarNoDespachaAvesReservadasAsync(
+        string modulo, int loteRefInt, int saldoHembras, int saldoMachos,
+        MovimientoAves movimiento, string? loteNombre)
+    {
+        if (_validacion is null) return;
+
+        var reservado = await _validacion.ReservadoDeAvesAsync(modulo, loteRefInt);
+
+        // Mixtas al bucket de hembras: en postura la separación nunca las usa, pero ignorarlas
+        // convertiría una reserva mixta en saldo fantasma. Mismo criterio que TrasladoAvesDesdeSeg.
+        var motivo = ReservaSeguimientoCalculos.MotivoDespachoNoDisponible(
+            saldoHembras, saldoMachos,
+            reservado.Hembras + reservado.Mixtas, reservado.Machos,
+            movimiento.CantidadHembras, movimiento.CantidadMachos,
+            loteNombre);
+
+        if (motivo != null) throw new InvalidOperationException(motivo);
+    }
+
+    /// <summary>
     /// Actualiza AvesHActual/AvesMActual directamente en la tabla postura correspondiente
     /// al procesar un movimiento (venta o traslado).
     /// — Origen (venta o traslado): resta aves según fase del lote origen.
@@ -87,6 +124,12 @@ public partial class MovimientoAvesService
                             ?? posturaProd.AvesMInicial
                             ?? posturaProd.MachosInicialesProd
                             ?? 0;
+
+                        await AsegurarNoDespachaAvesReservadasAsync(
+                            ModuloSeguimiento.Produccion,
+                            posturaProd.LotePosturaProduccionId ?? movimiento.LoteOrigenId.Value,
+                            avesHBase, avesMBase, movimiento, posturaProd.LoteNombre);
+
                         posturaProd.AvesHActual = Math.Max(0, avesHBase - movimiento.CantidadHembras);
                         posturaProd.AvesMActual = Math.Max(0, avesMBase - movimiento.CantidadMachos);
                         posturaProd.UpdatedAt = DateTime.UtcNow;
@@ -105,6 +148,12 @@ public partial class MovimientoAvesService
                     {
                         var avesHBaseLev = posturaLev.AvesHActual ?? posturaLev.AvesHInicial ?? 0;
                         var avesMBaseLev = posturaLev.AvesMActual ?? posturaLev.AvesMInicial ?? 0;
+
+                        await AsegurarNoDespachaAvesReservadasAsync(
+                            ModuloSeguimiento.Levante,
+                            posturaLev.LotePosturaLevanteId ?? movimiento.LoteOrigenId.Value,
+                            avesHBaseLev, avesMBaseLev, movimiento, posturaLev.LoteNombre);
+
                         posturaLev.AvesHActual = Math.Max(0, avesHBaseLev - movimiento.CantidadHembras);
                         posturaLev.AvesMActual = Math.Max(0, avesMBaseLev - movimiento.CantidadMachos);
                         posturaLev.UpdatedAt = DateTime.UtcNow;
