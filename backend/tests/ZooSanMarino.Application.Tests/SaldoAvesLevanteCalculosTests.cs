@@ -202,4 +202,46 @@ public class SaldoAvesVentaCalculosTests
     {
         Assert.Equal(0, Siguiente(50, new MovimientoDia(0, 0, 0, Venta: 200)));
     }
+
+    // ─── Contrato que fn_indicadores_levante_postura tiene que cumplir (17ago26) ───────────────
+    //
+    // Esta clase es la especificacion ejecutable del saldo, pero durante meses convivio con una fn
+    // que no la cumplia: `fn_indicadores_levante_postura` no descontaba la venta, asi que el mismo
+    // lote y la misma semana mostraban dos conteos segun la pantalla (lote 143 semana 24: 10.619 en
+    // Indicadores contra 10.329 en fn_reporte_semanal_levante_extras — la diferencia era exactamente
+    // la venta acumulada). Migracion 20260817230000_FnIndicadoresLevanteDescuentaVenta.
+    //
+    // Lo que estos dos tests fijan es POR QUE la venta va en el saldo, para que el proximo que mire
+    // la formula no la vuelva a sacar por parecer "un dato de reporte".
+
+    [Fact]
+    public void Vender_y_trasladar_afuera_sacan_las_mismas_aves_del_lote()
+    {
+        // Una ave vendida sale del lote igual que una trasladada: la unica diferencia es que la
+        // vendida no llega a ningun otro lote. Para el saldo del lote de origen son lo mismo, y esa
+        // es la equivalencia que la fn SQL implementa desde la migracion.
+        var vendidas   = Siguiente(10_000, new MovimientoDia(0, 0, 0, Venta: 290));
+        var trasladadas = Siguiente(10_000, new MovimientoDia(0, 0, 0, TrasladoSalida: 290));
+
+        Assert.Equal(trasladadas, vendidas);
+        Assert.Equal(9_710, vendidas);
+    }
+
+    [Fact]
+    public void El_saldo_del_lote_143_reproduce_el_numero_del_reporte_semanal()
+    {
+        // Caso real que destapo la divergencia (Agroavicola Sanmarino, lote 143), con el kardex
+        // acumulado del ciclo leido de seguimiento_diario_levante: 11.812 encasetadas, 432 de
+        // mortalidad, 379 de seleccion, 382 de error de sexaje, sin traslados y 290 vendidas.
+        const int avesIniciales = 11_812;
+        var bajasSinVenta = new MovimientoDia(Mortalidad: 432, Seleccion: 379, ErrorSexaje: 382);
+        var venta = new MovimientoDia(0, 0, 0, Venta: 290);
+
+        // 10.329 es exactamente lo que muestran fn_reporte_semanal_levante_extras y, desde la
+        // migracion, fn_indicadores_levante_postura.
+        Assert.Equal(10_329, SaldoFinal(avesIniciales, new[] { bajasSinVenta, venta }));
+
+        // Y 10.619 es lo que mostraba Indicadores antes: 290 aves de mas, la venta sin descontar.
+        Assert.Equal(10_619, SaldoFinal(avesIniciales, new[] { bajasSinVenta }));
+    }
 }
