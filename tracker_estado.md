@@ -9,26 +9,30 @@
 > Regla de sesiones en paralelo: cada sesión toca **sólo su bloque**; los bloques nuevos van **al
 > final**. ⚠️ **V8 (descuadres de alimento de Panamá) está reservada para otra sesión — no tocar.**
 
-| Pend. | Bloque abierto |
-|---|---|
-| 4 | Tracker — Envío de correo: migración a Microsoft Graph API (retiro de auth básica SMTP) |
-| 4 | Corrección de la referencia `Inicio` + liquidación de corridas anteriores (pollo engorde) |
-| 1 | Gastos de inventario — las 10 líneas con `concepto = 'insumo'` (item 57 · AV0351) |
-| 1 | Tracker — Consolidado de sublotes y paridad de reportes por fase |
-| 2 | Tracker — ItalJira: historias, tareas y tiempos fuera del módulo de Tickets |
-| 2 | Reporte Contable — Selección en RESUMEN + hoja de Movimientos de Huevo |
-| 2 | Gastos de inventario — elegir el rango de fechas del consumo (tabla + Excel) |
-| 1 | Migraciones Masivas — retirar los tipos «Ventas / Movimiento de Aves / Movimiento de Huevos» |
-| 1 | Migraciones Masivas — permiso de POSTURA, tiles por permiso y módulo solo para Sanmarino |
-| 2 | Tracker — Lote cerrado que absorbe el ciclo siguiente (KM 86) + ventana de mes actual en Inventario |
-| 6 | Auditoría de cierre — «alimento previo al encaset» + fix del chip (SOLO LECTURA, sin código) |
-| 4 | v16 de engorde — FASE 1 IMPLEMENTADA: la marca `para_proximo_ciclo` ENTREGA en vez de borrar |
-| 4 | PWA F3.1 — Captura offline (outbox) con idempotencia real |
-| 3 | PWA — auditoría de acceso offline (menú muerto · primer ingreso · acciones operativas) |
-| 3 | 📍 PWA — PUNTO DE RETOMA (última actualización: 12-ago-2026) |
-| 9 | PWA — validación de estado y brecha real para salir a producción |
-| 1 | Módulo «Gerencia»: Panel de control en solo-lectura global (permiso `tickets.indicadores`) |
-| 32 | Bitácora de sesiones — agosto 2026 (W/I · V3 · V5 · V7 · V8) |
+| Pend. | Bloque abierto | Quién lo destraba |
+|---|---|---|
+| 4 | Envío de correo: SMTP rechazado por política del tenant | **admin de Microsoft 365** |
+| 4 | Referencia `Inicio` + liquidación de corridas anteriores (engorde) | **decisión de negocio** |
+| 1 | Consolidado de sublotes y paridad de reportes por fase | saldo negativo preexistente |
+| 2 | ItalJira: barrido de sobregiro de aves | **decisión** (correr el detector contra prod) |
+| 2 | Reporte Contable — Selección en RESUMEN + Movimientos de Huevo | **decisión** (corte 24/25 sem · K345) |
+| 2 | Gastos de inventario — rango de fechas | falta el smoke en pantalla |
+| 1 | Migraciones Masivas — retirar tipos | **decisión** (¿sale «Venta Engorde»?) |
+| 1 | Migraciones Masivas — sólo Sanmarino | **decisión** (¿Santa Reyes conserva el módulo?) |
+| 2 | Lote cerrado que absorbe el ciclo siguiente (KM 86) | operación (cerrar por pantalla) |
+| 6 | Auditoría «alimento previo al encaset» | **decisión** + gate multipaís |
+| 4 | v16 de engorde — marca `para_proximo_ciclo` | rediseño (persistir la atribución) |
+| 4 | PWA F3.1 — captura offline | fuera de alcance declarado (F4, B1, B8, B10) |
+| 3 | PWA — auditoría de acceso offline | **decisión** + sesiones multi-slot |
+| 3 | PWA — punto de retoma | **push + merge a `main-produccion`** |
+| 6 | PWA — brecha para salir a producción | **push + merge** + B1/B8 |
+| 1 | Gerencia: Panel de control | post-deploy manual (rol + menú en la UI) |
+| 19 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** · W1.3-W4 y V7.27 son código |
+| 4 | **V9 · Barrido de pendientes (17ago26)** | W1.3, W1.4 y 2 smokes |
+
+> **69 pendientes al 17-ago-2026.** De esos, **~25 esperan una decisión del usuario, un admin
+> externo o un deploy**, y el resto es código: lo que queda vivo y accionable es **Vacunación
+> W1.3-W4**, **V7.27** (cuadre que ignora `validado`, exige gate multipaís) y los smokes en pantalla.
 
 ---
 
