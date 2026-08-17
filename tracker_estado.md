@@ -2029,8 +2029,74 @@ hoy**, no en el futuro.
 - [x] V13.4.3 El resto de las columnas de la fn (peso, uniformidad, consumo, % mortalidad) intactas
 - [x] V13.4.4 `dotnet build` 0 errores · `dotnet test` en verde · BD sin residuos, puertos libres
 
+## V13.7 — `ReporteTecnicoService` y el barrido completo (17ago26)
+
+Pedido: «si arreglás ReporteTecnicoService también corregí todo lo que encuentres». El barrido
+encontró **más de lo anunciado**: no era una fórmula que faltaba descontar la venta, eran **tres
+implementaciones distintas** del saldo dentro del mismo archivo y **una cuarta muerta** en el front.
+
+### El censo real
+- [x] V13.7.1 **Descartado primero lo peligroso**: verificado que la venta **no venía plegada** en
+      otra variable (`mortH`, `selH`, `errH`, `trasSal*`, `trasIng*` salen tal cual del seguimiento),
+      así que sumarla no la contaba dos veces
+- [x] V13.7.2 La proyección `SegLevanteParaReporte` **no traía** los splits de venta: hubo que
+      agregarlos a la clase y a las **2** consultas EF que la llenan
+- [x] V13.7.3 **`GenerarDiariosConsolidados`** (`/levante/tabs/{loteId}`, diario) — usaba la spec pero
+      sin venta ⇒ arreglado
+- [x] V13.7.4 **`GenerarSemanalesConsolidados`** (`/levante/tabs/{loteId}`, semanal) — ídem, con
+      acumuladores `acVentaH/M` nuevos ⇒ arreglado
+- [x] V13.7.5 🔴 **`GenerarReporteLevanteCompletoAsync`** (`/levante/completo/{loteId}`, que el front
+      **sí llama**) tenía su **propia fórmula a mano**: `ini − mort − sel − err`. Sin traslados, sin
+      venta y **sin piso en 0**. Ni siquiera usaba `SaldoAvesLevanteCalculos`. Ahora delega en la spec
+
+### Lo que estaba mostrando ese endpoint (medido, 11 lotes)
+
+| LPL | Lote | Hembras ANTES | Hembras DESPUÉS | Qué lo causaba |
+|---|---|---|---|---|
+| 8 | A374A | **−212** | 7.405 | recibió 8.627 aves y el ingreso no se contaba |
+| 16 | LOTE 235A | **−230** | 4.870 | recibió 5.100 |
+| 20 | LOTE 237A | **−615** | 19.385 | recibió 20.000 |
+| 6 | A374A | 15.161 | 7.544 | entregó 8.627 y la salida no se restaba |
+| 19 | LOTE 237 | 26.034 | 34 | entregó 26.000 |
+| 34/35 | S369A/B | 9.484 / 1.085 | 9.484 / 795 | sólo venta (196 y 290) |
+
+- [x] V13.7.6 **Mostraba aves NEGATIVAS** en los lotes que reciben un traslado y **el doble** en los
+      que lo entregan. No era un detalle de la venta: el endpoint estaba roto para cualquier lote
+      trasladado. 4 lotes de Sanmarino y 7 de Demo
+- [x] V13.7.7 El valor corregido **cuadra con la otra fuente**: A374A queda en 7.405 y
+      `fn_resumen_semanal_ra_pesadas_levante` dice 7.408 para esa semana
+
+### Código muerto retirado (era una CUARTA fórmula)
+- [x] V13.7.8 `lote-levante/pages/tabla-indicadores-diarios` + `services/indicadores-diarios-compute.service.ts`
+      (498 líneas) calculaban el saldo **en el front** como `avesH − mortH − selH`: sin error de
+      sexaje, sin traslados, sin venta. Quedaron huérfanos cuando `fn_indicadores_levante_postura` se
+      llevó el cálculo al backend — **nadie los importaba ni los montaba**. Retirados
+- [x] V13.7.9 🟠 **El build del front cazó un enganche que la lectura no vio**: el `.scss` de ese
+      componente muerto lo `@use`-aba el componente de indicadores de **engorde**. Se movió a
+      `engorde-comun/.../tabla-indicadores-diarios-base.scss`, que es donde vive su único consumidor
+
+### Verificación
+- [x] V13.7.10 `dotnet build` **0 errores** (9 advertencias preexistentes) · `dotnet test` **2.755 + 1
+      en verde** · `yarn build` OK (único warning, el de bundle budget preexistente)
+- [x] V13.7.11 Impacto medido lote por lote en SQL reproduciendo las dos fórmulas: **11 lotes** se
+      mueven, y son exactamente los que tienen traslado o venta. Ningún lote sin movimientos cambia
+
+### Señalamiento a otro bloque (NO toco su checkbox)
+- [ ] V13.7.12 **C12 del bloque «Consolidado de sublotes»** dice: «`A374A` y `LOTE 235A` tienen saldo
+      de hembras negativo — preexistente, fuera de alcance». Son **exactamente** los dos lotes que
+      salían en −212 y −230 por esta fórmula, y ahora dan 7.405 y 4.870. Muy probablemente C12 ya no
+      reproduce; que lo revalide quien lleva ese bloque. Ojo: en
+      `fn_resumen_semanal_ra_pesadas_levante` esos lotes **nunca** dieron negativo ni perdieron `part`,
+      así que el síntoma que describe C12 puede venir de otra pantalla
+
+### Lo que queda igual, a propósito
+- [x] V13.7.13 `RetiroAcumulado` **sigue sin contar la venta** — es correcto y está documentado en la
+      spec: el «% retiro acumulado» es mortalidad + selección + error de sexaje; la venta se reporta
+      en su propia columna y meterla ahí inflaría el indicador
+
 ## Fuera de alcance, con su evidencia
-- [ ] V13.5.1 **`ReporteTecnicoService` NO se toca en esta entrega.** Alimenta el Reporte Técnico
+- [x] V13.5.1 ~~`ReporteTecnicoService` NO se toca en esta entrega~~ — **entró**, por pedido
+      explícito del usuario, y con él salieron dos fórmulas más (ver V13.7). El texto original decía: Alimenta el Reporte Técnico
       Semanal, que operación y costos ya leen; moverle el saldo pide verificación contra el informe
       impreso, no un cambio al pasar. Queda el hallazgo documentado con sus 4 call sites
       (`ReporteTecnicoService.cs:2828`, `:2830`, `:3007`, `:3009`)
