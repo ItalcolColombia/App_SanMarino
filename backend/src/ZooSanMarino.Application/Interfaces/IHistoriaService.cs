@@ -10,6 +10,23 @@ namespace ZooSanMarino.Application.Interfaces;
 /// </summary>
 public interface IHistoriaService
 {
+    // ── Permiso ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ¿El usuario actual puede gestionar ItalJira? Es la MISMA regla que aplican los métodos de
+    /// escritura de este servicio (y la que espeja <c>ITicketTareaService</c>), expuesta para que
+    /// un llamador de otro módulo pueda exigirla ANTES de decidir si tiene trabajo que delegar.
+    ///
+    /// <para>
+    /// Existe por un defecto real: <c>ImplementacionService.SincronizarConItalJiraAsync</c> apoyaba
+    /// su permiso en que los servicios de ItalJira lanzaran al crear. Cuando el plan ya estaba
+    /// enlazado no había nada que crear, nadie miraba el permiso y un usuario sin
+    /// <c>tickets.gestionar</c> recibía 200 —y le sellaba <c>updated_by</c> al plan—. La misma
+    /// llamada, con el mismo usuario, contestaba distinto según el estado de los datos.
+    /// </para>
+    /// </summary>
+    bool PuedeGestionarItalJira();
+
     // ── CRUD ──────────────────────────────────────────────────────────────
     Task<IReadOnlyList<HistoriaDto>> GetAllAsync(ItalJiraFiltro filtro, CancellationToken ct);
     Task<HistoriaDetalleDto?> GetByIdAsync(long id, CancellationToken ct);

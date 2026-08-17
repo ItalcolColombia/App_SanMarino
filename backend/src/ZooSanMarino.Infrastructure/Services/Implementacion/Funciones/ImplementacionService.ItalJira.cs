@@ -42,6 +42,14 @@ public partial class ImplementacionService
         if (_historias is null || _ticketTareas is null)
             throw new InvalidOperationException("El módulo ItalJira no está disponible en este entorno.");
 
+        // El permiso se exige ACÁ, no sólo en los servicios de ItalJira que se delegan más abajo.
+        // Apoyarse en que ellos lancen al crear deja un agujero: con el plan ya enlazado no hay nada
+        // que crear, no se los llama, y el endpoint contestaba 200 a quien no gestiona el tablero
+        // —sellándole además el updated_by del plan—. La regla sigue teniendo un solo dueño: se
+        // pregunta, no se reescribe.
+        if (!_historias.PuedeGestionarItalJira())
+            throw new InvalidOperationException("No tenés permisos para gestionar ItalJira.");
+
         var plan = await GetPlanScopedAsync(planId, ct);
         if (plan is null) return null;
 
