@@ -197,8 +197,20 @@
           </div>
           <!-- /SCROLL AREA -->
 
-          <!-- FOOTER: Cerrar sesión -->
+          <!-- FOOTER: Diagnóstico + Cerrar sesión -->
           <div class="sb-footer">
+            <!-- `/diagnostico` NO sale de `role_menus` a propósito: es la pantalla de rescate
+                 (sesión vencida, SW en safe mode, capturas sin enviar) y depender de un permiso la
+                 haría inalcanzable justo cuando hace falta. Hasta hoy sólo se llegaba por el aviso
+                 de la barra PWA o por el atajo del manifest —o sea, sólo con la app instalada—. -->
+            <a routerLink="/diagnostico"
+               routerLinkActive="is-active"
+               [routerLinkActiveOptions]="{ exact: true }"
+               class="sb-diagnostico">
+              <fa-icon [icon]="faScrewdriverWrench" class="sb-diagnostico__icon"></fa-icon>
+              <span class="sb-diagnostico__label">Diagnóstico del dispositivo</span>
+            </a>
+
             <button type="button" class="sb-logout" (click)="logout()">
               <fa-icon [icon]="faSignOutAlt" class="sb-logout__icon"></fa-icon>
               <span class="sb-logout__label">Cerrar Sesión</span>

@@ -1350,11 +1350,14 @@ entera. Esto es más urgente que desplegar.
       multi-slot
 - [ ] 🔴 **Alistamiento con red, por usuario y por dispositivo**: instalar, entrar una vez (login y
       reCAPTCHA exigen red) y **visitar las pantallas** que se van a usar, o la caché está vacía
-- [ ] 🟠 **La bandeja de rechazos no muestra el payload.** `/diagnostico` lista tipo, fecha, empresa,
-      intentos y motivo — pero no lo capturado, y la única acción es **Descartar**. Un rechazo hoy
-      obliga al operario a acordarse de memoria de lo que cargó
-- [ ] 🟠 `/diagnostico` **no está en ningún menú**: se llega por el aviso de la barra o por el atajo
-      del manifest (solo si la app está instalada)
+- [x] 🟠 ~~La bandeja de rechazos no muestra el payload~~ — **cerrado 17ago26**: cada fila trae
+      «Ver lo capturado» con el método, la URL y el JSON, más «Copiar captura» para pegarlo en
+      soporte o rehacerlo a mano. El payload **ya estaba guardado** desde F3.1; sólo no se pintaba.
+      El diálogo de descarte ahora nombra el tipo y la fecha de lo que se va a perder
+- [x] 🟠 ~~`/diagnostico` no está en ningún menú~~ — **cerrado 17ago26**: link fijo en el pie del
+      sidebar, junto a «Cerrar Sesión». **No** sale de `role_menus` a propósito: es la pantalla de
+      rescate y hacerla depender de un permiso la volvería inalcanzable justo cuando hace falta
+      (mismo criterio que su ausencia de `authGuard`)
 - [x] 🟠 ~~`verificar-lista-cacheable.js` no está atado ni al Dockerfile ni al CI~~ — **cerrado
       17ago26**: corre en el job de tests del CI y **corta**. La deriva que el tracker anticipaba ya
       había pasado: al atarlo aparecieron **5 endpoints sin decisión** (`silocatalogo`, `farmsilo`,
@@ -1527,7 +1530,10 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
 - [x] Z.5 Datos de prueba borrados (BD vuelve a 1 plan / 11 tareas / 0 firmas) · backend apagado · `:5002` libre
 
 ### Hallazgo lateral (preexistente, fuera de esta entrega)
-- [ ] X.1 `DELETE /planes/{id}` hace soft-delete del plan pero **deja vivas sus tareas y firmas**. No hay fuga (todas las consultas filtran por `Plan.DeletedAt == null`), pero acumula huérfanos en BD
+- [x] X.1 **CERRADO 17ago26** (ver V9.3): `DeletePlanAsync` y `DeleteTareaAsync` borran en cascada
+      con el **mismo `deleted_at`** para todo el árbol. La cascada no es cosmética: mientras las hijas
+      quedaban vivas, que no hubiera fuga dependía de que **cada consulta futura** se acordara de
+      encadenar el filtro del padre
 
 ---
 
@@ -1876,3 +1882,30 @@ el primero, así que van como gate.
 - [x] V9.2.7 `dotnet build` (SDK 10.0.301 portable) **0 errores**; las 9 advertencias son
       preexistentes y de archivos que esta sesión no tocó · `dotnet test` **2.621 Application + 1
       Domain en verde** (2.616 previos + 5 nuevos)
+
+## V9.3 — X.1: el soft-delete del plan de implementación dejaba huérfanas
+
+- [x] V9.3.1 `DeletePlanAsync` marca el plan **y** sus tareas **y** las firmas de esas tareas con el
+      **mismo `deleted_at`**; `DeleteTareaAsync` hace lo propio con sus firmas
+- [x] V9.3.2 El sello único no es decorativo: permite reconocer después qué se borró junto con qué, y
+      es lo que haría reversible un `UPDATE … SET deleted_at = NULL WHERE deleted_at = '…'`
+- [x] V9.3.3 Por qué importaba aunque «no hubiera fuga»: que las hijas quedaran ocultas dependía de
+      que **cada consulta** se acordara de encadenar `Plan.DeletedAt == null`. Ahora cada fila dice
+      por sí sola que está borrada
+- [x] V9.3.4 `dotnet build` **0 errores** (las 9 advertencias siguen siendo las preexistentes)
+
+## V9.4 — PWA: llegar a `/diagnostico` y ver qué se está por descartar
+
+- [x] V9.4.1 Link fijo a `/diagnostico` en el pie del sidebar. **No** va por `role_menus`: es la
+      pantalla de rescate (sesión vencida, SW en safe mode, capturas sin enviar) y atarla a un
+      permiso la volvería inalcanzable justo en el escenario para el que existe — el mismo motivo por
+      el que tampoco tiene `authGuard`
+- [x] V9.4.2 La bandeja muestra **lo capturado**: `<details>` «Ver lo capturado» con método, URL y el
+      JSON del payload, más «Copiar captura» (incluye el motivo del rechazo) para pegarlo en soporte
+      o rehacerlo a mano. El payload **ya venía guardándose** desde F3.1; el hueco era de UI
+- [x] V9.4.3 El diálogo de descarte nombra **el tipo y la fecha** de la captura que se pierde, y
+      recuerda copiarla antes. Era la única acción posible sobre un rechazo y se hacía a ciegas
+- [x] V9.4.4 Smoke en pantalla (dev server :4300, operación inyectada en IndexedDB y borrada al
+      terminar): el link aparece en el sidebar, el `<details>` abre y el `<pre>` pinta el JSON
+      completo. Dato de prueba eliminado (**0 operaciones** en la cola) y `:4300` liberado
+- [x] V9.4.5 `yarn build` (Node portable 22.23.1) **0 errores**, sólo el warning de bundle budget

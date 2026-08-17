@@ -66,12 +66,28 @@ public partial class ImplementacionService
         return await ReloadTareaDtoAsync(tareaId, ct);
     }
 
+    /// <summary>
+    /// Borra la tarea y, con el mismo <c>deleted_at</c>, sus firmas. Ver el porqué de la cascada en
+    /// <c>DeletePlanAsync</c>: una firma viva colgando de una tarea borrada sólo queda oculta mientras
+    /// cada consulta se acuerde de encadenar el filtro del padre.
+    /// </summary>
     public async Task<bool> DeleteTareaAsync(int tareaId, CancellationToken ct = default)
     {
         var tarea = await GetTareaScopedAsync(tareaId, ct);
         if (tarea is null) return false;
 
-        tarea.DeletedAt = DateTime.UtcNow;
+        var ahora = DateTime.UtcNow;
+
+        var firmas = await _ctx.ImplementacionTareaFirmas
+            .Where(f => f.TareaId == tareaId && f.DeletedAt == null)
+            .ToListAsync(ct);
+        foreach (var f in firmas)
+        {
+            f.DeletedAt = ahora;
+            f.UpdatedByUserId = _current.UserId;
+        }
+
+        tarea.DeletedAt = ahora;
         tarea.UpdatedByUserId = _current.UserId;
         await _ctx.SaveChangesAsync(ct);
         await RecalcularEstadoPlanAsync(tarea.PlanId, ct);

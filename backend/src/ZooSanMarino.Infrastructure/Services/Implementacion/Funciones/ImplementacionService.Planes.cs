@@ -170,12 +170,56 @@ public partial class ImplementacionService
         return MapPlan(plan, total, completadas, confirmadas, implNombre, implEmail, creaNombre, creaEmail);
     }
 
+    /// <summary>
+    /// Borra el plan en cascada: sus tareas y las firmas de esas tareas quedan con el MISMO
+    /// <c>deleted_at</c>.
+    ///
+    /// <para>
+    /// Antes sólo se marcaba el plan. No había fuga —todas las consultas filtran además por
+    /// <c>Plan.DeletedAt == null</c>— pero las hijas quedaban vivas en la BD para siempre, y el día que
+    /// una consulta nueva se olvide de encadenar el filtro del padre reaparecen tareas y firmas de un
+    /// plan que ya no existe. La cascada elimina esa dependencia: cada fila dice por sí sola que está
+    /// borrada.
+    /// </para>
+    ///
+    /// <para>
+    /// El sello es una sola marca de tiempo para todo el árbol: eso es lo que permite reconocer
+    /// después qué se borró junto con qué, y es también lo que haría reversible un
+    /// <c>UPDATE … SET deleted_at = NULL WHERE deleted_at = '…'</c> si alguna vez hiciera falta.
+    /// </para>
+    /// </summary>
     public async Task<bool> DeletePlanAsync(int planId, CancellationToken ct = default)
     {
         var plan = await GetPlanScopedAsync(planId, ct);
         if (plan is null) return false;
 
-        plan.DeletedAt = DateTime.UtcNow;
+        var ahora = DateTime.UtcNow;
+
+        var tareas = await _ctx.ImplementacionTareas
+            .Where(t => t.PlanId == planId && t.DeletedAt == null)
+            .ToListAsync(ct);
+
+        if (tareas.Count > 0)
+        {
+            var tareaIds = tareas.Select(t => t.Id).ToList();
+            var firmas = await _ctx.ImplementacionTareaFirmas
+                .Where(f => tareaIds.Contains(f.TareaId) && f.DeletedAt == null)
+                .ToListAsync(ct);
+
+            foreach (var f in firmas)
+            {
+                f.DeletedAt = ahora;
+                f.UpdatedByUserId = _current.UserId;
+            }
+
+            foreach (var t in tareas)
+            {
+                t.DeletedAt = ahora;
+                t.UpdatedByUserId = _current.UserId;
+            }
+        }
+
+        plan.DeletedAt = ahora;
         plan.UpdatedByUserId = _current.UserId;
         await _ctx.SaveChangesAsync(ct);
         return true;

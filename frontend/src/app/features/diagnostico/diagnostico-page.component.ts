@@ -72,6 +72,9 @@ export class DiagnosticoPageComponent implements OnInit {
   buscando = false;
   mensajeChequeo = '';
 
+  /** `clientOpId` de la última captura copiada, para el aviso «Copiado» de esa fila. */
+  capturaCopiada: string | null = null;
+
   /** Se expone para el template (evita `formatearBytes` suelto en la vista). */
   readonly formatear = formatearBytes;
 
@@ -113,13 +116,50 @@ export class DiagnosticoPageComponent implements OnInit {
   }
 
   /**
+   * Lo que el operario cargó, legible. El payload **ya estaba guardado** en la cola desde F3.1;
+   * lo que faltaba era mostrarlo: sin esto, la única acción posible sobre un rechazo es descartar,
+   * y descartar a ciegas obliga a acordarse de memoria de lo que se capturó en el galpón.
+   */
+  payloadLegible(operacion: OperacionPendiente): string {
+    try {
+      return JSON.stringify(operacion.payload, null, 2);
+    } catch {
+      // Un payload no serializable (referencia circular) no puede tumbar la pantalla de rescate.
+      return String(operacion.payload);
+    }
+  }
+
+  /** Copia la captura completa, para pegarla en el chat de soporte o rehacerla a mano. */
+  async copiarCaptura(operacion: OperacionPendiente): Promise<void> {
+    const texto = [
+      `${operacion.tipo} · ${operacion.metodo} ${operacion.url}`,
+      `capturada ${operacion.capturadoAtDispositivo} · empresa ${operacion.companyId}`,
+      operacion.errorCodigo ? `rechazada (${operacion.errorCodigo}): ${operacion.detalle ?? ''}` : '',
+      '',
+      this.payloadLegible(operacion)
+    ].filter(Boolean).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(texto);
+      this.capturaCopiada = operacion.clientOpId;
+      setTimeout(() => (this.capturaCopiada = null), 2500);
+    } catch {
+      // Sin permiso de portapapeles: el JSON igual está en pantalla y se puede seleccionar.
+      this.capturaCopiada = null;
+    }
+  }
+
+  /**
    * Descarta una captura. **El único camino que borra trabajo no sincronizado**, y por eso pide
    * confirmación: lo que se descarta no existe en ningún otro lado.
    */
   async descartar(operacion: OperacionPendiente): Promise<void> {
     const confirmado = await this.confirmDialog.ask({
       title: 'Descartar captura',
-      message: `Esta captura no llegó al servidor y no está guardada en ningún otro lado. Si la descartás, se pierde.`,
+      message:
+        `Se va a descartar la captura de tipo "${operacion.tipo}" del ${operacion.capturadoAtDispositivo}. ` +
+        `No llegó al servidor y no está guardada en ningún otro lado: si la descartás, se pierde. ` +
+        `Copiala antes si vas a rehacerla a mano.`,
       type: 'error',
       confirmText: 'Descartar'
     });
