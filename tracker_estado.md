@@ -1487,8 +1487,8 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
       probado por mutación (un componente sin la propiedad ⇒ exit 1 nombrando archivo y línea)
 
 ### W1 — Plantillas de vacunación por empresa/línea/raza
-- [ ] W1.1 Tablas `vacunacion_plan_plantilla` + `_items` (migración EF idempotente)
-- [ ] W1.2 `VacunacionPlantillaCalculos` (resolución raza exacta > comodín > `vigente_desde`) + tests xUnit
+- [x] W1.1 Tablas `vacunacion_plan_plantilla` + `_item` + migración EF **idempotente** (V9.6)
+- [x] W1.2 `VacunacionPlantillaCalculos` (raza exacta > comodín > `vigente_desde` > id) + **28 tests xUnit** (V9.6)
 - [ ] W1.3 CRUD backend + permisos
 - [ ] W1.4 Front: pantalla de plantillas (levante/producción por semana, engorde por día)
 
@@ -1967,3 +1967,43 @@ El vínculo existía **sólo en el modelo** desde I1.1 (`implementacion_planes.h
 - [ ] V9.5.17 ⏸️ **Falta el smoke HTTP del ciclo completo** (enlazar un plan → mover la tarjeta a
       LISTO → ver el punto completado → sacarla de LISTO → ver el punto pendiente). Requiere backend
       levantado y un usuario con `tickets.gestionar`; el cálculo puro sí está cubierto por tests
+
+## V9.6 — Vacunación W1.1 + W1.2: la plantilla como dato
+
+Hasta hoy el cronograma se cargaba **lote por lote**, así que el plan sanitario vivía en la cabeza
+del técnico y dos lotes iguales podían quedar distintos sin que nada lo notara.
+
+- [x] V9.6.1 **W1.1** Entidades `VacunacionPlanPlantilla` + `...Item`, configurations EF, DbSets y
+      migración `20260817050949_AddVacunacionPlanPlantilla`. **Aditiva pura**: dos tablas nuevas,
+      ninguna existente se toca ⇒ una empresa sin plantillas se comporta byte a byte como hoy
+- [x] V9.6.2 `Up()` reescrito a SQL **idempotente** (`CREATE TABLE/INDEX IF NOT EXISTS`), como manda
+      la guía: el deploy las aplica solo al arrancar y una que falla a mitad deja el historial roto
+- [x] V9.6.3 El ítem de plantilla **no admite la unidad `Fecha`** (CHECK + mensaje): una fecha fija
+      no se puede plantillar —sería la misma para lotes encasetados en meses distintos—. Las fechas
+      fijas siguen siendo ítems manuales del lote
+- [x] V9.6.4 **W1.2** `VacunacionPlantillaCalculos.ResolverEfectiva` (pura) — **28 tests xUnit**.
+      Lo que fijan no es «que elija bien» sino que elija **siempre lo mismo**: sin una regla total,
+      cuál plantilla gana dependería del orden en que la base devuelva las filas, y el síntoma sería
+      dos lotes iguales con cronogramas distintos sin explicación. Varios tests corren la misma
+      entrada en dos órdenes y exigen el mismo resultado
+- [x] V9.6.5 Reglas: raza exacta > comodín > `vigente_desde` más reciente > id mayor. **La
+      especificidad pesa más que la vigencia** (una comodín recién versionada no le gana a la de la
+      raza del lote). Un lote **sin raza** no puede tomar una plantilla de raza —adivinar sería
+      inventarle un plan sanitario, que es peor que no tener plan porque se ve igual de correcto—, y
+      un lote **sin fecha de encaset** sólo toma plantillas sin vigencia (fail-closed)
+- [x] V9.6.6 Sin candidata ⇒ `null`, que significa «este lote no tiene cronograma automático».
+      **Nunca se inventa uno** (regla 7 del plan)
+- [x] V9.6.7 **Simulación en transacción con `ROLLBACK`**: las 2 tablas, 5 índices y 4 CHECKs se
+      crean; la **segunda pasada avisa «already exists, skipping»** (idempotencia probada, no
+      declarada); un INSERT de prueba entra. Tras el `ROLLBACK` la BD queda en **129 tablas, 0
+      rastros**
+- [x] V9.6.8 `ModelSnapshot` revisado: **200 líneas, todas insertadas y todas de las dos tablas
+      nuevas** — cero deleciones ⇒ no arrastró deriva de las sesiones paralelas
+- [ ] V9.6.9 ⏸️ **La migración NO se aplicó a la BD local a propósito**: la base está en
+      `20260814130000` y le faltan **3 migraciones de otras sesiones** ya commiteadas
+      (`20260815140000`, `20260815160000`, `20260816225138`). `dotnet ef database update` las
+      aplicaría todas, y eso no es decisión de esta sesión. La validación se hizo por transacción
+- [x] V9.6.10 `dotnet build` **0 errores** (8 advertencias preexistentes) · `dotnet test`
+      **2.656 Application + 1 Domain en verde** (2.628 + 28)
+- [ ] W1.3 CRUD backend + permisos — **pendiente**
+- [ ] W1.4 Front: pantalla de plantillas — **pendiente**
