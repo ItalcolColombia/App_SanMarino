@@ -2183,3 +2183,48 @@ implementaciones distintas** del saldo dentro del mismo archivo y **una cuarta m
 - [x] V13.6.6 El test anclado con el **kardex real** del lote 143 (11.812 encasetadas − 432 mort − 379
       sel − 382 error de sexaje − 290 venta) reproduce **10.329**, que es lo que muestran las dos
       pantallas hoy; y **10.619** sin la venta, que es lo que mostraba Indicadores antes
+
+---
+
+# V14 · Bloquear el consumo cuando no hay stock del alimento (17ago26)
+
+**Plan:** [`fase_de_desarrollo/bloquear_consumo_sin_stock_plan.md`](fase_de_desarrollo/bloquear_consumo_sin_stock_plan.md)
+Pedido: «en los seguimientos diarios se tiene que validar que no se pueda realizar consumo si no se
+tiene stock del alimento seleccionado». Bloque propio — no tocar desde otras sesiones.
+**V8 sigue reservada.**
+
+## V14.0 — Diagnóstico ✔
+- [x] V14.0.1 **La misma regla tiene hoy dos tratamientos.** Colombia (`ModeloBNivelGranja`) valida
+      con `ValidarStockConsumoAsync` **antes de persistir** y hace rollback ⇒ bloquea. Ecuador y
+      Panamá (`ModeloB`, núcleo+galpón) guardan el seguimiento **primero** y aplican el consumo
+      después dentro de `try { … } catch { LogError }`
+- [x] V14.0.2 🔴 **No es que no valide: es que nadie escucha.**
+      `InventarioGestionService.RegistrarConsumoAsync` sí lanza `MensajeStockInsuficiente` (con
+      `UPDATE … WHERE quantity >= …` atómico), pero el `catch` se lo come. El registro queda guardado
+      con sus kg y el inventario intacto — el código lo llama «flujo tolerante»
+- [x] V14.0.3 **Censo: 10 sitios en 4 servicios**, alta y edición —
+      `SeguimientoLoteLevanteService.Crud` (:129/:297), `SeguimientoAvesEngordeService.Crud`
+      (:247/:485), `SeguimientoAvesEngordeEcuadorService.Crud` (:180/:419) y
+      `SeguimientoDiarioLoteReproductoraService` (:306/:455). Los `catch` de reproductora ni siquiera
+      loguean: escriben a `Console.WriteLine`
+- [x] V14.0.4 **No hay stock negativo en la base hoy** (570 filas, 0 negativas, 242 en cero), así que
+      esto se ataja antes de que aparezca — no es una limpieza
+
+## V14.1 — Implementación
+- [ ] V14.1.1 `IInventarioGestionService.ValidarStockConsumoAsync(farmId, nucleo, galpón, byItem)` —
+      el tercer validador, el que faltaba para modelo B con ubicación. Mensaje que **nombra el ítem y
+      el faltante**, no un genérico
+- [ ] V14.1.2 La validación corre **ANTES de persistir** en los 10 sitios (hoy el bloque va después
+      del `CreateAsync`): es lo que hace que el rechazo deje la base intacta
+- [ ] V14.1.3 El `catch` deja de tragar el stock insuficiente; se conserva el manejo de otros fallos
+- [ ] V14.1.4 Tests del cálculo puro del mensaje + de la decisión (T1-T5 del plan)
+
+## V14.2 — Verificación
+- [ ] V14.2.1 `dotnet build` 0 errores · `dotnet test` en verde
+- [ ] V14.2.2 Smoke: alta con alimento sin stock ⇒ **400** y **ni seguimiento ni inventario** cambian;
+      con stock ⇒ 201 y stock descontado; edición que sube el consumo por encima del stock ⇒ 400
+- [ ] V14.2.3 Colombia **sin cambios** (su camino ya bloqueaba)
+
+## Fuera de alcance, dicho
+- [ ] V14.3.1 `MigracionService.AlimentoEngorde/AlimentoPostura` (carga histórica, entra por
+      `ModoCargaHistorica`) e `InventarioGastoService` (ya llama sin tragar el error)
