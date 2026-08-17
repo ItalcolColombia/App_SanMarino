@@ -2271,13 +2271,17 @@ Lote 168, granja 106 / núcleo 791385 / galpón G0490. Stock: ítem 213 = 10.609
       (`Validado = !separa`). O sea que apagar el flag devuelve el comportamiento clásico completo
 - [x] V14.6.3 **Clon dropeado · flag compartido intacto en `true` · puertos libres**
 
-## Decisión pendiente del usuario
-- [ ] V14.7.1 **¿Se apaga el flag de Panamá de verdad?** Lo de arriba fue una prueba en un clon. Dejarlo
-      apagado en serio es una **migración data-only** y significa que Panamá **deja de usar la doble
-      validación** que entregó V7: los seguimientos vuelven a descontar al guardar, se acaban las
-      reservas y el botón Validar desaparece de sus pantallas (`requiereValidacion` es fail-closed).
-      No es reversible sin más: los registros que hoy tengan reservas ACTIVAS quedarían separados sin
-      nadie que los aplique, así que antes hay que confirmar que no haya ninguna
+## Decisión tomada
+- [x] V14.7.1 **El flag de Panamá NO se apaga.** Decisión del usuario (17ago26): *«era solo para
+      probar, dejalo así»*. Panamá sigue con la doble validación encendida. No hubo nada que revertir:
+      la prueba corrió sobre el clon `sanmarinoapp_pa`, que se dropeó, y la base compartida quedó
+      verificada con `ItalcolPanama = true`.
+
+      Queda escrito para la próxima vez que se plantee: apagarlo de verdad es una **migración
+      data-only** y significa que Panamá deja de usar la doble validación que entregó V7 —los
+      seguimientos vuelven a descontar al guardar, se acaban las reservas y el botón Validar
+      desaparece de sus pantallas (`requiereValidacion` es fail-closed)—. Y antes hay que confirmar
+      que no queden **reservas ACTIVAS**: esos registros quedarían separados sin nadie que los aplique
 
 ## Lo que quedó fuera, dicho
 - [x] V14.5.1 **Panamá no cambia hoy**: tiene la doble validación **encendida**, así que el alta
