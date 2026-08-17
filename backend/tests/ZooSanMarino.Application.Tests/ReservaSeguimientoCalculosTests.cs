@@ -387,4 +387,87 @@ public class ReservaSeguimientoCalculosTests
         Assert.NotNull(motivo);
         Assert.Equal(-460, ReservaSeguimientoCalculos.DisponibleAves(40, 500));
     }
+
+    // ─── Referencia de los movimientos de inventario (V7.27) ──────────────────
+    //
+    // Estos tests no cuidan una cadena bonita: cuidan una CLAVE DE LECTURA. El saldo de alimento de
+    // engorde y sus nueve espejos deciden si un INV_INGRESO es «alimento que entró al galpón» o
+    // «reversión contable de un consumo» comparando la referencia contra el literal que escribe el
+    // Crud del módulo. Cuando validar/desvalidar inventaba el suyo (`Seguimiento engorde #…`, armado
+    // con modulo.ToLowerInvariant()), la devolución de una desvalidación entraba al saldo como
+    // alimento nuevo: 500 kg devueltos ⇒ +500 kg de saldo y de ingreso_alimento_kg, medido sobre el
+    // lote 168 de ItalcolPanama. Si alguien vuelve a tocar el literal, que falle acá.
+
+    [Fact]
+    public void ReferenciaDeEngorde_UsaElMismoLiteralQueSuCrud()
+    {
+        var r = ReservaSeguimientoCalculos.ReferenciaInventario(
+            ModuloSeguimiento.Engorde, 123, new DateOnly(2026, 8, 15), devolver: false);
+
+        Assert.Equal("Seguimiento aves engorde #123 2026-08-15 (validado)", r);
+    }
+
+    [Fact]
+    public void ReferenciaDeEngorde_MatcheaElFiltroDeLaFuncionDelSaldo()
+    {
+        // `fn_seguimiento_diario_engorde` (y fn_cuadre_alimento_engorde, fn_reporte_diario_costos_engorde,
+        // vw_seguimiento_pollo_engorde y las 7 consultas EF espejo) excluyen del saldo los INV_INGRESO
+        // cuya referencia empieza con este prefijo. Es el filtro literal, copiado del SQL.
+        const string filtroDeLaFn = "Seguimiento aves engorde #";
+
+        var devolucion = ReservaSeguimientoCalculos.ReferenciaInventario(
+            ModuloSeguimiento.Engorde, 999, new DateOnly(2026, 8, 15), devolver: true);
+
+        Assert.StartsWith(filtroDeLaFn, devolucion);
+        Assert.EndsWith("(devolución por quitar la validación)", devolucion);
+    }
+
+    [Fact]
+    public void EngordeEcuador_EscribeExactamenteLoMismoQueEngorde()
+    {
+        // Los dos services escriben la MISMA tabla: dos referencias distintas partirían en dos la
+        // atribución de un mismo lote según qué formulario lo cargó.
+        var pa = ReservaSeguimientoCalculos.ReferenciaInventario(
+            ModuloSeguimiento.Engorde, 7, new DateOnly(2026, 1, 2), devolver: false);
+        var ec = ReservaSeguimientoCalculos.ReferenciaInventario(
+            ModuloSeguimiento.EngordeEcuador, 7, new DateOnly(2026, 1, 2), devolver: false);
+
+        Assert.Equal(pa, ec);
+    }
+
+    [Theory]
+    // Cada prefijo es el que escribe el Crud del módulo, verificado contra el código y contra las
+    // filas que ya existen en el histórico unificado.
+    [InlineData(ModuloSeguimiento.Levante,      "Seguimiento lote levante #")]
+    [InlineData(ModuloSeguimiento.Produccion,   "Seguimiento producción #")]   // con tilde
+    [InlineData(ModuloSeguimiento.Reproductora, "Seguimiento reproductora #")]
+    [InlineData(ModuloSeguimiento.Engorde,      "Seguimiento aves engorde #")]
+    public void CadaModuloUsaElPrefijoDeSuCrud(string modulo, string prefijoEsperado)
+    {
+        var r = ReservaSeguimientoCalculos.ReferenciaInventario(
+            modulo, 42, new DateOnly(2026, 3, 4), devolver: false);
+
+        Assert.StartsWith(prefijoEsperado, r);
+    }
+
+    [Fact]
+    public void LaFechaEsLaDelSeguimiento_YSiempreEnFormatoInvariante()
+    {
+        // El movimiento se fecha en el día del seguimiento, no en el de la validación: validar cinco
+        // días juntos tiene que dejar cinco consumos, uno por día, en el kardex del galpón. Y el
+        // formato no puede depender de la cultura del servidor: la referencia se compara por texto.
+        var anterior = System.Threading.Thread.CurrentThread.CurrentCulture;
+        try
+        {
+            System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("es-AR");
+            var r = ReservaSeguimientoCalculos.ReferenciaInventario(
+                ModuloSeguimiento.Engorde, 1, new DateOnly(2026, 12, 31), devolver: false);
+
+            Assert.Contains("2026-12-31", r);
+        }
+        finally
+        {
+            System.Threading.Thread.CurrentThread.CurrentCulture = anterior;
+        }
+    }
 }

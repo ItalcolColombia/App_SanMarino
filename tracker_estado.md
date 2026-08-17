@@ -26,12 +26,14 @@
 | 3 | PWA — punto de retoma | **push + merge a `main-produccion`** |
 | 6 | PWA — brecha para salir a producción | **push + merge** + B1/B8 |
 | 1 | Gerencia: Panel de control | post-deploy manual (rol + menú en la UI) |
-| 7 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** (6) + V7.27 (gate multipaís) |
+| 6 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** (6) — V7.27 lo cerró V12 |
+| 5 | V12 · V7.27 — referencia de la doble validación | verificación en **prod** (¿hay filas viejas?) |
 
-> **51 pendientes al 17-ago-2026** (eran 67). De esos, **~25 esperan una decisión del usuario, un
-> admin externo o un deploy**, y el resto es código. **Ya no queda ningún smoke pendiente**: los dos
-> que seguían vivos se corrieron en V11. Lo único accionable sin dependencias externas es **V7.27**
-> (el cuadre que ignora `validado`), y exige el **gate de paridad multipaís** antes de tocarse.
+> **55 pendientes al 17-ago-2026** (eran 67 → 51 tras V11, y V12 cierra V7.27 pero deja 5 puntos
+> declarados de lo que NO hizo). De esos, **~26 esperan una decisión del usuario, un admin externo o
+> un deploy**, y el resto es código. **Ya no queda ningún smoke pendiente**: los dos que seguían vivos
+> se corrieron en V11 y V12 corrió el suyo contra un clon. **V7.27 quedó cerrado en V12**, con el gate
+> de paridad multipaís corrido antes y después (0 diferencias en las dos empresas).
 
 ## Entregado y archivado
 
@@ -1741,7 +1743,11 @@ solo dato. Aviso: el lote 168 es el que usaron los smokes de V7 — su baseline 
       `Validado = true` (`TrasladoAvesDesdeSegService.Traslado.cs:365,423,482,541`)
 - [x] V7.26 El botón Validar con el flag apagado — **cerrado por V7.32**: `requiereValidacion` está en
       las 3 listas (levante, producción y engorde) y en sus 3 plantillas
-- [ ] V7.27 El saldo de alimento y el cuadre de engorde se recalculan ignorando `validado`. Tocarlo exige el **gate de paridad multipaís**, no entra acá
+- [x] V7.27 El saldo de alimento y el cuadre de engorde se recalculan ignorando `validado` — **cerrado
+      por V12** (bloque al final): la respuesta no era filtrar la fn (que no mire `validado` es
+      deliberado y correcto), sino que la doble validación escribía sus movimientos con una referencia
+      que ningún lector de engorde reconoce ⇒ desvalidar inflaba el saldo del galpón. Gate multipaís
+      corrido antes y después: **0 en todas las columnas, en las dos empresas**
 
 ---
 
@@ -1830,3 +1836,109 @@ que el tracker declara vivos) y una revalidación.
   pero es una copia — nada de lo que se miró venía de producción.
 - El arreglo de permiso **no tiene test unitario nuevo**: `PuedeGestionarItalJira()` delega en una
   regla ya testeada y el punto del arreglo es *dónde* se la llama, que sólo se ve ejecutando.
+
+---
+
+# V12 · V7.27 — el saldo de alimento y el cuadre ignoran `validado` (17ago26)
+
+**Plan:** [`fase_de_desarrollo/v727_saldo_alimento_ignora_validado_plan.md`](fase_de_desarrollo/v727_saldo_alimento_ignora_validado_plan.md)
+Pedido: «seguí con V7.27 y el gate multipaís». Bloque propio — no tocar desde otras sesiones.
+**V8 sigue reservada.**
+
+Último pendiente abierto del bloque V7. La mitad del **cuadre** ya la cerró V7.37/V7.38; esta entrega
+audita la mitad del **saldo**.
+
+## V12.0 — Auditoría: la respuesta NO era filtrar la fn ✔
+- [x] V12.0.1 Que `fn_seguimiento_diario_engorde` no mire `validado` es **correcto y deliberado**: el
+      alimento se consumió el día que se cargó el seguimiento; validar confirma el movimiento de
+      inventario, no el consumo. Filtrarla cambiaría el número de TODAS las empresas — incluidas las
+      que tienen el flag apagado y arrastran filas `validado=false` anteriores al fix H6
+- [x] V12.0.2 🔴 **Lo que sí estaba roto:** `ValidacionSeguimientoService.AplicarAlimentoAsync` armaba
+      la referencia con `$"Seguimiento {modulo.ToLowerInvariant()} #…"` ⇒ escribía `Seguimiento engorde #`,
+      `Seguimiento levante #` y `Seguimiento produccion #`, **tres literales que no existen en ninguna
+      otra parte del sistema**. Los Cruds escriben `Seguimiento aves engorde #`, `Seguimiento lote
+      levante #` y `Seguimiento producción #` (con tilde). Sólo reproductora coincidía
+
+## V12.1 — Las dos consecuencias, medidas ✔
+- [x] V12.1.1 🔴 **Desvalidar inflaba el saldo del galpón.** La fn excluye los `INV_INGRESO` que genera
+      el seguimiento (`LIKE 'Seguimiento aves engorde #%'`) por ser reversiones contables; la
+      devolución de la desvalidación no matcheaba ⇒ entraba como alimento nuevo mientras el
+      seguimiento seguía restando su consumo. **Reproducido en transacción revertida** (lote 168,
+      ItalcolPanama): 500 kg devueltos movían el saldo **+500,000** y el `ingreso_alimento_kg`
+      **+500,000**; la misma fila con la referencia que la fn sí reconoce movía **0**
+- [x] V12.1.2 Y arrastraba al cuadre: al desvalidar, `stock − reservado` vuelve a su valor y
+      `saldo_tabla` no ⇒ **descuadre inventado** en un galpón que estaba cuadrado
+- [x] V12.1.3 🔴 **El consumo validado no se podía atribuir a su lote**:
+      `vw_validacion_alimento_engorde_por_lote` atribuye por `LIKE 'Seguimiento aves engorde #%'` +
+      `substring(reference from '#(...)')`, así que lo reportaba como `consumo_no_posteado` — falso
+      positivo del tipo que esa vista existe para cazar. Mismo problema en
+      `revertir_anulacion_inv_consumo_seguimiento.sql`
+
+## V12.2 — El arreglo: hablar el vocabulario de cada módulo ✔
+- [x] V12.2.1 `ReservaSeguimientoCalculos.PrefijoReferenciaModulo` + `ReferenciaInventario(...)` —
+      dueño único del literal, puro y con tests. Mismo patrón que
+      `MigracionPosturaCalculos.ReferenciaConsumoLevante/Produccion`, que existe por esta misma razón
+- [x] V12.2.2 `AplicarAlimentoAsync` delega en él en vez de armar la cadena a mano
+- [x] V12.2.3 **No se tocó ninguna función SQL**: con la referencia correcta, los 10 lectores que ya
+      existen (fn del saldo, cuadre, reporte diario, vista Power BI, 7 consultas EF, 2 vistas de
+      conciliación) tratan bien el movimiento sin cambiar una línea. Descartado ensanchar el filtro en
+      los 10: cinco veces más superficie para el mismo resultado, y cada copia es una oportunidad de
+      que una se quede atrás
+- [x] V12.2.4 **8 tests xUnit** del literal por módulo, anclados contra los prefijos que escriben los
+      Cruds y contra el filtro literal de la fn
+
+## V12.3 — Gate multipaís y verificación ✔
+- [x] V12.3.1 **Gate ANTES**: línea base de **6.291 filas** congelada (`verificar_paridad_saldo_engorde.sql`)
+- [x] V12.3.2 Simulación SQL con la referencia NUEVA sobre el lote 168 ⇒ saldo **0,000** e ingreso
+      **0,000** de diferencia; y el consumo de validar queda atribuible (`seg_id` extraído == esperado)
+- [x] V12.3.3 **Gate DESPUÉS** ⇒ **0 en todas las columnas** en las dos empresas con lotes
+      (ItalcolEcuador 5.253 filas · ItalcolPanama 1.038), 0 filas que desaparecen, 0 filas nuevas,
+      6.210 esperadas == 6.210 presentes
+- [x] V12.3.4 `dotnet build` **0 errores** (9 advertencias, las preexistentes) · `dotnet test`
+      **2.753 Application + 1 Domain en verde** (eran 2.745: +8 nuevos)
+- [x] V12.3.5 **Smoke runtime contra un CLON** (`sanmarinoapp_v727`, backend en `:5501` con content
+      root propio; aislamiento verificado por `pg_stat_activity`: 1 conexión al clon, **0 a la
+      compartida**). ItalcolPanama, flag ON, lote 168, 80 kg:
+
+| paso | saldo último día | ingreso total | stock | descuadre (endpoint) |
+|---|---|---|---|---|
+| baseline | 10.609,560 | 181.980,747 | 10.609,560 | 0 |
+| pendiente | 10.529,560 | 181.980,747 | 10.609,560 | 0 |
+| validado | 10.529,560 | 181.980,747 | 10.529,560 | 0 |
+| **desvalidado** | **10.529,560** | **181.980,747** | 10.609,560 | **≈0 (2,7e-11)** |
+
+      Desvalidar devuelve el sistema **exactamente** al estado «pendiente». Referencias escritas:
+      `[INV_CONSUMO] Seguimiento aves engorde #11629 2026-08-14 (validado)` y
+      `[INV_INGRESO] … (devolución por quitar la validación)`
+- [x] V12.3.6 **Contrafactual sobre la fila real que escribió el backend**: renombrada al literal
+      viejo, el saldo salta de **10.529,560 a 10.609,560 (+80,000)** y el ingreso del día de **0,000
+      a 80,000**. Es el defecto, medido sobre datos escritos por el propio backend
+- [x] V12.3.7 **Limpieza**: clon dropeado, tablas del gate (`_paridad_saldo_*`) dropeadas, BD
+      compartida sin residuos (lote 168 con sus 42 seguimientos, 0 reservas, 0 referencias viejas),
+      flags en su valor original, puertos 5002/5499/5501 libres
+
+## Lo que NO se hizo, dicho explícitamente
+- [ ] V12.4.1 **Verificar en PROD si hay filas con los literales viejos** antes de mergear. En local
+      hay **cero** (el flag sólo estuvo encendido durante los smokes de V7 y la base se restauró),
+      pero `ItalcolPanama` tiene `requiere_validacion_seguimiento_diario = true` por la migración
+      `20260815130000_ActivarDobleValidacionItalcolPanama`, así que **si esa migración ya corrió en
+      prod, el defecto es alcanzable ahí**. Si aparecen filas, van por migración data-only aparte
+      (`UPDATE ... SET referencia = replace(referencia, 'Seguimiento engorde #', 'Seguimiento aves engorde #')`)
+- [ ] V12.4.2 **No se filtró la fn por `validado`** — ver V12.0.1. Diferir también el saldo es un
+      cambio de modelo que pide su propio plan y su propio gate
+- [ ] V12.4.3 Levante/producción/reproductora que devuelvan sobre un galpón donde vive un lote de
+      engorde quedan cubiertos sólo por su prefijo propio, no por el filtro de engorde. Es una
+      asimetría **anterior** a la doble validación (le pasa igual al `devolución por eliminación` de
+      esos módulos) y no entra acá
+
+## Dos observaciones que NO son de esta entrega
+- [ ] V12.5.1 **Para el bloque «v16 de engorde — marca `para_proximo_ciclo`»**: ese bloque declara
+      implementadas las migraciones `20260809120000_FnAlimentoMarcadoAtribucionEngorde` y
+      `20260809120100_FnSeguimientoEngordeV16EntregaCicloSiguiente`, pero **no están en el repo**:
+      `backend/sql/fn_seguimiento_diario_engorde.sql` sigue en **v15** y la BD local también. Ese
+      trabajo nunca se commiteó. Esta entrega **no toca la fn**, así que no lo bloquea ni lo pisa
+- [ ] V12.5.2 **Para V8**: el lote 168 («patrón C», el descuadre de 250 kg) ya **no reproduce** —
+      medido en la BD compartida **antes** de tocar nada: `saldo_tabla 10.609,560 · mov_post 0 ·
+      stock 10.609,560 · descuadre 0,000`. El cuadre de ItalcolPanama está hoy en **5 descuadrados /
+      54.795,359 kg**, no en los 6 / 55.045,359 del baseline de V8. Revalidar esa tabla antes de
+      trabajarla

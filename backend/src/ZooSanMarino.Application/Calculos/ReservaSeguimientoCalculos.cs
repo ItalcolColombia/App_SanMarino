@@ -272,4 +272,52 @@ public static class ReservaSeguimientoCalculos
                $"{reservadasMachos} M ya están dadas de baja en registros de seguimiento sin validar. " +
                "Validá esos registros (o corregilos) antes de despachar.";
     }
+
+    // ── Referencia de los movimientos de inventario que emite validar/desvalidar ─────────────────
+
+    /// <summary>
+    /// Prefijo con el que el Crud de cada módulo referencia sus movimientos de inventario.
+    ///
+    /// <para>
+    /// <b>No es una etiqueta decorativa: es una clave de lectura.</b> El saldo de alimento de engorde
+    /// (<c>fn_seguimiento_diario_engorde</c>), <c>fn_cuadre_alimento_engorde</c>,
+    /// <c>fn_reporte_diario_costos_engorde</c>, <c>vw_seguimiento_pollo_engorde</c>, las consultas EF
+    /// espejo y las vistas de conciliación distinguen «alimento que entró al galpón» de «reversión
+    /// contable de un consumo» comparando esta cadena
+    /// (<c>referencia LIKE 'Seguimiento aves engorde #%'</c>). Un movimiento que no la lleva se cuenta
+    /// como alimento nuevo.
+    /// </para>
+    ///
+    /// <para>
+    /// Por eso la validación no puede inventar su propio vocabulario. Antes armaba el texto con
+    /// <c>modulo.ToLowerInvariant()</c>, que producía <c>Seguimiento engorde #</c>,
+    /// <c>Seguimiento levante #</c> y <c>Seguimiento produccion #</c> — tres literales que no escribe
+    /// ni lee nadie más. Consecuencia medida: la devolución de una desvalidación entraba al saldo
+    /// como alimento nuevo (500 kg devueltos ⇒ +500 kg de saldo y de <c>ingreso_alimento_kg</c>) y el
+    /// consumo de una validación no se podía atribuir a su lote.
+    /// </para>
+    /// </summary>
+    public static string PrefijoReferenciaModulo(string modulo) => modulo switch
+    {
+        // Los dos services de pollo engorde escriben la MISMA tabla, así que comparten literal.
+        ModuloSeguimiento.Engorde or ModuloSeguimiento.EngordeEcuador => "Seguimiento aves engorde",
+        ModuloSeguimiento.Levante      => "Seguimiento lote levante",
+        // Con tilde, byte a byte como ProduccionService.
+        ModuloSeguimiento.Produccion   => "Seguimiento producción",
+        ModuloSeguimiento.Reproductora => "Seguimiento reproductora",
+        _ => $"Seguimiento {modulo.ToLowerInvariant()}"
+    };
+
+    /// <summary>
+    /// Referencia completa del movimiento de inventario que emite validar (consumo) o desvalidar
+    /// (devolución). El sufijo dice cuál de los dos fue, para que el kardex se pueda leer.
+    /// </summary>
+    /// <param name="modulo">Módulo canónico (<see cref="ModuloSeguimiento"/>).</param>
+    /// <param name="seguimientoId">Id del registro diario que se está validando.</param>
+    /// <param name="fecha">Fecha del seguimiento — no la de la validación: es la que fecha el movimiento.</param>
+    /// <param name="devolver">True cuando se está quitando la validación.</param>
+    public static string ReferenciaInventario(string modulo, long seguimientoId, DateOnly fecha, bool devolver)
+        => $"{PrefijoReferenciaModulo(modulo)} #{seguimientoId} " +
+           fecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) +
+           (devolver ? " (devolución por quitar la validación)" : " (validado)");
 }

@@ -198,9 +198,14 @@ public partial class ValidacionSeguimientoService
         // El total se acumula con lo REALMENTE aplicado, no con lo separado: devolver la suma de las
         // reservas hacía que un descuento que no ocurrió se reportara como ocurrido.
         var total = 0m;
-        var refStr = $"Seguimiento {modulo.ToLowerInvariant()} #{seguimientoId} " +
-                     $"{reservas[0].FechaSeguimiento:yyyy-MM-dd}" +
-                     (devolver ? " (devolución por quitar la validación)" : " (validado)");
+
+        // La referencia la arma el calculo puro porque NO es texto libre: es la clave por la que el
+        // saldo de alimento, el cuadre y las conciliaciones distinguen «alimento que entró al galpón»
+        // de «reversión contable de un consumo». Armarla acá con `modulo.ToLowerInvariant()` producía
+        // literales que no lee nadie (`Seguimiento engorde #…` en vez del `Seguimiento aves engorde #…`
+        // que escribe el Crud), y la devolución de una desvalidación se contaba como alimento nuevo.
+        var refStr = ReservaSeguimientoCalculos.ReferenciaInventario(
+            modulo, seguimientoId, reservas[0].FechaSeguimiento, devolver);
 
         foreach (var grupo in reservas.GroupBy(r => new { r.PaisId, r.FarmId, r.NucleoId, r.GalponId }))
         {
