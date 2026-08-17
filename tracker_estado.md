@@ -5744,9 +5744,74 @@ comparable es `stock − reservado` — el mismo «disponible» que ya muestra e
 ### Cierre de los 3
 - [x] V7.39 `dotnet build` 0 errores · `dotnet test` **2616 en verde** · base restaurada con **0 tablas con diferencia**, flags originales, 0 reservas activas, puertos libres
 
-### Nota aparte (dato preexistente, no de esta entrega)
-ItalcolPanama arrastra **6 galpones descuadrados y 55.045 kg** de error absoluto de antes de todo esto.
-No lo toca esta entrega; queda dicho porque el cuadre es el termómetro que hay que mirar.
+---
+
+## V8 · Descuadres de alimento de ItalcolPanama — ABIERTO, para otra sesión (16ago26)
+
+**Dato PREEXISTENTE.** No lo causó la doble validación: el baseline lo midió antes de tocar nada
+(6 descuadrados / 55.045,359 kg) y quedó idéntico después de todo el trabajo de V7. Se levanta acá
+porque el cuadre es el termómetro que la guía manda mirar, y hoy está en rojo.
+
+**Cómo reproducir** (no hace falta backend):
+```sql
+SELECT * FROM fn_cuadre_alimento_engorde(5) WHERE abs(descuadre_kg) > 1 OR filas_negativas > 0
+ORDER BY abs(descuadre_kg) DESC;
+```
+Invariante: `descuadre = saldo_tabla − (stock − movimientos_posteriores)`. Tolerancia 1 kg
+(`CuadreAlimentoEngordeCalculos.ToleranciaKg`).
+
+### Los 6 descuadrados — son TRES patrones, no uno
+
+| # | Lote | Galpón | Núcleo | saldo_tabla | stock | mov_post | descuadre | negs |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 187 «33 - 1» | G0483 | 180197 | 26.384,0 | 3.084,0 | 0 | **+23.300,0** | 0 |
+| 2 | 165 «94 - 2» | G0475 | 147337 | 21.216,4 | 2.566,0 | 0 | **+18.650,4** | 1 |
+| 3 | 199 «33 - 1» | G0481 | 180197 | **−4.446,0** | 5.359,0 | 0 | **−9.805,0** | 7 |
+| 4 | 202 «86 - 3» | G0476 | 785639 | 4.976,0 | 2.480,0 | 0 | **+2.496,0** | 0 |
+| 5 | 182 «86 - 1» | G0477 | 785639 | 555,0 | 11,0 | 0 | **+544,0** | 1 |
+| 6 | 168 «60 - 3» | G0490 | 791385 | 10.609,6 | 10.609,6 | **250,0** | **+250,0** | 1 |
+
+Todos en granja **106 (DOÑA MARIA)** y todos con el lote **Abierto**. Suman 55.045,4 kg.
+
+**Patrón A — la tabla muestra MÁS de lo que hay (#1, #2, #4, #5; 44.990,4 kg).** `mov_post = 0`, así
+que no es un movimiento tardío. Hipótesis a descartar en orden: (a) alimento que **entró** al galpón y
+nunca se registró como ingreso de inventario —el stock quedó corto, no la tabla larga—; (b) consumos
+que descontaron el stock por otra vía sin pasar por el seguimiento; (c) un traslado bodega→galpón sin
+contraparte. Ojo con #1 y #3: **comparten núcleo 180197 y nombre de lote «33 - 1»**, y uno sobra
+23.300 mientras el otro falta 9.805 — huele a alimento imputado al galpón equivocado entre dos lotes
+del mismo núcleo.
+
+**Patrón B — saldo NEGATIVO (#3, y 17 galpones más con `descuadre = 0` pero `filas_negativas > 0`).**
+`saldo_tabla = −4.446` con 7 días cerrando en negativo: se consumió alimento cuya llegada no está
+registrada. Los peores por cantidad de días en rojo son el **lote 161 (G0472) con 28 filas** y el
+**lote 142 (G0471) con 17**, ambos **cuadran contra el inventario** — o sea que el total está bien y lo
+que está mal es el **orden/fecha** de los ingresos: el consumo se registró antes que la entrada.
+Es el mismo patrón que ya documentó el repo en la ventana de alimento previo al encaset.
+
+**Patrón C — #6, y es el único que puede no ser un error de datos.** El descuadre (250,0) es
+**exactamente `mov_post`**, con `saldo_tabla == stock`. O sea: hay un movimiento posterior al último
+seguimiento y el corte por fecha lo cuenta de un lado y no del otro. **Empezar por acá**: es el más
+barato de decidir y, si resulta ser un artefacto del cálculo, baja el conteo de 6 a 5 sin tocar un
+solo dato. Aviso: el lote 168 es el que usaron los smokes de V7 — su baseline limpio es
+`stock 10.609,560`, y ya volvió a ese valor.
+
+### Cómo NO resolverlo
+- ⛔ **No «cuadrar» anulando o borrando filas.** La guía es explícita y ya pasó: anular las 93 filas
+  huérfanas del histórico parecía obvio y habría mandado 5 ciclos cerrados de saldo 0 a negativo.
+  Simular en una transacción y revertirla ANTES de tocar nada.
+- ⛔ **No tocar `fn_seguimiento_diario_engorde` ni `fn_cuadre_alimento_engorde`** sin el **gate de
+  paridad multipaís** (`backend/sql/verificar_paridad_saldo_engorde.sql`, corrida ANTES y DESPUÉS):
+  Ecuador encadena 3-4 ciclos por galpón, topología que Panamá no tiene, y ya se rompió así una vez.
+- ⛔ **No mirar solo Panamá.** El mismo query con `fn_cuadre_alimento_engorde(3)` para Ecuador antes de
+  concluir que el patrón es de una empresa.
+
+### Checklist
+- [ ] V8.1 Decidir el **patrón C** (#6, lote 168): ¿el descuadre de 250 kg es un movimiento real mal fechado o un artefacto del corte por fecha del cuadre?
+- [ ] V8.2 Reconstruir el kardex de **#1 y #3** (núcleo 180197, lotes 187 y 199) y confirmar o descartar el cruce de imputación entre los dos «33 - 1»
+- [ ] V8.3 Patrón A en **#2, #4, #5**: cruzar `inventario_gestion_movimiento` del galpón contra los ingresos del ERP para ubicar el alimento que entró sin registrarse
+- [ ] V8.4 Patrón B: datar los ingresos de los lotes **161 (28 días negativos)** y **142 (17)**; el total cuadra, así que el arreglo es de FECHAS, no de cantidades
+- [ ] V8.5 Correr el mismo cuadre en **ItalcolEcuador (3)** para saber si el patrón es de Panamá o del cálculo
+- [ ] V8.6 Simular toda corrección en transacción + revertir, y correr el gate de paridad antes y después
 
 ### Hallazgos confirmados que NO entran en esta entrega
 - [ ] V7.23 El bloqueo por vencidos corta la **carga masiva histórica** y el **puente Panamá** después del primer día insertado: el gate se evalúa por fila. Necesita evaluarse una vez por import
