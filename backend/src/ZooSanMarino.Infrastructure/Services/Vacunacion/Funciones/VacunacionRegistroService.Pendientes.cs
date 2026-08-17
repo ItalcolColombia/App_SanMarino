@@ -19,6 +19,10 @@ public partial class VacunacionRegistroService
     /// <para><c>p_hoy</c> viaja como <c>DateTime.UtcNow.Date</c>, la misma base con la que
     /// <c>RegistrarAplicadoAsync</c> sella la fecha: la bandeja y el guardado no pueden discrepar de
     /// día. Sin sesión válida (sin GUID de usuario) la bandeja es vacía: fail-closed.</para>
+    ///
+    /// <para>Alcance granular (W4): el cierre de ubicación viaja en los mismos 4 arrays que consume
+    /// <c>fn_vacunacion_filter_data</c> (<see cref="VacunacionScopeSqlParams"/>) — la bandeja no
+    /// puede avisar de un lote que el combo no deja abrir.</para>
     /// </remarks>
     public async Task<List<VacunacionPendienteDto>> GetPendientesAsync(int diasHorizonte, CancellationToken ct = default)
     {
@@ -33,13 +37,16 @@ public partial class VacunacionRegistroService
             Value = _currentUser.PaisId.HasValue ? _currentUser.PaisId.Value : DBNull.Value
         };
         var pHoy = new NpgsqlParameter("p_hoy", NpgsqlDbType.Date) { Value = DateTime.UtcNow.Date };
+        var pScope = await VacunacionScopeSqlParams.ResolverAsync(_scopeResolver);
         var pHorizonte = new NpgsqlParameter("p_dias_horizonte", NpgsqlDbType.Integer) { Value = horizonte };
 
         const string sql =
-            "SELECT * FROM public.fn_vacunacion_pendientes(@p_user_guid, @p_company_id, @p_pais_id, @p_hoy, @p_dias_horizonte)";
+            "SELECT * FROM public.fn_vacunacion_pendientes(@p_user_guid, @p_company_id, @p_pais_id, @p_hoy, " +
+            "@p_scope_farm_ids, @p_scope_nucleos, @p_scope_galpones, @p_scope_lotes, @p_dias_horizonte)";
 
         var rows = await _ctx.Database
-            .SqlQueryRaw<VacunacionPendienteRow>(sql, pUser, pCompany, pPais, pHoy, pHorizonte)
+            .SqlQueryRaw<VacunacionPendienteRow>(
+                sql, new[] { pUser, pCompany, pPais, pHoy }.Concat(pScope).Append(pHorizonte).ToArray())
             .ToListAsync(ct);
 
         return rows.Select(Mapear).ToList();

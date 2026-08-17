@@ -3,6 +3,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -32,9 +33,16 @@ public sealed partial class VacunacionReportesService : IVacunacionReportesServi
     /// Alcance granular por granja RESTRINGIDA: devuelve, por granja, el conjunto de lotes VISIBLES
     /// expresados con el id que usa el reporte (el de su línea: lote_postura_levante_id /
     /// lote_postura_produccion_id / lote_ave_engorde_id, igual que <c>p_lote_ids</c> de las fns).
-    /// La ubicación sale del propio cronograma (vacunacion_cronograma_item ya guarda granja/núcleo/
-    /// galpón); cuando la línea tiene lote de la tabla <c>lotes</c> manda el nivel LOTE del cierre.
     /// Diccionario vacío ⇒ ninguna granja del alcance está restringida ⇒ el reporte no se toca.
+    ///
+    /// <para>La regla es la ÚNICA del módulo (<see cref="UserLocationScopeCalculos.PermiteUbicacion"/>),
+    /// la misma que aplican el cronograma, el materializador y las dos funciones SQL.</para>
+    ///
+    /// <para>⚠️ W4: la ubicación se toma del LOTE (dónde está hoy), no de la copia que el ítem selló
+    /// al crearse. Un lote que cambió de galpón dejaba al reporte decidiendo con la ubicación vieja y
+    /// discrepando de la bandeja, que sí mira la vigente. Cuando la fila del lote no existe se cae a
+    /// la del ítem, y el scope que manda es el de la granja donde el lote está hoy (si esa granja no
+    /// está en el alcance resuelto, el del ítem, que es la clave con la que viaja la fila).</para>
     /// </summary>
     private async Task<IReadOnlyDictionary<int, HashSet<int>>> ResolverLotesVisiblesPorGranjaRestringidaAsync(
         int[] granjasPermitidas, CancellationToken ct)
@@ -48,9 +56,24 @@ public sealed partial class VacunacionReportesService : IVacunacionReportesServi
             .Select(ci => new
             {
                 ci.GranjaId,
-                ci.NucleoId,
-                ci.GalponId,
+                ItemNucleoId = ci.NucleoId,
+                ItemGalponId = ci.GalponId,
                 LineaLoteId = ci.LotePosturaLevanteId ?? ci.LotePosturaProduccionId ?? ci.LoteAveEngordeId,
+                LoteGranjaId = ci.LotePosturaLevante != null
+                    ? (int?)ci.LotePosturaLevante.GranjaId
+                    : (ci.LotePosturaProduccion != null
+                        ? (int?)ci.LotePosturaProduccion.GranjaId
+                        : (ci.LoteAveEngorde != null ? (int?)ci.LoteAveEngorde.GranjaId : null)),
+                LoteNucleoId = ci.LotePosturaLevante != null
+                    ? ci.LotePosturaLevante.NucleoId
+                    : (ci.LotePosturaProduccion != null
+                        ? ci.LotePosturaProduccion.NucleoId
+                        : (ci.LoteAveEngorde != null ? ci.LoteAveEngorde.NucleoId : null)),
+                LoteGalponId = ci.LotePosturaLevante != null
+                    ? ci.LotePosturaLevante.GalponId
+                    : (ci.LotePosturaProduccion != null
+                        ? ci.LotePosturaProduccion.GalponId
+                        : (ci.LoteAveEngorde != null ? ci.LoteAveEngorde.GalponId : null)),
                 LoteDeTablaLotes = ci.LotePosturaLevante != null
                     ? ci.LotePosturaLevante.LoteId
                     : (ci.LotePosturaProduccion != null ? ci.LotePosturaProduccion.LoteId : null)
@@ -61,12 +84,16 @@ public sealed partial class VacunacionReportesService : IVacunacionReportesServi
         foreach (var it in items)
         {
             if (it.LineaLoteId is not int lineaLoteId) continue;
-            var scope = restringidos[it.GranjaId];
-            var permitido = it.LoteDeTablaLotes.HasValue
-                ? scope.PermiteLote(it.LoteDeTablaLotes.Value)
-                : (!string.IsNullOrEmpty(it.GalponId) && scope.PermiteGalpon(it.GalponId))
-                  || (string.IsNullOrEmpty(it.GalponId) && !string.IsNullOrEmpty(it.NucleoId) && scope.PermiteNucleo(it.NucleoId));
-            if (permitido) visibles[it.GranjaId].Add(lineaLoteId);
+
+            var hayLote = it.LoteGranjaId.HasValue;
+            var nucleoId = hayLote ? it.LoteNucleoId : it.ItemNucleoId;
+            var galponId = hayLote ? it.LoteGalponId : it.ItemGalponId;
+            var scope = restringidos.TryGetValue(it.LoteGranjaId ?? it.GranjaId, out var deLaUbicacion)
+                ? deLaUbicacion
+                : restringidos[it.GranjaId];
+
+            if (UserLocationScopeCalculos.PermiteUbicacion(scope, nucleoId, galponId, it.LoteDeTablaLotes))
+                visibles[it.GranjaId].Add(lineaLoteId);
         }
         return visibles;
     }

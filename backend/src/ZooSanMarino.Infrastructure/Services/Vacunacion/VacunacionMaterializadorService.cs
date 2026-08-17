@@ -99,10 +99,7 @@ public partial class VacunacionMaterializadorService : IVacunacionMaterializador
     private async Task<bool> PermiteAsync(LoteVivo lote)
     {
         var scope = await _scopeResolver.GetScopeAsync(lote.GranjaId);
-        if (scope.IsGlobal) return true;
-        if (lote.LoteTablaId.HasValue) return scope.PermiteLote(lote.LoteTablaId.Value);
-        return (!string.IsNullOrEmpty(lote.GalponId) && scope.PermiteGalpon(lote.GalponId))
-            || (string.IsNullOrEmpty(lote.GalponId) && !string.IsNullOrEmpty(lote.NucleoId) && scope.PermiteNucleo(lote.NucleoId));
+        return UserLocationScopeCalculos.PermiteUbicacion(scope, lote.NucleoId, lote.GalponId, lote.LoteTablaId);
     }
 
     // ─── Mapeos ───────────────────────────────────────────────────────────────

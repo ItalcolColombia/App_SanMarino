@@ -12,10 +12,17 @@ public partial class VacunacionRegistroService : IVacunacionRegistroService
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
 
-    public VacunacionRegistroService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    /// <summary>Alcance granular de ubicación: lo consume la bandeja de pendientes (W4).</summary>
+    private readonly ILocationScopeResolver _scopeResolver;
+
+    public VacunacionRegistroService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser currentUser,
+        ILocationScopeResolver scopeResolver)
     {
         _ctx = ctx;
         _currentUser = currentUser;
+        _scopeResolver = scopeResolver;
     }
 
     /// <summary>Umbral de días para "incumplido" (rojo): configurado por empresa/país, default 14.</summary>

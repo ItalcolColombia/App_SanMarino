@@ -27,13 +27,13 @@
 | 3 | PWA — punto de retoma | **push + merge a `main-produccion`** |
 | 6 | PWA — brecha para salir a producción | **push + merge** + B1/B8 |
 | 1 | Gerencia: Panel de control | post-deploy manual (rol + menú en la UI) |
-| 11 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** · de Vacunación sólo queda **W4** |
+| 9 | Bitácora agosto 2026 (W/I · V3 · V5 · V7 · V8) | **V8 reservada** · Vacunación **cerrada** (W1-W4) |
 | 4 | **V9 · Barrido de pendientes (17ago26)** | W1.3, W1.4 y 2 smokes |
 
-> **69 pendientes al 17-ago-2026.** De esos, **~25 esperan una decisión del usuario, un admin
-> externo o un deploy**, y el resto es código: lo que queda vivo y accionable es **Vacunación
-> W4** (scoping por núcleo/galpón/lote — W1, W2 y W3 quedaron cerrados el 17ago26), **V7.27**
-> (cuadre que ignora `validado`, exige gate multipaís) y los smokes en pantalla.
+> **67 pendientes al 17-ago-2026.** De esos, **~25 esperan una decisión del usuario, un admin
+> externo o un deploy**, y el resto es código. **Vacunación quedó CERRADA el 17ago26** (W1, W2, W3 y
+> W4): lo que sigue vivo y accionable es **V7.27** (cuadre que ignora `validado`, exige gate
+> multipaís) y los smokes en pantalla.
 
 ---
 
@@ -1508,9 +1508,11 @@ de implementación viva en ItalJira y termine con una firma manuscrita del usuar
 - [x] W3.2 Front: la novedad se despliega sola al aplicar fuera de franja (hoy el back ya la exige y devuelve 400)
 - [x] W3.3 Rótulo «Fuera de rango» con días de desviación (sin estados nuevos en BD)
 
-### W4 — Scoping por núcleo/galpón/lote
-- [ ] W4.1 `fn_vacunacion_filter_data` respeta `farms.restrict_locations` + `user_farm_scopes` (fail-closed)
-- [ ] W4.2 Mismo scoping en reportes de cumplimiento + smoke con usuario restringido
+### W4 — Scoping por núcleo/galpón/lote — **CERRADO 17ago26** (bloque «Vacunación W4», al final del tracker)
+- [x] W4.1 `fn_vacunacion_filter_data` **y** `fn_vacunacion_pendientes` respetan
+      `user_farms.restrict_locations` + `user_farm_scopes` (fail-closed). Las dos subieron juntas
+- [x] W4.2 Mismo scoping en reportes de cumplimiento + smoke con usuario restringido (14/14).
+      De paso cazó que `GET /cumplimiento` reventaba en runtime para todas las empresas
 
 ### I1..I5 — Implementación (elegido por el usuario como primera entrega)
 - [x] I1.1 Columnas `implementacion_planes.historia_id` + `implementacion_tareas.ticket_tarea_id` (entidad, configuration, migración idempotente `20260815000000`, snapshot y Designer)
@@ -2250,3 +2252,75 @@ resolvía por lote — y **no bajaba a una sola fila de cronograma**.
   cable HTTP extremo a extremo.
 - `vacunacion_cronograma_item` está **vacía** en toda la BD local, así que la bandeja se probó con filas
   sembradas y revertidas, no con datos históricos.
+
+---
+
+# Vacunación W4 — el alcance por núcleo/galpón/lote llega a las dos funciones SQL
+
+**Plan:** [`fase_de_desarrollo/vacunacion_w4_scoping_ubicacion_plan.md`](fase_de_desarrollo/vacunacion_w4_scoping_ubicacion_plan.md)
+**Continúa:** W1 (`bd935cb`), W2 (`f2794c6`), W3 (`59496a8`). Fecha: 17-ago-2026 · bloque propio.
+
+> ✅ **CIERRA LA SERIE W.** El módulo ya respetaba `user_farms.restrict_locations` +
+> `user_farm_scopes` en todo lo que pasa por C# (cronograma, materializador y los 2 reportes);
+> faltaba en las dos lecturas que hace la BD. Con **0 usuarios restringidos** hoy en la base, el
+> cambio es no-op hasta que un admin restrinja a alguien.
+
+### W4.0 — Auditoría y decisión de arquitectura ✔
+- [x] W4.0.1 Mapa de los 5 caminos de lectura: 3 ya scopeados en C#, 2 (las fns) sólo por granja.
+      Efecto real: el combo ofrecía lotes de toda la granja y la bandeja avisaba de vacunas que el
+      guard del cronograma después rechazaba
+- [x] W4.0.2 La regla «con lote manda el nivel LOTE; si no, galpón; si no, núcleo» estaba **copiada a
+      mano en 3 services** ⇒ extraída a `UserLocationScopeCalculos.PermiteUbicacion`; los 3 delegan
+      (misma salida, un solo dueño)
+- [x] W4.0.3 Decisión: el **cierre se calcula en C#** (`ComputeScope`, ya con 20 tests) y viaja a la
+      fn como 4 arrays. Replicarlo en SQL lo duplicaba, y un helper SQL aparte habría roto la
+      restauración de dumps (ordena funciones por OID, y los llamadores `LANGUAGE sql` validan su
+      cuerpo al crearse). El filtro va **una sola vez** por fn, después del UNION
+
+### W4.1 — Las dos fns respetan el alcance granular (fail-closed) ✔
+- [x] W4.1.1 `PermiteUbicacion` + `AplanarParaSql` + `ClaveNucleo` (clave **compuesta**
+      `granjaId|nucleoId`: `nucleo_id` se repite entre granjas) + **19 tests xUnit**, incluido el
+      contrato «pertenencia a los arrays == la regla», que es lo que implementa la SQL
+- [x] W4.1.2 `fn_vacunacion_filter_data` con los 4 `p_scope_*` **sin DEFAULT**: un llamador que se
+      los olvide debe fallar, no ver toda la empresa
+- [x] W4.1.3 `fn_vacunacion_pendientes` con los mismos 4 (van **antes** de `p_dias_horizonte`: en
+      Postgres, después de un parámetro con DEFAULT todos los siguientes deben tenerlo) y se retiró
+      su nota «leer antes de W4»
+- [x] W4.1.4 Migración `20260817220000_ScopingUbicacionVacunacionFns` (data-only, Designer clonado,
+      **ModelSnapshot intacto**, `DROP … IF EXISTS` de la firma vieja **y** la nueva ⇒ re-ejecutable)
+- [x] W4.1.5 `VacunacionRegistroService` recibe `ILocationScopeResolver`; los parámetros los arma
+      `VacunacionScopeSqlParams`, compartido, para que las dos fns reciban **siempre el mismo cierre**
+- [x] W4.1.6 🔎 **Hallazgo**: el orden del combo nunca fue determinístico (`ORDER BY fecha_encaset`
+      a secas ⇒ los empates salían como quisiera el plan). Se agregó el desempate por línea+id
+
+### W4.2 — Mismo scoping en reportes + smoke con usuario restringido ✔
+- [x] W4.2.1 Los 3 services delegan en la regla única; en reportes la ubicación pasa a salir del
+      **lote** (dónde está hoy) y no de la copia que el ítem selló al crearse — un lote que cambia de
+      galpón dejaba al reporte decidiendo con la ubicación vieja y discrepando de la bandeja
+- [x] W4.2.2 **Smoke SQL en transacción revertida, 18/18**: sin restricción ⇒ granjas/vacunas/usuarios
+      idénticos y los **121 lotes con 0 diferencias fila a fila** (en los dos sentidos) · grant de
+      galpón ⇒ 4 de 40 · grant de núcleo ⇒ el cierre baja a sus galpones y vuelven los 40 ·
+      `restrict_locations` sin grants ⇒ **0** · el mismo `nucleo_id` de otra granja **no** otorga ·
+      un lote con galpón no se cuela por el núcleo · grant de LOTE ⇒ sólo ese (los hermanos del
+      galpón, fuera) · pendientes sin restricción idénticos a la previa
+- [x] W4.2.3 **Smoke del SERVICIO REAL (EF + `SqlQueryRaw`), 14/14** con un usuario restringido
+      sembrado y revertido: combo, bandeja y los **2 reportes** muestran el mismo alcance
+      (reporte ⊆ combo, bandeja ⊆ reporte, 0 huérfanos) · C# y SQL deciden igual en los 40 lotes de
+      la granja, **0 divergencias** · quitar los grants deja combo y bandeja en 0 (fail-closed) ·
+      apagar el flag devuelve los 40
+- [x] W4.2.4 🔴 **Bug preexistente que cazó el smoke**: `GET /cumplimiento` (reporte por lote)
+      **reventaba en runtime para todas las empresas** — la fn devuelve `total_tardio_1_semana` y la
+      convención de EF exige `total_tardio1semana` (no mete guión bajo tras un dígito). Arreglado con
+      dos alias en la consulta: no se toca la fn (la comparten reportes desplegados) ni el DTO (viaja
+      al front). El reporte de detalle no estaba afectado: ninguna columna suya tiene dígitos
+- [x] W4.2.5 `dotnet build` **0 errores / 0 advertencias** · `dotnet test` **2.745 Application + 1
+      Domain verdes** (2.726 previos + 19 nuevos) · BD local **devuelta a su estado exacto** (4 fns,
+      279 migraciones con la última en `20260814130000`, 0 ítems de cronograma, 0 grants, 0 usuarios
+      restringidos) · puertos `5002/5499/5501/4200/4300` libres
+
+### Honestidad sobre lo que NO se probó
+- **Front sin tocar y sin smoke de pantalla**: el combo se acota solo (misma respuesta, menos lotes).
+- El smoke corre con un `ICurrentUser` falso ⇒ prueba el alcance real por ubicación, **no** el gate
+  de permisos del controller.
+- La BD local **no tiene ni un usuario restringido**: todo el escenario se sembró y se revirtió. En
+  producción el cambio no altera lo que ve nadie hasta que un admin encienda `restrict_locations`.

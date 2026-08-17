@@ -52,12 +52,10 @@ public partial class VacunacionCronogramaService : IVacunacionCronogramaService
         };
         if (ubi is null) return true;
 
+        // Regla ÚNICA del alcance (con lote manda el nivel LOTE; sin él, galpón y después núcleo):
+        // vive en UserLocationScopeCalculos y la comparten materializador, reportes y las 2 fns SQL.
         var scope = await _scopeResolver.GetScopeAsync(ubi.GranjaId);
-        if (scope.IsGlobal) return true;
-        // Con lote de la tabla lotes manda el nivel LOTE; sin él, la ubicación (galpón, luego núcleo).
-        if (ubi.LoteId.HasValue) return scope.PermiteLote(ubi.LoteId.Value);
-        return (!string.IsNullOrEmpty(ubi.GalponId) && scope.PermiteGalpon(ubi.GalponId))
-            || (string.IsNullOrEmpty(ubi.GalponId) && !string.IsNullOrEmpty(ubi.NucleoId) && scope.PermiteNucleo(ubi.NucleoId));
+        return UserLocationScopeCalculos.PermiteUbicacion(scope, ubi.NucleoId, ubi.GalponId, ubi.LoteId);
     }
 
     /// <summary>Ubicación proyectada de un lote según su línea (lote de la tabla lotes cuando aplica).</summary>

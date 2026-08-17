@@ -20,10 +20,15 @@
 --   registro sella la aplicación. No se usa CURRENT_DATE: dependería de la zona
 --   horaria de la sesión y la bandeja diría un día distinto que el guardado.
 --
--- ⚠ ALCANCE (leer antes de W4): el filtro de granjas es COPIA del que hoy tiene
---   fn_vacunacion_filter_data (user_farms + empresa + país). W4 sube el módulo a
---   farms.restrict_locations + user_farm_scopes: hay que cambiar LAS DOS funciones,
---   o la bandeja mostrará lotes que el resto del módulo ya no deja ver.
+-- ⚠ ALCANCE: el filtro es el MISMO que el de fn_vacunacion_filter_data — granja
+--   (user_farms + empresa + país) y, desde W4, ubicación granular. Las dos funciones se
+--   cambian juntas: si una sube y la otra no, la bandeja muestra lotes que el resto del
+--   módulo ya no deja ver.
+--   Los 4 parámetros p_scope_* son el CIERRE de visibilidad ya calculado en C#
+--   (UserLocationScopeCalculos.ComputeScope + AplanarParaSql); acá sólo se prueba
+--   pertenencia a conjuntos. Núcleos con clave COMPUESTA 'granjaId|nucleoId'.
+--   Granja en p_scope_farm_ids y ausente del resto ⇒ CERO filas (fail-closed).
+--   Sin DEFAULT a propósito: el llamador que los olvide debe fallar, no ver toda la empresa.
 --
 -- Pendiente = sin registro, o con registro en estado 'Pendiente' (mismo criterio que
 -- el guard de VacunacionRegistroService.CargarItemAsync y que el materializador).
@@ -34,15 +39,22 @@
 -- vacunar necesita la ubicación vigente.
 --
 -- Columnas snake_case (gotcha SqlQueryRaw + EFCore.NamingConventions), sin dígitos.
--- Sincronizada con la migración AddFnVacunacionPendientes.
+-- Sincronizada con las migraciones AddFnVacunacionPendientes y ScopingUbicacionVacunacionFns.
 -- ============================================================================
 DROP FUNCTION IF EXISTS public.fn_vacunacion_pendientes(UUID, INT, INT, DATE, INT);
+DROP FUNCTION IF EXISTS public.fn_vacunacion_pendientes(UUID, INT, INT, DATE, INT[], TEXT[], TEXT[], INT[], INT);
 
 CREATE OR REPLACE FUNCTION public.fn_vacunacion_pendientes(
     p_user_guid       UUID,
     p_company_id      INT,
     p_pais_id         INT,
     p_hoy             DATE,
+    -- Los scope_* van ANTES del horizonte: en Postgres, después de un parámetro con
+    -- DEFAULT todos los siguientes deben tenerlo, y estos no lo llevan a propósito.
+    p_scope_farm_ids  INT[],
+    p_scope_nucleos   TEXT[],
+    p_scope_galpones  TEXT[],
+    p_scope_lotes     INT[],
     p_dias_horizonte  INT DEFAULT 7
 )
 RETURNS TABLE (
@@ -78,10 +90,11 @@ WITH granjas AS (
             SELECT 1 FROM public.departamentos d
             WHERE d.departamento_id = f.departamento_id AND d.pais_id = p_pais_id))
 ),
-lotes AS (
+lotes_ubicados AS (
     SELECT l.lote_postura_levante_id AS lote_id, 'Levante'::text AS linea,
            l.lote_nombre, l.fecha_encaset::date AS fecha_encaset,
-           l.granja_id, l.nucleo_id, l.galpon_id
+           l.granja_id, l.nucleo_id, l.galpon_id,
+           l.lote_id AS lote_tabla_id
     FROM public.lote_postura_levante l
     JOIN granjas g ON g.id = l.granja_id
     WHERE l.company_id = p_company_id AND l.deleted_at IS NULL
@@ -92,7 +105,8 @@ lotes AS (
 
     SELECT l.lote_postura_produccion_id, 'Produccion'::text,
            l.lote_nombre, l.fecha_encaset::date,
-           l.granja_id, l.nucleo_id, l.galpon_id
+           l.granja_id, l.nucleo_id, l.galpon_id,
+           l.lote_id
     FROM public.lote_postura_produccion l
     JOIN granjas g ON g.id = l.granja_id
     WHERE l.company_id = p_company_id AND l.deleted_at IS NULL
@@ -101,14 +115,31 @@ lotes AS (
 
     UNION ALL
 
+    -- Engorde no tiene FK a la tabla `lotes` ⇒ galpón/núcleo lo gobiernan.
     SELECT l.lote_ave_engorde_id, 'Engorde'::text,
            l.lote_nombre, l.fecha_encaset::date,
-           l.granja_id, l.nucleo_id, l.galpon_id
+           l.granja_id, l.nucleo_id, l.galpon_id,
+           NULL::int
     FROM public.lote_ave_engorde l
     JOIN granjas g ON g.id = l.granja_id
     WHERE l.company_id = p_company_id AND l.deleted_at IS NULL
       AND l.lote_ave_engorde_id IS NOT NULL
       AND l.estado_operativo_lote IS DISTINCT FROM 'Cerrado'
+),
+lotes AS (
+    -- Alcance granular. Espejo de UserLocationScopeCalculos.PermiteUbicacion (su dueña) y
+    -- de fn_vacunacion_filter_data: las dos funciones filtran con la MISMA expresión.
+    SELECT u.* FROM lotes_ubicados u
+    WHERE NOT (u.granja_id = ANY(COALESCE(p_scope_farm_ids, '{}'::int[])))
+       OR CASE
+            WHEN u.lote_tabla_id IS NOT NULL
+                THEN u.lote_tabla_id = ANY(COALESCE(p_scope_lotes, '{}'::int[]))
+            WHEN COALESCE(u.galpon_id, '') <> ''
+                THEN u.galpon_id = ANY(COALESCE(p_scope_galpones, '{}'::text[]))
+            WHEN COALESCE(u.nucleo_id, '') <> ''
+                THEN (u.granja_id::text || '|' || u.nucleo_id) = ANY(COALESCE(p_scope_nucleos, '{}'::text[]))
+            ELSE false
+          END
 ),
 base AS (
     SELECT
