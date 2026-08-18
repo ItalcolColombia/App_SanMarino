@@ -3748,3 +3748,78 @@ vez en esa tablet. Y lo que se destruye no es un archivo temporal: es el **alist
       igual que mientras ese operario simplemente no está logueado (decisión D3)
 - [~] V33.11 **Falta el smoke con dos operarios reales** (S1 del plan): A cachea, cierra sesión, y las
       consultas de B siguen ahí. Necesita dos sesiones en un equipo; ningún agente lo cierra solo
+
+---
+
+# V34 · PWA multi-slot paso 5 — el llavero, en lógica pura y sin UI (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 5 del §7**.
+**Continúa** V29, V31, V32 y V33. **Bloque propio.** Primer paso de la feature nueva: los cuatro
+anteriores eran bugs vivos, esto ya no.
+
+⚠️ **Todo lo de este bloque es INERTE**: nada de la app lo importa todavía. Es a propósito (el plan
+separa «las dos funciones puras y sus tests. Sin UI todavía»), pero conviene decirlo fuerte porque el
+tracker ya tuvo un bloque que declaraba entregado código que nunca llegó a un commit (V25.4.1).
+
+- [x] V34.1 **Modelos** `core/auth/models/slot-sesion.model.ts`: `SlotSesion`, `PadronSlots`,
+      `DatosSlot`, `ResultadoActivacion`. El padrón va **sin cifrar a propósito** —el selector tiene
+      que pintarse sin red y sin PIN, y cifrarlo exigiría una llave del dispositivo, o sea el «teatro»
+      que B9 señaló—; lo que sí va cifrado es el blob de cada sesión aparcada
+- [x] V34.2 **`llavero-sesiones.funcion.ts`** — quién entra al padrón y **a quién se expulsa**. Tope
+      de 4 (R-M1), LRU por `ultimoUsoEn`, y **jamás** un slot con capturas sin subir: si los 4 tienen,
+      se rechaza el quinto login con motivo tipado y la lista ordenada por antigüedad, para que el
+      mensaje pueda nombrar a alguien concreto (R-M2). Expulsar purga la caché de esa partición;
+      su cola **nunca** se toca (R9)
+- [x] V34.3 **`cripto-llavero.funcion.ts`** — PBKDF2-SHA256 **210.000 iteraciones** con salt aleatorio
+      **por slot**, AES-GCM con IV aleatorio **por escritura**, `CryptoKey` no extraíble. El PIN **no
+      se compara**: es la entrada del KDF, y el veredicto lo da el tag GCM ⇒ `abrir` **lanza**. Sin
+      `crypto.subtle` devuelve `null` y el llavero se apaga entero: **no hay respaldo débil**
+- [x] V34.4 **El vencimiento es derivado, no una bandera.** `slotVencido` se calcula de
+      `ultimoContactoOkEn` en vez de guardarse; un booleano persistido sería una segunda verdad sobre
+      el mismo hecho. Y la jornada es **por slot** (R-M8): hay test de que `registrarContactoOk` de A
+      no le renueva la jornada a B
+- [x] V34.5 **`registrarUsoOk` NO toca `ultimoContactoOkEn`.** Activar un slot no es hablar con el
+      servidor; confundirlos renovaría la jornada de 16 h sin conexión, que es justo el tope que D4
+      puso para que un dispositivo perdido no sea una ventana abierta. Tiene test propio
+
+## Validación
+
+- [x] V34.6 `yarn build` **0 errores, 0 warnings** · `ng test`: **444 SUCCESS, 0 fallan** (402 + 42)
+- [x] V34.7 **Mutación 9/10 en el padrón**: no detectar el re-login **2 rojos** · pisar `slotId`/salt al
+      actualizar **1** · tope de 5 en vez de 4 **3** · expulsar a alguien con pendientes **3** · LRU al
+      revés **4** · vencer por `ultimoUsoEn` **4** · `>` en vez de `>=` en los intentos **1** ·
+      `registrarUsoOk` renovando la jornada **1** · `registrarContactoOk` aplicándose a todos **1** ·
+      no tolerar un padrón corrupto **1**. La décima (quitar el tope con `if (true)`) muere en
+      compilación, no por assert
+- [x] V34.8 **Mutación 5/6 en la cripto**: IV fijo **1 rojo** · salt fijo, que es literal el error de
+      B9 **1** · `derivarLlave` sin el gate de cripto **1** · `abrir` tragándose el fallo del tag GCM
+      **2** · `sellar` sin gate **1**
+- [x] V34.9 ⚠️ Honestidad: la 6.ª (quitar la guarda de «blob más corto que el IV») queda **verde**, y
+      no por falta de test: `decrypt` rechaza igual una entrada demasiado corta, así que **ningún test
+      puede ponerla en rojo**. Se conserva porque da un error legible en vez de un `DOMException`, y
+      queda anotada como no observable — igual que el relleno de base64 en V32.9
+- [x] V34.10 Backend sin tocar · sin procesos huérfanos (`:5002` libre)
+
+## 🔑 Dos cosas que aparecieron al escribirlo
+
+- [i] V34.11 **`Uint8Array` es genérico en TypeScript 6** y el `Uint8Array<ArrayBufferLike>` que sale
+      por defecto **no** es un `BufferSource` válido para `crypto.subtle` (podría ser un
+      `SharedArrayBuffer`): `TS2769`. Hay que construirlo sobre un `ArrayBuffer` explícito. No es un
+      detalle de estilo, es lo que separa compilar de no compilar
+- [i] V34.12 **`hayCripto(undefined)` devuelve `true`, no `false`.** Un `undefined` explícito dispara
+      el **parámetro por defecto** y termina preguntando por el `crypto` real; sólo `null` llega tal
+      cual. La primera versión del test asumía lo contrario y se puso roja. Queda fijado con el
+      comentario al lado, porque es la clase de cosa que el próximo va a escribir igual
+
+## Lo que NO entró, a propósito
+
+- [i] V34.13 **Ni `LlaveroSesionesService`, ni el selector de perfil, ni los botones del sidebar**
+      (pasos 6 a 8). Sin ellos `auth_session` sigue siendo una clave única: **el dispositivo sigue
+      guardando UNA sola sesión** y nada de esto cambia el comportamiento de la app todavía
+- [i] V34.14 ⚠️ Como nada lo importa, **`ng build` ni siquiera compila estos archivos** (sólo compila
+      lo alcanzable desde el entry). El que los compila —y por eso el único gate real de este bloque—
+      es `ng test`, porque los `.spec.ts` sí los importan. Al cablear el service en el paso 6 hay que
+      volver a mirar el build
+- [~] V34.15 **Falta decidir el flujo del PIN en pantalla** (cuántos dígitos se piden, qué se muestra
+      al fallar, cómo se explica que **no hay recuperación offline** si se olvida). Es diseño de UX
+      del paso 7, no algo que un agente deba resolver solo

@@ -11,6 +11,8 @@ Siguen la convención del repo (ver la sección *CLEAN CODE* de `CLAUDE.md`, mó
 |---|---|
 | `politica-sesion.funcion.ts` | Si corresponde cerrar la sesión por tiempo (`evaluarFinDeSesion`) y si una navegación puede seguir con el token vencido (`evaluarAccesoOffline`) |
 | `marcas-del-token.funcion.ts` | Qué dice el JWT guardado: si venció y cuándo fue el último contacto seguro con el servidor |
+| `llavero-sesiones.funcion.ts` | Quién entra al padrón de sesiones aparcadas y, sobre todo, **a quién se expulsa** |
+| `cripto-llavero.funcion.ts` | El cifrado del llavero: PBKDF2 desde el PIN + AES-GCM. Lo único cifrado de verdad en la app |
 | `debe-cerrar-sesion-por-401.funcion.ts` | Si un 401 significa que la sesión terminó |
 | `resolver-empresa-activa.funcion.ts` | Qué empresa/país/logo corresponden al nombre elegido |
 
