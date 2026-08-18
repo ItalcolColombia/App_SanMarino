@@ -98,7 +98,9 @@ export const appConfig: ApplicationConfig = {
       // Diagnóstico del dispositivo — SIN authGuard a propósito: es la pantalla a la
       // que se recurre cuando nada más funciona (sesión vencida sin red para renovarla,
       // Service Worker en safe mode). Un guard la haría inalcanzable justo en el
-      // escenario para el que existe. No expone ningún dato de negocio.
+      // escenario para el que existe. Las capturas de OTRAS sesiones se listan
+      // enmascaradas —sin payload y sin poder copiarlas ni descartarlas—, que es lo
+      // que sustituye al guard. Ver el doc-comment del componente.
       {
         path: 'diagnostico',
         title: 'Diagnóstico del dispositivo',

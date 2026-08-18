@@ -12,6 +12,8 @@ import { ConfirmDialogService } from '../../shared/services/confirm-dialog.servi
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import type { EstadoCacheOffline } from '../../shared/offline/models/offline.model';
 import type { OperacionPendiente } from '../../shared/offline/models/outbox.model';
+import { clasificarCapturasDiagnostico } from './funciones/clasificar-capturas-diagnostico.funcion';
+import type { CapturaDiagnostico } from './models/captura-diagnostico.model';
 import { formatearBytes } from '../../core/pwa/funciones/formatear-bytes.funcion';
 import { resumirEstadoSw } from '../../core/pwa/funciones/resumir-estado-sw.funcion';
 import type { DiagnosticoPwa, EstadoSw } from '../../core/pwa/models/pwa.model';
@@ -26,9 +28,15 @@ const CLAVE_PRIMER_LOAD = 'italgranja.pwa.swVisto';
  *
  * Es la pantalla a la que se recurre cuando *nada más* funciona: sesión vencida sin red para
  * renovarla, Service Worker en safe mode, app que no arranca. Ponerle un guard la haría
- * inalcanzable exactamente en el escenario para el que existe. No expone ningún dato de negocio
- * —build, estado del SW, cuota del dispositivo y nombres de caché— así que no hay nada que
- * proteger. Ver decisión D-F del plan `pwa_f1_shell_plan.md`.
+ * inalcanzable exactamente en el escenario para el que existe. Ver decisión D-F del plan
+ * `pwa_f1_shell_plan.md`.
+ *
+ * ⚠️ Este comentario decía «no expone ningún dato de negocio —build, estado del SW, cuota y nombres
+ * de caché—, así que no hay nada que proteger». Era cierto en F1 y **dejó de serlo en F3.1**, que
+ * agregó la cola con el `JSON.stringify` de cada payload y el botón de descartar: en una tablet
+ * compartida, cualquiera que la levante leería y borraría lo capturado por todos, sin sesión. Por
+ * eso las capturas **ajenas** se listan pero van enmascaradas (`clasificarCapturasDiagnostico`).
+ * Lo que se protege es el payload y las dos acciones, no la pantalla.
  *
  * ## Por qué el botón de exportar
  *
@@ -63,8 +71,15 @@ export class DiagnosticoPageComponent implements OnInit {
   /** Estado de la caché de consulta offline (F2). */
   cache: EstadoCacheOffline | null = null;
 
-  /** Capturas hechas sin red y todavía no confirmadas por el servidor (F3). */
-  pendientes: OperacionPendiente[] = [];
+  /**
+   * Capturas hechas sin red y todavía no confirmadas por el servidor (F3), cada una con la decisión
+   * de si es de esta sesión. Se arma una vez por recarga: un getter que reconstruya el arreglo en
+   * cada ciclo rompería el `track` del `@for`.
+   */
+  capturas: CapturaDiagnostico[] = [];
+
+  /** ¿Hay alguna que esta sesión pueda empujar? Si no, «Enviar ahora» no tiene nada que hacer. */
+  hayPropias = false;
   enviando = false;
   mensajeEnvio = '';
 
@@ -86,17 +101,15 @@ export class DiagnosticoPageComponent implements OnInit {
     this.cargando = true;
     this.diagnostico = await this.construirDiagnostico();
 
-    const s = this.storage.get();
-    this.cache = await this.cacheOffline.estado({
-      userId: s?.user?.id ?? s?.user?.userId ?? null,
-      companyId: s?.activeCompanyId ?? null,
-      paisId: s?.activePaisId ?? null
-    });
+    const identidad = this.storage.identidadActual();
+    this.cache = await this.cacheOffline.estado(identidad);
 
     // Toda la cola, no solo la de la partición activa: si el operario cambió de empresa, lo que
     // quedó pendiente de la anterior tiene que seguir viéndose. Esconderlo sería la peor variante
-    // de "se perdió".
-    this.pendientes = await this.outbox.listarTodas();
+    // de "se perdió". Lo que NO se muestra de las ajenas es el payload, y sobre ellas no se ofrece
+    // ni copiar ni descartar.
+    this.capturas = clasificarCapturasDiagnostico(await this.outbox.listarTodas(), identidad);
+    this.hayPropias = this.capturas.some(c => c.propia);
 
     this.cargando = false;
   }
@@ -130,7 +143,13 @@ export class DiagnosticoPageComponent implements OnInit {
   }
 
   /** Copia la captura completa, para pegarla en el chat de soporte o rehacerla a mano. */
-  async copiarCaptura(operacion: OperacionPendiente): Promise<void> {
+  async copiarCaptura(captura: CapturaDiagnostico): Promise<void> {
+    // La guarda va acá y no solo en la plantilla: esconder un botón es una mitigación de front, y
+    // este repo ya pagó esa lección (la marca `para_proximo_ciclo`, apagada en el front y viva en
+    // la API durante meses).
+    if (!captura.propia) return;
+
+    const operacion = captura.operacion;
     const texto = [
       `${operacion.tipo} · ${operacion.metodo} ${operacion.url}`,
       `capturada ${operacion.capturadoAtDispositivo} · empresa ${operacion.companyId}`,
@@ -153,7 +172,11 @@ export class DiagnosticoPageComponent implements OnInit {
    * Descarta una captura. **El único camino que borra trabajo no sincronizado**, y por eso pide
    * confirmación: lo que se descarta no existe en ningún otro lado.
    */
-  async descartar(operacion: OperacionPendiente): Promise<void> {
+  async descartar(captura: CapturaDiagnostico): Promise<void> {
+    // Ídem: sin esto, el descarte de trabajo ajeno queda a un `document.querySelector` de distancia.
+    if (!captura.propia) return;
+
+    const operacion = captura.operacion;
     const confirmado = await this.confirmDialog.ask({
       title: 'Descartar captura',
       message:

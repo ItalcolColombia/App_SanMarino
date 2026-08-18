@@ -3173,7 +3173,7 @@ Ninguno es parte de los planes: son de hoy. Verificados en el código, no tomado
       capturas se empujan con el token del nuevo. Misma empresa ⇒ quedan firmadas por otro; empresa
       distinta ⇒ `empresa_no_autorizada`, clasificado como *reintentar, no bandeja* ⇒ reintento
       infinito e invisible
-- [ ] V25.3.2 🔴 **`/diagnostico` muestra y borra el outbox de todos, sin login.** La ruta no lleva
+- [x] V25.3.2 🔴 **`/diagnostico` muestra y borra el outbox de todos, sin login.** — **cerrado en V31** (al final). La ruta no lleva
       `authGuard` **a propósito** (es la pantalla de rescate) y esa decisión es correcta; lo que
       caducó es su premisa. El doc-comment dice «no expone ningún dato de negocio»: cierto en F1,
       falso desde F3.1 (`c44e0a4`), que agregó `listarTodas()` + `JSON.stringify` del payload + poder
@@ -3558,3 +3558,59 @@ entra el operario del turno siguiente y el `effect` de reconexión dispara solo.
 - [~] V29.13 **Falta el smoke en un equipo real** (S1 del plan: dos operarios turnándose sin red).
       Ningún agente lo puede cerrar solo: necesita una tablet y dos sesiones. La PWA además sigue sin
       desplegarse
+
+---
+
+# V31 · PWA F-4 — la pantalla de rescate deja de mostrar (y de borrar) lo que capturó otro (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 3 del §7** (F-4).
+**Continúa** el bloque V29. **Bloque propio.** Cierra **V25.3.2**.
+
+## El defecto
+
+`/diagnostico` **no lleva `authGuard` a propósito** —es la pantalla de rescate; con guard sería
+inalcanzable justo cuando se la necesita— y esa decisión sigue siendo la correcta. Lo que caducó es
+su premisa: el doc-comment afirmaba *«no expone ningún dato de negocio»*, cierto en F1 y **falso
+desde F3.1**, que agregó `listarTodas()` + el `JSON.stringify` de cada payload + el botón de
+descartar. En una tablet compartida, cualquiera que la levante leía —y borraba— lo capturado por
+todos, **sin sesión**.
+
+- [x] V31.1 **Función pura** `features/diagnostico/funciones/clasificar-capturas-diagnostico.funcion.ts`:
+      marca cada fila como propia o ajena contra `claveParticion`. **Fail-closed**: sin identidad
+      completa **nada es propio** — y ése es el caso por defecto de esta pantalla, que se abre sin
+      sesión. Devuelve la **misma cola, en el mismo orden**: no filtra
+- [x] V31.2 **Las ajenas se siguen listando** (tipo, fecha, empresa, intentos, motivo del rechazo) con
+      un candado y «De otra sesión». Esconderlas sería la peor variante de «se perdió»; lo que se
+      protege es el **payload** y las **dos acciones**, no la existencia de la fila
+- [x] V31.3 **La guarda no es solo de plantilla**: `copiarCaptura` y `descartar` cortan con
+      `if (!captura.propia) return;`. Esconder un botón es una mitigación de front y este repo ya pagó
+      esa lección — es literalmente el defecto hermano **V25.3.3** (marca apagada en el front y viva
+      en la API durante meses)
+- [x] V31.4 **«Enviar ahora» aparece solo si hay alguna propia.** Desde V29 el push filtra por
+      partición: con la cola llena de capturas ajenas, el botón verde no podía hacer nada y decía
+      «no se pudo enviar nada todavía», que se lee como una falla de red
+- [x] V31.5 **Los dos comentarios que mentían, corregidos**: el del componente (líneas 29-31) y el de
+      la ruta en `app.config.ts`, que también afirmaba «no expone ningún dato de negocio»
+- [x] V31.6 `recargar()` deja de rearmar la identidad a mano y usa `TokenStorageService.identidadActual()`,
+      la misma que ahora consume el push (V29.3). Era la tercera copia del `?? ` de identidad
+
+## Validación
+
+- [x] V31.7 `yarn build` **0 errores, 0 warnings** · `ng test`: **351 SUCCESS, 0 fallan** (343 + 8)
+- [x] V31.8 **Prueba de mutación 2/3 guardas por assert**: sin comparar partición **5 rojos** · sin el
+      corte de partición nula **1 rojo**. ⚠️ Honestidad: la 3.ª (quitar `!operaciones?.length`) muere
+      en compilación (`TS18049`), no por un assert. Archivo restaurado y verificado idéntico
+- [x] V31.9 El arreglo de filas se arma **una vez por recarga**, no en un getter: un getter que
+      reconstruya el arreglo por ciclo rompe el `track` del `@for` (regla de CD de CLAUDE.md).
+      `changeDetection: Eager` ya estaba
+- [x] V31.10 Backend sin tocar · sin procesos huérfanos (`:5002` libre todo el bloque)
+
+## Lo que NO hace
+
+- [~] V31.11 **Falta el smoke en pantalla** (paso 12 del §5.2 del plan): abrir `/diagnostico` con una
+      sesión ajena activa **y sin ninguna sesión**, y ver que la fila aparece sin payload, sin
+      «Copiar captura» y sin «Descartar». Necesita dos sesiones reales en un equipo: ningún agente lo
+      cierra solo
+- [i] V31.12 Quedan **F-2** (el `authGuard` mata la jornada de 16 h a los 60 min — hoy `- [i]`
+      V25.3.5, no es tarea abierta) y **F-5** (el logout purga la caché de todos). Son los pasos 2 y 4
+      del §7 del plan
