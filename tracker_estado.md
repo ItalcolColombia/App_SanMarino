@@ -1201,9 +1201,9 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 - [x] 🟢 **Hueco de UX CERRADO** (ver bloque siguiente)
 
 ## Fuera de alcance (documentado, sigue abierto)
-- [ ] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
-- [ ] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
-- [ ] B1 (revocación de sesión), B8 (rotar las 4 llaves), ~~B10 (super admin a datos)~~ **cerrado en V23**, A4
+- [i] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
+- [i] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
+- [i] B1 (revocación de sesión), B8 (rotar las 4 llaves), ~~B10 (super admin a datos)~~ **cerrado en V23**, A4
 
 ---
 

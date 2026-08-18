@@ -12,6 +12,9 @@
 #   4. `while grep -q` es un bucle infinito si el agente no puede cerrar la tarea. Acá, si la cuenta
 #      de pendientes no baja, se corta tras STALL_MAX intentos.
 #   5. Se saltean los bloques reservados para otra sesión y los que esperan un dato del usuario.
+#   5b. Y las SECCIONES que por título no son trabajo a ejecutar: "Fuera de alcance", "Deuda
+#      conocida", "Ejecución (sin arrancar)". Un `- [ ]` ahí abajo es una declaración de alcance o
+#      un hito esperando la aprobación del cliente, no una tarea; el loop se la entregaba igual.
 #   6. El agente NUNCA hace `git add -A`: commitea con pathspec solo lo suyo.
 #
 # Uso:  tools/loop_tracker.sh [--dry-run] [--max N]
@@ -29,20 +32,38 @@ while [ $# -gt 0 ]; do
   esac; shift
 done
 
-# Bloques que el loop NO toca: reservados para otra sesión o bloqueados esperando al usuario.
+# Tareas que el loop NO toca: reservadas para otra sesión o bloqueadas esperando al usuario.
 BLOQUEADOS='V8[.]6|reservada|Lote 12|remisi|Falta desplegar|prerrequisitos'
 
-pendientes() { grep -c '^- \[ \]' "$TRACKER" 2>/dev/null || echo 0; }
+# Secciones que NO contienen trabajo a ejecutar, por más que sus ítems estén en `- [ ]`.
+SECCIONES='Fuera de alcance|Deuda conocida|sin arrancar'
+
+# La primera línea de CADA tarea ejecutable. Es la definición única de "ejecutable": la usan tanto
+# el contador como el selector, así que no pueden discrepar.
+lineas_ejecutables() {
+  awk -v skip="$BLOQUEADOS" -v skipsec="$SECCIONES" '
+    /^#/ { seccion = $0; next }
+    /^- \[ \]/ {
+      if ($0 ~ skip) next
+      if (seccion ~ skipsec) next
+      print
+    }
+  ' "$TRACKER" 2>/dev/null
+}
+
+pendientes() { lineas_ejecutables | grep -c . || true; }
 
 siguiente_tarea() {  # imprime la tarea completa (con sus líneas de continuación) o nada
-  awk -v skip="$BLOQUEADOS" '
+  awk -v skip="$BLOQUEADOS" -v skipsec="$SECCIONES" '
+    /^#/ { if (found) exit; seccion = $0; next }
     /^- \[ \]/ {
       if (found) exit
-      if ($0 ~ skip) { skipping=1; next }
-      found=1; skipping=0; print; next
+      if ($0 ~ skip) next
+      if (seccion ~ skipsec) next
+      found=1; print; next
     }
     /^  +[^ ]/ { if (found) print; next }
-    { if (found) exit; skipping=0 }
+    { if (found) exit }
   ' "$TRACKER"
 }
 
