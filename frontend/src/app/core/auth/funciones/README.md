@@ -9,14 +9,15 @@ Siguen la convención del repo (ver la sección *CLEAN CODE* de `CLAUDE.md`, mó
 
 | Archivo | Qué decide |
 |---|---|
-| `politica-sesion.funcion.ts` | Si corresponde cerrar la sesión por tiempo, y por qué motivo |
+| `politica-sesion.funcion.ts` | Si corresponde cerrar la sesión por tiempo (`evaluarFinDeSesion`) y si una navegación puede seguir con el token vencido (`evaluarAccesoOffline`) |
+| `marcas-del-token.funcion.ts` | Qué dice el JWT guardado: si venció y cuándo fue el último contacto seguro con el servidor |
 | `debe-cerrar-sesion-por-401.funcion.ts` | Si un 401 significa que la sesión terminó |
 | `resolver-empresa-activa.funcion.ts` | Qué empresa/país/logo corresponden al nombre elegido |
 
-## Por qué estas tres reglas viven acá y no adentro del servicio
+## Por qué estas reglas viven acá y no adentro del servicio
 
-Son las decisiones más delicadas de la app offline-first, y las tres comparten una
-propiedad incómoda: **el camino que expulsa al usuario es el mismo que borra su
+Son las decisiones más delicadas de la app offline-first, y comparten una propiedad
+incómoda: **el camino que expulsa al usuario es el mismo que borra su
 almacenamiento local**. Un error acá no se ve como un bug, se ve como trabajo de campo que
 desapareció. Aisladas y con tests, el borde exacto (el minuto 5, la hora 16, el 401 que sí
 y el que no) es verificable sin levantar la app.

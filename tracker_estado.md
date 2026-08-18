@@ -3614,3 +3614,77 @@ todos, **sin sesión**.
 - [i] V31.12 Quedan **F-2** (el `authGuard` mata la jornada de 16 h a los 60 min — hoy `- [i]`
       V25.3.5, no es tarea abierta) y **F-5** (el logout purga la caché de todos). Son los pasos 2 y 4
       del §7 del plan
+
+---
+
+# V32 · PWA F-2 — el `authGuard` deja de matar la jornada de 16 h a los 60 minutos (18ago26)
+
+**Plan:** [fase_de_desarrollo/pwa_sesiones_multislot_plan.md](fase_de_desarrollo/pwa_sesiones_multislot_plan.md) — **paso 2 del §7** (F-2).
+**Continúa** los bloques V29 y V31. **Bloque propio.**
+
+## El defecto
+
+El JWT dura **60 minutos**. El guard rechazaba todo token vencido y llamaba `auth.logout()`, que
+purga. O sea: un operario sin señal, **al minuto 61, en la primera navegación**, quedaba deslogueado
+y con la caché borrada — y sin red no puede volver a entrar (el login necesita el backend y, en prod,
+alcanzar a Google por reCAPTCHA). Queda encerrado afuera con el galpón lleno de datos por cargar.
+
+La jornada de 16 h de la decisión **D4** estaba prolijamente implementada… solo para el camino del
+**timer** (`evaluarFinDeSesion`, que fue B2). El camino del **guard** nunca se tocó y la anulaba.
+
+- [x] V32.1 **`evaluarAccesoOffline`** en `funciones/politica-sesion.funcion.ts`, al lado de la
+      política del timer. Cuatro salidas: `permitir` · `cerrar_sesion` (el de siempre) ·
+      `denegar_jornada_vencida` · `denegar_trabajo_pendiente`. **Sin red nunca devuelve
+      `cerrar_sesion`** — hay un test que barre 5 combinaciones para fijarlo
+- [x] V32.2 **Con red no cambia nada**: token vencido ⇒ `logout()`, igual que siempre. La única
+      excepción es que haya capturas sin subir, y es la **misma regla que `evaluarFinDeSesion` ya
+      protegía**: el camino que cierra es el que purga. Igual va al login, sin purgar
+- [x] V32.3 **`marcas-del-token.funcion.ts`**: la lectura del JWT sale del guard, donde vivía inline
+      y **sin un solo test**, pese a que su rama de error costaba la sesión y la caché. Conserva la
+      regla vieja palabra por palabra: ilegible ⇒ vencido; **sin `exp` ⇒ NO vencido**
+- [x] V32.4 El guard queda como orquestador delgado: lee, arma el estado y delega. Muestra un aviso
+      al negar (antes redirigía mudo, que sin señal es indistinguible de que la app se rompió)
+
+## 🔑 Dos hallazgos al implementarlo
+
+- [i] V32.5 **El ancla de la jornada NO puede salir de `SessionTimeoutService`.** Su `ultimoContactoOk`
+      vive en memoria y `start()` lo reinicia a `Date.now()` en cada arranque ⇒ con un reload el tope
+      de 16 h no se cumpliría **nunca**. El ancla se toma del propio token (`iat`, o `exp` si no
+      viene), que es lo único persistido y emitido por el servidor. `exp` es **posterior** al contacto
+      real, así que la ventana sale a lo sumo una vida de token más larga: el error va hacia dejar
+      trabajar, que es el lado del que se vuelve
+- [i] V32.6 🔴 **`atob` sobre un payload base64url puede lanzar, y eso se leía como «token vencido»**
+      ⇒ cierre de sesión con purga, sin que nadie tocara nada. El JWT viaja en base64url (`-`/`_`) y
+      `atob` rechaza esos dos caracteres. **Medido** antes de afirmarlo, porque la intuición falla en
+      los dos sentidos: un payload de puro ASCII no lo dispara **nunca** (0/5.000) y 256 combinaciones
+      realistas de `firstName`/`surName` con tilde tampoco; pero con ~10 % de caracteres acentuados en
+      los claims salta al **22,9 %**, y con ~30 % al 60 %. Raro hoy, y atado a qué nombres y roles
+      existan en la base
+
+## Validación
+
+- [x] V32.7 `yarn build` **0 errores, 0 warnings** · `ng test`: **394 SUCCESS, 0 fallan** (351 + 43)
+- [x] V32.8 **Prueba de mutación 8/9 en la lógica pura**: sin la salida de token vivo **2 rojos** ·
+      sin la rama de «sin red» **7** · jornada con `>` en vez de `>=` **1** · sin la guarda de trabajo
+      pendiente **1** · **sin normalizar base64url 1** (el hallazgo V32.6 tiene test propio) · sin el
+      fail-closed de token ilegible **1** · sin el chequeo de `exp` ausente **1** · sin el respaldo de
+      `iat`→`exp` **1**
+- [x] V32.9 ⚠️ Honestidad: la 9.ª (quitar el relleno `=` antes de `atob`) queda **verde**. No es que
+      falte test: el `atob` de Chrome acepta base64 sin relleno, así que **ningún test puede ponerla
+      en rojo** en este runner. Se conserva igual —la PWA corre en webviews de Android que no se
+      auditaron— y queda anotada como la única línea sin cobertura posible
+- [x] V32.10 **`auth.guard.spec.ts` (nuevo, 8 casos con TestBed)**: es lo que prueba el fix de verdad,
+      porque el cableado es donde la función pura no llega. Mutación **4/4**: dar la red por buena
+      **4 rojos** · llamar `logout()` siempre **3** · tomar el ancla de `ahora` **2** · sacar el aviso
+      **2**. Fija que `logout()` **no** se llama sin red en ninguno de los tres caminos
+- [x] V32.11 El estado de red se lee de `ConexionService.hayConexionReal()`, el **pesimista** (wifi
+      del galpón levantado pero sin salida cuenta como sin red). Ante la duda, el camino que no purga
+- [x] V32.12 Backend sin tocar · sin procesos huérfanos (`:5002` libre todo el bloque)
+
+## Lo que NO hace
+
+- [~] V32.13 **Falta el smoke en un equipo real** (paso 9 del §5.2 del plan: >60 min de reloj offline,
+      o bajar `DurationInMinutes` en un build de prueba). Ningún agente lo cierra solo
+- [i] V32.14 Queda **F-5**, el paso 4 del §7: `clear()` sigue llamando `purgarTodo()`, así que el
+      logout de un usuario borra la caché de **todas** las particiones. Este bloque reduce cuándo se
+      llega a ese logout; no cambia lo que hace
