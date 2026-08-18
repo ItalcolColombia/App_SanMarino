@@ -852,33 +852,51 @@ crudos → 8 verificados → **7 confirmados, 1 refutado**).
 
 ---
 
-# v16 de engorde — FASE 1 IMPLEMENTADA: la marca `para_proximo_ciclo` ENTREGA en vez de borrar
+# v16 de engorde — FASE 1 REVERTIDA (NO-GO del gate): la marca `para_proximo_ciclo` NO llegó a entregar
 
 **Plan:** [`fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md`](fase_de_desarrollo/marca_proximo_ciclo_rediseno_plan.md)
 **Fecha:** 2026-08-09 · Bloque propio — no tocar desde otras sesiones
 **Continúa** el bloque «Rediseño de la marca `para_proximo_ciclo` — v16 con ENTREGA al ciclo siguiente»
 (Fase 0 = plan). Base: HEAD `d6aeccb`. **Esta sesión NO commitea** (lo hace el orquestador).
 
-## Qué quedó implementado
+> ⛔ **CORRECCIÓN (18-ago-2026) — esto NO se entregó.** El título decía «FASE 1 IMPLEMENTADA» y los
+> ítems de abajo describen archivos que **nunca llegaron a un commit**. No fue trabajo perdido ni
+> historial corrupto: fue una **reversión deliberada tras el NO-GO del gate**. El propio commit que
+> escribió estas líneas —`8424557`— se titula «deshabilita marcar alimento para el próximo ciclo hasta
+> su rediseño» y tiene 4 archivos: el plan, dos componentes Angular y este tracker. **Cero backend.**
+>
+> Medido: `git log --all --diff-filter=A` por los paths exactos no devuelve nada · la fn del repo y la
+> instalada en local siguen en **v15** · las fns de atribución y el índice
+> `ix_lote_hist_para_proximo_ciclo` **no existen** · `__EFMigrationsHistory` local tiene 298 filas =
+> 298 archivos, **0 huérfanas y ninguna `20260809*`**, o sea que NO se reprodujo el modo de falla
+> SIGSEGV. **Riesgo de despliegue: cero** — lo que nunca estuvo en un commit nunca estuvo en una imagen.
+>
+> Los ítems quedan como `- [i]` en vez de borrarse: describen un intento real, y sus dos bloqueantes
+> medidos (§🔴 más abajo) son justamente la razón por la que **no se recrean**. El rediseño correcto
+> está en [`v16_engorde_atribucion_persistida_plan.md`](fase_de_desarrollo/v16_engorde_atribucion_persistida_plan.md);
+> la investigación completa, en [`v12_5_1_migraciones_v16_ausentes_informe.md`](fase_de_desarrollo/v12_5_1_migraciones_v16_ausentes_informe.md).
+> Cierra **V12.5.1**.
 
-- [x] **F1.1** `backend/sql/fn_alimento_marcado_atribucion.sql` (NUEVO, 543 líneas) — dueño único de la
+## Qué se escribió — y se revirtió sin llegar a un commit
+
+- [i] ⛔ **F1.1** `backend/sql/fn_alimento_marcado_atribucion.sql` (NUEVO, 543 líneas) — dueño único de la
       atribución. Dos funciones: `fn_alimento_base_cedente_engorde(INT)` (el TOPE: último día visible
       del cedente + su saldo ahí) y `fn_alimento_marcado_atribucion(INT,TEXT,TEXT)` (el veredicto por
       movimiento) + el índice parcial `ix_lote_hist_para_proximo_ciclo`
-- [x] **F1.2** `fn_seguimiento_diario_engorde` **v16**: las 4 exclusiones de v15 revertidas a v14 y la
+- [i] ⛔ **F1.2** `fn_seguimiento_diario_engorde` **v16**: las 4 exclusiones de v15 revertidas a v14 y la
       marca convertida en dos términos **ADITIVOS** — `+kg_diferido` en la apertura del DESTINO y
       `−kg_diferido` como `traslado_salida_kg` del CEDENTE en su último día visible
-- [x] **F1.3** espejo C# `Application/Calculos/AtribucionAlimentoMarcadoCalculos.cs` (NUEVO) +
+- [i] ⛔ **F1.3** espejo C# `Application/Calculos/AtribucionAlimentoMarcadoCalculos.cs` (NUEVO) +
       `SaldoAlimentoEngordeCalculos` y `SeguimientoAvesEngordeCalculos` **revertidos a v14** (la marca
       ya no los toca) + 33 tests nuevos que CONSTRUYEN las topologías
-- [x] **F1.4** cruce de umbral: `SaldoAlimentoEngordeAplicador.RecalcularVecinosSiHayAlimentoMarcadoAsync`,
+- [i] ⛔ **F1.4** cruce de umbral: `SaldoAlimentoEngordeAplicador.RecalcularVecinosSiHayAlimentoMarcadoAsync`,
       llamado desde los dos services de seguimiento (carga masiva y formulario Ecuador)
-- [x] **F1.5** **el cuadre NO se tocó** — ni una línea de `fn_cuadre_alimento_engorde`
-- [x] **F1.6** 2 migraciones EF idempotentes con el SQL **byte a byte** de los `.sql`:
+- [i] ⛔ **F1.5** **el cuadre NO se tocó** — ni una línea de `fn_cuadre_alimento_engorde`
+- [i] ⛔ **F1.6** 2 migraciones EF idempotentes con el SQL **byte a byte** de los `.sql`:
       `20260809120000_FnAlimentoMarcadoAtribucionEngorde` y
       `20260809120100_FnSeguimientoEngordeV16EntregaCicloSiguiente` (Down = v15 VERBATIM, Designer
       clonado del último real, **ModelSnapshot intacto**)
-- [x] `backend/sql/verificar_marca_proximo_ciclo.sql` (NUEVO, 566 líneas, LF) — el gate ejecutable
+- [i] ⛔ `backend/sql/verificar_marca_proximo_ciclo.sql` (NUEVO, 566 líneas, LF) — el gate ejecutable
 
 ## El cambio de modelo, en una línea
 
@@ -2044,7 +2062,7 @@ audita la mitad del **saldo**.
       cambio de modelo que pide su propio plan y su propio gate
 
 ## Dos observaciones que NO son de esta entrega
-- [ ] V12.5.1 **Para el bloque «v16 de engorde — marca `para_proximo_ciclo`»**: ese bloque declara
+- [x] V12.5.1 **RESUELTO 18ago26** (ver el aviso del bloque v16 y el informe): **Para el bloque «v16 de engorde — marca `para_proximo_ciclo`»**: ese bloque declara
       implementadas las migraciones `20260809120000_FnAlimentoMarcadoAtribucionEngorde` y
       `20260809120100_FnSeguimientoEngordeV16EntregaCicloSiguiente`, pero **no están en el repo**:
       `backend/sql/fn_seguimiento_diario_engorde.sql` sigue en **v15** y la BD local también. Ese
