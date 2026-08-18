@@ -36,7 +36,7 @@
 | 2 | Lote cerrado que absorbe el ciclo siguiente (KM 86) | operación (cerrar por pantalla) |
 | 6 | Auditoría «alimento previo al encaset» | **decisión** + gate multipaís |
 | 4 | v16 de engorde — marca `para_proximo_ciclo` | rediseño (persistir la atribución) |
-| 4 | PWA F3.1 — captura offline | fuera de alcance declarado (F4, B1, B8, B10) |
+| 4 | PWA F3.1 — captura offline | fuera de alcance declarado (F4, B1, B8 · B10 cerrado en V23) |
 | 3 | PWA — auditoría de acceso offline | **decisión** + sesiones multi-slot |
 | 3 | PWA — punto de retoma | **push + merge a `main-produccion`** |
 | 6 | PWA — brecha para salir a producción | **push + merge** + B1/B8 |
@@ -1019,7 +1019,7 @@ Script reproducible: el de la sesión comenta el fragmento, corre los tests y re
 - [x] ~~Fase 2b~~ · ~~Mensaje del endpoint~~ · ~~Decisión sobre `NEUTRO_DENTRO_DEL_CEDENTE`~~ —
       **sin objeto**: dependían del helper de la v16, que ya no existe. Vuelven a la mesa sólo si se
       retoma el rediseño
-- [ ] **Fase 3** — señalamiento de la anomalía R2. **Sigue vivo y es independiente de la v16**:
+- [x] **Fase 3** — señalamiento de la anomalía R2. **CERRADA en el bloque V16** (17ago26), que la cita textual. Cuando se escribió seguía viva e independiente de la v16:
       columnas informativas en el cuadre, reporte de «liquidados con alimento sin trasladar»
       (24 de 84 lotes = 28,6 %, 111.821 kg) y el falso positivo del aviso de liquidación (fallback a
       stock de núcleo). Dato revalidado: `GET /api/CuadreAlimentoEngorde` **sigue sin un solo
@@ -1090,7 +1090,7 @@ en esos galpones ninguna apertura lo vuelve a tomar. **El checkbox ya estaba en 
 - [ ] Arreglar los 4 guards de la fn para que respeten R1 (un lote que **convive** con el destino debe
       seguir viendo el movimiento). El predicado ya existe en el archivo: es el de `lotes_ajenos` (v11)
       aplicado al destino en vez de a mí
-- [ ] Fase 2 (visibilidad/corrección R3) y Fase 3 (señalamiento de la anomalía R2) del plan
+- [ ] Fase 2 (visibilidad/corrección R3) del plan · ~~Fase 3 (señalamiento de R2)~~ **CERRADA en V16**
 
 ---
 
@@ -1176,7 +1176,7 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 ## Fuera de alcance (documentado, sigue abierto)
 - [ ] Editar/borrar offline · grafo de ops (`client_entity_id`) · modelo `202 + batch_id`
 - [ ] Clase (b) `requiere_cuadre`: modelada en la tabla y en el cliente, **sin emisor todavía**
-- [ ] B1 (revocación de sesión), B8 (rotar las 4 llaves), B10 (super admin a datos), A4
+- [ ] B1 (revocación de sesión), B8 (rotar las 4 llaves), ~~B10 (super admin a datos)~~ **cerrado en V23**, A4
 
 ---
 
@@ -1218,7 +1218,7 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 - [x] No es un olvido: es la decisión **D1** («ventas y movimientos a v2»). Los movimientos tocan
       stock y saldos, son de dos lados (origen/destino) y varios crean entidades que otras
       referencian ⇒ necesitan la clase `requiere_cuadre` **con emisor** y el grafo `client_entity_id`
-- [i] **F4 (movimientos offline)** queda planteado, con sus prerrequisitos: A4, B1, B8, B10
+- [i] **F4 (movimientos offline)** queda planteado, con sus prerrequisitos: A4, B1, B8 · ~~B10~~ cerrado en V23
 
 ## Corrección de una sospecha propia
 - [x] `movimientos-huevos` **no** es un hueco de la lista blanca: es sub-ruta de `ReporteContable`,
@@ -1237,7 +1237,7 @@ gate del borde corta el job del front (`6f410db` está en `main`, no en `main-pr
 | Fase | Estado | Commits |
 |---|---|---|
 | F0.C higiene de entrega | ✅ | `76a2903` |
-| F0.B seguridad de sesión | 🟡 **parcial** — B2, B3, B7, B4, B9 hechos · **faltan B1, B5(parcial), B6(parcial), B8, B10** | `f139dfd`, `4616dfa` |
+| F0.B seguridad de sesión | 🟡 **parcial** — B2, B3, B7, B4, B9 hechos · **faltan B1, B5(parcial), B6(parcial), B8** · ~~B10~~ cerrado en V23 (`56f7caa`) | `f139dfd`, `4616dfa` |
 | F0.A integridad de datos | 🟡 **9 de 10** — falta **A4** (medido, con gate) | `44b2400`, `60d3125` |
 | F1 shell instalable | ✅ | `8ecb7c6` |
 | F2 consulta offline | ✅ | — |
@@ -1278,7 +1278,7 @@ Requiere push, que el usuario no autorizó todavía.
    se probó nunca en producción)
 2. **B1** (jti + `sesiones_activas` + refresh) — prerrequisito de la jornada de 16 h: hoy un
    dispositivo perdido **no se puede revocar**
-3. **B5/B6/B10** completos, y **A4** con su gate de paridad
+3. **B5/B6** completos (~~B10~~ ya cerrado en V23), y **A4** con su gate de paridad
 4. **F4 — movimientos offline** → **mapeado en
    [`fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md`](fase_de_desarrollo/pwa_f4_mapeo_modulos_pendientes.md)**:
    los módulos por nivel de dificultad, sus bloqueantes y el patrón a copiar
