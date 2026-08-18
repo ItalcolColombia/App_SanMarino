@@ -14,6 +14,13 @@ import { ReporteContableSemanalDto, DatoDiarioContableDto } from '../../services
 export class TablaBultosContableComponent {
   @Input() reporteSemanal: ReporteContableSemanalDto | null = null;
 
+  /**
+   * Aviso de alcance del kardex de bultos. Los movimientos de alimento son de la GRANJA: cuando la
+   * granja tiene varios lotes padres, todos sus reportes muestran los mismos kilos y sumarlos
+   * multiplica el alimento (§2.4 de la auditoría de ago-2026). Null = el padre es el único.
+   */
+  @Input() advertenciaBultos: string | null = null;
+
   get datosDiarios(): DatoDiarioContableDto[] {
     return this.reporteSemanal?.datosDiarios || [];
   }

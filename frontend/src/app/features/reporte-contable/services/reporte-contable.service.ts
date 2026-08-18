@@ -145,6 +145,10 @@ export interface ReporteContableCompletoDto {
   fechaInicioSemanaActual: string;
   fechaFinSemanaActual: string;
   reportesSemanales: ReporteContableSemanalDto[];
+  /** Lotes padres vivos de la granja. Con más de uno, el kardex de bultos es compartido. */
+  lotesPadreEnGranja?: number;
+  /** Aviso de alcance de la sección BULTO; null cuando el padre es el único de su granja. */
+  advertenciaBultos?: string | null;
 }
 
 export interface GenerarReporteContableRequestDto {

@@ -490,7 +490,9 @@
                             <!-- Sección AVES -->
                             <app-tabla-aves-contable [reporteSemanal]="reporteSemanal"></app-tabla-aves-contable>
                             <!-- Sección BULTO -->
-                            <app-tabla-bultos-contable [reporteSemanal]="reporteSemanal"></app-tabla-bultos-contable>
+                            <app-tabla-bultos-contable
+                              [reporteSemanal]="reporteSemanal"
+                              [advertenciaBultos]="reporte()?.advertenciaBultos ?? null"></app-tabla-bultos-contable>
                             <!-- Sección INICIO (Primeros 7 días) -->
                             @if (reporteSemanal.seccionInicio) {
                               <div class="datos-section">

@@ -2698,12 +2698,14 @@ porque el rediseño de la marca los tira). Bloque propio — no tocar desde otra
       historia, y **4 reportes** los muestran como propios
 
 ## V19.1 — Fase 1: que el reporte DIGA de quién es el kardex
-- [ ] V19.1.1 `ReporteContableBultosCalculos.AdvertenciaAlcance(lotesPadreEnGranja, granjaNombre)` —
+- [x] V19.1.1 `ReporteContableBultosCalculos.AdvertenciaAlcance(lotesPadreEnGranja, granjaNombre)` —
       puro: `null` cuando el padre es el único de la granja (sin ruido), aviso cuando comparte
-- [ ] V19.1.2 DTO + service: `LotesPadreEnGranja` y `AdvertenciaBultos`
-- [ ] V19.1.3 Front: el aviso bajo el título **BULTO**
-- [ ] V19.1.4 Tests T1-T5
-- [ ] V19.1.5 **Ningún número del reporte se mueve** — verificado contra el mismo reporte antes
+- [x] V19.1.2 DTO + service: `LotesPadreEnGranja` y `AdvertenciaBultos`
+- [x] V19.1.3 Front: el aviso bajo el título **BULTO** (`@Input` nuevo + `@if`, componente ya `Eager`)
+- [x] V19.1.4 Tests T1-T5 (8 casos con los `[Theory]`)
+- [x] V19.1.5 **Ningún número del reporte se mueve**, y se puede probar por el diff: en el service la
+      ÚNICA línea eliminada es `ReportesSemanales = reportesSemanales` — reemplazada por la misma con
+      una coma. `AcumularSaldos` y todo el cálculo quedan intactos
 
 ## V19.2 — Fase 2, que NO entra: el saldo coherente (decisión del usuario)
 - [ ] V19.2.1 Hoy el saldo es `entradas de la GRANJA − consumos de ESTE padre` ⇒ **sobreestima** tanto
@@ -2713,7 +2715,15 @@ porque el rediseño de la marca los tira). Bloque propio — no tocar desde otra
       de un reporte contable en uso es decisión de producto, no un refactor
 
 ## V19.3 — Verificación
-- [ ] V19.3.1 `dotnet build` 0 errores · `dotnet test` verde
-- [ ] V19.3.2 `yarn build` sin errores nuevos
-- [ ] V19.3.3 Smoke: un padre de **LA ESMERALDA** (4 padres) trae el aviso; **NIZA III** (único padre)
-      no lo trae
+- [x] V19.3.1 `dotnet build` **0 errores** · `dotnet test` **2.802 + 1 en verde** (+8)
+- [x] V19.3.2 `yarn build` OK (la plantilla nueva type-chequea el binding)
+- [x] V19.3.3 Smoke ejecutando `GET /api/ReporteContable/generar` con datos reales:
+      · lote **114 (A374A, LA ESMERALDA)** ⇒ `lotesPadreEnGranja: 4` y el aviso completo
+      *«Estos movimientos de alimento son de la GRANJA «LA ESMERALDA», que hoy tiene 4 lotes padres: el
+      reporte de los otros 3 muestra los mismos kilos. NO sumar los reportes entre sí.»*
+      · lote **13 (K345A, NIZA III)** ⇒ `lotesPadreEnGranja: 1` y **aviso `null`**
+- [ ] V19.3.4 ⚠️ **Lo que NO pude smokear**: el aviso PINTADO en pantalla. El panel de bultos vive
+      dentro de la cascada de filtros del reporte (granja → lote → sublote → semana) y no logré
+      conducirla desde el harness; el DTO sí llega con el campo al componente (verificado en runtime:
+      `lotesPadreEnGranja: 4`). Queda como verificación visual pendiente de la próxima sesión que abra
+      esa pantalla

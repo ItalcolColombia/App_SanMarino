@@ -118,6 +118,36 @@ public static class ReporteContableBultosCalculos
         && mov.Fecha.Date <= ventanaHasta;
 
     /// <summary>
+    /// Aviso de ALCANCE de la sección BULTO: los movimientos de alimento son de la GRANJA, y cuando la
+    /// granja tiene más de un lote padre **los reportes de todos ellos muestran los mismos kilos**.
+    ///
+    /// <para>
+    /// <b>Por qué existe.</b> El daño concreto es sumar: la auditoría de ago-2026 midió la granja 20
+    /// (LA ESMERALDA), donde 4 lotes padres muestran los mismos 2.907 bultos y sumar los 4 reportes da
+    /// 11.628 bultos que no existen. No es arreglable en la query —los movimientos de Sanmarino son de
+    /// nivel granja (1.077 de 1.078 filas sin núcleo ni galpón) y los padres comparten núcleo—, así
+    /// que lo que faltaba era decirlo donde se lee.
+    /// </para>
+    ///
+    /// <para>
+    /// Devuelve <c>null</c> cuando el padre es el ÚNICO de su granja: ahí el kardex sí es suyo y un
+    /// aviso sería ruido. También devuelve <c>null</c> si el dato no vino (0 o negativo): nunca se
+    /// inventa una advertencia.
+    /// </para>
+    /// </summary>
+    public static string? AdvertenciaAlcance(int lotesPadreEnGranja, string? granjaNombre)
+    {
+        if (lotesPadreEnGranja <= 1) return null;
+
+        var granja = string.IsNullOrWhiteSpace(granjaNombre) ? "esta granja" : $"«{granjaNombre.Trim()}»";
+        var otros  = lotesPadreEnGranja - 1;
+
+        return $"Estos movimientos de alimento son de la GRANJA {granja}, que hoy tiene "
+             + $"{lotesPadreEnGranja} lotes padres: el reporte de {(otros == 1 ? "el otro" : $"los otros {otros}")} "
+             + "muestra los mismos kilos. NO sumar los reportes entre sí.";
+    }
+
+    /// <summary>
     /// ¿Esta fila cae en esta semana contable? Es el filtro histórico (<c>inicio ≤ fecha ≤ fin</c>)
     /// más una excepción: la PRIMERA semana absorbe las filas solo-bultos anteriores a su inicio.
     /// Las semanas contables arrancan el día del encasetamiento, así que sin esa absorción una entrada
