@@ -3188,3 +3188,24 @@ Ninguno es parte de los planes: son de hoy. Verificados en el código, no tomado
 - [i] V25.4.1 **Un `- [x]` de este tracker no garantiza que el código exista.** El bloque v16 declaraba
       entregadas 2 migraciones, 2 fns SQL, un espejo C#, un índice y un gate de 566 líneas: nada llegó
       a un commit. Antes de construir sobre un `- [x]`, verificalo contra el repo
+
+## V25.5 — Ronda de decisiones: dos ya estaban resueltas y el tracker no lo sabía
+Medido en la BD local (`sanmarinoapplocal`, datos hasta el 13-ago). ⚠️ **Es un dump de fecha incierta:
+antes de concluir lo mismo de producción hace falta el acceso que bloquea V25.6.**
+
+- [x] V25.5.1 **Grupo A: ya se cerró.** Ninguno de los **31** lotes abiertos de Ecuador tiene saldo 0
+      —el más chico tiene 625 aves— y hay **64 cerrados el 06-ago**, el día siguiente a la medición
+      del tracker, con 90 copias congeladas de liquidación. No hay lista de 39 que mostrar
+- [x] V25.5.2 **El menú 9 ya no lo tiene nadie.** `role_menus` = 497 filas, **0 con `menu_id = 9`**;
+      `company_menus` también 0. El tracker (12-ago) decía 3 roles. Su etiqueta real es «Seguimiento
+      Reproductora Postura», no «Lote Reproductora». **Decisión del usuario: quitarlo — ya está**
+- [x] V25.5.3 **Migraciones Masivas queda solo para Sanmarino** (decisión del usuario, 18ago26).
+      Santa Reyes lo pierde junto con Panamá, Demo y Ecuador. La migración existente ya lo hace: sin cambios
+- [ ] V25.5.4 **Lote 12 (KM 86 / Galpon-2): cargar los 9.020 kg.** Decisión del usuario: existen las
+      remisiones físicas ⇒ opción (b), la única corrección legítima. Confirmado que el defecto sigue
+      vivo: el ciclo corre 17-feb→22-abr-2026 y cierra en **−9.020 kg**. **Falta el dato de origen**
+      (fecha y kg de cada remisión) para cargarlo con su fecha real
+- [i] V25.5.5 Los lotes 2601 (id 2 y id 12) **siguen abiertos y con aves vivas** (773 y 1.082) ⇒ el
+      aviso a operación sigue vigente, y para el 12 la carga va **antes** del cierre (V20.4.2)
+- [i] V25.5.6 **El patrón se repite en los `- [!]`, no solo en los `- [x]`**: 2 de las 4 decisiones de
+      esta ronda ya estaban ejecutadas. Antes de pedir una decisión, medir si sigue viva
